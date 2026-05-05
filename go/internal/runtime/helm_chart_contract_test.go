@@ -70,8 +70,12 @@ func renderHelmChart(t *testing.T, args ...string) []helmManifest {
 	t.Helper()
 
 	chartPath := filepath.Join(repositoryRoot(t), "deploy", "helm", "eshu")
+	helmPath, err := exec.LookPath("helm")
+	if err != nil {
+		t.Skipf("helm binary not found in PATH; install Helm to run chart contract tests: %v", err)
+	}
 	cmdArgs := append([]string{"template", "eshu", chartPath}, args...)
-	cmd := exec.Command("helm", cmdArgs...)
+	cmd := exec.Command(helmPath, cmdArgs...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("helm template: %v\n%s", err, output)
