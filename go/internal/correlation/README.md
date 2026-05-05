@@ -7,7 +7,8 @@ sub-packages and exposes lightweight reporting helpers (`Summary`,
 `BuildSummary`) that fold one engine.Evaluation into operator-facing
 counters. The root package does not perform evaluation, admission, or
 rendering; it depends on `correlation/engine` and `correlation/model` only to
-derive summary counters from an already-completed evaluation.
+derive deterministic summary counters and observability attributes from an
+already-completed evaluation.
 
 ## Where this fits in the pipeline
 
@@ -28,7 +29,8 @@ reporting layer, not the orchestration layer.
 
 ## Ownership boundary
 
-- Owns: `Summary` shape and `BuildSummary` reduction logic.
+- Owns: `Summary` shape, `BuildSummary` reduction logic, and the observability
+  attribute shape derived from those counters.
 - Does not own: rule-pack contents (rules), evaluation logic (engine),
   admission gating (admission), explain rendering (explain), or candidate
   types (model).

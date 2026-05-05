@@ -60,7 +60,9 @@ Types in this package flow through four phases of the workflow control plane:
    the coordinator observes. `ReconcileRunProgress(snapshot, observedAt)` takes
    a `RunProgressSnapshot` (a `Run` plus per-collector counts and published phase
    counts) and derives an updated `Run.Status` and a sorted slice of
-   `CompletenessState` rows. The transition table:
+   `CompletenessState` rows. Terminal collector failures produce blocked
+   completeness rows before downstream phases can be marked ready. The
+   transition table:
 
    | Condition | `RunStatus` |
    |---|---|

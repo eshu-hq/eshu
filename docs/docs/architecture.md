@@ -399,7 +399,7 @@ the full-stack or production profile.
 Each profile's exact truth level per capability is defined by the capability
 matrix. See [Capability Conformance Spec](reference/capability-conformance-spec.md),
 [Truth Label Protocol](reference/truth-label-protocol.md), and
-[Local Host Lifecycle](reference/local-host-lifecycle.md).
+[Local Eshu Service Lifecycle](reference/local-host-lifecycle.md).
 
 ## Local And Deployed Shapes
 

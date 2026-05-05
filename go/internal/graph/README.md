@@ -113,6 +113,9 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
   abort the remaining statements.
 - `EnsureSchemaWithBackend(ctx, executor, logger, backend)` — same, but
   routes through the selected backend dialect.
+- `SourceLocalRecord` receives a `(scope_id, generation_id, record_id)`
+  uniqueness constraint during schema setup; canonical source-local MERGE
+  statements rely on it to avoid full label scans on large repositories.
 
 See `doc.go` for the godoc contract.
 

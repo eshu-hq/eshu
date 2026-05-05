@@ -107,12 +107,12 @@ Signature verification is still future work.
 
 	graphStartCmd := &cobra.Command{
 		Use:   "start",
-		Short: "Start the local graph backend sidecar",
+		Short: "Start the local Eshu service",
 		Long: strings.TrimSpace(`
-Start the local_authoritative workspace owner in the foreground.
+Start the local Eshu service in the foreground.
 
-The graph backend sidecar is owned by the local host, so this command execs
-the same supervisor used by:
+The service runs the local_authoritative profile, manages embedded Postgres and
+NornicDB, then supervises the ingester and reducer used by:
 
   ESHU_QUERY_PROFILE=local_authoritative eshu watch .
 
@@ -199,7 +199,7 @@ func runGraphStart(cmd *cobra.Command, args []string) error {
 		"ESHU_QUERY_PROFILE": string(query.ProfileLocalAuthoritative),
 		"ESHU_GRAPH_BACKEND": string(query.GraphBackendNornicDB),
 	})
-	fmt.Fprintf(os.Stderr, "Starting local_authoritative workspace owner for %s...\n", layout.WorkspaceRoot)
+	fmt.Fprintf(os.Stderr, "Starting local Eshu service for %s...\n", layout.WorkspaceRoot)
 	return eshuExec(binary, []string{cleanExecutableArg0(binary), "local-host", "watch", layout.WorkspaceRoot}, env)
 }
 
@@ -332,7 +332,7 @@ func graphStopForLayout(layout eshulocal.Layout) error {
 	record, err := graphReadOwnerRecord(layout.OwnerRecordPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("no local graph owner record for workspace %q", layout.WorkspaceRoot)
+			return fmt.Errorf("no local Eshu service record for workspace %q", layout.WorkspaceRoot)
 		}
 		return err
 	}
@@ -347,7 +347,7 @@ func graphStopForLayout(layout eshulocal.Layout) error {
 
 	if graphProcessAlive(record.PID) {
 		if err := graphSignalProcess(record.PID, syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
-			return fmt.Errorf("signal workspace owner pid %d to stop graph backend: %w", record.PID, err)
+			return fmt.Errorf("signal local Eshu service pid %d to stop graph backend: %w", record.PID, err)
 		}
 		return waitForGraphStop(record, graphStopTimeout)
 	}

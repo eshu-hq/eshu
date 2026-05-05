@@ -273,9 +273,14 @@ func TestRunGraphStartExecsAuthoritativeLocalHost(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.Flags().String("workspace-root", "", "")
 
-	err := runGraphStart(cmd, nil)
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("runGraphStart() error = %v, want %v", err, wantErr)
+	stderr := captureStderr(t, func() {
+		err := runGraphStart(cmd, nil)
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("runGraphStart() error = %v, want %v", err, wantErr)
+		}
+	})
+	if !strings.Contains(stderr, "Starting local Eshu service") {
+		t.Fatalf("runGraphStart() stderr = %q, want local Eshu service message", stderr)
 	}
 	if gotBinary != "/usr/local/bin/eshu" {
 		t.Fatalf("exec binary = %q, want eshu path", gotBinary)
@@ -433,6 +438,33 @@ func captureStdout(t *testing.T, fn func()) string {
 	os.Stdout = writer
 	t.Cleanup(func() {
 		os.Stdout = originalStdout
+	})
+
+	done := make(chan string, 1)
+	go func() {
+		var buffer bytes.Buffer
+		_, _ = io.Copy(&buffer, reader)
+		done <- buffer.String()
+	}()
+
+	fn()
+
+	_ = writer.Close()
+	got := <-done
+	return got
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+
+	originalStderr := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v, want nil", err)
+	}
+	os.Stderr = writer
+	t.Cleanup(func() {
+		os.Stderr = originalStderr
 	})
 
 	done := make(chan string, 1)

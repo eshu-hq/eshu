@@ -5,7 +5,7 @@ This page covers day-two operations for the local graph backend on the
 process mode is an explicit maintainer/test override. For install, see
 [Graph Backend Installation](graph-backend-installation.md). For the
 lifecycle contract that governs startup / shutdown ordering, see
-[Local Host Lifecycle](local-host-lifecycle.md). For the consolidated
+[Local Eshu Service Lifecycle](local-host-lifecycle.md). For the consolidated
 NornicDB environment-variable map, see
 [NornicDB Tuning](nornicdb-tuning.md).
 
@@ -27,20 +27,20 @@ no-argument NornicDB install is intentionally unavailable while Eshu tracks
 latest NornicDB `main` through explicit `--from` binaries. Signature
 verification remains planned.
 
-`eshu graph stop` is owner-aware. If a healthy local host owns the workspace,
-the command signals that owner process so shutdown follows the documented
-order: child runtimes stop first, then NornicDB, then embedded Postgres. It
-only stops the recorded graph process directly when the owner is already dead
+`eshu graph stop` is service-aware. If a healthy local Eshu service manages the
+workspace, the command signals that service process so shutdown follows the
+documented order: child runtimes stop first, then NornicDB, then embedded
+Postgres. It only stops the recorded graph process directly when the service is dead
 and an explicit process-mode graph backend is stale.
 
-`eshu graph start` is intentionally foreground. It execs the same local-host
+`eshu graph start` is intentionally foreground. It execs the same local service
 supervisor used by `ESHU_QUERY_PROFILE=local_authoritative eshu watch .` and
 does not create a detached daemon. Use Ctrl-C to stop it from the same terminal
 or `eshu graph stop` from another terminal.
 
 `eshu graph upgrade` refuses to replace the managed process-mode binary while
-the workspace owner or process-mode graph backend is still healthy. Stop the
-workspace first:
+the local Eshu service or process-mode graph backend is still healthy. Stop the
+workspace service first:
 
 ```bash
 eshu graph stop
@@ -49,7 +49,7 @@ eshu graph upgrade --from https://example.com/releases/nornicdb-headless-darwin-
 ```
 
 The local-authoritative runtime starts embedded NornicDB automatically when you
-run a Eshu local host entrypoint such as:
+run a local Eshu service entrypoint such as:
 
 ```bash
 ESHU_QUERY_PROFILE=local_authoritative eshu watch .
@@ -144,7 +144,7 @@ Reports, for the current workspace:
 - whether a local NornicDB binary was discovered
 - binary path
 - discovered version
-- whether a workspace owner is present
+- whether a local Eshu service is present
 - backend PID
 - loopback bind address
 - Bolt port
@@ -165,12 +165,12 @@ manually deriving the workspace ID.
 
 Eshu generates a random graph admin password per workspace data root and
 persists it under `graph/nornicdb/eshu-credentials.json` with `0600`
-permissions. The live owner also copies it to `owner.json` so attach
+permissions. The live service also copies it to `owner.json` so attach
 processes can connect; `eshu graph status` does not print the secret.
 
 ## Health probe
 
-`eshu doctor` probes the graph backend as part of the local-host check
+`eshu doctor` probes the graph backend as part of the local Eshu service check
 suite when the active profile is `local_authoritative`. A failing probe
 prints the backend-specific failure (bolt timeout, health failure, version
 mismatch, data directory not writable) and returns a non-zero exit code.
@@ -217,9 +217,9 @@ workspace is re-indexed after the backend issue is fixed.
   directory locks remain, the graph backend may require manual cleanup.
   Remove stale lock files in the data directory only after confirming no
   live process holds them.
-- The lightweight host reclaim flow includes a best-effort internal stop
+- The local Eshu service reclaim flow includes a best-effort internal stop
   before reclaim; see
-  [Local Host Lifecycle](local-host-lifecycle.md).
+  [Local Eshu Service Lifecycle](local-host-lifecycle.md).
 
 ## Telemetry
 

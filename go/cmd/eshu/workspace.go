@@ -53,7 +53,7 @@ func init() {
 		Args:  cobra.ExactArgs(1),
 		RunE:  runWorkspaceWatch,
 	}
-	watchCmd.Flags().String("workspace-root", "", "Explicit workspace root for local host ownership")
+	watchCmd.Flags().String("workspace-root", "", "Explicit workspace root for the local Eshu service")
 	workspaceCmd.AddCommand(watchCmd)
 }
 

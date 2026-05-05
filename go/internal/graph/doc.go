@@ -6,5 +6,7 @@
 // executor types kept here to avoid an import cycle with storage/cypher,
 // canonical entity merge builders, batched UNWIND helpers, the file and
 // repository deletion mutations, and the EnsureSchema constraint and index
-// contract for the Neo4j and NornicDB dialects.
+// contract for the Neo4j and NornicDB dialects. Schema setup owns the
+// SourceLocalRecord identity constraint required for source-local MERGE
+// performance.
 package graph

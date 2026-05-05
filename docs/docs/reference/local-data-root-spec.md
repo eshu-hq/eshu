@@ -1,10 +1,10 @@
-# Local Host Data Root Spec
+# Local Eshu Service Data Root Spec
 
-This document defines the on-disk contract for the lightweight local host.
+This document defines the on-disk contract for the local Eshu service.
 
 The data root must support:
 
-- one owner per workspace
+- one service per workspace
 - clean restart
 - stale-lock recovery
 - explicit version migration or reset
@@ -104,7 +104,7 @@ absent. When present, its internal layout is owned by the graph backend
 - `graph_backend` — optional, populated only on `local_authoritative`;
   allowed values enumerated by `capability-conformance-spec.md`
 - `graph_pid` — optional, graph backend PID. Embedded NornicDB records the
-  workspace owner PID; process mode records the child process PID.
+  local Eshu service PID; process mode records the child process PID.
 - `graph_address` — optional, loopback bind address for graph backends that
   use TCP listener ports
 - `graph_bolt_port` — optional, loopback Bolt port for graph backends that
@@ -119,17 +119,17 @@ absent. When present, its internal layout is owned by the graph backend
 - `graph_username` — optional, local graph admin username used by attach
   processes
 - `graph_password` — optional, per-workspace local graph password copied
-  from the persistent graph credential file while the owner is live; this
+  from the persistent graph credential file while the service is live; this
   is sensitive and relies on `owner.json` being written with `0600`
   permissions
 
 ## Ownership Rules
 
-1. One local host process owns a workspace root at a time.
+1. One local Eshu service process manages a workspace root at a time.
 2. A second invocation must:
-   - attach to the healthy owner if attach semantics are supported, or
+   - attach to the healthy service if attach semantics are supported, or
    - fail fast with an actionable error.
-3. If the recorded owner is stale, the next invocation may reclaim ownership
+3. If the recorded service is stale, the next invocation may reclaim ownership
    after health checks fail.
 
 ## Stale-Lock Detection
@@ -163,7 +163,7 @@ ownership and rewrite `owner.json`.
 
 ## Local Endpoints
 
-The local host should use a workspace-local Unix socket contract for ownership
+The local Eshu service should use a workspace-local Unix socket contract for ownership
 and health checks. Embedded Postgres also keeps a workspace-local Unix socket
 for reclaim and operator diagnostics.
 
@@ -231,7 +231,7 @@ On crash or forced shutdown:
 
 ## Filesystem Limitation
 
-Chunk 3 targets local filesystems with reliable advisory locking. The local host
+Chunk 3 targets local filesystems with reliable advisory locking. The local Eshu service
 should refuse to start on unsupported or non-local filesystems where `flock`
 semantics are not dependable enough for workspace ownership, such as common
 NFS/SMB mounts, unless and until the runtime gains a verified compatibility

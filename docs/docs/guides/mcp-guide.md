@@ -3,8 +3,8 @@
 MCP is the assistant-facing interface for Eshu. Use it when a coding assistant
 needs indexed repository, code, deployment, and infrastructure context.
 
-For the path chooser across local owner stdio, Compose MCP, and deployed MCP,
-start with [Connect MCP](../mcp/index.md).
+For the path chooser across local Eshu service stdio, Compose MCP, and deployed
+MCP, start with [Connect MCP](../mcp/index.md).
 
 ## Setup
 
@@ -102,7 +102,7 @@ For the broader Compose workflow and shutdown details, see
 
 ## Start the server
 
-For stdio-based MCP with one local workspace owner:
+For stdio-based MCP with one local Eshu service:
 
 ```bash
 eshu mcp start --workspace-root /path/to/repo

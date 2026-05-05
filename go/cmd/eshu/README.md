@@ -9,7 +9,7 @@ operator/admin workflows, and hosts the `doctor` diagnostic.
 
 ## Ownership boundary
 
-This binary owns the Cobra command tree, flag parsing, and local owner
+This binary owns the Cobra command tree, flag parsing, and local Eshu service
 orchestration. It does not own service runtime internals:
 `eshu api start` and `eshu mcp start` exec `eshu-api` and `eshu-mcp-server`.
 `eshu graph start` owns the local-authoritative supervisor and discovers
@@ -53,7 +53,7 @@ launched runtime via the shared `telemetry` package. Errors print to
 
 - `SilenceUsage` and `SilenceErrors` are set on the root command
 - `eshu graph start` requires `eshu-reducer` and `eshu-ingester` on `PATH`;
-  fresh owner runs need `go/bin` on `PATH` after rebuilding
+  fresh local Eshu service runs need `go/bin` on `PATH` after rebuilding
 - The default local graph path is embedded NornicDB when `eshu` is built with
   `nolocalllm`; `ESHU_NORNICDB_RUNTIME=process` is the only runtime-mode
   override, while `ESHU_NORNICDB_BINARY` selects process mode for a specific

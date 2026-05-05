@@ -20,7 +20,9 @@ flowchart LR
 
 Pin the `RuntimeContract` (component list and readiness checkpoints) for
 Terraform state canonical projection so ADRs, test fixtures, and future
-reducer wiring share one source of truth.
+reducer wiring share one source of truth. The exported helpers return
+defensive copies, and `RuntimeContract.Validate` rejects blank scaffold
+metadata before fixtures accept it.
 
 ## Ownership boundary
 

@@ -27,17 +27,17 @@ advisory report.
 
 | Variable | Default | Read By | Purpose | Tune When |
 | --- | --- | --- | --- | --- |
-| `ESHU_HOME` | Platform user-data dir | CLI, local host, API key resolver | Root for user config, local workspaces, managed binaries, and persisted local API keys. | Set to isolate dogfood runs, CI runs, or disposable local-authoritative workspaces. |
-| `ESHU_QUERY_PROFILE` | `production` for API/MCP/reducer; local commands set profile explicitly | API, MCP, ingester, reducer, local host | Selects query/runtime profile such as `production`, `local_lightweight`, or `local_authoritative`. | Change only when switching runtime mode. Do not use it as a performance knob. |
-| `ESHU_GRAPH_BACKEND` | `nornicdb` | API, MCP, ingester, reducer, local host | Selects graph adapter: `nornicdb` or `neo4j`. | Set to `neo4j` for the explicit Neo4j path. |
+| `ESHU_HOME` | Platform user-data dir | CLI, local Eshu service, API key resolver | Root for user config, local workspaces, managed binaries, and persisted local API keys. | Set to isolate dogfood runs, CI runs, or disposable local-authoritative workspaces. |
+| `ESHU_QUERY_PROFILE` | `production` for API/MCP/reducer; local commands set profile explicitly | API, MCP, ingester, reducer, local Eshu service | Selects query/runtime profile such as `production`, `local_lightweight`, or `local_authoritative`. | Change only when switching runtime mode. Do not use it as a performance knob. |
+| `ESHU_GRAPH_BACKEND` | `nornicdb` | API, MCP, ingester, reducer, local Eshu service | Selects graph adapter: `nornicdb` or `neo4j`. | Set to `neo4j` for the explicit Neo4j path. |
 | `ESHU_LISTEN_ADDR` | `0.0.0.0:8080` | Go service runtimes | HTTP listen address for services using shared runtime config. | Change for deployment port binding, not performance. |
 | `ESHU_METRICS_ADDR` | `0.0.0.0:9464` | Go service runtimes | Prometheus metrics listen address. | Change for deployment port binding or sidecar scrape layout. |
 | `ESHU_API_ADDR` | unset; CLI wrappers set host/port flags | API CLI service wrapper | API listen address when using `eshu service` helpers. | Use CLI flags first; set only for scripted local service wrappers. |
 | `ESHU_MCP_TRANSPORT` | `http` | MCP server | MCP transport: `http` or `stdio`. | Set to `stdio` only for stdio MCP clients or local attach flows. |
 | `ESHU_MCP_ADDR` | `:8080` | MCP server | HTTP MCP listen address. | Change for deployment port binding. |
 | `ESHU_RUNTIME_DB_TYPE` | CLI flag derived | CLI root command | Legacy CLI database selector written from global flags. | Do not tune directly. Prefer explicit graph/backend settings. |
-| `ESHU_WATCH_PATH` | local host sets it | local child processes | Workspace path handed to local child processes. | Internal; do not set manually. |
-| `ESHU_DISABLE_NEO4J` | unset | API, MCP, ingester, local host | Transitional local-lightweight skip flag. | Internal compatibility flag; prefer `ESHU_QUERY_PROFILE` and `ESHU_GRAPH_BACKEND`. |
+| `ESHU_WATCH_PATH` | local Eshu service sets it | local child processes | Workspace path handed to local child processes. | Internal; do not set manually. |
+| `ESHU_DISABLE_NEO4J` | unset | API, MCP, ingester, local Eshu service | Transitional local-lightweight skip flag. | Internal compatibility flag; prefer `ESHU_QUERY_PROFILE` and `ESHU_GRAPH_BACKEND`. |
 
 ## Authentication And Remote CLI
 
@@ -64,7 +64,7 @@ advisory report.
 | `ESHU_POSTGRES_CONN_MAX_IDLE_TIME` | `10m` | Go runtimes | Maximum idle lifetime of one Postgres connection. | Lower for constrained DB pools; raise rarely. |
 | `ESHU_POSTGRES_PING_TIMEOUT` | `10s` | Go runtimes | Startup ping timeout. | Raise only for slow network startup; a running service should not depend on a long ping. |
 | `ESHU_CONTENT_ENTITY_BATCH_SIZE` | `300` | bootstrap-index, ingester/projector, projector | Rows per Postgres `content_entities` upsert statement. Values must be `1..4000`. | Tune only after `content writer stage completed` logs show `upsert_entities` dominates and `prepare_entities` is cheap. Raise or lower on one focused repo first; if statement count changes but wall time does not, inspect `source_cache` size and trigram index cost instead of continuing to raise the batch. Do not use this for graph-write timeouts. |
-| `ESHU_LOCAL_AUTHORITATIVE_DEFER_CONTENT_SEARCH_INDEXES` | unset / `false` | `eshu graph start` local owner | Skips the two expensive content trigram search indexes during local-authoritative bootstrap, then creates them after the discovered filesystem repo set reaches a clean projector/reducer/shared-intent drain. | Use only for local-authoritative bulk-load proofs where `content writer stage completed` shows trigram maintenance dominates content writes. It preserves rows and restores search indexes after drain; do not use it as a deployed Postgres schema default. |
+| `ESHU_LOCAL_AUTHORITATIVE_DEFER_CONTENT_SEARCH_INDEXES` | unset / `false` | `eshu graph start` local Eshu service | Skips the two expensive content trigram search indexes during local-authoritative bootstrap, then creates them after the discovered filesystem repo set reaches a clean projector/reducer/shared-intent drain. | Use only for local-authoritative bulk-load proofs where `content writer stage completed` shows trigram maintenance dominates content writes. It preserves rows and restores search indexes after drain; do not use it as a deployed Postgres schema default. |
 | `ESHU_DISCOVERY_IGNORED_PATH_GLOBS` | unset | bootstrap-index, collector-git, ingester | Comma- or newline-separated repo-relative discovery globs. Entries may use `pattern=reason`; the default reason is `env-ignore`. | Operator-controlled overlay for focused generated/vendor/archive input-shape proofs. Prefer repo-local `.eshu/discovery.json` for durable source-owned rules. |
 | `ESHU_DISCOVERY_PRESERVED_PATH_GLOBS` | unset | bootstrap-index, collector-git, ingester | Comma- or newline-separated repo-relative globs to keep when a broader ignored glob covers an ancestor. | Pair with broad ignored globs so authored subtrees stay indexable. |
 
@@ -172,11 +172,11 @@ advisory report.
 | `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | `false` | graph writer | Conformance switch for Neo4j-style grouped writes on NornicDB. | Test/conformance only. Leave unset for normal laptop runs. |
 | `ESHU_NORNICDB_REQUIRE_GROUPED_ROLLBACK` | `false` | NornicDB tests | Makes grouped rollback conformance mandatory. | Test gate only. |
 | `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT` | `false` | graph writer | Evaluation switch for cross-file batched containment. | Use only with a latest-main NornicDB binary that has focused proof for the repo shape under test. |
-| `ESHU_NORNICDB_RUNTIME` | `embedded` | local host | Selects the local NornicDB runtime: `embedded` or `process`. | Leave unset for normal local mode. Set `process` only when testing an external NornicDB binary. |
-| `ESHU_NORNICDB_BINARY` | unset | local host, install, tests | Explicit NornicDB binary path. Setting it selects process mode. | Use to test a latest-main binary directly or temporarily override an older managed install. |
+| `ESHU_NORNICDB_RUNTIME` | `embedded` | local Eshu service | Selects the local NornicDB runtime: `embedded` or `process`. | Leave unset for normal local mode. Set `process` only when testing an external NornicDB binary. |
+| `ESHU_NORNICDB_BINARY` | unset | local Eshu service, install, tests | Explicit NornicDB binary path. Setting it selects process mode. | Use to test a latest-main binary directly or temporarily override an older managed install. |
 | `ESHU_NORNICDB_INSTALL_TIMEOUT` | `30s` | `eshu install nornicdb` | Download timeout for installer sources. | Raise for slow artifact downloads. |
 | `NORNICDB_ENABLE_PPROF` | `false` | NornicDB process | Enables NornicDB profiling. | Use after Eshu logs show the statement shape is correct but NornicDB runtime cost remains unknown. |
-| `NORNICDB_ADDRESS`, `NORNICDB_BOLT_PORT`, `NORNICDB_HTTP_PORT`, `NORNICDB_DATA_DIR`, `NORNICDB_AUTH`, `NORNICDB_DEFAULT_DATABASE`, `NORNICDB_HEADLESS`, `NORNICDB_MCP_ENABLED` | local host sets these in process mode | NornicDB process | External NornicDB process configuration. | Internal for explicit process-mode runs; set manually only when running `nornicdb serve` outside Eshu. |
+| `NORNICDB_ADDRESS`, `NORNICDB_BOLT_PORT`, `NORNICDB_HTTP_PORT`, `NORNICDB_DATA_DIR`, `NORNICDB_AUTH`, `NORNICDB_DEFAULT_DATABASE`, `NORNICDB_HEADLESS`, `NORNICDB_MCP_ENABLED` | local Eshu service sets these in process mode | NornicDB process | External NornicDB process configuration. | Internal for explicit process-mode runs; set manually only when running `nornicdb serve` outside Eshu. |
 
 ## Workflow Coordinator
 

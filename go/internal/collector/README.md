@@ -2,12 +2,13 @@
 
 ## Purpose
 
-`internal/collector` owns git collection, repository discovery, snapshot
-capture, and parser input shaping for Eshu indexing runs. It turns source
-repositories into the inputs required by fact emission: cloned snapshots,
-discovery reports, file selections, and entity metadata. It does not make graph
-projection or query-time truth decisions — those belong to the projector,
-reducer, storage, and query packages.
+`internal/collector` owns git collection, filesystem-direct collection,
+repository discovery, snapshot capture, and parser input shaping for Eshu
+indexing runs. It turns source repositories into the inputs required by fact
+emission: cloned snapshots, native snapshots, discovery reports, file
+selections, and entity metadata. It does not make graph projection or
+query-time truth decisions — those belong to the projector, reducer, storage,
+and query packages.
 
 ## Where this fits in the pipeline
 
@@ -72,7 +73,8 @@ per repository:
 
 1. **Discovery** — `resolveNativeSnapshotFileSet` calls
    `discovery.ResolveRepositoryFileSetsWithStats` with repo-local overrides from
-   `.eshu/discovery.json` and `.eshu/vendor-roots.json` applied first.
+   `.eshu/discovery.json`, `.eshu/vendor-roots.json`, `.gitignore`, and
+   `.eshuignore` applied before parsing.
 2. **Pre-scan** — `engine.PreScanRepositoryPathsWithWorkers` builds the import
    map concurrently.
 3. **Parse** — `buildParsedRepositoryFiles` parses each file through the

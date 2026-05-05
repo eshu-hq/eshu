@@ -10,8 +10,9 @@ bounded checks against one candidate:
 2. every evidence requirement is satisfied: at least `MinCount` evidence
    atoms that match all selectors in `MatchAll`
 
-Both checks must pass for admission. The `Outcome` returned communicates which
-checks passed so the engine can attach the correct rejection reasons.
+Both checks must pass for admission. An empty requirement set is structurally
+satisfied. The `Outcome` returned communicates which checks passed so the
+engine can attach the correct rejection reasons.
 
 ## Where this fits in the pipeline
 

@@ -350,7 +350,7 @@ func runAttachedLocalMCPStdio(ctx context.Context, layout eshulocal.Layout) (boo
 	}
 	if requestedExplicit && requestedRuntimeConfig != runtimeConfig {
 		return true, fmt.Errorf(
-			"workspace owner is running profile %q with graph backend %q; requested profile %q with graph backend %q does not match",
+			"local Eshu service is running profile %q with graph backend %q; requested profile %q with graph backend %q does not match",
 			runtimeConfig.Profile,
 			runtimeConfig.GraphBackend,
 			requestedRuntimeConfig.Profile,
@@ -359,7 +359,7 @@ func runAttachedLocalMCPStdio(ctx context.Context, layout eshulocal.Layout) (boo
 	}
 	if runtimeConfig.Profile == query.ProfileLocalAuthoritative && !localHostGraphHealthy(record) {
 		return true, fmt.Errorf(
-			"workspace owner is running profile %q with graph backend %q, but the graph backend is unhealthy; run eshu graph status or restart the workspace owner",
+			"local Eshu service is running profile %q with graph backend %q, but the graph backend is unhealthy; run eshu graph status or restart the service",
 			runtimeConfig.Profile,
 			runtimeConfig.GraphBackend,
 		)

@@ -7,6 +7,7 @@
 // known identity attribute patterns to pick stable name keys per resource.
 // ClassifyResourceCategory and ClassifyResourceService map raw resource
 // types onto the curated category and service tables in categories.go.
-// DefaultSchemaDir resolves the on-disk schemas directory, honoring
-// ESHU_TERRAFORM_SCHEMA_DIR overrides.
+// DefaultSchemaDir resolves the packaged schemas directory from the source
+// file location and lets ESHU_TERRAFORM_SCHEMA_DIR override that path for
+// focused schema tests.
 package terraformschema

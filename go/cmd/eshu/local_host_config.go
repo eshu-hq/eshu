@@ -67,7 +67,7 @@ func resolveLocalHostRuntimeConfig(getenv func(string) string) (localHostRuntime
 			profile = parsedProfile
 		default:
 			return localHostRuntimeConfig{}, fmt.Errorf(
-				"local host supports only %q or %q query profiles, got %q",
+				"local Eshu service supports only %q or %q query profiles, got %q",
 				query.ProfileLocalLightweight,
 				query.ProfileLocalAuthoritative,
 				parsedProfile,

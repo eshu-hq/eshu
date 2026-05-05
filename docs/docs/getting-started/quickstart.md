@@ -2,9 +2,9 @@
 
 The local setup docs now split the two laptop paths.
 
-If you want one workspace owner from your terminal, use
+If you want one local Eshu service from your terminal, use
 [Local binaries](../run-locally/local-binaries.md). That path builds the Go
-binaries, embeds NornicDB in the local `eshu` owner, and starts
+binaries, embeds NornicDB in the local `eshu` process, and starts
 `eshu graph start`.
 
 If you want the full local service stack, use

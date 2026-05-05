@@ -298,7 +298,7 @@ func TestResolveLocalHostRuntimeConfig(t *testing.T) {
 			}
 			return ""
 		})
-		if err == nil || !strings.Contains(err.Error(), "local host supports only") {
+		if err == nil || !strings.Contains(err.Error(), "local Eshu service supports only") {
 			t.Fatalf("resolveLocalHostRuntimeConfig() error = %v, want unsupported profile error", err)
 		}
 	})

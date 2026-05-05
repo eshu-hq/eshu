@@ -28,6 +28,8 @@ This package owns content shaping only:
 - translating parser buckets into `content.EntityRecord` values
 - deriving `content.CanonicalEntityID` for each entity
 - extracting `source_cache` snippets from parser source or file body
+- preserving per-entity line, language, artifact, template, IaC, and metadata
+  fields for the content store
 - applying byte limits to oversized low-signal entities
 
 It does not own graph writes, the Postgres schema, queue operations, or fact

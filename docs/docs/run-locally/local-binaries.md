@@ -1,16 +1,16 @@
 # Local binaries
 
-Use this path when you are developing Eshu, testing `eshu graph start`, or running
-one workspace with a local owner.
+Use this path when you are developing Eshu, testing `eshu graph start`, or
+running one workspace with a local Eshu service.
 
 This mode starts embedded Postgres, embedded NornicDB, the ingester, and the
-reducer under one workspace owner. It does not start the full HTTP API unless
+reducer under one local Eshu service. It does not start the full HTTP API unless
 you run that separately.
 
 ## Full local end-to-end
 
-Use this path from a checkout when you want the local owner to manage the graph,
-Postgres, ingester, reducer, and MCP helper binaries for one workspace:
+Use this path from a checkout when you want the local Eshu service to manage the
+graph, Postgres, ingester, reducer, and MCP helper binaries for one workspace:
 
 ```bash
 git clone https://github.com/eshu-hq/eshu.git
@@ -22,18 +22,18 @@ export PATH="$(go env GOPATH)/bin:$PATH"
 eshu graph start --workspace-root "$PWD"
 ```
 
-Leave `eshu graph start` running while you work. It owns the workspace, starts
+Leave `eshu graph start` running while you work. It manages the workspace, starts
 embedded Postgres, starts embedded NornicDB inside the `eshu` process, launches
 `eshu-ingester` and `eshu-reducer` from `PATH`, and prints progress in the
-terminal. Stop the owner with `Ctrl-C`, or from another terminal:
+terminal. Stop the local Eshu service with `Ctrl-C`, or from another terminal:
 
 ```bash
 eshu graph stop --workspace-root "$PWD"
 ```
 
 No local NornicDB install is required for this default path. The script builds
-the local owner `eshu` with embedded NornicDB and installs the service binaries
-that the owner needs to supervise.
+the local `eshu` binary with embedded NornicDB and installs the service binaries
+that the local Eshu service needs to supervise.
 
 ## Install the CLI
 
@@ -54,15 +54,15 @@ The `nolocalllm` tag is intentional. It links the local NornicDB runtime into
 `eshu graph start` can run the default local graph without a separate
 `nornicdb-headless` install.
 
-This installs only the `eshu` binary. For the full local owner workflow, use the
-checkout installer above so `eshu-ingester`, `eshu-reducer`, `eshu-mcp-server`,
-and the other helper binaries are present on `PATH`.
+This installs only the `eshu` binary. For the full local Eshu service workflow,
+use the checkout installer above so `eshu-ingester`, `eshu-reducer`,
+`eshu-mcp-server`, and the other helper binaries are present on `PATH`.
 
 ## Install the full local binary set
 
 `go install` names binaries after the command directory, so `./cmd/api` becomes
-`api`, not `eshu-api`. Local owner mode expects the ESHU-prefixed runtime names on
-`PATH`, so use the repo installer when you are developing Eshu or running
+`api`, not `eshu-api`. Local Eshu service mode expects the ESHU-prefixed runtime
+names on `PATH`, so use the repo installer when you are developing Eshu or running
 `eshu graph start` from a checkout:
 
 ```bash
@@ -88,12 +88,12 @@ eshu-reducer -v
 The service binaries answer those probes before opening telemetry, Postgres,
 the graph backend, queues, or HTTP listeners.
 
-The script builds only the local owner `eshu` binary with
+The script builds only the local `eshu` binary with
 `ESHU_LOCAL_OWNER_BUILD_TAGS=nolocalllm` by default. The service binaries
 (`eshu-api`, `eshu-ingester`, `eshu-reducer`, and friends) are plain deployment
 style binaries that connect to an external graph endpoint. Set
 `ESHU_LOCAL_OWNER_BUILD_TAGS=` only when you deliberately want a plain local
-owner build for explicit process-mode testing.
+service build for explicit process-mode testing.
 
 `eshu graph start` discovers `eshu-ingester`, `eshu-reducer`, and
 `eshu-mcp-server` through `PATH`, so keep that install directory on `PATH` for
@@ -117,7 +117,7 @@ eshu graph start --workspace-root /path/to/repo
 testing and upgrade workflows. Bare `eshu install nornicdb` remains reserved for
 future release-backed installs.
 
-## Start a workspace owner
+## Start the local Eshu service
 
 ```bash
 eshu graph start --workspace-root /path/to/repo
@@ -126,16 +126,17 @@ eshu graph start --workspace-root /path/to/repo
 This runs in the foreground and prints local progress. Stop it with `Ctrl-C`
 when you are done.
 
-## Use MCP with the local owner
+## Use MCP with the local Eshu service
 
-If the owner is already running, a stdio MCP process can attach to it:
+If the local Eshu service is already running, a stdio MCP process can attach to
+it:
 
 ```bash
 eshu mcp start --workspace-root /path/to/repo
 ```
 
 See [Local MCP](mcp-local.md) for client setup and the difference between local
-owner MCP and the Compose MCP service.
+Eshu service MCP and the Compose MCP service.
 
 ## What still needs an API
 

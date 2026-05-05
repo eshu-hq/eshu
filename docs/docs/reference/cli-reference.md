@@ -16,9 +16,9 @@ For task workflows, start with:
 
 `eshu` has two public command families:
 
-- Local owner commands start or manage local processes and files. `eshu index`
-  launches `eshu-bootstrap-index` and writes to the configured Postgres and
-  graph stores.
+- Local Eshu service commands start or manage local processes and files.
+  `eshu index` launches `eshu-bootstrap-index` and writes to the configured
+  Postgres and graph stores.
 - API-backed commands call a Eshu HTTP API. `eshu list`, `eshu stats`,
   `eshu index-status`, `eshu find ...`, and `eshu analyze ...` are API clients.
 
@@ -135,23 +135,23 @@ use a disposable `ESHU_HOME` / workspace data root.
 
 ### Graph backend commands
 
-The `local_authoritative` profile runs NornicDB inside the local `eshu` owner by
-default. Eshu exposes:
+The `local_authoritative` profile runs NornicDB inside the local `eshu` process
+managed by the local Eshu service. Eshu exposes:
 
 | Command | Purpose |
 | :--- | :--- |
-| `eshu graph status` | Available now. Report workspace graph-owner metadata, backend, PID, binary path, ports, log path, and current running state when present. |
+| `eshu graph status` | Available now. Report local Eshu service metadata, backend, PID, binary path, ports, log path, and current running state when present. |
 | `eshu install nornicdb [--from <source>] [--sha256 <hex>] [--force] [--full]` | Available now for process-mode testing. Normal embedded local runs do not require it. Eshu currently tracks the latest NornicDB `main` branch, so the working process install path is an explicit binary, tar archive, macOS package, or URL that you built or chose from that branch. The command verifies the binary, copies it to `${ESHU_HOME}/bin/nornicdb-headless`, and records the source and checksums in the managed install manifest. Bare no-argument installs are accepted by the CLI but fail until an accepted manifest policy exists; `--full` is reserved for that future no-argument release flow. Remote downloads honor `Ctrl-C` and default to `30s`; override with `ESHU_NORNICDB_INSTALL_TIMEOUT=<duration>` when slower links need more time. Signature verification remains future work. |
 | `eshu graph logs [--workspace-root <path>]` | Available now. Print the current workspace `graph-nornicdb.log` file if present. |
-| `eshu graph stop [--workspace-root <path>]` | Available now. Request the workspace owner to shut down so embedded NornicDB, embedded Postgres, and child runtimes stop through the normal lifecycle; stale process-mode graph processes are stopped directly. |
-| `eshu graph start [--workspace-root <path>]` | Available now. Foreground shortcut for starting the `local_authoritative` workspace owner, equivalent to `ESHU_QUERY_PROFILE=local_authoritative eshu watch .`. With a `-tags nolocalllm` build, this starts embedded Postgres and embedded NornicDB in the owner process, then starts the ingester and reducer. During startup and indexing it prints a live progress panel sourced from the shared status store: owner/profile/backend header, collector/projector/reducer flow lanes, and queue pressure. |
+| `eshu graph stop [--workspace-root <path>]` | Available now. Request the local Eshu service to shut down so embedded NornicDB, embedded Postgres, and child runtimes stop through the normal lifecycle; stale process-mode graph processes are stopped directly. |
+| `eshu graph start [--workspace-root <path>]` | Available now. Foreground shortcut for starting the `local_authoritative` local Eshu service, equivalent to `ESHU_QUERY_PROFILE=local_authoritative eshu watch .`. With a `-tags nolocalllm` build, this starts embedded Postgres and embedded NornicDB in the `eshu` process, then starts the ingester and reducer. During startup and indexing it prints a live progress panel sourced from the shared status store: service/profile/backend header, collector/projector/reducer flow lanes, and queue pressure. |
 | `eshu graph upgrade --from <source> [--sha256 <hex>] [--workspace-root <path>]` | Available now for process-mode testing. Replace the managed NornicDB binary from a verified local binary, tar archive, macOS package, or URL; requires the workspace graph to be stopped first. |
 
 Full operator contract: [Graph Backend Operations](graph-backend-operations.md).
 
 ## Workspace root and profiles
 
-The lightweight local host treats each workspace as a single-owner filesystem.
+The local Eshu service treats each workspace as a single-service filesystem.
 A workspace has one data root at `${ESHU_HOME}/local/workspaces/<workspace_id>/`.
 
 ### Resolution order
@@ -170,7 +170,7 @@ paths that resolve to the same real path converge to the same `workspace_id`.
 
 ### ESHU_HOME defaults
 
-`ESHU_HOME` controls where local host state lives. Override with the
+`ESHU_HOME` controls where local Eshu service state lives. Override with the
 `ESHU_HOME` environment variable. Defaults:
 
 | OS | Default |
@@ -185,8 +185,8 @@ Each workspace owns one directory tree under `${ESHU_HOME}/local/workspaces/<wor
 
 ```text
 VERSION            # layout schema version
-owner.lock         # flock sentinel for single-owner invariant
-owner.json         # current owner metadata (PID, postgres state, optional graph state)
+owner.lock         # flock sentinel for the single-service invariant
+owner.json         # current service metadata (PID, postgres state, optional graph state)
 graph/             # optional authoritative graph backend data root
 postgres/          # embedded Postgres data directory
 logs/              # local-host lifecycle and recovery logs
@@ -194,7 +194,7 @@ cache/             # derived local caches (rebuildable)
 ```
 
 See [Local Data Root Spec](local-data-root-spec.md) and
-[Local Host Lifecycle](local-host-lifecycle.md) for the full contract.
+[Local Eshu Service Lifecycle](local-host-lifecycle.md) for the full contract.
 
 ## Public command map
 
@@ -287,10 +287,10 @@ fix.
 
 | Command | Purpose |
 | :--- | :--- |
-| `eshu graph status` | Show the current workspace graph-backend owner metadata and runtime state. |
+| `eshu graph status` | Show the current local Eshu service metadata and runtime state. |
 | `eshu graph logs [--workspace-root <path>]` | Print the current workspace graph-backend log file if present. |
-| `eshu graph stop [--workspace-root <path>]` | Request graph shutdown through the workspace owner, or stop a stale recorded graph process when the owner is already dead. |
-| `eshu graph start [--workspace-root <path>]` | Start the `local_authoritative` workspace owner in the foreground. |
+| `eshu graph stop [--workspace-root <path>]` | Request graph shutdown through the local Eshu service, or stop a stale recorded graph process when the service is already dead. |
+| `eshu graph start [--workspace-root <path>]` | Start the `local_authoritative` local Eshu service in the foreground. |
 | `eshu graph upgrade --from <source> [--sha256 <hex>] [--workspace-root <path>]` | Replace the managed process-mode graph binary from a binary path, tar archive, macOS package, or URL after the workspace graph is stopped. |
 | `eshu install nornicdb [--from <source>] [--sha256 <hex>] [--force] [--full]` | Install a verified latest-main NornicDB binary into the managed Eshu home for explicit process-mode testing. Normal embedded local mode does not require this command. Bare no-argument installs and `--full` are present in the CLI but reserved for a future accepted manifest policy. |
 | `eshu mcp setup` | Configure IDE and CLI MCP integrations. |

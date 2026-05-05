@@ -4,8 +4,9 @@
 
 `relationships` extracts IaC deployment evidence from fact envelopes and
 resolves that evidence into typed cross-repository relationships before reducer
-admission. It covers Terraform, Terragrunt, Helm, Kustomize, Argo CD, GitHub
-Actions, Jenkins, Ansible, Dockerfile, and Docker Compose source signals.
+admission. It covers Terraform, Terraform provider schemas, Terragrunt, Helm,
+Kustomize, Argo CD, GitHub Actions, Jenkins, Ansible, Dockerfile, and Docker
+Compose source signals.
 
 The package describes evidence rather than inventing deployment truth.
 Extractors emit `EvidenceFact` values; the `Resolve` function promotes them to

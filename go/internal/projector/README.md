@@ -58,7 +58,10 @@ and enqueues `ReducerIntent` values for shared domains such as
 
 On success the worker calls `ProjectorWorkSink.Ack`. On any error it calls
 `ProjectorWorkSink.Fail` with a `FailureClassification` derived from
-`ClassifyFailure`. A large-generation semaphore (`largeSem`) limits concurrent
+`ClassifyFailure`. The classifier preserves the stage that failed, maps Neo4j
+transient errors, context cancellation, network errors, input validation, and
+resource exhaustion into stable durable queue metadata, and sets retry guidance
+for operators. A large-generation semaphore (`largeSem`) limits concurrent
 projection of scope generations above `LargeGenThreshold` facts to
 `LargeGenMaxConcurrent` workers to prevent memory pressure from many
 high-cardinality repositories running at once.

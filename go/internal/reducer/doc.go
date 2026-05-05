@@ -8,5 +8,6 @@
 // projected rows, graph writes, and query surfaces before changing
 // ordering, admission, retries, or backend-specific behavior. Reducer code
 // must remain idempotent across retries and replays so repair runs
-// converge on the same truth.
+// converge on the same truth. Workload materialization inputs reuse the
+// deployable-unit correlation gate before projecting workload rows.
 package reducer

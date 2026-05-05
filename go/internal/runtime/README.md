@@ -160,7 +160,9 @@ ComposeLifecycles in `internal/app` chains multiple Lifecycle values
 
 - `ResolveAPIKey(getenv)` — resolution order: explicit `ESHU_API_KEY` env,
   then persisted `ESHU_HOME/.env`, then auto-generated 32-byte hex token when
-  `ESHU_AUTO_GENERATE_API_KEY` is truthy; uses file-lock before writing
+  `ESHU_AUTO_GENERATE_API_KEY` is truthy; writes generated tokens back to the
+  env file under `.env.lock` so follow-on CLI and service processes reuse the
+  same token
 
 ### Status requests
 

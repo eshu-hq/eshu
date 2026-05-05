@@ -24,6 +24,8 @@ Pin two contracts:
 2. The evaluator seam (`Evaluator`, `DriftEvaluator`), the publication shape
    (`Publication`, `EvaluationResult`), and the result-to-phase helpers
    (`PhaseStates`, `PublishEvaluationResult`).
+   `DefaultRuntimeContract` and `RuntimeContractTemplate` return defensive
+   copies so tests and ADR fixtures cannot mutate the package default.
 
 ## Ownership boundary
 

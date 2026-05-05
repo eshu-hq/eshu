@@ -114,19 +114,19 @@ do not need to install `nornicdb-headless` just to run `eshu graph start`.
 Pinned installs such as `go install .../cmd/eshu@vX.Y.Z` report that module
 version through `eshu --version`.
 
-For local owner development, install the full Eshu-prefixed runtime binary set
+For local Eshu service development, install the full Eshu-prefixed runtime binary set
 from a checkout:
 
 ```bash
 ./scripts/install-local-binaries.sh
 ```
 
-That script builds the local owner `eshu` with embedded NornicDB, while the
+That script builds the local `eshu` binary with embedded NornicDB, while the
 service binaries keep the deployment shape and connect to external graph
 endpoints. Set `ESHU_VERSION=<version>` before running the script to embed a
 specific version; every installed Eshu binary accepts `--version` and `-v`.
 
-Then start a local workspace owner:
+Then start the local Eshu service:
 
 ```bash
 eshu graph start --workspace-root "$PWD"

@@ -2,7 +2,8 @@
 
 `reducer/tags` defines the tag-normalization seam and the helpers that
 publish canonical-cloud readiness rows once normalization completes. The
-package owns the contract; it does not own a concrete normalizer.
+package owns the contract, defensive scaffold copies, and validation shape; it
+does not own a concrete normalizer.
 
 ## Where this fits in the pipeline
 

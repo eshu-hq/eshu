@@ -322,10 +322,10 @@ func TestWaitLocalHostChildrenKeepingAllowedCleanExitsKeepsOwnerAlive(t *testing
 
 	select {
 	case err := <-done:
-		t.Fatalf("waitLocalHostChildrenKeepingAllowedCleanExits() returned early with %v, want owner to stay alive", err)
+		t.Fatalf("waitLocalHostChildrenKeepingAllowedCleanExits() returned early with %v, want service to stay alive", err)
 	case <-time.After(50 * time.Millisecond):
 	}
-	if got := logs.String(); !strings.Contains(got, "local host child exited cleanly") || !strings.Contains(got, "child=eshu-ingester") {
+	if got := logs.String(); !strings.Contains(got, "local Eshu service child exited cleanly") || !strings.Contains(got, "keeping service alive") || !strings.Contains(got, "child=eshu-ingester") {
 		t.Fatalf("allowed clean-exit log = %q, want child lifecycle message", got)
 	}
 

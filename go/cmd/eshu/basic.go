@@ -93,7 +93,7 @@ func init() {
 		RunE:  runWatch,
 	}
 	watchCmd.Flags().String("scope", "auto", "Watch scope: auto, repo, or workspace")
-	watchCmd.Flags().String("workspace-root", "", "Explicit workspace root for local host ownership")
+	watchCmd.Flags().String("workspace-root", "", "Explicit workspace root for the local Eshu service")
 	rootCmd.AddCommand(watchCmd)
 
 	// unwatch

@@ -61,8 +61,8 @@ ingester, and reducer do not fork into separate products.
 
 The shared service shape has an API, MCP server, ingester, reducer, bootstrap
 indexer, Postgres, and a graph backend. The local binary path is smaller: it
-starts one workspace owner with embedded Postgres, embedded NornicDB, ingester,
-and reducer.
+starts one local Eshu service with embedded Postgres, embedded NornicDB,
+ingester, and reducer.
 
 ## Learn the system
 

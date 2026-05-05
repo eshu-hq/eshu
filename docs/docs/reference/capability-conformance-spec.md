@@ -109,7 +109,7 @@ Supported profile IDs:
 - `local_full_stack`
 - `production`
 
-`local_authoritative` runs the lightweight local host plus embedded NornicDB
+`local_authoritative` runs the local Eshu service plus embedded NornicDB
 by default (see `graph-backend-installation.md`). It unlocks the
 high-authority capabilities that `local_lightweight` refuses, without
 requiring Docker Compose.

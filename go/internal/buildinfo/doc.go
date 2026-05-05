@@ -5,5 +5,6 @@
 // and MCP surfaces; explicit linker values win, then Go module build-info
 // versions from go install ...@version, then "dev" for local source builds.
 // PrintVersionFlag gives service binaries a shared early-exit path for
-// --version and -v probes before they open datastores or telemetry providers.
+// --version and -v probes before they open datastores or telemetry providers;
+// blank application names fall back to "eshu".
 package buildinfo

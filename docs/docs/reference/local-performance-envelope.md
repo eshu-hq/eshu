@@ -1,11 +1,11 @@
-# Local Performance Envelope
+# Local Eshu Service Performance Envelope
 
-This document defines the target envelope for the lightweight local host.
+This document defines the target envelope for the local Eshu service.
 
 ## Goals
 
-The local host should be useful on a normal developer laptop, not only on ideal
-hardware or empty repos.
+The local Eshu service should be useful on a normal developer laptop, not only
+on ideal hardware or empty repos.
 
 ## Initial Targets
 
@@ -72,7 +72,7 @@ ESHU_LOCAL_AUTHORITATIVE_PERF=true \
   go test -tags nolocalllm ./cmd/eshu -run TestLocalAuthoritativeStartupEnvelope -count=1 -v
 ```
 
-That gate boots the real local host, embedded Postgres, schema bootstrap, and
+That gate boots the real local Eshu service, embedded Postgres, schema bootstrap, and
 embedded NornicDB, then measures readiness at the owner-record and
 ingester handoff. It runs twice against the same workspace data root so the
 first pass captures cold start and the second pass captures warm restart.
@@ -95,7 +95,7 @@ ESHU_LOCAL_AUTHORITATIVE_PERF=true \
   go test -tags nolocalllm ./cmd/eshu -run TestLocalAuthoritativeCallChainSyntheticEnvelope -count=1 -v
 ```
 
-That gate boots the real local host, embedded Postgres, and embedded NornicDB,
+That gate boots the real local Eshu service, embedded Postgres, and embedded NornicDB,
 seeds a synthetic four-function `CALLS` chain through the shared Bolt
 driver path, and exercises the real `/api/v0/code/call-chain` handler in
 `local_authoritative`.
@@ -117,7 +117,7 @@ ESHU_LOCAL_AUTHORITATIVE_PERF=true \
   go test -tags nolocalllm ./cmd/eshu -run TestLocalAuthoritativeTransitiveCallersSyntheticEnvelope -count=1 -v
 ```
 
-That gate boots the real local host, embedded Postgres, and embedded NornicDB,
+That gate boots the real local Eshu service, embedded Postgres, and embedded NornicDB,
 seeds the same synthetic four-function `CALLS` chain through the
 shared Bolt driver path, and exercises the real
 `/api/v0/code/relationships` transitive-callers handler in
@@ -140,7 +140,7 @@ ESHU_LOCAL_AUTHORITATIVE_PERF=true \
   go test -tags nolocalllm ./cmd/eshu -run TestLocalAuthoritativeDeadCodeSyntheticEnvelope -count=1 -v
 ```
 
-That gate boots the real local host, embedded Postgres, and embedded NornicDB,
+That gate boots the real local Eshu service, embedded Postgres, and embedded NornicDB,
 seeds a synthetic repository/file/function containment graph plus one
 live `CALLS` edge through the shared Bolt driver path, and exercises the real
 `/api/v0/code/dead-code` handler in `local_authoritative`.
@@ -178,5 +178,5 @@ The following targets remain open until their own perf gates land:
 
 ## Review Rule
 
-If the local host misses these targets, the docs and matrix should reflect the
+If the local Eshu service misses these targets, the docs and matrix should reflect the
 actual supported envelope instead of hiding the miss.

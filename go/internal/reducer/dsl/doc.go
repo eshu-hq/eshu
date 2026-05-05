@@ -6,6 +6,7 @@
 // `EvaluationResult`. `EvaluationResult.PhaseStates` and
 // `PublishEvaluationResult` convert the result into durable
 // `GraphProjectionPhaseState` rows and forward them through the shared
-// `reducer.GraphProjectionPhasePublisher`. The package owns no evaluation
-// logic itself; it owns the contract that downstream evaluators must honor.
+// `reducer.GraphProjectionPhasePublisher`. RuntimeContractTemplate exposes the
+// accepted scaffold as defensive copies; the package owns no evaluation logic
+// itself and only defines the contract that downstream evaluators must honor.
 package dsl

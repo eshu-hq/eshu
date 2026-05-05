@@ -73,7 +73,8 @@ support bundles, and install verification.
 
 Deployment binaries do not embed NornicDB. Kubernetes, Helm, and Compose
 service profiles connect to NornicDB or Neo4j as external Bolt-compatible graph
-endpoints. Embedded NornicDB is only the local owner path for `eshu graph start`.
+endpoints. Embedded NornicDB is only the local Eshu service path for
+`eshu graph start`.
 
 Local trace export is opt-in. For the NornicDB stack, run
 `docker compose -f docker-compose.yaml -f docker-compose.telemetry.yml up

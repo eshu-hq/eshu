@@ -1,17 +1,17 @@
-# Local Host Lifecycle
+# Local Eshu Service Lifecycle
 
 This document defines the intended shutdown and recovery sequence for the
-lightweight local host.
+local Eshu service.
 
 ## Normal Startup
 
 1. acquire `owner.lock`
 2. validate `VERSION`
-3. validate or reclaim stale owner record
+3. validate or reclaim stale service record
 4. start embedded Postgres and wait until it accepts local connections
 5. if profile is `local_authoritative`, start embedded NornicDB and wait until
    its recorded loopback health and Bolt endpoints accept connections
-6. start local host socket
+6. start local service socket
 7. start watcher / index pipeline
 8. begin serving CLI and MCP attach traffic
 
@@ -21,11 +21,11 @@ override documented in `graph-backend-installation.md` and
 `graph-backend-operations.md`.
 
 In `local_authoritative`, `eshu-ingester --watch` may exit cleanly after it has
-finished the current collection stream. That is not an owner shutdown signal:
-the local host keeps Postgres, NornicDB, and `eshu-reducer` alive so
+finished the current collection stream. That is not a service shutdown signal:
+the local Eshu service keeps Postgres, NornicDB, and `eshu-reducer` alive so
 queued projection/reduction work can drain and attached CLI/MCP reads can keep
-using the workspace owner. The supervisor logs that allowed child exit so
-operators can distinguish intentional collection completion from owner teardown.
+using the service. The supervisor logs that allowed child exit so operators can
+distinguish intentional collection completion from service teardown.
 
 ## Clean Shutdown
 
@@ -38,7 +38,7 @@ operators can distinguish intentional collection completion from owner teardown.
    accepting new writes and wait for quiesce
 6. flush and stop the graph backend runtime (if present)
 7. flush and stop embedded Postgres
-8. remove owner record or mark shutdown complete
+8. remove service record or mark shutdown complete
 9. release `owner.lock`
 
 Ordering note: Postgres outlives the child runtimes that write to it. The
@@ -53,9 +53,9 @@ On restart:
 
 1. recover Postgres via normal WAL replay
 2. if a graph backend PID is recorded in `owner.json`, probe its health;
-   if still alive but the Eshu owner is dead, attempt a clean internal stop
+   if still alive but the Eshu service is dead, attempt a clean internal stop
    through the recorded PID before reclaiming
-3. detect stale owner
+3. detect stale service records
 4. reclaim ownership only after lock acquisition, liveness checks, and
    any graph-backend stop step above has succeeded
 5. rebuild any derived local caches if necessary
@@ -73,18 +73,19 @@ concurrency rather than unbounded fan-out under heavy client load.
 
 Initial target:
 
-- one bounded global query worker pool per local host
+- one bounded global query worker pool per local Eshu service
 - requests beyond the pool limit queue briefly or fail fast with
   `error.code=overloaded`
 
 ## Attach Model
 
-The long-running local host owns the workspace and watcher lifecycle. Other
-commands such as `eshu mcp stdio` should attach to that owner rather than trying
-to become competing workspace owners.
+The long-running local Eshu service manages the workspace and watcher lifecycle.
+Other commands such as `eshu mcp stdio` should attach to that service rather
+than trying to start competing ingesters for the same workspace.
 
-If `eshu mcp stdio` starts and no healthy owner exists for the workspace, it may
-self-host as an ephemeral owner for that workspace. In that mode it must:
+If `eshu mcp stdio` starts and no healthy service exists for the workspace, it
+may start an ephemeral local Eshu service for that workspace. In that mode it
+must:
 
 - acquire normal workspace ownership
 - start the same embedded Postgres and watcher lifecycle needed for its scope

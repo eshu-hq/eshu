@@ -6,7 +6,8 @@ If you want Eshu on your laptop, start with [Run Locally](run-locally/index.md).
 That page helps you choose between local binaries and Docker Compose.
 
 If you want an assistant to query Eshu, start with [Connect MCP](mcp/index.md).
-You can use MCP against the local owner, the Compose service, or a deployed API.
+You can use MCP against the local Eshu service, the Compose service, or a
+deployed API.
 
 If you are deploying Eshu for a team, start with
 [Deploy to Kubernetes](deploy/kubernetes/index.md). That path covers storage,

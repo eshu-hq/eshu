@@ -20,8 +20,9 @@ flowchart LR
 
 Pin the `RuntimeContract` (component list and readiness checkpoints) for AWS
 canonical projection so ADRs, test fixtures, and future reducer wiring share
-one source of truth. The contract validates before any code runs via
-`RuntimeContract.Validate`.
+one source of truth. `DefaultRuntimeContract` and `RuntimeContractTemplate`
+return defensive copies, and `RuntimeContract.Validate` rejects blank component
+or checkpoint metadata before fixtures accept the scaffold.
 
 ## Ownership boundary
 

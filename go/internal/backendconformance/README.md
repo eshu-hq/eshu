@@ -1,6 +1,7 @@
 # Backend Conformance
 
-`backendconformance` owns the reusable graph-backend proof harness.
+`backendconformance` owns the reusable graph-backend proof harness for matrix
+validation plus deterministic read/write corpora.
 
 The package keeps two contracts together:
 
@@ -8,7 +9,7 @@ The package keeps two contracts together:
 - the profile gates that track NornicDB promotion across local and production
   shapes
 - the read and write corpora used to exercise `GraphQuery` and Cypher executor
-  adapters
+  adapters, including atomic grouped writes and transaction-visibility cases
 
 Default Go tests validate the matrix and harness without starting Neo4j or
 NornicDB. `scripts/verify_backend_conformance_live.sh` turns on the opt-in live

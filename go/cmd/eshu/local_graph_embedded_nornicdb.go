@@ -28,7 +28,7 @@ func embeddedLocalNornicDBAvailable() bool {
 	return true
 }
 
-// startEmbeddedLocalNornicDB starts NornicDB in the local owner process while
+// startEmbeddedLocalNornicDB starts NornicDB in the local Eshu service process while
 // exposing the same HTTP and Bolt ports that the process runtime records.
 func startEmbeddedLocalNornicDB(ctx context.Context, layout eshulocal.Layout) (*managedLocalGraph, error) {
 	boltPort, err := reserveLocalGraphPort()

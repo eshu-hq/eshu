@@ -6,8 +6,8 @@
 emits deterministic, ordered admission results. It sorts rules by
 `(Priority ascending, Name ascending)`, delegates confidence and structural
 gating to `correlation/admission`, performs tie-breaking among admitted
-candidates that share a correlation key, and returns results in a stable
-`(CorrelationKey, State, ID)` order.
+candidates that share a correlation key by confidence then ID, and returns
+results in a stable `(CorrelationKey, State, ID)` order.
 
 ## Where this fits in the pipeline
 

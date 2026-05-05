@@ -5,8 +5,8 @@
 `correlation/explain` formats one engine.Result as a stable, line-oriented
 text block for the explain API and operator-facing diagnostics. It renders the
 candidate header, sorted match-count lines, sorted rejection-reason lines, and
-sorted evidence lines in a deterministic order so explain output is comparable
-across runs and replay-stable.
+sorted evidence lines in a deterministic order with two-decimal confidence
+values so explain output is comparable across runs and replay-stable.
 
 ## Where this fits in the pipeline
 

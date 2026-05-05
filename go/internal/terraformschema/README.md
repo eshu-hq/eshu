@@ -69,8 +69,9 @@ same table to return the broad category string (`compute`, `storage`, `data`,
 `networking`, `messaging`, `security`, `cicd`, `monitoring`, `governance`).
 
 `DefaultSchemaDir` resolves the packaged `schemas/` directory relative to
-`paths.go` using `runtime.Caller`. An explicit ESHU_TERRAFORM_SCHEMA_DIR
-environment override wins.
+`paths.go` using `runtime.Caller`. An explicit `ESHU_TERRAFORM_SCHEMA_DIR`
+environment override wins for focused tests and container runs that mount a
+schema bundle outside the source tree.
 
 ## Exported surface
 

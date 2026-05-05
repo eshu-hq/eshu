@@ -5,7 +5,7 @@ paths, and they solve different problems.
 
 | Path | Use it when | What starts |
 | --- | --- | --- |
-| [Local binaries](local-binaries.md) | You are developing Eshu or want one workspace owner | embedded Postgres, embedded NornicDB, ingester, reducer |
+| [Local binaries](local-binaries.md) | You are developing Eshu or want one local Eshu service | embedded Postgres, embedded NornicDB, ingester, reducer |
 | [Docker Compose](docker-compose.md) | You want the full laptop service stack | Postgres, graph backend, API, MCP server, ingester, reducer, bootstrap indexer |
 
 If you are not sure, start with Docker Compose. It gives you the same service

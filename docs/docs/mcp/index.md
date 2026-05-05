@@ -8,11 +8,11 @@ Eshu can serve MCP in three ways:
 
 | Shape | Use it when | Endpoint |
 | --- | --- | --- |
-| Local owner stdio | You want one local workspace owner | `eshu mcp start --workspace-root <repo>` |
+| Local Eshu service stdio | You want one local service for a workspace | `eshu mcp start --workspace-root <repo>` |
 | Docker Compose MCP service | You want the full local stack on your laptop | `http://localhost:8081` by default |
 | Deployed MCP service | You want assistants to query shared indexed state | Deployed `mcp-server` runtime |
 
-## Local owner MCP
+## Local Eshu service MCP
 
 ```bash
 eshu mcp start --workspace-root /path/to/repo
@@ -36,7 +36,7 @@ Use:
 eshu mcp setup
 ```
 
-Then configure your MCP client for the local owner, Compose MCP service, or
+Then configure your MCP client for the local Eshu service, Compose MCP service, or
 deployed MCP endpoint. Restart the client after changing MCP configuration.
 
 ## What to ask

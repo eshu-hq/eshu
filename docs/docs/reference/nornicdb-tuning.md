@@ -133,7 +133,7 @@ not `ESHU_CONTENT_ENTITY_BATCH_SIZE`, is the right fix for this bottleneck.
 When local-authoritative bulk-load proofs still show content trigram index
 maintenance as the long pole, `ESHU_LOCAL_AUTHORITATIVE_DEFER_CONTENT_SEARCH_INDEXES=true`
 can defer the `content_files.content` and `content_entities.source_cache`
-trigram indexes during initial writes. The local owner rebuilds those indexes
+trigram indexes during initial writes. The local Eshu service rebuilds those indexes
 after the discovered filesystem repo set reaches a clean
 projector/reducer/shared-intent drain, so content rows and search semantics are
 preserved while write-heavy startup avoids per-batch GIN maintenance. Treat
@@ -187,8 +187,8 @@ to tune high-cardinality entity volume from measured label summaries.
 
 | Variable | Default | Scope | Use |
 | --- | --- | --- | --- |
-| `ESHU_GRAPH_BACKEND` | `nornicdb` | API, MCP, ingester, reducer, local host | Selects the graph adapter. Set to `neo4j` for the explicit Neo4j path. Invalid values fail startup. |
-| `ESHU_NORNICDB_BINARY` | unset | local host / install / tests | Points Eshu at an explicit NornicDB binary. This wins over managed `${ESHU_HOME}/bin/nornicdb-headless` and `PATH`. |
+| `ESHU_GRAPH_BACKEND` | `nornicdb` | API, MCP, ingester, reducer, local Eshu service | Selects the graph adapter. Set to `neo4j` for the explicit Neo4j path. Invalid values fail startup. |
+| `ESHU_NORNICDB_BINARY` | unset | local Eshu service / install / tests | Points Eshu at an explicit NornicDB binary. This wins over managed `${ESHU_HOME}/bin/nornicdb-headless` and `PATH`. |
 | `ESHU_NORNICDB_INSTALL_TIMEOUT` | `30s` | `eshu install nornicdb` | Extends remote download timeouts for slow links. |
 
 ## Canonical Write Budget

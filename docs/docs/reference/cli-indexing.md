@@ -39,7 +39,7 @@ eshu index [path] [options]
 *   `--discovery-report` forwards `ESHU_DISCOVERY_REPORT=<absolute path>` to
     `bootstrap-index`, which writes one JSON array containing an advisory per
     collected repository.
-*   When using the lightweight local host (`eshu watch`, `eshu mcp stdio`),
+*   When using the local Eshu service (`eshu watch`, `eshu mcp stdio`),
     per-workspace state lives under
     `${ESHU_HOME}/local/workspaces/<workspace_id>/`. Workspace-root resolution
     order and data-root layout are documented in

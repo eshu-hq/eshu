@@ -3,6 +3,7 @@
 //
 // The package deliberately keeps the default test path deterministic and free
 // of live database requirements. Adapter-specific integration tests can import
-// the same corpora and run them against Neo4j, NornicDB, Compose, or remote
-// proof environments.
+// the same read and write corpora, run them against Neo4j, NornicDB, Compose,
+// or remote proof environments, and report case results without changing the
+// matrix contract.
 package backendconformance

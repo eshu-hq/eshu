@@ -2,8 +2,8 @@
 
 ## Purpose
 
-`eshulocal` implements the local-host filesystem contract for the lightweight
-code-intelligence runtime. It owns workspace-root resolution, the
+`eshulocal` implements the filesystem contract for the local Eshu service. It
+owns workspace-root resolution, the
 `${ESHU_HOME}/local/workspaces/<id>/` directory layout, the `owner.lock` flock
 protocol, the `owner.json` record, VERSION file management, and embedded
 Postgres lifecycle. The layout spec lives in
@@ -37,7 +37,7 @@ This package owns:
 - VERSION file lifecycle (`EnsureLayoutVersion`, `ReadLayoutVersion`,
   `WriteLayoutVersion`, `ErrIncompatibleLayoutVersion`)
 - startup admission (`PrepareWorkspace`, `StartupDeps`)
-- owner reclaim and stale-process detection (`ValidateOrReclaimOwner`,
+- local service reclaim and stale-process detection (`ValidateOrReclaimOwner`,
   `ReclaimDeps`, `DefaultReclaimDeps`, `ProcessAlive`, `SocketHealthy`,
   `StopEmbeddedPostgres`)
 - embedded Postgres lifecycle on Unix (`ManagedPostgres`, `StartEmbeddedPostgres`,
@@ -103,7 +103,7 @@ Startup admission:
 
 - `StartupDeps` — dependency struct for startup injection points.
 - `PrepareWorkspace(layout, currentVersion, deps)` — admission sequence: acquire
-  lock, validate version, validate or reclaim owner.
+  lock, validate version, validate or reclaim the local service record.
 
 Reclaim:
 

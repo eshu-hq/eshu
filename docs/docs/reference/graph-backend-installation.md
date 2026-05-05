@@ -56,7 +56,7 @@ Eshu chooses the local NornicDB runtime in this order:
 
 1. `ESHU_NORNICDB_BINARY` set: run that binary as an external process
 2. `ESHU_NORNICDB_RUNTIME=process`: run a discovered external process
-3. embedded runtime available: run NornicDB inside the `eshu` owner process
+3. embedded runtime available: run NornicDB inside the local `eshu` process
 4. embedded runtime unavailable: fail with guidance to rebuild with
    `-tags nolocalllm` or select process mode explicitly
 
@@ -84,7 +84,7 @@ promoted.
 Eshu verifies process-mode candidate binaries by running `<binary> version` and
 requiring a `NornicDB ...` version string. Both runtime modes generate a random
 admin password once per workspace graph data root and store it in
-`graph/nornicdb/eshu-credentials.json` with `0600` permissions. The live owner
+`graph/nornicdb/eshu-credentials.json` with `0600` permissions. The live service
 copies it to `owner.json` so attach processes can connect without a hardcoded
 shared secret.
 
@@ -252,7 +252,7 @@ artefacts remains future work.
 ### Uninstall
 
 Uninstall is not wired yet. Remove the managed binary and install manifest
-manually only when the workspace owner is stopped and you no longer need that
+manually only when the local Eshu service is stopped and you no longer need that
 managed backend entry. Workspace graph data directories are separate from the
 binary install and should be preserved unless you are intentionally discarding
 local graph state.
@@ -312,6 +312,6 @@ eshu graph status
 - Installing Neo4j. Neo4j remains an explicit operator-managed compatibility
   path.
 - Running process-mode NornicDB as a system service. Process mode is a
-  maintainer/test path tied to the Eshu lightweight host lifecycle.
+  maintainer/test path tied to the local Eshu service lifecycle.
 - Installing NornicDB for normal local binary mode. The default local path
-  embeds NornicDB in the `eshu` owner process.
+  embeds NornicDB in the local `eshu` process.
