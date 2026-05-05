@@ -1,0 +1,3 @@
+image:
+  repository: example.invalid/dynamic-target
+  tag: "1.0.0"

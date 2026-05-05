@@ -1,0 +1,6 @@
+apiVersion: v2
+name: template-platform-service
+description: Example platform service with separate API and repository ingester runtimes.
+type: application
+version: 0.1.12
+appVersion: "0.0.23"

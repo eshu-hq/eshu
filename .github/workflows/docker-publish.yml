@@ -1,0 +1,184 @@
+name: Publish Image and Helm Chart
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - go/**
+      - proto/**
+      - deploy/helm/**
+      - .github/workflows/docker-publish.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - go/**
+      - proto/**
+      - deploy/helm/**
+      - .github/workflows/docker-publish.yml
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  CHART_PATH: deploy/helm/eshu
+  CHART_REGISTRY: oci://ghcr.io/${{ github.repository_owner }}/charts
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.filter.outputs.image }}
+      chart: ${{ steps.filter.outputs.chart }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Decide release artifact lanes
+        id: filter
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" || "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            {
+              echo "image=true"
+              echo "chart=true"
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+            head_sha="${{ github.event.pull_request.head.sha }}"
+          else
+            base_sha="${{ github.event.before }}"
+            head_sha="${GITHUB_SHA}"
+            if [[ "${base_sha}" =~ ^0+$ ]]; then
+              base_sha="$(git rev-parse "${head_sha}^")"
+            fi
+          fi
+
+          image=false
+          chart=false
+          while IFS= read -r path; do
+            case "${path}" in
+              Dockerfile|.dockerignore|go/*|proto/*)
+                image=true
+                ;;
+              deploy/helm/*)
+                chart=true
+                ;;
+              .github/workflows/docker-publish.yml)
+                image=true
+                chart=true
+                ;;
+            esac
+          done < <(git diff --name-only "${base_sha}" "${head_sha}")
+
+          {
+            echo "image=${image}"
+            echo "chart=${chart}"
+          } >> "${GITHUB_OUTPUT}"
+
+  build-and-push-image:
+    needs: changes
+    if: needs.changes.outputs.image == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write 
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            ESHU_VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Generate artifact attestation
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  package-and-push-chart:
+    needs: changes
+    if: needs.changes.outputs.chart == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5.0.0
+
+      - name: Lint Helm chart
+        run: helm lint ${{ env.CHART_PATH }}
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p dist
+          helm package ${{ env.CHART_PATH }} --destination dist
+
+      - name: Push Helm chart to GHCR
+        if: github.event_name != 'pull_request'
+        run: |
+          helm registry login ${{ env.REGISTRY }} \
+            --username "${{ github.actor }}" \
+            --password "${{ secrets.GITHUB_TOKEN }}"
+          helm push dist/eshu-*.tgz ${{ env.CHART_REGISTRY }}

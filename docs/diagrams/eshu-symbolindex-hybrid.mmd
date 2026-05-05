@@ -1,0 +1,74 @@
+%%{ init: { 'theme': 'base', 'themeVariables': { 'fontSize': '13px' } } }%%
+flowchart TB
+    subgraph CURRENT["CURRENT: Eshu Pipeline (function_calls stage)"]
+        direction TB
+        C1["Parse all repos<br/>(tree-sitter + YAML/HCL)"] --> C2["NDJSON snapshot to disk"]
+        C2 --> C3["Commit entities to Neo4j<br/>(UNWIND batch writes)"]
+        C3 --> C4["Build merged_imports_map<br/>across all repos"]
+        C4 --> C5["Finalization: function_calls stage"]
+        C5 --> C6["_prepare_call_rows()<br/>IN-MEMORY import resolution<br/>(imports_map lookups)"]
+        C6 --> C7["Buffer rows: contextual + file-level"]
+        C7 --> C8["Flush at 2000 rows"]
+        C8 --> C9["Neo4j UNWIND queries<br/>(250 rows/batch)<br/>3-tier resolution chain:<br/>exact -> repo-scoped -> global"]
+        C9 --> C10["Neo4j executes:<br/>OPTIONAL MATCH by name+path<br/>COALESCE caller/called<br/>MERGE CALLS edge<br/>RETURN matched_row_ids"]
+    end
+
+    subgraph HYBRID["PROPOSED: Eshu + SymbolIndex Hybrid"]
+        direction TB
+        H1["Parse all repos<br/>(tree-sitter + YAML/HCL)"] --> H2["NDJSON snapshot to disk"]
+        H2 --> H3["Commit entities to Neo4j<br/>(UNWIND batch writes)<br/>UNCHANGED"]
+        H3 --> H4["Build merged_imports_map<br/>across all repos<br/>UNCHANGED"]
+
+        H4 --> H5["NEW: Build SymbolIndex<br/>from committed NDJSON data"]
+
+        subgraph SYMIDX["SymbolIndex (in-memory, per-run)"]
+            SI1["by_name: dict[str, list[SymbolRef]]"]
+            SI2["by_path_name: dict[(path,name), SymbolRef]"]
+            SI3["by_path_name_line: dict[(path,name,line), SymbolRef]"]
+            SI4["methods_by_path_class: dict[(path,class), list[SymbolRef]]"]
+            SI5["type_by_path_name: dict[(path,name), SymbolRef]"]
+        end
+
+        H5 --> SYMIDX
+
+        SYMIDX --> H6["Modified _prepare_call_rows():<br/>1. Same import resolution (imports_map)<br/>2. THEN: resolve called_file_path<br/>   via SymbolIndex lookups instead<br/>   of leaving for Neo4j"]
+        H6 --> H7{"SymbolIndex found<br/>exact match?"}
+        H7 -->|Yes: by_path_name hit| H8["ResolvedCallEdge<br/>(fully resolved in-memory)"]
+        H7 -->|No: ambiguous/missing| H9["Unresolved row<br/>(falls through to Neo4j)"]
+        H8 --> H10["Batch collect all resolved edges"]
+        H9 --> H11["Reduced UNWIND batch<br/>(only unresolved rows)"]
+        H10 --> H12["Single batched MERGE write:<br/>UNWIND $edges<br/>MATCH caller by path+name<br/>MATCH called by path+name<br/>MERGE CALLS<br/>(no OPTIONAL MATCH needed -<br/>both endpoints verified in-memory)"]
+        H11 --> H13["Existing 3-tier resolution<br/>for remaining rows<br/>(exact -> repo-scoped -> global)"]
+    end
+
+    subgraph MEMORY["Memory Impact Analysis"]
+        direction TB
+        M1["SymbolIndex Memory Cost Per Repo:"]
+        M2["~80 bytes/symbol (SymbolRef + dict overhead)"]
+        M3["Small repo (500 files, ~3K symbols): ~240 KB"]
+        M4["Medium repo (2K files, ~15K symbols): ~1.2 MB"]
+        M5["Large repo (5K files, ~40K symbols): ~3.2 MB"]
+        M6["XLarge repo (15K files, ~100K symbols): ~8 MB"]
+        M7["10-repo corpus (total): ~15-30 MB"]
+        M8["Lifetime: built after commit, freed after finalization"]
+        M1 --> M2 --> M3 --> M4 --> M5 --> M6 --> M7 --> M8
+    end
+
+    subgraph BENEFIT["Performance Benefit"]
+        direction TB
+        B1["Current: Per 2000-row flush =<br/>8 exact + 8 repo-scoped = 16 Neo4j round-trips<br/>Each UNWIND: 250 rows x OPTIONAL MATCH x 4"]
+        B2["With SymbolIndex: 80-90% of rows<br/>resolve in-memory (O(1) dict lookup)<br/>Remaining 10-20% still use Neo4j UNWIND"]
+        B3["Net effect: ~80% fewer Neo4j round-trips<br/>in function_calls stage"]
+        B4["function_calls is typically 40-60%<br/>of total finalization time"]
+        B1 --> B2 --> B3 --> B4
+    end
+
+    classDef current fill:#fce4ec,stroke:#880e4f
+    classDef hybrid fill:#e8f5e9,stroke:#1b5e20
+    classDef memory fill:#fff3e0,stroke:#e65100
+    classDef benefit fill:#e1f5fe,stroke:#01579b
+
+    class CURRENT current
+    class HYBRID hybrid
+    class MEMORY memory
+    class BENEFIT benefit

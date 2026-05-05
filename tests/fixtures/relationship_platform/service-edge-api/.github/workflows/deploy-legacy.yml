@@ -1,0 +1,17 @@
+name: deploy-legacy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    uses: eshu-hq/delivery-legacy-automation/.github/workflows/promote-edge-api.yml@main
+    with:
+      workflow_input_repository: delivery-legacy-automation
+  legacy-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy legacy task
+        run: echo "deploying service-edge-api to legacy ecs"

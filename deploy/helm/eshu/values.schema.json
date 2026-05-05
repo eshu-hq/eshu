@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "definitions": {
+    "poolSizeValue": {
+      "oneOf": [
+        { "type": "integer", "minimum": 1 },
+        { "type": "string" }
+      ]
+    },
+    "durationValue": {
+      "type": "string"
+    },
+    "postgresConnectionTuning": {
+      "type": "object",
+      "properties": {
+        "maxOpenConns": { "$ref": "#/definitions/poolSizeValue" },
+        "maxIdleConns": { "$ref": "#/definitions/poolSizeValue" },
+        "connMaxLifetime": { "$ref": "#/definitions/durationValue" },
+        "connMaxIdleTime": { "$ref": "#/definitions/durationValue" },
+        "pingTimeout": { "$ref": "#/definitions/durationValue" }
+      }
+    },
+    "neo4jConnectionTuning": {
+      "type": "object",
+      "properties": {
+        "maxConnectionPoolSize": { "$ref": "#/definitions/poolSizeValue" },
+        "maxConnectionLifetime": { "$ref": "#/definitions/durationValue" },
+        "connectionAcquisitionTimeout": { "$ref": "#/definitions/durationValue" },
+        "socketConnectTimeout": { "$ref": "#/definitions/durationValue" },
+        "verifyTimeout": { "$ref": "#/definitions/durationValue" }
+      }
+    },
+    "connectionTuning": {
+      "type": "object",
+      "properties": {
+        "postgres": { "$ref": "#/definitions/postgresConnectionTuning" },
+        "neo4j": { "$ref": "#/definitions/neo4jConnectionTuning" }
+      }
+    }
+  },
+  "properties": {
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["ClusterIP", "LoadBalancer", "NodePort"]
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 1 },
+        "runAsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroup": { "type": "integer", "minimum": 1 },
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string" }
+          }
+        }
+      }
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "initContainerSecurityContext": {
+      "type": "object",
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "runAsGroup": { "type": "integer", "minimum": 0 },
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "apiAuth": {
+      "type": "object",
+      "properties": {
+        "secretName": { "type": "string" },
+        "key": { "type": "string" }
+      }
+    },
+    "resolutionEngine": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      }
+    },
+    "workflowCoordinator": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "deploymentMode": {
+          "type": "string",
+          "enum": ["dark"]
+        },
+        "claimsEnabled": {
+          "type": "boolean",
+          "enum": [false]
+        },
+        "collectorInstances": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "instance_id": { "type": "string" },
+              "collector_kind": { "type": "string" },
+              "mode": { "type": "string" },
+              "enabled": { "type": "boolean" },
+              "bootstrap": { "type": "boolean" },
+              "claims_enabled": { "type": "boolean" },
+              "display_name": { "type": "string" },
+              "configuration": {}
+            },
+            "required": ["instance_id", "collector_kind", "mode", "enabled"],
+            "additionalProperties": false
+          }
+        },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      }
+    },
+    "api": {
+      "type": "object",
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      }
+    },
+    "mcpServer": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      }
+    },
+    "ingester": {
+      "type": "object",
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "persistence": { "type": "object" },
+        "resources": { "type": "object" }
+      }
+    },
+    "repoSync": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "bootstrap": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "intervalSeconds": { "type": "integer", "minimum": 1 },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": ["githubApp", "token", "ssh", "none"]
+            }
+          }
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["githubOrg", "explicit", "filesystem"]
+            },
+            "repositories": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["exact", "regex"]
+                  },
+                  "value": { "type": "string" }
+                },
+                "required": ["type", "value"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "properties": {
+        "environment": { "type": "string" },
+        "otel": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "endpoint": { "type": "string" },
+            "protocol": {
+              "type": "string",
+              "enum": ["grpc", "http/protobuf"]
+            },
+            "insecure": { "type": "boolean" },
+            "headers": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "tracesExporter": { "type": "string" },
+            "metricsExporter": { "type": "string" },
+            "logsExporter": { "type": "string" },
+            "resourceAttributes": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "excludedUrls": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "metricExportIntervalSeconds": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "prometheus": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "host": { "type": "string" },
+            "port": { "type": "integer", "minimum": 1 },
+            "path": { "type": "string" },
+            "serviceMonitor": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "interval": { "type": "string" },
+                "scrapeTimeout": { "type": "string" },
+                "labels": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "contentStore": {
+      "type": "object",
+      "properties": {
+        "dsn": { "type": "string" }
+      }
+    },
+    "exposure": {
+      "type": "object",
+      "properties": {
+        "ingress": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "backend": {
+              "type": "string",
+              "enum": ["api", "mcp"]
+            }
+          }
+        },
+        "gateway": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "backend": {
+              "type": "string",
+              "enum": ["api", "mcp"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

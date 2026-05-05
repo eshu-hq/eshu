@@ -1,0 +1,138 @@
+name: End-to-end Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: test (${{ matrix.graph_backend }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - graph_backend: nornicdb
+            compose_file: docker-compose.yaml
+            graph_service: nornicdb
+            database: nornic
+          - graph_backend: neo4j
+            compose_file: docker-compose.neo4j.yml
+            graph_service: neo4j
+            database: neo4j
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Build Go binaries
+        working-directory: go
+        run: |
+          BIN_DIR="${GITHUB_WORKSPACE}/bin"
+          mkdir -p "${BIN_DIR}"
+          echo "${BIN_DIR}" >> "${GITHUB_PATH}"
+          VERSION="${GITHUB_SHA::12}"
+          LDFLAGS="-X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${VERSION}"
+          CGO_ENABLED=1 go build -ldflags "${LDFLAGS}" -o "${BIN_DIR}/eshu-bootstrap-index" ./cmd/bootstrap-index
+          CGO_ENABLED=1 go build -ldflags "${LDFLAGS}" -o "${BIN_DIR}/eshu-api" ./cmd/api
+          CGO_ENABLED=1 go build -ldflags "${LDFLAGS}" -o "${BIN_DIR}/eshu-ingester" ./cmd/ingester
+          CGO_ENABLED=1 go build -ldflags "${LDFLAGS}" -o "${BIN_DIR}/eshu-reducer" ./cmd/reducer
+
+      - name: Start Docker-backed graph and Postgres
+        env:
+          ESHU_NEO4J_PASSWORD: change-me
+          ESHU_POSTGRES_PASSWORD: change-me
+        run: docker compose -f "${{ matrix.compose_file }}" up -d "${{ matrix.graph_service }}" postgres
+
+      - name: Wait for graph backend and Postgres
+        env:
+          ESHU_NEO4J_PASSWORD: change-me
+          ESHU_POSTGRES_PASSWORD: change-me
+        run: |
+          COMPOSE_FILE="${{ matrix.compose_file }}"
+          GRAPH_SERVICE="${{ matrix.graph_service }}"
+          for _ in $(seq 1 60); do
+            graph_ready=false
+            if [ "${GRAPH_SERVICE}" = "nornicdb" ]; then
+              docker compose -f "${COMPOSE_FILE}" exec -T nornicdb wget --spider -q http://localhost:7474/health >/dev/null 2>&1 && graph_ready=true
+            else
+              docker compose -f "${COMPOSE_FILE}" exec -T neo4j cypher-shell -u neo4j -p "${ESHU_NEO4J_PASSWORD}" "RETURN 1" >/dev/null 2>&1 && graph_ready=true
+            fi
+            if [ "${graph_ready}" = "true" ] && \
+               docker compose -f "${COMPOSE_FILE}" exec -T postgres pg_isready -U eshu -d eshu >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f "${COMPOSE_FILE}" logs "${GRAPH_SERVICE}"
+          docker compose -f "${COMPOSE_FILE}" logs postgres
+          exit 1
+
+      - name: Run live backend conformance
+        env:
+          ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USERNAME: neo4j
+          NEO4J_PASSWORD: change-me
+          DEFAULT_DATABASE: ${{ matrix.database }}
+          ESHU_NEO4J_DATABASE: ${{ matrix.database }}
+          NEO4J_DATABASE: ${{ matrix.database }}
+        run: ./scripts/verify_backend_conformance_live.sh
+
+      - name: Run bootstrap-index against fixture ecosystems
+        env:
+          ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
+          ESHU_QUERY_PROFILE: local_full_stack
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USERNAME: neo4j
+          NEO4J_PASSWORD: change-me
+          DEFAULT_DATABASE: ${{ matrix.database }}
+          ESHU_NEO4J_DATABASE: ${{ matrix.database }}
+          NEO4J_DATABASE: ${{ matrix.database }}
+          ESHU_CONTENT_STORE_DSN: postgresql://eshu:change-me@localhost:15432/eshu
+          ESHU_POSTGRES_DSN: postgresql://eshu:change-me@localhost:15432/eshu
+          ESHU_HOME: /tmp/.eshu-${{ matrix.graph_backend }}
+          ESHU_REPOS_DIR: /tmp/repos-${{ matrix.graph_backend }}
+          ESHU_REPO_SOURCE_MODE: filesystem
+          ESHU_FILESYSTEM_ROOT: ./tests/fixtures/ecosystems
+          ESHU_GIT_AUTH_METHOD: none
+          ESHU_REPOSITORY_RULES_JSON: "[]"
+        run: |
+          mkdir -p "${ESHU_REPOS_DIR}"
+          eshu-bootstrap-index
+
+      - name: Verify API health
+        env:
+          ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
+          ESHU_QUERY_PROFILE: local_full_stack
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USERNAME: neo4j
+          NEO4J_PASSWORD: change-me
+          DEFAULT_DATABASE: ${{ matrix.database }}
+          ESHU_NEO4J_DATABASE: ${{ matrix.database }}
+          NEO4J_DATABASE: ${{ matrix.database }}
+          ESHU_CONTENT_STORE_DSN: postgresql://eshu:change-me@localhost:15432/eshu
+          ESHU_POSTGRES_DSN: postgresql://eshu:change-me@localhost:15432/eshu
+          ESHU_HOME: /tmp/.eshu-${{ matrix.graph_backend }}
+          ESHU_REPOS_DIR: /tmp/repos-${{ matrix.graph_backend }}
+          ESHU_RUNTIME_ROLE: api
+          ESHU_AUTO_GENERATE_API_KEY: "true"
+        run: |
+          eshu-api &
+          API_PID=$!
+          sleep 3
+          curl -fsS http://localhost:8080/healthz
+          curl -fsS http://localhost:8080/readyz
+          kill $API_PID || true
+
+      - name: Tear down Docker services
+        if: always()
+        run: docker compose -f "${{ matrix.compose_file }}" down -v

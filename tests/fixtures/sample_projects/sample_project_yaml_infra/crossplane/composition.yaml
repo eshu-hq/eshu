@@ -1,0 +1,23 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: iam-role-composition
+spec:
+  compositeTypeRef:
+    apiVersion: iam.aws.myorg.io/v1alpha1
+    kind: XIAMRole
+  resources:
+    - name: iam-role
+      base:
+        apiVersion: iam.aws.crossplane.io/v1beta1
+        kind: Role
+        spec:
+          forProvider:
+            assumeRolePolicyDocument: ""
+    - name: role-policy-attachment
+      base:
+        apiVersion: iam.aws.crossplane.io/v1beta1
+        kind: RolePolicyAttachment
+        spec:
+          forProvider:
+            policyArn: ""

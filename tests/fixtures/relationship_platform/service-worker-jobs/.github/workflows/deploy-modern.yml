@@ -1,0 +1,12 @@
+name: deploy-modern
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy worker
+        run: echo "deploying service-worker-jobs to modern kubernetes"

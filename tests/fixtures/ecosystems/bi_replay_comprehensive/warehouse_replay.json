@@ -1,0 +1,40 @@
+{
+  "metadata": {
+    "warehouse_vendor": "generic",
+    "workspace": "finance"
+  },
+  "assets": [
+    {
+      "database": "analytics",
+      "schema": "finance",
+      "name": "daily_revenue",
+      "kind": "table",
+      "columns": [
+        {"name": "gross_amount"},
+        {"name": "net_amount"}
+      ]
+    },
+    {
+      "database": "analytics",
+      "schema": "crm",
+      "name": "customers",
+      "kind": "table",
+      "columns": [
+        {"name": "customer_tier"}
+      ]
+    }
+  ],
+  "query_history": [
+    {
+      "query_id": "finance_daily_refresh",
+      "name": "finance_daily_refresh",
+      "statement": "select gross_amount, net_amount from analytics.finance.daily_revenue",
+      "status": "success",
+      "executed_by": "etl_runner",
+      "started_at": "2026-04-11T02:00:00Z",
+      "touched_assets": [
+        "analytics.finance.daily_revenue"
+      ]
+    }
+  ]
+}

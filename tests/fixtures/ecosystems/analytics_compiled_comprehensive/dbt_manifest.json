@@ -1,0 +1,132 @@
+{
+  "metadata": {
+    "adapter_type": "postgres",
+    "project_name": "jaffle_shop"
+  },
+  "nodes": {
+    "model.jaffle_shop.order_metrics": {
+      "unique_id": "model.jaffle_shop.order_metrics",
+      "resource_type": "model",
+      "name": "order_metrics",
+      "database": "analytics",
+      "schema": "public",
+      "alias": "order_metrics",
+      "path": "models/marts/order_metrics.sql",
+      "compiled_path": "target/compiled/jaffle_shop/models/marts/order_metrics.sql",
+      "relation_name": "analytics.public.order_metrics",
+      "config": {
+        "materialized": "view"
+      },
+      "depends_on": {
+        "nodes": [
+          "source.jaffle_shop.raw.orders",
+          "source.jaffle_shop.raw.customers",
+          "source.jaffle_shop.raw.payments"
+        ]
+      },
+      "compiled_code": "with customer_orders as (\n  select\n    o.id as raw_order_id,\n    o.customer_id as raw_customer_id,\n    c.full_name as source_customer_name,\n    sum(p.amount) as payment_total_amount,\n    o.created_at as source_created_at\n  from raw.public.orders o\n  join raw.public.customers c on c.id = o.customer_id\n  left join raw.public.payments p on p.order_id = o.id\n  group by 1, 2, 3, 5\n)\nselect\n  raw_order_id as order_id,\n  raw_customer_id as customer_id,\n  upper(source_customer_name) as customer_name,\n  payment_total_amount as total_amount,\n  source_created_at as created_at\nfrom customer_orders\n",
+      "columns": {
+        "order_id": {
+          "name": "order_id"
+        },
+        "customer_id": {
+          "name": "customer_id"
+        },
+        "customer_name": {
+          "name": "customer_name"
+        },
+        "total_amount": {
+          "name": "total_amount"
+        },
+        "created_at": {
+          "name": "created_at"
+        }
+      }
+    },
+    "model.jaffle_shop.orders_expanded": {
+      "unique_id": "model.jaffle_shop.orders_expanded",
+      "resource_type": "model",
+      "name": "orders_expanded",
+      "database": "analytics",
+      "schema": "public",
+      "alias": "orders_expanded",
+      "path": "models/marts/orders_expanded.sql",
+      "compiled_path": "target/compiled/jaffle_shop/models/marts/orders_expanded.sql",
+      "relation_name": "analytics.public.orders_expanded",
+      "config": {
+        "materialized": "table"
+      },
+      "depends_on": {
+        "nodes": [
+          "source.jaffle_shop.raw.orders",
+          "source.jaffle_shop.raw.customers"
+        ]
+      },
+      "compiled_code": "select\n  o.*, \n  coalesce(c.segment, 'unknown') as customer_segment\nfrom raw.public.orders o\nleft join raw.public.customers c on c.id = o.customer_id\n",
+      "columns": {
+        "customer_segment": {
+          "name": "customer_segment"
+        }
+      }
+    }
+  },
+  "sources": {
+    "source.jaffle_shop.raw.orders": {
+      "unique_id": "source.jaffle_shop.raw.orders",
+      "resource_type": "source",
+      "source_name": "raw",
+      "name": "orders",
+      "database": "raw",
+      "schema": "public",
+      "identifier": "orders",
+      "columns": {
+        "id": {
+          "name": "id"
+        },
+        "customer_id": {
+          "name": "customer_id"
+        },
+        "created_at": {
+          "name": "created_at"
+        }
+      }
+    },
+    "source.jaffle_shop.raw.customers": {
+      "unique_id": "source.jaffle_shop.raw.customers",
+      "resource_type": "source",
+      "source_name": "raw",
+      "name": "customers",
+      "database": "raw",
+      "schema": "public",
+      "identifier": "customers",
+      "columns": {
+        "id": {
+          "name": "id"
+        },
+        "full_name": {
+          "name": "full_name"
+        },
+        "segment": {
+          "name": "segment"
+        }
+      }
+    },
+    "source.jaffle_shop.raw.payments": {
+      "unique_id": "source.jaffle_shop.raw.payments",
+      "resource_type": "source",
+      "source_name": "raw",
+      "name": "payments",
+      "database": "raw",
+      "schema": "public",
+      "identifier": "payments",
+      "columns": {
+        "order_id": {
+          "name": "order_id"
+        },
+        "amount": {
+          "name": "amount"
+        }
+      }
+    }
+  }
+}

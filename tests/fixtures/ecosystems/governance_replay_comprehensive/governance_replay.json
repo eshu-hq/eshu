@@ -1,0 +1,45 @@
+{
+  "metadata": {
+    "governance_vendor": "generic",
+    "workspace": "finance"
+  },
+  "owners": [
+    {
+      "owner_id": "finance-analytics",
+      "name": "Finance Analytics",
+      "path": "governance/ownership.yml",
+      "team": "finance-analytics",
+      "owns_assets": [
+        "analytics.finance.daily_revenue"
+      ],
+      "owns_columns": [
+        "analytics.finance.daily_revenue.customer_email"
+      ]
+    }
+  ],
+  "contracts": [
+    {
+      "contract_id": "daily-revenue-contract",
+      "name": "daily_revenue_contract",
+      "path": "governance/contracts.yml",
+      "contract_level": "gold",
+      "change_policy": "breaking",
+      "targets_assets": [
+        "analytics.finance.daily_revenue"
+      ],
+      "targets_columns": [
+        {
+          "name": "analytics.finance.daily_revenue.gross_amount",
+          "sensitivity": "financial",
+          "is_protected": false
+        },
+        {
+          "name": "analytics.finance.daily_revenue.customer_email",
+          "sensitivity": "pii",
+          "is_protected": true,
+          "protection_kind": "masked"
+        }
+      ]
+    }
+  ]
+}

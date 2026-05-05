@@ -1,0 +1,75 @@
+asset_group:
+  name: ga4_data_quality
+  description: Data quality checks for GA4 data
+  partition_start_date: '2023-10-01'
+  partitioned: true
+  s3_base_path: "s3://glue-assets-{{ environment }}-demo-dp-{{ account_id }}-{{ region }}/lakehouse/soda_checks/"
+  notifications:
+    enabled: true
+    webhook_url: https://hooks.example.invalid/services/TEAM/CHANNEL/TOKEN
+
+{% set portals = [
+  'portal-alpha',
+  'portal-bravo',
+  'portal-charlie',
+  'portal-delta',
+  'portal-echo',
+  'portal-foxtrot',
+  'portal-golf',
+  'portal-hotel'
+] %}
+
+dq_checks:
+  - name: ga4_missing_parameters_perc_checks_LPF
+    portals: {{ portals | tojson }}
+    checks_filename: ga4_events_and_parameters/ga4_missing_parameters_perc_checks_LPF.yaml
+    deps:
+      - analytics_sanitized_unified_web_portals_000000001
+    description: Daily data quality checks for GA4 LPF data across all portals
+    partitioned: true
+
+  - name: ga4_missing_parameters_perc_checks_visit_email_leads
+    portals: {{ portals | tojson }}
+    checks_filename: ga4_events_and_parameters/ga4_missing_parameters_perc_checks_visit_email_leads.yaml
+    deps:
+      - analytics_sanitized_unified_web_portals_000000001
+    description: Daily data quality checks for GA4 visit email leads data across all portals
+    partitioned: true
+
+  - name: ga4_missing_parameters_perc_checks_traffic_cube
+    portals: {{ portals | tojson }}
+    checks_filename: ga4_events_and_parameters/ga4_missing_parameters_perc_checks_traffic_cube.yaml
+    deps:
+      - analytics_sanitized_unified_web_portals_000000001
+    description: Daily data quality checks for GA4 traffic cube data across all portals
+    partitioned: true
+
+  # - name: ga4_checks_experiments_data
+  #   portals: {{ portals | tojson }}
+  #   checks_filename: ga4_checks_experiments_data.yaml
+  #   deps:
+  #     - ga4_consumer_events_enriched
+  #   description: Daily data quality checks for email leads tracking data
+  #   partitioned: true
+
+  - name: ga4_anomalies_consumer_sessions
+    portals: {{ portals | tojson }}
+    checks_filename: ga4_sessions/ga4_anomalies_consumer_sessions.yaml
+    deps:
+      - analytics_sanitized_unified_web_portals_000000001
+    description: Daily data quality checks for GA4 traffic cube data across all portals
+    partitioned: true
+
+  - name: daily_duplicated_rows_perc_validation
+    portals: {{ portals | tojson }}
+    checks_filename: table_level_checks/daily_duplicated_rows_perc_validation.yaml
+    deps: []
+    description: Detect duplicated rows in daily tables
+    partitioned: true
+
+  - name: row_count_comparison_perc_checks
+    portals: {{ portals | tojson }}
+    checks_filename: table_level_checks/row_count_comparison_perc_checks.yaml
+    deps: []
+    description: Daily data quality checks for differences in row counts between tables across all portals
+    partitioned: true

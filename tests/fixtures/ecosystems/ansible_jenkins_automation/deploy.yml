@@ -1,0 +1,6 @@
+- name: Configure websites
+  hosts: mws
+  roles:
+    - { role: nginx, tags: ['nginx'] }
+    - { role: php, tags: ['php'] }
+    - { role: portal-websites, src: portal-websites, tags: ['deploy-portal'] }

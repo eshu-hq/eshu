@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: eshu
+  namespace: eshu
+spec:
+  serviceName: eshu
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eshu
+  template:
+    metadata:
+      labels:
+        app: eshu
+    spec:
+      containers:
+        - name: eshu
+          image: ghcr.io/eshu-hq/eshu:v0.0.1
+          command: ["eshu", "serve", "start", "--host", "0.0.0.0", "--port", "8080"]
+          envFrom:
+            - configMapRef:
+                name: eshu-config
+          env:
+            - name: NEO4J_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: eshu-neo4j
+                  key: username
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eshu-neo4j
+                  key: password
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi

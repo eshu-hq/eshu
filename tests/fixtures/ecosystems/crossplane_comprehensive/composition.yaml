@@ -1,0 +1,25 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: database-composition
+spec:
+  compositeTypeRef:
+    apiVersion: db.example.org/v1alpha1
+    kind: XDatabase
+  resources:
+    - name: rds-instance
+      base:
+        apiVersion: rds.aws.upbound.io/v1beta1
+        kind: Instance
+        spec:
+          forProvider:
+            region: us-east-1
+            instanceClass: db.t3.micro
+            allocatedStorage: 20
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.engine
+          toFieldPath: spec.forProvider.engine
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.storageGB
+          toFieldPath: spec.forProvider.allocatedStorage

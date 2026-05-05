@@ -1,0 +1,30 @@
+replicaCount: 5
+
+image:
+  tag: "v2.0.0"
+
+resources:
+  limits:
+    cpu: "2"
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+ingress:
+  enabled: true
+  hosts:
+    - host: app.production.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: app-tls
+      hosts:
+        - app.production.example.com
+
+redis:
+  enabled: true
+
+postgresql:
+  enabled: true

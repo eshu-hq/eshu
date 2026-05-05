@@ -1,0 +1,182 @@
+version: v1
+updated_at: 2026-04-22
+owners:
+  - platform-engineering
+profiles: [local_lightweight, local_authoritative, local_full_stack, production]
+graph_backends: [neo4j, nornicdb]
+capabilities:
+  - capability: code_search.exact_symbol
+    tools: [find_code]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: indexed entity lookup}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: indexed entity lookup, graph sidecar available but not required}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 500, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: indexed entity lookup}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 800, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-search-exact}], notes: indexed entity lookup}
+  - capability: code_search.fuzzy_symbol
+    tools: [find_code]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 700, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: scored fuzzy match}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 700, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: scored fuzzy match}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 700, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: scored fuzzy match}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-search-fuzzy}], notes: scored fuzzy match}
+  - capability: code_search.variable_lookup
+    tools: [find_code]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 700, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: parser-derived symbol metadata}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 700, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-variable-lookup}], notes: graph sidecar serves durable semantic facts}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 700, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: durable semantic facts}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-variable-lookup}], notes: durable semantic facts}
+  - capability: code_search.content_search
+    tools: [search_file_content]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: relational content search}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: relational content search; graph sidecar unused for this capability}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: relational content search}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-content-search}], notes: relational content search}
+  - capability: symbol_graph.decorators
+    tools: [execute_language_query]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: semantic facts only}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-decorators}], notes: graph sidecar serves durable semantic facts}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: durable semantic facts}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-decorators}], notes: durable semantic facts}
+  - capability: symbol_graph.argument_names
+    tools: [execute_language_query]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: semantic facts only}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-argument-names}], notes: graph sidecar serves durable semantic facts}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: durable semantic facts}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-argument-names}], notes: durable semantic facts}
+  - capability: symbol_graph.class_methods
+    tools: [execute_language_query]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: semantic facts only}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-class-methods}], notes: graph sidecar serves durable semantic facts}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: durable semantic facts}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-class-methods}], notes: durable semantic facts}
+  - capability: symbol_graph.imports
+    tools: [execute_language_query]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: parser-derived imports}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-imports}], notes: graph sidecar serves durable semantic facts}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: durable semantic facts}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-imports}], notes: durable semantic facts}
+  - capability: symbol_graph.inheritance
+    tools: [execute_language_query]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: semantic facts only}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-inheritance}], notes: graph sidecar serves durable semantic facts}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: durable semantic facts}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-inheritance}], notes: durable semantic facts}
+  - capability: code_quality.complexity
+    tools: [calculate_cyclomatic_complexity, find_most_complex_functions]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: parser-derived metric}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: parser-derived metric; graph sidecar unused}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 1500, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: parser-derived metric}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 2000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-complexity}], notes: parser-derived metric}
+  - capability: call_graph.direct_callers
+    tools: [analyze_code_relationships]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{integration_test: local-direct-callers-derived}], notes: non-authoritative local relationship view}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-direct-callers}], notes: graph sidecar serves authoritative CALLS edges}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 2000, max_scope_size: indexed_workspace, verification: [{compose_e2e: direct-callers}], notes: authoritative graph}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-direct-callers}], notes: authoritative graph}
+  - capability: call_graph.direct_callees
+    tools: [analyze_code_relationships]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{integration_test: local-direct-callees-derived}], notes: non-authoritative local relationship view}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-direct-callees}], notes: graph sidecar serves authoritative CALLS edges}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 2000, max_scope_size: indexed_workspace, verification: [{compose_e2e: direct-callees}], notes: authoritative graph}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-direct-callees}], notes: authoritative graph}
+  - capability: call_graph.transitive_callers
+    tools: [analyze_code_relationships]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-transitive-callers}], notes: must return structured unsupported-capability}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-transitive-callers}], notes: NornicDB graph sidecar serves authoritative graph at laptop scale}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 3000, max_scope_size: indexed_workspace, verification: [{compose_e2e: transitive-callers}], notes: authoritative graph}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-transitive-callers}], notes: authoritative graph}
+  - capability: call_graph.transitive_callees
+    tools: [analyze_code_relationships]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-transitive-callees}], notes: must return structured unsupported-capability}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-transitive-callees}], notes: graph sidecar serves authoritative graph at laptop scale}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 3000, max_scope_size: indexed_workspace, verification: [{compose_e2e: transitive-callees}], notes: authoritative graph}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-transitive-callees}], notes: authoritative graph}
+  - capability: call_graph.call_chain_path
+    tools: [find_function_call_chain]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-call-chain}], notes: requires authoritative graph mode}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-call-chain}], notes: graph sidecar shortestPath}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 3000, max_scope_size: indexed_workspace, verification: [{compose_e2e: call-chain-path}], notes: authoritative path query}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-call-chain-path}], notes: authoritative path query}
+  - capability: code_quality.dead_code
+    tools: [find_dead_code]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-dead-code}], notes: requires graph plus framework roots}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 10000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-dead-code}], notes: graph-backed candidate scan with partial root modeling; broader framework and public-API roots still pending}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{compose_e2e: dead-code-reachability}], notes: graph-backed candidate scan with partial root modeling; exact promotion gated on broader roots}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-dead-code}], notes: graph-backed candidate scan with partial root modeling; exact promotion gated on broader roots}
+  - capability: iac_quality.dead_iac
+    tools: [find_dead_iac]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-dead-iac}], notes: requires indexed IaC content and explicit repository scope}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 10000, max_scope_size: bounded_repo_scope, verification: [{go_test: ./internal/query}], notes: bounded content-derived candidate scan; exact cleanup requires reducer-materialized usage rows}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 10000, max_scope_size: bounded_repo_scope, verification: [{compose_e2e: dead-iac-reachability}], notes: bounded content-derived candidate scan; exact cleanup requires reducer-materialized usage rows}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 10000, max_scope_size: bounded_repo_scope, verification: [{remote_validation: prod-dead-iac}], notes: bounded content-derived candidate scan; exact cleanup requires reducer-materialized usage rows}
+  - capability: platform_impact.deployment_chain
+    tools: [trace_deployment_chain, find_infra_resources, analyze_infra_relationships]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-deployment-chain}], notes: requires full platform truth}
+      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-authoritative-unsupported-deployment-chain}], notes: laptop graph sidecar alone does not index enough IaC for platform topology; full-stack required}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{compose_e2e: deployment-chain}], notes: authoritative platform topology}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 6000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-deployment-chain}], notes: authoritative platform topology}
+  - capability: platform_impact.context_overview
+    tools: [get_repo_context, get_service_context, get_ecosystem_overview]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-context-overview}], notes: requires full platform context truth}
+      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-authoritative-unsupported-context-overview}], notes: laptop graph sidecar alone lacks ecosystem breadth; full-stack required}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{compose_e2e: context-overview}], notes: authoritative repository, service, and ecosystem context}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 6000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-context-overview}], notes: authoritative repository, service, and ecosystem context}
+  - capability: relationship_evidence.drilldown
+    tools: [get_repo_context, get_relationship_evidence]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-relationship-evidence}], notes: requires durable relationship read model}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: resolved_relationships drilldown by resolved_id}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: resolved_relationships drilldown by resolved_id}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-relationship-evidence}], notes: resolved_relationships drilldown by resolved_id}
+  - capability: platform_impact.resource_to_code
+    tools: [trace_resource_to_code]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-resource-to-code}], notes: requires deployed platform evidence}
+      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-authoritative-unsupported-resource-to-code}], notes: laptop graph sidecar lacks deployed infra evidence; full-stack or production required}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{compose_e2e: resource-to-code}], notes: exact only when infra and code relations converge}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-resource-to-code}], notes: exact only when infra and code relations converge}
+  - capability: platform_impact.dependency_path
+    tools: [explain_dependency_path]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-dependency-path}], notes: requires full dependency graph truth}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 3000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-dependency-path}], notes: graph sidecar shortestPath over code-only edges; platform-wide dependency paths still require full-stack}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{compose_e2e: dependency-path}], notes: exact only when dependency graph relations converge}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-dependency-path}], notes: exact only when dependency graph relations converge}
+  - capability: platform_impact.environment_compare
+    tools: [compare_environments]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-environment-compare}], notes: requires deployed environment truth}
+      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-authoritative-unsupported-environment-compare}], notes: environment comparison needs multiple deployed environments indexed; full-stack or production required}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 6000, max_scope_size: indexed_workspace, verification: [{compose_e2e: environment-compare}], notes: exact only when compared environments are fully indexed}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 8000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-environment-compare}], notes: exact only when compared environments are fully indexed}
+  - capability: platform_impact.change_surface
+    tools: [find_change_surface]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-change-surface}], notes: requires hybrid platform truth}
+      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-authoritative-unsupported-change-surface}], notes: hybrid code+infra truth needs full-stack or production}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{compose_e2e: change-surface}], notes: hybrid graph plus infra truth}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-change-surface}], notes: hybrid graph plus infra truth}
+  - capability: platform_impact.blast_radius
+    tools: [find_blast_radius]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-blast-radius}], notes: requires hybrid platform truth}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-blast-radius}], notes: code-only blast radius from graph sidecar; hybrid code+infra truth still requires full-stack}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{compose_e2e: blast-radius}], notes: hybrid graph plus infra truth}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-impact-surface}], notes: hybrid graph plus infra truth}

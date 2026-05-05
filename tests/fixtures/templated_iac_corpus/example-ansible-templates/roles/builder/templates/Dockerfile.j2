@@ -1,0 +1,60 @@
+FROM {{ docker_image }} as builder
+
+ARG ssh_private_key
+ARG UID=1000
+ARG GID=1000
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install bash openssl unzip rsync sudo {{ docker_extra_install_packages }}
+RUN pip install ansible=={{ ansible_builder_version }}
+{% if os_type == 'windows' %}
+RUN pip install pywinrm
+{% endif %}
+
+RUN groupadd -g $GID -o packer && \
+    useradd -m -u $UID -g $GID -o -s /bin/bash packer && \
+    usermod -aG sudo packer && echo "packer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+WORKDIR /home/packer
+RUN wget https://releases.hashicorp.com/packer/{{ packer_version }}/packer_{{ packer_version }}_linux_amd64.zip || wget https://artifacts.example.invalid/generic/hashicorp/packer_{{ packer_version }}_linux_amd64.zip
+RUN unzip packer_{{ packer_version }}_linux_amd64.zip
+RUN mv packer /usr/local/bin/packer
+RUN rm packer_{{ packer_version }}_linux_amd64.zip
+
+USER packer
+RUN mkdir -p .ssh && \
+    chmod 0700 .ssh 
+
+RUN echo "$ssh_private_key" | base64 --decode 2>/dev/null > .ssh/id_ed25519 && chmod 400 .ssh/id_ed25519
+
+RUN ssh-keyscan -t ed25519 github.com >> .ssh/known_hosts
+
+FROM builder
+
+{% if automate_vault_file is defined and automate_vault_file|length %}
+COPY --chown=packer:packer automate_vault /tmp/automate_vault
+{% endif %}
+
+ARG aws_access_key
+ARG aws_secret_key
+ARG aws_security_token
+ARG build_environment
+
+ENV AWS_ACCESS_KEY_ID=$aws_access_key
+ENV AWS_SECRET_ACCESS_KEY=$aws_secret_key
+ENV AWS_SESSION_TOKEN=$aws_security_token
+ENV BUILD_ENVIRONMENT=$build_environment
+ENV GIT_ASKPASS=/home/packer/git_askpass.sh
+
+USER root
+RUN mkdir /build && \
+    chown packer:packer /build
+
+USER packer
+
+RUN mkdir /home/packer/logs
+COPY --chown=packer:packer . /build
+WORKDIR /build
+COPY --chown=packer:packer git_askpass.sh /home/packer/git_askpass.sh
+RUN chmod +x /home/packer/git_askpass.sh
+
+ENTRYPOINT [ "/usr/local/bin/packer" ]

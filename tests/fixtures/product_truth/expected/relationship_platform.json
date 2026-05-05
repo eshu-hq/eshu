@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "suite_id": "relationship_platform",
+  "fixture_root": "tests/fixtures/relationship_platform",
+  "capability_assertions": [
+    {
+      "capability": "relationship_evidence.mapping",
+      "surfaces": ["graph", "postgres", "api"],
+      "positive": "Repository edges expose resolved_id, generation_id, evidence_count, evidence_kinds, confidence, and rationale pointers.",
+      "negative": "No canonical repository relationship is accepted without evidence rows."
+    },
+    {
+      "capability": "repository.relationship_overview",
+      "surfaces": ["api", "graph"],
+      "positive": "Repository context partitions controller-driven, workflow-driven, IaC-driven, and other typed relationships."
+    },
+    {
+      "capability": "repository.deployment_artifacts",
+      "surfaces": ["api", "content"],
+      "positive": "Repository story and context preserve workflow artifacts, controller artifacts, Docker, Helm, Kustomize, CloudFormation, and config artifacts."
+    },
+    {
+      "capability": "repository.api_surface",
+      "surfaces": ["api", "graph", "content"],
+      "positive": "Framework routes and endpoint surfaces are visible for service repositories with route evidence."
+    },
+    {
+      "capability": "service.deployment_trace",
+      "surfaces": ["api", "graph", "postgres"],
+      "positive": "Service deployment trace connects service, delivery evidence, IaC evidence, platforms, and environments without fabricating missing runtime truth."
+    }
+  ]
+}
+

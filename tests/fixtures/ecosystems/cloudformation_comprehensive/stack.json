@@ -1,0 +1,25 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "JSON format CloudFormation template",
+  "Parameters": {
+    "InstanceType": {
+      "Type": "String",
+      "Default": "t3.micro",
+      "AllowedValues": ["t3.micro", "t3.small", "t3.medium"]
+    }
+  },
+  "Resources": {
+    "WebServer": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "InstanceType": {"Ref": "InstanceType"},
+        "ImageId": "ami-0c55b159cbfafe1f0"
+      }
+    }
+  },
+  "Outputs": {
+    "InstanceId": {
+      "Value": {"Ref": "WebServer"}
+    }
+  }
+}

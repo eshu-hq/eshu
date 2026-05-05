@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: production
+resources:
+  - ../base
+  - deployment.yaml
+  - service.yaml
+patches:
+  - path: patch-replicas.yaml
+    target:
+      kind: Deployment
+      name: my-api
+configMapGenerator:
+  - name: app-config
+    literals:
+      - ENV=production

@@ -1,0 +1,35 @@
+{{- if .Values.exposure.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "eshu.fullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+  {{- with .Values.exposure.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.exposure.ingress.className }}
+  ingressClassName: {{ .Values.exposure.ingress.className }}
+  {{- end }}
+  rules:
+    {{- range .Values.exposure.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path | quote }}
+            pathType: {{ .pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ include "eshu.exposureBackendServiceName" (dict "root" $ "backend" $.Values.exposure.ingress.backend) }}
+                port:
+                  number: {{ $.Values.service.port }}
+          {{- end }}
+    {{- end }}
+  {{- with .Values.exposure.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

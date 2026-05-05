@@ -1,0 +1,384 @@
+services:
+  neo4j:
+    image: neo4j:2026-community
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    environment:
+      NEO4J_AUTH: neo4j/${ESHU_NEO4J_PASSWORD:-change-me}
+      NEO4J_PLUGINS: '[]'
+      NEO4J_server_memory_heap_initial__size: ${ESHU_NEO4J_HEAP_INITIAL_SIZE:-512m}
+      NEO4J_server_memory_heap_max__size: ${ESHU_NEO4J_HEAP_MAX_SIZE:-512m}
+      NEO4J_server_memory_pagecache_size: ${ESHU_NEO4J_PAGECACHE_SIZE:-512m}
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "${ESHU_NEO4J_PASSWORD:-change-me}", "RETURN 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:18-alpine
+    ports:
+      - "${ESHU_POSTGRES_PORT:-15432}:5432"
+    environment:
+      POSTGRES_DB: eshu
+      POSTGRES_USER: eshu
+      POSTGRES_PASSWORD: ${ESHU_POSTGRES_PASSWORD:-change-me}
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=${ESHU_PG_SHARED_BUFFERS:-4GB}"
+      - "-c"
+      - "work_mem=${ESHU_PG_WORK_MEM:-16MB}"
+      - "-c"
+      - "maintenance_work_mem=${ESHU_PG_MAINTENANCE_WORK_MEM:-512MB}"
+      - "-c"
+      - "max_wal_size=${ESHU_PG_MAX_WAL_SIZE:-8GB}"
+      - "-c"
+      - "wal_buffers=${ESHU_PG_WAL_BUFFERS:-64MB}"
+      - "-c"
+      - "effective_cache_size=${ESHU_PG_EFFECTIVE_CACHE_SIZE:-32GB}"
+      - "-c"
+      - "synchronous_commit=${ESHU_PG_SYNCHRONOUS_COMMIT:-off}"
+      - "-c"
+      - "default_toast_compression=${ESHU_PG_TOAST_COMPRESSION:-lz4}"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "random_page_cost=1.1"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eshu -d eshu"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  db-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/eshu-bootstrap-data-plane"]
+    healthcheck:
+      disable: true
+    environment:
+      ESHU_GRAPH_BACKEND: neo4j
+      DEFAULT_DATABASE: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  workspace-setup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: "0:0"
+    healthcheck:
+      disable: true
+    environment:
+      ESHU_HOME: /data/.eshu
+      ESHU_REPOS_DIR: /data/repos
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ${ESHU_ESHUIGNORE_PATH:-/dev/null}:/tmp/eshuignore-source:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        mkdir -p /data/.eshu /data/repos
+        if [ -s /tmp/eshuignore-source ]; then cp /tmp/eshuignore-source /data/repos/.eshuignore; fi
+        chown -R 10001:10001 /data
+
+  bootstrap-index:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    healthcheck:
+      disable: true
+    ports:
+      - "${ESHU_BOOTSTRAP_METRICS_PORT:-19467}:9464"
+    environment:
+      ESHU_GRAPH_BACKEND: neo4j
+      DEFAULT_DATABASE: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /data/.eshu
+      ESHU_REPOS_DIR: /data/repos
+      ESHU_REPO_SOURCE_MODE: filesystem
+      ESHU_FILESYSTEM_ROOT: /fixtures
+      ESHU_FILESYSTEM_DIRECT: ${ESHU_FILESYSTEM_DIRECT:-}
+      ESHU_GIT_AUTH_METHOD: none
+      ESHU_REPOSITORY_RULES_JSON: ${ESHU_REPOSITORY_RULES_JSON:-[]}
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROJECTION_WORKERS: ${ESHU_PROJECTION_WORKERS:-}
+      ESHU_SNAPSHOT_WORKERS: ${ESHU_SNAPSHOT_WORKERS:-}
+      ESHU_PARSE_WORKERS: ${ESHU_PARSE_WORKERS:-}
+      ESHU_LARGE_REPO_FILE_THRESHOLD: ${ESHU_LARGE_REPO_FILE_THRESHOLD:-}
+      ESHU_LARGE_REPO_MAX_CONCURRENT: ${ESHU_LARGE_REPO_MAX_CONCURRENT:-1}
+      GOMEMLIMIT: ${GOMEMLIMIT:-}
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ${ESHU_FILESYSTEM_HOST_ROOT:-./tests/fixtures/ecosystems}:/fixtures:ro
+      - ${ESHU_ESHUIGNORE_PATH:-/dev/null}:/tmp/eshuignore-source:ro
+    command: ["/usr/local/bin/eshu-bootstrap-index"]
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      workspace-setup:
+        condition: service_completed_successfully
+
+  eshu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/eshu-api"]
+    ports:
+      - "${ESHU_HTTP_PORT:-8080}:8080"
+      # API mounts /metrics on the main HTTP listener.
+      - "${ESHU_API_METRICS_PORT:-19464}:8080"
+    environment:
+      ESHU_GRAPH_BACKEND: neo4j
+      DEFAULT_DATABASE: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /data/.eshu
+      ESHU_REPOS_DIR: /data/repos
+      ESHU_REPO_SOURCE_MODE: filesystem
+      ESHU_FILESYSTEM_ROOT: /fixtures
+      ESHU_GIT_AUTH_METHOD: none
+      ESHU_REPOSITORY_RULES_JSON: ${ESHU_REPOSITORY_RULES_JSON:-[]}
+      ESHU_API_KEY: ${ESHU_API_KEY:-}
+      ESHU_AUTO_GENERATE_API_KEY: "true"
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ${ESHU_FILESYSTEM_HOST_ROOT:-./tests/fixtures/ecosystems}:/fixtures:ro
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      workspace-setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/eshu-mcp-server"]
+    ports:
+      - "${ESHU_MCP_PORT:-8081}:8080"
+      # MCP mounts /metrics on the main HTTP listener.
+      - "${ESHU_MCP_METRICS_PORT:-19468}:8080"
+    environment:
+      ESHU_GRAPH_BACKEND: neo4j
+      DEFAULT_DATABASE: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /data/.eshu
+      ESHU_REPOS_DIR: /data/repos
+      ESHU_REPO_SOURCE_MODE: filesystem
+      ESHU_FILESYSTEM_ROOT: /fixtures
+      ESHU_GIT_AUTH_METHOD: none
+      ESHU_REPOSITORY_RULES_JSON: ${ESHU_REPOSITORY_RULES_JSON:-[]}
+      ESHU_MCP_TRANSPORT: http
+      ESHU_MCP_ADDR: ":8080"
+      ESHU_API_KEY: ${ESHU_API_KEY:-}
+      ESHU_AUTO_GENERATE_API_KEY: "true"
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ${ESHU_FILESYSTEM_HOST_ROOT:-./tests/fixtures/ecosystems}:/fixtures:ro
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      workspace-setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  ingester:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "${ESHU_INGESTER_METRICS_PORT:-19465}:9464"
+    environment:
+      ESHU_GRAPH_BACKEND: neo4j
+      DEFAULT_DATABASE: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /data/.eshu
+      ESHU_REPOS_DIR: /data/repos
+      ESHU_REPO_SOURCE_MODE: filesystem
+      ESHU_FILESYSTEM_ROOT: /fixtures
+      ESHU_FILESYSTEM_DIRECT: ${ESHU_FILESYSTEM_DIRECT:-}
+      ESHU_GIT_AUTH_METHOD: none
+      ESHU_REPOSITORY_RULES_JSON: ${ESHU_REPOSITORY_RULES_JSON:-[]}
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_SNAPSHOT_WORKERS: ${ESHU_SNAPSHOT_WORKERS:-}
+      ESHU_PROJECTOR_WORKERS: ${ESHU_PROJECTOR_WORKERS:-}
+      ESHU_PARSE_WORKERS: ${ESHU_PARSE_WORKERS:-}
+      ESHU_LARGE_REPO_FILE_THRESHOLD: ${ESHU_LARGE_REPO_FILE_THRESHOLD:-}
+      ESHU_LARGE_REPO_MAX_CONCURRENT: ${ESHU_LARGE_REPO_MAX_CONCURRENT:-1}
+      GOMEMLIMIT: ${GOMEMLIMIT:-}
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ${ESHU_FILESYSTEM_HOST_ROOT:-./tests/fixtures/ecosystems}:/fixtures:ro
+      - ${ESHU_ESHUIGNORE_PATH:-/dev/null}:/tmp/eshuignore-source:ro
+    command: ["/usr/local/bin/eshu-ingester"]
+    depends_on:
+      bootstrap-index:
+        condition: service_completed_successfully
+      workspace-setup:
+        condition: service_completed_successfully
+
+  workflow-coordinator:
+    profiles:
+      - workflow-coordinator
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/eshu-workflow-coordinator"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "${ESHU_WORKFLOW_COORDINATOR_HTTP_PORT:-18082}:8080"
+      - "${ESHU_WORKFLOW_COORDINATOR_METRICS_PORT:-19469}:9464"
+    environment:
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_COLLECTOR_INSTANCES_JSON: '${ESHU_COLLECTOR_INSTANCES_JSON:-[{"instance_id":"collector-git-default","collector_kind":"git","mode":"continuous","enabled":true,"bootstrap":true,"configuration":{"source":"local-compose"}}]}'
+      ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: ${ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE:-dark}
+      ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED: "${ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED:-false}"
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  # Production (8+ vCPU): ESHU_REDUCER_WORKERS=8, ESHU_SHARED_PROJECTION_WORKERS=4,
+  # ESHU_SHARED_PROJECTION_PARTITION_COUNT=8, ESHU_REDUCER_BATCH_CLAIM_SIZE=64
+  resolution-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/eshu-reducer"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "${ESHU_RESOLUTION_ENGINE_METRICS_PORT:-19466}:9464"
+    environment:
+      ESHU_GRAPH_BACKEND: neo4j
+      DEFAULT_DATABASE: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_REPOS_DIR: /data/repos
+      ESHU_REPO_SOURCE_MODE: filesystem
+      ESHU_FILESYSTEM_ROOT: /fixtures
+      ESHU_GIT_AUTH_METHOD: none
+      ESHU_REPOSITORY_RULES_JSON: ${ESHU_REPOSITORY_RULES_JSON:-[]}
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_REDUCER_WORKERS: ${ESHU_REDUCER_WORKERS:-4}
+      ESHU_SHARED_PROJECTION_WORKERS: ${ESHU_SHARED_PROJECTION_WORKERS:-2}
+      ESHU_SHARED_PROJECTION_PARTITION_COUNT: ${ESHU_SHARED_PROJECTION_PARTITION_COUNT:-4}
+      ESHU_SHARED_PROJECTION_BATCH_LIMIT: ${ESHU_SHARED_PROJECTION_BATCH_LIMIT:-200}
+      ESHU_SHARED_PROJECTION_POLL_INTERVAL: ${ESHU_SHARED_PROJECTION_POLL_INTERVAL:-500ms}
+      ESHU_SHARED_PROJECTION_LEASE_TTL: ${ESHU_SHARED_PROJECTION_LEASE_TTL:-}
+      ESHU_REDUCER_BATCH_CLAIM_SIZE: ${ESHU_REDUCER_BATCH_CLAIM_SIZE:-}
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ${ESHU_FILESYSTEM_HOST_ROOT:-./tests/fixtures/ecosystems}:/fixtures:ro
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      workspace-setup:
+        condition: service_completed_successfully
+
+volumes:
+  neo4j_data:
+  postgres_data:
+  eshu_data:

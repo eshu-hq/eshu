@@ -1,0 +1,119 @@
+version: v1
+updated_at: 2026-05-04
+owners:
+  - platform-engineering
+backends:
+  - id: nornicdb
+    default: true
+    official: true
+    classification: experimental
+    capabilities:
+      canonical_writes:
+        status: experimental
+        verification:
+          - go_test: ./internal/backendconformance
+          - go_test: ./internal/storage/cypher
+          - compose_e2e: live-backend-conformance
+        notes: Default backend while Eshu tracks latest NornicDB main; the live corpus now covers repository writes, call edges, canonical File/Function upserts, and idempotent File CONTAINS Function readback. Profile-matrix and release-backed promotion gates remain open.
+      direct_graph_reads:
+        status: supported
+        verification:
+          - go_test: ./internal/backendconformance
+          - go_test: ./internal/query
+          - compose_e2e: live-backend-conformance
+        notes: Served through the shared Bolt GraphQuery port with backend-aware query builders where needed.
+      path_traversal:
+        status: supported
+        verification:
+          - go_test: ./internal/backendconformance
+          - go_test: ./internal/query
+          - compose_e2e: live-backend-conformance
+        notes: Bounded call-chain and transitive relationship reads use NornicDB-safe query shapes.
+      full_text_support:
+        status: not_required
+        verification: []
+        notes: Eshu full-text and content search run through Postgres content indexes, not graph-native full-text.
+      dead_code_readiness:
+        status: experimental
+        verification:
+          - go_test: ./internal/backendconformance
+          - go_test: ./internal/query
+          - compose_e2e: live-backend-conformance
+        notes: Graph-backed dead-code scans work at the current derived truth level; exact promotion still depends on broader root modeling.
+      performance_envelope:
+        status: experimental
+        verification:
+          - remote_validation: latest-main-full-corpus
+          - remote_validation: eshu-full-pr138-a2c630af-b68b4ef-20260504T120630Z
+        notes: Latest-main full-corpus evidence is healthy under the current default path; Neo4j parity research, install trust, and broader host envelopes remain explicit gates.
+  - id: neo4j
+    default: false
+    official: true
+    classification: production-capable
+    capabilities:
+      canonical_writes:
+        status: supported
+        verification:
+          - go_test: ./internal/backendconformance
+          - go_test: ./internal/storage/cypher
+          - compose_e2e: live-backend-conformance
+        notes: Compatibility backend keeps grouped canonical writes through the shared Cypher executor surface. Neo4j now proves the same file/entity/CONTAINS corpus as NornicDB before Compose bootstrap data is loaded.
+      direct_graph_reads:
+        status: supported
+        verification:
+          - go_test: ./internal/backendconformance
+          - go_test: ./internal/query
+          - compose_e2e: live-backend-conformance
+        notes: Served through the same GraphQuery port used by API and reducer lookups.
+      path_traversal:
+        status: supported
+        verification:
+          - go_test: ./internal/backendconformance
+          - go_test: ./internal/query
+          - compose_e2e: live-backend-conformance
+        notes: Bounded traversal and shortest-path query surfaces remain covered by query package contract tests.
+      full_text_support:
+        status: not_required
+        verification: []
+        notes: Eshu full-text and content search run through Postgres content indexes, not graph-native full-text.
+      dead_code_readiness:
+        status: supported
+        verification:
+          - go_test: ./internal/backendconformance
+          - go_test: ./internal/query
+          - compose_e2e: live-backend-conformance
+        notes: Neo4j remains the official alternative for graph-backed dead-code candidate scans.
+      performance_envelope:
+        status: supported
+        verification:
+          - compose_e2e: neo4j-compatibility
+          - remote_validation: eshu-neo4j-baseline-pr138-a2c630af-20260504T123656Z-slo-snapshot
+          - remote_validation: eshu-neo4j-schema-profile-20260504T182712Z
+        notes: Neo4j remains the official alternative for companies that already operate it. The early 2026-05-04 stopped comparison omitted graph schema bootstrap and was not production-profile evidence. The schema-first run eshu-neo4j-schema-profile-20260504T182712Z applied eshu-bootstrap-data-plane before indexing, drained 8458/8458 queue rows in 577s, kept retrying, failed, and dead-letter rows at 0, and passed API/MCP evidence checks.
+profile_matrix:
+  - backend_id: nornicdb
+    profile: local_authoritative
+    status: passing
+    verification:
+      - go_test: ./cmd/eshu -run TestLocalAuthoritativeStartupEnvelope
+      - go_test: ./cmd/eshu -run TestLocalAuthoritativeCallChainSyntheticEnvelope
+      - go_test: ./cmd/eshu -run TestLocalAuthoritativeTransitiveCallersSyntheticEnvelope
+      - go_test: ./cmd/eshu -run TestLocalAuthoritativeDeadCodeSyntheticEnvelope
+      - remote_validation: latest-main-full-corpus-api-mcp
+      - remote_validation: eshu-full-pr138-a2c630af-b68b4ef-20260504T120630Z
+    notes: Local host plus managed NornicDB sidecar has startup, graph query, full-corpus drain, API, and MCP evidence.
+  - backend_id: nornicdb
+    profile: local_full_stack
+    status: passing
+    verification:
+      - compose_e2e: live-backend-conformance
+      - compose_e2e: e2e-tests-nornicdb-local-full-stack
+    notes: Default Compose uses NornicDB and the end-to-end matrix now runs with ESHU_QUERY_PROFILE=local_full_stack.
+  - backend_id: nornicdb
+    profile: production
+    status: passing
+    verification:
+      - remote_validation: latest-main-full-corpus-api-mcp
+      - remote_validation: eshu-full-pr138-a2c630af-b68b4ef-20260504T120630Z
+      - remote_validation: eshu-neo4j-schema-profile-20260504T182712Z
+    notes: Latest-main NornicDB production-profile proof drained the full corpus in 878s, reached 8458/8458 succeeded queue rows, passed API/MCP health, and returned relationship evidence through both surfaces. The corrected schema-first Neo4j comparison drained the same queue in 577s and passed API/MCP evidence checks, so the production profile gate has terminal evidence for both official backends. NornicDB remains the default backend while release-backed promotion gates stay separate from this profile matrix.

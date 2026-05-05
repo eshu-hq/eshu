@@ -1,0 +1,182 @@
+{
+  "entities": [
+    {
+      "id": "repository:r_5f4f4b74",
+      "type": "repository",
+      "name": "payments-platform",
+      "path": "/srv/repos/payments-platform",
+      "aliases": ["payments-platform", "payments repo"]
+    },
+    {
+      "id": "repository:r_4741f4fe",
+      "type": "repository",
+      "name": "shared-data",
+      "path": "/srv/repos/shared-data",
+      "aliases": ["shared-data", "data-platform"]
+    },
+    {
+      "id": "workload:payments-api",
+      "type": "workload",
+      "kind": "service",
+      "name": "payments-api",
+      "repo_id": "repository:r_5f4f4b74",
+      "aliases": ["payments", "payments service", "payments-api"]
+    },
+    {
+      "id": "workload:payments-admin",
+      "type": "workload",
+      "kind": "service",
+      "name": "payments-admin",
+      "repo_id": "repository:r_5f4f4b74",
+      "aliases": ["payments admin", "payments console"]
+    },
+    {
+      "id": "workload:ledger-worker",
+      "type": "workload",
+      "kind": "worker",
+      "name": "ledger-worker",
+      "repo_id": "repository:r_5f4f4b74",
+      "aliases": ["ledger worker", "ledger consumer"]
+    },
+    {
+      "id": "workload-instance:payments-api:prod",
+      "type": "workload_instance",
+      "kind": "service",
+      "name": "payments-api",
+      "environment": "prod",
+      "workload_id": "workload:payments-api",
+      "repo_id": "repository:r_5f4f4b74",
+      "aliases": ["payments-api prod", "payments prod"]
+    },
+    {
+      "id": "workload-instance:ledger-worker:prod",
+      "type": "workload_instance",
+      "kind": "worker",
+      "name": "ledger-worker",
+      "environment": "prod",
+      "workload_id": "workload:ledger-worker",
+      "repo_id": "repository:r_5f4f4b74",
+      "aliases": ["ledger-worker prod", "ledger prod"]
+    },
+    {
+      "id": "terraform-module:shared-rds-module",
+      "type": "terraform_module",
+      "name": "shared-rds-module",
+      "repo_id": "repository:r_4741f4fe",
+      "path": "terraform/rds/main.tf",
+      "aliases": ["shared rds", "rds module", "payments prod rds"]
+    },
+    {
+      "id": "cloud-resource:shared-payments-prod",
+      "type": "cloud_resource",
+      "name": "shared-payments-prod",
+      "environment": "prod",
+      "aliases": [
+        "db.prod.internal",
+        "arn:aws:rds:us-east-1:123456789012:cluster:shared-payments-prod",
+        "shared payments prod rds",
+        "payments prod rds"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "repository:r_5f4f4b74",
+      "to": "workload:payments-api",
+      "type": "DEFINES",
+      "confidence": 1.0,
+      "reason": "Repository manifests declare the payments-api workload",
+      "evidence": [
+        {
+          "source": "repo-manifest",
+          "detail": "deploy/workloads/payments-api.yaml",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "from": "repository:r_5f4f4b74",
+      "to": "workload:payments-admin",
+      "type": "DEFINES",
+      "confidence": 1.0,
+      "reason": "Repository manifests declare the payments-admin workload",
+      "evidence": [
+        {
+          "source": "repo-manifest",
+          "detail": "deploy/workloads/payments-admin.yaml",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "from": "repository:r_5f4f4b74",
+      "to": "workload:ledger-worker",
+      "type": "DEFINES",
+      "confidence": 1.0,
+      "reason": "Repository manifests declare the ledger-worker workload",
+      "evidence": [
+        {
+          "source": "repo-manifest",
+          "detail": "deploy/workloads/ledger-worker.yaml",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "from": "repository:r_4741f4fe",
+      "to": "terraform-module:shared-rds-module",
+      "type": "DEFINES",
+      "confidence": 1.0,
+      "reason": "Terraform module lives in the shared-data repo",
+      "evidence": [
+        {
+          "source": "terraform",
+          "detail": "terraform/rds/main.tf",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "from": "terraform-module:shared-rds-module",
+      "to": "cloud-resource:shared-payments-prod",
+      "type": "PROVISIONS",
+      "confidence": 0.98,
+      "reason": "Terraform module provisions the shared RDS cluster",
+      "evidence": [
+        {
+          "source": "terraform-output",
+          "detail": "cluster_identifier = shared-payments-prod",
+          "weight": 0.98
+        }
+      ]
+    },
+    {
+      "from": "workload-instance:payments-api:prod",
+      "to": "cloud-resource:shared-payments-prod",
+      "type": "USES",
+      "confidence": 0.92,
+      "reason": "Payments API config points at the shared production RDS hostname",
+      "evidence": [
+        {
+          "source": "helm-values",
+          "detail": "charts/payments/values-prod.yaml -> database.host=db.prod.internal",
+          "weight": 0.92
+        }
+      ]
+    },
+    {
+      "from": "workload-instance:ledger-worker:prod",
+      "to": "cloud-resource:shared-payments-prod",
+      "type": "USES",
+      "confidence": 0.89,
+      "reason": "Ledger worker DATABASE_URL references the shared production RDS endpoint",
+      "evidence": [
+        {
+          "source": "env-config",
+          "detail": "deploy/ledger-worker/prod.env -> DATABASE_URL uses db.prod.internal",
+          "weight": 0.89
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+name: deploy compose
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SERVICE_NAME: dynamic-target
+    steps:
+      - name: Start static services
+        run: docker compose -f ../compose-app/compose.yaml up -d api worker
+      - name: Start dynamic service
+        run: docker compose -f ../compose-app/compose.yaml up -d ${SERVICE_NAME}

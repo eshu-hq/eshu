@@ -1,0 +1,4 @@
+- name: Render checkout config
+  ansible.builtin.template:
+    src: checkout.conf.j2
+    dest: /etc/checkout.conf

@@ -1,0 +1,10 @@
+// Package graph defines the source-local graph write contract and the Cypher
+// builders used by writers and schema bootstrap.
+//
+// Writer is the narrow per-scope-generation write interface; Materialization
+// and Record are its inputs. The package also owns Cypher statement and
+// executor types kept here to avoid an import cycle with storage/cypher,
+// canonical entity merge builders, batched UNWIND helpers, the file and
+// repository deletion mutations, and the EnsureSchema constraint and index
+// contract for the Neo4j and NornicDB dialects.
+package graph

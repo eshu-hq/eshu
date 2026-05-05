@@ -1,0 +1,66 @@
+{
+  "metadata": {
+    "warehouse_vendor": "generic-warehouse",
+    "account": "analytics",
+    "generated_at": "2026-04-12T00:00:00Z"
+  },
+  "assets": [
+    {
+      "database": "analytics",
+      "schema": "finance",
+      "name": "revenue",
+      "kind": "table",
+      "columns": [
+        {"name": "revenue_id"},
+        {"name": "customer_id"},
+        {"name": "amount"}
+      ]
+    },
+    {
+      "database": "analytics",
+      "schema": "crm",
+      "name": "customers",
+      "kind": "table",
+      "columns": [
+        {"name": "customer_id"},
+        {"name": "email"}
+      ]
+    },
+    {
+      "database": "analytics",
+      "schema": "finance",
+      "name": "daily_revenue",
+      "kind": "table",
+      "columns": [
+        {"name": "snapshot_date"},
+        {"name": "total_amount"}
+      ]
+    }
+  ],
+  "query_history": [
+    {
+      "query_id": "q_001",
+      "name": "daily_revenue_build",
+      "statement": "create table analytics.finance.daily_revenue as select r.amount, c.email from analytics.finance.revenue r join analytics.crm.customers c on c.customer_id = r.customer_id",
+      "status": "success",
+      "executed_by": "etl_runner",
+      "started_at": "2026-04-11T10:00:00Z",
+      "touched_assets": [
+        "analytics.finance.revenue",
+        "analytics.crm.customers",
+        "analytics.finance.daily_revenue"
+      ]
+    },
+    {
+      "query_id": "q_002",
+      "name": "revenue_dashboard_lookup",
+      "statement": "select snapshot_date, total_amount from analytics.finance.daily_revenue order by snapshot_date desc",
+      "status": "success",
+      "executed_by": "bi_reader",
+      "started_at": "2026-04-11T11:00:00Z",
+      "touched_assets": [
+        "analytics.finance.daily_revenue"
+      ]
+    }
+  ]
+}

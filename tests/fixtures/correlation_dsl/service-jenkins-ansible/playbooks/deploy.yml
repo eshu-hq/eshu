@@ -1,0 +1,5 @@
+---
+- name: Deploy service-jenkins-ansible
+  hosts: service_hosts
+  roles:
+    - service_deploy

@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: services
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: api
+            namespace: api
+            repoURL: https://github.com/myorg/api-service.git
+          - name: web
+            namespace: web
+            repoURL: https://github.com/myorg/web-service.git
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: default
+      source:
+        repoURL: '{{repoURL}}'
+        path: deploy
+        targetRevision: main
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'

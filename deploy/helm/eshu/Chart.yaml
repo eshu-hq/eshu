@@ -1,0 +1,6 @@
+apiVersion: v2
+name: eshu
+description: Eshu API and repository ingester workloads with MCP, indexing, and repo sync.
+type: application
+version: 0.0.1
+appVersion: "v0.0.1"

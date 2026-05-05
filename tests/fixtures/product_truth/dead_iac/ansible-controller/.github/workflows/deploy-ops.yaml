@@ -1,0 +1,12 @@
+name: deploy-ops
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Ansible deployment
+        run: ansible-playbook ../ansible-ops/playbooks/site.yml

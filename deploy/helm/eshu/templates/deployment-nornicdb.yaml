@@ -1,0 +1,92 @@
+{{- if .Values.nornicdb.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+{{- $nornicdbNodeSelector := .Values.nornicdb.nodeSelector | default .Values.nodeSelector }}
+{{- $nornicdbAffinity := .Values.nornicdb.affinity | default .Values.affinity }}
+{{- $nornicdbTolerations := .Values.nornicdb.tolerations | default .Values.tolerations }}
+metadata:
+  name: {{ include "eshu.nornicdbFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nornicdb
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "eshu.nornicdbSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "eshu.nornicdbSelectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "eshu.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with $nornicdbNodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $nornicdbAffinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $nornicdbTolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: nornicdb
+          image: "{{ .Values.nornicdb.image.repository }}:{{ .Values.nornicdb.image.tag }}"
+          imagePullPolicy: {{ .Values.nornicdb.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: NORNICDB_HTTP_PORT
+              value: {{ .Values.nornicdb.ports.http | quote }}
+            - name: NORNICDB_BOLT_PORT
+              value: {{ .Values.nornicdb.ports.bolt | quote }}
+            {{- include "eshu.renderEnvMap" .Values.nornicdb.env | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.nornicdb.ports.http }}
+              protocol: TCP
+            - name: bolt
+              containerPort: {{ .Values.nornicdb.ports.bolt }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.nornicdb.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.nornicdb.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "eshu.nornicdbFullname" . }}-data
+        {{- else }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+{{- end }}

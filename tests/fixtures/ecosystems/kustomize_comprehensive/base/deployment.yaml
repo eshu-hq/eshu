@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comprehensive-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: comprehensive-app
+  template:
+    metadata:
+      labels:
+        app: comprehensive-app
+    spec:
+      containers:
+        - name: app
+          image: myorg/comprehensive-app:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi

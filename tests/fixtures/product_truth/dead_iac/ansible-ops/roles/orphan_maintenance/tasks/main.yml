@@ -1,0 +1,5 @@
+- name: Touch orphan marker
+  ansible.builtin.file:
+    path: /tmp/orphan-maintenance
+    state: touch
+    mode: "0644"

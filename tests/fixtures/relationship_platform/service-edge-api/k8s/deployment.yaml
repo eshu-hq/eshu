@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-edge-api
+  namespace: modern
+spec:
+  selector:
+    matchLabels:
+      app: service-edge-api
+  template:
+    metadata:
+      labels:
+        app: service-edge-api
+    spec:
+      containers:
+        - name: service-edge-api
+          image: service-edge-api:modern

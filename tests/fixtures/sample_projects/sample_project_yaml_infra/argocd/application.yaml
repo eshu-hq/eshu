@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: iac-eks-addons
+  namespace: argocd
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/myorg/iac-eks-argocd.git
+    targetRevision: main
+    path: overlays/production/addons/cert-manager
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

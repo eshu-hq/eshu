@@ -1,0 +1,29 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xdatabases.db.example.org
+spec:
+  group: db.example.org
+  names:
+    kind: XDatabase
+    plural: xdatabases
+  claimNames:
+    kind: Database
+    plural: databases
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                engine:
+                  type: string
+                  enum: ["postgres", "mysql"]
+                storageGB:
+                  type: integer
+                  default: 20

@@ -1,0 +1,18 @@
+{{- if and .Values.nornicdb.enabled .Values.nornicdb.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "eshu.nornicdbFullname" . }}-data
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nornicdb
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.nornicdb.persistence.storageClass }}
+  storageClassName: {{ .Values.nornicdb.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.nornicdb.persistence.size }}
+{{- end }}

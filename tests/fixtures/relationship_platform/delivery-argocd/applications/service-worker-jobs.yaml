@@ -1,0 +1,11 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: service-worker-jobs
+spec:
+  source:
+    repoURL: deployment-kustomize
+    path: overlays/modern
+  destination:
+    name: modern
+    namespace: modern

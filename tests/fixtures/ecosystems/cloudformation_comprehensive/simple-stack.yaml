@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Simple CloudFormation stack for testing
+
+Parameters:
+  Environment:
+    Type: String
+    Default: development
+    AllowedValues:
+      - development
+      - staging
+      - production
+    Description: Deployment environment
+
+  BucketName:
+    Type: String
+    Description: Name of the S3 bucket
+
+Resources:
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${BucketName}-${Environment}"
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  AppRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "comprehensive-${Environment}-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+Outputs:
+  BucketArn:
+    Description: ARN of the S3 bucket
+    Value: !GetAtt DataBucket.Arn
+
+  RoleArn:
+    Description: ARN of the IAM role
+    Value: !GetAtt AppRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-RoleArn"

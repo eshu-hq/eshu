@@ -1,0 +1,18 @@
+{{- if and .Values.resolutionEngine.enabled .Values.observability.prometheus.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eshu.resolutionEngineMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resolution-engine
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "eshu.resolutionEngineSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ .Values.observability.prometheus.port }}
+      targetPort: metrics
+      protocol: TCP
+{{- end }}

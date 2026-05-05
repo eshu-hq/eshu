@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "suite_id": "graph_analysis",
+  "fixture_root": "tests/fixtures/graph_analysis_compose",
+  "capability_assertions": [
+    {
+      "capability": "call_graph.direct_callers",
+      "surfaces": ["api", "graph"],
+      "positive": "persistGraphProof has dispatchGraphProof as its direct caller.",
+      "negative": "deadAlphaGraphProof has no inbound CALLS, IMPORTS, or REFERENCES edges."
+    },
+    {
+      "capability": "call_graph.transitive_callers",
+      "surfaces": ["api", "graph"],
+      "positive": "persistGraphProof has a depth-aware caller chain through dispatchGraphProof, entrypointGraphProof, and main."
+    },
+    {
+      "capability": "call_graph.call_chain_path",
+      "surfaces": ["api", "graph"],
+      "positive": "entrypointGraphProof resolves to persistGraphProof through the expected shortest path."
+    },
+    {
+      "capability": "code_quality.dead_code",
+      "surfaces": ["api", "graph", "content"],
+      "positive": "Only the intentionally unused fixture functions are returned as dead-code candidates.",
+      "truth_level": "derived"
+    }
+  ]
+}
+

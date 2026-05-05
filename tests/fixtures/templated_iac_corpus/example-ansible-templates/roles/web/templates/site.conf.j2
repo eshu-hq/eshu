@@ -1,0 +1,191 @@
+{% if nginx_enable_cache -%}
+fastcgi_cache_path {{nginx_cache_path}}/partner-sites levels=1:2 keys_zone={{nginx_cache_keys_zone_name}}:{{nginx_cache_keys_zone_size}} inactive={{nginx_cache_clear_inactive}};
+fastcgi_cache_key "$scheme$request_method$host$request_uri";
+{% endif -%}
+
+map $http_x_forwarded_proto $edge_proto {
+    default "http";
+
+    "https" "https";
+    "http"  "http";
+}
+
+# Basic healthchecking with no servername, so use the VPC CIDR block
+server {
+    listen 80;
+    listen [::]:80;
+
+    server_name ~{{ vpc_cidr_regex }};
+
+    location = /healthcheck {
+        root /var/www/html;
+
+        include /etc/nginx/fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_pass unix:/run/php/php{{ php_version }}-fpm.sock;
+
+        try_files /healthcheck.php =502;
+    }
+}
+
+{% for host in item.value.hosts -%}
+server {
+{% if allow_real_ip_from | length > 0 %}
+{% for address in allow_real_ip_from %}
+    set_real_ip_from {{ address }};
+{% endfor %}
+    real_ip_header X-Forwarded-For;
+    real_ip_recursive on;
+{% endif %}
+
+    listen {{ host.port }}{% if host.default %} default_server{% endif %};
+    listen [::]:{{ host.port }}{% if host.default %} default_server{% endif %};
+
+    root {{ host.path }};
+    index index.php index.html index.htm;
+
+    server_name {{ host.name }};
+
+    charset utf-8;
+
+    # Rewrites for Yoast SEO XML Sitemap
+    rewrite ^/sitemap.xml$ /sitemap_index.xml permanent;
+    rewrite ^/sitemap_index.xml$ /index.php?sitemap=1 last;
+    rewrite ^/([^/]+?)-sitemap([0-9]+)?.xml$ /index.php?sitemap=$1&sitemap_n=$2 last;
+
+{% if host.redirect_www -%}
+    # If $host does not contain at least two dots it's an apex and we should return www.${host}
+    if ( $host !~* (www\.).+ ) {
+        # Since nginx_force_ssl is not set, set HTTPS based on X-Forwarded-Proto when forcing www.
+        return 301 "$edge_proto://www.${host}${request_uri}";
+    }
+{% endif -%}
+
+    location /sitemap.xml {
+        return 301 /sitemap_index.xml;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?q=$uri&$args;
+    }
+
+    location /wp-admin {
+        return 301 /wp/wp-admin;
+    }
+
+    location = /favicon.ico { log_not_found off; access_log off; }
+
+{% if host.index == false -%}
+    location = /robots.txt  {
+        alias {{ portal_no_index_path }};
+    }
+{% endif -%}
+
+    location ~* /wp-json/wp/v2/users(.*) {
+        deny all;
+    }
+
+    # Deny all attempts to access hidden files
+    # such as .htaccess, .htpasswd, .DS_Store (Mac).
+    location ~ /\. {
+        deny all;
+    }
+
+    # Prevent uploads folders from executing php code
+	  location ~ ^\/wp\/wp-content\/uploads\/ {}
+
+    location ~ \.php$ {
+        include {{ nginx_root_path }}/fastcgi_params;
+        if ($http_x_forwarded_proto = 'https') {
+            set $fe_https 'on';
+        }
+        fastcgi_param HTTPS $fe_https;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_pass unix:/run/php/php{{ php_version }}-fpm.sock;
+
+        # Cache Settings
+        add_header Cache-Control "no-cache, must-revalidate, max-age=0";
+{% if nginx_enable_cache -%}
+        fastcgi_pass_header X-Accel-Expires;
+        fastcgi_cache {{nginx_cache_keys_zone_name}};
+        fastcgi_cache_valid 200 5m;
+        add_header X-Fastcgi-Cache $upstream_cache_status;
+{% endif -%}
+
+        # Custom header for debugging
+        add_header X-example-server-host "$host";
+        add_header X-example-server-name "$hostname";
+
+        # Secure options
+        add_header X-Frame-Options "SAMEORIGIN";
+
+        # Check .php file exists; default index.php
+        try_files $uri /index.php;
+    }
+}
+
+{% endfor -%}
+
+{% if minisites_vanity_domains and minisites_vanity_domains | length > 0 -%}
+{% for minisite in minisites_vanity_domains -%}
+server {
+    listen {{ minisites_nginx_port }};
+    listen [::]:{{ minisites_nginx_port }};
+
+    server_name www.{{ minisite }} {{ minisite }};
+
+    access_log /var/log/nginx/vanitydomains.access.log;
+    error_log  /var/log/nginx/vanitydomains.error.log;
+
+    resolver {{ minisites_nginx_resolver }} valid=5s ipv6=off;
+    resolver_timeout 5s;
+
+    real_ip_header X-Forwarded-For;
+    set_real_ip_from 10.0.0.0/8;
+    set_real_ip_from 172.16.32.0/20;
+    real_ip_recursive on;
+
+    location / {
+      set $vanity_domains_pool "{{ minisites_upstream }}";
+      proxy_pass $vanity_domains_pool;
+
+      set $dmm_ip_address $remote_addr;
+
+      if ($http_x_forwarded_for != '') {
+          set $dmm_ip_address $http_x_forwarded_for;
+      }
+
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection 'upgrade';
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-Proto $dmm_ip_address;
+      proxy_set_header REMOTE_ADDR $dmm_ip_address; # sets HTTP_REMOTE_ADDR
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $dmm_ip_address;
+      proxy_cache_bypass $http_upgrade $http_pragma;
+      proxy_buffer_size   128k;
+      proxy_buffers   4 256k;
+      proxy_busy_buffers_size   256k;
+      expires off;
+    }
+}
+
+{% endfor -%}
+{% endif -%}
+
+{% if minisites_vanity_redirects and minisites_vanity_redirects | length > 0 -%}
+{% for key, value in minisites_vanity_redirects.items()-%}
+server {
+
+  listen {{ minisites_nginx_port }};
+  listen [::]:{{ minisites_nginx_port }};
+
+  server_name www.{{ key }} {{ key }};
+
+  location / {
+    return 301 https://www.marketplace.example.invalid/{{ value }}/;
+  }
+}
+{% endfor -%}
+{% endif -%}

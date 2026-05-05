@@ -1,0 +1,23 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout service source
+        uses: actions/checkout@v4
+
+      - name: Checkout deploy repository
+        uses: actions/checkout@v4
+        with:
+          repository: deploy-repo
+          path: deploy-repo
+
+      - name: Build runtime image
+        run: docker build -f Dockerfile -t service-gha:local .
+
+      - name: Confirm deploy path exists
+        run: test -f deploy-repo/argocd/service-gha/base/application.yaml

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-api
+  namespace: production
+  labels:
+    app: my-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-api
+  template:
+    metadata:
+      labels:
+        app: my-api
+    spec:
+      serviceAccountName: my-api-sa
+      containers:
+        - name: my-api
+          image: myorg/my-api:latest
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-api
+  namespace: production
+spec:
+  selector:
+    app: my-api
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: my-api-sa
+  namespace: production
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/my-api-role

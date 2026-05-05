@@ -1,0 +1,33 @@
+replicaCount: 2
+
+image:
+  repository: myorg/comprehensive-app
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: app.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+redis:
+  enabled: true
+
+postgresql:
+  enabled: false

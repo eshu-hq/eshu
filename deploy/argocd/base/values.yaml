@@ -1,0 +1,65 @@
+image:
+  repository: ghcr.io/eshu-hq/eshu
+  tag: "v0.0.1"
+
+neo4j:
+  uri: bolt://neo4j.platform.svc.cluster.local:7687
+  auth:
+    secretName: eshu-neo4j
+    usernameKey: username
+    passwordKey: password
+
+contentStore:
+  dsn: postgresql://eshu:replace-me@postgres.platform.svc.cluster.local:5432/eshu
+
+repoSync:
+  enabled: true
+  source:
+    mode: githubOrg
+    githubOrg: eshu-hq
+    rules: []
+  auth:
+    method: githubApp
+    githubApp:
+      secretName: github-app-credentials
+
+service:
+  type: ClusterIP
+
+api:
+  replicas: 1
+
+resolutionEngine:
+  enabled: true
+  replicas: 1
+
+observability:
+  environment: ""
+  otel:
+    enabled: false
+    endpoint: ""
+    protocol: grpc
+    insecure: true
+    headers: {}
+    tracesExporter: otlp
+    metricsExporter: otlp
+    logsExporter: none
+    resourceAttributes: {}
+    excludedUrls:
+      - /health
+      - /api/v0/health
+      - /api/v0/docs
+      - /api/v0/openapi.json
+      - /api/v0/redoc
+    metricExportIntervalSeconds: 30
+
+ingester:
+  replicas: 1
+  persistence:
+    enabled: true
+
+exposure:
+  ingress:
+    enabled: false
+  gateway:
+    enabled: false

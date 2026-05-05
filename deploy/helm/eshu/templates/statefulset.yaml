@@ -1,0 +1,188 @@
+{{- if .Values.repoSync.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "eshu.fullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingester
+spec:
+  replicas: {{ .Values.ingester.replicas }}
+  revisionHistoryLimit: {{ .Values.ingester.revisionHistoryLimit }}
+  serviceName: {{ include "eshu.ingesterFullname" . }}
+  selector:
+    matchLabels:
+      {{- include "eshu.ingesterSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "eshu.ingesterSelectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "eshu.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- include "eshu.renderDataPlaneBootstrapInitContainer" . | nindent 8 }}
+        - name: workspace-setup
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              mkdir -p /data/repos
+              cp /var/run/eshu-config/.eshuignore /data/repos/.eshuignore
+              chown 10001:10001 /data /data/repos /data/repos/.eshuignore
+          securityContext:
+            {{- toYaml .Values.initContainerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: eshuignore-config
+              mountPath: /var/run/eshu-config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: ingester
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/eshu-ingester"]
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: ESHU_HOME
+              value: /data/.eshu
+            - name: HOME
+              value: /data
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: ESHU_REPOS_DIR
+              value: /data/repos
+            - name: ESHU_REPO_SOURCE_MODE
+              value: {{ .Values.repoSync.source.mode | quote }}
+            - name: ESHU_GIT_AUTH_METHOD
+              value: {{ .Values.repoSync.auth.method | quote }}
+            - name: ESHU_GITHUB_ORG
+              value: {{ .Values.repoSync.source.githubOrg | quote }}
+            - name: ESHU_REPOSITORIES
+              value: {{ join "," .Values.repoSync.source.repositories | quote }}
+            - name: ESHU_REPOSITORY_RULES_JSON
+              value: {{ toJson .Values.repoSync.source.rules | quote }}
+            - name: ESHU_FILESYSTEM_ROOT
+              value: {{ .Values.repoSync.source.filesystemRoot | quote }}
+            - name: ESHU_CLONE_DEPTH
+              value: {{ .Values.repoSync.source.cloneDepth | quote }}
+            - name: ESHU_REPO_LIMIT
+              value: {{ .Values.repoSync.source.limit | quote }}
+            - name: NEO4J_URI
+              value: {{ .Values.neo4j.uri | quote }}
+            {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}
+            {{- include "eshu.renderConnectionTuningEnv" .Values.ingester.connectionTuning | nindent 12 }}
+            {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "ingester") | nindent 12 }}
+            {{- include "eshu.renderPrometheusEnv" . | nindent 12 }}
+            {{- include "eshu.renderNeo4jAuthEnv" . | nindent 12 }}
+            {{- include "eshu.renderEnvMap" .Values.env | nindent 12 }}
+            {{- if eq .Values.repoSync.auth.method "githubApp" }}
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.repoSync.auth.githubApp.secretName }}
+                  key: {{ .Values.repoSync.auth.githubApp.appIdKey }}
+            - name: GITHUB_APP_INSTALLATION_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.repoSync.auth.githubApp.secretName }}
+                  key: {{ .Values.repoSync.auth.githubApp.installationIdKey }}
+            - name: GITHUB_APP_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.repoSync.auth.githubApp.secretName }}
+                  key: {{ .Values.repoSync.auth.githubApp.privateKeyKey }}
+            {{- else if eq .Values.repoSync.auth.method "token" }}
+            - name: ESHU_GIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.repoSync.auth.token.secretName }}
+                  key: {{ .Values.repoSync.auth.token.tokenKey }}
+            {{- end }}
+          ports:
+            {{- if .Values.observability.prometheus.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.observability.prometheus.port }}
+              protocol: TCP
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+            {{- if eq .Values.repoSync.auth.method "ssh" }}
+            - name: ssh-auth
+              mountPath: /var/run/secrets/eshu-ssh
+              readOnly: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.ingester.resources | nindent 12 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: eshuignore-config
+          configMap:
+            name: {{ include "eshu.fullname" . }}-eshuignore
+        {{- if and .Values.ingester.persistence.enabled .Values.ingester.persistence.existingClaim }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "eshu.dataClaimName" . }}
+        {{- else if not .Values.ingester.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- if eq .Values.repoSync.auth.method "ssh" }}
+        - name: ssh-auth
+          secret:
+            secretName: {{ .Values.repoSync.auth.ssh.secretName }}
+            defaultMode: 0400
+            items:
+              - key: {{ .Values.repoSync.auth.ssh.privateKeyKey }}
+                path: id_rsa
+              - key: {{ .Values.repoSync.auth.ssh.knownHostsKey }}
+                path: known_hosts
+        {{- end }}
+  {{- if and .Values.ingester.persistence.enabled (not .Values.ingester.persistence.existingClaim) }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "eshu.selectorLabels" . | nindent 10 }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.ingester.persistence.accessModes | nindent 10 }}
+        {{- if .Values.ingester.persistence.storageClass }}
+        storageClassName: {{ .Values.ingester.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.ingester.persistence.size }}
+  {{- end }}
+{{- end }}

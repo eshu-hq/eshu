@@ -1,0 +1,72 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.fullname" . }}-api
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.apiSelectorLabels" . | nindent 6 }}
+---
+{{- if .Values.mcpServer.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.mcpServerFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.mcpServerSelectorLabels" . | nindent 6 }}
+---
+{{- end }}
+{{- if .Values.resolutionEngine.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.resolutionEngineFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resolution-engine
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.resolutionEngineSelectorLabels" . | nindent 6 }}
+---
+{{- end }}
+{{- if .Values.workflowCoordinator.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.workflowCoordinatorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: workflow-coordinator
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.workflowCoordinatorSelectorLabels" . | nindent 6 }}
+---
+{{- end }}
+{{- if .Values.repoSync.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.ingesterFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingester
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.ingesterSelectorLabels" . | nindent 6 }}
+{{- end }}

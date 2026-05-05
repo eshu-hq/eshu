@@ -1,0 +1,27 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xiamroles.iam.aws.myorg.io
+spec:
+  group: iam.aws.myorg.io
+  names:
+    kind: XIAMRole
+    plural: xiamroles
+  claimNames:
+    kind: IAMRole
+    plural: iamroles
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                roleName:
+                  type: string
+                trustPolicy:
+                  type: string

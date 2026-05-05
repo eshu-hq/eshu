@@ -1,0 +1,114 @@
+{{- if and .Values.observability.prometheus.enabled .Values.observability.prometheus.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.apiMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+---
+{{- if .Values.mcpServer.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.mcpServerMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: mcp-server
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
+---
+{{- if .Values.repoSync.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.ingesterMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingester
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: ingester
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
+---
+{{- if .Values.resolutionEngine.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.resolutionEngineMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resolution-engine
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: resolution-engine
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
+---
+{{- if .Values.workflowCoordinator.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.workflowCoordinatorMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: workflow-coordinator
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: workflow-coordinator
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
+{{- end }}

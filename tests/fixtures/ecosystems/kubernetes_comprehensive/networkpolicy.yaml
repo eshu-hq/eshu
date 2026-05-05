@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: comprehensive-api-netpol
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: comprehensive-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - port: 8080
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - port: 5432
+        - port: 6379

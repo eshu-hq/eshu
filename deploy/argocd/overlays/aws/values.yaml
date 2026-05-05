@@ -1,0 +1,20 @@
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu
+
+service:
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+
+exposure:
+  ingress:
+    enabled: true
+    className: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internal
+      alb.ingress.kubernetes.io/target-type: ip
+    hosts:
+      - host: eshu.internal.example.com
+        paths:
+          - path: /
+            pathType: Prefix

@@ -1,0 +1,40 @@
+{
+  "metadata": {
+    "warehouse_vendor": "generic",
+    "workspace": "finance"
+  },
+  "assets": [
+    {
+      "database": "analytics",
+      "schema": "finance",
+      "name": "daily_revenue",
+      "kind": "table",
+      "columns": [
+        {"name": "gross_amount"},
+        {"name": "net_amount"}
+      ]
+    },
+    {
+      "database": "analytics",
+      "schema": "crm",
+      "name": "customers",
+      "kind": "table",
+      "columns": [
+        {"name": "customer_tier"}
+      ]
+    }
+  ],
+  "query_history": [
+    {
+      "query_id": "semantic_revenue_lookup",
+      "name": "semantic_revenue_lookup",
+      "statement": "select gross_amount, customer_tier from analytics.finance.daily_revenue join analytics.crm.customers using (customer_id)",
+      "status": "success",
+      "executed_by": "semantic_cache_refresh",
+      "started_at": "2026-04-12T02:00:00Z",
+      "touched_assets": [
+        "analytics.finance.daily_revenue"
+      ]
+    }
+  ]
+}

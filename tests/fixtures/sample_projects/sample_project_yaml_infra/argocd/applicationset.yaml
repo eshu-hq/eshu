@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-addons
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/myorg/iac-eks-argocd.git
+        revision: main
+        directories:
+          - path: overlays/*/addons/*
+  template:
+    metadata:
+      name: '{{path.basename}}'
+    spec:
+      project: platform
+      source:
+        repoURL: https://github.com/myorg/iac-eks-argocd.git
+        targetRevision: main
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc

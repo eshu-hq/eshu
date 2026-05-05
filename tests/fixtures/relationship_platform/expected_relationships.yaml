@@ -1,0 +1,157 @@
+repository_relationships:
+  - type: PROVISIONS_DEPENDENCY_FOR
+    source: infra-network-foundation
+    target: service-edge-api
+  - type: PROVISIONS_DEPENDENCY_FOR
+    source: infra-runtime-legacy
+    target: service-edge-api
+  - type: PROVISIONS_DEPENDENCY_FOR
+    source: infra-runtime-modern
+    target: service-edge-api
+  - type: PROVISIONS_DEPENDENCY_FOR
+    source: infra-runtime-modern
+    target: service-worker-jobs
+  - type: PROVISIONS_DEPENDENCY_FOR
+    source: infra-runtime-legacy
+    target: infra-modules-shared
+  - type: PROVISIONS_DEPENDENCY_FOR
+    source: infra-runtime-modern
+    target: infra-modules-shared
+  - type: DEPLOYS_FROM
+    source: deployment-helm
+    target: service-edge-api
+  - type: DEPLOYS_FROM
+    source: deployment-helm
+    target: service-worker-jobs
+  - type: DEPLOYS_FROM
+    source: deployment-kustomize
+    target: service-edge-api
+  - type: DEPLOYS_FROM
+    source: service-edge-api
+    target: delivery-legacy-automation
+    evidence_type: github_actions_reusable_workflow_ref
+  - type: DEPLOYS_FROM
+    source: service-edge-api
+    target: service-worker-jobs
+    evidence_type: docker_compose_build_context
+  - type: DEPLOYS_FROM
+    source: deployment-kustomize
+    target: service-worker-jobs
+  - type: DISCOVERS_CONFIG_IN
+    source: delivery-argocd
+    target: deployment-kustomize
+  - type: DEPENDS_ON
+    source: service-edge-api
+    target: service-worker-jobs
+    evidence_type: docker_compose_depends_on
+platform_relationships:
+  - type: PROVISIONS_PLATFORM
+    source: infra-runtime-legacy
+    target:
+      kind: ecs
+      provider: aws
+      name: legacy-edge
+  - type: PROVISIONS_PLATFORM
+    source: infra-runtime-modern
+    target:
+      kind: eks
+      provider: aws
+      name: modern-edge
+  - type: RUNS_ON
+    source: service-edge-api
+    target:
+      kind: ecs
+      provider: aws
+      name: legacy-edge
+workload_relationships:
+  - type: DEFINES
+    source_repo: service-edge-api
+    target_workload: workload:service-edge-api
+  - type: DEFINES
+    source_repo: service-worker-jobs
+    target_workload: workload:service-worker-jobs
+  - type: INSTANCE_OF
+    source_instance: workload-instance:service-edge-api:modern
+    target_workload: workload:service-edge-api
+  - type: INSTANCE_OF
+    source_instance: workload-instance:service-worker-jobs:modern
+    target_workload: workload:service-worker-jobs
+  - type: DEPLOYMENT_SOURCE
+    source_instance: workload-instance:service-edge-api:modern
+    target_repo: deployment-kustomize
+  - type: DEPLOYMENT_SOURCE
+    source_instance: workload-instance:service-worker-jobs:modern
+    target_repo: deployment-kustomize
+  - type: RUNS_ON
+    source_instance: workload-instance:service-edge-api:modern
+    target_platform:
+      kind: kubernetes
+      name: modern
+      environment: modern
+  - type: RUNS_ON
+    source_instance: workload-instance:service-worker-jobs:modern
+    target_platform:
+      kind: kubernetes
+      name: modern
+      environment: modern
+  - type: DEPENDS_ON
+    source_workload: workload:service-edge-api
+    target_workload: workload:service-worker-jobs
+api_expectations:
+  repository_name: service-edge-api
+  workload_id: workload:service-edge-api
+  expected_deploy_sources:
+    - deployment-helm
+    - deployment-kustomize
+  expected_provisioned_by:
+    - infra-network-foundation
+    - infra-runtime-legacy
+    - infra-runtime-modern
+  expected_runtime_platform_kinds:
+    - ecs
+    - kubernetes
+  expected_service_dependencies:
+    - service-worker-jobs
+  expected_delivery_modes:
+    - cloudformation_ecs
+    - plain_helm_release
+    - plain_kubernetes_manifests
+  expected_local_deployment_sources:
+    - charts/service-edge-api
+    - infra/api-service.yaml
+    - k8s
+  expected_local_config_sources:
+    - charts/service-edge-api/values.yaml
+  expected_local_artifacts:
+    chart_paths:
+      - charts/service-edge-api/Chart.yaml
+    cloudformation_resource_paths:
+      - infra/api-service.yaml
+    docker_compose_paths:
+      - docker-compose.yaml
+    k8s_resource_paths:
+      - k8s/deployment.yaml
+  expected_delivery_workflows:
+    github_actions:
+      workflow_names:
+        - deploy-legacy
+      workflow_paths:
+        - .github/workflows/deploy-legacy.yml
+      command_count: 1
+      reusable_workflow_repositories:
+        - delivery-legacy-automation
+    jenkins:
+      relative_paths:
+        - Jenkinsfile
+      pipeline_calls: []
+      shell_commands:
+        - echo deploying service-edge-api with jenkins
+worker_api_expectations:
+  repository_name: service-worker-jobs
+  expected_delivery_workflows:
+    github_actions:
+      workflow_names:
+        - deploy-modern
+      workflow_paths:
+        - .github/workflows/deploy-modern.yml
+      command_count: 1

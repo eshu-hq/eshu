@@ -1,0 +1,5 @@
+# Terraform working directories (created by terraform init)
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup

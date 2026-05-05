@@ -1,0 +1,12 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: eshu
+  namespace: argocd
+spec:
+  project: platform-context
+  source:
+    helm:
+      valueFiles:
+        - deploy/argocd/base/values.yaml
+        - deploy/argocd/overlays/aws/values.yaml

@@ -1,0 +1,12 @@
+pipeline {
+  agent any
+
+  stages {
+    stage('deploy') {
+      steps {
+        sh 'ansible-playbook ../ansible-ops/playbooks/site.yml'
+        sh 'ansible-playbook ../ansible-ops/playbooks/dynamic-role.yml --extra-vars selected_role=dynamic_role'
+      }
+    }
+  }
+}

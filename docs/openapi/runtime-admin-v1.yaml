@@ -1,0 +1,474 @@
+openapi: 3.1.0
+info:
+  title: Eshu Runtime Admin API
+  version: 1.0.0
+  summary: Shared probe and operator-status contract for long-running Go runtimes.
+  description: >
+    This contract describes the mounted runtime admin surface used by the Go
+    data-plane services. It is separate from the public `/api/v0` query API
+    schema and the public `/api/v0/admin/*` API-admin surface, and applies to service-local admin endpoints such as the API,
+    ingester, projector, and reducer runtimes.
+servers:
+  - url: http://localhost:8080
+    description: Example local runtime admin surface
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: getRuntimeHealth
+      description: Returns the runtime liveness probe body. Only `GET` and `HEAD` are supported.
+      responses:
+        "200":
+          description: Runtime process is alive.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: service=collector-git probe=healthz status=ok
+        "405":
+          description: Unsupported method.
+          headers:
+            Allow:
+              schema:
+                type: string
+              example: GET, HEAD
+    head:
+      summary: Liveness probe metadata
+      operationId: headRuntimeHealth
+      description: Returns the liveness probe status without a response body.
+      responses:
+        "200":
+          description: Runtime process is alive.
+        "405":
+          description: Unsupported method.
+          headers:
+            Allow:
+              schema:
+                type: string
+              example: GET, HEAD
+  /readyz:
+    get:
+      summary: Readiness probe
+      operationId: getRuntimeReadiness
+      description: Returns the runtime readiness probe body. Only `GET` and `HEAD` are supported.
+      responses:
+        "200":
+          description: Runtime can satisfy its readiness contract.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: service=collector-git probe=readyz status=ok
+        "503":
+          description: Runtime dependency check failed.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "service=collector-git probe=readyz status=error error=read status snapshot: postgres unavailable"
+        "405":
+          description: Unsupported method.
+          headers:
+            Allow:
+              schema:
+                type: string
+              example: GET, HEAD
+    head:
+      summary: Readiness probe metadata
+      operationId: headRuntimeReadiness
+      description: Returns the readiness probe status without a response body.
+      responses:
+        "200":
+          description: Runtime can satisfy its readiness contract.
+        "503":
+          description: Runtime dependency check failed.
+        "405":
+          description: Unsupported method.
+          headers:
+            Allow:
+              schema:
+                type: string
+              example: GET, HEAD
+  /admin/status:
+    get:
+      summary: Operator status report
+      operationId: getRuntimeStatus
+      description: >
+        Returns the shared operator status report. When `format` is omitted, the
+        handler serves text by default unless the request `Accept` header prefers
+        `application/json`. Only `GET` and `HEAD` are supported.
+      parameters:
+        - in: query
+          name: format
+          required: false
+          description: Report output format.
+          schema:
+            type: string
+            enum:
+              - text
+              - json
+            default: text
+      responses:
+        "200":
+          description: Operator-facing status report.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: |
+                Health: progressing
+                Queue: outstanding=2 in_flight=1 retrying=0 failed=0 oldest=45s overdue_claims=0
+                Retry policies: projector max_attempts=3 retry_delay=30s; reducer max_attempts=3 retry_delay=30s
+                Scope activity: active=2 changed=1 unchanged=1
+                Scope statuses: active=2 pending=1
+                Generation history: active=1 pending=1 completed=4 superseded=0 failed=0 other=0
+                Generation transitions: scope=scope-123 generation=generation-b status=active trigger=snapshot freshness=changed files observed=2026-04-12T15:45:00Z activated=2026-04-12T15:46:00Z superseded= current_active=generation-b
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusReport"
+        "400":
+          description: Unsupported response format.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: unsupported format "yaml"
+        "405":
+          description: Unsupported method.
+          headers:
+            Allow:
+              schema:
+                type: string
+              example: GET, HEAD
+        "500":
+          description: Report load or render failure.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "load status report: read status snapshot: postgres unavailable"
+    head:
+      summary: Operator status metadata
+      operationId: headRuntimeStatus
+      description: Returns the operator status response headers and status code without a body.
+      parameters:
+        - in: query
+          name: format
+          required: false
+          description: Response content type selection rules match `GET /admin/status`.
+          schema:
+            type: string
+            enum:
+              - text
+              - json
+            default: text
+      responses:
+        "200":
+          description: Operator-facing status report metadata.
+        "400":
+          description: Unsupported response format.
+        "405":
+          description: Unsupported method.
+          headers:
+            Allow:
+              schema:
+                type: string
+              example: GET, HEAD
+        "500":
+          description: Report load or render failure.
+components:
+  schemas:
+    HealthSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+        - reasons
+      properties:
+        state:
+          type: string
+          enum:
+            - healthy
+            - progressing
+            - degraded
+            - stalled
+        reasons:
+          type: array
+          items:
+            type: string
+    FlowSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - lane
+        - source
+        - progress
+        - backlog
+      properties:
+        lane:
+          type: string
+        source:
+          type: string
+          enum:
+            - live
+            - inferred
+        progress:
+          type: string
+        backlog:
+          type: string
+    QueueSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - total
+        - outstanding
+        - pending
+        - in_flight
+        - retrying
+        - succeeded
+        - failed
+        - oldest_outstanding_age
+        - oldest_outstanding_age_seconds
+        - overdue_claims
+      properties:
+        total:
+          type: integer
+        outstanding:
+          type: integer
+        pending:
+          type: integer
+        in_flight:
+          type: integer
+        retrying:
+          type: integer
+        succeeded:
+          type: integer
+        failed:
+          type: integer
+        oldest_outstanding_age:
+          type: string
+        oldest_outstanding_age_seconds:
+          type: number
+        overdue_claims:
+          type: integer
+    RetryPolicySummary:
+      type: object
+      additionalProperties: false
+      required:
+        - stage
+        - max_attempts
+        - retry_delay
+        - retry_delay_seconds
+      properties:
+        stage:
+          type: string
+        max_attempts:
+          type: integer
+        retry_delay:
+          type: string
+        retry_delay_seconds:
+          type: number
+    ScopeActivitySummary:
+      type: object
+      additionalProperties: false
+      required:
+        - active
+        - changed
+        - unchanged
+      properties:
+        active:
+          type: integer
+        changed:
+          type: integer
+        unchanged:
+          type: integer
+    GenerationHistorySummary:
+      type: object
+      additionalProperties: false
+      required:
+        - active
+        - pending
+        - completed
+        - superseded
+        - failed
+        - other
+      properties:
+        active:
+          type: integer
+        pending:
+          type: integer
+        completed:
+          type: integer
+        superseded:
+          type: integer
+        failed:
+          type: integer
+        other:
+          type: integer
+    GenerationTransitionSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - scope_id
+        - generation_id
+        - status
+        - trigger_kind
+        - observed_at
+      properties:
+        scope_id:
+          type: string
+        generation_id:
+          type: string
+        status:
+          type: string
+        trigger_kind:
+          type: string
+        freshness_hint:
+          type: string
+        observed_at:
+          type: string
+          format: date-time
+        activated_at:
+          type: string
+          format: date-time
+        superseded_at:
+          type: string
+          format: date-time
+        current_active_generation_id:
+          type: string
+    StageSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - stage
+        - pending
+        - claimed
+        - running
+        - retrying
+        - succeeded
+        - failed
+      properties:
+        stage:
+          type: string
+        pending:
+          type: integer
+        claimed:
+          type: integer
+        running:
+          type: integer
+        retrying:
+          type: integer
+        succeeded:
+          type: integer
+        failed:
+          type: integer
+    DomainBacklog:
+      type: object
+      additionalProperties: false
+      required:
+        - domain
+        - outstanding
+        - retrying
+        - failed
+        - oldest_age
+        - oldest_age_seconds
+      properties:
+        domain:
+          type: string
+        outstanding:
+          type: integer
+        retrying:
+          type: integer
+        failed:
+          type: integer
+        oldest_age:
+          type: string
+        oldest_age_seconds:
+          type: number
+    QueueBlockage:
+      type: object
+      additionalProperties: false
+      required:
+        - stage
+        - domain
+        - conflict_domain
+        - conflict_key
+        - blocked
+        - oldest_age
+        - oldest_age_seconds
+      properties:
+        stage:
+          type: string
+        domain:
+          type: string
+        conflict_domain:
+          type: string
+        conflict_key:
+          type: string
+        blocked:
+          type: integer
+        oldest_age:
+          type: string
+        oldest_age_seconds:
+          type: number
+    StatusReport:
+      type: object
+      additionalProperties: false
+      required:
+        - as_of
+        - health
+        - flow
+        - queue
+        - retry_policies
+        - scope_activity
+        - generation_history
+        - generation_transitions
+        - scopes
+        - generations
+        - stages
+        - domains
+        - queue_blockages
+      properties:
+        as_of:
+          type: string
+          format: date-time
+        health:
+          $ref: "#/components/schemas/HealthSummary"
+        flow:
+          type: array
+          items:
+            $ref: "#/components/schemas/FlowSummary"
+        queue:
+          $ref: "#/components/schemas/QueueSummary"
+        retry_policies:
+          type: array
+          items:
+            $ref: "#/components/schemas/RetryPolicySummary"
+        scope_activity:
+          $ref: "#/components/schemas/ScopeActivitySummary"
+        generation_history:
+          $ref: "#/components/schemas/GenerationHistorySummary"
+        generation_transitions:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenerationTransitionSummary"
+        scopes:
+          type: object
+          additionalProperties:
+            type: integer
+        generations:
+          type: object
+          additionalProperties:
+            type: integer
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/StageSummary"
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/DomainBacklog"
+        queue_blockages:
+          type: array
+          items:
+            $ref: "#/components/schemas/QueueBlockage"

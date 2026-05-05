@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: comprehensive-agent
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: comprehensive-agent
+  template:
+    metadata:
+      labels:
+        app: comprehensive-agent
+    spec:
+      containers:
+        - name: agent
+          image: myorg/node-agent:latest
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi

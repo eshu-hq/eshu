@@ -1,0 +1,11 @@
+name: promote-edge-api
+
+on:
+  workflow_dispatch:
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Promote ECS task definition
+        run: echo "promoting service-edge-api"

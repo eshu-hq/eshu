@@ -1,0 +1,5 @@
+image:
+  repository: ghcr.io/example/service-edge-api
+  tag: modern
+service:
+  port: 8080

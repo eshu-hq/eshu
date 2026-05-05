@@ -1,0 +1,16 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: comprehensive-cleanup
+  namespace: production
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: cleanup
+              image: myorg/cleanup:latest
+              command: ["./cleanup", "--older-than", "30d"]
+          restartPolicy: OnFailure

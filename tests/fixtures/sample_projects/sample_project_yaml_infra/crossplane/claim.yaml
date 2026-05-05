@@ -1,0 +1,18 @@
+apiVersion: iam.aws.myorg.crossplane.io/v1alpha1
+kind: IAMRole
+metadata:
+  name: my-service-role
+  namespace: default
+spec:
+  roleName: my-service-role
+  trustPolicy: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {"Service": "eks.amazonaws.com"},
+          "Action": "sts:AssumeRole"
+        }
+      ]
+    }

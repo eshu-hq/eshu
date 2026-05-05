@@ -1,0 +1,80 @@
+{{- if .Values.resolutionEngine.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eshu.resolutionEngineFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resolution-engine
+spec:
+  replicas: {{ .Values.resolutionEngine.replicas }}
+  revisionHistoryLimit: {{ .Values.resolutionEngine.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      {{- include "eshu.resolutionEngineSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "eshu.resolutionEngineSelectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "eshu.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- include "eshu.renderDataPlaneBootstrapInitContainer" . | nindent 8 }}
+      containers:
+        - name: resolution-engine
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/eshu-reducer"]
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: ESHU_HOME
+              value: /tmp/.eshu
+            - name: HOME
+              value: /tmp
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: NEO4J_URI
+              value: {{ .Values.neo4j.uri | quote }}
+            {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}
+            {{- include "eshu.renderConnectionTuningEnv" .Values.resolutionEngine.connectionTuning | nindent 12 }}
+            {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "resolution-engine") | nindent 12 }}
+            {{- include "eshu.renderPrometheusEnv" . | nindent 12 }}
+            {{- include "eshu.renderNeo4jAuthEnv" . | nindent 12 }}
+            {{- include "eshu.renderEnvMap" .Values.env | nindent 12 }}
+          ports:
+            {{- if .Values.observability.prometheus.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.observability.prometheus.port }}
+              protocol: TCP
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resolutionEngine.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: dynamic-targets
+spec:
+  generators:
+    - list:
+        elements:
+          - service: dynamic-target
+  template:
+    metadata:
+      name: "{{service}}"
+    spec:
+      project: default
+      source:
+        repoURL: https://example.invalid/platform/helm-charts.git
+        targetRevision: HEAD
+        path: "charts/{{service}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: dynamic

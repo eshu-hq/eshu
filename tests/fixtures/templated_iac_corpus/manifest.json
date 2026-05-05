@@ -1,0 +1,101 @@
+{
+  "files": [
+    {
+      "artifact_type": "helm_chart",
+      "family": "helm_go_template",
+      "notes": [
+        "genericize chart identity"
+      ],
+      "source": "~/repos/mobius/iac-eks-eshu/chart/Chart.yaml",
+      "target": "example-platform-chart/chart/Chart.yaml"
+    },
+    {
+      "artifact_type": "helm_values",
+      "family": "helm_go_template",
+      "notes": [
+        "replace registry, org, and secret names"
+      ],
+      "source": "~/repos/mobius/iac-eks-eshu/chart/values.yaml",
+      "target": "example-platform-chart/chart/values.yaml"
+    },
+    {
+      "artifact_type": "helm_helper_tpl",
+      "family": "helm_go_template",
+      "notes": [
+        "preserve Go-template helpers"
+      ],
+      "source": "~/repos/mobius/iac-eks-eshu/chart/templates/_helpers.tpl",
+      "target": "example-platform-chart/chart/templates/_helpers.tpl"
+    },
+    {
+      "artifact_type": "go_template_yaml",
+      "family": "helm_go_template",
+      "notes": [
+        "preserve Go-template YAML control flow"
+      ],
+      "source": "~/repos/mobius/iac-eks-eshu/chart/templates/deployment.yaml",
+      "target": "example-platform-chart/chart/templates/deployment.yaml"
+    },
+    {
+      "artifact_type": "nginx_config_template",
+      "family": "ansible_jinja",
+      "notes": [
+        "replace company domains and custom header names"
+      ],
+      "source": "~/repos/ansible-automate/automate-mws/roles/portal-websites/templates/portal-dmmwebsites.conf.j2",
+      "target": "example-ansible-templates/roles/web/templates/site.conf.j2"
+    },
+    {
+      "artifact_type": "dockerfile_template",
+      "family": "ansible_jinja",
+      "notes": [
+        "replace private artifact registry"
+      ],
+      "source": "~/repos/ansible-automate/automate-build-golden-ami/roles/build-ami/templates/Dockerfile.j2",
+      "target": "example-ansible-templates/roles/builder/templates/Dockerfile.j2"
+    },
+    {
+      "artifact_type": "dockerfile",
+      "family": "dagster_jinja_yaml",
+      "notes": [
+        "preserve a plain Dockerfile for raw-text ingestion"
+      ],
+      "source": "~/repos/services/bg-dagster/Dockerfile",
+      "target": "example-dagster-assets/Dockerfile"
+    },
+    {
+      "artifact_type": "jinja_yaml",
+      "family": "dagster_jinja_yaml",
+      "notes": [
+        "preserve Jinja loops over YAML structures"
+      ],
+      "source": "~/repos/services/bg-dagster/bg_data_platform/assets/data_lakehouse/branchio_ingestion.yaml",
+      "target": "example-dagster-assets/assets/data_lakehouse/branch_ingestion.yaml"
+    },
+    {
+      "artifact_type": "jinja_yaml",
+      "family": "dagster_jinja_yaml",
+      "notes": [
+        "replace portal names and scrub webhook"
+      ],
+      "source": "~/repos/services/bg-dagster/bg_data_platform/assets/data_quality/ga4_dq_checks.yaml",
+      "target": "example-dagster-assets/assets/data_quality/analytics_checks.yaml"
+    },
+    {
+      "artifact_type": "terraform_template_text",
+      "family": "terraform_template_text",
+      "notes": [
+        "preserve Terraform interpolation placeholders"
+      ],
+      "source": "~/repos/terraform-modules/terraform-snapshots/modules/ecs/application-cloudmap/templates/ecs/container.tpl",
+      "target": "example-terraform-templates/templates/ecs/container.tpl"
+    }
+  ],
+  "generated_at": "2026-03-24T18:42:35.947573+00:00",
+  "repos": [
+    "example-ansible-templates",
+    "example-dagster-assets",
+    "example-platform-chart",
+    "example-terraform-templates"
+  ]
+}

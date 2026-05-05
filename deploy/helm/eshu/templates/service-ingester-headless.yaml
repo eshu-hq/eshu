@@ -1,0 +1,18 @@
+{{- if .Values.repoSync.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eshu.ingesterFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingester
+spec:
+  clusterIP: None
+  selector:
+    {{- include "eshu.ingesterSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: noop
+      port: 80
+      targetPort: 80
+      protocol: TCP
+{{- end }}

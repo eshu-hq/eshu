@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: comprehensive-multi-source
+  namespace: argocd
+spec:
+  project: platform
+  sources:
+    - repoURL: https://github.com/myorg/helm-charts.git
+      path: charts/comprehensive-app
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/production/values.yaml
+    - repoURL: https://github.com/myorg/config-repo.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production

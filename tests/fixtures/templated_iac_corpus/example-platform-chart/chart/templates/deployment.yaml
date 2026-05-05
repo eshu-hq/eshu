@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+{{- $apiNodeSelector := .Values.api.nodeSelector | default .Values.nodeSelector }}
+{{- $apiAffinity := .Values.api.affinity | default .Values.affinity }}
+{{- $apiTolerations := .Values.api.tolerations | default .Values.tolerations }}
+metadata:
+  name: {{ include "eshu.apiFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+  annotations:
+    {{- include "eshu.argocdAnnotations" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      {{- include "eshu.apiSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "eshu.apiSelectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "eshu.serviceAccountName" . }}
+      {{- with $apiNodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $apiAffinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $apiTolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: eshu
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["eshu", "serve", "start", "--host", "0.0.0.0", "--port", {{ .Values.service.port | quote }}]
+          env:
+            - name: ESHU_RUNTIME_ROLE
+              value: "api"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: NEO4J_URI
+              value: {{ .Values.neo4j.uri | quote }}
+            {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}
+            {{- include "eshu.renderOtelEnv" . | nindent 12 }}
+            - name: NEO4J_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.auth.secretName }}
+                  key: {{ .Values.neo4j.auth.usernameKey }}
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.auth.secretName }}
+                  key: {{ .Values.neo4j.auth.passwordKey }}
+            {{- include "eshu.renderEnvMaps" (list .Values.env .Values.api.env) | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}

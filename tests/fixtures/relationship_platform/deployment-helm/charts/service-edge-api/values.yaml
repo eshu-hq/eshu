@@ -1,0 +1,4 @@
+image:
+  repository: service-edge-api
+service:
+  upstreamRepo: service-edge-api

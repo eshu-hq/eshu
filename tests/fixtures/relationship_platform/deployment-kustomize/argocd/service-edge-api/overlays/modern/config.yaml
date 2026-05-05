@@ -1,0 +1,7 @@
+name: service-edge-api
+labels:
+  app.kubernetes.io/name: service-edge-api
+git:
+  repoURL: deployment-kustomize
+  overlayPath: argocd/service-edge-api/overlays/modern
+destinationClusterName: modern

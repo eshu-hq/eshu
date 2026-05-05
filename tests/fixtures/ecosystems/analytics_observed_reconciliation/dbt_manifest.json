@@ -1,0 +1,94 @@
+{
+  "metadata": {
+    "adapter_type": "postgres",
+    "project_name": "reconciliation_demo"
+  },
+  "nodes": {
+    "model.reconciliation_demo.order_metrics": {
+      "unique_id": "model.reconciliation_demo.order_metrics",
+      "resource_type": "model",
+      "name": "order_metrics",
+      "database": "analytics",
+      "schema": "public",
+      "alias": "order_metrics",
+      "path": "models/marts/order_metrics.sql",
+      "compiled_path": "target/compiled/reconciliation_demo/models/marts/order_metrics.sql",
+      "relation_name": "analytics.public.order_metrics",
+      "config": {
+        "materialized": "view"
+      },
+      "depends_on": {
+        "nodes": [
+          "source.reconciliation_demo.raw.orders",
+          "source.reconciliation_demo.raw.customers",
+          "source.reconciliation_demo.raw.payments"
+        ]
+      },
+      "compiled_code": "select o.id as order_id, c.email as customer_email, p.amount as payment_amount from raw.public.orders o join raw.public.customers c on c.customer_id = o.customer_id left join raw.public.payments p on p.order_id = o.id",
+      "columns": {
+        "order_id": {
+          "name": "order_id"
+        },
+        "customer_email": {
+          "name": "customer_email"
+        },
+        "payment_amount": {
+          "name": "payment_amount"
+        }
+      }
+    }
+  },
+  "sources": {
+    "source.reconciliation_demo.raw.orders": {
+      "unique_id": "source.reconciliation_demo.raw.orders",
+      "resource_type": "source",
+      "source_name": "raw",
+      "name": "orders",
+      "database": "raw",
+      "schema": "public",
+      "identifier": "orders",
+      "columns": {
+        "id": {
+          "name": "id"
+        },
+        "customer_id": {
+          "name": "customer_id"
+        }
+      }
+    },
+    "source.reconciliation_demo.raw.customers": {
+      "unique_id": "source.reconciliation_demo.raw.customers",
+      "resource_type": "source",
+      "source_name": "raw",
+      "name": "customers",
+      "database": "raw",
+      "schema": "public",
+      "identifier": "customers",
+      "columns": {
+        "customer_id": {
+          "name": "customer_id"
+        },
+        "email": {
+          "name": "email"
+        }
+      }
+    },
+    "source.reconciliation_demo.raw.payments": {
+      "unique_id": "source.reconciliation_demo.raw.payments",
+      "resource_type": "source",
+      "source_name": "raw",
+      "name": "payments",
+      "database": "raw",
+      "schema": "public",
+      "identifier": "payments",
+      "columns": {
+        "order_id": {
+          "name": "order_id"
+        },
+        "amount": {
+          "name": "amount"
+        }
+      }
+    }
+  }
+}

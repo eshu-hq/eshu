@@ -1,0 +1,17 @@
+{{- if .Values.mcpServer.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eshu.mcpServerFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "eshu.mcpServerSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+{{- end }}

@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-gha
+  namespace: service-gha
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-gha
+  template:
+    metadata:
+      labels:
+        app: service-gha
+    spec:
+      containers:
+        - name: service-gha
+          image: registry.example/service-gha:latest
+          ports:
+            - containerPort: 8080
