@@ -37,3 +37,8 @@ instances.
 
 Only one repository auth method is used at a time. The default is
 `repoSync.auth.method=githubApp`.
+
+For bundled NornicDB no-auth installs, set `neo4j.auth.secretName=""`. The
+chart still renders `NEO4J_USERNAME` and `NEO4J_PASSWORD` from
+`neo4j.auth.username/password` because Eshu's shared Bolt client config rejects
+empty credentials before it opens the connection.

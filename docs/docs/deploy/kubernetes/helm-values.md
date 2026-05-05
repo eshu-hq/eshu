@@ -19,6 +19,8 @@ The chart lives at `deploy/helm/eshu`.
 | `workflowCoordinator.collectorInstances` | `[]` | Declarative collector instances for dark reconciliation only. |
 | `contentStore.dsn` | empty | Postgres DSN. |
 | `neo4j.uri` | `bolt://neo4j:7687` | Bolt URI for NornicDB or Neo4j. |
+| `neo4j.auth.secretName` | `eshu-neo4j` | Secret for Bolt auth. Set to empty only for bundled NornicDB no-auth installs. |
+| `neo4j.auth.username/password` | `neo4j` / `change-me` | Literal Bolt client credentials used when `neo4j.auth.secretName` is empty. |
 | `env.ESHU_GRAPH_BACKEND` | `nornicdb` | Active graph adapter. |
 | `observability.prometheus.serviceMonitor.enabled` | `false` | Render `ServiceMonitor` resources. |
 

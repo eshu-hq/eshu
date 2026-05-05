@@ -45,7 +45,7 @@ spec:
         - name: mcp-server
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["eshu", "mcp", "start"]
+          command: ["eshu", "mcp", "start", "--transport", "http"]
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           env:
@@ -72,11 +72,6 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
-            {{- if .Values.observability.prometheus.enabled }}
-            - name: metrics
-              containerPort: {{ .Values.observability.prometheus.port }}
-              protocol: TCP
-            {{- end }}
           livenessProbe:
             httpGet:
               path: /health

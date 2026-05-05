@@ -71,11 +71,6 @@ spec:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
-            {{- if .Values.observability.prometheus.enabled }}
-            - name: metrics
-              containerPort: {{ .Values.observability.prometheus.port }}
-              protocol: TCP
-            {{- end }}
           livenessProbe:
             httpGet:
               path: /health

@@ -25,6 +25,10 @@ Important routing notes:
   backend at a time: `api` or `mcp`.
 - If you want separate public API and MCP hostnames, add an additional
   Ingress or HTTPRoute from your overlay or GitOps layer.
+- For bundled NornicDB, set `neo4j.auth.secretName=""`. The chart then renders
+  literal Bolt client credentials from `neo4j.auth.username/password` because
+  Eshu requires non-empty Bolt auth fields even when NornicDB itself runs
+  without auth.
 
 ## Render locally
 

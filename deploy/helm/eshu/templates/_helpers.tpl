@@ -205,7 +205,7 @@ app.kubernetes.io/component: workflow-coordinator
       mountPath: /tmp
 {{- end -}}
 
-{{/* Conditional NEO4J_USERNAME / NEO4J_PASSWORD — skipped when secretName is empty (NornicDB no-auth) */}}
+{{/* Bolt credentials are always rendered because the shared client config rejects empty auth fields. */}}
 {{- define "eshu.renderNeo4jAuthEnv" -}}
 {{- if .Values.neo4j.auth.secretName }}
 - name: NEO4J_USERNAME
@@ -218,6 +218,11 @@ app.kubernetes.io/component: workflow-coordinator
     secretKeyRef:
       name: {{ .Values.neo4j.auth.secretName }}
       key: {{ .Values.neo4j.auth.passwordKey }}
+{{- else }}
+- name: NEO4J_USERNAME
+  value: {{ required "neo4j.auth.username is required when neo4j.auth.secretName is empty" .Values.neo4j.auth.username | quote }}
+- name: NEO4J_PASSWORD
+  value: {{ required "neo4j.auth.password is required when neo4j.auth.secretName is empty" .Values.neo4j.auth.password | quote }}
 {{- end }}
 {{- end -}}
 

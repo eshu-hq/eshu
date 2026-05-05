@@ -245,15 +245,19 @@ observability:
 neo4j:
   uri: bolt://neo4j:7687
   auth:
-    # set secretName to "" to skip NEO4J_USERNAME/PASSWORD secret refs (NornicDB no-auth)
+    # Set secretName to "" for NornicDB no-auth deployments. The chart still
+    # renders literal Bolt client credentials because Eshu requires non-empty
+    # username/password fields before it opens the shared Bolt driver.
     secretName: eshu-neo4j
+    username: neo4j
+    password: change-me
     usernameKey: username
     passwordKey: password
 
 # NornicDB graph backend deployment — disabled by default; enable per overlay.
 # When enabling, also set:
 #   neo4j.uri: bolt://<release>-eshu-nornicdb:{{ nornicdb.ports.bolt }}
-#   neo4j.auth.secretName: ""   # NornicDB runs with NORNICDB_NO_AUTH=true
+#   neo4j.auth.secretName: ""   # Use literal Bolt client credentials above.
 nornicdb:
   enabled: false
   image:
