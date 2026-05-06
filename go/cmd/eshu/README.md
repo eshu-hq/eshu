@@ -68,9 +68,11 @@ launched runtime via the shared `telemetry` package. Errors print to
 - `eshu graph stop` sends `SIGTERM` to the owner supervisor for both
   `local_lightweight` and `local_authoritative` profiles only after ownership
   checks pass. Lightweight stop requires the recorded Postgres socket to be
-  healthy before signaling the owner PID; stale records with a reused PID are
-  cleaned up without sending a signal. Authoritative stop additionally waits for
-  the graph sidecar (NornicDB) to become unreachable.
+  healthy before signaling the owner PID; otherwise it acquires `owner.lock`,
+  stops any recorded embedded Postgres child, and only then removes stale
+  metadata. If the lock is still held, the record is preserved for the running
+  owner or the next reclaim path. Authoritative stop additionally waits for the
+  graph sidecar (NornicDB) to become unreachable.
 - The default local graph path is embedded NornicDB when `eshu` is built with
   `nolocalllm`; `ESHU_NORNICDB_RUNTIME=process` is the only runtime-mode
   override, while `ESHU_NORNICDB_BINARY` selects process mode for a specific

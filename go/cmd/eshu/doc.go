@@ -6,8 +6,9 @@
 // `stats`), service launch (`mcp start`, `api start`, `serve`), authenticated
 // local Eshu service commands (`graph` — `stop` handles both `local_lightweight`
 // and `local_authoritative` profiles; lightweight stop verifies the owner
-// socket before signaling; Bolt health requires a selected protocol version
-// to avoid a TCP-accept/protocol-ready race), backend installation (`install`),
+// socket before signaling and uses owner.lock before stale metadata cleanup;
+// Bolt health requires a selected protocol version to avoid a
+// TCP-accept/protocol-ready race), backend installation (`install`),
 // admin/operator workflows (`admin ...`), configuration (`config`, `neo4j`),
 // discovery (`find`, `analyze`, `ecosystem`), internal local-service
 // orchestration, and the `doctor` diagnostic. Its local-authoritative graph
