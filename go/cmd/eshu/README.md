@@ -54,6 +54,11 @@ launched runtime via the shared `telemetry` package. Errors print to
 - `SilenceUsage` and `SilenceErrors` are set on the root command
 - `eshu graph start` requires `eshu-reducer` and `eshu-ingester` on `PATH`;
   fresh local Eshu service runs need `go/bin` on `PATH` after rebuilding
+- For `local_authoritative` + NornicDB, the local owner sets snapshot, parse,
+  projector, and reducer worker env vars to the developer machine's CPU count
+  before launching `eshu-ingester` and `eshu-reducer`. Explicit env vars still
+  win, so a developer can lower or raise a single pool without changing the
+  owner code (`local_host_config.go` and `local_host.go`).
 - `graphBoltHealthy` sends the Bolt magic + four version proposals and reads
   the 4-byte server response. The response must match one offered protocol
   version; `00 00 00 00` means the server rejected negotiation and is not ready.

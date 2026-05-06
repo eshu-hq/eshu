@@ -288,7 +288,7 @@ func projectorWorkerCount(getenv func(string) string) int {
 	}
 	if strings.TrimSpace(getenv("ESHU_QUERY_PROFILE")) == "local_authoritative" &&
 		strings.TrimSpace(getenv("ESHU_GRAPH_BACKEND")) == string(runtimecfg.GraphBackendNornicDB) {
-		return 1
+		return runtime.NumCPU()
 	}
 	n := runtime.NumCPU()
 	if n > 8 {

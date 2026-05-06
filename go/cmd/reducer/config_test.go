@@ -72,7 +72,7 @@ func TestLoadReducerWorkerCount_Neo4jDefaultCap(t *testing.T) {
 	}
 }
 
-func TestLoadReducerWorkerCount_NornicDBDefaultsToBoundedCPU(t *testing.T) {
+func TestLoadReducerWorkerCount_NornicDBDefaultsToCPU(t *testing.T) {
 	t.Parallel()
 	got := loadReducerWorkerCount(func(string) string { return "" }, runtimecfg.GraphBackendNornicDB)
 	if want := expectedNornicDBReducerWorkers(); got != want {
@@ -184,9 +184,6 @@ func TestLoadReducerClaimDomain_RejectsUnknownDomain(t *testing.T) {
 
 func expectedNornicDBReducerWorkers() int {
 	n := runtime.NumCPU()
-	if n > 8 {
-		n = 8
-	}
 	if n < 1 {
 		n = 1
 	}

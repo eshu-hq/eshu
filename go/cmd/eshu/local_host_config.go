@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -40,7 +41,12 @@ func localHostEnv(dsn string, runtimeConfig localHostRuntimeConfig, graph *manag
 	return mergeEnvironment(eshuEnviron(), values)
 }
 
-func localHostIngesterOverrides(layout eshulocal.Layout, mode localHostMode, runtimeConfig localHostRuntimeConfig) map[string]string {
+func localHostIngesterOverrides(
+	layout eshulocal.Layout,
+	mode localHostMode,
+	runtimeConfig localHostRuntimeConfig,
+	getenv func(string) string,
+) map[string]string {
 	overrides := map[string]string{
 		"ESHU_WATCH_PATH":        layout.WorkspaceRoot,
 		"ESHU_REPO_SOURCE_MODE":  "filesystem",
@@ -51,7 +57,39 @@ func localHostIngesterOverrides(layout eshulocal.Layout, mode localHostMode, run
 	if runtimeConfig.GraphBackend != "" {
 		overrides["ESHU_GRAPH_BACKEND"] = string(runtimeConfig.GraphBackend)
 	}
+	if shouldTuneLocalAuthoritativeNornicDB(runtimeConfig) {
+		cpus := strconv.Itoa(localHostCPUCount())
+		setOverrideIfUnset(overrides, getenv, "ESHU_SNAPSHOT_WORKERS", cpus)
+		setOverrideIfUnset(overrides, getenv, "ESHU_PARSE_WORKERS", cpus)
+		setOverrideIfUnset(overrides, getenv, "ESHU_PROJECTOR_WORKERS", cpus)
+	}
 	return overrides
+}
+
+// shouldTuneLocalAuthoritativeNornicDB limits owner-injected CPU defaults to
+// the local profile/backend pair proven by the NornicDB full-corpus lane.
+func shouldTuneLocalAuthoritativeNornicDB(runtimeConfig localHostRuntimeConfig) bool {
+	return runtimeConfig.Profile == query.ProfileLocalAuthoritative &&
+		runtimeConfig.GraphBackend == query.GraphBackendNornicDB
+}
+
+// localHostCPUCount normalizes runtime CPU discovery so test doubles and
+// unusual host reports cannot produce an invalid worker count.
+func localHostCPUCount() int {
+	cpus := localHostNumCPU()
+	if cpus < 1 {
+		return 1
+	}
+	return cpus
+}
+
+// setOverrideIfUnset preserves explicit developer tuning while letting the
+// local owner supply CPU-aware defaults for child processes.
+func setOverrideIfUnset(overrides map[string]string, getenv func(string) string, key, value string) {
+	if getenv != nil && strings.TrimSpace(getenv(key)) != "" {
+		return
+	}
+	overrides[key] = value
 }
 
 func resolveLocalHostRuntimeConfig(getenv func(string) string) (localHostRuntimeConfig, error) {

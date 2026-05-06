@@ -65,7 +65,7 @@ All env vars parsed in `config.go` and `neo4j_wiring.go`.
 | --- | --- | --- |
 | `ESHU_REDUCER_RETRY_DELAY` | `30s` | Delay before a failed intent becomes re-claimable |
 | `ESHU_REDUCER_MAX_ATTEMPTS` | `5` | Terminal failure threshold |
-| `ESHU_REDUCER_WORKERS` | `min(NumCPU,8)` NornicDB / `min(NumCPU,4)` Neo4j | Concurrent intent workers |
+| `ESHU_REDUCER_WORKERS` | `NumCPU` NornicDB / `min(NumCPU,4)` Neo4j | Concurrent intent workers |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | `workers` NornicDB / `workers×4 (max 64)` Neo4j | Items per claim batch |
 | `ESHU_REDUCER_CLAIM_DOMAIN` | `""` (all domains) | Restrict claims to one `Domain` |
 
@@ -185,9 +185,9 @@ ESHU_POSTGRES_DSN.
   queues or graph drivers.
 - In Kubernetes, size the Postgres connection pool to accommodate
   `ESHU_REDUCER_WORKERS × replica_count` concurrent connections.
-- On NornicDB, raise worker counts only with queue and graph-write
-  telemetry in view; long graph writes make lease contention the
-  bottleneck before CPU.
+- On NornicDB, the default reducer worker count now matches host CPU count.
+  Lower it only when queue, conflict-key, and graph-write telemetry show
+  backend saturation or unsafe overlap.
 - Worker leases renew at `LeaseDuration / 2`; a retry delay shorter than
   the lease TTL causes claims to churn.
 - The projector drain gate (ESHU_QUERY_PROFILE=local-authoritative +

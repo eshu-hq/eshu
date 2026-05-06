@@ -63,7 +63,9 @@ partial backfill state.
 
 The projector service runs in the same process and drains the projector queue
 filled by the collector. Worker count defaults to `min(NumCPU, 8)`; on
-`local_authoritative` + NornicDB it defaults to 1 to prevent write contention.
+`local_authoritative` + NornicDB it defaults to the developer or host CPU count
+so the local authoritative path matches the production-proven concurrency
+profile.
 
 ## Exported surface
 
@@ -86,7 +88,7 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_PARSE_WORKERS | min(NumCPU,8) | Concurrent file-parse workers per snapshot |
 | ESHU_LARGE_REPO_FILE_THRESHOLD | 1000 | File-count threshold for large-repo semaphore |
 | ESHU_LARGE_REPO_MAX_CONCURRENT | 2 | Max concurrent large-repo snapshots |
-| ESHU_PROJECTOR_WORKERS | min(NumCPU,8) | Projector worker count |
+| ESHU_PROJECTOR_WORKERS | min(NumCPU,8); local_authoritative NornicDB: NumCPU | Projector worker count |
 | ESHU_LARGE_GEN_THRESHOLD | 10000 | Fact-count threshold for large-generation semaphore |
 | ESHU_LARGE_GEN_MAX_CONCURRENT | 2 | Max concurrent large-generation projections |
 | ESHU_CANONICAL_WRITE_TIMEOUT | 30s | Graph write timeout |
@@ -143,8 +145,10 @@ The ingester inherits collector and projector telemetry. Key signals:
 - Version probes are pre-startup checks. Keep `buildinfo.PrintVersionFlag` at
   the top of `main` so container images can report their build without
   requiring database credentials.
-- Align ESHU_SNAPSHOT_WORKERS with CPU requests to avoid CPU throttling under
-  concurrent parsing load.
+- Align ESHU_SNAPSHOT_WORKERS and ESHU_PARSE_WORKERS with CPU requests to avoid
+  CPU throttling under concurrent parsing load. The local-authoritative owner
+  sets both to the developer machine's CPU count unless explicit env vars are
+  already present.
 - If the projector queue age (`eshu_dp_queue_oldest_age_seconds{queue="projector"}`)
   rises while `eshu_dp_repos_snapshotted_total` grows, the projector cannot drain
   as fast as the collector fills. Check projector worker count and graph write
@@ -176,9 +180,10 @@ The ingester inherits collector and projector telemetry. Key signals:
 - NornicDB grouped writes remain disabled by default. Enabling
   ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true requires the fixed rollback binary
   and a full conformance pass before production use.
-- ESHU_PROJECTOR_WORKERS defaults to 1 when ESHU_QUERY_PROFILE=local_authoritative
-  and ESHU_GRAPH_BACKEND=nornicdb to prevent concurrent write contention on the
-  laptop profile (`wiring.go:287-292`).
+- ESHU_PROJECTOR_WORKERS defaults to NumCPU when
+  ESHU_QUERY_PROFILE=local_authoritative and ESHU_GRAPH_BACKEND=nornicdb. The
+  local-authoritative owner also injects that value for normal `eshu graph
+  start` runs (`wiring.go:287-292`).
 
 ## Related docs
 

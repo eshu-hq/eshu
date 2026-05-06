@@ -213,8 +213,10 @@ Set any variable to `1` to force sequential processing during debugging.
 | Env var | Default | Service | Controls |
 | --- | --- | --- | --- |
 | `ESHU_PROJECTION_WORKERS` | `min(NumCPU, 8)` | Bootstrap Index | Concurrent bootstrap projection goroutines |
-| `ESHU_SNAPSHOT_WORKERS` | `min(NumCPU, 4)` | Ingester / Bootstrap | Concurrent repository snapshot goroutines |
-| `ESHU_REDUCER_WORKERS` | NornicDB: `min(NumCPU, 8)`; Neo4j: `min(NumCPU, 4)` | Reducer | Concurrent reducer intent execution goroutines |
+| `ESHU_SNAPSHOT_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner: `NumCPU` | Ingester / Bootstrap | Concurrent repository snapshot goroutines |
+| `ESHU_PARSE_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner: `NumCPU` | Ingester / Bootstrap | Concurrent file-parse workers inside a repository snapshot |
+| `ESHU_PROJECTOR_WORKERS` | `min(NumCPU, 8)`; NornicDB local-authoritative: `NumCPU` | Ingester | Concurrent source-local projection workers |
+| `ESHU_REDUCER_WORKERS` | NornicDB: `NumCPU`; Neo4j: `min(NumCPU, 4)` | Reducer | Concurrent reducer intent execution goroutines |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | NornicDB: `workers`; Neo4j: `workers * 4` capped at `64` | Reducer | Reducer intents leased per claim cycle |
 | `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | NornicDB: `1`; otherwise disabled | Reducer | Concurrent semantic entity materialization claims after source-local drain |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | Reducer | Maximum code-call shared intents scanned or loaded for one accepted repo/run before failing safely |

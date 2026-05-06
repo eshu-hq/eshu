@@ -12,8 +12,9 @@
 // discovery (`find`, `analyze`, `ecosystem`), internal local-service
 // orchestration, and the `doctor` diagnostic. Its local-authoritative graph
 // path starts embedded or process-mode NornicDB, injects the workspace-scoped
-// Bolt credentials into child services, and keeps embedded Bolt database access
-// aligned with the HTTP server's RBAC callbacks. It hands off to the Go runtime
-// binaries discovered through `PATH`. Exit codes reflect the underlying Cobra
-// command result.
+// Bolt credentials plus CPU-count worker defaults from local_host_config.go
+// into child services, and keeps embedded Bolt database access aligned with
+// the HTTP server's RBAC callbacks. It hands off to the Go runtime binaries
+// discovered through `PATH`. Exit codes reflect the underlying Cobra command
+// result.
 package main

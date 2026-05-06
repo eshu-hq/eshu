@@ -243,7 +243,7 @@ func TestLocalHostIngesterOverridesUseFilesystemDirectMode(t *testing.T) {
 		CacheDir:      "/eshu/cache",
 	}
 
-	got := localHostIngesterOverrides(layout, localHostModeWatch, localHostRuntimeConfig{Profile: query.ProfileLocalLightweight})
+	got := localHostIngesterOverrides(layout, localHostModeWatch, localHostRuntimeConfig{Profile: query.ProfileLocalLightweight}, func(string) string { return "" })
 	if got["ESHU_REPO_SOURCE_MODE"] != "filesystem" {
 		t.Fatalf("ESHU_REPO_SOURCE_MODE = %q, want %q", got["ESHU_REPO_SOURCE_MODE"], "filesystem")
 	}
