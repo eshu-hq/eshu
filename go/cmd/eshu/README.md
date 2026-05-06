@@ -62,6 +62,10 @@ launched runtime via the shared `telemetry` package. Errors print to
   under the local graph data directory; child services receive the same values
   through `ESHU_NEO4J_USERNAME`, `ESHU_NEO4J_PASSWORD`, `NEO4J_USERNAME`, and
   `NEO4J_PASSWORD`
+- Embedded NornicDB must wire Bolt through the HTTP server's role, database
+  access, and resolved-access callbacks. Without that shared RBAC path,
+  authenticated child services can connect but projector writes to the default
+  `nornic` database fail with a Neo4j security-forbidden error.
 - `--database` mutates the process environment via `os.Setenv`
 
 ## Related docs

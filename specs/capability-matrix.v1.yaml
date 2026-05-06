@@ -127,15 +127,15 @@ capabilities:
   - capability: platform_impact.deployment_chain
     tools: [trace_deployment_chain, find_infra_resources, analyze_infra_relationships]
     profiles:
-      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-deployment-chain}], notes: requires full platform truth}
-      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-authoritative-unsupported-deployment-chain}], notes: laptop graph sidecar alone does not index enough IaC for platform topology; full-stack required}
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-deployment-chain}], notes: requires an authoritative platform graph}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: authoritative local graph topology from the same query handlers as full-stack}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{compose_e2e: deployment-chain}], notes: authoritative platform topology}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 6000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-deployment-chain}], notes: authoritative platform topology}
   - capability: platform_impact.context_overview
     tools: [get_repo_context, get_service_context, get_ecosystem_overview]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-context-overview}], notes: requires full platform context truth}
-      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-authoritative-unsupported-context-overview}], notes: laptop graph sidecar alone lacks ecosystem breadth; full-stack required}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: authoritative local repository, service, and ecosystem context from the local graph}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{compose_e2e: context-overview}], notes: authoritative repository, service, and ecosystem context}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 6000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-context-overview}], notes: authoritative repository, service, and ecosystem context}
   - capability: relationship_evidence.drilldown
@@ -148,8 +148,8 @@ capabilities:
   - capability: platform_impact.resource_to_code
     tools: [trace_resource_to_code]
     profiles:
-      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-resource-to-code}], notes: requires deployed platform evidence}
-      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-authoritative-unsupported-resource-to-code}], notes: laptop graph sidecar lacks deployed infra evidence; full-stack or production required}
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-resource-to-code}], notes: requires an authoritative platform graph}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: exact when local graph infra and code relations converge}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{compose_e2e: resource-to-code}], notes: exact only when infra and code relations converge}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-resource-to-code}], notes: exact only when infra and code relations converge}
   - capability: platform_impact.dependency_path
@@ -162,15 +162,15 @@ capabilities:
   - capability: platform_impact.environment_compare
     tools: [compare_environments]
     profiles:
-      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-environment-compare}], notes: requires deployed environment truth}
-      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-authoritative-unsupported-environment-compare}], notes: environment comparison needs multiple deployed environments indexed; full-stack or production required}
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-environment-compare}], notes: requires indexed environment truth in an authoritative graph}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 6000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: exact when compared environments are indexed in the local authoritative graph}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 6000, max_scope_size: indexed_workspace, verification: [{compose_e2e: environment-compare}], notes: exact only when compared environments are fully indexed}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 8000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-environment-compare}], notes: exact only when compared environments are fully indexed}
   - capability: platform_impact.change_surface
     tools: [find_change_surface]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-change-surface}], notes: requires hybrid platform truth}
-      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-authoritative-unsupported-change-surface}], notes: hybrid code+infra truth needs full-stack or production}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: hybrid graph plus infra truth from the local authoritative graph}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{compose_e2e: change-surface}], notes: hybrid graph plus infra truth}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-change-surface}], notes: hybrid graph plus infra truth}
   - capability: platform_impact.blast_radius

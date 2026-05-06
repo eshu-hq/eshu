@@ -439,7 +439,7 @@ func (h *EntityHandler) getServiceContext(w http.ResponseWriter, r *http.Request
 			w,
 			r,
 			http.StatusNotImplemented,
-			"service context requires full platform context truth",
+			"service context requires authoritative platform context truth",
 			"unsupported_capability",
 			"platform_impact.context_overview",
 			h.profile(),

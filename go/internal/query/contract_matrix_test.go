@@ -99,3 +99,32 @@ func TestParseQueryProfileRejectsInvalidValue(t *testing.T) {
 		t.Fatal("ParseQueryProfile() error = nil, want non-nil")
 	}
 }
+
+func TestLocalAuthoritativeSupportsFullStackPlatformImpactCapabilities(t *testing.T) {
+	t.Parallel()
+
+	capabilities := []string{
+		"platform_impact.deployment_chain",
+		"platform_impact.context_overview",
+		"platform_impact.change_surface",
+		"platform_impact.resource_to_code",
+		"platform_impact.environment_compare",
+	}
+	for _, capability := range capabilities {
+		capability := capability
+		t.Run(capability, func(t *testing.T) {
+			t.Parallel()
+
+			if capabilityUnsupported(ProfileLocalAuthoritative, capability) {
+				t.Fatalf("%s is unsupported for %s", capability, ProfileLocalAuthoritative)
+			}
+			if got, want := requiredProfile(capability), ProfileLocalAuthoritative; got != want {
+				t.Fatalf("requiredProfile(%q) = %q, want %q", capability, got, want)
+			}
+			got := BuildTruthEnvelope(ProfileLocalAuthoritative, capability, TruthBasisHybrid, "test")
+			if got.Level != TruthLevelDerived {
+				t.Fatalf("local_authoritative truth level for %s = %q, want %q", capability, got.Level, TruthLevelDerived)
+			}
+		})
+	}
+}

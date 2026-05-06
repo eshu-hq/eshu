@@ -83,6 +83,8 @@ Clients that cache responses MUST invalidate on changes to `truth.level` or
 
 - `local_lightweight` — single-binary `eshu` host with embedded Postgres, no
   authoritative graph backend.
+- `local_authoritative` — local `eshu` service with embedded Postgres and
+  NornicDB, authoritative graph available for the indexed workspace.
 - `local_full_stack` — full Docker Compose stack, authoritative graph available.
 - `production` — deployed multi-runtime platform.
 
@@ -109,7 +111,7 @@ On failure, `error` carries a structured envelope:
     "capability": "call_graph.transitive_callers",
     "profiles": {
       "current": "local_lightweight",
-      "required": "local_full_stack"
+      "required": "local_authoritative"
     }
   }
 }

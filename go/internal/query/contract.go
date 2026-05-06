@@ -234,17 +234,17 @@ var capabilityMatrix = map[string]capabilitySupport{
 	},
 	"platform_impact.deployment_chain": {
 		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: nil,
+		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalFullStack,
+		RequiredProfile:       ProfileLocalAuthoritative,
 	},
 	"platform_impact.context_overview": {
 		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: nil,
+		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalFullStack,
+		RequiredProfile:       ProfileLocalAuthoritative,
 	},
 	"platform_impact.blast_radius": {
 		LocalLightweightMax:   nil,
@@ -255,17 +255,17 @@ var capabilityMatrix = map[string]capabilitySupport{
 	},
 	"platform_impact.change_surface": {
 		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: nil,
+		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalFullStack,
+		RequiredProfile:       ProfileLocalAuthoritative,
 	},
 	"platform_impact.resource_to_code": {
 		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: nil,
+		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalFullStack,
+		RequiredProfile:       ProfileLocalAuthoritative,
 	},
 	"platform_impact.dependency_path": {
 		LocalLightweightMax:   nil,
@@ -276,10 +276,10 @@ var capabilityMatrix = map[string]capabilitySupport{
 	},
 	"platform_impact.environment_compare": {
 		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: nil,
+		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalFullStack,
+		RequiredProfile:       ProfileLocalAuthoritative,
 	},
 	"relationship_evidence.drilldown": {
 		LocalLightweightMax:   nil,

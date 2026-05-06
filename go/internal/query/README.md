@@ -191,10 +191,12 @@ wired in `cmd/api/wiring.go`, not here.
 - `eshu_dp_neo4j_query_duration_seconds` rising across many routes: check graph
   backend health and query plan; do not raise handler timeouts before confirming
   the Cypher query itself is the bottleneck.
-- 501 responses with `error.code=unsupported_capability`: the requested operation
-  requires a higher `QueryProfile`. Check `truth.profiles.required` in the
-  response envelope for the minimum profile, then verify the ESHU_QUERY_PROFILE
-  env var in the running API.
+- 501 responses with `error.code=unsupported_capability`: the requested
+  operation requires a higher `QueryProfile`. Code-only graph capabilities and
+  platform-impact queries start at `local_authoritative`; `local_full_stack`
+  uses the same handlers with the Compose runtime shape. Check
+  `truth.profiles.required` in the response envelope for the minimum profile,
+  then verify the ESHU_QUERY_PROFILE env var in the running API.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
   a capability string not in `capabilityMatrix` (`contract.go:384`). Add missing
   capability IDs to `capabilityMatrix` before shipping new handlers.
