@@ -54,6 +54,10 @@ launched runtime via the shared `telemetry` package. Errors print to
 - `SilenceUsage` and `SilenceErrors` are set on the root command
 - `eshu graph start` requires `eshu-reducer` and `eshu-ingester` on `PATH`;
   fresh local Eshu service runs need `go/bin` on `PATH` after rebuilding
+- `graphBoltHealthy` sends the Bolt magic + four version proposals and reads
+  the 4-byte server response; a TCP-only dial is insufficient because embedded
+  NornicDB accepts connections before the Bolt protocol handler is fully ready,
+  causing a handshake EOF on the first schema bootstrap attempt
 - `eshu graph stop` sends `SIGTERM` to the owner supervisor for both
   `local_lightweight` and `local_authoritative` profiles; lightweight stop
   waits for the owner PID to exit while authoritative stop additionally waits

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io"
+	"net"
 	"os"
 	"strings"
 	"testing"
@@ -127,6 +128,46 @@ func TestUseProcessLocalNornicDBRejectsUndocumentedRuntimeAliases(t *testing.T) 
 				t.Fatalf("useProcessLocalNornicDB() error = %q, want documented runtime values", err.Error())
 			}
 		})
+	}
+}
+
+func TestGraphBoltHealthyReturnsFalseWhenServerAcceptsButIgnoresProtocol(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer func() { _ = ln.Close() }()
+	go func() {
+		conn, _ := ln.Accept()
+		if conn != nil {
+			_ = conn.Close()
+		}
+	}()
+	addr := ln.Addr().(*net.TCPAddr)
+	if graphBoltHealthy(addr.IP.String(), addr.Port, time.Second) {
+		t.Fatal("graphBoltHealthy() = true for server that closes without Bolt response, want false")
+	}
+}
+
+func TestGraphBoltHealthyReturnsTrueWhenServerRespondsToHandshake(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer func() { _ = ln.Close() }()
+	go func() {
+		conn, _ := ln.Accept()
+		if conn == nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		var buf [20]byte
+		_, _ = io.ReadFull(conn, buf[:])
+		_, _ = conn.Write([]byte{0x00, 0x00, 0x00, 0x05}) // Bolt 5.0
+	}()
+	addr := ln.Addr().(*net.TCPAddr)
+	if !graphBoltHealthy(addr.IP.String(), addr.Port, time.Second) {
+		t.Fatal("graphBoltHealthy() = false for server that completes Bolt handshake, want true")
 	}
 }
 
