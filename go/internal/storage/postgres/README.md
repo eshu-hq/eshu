@@ -1,6 +1,6 @@
 # storage/postgres
 
-`storage/postgres` owns PCG's relational persistence layer: facts, queue state,
+`storage/postgres` owns Eshu's relational persistence layer: facts, queue state,
 content store, status, recovery data, decisions, shared projection intents, and
 workflow coordination tables. It is the single durable source of truth for
 pipeline state that projector, reducer, ingester, and the API surface all share.
@@ -73,13 +73,16 @@ recommitting identical snapshots.
 per-scope in-flight conflict guard and an oldest-ready-row guard. Concurrent
 claimers for the same `scope_id` must all target the same oldest ready work
 item, so a worker cannot skip a locked older row and start a newer generation
-for the same repository. Expired `claimed` or `running` rows are ordered ahead
-of ordinary pending rows so stale leases are reclaimed before fresh work makes
-the status surface look permanently overdue. Claim also demotes expired
-same-scope duplicate in-flight rows back to `retrying` when a live sibling or a
-newly claimed sibling owns the scope, which repairs queue state left by older
-owner crashes or claim races without breaking the one-active-generation
-invariant. `Ack` runs a four-step atomic
+for the same repository. Before selecting a candidate, claim coalesces older
+waiting same-scope projector rows and their still-pending `scope_generations`
+to `superseded` when a newer generation exists. That keeps durable snapshot
+history without leaving obsolete local polling generations in the live backlog.
+Expired `claimed` or `running` rows are ordered ahead of ordinary pending rows
+so stale leases are reclaimed before fresh work makes the status surface look
+permanently overdue. Claim also demotes expired same-scope duplicate in-flight
+rows back to `retrying` when a live sibling or a newly claimed sibling owns the
+scope, which repairs queue state left by older owner crashes or claim races
+without breaking the one-active-generation invariant. `Ack` runs a four-step atomic
 transaction: supersede stale active generation → activate target generation →
 update scope pointer → mark work succeeded. If `projector.IsRetryable(cause)`
 returns true and `attempt_count < MaxAttempts`, `Fail` transitions to
@@ -273,7 +276,7 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 ## Gotchas / invariants
 
 - `ProjectorQueue.Ack` runs four SQL statements inside a transaction
-  (`projector_queue.go:346`). Pass a `SQLDB` or an `InstrumentedDB` wrapping
+  (`projector_queue.go:105`). Pass a `SQLDB` or an `InstrumentedDB` wrapping
   a `SQLDB`; a plain `ExecQueryer` without `Beginner` will cause Ack to fail.
 - `upsertFacts` deduplicates by `fact_id` before batching (`facts.go:192`).
   Skipping deduplication causes `SQLSTATE 21000` on `ON CONFLICT DO UPDATE`

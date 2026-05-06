@@ -10,10 +10,12 @@
 3. `go/internal/storage/postgres/projector_queue.go` — `ProjectorQueue.Claim`
    and `Ack`; the four-step atomic ack transaction is the most sensitive path
    in this package
-4. `go/internal/storage/postgres/facts.go` — `upsertFacts`,
+4. `go/internal/storage/postgres/projector_queue_sql.go` — projector claim,
+   stale-generation coalescing, duplicate-lease reclaim, and lifecycle SQL
+5. `go/internal/storage/postgres/facts.go` — `upsertFacts`,
    `deduplicateEnvelopes`, `sanitizeJSONB`; understand the batching and
    deduplication constraints before changing fact write paths
-5. `go/internal/storage/postgres/schema.go` — `BootstrapDefinitions`,
+6. `go/internal/storage/postgres/schema.go` — `BootstrapDefinitions`,
    `ApplyDefinitions`; DDL ordering and idempotency rules
 
 ## Invariants this package enforces
@@ -29,7 +31,7 @@
   and raw control bytes before every fact INSERT (`facts.go:435`). Skipping
   this causes Postgres errors on repositories with binary or non-UTF-8 content.
 - **Ack atomicity** — `ProjectorQueue.Ack` wraps four SQL statements in a
-  single transaction (`projector_queue.go:346`). If any step fails, the
+  single transaction (`projector_queue.go:105`). If any step fails, the
   transaction rolls back. Always pass a `SQLDB` or `InstrumentedDB(SQLDB)` to
   `NewProjectorQueue`; a bare `ExecQueryer` without `Beginner` will fail.
 - **Lease fencing** — `ProjectorQueue.Heartbeat` and `WorkflowControlStore`
@@ -44,7 +46,11 @@
   in the claim ordering, or stale leases remain overdue while newer generations
   drain. Keep the stale duplicate reclaim CTEs in the claim path: they demote
   expired same-scope siblings to `retrying` when another live or newly claimed
-  sibling owns the scope.
+  sibling owns the scope. Keep the `ProjectorQueue.Claim`
+  stale-generation coalescing path (`projector_queue.go:74`) and the companion
+  CTEs together; they move older waiting same-scope projector rows and
+  still-pending `scope_generations` to `superseded` so durable snapshot history
+  remains available without reprocessing obsolete local polling generations.
 - **NornicDB semantic gate** — `ReducerQueue.Claim` blocks
   `semantic_entity_materialization` while source-local projection is in-flight
   when the NornicDB gate parameter is true. Do not remove or bypass this gate
