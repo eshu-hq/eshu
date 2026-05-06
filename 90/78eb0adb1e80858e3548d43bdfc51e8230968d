@@ -1,0 +1,31 @@
+go/internal/storage/postgres/AGENTS.md
+  0fdb6fbe5bc880aa 13-15,18,34,49-53
+go/internal/storage/postgres/claim_reclaim_test.go
+  0fdb6fbe5bc880aa 65-80
+go/internal/storage/postgres/projector_queue_sql.go
+  0fdb6fbe5bc880aa 1-332
+go/internal/storage/postgres/doc.go
+  0fdb6fbe5bc880aa 8-13
+go/internal/storage/postgres/README.md
+  0fdb6fbe5bc880aa 3,76-85,279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "9078eb0adb1e80858e3548d43bdfc51e8230968d",
+  "prompts": {
+    "0fdb6fbe5bc880aa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dfda7-b67d-7d01-abd4-1370d870116b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria",
+      "messages": [],
+      "total_additions": 376,
+      "total_deletions": 293,
+      "accepted_lines": 806,
+      "overriden_lines": 9
+    }
+  }
+}
