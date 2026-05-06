@@ -1,0 +1,192 @@
+.demo-workbench {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr);
+}
+
+.command-rail {
+  display: grid;
+  gap: 10px;
+}
+
+.command-button,
+.persona-tab,
+.cleanup-button {
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    background 160ms ease;
+}
+
+.command-button {
+  align-items: center;
+  background: rgba(243, 235, 221, 0.035);
+  border: 1px solid var(--line);
+  color: var(--bone);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 22px 1fr;
+  min-height: 54px;
+  padding: 0 16px;
+  text-align: left;
+}
+
+.command-button svg {
+  color: var(--teal);
+  height: 18px;
+  width: 18px;
+}
+
+.command-button.is-active,
+.persona-tab.is-active,
+.cleanup-button.is-active {
+  background: rgba(255, 138, 0, 0.11);
+  border-color: rgba(255, 138, 0, 0.74);
+  color: var(--ember);
+}
+
+.terminal-card p {
+  color: var(--teal);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  margin: 0;
+  padding: 18px 22px 0;
+}
+
+.persona-tabs,
+.cleanup-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.persona-tab,
+.cleanup-button {
+  background: rgba(243, 235, 221, 0.035);
+  border: 1px solid var(--line);
+  color: var(--bone);
+  min-height: 42px;
+  padding: 0 14px;
+}
+
+.persona-answer,
+.cleanup-panel {
+  background: rgba(243, 235, 221, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.persona-answer h3,
+.cleanup-panel h3 {
+  color: var(--bone);
+  margin-bottom: 14px;
+}
+
+.persona-answer p,
+.cleanup-panel li {
+  color: var(--muted);
+  line-height: 1.62;
+}
+
+.persona-answer p {
+  margin: 0;
+}
+
+.cleanup-panel ul {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cleanup-panel li {
+  border-top: 1px solid var(--line);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  padding-top: 10px;
+}
+
+.proof-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.proof-card {
+  background: rgba(243, 235, 221, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 22px;
+}
+
+.proof-card strong {
+  color: var(--ember);
+  display: block;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.92rem;
+  margin-bottom: 20px;
+}
+
+.proof-card h3 {
+  color: var(--bone);
+  margin-bottom: 14px;
+}
+
+.proof-card p {
+  color: var(--muted);
+  line-height: 1.62;
+  margin: 0;
+}
+
+.surface-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.surface-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.surface-card h3 {
+  color: var(--teal);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  margin-bottom: 14px;
+}
+
+.surface-card p {
+  color: var(--muted);
+  line-height: 1.62;
+  margin: 0;
+}
+
+.prompt-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.prompt-card {
+  background: rgba(243, 235, 221, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.prompt-card h3 {
+  color: var(--bone);
+  margin-bottom: 14px;
+}
+
+.prompt-card p {
+  color: var(--teal);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.58;
+  margin: 0;
+}

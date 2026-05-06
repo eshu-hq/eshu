@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Created with Vectornator (http://vectornator.io/) -->
+<svg height="360.0pt" stroke-miterlimit="10" style="fill-rule:nonzero;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;" version="1.1" viewBox="0 0 1200 360" width="1200.0pt" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs/>
+<g id="Untitled">
+<path d="M0 0L1200 0L1200 0L1200 360L1200 360L0 360L0 360L0 0L0 0Z" fill="#000000" fill-opacity="0" fill-rule="nonzero" opacity="1" stroke="none"/>
+<g opacity="1">
+<g opacity="1">
+<path d="M138.48 109.88L232.56 109.88" fill="none" opacity="1" stroke="#ff8a00" stroke-linecap="round" stroke-linejoin="round" stroke-width="20.58"/>
+<path d="M138.48 109.88L138.48 148.1" fill="none" opacity="1" stroke="#ff8a00" stroke-linecap="round" stroke-linejoin="round" stroke-width="20.58"/>
+<path d="M138.48 212.78L138.48 251" fill="none" opacity="1" stroke="#ff8a00" stroke-linecap="round" stroke-linejoin="round" stroke-width="20.58"/>
+<path d="M161.02 180.44L212.96 180.44" fill="none" opacity="1" stroke="#ff8a00" stroke-linecap="round" stroke-linejoin="round" stroke-width="20.58"/>
+<path d="M138.48 251L232.56 251" fill="none" opacity="1" stroke="#ff8a00" stroke-linecap="round" stroke-linejoin="round" stroke-width="20.58"/>
+</g>
+<g opacity="1">
+<path d="M122.8 109.88C122.8 101.22 129.82 94.2 138.48 94.2C147.14 94.2 154.16 101.22 154.16 109.88C154.16 118.54 147.14 125.56 138.48 125.56C129.82 125.56 122.8 118.54 122.8 109.88Z" fill="#14b8a6" fill-rule="nonzero" opacity="1" stroke="none"/>
+<path d="M216.88 109.88C216.88 101.22 223.9 94.2 232.56 94.2C241.22 94.2 248.24 101.22 248.24 109.88C248.24 118.54 241.22 125.56 232.56 125.56C223.9 125.56 216.88 118.54 216.88 109.88Z" fill="#14b8a6" fill-rule="nonzero" opacity="1" stroke="none"/>
+<path d="M197.28 180.44C197.28 171.78 204.3 164.76 212.96 164.76C221.62 164.76 228.64 171.78 228.64 180.44C228.64 189.1 221.62 196.12 212.96 196.12C204.3 196.12 197.28 189.1 197.28 180.44Z" fill="#14b8a6" fill-rule="nonzero" opacity="1" stroke="none"/>
+<path d="M122.8 251C122.8 242.34 129.82 235.32 138.48 235.32C147.14 235.32 154.16 242.34 154.16 251C154.16 259.66 147.14 266.68 138.48 266.68C129.82 266.68 122.8 259.66 122.8 251Z" fill="#14b8a6" fill-rule="nonzero" opacity="1" stroke="none"/>
+<path d="M216.88 251C216.88 242.34 223.9 235.32 232.56 235.32C241.22 235.32 248.24 242.34 248.24 251C248.24 259.66 241.22 266.68 232.56 266.68C223.9 266.68 216.88 259.66 216.88 251Z" fill="#14b8a6" fill-rule="nonzero" opacity="1" stroke="none"/>
+</g>
+<path d="M115.45 180.44C115.45 167.721 125.761 157.41 138.48 157.41C151.199 157.41 161.51 167.721 161.51 180.44C161.51 193.159 151.199 203.47 138.48 203.47C125.761 203.47 115.45 193.159 115.45 180.44Z" fill="none" opacity="1" stroke="#14b8a6" stroke-linecap="butt" stroke-linejoin="miter" stroke-width="16.66"/>
+</g>
+<text fill="#f3ebdd" font-family="HelveticaNeue" font-size="124" opacity="1" stroke="none" text-anchor="start" transform="matrix(1 0 0 1 255.469 105.873)" x="0" y="0">
+<tspan textLength="259.408" x="0" y="118.047"><![CDATA[SHU]]></tspan>
+</text>
+</g>
+</svg>

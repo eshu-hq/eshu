@@ -70,6 +70,8 @@ docs/site/
 !.claude/skills/
 !.claude/skills/**
 .worktrees/
+node_modules/
+dist/
 .mcp.json
 .vercel/
 mcp.json
