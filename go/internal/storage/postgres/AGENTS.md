@@ -42,7 +42,9 @@
   a locked older row and start a newer generation for the same repository.
   Expired `claimed` or `running` rows must stay ahead of ordinary pending rows
   in the claim ordering, or stale leases remain overdue while newer generations
-  drain.
+  drain. Keep the stale duplicate reclaim CTEs in the claim path: they demote
+  expired same-scope siblings to `retrying` when another live or newly claimed
+  sibling owns the scope.
 - **NornicDB semantic gate** — `ReducerQueue.Claim` blocks
   `semantic_entity_materialization` while source-local projection is in-flight
   when the NornicDB gate parameter is true. Do not remove or bypass this gate
@@ -87,7 +89,8 @@
   duplicate running rows can fence pending generations and make local progress
   look stalled even when processes are alive. If overdue claims stay visible
   while pending rows continue to move, check that expired-lease priority still
-  precedes `updated_at` ordering.
+  precedes `updated_at` ordering and that stale duplicate reclaim still demotes
+  expired siblings to `retrying`.
 
 - Symptom: `ErrProjectorClaimRejected` or `ErrReducerClaimRejected` in logs →
   lease expired before ack; increase `LeaseDuration` or reduce projection time;

@@ -38,7 +38,34 @@ ON CONFLICT (work_item_id) DO NOTHING
 `
 
 const claimProjectorWorkQuery = `
-WITH candidate AS (
+WITH reclaimed_stale_projector_duplicates AS (
+    UPDATE fact_work_items AS stale
+    SET status = 'retrying',
+        lease_owner = NULL,
+        claim_until = NULL,
+        visible_at = $1,
+        next_attempt_at = $1,
+        updated_at = $1,
+        failure_class = 'projector_stale_scope_reclaim',
+        failure_message = 'expired duplicate projector lease reclaimed',
+        failure_details = jsonb_build_object(
+            'scope_id', stale.scope_id,
+            'work_item_id', stale.work_item_id
+        )
+    WHERE stale.stage = 'projector'
+      AND stale.status IN ('claimed', 'running')
+      AND stale.claim_until <= $1
+      AND EXISTS (
+          SELECT 1
+          FROM fact_work_items AS live
+          WHERE live.stage = 'projector'
+            AND live.scope_id = stale.scope_id
+            AND live.work_item_id <> stale.work_item_id
+            AND live.status IN ('claimed', 'running')
+            AND live.claim_until > $1
+      )
+),
+candidate AS (
     SELECT work.work_item_id
     FROM fact_work_items AS work
     WHERE stage = 'projector'
@@ -94,7 +121,29 @@ claimed AS (
         updated_at = $1
     FROM candidate
     WHERE work.work_item_id = candidate.work_item_id
-    RETURNING work.scope_id, work.generation_id, work.attempt_count
+    RETURNING work.work_item_id, work.scope_id, work.generation_id, work.attempt_count
+),
+reclaimed_claim_siblings AS (
+    UPDATE fact_work_items AS stale
+    SET status = 'retrying',
+        lease_owner = NULL,
+        claim_until = NULL,
+        visible_at = $1,
+        next_attempt_at = $1,
+        updated_at = $1,
+        failure_class = 'projector_stale_scope_reclaim',
+        failure_message = 'expired duplicate projector lease reclaimed',
+        failure_details = jsonb_build_object(
+            'scope_id', stale.scope_id,
+            'work_item_id', stale.work_item_id,
+            'claimed_work_item_id', claimed.work_item_id
+        )
+    FROM claimed
+    WHERE stale.stage = 'projector'
+      AND stale.scope_id = claimed.scope_id
+      AND stale.work_item_id <> claimed.work_item_id
+      AND stale.status IN ('claimed', 'running')
+      AND stale.claim_until <= $1
 )
 SELECT
     scope.scope_id,

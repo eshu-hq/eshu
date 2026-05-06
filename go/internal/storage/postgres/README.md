@@ -75,7 +75,11 @@ claimers for the same `scope_id` must all target the same oldest ready work
 item, so a worker cannot skip a locked older row and start a newer generation
 for the same repository. Expired `claimed` or `running` rows are ordered ahead
 of ordinary pending rows so stale leases are reclaimed before fresh work makes
-the status surface look permanently overdue. `Ack` runs a four-step atomic
+the status surface look permanently overdue. Claim also demotes expired
+same-scope duplicate in-flight rows back to `retrying` when a live sibling or a
+newly claimed sibling owns the scope, which repairs queue state left by older
+owner crashes or claim races without breaking the one-active-generation
+invariant. `Ack` runs a four-step atomic
 transaction: supersede stale active generation → activate target generation →
 update scope pointer → mark work succeeded. If `projector.IsRetryable(cause)`
 returns true and `attempt_count < MaxAttempts`, `Fail` transitions to
