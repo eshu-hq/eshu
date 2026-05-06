@@ -1,0 +1,33 @@
+go/cmd/eshu/README.md
+  0fdb6fbe5bc880aa 58-62,64-68
+go/cmd/eshu/graph_lifecycle_test.go
+  0fdb6fbe5bc880aa 123,129,135-137,146-148,166-206
+go/cmd/eshu/doc.go
+  0fdb6fbe5bc880aa 8-10
+go/cmd/eshu/graph.go
+  0fdb6fbe5bc880aa 25-35,347-348,376-384
+go/cmd/eshu/local_graph_health_test.go
+  0fdb6fbe5bc880aa 1-46
+go/cmd/eshu/local_graph.go
+  0fdb6fbe5bc880aa 451-469
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "df3aea40ff20f4033ad91a11c6fc8da8eaa2df41",
+  "prompts": {
+    "0fdb6fbe5bc880aa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dfda7-b67d-7d01-abd4-1370d870116b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria",
+      "messages": [],
+      "total_additions": 154,
+      "total_deletions": 24,
+      "accepted_lines": 154,
+      "overriden_lines": 0
+    }
+  }
+}
