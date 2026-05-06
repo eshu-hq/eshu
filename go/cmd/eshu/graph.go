@@ -22,16 +22,17 @@ var (
 	graphBuildLayout = func(workspaceRoot string) (eshulocal.Layout, error) {
 		return eshulocal.BuildLayout(os.Getenv, os.UserHomeDir, runtime.GOOS, workspaceRoot)
 	}
-	graphReadOwnerRecord   = eshulocal.ReadOwnerRecord
-	graphResolveBinary     = resolveNornicDBBinary
-	graphReadVersion       = readLocalGraphVersion
-	graphProcessAlive      = eshulocal.ProcessAlive
-	graphStopGraphHealthy  = graphHealthyFromOwnerRecord
-	graphStopRecordedGraph = stopRecordedLocalGraph
-	graphSignalProcess     = signalProcess
-	graphStopPollInterval  = 200 * time.Millisecond
-	graphStopTimeout       = localGraphShutdownTimeout
-	graphInstallNornicDB   = installNornicDB
+	graphReadOwnerRecord    = eshulocal.ReadOwnerRecord
+	graphResolveBinary      = resolveNornicDBBinary
+	graphReadVersion        = readLocalGraphVersion
+	graphProcessAlive       = eshulocal.ProcessAlive
+	graphOwnerSocketHealthy = eshulocal.SocketHealthy
+	graphStopGraphHealthy   = graphHealthyFromOwnerRecord
+	graphStopRecordedGraph  = stopRecordedLocalGraph
+	graphSignalProcess      = signalProcess
+	graphStopPollInterval   = 200 * time.Millisecond
+	graphStopTimeout        = localGraphShutdownTimeout
+	graphInstallNornicDB    = installNornicDB
 )
 
 type graphStatusOutput struct {
@@ -343,8 +344,8 @@ func graphStopForLayout(layout eshulocal.Layout) error {
 	}
 
 	if runtimeConfig.Profile == query.ProfileLocalLightweight {
-		if !graphProcessAlive(record.PID) {
-			return nil
+		if !graphLightweightOwnerHealthy(record) {
+			return removeStaleOwnerRecord(layout.OwnerRecordPath)
 		}
 		if err := graphSignalProcess(record.PID, syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
 			return fmt.Errorf("signal local Eshu service pid %d: %w", record.PID, err)
@@ -370,6 +371,17 @@ func graphStopForLayout(layout eshulocal.Layout) error {
 		return err
 	}
 	return waitForGraphStop(record, graphStopTimeout)
+}
+
+func graphLightweightOwnerHealthy(record eshulocal.OwnerRecord) bool {
+	return graphProcessAlive(record.PID) && graphOwnerSocketHealthy(record.PostgresSocketPath)
+}
+
+func removeStaleOwnerRecord(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove stale owner record %q: %w", path, err)
+	}
+	return nil
 }
 
 func waitForOwnerStop(record eshulocal.OwnerRecord, timeout time.Duration) error {

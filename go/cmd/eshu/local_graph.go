@@ -448,6 +448,23 @@ func graphBoltHealthy(address string, port int, timeout time.Duration) bool {
 		return false
 	}
 	var response [4]byte
-	_, err = io.ReadFull(conn, response[:])
-	return err == nil
+	if _, err := io.ReadFull(conn, response[:]); err != nil {
+		return false
+	}
+	return graphBoltSelectedOfferedVersion(response)
+}
+
+func graphBoltSelectedOfferedVersion(response [4]byte) bool {
+	var zero [4]byte
+	if response == zero {
+		return false
+	}
+	for offset := 4; offset < len(graphBoltHandshake); offset += 4 {
+		var offered [4]byte
+		copy(offered[:], graphBoltHandshake[offset:offset+4])
+		if response == offered {
+			return true
+		}
+	}
+	return false
 }

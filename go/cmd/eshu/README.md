@@ -55,13 +55,17 @@ launched runtime via the shared `telemetry` package. Errors print to
 - `eshu graph start` requires `eshu-reducer` and `eshu-ingester` on `PATH`;
   fresh local Eshu service runs need `go/bin` on `PATH` after rebuilding
 - `graphBoltHealthy` sends the Bolt magic + four version proposals and reads
-  the 4-byte server response; a TCP-only dial is insufficient because embedded
-  NornicDB accepts connections before the Bolt protocol handler is fully ready,
-  causing a handshake EOF on the first schema bootstrap attempt
+  the 4-byte server response. The response must match one offered protocol
+  version; `00 00 00 00` means the server rejected negotiation and is not ready.
+  A TCP-only dial is insufficient because embedded NornicDB accepts connections
+  before the Bolt protocol handler is fully ready, causing a handshake EOF on
+  the first schema bootstrap attempt.
 - `eshu graph stop` sends `SIGTERM` to the owner supervisor for both
-  `local_lightweight` and `local_authoritative` profiles; lightweight stop
-  waits for the owner PID to exit while authoritative stop additionally waits
-  for the graph sidecar (NornicDB) to become unreachable
+  `local_lightweight` and `local_authoritative` profiles only after ownership
+  checks pass. Lightweight stop requires the recorded Postgres socket to be
+  healthy before signaling the owner PID; stale records with a reused PID are
+  cleaned up without sending a signal. Authoritative stop additionally waits for
+  the graph sidecar (NornicDB) to become unreachable.
 - The default local graph path is embedded NornicDB when `eshu` is built with
   `nolocalllm`; `ESHU_NORNICDB_RUNTIME=process` is the only runtime-mode
   override, while `ESHU_NORNICDB_BINARY` selects process mode for a specific

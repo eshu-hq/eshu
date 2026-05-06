@@ -120,18 +120,21 @@ func TestGraphStopStopsRecordedGraphWhenOwnerIsDead(t *testing.T) {
 func TestGraphStopSignalsLightweightOwnerWhenAlive(t *testing.T) {
 	originalReadOwnerRecord := graphReadOwnerRecord
 	originalProcessAlive := graphProcessAlive
+	originalSocketHealthy := graphOwnerSocketHealthy
 	originalSignalProcess := graphSignalProcess
 	originalStopPollInterval := graphStopPollInterval
 	t.Cleanup(func() {
 		graphReadOwnerRecord = originalReadOwnerRecord
 		graphProcessAlive = originalProcessAlive
+		graphOwnerSocketHealthy = originalSocketHealthy
 		graphSignalProcess = originalSignalProcess
 		graphStopPollInterval = originalStopPollInterval
 	})
 
 	record := eshulocal.OwnerRecord{
-		PID:     99,
-		Profile: string(query.ProfileLocalLightweight),
+		PID:                99,
+		Profile:            string(query.ProfileLocalLightweight),
+		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
 	}
 	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
 		return record, nil
@@ -139,6 +142,9 @@ func TestGraphStopSignalsLightweightOwnerWhenAlive(t *testing.T) {
 	alive := true
 	graphProcessAlive = func(pid int) bool {
 		return alive && pid == record.PID
+	}
+	graphOwnerSocketHealthy = func(path string) bool {
+		return path == record.PostgresSocketPath
 	}
 	var signaledPID int
 	graphSignalProcess = func(pid int, signal os.Signal) error {
@@ -154,6 +160,50 @@ func TestGraphStopSignalsLightweightOwnerWhenAlive(t *testing.T) {
 	}
 	if signaledPID != record.PID {
 		t.Fatalf("signaledPID = %d, want owner pid %d", signaledPID, record.PID)
+	}
+}
+
+func TestGraphStopCleansStaleLightweightRecordWithoutSignalingReusedPID(t *testing.T) {
+	originalReadOwnerRecord := graphReadOwnerRecord
+	originalProcessAlive := graphProcessAlive
+	originalSocketHealthy := graphOwnerSocketHealthy
+	originalSignalProcess := graphSignalProcess
+	t.Cleanup(func() {
+		graphReadOwnerRecord = originalReadOwnerRecord
+		graphProcessAlive = originalProcessAlive
+		graphOwnerSocketHealthy = originalSocketHealthy
+		graphSignalProcess = originalSignalProcess
+	})
+
+	ownerRecordPath := t.TempDir() + "/owner.json"
+	if err := os.WriteFile(ownerRecordPath, []byte("{}\n"), 0o600); err != nil {
+		t.Fatalf("write owner record: %v", err)
+	}
+	record := eshulocal.OwnerRecord{
+		PID:                99,
+		Profile:            string(query.ProfileLocalLightweight),
+		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
+	}
+	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
+		return record, nil
+	}
+	graphProcessAlive = func(pid int) bool {
+		return pid == record.PID
+	}
+	graphOwnerSocketHealthy = func(path string) bool {
+		return false
+	}
+	graphSignalProcess = func(pid int, signal os.Signal) error {
+		t.Fatalf("graphSignalProcess called for unverified pid %d", pid)
+		return nil
+	}
+
+	err := graphStopForLayout(eshulocal.Layout{OwnerRecordPath: ownerRecordPath})
+	if err != nil {
+		t.Fatalf("graphStopForLayout() error = %v, want nil", err)
+	}
+	if _, err := os.Stat(ownerRecordPath); !os.IsNotExist(err) {
+		t.Fatalf("owner record stat error = %v, want not exist", err)
 	}
 }
 
