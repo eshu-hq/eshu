@@ -77,6 +77,11 @@ for the same repository. Before selecting a candidate, claim coalesces older
 waiting same-scope projector rows and their still-pending `scope_generations`
 to `superseded` when a newer generation exists. That keeps durable snapshot
 history without leaving obsolete local polling generations in the live backlog.
+`ProjectorQueue.Heartbeat` applies the same freshness check to a live claimed
+or running row. When a newer pending or active generation exists for the scope,
+heartbeat marks the older row and its generation `superseded` in one statement
+and returns `projector.ErrWorkSuperseded` so the worker stops without acking
+stale graph state.
 Expired `claimed` or `running` rows are ordered ahead of ordinary pending rows
 so stale leases are reclaimed before fresh work makes the status surface look
 permanently overdue. Claim also demotes expired same-scope duplicate in-flight

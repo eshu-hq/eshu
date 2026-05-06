@@ -693,6 +693,10 @@ func drainProjectorWorkItem(
 	factsForGeneration, loadErr := factStore.LoadFacts(heartbeatCtx, work)
 	if loadErr != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
+			if errors.Is(heartbeatErr, projector.ErrWorkSuperseded) {
+				recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "superseded", 0, nil, span, instruments, logger)
+				return nil
+			}
 			loadErr = errors.Join(loadErr, heartbeatErr)
 		}
 		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", 0, loadErr, span, instruments, logger)
@@ -703,12 +707,20 @@ func drainProjectorWorkItem(
 	result, projectErr := runner.Project(heartbeatCtx, work.Scope, work.Generation, factsForGeneration)
 	if projectErr != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
+			if errors.Is(heartbeatErr, projector.ErrWorkSuperseded) {
+				recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "superseded", len(factsForGeneration), nil, span, instruments, logger)
+				return nil
+			}
 			projectErr = errors.Join(projectErr, heartbeatErr)
 		}
 		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", len(factsForGeneration), projectErr, span, instruments, logger)
 		return fmt.Errorf("bootstrap projector project (worker %d): %w", workerID, projectErr)
 	}
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
+		if errors.Is(heartbeatErr, projector.ErrWorkSuperseded) {
+			recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "superseded", len(factsForGeneration), nil, span, instruments, logger)
+			return nil
+		}
 		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", len(factsForGeneration), heartbeatErr, span, instruments, logger)
 		return fmt.Errorf("bootstrap projector heartbeat (worker %d): %w", workerID, heartbeatErr)
 	}
@@ -845,9 +857,13 @@ func recordBootstrapProjectionResult(
 			logAttrs = append(logAttrs, slog.String("error", err.Error()))
 			logAttrs = append(logAttrs, telemetry.FailureClassAttr("projection_failure"))
 			logger.ErrorContext(ctx, "bootstrap projection failed", logAttrs...)
-		} else {
-			logger.InfoContext(ctx, "bootstrap projection succeeded", logAttrs...)
+			return
 		}
+		message := "bootstrap projection succeeded"
+		if status == "superseded" {
+			message = "bootstrap projection superseded by newer generation"
+		}
+		logger.InfoContext(ctx, message, logAttrs...)
 	}
 }
 

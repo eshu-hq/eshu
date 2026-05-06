@@ -80,6 +80,7 @@ concurrency reference table in `docs/docs/reference/local-testing.md` and
 | Phase 4 reopen skips stragglers | Reducer finds no `deployment_mapping` to process after bootstrap | Expected for items that succeeded in the Phase 2→4 window; use `/admin/replay` |
 | NornicDB timeout on graph write | `ESHU_CANONICAL_WRITE_TIMEOUT` exceeded | Lower `ESHU_NORNICDB_ENTITY_BATCH_SIZE` or `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS`; check `go/cmd/bootstrap-index/nornicdb_wiring.go` defaults |
 | Heartbeat failure | `lease_heartbeat_failure` log + worker exits | Check `bootstrapIndexConnectionTimeout` and Postgres connectivity; heartbeat interval is `leaseDuration/3` capped at 1 minute |
+| Superseded projector work | `status=superseded` log and worker continues | Expected when `ProjectorWorkHeartbeater` returns `projector.ErrWorkSuperseded`; do not ack or fail the stale generation |
 
 ## Anti-patterns
 
@@ -103,6 +104,9 @@ concurrency reference table in `docs/docs/reference/local-testing.md` and
   (`main.go:619`) emitted after the `PhaseProjection` drain loop exhausts the
   queue. Worker goroutines return on it; do not propagate it through error
   channels.
+- **Do not treat `projector.ErrWorkSuperseded` as a bootstrap failure.** The
+  queue has already moved the stale generation out of the live backlog. The
+  worker must return to the claim loop so the newer generation can run.
 
 ## What NOT to change without an ADR
 

@@ -6,9 +6,10 @@
 // exposes typed access to queue claim, lease, batch, and recovery
 // operations. Callers must respect transaction scope, lease timing,
 // per-scope projector ordering, stale-generation coalescing,
-// expired-lease priority, duplicate-lease reclaim, idempotency keys, and
-// partial-failure behavior documented on each helper; queue and status writes
-// are retry-safe by design and must stay that way. Schema and queue contract
-// changes require migration and a matching update to the recovery and status
-// surfaces.
+// live-generation supersession, expired-lease priority, duplicate-lease
+// reclaim, idempotency keys, and partial-failure behavior documented on each
+// helper; queue and status writes are retry-safe by design and must stay that
+// way. Supersession of a running projector row and its scope generation must
+// remain atomic. Schema and queue contract changes require migration and a
+// matching update to the recovery and status surfaces.
 package postgres

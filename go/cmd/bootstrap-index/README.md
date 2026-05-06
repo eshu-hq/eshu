@@ -64,6 +64,9 @@ queue using `FOR UPDATE SKIP LOCKED`. `N` goroutines (default `min(NumCPU, 8)`,
 overridden by `ESHU_PROJECTION_WORKERS`) each call `drainProjectorWorkItem` in
 a loop. Each work item: claim → `factStore.LoadFacts` → `runner.Project`
 (canonical graph write + content write + reducer intent enqueue) → `workSink.Ack`.
+If the shared `ProjectorWorkHeartbeater` reports `projector.ErrWorkSuperseded`,
+the worker records `status=superseded` and returns to the claim loop without
+acking or failing the stale generation.
 
 The `drainingWorkSource` wrapper converts between two modes: while the
 collector goroutine is running, an empty queue triggers a 500ms poll-wait and
@@ -210,6 +213,7 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | `reopen_deployment_mapping_failure` | Phase 4 — `ReopenDeploymentMappingWorkItems` |
 | `projection_failure` | Phase 1 — projection worker |
 | `lease_heartbeat_failure` | Phase 1 — heartbeat goroutine |
+| `status=superseded` | Phase 1 — stale projector generation replaced by newer same-scope work |
 
 ## Configuration
 
@@ -246,7 +250,9 @@ Full NornicDB tuning reference: `docs/docs/reference/nornicdb-tuning.md`.
   are not mounted. Monitor via OTEL traces and structured logs.
 - **Projector lease heartbeat.** Long canonical graph writes can outlast the
   default projector lease. `startBootstrapProjectorHeartbeat` renews the lease
-  at `leaseDuration/3`, capped at 1 minute.
+  at `leaseDuration/3`, capped at 1 minute. A heartbeat can also return
+  `projector.ErrWorkSuperseded` when a newer same-scope generation exists; this
+  is an expected stale-work cancellation, not a bootstrap failure.
 - **NornicDB grouped writes.** `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false`
   by default. Enabling it without running the grouped-write safety probe test
   carries the same rollback-safety risks as the ingester path.

@@ -51,6 +51,10 @@
   CTEs together; they move older waiting same-scope projector rows and
   still-pending `scope_generations` to `superseded` so durable snapshot history
   remains available without reprocessing obsolete local polling generations.
+  Keep the `ProjectorQueue.Heartbeat` supersede check with that claim behavior:
+  live older same-scope generations must return `projector.ErrWorkSuperseded`
+  once a newer generation is visible, or local polling can spend minutes writing
+  graph state that will be immediately obsolete.
 - **NornicDB semantic gate** — `ReducerQueue.Claim` blocks
   `semantic_entity_materialization` while source-local projection is in-flight
   when the NornicDB gate parameter is true. Do not remove or bypass this gate

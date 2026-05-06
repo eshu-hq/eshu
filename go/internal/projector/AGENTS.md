@@ -37,6 +37,10 @@
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.
+- **Superseded work stops cleanly** — `Service.processWork` treats
+  `ErrWorkSuperseded` from `ProjectorWorkHeartbeater` as expected cancellation,
+  not a failed projection. The current worker must not ack or fail a generation
+  once Postgres proves a newer same-scope generation replaced it.
 
 ## Common changes and how to scope them
 
@@ -51,11 +55,13 @@
   add a test in `runtime_test.go`. Why: all stage telemetry is labeled and must
   appear in the telemetry contract at `go/internal/telemetry/contract.go`.
 
-- **Change concurrency behavior** → touch `service.go` `runConcurrent` and the
-  large-generation semaphore; run `service_test.go` and `service_shutdown_test.go`;
-  read `docs/docs/reference/telemetry/index.md` for `eshu_dp_large_repo_semaphore_wait_seconds`
-  guidance. Why: worker goroutines share a cancel context; wrong cancellation
-  propagation causes silent dropped work.
+- **Change concurrency behavior** → touch `service.go` `runConcurrent`,
+  `service_superseded.go`, and the large-generation semaphore; run
+  `service_test.go` and `service_shutdown_test.go`; read
+  `docs/docs/reference/telemetry/index.md` for
+  `eshu_dp_large_repo_semaphore_wait_seconds` guidance. Why: worker goroutines
+  share a cancel context; wrong cancellation propagation causes silent dropped
+  work or stale-generation graph writes.
 
 - **Add a new reducer domain intent** → add the domain constant in
   `internal/reducer`, add intent construction in `buildReducerIntent` or a
@@ -80,6 +86,12 @@
   likely cause: workers cannot keep up → check `eshu_dp_worker_pool_active`,
   consider raising `Service.Workers`; check `eshu_dp_large_repo_semaphore_wait_seconds`
   if large repos dominate.
+
+- Symptom: one repository repeatedly shows a newer pending generation behind a
+  live older projector row → likely cause: the running worker has not observed
+  `ErrWorkSuperseded` yet or heartbeats are disabled → check structured logs for
+  `projector work superseded by newer generation` and verify
+  `ProjectorWorkHeartbeater` is wired.
 
 - Symptom: phase state missing in `graph_projection_phase_state` → likely cause:
   `PhasePublisher.PublishGraphProjectionPhases` failing silently → check

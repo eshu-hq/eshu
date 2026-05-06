@@ -61,7 +61,10 @@ On success the worker calls `ProjectorWorkSink.Ack`. On any error it calls
 `ClassifyFailure`. The classifier preserves the stage that failed, maps Neo4j
 transient errors, context cancellation, network errors, input validation, and
 resource exhaustion into stable durable queue metadata, and sets retry guidance
-for operators. A large-generation semaphore (`largeSem`) limits concurrent
+for operators. When `ProjectorWorkHeartbeater` returns `ErrWorkSuperseded`, the
+service stops the current claim without acking or failing it; this is the
+expected cancellation path when a newer same-scope generation replaces a live
+older projection. A large-generation semaphore (`largeSem`) limits concurrent
 projection of scope generations above `LargeGenThreshold` facts to
 `LargeGenMaxConcurrent` workers to prevent memory pressure from many
 high-cardinality repositories running at once.
@@ -91,6 +94,8 @@ high-cardinality repositories running at once.
 - `ClassifyFailure(err, stage)` — maps a projection error to a
   `FailureClassification`; understands Neo4j transient codes, context
   cancellation, network errors, and sentinel error types
+- `ErrWorkSuperseded` — sentinel returned by the heartbeat path when a newer
+  same-scope generation has made the current projector claim obsolete
 - `StageError`, `InputValidationError`, `ResourceExhaustedError` — typed errors
   the classifier recognizes
 - `EntityTypeLabel(entityType)` — maps content-store entity type strings (e.g.
@@ -150,9 +155,10 @@ directly.
   Structured log events: `projector work stage completed` (load_facts and
   project_generation stages), `projector runtime stage completed` (build,
   canonical write, content write, intent enqueue), `projection succeeded`,
-  `projection failed`, `projector work canceled during shutdown`. All events
-  carry `scope_id`, `generation_id`, `source_system`, `worker_id`, `stage`,
-  `duration_seconds`, and `failure_class` on error paths.
+  `projection failed`, `projector work canceled during shutdown`, and
+  `projector work superseded by newer generation`. All events carry `scope_id`,
+  `generation_id`, `source_system`, `worker_id`, `stage`, `duration_seconds`,
+  and `failure_class` on error paths.
 
 ## Operational notes
 

@@ -274,6 +274,55 @@ WHERE stage = 'projector'
   AND status IN ('claimed', 'running')
 `
 
+const supersedeRunningProjectorWorkQuery = `
+WITH superseded_work AS (
+UPDATE fact_work_items AS work
+SET status = 'superseded',
+    lease_owner = NULL,
+    claim_until = NULL,
+    visible_at = NULL,
+    next_attempt_at = NULL,
+    updated_at = $1,
+    failure_class = 'projector_superseded_by_newer_generation',
+    failure_message = 'running projector work superseded by newer same-scope generation',
+    failure_details = jsonb_build_object(
+        'scope_id', work.scope_id,
+        'work_item_id', work.work_item_id,
+        'generation_id', work.generation_id
+    )
+FROM scope_generations AS current_generation
+WHERE work.stage = 'projector'
+  AND work.scope_id = $2
+  AND work.generation_id = $3
+  AND work.lease_owner = $4
+  AND work.status IN ('claimed', 'running')
+  AND current_generation.scope_id = work.scope_id
+  AND current_generation.generation_id = work.generation_id
+  AND current_generation.status IN ('pending', 'active')
+  AND EXISTS (
+      SELECT 1
+      FROM scope_generations AS newer
+      WHERE newer.scope_id = current_generation.scope_id
+        AND newer.generation_id <> current_generation.generation_id
+        AND newer.status IN ('pending', 'active')
+        AND (
+            newer.ingested_at > current_generation.ingested_at
+            OR (
+                newer.ingested_at = current_generation.ingested_at
+                AND newer.generation_id > current_generation.generation_id
+            )
+        )
+  )
+  RETURNING work.generation_id
+)
+UPDATE scope_generations AS generation
+SET status = 'superseded',
+    superseded_at = $1
+FROM superseded_work
+WHERE generation.generation_id = superseded_work.generation_id
+  AND generation.status IN ('pending', 'active')
+`
+
 const retryProjectorWorkQuery = `
 UPDATE fact_work_items
 SET status = 'retrying',

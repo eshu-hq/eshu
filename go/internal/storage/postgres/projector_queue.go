@@ -176,6 +176,14 @@ func (q ProjectorQueue) Heartbeat(ctx context.Context, work projector.ScopeGener
 	}
 
 	now := q.now()
+	superseded, err := q.supersedeRunningWorkIfNewerGenerationExists(ctx, work, now)
+	if err != nil {
+		return err
+	}
+	if superseded {
+		return projector.ErrWorkSuperseded
+	}
+
 	result, err := q.db.ExecContext(
 		ctx,
 		heartbeatProjectorWorkQuery,
@@ -196,6 +204,32 @@ func (q ProjectorQueue) Heartbeat(ctx context.Context, work projector.ScopeGener
 		return ErrProjectorClaimRejected
 	}
 	return nil
+}
+
+func (q ProjectorQueue) supersedeRunningWorkIfNewerGenerationExists(
+	ctx context.Context,
+	work projector.ScopeGenerationWork,
+	now time.Time,
+) (bool, error) {
+	result, err := q.db.ExecContext(
+		ctx,
+		supersedeRunningProjectorWorkQuery,
+		now,
+		work.Scope.ScopeID,
+		work.Generation.GenerationID,
+		q.LeaseOwner,
+	)
+	if err != nil {
+		return false, fmt.Errorf("supersede running projector work: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("supersede running projector work: rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return false, nil
+	}
+	return true, nil
 }
 
 // Fail marks one claimed projector work item as failed.
