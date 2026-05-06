@@ -40,6 +40,12 @@
   the lock itself. Callers must hold `owner.lock` before calling it, as
   `PrepareWorkspace` does.
 
+- **Ownerless Postgres reclaim is start-side only** — `StartEmbeddedPostgres`
+  may stop a live `postmaster.pid` when `owner.json` is already gone, but only
+  after `PrepareWorkspace` has acquired `owner.lock`. Keep the PID, socket, and
+  Postgres protocol checks together so a stale or reused PID is not enough to
+  trigger `pg_ctl stop`.
+
 - **Windows stubs fail loudly** — `AcquireOwnerLock`, `StartEmbeddedPostgres`,
   `ProcessAlive`, `SocketHealthy`, and `StopEmbeddedPostgres` on Windows return
   errors or false. Do not add Windows implementations without also updating the
@@ -92,6 +98,13 @@
   on port"`. If all three attempts fail on port collision, the loopback TCP port
   range may be exhausted; check `sysctl net.inet.ip.portrange`.
 
+- Symptom: embedded Postgres reports `postmaster.pid` already exists while
+  `owner.json` is missing → a previous owner likely removed metadata before
+  Postgres stopped. Startup should acquire `owner.lock`, verify the lock-file
+  PID, socket, and Postgres protocol, then run `pg_ctl stop` before starting a
+  fresh embedded Postgres. Do not remove `postmaster.pid` manually while a
+  process is still live.
+
 ## Testing
 
 Gate: `cd go && go test ./internal/eshulocal -count=1`
@@ -104,5 +117,6 @@ Key test files:
 - `startup_test.go` — `PrepareWorkspace` admission order
 - `version_test.go` — `EnsureLayoutVersion`, `ReadLayoutVersion`,
   `WriteLayoutVersion`
-- `health_unix_test.go` — `ProcessAlive`, `SocketHealthy`, `StopEmbeddedPostgres`
-- `postgres_unix_test.go` — `StartEmbeddedPostgres` (requires Unix, may be slow)
+- `health_unix_test.go` — `ProcessAlive`, `SocketHealthy`,
+  `StopEmbeddedPostgres`, `StartEmbeddedPostgres`, ownerless Postgres startup
+  reclaim

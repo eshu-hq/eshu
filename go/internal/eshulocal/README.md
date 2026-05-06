@@ -41,7 +41,8 @@ This package owns:
   `ReclaimDeps`, `DefaultReclaimDeps`, `ProcessAlive`, `SocketHealthy`,
   `StopEmbeddedPostgres`)
 - embedded Postgres lifecycle on Unix (`ManagedPostgres`, `StartEmbeddedPostgres`,
-  `PostgresDSN`, `LocalQueryProfile`)
+  `PostgresDSN`, `LocalQueryProfile`), including ownerless live-Postgres
+  recovery from the workspace `postmaster.pid`
 
 This package never touches the durable graph backend, Postgres schema, work
 queue, or any shared service state.
@@ -123,8 +124,10 @@ Embedded Postgres (Unix only):
 - `ManagedPostgres` — runtime handle: `DSN`, `Port`, `DataDir`, `SocketDir`,
   `SocketPath`, `PID`, `CtlPath`. `Close()` runs `pg_ctl fast stop`.
 - `StartEmbeddedPostgres(ctx, layout)` — starts the embedded Postgres instance,
-  reserves a loopback port, waits for a successful ping, reads the postmaster
-  PID. Returns an error on Windows.
+  first stops an ownerless live workspace Postgres proven by `postmaster.pid`,
+  PID liveness, socket health, and a Postgres protocol ping, then reserves a
+  loopback port, waits for a successful ping, and reads the postmaster PID.
+  Returns an error on Windows.
 - `PostgresDSN(host, port)` — builds the loopback TCP connection string.
 - `LocalQueryProfile()` — returns `"local_lightweight"`.
 
@@ -160,6 +163,11 @@ None. The startup and reclaim paths do not emit metrics or spans.
 - The socket path length for Unix-domain Postgres sockets is limited to 103
   bytes on some systems. `runtimeSocketDir` tries short paths under `/tmp` when
   the primary path would exceed this limit.
+- `StartEmbeddedPostgres` only reclaims an ownerless `postmaster.pid` after the
+  caller has already acquired `owner.lock` through `PrepareWorkspace`. The
+  reclaim path requires the lock-file PID to be alive, the lock-file socket to
+  accept connections, and the recorded port to answer as Postgres before
+  running `pg_ctl stop`.
 - Layout version is the `local-data-root-spec` version. Bumping it without a
   documented migration breaks existing workspaces that have data in the old
   layout.

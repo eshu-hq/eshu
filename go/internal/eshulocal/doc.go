@@ -3,7 +3,10 @@
 //
 // It owns workspace-root resolution, workspace-id derivation, the on-disk
 // ${ESHU_HOME}/local/workspaces/<id>/ layout, the owner.lock flock protocol,
-// and the owner.json record. The layout, ID algorithm, and single-service
-// rules are defined by docs/docs/reference/local-data-root-spec.md and
+// and the owner.json record. It also owns embedded Postgres startup recovery:
+// after owner.lock is held, StartEmbeddedPostgres can stop an ownerless live
+// postmaster.pid only when PID, socket, and Postgres protocol probes agree.
+// The layout, ID algorithm, and single-service rules are defined by
+// docs/docs/reference/local-data-root-spec.md and
 // docs/docs/reference/local-host-lifecycle.md.
 package eshulocal

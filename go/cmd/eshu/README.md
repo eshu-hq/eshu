@@ -54,6 +54,11 @@ launched runtime via the shared `telemetry` package. Errors print to
 - `SilenceUsage` and `SilenceErrors` are set on the root command
 - `eshu graph start` requires `eshu-reducer` and `eshu-ingester` on `PATH`;
   fresh local Eshu service runs need `go/bin` on `PATH` after rebuilding
+- `eshu graph start` acquires `owner.lock` through the local host startup path
+  before embedded Postgres starts. If an earlier shutdown removed `owner.json`
+  but left a live workspace `postmaster.pid`, startup verifies PID liveness,
+  socket health, and the Postgres protocol before running `pg_ctl stop` and
+  starting a fresh embedded Postgres.
 - For `local_authoritative` + NornicDB, the local owner sets snapshot, parse,
   projector, and reducer worker env vars to the developer machine's CPU count
   before launching `eshu-ingester` and `eshu-reducer`. Explicit env vars still
