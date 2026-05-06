@@ -1,0 +1,59 @@
+go/cmd/bootstrap-index/doc.go
+  0fdb6fbe5bc880aa 8-15
+go/cmd/bootstrap-index/projector_superseded_test.go
+  0fdb6fbe5bc880aa 1-63
+go/internal/storage/postgres/doc.go
+  0fdb6fbe5bc880aa 9-14
+go/internal/projector/service_logging.go
+  0fdb6fbe5bc880aa 1-111
+go/internal/projector/AGENTS.md
+  0fdb6fbe5bc880aa 40-43,58-64,90-94
+go/internal/storage/postgres/AGENTS.md
+  0fdb6fbe5bc880aa 54-57
+go/internal/projector/work_errors.go
+  0fdb6fbe5bc880aa 1-7
+go/internal/storage/postgres/projector_queue_sql.go
+  0fdb6fbe5bc880aa 277-325
+go/internal/storage/postgres/README.md
+  0fdb6fbe5bc880aa 80-84
+go/internal/projector/service.go
+  0fdb6fbe5bc880aa 236-238,257-259,274-276
+go/cmd/bootstrap-index/README.md
+  0fdb6fbe5bc880aa 67-69,216,253-255
+go/internal/storage/postgres/projector_queue_lifecycle_test.go
+  0fdb6fbe5bc880aa 293-298,315,318,329,337-342,360-408,435,451-454
+go/internal/projector/service_superseded.go
+  0fdb6fbe5bc880aa 1-44
+go/internal/storage/postgres/projector_queue.go
+  0fdb6fbe5bc880aa 179-186,209-232
+go/internal/projector/doc.go
+  0fdb6fbe5bc880aa 9-12
+go/cmd/bootstrap-index/main.go
+  0fdb6fbe5bc880aa 696-699,710-713,720-723,860-864,866
+go/internal/projector/README.md
+  0fdb6fbe5bc880aa 64-67,97-98,158-161
+go/cmd/bootstrap-index/AGENTS.md
+  0fdb6fbe5bc880aa 83,107-109
+go/internal/projector/service_superseded_test.go
+  0fdb6fbe5bc880aa 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "a0c41dc73dc8ad8ebebb3f359500ee9bb679e3af",
+  "prompts": {
+    "0fdb6fbe5bc880aa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dfda7-b67d-7d01-abd4-1370d870116b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria",
+      "messages": [],
+      "total_additions": 538,
+      "total_deletions": 125,
+      "accepted_lines": 989,
+      "overriden_lines": 0
+    }
+  }
+}
