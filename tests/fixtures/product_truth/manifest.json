@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "description": "Feature-level fixture truth registry for graph, evidence, API, MCP, and cleanup capabilities.",
+  "suites": [
+    {
+      "id": "graph_analysis",
+      "status": "owned",
+      "fixture_root": "tests/fixtures/graph_analysis_compose",
+      "compose_gate": "scripts/verify_graph_analysis_compose.sh",
+      "expected_truth_files": [
+        "tests/fixtures/product_truth/expected/graph_analysis.json"
+      ],
+      "capabilities": [
+        "call_graph.direct_callers",
+        "call_graph.transitive_callers",
+        "call_graph.call_chain_path",
+        "code_quality.dead_code"
+      ]
+    },
+    {
+      "id": "correlation_dsl",
+      "status": "owned",
+      "fixture_root": "tests/fixtures/correlation_dsl",
+      "compose_gate": "scripts/verify_correlation_dsl_compose.sh",
+      "expected_truth_files": [
+        "tests/fixtures/product_truth/expected/correlation_dsl.json"
+      ],
+      "capabilities": [
+        "deployable_unit.correlation",
+        "delivery.github_actions",
+        "delivery.jenkins",
+        "delivery.ansible",
+        "delivery.docker_compose",
+        "delivery.argocd",
+        "delivery.terraform",
+        "correlation.negative_cases"
+      ]
+    },
+    {
+      "id": "relationship_platform",
+      "status": "owned",
+      "fixture_root": "tests/fixtures/relationship_platform",
+      "compose_gate": "scripts/verify_relationship_platform_compose.sh",
+      "expected_truth_files": [
+        "tests/fixtures/relationship_platform/expected_relationships.yaml",
+        "tests/fixtures/product_truth/expected/relationship_platform.json"
+      ],
+      "capabilities": [
+        "relationship_evidence.mapping",
+        "repository.relationship_overview",
+        "repository.deployment_artifacts",
+        "repository.api_surface",
+        "service.deployment_trace",
+        "delivery.helm",
+        "delivery.kustomize",
+        "delivery.cloudformation",
+        "delivery.docker_compose"
+      ]
+    },
+    {
+      "id": "iac_quality.dead_iac",
+      "status": "owned",
+      "fixture_root": "tests/fixtures/product_truth/dead_iac",
+      "compose_gate": "scripts/verify_dead_iac_compose.sh",
+      "expected_truth_files": [
+        "tests/fixtures/product_truth/expected/dead_iac.json"
+      ],
+      "capabilities": [
+        "iac_quality.dead_iac",
+        "iac_reachability.terraform",
+        "iac_reachability.helm",
+        "iac_reachability.kustomize",
+        "iac_reachability.ansible",
+        "iac_reachability.compose"
+      ]
+    }
+  ],
+  "planned": []
+}

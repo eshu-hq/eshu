@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package eshu.data_plane.projection.v1;
+
+option go_package = "github.com/eshu-hq/eshu/go/gen/proto/eshu/data_plane/projection/v1;projectionv1";
+
+import "google/protobuf/duration.proto";
+
+message ProjectionResult {
+  string projector_id = 1;
+  string scope_id = 2;
+  string generation_id = 3;
+  string write_target = 4;
+  int64 written_count = 5;
+  int64 updated_count = 6;
+  int64 deleted_count = 7;
+  google.protobuf.Duration duration = 8;
+  ProjectionStatus status = 9;
+  repeated string unresolved_notes = 10;
+}
+
+message CanonicalWriteRecord {
+  string projector_id = 1;
+  string scope_id = 2;
+  string generation_id = 3;
+  string write_target = 4;
+  string canonical_key = 5;
+  int64 write_count = 6;
+  google.protobuf.Duration duration = 7;
+  ProjectionStatus status = 8;
+  bool is_partial = 9;
+  string unresolved_note = 10;
+}
+
+enum ProjectionStatus {
+  PROJECTION_STATUS_UNSPECIFIED = 0;
+  PROJECTION_STATUS_SUCCEEDED = 1;
+  PROJECTION_STATUS_PARTIAL = 2;
+  PROJECTION_STATUS_FAILED = 3;
+}

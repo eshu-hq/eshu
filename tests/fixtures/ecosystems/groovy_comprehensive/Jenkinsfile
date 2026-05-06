@@ -1,0 +1,9 @@
+@Library('pipelines') _
+
+pipelinePM2(
+  use_configd: true,
+  entry_point: 'dist/api-node-whisper.js',
+  pre_deploy: { pipe, params ->
+    sh 'echo migrate'
+  }
+)

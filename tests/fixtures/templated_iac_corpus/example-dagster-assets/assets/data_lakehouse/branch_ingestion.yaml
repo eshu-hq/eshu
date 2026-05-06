@@ -1,0 +1,26 @@
+asset_group:
+  name: branchio_ingestion
+  description: Glue job assets for Branch IO ingestions
+  partition_start_date: '2025-08-22'
+
+glue_jobs:
+  - name: branchio_ingestion_job
+    job_name: "branchio-api-ingestion-{{ region }}-demo-dp-{{ environment }}"
+    description: "Ingestion for Branch IO"
+    deps: []
+  
+  {%- set models = ['click', 'install', 'open', 'reinstall'] -%}
+  
+  {%- for model in models %}
+  - name: branchio_datacontract_{{ model }}s
+    job_name: "data-contract-handler-gluejob"
+    description: "Sanitize layer of Branch IO {{ model }} data"
+    deps:
+      - branchio_ingestion_job
+    arguments:
+      - --CONTRACT_PATH: "s3://glue-assets-{{ environment }}-demo-dp-{{ account_id }}-{{ region }}/lakehouse/data_contracts/branch_io-datacontract.yaml"
+      - --MODEL_NAME: "eo_{{ model }}"
+      - --LANDING_BASE_PATH: "s3://landing-{{ environment }}-demo-dp-{{ account_id }}-{{ region }}/live/api"
+      - --STAGE: "sanitized"
+      - --CONNECTION_INFO: "-"
+  {%- endfor %}

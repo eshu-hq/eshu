@@ -1,0 +1,367 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: eshu-alerts
+  namespace: eshu
+  labels:
+    app: eshu
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: eshu.pipeline
+      interval: 30s
+      rules:
+        - alert: EshuFactQueueStale
+          expr: eshu_runtime_queue_oldest_outstanding_age_seconds > 3600
+          for: 5m
+          labels:
+            severity: critical
+            service: eshu-ingester
+            component: pipeline
+          annotations:
+            summary: "Oldest pending fact work item is over 1 hour old"
+            description: "The oldest work item in the fact queue has been pending for {{ $value | humanizeDuration }}. This indicates the projection pipeline may be stalled or unable to keep up with fact emission."
+            runbook: |
+              1. Check reducer logs for dead-lettered items: `kubectl logs -l app=eshu-reducer --tail=100 | grep failure_class`
+              2. Open Jaeger and search for traces with `pipeline_phase=projection` to identify stuck stages
+              3. Verify Neo4j and Postgres connectivity from reducer pod
+              4. Check `eshu_dp_projections_completed_total{status="failed"}` for error patterns
+              5. If needed, trigger replay via admin endpoint: `POST /admin/replay`
+              6. Review shared projection backlog: check `eshu_shared_projection_pending_intents`
+
+        - alert: EshuProjectionErrorRateHigh
+          expr: |
+            (
+              rate(eshu_dp_projections_completed_total{status="failed"}[5m])
+              /
+              rate(eshu_dp_projections_completed_total[5m])
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            service: eshu-ingester
+            component: pipeline
+          annotations:
+            summary: "Projection failure rate exceeds 5%"
+            description: "{{ $value | humanizePercentage }} of projections are failing over the last 5 minutes."
+            runbook: |
+              1. Open Jaeger UI and filter traces by `service_name=eshu-ingester` and `pipeline_phase=projection`
+              2. Check projector logs filtered by `failure_class` attribute
+              3. Look for specific stage failures in `eshu_dp_projector_stage_duration_seconds` metrics
+              4. Common failure classes to investigate:
+                 - schema_validation: fact envelope schema issues
+                 - database_error: Neo4j or Postgres connectivity/constraint violations
+                 - transformation_error: data shaping or content store issues
+              5. Check for Neo4j query errors: `rate(eshu_dp_neo4j_query_errors_total[5m])`
+              6. Verify Postgres health: `rate(eshu_dp_postgres_query_errors_total[5m])`
+
+        - alert: EshuReducerErrorRateHigh
+          expr: |
+            (
+              rate(eshu_dp_reducer_executions_total{status="failed"}[5m])
+              /
+              rate(eshu_dp_reducer_executions_total[5m])
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            service: eshu-reducer
+            component: pipeline
+          annotations:
+            summary: "Reducer failure rate exceeds 5%"
+            description: "{{ $value | humanizePercentage }} of reducer intent executions are failing over the last 5 minutes."
+            runbook: |
+              1. Check Jaeger traces filtered by `service_name=eshu-reducer` and `pipeline_phase=reduction`
+              2. Group failures by domain: check `eshu_dp_reducer_executions_total{status="failed"}` by domain label
+              3. Common failure patterns:
+                 - Intent deserialization failures (malformed queue items)
+                 - Domain handler panics or unhandled cases
+                 - Shared projection conflicts or deadlocks
+              4. Review reducer logs for stack traces and domain-specific errors
+              5. Check intent queue health: `eshu_dp_reducer_intents_enqueued_total` vs execution rate
+              6. If specific domain is failing consistently, consider temporary circuit breaker
+
+        - alert: EshuSharedProjectionBacklog
+          expr: eshu_shared_projection_pending_intents > 500
+          for: 10m
+          labels:
+            severity: warning
+            service: eshu-reducer
+            component: pipeline
+          annotations:
+            summary: "Shared projection backlog exceeds 500 pending intents"
+            description: "There are {{ $value }} pending intents in the shared projection queue, indicating the reducer is unable to keep up with projection demand."
+            runbook: |
+              1. Check current partition count and batch size in reducer configuration
+              2. Review `eshu_dp_shared_projection_cycles_total` rate to verify cycles are completing
+              3. Check `eshu_dp_reducer_run_duration_seconds` P99 latency for execution bottlenecks
+              4. Tune shared projection parameters (see docs/docs/reference/telemetry/index.md):
+                 - Increase partition count first (less risk, better parallelism)
+                 - Then increase batch limit if partitions are underutilized
+              5. Monitor `eshu_dp_canonical_write_duration_seconds` for Neo4j write bottlenecks
+              6. Consider horizontal scaling: add more reducer replicas if CPU-bound
+
+        - alert: EshuCollectorStalled
+          expr: rate(eshu_dp_facts_emitted_total[15m]) == 0
+          for: 15m
+          labels:
+            severity: critical
+            service: eshu-ingester
+            component: collector
+          annotations:
+            summary: "No facts emitted in 15 minutes — collector may be stalled"
+            description: "The ingester has not emitted any facts for 15 minutes. This indicates the Git collector cycle is stalled or repositories are unreachable."
+            runbook: |
+              1. Check ingester pod status: `kubectl get pods -l app=eshu-ingester`
+              2. Review collector logs for Git access errors or scope assignment failures
+              3. Open Jaeger and search for `collector.observe` spans to see where the cycle is blocked
+              4. Verify Git repository accessibility:
+                 - Check network connectivity to Git remotes
+                 - Verify Git credentials/SSH keys are valid
+                 - Check for repository lock contention or disk space issues
+              5. Review `eshu_dp_scope_assign_duration_seconds` for scope assignment hangs
+              6. Check `eshu_dp_collector_observe_duration_seconds` histogram for abnormal latency
+              7. If persistent, restart ingester pod and monitor recovery
+
+    - name: eshu.api
+      interval: 30s
+      rules:
+        - alert: EshuAPIErrorRateHigh
+          expr: |
+            (
+              rate(eshu_http_requests_total{http_status_class="5xx"}[5m])
+              /
+              rate(eshu_http_requests_total[5m])
+            ) > 0.01
+          for: 5m
+          labels:
+            severity: warning
+            service: eshu-api
+            component: api
+          annotations:
+            summary: "API 5xx error rate exceeds 1%"
+            description: "{{ $value | humanizePercentage }} of HTTP requests are returning 5xx errors over the last 5 minutes."
+            runbook: |
+              1. Check API logs filtered by severity_text=ERROR: `kubectl logs -l app=eshu-api | grep ERROR`
+              2. Open Jaeger and filter traces by `service_name=eshu-api` and `http.status_code >= 500`
+              3. Group errors by route: check `eshu_http_requests_total{http_status_class="5xx"}` by http_route label
+              4. Common causes:
+                 - Neo4j connectivity issues: check `eshu_neo4j_query_errors_total`
+                 - Query timeouts: review `eshu_neo4j_query_duration_seconds` P99
+                 - Content store failures: check `eshu_content_provider_requests_total{eshu_content_success="false"}`
+                 - MCP transport errors: check `eshu_mcp_request_errors_total`
+              5. Verify backing service health (Neo4j, Postgres)
+              6. Check for resource exhaustion (CPU, memory) in API pods
+
+        - alert: EshuAPIP99LatencyHigh
+          expr: |
+            histogram_quantile(0.99,
+              rate(eshu_http_request_duration_seconds_bucket[5m])
+            ) > 5
+          for: 10m
+          labels:
+            severity: warning
+            service: eshu-api
+            component: api
+          annotations:
+            summary: "API P99 latency exceeds 5 seconds"
+            description: "The 99th percentile of HTTP request latency is {{ $value | humanizeDuration }}, indicating performance degradation."
+            runbook: |
+              1. Identify slow routes: check `eshu_http_request_duration_seconds` histogram by http_route label
+              2. Open Jaeger and sort traces by duration to find slowest queries
+              3. Common bottlenecks:
+                 - Expensive Neo4j queries: review `eshu.query.*` traces for Cypher optimization opportunities
+                 - Content store read latency: check `eshu_content_provider_duration_seconds` P99
+                 - Missing indexes: check Neo4j query plans for full scans
+                 - Large result sets: consider pagination or result limiting
+              4. Review Neo4j performance metrics in database-performance.json dashboard
+              5. Check Neo4j cache hit rates and heap usage
+              6. Consider adding Neo4j read replicas for query load distribution
+
+        - alert: EshuMCPToolErrorRateHigh
+          expr: |
+            (
+              rate(eshu_mcp_tool_errors_total[5m])
+              /
+              rate(eshu_mcp_tool_calls_total[5m])
+            ) > 0.02
+          for: 5m
+          labels:
+            severity: warning
+            service: eshu-api
+            component: mcp
+          annotations:
+            summary: "MCP tool error rate exceeds 2%"
+            description: "{{ $value | humanizePercentage }} of MCP tool invocations are failing over the last 5 minutes."
+            runbook: |
+              1. Group errors by tool: check `eshu_mcp_tool_errors_total` by eshu_tool_name label
+              2. Open Jaeger traces filtered by `eshu.transport=stdio` or `eshu.transport=sse`
+              3. Check MCP request logs for specific tool failures
+              4. Common tool failure causes:
+                 - Query tools: Neo4j connectivity or query errors
+                 - Content tools: content store unavailability or file not found
+                 - Graph traversal tools: missing relationships or malformed queries
+              5. Verify MCP transport health and client connectivity
+              6. Check if failures correlate with API or database alerts
+
+    - name: eshu.database
+      interval: 30s
+      rules:
+        - alert: EshuPostgresLatencyHigh
+          expr: |
+            histogram_quantile(0.99,
+              rate(eshu_dp_postgres_query_duration_seconds_bucket[5m])
+            ) > 1
+          for: 5m
+          labels:
+            severity: warning
+            service: eshu-database
+            component: postgres
+          annotations:
+            summary: "Postgres P99 query latency exceeds 1 second"
+            description: "The 99th percentile of Postgres query latency is {{ $value | humanizeDuration }}."
+            runbook: |
+              1. Open Jaeger and search for `postgres.exec` and `postgres.query` spans
+              2. Identify slow queries using Postgres pg_stat_statements view
+              3. Common bottlenecks:
+                 - Fact queue queries: check indexes on fact_queue table
+                 - Content store lookups: verify indexes on content_hash and asset_identity
+                 - Work queue claims: check for lock contention or connection pool saturation
+              4. Check Postgres connection pool metrics: active connections vs pool size
+              5. Review Postgres slow query log for optimization candidates
+              6. Consider increasing connection pool size if connection waits are high
+              7. Verify Postgres resource limits (CPU, memory, IOPS)
+
+        - alert: EshuNeo4jLatencyHigh
+          expr: |
+            histogram_quantile(0.99,
+              rate(eshu_dp_neo4j_query_duration_seconds_bucket[5m])
+            ) > 2
+          for: 5m
+          labels:
+            severity: warning
+            service: eshu-database
+            component: neo4j
+          annotations:
+            summary: "Neo4j P99 query latency exceeds 2 seconds"
+            description: "The 99th percentile of Neo4j query latency is {{ $value | humanizeDuration }}."
+            runbook: |
+              1. Open Jaeger and search for `neo4j.execute` spans to identify slow Cypher queries
+              2. Check Neo4j query.log for expensive queries
+              3. Common performance issues:
+                 - Missing indexes: verify indexes on frequently queried properties
+                 - Large graph traversals: optimize `canonical.write` traces for batch writes
+                 - Cartesian products: review Cypher queries for missing relationship constraints
+              4. Use Neo4j Browser EXPLAIN/PROFILE to analyze query plans
+              5. Check Neo4j heap usage and page cache hit ratio
+              6. Review `eshu_dp_canonical_write_duration_seconds` for batch write bottlenecks
+              7. Consider Neo4j tuning: increase heap size, page cache, or bolt thread pool
+
+        - alert: EshuNeo4jQueryErrors
+          expr: rate(eshu_neo4j_query_errors_total[5m]) > 0.1
+          for: 2m
+          labels:
+            severity: critical
+            service: eshu-database
+            component: neo4j
+          annotations:
+            summary: "Neo4j query errors detected"
+            description: "Neo4j queries are failing at {{ $value }} errors/sec over the last 5 minutes."
+            runbook: |
+              1. Check Neo4j pod status: `kubectl get pods -l app=neo4j`
+              2. Review Neo4j logs for connection errors, out-of-memory, or crashes
+              3. Verify Neo4j service endpoint is reachable from API and reducer pods
+              4. Check error patterns:
+                 - Connection refused: Neo4j service down or network issue
+                 - Transaction failures: constraint violations or deadlocks
+                 - Timeout errors: queries exceeding bolt.connection_timeout
+              5. Review recent graph schema changes that might cause constraint violations
+              6. Check Neo4j resource usage (CPU, memory, disk)
+              7. If persistent, consider restarting Neo4j pod (after checking for data consistency)
+
+    - name: eshu.throughput
+      interval: 30s
+      rules:
+        - alert: EshuFactEmissionRateDropped
+          expr: |
+            (
+              rate(eshu_dp_facts_emitted_total[5m])
+              <
+              rate(eshu_dp_facts_emitted_total[30m] offset 1h) * 0.5
+            ) and (rate(eshu_dp_facts_emitted_total[30m] offset 1h) > 1)
+          for: 10m
+          labels:
+            severity: warning
+            service: eshu-ingester
+            component: throughput
+          annotations:
+            summary: "Fact emission rate dropped by more than 50%"
+            description: "Current fact emission rate is less than half of the rate 1 hour ago, indicating potential collector slowdown."
+            runbook: |
+              1. Compare current vs historical `eshu_dp_facts_emitted_total` rate
+              2. Check `eshu_dp_collector_observe_duration_seconds` for increased collection latency
+              3. Review ingester logs for warnings about slow Git operations
+              4. Possible causes:
+                 - Repository size growth causing longer collection cycles
+                 - Network latency to Git remotes
+                 - Disk I/O saturation on ingester StatefulSet PVC
+                 - Parser performance degradation with new code patterns
+              5. Check ingester resource usage (CPU, memory, disk IOPS)
+              6. Review scope assignment: verify `eshu_dp_scope_assign_duration_seconds` is stable
+
+        - alert: EshuProjectionThroughputMismatch
+          expr: |
+            (
+              rate(eshu_dp_facts_committed_total[5m])
+              >
+              rate(eshu_dp_projections_completed_total[5m]) * 2
+            ) and (rate(eshu_dp_facts_committed_total[5m]) > 1)
+          for: 15m
+          labels:
+            severity: warning
+            service: eshu-ingester
+            component: throughput
+          annotations:
+            summary: "Projection throughput cannot keep up with fact emission"
+            description: "Facts are being committed at {{ $value }}x the rate of projection completion, indicating a growing backlog."
+            runbook: |
+              1. Check work queue depth: `eshu_runtime_queue_oldest_outstanding_age_seconds`
+              2. Review projection cycle duration: `eshu_dp_projector_run_duration_seconds` P95
+              3. Identify bottlenecks:
+                 - Slow stages: check `eshu_dp_projector_stage_duration_seconds` by stage label
+                 - Database writes: review `eshu_dp_canonical_write_duration_seconds` and `eshu_dp_postgres_query_duration_seconds`
+                 - Content transformation: check content store write latency
+              4. Consider scaling actions:
+                 - Horizontal scaling: add more reducer replicas for parallel work item processing
+                 - Vertical scaling: increase CPU/memory if projector stages are compute-bound
+                 - Database scaling: optimize Neo4j and Postgres for higher write throughput
+              5. Review projection batch sizes and consider tuning for higher throughput
+
+        - alert: EshuReducerIntentBacklog
+          expr: |
+            (
+              rate(eshu_dp_reducer_intents_enqueued_total[5m])
+              >
+              rate(eshu_dp_reducer_executions_total[5m]) * 1.5
+            ) and (rate(eshu_dp_reducer_intents_enqueued_total[5m]) > 0.5)
+          for: 10m
+          labels:
+            severity: warning
+            service: eshu-reducer
+            component: throughput
+          annotations:
+            summary: "Reducer intent queue is growing faster than execution rate"
+            description: "Intents are being enqueued at {{ $value }}x the execution rate, indicating reducer cannot keep up with demand."
+            runbook: |
+              1. Check shared projection pending count: `eshu_shared_projection_pending_intents`
+              2. Review reducer execution duration: `eshu_dp_reducer_run_duration_seconds` P95
+              3. Group slow executions by domain: check duration histogram by domain label
+              4. Common bottlenecks:
+                 - Shared projection cycles taking too long: tune partition count and batch size
+                 - Domain handler inefficiencies: profile specific domain execution times
+                 - Database contention: check for Neo4j lock waits or Postgres connection pool exhaustion
+              5. Scaling options:
+                 - Add more reducer replicas (effective for parallel domains)
+                 - Increase shared projection partition count for better parallelism
+                 - Optimize domain handlers for batch operations instead of single-item processing

@@ -1,0 +1,1802 @@
+# ADR: Reducer Throughput And NornicDB Concurrency Plan
+
+**Date:** 2026-04-28
+**Status:** Implemented with follow-up (PR #129 merged)
+**Related:**
+
+- `2026-04-18-reducer-full-convergence-optimization.md`
+- `2026-04-22-nornicdb-graph-backend-candidate.md`
+- `docs/docs/reference/nornicdb-tuning.md`
+- `docs/docs/reference/telemetry/index.md`
+
+## Status Review (2026-05-03)
+
+**Current disposition:** Implemented for PR #129; ADR workstream closed.
+
+The main workstream closed with PR #129 merged to `main` on 2026-05-03. The
+accepted proof recorded in this ADR is the full-corpus NornicDB run
+`eshu-full-pr136-01413d04-a9ccd0f-20260503T0121Z`, which drained `896`
+repositories and `8458` queue rows in about `14m33s` with healthy projector,
+reducer, API, MCP, graph, and Postgres parity.
+
+Read-only validation on 2026-05-03 found the current repo aligned with the
+closeout state: NornicDB reducer workers default to `min(NumCPU, 8)`, reducer
+batch claims default to the worker count on NornicDB, durable reducer conflict
+keys are present in `fact_work_items`, `/admin/status` can report
+`queue_blockages`, and the service/runtime docs now point at those defaults.
+
+**Remaining work:** keep NornicDB PR #136 release/pin status explicit, continue
+large query-file and storage-boundary maintainability follow-ups, and keep
+runtime defaults and environment-variable docs in lockstep.
+
+## Decision
+
+Treat reducer throughput as an architecture track, not as another round of
+timeout and batch-size tuning.
+
+The next phase will:
+
+1. preserve graph correctness gates,
+2. measure reducer queue wait, actual work time, and conflict blocking,
+3. remove false serialization from reducer claim/routing policy,
+4. make shared projection lanes partitionable by the real conflict unit,
+5. tune the highest-cost Cypher shapes and NornicDB lookup paths from evidence,
+6. only then raise worker or pod concurrency as a default.
+
+This ADR does not accept "run fewer workers" as the end state. Sequential or
+low-worker settings remain diagnostic tools for isolating correctness bugs, not
+the desired production architecture.
+
+## Context
+
+The 2026-04-28 remote full-corpus proof ran against the 896-repository corpus
+on a 16-vCPU, 128 GiB VM with Docker. The run completed without failed or
+dead-lettered reducer work, but the wall clock was unacceptable:
+
+- `896` repositories collected in about `6m30s`.
+- Source-local projection finished by about `22m26s`.
+- The reducer queue drained in about `7h43m40s`.
+- Persisted queue state ended healthy: all `9182` work items succeeded.
+- Only `14` retries were recorded, so this was not primarily a retry storm.
+
+The strongest measured signal is that wall time was dominated by reducer queue
+wait behind a small number of expensive graph-write domains:
+
+| Domain | Items | Domain wall | Sum actual work | P95 queue wait |
+| --- | ---: | ---: | ---: | ---: |
+| `source_local` | 896 | `22m26s` | `44m30s` | `25.1s` |
+| `semantic_entity_materialization` | 372 | `7h39m58s` | `49h12m48s` | `5h03m42s` |
+| `workload_materialization` | 2538 | `7h16m24s` | `3h36m11s` | `6h18m52s` |
+| `sql_relationship_materialization` | 896 | `7h42m36s` | `1h09m18s` | `4h19m12s` |
+| `deployment_mapping` | 896 | `5h50m04s` | `31m58s` | `4h10m35s` |
+| `code_call_materialization` | 896 | `5h46m41s` | `1m43s` | `4h01m43s` |
+
+The top semantic reducers were heavily skewed. One repository took almost four
+hours of semantic work by itself, while other domains showed low actual work
+but multi-hour queue wait. That means most of the corpus was not slow because
+every item was expensive; it was slow because the queue and graph-write shape
+let a few hot items dominate the tail.
+
+## Current Flow
+
+The relevant runtime path is:
+
+```text
+ingester
+  -> commits facts to Postgres
+  -> enqueues source-local projector work
+
+projector
+  -> claims scope/generation work with leases
+  -> builds source-local canonical graph/content projection
+  -> writes canonical graph and content store
+  -> enqueues reducer intents
+
+reducer
+  -> claims fact_work_items with FOR UPDATE SKIP LOCKED
+  -> executes domain handlers
+  -> writes graph/content/readiness side effects
+  -> heartbeats long work
+  -> acks, retries, or fails work
+
+shared projection runners
+  -> process code calls, repo dependency, shared edges, and repair lanes
+  -> gate graph edges behind semantic-node readiness where required
+```
+
+Correctness constraints that must remain true:
+
+- semantic nodes must exist before semantic edges depend on them,
+- same-scope generations must not overlap destructive graph rewrite phases,
+- repo-wide retracts must remain exclusive with writes that depend on the same
+  repo generation,
+- retries must remain idempotent,
+- failed or stale claims must not ack work they no longer own,
+- graph/API truth must match persisted fact intent after the run completes.
+
+## Findings
+
+### 1. The bottleneck is not collection alone
+
+Collection and source-local work are significant, but they do not explain a
+`7h43m` run. Source-local finished in about `22m26s`; the dominant tail was the
+reducer and shared projection work that followed.
+
+### 2. Queue wait hides the true hot path
+
+Several domains had small summed work but multi-hour wall time. That points to
+claim ordering, conflict routing, or shared worker lane serialization. A fast
+domain waiting four hours is evidence of false or overly broad serialization,
+not evidence that the fast domain needs tuning.
+
+### 3. Semantic entity graph writes are the largest measured cost
+
+`semantic_entity_materialization` accumulated about `49h12m` of worker time.
+This is the first domain that needs query-shape and backend-path analysis. The
+slowest repos were not ordered purely by entity count, so row volume alone is
+not the full explanation.
+
+### 4. Existing conflict domains are safe but coarse
+
+The current reducer has useful fences, including row leases, generation gates,
+and conflict-key routing. The problem is that several conflict keys are broader
+than the actual correctness unit. That protects truth, but it also serializes
+work that could run concurrently.
+
+### 5. NornicDB should not be treated as a black box
+
+NornicDB can execute concurrent transactions, but write throughput still
+depends on exact Cypher shape, lookup indexes, relationship-existence probes,
+MVCC validation, Badger commit ordering, and cache/index contention. Raising
+workers without understanding these paths can amplify contention instead of
+improving throughput.
+
+### 6. Some Eshu Cypher shapes are likely too broad for NornicDB
+
+The highest-risk shapes are:
+
+- multi-label semantic edge anchors,
+- repo-wide retracts that filter by `repo_id` without a strong label/index
+  anchor,
+- workload dependency reads with `OR` predicates across source and target,
+- shared-edge retractions that scan broad label families,
+- relationship `MERGE` paths that repeatedly probe existing edges.
+
+Neo4j may hide some of this with planner behavior and mature indexes. NornicDB
+is forcing Eshu to make those assumptions explicit, which is good engineering as
+long as we keep the fixes behind backend-safe seams.
+
+## Plan
+
+### Phase 0: Baseline And Guardrails
+
+Status: `closed for PR #129`
+
+- Record the full-corpus baseline in this ADR.
+- Keep the remote run artifacts and queue SQL used for timing analysis.
+- Do not run the full corpus as the first proof for each change.
+- Use this proof ladder instead:
+  1. one large failing or slow repository,
+  2. one small repository,
+  3. one mixed 20-25 repository corpus,
+  4. one 100 repository corpus,
+  5. the full 896 repository corpus.
+
+Exit criteria:
+
+- every proof reports wall clock, queue state, failed/dead-letter counts, and
+  top slow domains,
+- graph/API truth checks remain green for the changed domain.
+
+### Phase 1: Reducer Observability
+
+Status: `implemented for PR #129`
+
+Add operator-visible reducer telemetry before changing scheduling semantics:
+
+- work item queue wait versus actual handler duration,
+- blocked-by-conflict counts and durations,
+- conflict domain and conflict key in structured logs or metrics,
+- eligible-but-not-claimed counts where the queue skips work,
+- per-domain p50/p95/max handler duration,
+- top N slow work items by repo and domain in status or run summary,
+- shared projection partition wait and processing duration.
+
+This phase answers: "Are workers idle because there is no eligible work, because
+conflict keys are too broad, or because the graph backend is slow?"
+
+### Phase 2: Conflict-Domain Matrix
+
+Status: `implemented with follow-up`
+
+Create an explicit matrix for each reducer domain:
+
+| Domain | Reads | Writes | True conflict unit | Current conflict unit |
+| --- | --- | --- | --- | --- |
+| `semantic_entity_materialization` | content entities, facts | semantic nodes | repo generation + label/write family | to verify |
+| `code_call_materialization` | semantic nodes, call facts | `CALLS` edges | acceptance unit or repo edge family | to verify |
+| `sql_relationship_materialization` | SQL facts, semantic nodes | SQL edges | repo + SQL edge family | to verify |
+| `workload_materialization` | resolved relationships, workload facts | workload instances | deployment/service scope | to verify |
+| `deployment_mapping` | relationship evidence | resolved relationships | deployment repo generation | to verify |
+
+Then narrow only the conflict keys that are provably broader than the real
+write/read dependency.
+
+Required edge cases:
+
+- stale generation followed by current generation,
+- retry after partial graph write,
+- same repo with two queued generations,
+- two repos with identical entity names,
+- repo-wide retract concurrent with edge upsert,
+- slow worker lease expiry and reclaim.
+
+### Phase 3: Shared Runner Partitioning
+
+Status: `partially implemented; follow-up only with new telemetry evidence`
+
+The shared projection runners must stop behaving like global lanes when the
+data model allows narrower ownership.
+
+Planned changes:
+
+- give each reducer process a unique lease owner before multi-pod scaling,
+- partition code-call projection by acceptance unit or source repo,
+- partition repo dependency projection by repo pair or repo scope,
+- preserve repo-wide retract exclusivity,
+- keep semantic-node-readiness gates intact,
+- add ack/fail/heartbeat fencing checks before increasing reducer pods.
+
+This phase is complete only when multiple workers can drain independent graph
+families without producing duplicate edges, missing edges, or stale-generation
+acks.
+
+### Phase 4: Cypher And Index Hot-Path Work
+
+Status: `implemented where evidenced; follow-up remains`
+
+Use `cypher-query-rigor` rules: understand the data distribution and the graph
+shape before rewriting queries.
+
+First target: `sql_relationship_materialization`.
+
+Why first:
+
+- it is slow enough to matter,
+- its label families are known,
+- it is less semantically broad than code-call projection,
+- it exercises the same multi-label anchor problem likely affecting other
+  semantic edge domains.
+
+Candidate work:
+
+- add NornicDB lookup indexes for hot `repo_id` anchors where query evidence
+  proves scans,
+- split multi-label source/target anchors into concrete label-specific
+  statements,
+- replace broad `OR` workload dependency reads with indexed outgoing and
+  incoming queries,
+- split repo-wide retracts by label family when that improves anchor quality,
+- add static tests that reject NornicDB query shapes known to force scans.
+
+Proof must compare current and proposed Cypher on seeded data before the full
+corpus run.
+
+### Phase 5: NornicDB Backend Collaboration
+
+Status: `active follow-up`
+
+Continue upstream-first work when Eshu exposes a true NornicDB limitation.
+
+Candidate backend improvements:
+
+- validate and promote the direct edge-between lookup index work,
+- add observability for index hit/miss, edge-existence probe fanout, commit
+  latency, MVCC validation time, and conflict reason,
+- benchmark Eshu's exact `UNWIND/MERGE` write shapes at `1/2/4/8/16` workers,
+- evaluate bulk upsert APIs only after query-shape fixes prove insufficient,
+- avoid ESHU-side workarounds when a small upstream backend fix is the correct
+  long-term answer.
+
+### Phase 6: Controlled Concurrency Increase
+
+Status: `implemented for current defaults; future increases require new proof`
+
+After Phases 1-4 expose the true safe overlap, test:
+
+- `ESHU_REDUCER_WORKERS=8`,
+- `ESHU_REDUCER_WORKERS=16`,
+- batch claim size equal to worker count,
+- shared projection workers `8-16`,
+- shared projection partitions `16-32`,
+- multiple reducer pods only after unique lease ownership and fencing are
+  proven.
+
+Higher worker counts should be adopted only when they reduce wall clock without
+raising retry rate, dead letters, graph inconsistency, or NornicDB conflict
+frequency.
+
+## Acceptance Criteria
+
+The reducer throughput phase is complete when:
+
+- the 20-25 repo mixed corpus drains in less than `10m`,
+- the 100 repo corpus drains in less than `30m`,
+- the 896 repo corpus drains in less than `90m`, with a stretch target near the
+  existing production expectation of `45m-55m`,
+- failed and dead-letter queue counts remain `0`,
+- graph/API truth checks pass for semantic entities, code calls, SQL
+  relationships, workloads, and deployment mapping,
+- the status surface can explain the slowest active domain without log mining,
+- worker utilization drops only when no safe eligible work remains.
+
+Closeout result on 2026-05-03: PR #129 met the wall-clock and correctness
+criteria for this ADR. The accepted full-corpus proof drained the `896`-repo
+corpus in about `14m33s`, kept failed and dead-letter rows at `0`, restarted
+API and MCP against the completed stack, and validated graph/API/Postgres
+relationship-evidence drilldown and representative service/query truth. Treat
+new reducer scheduling work after this point as a new slice, not as unfinished
+PR #129 work.
+
+## Non-Goals
+
+- Do not make NornicDB sequential reducer writes the final architecture.
+- Do not blindly default worker count to vCPU count without conflict evidence.
+- Do not tune timeouts as the primary solution.
+- Do not remove semantic readiness gates to make wall-clock numbers look
+  better.
+- Do not run the full corpus for every speculative change.
+- Do not add backend-specific branches outside documented adapter seams.
+
+## Risks
+
+- Narrowing conflict keys incorrectly can produce duplicate or missing graph
+  edges.
+- Increasing workers can worsen NornicDB contention if query shapes still scan
+  or relationship probes remain expensive.
+- Additional indexes can improve reads and writes while also increasing write
+  amplification.
+- Multi-pod reducers are unsafe until lease owners and ack/fail fencing are
+  process-unique.
+- Overfitting to one noisy repo can hide corpus-level behavior; every focused
+  optimization still needs medium-corpus proof.
+
+## Open Questions
+
+- Which reducer domains are blocked by conflict policy versus graph write time?
+- Which NornicDB writes are scanning despite available indexes?
+- What is the safe partition key for code-call and repo-dependency shared
+  runners?
+- Does direct edge-between indexing remove the relationship `MERGE` hot path,
+  or do Eshu Cypher shapes still need label-specific splitting?
+- How much of the tail remains after semantic entity graph writes are fixed?
+
+## Phase 1 Runtime Evidence
+
+The clean 20-repo proof after stopping outstanding remote runs used Eshu
+`0aa345d1`, rebuilt `eshu`, `eshu-api`, `eshu-ingester`, and `eshu-reducer`, and
+ran against the first 20 repos from the remote test corpus with NornicDB
+`v1.0.43` via the edge-index binary. `ESHU_REDUCER_WORKERS` was unset; the
+runtime logged the default `workers=8`.
+
+Run `eshu-reducer-clean20-20260428T131056Z` drained healthy:
+
+- wall clock from graph start to detected queue drain: `162s`;
+- durable queue wall: projector `105.760s`, reducer `137.209s`;
+- terminal state: projector `20` succeeded, reducer `158` rows succeeded,
+  `pending=0`, `in_flight=0`, `retrying=0`, `dead_letter=0`, `failed=0`;
+- reducer executions logged: `177` successes because deployment mapping
+  re-executed during the local-authoritative reopen flow;
+- reducer queue wait: `p50=5.579s`, `p95=61.525s`, `max=61.549s`;
+- reducer handler duration: `p50=0.036s`, `p95=3.048s`, `max=11.979s`.
+
+The slowest handler was
+`sql_relationship_materialization/sql:php-large-repo-a`
+(`11.979s` handler, `20.328s` queue wait). The largest queue-wait cluster was
+deployment mapping at about `61.5s` with sub-second handlers, which points to
+phase/readiness waiting rather than handler CPU. The largest source-local
+projector item was `php-large-repo-a`: `153,902` facts,
+`138,712` content entities, `66.356s` projector duration, and `37.291s`
+canonical graph write.
+
+The focused 4-repo proof used the repos that appeared in the 20-repo reducer
+hot rows: `php-large-repo-a`, `php-large-repo-c`,
+`api-node-communicator`, and `node-service-a`.
+Run `eshu-reducer-large4-20260428T131734Z` also drained healthy:
+
+- wall clock from graph start to detected queue drain: `161s`;
+- durable queue wall: projector `102.459s`, reducer `130.741s`;
+- terminal state: projector `4` succeeded, reducer `32` rows succeeded,
+  all failure classes null;
+- reducer executions logged: `35` successes, again due deployment mapping
+  re-execution;
+- reducer queue wait: `p50=3.005s`, `p95=61.598s`, `max=72.458s`;
+- reducer handler duration: `p50=0.389s`, `p95=6.759s`, `max=11.504s`.
+
+This makes the 4-repo set a good next proof loop. It reproduces the largest
+handler families without waiting for the full 20-repo corpus, and it keeps the
+correctness surface broad enough to include service repos, deployment evidence,
+SQL relationships, semantic materialization, and workload/deployment mapping.
+The next optimization should not start by increasing worker counts. It should
+explain why `php-large-repo-a` dominates SQL, semantic,
+deployable-unit, workload, and deployment reducers, then prove whether the
+primary fix is query shape, backend lookup behavior, or conflict/readiness
+routing.
+
+Every fresh performance proof after this point must capture host resource
+headroom alongside queue timings: CPU idle, disk I/O idle or utilization,
+run wall time, queue wait, handler duration, conflict blocking, and graph
+backend query/write timing. Reducer speed work must classify the bottleneck as
+Cypher/query shape, graph index or lookup behavior, data shape/write
+amplification, conflict routing, or real CPU/disk saturation before changing
+worker defaults.
+
+The first resource-headroom proof on the focused 4-repo corpus used commit
+`9c0b6207`, rebuilt all runtime binaries, kept `ESHU_REDUCER_WORKERS` unset, and
+captured CPU idle plus disk utilization during the run. Run
+`eshu-reducer-large4-resource-baseline-20260428T141520Z` drained healthy:
+
+- wall clock from graph start to detected queue drain: `153s`;
+- terminal state: projector `4` succeeded, reducer `32` rows succeeded, with
+  `pending=0`, `in_flight=0`, `retrying=0`, `dead_letter=0`, `failed=0`;
+- `cpu_idle_avg=80.58%`, `cpu_idle_p50=86.00%`, `cpu_idle_min=22.00%`;
+- `disk_util_avg=1.28%`, `disk_util_max=46.72%`, so disk idle never fell below
+  about `53%`;
+- slowest handler:
+  `sql_relationship_materialization/sql:php-large-repo-a`
+  (`11.433s` handler, `20.358s` queue wait);
+- slowest waits were `deployment_mapping` rows at about `100.9s`, while their
+  handlers stayed sub-second.
+
+This evidence rules out host CPU or disk saturation as the primary bottleneck
+for the focused corpus. The next useful questions are why eligible work waits,
+where shared projection backlog accumulates, and whether graph write/query
+shapes are forcing backend-side scans or serialized existence checks.
+
+The first Cypher-shape pilot used commit `55740672`, which writes SQL
+relationship rows with concrete source and target entity labels when the
+reducer knows them, while preserving broad-label fallback for older queued rows.
+Run `eshu-reducer-large4-sql-labelscope-20260428T142359Z` also rebuilt all
+runtime binaries and drained healthy:
+
+- wall clock from graph start to detected queue drain: `154s`;
+- terminal state: projector `4` succeeded, reducer `32` rows succeeded, with
+  `pending=0`, `in_flight=0`, `retrying=0`, `dead_letter=0`, `failed=0`;
+- `cpu_idle_avg=80.74%`, `cpu_idle_p50=86.00%`, `cpu_idle_min=22.00%`;
+- `disk_util_avg=1.28%`, `disk_util_max=46.00%`, so disk idle never fell below
+  about `54%`;
+- slowest SQL handler changed from `11.433s` to `11.702s`, and total wall
+  changed from `153s` to `154s`.
+
+The label-scoped SQL write shape is more selective and keeps the adapter on a
+clear label-property anchor, but this proof did not improve the focused corpus.
+That disproves broad SQL labels as the dominant current wall-clock cause for
+these repos. The next reducer slice should split shared projection
+wait-versus-processing evidence and investigate deployment/readiness routing
+before spending more time on SQL label-shape tuning.
+
+Commit `b0c994b6` adds the shared projection wait-versus-processing split for
+that next proof. The runner now records selected intent age with
+`outcome=processed`, readiness-blocked selected intent age with
+`outcome=readiness_blocked`, and graph-write/completion processing duration
+after partition selection. It also logs blocked readiness wait, lease-claim
+duration, selection duration, and processing duration for completed shared
+projection cycles. This does not change claim order, partition count, worker
+count, readiness gates, or graph-write behavior.
+
+Run `eshu-reducer-large4-shared-telemetry-20260428T144634Z` used commit
+`766fb142`, rebuilt all runtime binaries, kept `ESHU_REDUCER_WORKERS` unset
+(`workers=8`), and reran the same focused 4-repo corpus. It drained healthy:
+
+- wall clock from graph start to detected queue drain: `138s`;
+- terminal state: projector `4` succeeded, reducer `32` rows succeeded, with
+  `pending=0`, `in_flight=0`, `retrying=0`, `dead_letter=0`, `failed=0`;
+- durable source-local projector wall: `102.315s`;
+- durable reducer wall by longest domain: `sql_relationship_materialization`
+  `130.129s`;
+- CPU remained idle-heavy: `cpu_idle_avg=79.25%`, `cpu_idle_p50=85.00%`,
+  `cpu_idle_min=24.00%`;
+- disk stayed below saturation: `disk_util_avg=9.34%`,
+  `disk_util_p50=4.94%`, `disk_util_max=48.00%`.
+
+The largest reducer waits were still reopened `deployment_mapping` rows for the
+smaller repos at about `61.29s` queue wait with `0.15s`, `0.16s`, and `1.08s`
+handlers. The largest handler remained
+`sql_relationship_materialization/sql:php-large-repo-a`
+(`11.165s` handler, `19.439s` queue wait). The large PHP repo also produced
+the next cluster of `5.6s-6.7s` handlers across code-call, deployable-unit,
+inheritance, semantic, deployment, and workload domains.
+
+The important new signal is the shared follow-up lane. The run wrote only
+`code_calls` shared projection intents: `3869` total, `3869` completed, with
+`119.682s` wall. Code-call projection logs showed repeated readiness-blocked
+cycles while canonical nodes for the large PHP repo were not committed, then a
+final large cycle wrote `2851` rows in `4.019s`. The smaller repos wrote `244`,
+`105`, and `665` rows in `0.187s`, `0.157s`, and `0.719s`. That means the
+focused shared follow-up wall was dominated by readiness/polling and the
+source-local canonical long pole, not by code-call graph write duration.
+
+This also exposed an observability seam: `code_calls` shared intents are owned
+by the dedicated code-call projection runner, not the generic
+`SharedProjectionRunner` that commit `b0c994b6` instrumented. The next
+observability slice should add the same wait-versus-processing split to the
+code-call projection runner before changing code-call worker counts or
+partitioning.
+
+Commit `742d0c56` closes that seam for the dedicated code-call projection
+runner. The runner now reports selected intent wait, readiness-blocked intent
+wait, selection duration, lease-claim duration, and graph-write/completion
+processing duration through the same shared projection histograms and structured
+cycle logs used by the generic shared projection runner. The change preserves
+lease scope, readiness gating, acceptance-unit selection, graph write shape, and
+worker defaults. Focused verification:
+
+- `go test ./internal/reducer -run 'TestCodeCallProjectionRunnerProcessesRepoAtomically|TestCodeCallProjectionRunnerProcessOnceReportsReadinessBlockedWait|TestCodeCallProjectionRunnerRecordCycleUsesAcceptanceLogKeys' -count=1`;
+- `go test ./internal/reducer ./internal/telemetry -count=1`;
+- `go vet ./internal/reducer ./internal/telemetry`;
+- `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`;
+- `git diff --check`.
+
+The next runtime proof should rerun the focused 4-repo corpus with commit
+`742d0c56` and inspect `domain=code_calls` wait versus processing fields before
+changing polling, readiness publication, partitioning, or worker counts.
+
+Run `eshu-reducer-large4-codecall-telemetry-20260428T161400Z` used commit
+`e0a407ae` with rebuilt binaries and the same focused 4-repo corpus. It drained
+healthy in `141s`, which is effectively no performance improvement over the
+prior `138s` run and should be treated as instrumentation evidence rather than
+an optimization. Durable state ended at projector `4` succeeded and reducer `32`
+succeeded. Host resources remained underused: `cpu_idle_avg=88.45%`,
+`cpu_idle_p50=97.00%`, `cpu_idle_min=21.00%`, `disk_util_avg=5.49%`,
+`disk_util_p50=4.87%`, and `disk_util_max=44.40%`.
+
+The dedicated code-call telemetry showed `code_calls` shared projection intents
+at `3870` total and `3870` completed with `124.162s` table wall. Completed
+code-call cycles, however, spent only about `10.85s` in measured processing:
+small repos processed `105`, `244`, and `665` rows in `0.142s`, `0.214s`, and
+`0.800s`; the large PHP repo processed `2852` rows in `9.696s`. Readiness-blocked
+logs fired `25` times with max blocked wait `18.653s`; the largest completed
+cycle selected-intent wait was `22.727s`. This confirms the shared lane wall is
+mostly not code-call graph-write CPU time. The next optimization proof should
+focus on readiness publication/polling and source-local canonical/content
+projection timing, while separately keeping an eye on the large PHP code-call
+write and SQL handler shapes.
+
+Commit `3e870754` applies the first small readiness-polling optimization from
+that evidence. Readiness-blocked code-call cycles now wait the configured base
+poll interval instead of being treated like empty cycles that exponentially
+back off toward `5s`. On the `e0a407ae` proof this targets the visible tail
+where the final PHP code-call cycle started about `4s` after the last blocked
+readiness log; it should save seconds per readiness-blocked repo/run, not
+hours by itself. The change does not alter readiness gates, acceptance-unit
+selection, leases, worker defaults, or graph writes. Verification:
+
+- `go test ./internal/reducer -run 'TestCodeCallProjectionRunnerUsesBasePollIntervalWhileReadinessBlocked|TestCodeCallProjectionRunnerRunContinuesAfterCycleError|TestCodeCallProjectionRunnerProcessOnceReportsReadinessBlockedWait' -count=1`;
+- `go test ./internal/reducer ./internal/telemetry -count=1`;
+- `go vet ./internal/reducer ./internal/telemetry`.
+
+Run `eshu-reducer-large4-readiness-poll-20260428T163313Z` used commit
+`11d74089` with rebuilt binaries and the same focused 4-repo corpus. It drained
+healthy in `139s`, which is effectively flat versus the prior `141s` and `138s`
+proofs. This confirms the code-call readiness polling change is a tail-latency
+cleanup, not the main reducer throughput win. Durable state ended at projector
+`4` succeeded and reducer `32` succeeded. Host resources again showed headroom:
+`cpu_idle_avg=77.10%`, `cpu_idle_p50=87.00%`, `cpu_idle_min=24.00%`,
+`disk_util_avg=9.33%`, `disk_util_p50=4.86%`, and `disk_util_max=44.40%`.
+
+The same run sharpens the next reducer targets. `code_calls` completed `3870`
+shared intents with `119.767s` table wall, but measured completed code-call
+cycles spent only about `5.12s` in processing for `3866` written rows; the
+largest cycle wrote the PHP repo's `2852` rows in `3.98s` processing and
+`4.04s` total. Readiness-blocked code-call logs fired more frequently under the
+base poll interval (`122` observations, max blocked wait `18.979s`), but wall
+time stayed bounded by other reducer dependencies. Reducer handler evidence now
+points at `sql_relationship_materialization` (`handler_max=11.325s`,
+`queue_wait_max=73.366s`, `handler_sum=13.232s`) and deployment mapping queue
+wait (`queue_wait_sum=200.698s` with only `8.530s` handler sum) before any
+worker-count change.
+
+Commit `02d9cdc7` applies the same readiness-polling correction to the generic
+shared projection runner. Readiness-blocked SQL and inheritance shared
+projection partitions now wait the configured base poll interval instead of
+being counted as empty cycles that exponentially back off. The change preserves
+readiness gates, lease scope, partition count, worker defaults, and graph write
+shape; it only keeps known readiness-blocked reducer work responsive. Focused
+verification:
+
+- `go test ./internal/reducer -run 'TestSharedProjectionRunnerUsesBasePollIntervalWhileReadinessBlocked|TestSharedProjectionRunnerBackoffOnEmptyCycles|TestSharedProjectionRunnerBackoffResetsOnWork' -count=1`;
+- `go test ./internal/reducer ./internal/telemetry -count=1`;
+- `go vet ./internal/reducer ./internal/telemetry`;
+- `git diff --check`.
+
+Commit `acc50494` narrows the NornicDB local-authoritative projector-drain
+claim gate from global to same-scope. Reducer graph writes still wait for
+source-local projection for their own `scope_id`, preserving the same-scope
+destructive-write correctness gate, but unrelated repos can drain reducer work
+while a large repo is still in source-local projection. Focused verification:
+
+- `go test ./internal/storage/postgres -run 'TestReducerQueueClaimCanWaitForProjectorDrain|TestClaimBatchCanWaitForProjectorDrain' -count=1`;
+- `go test ./internal/storage/postgres ./internal/reducer -count=1`;
+- `go vet ./internal/storage/postgres ./internal/reducer`;
+- `git diff --check`.
+
+Run `eshu-reducer-large4-scope-drain-fresh-20260428T164757Z` used commit
+`acc50494` with rebuilt binaries and the same focused 4-repo corpus. It drained
+healthy in `140s`, so wall time stayed effectively flat versus the `139s`,
+`141s`, and `138s` proofs. The scheduling evidence changed materially,
+however: deployment-mapping reducer queue wait dropped from `200.698s` summed
+wait in the prior proof to `14.618s`, and SQL relationship reducer queue wait
+dropped from `101.708s` to `33.651s`. The run completed with projector `4`
+succeeded, reducer `32` succeeded, no failed/dead-letter work, and
+`code_calls` shared intents `3870/3870` completed.
+
+The remaining wall-clock long pole is now explicit. Source-local projection
+still had `103.328s` durable wall and the largest repo still spent `59.909s`
+in `project_generation`, `37.082s` in canonical graph write, and `21.133s` in
+content write. Reducer-side SQL handler cost remains the highest handler slice:
+`sql_relationship_materialization` had `handler_sum=13.163s` and
+`handler_max=11.543s`. Host resources remained underused:
+`cpu_idle_avg=79.00%`, `cpu_idle_p50=87.00%`, `cpu_idle_min=26.00%`,
+`disk_util_avg=9.51%`, `disk_util_p50=4.85%`, and `disk_util_max=41.20%`.
+This proves the scoped gate removes false reducer serialization but is not
+enough by itself; the next reducer-owned optimization should split or reshape
+the SQL relationship write path and continue conflict-domain analysis for
+same-repo final reducers.
+
+Commit `367060fd` scopes grouped SQL relationship retractions by exact source
+label and relationship type while preserving the existing broad single-statement
+fallback for execute-only callers. This removes the NornicDB-unfriendly grouped
+shape `MATCH (source)-[rel:REFERENCES_TABLE|HAS_COLUMN|TRIGGERS]->()` from the
+normal reducer grouped path. Focused verification:
+
+- `go test ./internal/storage/neo4j -count=1`;
+- `go test ./internal/reducer -run 'TestSQLRelationship|TestExtractSQLRelationship' -count=1`;
+- `go test ./internal/storage/neo4j ./internal/reducer -count=1`;
+- `go vet ./internal/storage/neo4j ./internal/reducer`;
+- `git diff --check`.
+
+Run `eshu-reducer-large4-sql-retract-scope-20260428T170204Z` used commit
+`367060fd` with rebuilt binaries and the same focused 4-repo corpus. It drained
+healthy in `138s` with projector `4` succeeded, reducer `32` succeeded, no
+failed/dead-letter work, and `code_calls` shared intents `3870/3870`
+completed. The SQL handler moved only slightly:
+`sql_relationship_materialization` had `handler_sum=12.275s` and
+`handler_max=10.634s`, versus `13.163s` and `11.543s` in the scoped-drain
+proof. SQL reducer queue wait stayed effectively the same (`32.946s` summed
+wait versus `33.651s`). Host resources again had headroom:
+`cpu_idle_avg=78.90%`, `cpu_idle_p50=86.00%`, `cpu_idle_min=23.00%`,
+`disk_util_avg=14.48%`, `disk_util_p50=12.90%`, `disk_util_max=49.80%`, and
+`disk_idle_avg=85.52%`.
+
+This proves the scoped SQL retraction shape is safe and marginally cleaner, but
+not a meaningful wall-clock reducer fix on this 4-repo proof. The next reducer
+slice should either add inner-step SQL handler timing (`ListFacts`, extraction,
+retract, write) or shift to the larger measured full-corpus reducer cost:
+semantic entity materialization query/write shape.
+
+Commit `afd9fe5f` adds inner-step timing to
+`semantic_entity_materialization`: fact loading, extraction, retract decision,
+graph write, readiness publication, and total handler duration. Focused
+verification:
+
+- `go test ./internal/reducer -run 'TestSemanticEntityMaterializationHandlerLogsStageTiming|TestSemanticEntityMaterialization' -count=1`;
+- `go test ./internal/reducer -count=1`;
+- `go test ./internal/reducer ./internal/telemetry -count=1`;
+- `go vet ./internal/reducer`;
+- `git diff --check`.
+
+Run `eshu-reducer-large4-semantic-timing-20260428T172941Z` used commit
+`afd9fe5f` with rebuilt binaries and the same focused 4-repo corpus. It
+drained healthy in `137s` with projector `4` succeeded, reducer `32`
+succeeded, no failed/dead-letter work, and `code_calls` shared intents
+`3870/3870` completed. Host resources still had headroom:
+`cpu_idle_avg=77.21%`, `cpu_idle_p50=83.00%`, `cpu_idle_min=23.00%`,
+`disk_util_avg=14.05%`, `disk_util_p50=8.90%`, `disk_util_max=49.00%`, and
+`disk_idle_avg=85.95%`.
+
+The semantic split disproved semantic graph write as the focused-corpus hot
+path. Across `4` semantic handlers and `184,779` loaded facts, total semantic
+handler time was `7.428s`; `load_facts` accounted for `6.998s` of that total,
+while graph writes accounted for only `0.256s`. The largest semantic handler
+spent `5.610s` loading facts and only `0.170s` writing the graph. The next
+semantic optimization should therefore target reducer fact loading/data shape
+before Cypher write shape.
+
+The first 20-repo semantic timing run on `afd9fe5f` exposed a reducer
+readiness bug instead of producing a valid throughput proof. The durable
+reducer queue drained, but `18` `code_calls` shared intents remained pending
+across `13` acceptance units because the code-call projection runner waited
+for `semantic_nodes_committed` readiness. Those repos had canonical
+Function/Class/File nodes from source-local projection but no semantic reducer
+item that would ever publish semantic readiness. The run was manually stopped
+after evidence extraction with projector `20` succeeded, reducer `160`
+succeeded, and `code_calls` shared intents at `3969/3987` complete.
+
+Commit `5242bfce` fixes that correctness and tail-latency issue by gating
+`code_calls` shared projection on `canonical_nodes_committed` readiness while
+leaving SQL and inheritance shared edge domains gated on
+`semantic_nodes_committed`. Focused verification:
+
+- `go test ./internal/reducer -run 'TestSharedProjectionReadinessPhaseUsesCanonicalNodesForCodeCalls|TestCodeCallProjectionRunnerUsesCanonicalNodeReadiness|TestCodeCallProjectionRunnerSelectsReadyAcceptanceUnitWhenEarlierUnitIsBlockedByReadiness|TestSharedProjectionReadinessPhaseUsesSemanticNodesForSemanticEdgeDomains' -count=1`;
+- `go test ./internal/reducer -count=1`;
+- `go test ./internal/reducer ./internal/telemetry -count=1`;
+- `go vet ./internal/reducer`;
+- `git diff --check`.
+
+Run `eshu-reducer-clean20-codecall-readiness-20260428T1748Z` used commit
+`5242bfce` with rebuilt binaries and the same 20-repo corpus. It drained
+healthy in `140s`, versus the original clean 20-repo baseline at `162s`.
+The isolated contribution of `5242bfce` is correctness/tail elimination rather
+than a pure handler-speed win, but this is the first completed 20-repo proof
+after the scoped reducer slices. Terminal state was projector `20` succeeded,
+reducer `160` succeeded, and shared intents complete:
+`code_calls 3987/3987`, `repo_dependency 7/7`.
+
+The `5242bfce` run kept the machine idle-heavy:
+`cpu_idle_avg=77.30%`, `cpu_idle_p50=86.00%`, `cpu_idle_min=18.00%`,
+`disk_util_avg=9.15%`, `disk_util_p50=4.83%`, `disk_util_max=44.20%`, and
+`disk_idle_avg=90.85%`. Reducer handler aggregates still point away from CPU
+or disk saturation: `semantic_entity_materialization` handled `7` items with
+`handler_sum=7.985s`, `handler_max=5.910s`; `sql_relationship_materialization`
+handled `20` items with `handler_sum=13.874s`, `handler_max=11.076s`; and
+`workload_materialization` handled `33` items with `handler_sum=12.212s`,
+`handler_max=5.785s`.
+
+The 20-repo semantic split matched the focused 4-repo result. Across `7`
+semantic handlers and `190,324` loaded facts, semantic handler total was
+`7.968s`; fact loading accounted for `7.383s`, extraction `0.148s`, graph
+writes `0.402s`, and readiness publication `0.028s`. Code-call shared
+projection completed without readiness-blocked observations; `20` completed
+cycles wrote `3,967` rows with `7.802s` processing time and `8.072s` total
+cycle duration.
+
+Commit `d7b7095a` adds inner-step timing to
+`sql_relationship_materialization`: fact loading, extraction, retraction,
+write-row shaping, graph write, and total handler duration. Focused
+verification:
+
+- `go test ./internal/reducer -run 'TestSQLRelationshipHandlerLogsStageTiming|TestSQLRelationshipHandlerWritesEdges|TestExtractSQLRelationship' -count=1`;
+- `go test ./internal/reducer -count=1`;
+- `go test ./internal/reducer ./internal/telemetry -count=1`;
+- `go vet ./internal/reducer`;
+- `git diff --check`.
+
+Run `eshu-reducer-large4-sql-timing-20260428T1758Z` used commit `d7b7095a`
+with rebuilt binaries and the same focused 4-repo corpus. It drained healthy
+in `139s`, with projector `4` succeeded, reducer `32` succeeded, and
+`code_calls` shared intents `3870/3870` completed. The SQL split showed graph
+write time was not the SQL bottleneck: across `4` SQL handlers and `184,782`
+loaded facts, total SQL handler time was `12.193s`; fact loading was `6.654s`,
+SQL relationship extraction was `0.127s`, retraction was `5.385s`, write-row
+shaping was effectively zero, and graph writes were only `0.027s`.
+
+Commit `0bb0fc17` applies the measured SQL optimization: skip SQL relationship
+retraction for first-generation attempts when `PriorGenerationCheck` proves the
+scope has no previous generation. Retries remain conservative (`attempt_count`
+greater than `1` still retracts), and SQL still retracts when a prior generation
+exists. Focused verification:
+
+- `go test ./internal/reducer -run 'TestSQLRelationshipHandlerSkipsFirstGenerationRetract|TestSQLRelationshipHandlerRetractsWhenPriorGenerationExists|TestSQLRelationshipHandlerLogsStageTiming|TestSQLRelationshipHandlerWritesEdges' -count=1`;
+- `go test ./internal/reducer -count=1`;
+- `go test ./internal/reducer ./internal/telemetry -count=1`;
+- `go vet ./internal/reducer`;
+- `git diff --check`.
+
+Run `eshu-reducer-large4-sql-skip-retract-20260428T1805Z` used commit
+`0bb0fc17` with rebuilt binaries and the same focused 4-repo corpus. It drained
+healthy in `133s`, improving from the prior SQL timing proof at `139s`.
+SQL handler sum dropped from `12.194s` to `6.920s`, SQL handler max dropped
+from `10.636s` to `5.516s`, and measured SQL retraction time dropped from
+`5.385s` to `0.000s`. The remaining SQL cost was almost entirely fact loading:
+`6.752s` load time across `184,782` facts, with graph writes at `0.036s`.
+Host resources still had headroom: `cpu_idle_avg=77.16%`,
+`disk_idle_avg=90.16%`.
+
+Run `eshu-reducer-clean20-sql-skip-retract-20260428T1810Z` then validated the
+same change on the 20-repo corpus. It drained healthy in `134s`, improving from
+the prior completed 20-repo proof at `140s` and the original clean 20-repo
+baseline at `162s`. Terminal state was projector `20` succeeded, reducer `160`
+succeeded, and shared intents complete: `code_calls 3987/3987`,
+`repo_dependency 7/7`. SQL handler sum dropped from `13.874s` in the
+`5242bfce` 20-repo proof to `7.555s`, SQL handler max dropped from `11.076s`
+to `5.477s`, and measured SQL retraction time stayed at `0.000s`. The
+remaining SQL cost was again fact loading: `7.376s` load time across `195,020`
+facts, while graph writes were only `0.029s`.
+
+Commit `2c0c2b5a` applies the measured fact-loading/data-shape optimization
+for reducer domains that already consume only a bounded fact subset. Postgres
+`FactStore` now exposes `ListFactsByKind` over the existing
+`(scope_id, generation_id, fact_kind, observed_at)` index path, SQL
+relationship materialization loads only `content_entity` facts, and semantic
+entity materialization loads only `repository` plus `content_entity` facts so
+phase publication still has source-run evidence. Focused verification:
+
+- `go test ./internal/storage/postgres -run TestFactStoreListFactsByKindFiltersFactKinds -count=1`;
+- `go test ./internal/reducer -run 'TestSQLRelationshipHandlerUsesKindFilteredFactLoader|TestSemanticEntityMaterializationHandlerUsesKindFilteredFactLoader' -count=1`;
+- `go test ./internal/storage/postgres ./internal/reducer -count=1`;
+- `go test ./internal/reducer ./internal/telemetry -count=1`;
+- `go vet ./internal/storage/postgres ./internal/reducer`;
+- `git diff --check`.
+
+Run `eshu-reducer-large4-filtered-facts-20260428T1825Z` used commit
+`2c0c2b5a` with rebuilt binaries and the same focused 4-repo corpus. It drained
+healthy in `128s`, improving from the SQL retract-skip proof at `133s`.
+Terminal state was projector `4` succeeded, reducer `32` succeeded, and
+`code_calls 3870/3870` completed. SQL handler sum dropped from `6.920s` to
+`2.589s`; SQL fact loading dropped from `6.752s` across `184,782` facts to
+`2.430s` across `170,972` facts. Semantic handler sum was `2.613s`, with fact
+loading at `2.213s`. Host resources still had headroom in the sampled window:
+`cpu_idle_avg=91.72%`, `io_wait_avg=0.65%`, and `disk_idle_avg=89.72%`.
+
+Run `eshu-reducer-clean20-filtered-facts-20260428T1829Z` then validated the
+same change on the 20-repo corpus. It drained healthy in `128s`, improving from
+the SQL retract-skip 20-repo proof at `134s` and the original clean 20-repo
+baseline at `162s`. Terminal state was projector `20` succeeded, reducer `160`
+succeeded, and shared intents complete: `code_calls 3987/3987`,
+`repo_dependency 7/7`. SQL handler sum dropped from `7.555s` to `2.850s`;
+SQL fact loading dropped from `7.376s` across `195,020` facts to `2.677s`
+across `177,153` facts. Semantic handler sum dropped from `8.117s` to
+`4.908s`; semantic fact loading dropped from `7.412s` across `190,327` facts to
+`4.083s` across `175,418` facts. CPU and disk were still not saturated:
+`cpu_idle_avg=77.35%`, `io_wait_avg=0.99%`, and `disk_idle_avg=82.74%`.
+The wall-clock improvement is real but smaller than the handler improvement,
+which means the next throughput work should focus on the remaining large-repo
+tail and shared projection/code-call timing rather than assuming SQL or
+semantic graph writes are the bottleneck.
+
+Commit `4c2f94d3` tested the narrower conflict-domain hypothesis for
+`code_call_materialization`: code-call intent extraction no longer used the
+same queue conflict family as semantic, SQL, and inheritance materialization.
+The change preserved correctness in local tests and remote runs, but it did not
+produce a wall-clock win. Focused run
+`eshu-reducer-large4-codecall-conflict-20260428T1842Z` drained healthy in
+`127s` versus the filtered-fact 4-repo baseline at `128s`. The large PHP repo's
+semantic queue wait dropped from `13.252s` to `7.454s`, and SQL queue wait
+dropped from `16.260s` to `11.461s`, but total wall time stayed flat because
+overlap shifted work into graph/shared-projection contention instead of
+removing it.
+
+Run `eshu-reducer-clean20-codecall-conflict-20260428T18Z` confirmed the same
+result on the 20-repo corpus. It drained healthy in `129s`, one second slower
+than the filtered-fact 20-repo baseline at `128s`, with projector `20`
+succeeded, reducer `160` succeeded, `code_calls 3987/3987`, and
+`repo_dependency 7/7`. Code-call handler sum rose slightly from `9.565s` to
+`10.050s`; deployable and inheritance handler sums also rose slightly; SQL
+handler sum stayed essentially flat (`2.850s` to `2.934s`). CPU and disk still
+had headroom: `cpu_idle_avg=77.38%`, `io_wait_avg=1.04%`, and
+`disk_idle_avg=82.90%`. Because the measured change did not improve wall time,
+commit `d6279147` reverts `4c2f94d3`. Treat this as evidence that simply
+loosening safe queue conflict families is not enough; the next reducer slice
+should reduce large-repo graph write/data-shape cost or shared projection work,
+then retest with the same 4-repo and 20-repo ladder.
+
+Commit `5756f549` adds inner-stage timing for the two late reducer-tail domains:
+`workload_materialization` and `deployment_mapping`. Focused run
+`eshu-reducer-large4-workload-deploy-timing-20260428T1902Z` drained healthy in
+`125s` with projector `4` succeeded, reducer `32` succeeded, and
+`code_calls 3870/3870`. The large PHP repo showed the next data-shape target:
+`deployment_mapping` spent `5.386s` loading facts and wrote zero infrastructure
+rows, while `workload_materialization` spent `5.479s` loading inputs and
+produced zero candidates. Graph write time in that final workload handler was
+`0.000s`.
+
+Run `eshu-reducer-clean20-workload-deploy-timing-20260428T1905Z` confirmed the
+same shape on the 20-repo corpus. It drained healthy in `129s` with projector
+`20` succeeded, reducer `160` succeeded, `code_calls 3987/3987`, and
+`repo_dependency 8/8`. Workload materialization total was `11.439s`, of which
+`9.064s` was input loading and only `0.378s` was graph writing; the largest
+workload handler spent `5.726s` loading inputs and produced zero candidates.
+Deployment mapping total was `9.265s`, of which `8.939s` was fact loading; it
+extracted only `2` infrastructure rows and spent `0.011s` writing
+infrastructure graph edges. CPU and disk remained idle-heavy:
+`cpu_idle_avg=77.52%`, `io_wait_avg=0.97%`, and `disk_idle_avg=82.84%`.
+This is a diagnostic win that points to filtered/narrow input loading for
+workload and deployment mapping before graph-write or worker-count changes.
+
+Commit `0fcc13a4` applies that telemetry-backed data-shape fix. Workload
+materialization now loads only `repository` and `file` facts, cross-repo
+environment enrichment loads only deployment-repo `file` facts, and deployment
+mapping infrastructure extraction loads only `repository`, `file`, and legacy
+`parsed_file_data` facts. Focused run
+`eshu-reducer-large4-workload-deploy-filtered-20260428T1925Z` drained healthy in
+`125s` with projector `4` succeeded, reducer `32` succeeded, and
+`code_calls 3869/3869`. The final large repo's workload input load dropped from
+`5.479s` to `2.892s`; deployment fact load dropped from `5.386s` to `2.780s`.
+Wall time stayed flat because the focused run remained dominated by the
+source-local long pole and shared code-call tail.
+
+Run `eshu-reducer-clean20-workload-deploy-filtered-20260428T1928Z` validated the
+change on the 20-repo corpus. It drained healthy in `127s`, improving from the
+workload/deployment timing proof at `129s` and the filtered-fact baseline at
+`128s`. Terminal state was projector `20` succeeded, reducer `160` succeeded,
+`code_calls 3987/3987`, and `repo_dependency 7/7`. Workload input loading
+dropped from `9.064s` to `4.434s`; workload total dropped from `11.439s` to
+`7.208s`. Deployment fact loading dropped from `8.939s` to `4.939s`;
+deployment total dropped from `9.265s` to `5.441s`. CPU and disk still had
+headroom: `cpu_idle_avg=77.39%`, `io_wait_avg=1.23%`, and
+`disk_idle_avg=80.57%`. This is a measured handler win with a small 20-repo
+wall-clock win, and it reinforces that the remaining reducer work should keep
+reducing unnecessary input/backend work before increasing concurrency.
+
+Commit `540fa708` filters the remaining broad reducer input loads where the
+handler contract is already fact-kind scoped. `code_call_materialization` and
+`deployable_unit_correlation` now load only `repository` and `file` facts;
+`inheritance_materialization` now loads only `content_entity` facts. Focused
+run `eshu-reducer-large4-remaining-filter-20260428T194911Z` rebuilt binaries
+from merge commit `54d1016d` and drained healthy with projector `4` succeeded,
+reducer `32` succeeded, and no failures. It drained in `139s`, slower than the
+prior focused workload/deployment-filtered proof at `125s`, because the
+source-local large-repo long pole varied upward: the largest projector item
+spent `65.847s`, including `36.845s` in canonical graph write and `21.015s` in
+content write. The changed reducer domains were nevertheless bounded:
+`code_call_materialization` handler sum `4.836s`, `deployable_unit_correlation`
+handler sum `3.939s`, and `inheritance_materialization` handler sum `2.827s`.
+CPU and disk still had headroom: `cpu_idle_avg=88.89%`,
+`io_wait_avg=0.33%`, and `disk_idle_avg=93.92%`.
+
+Run `eshu-reducer-clean20-remaining-filter-20260428T195448Z` then validated the
+same slice on the 20-repo corpus. It drained healthy in `131s`, versus `127s`
+for the previous 20-repo workload/deployment-filtered proof, with projector
+`20` succeeded, reducer `160` succeeded, and no failures. This is not a
+wall-clock win. The reducer handler work did move in the intended domains:
+`code_call_materialization` handler sum dropped from `9.226s` to `5.612s`;
+`deployable_unit_correlation` dropped from `8.360s` to `4.606s`; and
+`inheritance_materialization` dropped from `7.833s` to `3.116s`. The large
+source-local projector again dominated the run at `65.926s`, including
+`37.162s` canonical graph write and `21.049s` content write. CPU and disk
+remained idle-heavy (`cpu_idle_avg=83.93%`, `io_wait_avg=0.64%`,
+`disk_idle_avg=91.68%`). Classify this as a handler/data-shape win only; it
+reduces unnecessary reducer input work, but it does not reduce 20-repo wall
+time under the current source-local and shared-projection tail.
+
+Commit `29436198` adds shared projection substep telemetry. The existing
+`processing_duration_seconds` bucket is now split into
+`retract_duration_seconds`, `write_duration_seconds`, and
+`mark_completed_duration_seconds` in completed-cycle logs, with the matching
+`eshu_dp_shared_projection_step_seconds` histogram labeled by `domain` and
+`write_phase`. This is a diagnostic slice only; it does not change reducer
+claiming, worker counts, or graph write semantics.
+
+Fresh focused run `eshu-reducer-large4-shared-step-fresh-20260428T201532Z`
+rebuilt binaries from commit `29436198` and drained healthy with projector
+`4/4`, reducer `32/32`, and no failures. It drained in `122s`. The largest
+source-local projector remained the large PHP repo at `148,948` facts with
+`59.618s` in `project_generation`. Code-call projection completed all `3,870`
+intents. The largest code-call cycle split its `4.085s` processing time into
+`2.728s` retract, `1.308s` write, and `0.050s` completion marking. Host
+resources stayed idle-heavy: `cpu_idle_avg=81.22%`, `io_wait_avg=0.67%`, and
+`disk_idle_avg=90.33%`.
+
+Run `eshu-reducer-clean20-shared-step-20260428T201847Z` then repeated the
+proof on the 20-repo corpus. It drained healthy with projector `20/20`,
+reducer `158/158`, no open work, and no failures. The durable drain timestamp
+was `118s` after run start. Treat the wall-clock improvement from the prior
+`131s` run as run variance until repeated because this commit only adds
+telemetry. The reducer-domain totals were nevertheless useful:
+`workload_materialization` handler sum `9.350s`, `code_call_materialization`
+`6.369s`, `deployable_unit_correlation` `5.346s`,
+`deployment_mapping` `5.062s`, `semantic_entity_materialization` `4.365s`,
+`inheritance_materialization` `3.908s`, and
+`sql_relationship_materialization` `3.906s`. Shared intents completed
+`code_calls 3987/3987` and `repo_dependency 6/6`. The largest code-call
+projection cycle split `4.033s` processing into `2.781s` retract, `1.203s`
+write, and `0.049s` completion marking. CPU and disk remained idle-heavy:
+`cpu_idle_avg=89.03%`, `io_wait_avg=0.31%`, and `disk_idle_avg=93.90%`.
+
+This evidence points the next reducer optimization at graph mutation shape
+inside shared/code-call projection, especially code-call retraction, not
+Postgres completion marking and not more generic fact input filtering. The
+next proof should either test a correctness-safe first-generation/no-op
+code-call retract skip or inspect the exact NornicDB retract Cypher/index path
+before changing concurrency defaults.
+
+Commit `2ac5712d` tested the first code-call retract shape cleanup by narrowing
+the relationship family selected for each evidence source. `parser/code-calls`
+now retracts only `CALLS|REFERENCES`, while `parser/python-metaclass` retracts
+only `USES_METACLASS`; unknown evidence sources keep the previous broad
+fallback. This preserves the repo/evidence-source correctness fence and does
+not change reducer worker counts or queue scheduling.
+
+Focused run `eshu-reducer-large4-narrow-retract-20260428TXXXX` rebuilt binaries
+from commit `2ac5712d` and drained healthy with projector `4/4`, reducer
+`32/32`, and no failures. It drained in `126s`, versus `122s` for the prior
+shared-step telemetry proof. Code-call projection still completed all `3,870`
+intents. The code-call projection aggregate moved only slightly:
+`duration_sum 5.324s -> 5.250s`, `retract_sum 3.507s -> 3.545s`,
+`write_sum 1.635s -> 1.523s`, and `max_retract 2.728s -> 2.771s`.
+CPU and disk remained idle-heavy: `cpu_idle_avg=81.44%`,
+`io_wait_avg=1.00%`, and `disk_idle_avg=90.18%`.
+
+Run `eshu-reducer-clean20-narrow-retract-20260428T2045Z` repeated the proof on
+the 20-repo corpus. It drained healthy with projector `20/20`, reducer
+`160/160`, no open work, and no failures. Wall time was `127s`, versus `118s`
+for the prior telemetry-only proof. Code-call projection completed all `3,987`
+intents and repo-dependency projection completed `7/7`. Code-call projection
+aggregate was effectively flat: `duration_sum 7.896s -> 7.912s`,
+`processing_sum 7.702s -> 7.685s`, `retract_sum 5.937s -> 5.775s`,
+`write_sum 1.578s -> 1.686s`, `max_retract 2.781s -> 2.794s`, and
+`max_write 1.203s -> 1.320s`. Resources again showed headroom:
+`cpu_idle_avg=80.22%`, `io_wait_avg=0.78%`, and `disk_idle_avg=90.40%`.
+
+Classify this as a safe query-shape cleanup but a rejected wall-clock
+hypothesis. Removing the unrelated relationship type from each evidence-source
+retract did not move the dominant `CALLS|REFERENCES` large-repo retract. The
+next reducer optimization should inspect or change the actual repo-id anchored
+NornicDB retract path, including whether `Function`, `Class`, and `File`
+`repo_id` lookups have usable indexes, or prove a first-generation/no-op
+code-call retract skip from durable projection state before changing worker
+defaults.
+
+Commit `1ea01796` then tested the direct follow-up hypothesis: add NornicDB
+`repo_id` lookup indexes for `Function`, `Class`, and `File`, and split
+code-call retracts into label-scoped grouped statements so NornicDB could
+theoretically enter through concrete label + property anchors instead of the
+multi-label `Function|Class|File` shape. Focused run
+`eshu-reducer-large4-label-retract-complete-20260428T2122Z` rebuilt binaries
+from `1ea01796` and used the corrected proof harness that waits for both fact
+work and shared projection intents. It drained healthy with projector `4/4`,
+reducer `32/32`, and `code_calls 3870/3870`, but performance regressed:
+complete wall was `132s`; code-call projection `duration_sum` rose to
+`16.786s`; `retract_sum` rose to `15.100s`; and the largest code-call retract
+rose from the prior `~2.77s` band to `12.172s`. CPU and disk remained idle-heavy
+(`cpu_idle_avg=80.05%`, `io_wait_avg=0.68%`, `disk_idle_avg=91.56%`), so this
+was not a host saturation problem.
+
+Commit `12a0a0a3` reverts `1ea01796`. Classify the label-scoped grouped
+retract/index experiment as a rejected throughput hypothesis. The next attempt
+should not split code-call retracts into multiple grouped label statements
+without a NornicDB-side plan or direct query-profile evidence that proves the
+backend can avoid repeating the relationship delete work per label.
+
+Commit `6a6d6c36` applies the durable no-op retract proof for the code-call
+shared lane. The runner skips code-call retraction only when all of these are
+true:
+
+- the loaded acceptance unit has active rows,
+- no stale rows are present for that acceptance unit,
+- the intent store can prove there are no previously completed code-call
+  intents for the same `scope_id + acceptance_unit_id + projection_domain`.
+
+If the history lookup is unavailable, errors, or finds prior completed work,
+the runner keeps the conservative retract-before-write path. This preserves the
+retry and generation-change safety rule: a new generation that sees stale rows
+still retracts, so partial writes from an earlier uncompleted generation cannot
+survive accidentally.
+
+Focused run `eshu-reducer-large4-codecall-skip-20260428T2210Z` rebuilt binaries
+from `6a6d6c36` and drained healthy with projector `4/4`, reducer `32/32`,
+and `code_calls 3870/3870`. Wall time was `122s`, down from `126s` for the
+corrected narrow-retract proof. More importantly, the code-call projection hot
+substep moved decisively: `retract_sum 3.545s -> 0.000s`,
+`duration_sum 5.250s -> 1.844s`, `processing_sum 5.146s -> 1.744s`, and
+`max_duration 4.092s -> 1.415s`. CPU and disk remained idle-heavy:
+`cpu_idle_avg=80.44%`, `io_wait_avg=0.56%`, and `disk_idle_avg=89.52%`.
+
+Run `eshu-reducer-clean20-codecall-skip-20260428T2215Z` repeated the proof on
+the 20-repo corpus and drained healthy with projector `20/20`, reducer
+`160/160`, `code_calls 3987/3987`, `repo_dependency 7/7`, no open work, and no
+failures. Wall time was `126s`, roughly flat against the corrected
+narrow-retract `127s` proof, but the code-call projection aggregate again
+showed the intended reducer-local win: `retract_sum 5.775s -> 0.000s`,
+`duration_sum 7.912s -> 2.016s`, `processing_sum 7.685s -> 1.787s`, and
+`max_duration 4.223s -> 1.356s`. CPU and disk stayed idle-heavy:
+`cpu_idle_avg=80.17%`, `io_wait_avg=0.78%`, and `disk_idle_avg=90.42%`.
+
+Classify this as a measured reducer handler win, not yet a mixed-corpus
+wall-clock breakthrough. The first-projection retract was real wasted work and
+is now removed safely, but the 20-repo wall still sits around the same
+`126-127s` band. That supports a reducer architecture checkpoint: the remaining
+large win is probably not another code-call Cypher tweak. The next track should
+re-evaluate how source-local completion, reducer-domain ordering, shared-lane
+readiness, and graph backend writes interact as a whole while CPU and disk are
+idle.
+
+An uncommitted signal-predicate experiment then tested whether workload and
+deployment mapping could improve further by asking Postgres for only
+repository facts plus file facts with workload, environment, or Terraform
+signals. The focused 4-repo run
+`eshu-reducer-large4-signal-facts-20260428T2230Z` drained healthy with
+projector `4/4`, reducer `32/32`, and `code_calls 3870/3870`, but wall time
+regressed slightly from `122s` to `125s`. The specific targeted substeps also
+regressed: deployment fact load moved from `3.974s` total / `2.842s` max to
+`4.559s` total / `3.254s` max, and workload input load moved from `3.485s`
+total / `2.854s` max to `4.025s` total / `3.300s` max. CPU and disk stayed
+idle-heavy (`cpu_idle_avg=80.72%`, `io_wait_avg=0.61%`,
+`disk_idle_avg=90.71%`). Classify this as a rejected data-shape hypothesis:
+JSON/path signal predicates were more expensive than the already-landed
+fact-kind filter on this corpus, so no code from that experiment was retained.
+Future attempts should use durable signal classifications or indexed summary
+tables instead of deeper ad hoc JSON predicates in the hot load path.
+
+Run `eshu-reducer-hot3-semantic-current-20260428T2300Z` then replayed the
+three largest semantic long-poles from the original full-corpus reducer log:
+`tap-core`, `java-service-b`, and `portal-java-ycm`. It used commit
+`53da37e8` with rebuilt binaries and drained healthy with projector `3/3`,
+reducer `24/24`, `code_calls 20833/20833`, no open work, and no failures. Wall
+time was `192s`. This proof materially changes the full-corpus expectation:
+the old run's top semantic handlers were `14323s`, `12107s`, and `10617s`,
+while current code reduced those same repos to `1.983s`, `1.760s`, and
+`17.968s`. The remaining hot3 time is now mostly source-local and graph-write
+shape: `portal-java-ycm` spent `73.916s` in source-local content write,
+`33.257s` in canonical graph write, `13.032s` in semantic graph write, and
+`11.957s` in code-call shared graph write. CPU and disk remained idle-heavy
+(`cpu_idle_avg=90.41%`, `io_wait_avg=0.67%`, `disk_idle_avg=89.12%`). The
+next reducer-specific target is no longer broad semantic fact loading; it is
+large-batch graph write shape for semantic nodes and code-call edges, while the
+overall wall-clock target also needs source-local write scrutiny.
+
+Direct graph inspection confirmed this was not a data-loss speedup. The old
+full-corpus graph and the current hot3 graph had matching semantic label counts
+for the three repos after mapping each run's repo IDs:
+
+| Repo | Old repo ID | New repo ID | Semantic node counts |
+| --- | --- | --- | --- |
+| `tap-core` | `repository:r_6d86b2d4` | `repository:r_02cdc55d` | `Annotation=2749`, `Class=222`, `Enum=43`, `Function=2209`, `Interface=6`, `Variable=1321` |
+| `java-service-b` | `repository:r_97fe6172` | `repository:r_f6aad3c1` | `Annotation=2401`, `Class=274`, `Enum=31`, `Function=3266`, `Interface=1`, `Variable=3589` |
+| `portal-java-ycm` | `repository:r_c3366057` | `repository:r_aaa31158` | `Annotation=17214`, `Class=3480`, `Component=386`, `Enum=236`, `Function=42116`, `Interface=1354`, `SqlColumn=2601`, `SqlTable=158`, `SqlView=4`, `TypeAlias=59`, `Variable=41802` |
+
+Code-call graph truth also matched for the same repos: old and new runs both
+had `289` `CALLS` edges for `tap-core`, `352` for `java-service-b`, and
+`19309` for `portal-java-ycm`. This points to an actual reducer performance
+bug that had been forcing broad fact loads and expensive no-op/destructive
+graph work, not to missing output.
+
+Run `eshu-reducer-hot10-semantic-current-20260428T2315Z` extended that proof to
+the ten largest semantic reducers from the original full-corpus timing log:
+`tap-core`, `java-service-b`, `portal-java-ycm`, `webapp-monitor-a`,
+`php-large-repo-b`, `webapp-provisioning`, `bg-data-pipeline`,
+`infra-monitoring-config`, `lib-java-provisioning-entity`, and
+`webapp-react-trident`. It used commit `33e952c4` with rebuilt binaries and
+drained healthy with projector `10/10`, reducer `80/80`,
+`code_calls 54075/54075`, no open work, and no failures. Wall time was
+`210s`. The original full-corpus run spent about `64648s` of semantic handler
+worker-time on these ten repositories. Current code spent `41.037s` total, with
+`20.818s` max. CPU and disk still had substantial idle headroom:
+`cpu_idle_avg=71.93%`, `io_wait_avg=1.63%`, and `disk_idle_avg=83.81%`.
+
+The hot10 run confirmed that the old semantic tail was a real reducer waste
+path, not a graph-truth regression. Direct graph inspection matched semantic
+label counts exactly for every repo after mapping old and new repo IDs:
+
+| Repo | Old repo ID | New repo ID | Direct graph truth |
+| --- | --- | --- | --- |
+| `tap-core` | `repository:r_6d86b2d4` | `repository:r_f872800e` | All semantic label counts matched, including `Annotation=2749`, `Function=2209`, `Variable=1321` |
+| `java-service-b` | `repository:r_97fe6172` | `repository:r_b4bd1743` | All semantic label counts matched, including `Annotation=2401`, `Function=3266`, `Variable=3589` |
+| `portal-java-ycm` | `repository:r_c3366057` | `repository:r_a5aeac9b` | All semantic label counts matched, including `Annotation=17214`, `Function=42116`, `Variable=41802` |
+| `webapp-monitor-a` | `repository:r_5e25cd26` | `repository:r_2a1c9f38` | All semantic label counts matched, including `Annotation=1611`, `Function=5844`, `Variable=5999` |
+| `php-large-repo-b` | `repository:r_8c004fa2` | `repository:r_e816713b` | All semantic label counts matched, including `Directory=1822`, `Function=28926`, `Variable=131977` |
+| `webapp-provisioning` | `repository:r_c1cfbb5a` | `repository:r_d4dc6a0f` | All semantic label counts matched, including `Annotation=761`, `Function=1262`, `Variable=1826` |
+| `bg-data-pipeline` | `repository:r_4f5ff046` | `repository:r_1bed0620` | All semantic label counts matched, including `SqlColumn=1289`, `Function=1918`, `Variable=6136` |
+| `infra-monitoring-config` | `repository:r_96238560` | `repository:r_8854f8cf` | All semantic label counts matched, including `File=1724`, `Function=2683`, `Variable=10181` |
+| `lib-java-provisioning-entity` | `repository:r_2099f106` | `repository:r_ee2cd439` | All semantic label counts matched, including `Annotation=573`, `Function=677`, `Variable=401` |
+| `webapp-react-trident` | `repository:r_19da898d` | `repository:r_78bce920` | All semantic label counts matched, including `Component=107`, `Function=1341`, `Variable=7723` |
+
+The remaining hot10 wall time was no longer semantic handler execution.
+`portal-java-ycm` spent `74.743s` in source-local content write, `44.585s` in
+canonical graph write, and `15.873s` in semantic graph write. `php-large-repo-b`
+spent `51.888s` in source-local content write and `56.870s` in canonical graph
+write, while its semantic handler completed in `4.372s`. The largest code-call
+shared-projection cycles were `14.999s` and `15.953s`; both had
+`retract_duration_seconds=0`, so the current code-call tail is write-side work,
+not the previously removed first-projection retract. The next proof should
+therefore focus on large-batch graph write shape and readiness granularity, not
+more semantic fact-load micro-tuning.
+
+Run `eshu-reducer-hot20-mixed-current-20260428T222132Z` then combined the hot10
+set with ten smaller/mixed service, PHP, Ansible, Helm, ArgoCD, and Terraform
+repositories. It used commit `f52e03a4` with rebuilt binaries and drained
+healthy with projector `20/20`, reducer `160/160`, `code_calls 57987/57987`,
+`repo_dependency 3/3`, no open work, and no failures. Wall time was `305s`.
+This run clarified the reducer scheduling model: reducer work is pipelined by
+repo generation and readiness gate, not held for a single global end-of-corpus
+wave. During the run, reducers drained the first `115` domain items while
+several source-local projectors were still active; the final reducer items
+became claimable only after the last large source-local projection published
+readiness.
+
+The hot20 reducer domain summary was:
+
+| Domain | Items | Handler sum | Handler max | Queue wait sum | Queue wait max |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `semantic_entity_materialization` | 15 | `44.779s` | `18.296s` | `59.698s` | `10.501s` |
+| `code_call_materialization` | 20 | `15.312s` | `4.087s` | `12.254s` | `0.985s` |
+| `sql_relationship_materialization` | 20 | `14.889s` | `5.904s` | `127.552s` | `29.536s` |
+| `inheritance_materialization` | 20 | `14.206s` | `5.105s` | `43.042s` | `5.030s` |
+| `workload_materialization` | 25 | `11.008s` | `2.916s` | `83.464s` | `8.039s` |
+| `deployable_unit_correlation` | 20 | `10.015s` | `3.383s` | `12.395s` | `0.985s` |
+| `deployment_mapping` | 20 | `8.240s` | `2.897s` | `1363.132s` | `98.522s` |
+| `workload_identity` | 20 | `1.662s` | `0.122s` | `61.854s` | `7.035s` |
+
+The queue-wait numbers are not proof that more reducer workers would help:
+most of the largest waits were readiness waits behind active source-local
+projection, not CPU-bound reducer execution. The long source-local projections
+were `php-large-repo-b` at `177.800s`, `portal-java-ycm` at `129.435s`,
+`php-large-repo-c` at `94.499s`, `webapp-monitor-a` at `81.554s`,
+and `php-large-repo-a` at `73.353s`. CPU and disk were still not
+saturated on average: `cpu_idle_avg=72.23%`, `io_wait_avg=1.72%`, and
+`disk_idle_avg=85.38%`.
+
+The hot20 code-call shared projection tail also stayed write-side. The two
+largest cycles wrote `24583` and `20189` rows in `20.331s` and `13.654s`; both
+had `retract_duration_seconds=0`, while graph write took `19.272s` and
+`12.607s`. This confirms that first-projection retract skipping removed the
+old destructive no-op cost, and that the next reducer-specific work should
+measure and reshape large code-call `CALLS` writes rather than re-opening the
+retract path.
+
+The first code-call write-shape experiment then tested
+`ESHU_CODE_CALL_EDGE_BATCH_SIZE` without changing reducer worker count or
+correctness gates. The isolated `php-large-repo-b` proof at the previous
+default `50` drained healthy in `188s`; its code-call cycle wrote `24584`
+intents in `15.653s`, with `14.652s` spent in graph write. Batch-size overrides
+kept the same truth volume and showed a clear but flattening curve:
+
+| Run | Batch size | Wall | Code-call cycle | Graph write | CPU idle | Disk idle |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `eshu-reducer-websites-codecall-batch50-20260428T223222Z` | 50 | `188s` | `15.653s` | `14.652s` | `81.56%` | `91.08%` |
+| `eshu-reducer-websites-codecall-batch200-20260428T223542Z` | 200 | `186s` | `13.128s` | `12.105s` | `81.44%` | `91.17%` |
+| `eshu-reducer-websites-codecall-batch500-20260428T223859Z` | 500 | `184s` | `11.813s` | `10.745s` | `80.65%` | `90.97%` |
+| `eshu-reducer-websites-codecall-batch1000-20260428T224215Z` | 1000 | `183s` | `11.328s` | `10.304s` | `81.38%` | `91.59%` |
+
+The small-repo sanity check
+`eshu-reducer-tapcore-codecall-batch1000-20260428T224539Z` also drained healthy
+in `17s` with `code_calls 290/290` and a `0.064s` code-call cycle. The matched
+hot20 proof `eshu-reducer-hot20-codecall-batch1000-20260428T224610Z` then
+drained healthy with projector `20/20`, reducer `160/160`,
+`code_calls 57987/57987`, `repo_dependency 3/3`, no open work, and no failures.
+Wall moved from `305s` to `297s`. The two largest code-call cycles moved from
+`20.331s`/`13.654s` to `15.211s`/`9.067s`, while their graph-write substeps
+moved from `19.272s`/`12.607s` to `14.181s`/`8.089s`. Commit `b085803c`
+therefore raises the default code-call edge batch size from `50` to `1000`.
+Classify this as a measured reducer graph-write win with modest wall-clock
+improvement; it does not change worker defaults, queue semantics, readiness
+gates, or graph truth rules.
+
+The follow-up source-local canonical write pass intentionally stopped at an
+evidence boundary rather than continuing to tune per repo. Focused run
+`eshu-reducer-websites-canonical-phase-20260428T2303Z` on
+`php-large-repo-b` used commit `ead46ef4` with rebuilt binaries and drained
+healthy in `184s`: projector `1/1`, reducer `8/8`, `code_calls 24584/24584`,
+`cpu_idle_avg=80.62%`, and `disk_idle_avg=91.50%`. Existing telemetry was
+enough to attribute the source-local long pole: content write took `43.695s`
+(`upsert_entities=31.833s`, `upsert_files=11.507s`), canonical write took
+`43.544s`, and canonical `entities` accounted for `39.189s` of that graph
+write. Inside the entity phase, `Variable` dominated with `131,977` rows and
+`31.738s`, while `Function` contributed `28,926` rows and `7.390s`.
+
+Two experiments then bounded the obvious tuning space. Enabling the patched
+cross-file containment path with
+`ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=true` regressed the same repo:
+`eshu-reducer-websites-batched-containment-20260428T2310Z` drained healthy but
+wall rose to `264s`, canonical write rose to `124.322s`, canonical entities
+rose to `119.985s`, and `Variable` alone rose to `106.832s`. Widening
+NornicDB entity phase-group caps without changing row shape helped only
+slightly: `Function=20,Variable=20` moved the isolated repo to `180s`,
+canonical write to `39.167s`, canonical entities to `34.780s`, and
+`Variable` to `29.427s`. The matched hot20 proof
+`eshu-reducer-hot20-entity-phase20-20260428T2334Z` drained healthy with
+projector `20/20`, reducer `160/160`, `code_calls 57987/57987`,
+`repo_dependency 3/3`, `cpu_idle_avg=70.29%`, and `disk_idle_avg=88.20%`.
+Wall moved from the prior hot20 code-call batch proof at `297s` to `292s`.
+This is a small source-local graph-write improvement, not the architectural
+win needed for the full corpus.
+
+Commit `6602cec1` tested explicit projector repo-size scheduling by persisting
+source-local `fact_count` on projector work items and adding a guarded
+`ESHU_PROJECTOR_CLAIM_ORDER=size_desc` claim order. The hypothesis was that
+claiming larger source-local generations first would prevent one giant repo
+from becoming the final reducer-readiness tail. Same-commit A/B proofs rejected
+that hypothesis: focused 4-repo FIFO drained in `125s`, while size-desc drained
+in `128s`; hot20 FIFO and hot20 size-desc both drained in `301s`. Both hot20
+runs completed projector `20/20`, reducer `160/160`, `code_calls 57987/57987`,
+and `repo_dependency 3/3`, with CPU and disk still idle-heavy. Commit
+`22f37cb7` reverts the knob so the PR does not carry a public scheduler setting
+that failed to move throughput.
+
+The size-tier rejection left code-call shared write time as the next measured
+reducer-local signal. The hot20 FIFO control had `code_calls` write sum
+`28.413s`, including two large write cycles around `14.412s` and `8.088s`.
+Testing `ESHU_CODE_CALL_EDGE_BATCH_SIZE=2000` without changing defaults also
+rejected simple batch widening:
+`eshu-reducer-websites-codecall-batch2000-20260429T0010Z` drained healthy, but
+wall was `186s` and the single code-call cycle took `12.667s` with `11.589s`
+in write time, worse than the prior batch-1000 single-large proof. The next
+code-call optimization needs query/backend shape changes, not more rows per
+grouped statement.
+
+Commit `519dd6a9` tested the first ESHU-side code-call query-shape candidate:
+carry parser-owned `Function`/`Class` labels into code-call shared intent
+payloads and route writes to exact source/target label Cypher when both labels
+are known, while retaining the broad `Function|Class|File` fallback for old or
+incomplete rows. The single-large proof
+`eshu-reducer-websites-codecall-labels-20260429T0105Z` rebuilt binaries from
+that commit and drained healthy with projector `1/1`, reducer `8/8`, and
+`code_calls 24584/24584`. It did not improve throughput: wall was `184s`
+versus the prior batch-1000 single-large proof at `183s`, and the code-call
+cycle write substep moved from `10.304s` to `10.660s`. CPU and disk remained
+idle-heavy (`cpu_idle_avg=80.42%`, `io_wait_avg=0.46%`,
+`disk_idle_avg=90.90%`). Commit `b0b88a44` reverts the slice. Classify this
+as a rejected ESHU-side label-routing hypothesis; the next code-call write
+optimization needs NornicDB relationship-MERGE/set-property hot-path evidence
+or a durable delta/write-state design, not more Eshu label splitting.
+
+Commit `87646e1b` tested whether publishing reducer intents immediately after
+the canonical graph write, before normal content-store writes, would overlap
+downstream reducer/shared work with source-local content persistence. The
+single-large proof `eshu-reducer-websites-intent-before-content-20260429T0043Z`
+rebuilt binaries and drained healthy with projector `1/1`, reducer `8/8`, and
+`code_calls 24584/24584`, but wall stayed flat at `183s`; the code-call cycle
+was `11.510s` with `10.454s` in write time, and resources remained idle-heavy
+(`cpu_idle_avg=80.00%`, `io_wait_avg=0.62%`, `disk_idle_avg=91.43%`). The small
+sanity proof `eshu-reducer-small-intent-before-content-20260429T0047Z` drained
+healthy in `13s`. The mixed proof
+`eshu-reducer-hot20-intent-before-content-87646e1b-20260429T0048Z` then drained
+healthy with projector `20/20`, reducer `160/160`, `code_calls 57987/57987`,
+and `repo_dependency 3/3`, but regressed from the current-head hot20 baseline
+at `298s` to `305s`; CPU and disk still had headroom (`cpu_idle_avg=70.88%`,
+`io_wait_avg=1.74%`, `disk_idle_avg=84.75%`). Commit `ef856c18` reverts the
+slice. Classify this as a rejected readiness/ordering overlap hypothesis:
+content-write ordering was not the measured wall-clock blocker on this ladder.
+
+The no-code runtime probe
+`eshu-reducer-websites-codecall-group4-20260429T0058Z` tested
+`ESHU_CODE_CALL_EDGE_GROUP_BATCH_SIZE=4` on the same single-large repo after
+reverting the ordering experiment. It drained healthy with projector `1/1`,
+reducer `8/8`, and `code_calls 24584/24584`, but regressed to `191s`; the
+code-call cycle was `17.782s` with `16.725s` in write time. Host resources
+remained idle-heavy (`cpu_idle_avg=80.44%`, `io_wait_avg=0.56%`,
+`disk_idle_avg=91.93%`). Classify this as a rejected grouped-transaction
+hypothesis; the code-call path should not widen grouped statement transactions
+without NornicDB-side evidence.
+
+NornicDB runtime-branch commit `9369a40` then adds that backend-side evidence. A focused
+regression test proves the exact Eshu code-call shape
+`UNWIND ... MATCH (source:Function {uid: row.caller_entity_id}) MATCH
+(target:Function {uid: row.callee_entity_id}) MERGE
+(source)-[rel:CALLS]->(target) SET rel...` previously executed successfully
+but missed the generalized batch-chain hot path. The patch routes no-return
+`UNWIND MATCH ... MERGE` mutation chains through the batch executor and
+preserves relationship `SET` properties for created and matched edges. Local
+microbench evidence on a 512-row code-call batch moved from the fallback path's
+`2260916375 ns/op` to the patched batch path's `1386075 ns/op` on the same
+machine. This re-opens the exact-label Eshu code-call routing that commit
+`b0b88a44` reverted, but only paired with the NornicDB hot-path fix that was
+missing in the first proof.
+
+Eshu commit `7508eecc` briefly restored exact-label code-call routing and
+remote-pulled NornicDB commit `9369a40` to test the combined hypothesis. The
+single-large proof `eshu-reducer-websites-label-hotpath-20260429T0140Z`
+rebuilt binaries and drained healthy with projector `1/1`, reducer `8/8`, and
+`code_calls 24584/24584`, but regressed to `193s`; the code-call projection
+cycle was `16.756s` with `15.648s` in graph write time. Host resources still
+had headroom (`cpu_idle_avg=81.54%`, `io_wait_avg=0.57%`,
+`disk_idle_avg=92.57%`). The small sanity proof
+`eshu-reducer-small-label-hotpath-20260429T0145Z` drained healthy in `14s` with
+`code_calls 32/32`. Classify the combined Eshu exact-label routing as a rejected
+runtime hypothesis for this PR; keep the NornicDB regression/benchmark as
+backend evidence, but do not keep the Eshu routing until a narrower data-shape
+or statement-count proof explains the large-repo regression.
+
+Commit `88f2684f` adds that missing proof surface without changing reducer
+behavior: every shared edge write now logs the execution mode, input rows,
+written rows, skipped rows, route count, statement count, batch size, group
+batch size, and duration. This is classified as a diagnostic win. The next
+single-large proof should use those log lines to compare broad code-call
+routing, exact-label routing, and NornicDB's backend hot path before another
+Cypher/data-shape change is retained.
+
+The first runtime proof with that telemetry,
+`eshu-reducer-websites-write-shape-20260429T0156Z` at Eshu commit `97a2ff61`,
+rebuilt binaries and drained `php-large-repo-b` in `188s` with projector
+`1/1`, reducer `8/8`, and `code_calls 24584/24584`. The code-call projection
+cycle took `16.810s`, with `15.770s` in graph write time. Shape logs showed
+one route, zero skipped rows, `25` grouped writes, `24,583` written rows, and
+`15.730s` summed group duration. Full 1,000-row batch duration rose from
+`0.369s` at the start to about `0.84s` near the end while CPU and disk still
+had headroom (`cpu_idle_avg=80.48%`, `io_wait_avg=0.56%`,
+`disk_idle_avg=91.53%`). This rules out route fragmentation as the current
+large code-call bottleneck and points to NornicDB relationship-write cost
+growing as `CALLS` edges accumulate.
+
+NornicDB runtime-branch commit `824c990` targets that backend cost directly:
+the no-return `UNWIND MATCH MATCH MERGE rel SET rel...` chain-batch executor
+now stages newly-created relationships and flushes them with `BulkCreateEdges`
+once per batch, while preserving same-batch duplicate-row `MERGE` semantics and
+the previous per-edge retry fallback for edge-ID collisions. Focused tests cover
+the Eshu hot-path trace and duplicate pending relationship handling. The local
+Badger accumulating benchmark for five 1,000-row code-call batches moved from
+`657270417 ns/op` to `595086583 ns/op`.
+
+The remote proof `eshu-reducer-websites-bulk-rel-20260429T021749Z` rebuilt
+NornicDB commit `824c990` and Eshu commit `521565f1`, then drained the same
+`php-large-repo-b` repo healthy with projector `1/1`, reducer `8/8`, and
+`code_calls 24584/24584`. Wall time stayed `188s`, but the code-call graph write
+fell from `15.770s` to `14.247s`, and summed edge batch duration fell from
+`15.730s` to `14.209s` across the same `25` batches and `24,583` rows. Batch
+durations ranged from `0.355s` to `0.760s`. Host headroom remained high
+(`cpu_idle_avg=80.52%`, `io_wait_avg=0.63%`, `disk_idle_avg=91.67%`). Classify
+this as a backend handler win, not a wall-clock win on the isolated large-repo
+proof; it confirms relationship create transaction overhead was real but not
+the only remaining long pole.
+
+NornicDB commit `7017ee2` tested the next backend hypothesis: once the
+edge-between index is marked ready, a typed exact-index miss should be
+authoritative and should not fall back to scanning the source node's legacy
+outgoing fanout. A focused storage benchmark with a 5,000-edge source fanout
+showed the ready-index miss path at `1880 ns/op` versus the legacy-scan miss
+path at `6063200 ns/op` with `7322494 B/op`. However, the remote Eshu proof
+`eshu-reducer-websites-ready-miss-20260429T023832Z` rebuilt NornicDB `7017ee2`
+and Eshu `d86678b1`, then drained the same large repo in `188s` with projector
+`1/1`, reducer `8/8`, and `code_calls 24584/24584`. Code-call graph write was
+`14.320s` and summed edge batch duration was `14.260s`, effectively flat versus
+the prior `824c990` proof (`14.247s` write, `14.209s` summed batches). Host
+headroom remained high (`cpu_idle_avg=81.81%`, `io_wait_avg=0.59%`,
+`disk_idle_avg=91.64%`). Classify this as a valid backend micro-optimization
+but a rejected Eshu throughput hypothesis for this corpus slice.
+
+Eshu commit `972a7202` retested exact-label code-call write routing after the
+newer NornicDB backend commits `824c990` and `7017ee2`, because the prior
+ESHU-side exact-label rejection had run against an older backend shape. The
+remote proof `eshu-reducer-websites-label-retry-20260429T000000Z` rebuilt Eshu
+`972a7202` and used NornicDB `7017ee2`. It drained the same large repo healthy
+with projector `1/1`, reducer `8/8`, and `code_calls 24584/24584`, but
+regressed wall time from the current broad-label baseline `188s` to `200s`.
+The code-call cycle write time regressed from `14.320s` to `15.328s`, and
+summed edge batches regressed from `14.260s` to `15.259s` across the same `25`
+batches and `24,583` rows. Host headroom stayed high
+(`cpu_idle_avg=82.52%`, `io_wait_avg=0.55%`, `disk_idle_avg=92.16%`). Commit
+`1f8dbe45` reverts `972a7202`. Classify this as a confirmed rejected ESHU-side
+label-routing hypothesis even after the latest NornicDB relationship-write
+fixes.
+
+NornicDB commit `2dd6d27` adds opt-in `NORNICDB_ESHU_CHAIN_PROFILE=1`
+diagnostics for the ESHU-style no-return `UNWIND MATCH MATCH MERGE rel SET ...`
+chain-batch path. The profile emits one compact line per batch with input rows,
+processed rows, node lookup time, relationship lookup time, edge update time,
+and bulk relationship-create time. The normal disabled path remained inside the
+existing benchmark noise band:
+`BenchmarkUnwindMatchMergeRelationshipSet_CodeCallShapeBadgerAccumulating`
+reported `595426043 ns/op` after the profiling patch, comparable to the prior
+`595086583 ns/op` proof for `824c990`. Focused verification passed with
+`go test -tags 'noui nolocalllm' ./pkg/cypher -run
+'TestUnwindMatchMergeRelationshipSet_(ProfilesChainBatchWhenEnabled|UsesChainBatchHotPath|BulkPathDeduplicatesPendingRelationships)'
+-count=1`, and `go test -tags 'noui nolocalllm' ./pkg/cypher -count=1`.
+
+Remote run `eshu-reducer-websites-chain-profile-20260429T0315Z` rebuilt Eshu
+`487b683c`, rebuilt NornicDB `2dd6d27`, enabled
+`NORNICDB_ESHU_CHAIN_PROFILE=1`, and drained `php-large-repo-b` healthy:
+projector `1/1`, reducer `8/8`, and `code_calls 24584/24584`. Wall time stayed
+at the current `188s` baseline; code-call graph write was `14.367s`, and summed
+edge batch duration was `14.328s`. The NornicDB profile split for the 26
+code-call-shaped batches was `7.271s` total inside the chain path, with
+`4.475s` in relationship existence lookups, `1.190s` in node lookups, and
+`1.286s` in bulk edge create. Every relationship lookup was a miss
+(`24584/24584` misses), so the reducer was paying a growing miss cost before
+creating fresh edges. Host headroom stayed high (`cpu_idle_avg=81.00%`,
+`io_wait_avg=0.56%`, `disk_idle_avg=91.62%`).
+
+Three follow-up NornicDB slices were tested against the same Eshu commit
+`487b683c` and same large repo. NornicDB `fdaf7a1` preserved the edge-between
+head invariant and trusted ready-index typed misses, but
+`eshu-reducer-websites-edge-miss-20260429T0825Z` regressed to `198s`; code-call
+write was `15.424s` and relationship lookup still totaled `4.869s`, proving the
+Eshu path was bypassing that storage method. NornicDB `71c62ad` routed
+`AsyncEngine.GetEdgeBetween` through the typed lookup while preserving pending
+write/delete semantics, but `eshu-reducer-websites-async-edge-20260429T0841Z`
+still stayed in noise (`193s`, code-call write `14.918s`, relationship lookup
+`4.685s`), proving the active Cypher path was still inside the transaction
+wrapper. NornicDB `07b792b` then routed `BadgerTransaction.GetEdgeBetween`
+through the typed lookup. The proof
+`eshu-reducer-websites-tx-edge-20260429T0851Z` drained healthy in `184s`, with
+code-call graph write down to `10.064s` and summed edge batch duration
+`10.025s`. The backend profile confirmed the actual win: chain-path total fell
+from `7.271s` to `2.807s`, and relationship lookup fell from `4.475s` to
+`0.162s` while preserving `24584/24584` relationship misses and exact code-call
+completion. CPU and disk remained idle-heavy (`cpu_idle_avg=80.73%`,
+`io_wait_avg=0.62%`, `disk_idle_avg=91.52%`), so the next proof must validate
+this handler win across two to four large repos before another full-corpus run.
+
+The 4-large-repo confirmation proof
+`eshu-reducer-large4-tx-edge-20260429T0900Z` reused Eshu `487b683c`, NornicDB
+`07b792b`, and the focused large set `php-large-repo-b`,
+`portal-java-ycm`, `webapp-provisioning`, and `bg-data-pipeline`. It drained
+healthy with projector `4/4`, reducer `32/32`, and `code_calls 47016/47016`.
+Wall time was `211s`. The four code-call projection cycles completed at
+`0.126s`, `0.450s`, `13.435s`, and `10.555s`, with write substeps `0.096s`,
+`0.356s`, `12.382s`, and `9.479s`. Reducer handler sums showed the next tails
+more clearly: semantic materialization `27.218s`, inheritance `8.774s`, SQL
+relationships `8.725s`, and code calls `7.828s`; deployment mapping remained
+mostly queue wait (`122.167s` wait sum versus `3.130s` handler sum). Host
+headroom was still high (`cpu_idle_avg=74.40%`, `io_wait_avg=1.20%`,
+`disk_idle_avg=86.47%`). This confirms the transactional lookup change is
+correct on multiple large repos, but the next proof should be the 20-repo corpus
+before claiming a full-corpus wall-clock reduction.
+
+The hot20 rerun `eshu-reducer-hot20-tx-edge-20260429T0910Z` used the same 20
+repos as the earlier hot20 proofs and drained healthy with projector `20/20`,
+reducer `160/160`, `code_calls 57987/57987`, and `repo_dependency 3/3`. Wall
+time was `307s`, worse than the earlier `297s` batch-1000 proof and roughly
+flat with the `305s` mixed proof, so the transaction-layer lookup fix is not a
+hot20 wall-clock win. The largest code-call cycles were `9.813s` and `14.860s`
+with write substeps `8.727s` and `13.744s`; code-call handler sum was
+`15.609s`. The remaining mixed-corpus tail shifted back to queue/readiness and
+other domains: deployment mapping wait sum `1368.457s`, semantic handler sum
+`44.532s`, SQL handler sum `14.705s`, and inheritance handler sum `14.671s`.
+Host headroom remained idle-heavy (`cpu_idle_avg=69.77%`, `io_wait_avg=1.73%`,
+`disk_idle_avg=84.75%`). Classify `07b792b` as a backend handler win that
+should be kept for NornicDB, but not as the reducer wall-clock breakthrough for
+the 20-repo corpus.
+
+The next same-commit hot20 proof tested the source-local long-pole hypothesis
+without changing reducer worker defaults. Run
+`eshu-reducer-hot20-largegen4-20260429T094208Z` reused Eshu `487b683c`,
+NornicDB `07b792b`, and the same 20 repositories, but set
+`ESHU_LARGE_GEN_MAX_CONCURRENT=4` instead of the default `2`. It drained healthy
+with projector `20/20`, reducer `160/160`, `code_calls 57987/57987`, and
+`repo_dependency 3/3`. Wall time dropped from `307s` to `240s` (`21.8%`
+faster). CPU idle fell from `69.77%` to `62.91%`; IO wait stayed low
+(`2.06%`), and disk remained mostly idle (`disk_idle_avg=82.07%`), so the
+change used more available host headroom without saturating storage. The proof
+also explains the win: in the prior hot20 run the final large projector record
+included about `80s` waiting for the large-generation semaphore before
+`load_facts`; with concurrency `4`, every large-generation semaphore acquisition
+was effectively immediate. The remaining source-local tail is now sequential
+per-repo work, not semaphore wait: the largest projector stages were
+`content_write=77.416s` plus `canonical_write=47.482s` for one
+`109410`-entity repo, and `content_write=50.759s` plus
+`canonical_write=58.987s` for one `160909`-entity repo. Classify this as a real
+20-repo wall-clock win and a scheduling/admission win, while keeping the next
+step evidence-first: do not raise global reducer workers from this result; use
+the same proof ladder to decide whether `4` is the safe local-authoritative
+large-generation default and whether content/canonical source-local writes can
+be made less sequential without weakening reducer readiness gates.
+
+Follow-up code promoted this measured value only for the
+`local_authoritative` profile: when `ESHU_LARGE_GEN_MAX_CONCURRENT` is unset,
+the projector now defaults to `4` for local-authoritative runs and keeps `2` for
+other profiles. Explicit environment overrides still win. This is intentionally
+an admission/scheduling default, not a reducer-worker default change.
+
+The default-behavior confirmation run
+`eshu-reducer-hot20-largegen4-default-20260429T095334Z` used Eshu `7cf56491`
+with no `ESHU_LARGE_GEN_MAX_CONCURRENT` override. It drained healthy in `239s`
+with projector `20/20`, reducer `160/160`, `code_calls 57986/57986`, and
+`repo_dependency 3/3`. CPU idle was `62.50%`, IO wait was `2.12%`, and disk idle
+was `82.52%`. Large-generation semaphore acquisition again happened
+immediately, confirming the promoted default is active. The one-row code-call
+total difference versus the previous `57987/57987` env proof is recorded as a
+residual comparison note, not as a reducer failure: all produced intents
+completed, there were no failed/dead-letter work items, and this slice changed
+only admission defaults.
+
+### Architecture Checkpoint
+
+The evidence now separates three classes of work:
+
+1. **Harvested handler waste.** SQL first-generation retracts, broad fact
+   loads, and code-call first-projection retracts were measurable waste and
+   have been reduced.
+2. **Rejected micro-optimizations.** Code-call conflict splitting,
+   label-scoped grouped code-call retractions, size-desc projector scheduling,
+   and batch-2000 code-call writes did not move throughput; several regressed.
+3. **Remaining architecture bottleneck.** CPU and disk remain idle while wall
+   time is governed by source-local long poles, shared projection completion,
+   and graph backend operations that do not saturate the host.
+
+The next reducer design pass should therefore stop chasing global per-label
+batch caps and answer bigger questions:
+
+- Can destructive repo-wide graph rewrites become durable deltas for code,
+  inheritance, and SQL edges?
+- Can source-local projection publish smaller readiness units earlier, so
+  reducers do not wait behind a full-repo long pole?
+- Should reducer/projector scheduling use explicit repo-size tiers so small
+  and medium repos drain around giant high-cardinality repos instead of sharing
+  one effective tail?
+- Can shared projection lanes be partitioned by true acceptance unit only after
+  destructive overlaps are removed?
+- Does NornicDB need a direct relationship-delete / relationship-existence
+  hot path for Eshu's `(source)-[TYPE]->(target)` edge families?
+- Which domains still do work after their graph writes are no-ops, and can that
+  be proven from durable state rather than inferred from timing?
+
+### Change Impact Ledger
+
+Classify every reducer-throughput slice by the metric it was meant to move.
+This avoids treating a correctness or observability improvement as a throughput
+win when wall-clock evidence does not support that claim.
+
+| Commit | Change | Intended metric | Measured effect | Classification |
+| --- | --- | --- | --- | --- |
+| `55740672` | Label-scoped SQL relationship writes | Lower SQL handler time | Focused 4-repo wall moved from `153s` to `154s`; slowest SQL handler stayed around `11s` (`11.433s` to `11.702s`) | No material throughput win |
+| `b0c994b6` / `742d0c56` | Shared and code-call wait-vs-processing telemetry | Separate wait from actual graph work | Proved `code_calls` wall (`119.682s` to `124.162s`) was mostly not graph-write processing (`~5.08s` to `~10.85s`) | Diagnostic win |
+| `3e870754` / `11d74089` | Code-call readiness-blocked polling stays at base interval | Reduce readiness-blocked polling tail | Focused 4-repo wall stayed flat (`141s` to `139s`); code-call processing sum later measured around `5.116s` | Small tail cleanup, not material wall-clock win |
+| `02d9cdc7` | Generic shared readiness-blocked polling stays at base interval | Reduce SQL/inheritance readiness-blocked polling tail | Covered by later focused proof; no standalone wall-clock drop established | Correctness-preserving scheduler cleanup |
+| `acc50494` | Scope NornicDB projector-drain claim gate by same `scope_id` | Lower false reducer queue wait behind unrelated source-local work | Focused wall stayed flat (`139s` to `140s`), but deployment-mapping wait dropped `200.698s` to `14.618s` and SQL wait dropped `101.708s` to `33.651s` | Scheduling win, not wall-clock win on 4 repos |
+| `367060fd` | Scope grouped SQL relationship retractions by exact source label and relationship type | Lower SQL handler time | Focused wall moved `140s` to `138s`; SQL handler max moved `11.543s` to `10.634s`; SQL wait stayed flat (`33.651s` to `32.946s`) | Safe query-shape cleanup, marginal handler win |
+| `afd9fe5f` | Semantic materialization inner-step timing | Identify whether semantic cost is fact load, extraction, graph write, or readiness publication | Focused 4-repo semantic total `7.428s`: fact load `6.998s`, graph write `0.256s`; 20-repo semantic total `7.968s`: fact load `7.383s`, graph write `0.402s` | Diagnostic win; points to fact-loading/data-shape work |
+| `5242bfce` | Gate code-call shared projection on canonical-node readiness instead of semantic-node readiness | Remove code-call readiness wait that can never resolve for repos without semantic reducer items | `afd9fe5f` 20-repo run stuck at `3969/3987` code-call intents; `5242bfce` rerun completed `3987/3987` and drained in `140s` versus original clean 20-repo baseline `162s` | Correctness and tail-latency win |
+| `d7b7095a` | SQL materialization inner-step timing | Identify whether SQL cost is fact load, extraction, retract, graph write, or row shaping | Focused 4-repo SQL total `12.193s`: fact load `6.654s`, retract `5.385s`, graph write `0.027s` | Diagnostic win; identified retract and fact-load costs |
+| `0bb0fc17` | Skip first-generation SQL retractions | Remove safe no-op graph retractions for initial generations | Focused 4-repo wall `139s` to `133s`; SQL handler sum `12.194s` to `6.920s`; 20-repo wall `140s` to `134s`; SQL handler sum `13.874s` to `7.555s` | Measured reducer handler and wall-clock win |
+| `2c0c2b5a` | Filter SQL and semantic reducer fact loads by required fact kinds | Lower SQL and semantic handler load time | Focused 4-repo wall `133s` to `128s`; 20-repo wall `134s` to `128s`; SQL handler sum `7.555s` to `2.850s`; semantic handler sum `8.117s` to `4.908s` | Measured reducer handler and wall-clock win |
+| `4c2f94d3` / `d6279147` | Isolate code-call intent extraction into its own reducer queue conflict domain, then revert | Reduce code-graph queue wait by letting code-call intent extraction overlap with graph materializers | Focused 4-repo wall `128s` to `127s`, but 20-repo wall `128s` to `129s`; large-repo SQL/semantic queue waits dropped, while overlapping graph/shared work consumed the gain | Rejected throughput hypothesis; reverted |
+| `5756f549` | Workload and deployment-mapping inner-stage timing | Identify whether late reducer tail is input load, graph write, dependency reconciliation, replay, or phase publish | 20-repo workload total `11.439s`: input load `9.064s`, graph write `0.378s`; deployment total `9.265s`: fact load `8.939s`, infra graph write `0.011s`; wall stayed flat (`128s` to `129s`) | Diagnostic win; points to filtered input loading |
+| `0fcc13a4` | Filter workload and deployment-mapping fact loads by required fact kinds | Lower workload/deployment input-load time | 20-repo wall `129s` to `127s`; workload input load `9.064s` to `4.434s`; deployment fact load `8.939s` to `4.939s`; workload total `11.439s` to `7.208s`; deployment total `9.265s` to `5.441s` | Measured handler win and small wall-clock win |
+| `540fa708` | Filter code-call, deployable correlation, and inheritance fact loads by required fact kinds | Lower remaining broad reducer input-load time | 20-repo wall `127s` to `131s`; code-call handler sum `9.226s` to `5.612s`; deployable correlation `8.360s` to `4.606s`; inheritance `7.833s` to `3.116s`; source-local long pole remained `65.926s` | Handler/data-shape win only; no wall-clock win |
+| `29436198` | Split shared projection processing into retract, write, and completion-mark telemetry | Identify whether shared/code-call projection processing time is graph retract, graph write, or Postgres intent marking | Focused 4-repo largest code-call cycle: `4.085s` processing = `2.728s` retract + `1.308s` write + `0.050s` mark; 20-repo largest code-call cycle: `4.033s` processing = `2.781s` retract + `1.203s` write + `0.049s` mark; CPU/disk idle stayed high | Diagnostic win; points to code-call retract/query shape before worker changes |
+| `2ac5712d` | Narrow code-call retract relationship families by evidence source | Reduce unrelated relationship-family work in code-call shared projection retracts | Focused 4-repo wall `122s` to `126s`; code-call retract sum `3.507s` to `3.545s`; 20-repo wall `118s` to `127s`; code-call retract sum `5.937s` to `5.775s`, max retract `2.781s` to `2.794s`; CPU/disk idle stayed high | Safe query-shape cleanup, but rejected wall-clock hypothesis |
+| `1ea01796` / `12a0a0a3` | Add NornicDB code-entity `repo_id` indexes and split code-call retracts into label-scoped grouped statements, then revert | Let NornicDB use concrete label + repo_id anchors for code-call retracts | Corrected focused 4-repo proof waited for shared intents and regressed: wall `126s`/`132s`, code-call retract sum `3.545s` to `15.100s`, max retract `2.771s` to `12.172s`; CPU/disk idle stayed high | Rejected throughput hypothesis; reverted |
+| `6a6d6c36` | Skip first code-call retract when durable intent history proves no prior completed projection | Remove no-op destructive code-call graph deletes on initial accepted projection | Focused 4-repo code-call retract sum `3.545s` to `0.000s`, duration sum `5.250s` to `1.844s`, wall `126s` to `122s`; 20-repo retract sum `5.775s` to `0.000s`, duration sum `7.912s` to `2.016s`, wall `127s` to `126s`; CPU/disk idle stayed high | Measured reducer handler win; not yet a mixed-corpus wall-clock breakthrough |
+| n/a | Signal-predicate workload/deployment fact loading experiment, reverted before commit | Further lower workload/deployment input-load time after fact-kind filtering | Focused 4-repo wall regressed `122s` to `125s`; deployment fact load `3.974s` to `4.559s`; workload input load `3.485s` to `4.025s`; CPU/disk idle stayed high | Rejected data-shape hypothesis; use durable signal indexes/summaries before trying deeper JSON predicates |
+| `53da37e8` | Replay original full-corpus top semantic long-poles on current reducer code | Quantify whether landed reducer changes collapse the old 7.5h semantic tail | Hot3 wall `192s`; old top semantic handlers `14323s`/`12107s`/`10617s` became `1.983s`/`1.760s`/`17.968s`; remaining hot repo had source-local content write `73.916s`, canonical write `33.257s`, semantic graph write `13.032s`, code-call graph write `11.957s` | Strong evidence that semantic broad-load tail is harvested; next reducer work should target large-batch graph writes |
+| `33e952c4` | Replay original full-corpus top ten semantic long-poles on current reducer code | Confirm the hot3 result at a larger proof size without running the full corpus | Hot10 wall `210s`; old top-ten semantic handler worker-time totaled about `64648s`, current semantic handler sum was `41.037s`; direct semantic graph label counts matched exactly for all ten repos; CPU/disk still idle-heavy | Strong handler and correctness proof; remaining wall is source-local/canonical/code-call graph write shape |
+| `f52e03a4` | Hot10 plus ten smaller/mixed repos | Verify whether the hot semantic fix holds with representative mixed domains and identify the next bottleneck | Hot20 wall `305s`; projector `20/20`, reducer `160/160`, code calls `57987/57987`; semantic handler sum stayed `44.779s`; largest code-call cycles were write-side only (`20.331s` and `13.654s`, retract `0s`); CPU/disk idle averages remained high | Confirms reducer semantic tail is harvested; next target is source-local readiness and large code-call/canonical graph write shape |
+| `b085803c` | Raise code-call edge batch size from `50` to `1000` | Reduce grouped graph-write transaction count for large first-projection code-call cycles | Isolated large repo code-call cycle `15.653s` to `11.328s`; hot20 wall `305s` to `297s`; hot20 largest code-call cycles `20.331s`/`13.654s` to `15.211s`/`9.067s`; no failures and code-call completion stayed exact | Measured reducer graph-write and modest wall-clock win; not a worker-count change |
+| n/a | Test canonical entity containment and phase-group cap variants without changing defaults | Determine whether source-local canonical entity tuning is a large lever | Cross-file batched containment regressed isolated large repo wall `184s` to `264s`; `Function=20,Variable=20` lowered isolated canonical entities `39.189s` to `34.780s` and hot20 wall `297s` to `292s` | Small source-local tuning win only; stop per-label cap fishing and move to size-tiered readiness/data-shape design |
+| `6602cec1` / `22f37cb7` | Add guarded projector size-desc claim ordering, then revert | Keep large repos from becoming the final source-local readiness tail | Same-commit focused 4-repo FIFO `125s` versus size-desc `128s`; hot20 FIFO `301s` versus size-desc `301s`; all runs completed cleanly, CPU/disk stayed idle-heavy | Rejected scheduling hypothesis; reverted rather than keeping a public knob |
+| n/a | Test `ESHU_CODE_CALL_EDGE_BATCH_SIZE=2000` without changing defaults | Reduce large code-call shared write cycles after batch-1000 gains flattened | Single-large `php-large-repo-b` wall `186s`; code-call cycle `12.667s`, write `11.589s`, worse than the prior batch-1000 single-large proof | Rejected batch-size hypothesis; next code-call work needs query/backend shape changes |
+| `519dd6a9` / `b0b88a44` | Route code-call writes to exact Function/Class labels when reducer intent payloads know both labels, then revert | Avoid broad `Function\|Class\|File` anchors and `coalesce()` in large code-call writes | Single-large `php-large-repo-b` wall `184s` versus prior batch-1000 baseline `183s`; code-call write `10.660s` versus `10.304s`; CPU/disk stayed idle-heavy | Rejected ESHU-side label-routing hypothesis; reverted |
+| `87646e1b` / `ef856c18` | Enqueue reducer intents after canonical graph write but before normal content-store writes, then revert | Overlap reducer/shared work with source-local content persistence | Single-large `php-large-repo-b` stayed flat at `183s`; small `api-node-chat` drained healthy in `13s`; hot20 regressed from `298s` to `305s` with projector `20/20`, reducer `160/160`, `code_calls 57987/57987`; CPU/disk stayed idle-heavy | Rejected readiness/ordering overlap hypothesis; reverted |
+| n/a | Test `ESHU_CODE_CALL_EDGE_GROUP_BATCH_SIZE=4` without changing defaults | Reduce code-call write transaction overhead by grouping multiple 1000-row statements per transaction | Single-large `php-large-repo-b` regressed to `191s`; code-call write rose to `16.725s`; CPU/disk stayed idle-heavy | Rejected grouped-transaction hypothesis; keep default group size `1` |
+| NornicDB `824c990` | Bulk-create new relationships inside the no-return `UNWIND MATCH MATCH MERGE rel SET rel...` chain-batch path | Reduce per-edge Badger transaction overhead for large first-projection code-call writes | Local 5k accumulating Badger benchmark moved `657270417 ns/op` to `595086583 ns/op`; same large repo wall stayed `188s`, but code-call write moved `15.770s` to `14.247s` and summed batch duration moved `15.730s` to `14.209s`; CPU/disk stayed idle-heavy | Backend handler win; not a wall-clock win on isolated large repo |
+| NornicDB `7017ee2` | Trust ready edge-between index misses instead of falling back to legacy outgoing scans | Remove high-fanout missing-edge scan cost from typed relationship existence checks | Storage benchmark with 5k source fanout moved missing lookup from `6063200 ns/op` legacy scan to `1880 ns/op` ready-index miss, but same large Eshu repo stayed `188s`; code-call write was flat/slightly worse (`14.247s` to `14.320s`) and summed batches were flat (`14.209s` to `14.260s`) | Backend microbenchmark win; rejected Eshu throughput hypothesis for this repo |
+| `972a7202` / `1f8dbe45` | Retest exact-label code-call write routing after NornicDB bulk-create and ready-index fixes, then revert | Check whether the newer backend changes made exact Function/Class anchors beneficial | Same large repo regressed from `188s` to `200s`; code-call write regressed `14.320s` to `15.328s`; summed edge batches regressed `14.260s` to `15.259s`; CPU/disk stayed idle-heavy | Confirmed rejected ESHU-side label-routing hypothesis; reverted |
+| NornicDB `2dd6d27` | Add opt-in Eshu merge-chain batch profiling | Split code-call write time into node lookup, relationship lookup, updates, and bulk-create phases before more backend tuning | Disabled benchmark stayed flat (`595426043 ns/op` versus prior `595086583 ns/op`); profiled single-large run drained healthy at baseline `188s` with code-call write `14.367s`; artifact aggregation showed chain-path total `7.271s`, relationship lookup `4.475s`, node lookup `1.190s`, bulk create `1.286s`, and `24584/24584` relationship misses | Diagnostic win; relationship miss handling became the next backend target |
+| NornicDB `fdaf7a1` / `71c62ad` | Preserve edge-between head invariants and route AsyncEngine typed lookups through direct edge lookup | Remove wrapper bypasses before trusting ready-index misses in the Eshu runtime path | Focused tests passed, but single-large proofs did not improve: `eshu-reducer-websites-edge-miss-20260429T0825Z` was `198s` with relationship lookup `4.869s`, and `eshu-reducer-websites-async-edge-20260429T0841Z` was `193s` with relationship lookup `4.685s` | Correctness/supporting fixes, but rejected as throughput wins; transaction wrapper was still bypassing the typed lookup |
+| NornicDB `07b792b` | Route BadgerTransaction typed relationship lookup through `GetEdgeBetween` instead of expanding to `GetEdgesBetween` | Remove the active Cypher transaction-layer relationship miss scan for fresh code-call edge batches | `eshu-reducer-websites-tx-edge-20260429T0851Z` drained healthy: wall `184s` versus `188s` profiled baseline, code-call write `10.064s` versus `14.367s`, summed edge batches `10.025s` versus `14.328s`; chain-path total `2.807s`, relationship lookup `0.162s`, CPU idle `80.73%`, disk idle `91.52%` | Backend handler win and small wall-clock win on one large repo; validated on 4 large repos; hot20 rerun stayed flat/worse at `307s`, so not a corpus wall-clock win |
+| `7cf56491` | Make `ESHU_LARGE_GEN_MAX_CONCURRENT` default to `4` for `local_authoritative` only | Remove source-local large-generation semaphore wait while preserving reducer readiness gates and non-local defaults | Env proof moved hot20 `307s` to `240s`; default proof `eshu-reducer-hot20-largegen4-default-20260429T095334Z` drained in `239s` with projector `20/20`, reducer `160/160`, CPU idle `62.50%`, IO wait `2.12%`, disk idle `82.52%`, and immediate semaphore acquisition | Real 20-repo wall-clock and scheduling/admission win; promoted only for local-authoritative runs, not a reducer worker-count increase |
+| n/a | Test `ESHU_CONTENT_ENTITY_BATCH_SIZE=4000` without changing defaults | Reduce source-local Postgres round trips for large `content_entities` upserts | Same large repo comparison stayed flat: default `eshu-reducer-onebig-default-20260429T100820Z` drained in `188s`, batch-4000 `eshu-reducer-onebig-entitybatch4000-20260429T100456Z` drained in `189s`; both completed projector `1/1`, reducer `8/8`, and `code_calls 24584/24584`. Entity batch count dropped `537` to `41`, but `upsert_entities` stayed `31.891s` versus `31.730s`, `content_write` stayed `43.773s` versus `43.611s`, and CPU/disk idle remained about `80%`/`92%`. | Rejected source-local batch-size hypothesis; row/index/update cost dominates this path more than Postgres round trips |
+| `32d61a6a` / `0f26b3e3` | Defer local-authoritative content trigram search indexes until the discovered filesystem repo set drains | Avoid per-batch GIN maintenance on write-heavy local-authoritative proof loads while preserving content rows and restoring search indexes after drain | Manual no-GIN single-large proof moved wall `188s` to `156s`. Code path proof `eshu-reducer-onebig-deferred-index-code-20260429T115343Z` drained in `152s` with content write `9.660s`; small proof `eshu-reducer-small-deferred-index-code-20260429T115724Z` drained in `14s`. First hot20 proof at `32d61a6a` stayed flat at `239s` because restore fired early between repo enqueue waves. Commit `0f26b3e3` fixed readiness to require the discovered repo count; `eshu-reducer-hot20-deferred-index-fixed-20260429T121040Z` drained in `205s` with projector `20/20`, reducer `160/160`, `code_calls 57987/57987`, CPU idle `63.21%`, IO wait `2.07%`, disk idle `81.71%`, and post-drain search-index restore `1m45.272s`. | Real 20-repo source-local wall-clock win; next bottleneck moved back to canonical graph writes and large code-call shared projection cycles |
+| `643ba778` | Tag NornicDB canonical entity-label summaries with `scope_id` and `generation_id` | Attribute high-cardinality entity-label cost to exact repository generations in large-corpus logs | Focused tests `go test ./cmd/ingester -run 'TestNornicDBPhaseGroupExecutorLogsEntityLabelSummaries\|TestNornicDBPhaseGroupExecutorStripsDiagnosticStatementParameters' -count=1` and `go test ./internal/storage/neo4j -run TestCanonicalNodeWriterSeparatesEntityUpsertsFromContainmentEdges -count=1` passed; broader `go test ./cmd/ingester ./internal/storage/neo4j -count=1`, `go vet ./cmd/ingester ./internal/storage/neo4j`, `git diff --check`, and strict MkDocs passed | Diagnostic win; enables the next hot20/100-repo proof to group Variable/Function costs by scope without log-adjacency inference |
+| n/a | Re-run one-large and 4-large proofs with scope-tagged entity summaries | Verify no regression and test whether reducing large-generation concurrency lowers wall time by reducing NornicDB graph-write contention | `eshu-reducer-onebig-scope-summary-20260429T123439Z` stayed at the prior deferred-index baseline: wall `152s`, queue projector `1/1`, reducer `8/8`, `code_calls 24584/24584`, content write `9.720s`, canonical write `44.029s`, canonical `Variable` `131977` rows in `32.081s`, and code-call write `10.084s`; CPU idle `78.64%`, IO wait `0.59%`, disk idle `92.44%`. `eshu-reducer-large4-default-b068-20260429T123830Z` drained four large repos in `192s` with projector `4/4`, reducer `32/32`, and `code_calls 51092/51092`; canonical writes were `61.347s` / `54.452s` / `43.418s` / `4.664s`. The `ESHU_LARGE_GEN_MAX_CONCURRENT=2` A/B `eshu-reducer-large4-largegen2-b068-20260429T124343Z` reduced some canonical writes (`54.012s` / `50.036s` / `40.889s` / `4.687s`) but lost overlap and regressed wall to `202s`; CPU and disk stayed idle-heavy (`65.45%` CPU idle, `85.74%` disk idle). | Rejected large-generation narrowing hypothesis; keep default local-authoritative `4` and move to canonical entity data shape / NornicDB write-path evidence instead of lowering concurrency |
+| `d5e83166` | Skip signature-identified browser libraries during discovery | Remove duplicated static-library JavaScript before content persistence, canonical entity writes, and code-call projection | Advisory and Postgres evidence on `php-large-repo-b` showed the hot `Variable`/`Function` rows were copied browser libraries (`FullCalendar`, renamed jQuery, Fotorama, GMaps, Masonry, Bootstrap), not authored application logic. `eshu-reducer-onebig-browserlib-prune-d5e-20260429T133457Z` drained in `99s` versus the `152s` scoped-summary baseline, with projector `1/1`, reducer `8/8`, `code_calls 4479/4479` versus `24584/24584`, content write `4.995s` versus `9.720s`, canonical write `28.397s` versus `44.029s`, canonical phase-group write `27.630s` versus `42.655s`, and entity rows `96809` versus `160909`; CPU idle `78.79%`, IO wait `0.57%`, disk idle `92.12%`. `eshu-reducer-large4-browserlib-prune-d5e-20260429T133758Z` drained in `154s` versus `192s`, with projector `4/4`, reducer `32/32`, `code_calls 30987/30987` versus `51092/51092`, CPU idle `61.59%`, IO wait `1.86%`, and disk idle `83.44%`. `eshu-reducer-hot20-browserlib-prune-d5e-20260429T134509Z` drained in `165s` versus the prior deferred-index hot20 `205s`, with projector `20/20`, reducer `160/160`, `code_calls 37881/37881`, `repo_dependency 3/3`, CPU idle `59.96%`, IO wait `2.38%`, and disk idle `79.69%`. | Real data-shape wall-clock win; next estimate full-corpus impact and continue with remaining canonical entity write hot paths |
+| `0a838916` | Skip WordPress core dirs, `.min.mjs`, and signed legacy browser runtimes | Remove more third-party/generated browser and CMS-core rows from API/PHP and portal/Java canonical entity writes | Existing 4-large Postgres evidence predicted about `22,254` fewer entity rows across the hot four repos: `wp-includes` `11021`, `wp-admin` `6288`, `pdf.worker.min.mjs` `2940`, JWPlayer `1679`, and reveal.js `326`. Focused TDD covered WordPress core dirs, `.min.mjs`, and JWPlayer/Prototype/reveal signatures. `eshu-reducer-api-wordpress-runtime-0a8-20260429T1405Z` drained API/PHP in `107s` with projector `1/1`, reducer `8/8`, `code_calls 2253/2253`, content entities `120077`, canonical entity phase `28.041s`, `Variable` `103908` rows in `22.549s`, CPU idle `81.07%`, and disk idle `91.07%`. `eshu-reducer-large4-wpcore-runtime-0a8-20260429T1410Z` improved the same four-large slice from `154s` to `141s`, with projector `4/4`, reducer `32/32`, `code_calls 29937/29937`, CPU idle `62.40%`, IO wait `2.25%`, and disk idle `81.24%`; API/PHP projected entities fell to `119398`, and portal/Java projected entities fell to `106470`. `eshu-reducer-hot20-wpcore-runtime-0a8-20260429T1415Z` improved hot20 from `165s` to `153s`, with projector `20/20`, reducer `160/160`, `code_calls 36832/36832`, `repo_dependency 3/3`, CPU idle `54.23%`, IO wait `2.55%`, and disk idle `76.57%`. | Modest real wall-clock data-shape win; not a breakthrough. Remaining large-corpus target is canonical entity write-path efficiency and the large code-call shared projection cycle |
+
+The ledger now points past SQL/semantic fact loading as the only easy handler
+win. SQL and semantic graph writes are both small on the focused and 20-repo
+proofs. Canonical entity cap tuning yields only seconds. The new hot20
+large-generation proof shows a real source-local admission win, but the
+remaining wall-clock tail is now dominated by per-repo `content_write` plus
+`canonical_write` sequencing and shared projection/code-call timing around
+those repos, while CPU and disk still have headroom. Increasing the existing
+content-entity batch knob is not a material lever: the same 160,909-entity repo
+spent essentially the same time in content persistence at 41 batches as at 537
+batches, so the next source-local work should target data shape, indexing,
+delta semantics, or readiness boundaries rather than wider `INSERT` statements.
+Deferring local-authoritative content trigram index maintenance is the first
+large source-local content-write win on the hot20 ladder (`239s` to `205s`
+after fixing the early-restore race), but the restored hot20 tail is now
+canonical graph write and large shared code-call writes rather than reducer
+fact loading or content batch count.
+
+The browser-library pruning proof is the first large post-deferral data-shape
+win. It reduces rows before they reach both Postgres content storage and
+NornicDB canonical writes, so it saves time in multiple phases instead of
+only shaving a single query. The 4-large proof still leaves API/PHP and
+portal/Java canonical writes as hot paths, so the next proof should run the
+20-repo ladder and then decide whether remaining work is more repo-shape
+classification or NornicDB canonical entity write-path tuning.
+
+The WordPress/core-browser follow-up is smaller but still real: it moves the
+same hot20 proof from `165s` to `153s` by removing another roughly `22k`
+third-party entities from the hot four-repo slice. Because API/PHP still spends
+about `49.6s` in canonical write under concurrent four-large load, this does
+not change the next strategic target: NornicDB canonical entity write-path
+efficiency and the large code-call shared projection cycle matter more than
+additional tiny default skip rules.
+
+## Chunk Status
+
+| Chunk | Status | Evidence | Next action |
+| --- | --- | --- | --- |
+| SQL language-query evidence surfacing | Proven | Second-shape full-corpus read validation on run `eshu-full-pr136-01413d04-a9ccd0f-20260503T0121Z` showed SQL tables/views were already materialized in Postgres and NornicDB graph nodes with source file, line, `repo_id`, `qualified_name`, and `sql_entity_type`, but `/api/v0/code/language-query` rejected `language=sql` / `entity_type=sql_table` and forced users toward broad code search. This slice adds graph-first SQL entity query support for `sql_table`, `sql_view`, `sql_function`, `sql_trigger`, `sql_index`, and `sql_column`, extends OpenAPI/docs, and preserves graph metadata needed to jump back to Postgres/content evidence. Local verification passed `go test ./internal/query -count=1` and rebuilt local binaries. Remote verification rebuilt Linux API/MCP binaries from patched source, restarted only API/MCP against the existing full-corpus NornicDB/Postgres stack, and proved `/api/v0/code/language-query` returns SQL table/view JSON with content entity ids and metadata. The same run also confirmed Lambda/Jenkins/CloudFormation signals exist as graph/content evidence while the selected repos have no resolved relationship rows, which is a truth gap to investigate separately from reducer throughput. | Keep typed SQL lookups as the read surface for SQL evidence. Next, validate whether Jenkins/Lambda delivery evidence should become resolved relationships or remain content/entity evidence for the selected repo family. Do not tune reducer workers from this read-surface finding. |
+| CloudFormation serverless delivery surfacing | Proven | Commit `4bc61ba0` fixes a read-surface truth gap exposed by second-shape full-corpus validation on run `eshu-full-pr136-01413d04-a9ccd0f-20260503T0121Z`: the graph and content store already contained a CloudFormation resource node with `resource_type=AWS::Serverless::Function`, source file path, and repository ownership, while repository story only showed the Jenkins controller path. The slice promotes parser-proven CloudFormation/SAM and Lambda resource rows into compact `cloudformation_serverless` deployment-artifact evidence without inventing reducer relationships or over-promoting unrelated CloudFormation resources. Local verification passed `go test ./internal/query -run 'CloudFormation|DeploymentArtifact|RepositoryRuntimeArtifacts|RepositoryDeploymentOverview|RepositoryStoryDelivery' -count=1`, `go test ./internal/query -count=1`, `go test ./cmd/api ./cmd/mcp-server ./internal/query -count=1`, and rebuilt all local runtime binaries. Remote verification rebuilt Linux API/MCP binaries from patched source, restarted only API/MCP against the existing full-corpus NornicDB/Postgres stack, and proved the same selected Jenkins/SAM repository now reports both `cloudformation` `serverless_delivery` and `jenkins` `controller_delivery` family paths. Direct read-only Cypher also returned the underlying `CloudFormationResource` graph node with `resource_type=AWS::Serverless::Function`. Classification: correctness/query-truth win, not reducer throughput. | Keep CloudFormation/SAM delivery path synthesis evidence-first and generic. Next, validate service-context and MCP read paths for the same repository family, then continue broader evidence-family validation before changing reducer scheduling. |
+| Identity-only service read-model fallback | Proven remotely | Commit `e3db3bab` closes the service-surface half of the Jenkins/SAM truth gap from run `eshu-full-pr136-01413d04-a9ccd0f-20260503T0121Z`. Repository story could report one workload from durable workload-identity facts, but `/api/v0/services/{name}/context` returned `404` because there was no materialized graph `Workload` node for that identity-only service. The patch keeps graph workloads authoritative when present, then falls back to the repository read model only when the requested selector resolves to a repository whose active workload identity facts match the service name. Fallback responses are explicit: `materialization_status=identity_only`, `query_basis=repository_read_model`, empty `instances`, and limitation `workload_identity_not_materialized`. The same slice fixes deployment-trace provenance so runtime artifacts such as CloudFormation serverless contribute to `provenance_families` and story text, not only controller/workflow artifacts. Local verification passed `go test ./internal/query -count=1`, `go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/mcp -count=1`, and rebuilt all local runtime binaries. Remote verification rebuilt Linux API/MCP binaries from patched source, restarted only API/MCP against the completed full-corpus stack, and proved service context, service story, deployment trace, and MCP `get_service_context` now all return the same identity-only service with `cloudformation` and `jenkins` delivery paths; deployment trace reports `provenance_families=[cloudformation, jenkins]`. Classification: correctness/query-truth win, not reducer throughput. | Keep identity-only fallback as a read-model bridge, not materialization truth. Follow-up graph materialization work should still require explicit runtime/platform evidence before creating `WorkloadInstance` or `RUNS_ON` truth. |
+| Compose dead-IaC materialized proof | Proven | Commit `e06c47d6` adds Docker Compose service reachability to `go/internal/iacreachability` with TDD coverage for used, unused, and dynamic service references. The checked-in verifier now captures raw graph repository nodes, repository relationships, deployment-evidence nodes, and materialized reachability rows. Local verification passed `go test ./internal/iacreachability ./internal/query -run 'TestAnalyze|TestHandleDeadIaC' -count=1`, `go test ./internal/iacreachability ./internal/mcp ./internal/query ./internal/storage/postgres ./internal/telemetry ./cmd/api ./cmd/mcp-server ./cmd/bootstrap-index -count=1`, `./scripts/verify_product_truth_fixtures.sh`, `bash -n scripts/verify_dead_iac_compose.sh`, `git diff --check`, and strict MkDocs. Remote proof `eshu-dead-iac-compose-20260501` rebuilt the Compose image, indexed ten real Git fixture repos, drained healthy with queue `86/86` succeeded, and completed in `80.15s` wrapper wall. Bootstrap logged `iac reachability materialized` with `repository_count=10`, `row_count=18`, and `duration_seconds=0.00584195`. API and MCP returned `truth_basis=materialized_reducer_rows`, `analysis_status=materialized_reachability`, and `findings_count=10`; direct rows were `used=8`, `unused=5`, `ambiguous=5`. Graph assertions proved Repository nodes and expected `USES_MODULE`, `DEPLOYS_FROM`, `REPO_CONTAINS`, and deployment-evidence edges for Terraform, Helm, Kustomize, and Compose. Classification: correctness/materialized-truth proof, not a reducer throughput win. | Keep this as the golden fixture for future dead-IaC families. Promote local-host/full-corpus IaC reachability finalization before claiming full-corpus materialized dead-IaC rows. |
+| Dead-IaC product truth | Proven | Commits `bcb6aacd`, `63d00643`, `4a57504b`, `ff420289`, `e4cb8cbf`, and `c965dd52` extract the dead-IaC analyzer into `go/internal/iacreachability`, prove Terraform/Helm/Ansible/Kustomize used, unused, and ambiguous classifications against `tests/fixtures/product_truth/dead_iac`, wire bootstrap finalization to materialize active-corpus IaC reachability rows after source-local projection drains, add `eshu_dp_iac_reachability_materialization_duration_seconds` / `eshu_dp_iac_reachability_rows_total`, resolve API repository-name selectors to canonical materialized repo IDs, expose repo names in findings, mount the same route for MCP `find_dead_iac`, and add the checked-in `scripts/verify_dead_iac_compose.sh` NornicDB Compose verifier. Local verification: `go test ./internal/iacreachability ./internal/mcp ./internal/query ./internal/storage/postgres ./internal/telemetry ./cmd/api ./cmd/mcp-server ./cmd/bootstrap-index -count=1`, `scripts/verify_product_truth_fixtures.sh`, `bash -n scripts/verify_dead_iac_compose.sh`, `git diff --check`, `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`, and rebuilt local binaries. Remote proof `eshu-dead-iac-runtime-20260501120421` rebuilt the Linux Compose image against NornicDB from the branch, indexed six real Git fixture repos, drained healthy with repository_count `6`, queue `53/53` succeeded, and bootstrap logged `iac reachability materialized` with row_count `10`. Direct Postgres evidence showed reachability rows `used=4`, `unused=3`, `ambiguous=3`; API/MCP returned `findings_count=6`. Remote checked-verifier proof `eshu-dead-iac-script-20260501` then rebuilt/reused the branch image, indexed eight real Git fixture repos, drained healthy with repository_count `8`, queue `70/70` succeeded, and completed in `16.01s` wrapper wall. Bootstrap logged `iac reachability materialized` with row_count `14` and materialization duration `0.006148294s`. Direct Postgres evidence showed rows `used=6`, `unused=4`, `ambiguous=4`. API `/api/v0/iac/dead` and MCP `find_dead_iac` both returned `truth_basis=materialized_reducer_rows`, `analysis_status=materialized_reachability`, and `findings_count=8`, with only the expected unused/ambiguous Terraform modules, Helm charts, Ansible roles, and Kustomize bases. Classification: correctness/materialization work, not a reducer throughput win. | Keep this verifier as the reusable golden proof and expand future IaC families only with the same materialized evidence contract and API/MCP parity. |
+| ADR baseline | Complete | 2026-04-28 full-corpus timing analysis captured here | Start reducer observability chunk |
+| Reducer observability | In progress | Queue timing SQL proved queue wait dominates several domains. Phase 1 now includes reducer queue wait/handler duration telemetry, shared projection wait-versus-processing telemetry, scoped projector-drain proof, SQL retraction-scope proof, semantic and SQL inner-step timing, code-call readiness correction, first-generation SQL retract skipping, filtered reducer fact loading, a reverted code-call conflict-domain split, workload/deployment-mapping inner-stage timing, filtered workload/deployment input loading, filtered code-call/deployable/inheritance input loading, shared projection retract/write/mark-complete telemetry, measured code-call retract query-shape cleanup/rejection, durable first-projection code-call retract skipping, a rejected signal-predicate fact-load experiment, hot3/hot10 replays of the original full-corpus semantic long-poles, a hot20 mixed proof, a measured code-call edge batch-size bump, bounded canonical entity cap experiments, a reverted size-desc projector scheduling experiment, a rejected code-call batch-2000 proof, reverted exact-label code-call write experiments, a reverted intent-before-content ordering experiment, a rejected code-call grouped-transaction runtime probe, code-call shared edge write-shape telemetry, the hot20 large-generation concurrency proof and default promotion, the rejected content-entity batch-size proof, deferred local-authoritative content search-index proofs, NornicDB canonical entity label summaries tagged by `scope_id` / `generation_id` in `643ba778`, and a rejected `ESHU_LARGE_GEN_MAX_CONCURRENT=2` A/B on the 4-large proof. Remote proofs include the clean 20-repo baseline `eshu-reducer-clean20-20260428T131056Z`, focused 4-repo proofs through `eshu-reducer-large4-codecall-skip-20260428T2210Z`, the rejected focused signal-predicate proof `eshu-reducer-large4-signal-facts-20260428T2230Z`, hot semantic proofs `eshu-reducer-hot3-semantic-current-20260428T2300Z`, `eshu-reducer-hot10-semantic-current-20260428T2315Z`, `eshu-reducer-hot20-mixed-current-20260428T222132Z`, `eshu-reducer-hot20-codecall-batch1000-20260428T224610Z`, `eshu-reducer-hot20-entity-phase20-20260428T2334Z`, `eshu-reducer-hot20-size-desc-20260428T2355Z`, `eshu-reducer-hot20-fifo-6602cec1-20260429T0002Z`, `eshu-reducer-websites-codecall-batch2000-20260429T0010Z`, `eshu-reducer-websites-codecall-labels-20260429T0105Z`, `eshu-reducer-hot20-intent-before-content-87646e1b-20260429T0048Z`, `eshu-reducer-websites-codecall-group4-20260429T0058Z`, `eshu-reducer-websites-write-shape-20260429T0156Z`, `eshu-reducer-websites-bulk-rel-20260429T021749Z`, `eshu-reducer-websites-ready-miss-20260429T023832Z`, `eshu-reducer-websites-label-retry-20260429T000000Z`, `eshu-reducer-websites-chain-profile-20260429T0315Z`, `eshu-reducer-hot20-largegen4-default-20260429T095334Z`, `eshu-reducer-onebig-entitybatch4000-20260429T100456Z`, `eshu-reducer-onebig-default-20260429T100820Z`, `eshu-reducer-onebig-deferred-index-code-20260429T115343Z`, `eshu-reducer-small-deferred-index-code-20260429T115724Z`, `eshu-reducer-hot20-deferred-index-fixed-20260429T121040Z`, `eshu-reducer-onebig-scope-summary-20260429T123439Z`, `eshu-reducer-large4-default-b068-20260429T123830Z`, and `eshu-reducer-large4-largegen2-b068-20260429T124343Z`, the stopped invalid 20-repo semantic timing run that exposed `18` stuck `code_calls` intents, and completed 20-repo proofs through `eshu-reducer-clean20-codecall-skip-20260428T2215Z`. Commits `afd9fe5f`, `5242bfce`, `d7b7095a`, `0bb0fc17`, `2c0c2b5a`, `0fcc13a4`, `540fa708`, `29436198`, `2ac5712d`, `1ea01796`, `12a0a0a3`, `6a6d6c36`, `53da37e8`, `33e952c4`, `f52e03a4`, `b085803c`, `519dd6a9`, `b0b88a44`, `87646e1b`, `ef856c18`, `88f2684f`, `97a2ff61`, `972a7202`, `1f8dbe45`, `7cf56491`, `32d61a6a`, `0f26b3e3`, `643ba778`, and NornicDB `824c990`/`7017ee2`/`2dd6d27`/`fdaf7a1`/`71c62ad`/`07b792b` show semantic graph writes are not the hot substep, code calls must gate on canonical readiness, SQL graph writes are not the hot SQL substep, first-generation SQL retract skipping drops 20-repo wall from `140s` to `134s`, filtered SQL/semantic fact loads drop 20-repo wall from `134s` to `128s`, filtered workload/deployment input loads drop 20-repo wall from `129s` to `127s`, filtering code-call/deployable/inheritance input loads cuts those handler sums but does not move wall time (`127s` to `131s`), code-call shared projection processing is dominated by graph retract/write rather than Postgres completion marking, narrowing code-call retract relationship families by evidence source does not improve the large `CALLS|REFERENCES` retract (`118s` to `127s` on 20 repos), label-scoped grouped code-call retracts regress focused retract time (`~2.77s` max to `12.172s`) so they were reverted, durable first-projection code-call retract skipping removes the measured retract cost (`5.775s` to `0.000s` on 20 repos) without materially moving 20-repo wall (`127s` to `126s`), deeper JSON/path signal filtering regresses focused workload/deployment fact load (`3.485s`/`3.974s` to `4.025s`/`4.559s`) so it was not retained, the original top full-corpus semantic handlers collapsed from hours to seconds/minutes on current code (`14323s`/`12107s`/`10617s` to `1.983s`/`1.760s`/`17.968s` in hot3, then about `64648s` top-ten old worker-time to `41.037s` current worker-time in hot10 with exact semantic graph-count matches, then hot20 wall `305s` with semantic handler sum `44.779s` and code-call retract still `0s`), a code-call edge batch-size increase from `50` to `1000` reduced hot20 wall from `305s` to `297s` while shrinking the largest code-call write cycles from `20.331s`/`13.654s` to `15.211s`/`9.067s`, canonical entity phase-group widening only moved the next hot20 proof from `297s` to `292s` while cross-file containment regressed the isolated large repo to `264s`, size-desc projector scheduling did not improve focused or hot20 wall time, code-call batch `2000` regressed the single-large proof, exact-label code-call write routing did not improve either single-large proof (`183s` baseline to `184s`, write `10.304s` to `10.660s`, then retest after NornicDB fixes regressed `188s` to `200s`, write `14.320s` to `15.328s`) so it was reverted, intent-before-content ordering did not improve the single-large proof (`183s`) while regressing hot20 (`298s` to `305s`) so it was reverted, code-call grouped transactions regressed the single-large proof (`183s` to `191s`, write `~10.3s`/`10.5s` to `16.725s`), NornicDB relationship bulk-create trims about `1.5s` from this large repo's code-call write without moving isolated wall time, ready-index missing-edge lookup removal does not move this Eshu proof despite a strong storage microbenchmark, chain profiling exposed `4.475s` of relationship-miss work in the same large repo, AsyncEngine typed lookup alone did not move the proof, transactional typed lookup reduced relationship miss work to `0.162s` and code-call graph write to `10.064s`, hot20 large-generation concurrency moved wall from `307s` to `239s` after default promotion, content-entity batch widening reduced batch count (`537` to `41`) without moving wall (`188s` to `189s`) or stage time, deferred local-authoritative search-index maintenance moved fixed hot20 wall to `205s`, and lowering large-generation concurrency to `2` on the 4-large slice reduced some canonical durations but regressed wall `192s` to `202s`. | Use the new scope-tagged entity summaries to test canonical graph-write data shape and NornicDB write-path improvements; do not lower large-generation concurrency, scale reducer workers, or widen content batches from this result |
+| Semantic first-generation retry retract | Proven | Stopped full-corpus run at `4844348e` reached projector `878` succeeded and reducer `7563` succeeded, but left `5` semantic-entity materialization dead letters from `graph_write_timeout` in `semantic_retract` for retried first-generation rows. Commit `ac574af5` fixes the guard so semantic retries skip retract whenever no prior generation exists, while still retracting when a prior generation is present. Focused TDD covered prior-generation retract and retried first-generation skip. Remote proof `eshu-semantic-retry5-ac574af5-20260430T220947Z` rebuilt Linux binaries and reran a fresh no-symlink copy of the five failing repositories against NornicDB; queue-empty progress ran from `2026-04-30T22:11:05Z` to `2026-04-30T22:13:53Z`, ending healthy with projector `5/5`, reducer `40/40`, `0` failed/dead-lettered items, and no `semantic_retract` / `graph_write_timeout` failures. Semantic handlers all reported `skip_retract=true`; the largest item loaded `151776` facts, wrote `2422` rows, and completed in `3.417s` total with `1.431s` graph write time. Runtime sampling remained idle-heavy after drain (`cpu idle` about `97%`, `io_wait=0%`, disk util `0%`). | Correctness and tail-risk removal, not a worker-count tuning win. Re-run the next larger/full proof with this guard so semantic retries cannot recreate the previous full-corpus dead-letter tail. |
+| Typed repository relationship graph truth | Proven | Commit `8dd2ad7e` replaces FOREACH-routed typed repository relationship writes with direct relationship-type statements. Focused private `45`-repository validation used a materialized corpus with no symlinked repo roots and rebuilt Linux binaries against NornicDB `v1.0.43`. The first local run was rejected because an older local graph binary refused connections under projector concurrency and did not test graph truth. The remote correctness-first rerun used `ESHU_PROJECTOR_WORKERS=1`, drained cleanly from first ingester log at `2026-04-29T20:41:46Z` to queue-empty progress at `2026-04-29T20:42:49Z`, and ended with projector `45/45`, reducer `482/482`, `0` failed/dead-lettered items, and no `ERROR` / timeout / connection-refused logs. Direct persisted-graph inspection showed `45` `Repository` nodes and typed repository edges: `DEPLOYS_FROM=30`, `DISCOVERS_CONFIG_IN=1`, `PROVISIONS_DEPENDENCY_FOR=58`. The target service had `16` incoming repository relationships: GitOps and Helm `DEPLOYS_FROM` plus Terraform / provisioning `PROVISIONS_DEPENDENCY_FOR`. Workload graph truth materialized one `Workload` and two GitOps `WorkloadInstance` nodes for the target service; Terraform/ECS evidence remained represented as repository relationships rather than workload instances. | Use the remaining Terraform/ECS workload-instance gap as the next correlation-truth investigation; do not treat repository-edge success as full deployment-story success |
+| Terraform IAM config-read relationship truth | Implemented locally | Commit `ce9a2e5d` adds `TERRAFORM_IAM_PERMISSION` evidence and canonical `READS_CONFIG_FROM` repository edges for Terraform IAM policies that grant SSM read access to another service's `/configd` or `/api` path. Focused TDD proves that IAM/SSM config-read resources no longer emit misleading `TERRAFORM_CONFIG_PATH` / `PROVISIONS_DEPENDENCY_FOR` evidence, while ordinary non-IAM Terraform config paths still provision dependencies. Reducer routing preserves the new evidence type, the NornicDB/Neo4j writer emits direct `READS_CONFIG_FROM` edges, retraction includes the new verb, and repository/query surfaces include the verb in relationship/dependency/consumer reads. Local verification passed `go test ./internal/relationships ./internal/reducer ./internal/storage/neo4j ./internal/query -count=1`, `go test ./cmd/api ./cmd/mcp-server ./internal/relationships ./internal/reducer ./internal/storage/neo4j ./internal/query -count=1`, `git diff --check`, and strict MkDocs. | Push, rebuild remote Linux binaries, and validate against a focused real-repo slice before backfilling or rerunning larger corpora. |
+| Observed AWS Terraform resource classification | Implemented locally | Commit `139f2a7c` preserves `provider`, `resource_type`, `resource_service`, and `resource_category` on Terraform resource/data-source parser rows, canonical graph nodes, repository infrastructure responses, and `/api/v0/infra/resources/search` results. The service-family map now covers high-volume AWS resource families observed in the local and remote corpora, including app autoscaling, API Gateway, plural subnet/route data sources, VPC peering, gateways, DMS/DocDB, SSO, DataSync, Transfer, CloudFormation, and caller identity. Local verification passed `go test ./internal/terraformschema ./internal/parser ./internal/content/shape ./internal/projector ./internal/query ./internal/storage/neo4j -count=1`, `go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/parser ./internal/terraformschema ./internal/storage/neo4j -count=1`, `git diff --check`, a prohibited private-term scan over touched files, and strict MkDocs. | Push, rebuild remote Linux binaries, run a focused no-symlink AWS Terraform corpus, and inspect raw graph/API JSON before claiming full-corpus coverage. |
+| AWS Terraform demo-corpus coverage and NornicDB variable brace fallback | Implemented locally | Commit `aa3853d0` expands the Terraform service-category map for every previously generic AWS Terraform type observed in the remote corpus and narrows the NornicDB singleton fallback to Terraform variable metadata that carries brace-bearing `default`, `var_type`, or `description` values. Corpus-wide remote source scan found `375` distinct `aws_*` Terraform resource/data-source types; before this slice, `60` landed in the generic `infrastructure` category, including AMI, volume attachment, Lake Formation, Identity Store, Glue, WAF Regional, Security Hub, and default VPC/security/network resources. After the map update the same scan reports `total=375 infrastructure=0`. Remote focused proof `aws-terraform-classification-20260501T222220Z` also exposed a real NornicDB parser dead letter on a TerraformVariable description containing `{}` even though the previous fallback handled only `default` braces; focused TDD now covers both default-map and description-brace fallbacks while preserving batched TerraformLocal interpolation rows. Local verification passed `go test ./internal/terraformschema ./internal/parser ./internal/query ./internal/storage/neo4j ./cmd/ingester ./cmd/bootstrap-index ./cmd/reducer -count=1`. Rebuilt remote proof `aws-terraform-classification-20260501T224237Z` was stopped as too slow after proving the first repo projected and reduced cleanly: source-local projection took `140.627s`, with TerraformVariable `1260` rows in `71.490s`, TerraformResource `779` rows in `30.201s`, and reducer follow-on handlers all below `1s` each with queue wait below `4s`. The second repo did not dead-letter before the stop, but it spent `90.362s` in TerraformLocal canonical writes with `0` singleton statements, confirming this six-Terraform-heavy-repo proof is measuring serialized NornicDB source-local canonical write cost, not reducer throughput. Fast targeted proof `aws-terraform-brace-fixture-20260501T225638Z` then rebuilt and ran a one-repo git fixture with brace-bearing Terraform variable defaults, descriptions, and object types. It drained healthy with projector `1/1`, reducer `7/7`, queue `0`, and `0` failed/dead-lettered items. Projection succeeded in `0.035s`; NornicDB logged TerraformVariable `rows=3`, `singleton_statements=3`, `total_duration_s=0.0086`, and TerraformLocal `rows=1`, `singleton_statements=0`, `total_duration_s=0.0030`, proving the fallback catches variable braces while preserving batched locals. Classification: correctness/demo-truth coverage plus rejected six-heavy-repo serialized proof as a reducer signal. | Keep the one-repo brace fixture as the fast NornicDB projection proof, and keep the `375/375` source classifier coverage as the fast demo-readiness proof. Do not use six serialized Terraform-heavy repos as the reducer iteration loop. |
+| Focused deployment-story graph truth | In progress | Commits `c3aea59c`, `e2dcecda`, and `cd6edbd7` fix reducer workload/platform projection gaps found by a focused `61`-repository relationship corpus built from real repo copies, not symlinks. `c3aea59c` infers Kubernetes runtime platforms for admitted service candidates with deployment-source evidence even when the source repo only has Docker/runtime evidence. `e2dcecda` preserves explicit infrastructure-cluster evidence when service modules appear in the same Terraform stack. `cd6edbd7` prefers explicit Terraform cluster-name locals over incidental data-source or service-module handles for platform names. Focused TDD covered the positive Kubernetes deployment-source case, negative no-platform cases, explicit cluster plus service-module inference, and platform naming from cluster evidence. Local and remote verification passed `go test ./cmd/reducer ./internal/reducer ./internal/storage/neo4j -count=1`, `git diff --check`, and prohibited-term scans on changed files. The rebuilt remote proof against NornicDB `v1.0.43` drained healthy with projector `61/61`, reducer `655/655`, queue `0`, `0` failed/dead-lettered items, no sampled `ERROR` / timeout / connection-refused logs, and queue-empty progress from `2026-04-29T21:39:56Z` to `2026-04-29T21:41:14Z` (`~78s`). Final resource samples remained unsaturated (`99%` CPU idle, `0%` IO wait). Direct persisted-graph inspection showed `61` repository nodes; repo-edge inventory `DEPENDS_ON=6`, `DEPLOYS_FROM=40`, `DISCOVERS_CONFIG_IN=14`, `PROVISIONS_DEPENDENCY_FOR=65`, `USES_MODULE=4`; GitHub Actions evidence materialized `25` repo relationships; the target service had `18` typed repository relationships, `5` Kubernetes `RUNS_ON` workload-instance edges, and the legacy infrastructure stack now provisions one ECS platform named from explicit cluster evidence. Commits `398c51e0`, `414a4b54`, `8e88c753`, and `a3437d14` then bridge strongly resolved infrastructure provisioning into workload runtime platforms without treating generic dependency evidence as runtime truth. `398c51e0` adds the reducer-side provisioning bridge, `414a4b54` replays workload materialization for the target repo after provisioned dependency projection, `8e88c753` uses scalar provisioned-platform graph lookups for NornicDB compatibility, and `a3437d14` carries provisioning evidence kinds through workload candidates so only platform-shaped Terraform evidence can create provisioned `RUNS_ON` rows. Focused regression tests cover the positive single-platform bridge and the negative generic dependency case. Rebuilt remote proof at `a3437d14` drained healthy in `33s` with projector `61/61`, reducer `659/659`, queue `0`, and no failed/dead-lettered items. Direct graph proof for the target service showed `8` `RUNS_ON` rows: `5` Kubernetes rows from deployment-source evidence plus `3` ECS rows from the unambiguous provisioning stack, with the previous Lambda false positives removed. Durable relationship-store proof showed the broader vocabulary remained present across `20` evidence-kind groups, including GitHub Actions, Kustomize/Helm, ArgoCD discovery, Terraform module/dependency, and platform-shaped Terraform evidence. | Correctness win, not a throughput win. Remaining graph-truth gap: validate the same deployment story through API/query surfaces and then carry the focused proof into a larger mixed corpus before treating this as full-corpus relationship truth. |
+| Current mixed-20 reducer sanity | Proven | Remote proof `eshu-reducer-hot20-current-b954-20260430T025342Z` rebuilt Linux binaries at `b954fd63` and reran the mixed `20`-repository performance corpus after the reducer/query-truth fixes. The run drained healthy in `151s` with projector `20/20`, reducer `160/160`, shared projection `code_calls 36832/36832`, repo dependency intents `3/3`, and no failed/dead-lettered queue items. Reducer handler sums were led by `semantic_entity_materialization` (`55.058s`, max `26.770s`), `workload_materialization` (`13.281s`, max `2.714s`), `code_call_materialization` (`13.238s`, max `3.671s`), `sql_relationship_materialization` (`9.798s`, max `2.773s`), and `inheritance_materialization` (`9.259s`, max `1.924s`). Queue wait remained visible in `deployment_mapping` (`1009.923s` sum, max `73.198s`) and SQL (`122.264s` sum, max `33.320s`). Resource samples stayed unsaturated but busier than the tiny focused corpus: `cpu_idle_avg=57.09%`, `io_wait_avg=3.05%`, `disk_idle_avg=78.46%`. | Current-branch sanity proof: healthy and faster than prior hot20 deferred-index proof (`205s`), but not attributed to the query-truth fix. Keep using mixed-20 before 100/full-corpus runs and focus next reducer work on measured semantic/code-call/write-shape hot paths rather than worker-count increases. |
+| Terraform runtime service module truth | Proven | Commits `9ce9dc64`, `20723f7b`, and `94ca93d8` fix a focused graph-truth miss where Terraform service modules proved a runtime platform but only generic provisioning evidence reached workload materialization. `9ce9dc64` preserves platform-shaped Terraform service evidence such as `TERRAFORM_ECS_SERVICE` and `TERRAFORM_LAMBDA_SERVICE`; `20723f7b` first allowed service-stack cluster data to form a platform row; `94ca93d8` tightened that to the service module's own `cluster_name` reference so unrelated data sources do not become runtime truth. Focused TDD covered runtime-service evidence extraction, service-evidence projection, service module plus cluster reference platform inference, and the existing generic-provisioning negative case. Remote proof used a fresh no-symlink private `23`-repository corpus with rebuilt Linux binaries at `94ca93d8`: run `eshu-focused-two-api-node-services-20260430T015820Z` drained in `36s`, ending with projector `23/23`, reducer `237/237`, no failed/dead-lettered items, and unsaturated resources after bootstrap (`cpu_idle` returning to `96%`, `io_wait` `0-1%`, disk util `0-0.1%`). Durable evidence retained the full vocabulary, including `TERRAFORM_ECS_SERVICE=19` and `TERRAFORM_LAMBDA_SERVICE=6`. Direct graph inspection showed `4` workloads, `17` workload instances, `16` instance-level `DEPLOYMENT_SOURCE` rows, and `21` `RUNS_ON` rows. The two target services now have Kubernetes deployment-source/runtime rows plus ECS rows for Terraform-backed environments; the intermediate broad data-source attempt was rejected because it created unrelated platform names. Commit `befbc42a` then fixed the query-surface follow-up: workload/service story assembly now preserves every runtime platform target for a materialized instance instead of keeping only the first `RUNS_ON` row. Focused tests cover multi-platform instance reads, deployment overview platform counts, story text, and deployment-fact emission. Rebuilt remote API validation against the same focused graph first confirmed the `local_authoritative` capability gate for full platform-truth routes, then ran the API with the `local_full_stack` profile to exercise the query surfaces. Repository context, service context, service story, and deployment trace all returned `200`; service context and deployment trace agreed on the same Kubernetes plus ECS runtime targets, instance counts, deployment sources, consumers, and provisioning chains as the direct graph proof. | Correctness/truth win, not a wall-clock win: the focused corpus remained `35-36s`. Carry this into a larger mixed corpus before treating the Terraform service-module lane as fully accepted. |
+| Multi-verb service evidence graph truth | Proven | Commit `6bf0a737` fixes two reducer admission gaps exposed by a focused private `17`-repository multi-evidence corpus built from real repo copies with no symlinked roots. The pre-fix rebuilt proof at `2a1d278e` drained healthy in `18s` with projector `17/17`, reducer `145/145`, queue `0`, and no failed/dead-lettered work, but direct graph inspection showed repository relationships only: `DEPLOYS_FROM=2`, `DISCOVERS_CONFIG_IN=1`, `PROVISIONS_DEPENDENCY_FOR=6`, with `0` `Workload` and `0` `RUNS_ON` rows. Durable facts proved the target Node service had Jenkins entry-point evidence, a GitHub Actions workflow artifact, Kustomize/Helm deployment evidence, Terraform provisioning evidence, SQL reducer coverage in the corpus, and Lambda repository references; reducer logs showed `candidate_count=1` but `workload_row_count=0`, so the bug was materialization admission, not missing source data. `6bf0a737` makes GitHub Actions `artifact_type=github_actions_workflow` count as controller provenance and recomputes workload classification after resolved deployment evidence enriches a controller-style candidate. Focused TDD first failed on both cases and then passed, with local verification `go test ./cmd/reducer ./internal/reducer ./internal/storage/neo4j -count=1`. Rebuilt remote proof at `6bf0a737` drained healthy in `23s` with projector `17/17`, reducer `160/160`, queue `0`, and `0` failed/dead-lettered items. Direct graph proof showed `17` `Repository` nodes, `2` `Workload` nodes, `4` `WorkloadInstance` nodes, `RUNS_ON=4`, and `DEPLOYMENT_SOURCE=4`; the target Node service now materializes as a `service` workload with four Kubernetes environment instances from deployment-source evidence. Repository-edge proof remained intact: `DEPLOYS_FROM=2`, `DISCOVERS_CONFIG_IN=1`, `PROVISIONS_DEPENDENCY_FOR=5` in the graph, with durable evidence kinds `ARGOCD_APPLICATIONSET_DISCOVERY`, `HELM_VALUES_REFERENCE`, `KUSTOMIZE_RESOURCE_REFERENCE`, `TERRAFORM_APP_REPO`, `TERRAFORM_CONFIG_PATH`, and `TERRAFORM_SSM_PARAMETER`. The same proof showed parsed artifact coverage for Ansible roles/tasks/vars, GitHub Actions workflows, Dockerfiles, Helm/templates, and Terraform, and the SQL reducer wrote `643` relationship rows for the data-pipeline repo. Query-surface validation then found NornicDB-sensitive API read shapes, not reducer misses: optional map projections and chained instance-platform traversals returned literal expressions or dropped instance IDs. Commits `5912dd39`, `73424bd0`, and `c3815ca5` route workload/service context and repository context counts through scalar read queries with focused regression tests. Rebuilt API proof at `c3815ca5` returned `200` for repositories, repository context, service context, workload context, service story, repository story, and deployment trace. Repository context now reports `file_count=372`, `workload_count=1`, `platform_count=4`, `consumers=3` (`helm-charts`, `iac-eks-argocd`, `terraform-stack-datax`), `deployment_artifacts=2`, and `entry_points=257`. Service context, service story, and deployment trace agree on workload `workload:api-node-datax`, four Kubernetes instances (`bg-prod`, `bg-qa`, `ops-prod`, `ops-qa`), GitHub Actions/Jenkins/Helm provenance, two deployment sources (`helm-charts`, `iac-eks-argocd`), and controller/deployment story evidence. | Correctness win. This validates cross-repo deployment evidence upgrading controller-style service repos without over-materializing Lambda repositories or generic provisioning dependencies, and proves graph truth now survives the API/query surfaces for the focused service story. Next proof should expand to a larger mixed corpus. |
+| Communicator multi-evidence truth proof | Proven | Rebuilt `eshu`, `eshu-api`, `eshu-ingester`, `eshu-reducer`, and `eshu-bootstrap-index` at `828848fe`, then ran a fresh no-symlink focused `9`-repository corpus around `api-node-communicator`, `lambda-api-communicator`, Terraform/config/release automation, GitHub workflow-library repos, and Helm chart context. Run `eshu-focused-communicator-multievidence-20260430` drained healthy in about `12s`: projector `9/9`, reducer `76/76`, queue `pending=0 in_flight=0 retrying=0 dead_letter=0 failed=0`. The run was too short for useful in-flight resource sampling; the first monitor samples landed after drain and showed idle-heavy host state (`cpu idle 99-100%`, primary disk util `0%` in the immediate post-drain sample). Direct graph proof showed `9` `Repository` nodes, one `Workload` (`workload:api-node-communicator`, kind `service`), `0` `WorkloadInstance`, `0` `RUNS_ON`, and `0` `DEPLOYMENT_SOURCE`. Durable relationship proof wrote `4` `DEPLOYS_FROM` relationships from GitHub Actions reusable-workflow evidence and `3` `PROVISIONS_DEPENDENCY_FOR` relationships from Terraform evidence; the Terraform edge into `api-node-communicator` aggregated `31` evidence facts across `TERRAFORM_APP_REPO`, `TERRAFORM_CONFIG_PATH`, and `TERRAFORM_SSM_PARAMETER`, and the Lambda repo remained provisioning evidence rather than an over-materialized workload instance. API proof with `ESHU_QUERY_PROFILE=local_full_stack` returned `200` for repositories, repository story, service context, service story, and deployment trace. The service trace matched graph truth: `mapping_mode=none`, `instance_count=0`, `platform_count=0`, `deployment_source_count=0`, `overall_confidence_reason=config_only_evidence`, and limitation `config_environments_present_without_materialized_runtime_instances`; service context still exposed Jenkins controller provenance, Docker/runtime artifacts, SQL migration commands, API surface, config environments, and one Terraform provisioning chain. | Correctness/truth proof. This is not a reducer bug: current workload instance materialization requires resolved `DEPLOYS_FROM` deployment evidence such as ArgoCD, Helm, or Kustomize; Terraform `app_repo` is intentionally `PROVISIONS_DEPENDENCY_FOR` and should enrich provisioning chains without fabricating runtime instances. Next service-story proof should deliberately select a second service with explicit Helm/Argo/Kustomize deployment evidence if the goal is `WorkloadInstance` / `RUNS_ON` validation. |
+| Communicator ArgoCD control-plane follow-up | Proven for discovery, still no runtime instance | Rebuilt remote binaries at `b937650d` and reran a fresh no-symlink `11`-repository corpus that added `iac-eks-argocd` and core automation to the previous communicator, Terraform, config, workflow-library, and `helm-charts` set. Run `eshu-focused-communicator-dual-20260430Tnow` drained healthy with projector `11/11`, reducer `98/98`, and `0` failed/dead-lettered items. Manual finalization measured about `146s` because the temporary harness had a SQL quoting bug after the queue was already healthy; reducer handler evidence was small (`workload_materialization` handler sum `2.160s`, max `0.223s`; `deployment_mapping` sum `0.961s`, max `0.140s`) and resource monitoring stayed idle-heavy. Durable evidence included `49` `ARGOCD_APPLICATIONSET_DISCOVERY` facts resolving to one `DISCOVERS_CONFIG_IN` relationship for `helm-charts`, plus Terraform provisioning chains into `api-node-communicator` (`31` facts) and `lambda-api-communicator` (`4` facts). Commit `b75a0473` then replaced the narrow file-name gate with generic ApplicationSet Git file-generator YAML/JSON parameter evaluation: arbitrary matched generator files are flattened into template params, simple inline `{{ .field }}` values are evaluated, recursive `**` generator paths are supported, and unsupported Go-template expressions remain discovery-only. TDD covers positive evaluated deploy-source, negative shared-chart/config data that must not invent deploy-source, ambiguous unsupported-template behavior, and broad-alias protection for raw template strings. Remote proof `eshu-focused-communicator-appset-b75-20260430T011653Z` rebuilt `eshu`, `eshu-api`, `eshu-ingester`, `eshu-reducer`, and `eshu-bootstrap-index`, drained from first progress at `2026-04-30T01:16:57Z` to queue-empty at `2026-04-30T01:17:09Z`, and ended healthy with projector `11/11`, reducer `101/101`, and `0` failed/dead-lettered items. Durable evidence still shows `49` `ARGOCD_APPLICATIONSET_DISCOVERY` facts and no `ARGOCD_APPLICATIONSET_DEPLOY_SOURCE` for this shared chart/config shape; resolved repo edges are `DISCOVERS_CONFIG_IN=1`, `DEPLOYS_FROM=7`, `PROVISIONS_DEPENDENCY_FOR=4`, and `DEPENDS_ON=2`. Direct persisted-graph inspection shows repository edges `DISCOVERS_CONFIG_IN=1`, `DEPLOYS_FROM=5`, `PROVISIONS_DEPENDENCY_FOR=3`, `DEPENDS_ON=1`, one `Workload` for `api-node-communicator`, and `0` `WorkloadInstance` rows. Runtime samples during the drain stayed unsaturated after startup (`cpu idle` rising from `74%` during bootstrap to `96-100%`, `io_wait` returning to `0%`, disk util returning to `0-11.1%`). | Corrects the extraction model without changing reducer concurrency: ApplicationSet file generators are generic JSON/YAML param sources, not a fixed org-specific file contract. The focused source still does not explicitly identify `api-node-communicator` as an ApplicationSet-deployed source, so Eshu correctly preserves discovery/provenance and does not fabricate runtime instances from shared chart client/config entries. Next graph-truth proof should select a service whose generated params explicitly resolve to the service repo, or expand the corpus to include that concrete deploy-source evidence. |
+| Source-local content search indexing | In progress | Commits `32d61a6a` and `0f26b3e3` added opt-in local-authoritative content search index deferral plus repo-count-gated restore readiness. Evidence: `eshu-reducer-onebig-deferred-index-code-20260429T115343Z` drained in `152s` versus `188s` default; `eshu-reducer-small-deferred-index-code-20260429T115724Z` drained in `14s`; the first hot20 proof exposed early restore and stayed flat at `239s`; fixed proof `eshu-reducer-hot20-deferred-index-fixed-20260429T121040Z` drained in `205s`, restored indexes post-drain in `1m45.272s`, and ended with projector `20/20`, reducer `160/160`, `code_calls 57987/57987`, CPU idle `63.21%`, and disk idle `81.71%`. | Promote only as a local-authoritative proof/load knob; next optimize canonical graph write and large code-call shared projection cycles before the 100-repo/full-corpus ladder |
+| Browser-library data-shape pruning | In progress | Commit `d5e83166` adds signature-based discovery skips for copied browser libraries while keeping authored `src/bootstrap.js`-style files. Focused tests passed; `eshu-reducer-onebig-browserlib-prune-d5e-20260429T133457Z` moved one-large wall `152s` to `99s`; `eshu-reducer-large4-browserlib-prune-d5e-20260429T133758Z` moved four-large wall `192s` to `154s`; `eshu-reducer-hot20-browserlib-prune-d5e-20260429T134509Z` moved hot20 wall `205s` to `165s`, with projector `20/20`, reducer `160/160`, `code_calls 37881/37881`, CPU idle `59.96%`, and disk idle `79.69%`. | Estimate full-corpus impact, then continue with remaining canonical entity write hot paths or run the 100-repo ladder |
+| WordPress/core-browser data-shape pruning | In progress | Commit `0a838916` skips WordPress core dirs, `.min.mjs`, and signed JWPlayer/Prototype/reveal browser runtimes. Focused collector tests and `go vet ./internal/collector` passed. Runtime evidence: API/PHP one-large `eshu-reducer-api-wordpress-runtime-0a8-20260429T1405Z` drained in `107s`; 4-large `eshu-reducer-large4-wpcore-runtime-0a8-20260429T1410Z` moved `154s` to `141s`; hot20 `eshu-reducer-hot20-wpcore-runtime-0a8-20260429T1415Z` moved `165s` to `153s`, with projector `20/20`, reducer `160/160`, `code_calls 36832/36832`, CPU idle `54.23%`, and disk idle `76.57%`. | Keep as modest wall-clock win; next stop chasing tiny skip rules and measure canonical entity write-path or code-call shared projection changes |
+| Generated-template local ignore upper-bound | In progress | Commit `4da1c6a7` contains only evidence anonymization and no runtime behavior change. A temp-only repo-local ignore proof measured whether a generated PHP template family explains source-local/canonical write time before adding any OSS classifier. One-large `eshu-reducer-large-templateignore-4da-20260429T1535Z` moved wall `107s` to `62s`, files `4724` to `3595`, facts `128854` to `75732`, content entities `119398` to `68534`, content write `17.489s` to `8.858s`, canonical write `30.698s` to `19.138s`, and `Variable` rows `103908` to `57080`; CPU idle `85.11%`, IO wait `0.67%`, disk idle `92.88%`. Four-large `eshu-reducer-large4-templateignore-4da-20260429T1550Z` moved wall `141s` to `133s`, with projector `4/4`, reducer `32/32`, `code_calls 29935/29935`, CPU idle `65.00%`, IO wait `1.89%`, disk idle `80.58%`. Hot20 `eshu-reducer-hot20-templateignore-4da-20260429T1600Z` moved wall `153s` to `137s`, with projector `20/20`, reducer `160/160`, `code_calls 36830/36830`, `repo_dependency 3/3`, CPU idle `56.05%`, IO wait `2.60%`, disk idle `77.48%`. Commit `0376d44f` adds a generic operator-controlled discovery path-glob overlay (`ESHU_DISCOVERY_IGNORED_PATH_GLOBS`, `ESHU_DISCOVERY_PRESERVED_PATH_GLOBS`) for bootstrap-index, collector-git, and ingester so future proofs do not require temp harness edits or committed corpus-specific rules. Commit `e0b7e7ad` records the first overlay follow-up. With rebuilt binaries and the real env overlay, `eshu-reducer-large-envtemplate-e0b-20260429T1625Z` drained the same one-large proof in `59s`, with projector `1/1`, reducer `8/8`, `code_calls 2251/2251`, `files_skipped.user.generated-template=1122`, files `3602`, facts `75830`, content entities `68618`, content write `8.760s`, canonical write `18.487s`, `Variable` rows `57164`, CPU idle `86.67%`, IO wait `0.67%`, and disk idle `92.33%`. Small no-match validation `eshu-reducer-small-envtemplate-e0b-20260429T1635Z` drained in `13s`, with projector `1/1`, reducer `8/8`, `code_calls 32/32`, CPU idle `97.00%`, IO wait `0.00%`, and disk idle `95.44%`. Commit `5df7e70b` was rebuilt remotely before the real four-large and hot20 overlay proofs. `eshu-reducer-large4-envtemplate-5df-20260429T1705Z` drained in `135s`, with projector `4/4`, reducer `32/32`, `code_calls 29935/29935`, CPU idle `63.37%`, IO wait `2.21%`, and disk idle `80.13%`. `eshu-reducer-hot20-envtemplate-5df-20260429T1710Z` drained in `137s`, with projector `20/20`, reducer `160/160`, `code_calls 36830/36830`, `repo_dependency 3/3`, CPU idle `56.10%`, IO wait `2.75%`, and disk idle `76.02%`. Commit `c1d5675b` was rebuilt remotely before the 100-repo overlay proof. A first 100-repo run exposed a temp harness owner-file selection bug but durable state was healthy; the clean rerun `eshu-reducer-100-envtemplate-c1d-ownerfix-20260429T1745Z` drained in `81s`, with projector `100/100`, reducer `768/768`, `code_calls 7293/7293`, `repo_dependency 9/9`, semantic handler sum `31.654s`, workload handler sum `26.477s`, max reducer handler `3.335s`, CPU idle `76.75%`, IO wait `2.00%`, and disk idle `82.59%`. | Treat the generic overlay as validated through the 100-repo ladder. Next proof can be full corpus or a deliberately large-biased 100-repo set if we want one more tail-risk check first. Decide separately whether production should supply repo-local config or deployment-level overlay values. Do not hardcode corpus names or domain-specific strings. |
+| Repo-dependency shared projection telemetry | In progress | Commit `f581dc79` adds repo-dependency cycle substep telemetry before changing concurrency: `selection`, `load_all`, `acceptance_prefetch`, `retract`, `write`, `replay`, and `mark_completed` durations, plus processed, active, stale, acceptance-unit-row, and replay-request counts. Focused TDD: `go test ./internal/reducer -run TestRepoDependencyProjectionRunnerRecordCycleLogsSubstepDurations -count=1`; broader local verification: `go test ./internal/reducer ./internal/telemetry -count=1` and `go test ./cmd/reducer ./internal/reducer ./internal/telemetry -count=1`. | Rebuild remote binaries after this slice lands and rerun a focused repo-dependency proof before adding indexes or partitioning. Use the new fields to classify whether the `repo_dependency` tail is Postgres loading, accepted-generation prefetch, NornicDB retract/write, replay enqueue, or completion marking. |
+| NornicDB compose relationship correctness | Proven | Commits `624aad27` and `ad5a8ede` fix correctness gaps found while validating the NornicDB Compose stack after the reducer throughput work. `624aad27` stops repository context from promoting generic Helm/Kubernetes YAML containing `hosts:` into `ansible_playbook` evidence and dedupes repeated relationship facts before insert. `ad5a8ede` corrects deferred relationship backfill ownership so corpus-wide backfill persists source-file evidence under the active source repository generation instead of duplicating the same source-to-target relationship under the target generation. Focused TDD covered Helm values and Kubernetes Ingress negative cases, real Ansible playbook positives, duplicate upsert inputs, and deferred backfill source-generation ownership. Local verification passed `go test ./internal/query ./internal/storage/postgres ./internal/relationships -count=1`. Rebuilt remote NornicDB Compose validation at `ad5a8ede` drained cleanly with `45` repositories, queue `succeeded=378`, healthy API/MCP/ingester/reducer/Postgres/NornicDB services, and no recent error/failed/panic/fatal/dead-letter/timeout logs. Durable evidence is now `HELM_VALUES_REFERENCE=2` and `KUSTOMIZE_RESOURCE_REFERENCE=2`, duplicate evidence groups are `0`, duplicate resolved relationship groups are `0`, persisted `DEPLOYS_FROM=4`, graph `DEPLOYS_FROM=4`, and repository context for the Helm/Kubernetes fixtures reports no synthetic `ansible_playbook` config paths while preserving Helm relationship overview. | Correctness/API-truth win, not a throughput win. Keep this as a gate before larger NornicDB proof runs so performance measurements are not polluted by duplicate durable relationship rows or false evidence labels. |
+| Bootstrap NornicDB canonical write safety | Proven | Commit `76a0909f` fixes a NornicDB Compose blocker found by the mixed representative corpus: `eshu-bootstrap-index` still used the plain grouped canonical writer while `eshu-ingester` already used bounded NornicDB phase groups, per-label caps, file caps, and write timeouts. The first mixed `24`-repository attempt at `add8bdb5` failed before reducer validation with `Txn is too big to fit into one request` during source-local canonical projection for a roughly `10k`-fact repository, so that run was invalid as reducer evidence. The fix moves bootstrap canonical writes onto the same NornicDB-safe bounded phase-group path and adds regression coverage proving the bootstrap executor exposes `PhaseGroupExecutor`, not raw `GroupExecutor`, by default. Local verification passed `go test ./cmd/bootstrap-index ./cmd/ingester -count=1` plus `git diff --check`. After rebuilding remote Linux binaries and Compose images, run `eshu-nornicdb-mixed24-20260430T123300Z-76a0909f` drained healthy in `43s`: `24` active generations, `207` succeeded work items, `0` failed/dead-letter/retrying rows, bootstrap collection completed for `24` scopes, bootstrap projection completed all `24` items in `17.752s`, graph counts matched persisted relationship truth (`Repository=24`, `DEPLOYS_FROM=6`, `DISCOVERS_CONFIG_IN=2`, `PROVISIONS_DEPENDENCY_FOR=2`), duplicate resolved relationship groups were `0`, duplicate evidence IDs were `0`, and durable evidence retained representative ArgoCD, Helm, Kustomize, and Terraform evidence kinds. Resource samples averaged `68.72%` CPU idle, `0.00%` IO wait, and `61.20%` disk idle; the only error log hits were two manual SQL mistakes during evidence collection after the drain. Reducer log telemetry showed low handler time on this corpus: semantic entity materialization `8` items / `1.819s` handler sum / `0.975s` max, workload materialization `31` items / `1.671s` sum / `0.468s` max, SQL relationship materialization `24` items / `0.790s` sum / `0.301s` max, and deployment mapping `47` items / `1.253s` sum / `0.131s` max. | Correctness/runtime-gate win that unblocks mixed NornicDB proof runs. It should not be counted as reducer throughput improvement; the reducer was not reached in the failed baseline. Next reducer tuning should use the now-healthy mixed corpus to choose a larger, reducer-heavy corpus where semantic/workload/shared projection handler time is non-trivial. |
+| Repository edge evidence pointers | Proven locally and remotely | Commit `5d3ebfec` makes graph repository edges evidence-first without embedding full durable evidence in the graph. Reducer shared intents now carry `resolved_id`, `generation_id`, `evidence_count`, `evidence_kinds`, `resolution_source`, `confidence`, and `rationale`; Neo4j/NornicDB repo-edge writes persist those fields for `DEPENDS_ON`, `DEPLOYS_FROM`, `DISCOVERS_CONFIG_IN`, `PROVISIONS_DEPENDENCY_FOR`, and `USES_MODULE`; repository context exposes the same lightweight evidence pointers so callers can query Postgres `resolved_relationships` for full details. Focused TDD covered deterministic resolved IDs, cross-repo resolver intent payloads, typed and fallback repo-edge graph writes, and repository context output. Local verification: `go test ./internal/relationships ./internal/reducer ./internal/storage/neo4j ./internal/storage/postgres ./internal/query -count=1`, `git diff --check`, and prohibited-term scan clean. Remote proof after rebuilding `eshu`, `eshu-api`, `eshu-ingester`, `eshu-reducer`, and `eshu-bootstrap-index`: 61-repo focused relationship corpus produced `629/629` succeeded work items, first item created at `2026-04-30T16:31:38Z`, last update at `2026-04-30T16:32:12Z`, and no failed/dead-lettered work. Direct NornicDB graph inspection showed every materialized repository relationship had the new evidence pointers: `DEPENDS_ON=6/6`, `DEPLOYS_FROM=41/41`, `DISCOVERS_CONFIG_IN=14/14`, `PROVISIONS_DEPENDENCY_FOR=65/65`, and `USES_MODULE=4/4` with `resolved_id`, `generation_id`, `evidence_count`, and `evidence_kinds` present. Postgres reconciliation matched the same relationship counts in `resolved_relationships` and sample `resolved_id` rows returned full `details.evidence_preview` payloads. API repository context on the live NornicDB-backed stack returned relationship overview entries with `resolved_id`, `generation_id`, `evidence_count`, `evidence_kinds`, `resolution_source`, and `rationale`. Commit `88c7ccf3` keeps the legacy outgoing `relationships` array but makes `relationship_overview` include both incoming and outgoing typed repository edges with `direction`, `source_*`, `target_*`, `resolved_id`, `generation_id`, `confidence`, evidence counts/kinds, resolution source, and rationale. Local verification: `go test ./internal/query -run 'TestServeOpenAPI|TestGetRepositoryContextIncludesTypedRelationshipOverview' -count=1`, `go test ./internal/query -count=1`, `git diff --check`, and prohibited-term scan clean. Remote rebuilt-API proof against the same focused NornicDB dataset returned `20` relationship-overview entries for the target service: `16` incoming, `4` outgoing, and relationship types `DEPLOYS_FROM`, `DISCOVERS_CONFIG_IN`, and `PROVISIONS_DEPENDENCY_FOR`; incoming samples carried the expected graph-to-Postgres evidence pointers plus confidence and rationale. | Correctness/query-truth win, not a wall-clock win. Next: use the full-corpus stack to validate the same incoming/outgoing repository story through API and MCP read paths, then move back to reducer performance long poles if query truth stays aligned. |
+| Full-corpus repository edge-pointer acceptance | Proven, timing caveated | Fresh NornicDB Compose proof `eshu-nornicdb-fullcorpus-edgeptr-20260430T175535Z-0a7a7a0f` rebuilt at commit `0a7a7a0f` after the bootstrap heartbeat-stop race fix. The first attempt at this proof was invalidated by a startup port collision and then restarted with isolated ports. The older read-validation stack remained live for the first part of the run and was stopped, with volumes preserved, after we noticed it was competing for CPU; therefore this proof is correctness evidence, not a pristine timing benchmark. Terminal queue state was healthy: projector `947/947`, reducer `8384/8384`, `0` failed/dead-lettered rows, and `0` rows with `failure_class`. Bootstrap reported source-local projection complete at `1682.657s` for `947` items and reopened `946` deployment-mapping rows; durable work window was `2026-04-30T18:00:23Z` to `2026-04-30T18:33:26Z` (`1983.593s`). API and MCP health checks passed; MCP JSON-RPC `initialize` and `tools/list` returned successfully with `39` tools. API read-only Cypher verified all materialized repository graph edges had `resolved_id`, `generation_id`, `evidence_count`, and `evidence_kinds`: `DEPENDS_ON=3`, `DEPLOYS_FROM=179`, `DISCOVERS_CONFIG_IN=153`, `PROVISIONS_DEPENDENCY_FOR=759`, and `USES_MODULE=623`, with `0` missing pointer fields in every type-specific row check. Postgres `resolved_relationships` matched graph distinct source-target-type counts, except `DEPLOYS_FROM` had `181` durable rows and `179` distinct graph-edge identities because two source/target/type pairs had duplicate durable resolutions that collapse to one graph edge each. A target repository context API proof returned `17` relationship overview entries with the same pointer fields and evidence metadata. Resource samples for the whole run were `cpu_idle_avg=46.64%`, `io_wait_avg=0.43%`, and `disk_idle_avg=91.99%`; after the competing stack was stopped, samples shifted to `cpu_idle_avg=73.00%`, `io_wait_avg=0.04%`, and `disk_idle_avg=97.19%`. | Full-corpus graph/API/MCP correctness accepted for edge pointers and heartbeat-stop recovery. Do not use this wall time as the clean performance benchmark because early samples were contaminated by the older full-corpus stack. For a release timing number, rerun one single-stack full-corpus proof from a clean start. |
+| Graph evidence story spine | Implemented locally | This slice materializes bounded `EvidenceArtifact` graph nodes from resolved relationship evidence previews and links them through `HAS_DEPLOYMENT_EVIDENCE`, `EVIDENCES_REPOSITORY_RELATIONSHIP`, and `TARGETS_ENVIRONMENT` when a concrete environment path is available. Raw evidence remains in Postgres; graph nodes carry only stable evidence pointers and compact fields such as `resolved_id`, `generation_id`, `evidence_kind`, `artifact_family`, `path`, `matched_alias`, `matched_value`, and `environment`. NornicDB schema support adds single-label lookup anchors for `EvidenceArtifact.id` and `Environment.name`; the writer uses separate environment/no-environment batch statements rather than conditional Cypher. Repo-dependency retraction now also deletes prior evidence artifacts for the same evidence source so graph-story nodes do not outlive their authoritative repo-edge snapshot. Local TDD first failed for missing reducer payload, graph write, and schema support, then passed with `go test ./internal/reducer -run TestBuildResolvedEdgeIntentRowsCarriesEvidenceArtifactsForGraphStory -count=1`, `go test ./internal/storage/neo4j -run TestEdgeWriterWriteEdgesMaterializesRepoEvidenceArtifacts -count=1`, `go test ./internal/graph -run 'TestSchemaStatementsContainsExpectedConstraints|TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes' -count=1`, and `go test ./internal/reducer ./internal/storage/neo4j ./internal/graph -count=1`. | Correctness/query-truth win, not a throughput claim. Next proof should rebuild binaries and run a focused service/deployment corpus, then query the graph directly for evidence artifacts and compare those nodes against Postgres `resolved_relationships` and evidence facts before any API/MCP rendering work. |
+| Graph evidence story spine focused proof | Proven | Remote proof `eshu-focused-evidence-spine-a17d1c66-20260430T193633Z` rebuilt Linux binaries at `a17d1c66` and ran a fresh no-symlink `61`-repository focused service/deployment corpus against local-authoritative NornicDB `v1.0.43`. The run reached healthy in `44s` from wrapper start to queue-empty health, ending with projector `61/61`, reducer `568/568`, queue `0`, and `0` failed/dead-lettered items. Direct Bolt graph inspection showed `61` `Repository` nodes, `112611` total nodes, `128626` total edges, and `472` `EvidenceArtifact` nodes. Every graph artifact had both required links: `472` `HAS_DEPLOYMENT_EVIDENCE` source links and `472` `EVIDENCES_REPOSITORY_RELATIONSHIP` target links; `289` artifacts also linked to `Environment` nodes. Postgres reconciliation against `resolved_relationships.details.evidence_preview` matched the graph exactly by distinct artifact key and evidence kind: ArgoCD deploy-source `5`, ArgoCD discovery `17`, GitHub Actions action repo `14`, local reusable workflow `5`, reusable workflow `34`, workflow-input repo `25`, Helm chart `1`, Helm values `32`, Kustomize resource `43`, Terraform app-name `2`, app-repo `12`, config-path `129`, ECS service `31`, GitHub repository `26`, Lambda service `7`, module source `20`, Secrets Manager secret `3`, and SSM parameter `66`. A representative target service graph query showed deployment and provisioning edges with linked Helm/Kustomize/Terraform evidence artifacts, while its outgoing CI/config edges linked GitHub Actions reusable workflow and workflow-input evidence artifacts. | Correctness/query-truth proof accepted for the graph evidence spine. Next step is API/MCP rendering of the graph evidence pointers and targeted validation of API-route/endpoint and CI/deployment story surfaces; this proof is not a reducer throughput claim and does not justify worker-count changes. |
+| API endpoint graph materialization | Proven | Commit `e3c5f4b0` makes admitted workload API routes first-class graph truth. Workload candidate extraction now carries endpoint signals from split OpenAPI/Swagger specs, nested path-file refs, and parser-owned `framework_semantics` route contracts; workload materialization writes `Endpoint` nodes and `Repository` / `Workload` `EXPOSES_ENDPOINT` edges while retaining compact provenance (`source_kinds`, `source_paths`, spec/API versions, methods, and operation IDs). Follow-up commit `86c5b872` closes the known framework shape gap by translating parser-owned Next.js route-module metadata (`route_segments`, `route_verbs`) into the same endpoint graph and service-evidence route contract, alongside the existing FastAPI, Flask, Express, and Hapi route-path contract. Commit `0599fbb1` renders graph endpoint truth through repository context `api_surface` so API callers can discover endpoint nodes without hand-written Cypher; OpenAPI now documents that response field. Local TDD first failed for nested OpenAPI path refs, reducer candidate extraction, projection rows, graph writes, Next.js route-module evidence, and missing repository-context `api_surface`, then passed with `go test ./internal/query -run 'TestLoadServiceQueryEvidenceResolves(NestedOpenAPIPathRefs|OpenAPIPathsRef|PerPathItemRef)' -count=1`, `go test ./internal/reducer -run 'TestExtractWorkloadCandidatesIncludes|TestBuildProjectionRowsMaterializesAPIEndpointRows|TestWorkloadMaterializerWritesAPIEndpoints' -count=1`, `go test ./internal/query -run 'TestParseFrameworkSemantics(ExtractsNextJSRouteModules|ExtractsHapiAndExpressRoutes|SkipsFrameworkWithNoRoutes)' -count=1`, `go test ./internal/reducer -run 'TestExtractWorkloadCandidatesIncludes(NextJSRouteEndpoints|FrameworkRouteEndpoints|NestedOpenAPIEndpoints)' -count=1`, `go test ./internal/query -run 'TestServeOpenAPI|TestGetRepositoryContextIncludesGraphAPISurface|TestGetRepositoryContextReturnsEnrichedResponse' -count=1`, `go test ./internal/query ./internal/reducer ./internal/graph -count=1`, `git diff --check`, prohibited-term scan on the diff, and strict MkDocs. Remote proof `eshu-focused-endpoints-e3c5f4b0-20260430T201123Z` rebuilt Linux binaries and ran the fresh no-symlink `61`-repository focused corpus against local-authoritative NornicDB. The run ended healthy with projector `61/61`, reducer `568/568`, queue `0`, and `0` failed/dead-lettered items. Direct Bolt graph inspection showed `194` `Endpoint` nodes, `194` `Repository` -> `Endpoint` edges, and `194` `Workload` -> `Endpoint` edges. A representative split-spec API service exposed `38` endpoint nodes from OpenAPI/Swagger evidence; two additional API services exposed `69` and `10` endpoint nodes. Workload materialization logs reported endpoint write durations from low milliseconds to about `75ms` for those representative services. After pulling `5d5e58cd` on the remote focused stack, rebuilding `eshu-api` and `eshu-mcp-server`, and attaching temporary read services to the same graph, repository context API returned graph-backed `api_surface` counts matching the direct graph counts (`38`, `69`, `10`) with `truth_basis=graph`; MCP `get_repo_context` returned the same graph-backed endpoint count for the representative service. | Correctness/query-truth win, not a reducer throughput claim. Endpoint graph writes are cheap on this focused proof; the value is that API and MCP callers can now discover API surface truth from the graph and then follow graph pointers back to Postgres details. Next validation should include endpoint counts in the next larger graph-truth proof. |
+| Repository deployment evidence read surface | Proven | Commit `2d2a52e0` renders compact graph evidence artifacts through repository context as `deployment_evidence`. The read surface uses separate indexed `Repository.id` anchors for outgoing evidence owned by the requested repo and incoming evidence that targets it, then returns graph pointers only: artifact id, family, evidence kind, path, environment, runtime platform kind, relationship type, source/target repo ids, `resolved_id`, `generation_id`, confidence, and `postgres_lookup_basis=resolved_id` when a Postgres drilldown key exists. Local TDD first failed because repository context had no graph-backed deployment-evidence field, then passed with `go test ./internal/query -run TestGetRepositoryContextIncludesGraphDeploymentEvidence -count=1`; neighboring contract checks passed with `go test ./internal/query -run 'TestGetRepositoryContextIncludes(GraphDeploymentEvidence|TypedRelationshipOverview|GraphAPISurface)|TestServeOpenAPI' -count=1`, `go test ./internal/query -count=1`, `go test ./internal/mcp -count=1`, `git diff --check`, prohibited-term scan on changed files, and strict MkDocs. Remote proof pulled `2d2a52e0` into the existing focused NornicDB stack, rebuilt `eshu-api` and `eshu-mcp-server`, and restarted only the temporary read services. Repository context API returned `deployment_evidence.truth_basis=graph`; three representative services returned artifact counts `61`, `19`, and `15`, and direct read-only graph counts for outgoing plus incoming `EvidenceArtifact` nodes matched those API counts exactly. The same representative API proof exposed CI/deployment/environment families such as GitHub Actions, Helm, Kustomize, and Terraform, with environment counts `3`, `4`, and `2`. MCP `get_repo_context` returned the same graph-backed field for the representative service with artifact count `61` and endpoint count `38`. | Correctness/query-truth win, not a reducer throughput claim. This closes the first API/MCP visibility gap for graph evidence pointers; raw evidence remains in Postgres and is reached through the returned `resolved_id` / `generation_id` pointers. Next read-surface work should fold the same graph evidence summary into service context and deployment trace responses so repo, service, and trace views agree without bespoke Cypher. |
+| Service and deployment-trace graph read alignment | Proven | Commits `12860e16` and `451d9611` align service context and deployment trace with repository graph truth. `12860e16` moves graph deployment-evidence enrichment ahead of content-store hydration so service and trace reads can surface graph `EvidenceArtifact` pointers even when content evidence is unavailable, while preserving existing content-derived delivery paths when present. It also teaches deployment overview/story summaries to read graph-only `artifact_families`. The first remote proof exposed an adjacent mismatch: repo context used graph endpoint truth but service and trace still preferred content-derived API evidence, returning `39` endpoints versus the repository graph count of `38`. `451d9611` fixes that by querying the same repository graph API surface for service enrichment and only falling back to content-derived API evidence when graph endpoint truth is absent. Local TDD first failed for missing graph deployment evidence and missing graph API surface in service context, then passed. Verification: `go test ./internal/query -run 'TestGetServiceContextIncludesGraphDeploymentEvidenceWithoutContent|TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent' -count=1`, `go test ./internal/query -count=1`, `go test ./internal/mcp -count=1`, `git diff --check`, prohibited-term scan on changed files, and strict MkDocs. Remote proof pulled `451d9611`, rebuilt `eshu-api` and `eshu-mcp-server`, and restarted only temporary read services against the existing focused NornicDB graph. Repository context, service context, and deployment trace all returned matching graph deployment evidence artifact count `61`, matching artifact families GitHub Actions / Helm / Kustomize / Terraform, and matching graph-backed endpoint count `38` with `api_surface.truth_basis=graph` on service and trace responses. MCP `get_service_context` and `trace_deployment_chain` returned the same graph-backed artifact count `61`, endpoint count `38`, and artifact families. | Correctness/query-truth win, not a reducer throughput claim. Repo, service, deployment trace, and MCP now agree on graph endpoint and graph evidence summaries for the representative focused service. Next validation should carry this read-surface agreement into the larger mixed/full corpus proof and then decide whether to add a dedicated Postgres drilldown endpoint for returned `resolved_id` pointers. |
+| Reducer lease heartbeat correctness | In progress | Commit `b19e9b5d` adds lease heartbeats to the bootstrap projector drain and the repo-dependency shared projection lane. Commit `67b314f6` records the focused heartbeat proof evidence. Live full-corpus graph-truth validation found durable relationship evidence and resolved relationships for a target service, but graph edges lagged because a long source-local projection exceeded its lease, was re-claimed, and the duplicate graph write failed before deployment-mapping reopen. A targeted replay reopened `17` deployment-mapping items, produced `17` resolved relationships (`2` `DEPLOYS_FROM`, `15` `PROVISIONS_DEPENDENCY_FOR`), and eventually materialized all `17` target consumers in the repository context API. The same replay showed why repo-dependency also needs lease renewal: two small acceptance units with `RUNS_ON` plus repo-edge writes took `280.918s` and `135.723s`, far beyond the default `60s` shared-projection lease, while the later `61`-row unit completed in `0.848s`. Focused TDD covers bootstrap projector heartbeat during blocked projection and repo-dependency heartbeat during blocked graph write. Local verification: `go test ./cmd/bootstrap-index ./cmd/reducer ./internal/reducer ./internal/storage/postgres -count=1`. Rebuilt remote binaries at `67b314f6` and reran the same no-symlink focused `61`-repository relationship corpus against local-authoritative NornicDB. The first attempt failed before indexing because the non-interactive shell did not expose the NornicDB binary; the corrected proof used `ESHU_NORNICDB_BINARY`, drained from start to queue-empty in about `43s` (`70s` wrapper wall including manual owner shutdown), and ended healthy with projector `61/61`, reducer `568/568`, queue `0`, and `0` failed/dead-lettered items. Resource samples stayed unsaturated during active drain: CPU idle ranged roughly `38-70%`, IO wait stayed `0%`, and primary disk utilization was mostly `0.1-3.1%`. Direct graph proof showed the target service repository node plus `16` incoming typed repo edges (`2` `DEPLOYS_FROM`, `14` `PROVISIONS_DEPENDENCY_FOR`) and `2` outgoing automation/config edges (`DEPLOYS_FROM`, `DISCOVERS_CONFIG_IN`). Durable relationship proof showed the matching `18` resolved relationships with evidence JSON preserved for GitHub Actions reusable workflows, Helm/Kustomize deployment config, and Terraform evidence. | Correctness proof accepted for the heartbeat slice. This does not prove a throughput win: the focused drain is comparable to the earlier `33s` proof and the main value is preventing stale-lease duplicate projection/write races before the next full-corpus acceptance proof. Keep worker defaults unchanged. |
+| Bootstrap projector heartbeat stop race | Fixed locally; remote proof invalidated | Full-corpus edge-pointer proof `eshu-nornicdb-fullcorpus-edgeptr-20260430T173243Z-54648f8c` rebuilt at `54648f8c` to validate graph repository-edge evidence pointers on a fresh graph. The run reached `904` succeeded source-local projector items, `6670` succeeded reducer items, and `1,221,221` facts before bootstrap exited with `7` source-local projector rows stranded in `claimed/running`. Reducer work that had been enqueued succeeded, and NornicDB logs had no matching backend error, so this is not evidence of reducer edge-pointer failure. The failure signature was a bootstrap projector heartbeat reporting `context canceled` while projection shutdown was racing with heartbeat stop. Commit `85410592` adds focused regression coverage for both bootstrap and long-running projector heartbeat stop paths and treats heartbeat-store `context.Canceled` from the heartbeat context's own cancellation as a clean stop, while preserving real lease-loss errors. Verification: failing tests reproduced the race before the fix; after the fix `go test ./cmd/bootstrap-index -run TestBootstrapProjectorHeartbeatStopIgnoresStopContextCancellation -count=1`, `go test ./internal/projector -run TestServiceHeartbeatStopIgnoresStopContextCancellation -count=1`, and `go test ./cmd/bootstrap-index ./internal/projector -count=1` passed. | Rebuild remote binaries, remove the invalid edge-pointer proof stack after evidence capture, and rerun the fresh full-corpus edge-pointer proof. Keep the older read-validation stack running unless explicitly stopped. |
+| Repo-dependency retract shape | Proven | Live full-corpus old-binary evidence showed the remaining `repo_dependency` tail averaging about `23s` per cycle while writes were only milliseconds: recent `shared edge write completed` rows for `domain=repo_dependency` were typically `0.003s-0.008s`, workload replay logs after the cycle were milliseconds, and read-only Postgres `EXPLAIN (ANALYZE, BUFFERS)` on the live run measured pending selection at about `0.497ms` and next acceptance-unit reload at about `1.250ms`. Commit `fccfe2cd` keeps the same repo-wide retract semantics but rewrites the repo-dependency retract Cypher to anchor both repo-relationship and `RUNS_ON` deletion through `UNWIND $repo_ids AS repo_id` plus `MATCH (repo:Repository {id: repo_id})` before traversing relationships. Focused TDD first failed on the old unanchored shape, then passed; verification: `go test ./internal/storage/neo4j -run 'TestEdgeWriterRetractEdgesRepoDependencyDispatch|TestBuildCanonicalRepoRelationshipUpsertStatement|TestBuildCanonicalRunsOnUpsertStatementUsesWorkloadInstanceShape' -count=1`, `go test ./internal/storage/neo4j ./internal/reducer -count=1`, `go test ./cmd/reducer ./internal/storage/neo4j ./internal/reducer -count=1`, `git diff --check`, and prohibited-term scan clean. The rebuilt 100-repo proof `eshu-reducer-100-retract-anchor-7b0-20260429T183811Z` stayed healthy at `81s` with `repo_dependency 9/9`, but repo-dependency cycles still spent `1.635s` of `1.679s` in retract. A stopped full-corpus proof on `7b0741d4` confirmed the full-size tail: after projector `896/896` and `code_calls 114085/114085`, `repo_dependency` reached `103/911`; the first five repo-dependency cycles spent `206.072s` of `206.457s` in retract while writes totaled `0.105s`. Commit `4886478c` therefore skips repo-dependency retract only for true first projections: no completed contributor rows, no stale intents, and no explicit `delete`/`retract` action. Focused TDD failed before the guard and passed after it; verification: `go test ./cmd/reducer ./internal/reducer ./internal/storage/neo4j -count=1`, `git diff --check`, and prohibited-term scan clean. Rebuilt 100-repo proof `eshu-reducer-100-firstskip-488-20260429T185711Z` stayed healthy at `81s` with `repo_dependency 9/9`; repo-dependency cycle time dropped from `1.679s` to `0.034s`, with `retract_duration_seconds=0` and writes/replay/mark-complete accounting for the remaining milliseconds. Stopped full-corpus proof `eshu-reducer-full-firstskip-488-20260429T185908Z` showed the guard was still too conservative for additive waves: before deployment-mapping replay, `repo_dependency` reached `227/229` with `52` cycles totaling `1.848s`, `max_cycle=0.140s`, and `total_retract=0`; after completed contributor rows entered later acceptance-unit reloads, the same run reached `271/1235` with `70` cycles totaling `328.057s`, `total_retract=324.499s`, and `max_retract=63.107s`. Commit `f13e493f` keeps retracts for stale intents and explicit `delete`/`retract` actions but stops treating completed rows that still match accepted generation truth as invalidation triggers. Focused TDD first failed with one unwanted retract call for an authoritative completed contributor, then passed; verification: `go test ./internal/reducer -run 'TestRepoDependencyProjectionRunner(SkipsRetractForFirstProjection|SkipsRetractWhenCompletedContributorsRemainAuthoritative|RetractsPerEvidenceSourceAndSkipsRetractRowsOnWrite|ProcessesSourceRepoOwnedAcceptance|RehydratesCompletedContributorRows)' -count=1`, `go test ./cmd/reducer ./internal/reducer ./internal/storage/neo4j -count=1`, `git diff --check`, and prohibited-term scan clean. Rebuilt 100-repo proof `eshu-reducer-100-additive-skip-857-20260429T192131Z` stayed healthy at `81s`, with projector `100/100`, reducer `768/768`, `code_calls 7293/7293`, `repo_dependency 9/9`, CPU idle `75.67%`, IO wait `1.92%`, and disk idle `83.40%`. Repo-dependency cycles stayed in the intended non-destructive path: `2` cycles, `total_cycle=0.035s`, `max_cycle=0.022s`, `total_retract=0`, `total_write=0.009s`, `total_replay=0.015s`, and `total_mark_completed=0.004s`. Full-corpus proof `eshu-reducer-full-additive-skip-857-20260429T192326Z` was stopped as invalid after `88s` because a workload-materialization Platform `MERGE` hit a NornicDB commit-time unique conflict and moved one reducer item to `dead_letter`; this is a correctness gate, not a throughput result. Commit `bc20c6ae` adds a narrow retry classification for NornicDB MERGE unique conflicts while preserving terminal behavior for non-MERGE constraint violations. Focused TDD first failed on the NornicDB conflict shape, then passed; verification: `go test ./internal/storage/neo4j -run 'TestRetryingExecutor(RetriesNornicDBMergeUniqueConflict|DoesNotRetryNornicDBUniqueConflictWithoutMerge|DoesNotRetryPermanentErrors|RetriesOnDeadlock)' -count=1`, `go test ./cmd/reducer ./internal/reducer ./internal/storage/neo4j -count=1`, `git diff --check`, and prohibited-term scan clean. Rebuilt 100-repo proof `eshu-reducer-100-merge-retry-579-20260429T193231Z` stayed healthy at `79s`, with projector `100/100`, reducer `768/768`, `code_calls 7293/7293`, `repo_dependency 9/9`, CPU idle `72.36%`, IO wait `1.73%`, and disk idle `81.73%`; repo-dependency cycles stayed non-destructive with `total_cycle=0.041s`, `max_cycle=0.022s`, and `total_retract=0`. | Full-corpus proof `eshu-reducer-full-merge-retry-579-20260429T193415Z` exited after `119s` before drain because the remote root volume filled during ingestion; final checkpoint was projector `730/896`, reducer `3222` succeeded, `0` dead letters, and no repo-dependency cycles yet. Treat this as disk-capacity invalid, not a reducer result. Remote cleanup removed regenerated run state and restored root free space to `266G` before the next proof. Fresh rebuilt full-corpus proof `eshu-reducer-full-after-disk-clean-815-20260429T194528Z` drained healthy in `931s`: projector `896/896`, reducer `8284/8284`, `code_calls 118564/118564`, `repo_dependency 2057/2057`, and `0` failed/dead-lettered items. Repo-dependency completed `692` cycles with `total_cycle=22.778s`, `max_cycle=5.691s`, `total_retract=0`, and `4853` written rows; CPU idle averaged `42.16%`, IO wait `2.65%`, and disk idle `81.29%`. Classify this as a full-corpus wall-clock win for the repo-dependency tail. The remaining reducer long poles are `workload_materialization` (`2538` items, `2882.120s` handler sum, `85.171s` max) and `deployment_mapping` (`896` items, `551.067s` handler sum, `41.249s` max), so the next reducer work should target those handler/data-shape paths, not repo-dependency retract or worker-count defaults. |
+| Full-corpus overlay proof | Superseded by repo-dependency proof | Run `eshu-reducer-full-envtemplate-a4e-20260429T1810Z` used commit `a4eb9de1` after rebuilding all runtime binaries and enabling the same generic discovery overlay. Interim checkpoints showed projector `896/896`, code-call shared intents complete, and the late tail narrowing to repo-dependency shared projection while CPU and disk remained unsaturated. That run was intentionally superseded by the later repo-dependency retract-shape fixes and clean full-corpus proof. | Use `eshu-reducer-full-after-disk-clean-815-20260429T194528Z` as the authoritative full-corpus evidence for this slice. |
+| Explicit canonical entity SET A/B | Rejected | Commit `b018b67c` changed file-scoped canonical entity upserts from `SET n += row.props` to explicit base-property assignments while preserving map fallback for metadata-bearing rows; focused tests, `go test ./cmd/ingester ./internal/storage/neo4j -count=1`, `go vet ./cmd/ingester ./internal/storage/neo4j`, `git diff --check`, and NornicDB hot-path tests passed. Remote rebuilt binaries before runtime proof. The one-large API/PHP A/B `eshu-reducer-api-explicit-sets-b018-20260429T1430Z` drained healthy but regressed wall `107s` to `114s`, canonical entity phase `28.041s` to `35.517s`, canonical phase-group write `~28s` to `37.066s`, and `Variable` label time `22.549s` to `25.929s` for the same `103908` rows; CPU idle stayed `81.38%`, IO wait `0.88%`, and disk idle `89.59%`. Commit `b3215bf7` reverted the code slice and re-ran `go test ./cmd/ingester ./internal/storage/neo4j -count=1` plus `git diff --check`. | Keep the original map-property row shape. Do not pursue ESHU-side explicit SET routing as a reducer throughput win without new NornicDB evidence. |
+| Conflict matrix | Planned | Current conflict routing is safe but coarse | Map true conflict unit per reducer domain |
+| Shared runner partitioning | Planned | Code-call and repo-dependency lanes still have global behavior | Partition by acceptance unit or repo scope |
+| Cypher/index pilot | Planned | SQL and semantic paths show broad anchors and scan risk | Start with SQL relationship materialization |
+| NornicDB backend proof | In progress | NornicDB runtime-branch commit `9369a40` proves the no-return `UNWIND MATCH MATCH MERGE rel SET rel...` code-call shape has a batch-chain contract; 512-row local microbench improved from `2260916375 ns/op` fallback to `1386075 ns/op` patched, but the combined Eshu routing proof regressed single-large wall to `193s` with `15.648s` code-call write time. Eshu commit `88f2684f` adds shared edge write-shape logs. Run `eshu-reducer-websites-write-shape-20260429T0156Z` at `97a2ff61` drained healthy in `188s`; shape logs showed one code-call route, zero skipped rows, `25` grouped writes, `24,583` rows, and rising full-batch durations from `0.369s` to about `0.84s`. NornicDB commit `824c990` then bulk-created new relationships inside that chain-batch path; local 5k Badger benchmark improved `657270417 ns/op` to `595086583 ns/op`, and remote run `eshu-reducer-websites-bulk-rel-20260429T021749Z` kept wall at `188s` while lowering code-call graph write `15.770s` to `14.247s` and summed batch duration `15.730s` to `14.209s`. NornicDB `7017ee2` removed ready-index miss legacy scans and showed a strong high-fanout storage benchmark (`6063200 ns/op` to `1880 ns/op`), but `eshu-reducer-websites-ready-miss-20260429T023832Z` stayed flat at `188s` with code-call write `14.320s`. Retesting Eshu exact-label code-call routing at `972a7202` after both NornicDB fixes regressed the same proof to `200s` and `15.328s` write time, so `1f8dbe45` reverted it again. NornicDB `2dd6d27` adds opt-in per-batch chain profiling and the remote profiled run drained healthy at baseline `188s`; artifact aggregation found relationship lookup dominated baseline chain time (`4.475s` of `7.271s`), two wrapper fixes did not move Eshu, and NornicDB `07b792b` finally routed the transaction-layer typed lookup, lowering the same proof to `184s` wall with code-call write `10.064s` and relationship lookup `0.162s`. | Keep Eshu exact-label routing reverted; next NornicDB work should not assume existence-check scans or broad code-entity labels are the Eshu bottleneck without trace evidence. Shift next NornicDB/reducer work to the remaining mixed-corpus queue/readiness tail; do not scale workers from this handler-only win |
+| Concurrency proof | Planned | `8` workers completed healthy but too slowly | Test `16` workers only after telemetry and conflict fixes |
+| Full-corpus acceptance | In progress | Baseline `7h43m40s` was unacceptable. Current rebuilt full-corpus proof `eshu-reducer-full-after-disk-clean-815-20260429T194528Z` drained healthy in `931s` with projector `896/896`, reducer `8284/8284`, `code_calls 118564/118564`, `repo_dependency 2057/2057`, and no failed/dead-lettered work. Resource summary still showed headroom (`cpu_idle_avg=42.16%`, `io_wait_avg=2.65%`, `disk_idle_avg=81.29%`). Follow-up NornicDB Compose full-corpus run `eshu-nornicdb-fullcorpus-20260430T131736Z-f0002d52` rebuilt all Linux binaries and left API/MCP/NornicDB/Postgres/reducer running for read validation. Queue drain reached `947` active generations and `8023` succeeded work items at about `1800s`; bootstrap reported projection completion at `1848.679s`. API and MCP health were green, both API and MCP `/api/v0/index-status` returned `healthy` with queue `succeeded=8023`, MCP JSON-RPC `initialize` and `tools/list` returned successfully with `39` tools, and read-only Cypher through the API returned graph counts matching persisted relationship truth (`Repository=947`, `DEPLOYS_FROM=1`, `DISCOVERS_CONFIG_IN=4`, `PROVISIONS_DEPENDENCY_FOR=46`, `USES_MODULE=61`). Resource samples averaged `33.47%` CPU idle, `0.00%` IO wait, and `16.13%` disk utilization. Reducer handler sums were no longer the wall-clock bottleneck: workload materialization `1019` items / `97.488s` handler sum / `3.492s` max, deployment mapping `947` items / `39.677s` sum / `3.087s` max, SQL relationship materialization `947` items / `47.772s` sum / `3.332s` max, and semantic entity materialization `375` items / `116.500s` sum / `21.345s` max. However this run is not a clean acceptance proof: bootstrap logged `959` projection terminal events for `947` unique generations, including `6` generations projected more than once and `2` duplicate generations with late failures. The terminal bootstrap error was a NornicDB unique constraint violation from a duplicate canonical entity write after an earlier successful projection, with sibling duplicate writes canceled. | The reducer target is effectively under the 2-hour goal, but full-corpus acceptance remains blocked by a correctness bug in bootstrap/source-local duplicate generation admission or deduplication. Fix duplicate projection before using the `30m` wall-clock result as release evidence. Do not tune worker counts from this run; the remaining proven risk is duplicate source-local graph writes, not reducer queue throughput. |
+| Clean full-corpus 9eadddcc proof | Proven, next optimization identified | Fresh rebuilt NornicDB full-corpus proof `eshu-full-9eadddcc-20260430T223312Z` used commit `9eadddcc`, real repo copies, and rebuilt Linux binaries for `eshu`, `eshu-api`, `eshu-ingester`, `eshu-reducer`, and `eshu-mcp-server`. The run reached healthy from first local progress at `2026-04-30T22:33:15Z` to queue-empty at `2026-04-30T22:51:33Z` (`18m18s`), with projector `878/878`, reducer `7568/7568`, queue `0`, and `0` failed/dead-lettered items. Resource samples were backend/CPU-active but not disk-bound: `cpu_idle_avg=21.38%`, `io_wait_avg=0.82%`, `disk_idle_avg=85.89%`. Temporary read services were started against the same graph after drain; API `/health` and MCP `/health` returned OK, API `/api/v0/repositories` returned `878` repositories, and `/api/v0/index-status` returned healthy with queue `succeeded=8446`. Reducer handler sums were dominated by `workload_materialization` (`1932` items, `4170.848s` handler sum, `100.645s` max handler, `349296.837s` queue-wait sum), followed by `semantic_entity_materialization` (`368` items, `668.040s` handler sum, `129.512s` max), `deployment_mapping` (`1742` items, `227.843s` handler sum), and much smaller code-call/deployable/inheritance/SQL/workload-identity sums. Inner-stage aggregation explains the workload long pole: `dependency_retract_duration_seconds=3312.891s` while `dependency_write_duration_seconds=0.000s`, with `graph_write_duration_seconds=348.986s`, `load_inputs_duration_seconds=69.372s`, and `129` workload rows / `21` instance rows / `972` endpoint rows written. Deployment mapping did not show the same profile: `226.787s` total, `132.558s` infrastructure graph write, `70.379s` fact load, and only `0.863s` workload replay. Semantic retries still saw retryable 30s graph write timeouts, but all cleared and no semantic work dead-lettered. | Classification: wall-clock and correctness proof for the current full-corpus reducer stack, plus a new handler-win target. Next code slice should TDD a correctness-preserving workload dependency-retract skip/narrowing rule analogous to the repo-dependency additive skip: keep retracts for stale contributors and explicit destructive actions, but avoid broad dependency retract when the current accepted workload projection has no dependency rows and no prior/stale truth requiring deletion. Do not increase reducer worker defaults from this result. |
+| Workload dependency empty-retract skip | Proven full-corpus wall-clock win | Commit `4c215dd2` adds a correctness-preserving workload dependency retract guard. Instead of issuing broad `Workload DEPENDS_ON` retracts for every current repo, the reconciler first checks whether matching workload dependency edges already exist for the current repo/evidence source and only returns retract rows for repos that actually have graph truth to remove. TDD covers no-existing/no-retract, existing-edge/retract, write-without-retract on first workload dependency projection, ambiguous current rows still retracting existing edges, and the NornicDB read query shape used by reducer wiring. Verification passed locally and remotely with `go test ./cmd/reducer ./internal/reducer -count=1`, plus `git diff --check` and prohibited-term scan. Remote focused A/B used the same 20-repo workload-retract hot slice and rebuilt binaries before each run. Pre-change `9eadddcc` drained healthy from `2026-04-30T23:11:28Z` to `2026-04-30T23:11:37Z`, with projector `20/20`, reducer `152/152`, workload materialization `22` items / `4.332s` handler sum / `0.295s` max, `dependency_retract_duration_seconds=2.222s`, `dependency_retract_row_count=22`, and `dependency_write_duration_seconds=0`. Post-change `4c215dd2` drained healthy from `2026-04-30T23:09:15Z` to `2026-04-30T23:09:24Z`, with projector `20/20`, reducer `152/152`, workload materialization `22` items / `1.037s` handler sum / `0.140s` max, `dependency_retract_duration_seconds=0`, `dependency_retract_row_count=0`, and `dependency_write_duration_seconds=0`. Fresh full-corpus proof `eshu-full-current-20260501T092039Z` on commit `8b585d9a` rebuilt the remote Linux binaries before launch and drained cleanly: stable terminal from `2026-05-01T09:20:39Z` to `2026-05-01T09:31:49Z` was `670s` (`11m10s`), first queued work to terminal was `652s`, and first queue-empty was observed at `2026-05-01T09:31:04Z`. Final queue was healthy with projector `878/878`, reducer `7568/7568`, total work `8446/8446`, and `0` failed/dead-lettered items. Workload dependency retract stayed eliminated at full-corpus scale: `dependency_retract_duration_seconds=0`, `dependency_retract_row_count=0`, while workload materialization wrote the same expected shape (`129` workload rows, `21` instance rows, `972` endpoint rows). Workload materialization handler sum dropped from the preceding clean full proof's `4170.848s` to `596.993s`; semantic handler sum dropped from `668.040s` to `154.215s`; deployment mapping was `96.832s`. Resource averages were `cpu_idle_avg=45.30%`, `io_wait_avg=3.11%`, and `disk_idle_avg=59.88%`, with brief CPU-active periods rather than an idle reducer tail. API and MCP were left running against the same graph. Corrected NornicDB read validation passed through the live API after setting the database to `nornic`: `/healthz` OK for API and MCP, `/api/v0/repositories` returned `878` repositories, read-only Cypher returned `Repository=878`, and repository edge counts were `DEPENDS_ON=58`, `DEPLOYS_FROM=233`, `DISCOVERS_CONFIG_IN=71`, `PROVISIONS_DEPENDENCY_FOR=471`, and `USES_MODULE=218`. | Classification: full-corpus wall-clock win and correctness proof for the workload dependency retract guard. The reducer is now well below the 2-hour target on this corpus; the next work should validate richer API/MCP query surfaces and then target remaining overlapped source-local/shared write shape only with telemetry-backed hypotheses. Do not increase reducer worker defaults from this result. |
+| Full-corpus e06c47d6 acceptance and read validation | Proven | Fresh rebuilt full-corpus proof `eshu-full-current-20260501T124752Z` used commit `e06c47d6` after rebuilding the remote Linux binaries for `eshu`, `eshu-api`, `eshu-mcp-server`, `eshu-ingester`, and `eshu-reducer`. The run reached stable terminal from `2026-05-01T12:47:53Z` to `2026-05-01T12:59:05Z` (`672s`, `11m12s`), with first queued work to terminal `653s` and source-local done to terminal `637s`. Final queue was healthy with projector `878/878`, reducer `7568/7568`, total work `8446/8446`, and `0` failed/dead-lettered items. Resource samples averaged `cpu_idle_avg=51.02%`, `io_wait_avg=2.09%`, and `disk_idle_avg=66.32%`. Reducer handler sums were workload materialization `570.258s` (`10.946s` max), semantic entity materialization `147.349s` (`37.977s` max), deployment mapping `93.517s`, code-call materialization `63.794s`, inheritance `56.071s`, SQL `50.945s`, deployable-unit `46.648s`, and workload identity `7.607s`. Workload inner-stage metrics showed dependency retract stayed eliminated (`dependency_retract_duration_seconds=0`, `dependency_retract_row_count=0`), while `dependency_reconcile_duration_seconds=490.278s`, `load_inputs_duration_seconds=70.637s`, and graph writes totaled `2.391s`. Read validation restarted only API/MCP with `DEFAULT_DATABASE=nornic`; `/healthz` passed, `/api/v0/repositories` returned `878`, `/api/v0/index-status` returned queue `8446/8446`, and raw Cypher through `/api/v0/code/cypher` returned repository edge counts `CONTAINS=2581`, `DEFINES=50`, `DEPENDS_ON=58`, `DEPLOYS_FROM=233`, `DISCOVERS_CONFIG_IN=71`, plus endpoint graph rows with OpenAPI/framework evidence. Full-corpus `iac_reachability_rows` were `0` because this local-host path does not currently run bootstrap-only IaC reachability finalization; bounded `/api/v0/iac/dead` over the 878 repo scope therefore returned `analysis_status=derived_candidate_analysis` in `3s`, while materialized dead-IaC truth remains proven by `eshu-dead-iac-compose-20260501`. | Classification: clean full-corpus wall-clock/read-surface proof plus a product-truth gap. Next slice should wire IaC reachability finalization into local-host/full-corpus completion or add an explicit admin/finalization path before claiming full-corpus materialized dead-IaC rows. Keep API/MCP/graph stack running for interactive validation. |
+| Local-host IaC finalization and read-surface validation | Proven with follow-up read gap | Commit `2f75bc3a` adds a one-shot `local_authoritative` IaC reachability finalizer. It reuses the same drain predicate as deferred content indexes, waits for all discovered projectors plus shared projection work to succeed, and then materializes `iac_reachability_rows` before exiting. Local verification passed `go test ./cmd/eshu ./internal/storage/postgres ./internal/iacreachability ./internal/query -count=1`, `git diff --check`, prohibited-term scan, and `mkdocs build --strict`. Remote proof `local-iac-finalizer-20260501T133332Z` pulled `2f75bc3a`, rebuilt Linux binaries, copied the generic dead-IaC fixture repos as real Git repos, and drained healthy in `12s`: projector `10/10`, reducer `77/77`, queue `87/87`, and `18` materialized reachability rows (`used=8`, `unused=5`, `ambiguous=5`) across Terraform, Helm, Ansible, Kustomize, and Docker Compose. API returned `truth_basis=materialized_reducer_rows`, `analysis_status=materialized_reachability`, and `findings_count=10`; raw graph nodes, graph relationships, deployment evidence, and reachability rows were captured under that run. The full-corpus read stack was restarted against the existing graph with `ESHU_QUERY_PROFILE=local_full_stack`: `/healthz` passed for API and MCP, `/api/v0/repositories/{repo}/story` and `/api/v0/repositories/{repo}/context` returned, and MCP `tools/list` returned `40` tools. Service context and deployment trace for a representative service each exceeded a `20s` client-side observation window without bytes, so those are a graph-backed read query-shape gap, not a reducer drain blocker. | Reducer classification remains: do not tune worker defaults. The next reducer-only hypothesis is workload dependency reconcile (`490.278s` of the latest full proof) because retract is already `0`, graph writes were only `2.391s`, and input load was `70.637s`. Separately, profile/read-surface work should bound and optimize service context/deployment trace query shapes before using those routes as full-corpus acceptance gates. |
+| Full-corpus 71cb002b finalizer proof | Proven | Fresh rebuilt full-corpus proof `eshu-full-finalizer-20260501T134928Z` used commit `71cb002b` after rebuilding remote Linux binaries for `eshu`, `eshu-api`, `eshu-mcp-server`, `eshu-ingester`, and `eshu-reducer`. The corrected run started at `2026-05-01T13:52:13Z` and reached terminal validation at `2026-05-01T14:03:03Z` (`650s`, `10m50s`), with queue `8446/8446`, projector `878/878`, reducer `7568/7568`, and `0` failed/dead-lettered items. Resource samples averaged `cpu_idle_avg=40.35%`, `io_wait_avg=3.17%`, and `disk_idle_avg=95.62%`. The local-host IaC finalizer ran after queue drain and materialized `803` durable reachability rows: Ansible unused `413`; Compose ambiguous `7` and unused `46`; Terraform used `51`, ambiguous `13`, and unused `273`. API/MCP were restarted against the fresh graph with `ESHU_QUERY_PROFILE=local_full_stack`; `/healthz` passed for both, `/api/v0/index-status` returned healthy queue `8446/8446`, MCP `tools/list` returned `40` tools, raw repository edge counts matched the previous proof (`DEPENDS_ON=58`, `DEPLOYS_FROM=233`, `DISCOVERS_CONFIG_IN=71`, `PROVISIONS_DEPENDENCY_FOR=471`, `USES_MODULE=218`), and `/api/v0/iac/dead` used `truth_basis=materialized_reducer_rows` with `analysis_status=materialized_reachability` over the persisted scope. | Classification: correctness proof for full-corpus materialized dead-IaC on the local-host path plus slight wall-clock parity/improvement versus the preceding `672s` run. Keep the stack running for read validation. Next reducer target remains workload dependency reconcile/data shape rather than workers, because the final queue is healthy and the last detailed reducer metrics showed retract eliminated and graph writes small. |
+| Dead-IaC paged materialized reads | Proven | Commit `d9eedbab` fixes the full-corpus read-surface gap exposed by run `eshu-full-finalizer-20260501T134928Z`: `/api/v0/iac/dead` still preserves the operator-safe `limit` cap but now reports `total_findings_count`, `offset`, `truncated`, and `next_offset`, and MCP `find_dead_iac` can pass `offset`. This prevents a materialized corpus with `803` reachability rows from looking like it only has the first `500` returned findings. Local verification passed `go test ./internal/query ./internal/mcp ./internal/storage/postgres -count=1`, `git diff --check`, and a prohibited private-term scan over touched files. Remote smoke against the still-running full-corpus stack after rebuilding API/MCP at `8e2de2ba` returned page `0` as `findings_count=500`, `total_findings_count=752`, `truncated=true`, `next_offset=500`, and page `500` as `findings_count=252`, `total_findings_count=752`, `truncated=false`, both with `truth_basis=materialized_reducer_rows` and `analysis_status=materialized_reachability`. The total is `752` cleanup findings because the durable `803` rows include `51` `used` rows that are intentionally omitted from cleanup output. | Correctness/read-surface win. Keep the response cap, use paging for full-corpus review, and continue reducer/read-shape work from measured bottlenecks. |
+| Workload dependency read-shape reduction | Implemented locally | Commit `8e2de2ba` targets the latest measured `dependency_reconcile_duration_seconds=490.278s` where graph writes were only `2.391s` and dependency retract was already zero. This slice changes the repo-dependency lookup from one broad `source.id IN $repo_ids OR target.id IN $repo_ids` scan into outgoing and incoming branches anchored by `Repository.id`, and narrows the existing workload-dependency retract probe to return only distinct source `repo_id` values because the reconciler only uses repository ownership. It also removes an avoidable graph entry-point traversal from service/workload context fetches because enrichment immediately omits the `entry_points` field. Local TDD first failed on the broad `OR` query and unnecessary entry-point query, then passed with `go test ./cmd/reducer ./internal/reducer ./internal/query -count=1`, `git diff --check`, and a prohibited private-term scan over touched files. | Push, pull/rebuild on the remote host, then run a focused reducer proof to see whether `dependency_reconcile_duration_seconds` moves before making broader bulk-lookup or worker-count changes. |
+| Graph-first service evidence read path | Correctness win, not wall-clock proven | Commit `0259b200`: service context on the fresh full-corpus stack still exceeded a `45s` client observation window after the entry-point traversal was removed, so the next read hypothesis targeted redundant content hydration. This slice keeps graph-backed `deployment_evidence` as the authoritative service/trace summary when it already exists and skips the expensive content fallback in that case; the fallback still runs when graph evidence is absent. Local TDD first failed because `loadServiceDeploymentEvidence` called `ListRepoFiles` despite graph evidence already being present, then passed with `go test ./internal/query -count=1`, `git diff --check`, and a prohibited private-term scan over touched files. Corrected remote smoke after rebuilding and restarting API/MCP at `4ea0ceb3` still timed out a representative full-corpus service context at `45s`, so this is retained as a correctness/data-shape cleanup, not a latency win. | Add stage timing around `loadServiceQueryEvidence`, `loadConsumerRepositoryEnrichmentWithLimit`, and `loadProvisioningSourceChainsWithLimit` before changing response defaults. |
+| Workload-context query anchor reduction | Correctness win, not wall-clock proven | Commit `245e0d20`: full-corpus service context and direct-only deployment trace still exceeded `45s` after graph-first deployment evidence, so the next proven hot-shape hypothesis is the repeated workload lookup anchor. This slice keeps the flexible `w.name = $service_name OR w.id = $service_name` lookup only for the first service resolution, then re-anchors repository, instance, and platform follow-up reads by the resolved `w.id = $workload_id`. Local TDD first failed because follow-up queries still carried the broad service-name `OR`, then passed with `go test ./internal/query -count=1`, `git diff --check`, and a prohibited private-term scan over touched files. Corrected remote smoke after rebuilding and restarting API/MCP at `4ea0ceb3` still timed out both the representative full-corpus service context and direct-only deployment trace at `45s`. | Do not claim a wall-clock win from this slice. Next step is evidence-first read-stage timing, not another speculative query rewrite. |
+| Service read-stage timing | Diagnostic win | Commit `4cee86fe` wires stage timing logs through API and MCP entity/impact handlers for service context, service story, workload context, workload story, and deployment trace reads. The logs report bounded start/completion events with `operation`, `stage`, `target_service`, `repo_id`, duration, row counts, and result flags so a client timeout can still show the last completed graph/content stage. Local verification passed `go test ./cmd/api ./cmd/mcp-server ./internal/query -count=1` and `git diff --check`. Remote rebuild/restart against full-corpus run `eshu-full-finalizer-20260501T134928Z` showed both representative service context and direct-only deployment trace timed out at `90s`; the new evidence narrowed the first blocker to `repository_lookup`, which took about `97.060s` before the request moved on. | Diagnostic proof accepted. Use these logs to drive read-shape changes only; do not treat read API latency as reducer queue throughput. |
+| Service read anchor and instance-index proof | Focused wall-clock read win | Commit `8ae4dd98` removes the service-name/workload-id `OR` from service resolution by trying exact service name first and exact workload id second, then resolves repository name through the `Workload.repo_id` property instead of a hot `Repository-[:DEFINES]->Workload` traversal. Local TDD first failed on the broad lookup and passed with the focused query tests plus `go test ./cmd/api ./cmd/mcp-server ./internal/query -count=1`. Remote restart on the existing full-corpus graph moved `repository_lookup` from about `97.060s` to about `0.004s`, exposing `instance_lookup` as the next timeout stage. Commit `c93b6c90` adds `WorkloadInstance.workload_id` and `repo_id` performance indexes, reshapes instance/platform reads through `i.workload_id = $workload_id`, and renames timing metadata to `target_service` so API process metadata no longer overwrites the target in JSON logs. Local verification passed `go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/graph -count=1` and `git diff --check`. Fresh remote focused proof `eshu-focused-read-index-c93b6c90-20260501T163016Z` used six real copied repos, rebuilt binaries first, applied graph schema from scratch, drained healthy in `35s` (`6/6` projector, `48/48` reducer, `0` failed/dead-lettered), and then served the same representative service context in `0.756s` and direct-only deployment trace in `0.141s`. Stage timings showed `workload_lookup <= 0.001s`, `repository_lookup <= 0.001s`, `instance_lookup <= 0.001s`, `repo_infrastructure` as the largest remaining context stage at `0.354s`, CPU idle average `29.67%`, IO wait `0%`, and disk idle `94.83%`. | Read-surface wall-clock win on a fresh schema-focused corpus, not a reducer worker/concurrency claim. To apply this to the full-corpus read stack, run a fresh full-corpus graph so the new indexes are present; the currently running full-corpus graph predates `c93b6c90`. The next measured read target is bounded infrastructure hydration, while reducer throughput remains under the 2-hour full-corpus goal from prior clean proofs. |
+| Full-corpus indexed read proof | Proven | Fresh rebuilt full-corpus proof `eshu-full-indexed-read-d1c60fc5-20260501T164905Z` used commit `d1c60fc5` after stopping the stale pre-index stack, cleaning generated run artifacts to recover disk space, and rebuilding Linux binaries for `eshu`, `eshu-api`, `eshu-mcp-server`, `eshu-ingester`, and `eshu-reducer`. An initial attempt at `2026-05-01T16:40:03Z` was invalidated by remote disk exhaustion (`No space left on device`) and is excluded from the performance result. The corrected run started at `2026-05-01T16:49:05Z`, reached source-local completion at `2026-05-01T16:58:45Z`, and reached terminal validation at `2026-05-01T16:59:45Z` (`640s`, `10m40s`; first queue to terminal `621s`; source-local done to terminal `60s`). Final queue was healthy with projector `878/878`, reducer `7568/7568`, total work `8446/8446`, and `0` failed/dead-lettered items. Resource samples averaged `cpu_idle_avg=41.74%`, `io_wait_avg=2.74%`, and `disk_idle_avg=57.25%`. Workload materialization remained healthy and much lower than the older pre-retract baseline: `1932` items, `188.363s` handler sum, `6.525s` max handler, `dependency_reconcile_duration_seconds=102.853s`, `dependency_retract_duration_seconds=0`, `graph_write_duration_seconds=3.168s`, `load_inputs_duration_seconds=73.926s`, `129` workload rows, `21` instance rows, and `972` endpoint rows. Reducer handler sums were code-call `64.150s`, deployable-unit `46.561s`, deployment mapping `96.111s`, inheritance `55.316s`, semantic entity `158.284s`, SQL `49.349s`, workload identity `7.727s`, and workload materialization `188.363s`. API and MCP were left running on the fresh graph: `/healthz` passed for both, `/api/v0/index-status` returned queue `8446/8446`, `/api/v0/repositories` returned `878`, and MCP `tools/list` returned `40` tools. The representative service context that previously timed out now returned in `16.592s`, and direct deployment trace returned in `1.402s`. Stage timings show the original blockers are fixed at full-corpus scale: `workload_lookup=0.002s`, `repository_lookup=0.003s`, `instance_lookup=0.001s`; remaining service-context cost is now `consumer_repository_enrichment=10.319s`, `graph_deployment_evidence=4.215s`, `framework_routes=1.325s`, and `repo_infrastructure=0.518s`. | Classification: full-corpus wall-clock/read-surface proof. Reducer throughput remains well below the 2-hour goal, and the new indexes/read anchors remove the prior 90s service-read timeout. The next read optimization should target bounded consumer repository enrichment and deployment evidence query shape; do not increase reducer worker defaults from this result. |
+| Anchored incoming deployment-evidence read | Rejected hypothesis | Commit `8a950023` tried to make the incoming `EvidenceArtifact` deployment-evidence read look more selectively anchored by starting from `MATCH (r:Repository {id: $repo_id})` before traversing back to source repositories. Local TDD passed with `go test ./cmd/api ./cmd/mcp-server ./internal/query -count=1`, `git diff --check`, and a prohibited private-term scan. Remote rebuild/restart of API/MCP against full-corpus run `eshu-full-indexed-read-d1c60fc5-20260501T164905Z` proved the exact NornicDB shape regressed badly: representative service context moved from `16.592s` to `49.225s`, and `graph_deployment_evidence` moved from `4.215s` to `36.881s` while `consumer_repository_enrichment` stayed about `10.399s`. | Reverted in the same follow-up slice. Do not reintroduce this reverse anchored shape for NornicDB; the next optimization should target either the existing working deployment-evidence shape with narrower payload/limits or the proven larger `consumer_repository_enrichment` content-search cost. |
+| Framework route fact index | Wall-clock read win | Current slice adds `fact_records_framework_routes_repo_path_idx`, a partial expression index on `payload->>'repo_id'` and `payload->>'relative_path'` for file facts that actually carry `parsed_file_data.framework_semantics`. The remote `EXPLAIN (ANALYZE, BUFFERS)` before the index showed `ListFrameworkRoutes` scanning `fact_records` via `fact_records_scope_generation_idx` on `fact_kind='file'`, removing `43813` rows per worker and reading `131109` buffers for about `1289ms`. Applying the index to the running full-corpus Postgres changed the same query to an index scan with `Execution Time: 0.072ms`. After restarting API/MCP on reverted commit `d63892c3`, representative service context improved from the prior clean `16.592s` to `13.355s`; the `framework_routes` stage moved from `1.325s` to `0.001s`, `graph_deployment_evidence` was back to `2.232s` after reverting the failed Cypher shape, and `consumer_repository_enrichment` remained the largest stage at `10.547s`. | Keep this index. The next optimization is not another reducer worker change: it is the repeated Postgres trigram content search in `consumer_repository_enrichment`, which currently does one service-name search plus hostname searches across `content_files`. |
+| Hostname false-positive filter | Correctness cleanup, no latency win | Current slice tightens service hostname extraction so config/code dotted identifiers ending in `endpoint`, `env`, `host`, or `hostname` are not treated as public service entrypoints or fed into cross-repo consumer evidence searches. Local TDD first failed on config-identifier hostnames and then passed after expanding the false-positive TLD blocklist. Remote proof applied the uncommitted patch to the full-corpus API/MCP checkout before committing: observed hostname count for the representative service dropped from `13` to `6`, but service-context wall time did not improve (`13.355s` before, `13.652s` after), and `consumer_repository_enrichment` remained the dominant stage at `10.976s`. | Keep only as a query-truth cleanup; do not count it as a performance win. The next performance design needs a different data shape for consumer references rather than more hostname filtering. |
+| Exact-case hostname content search | Wall-clock read win | Commit `65637908` keeps service-name consumer searches case-insensitive but routes normalized hostname searches through a new exact-case `LIKE` content-store method. Remote `EXPLAIN (ANALYZE, BUFFERS)` on the full-corpus Postgres showed every hostname search still used `content_files_content_trgm_idx`, but `LIKE` reduced individual hostname search execution from about `1.2-2.8s` with `ILIKE` to about `0.29-0.76s`. The uncommitted patch was applied to the remote checkout before commit, API/MCP were rebuilt and restarted, and the representative service context improved to `7.010s`; `consumer_repository_enrichment` dropped from `10.976s` after hostname filtering to `4.184s` with exact-case hostname search while preserving the same `12` consumer rows. | Keep this narrow backend read optimization. The next remaining read costs are NornicDB `graph_deployment_evidence` around `2.28s` and Go/entity shaping in `repo_infrastructure` around `0.42s`; direct remote NornicDB timing must precede any future Cypher shape commit. |
+| Incoming deployment-evidence graph read shape | Wall-clock read win | Commit `cb61e51d` changes the incoming graph evidence read to first match `(artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})`, then cross a `WITH artifact, r` boundary before matching the source repository. Direct remote NornicDB proof on the full-corpus graph showed why the boundary matters: the old source-first incoming count took about `2.268s`, the artifact-target count took `0.046s`, the artifact-target plus `WITH` source count took `0.153s`, and the same full returned column shape took `0.175s` for `534` incoming artifact rows. The logically equivalent shape without `WITH` hit the API's `30s` read cap, matching the earlier rejected reverse-anchor lesson. After applying the uncommitted patch to the remote checkout and rebuilding API/MCP, the representative service context returned in `5.682s`; `graph_deployment_evidence` dropped to `0.121s`, while `consumer_repository_enrichment` remained the largest stage at `3.993s`. | Keep this Cypher shape. Do not reintroduce the earlier reverse repository-anchor shape. The next read target is the remaining content-search/data-shape cost in consumer repository enrichment; reducer worker defaults stay unchanged. |
+| Parallel bounded consumer content searches | Wall-clock read win | Commit `8e3dd362` keeps the same one service-name plus up to four hostname search contract but executes those independent Postgres content searches concurrently and merges per-repo evidence after all searches finish. Remote term-level proof on the full-corpus Postgres showed the old stage was additive: service-name `ILIKE` took `1.945s`, while the four bounded hostname `LIKE` searches took `0.761s`, `0.509s`, `0.279s`, and `0.584s`. Local TDD first failed under sequential execution by blocking the first search and proving the hostname searches had not started, then passed after the bounded parallel fan-out. Remote proof applied the uncommitted patch, rebuilt API/MCP, and restarted only read services against the full-corpus stores: representative service context moved from `5.682s` to `3.693s`, `consumer_repository_enrichment` moved from `3.993s` to `1.901s`, and the response preserved `19` consumer rows and `17` deployment evidence artifacts. A warm repeat returned in `2.222s` with `consumer_repository_enrichment=1.891s`, confirming the remaining stable long pole is the slowest service-name content search rather than the graph read. | Keep this bounded concurrency because it preserves result shape and does not change reducer worker defaults. The next potential read win needs a materialized consumer-reference data shape or narrower service-name search; do not keep shaving graph reads that are already sub-millisecond warm. |
+| Exact-case lower-case service content search | Wall-clock read win | Commit `951c4c55` extends exact-case content search from normalized hostnames to lower-case service tokens while preserving case-insensitive search for mixed-case service tokens. Remote pre-change proof on an eight-service sample showed identical first-25 row sets between `ILIKE` and `LIKE` (`diff_count=0`, no empty `LIKE` results) while aggregate query time moved from `14.151s` to `3.667s`; a representative single service moved from `1930.795ms` to `487.546ms` with the same `25` rows. After applying the patch, rebuilding API/MCP, and restarting read services against full-corpus run `eshu-full-indexed-read-d1c60fc5-20260501T164905Z`, representative service context moved from `3.693s` to `2.377s`, `consumer_repository_enrichment` moved from `1.901s` to `0.760s`, and the response preserved `19` consumer rows and `17` deployment evidence artifacts. Local verification passed focused consumer-search tests, `go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/storage/postgres -count=1`, `git diff --check`, and a prohibited private-term scan over touched Go files. | Keep the conditional exact-case path because it is measured and result-preserving for normalized lower-case tokens. The next measured read target is `repo_infrastructure` and any durable consumer-reference materialization; do not count this as reducer worker throughput or use it to justify higher reducer concurrency. |
+| Service-owned hostname consumer search budget | Correctness/read-shape cleanup with marginal latency | Commit `34364806` changes the bounded hostname budget for query-time consumer evidence so service-affine hostnames are searched before unrelated external hostnames. The fallback preserves the old first-four bounded behavior when no hostname matches a distinctive service token, so opaque or vanity domains still receive bounded evidence. TDD first failed on the new service-affinity selector and then passed; local verification passed `go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/storage/postgres -count=1`, `git diff --check`, and a prohibited private-term scan over touched files. Remote proof rebuilt API/MCP against full-corpus run `eshu-full-indexed-read-d1c60fc5-20260501T164905Z`: the same representative service context moved from `2.36s`, `1.10s`, `1.10s` to `2.25s`, `1.02s`, `1.02s`; warm `consumer_repository_enrichment` moved from about `0.744s` to about `0.68s`. The response grew slightly (`945648` to `950426` bytes) because service-owned hostname evidence returned `25` consumer rows instead of the prior `19`. | Keep as a precision/read-shape cleanup, not as a major performance claim. The next real latency target is a materialized or indexed consumer-reference data shape so API/MCP do not repeatedly run raw trigram content searches for the same service story. |
+| Indexed hostname content references | Wall-clock read win, data-shape win | Commit `003186d0` adds a generic `content_file_references` Postgres lookup table, materializes normalized hostname references during content writes, and has consumer enrichment prefer indexed hostname equality lookups with old-schema/partial-index fallback to the existing content search. Local TDD first failed on missing schema, missing content-writer materialization, and missing indexed query use, then passed. Remote proof applied the patch to full-corpus run `eshu-full-indexed-read-d1c60fc5-20260501T164905Z`, rebuilt API/MCP and runtime binaries, applied the schema, and proof-backfilled the already-running corpus (`131413` content files, `323607` hostname references, `1m52.539s`; future fresh runs populate this table during content projection). The representative service context returned in `1.155s`, `0.555s`, and `0.552s`, with `consumer_repository_enrichment` at `0.448s`, `0.432s`, and `0.433s` for `15` consumer rows. Direct Postgres proof showed the indexed hostname lookup using `content_file_references_lookup_idx` plus `content_files_repo_path_idx` at `0.249ms`, while the old `content LIKE` trigram body search for the same hostname took `761.188ms`. The remaining warm consumer-enrichment cost is now mostly the exact-case service-name body search, measured at `418.173ms` for the same representative request. Local verification passed `go test ./internal/contentrefs ./internal/storage/postgres ./internal/query -count=1`, `go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/storage/postgres -count=1`, `git diff --check`, and a prohibited private-term scan over touched Go/schema files. | Keep the indexed hostname-reference data shape. This is a read-path optimization over the full-corpus graph, not a reducer worker-concurrency claim. The next read target is a materialized or indexed service-name/reference path, because hostname body scans are no longer the dominant consumer-enrichment cost. |
+| Indexed service-name content references | Wall-clock read win, data-shape win | Commit `d0d584ad` extends `content_file_references` to lower-case, service-like hyphenated names and routes lower-case service-name consumer evidence through the same indexed lookup with fallback to the prior exact-case body search when no indexed rows exist. The first remote proof was intentionally rejected as too broad: indexing all two-segment hyphen tokens produced `1727588` service-name rows and top values were mostly CSS/HTML/config tokens. The retained extractor requires service-context lines and at least three hyphen segments, reducing the full-corpus proof table to `240154` service-name rows while preserving the representative consumer rows. Remote proof on full-corpus run `eshu-full-indexed-read-d1c60fc5-20260501T164905Z` rebuilt API/MCP, proof-backfilled the running content store, and returned the representative service context in `0.605s`, `0.131s`, and `0.132s`; `consumer_repository_enrichment` moved to `0.012s`, `0.009s`, and `0.009s` for `15` consumer rows. Direct Postgres proof showed the indexed service-name lookup using `content_file_references_lookup_idx` plus `content_files_repo_path_idx` at `0.224ms`, while the previous exact-case body search for the same service token was about `455.840ms`. Local verification passed `go test ./cmd/api ./cmd/mcp-server ./internal/contentrefs ./internal/query ./internal/storage/postgres -count=1`, `git diff --check`, and a prohibited private-term scan over touched Go files. | Keep the stricter service-name reference index. Treat this as a read-path data-shape win, not a reducer concurrency claim. Future broadening must be evidence-first because the rejected extractor proved token indexes can become noisy quickly. |
+| Dead-IaC fixture ownership cleanup | Implemented locally | The dead-IaC family audit confirmed Terraform, Helm, Kustomize, Ansible, and Docker Compose are the owned cleanup families today; Jenkins, GitHub Actions, and ArgoCD are currently evidence/root sources, while SQL deadness needs a separate product contract. This slice removes manifest drift by promoting `iac_quality.dead_iac` from planned to an owned product-truth suite wired to `scripts/verify_dead_iac_compose.sh`, while keeping unsupported SQL/Jenkins/GitHub Actions deadness out of the claim. Local verification passed `./scripts/verify_product_truth_fixtures.sh`. | Keep future family expansion TDD-first: structured Jenkins/GHA roots into existing families, ArgoCD multi-source/value-file nuance, then a separate SQL deadness contract only after the product semantics are explicit. |
+| Grouped Terraform variable fallback writes | Focused wall-clock source-local win | Commit `5aeef28d` preserves the singleton Cypher shape required for brace-bearing Terraform variable metadata while allowing those fallback statements to remain inside same-label NornicDB phase groups. The pre-change concurrent six-repo proof was stopped after about `2m13s` because four source-local projectors were contending on hundreds of TerraformVariable singleton executions; one already-complete repo showed `3563` TerraformVariable rows across `757` executions and `117.580s` total label duration. The serial diagnostic `aws-terraform-heavy6-batched-serial-20260501T230738Z` drained healthy in about `8m31s` with projector `6/6`, reducer `48/48`, and no failed/dead-lettered items, proving the fallback shape was correct but execution-heavy. The retained patch changed the same focused concurrent proof `aws-terraform-heavy6-grouped-fallback-concurrent-20260501T232135Z` to drain healthy with projector `6/6`, reducer `48/48`, no failed/dead-lettered items, and owner-start to terminal queue in about `4m20s`. TerraformVariable summaries now show `singleton_statements=0` and grouped executions of about `13` to `33` per repo rather than hundreds of standalone executions; the largest repo in the proof reported `3461` rows, `736` statements, `30` executions, and `151.733s` total label duration while other projectors overlapped. Runtime sampling after drain remained idle-heavy (`cpu_idle` about `94.88%`, `io_wait=0%`, disk util about `2.70%`). Local verification passed focused TDD for Terraform variable brace fallbacks and NornicDB phase grouping plus `go test ./cmd/ingester ./internal/storage/neo4j ./cmd/reducer ./internal/reducer -count=1`, `git diff --check`, and a prohibited private-term scan over touched files. | Keep this as a correctness-preserving write-shape optimization, not a worker-count change. The full-corpus benchmark remains `30-35m`; any follow-up that moves fresh full-corpus wall toward `60m` must be rejected or isolated behind a measured knob. Next proof should run the full corpus from a fresh rebuild and compare section timing before promoting any additional Terraform or source-local tuning. |
+| Full-corpus Terraform contention recheck | Rejected regression | Fresh full-corpus proof `eshu-full-benchmark-clean-ee46eef7-20260502T001211Z` used `ee46eef7` after stopping an invalid overlapping run. It intentionally kept the benchmark defaults: `ESHU_PROJECTOR_WORKERS=4`, `ESHU_REDUCER_WORKERS=8`, `ESHU_GRAPH_BACKEND=nornicdb`, deferred content-search indexes enabled, batched containment enabled, no large-generation override, and no TerraformVariable phase cap. The run crossed the accepted `35m` regression line at about `35.8m` with queue state `succeeded=2685`, `pending=3565`, `retrying=64`, `running=3`, and `claimed=9`. Stage detail showed source-local still active (`724` succeeded, `150` pending, `3` running) while `semantic_entity_materialization` had only `9` succeeded plus `64` retrying. Logs showed semantic label writes timing out at the `120s` canonical write deadline even for tiny row sets such as `1`, `5`, `10`, and `50` rows, while source-local TerraformVariable canonical writes were also active. | Rejected as a full-corpus regression against the `30-35m` benchmark. The evidence points to unsafe mixed graph-backend contention between active source-local canonical writes and semantic entity label writes, not to a need for more reducer workers. |
+| TerraformVariable phase cap proof | Rejected hypothesis | Config-only proof `eshu-full-benchmark-tfvar5-ee46eef7-20260502T004849Z` added `ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS=TerraformVariable=5` to the same benchmark defaults. The smaller cap shortened individual TerraformVariable phase-group executions into roughly `8-18s` chunks, but multiplied chunk count enough that total source-local work remained high: representative large generations reported `94` rows / `69` statements / `14` executions / `177.887s`, and `1074` rows / `250` statements / `50` executions / `461.052s` while the run was still incomplete. At about `14.5m`, queue state was `succeeded=1849`, `pending=4208`, `retrying=31`, `claimed=11`, and semantic retries continued. | Rejected. Smaller TerraformVariable chunks reduce single-transaction hold time but do not remove the corpus wall-clock problem; they may increase total projector time. Do not promote this cap as a default. |
+| Semantic source-local drain gate | Diagnostic scheduling cleanup; rejected as wall-clock win | Commit `80b14be2` adds TDD coverage and claim-query gating so `semantic_entity_materialization` waits until all source-local projector work has drained when the existing NornicDB/local-authoritative projector-drain gate is enabled. The scoped same-`scope_id` reducer gate remains in place for all domains, and non-semantic reducer domains still drain once their own source has passed the same-scope gate. Local verification passed `go test ./internal/storage/postgres -count=1`, `go test ./cmd/reducer ./internal/reducer ./internal/storage/postgres -count=1`, `go test ./cmd/ingester ./internal/projector ./internal/storage/postgres -count=1`, `git diff --check`, and a prohibited private-term scan over touched files. Remote proof `eshu-full-semantic-drain-80b14be2-20260502T011213Z` used the benchmark defaults with no TerraformVariable cap. It proved the gate worked: at `36m11s`, semantic reducers were still pending-only (`290` pending, `0` retrying) while source-local remained active (`724/878` succeeded, `150` pending, `4` running). Overall queue had `0` retrying, `0` failed, and `0` dead-lettered rows. Host samples stayed unsaturated (`cpu_idle_avg=49.28%`, `io_wait_avg=0.17%`, `disk_idle_avg=95.27%`). The run was stopped after crossing the `35m` regression line. TerraformVariable canonical summaries isolated the remaining source-local bottleneck: examples included `1463` rows / `343` statements / `14` executions / `749.361s`, `1447` rows / `358` statements / `15` executions / `828.494s`, and many small brace-bearing groups with only `20-50` rows still taking `50-154s`. | Keep the semantic gate only as a correctness-preserving diagnostic cleanup that removes mixed semantic/source-local timeout noise. It is not a throughput win. The next slice must target TerraformVariable source-local canonical shape directly: first prove whether current NornicDB can accept batched brace metadata, then either remove the stale singleton fallback or introduce a safe explicit-property batched TerraformVariable writer. Do not raise reducer workers or promote smaller phase caps from this result. |
+| TerraformVariable brace metadata batching | Focused wall-clock source-local win | Commit `cbb37526` removes the stale TerraformVariable curly-brace singleton fallback while keeping the proven `shortestPath` / `allShortestPaths` singleton safeguard. Local TDD first failed because brace-bearing TerraformVariable rows still emitted singleton statements; a live NornicDB compatibility test then proved the current backend accepts the batched `UNWIND` file-containment shape and returns brace-heavy `default`, `var_type`, and `description` metadata correctly when values are compared after read-back rather than through a fragile escaped-string equality predicate. Local verification passed `ESHU_NORNICDB_BINARY=/Users/allen/os-repos/NornicDB/bin/nornicdb-headless go test ./cmd/eshu -run TestNornicDBBatchedTerraformVariableBraceMetadataCompatibility -count=1 -v`, `go test ./cmd/eshu ./cmd/ingester ./internal/storage/neo4j ./cmd/reducer ./internal/reducer -count=1`, `git diff --check`, and a prohibited private-term scan over touched files. Remote proof `eshu-tfvar-batched-cbb37526-20260502T020531Z` rebuilt Linux binaries first, set `ESHU_NORNICDB_BINARY` explicitly for non-interactive SSH, and indexed four Terraform-heavy repos with benchmark defaults. It drained healthy with projector `4/4`, reducer `32/32`, queue `pending=0 in_flight=0 retrying=0 dead_letter=0 failed=0`, and `failures=none`; final readiness/index work completed about `32s` after owner start. TerraformVariable summaries were bounded: `3563` rows / `36` statements / `2` executions / `1.941s`, `3465` / `35` / `2` / `2.017s`, `3461` / `35` / `2` / `1.813s`, and `3909` / `40` / `2` / `2.130s`, all with `singleton_statements=0`. Canonical writes for the four repos were `3.766s`, `3.998s`, `4.139s`, and `5.028s`. Host samples stayed healthy: one sample showed CPU `92%` idle with disk util `1.80%`, and the final sample showed CPU `99%` idle with disk util `2.20%`. | Keep this targeted source-local writer cleanup and run the full-corpus benchmark next. This is the first proof that directly attacks the TerraformVariable long pole seen in the stopped full-corpus run, but promotion still depends on a fresh full-corpus wall-clock staying under the `30-35m` benchmark and preserving graph truth. |
+| Full-corpus post-Terraform semantic contention recheck | Rejected regression | Fresh full-corpus proof `eshu-full-tfvar-batched-28563ff5-20260502T022315Z` used commit `28563ff5` with benchmark defaults: `ESHU_PROJECTOR_WORKERS=4`, `ESHU_REDUCER_WORKERS=8`, `ESHU_GRAPH_BACKEND=nornicdb`, `ESHU_QUERY_PROFILE=local_authoritative`, deferred content-search indexes enabled, batched entity containment enabled, no TerraformVariable phase cap, and no semantic claim cap. The run initially showed the TerraformVariable batching had removed the prior source-local singleton long pole, but after source-local drained the reducer claimed a wave of `semantic_entity_materialization` rows concurrently. Eight semantic writes then timed out at the `120s` canonical write deadline on tiny row sets such as `Function rows=1`, `Function rows=4`, `Module rows=1`, `Annotation rows=5`, and `TypeAnnotation rows=7/47`; semantic retrying rose from `4` to `12`. SQL/shared edges were still millisecond-scale, and the Cypher shape was already indexed by label plus `uid`, so the evidence points to NornicDB semantic write contention rather than an obvious missing Eshu index or TerraformVariable batching regression. | Rejected as a concurrency regression against the `30-35m` benchmark. Do not increase reducer workers. Keep the TerraformVariable batching win, but add a semantic-specific claim discipline under the existing NornicDB/local-authoritative projector-drain gate so unrelated reducer domains can stay concurrent while semantic label writes cannot stampede the backend. |
+| NornicDB semantic reducer claim cap | Implemented; needs fresh full-corpus rerun | Commit `632bd799` adds focused TDD coverage and caps `semantic_entity_materialization` claims under the existing NornicDB/local-authoritative projector-drain gate. Single-item claims now skip semantic work while another semantic reducer row is `claimed` or `running` with an active lease, and batch claims also use a `semantic_next` selector so one batch cannot claim multiple semantic rows at once. Non-semantic reducer domains retain their existing same-scope projector-drain behavior and worker concurrency. Local verification passed `go test ./internal/storage/postgres -run 'TestReducerQueueClaimGatesSemanticEntitiesOnGlobalProjectorDrain|TestClaimBatchGatesSemanticEntitiesOnGlobalProjectorDrain' -count=1`, `go test ./internal/storage/postgres ./cmd/reducer ./internal/reducer -count=1`, `git diff --check`, and a prohibited private-term scan over touched files. Remote proof `eshu-full-semantic-cap-632bd799-20260502T024355Z` rebuilt Linux binaries and showed the cap working behaviorally before disk exhaustion invalidated the run: at about `117s`, semantic was `pending=297 succeeded=1` with no retrying; at about `252s`, semantic was `claimed=1 pending=322 succeeded=1`, again with no retrying or dead letters. Completed semantic rows ran one at a time with examples around `3.228s`, `7.788s`, `30.400s`, `35.706s`, and `54.242s` instead of `120s` timeout waves. The run is not valid wall-clock evidence because the remote root volume reached `100%` full, Postgres emitted `No space left on device` temp-file errors, `source_local` dead-lettered `27` rows, and NornicDB later refused connections. Generated proof artifacts were cleaned up, restoring about `99G` free. | Keep the scoped semantic cap as a contention guard, but rerun the full corpus after disk cleanup before claiming wall-clock acceptance. Also investigate a stronger collection-complete readiness gate: in watch-mode a momentary source-local enqueue gap can still let semantic begin before the entire corpus has been discovered, even though the cap prevents retry storms. |
+| Local-host semantic corpus-complete gate | Implemented and pushed | Commit `2f0e3033` closes the second scheduling hole exposed by the invalid `632bd799` proof: the semantic source-local drain gate only checked currently enqueued source-local projector work. In local-host watch mode, repository discovery/enqueue can have short gaps, so a reducer could observe no open source-local rows before the ingester had enqueued all repos in the corpus. This slice passes the owner-discovered source-local projector count to `eshu-reducer` as `ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS` and makes only `semantic_entity_materialization` wait until that many `source_local` projector rows have succeeded. The scoped same-scope projector gate and non-semantic reducer concurrency remain unchanged. Local TDD first failed on missing queue args, missing reducer config, and missing local-host env wiring; implementation then passed `go test ./internal/storage/postgres -run 'TestReducerQueueClaimGatesSemanticEntitiesOnGlobalProjectorDrain|TestReducerQueueClaimPassesExpectedSourceLocalProjectors|TestClaimBatchGatesSemanticEntitiesOnGlobalProjectorDrain|TestClaimBatchPassesExpectedSourceLocalProjectors|TestClaimBatchCanWaitForProjectorDrain' -count=1`, `go test ./cmd/reducer -run 'TestLoadReducerExpectedSourceLocalProjectors|TestBuildReducerServiceWiresExpectedSourceLocalProjectors|TestBuildReducerServiceWiresNornicDBProjectorDrainGate' -count=1`, `go test ./cmd/eshu -run TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph -count=1`, `go test ./internal/storage/postgres ./cmd/reducer ./cmd/eshu ./internal/reducer -count=1`, `go vet ./internal/storage/postgres ./cmd/reducer ./cmd/eshu ./internal/reducer`, strict MkDocs, `git diff --check`, and a prohibited private-term scan over touched files. | Keep this as a correctness/scheduling gate. The fresh full-corpus proof below determines whether it is also a wall-clock win. |
+| Full-corpus semantic corpus-complete gate recheck | Rejected wall-clock proof; correctness scheduling proof | Fresh full-corpus proof `eshu-full-semantic-complete-2f0e3033-20260502T030429Z` used commit `2f0e3033` after disk cleanup and remote Linux binary rebuilds. Benchmark defaults were unchanged: `ESHU_PROJECTOR_WORKERS=4`, `ESHU_REDUCER_WORKERS=8`, `ESHU_GRAPH_BACKEND=nornicdb`, `ESHU_QUERY_PROFILE=local_authoritative`, `ESHU_CANONICAL_WRITE_TIMEOUT=120s`, deferred content-search indexes enabled, and batched entity containment enabled. The new expected-count gate behaved correctly: semantic work remained pending with `attempt_count=0` while source-local was `871/878` succeeded, then began only after source-local reached `878/878`. Pre-stop queue state had no retrying, failed, or dead-lettered rows. This was not a wall-clock win: around `19m`, semantic had only `2/368` rows succeeded with one claimed. Tiny NornicDB semantic statements were the long pole: one handler spent `70.731s` writing `3` rows, and another spent `371.127s` writing `19` rows through label batches such as `5` rows in about `95-104s` and `1` row in about `19.5s`. Host samples showed the primary disk was effectively idle on the hot sample (`0.10%` util), CPU was mostly idle (`82-88%` idle), and NornicDB was consuming about `4.3` cores while Postgres connections were mostly idle. Shutdown-generated connection-refused failures were ignored as proof artifacts. | Do not raise reducer workers. Keep the semantic claim cap and corpus-complete gate as correctness guards, then inspect the semantic entity Cypher/NornicDB label-update path directly. The next optimization must explain why label+`uid` writes over tiny row sets take tens to hundreds of seconds after the full graph is loaded. |
+| NornicDB semantic node merge and source-shape proof | Implemented locally; proof pending | NornicDB commit `e710932` fixed a correctness bug where map-set `UNWIND MERGE` identities could collapse to literal values such as `row.entity_id`; the previous fast NornicDB semantic run is therefore not valid acceptance evidence because the graph was wrong. Follow-up NornicDB commit `da003dc` attempted a simple-node bulk-create hot path, but focused proof `eshu-semantic-hotpath-services4-da003dc-20260502T044148Z` was stopped as a rejected throughput hypothesis: it still used the previously rejected `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=true`, hit a source-local retry, and Function label summaries climbed to about `3000` rows, `200` statements, `40` executions, and `369.233s` total duration while CPU and disk remained mostly idle. NornicDB commit `62d20e4` reverted that ineffective hot path while keeping the correctness fix. A clean focused proof with batched containment disabled, `eshu-semantic-hotpath-services4-62d20e4-nobatched-20260502T045222Z`, improved early source-local chunks but still hit a `120s` canonical write timeout before reducers opened; label summaries pointed to a checked-in FilePond/PQINA browser library (`public/js/pqina/filepond.esm.js`) dominating Function and Variable canonical writes. This Eshu slice adds a generic FilePond/PQINA vendored-browser-library signature with TDD coverage and updates the local testing reference. Local verification passed `go test ./internal/collector -run 'TestResolveNativeSnapshotFileSetSkipsLegacyVendoredLibraries|TestResolveNativeSnapshotFileSetSkipsGeneratedJavaScriptBundles|TestResolveNativeSnapshotFileSetKeepsSmallBootstrapLikeJavaScript' -count=1`, `go test ./internal/collector ./internal/collector/discovery -count=1`, `go test ./cmd/ingester ./internal/collector ./internal/content/shape -count=1`, `git diff --check`, and strict MkDocs. | Push, rebuild remote Linux binaries, and rerun the same four-repo proof with NornicDB `62d20e4`, `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=false`, and API/MCP database set to `nornic`. Acceptance requires no FilePond hot chunks, no source-local retry/dead letters, reducer work opening normally, and direct raw graph/API JSON showing real semantic node identities rather than literal row expressions. |
+| JWPlayer source-shape follow-up | Implemented locally; proof pending | Commit `d29161dd` was pushed and tested in focused proof `eshu-semantic-hotpath-services4-62d20e4-nobatched-20260502T050838Z` after rebuilding Eshu and NornicDB `62d20e4` on the remote host. The FilePond/PQINA hot chunks disappeared and the skip counters rose (`portal-java-ycm` reported `files_skipped.content.vendored-browser-library=6`, `webapp-grails-imt=22`), but the proof still failed before reducers opened: source-local stayed running for all four repos, CPU/disk remained unsaturated (`cpu_idle` mostly `56-68%`, `io_wait=0-1%`, `disk_idle` mostly `95.59%`), and one projector retried at `2026-05-02T05:15:47Z` after a `120s` canonical entity timeout on `Annotation` rows. The logs then exposed another generic checked-in browser-library family missed by path/content signatures: JWPlayer plugin/provider files under a `jwplayer/` directory (`provider.shaka.js`, `provider.html5.js`, `provider.hlsjs.js`, `jwplayer.js`) dominated repeated Function chunks, with examples such as `webapp-grails-imt` Function summaries reaching `2365` rows / `250` statements / `50` executions / `255.126s`, and `portal-java-ycm` file writes taking `256.848s` for `36` statements. This slice adds a generic `jwplayer/` JavaScript directory skip with red/green TDD coverage; it is still data-shape pruning, not a reducer worker-count change. | Run local verification, push, rebuild remote binaries, and rerun the same focused proof. If JWPlayer pruning still leaves source-local retries, stop treating individual browser-library signatures as the main lever and move to NornicDB canonical file/entity write-shape work with direct backend profiling. |
+| Post-JWPlayer NornicDB contention proof | Rejected source-shape hypothesis; contention A/B pending | Commit `87e86e2e` was pushed and tested in focused proof `eshu-semantic-hotpath-services4-62d20e4-nobatched-20260502T052112Z` after rebuilding Eshu and NornicDB `62d20e4`. The JWPlayer source-shape skip worked: one large web repo moved from `22` to `48` skipped vendored-browser-library files. The run still retried before reducers opened, with first queue at `2026-05-02T05:21:31Z`, retry at `2026-05-02T05:28:34Z`, and `reducer_done=0/0` when stopped. CPU and disk remained unsaturated. The decisive clue is that the exact `Annotation` canonical entity chunk that timed out at the `120s` write deadline later succeeded on retry in `0.665s`. That rejects "this generated file or label is inherently a two-minute query" and points to NornicDB write contention or transaction waiting under concurrent source-local canonical graph writes. | Run the same four-repo proof as an A/B with `ESHU_PROJECTOR_WORKERS=1` while keeping reducer workers and Cypher shape unchanged. If retries disappear and wall time improves or stays acceptable, test `ESHU_PROJECTOR_WORKERS=2` next and consider a scoped NornicDB graph-write concurrency limiter rather than serializing the whole ingestion path. |
+| Cross-file entity containment hot-path order | Correct query shape; rejected as wall-clock fix | Diagnostic A/B `eshu-semantic-hotpath-services4-62d20e4-nobatched-workers1-20260502T053733Z` set `ESHU_PROJECTOR_WORKERS=1` and kept the same four-repo corpus, NornicDB `62d20e4`, and batched containment disabled. It was stopped as a rejected worker-count mitigation: after more than `10m`, the first source-local item was still running, reducers had not opened, and host samples stayed unsaturated (`cpu_idle` about `90-92%`, `io_wait=0%`, `disk_idle` about `95.59%`). The run was not idle; logs showed file-scoped `Variable` entity chunks steadily completing but often taking `5-30s` per tiny statement. Commit `5c61c622` then changed only the cross-file batched containment template order from `MERGE entity -> MATCH file` to NornicDB's proven hot-path order `MATCH file by row.file_path -> MERGE entity -> MERGE CONTAINS`; local TDD first failed on the old order and the live NornicDB compatibility test accepted the hot-path-ordered query. Runtime proof `eshu-semantic-hotpath-services4-62d20e4-batched-hotpath-20260502T055213Z` confirmed the path was active (`batch_across_files=true`) and used more backend CPU, but it still retried before reducers opened. The failure moved to a larger batched transaction: `Annotation` attempted `25` statements of `100` rows each and timed out at the `120s` write deadline. | Keep the hot-path order because it matches NornicDB's supported template and reduces statement fan-out, but do not treat it as a wall-clock win. The next proof must target grouped transaction size and/or NornicDB's CPU cost for the exact batch write path. |
+| Entity phase-group cap with batched containment | Rejected as wall-clock fix; useful timeout guard | Config-only proof `eshu-semantic-hotpath-services4-62d20e4-batched-hotpath-entity5-20260502T060220Z` kept commit `5c61c622`, `ESHU_PROJECTOR_WORKERS=4`, `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=true`, and added `ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS=5`. This avoided the earlier retry past the old failure window: after more than `16m`, all four source-local items were still running with `0` retrying, failed, or dead-lettered rows. It also proved the cap is not a throughput answer: reducers still had not opened, NornicDB was using about `5.3` cores while disk remained mostly idle, and high-row labels still spent tens of seconds per grouped execution (`Variable` about `5000` rows / `50` statements / `10` executions / `510.588s`, `TypeAlias` `746` rows / `8` statements / `2` executions / `107.246s`, `Interface` `545` rows / `6` statements / `2` executions / `69.080s`). | Do not promote more Eshu batch/worker knobs from this result. Capture a NornicDB CPU profile or add backend-side timing for the exact `UNWIND rows -> MATCH File -> MERGE Entity -> MERGE CONTAINS` path, especially schema lookup, relationship existence, property set, MVCC validation, and commit cost. |
+| NornicDB unique-constraint validation profile | Backend wall-clock win on focused proof | NornicDB diagnostic commit `fc11f22` enabled opt-in pprof on the same `62d20e4` proof lineage. Focused profile `eshu-semantic-hotpath-services4-62d20e4-batched-hotpath-entity5-20260502T063045Z` sampled `341.18s` of CPU over `60s` while four source-local items were stuck; `69.15%` cumulative CPU sat in `BadgerTransaction.Commit`, and `69.00%` was `scanForUniqueViolation` through `GetNodesByLabelVisibleAt` / `decodeMVCCNodeRecord`. That proved the long pole was commit-time uniqueness validation scanning and decoding whole label populations, not disk, Postgres, reducer workers, or Eshu Cypher syntax. NornicDB commit `315e717` then used authoritative unique-constraint value maps for validation with scan fallback when the cache is not authoritative. Local verification passed `go test -tags 'noui nolocalllm' ./pkg/storage -run 'TestBadgerUniqueConstraint\|TestBadgerTransaction\|Test.*Unique' -count=1`, `go test -tags 'noui nolocalllm' ./pkg/storage ./pkg/cypher ./pkg/server ./cmd/nornicdb -count=1`, and `go build -tags 'noui nolocalllm' ./cmd/nornicdb`. Fresh remote proof `eshu-semantic-hotpath-services4-62d20e4-batched-hotpath-entity5-20260502T063935Z` rebuilt Eshu `1bd9aa96` and NornicDB `315e717`, kept `ESHU_PROJECTOR_WORKERS=4`, `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=true`, and `ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS=5`, and drained healthy: source-local `4/4`, reducers `34/34`, no retrying/failed/dead-letter rows, terminal wall `290s`, first-queue-to-terminal `272s`, source-done-to-terminal `75s`. The previous cap-only proof was still source-local-only after more than `16m`. Semantic entity writes were now bounded: `Annotation` `17215` rows / `3444` statements / `17.721s` sum / `0.016s` max, `Variable` `1410` rows / `142` statements / `0.745s`, and `Function` `2025` rows / `203` statements / `1.363s`. Host samples stayed unsaturated (`io_wait` mostly `0-2%`, disk idle mostly `89-96%` after startup). A post-fix profile no longer showed the uniqueness scan stack; the next CPU cost moved to broad label and relationship lookups (`GetNodesByLabelVisibleAt`, `GetOutgoingEdges`, `GetEdgesBetween`) inside match/merge execution and constraint-contract adjacency checks. Follow-up smoke proof `eshu-focused20-unique-validation-315e717-20260502T064912Z` copied the first `20` Git repos from the remote corpus, rebuilt beforehand, and drained healthy in `79s` wall (`61s` from first queue): source-local `20/20`, reducers `146/146`, no retrying/failed/dead-letter rows, API/MCP health OK, repository count `20`, facts `12768`, content files `400`, and content entities `11768`. Because that selection skewed config/small, classify it as correctness/retry safety evidence rather than representative wall-clock corpus proof. | Keep the Eshu hot-path query order and entity phase cap only as guards, but treat the backend unique-validation fix as the actual breakthrough for this proof. Next, run a mixed 20-25 corpus that includes the four large service repos plus heavier Terraform/Helm/Ansible repos before a full-corpus run. If that proof holds under the `30-35m` full-corpus benchmark projection, inspect the remaining `GetNodesByLabelVisibleAt` and `GetOutgoingEdges` profile stacks rather than adding Eshu workers. |
+| Mixed 25-repo unique-validation proof | Backend fix validated on representative mixed corpus | Remote proof `eshu-mixed25-unique-validation-315e717-20260502T110445Z` rebuilt Eshu `66cb0123` and NornicDB `315e717` first, then copied a mixed 25-repo corpus covering large service repos, Helm/Argo/Kustomize deployment repos, Terraform modules/stacks, Ansible automation, and Jenkins config. Settings stayed within the benchmark envelope: `ESHU_PROJECTOR_WORKERS=4`, `ESHU_REDUCER_WORKERS=8`, `ESHU_REDUCER_BATCH_CLAIM_SIZE=8`, `ESHU_GRAPH_BACKEND=nornicdb`, `ESHU_QUERY_PROFILE=local_authoritative`, `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=true`, and `ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS=5`. The run drained healthy with source-local `25/25`, reducers `200/200`, queue `225/225` succeeded, and no retrying, failed, or dead-letter rows. Terminal wall was `307s`, first-queue-to-terminal was `302s`, and source-done-to-terminal was `76s`. The graph-backed API and MCP processes were started against the completed run and both health checks passed; the repository API returned `25` repositories. Postgres counts were `25` scopes, `25` generations, `237172` facts, `11224` content files, and `212735` content entities. Reducer handler work stayed small relative to source-local graph writes: `semantic_entity_materialization` handler sum `24.787s`, SQL handler sum `4.282s`, code-call handler sum `6.344s`, deployment mapping handler sum `3.439s`, and workload materialization handler sum `4.280s`. Semantic statement summaries stayed bounded: `Annotation` `17215` rows / `3444` statements / `17.922s` sum / `0.016s` max, `Function` `2086` rows / `211` statements / `1.364s`, `Variable` `1410` rows / `142` statements / `0.728s`, and `TypeAlias` `821` rows / `166` statements / `0.651s`. Host samples still showed idle headroom after startup, with CPU idle mostly `76-83%`, IO wait usually `0%`, and disk idle mostly `89-96%`; the remaining long pole is therefore NornicDB graph-write/lookup CPU shape, not Postgres, disk, or reducer worker count. | Treat this as the representative small-corpus gate for the NornicDB unique-validation fix. The next acceptance step is a fresh full-corpus run with API/MCP left running for graph truth validation. If the full corpus exceeds the `30-35m` benchmark, profile the remaining NornicDB `GetNodesByLabelVisibleAt`, `GetOutgoingEdges`, and `GetEdgesBetween` stacks before changing Eshu concurrency defaults. |
+| Workload materializer NornicDB hot-path split | Implemented locally; runtime proof pending | The first full-corpus acceptance attempt after the mixed-25 proof, `eshu-full-unique-validation-315e717-20260502T111513Z`, rebuilt Eshu `f338acde` and NornicDB `315e717` but exposed a reducer-tail regression rather than a worker-count problem. By about `65m` wall, source-local had completed in about `43m18s`, the reducer queue was flat at `3876/7410` succeeded with `3534` open and no retries, failures, or dead letters, and host samples still showed low disk pressure while NornicDB consumed CPU. A live NornicDB profile from that run showed `BadgerEngine.GetNodesByLabelVisibleAt` dominating the reducer tail through `executeCompoundMatchMerge` / `executeMatchForContext`, while workload logs showed endpoint graph writes taking about `862-990s` for only `5-19` endpoint rows. That evidence points to Eshu workload materializer compound `MATCH`/`MERGE` shape missing NornicDB indexed hot paths, not Postgres, disk, reducer workers, or queue contention. Commit `a17c7988` splits workload, workload-instance, runtime-platform, and endpoint writes into indexed node-upsert phases followed by narrow relationship phases, and precomputes runtime-platform confidence in Go to remove a Cypher `CASE` from the hot write. Local TDD and verification passed `go test ./internal/reducer -run 'TestWorkloadMaterializer(WritesWorkloads|WritesInstances|WritesRuntimePlatforms|WritesAPIEndpoints|FullPipeline)' -count=1`, `go test ./internal/reducer -count=1`, `go test ./cmd/reducer ./internal/reducer ./internal/storage/postgres -count=1`, and `git diff --check`. Classification: diagnostic-backed query-shape fix, not yet a wall-clock win. | Push, rebuild Linux binaries, stop the stale full-corpus run, and rerun the representative proof ladder before another full-corpus acceptance run. Acceptance requires lower workload endpoint graph-write durations, no new graph-truth regressions, and no reducer queue tail dominated by `GetNodesByLabelVisibleAt` from workload materialization. |
+| NornicDB edge-pair index experiment rollback | Rejected throughput hypothesis; reverted | NornicDB fork commit `07b4475` tested a direct edge-pair lookup index for exact relationship existence checks after the workload endpoint profile showed `GetEdgesBetween` in the hot stack. Focused mixed-25 proof stayed healthy (`225/225` queue rows succeeded in `307s`) but did not exercise endpoint rows. Focused endpoint-heavy proof drained healthy (`45/45` queue rows succeeded in `79s`), but endpoint graph-write durations still reached `5.872s` for `15` endpoint rows and `4.911s` for `19` rows. The full-corpus probe `eshu-full-edge-pair-14b7c664-07b4475-20260502T130823Z` rejected the hypothesis: the second endpoint workload row still spent `281.329s` in `endpoint_graph_write_duration_seconds`, only about `3-4%` better than the prior `291.369s` sample and nowhere near a Eshu wall-clock win. The patch was reverted on the fork branch with NornicDB commit `a46664f`; local and remote NornicDB checkouts were moved back to upstream `main` at `ac41214` / `v1.0.43`, rebuilt with `-tags 'noui nolocalllm'`, and passed focused storage/Cypher tests. The remote compatibility binary path used by Eshu proof scripts now points at the upstream-main `v1.0.43` build. | Treat NornicDB patches as maintainer-level changes that require a real backend correctness fix, a measured NornicDB performance win, or a measured Eshu runtime win. Continue from upstream `main` and target the more precise Eshu/NornicDB evidence gap: endpoint materialization still likely lacks the right indexed `Endpoint(id)` merge lookup path or is hitting another profile-proven label-scan path. |
+| Endpoint merge lookup index | Focused handler/query-shape win; wall-clock proof pending | Commit `925290cc` adds the missing NornicDB explicit `Endpoint.id` lookup index. TDD first failed `TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes` because the NornicDB schema rendered no `Endpoint(id)` lookup index even though workload endpoint materialization uses `MERGE (endpoint:Endpoint {id: row.endpoint_id})` and subsequent `MATCH (endpoint:Endpoint {id: row.endpoint_id})` statements. The implementation adds only the backend-specific DDL entry and updates graph-backend operations docs. Local verification passed `go test ./internal/graph -run TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes -count=1`, `go test ./internal/graph -count=1`, `go test ./internal/graph ./cmd/eshu -run 'TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes|TestNornicDBSchemaAdapterVerification' -count=1`, and `ESHU_NORNICDB_BINARY=<upstream-main-nornicdb-build> go test ./cmd/eshu -run TestNornicDBSchemaAdapterVerification -count=1 -v` against upstream-main NornicDB `v1.0.43`. Remote proof `eshu-endpoint5-endpoint-index-25168e06-ac41214-20260502T133152Z` rebuilt Eshu `25168e06`, used upstream-main NornicDB `ac41214`, and drained healthy with queue `45/45` succeeded, `0` retrying/failed/dead-letter rows, API/MCP health OK, and repository count `5`. Endpoint write duration sum fell from the prior edge-pair proof's `20.072s` to `2.018s`; max endpoint write fell from `5.843s` to `1.822s`; the five endpoint rows were `0.029s`, `0.029s`, `0.028s`, `1.822s`, and `0.109s` for `52` endpoints total. The proof's total wall was `110s` versus `78s` prior because semantic/SQL work dominated this tiny corpus (`semantic_entity_materialization` handler sum `48.722s`), so classify this as an endpoint handler/query-shape win rather than a wall-clock win. CPU and disk stayed mostly idle (`91-100%` CPU idle, `0%` IO wait, disk idle about `83-96%`). | Keep the index. Next, rerun the representative mixed-25 or full-corpus proof against upstream-main NornicDB `v1.0.43`; if full-corpus wall still exceeds the `30-35m` benchmark, profile the remaining non-endpoint long pole instead of adding workers or speculative NornicDB patches. |
+| NornicDB `UNWIND MATCH SET` semantic hot path | Backend wall-clock win on focused and mixed proofs | Upstream-main NornicDB `ac41214` plus Eshu `bbeb5b9d` accepted the endpoint index but exposed the next backend limitation: semantic materialization used `UNWIND $rows AS row MATCH (n:<Label> {uid: row.entity_id}) SET ...`, which fell out of NornicDB's indexed batch path and made tiny semantic batches take `70-120s` or hit the `120s` timeout. NornicDB commit `a9ccd0f` adds a generic indexed batch hot path for `UNWIND MATCH SET` without creating missing nodes. Focused tests passed on the fork with `go test -tags 'noui nolocalllm' ./pkg/cypher -run 'TestUnwindMatchSetBatch_UsesIndexedLookupWithoutCreatingMissingNodes|TestUnwindMatchMergeRelationshipSet_UsesChainBatchHotPath' -count=1` and the storage/Cypher focused suite. Remote endpoint-heavy proof `eshu-endpoint5-unwind-match-set-bbeb5b9d-a9ccd0f-20260502T140551Z` drained `45/45` work rows in `79s` with API/MCP health OK; semantic handler sum fell from `48.722s` to `0.509s`, Function write sum from `32.337s` to `0.170s`, and TypeAlias write sum from `16.193s` to `0.147s`. Mixed proof `eshu-mixed25-unwind-match-set-bbeb5b9d-a9ccd0f-20260502T140807Z` drained `225/225` rows in `201s` versus the earlier `307s` mixed proof, with source-done-to-terminal unchanged at `76s`; semantic handler sum was `19.821s`, and the large Annotation family completed `17,215` rows in `13.031s` total with `0.030s` max statement time. | Keep the patch because it is a generic NornicDB indexed write-path improvement and a measured Eshu runtime win. Open or track the NornicDB PR/release handoff separately before relying on it as a released default. |
+| Full-corpus semantic-hotpath acceptance | Proven; below benchmark, not best-ever wall time | Fresh full-corpus proof `eshu-full-unwind-match-set-bbeb5b9d-a9ccd0f-20260502T142756Z` rebuilt Eshu `bbeb5b9d` and NornicDB `a9ccd0f`, then ran the `878`-repository corpus with API/MCP left running after terminal validation. A prior full attempt after the same patch was invalidated by disk exhaustion and excluded from performance evidence. The corrected run reached source-local completion at `2026-05-02T14:40:23Z` and terminal queue at `2026-05-02T14:48:12Z`: wall `1216s` (`20m16s`), first-queue-to-terminal `1197s`, and source-done-to-terminal `469s`. Final queue was healthy with projector `878/878`, reducer `7415/7415`, total work `8293/8293`, `0` retrying, `0` failed, and `0` dead-lettered rows. API and MCP health passed, `/api/v0/repositories` returned `878`, and `/api/v0/index-status` reported queue `8293/8293`. Reducer handler sums were workload materialization `148.853s`, semantic entity materialization `83.776s`, deployment mapping `95.360s`, code-call materialization `60.928s`, inheritance `51.509s`, SQL relationship materialization `40.975s`, deployable-unit correlation `44.710s`, and workload identity `8.948s`. Workload endpoint graph writes stayed bounded at `972` endpoint rows, `3.404s` sum, `0.514s` max. Semantic wrote `64,560` rows with `46.754s` graph-write sum and `14.519s` max; the earlier endpoint proof that timed out on tiny semantic batches is therefore resolved at full-corpus scale. Resource samples showed no disk bottleneck: during the reducer tail CPU idle was usually `75-98%`, IO wait `0-4%`, and disk idle usually `89-96%`; during source-local high-cardinality writes CPU idle was lower but disk still mostly idle. | Classification: full-corpus acceptance for the NornicDB semantic hot path and still under the `30-35m` working benchmark, but slower than the best prior `10-11m` local-host proofs. Do not claim a new all-time wall-clock win. Next compare run settings and corpus shape, then target source-local high-cardinality canonical writes plus semantic/SQL queue-wall shape before any worker-default change. |
+| Tunable semantic claim cap | Full-corpus scheduling win | Commit `cf6e9b6d` makes the NornicDB semantic entity reducer claim cap tunable through `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` while keeping the conservative default at `1`. The change preserves the source-local drain and expected-source-local corpus-complete gates; it only changes how many semantic entity reducers may run after those correctness gates open. Local verification passed focused claim SQL/config tests, `go test ./internal/storage/postgres ./cmd/reducer ./internal/reducer -count=1`, `git diff --check`, strict MkDocs, and a prohibited private-term scan. Mixed proof `eshu-mixed25-semantic4-cf6e9b6d-a9ccd0f-20260502T151025Z` with limit `4` was correctness-clean but neutral for wall time: `225/225` succeeded, no retries/failures/dead letters, wall `201s`, and source-done-to-terminal stayed `76s`. The mixed corpus was not sensitive enough because only `9` semantic reducers were present. Fresh full proof `eshu-full-semantic4-cf6e9b6d-a9ccd0f-20260502T151506Z` stopped stale stacks first, rebuilt Eshu `cf6e9b6d`, used NornicDB `a9ccd0f`, set limit `4`, and drained `8293/8293` work rows cleanly with projector `878/878`, reducer `7415/7415`, and `0` retrying, failed, or dead-lettered rows. Wall improved from `1216s` to `943s` (`20m16s` to `15m43s`); first-queue-to-terminal improved from `1197s` to `924s`; source-local completion moved from `728s` after first queue to `758s`, but source-done-to-terminal dropped from `469s` to `166s`. Semantic wrote the same `64,560` rows; semantic graph-write sum rose from `46.754s` to `63.451s` and max from `14.519s` to `19.110s`, but removing the one-global-lane bottleneck more than paid for it. API/MCP health passed and `/api/v0/repositories` returned `878`; the stack was left running for validation. Resource samples showed source-local used real CPU and intermittent disk bandwidth, while the reducer tail stayed within the no-retry envelope. | Treat limit `4` as the best proven runtime setting for this patched NornicDB binary, but do not raise the default yet. Next prove graph/API truth on the running stack, then consider a second full run or limit `8` only if semantic max durations stay bounded and no retries appear. |
+| Repo-scoped dead-code API anchor | API read/query-shape win | Commit `7af0b98b` changes scoped dead-code Cypher to start from `Repository {id: $repo_id}` before traversing file and semantic entity nodes. The prior shape started from semantic entities and applied the repo filter late, which is the same high-cardinality anti-pattern this ADR warns against for NornicDB reads. Focused TDD first failed on the old shape, then `go test ./internal/query -count=1` passed. The same completed full-corpus stack was API-rebuilt and restarted without reindexing; the scoped dead-code API call that previously timed out after `20s` with no body returned in about `2s` with bounded results and truth metadata. | Keep the indexed-anchor read shape. This is not a reducer wall-clock win, but it is important API/MCP demo hygiene and reinforces that scoped graph reads must not begin from high-cardinality semantic labels. |
+| Repository story scalar graph summary | Query-truth fix | Commit `ae731999` keeps repository story graph truth consistent with direct graph inspection by overriding the broad OPTIONAL aggregation row with narrow repo-anchored reads for file count, language families, workloads, platform signals, and dependency count. The regression test models the live NornicDB symptom where `collect(DISTINCT f.language)` leaked the literal expression and the broad row missed workload truth. Local `go test ./internal/query -count=1` passed. On the same completed full-corpus stack, rebuilding/restarting only the API changed the repository story from `0` indexed files, leaked `DISTINCT f.language`, and `0` workloads to `537` files, five language families, one workload, and the correct dependency count. | Query-truth correctness win, not a reducer wall-clock win. Continue validating workload-instance/platform materialization separately because story now accurately reports no platform signal for repos without `WorkloadInstance` / `RUNS_ON` graph truth. |
+| Repo-scoped workload relationship loading | Correctness win; query-surface gap remains | Commit `ffa1d385` fixes a workload-materialization truth miss found on the completed full-corpus semantic-cap run. Some incoming infrastructure provisioning relationships are owned by the infrastructure repo generation, so the service repo's exact intent-scope resolved-relationship lookup did not see them. The patch adds a repo-scoped active resolved-relationship lookup, keeps the exact generation-scoped lookup, dedupes both sources, and adds partial indexes on `resolved_relationships.source_repo_id` and `target_repo_id`. Local verification passed `go test ./internal/reducer -run 'TestCorrelatedWorkloadProjectionInputLoaderUsesRepoScopedIncomingProvisioning|TestCorrelatedWorkloadProjectionInputLoaderEnrichesProvisioningRepoEnvironments' -count=1`, `go test ./internal/storage/postgres -run TestRelationshipStoreGetResolvedRelationshipsForRepos -count=1`, `go test ./internal/reducer -count=1`, `go test ./internal/storage/postgres -count=1`, and `git diff --check`. Remote validation rebuilt Linux binaries at `ffa1d385`, manually restored the existing full-corpus Postgres/NornicDB stack after a stale reducer had consumed the first replay, reopened only the representative service's three `workload_materialization` items, and ran one rebuilt reducer constrained to `ESHU_REDUCER_CLAIM_DOMAIN=workload_materialization`, `ESHU_REDUCER_WORKERS=1`, and `ESHU_REDUCER_BATCH_CLAIM_SIZE=1`. The replay completed all three items cleanly in under one second; each handler wrote `1` workload, `3` workload instances, `3` runtime platform edges, and `38` endpoints, with `graph_write_duration_seconds` between `0.013s` and `0.141s`. Direct graph proof showed the service now has three environment-specific `WorkloadInstance` rows running on the ECS platform inferred from platform-shaped Terraform evidence, plus typed repository relationships carrying evidence kinds for Terraform provisioning and GitHub Actions deployment/config discovery. API/MCP were restarted successfully against the same stack. Scoped dead-code API returned bounded results, and scoped dead-IaC for the provisioning repo returned no cleanup findings in derived mode. However full repository context/story under `local_full_stack` still timed out at `90s`, so API hydration remains a separate read-shape target. | Keep the repo-scoped relationship loader; this fixes graph truth rather than wall clock. Do not tune reducer workers from this replay. Next read-surface work should add stage timing and narrow the full-corpus repository context/story hydration path before using those routes as acceptance gates. |
+| Repository context/story read-model hydration | API read/query-shape win | Commits `2cfdd427`, `8e4f84dd`, and `84f76839` add evidence-first stage timing for repository context/story hydration, replace the old base lookup with a repository-id anchor, route file/language summaries through Postgres content coverage, and route workload/platform/dependency summary counts through the Postgres read model instead of NornicDB graph fanout. Focused TDD covered the narrow base lookup, stage logs, content-coverage file/language summaries, and read-model graph summaries. Local verification passed `go test ./internal/query ./cmd/api -count=1` and `git diff --check`. Remote validation reused the completed full-corpus stack from `eshu-full-semantic4-cf6e9b6d-a9ccd0f-20260502T151506Z`, rebuilt Linux API/MCP binaries, and intentionally reproduced the prior blocker: `repository_lookup` completed in `0.004s` but `summary_counts` burned NornicDB CPU until the request was killed after `1m50s`; after file/language coverage routing, `summary_counts` still blocked and was killed after `57s`, proving workload/platform/dependency count fanout was also unsafe. After the read-model summary patch, the same repository context returned `200` in `5.79s` (`401110` bytes) and repository story returned `200` in `0.14s` (`29647` bytes). Stage logs showed `summary_counts=0.000029s`, `languages=0.000014s`, `entry_points=0.191s`, `infrastructure=0.563s`, `relationship_overview=2.213s`, `consumers=2.531s`, and story `graph_summary=0.000036s`. Commit `0f8e1dca` routes repository context `relationships`, `relationship_overview`, and `consumers` through Postgres `resolved_relationships` read-model rows when active relationship evidence exists, keeping graph reads as fallback for fixtures and repos without read-model rows. Focused TDD covered evidence hydration from `details.evidence_kinds`/`details.evidence_preview`, consumer de-duplication, and forbidding the old graph relationship fanout when the read model is present. Local verification passed `go test ./internal/query ./cmd/api -count=1` and `git diff --check`. Remote validation rebuilt API/MCP on the same full-corpus NornicDB stack and reran the same representative repository context call: `200` in `0.76s` (`401075` bytes). Stage logs showed `relationships=0.000015s` for `2` outgoing rows, `relationship_overview=0.000006s` for `18` rows, and `consumers=0.000006s` for `15` rows, down from `relationship_overview=2.213s` and `consumers=2.531s`. Commits `0a48e16b` and `4364bd08` then fixed the remaining infrastructure surface. Direct API inspection showed the NornicDB label-OR infrastructure query had been over-returning `3,137` rows as infrastructure (`2,875` `Variable`, `260` `Function`, `1` `TypeAlias`, and only `1` real `K8sResource`), while Postgres truth showed only one infrastructure content entity for the representative repo. Corpus-wide Postgres reconciliation showed content and fact infrastructure rows matched exactly across `213` repos (`60,495` rows, `0` mismatched repos), so the endpoint now uses the content read model first and keeps graph as fallback. Focused TDD covers filtering graph over-return rows and using content infrastructure before graph fallback. Local verification passed `go test ./internal/query ./cmd/api -count=1` and `git diff --check`. Remote API proof on the same full-corpus stack returned `200` in `0.23s` (`119977` bytes), with `infrastructure=0.014s`, `row_count=1`, and the response retaining the single `K8sResource`. Commit `b8d61352` applies the same content-read-model treatment to repository entry points after direct API inspection showed the graph query returned `260` broad function rows while Postgres content/fact truth showed only `3` matching `main` functions. Focused TDD covers the content-first entry-point query plus defensive graph-row filtering. Remote API proof returned `200` in `0.15s` (`93661` bytes), with `entry_points=0.000902s`, `row_count=3`, and all rows named `main`. Commit `b3634762` moves repository deployment evidence to the Postgres read model after raw API inspection showed incoming Terraform evidence from the graph carried literal `source.id`, `source.name`, `r.id`, `r.name`, and quoted direction values. The read-model path rebuilds bounded artifact rows from active `resolved_relationships.details.evidence_preview`, preserves deterministic `evidence-artifact:*` IDs, infers environment/runtime metadata, and resolves repository names through `ingestion_scopes`; graph remains fallback. Local verification passed `go test ./internal/query ./cmd/api -count=1` and `git diff --check`. Remote API proof returned `200` in `0.13s` (`96848` bytes), kept `64` deployment evidence artifacts, reported `bad_literal_count=0`, and moved `deployment_evidence` from about `0.052s` to `0.014s`. | Keep the read-model hydration path for API/MCP demo correctness. This is not a reducer wall-clock win, but it removes unsafe NornicDB incoming repository fanout and label-OR infrastructure scans from the validation path. Representative context hydration moved from timeout-prone, to `5.79s`, to `0.76s`, and now to `0.23s` while becoming more truthful. Reducer throughput work remains separate and should still be judged by end-to-end corpus wall time. |
+| Service context platform/evidence hydration | API read/query-shape and query-truth win | Commits `99f0b35b` and `31dc270a` extend the same evidence-first read-model strategy to service context and deployment trace hydration. Remote validation reused the completed full-corpus stack `eshu-full-semantic4-cf6e9b6d-a9ccd0f-20260502T151506Z`, rebuilt API/MCP binaries, and left the stack running. Before `99f0b35b`, the representative service context timed out after `120s`: direct graph checks showed exact `WorkloadInstance` lookup was immediate, but the `WorkloadInstance-[:RUNS_ON]->Platform` expansion still timed out after `30s`. A repo-anchored provisioning-platform query through `Repository<-[:PROVISIONS_DEPENDENCY_FOR]-Repository-[:PROVISIONS_PLATFORM]->Platform` returned in about `0.01s`, so the service query now uses that explicit graph truth when it is unambiguous and keeps the old `RUNS_ON` expansion as fallback. Remote proof after `99f0b35b` returned `200` in `0.36s`, with `3` environment instances, the inferred ECS platform, `38` API endpoints, and `64` deployment evidence artifacts. Commit `31dc270a` then routed service deployment evidence through the Postgres relationship read model before the graph `EvidenceArtifact` fallback; the regression test fails if an `EvidenceArtifact` graph query runs when read-model evidence exists. Local verification passed `go test ./cmd/api ./cmd/mcp-server ./internal/query -count=1` and `git diff --check`. Remote proof after `31dc270a` returned service context `200` in `0.30s`, kept the same `3` instances, platform, `38` endpoints, and `64` artifacts, and reduced literal-shaped NornicDB evidence values from `57` to `0`. The deployment trace route returned `200` in `0.28s` with matching workload, repository, platform, endpoint, artifact, consumer, dependent, and provisioning-chain counts. Direct graph proof confirmed the repository defines the workload, workload instances exist, evidence artifact edges connect the service repo to related repos, and the provisioning repo connects to the ECS platform; instance nodes still do not carry `platform_id`, so the query intentionally reads the explicit provisioning edge instead of using the slow broad `RUNS_ON` expansion. | Keep the service read-model and provisioning-platform anchor. This does not change reducer wall time, but it makes the completed full-corpus stack queryable for demo and truth validation without hiding graph gaps. If instance-level `RUNS_ON` truth becomes a product requirement, fix materialization separately and prove it with graph/API parity rather than relying on the query fallback. |
+| Workload platform edge-property read shape | API query-truth fix | Commit `1084f4a6` keeps workload platform reads anchored by exact `WorkloadInstance.id` while changing the NornicDB-sensitive shape from two `MATCH` clauses to one compound `MATCH (i:WorkloadInstance {id})-[runsOn:RUNS_ON]->(p:Platform)` pattern. The live focused NornicDB proof showed the two-`MATCH` shape returned platform nodes but lost relationship-property projections, while the compound exact-instance shape returned `runsOn.confidence`, `runsOn.reason`, and `properties(runsOn)` correctly. Focused TDD now rejects the two-`MATCH` read shape and requires the compound exact-instance pattern without broad workload expansion. Local verification passed `go test ./internal/query -run 'TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafety|TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformShortcut|TestCypherStringLiteralEscapesInstanceIDs|TestFetchWorkloadContextFallsBackToProvisionedPlatformWhenInstanceRunsOnMissing' -count=1`, `go test ./cmd/api ./cmd/mcp-server ./internal/query -count=1`, `git diff --check`, and the prohibited private-term scan. Remote validation rebuilt Linux API/MCP binaries on focused run `focused-relprops-20260502T200250Z`, restarted only the API process, confirmed `/healthz`, then proved direct Cypher and the workload context API both returned all platform targets with confidence `0.99` and reason `Workload instance runs on inferred platform`; the API call returned in about `0.20s` with `38` endpoints and `23` deployment evidence artifacts. | Keep this compound exact-instance relationship read for NornicDB. This is a query-truth fix, not a reducer wall-clock optimization; it proves the graph already had the relationship metadata and the API read shape was losing it. |
+| Deployment evidence drilldown pointers | API/MCP evidence contract win | Commit `ffbda8c6` keeps deployment evidence compact while making the Postgres drilldown path explicit. `deployment_evidence.artifacts[]` now carries a normalized `source_location` with source repository, path, and line fields when extractors provide line data. `deployment_evidence.evidence_index` groups artifact counts by relationship type, artifact family, and evidence kind, with unique `resolved_ids` and `generation_ids`; `lookup_basis` is `resolved_id`. Focused TDD first failed because the evidence index was missing, then passed after the additive response fields were added. Local verification passed `go test ./cmd/api ./cmd/mcp-server ./internal/query -count=1`, strict MkDocs, `git diff --check`, and the prohibited private-term scan. Remote validation rebuilt Linux API/MCP binaries on focused run `focused-relprops-20260502T200250Z`, restarted the API, and confirmed `/healthz`. The workload context API returned `23` deployment artifacts with grouped indexes for ArgoCD, GitHub Actions, Helm, Kustomize, and Terraform families; sample artifacts carried `resolved_id`, `generation_id`, `postgres_lookup_basis=resolved_id`, and `source_location`. A direct Postgres lookup by one returned `resolved_id` hydrated the durable `resolved_relationships` row with `evidence_count`, `evidence_kinds`, rationale, and full `evidence_preview`. | Keep the compact pointer contract. Future extractor work should add line numbers into evidence details when available, but should not bloat graph nodes or API responses with full evidence payloads. |
+| Relationship evidence drilldown API | API/MCP evidence contract win | Commit `cf48b9c6` adds `GET /api/v0/evidence/relationships/{resolved_id}` so clients can dereference compact graph/API evidence pointers without raw SQL. The endpoint reads the active durable `resolved_relationships` row by `resolved_id` and returns lookup basis, source/target repo metadata, relationship type, confidence, evidence count, evidence kinds/type, rationale, resolution source, generation metadata, `evidence_preview`, and decoded details. Local TDD first failed because the handler, read model, and OpenAPI route were missing, then passed. Local verification passed `go test ./internal/query -run 'TestEvidenceHandler|TestContentReaderRelationshipEvidenceByResolvedID|TestServeOpenAPI' -count=1`, `go test ./cmd/api ./cmd/mcp-server ./internal/query -count=1`, strict MkDocs, `git diff --check`, prohibited private-term scan, and a fresh local binary rebuild. Remote proof pulled `cf48b9c6` into focused run `focused-relprops-20260502T200250Z`, passed `go test ./cmd/api ./cmd/mcp-server ./internal/query -count=1`, rebuilt Linux API/MCP binaries, restarted the API, and confirmed `/healthz`. A real `DEPLOYS_FROM` `resolved_id` returned HTTP `200` with `evidence_count=4`, exact `relationship_evidence.drilldown` truth under the local-authoritative profile, and the full evidence preview needed to explain the edge from Postgres. | Keep the graph/API response compact and use this endpoint for drilldown. Next MCP work can wrap the same route as a first-class tool response, but the durable lookup key remains `resolved_id` rather than expanding graph nodes with heavyweight evidence payloads. |
+| Relationship evidence MCP tool | API/MCP evidence contract win | Commit `031886a5` exposes the same durable drilldown as the MCP `get_relationship_evidence` tool and mounts the evidence handler in the MCP query router. The tool accepts `resolved_id` and dispatches to `GET /api/v0/evidence/relationships/{resolved_id}`, preserving the canonical truth envelope instead of duplicating the read model in MCP. Local TDD first failed because the tool was not advertised, dispatch routing was missing, and the MCP router did not mount the evidence handler. Local verification passed `go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/mcp -count=1`, strict MkDocs, `git diff --check`, prohibited private-term scan, and a fresh local binary rebuild. Remote proof pulled `031886a5` into focused run `focused-relprops-20260502T200250Z`, passed `go test ./cmd/mcp-server ./internal/mcp -count=1`, rebuilt the Linux MCP binary, started the MCP HTTP runtime on the focused stack, and confirmed `/health`. MCP `tools/list` returned `41` tools including `get_relationship_evidence`; a real tool call by `resolved_id` returned `isError=false`, `evidence_count=4`, `relationship_type=DEPLOYS_FROM`, and exact `relationship_evidence.drilldown` truth under the local-authoritative profile. | Keep MCP as a thin dispatch layer over the HTTP evidence endpoint. Future MCP answer-shaping can summarize preview items, but the authoritative payload should continue to come from the shared API read model. |
+| Relationship evidence dereference audit | Full-corpus query-truth proof | Focused stack `focused-relprops-20260502T200250Z` was audited across all `11` active `resolved_relationships` rows after commits `cf48b9c6`, `031886a5`, `2ab2978b`, and `7a00400e`. Direct Postgres counts covered `DEPLOYS_FROM`, `DISCOVERS_CONFIG_IN`, `PROVISIONS_DEPENDENCY_FOR`, and `READS_CONFIG_FROM` with `531` total evidence items; every row had `evidence_preview`. API dereference checked all `11` rows with `0` request errors, `0` missing previews, and `0` missing evidence kinds. MCP dereference checked the same `11` rows, returned exact `relationship_evidence.drilldown` truth for all `11`, and had `0` errors. Full-corpus stack `eshu-full-semantic4-cf6e9b6d-a9ccd0f-20260502T151506Z` was then rehydrated from the completed Postgres/NornicDB state, API/MCP were rebuilt from `7a00400e` and restarted against the stored NornicDB graph credential, and both `/healthz` and `/health` passed. Direct Postgres counted `1188` active relationship rows across `DEPENDS_ON` (`58` rows, `104` evidence items), `DEPLOYS_FROM` (`233`, `509`), `DISCOVERS_CONFIG_IN` (`71`, `194`), `PROVISIONS_DEPENDENCY_FOR` (`317`, `2660`), `READS_CONFIG_FROM` (`291`, `3519`), and `USES_MODULE` (`218`, `4614`); every row had `evidence_preview` and `0` rows were missing preview. API dereference checked all `1188` active rows in `1.023s`, returned `1188/1188` matching durable rows, `0` request errors, `0` missing previews, and `0` missing evidence kinds. MCP `get_relationship_evidence` checked all `1188` active rows in `0.836s`, returned `1188/1188` matching rows, `1188/1188` exact truth envelopes, `0` request errors, `0` missing previews, and `0` missing evidence kinds. | Treat the compact pointer plus drilldown contract as proven at focused and full-corpus scale. This is a query-truth/read-surface win, not a reducer wall-clock claim. Keep raw evidence in Postgres, keep graph/API nodes compact, and use `resolved_id` as the durable drilldown key for engineers and MCP tools. |
+| Multi-valued deployment and platform materialization | Proven correctness fix | The live full-corpus graph audit after `5171441e` showed the next truth issue: repository-level relationship edges preserved multiple verbs and evidence pointers, but workload materialization still had scalar assumptions. A workload candidate carried only one `DeploymentRepoID`, deployable-unit correlation emitted one deployment-repo evidence atom, and provisioned runtime platform projection skipped an infrastructure repo unless it had exactly one `PROVISIONS_PLATFORM` row. That is not compatible with real migrations where `current`, `poc`, or `new` environments may use different deployment controllers, deployment repos, or runtime platforms. The patch adds `DeploymentRepoIDs` as the additive list while keeping `DeploymentRepoID` as a compatibility primary, projects all deployment repositories that apply to each environment, keeps every deployment repo in deployable-unit correlation evidence, and emits all proven provisioned platform rows once runtime-specific provisioning evidence exists. Focused local tests cover multiple deployment repos, multiple deployment environments, and multiple provisioned ECS/EKS-style platform rows while preserving the generic/ambiguous provisioning negative cases. Local verification passed `go test ./internal/reducer ./cmd/reducer ./internal/query -count=1` and `git diff --check`. Remote validation on focused run `focused-relprops-20260502T200250Z` rebuilt API/MCP binaries and inspected raw graph truth: direct `DEPLOYMENT_SOURCE` queries returned multiple deployment repositories for environment-specific workload instances with relationship confidence, reason, and provenance, and direct `RUNS_ON` queries returned both Kubernetes and ECS-style targets where both platforms applied. The workload context API returned five materialized environments, six distinct platform targets, `38` endpoints, and `23` deployment evidence artifacts with platform confidence and reason intact. The impact deployment-chain API was not used for this focused proof because the stack profile returned `501` for that capability. | Keep the multi-valued materialization model. This is graph/API truth, not a reducer wall-clock optimization. Use a full-profile stack for future deployment-chain route acceptance, but do not block graph truth on a profile-gated API route. |
+| Nested filesystem repository discovery | Correctness fix | A focused full-corpus evidence audit found that a platform grouping directory with visible metadata files was being selected as one tiny synthetic repository while its nested real Git checkouts were skipped. That made GitOps and Helm source files invisible to fact emission, relationship extraction, reducer materialization, Postgres read models, and graph truth even though the files existed on disk. Commit `b4d156cb` adds the local regression `TestDiscoverRepoRootsPrefersNestedGitReposOverVisibleGroupFiles`, which reproduces this shape generically and the collector now prefers descendant Git-backed repositories over parent grouping directories that merely contain visible files. Commit `2e50e37c` adds the hidden-state-directory regression so group-local dot directories do not become synthetic repositories. Focused local verification passed `go test ./internal/collector ./internal/collector/discovery -count=1`. Remote discovery after `c8413d68` rebuilt binaries and selected the nested GitOps and Helm repos as independent repositories in the full source tree (`896` total repos, nested GitOps/Helm checkouts present). | Keep the nested-Git preference and hidden-directory guard. This was a truth fix; do not treat it as a reducer wall-clock optimization. |
+| Focused nested deployment-story proof | Query-truth proof; read-surface gap closed | Remote run `focused-nested-evidence-d0cb7a0e-ac41214-20260502T234444Z` rebuilt Eshu `d0cb7a0e`, built a clean detached NornicDB `main` binary at `ac41214` with `noui nolocalllm`, copied five real repositories without symlinked repo roots, and proved nested selection selected the service repo, shared automation repo, nested chart repo, nested GitOps controller repo, and Terraform runtime stack as five independent repositories. The run drained cleanly in `45s`: projector `5/5`, reducer `48/48`, total queue `53/53`, with `0` retrying, failed, or dead-lettered rows; source-local completed at `14s` and source-done-to-terminal was `31s`. Resource samples stayed idle-heavy after the short source-local burst (`cpu_idle` `78-93%`, `io_wait=0`, disk idle about `95.65%`). Direct Cypher under the full-stack API profile showed compact repository edges with preserved `resolved_id`, `generation_id`, `evidence_type`, `evidence_kinds`, and `evidence_count`: outgoing `DEPLOYS_FROM` to shared automation via GitHub Actions reusable workflow evidence, outgoing `DEPLOYS_FROM` to the chart repo via ApplicationSet deploy-source evidence, outgoing `DISCOVERS_CONFIG_IN` to shared automation via workflow-input evidence, incoming `DEPLOYS_FROM` from chart and GitOps repos via Helm/Kustomize/ApplicationSet evidence, incoming `PROVISIONS_DEPENDENCY_FOR` from the Terraform stack via ECS-service/CloudWatch evidence, and incoming `READS_CONFIG_FROM` from the Terraform stack via IAM-permission evidence. The service context API returned five materialized environments, six platform targets across Kubernetes-style environment targets plus the ECS runtime target, `38` graph-backed API endpoints, and deployment tool families `argocd`, `github_actions`, `helm`, `kustomize`, and `terraform`. Commits `7d9c6bb9` and `dd5b97a7` then fixed the deployment-trace read surface to derive GitOps/controller summaries from relationship evidence and remove nil-sentinel metadata from controller paths. Local verification passed `go test ./internal/query -run 'TestBuildDeploymentTraceResponseRecognizesGitOpsFromReadModelEvidence|TestMetadataStringSliceFiltersNilSentinelValues' -count=1`, `go test ./internal/query ./cmd/api ./cmd/mcp-server -count=1`, and `git diff --check`. Remote validation rebuilt Linux API/MCP/ingester/reducer binaries from `dd5b97a7`, restarted API/MCP against the same completed focused stack, and confirmed `/healthz`. The deployment trace API now returns `gitops_overview.enabled=true`, `tool_families=[argocd]`, one ApplicationSet controller entity, six observed targets, two deployment-source repos, and controller-driven paths that pair the ECS runtime target only with `ecs` while the five Kubernetes-style environment targets stay paired with `kubernetes`; nil-sentinel metadata no longer appears in source roots or template source paths. | Keep nested discovery, multi-valued materialization, and evidence-derived deployment-trace summaries as correctness/query-truth fixes. This remains a read-surface proof over existing reducer graph truth, not a reducer wall-clock optimization. Use the same focused proof shape before the next full-corpus validation. |
+| ApplicationSet service-identity deploy evidence | Correctness fix | A focused source audit found a valid GitOps shape that Eshu treated as discovery-only: the ApplicationSet discovers generator config in a values/config repo, the rendered sources point at a shared chart plus the same config repo, and the deployed service is identified by config fields such as `addon` or Helm `releaseName` rather than by a service `repoURL`. Commit `aafa414a` adds the local regression `TestDiscoverArgoCDApplicationSetDeploySourceFromConfigServiceIdentity`, which proves this generic shape while `TestDiscoverArgoCDApplicationSetSharedChartConfigDoesNotInventDeploySource` keeps arbitrary client/config references from becoming deploy-source truth. Remote focused extraction after `c8413d68` emitted both `DISCOVERS_CONFIG_IN` and `DEPLOYS_FROM` evidence for the nested GitOps/chart/config shape. | Keep the config-service identity resolver and shared-chart negative guard. |
+| Templated ApplicationSet destination guard | Correctness fix | The focused real-source extractor check after `aafa414a` emitted the desired `DEPLOYS_FROM` evidence, but also exposed an invalid `RUNS_ON` platform built from an unresolved destination template. Commit `c05e1257` adds the local regression `TestDiscoverArgoCDApplicationSetSkipsTemplatedDestinationPlatform` now keeps unresolved `{{...}}` destination names or servers as provenance-only until concrete cluster data is available. Remote focused extraction after `c8413d68` preserved `DISCOVERS_CONFIG_IN` plus `DEPLOYS_FROM` and no longer emitted a templated platform edge. | Keep templated destinations provenance-only until concrete cluster/platform evidence exists. |
+| NornicDB relationship-edge evidence pointers | Backend correctness fix | Direct graph validation on the focused six-repo proof exposed a NornicDB compatibility bug: Eshu wrote typed repository edges and `EvidenceArtifact` nodes, but `properties(r)` on direct repository relationships returned `{}` even though Eshu set `resolved_id`, `generation_id`, `evidence_type`, `evidence_kinds`, and counts. A direct NornicDB HTTP probe reproduced the backend issue with `MERGE (a)-[rel:T]->(b) SET rel.resolved_id = $rid`. The NornicDB patch adds `TestMergeRelationshipStandaloneSetPersistsProperties`, routes relationship `MERGE` segments through the context-aware merge path, and applies standalone `SET` to bound relationships before `RETURN`; local `go test -tags 'noui nolocalllm' ./pkg/cypher -count=1` passed. A fresh focused Eshu rerun `focused-relprops-20260502T200250Z` rebuilt Eshu binaries, used the patched NornicDB binary, drained cleanly with projector `6/6`, reducer `56/56`, and no retrying/failed/dead-letter rows. Raw graph API proof then showed every direct repo relationship edge carried `resolved_id`, `generation_id`, `evidence_type`, `evidence_kinds`, `evidence_count`, confidence, and rationale; evidence-artifact hop edges also carried `resolved_id`. NornicDB PR `orneryd/NornicDB#135` now tracks the upstream fix; Copilot's standalone-`SET` review comment was resolved in NornicDB commit `2461a46`, which adds `ON CREATE SET` plus standalone relationship `SET` regression coverage and passed `go test -tags 'noui nolocalllm' ./pkg/cypher -count=1` plus `git diff --check`. A rebuilt PR-branch headless binary also passed a direct HTTP probe for `ON CREATE SET` plus standalone relationship `SET`, preserving `resolved_id` through `properties(rel)`. | Merge/release the NornicDB fix before relying on release-backed NornicDB for graph evidence-pointer acceptance. Until then, use the patched binary for NornicDB evidence-pointer validation. |
+| Current-main full-corpus semantic regression | Rejected acceptance run; backend hot-path investigation required | Fresh full-corpus attempts after Eshu `d641b7b8` and upstream-main NornicDB `ac41214` were intentionally stopped and cleaned up because they no longer matched the prior accepted semantic-hotpath envelope. Run `eshu-full-current-d641b7b8-ac41214-20260503T001145Z` used the default `30s` canonical write timeout and reached source-local `896/896` by about `13m42s`, but semantic materialization immediately retried tiny label batches. Run `eshu-full-current-d641b7b8-ac41214-timeout120-20260503T002918Z` raised `ESHU_CANONICAL_WRITE_TIMEOUT=120s` and still retried the same first semantic wave at the full timeout, including small `Annotation`, `TypeAlias`, `Typedef`, and `TypeAnnotation` batches. Run `eshu-full-current-d641b7b8-ac41214-semantic1-timeout120-20260503T004822Z` lowered `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT=1`; that avoided retries, but by roughly `19m` only one semantic reducer had succeeded and the next item was still processing tiny `UNWIND MATCH (n:<Label> {uid: row.entity_id}) SET ...` statements with representative statement durations near `95s`, `103s`, `19s`, and `57s`. CPU and disk were not the bottleneck, and the slow path appeared only after the graph was populated. This rejects the current-main full-corpus run as acceptance evidence and also rejects global semantic serialization as the final answer. | Isolate latest NornicDB main's `UNWIND MATCH SET` label-property update path before another full-corpus run. Compare the exact Eshu canonical-node semantic update shape against the earlier `a9ccd0f` indexed hot path and against alternative query shapes without creating missing semantic nodes. Fix the backend if the indexed `MATCH` path regressed; only use a ESHU-side Cypher seam if it preserves the invariant that source-local canonical nodes already exist. |
+| PR #136 full-corpus semantic-hotpath reproof | Full-corpus wall-clock and query-truth win; upstream merged, release pin pending | Remote proof `eshu-full-pr136-01413d04-a9ccd0f-20260503T0121Z` rebuilt Eshu `01413d04` and a clean NornicDB `a9ccd0f` binary from the `UNWIND MATCH SET` hot-path branch, then ran the full `896`-repository corpus with `ESHU_PROJECTOR_WORKERS=4`, `ESHU_REDUCER_WORKERS=8`, `ESHU_REDUCER_BATCH_CLAIM_SIZE=8`, `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT=4`, `ESHU_CANONICAL_WRITE_TIMEOUT=120s`, and `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=true`. The run started at `2026-05-03T01:21:07Z` and reached terminal queue at `2026-05-03T01:35:40Z`: wall about `873s` (`14m33s`) for collection, source-local projection, reducers, relationship backfill/reopen work, and queue drain. Final state was healthy: projector `896/896`, reducer `7562/7562`, total queue `8458/8458`, `pending=0`, `in_flight=0`, `retrying=0`, `failed=0`, and `dead_letter=0`. Source-local completed by about `13m13s`; the remaining reducer tail drained in about `2m27s` without retries. Resource samples again rejected disk as the bottleneck: during the late reducer window CPU idle was commonly `89-98%`, IO wait `0-4%`, and disk utilization varied with write bursts but returned to near-idle after the source-local phase. API and MCP were restarted as read-only clients against the completed stack with `local_full_stack` query gates and the correct `nornic` Bolt database; both `/healthz` probes passed, `/api/v0/repositories` returned `896`, repository context for a representative service resolved in the API, and relationship evidence pointers dereferenced through `/api/v0/evidence/relationships/{resolved_id}` with full Postgres detail. The representative repository context exposed compact graph evidence grouped by `resolved_id`, including `DEPLOYS_FROM`, `DISCOVERS_CONFIG_IN`, `PROVISIONS_DEPENDENCY_FOR`, and `READS_CONFIG_FROM`; evidence families included ArgoCD, GitHub Actions, Helm, Kustomize, and Terraform. Direct graph inspection showed repository edges carrying compact metadata (`resolved_id`, `generation_id`, `evidence_type`, `evidence_kinds`, `evidence_count`, confidence, and rationale), while the API drilldown returned the durable Postgres evidence payloads for CI workflow, GitOps, Terraform IAM-read, and Terraform provisioning relationships. The representative service context and deployment-chain routes agreed with the graph: materialized workload instances covered multiple environments, per-instance platform lists preserved both Kubernetes-style and ECS-style runtime evidence where applicable, deployment-source repositories were present, and OpenAPI-backed endpoint/method materialization came from graph truth. Dead-IaC on an app-only repo correctly returned no findings because the repo had no IaC artifacts in scope. Follow-up family-scoped dead-IaC API/MCP checks returned reducer-materialized rows: Helm used rows produced no cleanup findings, Kustomize dynamic template paths returned ambiguous findings with renderer/runtime limitations, Terraform module scopes returned unused plus ambiguous findings, Ansible role scopes returned unused-role candidates, and Compose correctly stayed content-scoped when no reducer reachability rows existed for the selected repositories. | Treat this as the strongest full-corpus acceptance evidence so far for the PR #136 NornicDB semantic hot path and the current Eshu reducer/query stack. It is below the `30-35m` benchmark and far below the original `7h43m` reducer baseline. NornicDB PR `#136` merged into upstream `main` on 2026-05-03 as `b68b4ef68d4ef827ee9f90aff5e04310c0e1e4c6`; do not rely on it as a release-backed default until an upstream release is available or the installer pins an accepted build. Keep the completed stack running for API/MCP validation, and continue validating graph/API/Postgres parity before further performance tuning. |
+| Full-corpus evidence-family read-surface audit | Query-truth win | Commit `ee2487a1` plus follow-up read validation on completed run `eshu-full-pr136-01413d04-a9ccd0f-20260503T0121Z` saved raw API, MCP, Cypher, dead-code, dead-IaC, SQL, and infra-search evidence under `query-proof/evidence-family-audit-v2`. API and MCP were rebuilt from the branch, stale read-surface processes were killed, and the rebuilt API/MCP binaries were restarted against the same completed NornicDB/Postgres stack. The representative repository context and MCP `get_repo_context` agreed: `38` graph-backed OpenAPI endpoints, `21` repository relationships, and deployment evidence indexed by `resolved_id`. Evidence families were visible through compact graph/API pointers for ArgoCD, GitHub Actions, Helm, Kustomize, Terraform, Docker/Compose, Ansible, CloudFormation/SAM, Jenkins, and SQL. Typed SQL language-query returned `20` `SqlTable` rows with content entity ids and source metadata. Dead-code returned bounded derived results with the current modeled framework roots. Dead-IaC returned reducer-materialized rows by family: Terraform `5/5` unused module findings, Helm `0/0` cleanup findings from used rows, Kustomize `10/61` ambiguous dynamic references on the first page, Ansible `10/28` unused role findings on the first page, and Compose `3/3` unused or ambiguous findings. The audit exposed one read-surface miss: `/api/v0/infra/resources/search` could not answer exact CloudFormation/SAM resource-type queries even though direct Cypher showed matching `CloudFormationResource` nodes. The fix routes CloudFormation-style type identifiers such as `AWS::Serverless::Function` through an exact `resource_type` predicate and keeps generic resource-type text search for other inputs. Local verification passed `go test ./internal/query -run 'TestSearchInfraResources' -count=1`, `go test ./internal/query ./cmd/api ./cmd/mcp-server ./internal/mcp -count=1`, and rebuilt all local binaries. Remote verification rebuilt Linux API/MCP binaries, restarted only those read surfaces, and proved `/api/v0/infra/resources/search` now returns `20` `CloudFormationResource` rows for the exact SAM function type query. Classification: query-truth/read-surface win, not a reducer wall-clock change. | Keep graph nodes compact and use API/MCP drilldowns for exact evidence. Remaining work is feature expansion and query-shape tuning, not worker-count tuning: validate more service stories, keep NornicDB PR #136 release/pin status explicit, and only change reducer scheduling when queue/handler telemetry proves a reducer bottleneck. |
+| Framework route method evidence | Query-truth correctness fix | Commit `ea607b29` preserves parser-observed `method` plus `path` pairs for Hapi, Express, FastAPI, and Flask framework routes while keeping the older file-level `route_methods` / `route_paths` arrays for compatibility. The service API-surface read model now prefers paired `route_entries` when present and falls back to the older arrays only for older facts. Local TDD covers Hapi route arrays with nested config blocks, Express route calls, FastAPI router prefixes, Flask multi-method decorators, fact decoding, and service API-surface merging. Local verification passed `go test ./internal/parser ./internal/query -count=1` and `git diff --check`. A focused remote proof rebuilt Linux binaries from the branch, indexed a copied single real Hapi service repository, drained healthy with projector `1/1`, reducer `8/8`, queue `pending=0`, `in_flight=0`, `retrying=0`, `failed=0`, and `dead_letter=0`, then restarted the API against that focused stack. The API returned `materialization_status=identity_only`, `framework_route_count=50`, and exact framework methods for representative routes: one health route returned only `get`, one create/update route returned only `post`, one shared package path returned `delete,get,put`, and one nested-controller route returned `get,post,put`. The same local/remote source audit showed `54` route declarations collapsing to `50` endpoint paths, so the path count was already correct; the bug was method broadening from a cross-product read-model shape. A follow-up focused three-service proof `framework-route-methods-three-ea607b29-20260503T105744Z` rebuilt from `390c80f8`, indexed three copied service repos, and drained healthy with projector `3/3`, reducer `24/24`, queue `pending=0`, `in_flight=0`, `retrying=0`, `failed=0`, and `dead_letter=0`. Local source truth showed one OpenAPI service at `71` paths / `90` methods, one Hapi service at `50` paths / `54` methods, and one OpenAPI service at `42` paths / `50` methods. The focused API matched method truth for selected multi-method routes: mobile search `get,post`, liked-items `delete,get,post`, Hapi package path `delete,get,put`, Salesforce order path `get,post,put`, feeds `get,post`, and feed-by-id `delete,get,put`. The OpenAPI service with `69` focused API endpoints was explained by remote-source drift: the remote copied repo did not contain two locally present path files, so this was not graph loss. Classification: query-truth correctness win, not a reducer wall-clock change. | Keep framework endpoint truth paired at extraction time. Do not infer service materialization from route evidence alone; identity-only services may still expose accurate framework-route read-model evidence. |
+| Claude review query observability hardening | Review blocker fix | Commit `edb42bdf` addresses the query-path blockers from the 2026-05-03 review without changing reducer scheduling. Repository deployment evidence read-model failures now propagate as HTTP `500` errors instead of silently falling through to graph evidence, preserving operator-visible truth when Postgres is unavailable. Query handler spans were added for relationship-evidence drilldown, dead-IaC, and infrastructure resource search with stable span names `query.relationship_evidence`, `query.dead_iac`, and `query.infra_resource_search`; the telemetry reference docs were updated. `CodeHandler.graphBackend()` now panics for invalid configured backends instead of silently defaulting to Neo4j, while empty remains the backward-compatible Neo4j default. Local verification passed focused red/green tests for the read-model failure and backend hardening, `go test ./internal/query ./internal/telemetry -count=1`, `go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/mcp ./internal/telemetry -count=1`, `git diff --check`, and strict MkDocs. Classification: observability/query-truth hardening, not a reducer wall-clock change. | Keep the merge blocker fixes in this PR. Remaining large file-size splits and merge-policy cleanup are follow-up maintainability work unless reviewers require them before merge. |
+| PR #129 merge closeout | Merged | PR [#129](https://github.com/eshu-hq/eshu/pull/129), `Code Intel Contracts, Evidence Truth, and Reducer/NornicDB Throughput`, merged to `main` on `2026-05-03T12:51:03Z` as merge commit `29e00c19`. The accepted evidence for this ADR is the full-corpus proof `eshu-full-pr136-01413d04-a9ccd0f-20260503T0121Z`: `896` repositories drained in about `14m33s`, projector `896/896`, reducer `7562/7562`, total queue `8458/8458`, `pending=0`, `in_flight=0`, `retrying=0`, `failed=0`, and `dead_letter=0`. Source-local finished around `13m13s`; the reducer tail drained in about `2m27s`, far below the original `7h43m` reducer baseline and below the prior `30-35m` working benchmark. The PR also merged graph evidence pointers with durable Postgres drilldown by `resolved_id`, API/MCP/Cypher/Postgres parity checks, materialized dead-IaC read surfaces, route-method truth fixes, SQL and typed infrastructure read coverage, and the final query observability hardening from commit `edb42bdf`. | Close this ADR workstream as merged for PR #129. Follow-up work should be opened as new slices: keep NornicDB release/pin status explicit, continue splitting large query files for maintainability, and only tune reducer scheduling again when queue/handler telemetry proves a new bottleneck. The Cypher storage boundary cleanup is tracked in the follow-up row below. |
+| Cypher storage boundary cleanup | Implemented locally | Current branch moves backend-neutral graph write contracts, canonical writers, edge writers, retry/timeout wrappers, statement metadata, and write telemetry from `go/internal/storage/neo4j` into `go/internal/storage/cypher`. The remaining `go/internal/storage/neo4j` package is a narrow Neo4j-specific adapter placeholder while runtime wiring still owns the Bolt session adapters. Docs and ownership tables now describe the Cypher boundary, and the split keeps changed Go files under the repo line-count cap. | Keep historical ADR evidence rows unchanged, but use `go/internal/storage/cypher` for new Cypher writer work and `go/internal/storage/neo4j` only for Neo4j-specific adapter seams. |

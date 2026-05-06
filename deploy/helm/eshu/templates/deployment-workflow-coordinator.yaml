@@ -1,0 +1,98 @@
+{{- if .Values.workflowCoordinator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eshu.workflowCoordinatorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: workflow-coordinator
+spec:
+  replicas: {{ .Values.workflowCoordinator.replicas }}
+  revisionHistoryLimit: {{ .Values.workflowCoordinator.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      {{- include "eshu.workflowCoordinatorSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "eshu.workflowCoordinatorSelectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "eshu.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- include "eshu.renderDataPlaneBootstrapInitContainer" . | nindent 8 }}
+      containers:
+        - name: workflow-coordinator
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/eshu-workflow-coordinator"]
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: ESHU_HOME
+              value: /tmp/.eshu
+            - name: HOME
+              value: /tmp
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}
+            {{- include "eshu.renderConnectionTuningEnv" .Values.workflowCoordinator.connectionTuning | nindent 12 }}
+            {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "workflow-coordinator") | nindent 12 }}
+            {{- include "eshu.renderPrometheusEnv" . | nindent 12 }}
+            - name: ESHU_COLLECTOR_INSTANCES_JSON
+              value: {{ toJson .Values.workflowCoordinator.collectorInstances | quote }}
+            - name: ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE
+              value: {{ .Values.workflowCoordinator.deploymentMode | quote }}
+            - name: ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED
+              value: {{ ternary "true" "false" .Values.workflowCoordinator.claimsEnabled | quote }}
+            {{- include "eshu.renderEnvMap" .Values.env | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            {{- if .Values.observability.prometheus.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.observability.prometheus.port }}
+              protocol: TCP
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.workflowCoordinator.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

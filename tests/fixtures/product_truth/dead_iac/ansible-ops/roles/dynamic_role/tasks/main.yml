@@ -1,0 +1,5 @@
+- name: Touch dynamic marker
+  ansible.builtin.file:
+    path: /tmp/dynamic-role
+    state: touch
+    mode: "0644"

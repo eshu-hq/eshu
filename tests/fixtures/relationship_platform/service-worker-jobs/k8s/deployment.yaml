@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-worker-jobs
+  namespace: modern
+spec:
+  selector:
+    matchLabels:
+      app: service-worker-jobs
+  template:
+    metadata:
+      labels:
+        app: service-worker-jobs
+    spec:
+      containers:
+        - name: service-worker-jobs
+          image: service-worker-jobs:modern

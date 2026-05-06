@@ -1,0 +1,45 @@
+name: macOS CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Debug info
+        run: |
+          uname -a
+          go version
+          df -h
+
+      - name: Build Go CLI
+        working-directory: go
+        run: |
+          VERSION="${GITHUB_SHA::12}"
+          CGO_ENABLED=1 go build -ldflags "-X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${VERSION}" -o eshu ./cmd/eshu
+
+      - name: Run Go tests
+        working-directory: go
+        run: go test ./... -count=1 -timeout 300s
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-logs
+          path: |
+            ~/.eshu
+            *.log

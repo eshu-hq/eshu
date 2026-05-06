@@ -1,0 +1,9 @@
+@Library('controller-pipelines@main') _
+
+pipelineDeploy(
+  entry_point: 'dist/app.js',
+  use_configd: true,
+  deploy: { ->
+    sh 'ansible-playbook playbooks/deploy.yml -i inventory/prod.ini --extra-vars @group_vars/all.yml'
+  }
+)

@@ -1,0 +1,251 @@
+# Telemetry
+
+## Purpose
+
+`telemetry` owns Eshu's OpenTelemetry contract: metric instruments, span names,
+structured log keys, pipeline phase constants, attribute helpers, OTEL provider
+initialization, and the trace-injecting `slog` handler. Every runtime-affecting
+package in the data plane imports this package and nothing imports it back.
+
+## Ownership boundary
+
+This package is the single source of truth for all `eshu_dp_*` metric names, all
+span name constants (`SpanCollectorObserve`, `SpanProjectorRun`, etc.), and all
+log key constants (`LogKeyScopeID`, `LogKeyFailureClass`, etc.). New names are
+registered here before being used anywhere else. It does not own queue workers,
+graph writers, or HTTP handlers — it only defines the naming contract and the
+bootstrapping seams those packages call at startup.
+
+See `CLAUDE.md` §Observability Contract for the project-wide rules that flow
+from this package.
+
+## Where this fits in the runtime
+
+```mermaid
+flowchart LR
+  A["cmd/* entrypoints"] --> B["telemetry.NewBootstrap\ntelemetry.NewProviders"]
+  B --> C["*sdktrace.TracerProvider\n*sdkmetric.MeterProvider\nPrometheusHandler"]
+  B --> D["telemetry.NewInstruments\n(Instruments struct)"]
+  B --> E["telemetry.NewLogger\n(TraceHandler + slog.Logger)"]
+  D --> F["internal/projector\ninternal/reducer\ninternal/collector\n..."]
+  E --> F
+  C --> G["/metrics endpoint\n(Prometheus always active)"]
+  C --> H["OTLP gRPC exporters\n(when OTEL_EXPORTER_OTLP_ENDPOINT set)"]
+```
+
+## Exported surface
+
+See `doc.go` for the godoc contract. Key groups:
+
+### Bootstrap and providers
+
+- `Bootstrap` — minimum OTEL runtime settings (service name, namespace, meter
+  name, tracer name, logger name); built by `NewBootstrap`
+- `Providers` — holds `*sdktrace.TracerProvider`, `*sdkmetric.MeterProvider`,
+  `PrometheusHandler`, and a combined `Shutdown` function; created by
+  `NewProviders`
+- `NewProviders` — configures OTLP gRPC trace and metric exporters when
+  OTEL_EXPORTER_OTLP_ENDPOINT is set; always creates a Prometheus exporter
+- `RecordGOMEMLIMIT` — registers `eshu_dp_gomemlimit_bytes` as an observable
+  gauge at startup
+
+### Metric instruments
+
+`Instruments` holds all pre-registered OTEL metric instruments. Create with
+`NewInstruments(meter)`. Observable gauges require a separate
+`RegisterObservableGauges` call once the queue and worker observers are wired.
+`RegisterAcceptanceObservableGauges` adds the `eshu_dp_shared_acceptance_rows`
+gauge when a shared-acceptance observer is available.
+
+#### Counters (Int64)
+
+| Field | Metric name |
+| --- | --- |
+| `FactsEmitted` | `eshu_dp_facts_emitted_total` |
+| `FactsCommitted` | `eshu_dp_facts_committed_total` |
+| `ProjectionsCompleted` | `eshu_dp_projections_completed_total` |
+| `ReducerIntentsEnqueued` | `eshu_dp_reducer_intents_enqueued_total` |
+| `ReducerExecutions` | `eshu_dp_reducer_executions_total` |
+| `CanonicalWrites` | `eshu_dp_canonical_writes_total` |
+| `CanonicalNodesWritten` | `eshu_dp_canonical_nodes_written_total` |
+| `CanonicalEdgesWritten` | `eshu_dp_canonical_edges_written_total` |
+| `CanonicalAtomicWrites` | `eshu_dp_canonical_atomic_writes_total` |
+| `CanonicalAtomicFallbacks` | `eshu_dp_canonical_atomic_fallbacks_total` |
+| `SharedProjectionCycles` | `eshu_dp_shared_projection_cycles_total` |
+| `SharedProjectionStaleIntents` | `eshu_dp_shared_projection_stale_intents_total` |
+| `SharedAcceptanceUpserts` | `eshu_dp_shared_acceptance_upserts_total` |
+| `SharedAcceptanceLookupErrors` | `eshu_dp_shared_acceptance_lookup_errors_total` |
+| `SharedEdgeWriteGroups` | `eshu_dp_shared_edge_write_groups_total` |
+| `CodeCallEdgeBatches` | `eshu_dp_code_call_edge_batches_total` |
+| `Neo4jBatchesExecuted` | `eshu_dp_neo4j_batches_executed_total` |
+| `Neo4jDeadlockRetries` | `eshu_dp_neo4j_deadlock_retries_total` |
+| `ReposSnapshotted` | `eshu_dp_repos_snapshotted_total` |
+| `FilesParsed` | `eshu_dp_files_parsed_total` |
+| `FactBatchesCommitted` | `eshu_dp_fact_batches_committed_total` |
+| `ContentReReads` | `eshu_dp_content_rereads_total` |
+| `ContentReReadSkips` | `eshu_dp_content_reread_skips_total` |
+| `DiscoveryDirsSkipped` | `eshu_dp_discovery_dirs_skipped_total` |
+| `DiscoveryFilesSkipped` | `eshu_dp_discovery_files_skipped_total` |
+| `LargeRepoClassifications` | `eshu_dp_large_repo_classifications_total` |
+| `EvidenceFactsDiscovered` | `eshu_dp_evidence_facts_discovered_total` |
+| `DeferredBackfillEvidence` | `eshu_dp_deferred_backfill_evidence_total` |
+| `DeploymentMappingReopened` | `eshu_dp_deployment_mapping_reopened_total` |
+| `IaCReachabilityRows` | `eshu_dp_iac_reachability_rows_total` |
+| `CrossRepoEvidenceLoaded` | `eshu_dp_cross_repo_evidence_loaded_total` |
+| `CrossRepoEdgesResolved` | `eshu_dp_cross_repo_edges_resolved_total` |
+
+#### Histograms (Float64 unless noted)
+
+| Field | Metric name | Custom buckets |
+| --- | --- | --- |
+| `CollectorObserveDuration` | `eshu_dp_collector_observe_duration_seconds` | 0.01–60 s |
+| `ScopeAssignDuration` | `eshu_dp_scope_assign_duration_seconds` | default |
+| `FactEmitDuration` | `eshu_dp_fact_emit_duration_seconds` | default |
+| `ProjectorRunDuration` | `eshu_dp_projector_run_duration_seconds` | 0.1–120 s |
+| `ProjectorStageDuration` | `eshu_dp_projector_stage_duration_seconds` | default |
+| `ReducerRunDuration` | `eshu_dp_reducer_run_duration_seconds` | default |
+| `ReducerQueueWaitDuration` | `eshu_dp_reducer_queue_wait_seconds` | 0.001–21600 s |
+| `CanonicalWriteDuration` | `eshu_dp_canonical_write_duration_seconds` | 0.01–60 s |
+| `CanonicalProjectionDuration` | `eshu_dp_canonical_projection_duration_seconds` | 0.01–60 s |
+| `CanonicalRetractDuration` | `eshu_dp_canonical_retract_duration_seconds` | 0.001–2.5 s |
+| `CanonicalBatchSize` | `eshu_dp_canonical_batch_size` | 1–1000 rows |
+| `CanonicalPhaseDuration` | `eshu_dp_canonical_phase_duration_seconds` | 0.001–5 s |
+| `QueueClaimDuration` | `eshu_dp_queue_claim_duration_seconds` | default |
+| `PostgresQueryDuration` | `eshu_dp_postgres_query_duration_seconds` | 0.001–2.5 s |
+| `Neo4jQueryDuration` | `eshu_dp_neo4j_query_duration_seconds` | 0.001–10 s |
+| `Neo4jBatchSize` | `eshu_dp_neo4j_batch_size` | 1–1000 rows |
+| `SharedAcceptanceUpsertDuration` | `eshu_dp_shared_acceptance_upsert_duration_seconds` | default |
+| `SharedAcceptanceLookupDuration` | `eshu_dp_shared_acceptance_lookup_duration_seconds` | default |
+| `SharedAcceptancePrefetchSize` | `eshu_dp_shared_acceptance_prefetch_size` (Int64) | 1–512 rows |
+| `SharedProjectionIntentWaitDuration` | `eshu_dp_shared_projection_intent_wait_seconds` | 0.001–21600 s |
+| `SharedProjectionProcessingDuration` | `eshu_dp_shared_projection_processing_seconds` | 0.001–60 s |
+| `SharedProjectionStepDuration` | `eshu_dp_shared_projection_step_seconds` | 0.001–60 s |
+| `SharedEdgeWriteGroupDuration` | `eshu_dp_shared_edge_write_group_duration_seconds` | 0.001–60 s |
+| `SharedEdgeWriteGroupStatementCount` | `eshu_dp_shared_edge_write_group_statement_count` (Int64) | 1–128 stmts |
+| `CodeCallEdgeDuration` | `eshu_dp_code_call_edge_batch_duration_seconds` | 0.001–5 s |
+| `BatchClaimSize` | `eshu_dp_reducer_batch_claim_size` (Int64) | 1–128 items |
+| `RepoSnapshotDuration` | `eshu_dp_repo_snapshot_duration_seconds` | 0.1–300 s |
+| `FileParseDuration` | `eshu_dp_file_parse_duration_seconds` | 0.001–2.5 s |
+| `GenerationFactCount` | `eshu_dp_generation_fact_count` | 10–300000 facts |
+| `LargeRepoSemaphoreWait` | `eshu_dp_large_repo_semaphore_wait_seconds` | 0–300 s |
+| `DeferredBackfillDuration` | `eshu_dp_deferred_backfill_duration_seconds` | 0.1–300 s |
+| `IaCReachabilityMaterializationDuration` | `eshu_dp_iac_reachability_materialization_duration_seconds` | 0.1–300 s |
+| `CrossRepoResolutionDuration` | `eshu_dp_cross_repo_resolution_duration_seconds` | 0.01–30 s |
+| `PipelineOverlapDuration` | `eshu_dp_pipeline_overlap_seconds` | 1–1800 s |
+
+#### Observable gauges
+
+| Field | Metric name | Dimensions |
+| --- | --- | --- |
+| `QueueDepth` | `eshu_dp_queue_depth` | `queue`, `status` |
+| `QueueOldestAge` | `eshu_dp_queue_oldest_age_seconds` | `queue` |
+| `WorkerPoolActive` | `eshu_dp_worker_pool_active` | `pool` |
+| `SharedAcceptanceRows` | `eshu_dp_shared_acceptance_rows` | none |
+| (via `RecordGOMEMLIMIT`) | `eshu_dp_gomemlimit_bytes` | none |
+
+### Span name constants
+
+Defined in `contract.go`. Use `telemetry.SpanXxx` rather than string literals.
+
+Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`,
+`SpanFactEmit`, `SpanProjectorRun`, `SpanReducerIntentEnqueue`, `SpanReducerRun`,
+`SpanReducerBatchClaim`, `SpanCanonicalWrite`, `SpanCanonicalProjection`,
+`SpanCanonicalRetract`, `SpanEvidenceDiscovery`,
+`SpanIaCReachabilityMaterialization`, `SpanSQLRelationshipMaterialization`,
+`SpanInheritanceMaterialization`, `SpanCrossRepoResolution`,
+`SpanSharedAcceptanceLookup`, `SpanSharedAcceptanceUpsert`,
+`SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
+`SpanQueryInfraResourceSearch`.
+
+Dependency spans: `SpanPostgresExec`, `SpanPostgresQuery`, `SpanNeo4jExecute`.
+
+The full frozen list is also accessible at runtime via `SpanNames()`.
+
+### Log keys and phase constants
+
+Log keys (all frozen in `contract.go`): `LogKeyScopeID`, `LogKeyScopeKind`,
+`LogKeySourceSystem`, `LogKeyGenerationID`, `LogKeyCollectorKind`,
+`LogKeyDomain`, `LogKeyPartitionKey`, `LogKeyRequestID`, `LogKeyFailureClass`,
+`LogKeyRefreshSkipped`, `LogKeyPipelinePhase`, `LogKeyAcceptanceScopeID`,
+`LogKeyAcceptanceUnitID`, `LogKeyAcceptanceSourceRunID`,
+`LogKeyAcceptanceGenerationID`, `LogKeyAcceptanceStaleCount`.
+
+Pipeline phase constants (defined in `logging.go`): `PhaseDiscovery`,
+`PhaseParsing`, `PhaseEmission`, `PhaseProjection`, `PhaseReduction`,
+`PhaseShared`, `PhaseQuery`, `PhaseServe`.
+
+### Attribute and log helpers
+
+Attribute helpers — typed constructors for every metric dimension key, for
+example `AttrDomain`, `AttrScopeID`, `AttrWritePhase`; use these rather than
+`attribute.String` literals when recording metrics.
+
+`ScopeAttrs`, `DomainAttrs`, `AcceptanceAttrs` — return `[]slog.Attr` slices
+for the common scope, domain, and acceptance-context log fields.
+
+`PhaseAttr`, `FailureClassAttr`, `AcceptanceStaleCountAttr`, `EventAttr` —
+single-key `slog.Attr` constructors for the most frequently repeated log fields.
+
+### Logging
+
+`NewLogger` and `NewLoggerWithWriter` — construct a JSON `slog.Logger` backed
+by `TraceHandler`. The handler injects `trace_id`, `span_id`, and
+`severity_number` from the active OTEL span context on every record. Base
+attributes `service_name`, `service_namespace`, `component`, and `runtime_role`
+are attached at logger creation.
+
+### Refresh counter
+
+`RecordSkippedRefresh`, `SkippedRefreshCount` — process-local atomic counter for
+incremental-refresh skip tracking. Not a metric; used only for status-surface
+reporting.
+
+## Dependencies
+
+No internal Eshu package imports. External dependencies:
+
+- `go.opentelemetry.io/otel/{metric,trace}` — OTEL API
+- `go.opentelemetry.io/otel/sdk/{metric,trace}` — OTEL SDK providers
+- `go.opentelemetry.io/otel/exporters/otlp/...grpc` — OTLP gRPC exporters
+- `go.opentelemetry.io/otel/exporters/prometheus` — Prometheus bridge
+- `github.com/prometheus/client_golang/prometheus` — Prometheus registry
+
+This is a leaf package. Introducing any `go/internal/*` import here creates a
+circular dependency and must not happen.
+
+## Telemetry
+
+This package defines the telemetry contract. It emits nothing itself at
+runtime; all emission happens in the packages that consume `Instruments`.
+
+## Gotchas / invariants
+
+- `NewInstruments` registers every counter and histogram but does not wire
+  observable gauges. Call `RegisterObservableGauges` after the queue and worker
+  implementations are ready, otherwise `eshu_dp_queue_depth`,
+  `eshu_dp_queue_oldest_age_seconds`, and `eshu_dp_worker_pool_active` will not
+  appear on `/metrics`.
+- Observable gauges are registered exactly once per process. Calling
+  `RegisterObservableGauges` more than once for the same meter produces
+  duplicate-instrument errors from the OTEL SDK.
+- The Prometheus exporter uses its own `prometheus.NewRegistry()` (not the
+  default registry), so it is isolated from any third-party code that
+  registers on the default registry.
+- `TraceHandler` only injects `trace_id` and `span_id` when a valid span is
+  active in the context. Log lines emitted outside any span do not carry trace
+  fields; this is expected.
+- `RecordGOMEMLIMIT` silently no-ops when `meter` is nil, so callers that have
+  not yet initialized OTEL do not crash.
+- High-cardinality values — repository paths, fact IDs, work-item IDs — belong
+  in spans or log fields, never in metric label values. Metric labels must stay
+  bounded.
+- All metric names are frozen once registered. Renaming a metric name requires
+  coordinating with all dashboards and alert rules; prefer adding a new name
+  over renaming.
+
+## Related docs
+
+- `docs/docs/reference/telemetry/index.md` — operator-facing metric, span, and
+  log reference with tuning guidance
+- `docs/docs/architecture.md` — pipeline ownership table
+- `docs/docs/deployment/service-runtimes.md` — how each binary bootstraps OTEL

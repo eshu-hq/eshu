@@ -1,0 +1,55 @@
+name: Build Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    - cron: "30 18 * * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5.0.0
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+
+      - name: Lint Go
+        working-directory: go
+        run: golangci-lint run ./...
+
+      - name: Build all Go binaries
+        working-directory: go
+        run: go build ./...
+
+      - name: Run Go tests with race detector
+        working-directory: go
+        run: go test ./... -count=1 -race -timeout 300s
+
+      - name: Lint Helm chart
+        run: helm lint deploy/helm/eshu
+
+      - name: Verify docs build
+        run: |
+          pip install mkdocs mkdocs-material pymdown-extensions
+          mkdocs build --strict --clean --config-file docs/mkdocs.yml
+
+      - name: Check whitespace hygiene
+        run: git show --check --format= HEAD

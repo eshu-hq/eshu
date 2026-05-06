@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "bi_vendor": "generic",
+    "workspace": "finance"
+  },
+  "dashboards": [
+    {
+      "dashboard_id": "semantic-revenue-overview",
+      "name": "Semantic Revenue Overview",
+      "path": "dashboards/semantic_revenue_overview.json",
+      "consumes_assets": [
+        "semantic.finance.revenue_semantic"
+      ],
+      "consumes_columns": [
+        "semantic.finance.revenue_semantic.gross_amount"
+      ]
+    }
+  ]
+}

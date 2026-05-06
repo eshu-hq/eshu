@@ -1,0 +1,29 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Synthetic ECS service for relationship-platform coverage
+Resources:
+  EdgeCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: legacy-edge
+  EdgeTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: service-edge-api
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: "256"
+      Memory: "512"
+      ContainerDefinitions:
+        - Name: service-edge-api
+          Image: ghcr.io/example/service-edge-api:legacy
+          PortMappings:
+            - ContainerPort: 8080
+  EdgeService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: service-edge-api
+      Cluster: !Ref EdgeCluster
+      DesiredCount: 2
+      LaunchType: FARGATE
+      TaskDefinition: !Ref EdgeTaskDefinition

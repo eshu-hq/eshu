@@ -1,0 +1,3 @@
+image:
+  repository: example.invalid/orphan-worker
+  tag: "1.0.0"

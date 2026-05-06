@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^apply_patch$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CODEX_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.codex/hooks/eshu-doc-staleness.sh",
+            "statusMessage": "Checking Go doc freshness"
+          }
+        ]
+      }
+    ]
+  }
+}

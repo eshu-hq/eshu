@@ -1,0 +1,7 @@
+name: service-worker-jobs
+labels:
+  app.kubernetes.io/name: service-worker-jobs
+git:
+  repoURL: deployment-kustomize
+  overlayPath: argocd/service-worker-jobs/overlays/modern
+destinationClusterName: modern

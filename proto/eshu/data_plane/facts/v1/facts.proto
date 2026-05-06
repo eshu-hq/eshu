@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package eshu.data_plane.facts.v1;
+
+option go_package = "github.com/eshu-hq/eshu/go/gen/proto/eshu/data_plane/facts/v1;factsv1";
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+message FactRef {
+  string source_system = 1;
+  string scope_id = 2;
+  string generation_id = 3;
+  string fact_key = 4;
+  string source_uri = 5;
+  string source_record_id = 6;
+}
+
+message FactEnvelope {
+  string fact_id = 1;
+  string scope_id = 2;
+  string generation_id = 3;
+  string fact_kind = 4;
+  string stable_fact_key = 5;
+  google.protobuf.Timestamp observed_at = 6;
+  google.protobuf.Struct payload = 7;
+  bool is_tombstone = 8;
+  FactRef source_ref = 9;
+}

@@ -1,0 +1,41 @@
+{
+  "name": "sample_project_typescript",
+  "version": "1.0.0",
+  "description": "Comprehensive TypeScript sample project for testing code analysis and indexing tools",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "clean": "rimraf dist"
+  },
+  "keywords": [
+    "typescript",
+    "sample",
+    "code-analysis",
+    "indexing",
+    "testing"
+  ],
+  "author": "Sample Project",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0",
+    "@types/jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "ts-node": "^10.0.0",
+    "typescript": "^5.0.0",
+    "rimraf": "^5.0.0"
+  },
+  "dependencies": {
+    "reflect-metadata": "^0.1.13"
+  }
+}

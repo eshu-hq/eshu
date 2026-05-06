@@ -1,0 +1,27 @@
+{
+  "metadata": {
+    "semantic_vendor": "generic",
+    "workspace": "finance"
+  },
+  "models": [
+    {
+      "model_id": "finance-revenue-semantic",
+      "name": "semantic.finance.revenue_semantic",
+      "path": "semantic/revenue_semantic.yml",
+      "kind": "semantic_model",
+      "upstream_assets": [
+        "analytics.finance.daily_revenue"
+      ],
+      "fields": [
+        {
+          "name": "gross_amount",
+          "source_column": "analytics.finance.daily_revenue.gross_amount"
+        },
+        {
+          "name": "customer_tier",
+          "source_column": "analytics.crm.customers.customer_tier"
+        }
+      ]
+    }
+  ]
+}

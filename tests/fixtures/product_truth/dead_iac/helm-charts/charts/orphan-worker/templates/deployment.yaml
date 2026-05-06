@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orphan-worker
+spec:
+  selector:
+    matchLabels:
+      app: orphan-worker
+  template:
+    metadata:
+      labels:
+        app: orphan-worker
+    spec:
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package eshu.data_plane.queue.v1;
+
+option go_package = "github.com/eshu-hq/eshu/go/gen/proto/eshu/data_plane/queue/v1;queuev1";
+
+import "google/protobuf/timestamp.proto";
+
+message WorkItem {
+  string work_item_id = 1;
+  string scope_id = 2;
+  string generation_id = 3;
+  string stage = 4;
+  string domain = 5;
+  int32 attempt_count = 6;
+  WorkItemStatus status = 7;
+  google.protobuf.Timestamp claim_until = 8;
+  google.protobuf.Timestamp visible_at = 9;
+  RetryState retry_state = 10;
+  FailureRecord failure_record = 11;
+}
+
+message RetryState {
+  int32 attempt_count = 1;
+  google.protobuf.Timestamp last_attempt_at = 2;
+  google.protobuf.Timestamp next_attempt_at = 3;
+}
+
+message FailureRecord {
+  string failure_class = 1;
+  string message = 2;
+  string details = 3;
+}
+
+enum WorkItemStatus {
+  WORK_ITEM_STATUS_UNSPECIFIED = 0;
+  WORK_ITEM_STATUS_PENDING = 1;
+  WORK_ITEM_STATUS_CLAIMED = 2;
+  WORK_ITEM_STATUS_RUNNING = 3;
+  WORK_ITEM_STATUS_SUCCEEDED = 4;
+  WORK_ITEM_STATUS_RETRYING = 5;
+  WORK_ITEM_STATUS_FAILED = 6;
+}

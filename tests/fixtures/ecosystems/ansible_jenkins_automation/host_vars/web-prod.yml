@@ -1,0 +1,4 @@
+environment: prod
+hostname: web-prod
+wordpress_site_name: example-wordpress-site
+php_runtime: php_web_platform

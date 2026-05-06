@@ -1,0 +1,4 @@
+- name: Legacy orphan maintenance
+  hosts: maintenance
+  roles:
+    - orphan_maintenance

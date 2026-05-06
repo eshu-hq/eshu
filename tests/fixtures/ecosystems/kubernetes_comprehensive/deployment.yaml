@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comprehensive-api
+  namespace: production
+  labels:
+    app: comprehensive-api
+    version: v2
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: comprehensive-api
+  template:
+    metadata:
+      labels:
+        app: comprehensive-api
+        version: v2
+    spec:
+      serviceAccountName: comprehensive-api-sa
+      initContainers:
+        - name: migrations
+          image: myorg/comprehensive-api:v2.0.0
+          command: ["./migrate"]
+      containers:
+        - name: api
+          image: myorg/comprehensive-api:v2.0.0
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+        - name: sidecar
+          image: myorg/log-collector:latest
+          ports:
+            - containerPort: 9090

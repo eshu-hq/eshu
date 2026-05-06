@@ -1,0 +1,5 @@
+apiVersion: v2
+name: service-edge-api
+version: 0.1.0
+annotations:
+  appRepo: service-edge-api

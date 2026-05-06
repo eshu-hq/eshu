@@ -1,0 +1,17 @@
+{
+  "name": "acme/json-comprehensive-app",
+  "description": "Fixture composer manifest",
+  "require": {
+    "php": "^8.3",
+    "laravel/framework": "^11.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.0",
+    "nunomaduro/collision": "^8.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Acme\\\\JsonComprehensive\\\\": "src/"
+    }
+  }
+}

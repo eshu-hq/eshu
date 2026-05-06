@@ -1,0 +1,19 @@
+name: deploy-gated
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify worker
+        run: echo "verifying service-worker-jobs"
+  deploy:
+    needs: verify
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy gated worker
+        if: ${{ inputs.deploy_enabled == 'true' }}
+        run: echo "deploying gated service-worker-jobs"

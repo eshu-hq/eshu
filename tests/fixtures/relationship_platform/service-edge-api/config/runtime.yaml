@@ -1,0 +1,4 @@
+service:
+  name: service-edge-api
+  public_hostname: api.example.test
+  modern_hostname: api-modern.internal.test

@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../deployment-helm/charts/service-edge-api
+  - ../../deployment-helm/charts/service-worker-jobs
+helmCharts:
+  - name: deployment-helm
+    repo: oci://ghcr.io/example/deployment-helm
+images:
+  - name: service-edge-api
+    newTag: modern
+  - name: service-worker-jobs
+    newTag: modern

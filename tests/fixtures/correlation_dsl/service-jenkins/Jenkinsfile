@@ -1,0 +1,17 @@
+pipeline {
+  agent any
+
+  stages {
+    stage('Fetch stack config') {
+      steps {
+        git url: 'https://github.com/example/terraform-stack-jenkins.git', branch: 'main'
+      }
+    }
+
+    stage('Build runtime image') {
+      steps {
+        sh 'docker build -f Dockerfile -t service-jenkins:local .'
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+- name: Import website role defaults
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/../defaults/main.yml"
+
+- name: Ensure website application files are present
+  ansible.builtin.copy:
+    src: templates/
+    dest: /var/www/html/

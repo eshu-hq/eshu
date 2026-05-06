@@ -1,0 +1,481 @@
+image:
+  repository: ghcr.io/eshu-hq/eshu
+  tag: "v0.0.1"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+initContainerSecurityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+  runAsGroup: 0
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+networkPolicy:
+  enabled: true
+
+apiAuth:
+  secretName: eshu-api-auth
+  key: api-key
+
+api:
+  replicas: 1
+  revisionHistoryLimit: 3
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+    neo4j:
+      maxConnectionPoolSize: ""
+      maxConnectionLifetime: ""
+      connectionAcquisitionTimeout: ""
+      socketConnectTimeout: ""
+      verifyTimeout: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 8Gi
+
+mcpServer:
+  # When enabled without exposure.ingress.backend=mcp or exposure.gateway.backend=mcp,
+  # the MCP runtime stays cluster-internal only.
+  enabled: true
+  replicas: 1
+  revisionHistoryLimit: 3
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+    neo4j:
+      maxConnectionPoolSize: ""
+      maxConnectionLifetime: ""
+      connectionAcquisitionTimeout: ""
+      socketConnectTimeout: ""
+      verifyTimeout: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 8Gi
+
+resolutionEngine:
+  enabled: true
+  replicas: 1
+  revisionHistoryLimit: 3
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+    neo4j:
+      maxConnectionPoolSize: ""
+      maxConnectionLifetime: ""
+      connectionAcquisitionTimeout: ""
+      socketConnectTimeout: ""
+      verifyTimeout: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 8Gi
+
+workflowCoordinator:
+  enabled: false
+  deploymentMode: dark
+  claimsEnabled: false
+  collectorInstances: []
+  replicas: 1
+  revisionHistoryLimit: 3
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+    neo4j:
+      maxConnectionPoolSize: ""
+      maxConnectionLifetime: ""
+      connectionAcquisitionTimeout: ""
+      socketConnectTimeout: ""
+      verifyTimeout: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 8Gi
+
+exposure:
+  ingress:
+    enabled: false
+    # Each ingress block routes to exactly one backend: api or mcp.
+    # Use an overlay-owned additional Ingress if you need both public API and MCP hostnames.
+    backend: api
+    className: ""
+    annotations: {}
+    hosts: []
+    tls: []
+  gateway:
+    enabled: false
+    # Each gateway block routes to exactly one backend: api or mcp.
+    # Use an overlay-owned additional HTTPRoute if you need both public API and MCP hostnames.
+    backend: api
+    hostnames: []
+    parentRefs: []
+
+ingester:
+  replicas: 1
+  revisionHistoryLimit: 3
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+    neo4j:
+      maxConnectionPoolSize: ""
+      maxConnectionLifetime: ""
+      connectionAcquisitionTimeout: ""
+      socketConnectTimeout: ""
+      verifyTimeout: ""
+  persistence:
+    enabled: true
+    existingClaim: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 100Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 4Gi
+    limits:
+      cpu: 4000m
+      memory: 16Gi
+
+env:
+  ESHU_GRAPH_BACKEND: nornicdb
+  DEFAULT_DATABASE: nornic
+  NEO4J_DATABASE: nornic
+  ESHU_ENABLE_PUBLIC_DOCS: "false"
+  INDEX_VARIABLES: "false"
+  ESHU_MAX_CALLS_PER_FILE: "50"
+
+contentStore:
+  dsn: ""
+
+observability:
+  environment: ""
+  otel:
+    enabled: false
+    endpoint: ""
+    protocol: grpc
+    insecure: true
+    headers: {}
+    tracesExporter: otlp
+    metricsExporter: otlp
+    logsExporter: none
+    resourceAttributes: {}
+    excludedUrls:
+      - /health
+      - /api/v0/health
+      - /api/v0/docs
+      - /api/v0/openapi.json
+      - /api/v0/redoc
+    metricExportIntervalSeconds: 30
+  prometheus:
+    enabled: false
+    host: 0.0.0.0
+    port: 9464
+    path: /metrics
+    serviceMonitor:
+      enabled: false
+      interval: 30s
+      scrapeTimeout: 10s
+      labels: {}
+
+neo4j:
+  uri: bolt://neo4j:7687
+  auth:
+    # Set secretName to "" for NornicDB no-auth deployments. The chart still
+    # renders literal Bolt client credentials because Eshu requires non-empty
+    # username/password fields before it opens the shared Bolt driver.
+    secretName: eshu-neo4j
+    username: neo4j
+    password: change-me
+    usernameKey: username
+    passwordKey: password
+
+# NornicDB graph backend deployment — disabled by default; enable per overlay.
+# When enabling, also set:
+#   neo4j.uri: bolt://<release>-eshu-nornicdb:{{ nornicdb.ports.bolt }}
+#   neo4j.auth.secretName: ""   # Use literal Bolt client credentials above.
+nornicdb:
+  enabled: false
+  image:
+    repository: timothyswt/nornicdb-amd64-cpu
+    # Pin to a specific tag in your overlay — "latest" is non-reproducible
+    tag: latest
+    pullPolicy: IfNotPresent
+  # HTTP and Bolt listen ports — must match NORNICDB_HTTP_PORT / NORNICDB_BOLT_PORT
+  # and are used for containerPorts, probes, and the Service. Change both here and
+  # in env if you need non-default ports.
+  ports:
+    http: 7474
+    bolt: 7687
+  env:
+    NORNICDB_NO_AUTH: "true"
+    NORNICDB_DATA_DIR: /data
+    NORNICDB_ASYNC_WRITES_ENABLED: "false"
+    NORNICDB_HEIMDALL_ENABLED: "false"
+    NORNICDB_QDRANT_GRPC_ENABLED: "false"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 4Gi
+    limits:
+      cpu: 1000m
+      memory: 32Gi
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 500Gi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+repoSync:
+  enabled: true
+  bootstrap: true
+  initialDelaySeconds: 0
+  intervalSeconds: 900
+  source:
+    mode: githubOrg
+    githubOrg: eshu-hq
+    repositories: []
+    rules: []
+    filesystemRoot: /fixtures
+    cloneDepth: 1
+    limit: 4000
+  auth:
+    method: githubApp
+    githubApp:
+      secretName: github-app-credentials
+      appIdKey: app-id
+      installationIdKey: installation-id
+      privateKeyKey: private-key
+    token:
+      secretName: github-token
+      tokenKey: token
+    ssh:
+      secretName: github-ssh
+      privateKeyKey: id_rsa
+      knownHostsKey: known_hosts
+
+eshuignore: |
+  # Python
+  __pycache__/
+  *.py[cod]
+  .venv/
+  env/
+  venv/
+  .tox/
+  .nox/
+  .pytest_cache/
+  .mypy_cache/
+  .ruff_cache/
+  .pyre/
+  .hypothesis/
+  .ipynb_checkpoints/
+  .eggs/
+  *.egg-info/
+  htmlcov/
+  coverage.xml
+
+  # JavaScript / TypeScript
+  node_modules/
+  bower_components/
+  jspm_packages/
+  .npm/
+  .pnpm-store/
+  .yarn/
+  .parcel-cache/
+  .next/
+  .nuxt/
+  .svelte-kit/
+  .docusaurus/
+  .vite/
+  *.tsbuildinfo
+
+  # JVM / Kotlin / Scala / Groovy
+  .gradle/
+  .m2/
+  .bloop/
+  .metals/
+  .bsp/
+  .kotlin/
+  *.class
+
+  # Go
+  *.test
+  *.coverprofile
+  coverage.out
+  profile.cov
+
+  # PHP / Ruby
+  composer.phar
+  .bundle/
+  vendor/bundle/
+
+  # Rust
+  target/
+
+  # .NET / C#
+  packages/
+  obj/
+  .vs/
+  TestResult*/
+  *.trx
+
+  # Swift / Apple
+  .build/
+  .swiftpm/
+  xcuserdata/
+  Carthage/Build/
+  fastlane/report.xml
+  fastlane/Preview.html
+  fastlane/test_output
+
+  # Elixir
+  _build/
+  deps/
+  cover/
+  .elixir_ls/
+  erl_crash.dump
+
+  # Dart / Flutter
+  .dart_tool/
+  .flutter-plugins
+  .flutter-plugins-dependencies
+
+  # Haskell
+  dist-newstyle/
+  .stack-work/
+  .hpc/
+
+  # Perl
+  blib/
+  .build/
+  .carmel/
+
+  # C / C++
+  CMakeFiles/
+  CMakeCache.txt
+  cmake_install.cmake
+  *.dSYM/
+
+  # IDEs and editors
+  .idea/
+  .vscode/
+  *.swp
+  *.swo
+
+  # Git and IaC cache directories
+  .git/
+  .terraform/
+  .terragrunt-cache/
+  .terramate-cache/
+  .crossplane/
+  .pulumi/
+  cdk.out/
+  .serverless/
+  .aws-sam/
+  *.tfstate
+  *.tfstate.*
+  .terraform.tfstate.lock.info
+  *.tfvars
+  *.tfvars.json
+  override.tf
+  override.tf.json
+  *_override.tf
+  *_override.tf.json
+  *tfplan*
+  crash.log
+  crash.*.log
+  charts/*.tgz
+
+  # Build artifacts and output
+  dist/
+  build/
+  out/
+  coverage/
+
+  # Minified and generated files
+  *.min.js
+  *.min.css
+  *.min.json
+  *.bundle.js
+  *.chunk.js
+  *.min.map
+  *.js.map
+  *.css.map
+
+  # Coverage, databases, and temp data
+  *.log
+  *.sqlite3
+  *.db
+  *.tmp
+  *.temp
+  *.bak
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

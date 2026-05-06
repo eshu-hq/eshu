@@ -1,0 +1,12 @@
+name: deploy-worker
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy worker chart
+        run: helm upgrade --install worker-service ../helm-charts/charts/worker-service

@@ -1,0 +1,32 @@
+{
+  "metadata": {
+    "quality_vendor": "generic",
+    "workspace": "finance"
+  },
+  "checks": [
+    {
+      "check_id": "daily-revenue-freshness",
+      "name": "daily_revenue_freshness",
+      "path": "quality/revenue_checks.yml",
+      "check_type": "freshness",
+      "status": "passing",
+      "severity": "medium",
+      "targets_assets": [
+        "analytics.finance.daily_revenue"
+      ],
+      "targets_columns": []
+    },
+    {
+      "check_id": "gross-amount-non-negative",
+      "name": "gross_amount_non_negative",
+      "path": "quality/revenue_checks.yml",
+      "check_type": "assertion",
+      "status": "failing",
+      "severity": "high",
+      "targets_assets": [],
+      "targets_columns": [
+        "analytics.finance.daily_revenue.gross_amount"
+      ]
+    }
+  ]
+}

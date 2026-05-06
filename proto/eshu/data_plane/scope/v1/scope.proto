@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package eshu.data_plane.scope.v1;
+
+option go_package = "github.com/eshu-hq/eshu/go/gen/proto/eshu/data_plane/scope/v1;scopev1";
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+message IngestionScope {
+  string scope_id = 1;
+  string source_system = 2;
+  string scope_kind = 3;
+  string parent_scope_id = 4;
+  string collector_kind = 5;
+  string partition_key = 6;
+  google.protobuf.Struct scope_metadata = 7;
+}
+
+message ScopeGeneration {
+  string generation_id = 1;
+  string scope_id = 2;
+  google.protobuf.Timestamp observed_at = 3;
+  google.protobuf.Timestamp ingested_at = 4;
+  ScopeGenerationStatus status = 5;
+  ScopeTriggerKind trigger_kind = 6;
+  string freshness_hint = 7;
+}
+
+enum ScopeGenerationStatus {
+  SCOPE_GENERATION_STATUS_UNSPECIFIED = 0;
+  SCOPE_GENERATION_STATUS_PENDING = 1;
+  SCOPE_GENERATION_STATUS_ACTIVE = 2;
+  SCOPE_GENERATION_STATUS_STALE = 3;
+  SCOPE_GENERATION_STATUS_FAILED = 4;
+}
+
+enum ScopeTriggerKind {
+  SCOPE_TRIGGER_KIND_UNSPECIFIED = 0;
+  SCOPE_TRIGGER_KIND_SCHEDULED = 1;
+  SCOPE_TRIGGER_KIND_EVENT = 2;
+  SCOPE_TRIGGER_KIND_MANUAL = 3;
+  SCOPE_TRIGGER_KIND_BACKFILL = 4;
+}

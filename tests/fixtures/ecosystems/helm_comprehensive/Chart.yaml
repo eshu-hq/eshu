@@ -1,0 +1,15 @@
+apiVersion: v2
+name: comprehensive-app
+description: A comprehensive Helm chart for testing
+type: application
+version: 1.0.0
+appVersion: "2.0.0"
+dependencies:
+  - name: redis
+    version: "17.0.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+  - name: postgresql
+    version: "12.0.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled

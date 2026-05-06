@@ -1,0 +1,18 @@
+services:
+  edge-api:
+    build:
+      context: .
+    image: ghcr.io/eshu-hq/service-worker-jobs:latest
+    depends_on:
+      service-worker-jobs:
+        condition: service_started
+    environment:
+      ESHU_MODE: local
+    ports:
+      - "8080:8080"
+
+  service-worker-jobs:
+    build:
+      context: ../service-worker-jobs
+    environment:
+      ESHU_MODE: worker

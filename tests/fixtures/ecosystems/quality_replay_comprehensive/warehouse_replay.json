@@ -1,0 +1,31 @@
+{
+  "metadata": {
+    "warehouse_vendor": "generic",
+    "workspace": "finance"
+  },
+  "assets": [
+    {
+      "database": "analytics",
+      "schema": "finance",
+      "name": "daily_revenue",
+      "kind": "table",
+      "columns": [
+        {"name": "gross_amount"},
+        {"name": "net_amount"}
+      ]
+    }
+  ],
+  "query_history": [
+    {
+      "query_id": "quality_daily_revenue_lookup",
+      "name": "quality_daily_revenue_lookup",
+      "statement": "select gross_amount, net_amount from analytics.finance.daily_revenue",
+      "status": "success",
+      "executed_by": "quality_runner",
+      "started_at": "2026-04-12T03:00:00Z",
+      "touched_assets": [
+        "analytics.finance.daily_revenue"
+      ]
+    }
+  ]
+}

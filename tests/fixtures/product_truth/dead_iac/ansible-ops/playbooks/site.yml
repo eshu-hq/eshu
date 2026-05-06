@@ -1,0 +1,4 @@
+- name: Deploy checkout service
+  hosts: checkout
+  roles:
+    - checkout_deploy

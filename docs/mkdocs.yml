@@ -1,0 +1,194 @@
+site_name: Eshu
+repo_url: https://github.com/eshu-hq/eshu
+repo_name: eshu-hq/eshu
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+    - toc.follow
+  palette: 
+    - scheme: default
+      primary: teal
+      accent: purple
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: lime
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+nav:
+  - Home:
+    - Overview: index.md
+    - Start Here: start-here.md
+    - Why Eshu: why-eshu.md
+    - Use Cases: use-cases.md
+  - Run Locally:
+    - Choose Your Local Path: run-locally/index.md
+    - Local Binaries: run-locally/local-binaries.md
+    - Docker Compose: run-locally/docker-compose.md
+    - Local MCP: run-locally/mcp-local.md
+    - Windows Setup: getting-started/windows-setup.md
+  - Use Eshu:
+    - Overview: use/index.md
+    - Index Repositories: use/index-repositories.md
+    - Ask Code Questions: use/code-questions.md
+    - Trace Infrastructure: use/trace-infrastructure.md
+    - Starter Prompts: guides/starter-prompts.md
+    - Explore Relationship Graphs: guides/relationship-graphs.md
+    - Visualize Query Results: guides/visualization.md
+    - Work With Bundles: guides/bundles.md
+    - Shared Infra Trace: guides/shared-infra-trace.md
+    - Fixture Ecosystems: guides/fixture-ecosystems.md
+    - CI/CD: guides/ci-cd.md
+  - Connect MCP:
+    - Overview: mcp/index.md
+    - MCP Guide: guides/mcp-guide.md
+    - MCP Reference: reference/mcp-reference.md
+    - MCP Cookbook: reference/mcp-cookbook.md
+  - Deploy to Kubernetes:
+    - Overview: deploy/kubernetes/index.md
+    - Prerequisites: deploy/kubernetes/prerequisites.md
+    - Storage: deploy/kubernetes/storage.md
+    - Helm Quickstart: deploy/kubernetes/helm-quickstart.md
+    - Helm Values: deploy/kubernetes/helm-values.md
+    - Minimal Manifests: deploy/kubernetes/manifests.md
+    - Argo CD / GitOps: deploy/kubernetes/argocd.md
+    - Production Checklist: deploy/kubernetes/production-checklist.md
+    - Upgrade and Rollback: deploy/kubernetes/upgrades-rollbacks.md
+  - Operate Eshu:
+    - Overview: operate/index.md
+    - Health Checks: operate/health-checks.md
+    - Telemetry: operate/telemetry.md
+    - Troubleshooting: operate/troubleshooting.md
+    - Service Runtimes: deployment/service-runtimes.md
+    - Local Testing: reference/local-testing.md
+    - Cloud Validation: reference/cloud-validation.md
+  - Understand Eshu:
+    - Overview: understand/index.md
+    - Architecture: architecture.md
+    - How It Works: concepts/how-it-works.md
+    - Graph Model: concepts/graph-model.md
+    - Modes: concepts/modes.md
+    - Service Workflows: reference/service-workflows.md
+  - Extend Eshu:
+    - Overview: extend/index.md
+    - Collector Authoring: guides/collector-authoring.md
+    - Fact Envelope And Plugins: reference/fact-envelope-reference.md
+    - Fact Schema Versioning: reference/fact-schema-versioning.md
+    - Plugin Trust Model: reference/plugin-trust-model.md
+    - Language Query DSL: reference/language-query-dsl.md
+    - Language Support: contributing-language-support.md
+    - Terraform Providers:
+      - Overview: guides/terraform-providers/index.md
+      - Adding Providers: guides/terraform-providers/adding-providers.md
+      - Updating Providers: guides/terraform-providers/updating-providers.md
+      - Service Categories: guides/terraform-providers/service-categories.md
+  - Reference:
+    - API & MCP:
+      - HTTP API: reference/http-api.md
+      - MCP Reference: reference/mcp-reference.md
+      - MCP Cookbook: reference/mcp-cookbook.md
+    - CLI Reference: reference/cli-reference.md
+    - CLI Indexing: reference/cli-indexing.md
+    - CLI Analysis: reference/cli-analysis.md
+    - CLI System: reference/cli-system.md
+    - CLI K.I.S.S.: reference/cli-kiss.md
+    - Configuration: reference/configuration.md
+    - Environment Variables: reference/environment-variables.md
+    - Runtime Admin API: reference/runtime-admin-api.md
+    - Legacy Entry Pages:
+      - Prerequisites: getting-started/prerequisites.md
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+      - Deployment Overview: deployment/overview.md
+      - Docker Compose: deployment/docker-compose.md
+      - Helm: deployment/helm.md
+      - Minimal Manifests: deployment/manifests.md
+      - Argo CD: deployment/argocd.md
+      - Neo4j Setup: guides/neo4j-setup.md
+    - Local Host & Capabilities:
+      - Backend Conformance: reference/backend-conformance.md
+      - Capability Conformance Spec: reference/capability-conformance-spec.md
+      - Truth Label Protocol: reference/truth-label-protocol.md
+      - Local Data Root Spec: reference/local-data-root-spec.md
+      - Local Host Lifecycle: reference/local-host-lifecycle.md
+      - Local Performance Envelope: reference/local-performance-envelope.md
+      - Dead Code Reachability Spec: reference/dead-code-reachability-spec.md
+      - Graph Backend Installation: reference/graph-backend-installation.md
+      - Graph Backend Operations: reference/graph-backend-operations.md
+      - NornicDB Tuning: reference/nornicdb-tuning.md
+    - Parity Closure Matrix: reference/parity-closure-matrix.md
+    - Relationship Mapping: reference/relationship-mapping.md
+    - Relationship Mapping Observability: reference/relationship-mapping-observability.md
+    - ".eshuignore": reference/eshuignore.md
+    - Troubleshooting: reference/troubleshooting.md
+    - Logging Standard: reference/logging.md
+    - Telemetry:
+      - Overview: reference/telemetry/index.md
+      - Metrics: reference/telemetry/metrics.md
+      - Traces: reference/telemetry/traces.md
+      - Logs: reference/telemetry/logs.md
+      - Cross-Service Correlation: reference/telemetry/cross-service-correlation.md
+    - Services:
+      - Bootstrap-Index: services/bootstrap-index.md
+      - Ingester: services/ingester.md
+      - Resolution Engine: services/resolution-engine.md
+    - Source Layout: reference/source-layout.md
+    - Languages:
+      - Feature Matrix: languages/feature-matrix.md
+      - Support Maturity: languages/support-maturity.md
+      - C: languages/c.md
+      - C++: languages/cpp.md
+      - C#: languages/csharp.md
+      - Dart: languages/dart.md
+      - Elixir: languages/elixir.md
+      - Go: languages/go.md
+      - Groovy: languages/groovy.md
+      - Haskell: languages/haskell.md
+      - Java: languages/java.md
+      - JavaScript: languages/javascript.md
+      - JSON: languages/json.md
+      - Kotlin: languages/kotlin.md
+      - Perl: languages/perl.md
+      - PHP: languages/php.md
+      - Python: languages/python.md
+      - Ruby: languages/ruby.md
+      - Rust: languages/rust.md
+      - Scala: languages/scala.md
+      - SQL: languages/sql.md
+      - Swift: languages/swift.md
+      - TypeScript: languages/typescript.md
+      - TypeScript JSX: languages/typescriptjsx.md
+      - ArgoCD: languages/argocd.md
+      - CloudFormation: languages/cloudformation.md
+      - Crossplane: languages/crossplane.md
+      - Helm: languages/helm.md
+      - Kubernetes: languages/kubernetes.md
+      - Kustomize: languages/kustomize.md
+      - Terraform: languages/terraform.md
+      - Terragrunt: languages/terragrunt.md
+  - Project:
+    - Contributing: contributing.md
+    - License: license.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true 
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg

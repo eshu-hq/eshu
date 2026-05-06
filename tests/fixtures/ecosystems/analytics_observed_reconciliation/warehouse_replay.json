@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "warehouse_vendor": "generic-warehouse",
+    "account": "analytics",
+    "generated_at": "2026-04-12T00:00:00Z"
+  },
+  "assets": [
+    {
+      "database": "raw",
+      "schema": "public",
+      "name": "orders",
+      "kind": "table",
+      "columns": [
+        {"name": "id"},
+        {"name": "customer_id"}
+      ]
+    },
+    {
+      "database": "raw",
+      "schema": "public",
+      "name": "customers",
+      "kind": "table",
+      "columns": [
+        {"name": "customer_id"},
+        {"name": "email"}
+      ]
+    },
+    {
+      "database": "raw",
+      "schema": "public",
+      "name": "payments",
+      "kind": "table",
+      "columns": [
+        {"name": "order_id"},
+        {"name": "amount"}
+      ]
+    },
+    {
+      "database": "raw",
+      "schema": "public",
+      "name": "refunds",
+      "kind": "table",
+      "columns": [
+        {"name": "refund_id"},
+        {"name": "order_id"}
+      ]
+    }
+  ],
+  "query_history": [
+    {
+      "query_id": "q_reconcile_001",
+      "name": "order_metrics_refresh",
+      "statement": "select o.id, c.email, r.refund_id from raw.public.orders o join raw.public.customers c on c.customer_id = o.customer_id left join raw.public.refunds r on r.order_id = o.id",
+      "status": "success",
+      "executed_by": "etl_runner",
+      "started_at": "2026-04-11T12:00:00Z",
+      "touched_assets": [
+        "raw.public.orders",
+        "raw.public.customers",
+        "raw.public.refunds"
+      ]
+    }
+  ]
+}

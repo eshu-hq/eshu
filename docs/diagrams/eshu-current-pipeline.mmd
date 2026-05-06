@@ -1,0 +1,74 @@
+%%{ init: { 'theme': 'base', 'themeVariables': { 'fontSize': '14px' } } }%%
+flowchart TB
+    subgraph DISCOVERY["1. Discovery"]
+        D1[Walk filesystem] --> D2[Honor .gitignore / .eshuignore]
+        D2 --> D3[Exclude dependency dirs<br/>vendor, node_modules, etc.]
+        D3 --> D4[Group files by git repo]
+        D4 --> D5["repo_file_sets: dict[Path, list[Path]]"]
+    end
+
+    subgraph PARSE["2. Parse (ESHU_PARSE_WORKERS=4 concurrent)"]
+        P1["Acquire parse_semaphore slot"] --> P2["tree-sitter: code files (30+ langs)"]
+        P1 --> P3["HCL parser: Terraform"]
+        P1 --> P4["YAML dispatch: K8s, ArgoCD,<br/>Crossplane, Helm, CloudFormation"]
+        P2 --> P5["RepositorySnapshot"]
+        P3 --> P5
+        P4 --> P5
+        P5 --> P5a["snapshot.file_data: list[dict]<br/>functions, classes, imports,<br/>function_calls, modules, etc."]
+        P5 --> P5b["snapshot.imports_map: dict[str, list[str]]<br/>symbol_name -> [file_paths]"]
+    end
+
+    subgraph SNAPSHOT["3. Snapshot to Disk"]
+        S1["save_snapshot_file_data_fn()"] --> S2["NDJSON: {checkpoint_dir}/{run_id}/{repo}/file_data.ndjson"]
+        S3["save_snapshot_metadata_fn()"] --> S4["JSON: repo_path, file_count, imports_map"]
+        S5["snapshot.file_data = [] (free memory)"]
+    end
+
+    subgraph QUEUE["4. Async Queue"]
+        Q1["asyncio.Queue(maxsize=ESHU_INDEX_QUEUE_DEPTH=8)"]
+        Q2["Payload: (repo_path, snapshot_metadata, started, commit_wait_started)"]
+        Q3["snapshot has EMPTY file_data at this point"]
+    end
+
+    subgraph COMMIT["5. Commit (ESHU_COMMIT_WORKERS=1)"]
+        C1["_commit_snapshots() consumer loop"] --> C2["Delete old repo from Neo4j + Postgres"]
+        C2 --> C3["Add Repository node"]
+        C3 --> C4["Stream file_data from NDJSON<br/>in batches of ESHU_FILE_BATCH_SIZE=50"]
+        C4 --> C5["Per batch: commit_file_batch_to_graph()"]
+        C5 --> C6["Chunk into ESHU_GRAPH_WRITE_TX_FILE_BATCH_SIZE=5<br/>files per Neo4j transaction"]
+        C6 --> C7["collect_file_write_data() accumulator"]
+        C7 --> C8["Flush at 2000 accumulated rows"]
+        C8 --> C9["UNWIND entity writes:<br/>File, Function, Class, Interface,<br/>TerraformResource, K8sResource, etc."]
+        C8 --> C10["Dual-write to Postgres content store"]
+        C5 --> C11["merge_import_maps() into merged_imports_map"]
+        C5 --> C12["Per-repo finalization: inheritance<br/>(runs immediately after each repo commit)"]
+    end
+
+    subgraph FINALIZE["6. Finalization (5 ordered stages)"]
+        F0["finalize_index_batch()"] --> F1
+        F1["inheritance<br/>(SKIPPED if already run per-repo)"]
+        F1 --> F2["function_calls<br/>(per-repo, batched UNWIND, 3-tier chain)"]
+        F2 --> F3["infra_links<br/>(11 cross-repo linking phases)"]
+        F3 --> F4["workloads<br/>(global materialization)"]
+        F4 --> F5["relationship_resolution<br/>(evidence discovery -> Postgres)"]
+    end
+
+    DISCOVERY --> PARSE
+    PARSE --> SNAPSHOT
+    SNAPSHOT --> QUEUE
+    QUEUE --> COMMIT
+    COMMIT --> FINALIZE
+
+    classDef discovery fill:#e1f5fe,stroke:#01579b
+    classDef parse fill:#f3e5f5,stroke:#4a148c
+    classDef snapshot fill:#fff3e0,stroke:#e65100
+    classDef queue fill:#e8f5e9,stroke:#1b5e20
+    classDef commit fill:#fce4ec,stroke:#880e4f
+    classDef finalize fill:#fff9c4,stroke:#f57f17
+
+    class DISCOVERY discovery
+    class PARSE parse
+    class SNAPSHOT snapshot
+    class QUEUE queue
+    class COMMIT commit
+    class FINALIZE finalize

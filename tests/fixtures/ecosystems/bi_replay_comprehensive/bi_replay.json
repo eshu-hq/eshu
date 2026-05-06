@@ -1,0 +1,20 @@
+{
+  "metadata": {
+    "bi_vendor": "generic",
+    "workspace": "finance"
+  },
+  "dashboards": [
+    {
+      "dashboard_id": "revenue-overview",
+      "name": "Revenue Overview",
+      "path": "dashboards/revenue_overview.json",
+      "consumes_assets": [
+        "analytics.finance.daily_revenue"
+      ],
+      "consumes_columns": [
+        "analytics.finance.daily_revenue.gross_amount",
+        "analytics.crm.customers.customer_tier"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+# Codex project-level config. Hooks are an experimental feature in Codex CLI;
+# this enables them so the PostToolUse hook in .codex/hooks.json fires after
+# apply_patch and triggers the doc-keeper drift check.
+#
+# See https://developers.openai.com/codex/hooks for the full spec.
+
+[features]
+codex_hooks = true

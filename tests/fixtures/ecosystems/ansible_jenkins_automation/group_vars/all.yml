@@ -1,0 +1,5 @@
+runtime_hints:
+  - wordpress_website_fleet
+  - php_web_platform
+website_stack: wordpress_website_fleet
+application_family: php_web_platform

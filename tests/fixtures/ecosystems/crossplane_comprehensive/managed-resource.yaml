@@ -1,0 +1,11 @@
+apiVersion: s3.aws.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: comprehensive-bucket
+spec:
+  forProvider:
+    region: us-east-1
+    tags:
+      Environment: production
+  providerConfigRef:
+    name: default

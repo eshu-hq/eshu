@@ -1,0 +1,13 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: checkout-service
+spec:
+  project: default
+  source:
+    repoURL: https://example.invalid/platform/helm-charts.git
+    targetRevision: HEAD
+    path: charts/checkout-service
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: checkout

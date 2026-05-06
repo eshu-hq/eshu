@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: service-edge-api
+spec:
+  generators:
+    - matrix:
+        generators:
+          - git:
+              repoURL: deployment-kustomize
+              revision: main
+              files:
+                - path: argocd/service-edge-api/overlays/*/config.yaml
+                - path: argocd/service-worker-jobs/overlays/*/config.yaml
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      source:
+        repoURL: deployment-kustomize
+        path: overlays/modern
+      destination:
+        name: modern
+        namespace: modern

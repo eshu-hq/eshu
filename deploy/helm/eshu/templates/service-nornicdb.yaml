@@ -1,0 +1,22 @@
+{{- if .Values.nornicdb.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eshu.nornicdbFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nornicdb
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "eshu.nornicdbSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.nornicdb.ports.http }}
+      targetPort: http
+      protocol: TCP
+    - name: bolt
+      port: {{ .Values.nornicdb.ports.bolt }}
+      targetPort: bolt
+      protocol: TCP
+{{- end }}

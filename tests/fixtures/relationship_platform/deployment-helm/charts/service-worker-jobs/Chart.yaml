@@ -1,0 +1,8 @@
+apiVersion: v2
+name: service-worker-jobs
+version: 0.1.0
+annotations:
+  appRepo: service-worker-jobs
+dependencies:
+  - name: service-worker-jobs
+    repository: oci://ghcr.io/example/deployment-helm

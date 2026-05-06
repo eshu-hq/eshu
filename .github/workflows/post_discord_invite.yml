@@ -1,0 +1,43 @@
+name: Post Discord Invite on Issue or PR
+
+permissions:
+  issues: write
+  pull-requests: write
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+jobs:
+  post_discord_invite:
+    # Skip if the event is a PR from a fork; still run for issues and in-repo PRs
+    if: ${{ github.event_name == 'issues' || (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post Discord Invite Comment
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const discord_link = "https://discord.gg/VxjyKK9m"
+
+            let number;
+            if (context.payload.issue) {
+              number = context.payload.issue.number;
+            } else if (context.payload.pull_request) {
+              number = context.payload.pull_request.number;
+            } else {
+              console.log("No issue or PR found. Exiting.");
+              return;
+            }
+
+            console.log("Detected issue/PR number:", number);
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: number,
+              body: `Hi! 👋 Join our Eshu Discord channel to collaborate: ${discord_link}`
+            });

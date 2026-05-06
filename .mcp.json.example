@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "eshu": {
+      "command": "sh",
+      "args": [
+        "-lc",
+        "cd <REPO_ROOT> && docker-compose exec -T eshu eshu mcp start"
+      ]
+    }
+  }
+}

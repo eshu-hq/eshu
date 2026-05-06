@@ -1,0 +1,48 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: comprehensive-role
+  namespace: production
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: comprehensive-binding
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: comprehensive-api-sa
+    namespace: production
+roleRef:
+  kind: Role
+  name: comprehensive-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: comprehensive-cluster-role
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: comprehensive-cluster-binding
+subjects:
+  - kind: ServiceAccount
+    name: comprehensive-api-sa
+    namespace: production
+roleRef:
+  kind: ClusterRole
+  name: comprehensive-cluster-role
+  apiGroup: rbac.authorization.k8s.io

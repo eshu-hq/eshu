@@ -1,0 +1,6 @@
+- name: Run dynamic role
+  hosts: checkout
+  roles:
+    - "{{ selected_role }}"
+  vars:
+    selected_role: dynamic_role

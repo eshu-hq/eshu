@@ -1,0 +1,68 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/aws": {
+      "provider": {},
+      "resource_schemas": {
+        "aws_lambda_function": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "function_name": { "type": "string", "required": true },
+              "runtime": { "type": "string" },
+              "handler": { "type": "string" }
+            }
+          }
+        },
+        "aws_vpc": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "cidr_block": { "type": "string", "required": true },
+              "enable_dns_support": { "type": "bool" }
+            }
+          }
+        },
+        "aws_wafv2_web_acl": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "scope": { "type": "string", "required": true },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "aws_transfer_server": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "endpoint_type": { "type": "string" },
+              "identity_provider_type": { "type": "string" },
+              "protocols": { "type": ["set", "string"] }
+            }
+          }
+        },
+        "aws_neptune_cluster": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "cluster_identifier": { "type": "string", "required": true },
+              "engine": { "type": "string" },
+              "engine_version": { "type": "string" }
+            }
+          }
+        },
+        "aws_apprunner_service": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "service_name": { "type": "string", "required": true },
+              "auto_deployments_enabled": { "type": "bool" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

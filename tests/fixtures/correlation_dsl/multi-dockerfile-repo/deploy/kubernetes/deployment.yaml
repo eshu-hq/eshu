@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multi-dockerfile-repo
+  namespace: multi-dockerfile
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: multi-dockerfile-repo
+  template:
+    metadata:
+      labels:
+        app: multi-dockerfile-repo
+    spec:
+      containers:
+        - name: workload
+          image: registry.example/multi-dockerfile-repo:latest
+          ports:
+            - containerPort: 8080

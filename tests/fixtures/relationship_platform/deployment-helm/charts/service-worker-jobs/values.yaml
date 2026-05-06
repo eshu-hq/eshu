@@ -1,0 +1,4 @@
+image:
+  repository: service-worker-jobs
+service:
+  upstreamRepo: service-worker-jobs

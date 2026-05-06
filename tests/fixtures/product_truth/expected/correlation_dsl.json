@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "suite_id": "correlation_dsl",
+  "fixture_root": "tests/fixtures/correlation_dsl",
+  "capability_assertions": [
+    {
+      "capability": "deployable_unit.correlation",
+      "surfaces": ["api", "graph", "postgres"],
+      "positive": "Service repositories with explicit delivery evidence are admitted as deployable units.",
+      "negative": "Utility or ambiguous multi-Dockerfile repositories remain provenance-only unless stronger evidence exists."
+    },
+    {
+      "capability": "delivery.github_actions",
+      "surfaces": ["api", "graph", "postgres"],
+      "positive": "GitHub Actions workflow checkout and reusable workflow evidence resolves to repository relationships."
+    },
+    {
+      "capability": "delivery.jenkins",
+      "surfaces": ["api", "graph", "postgres"],
+      "positive": "Jenkinsfile controller artifacts surface in repository context and story responses."
+    },
+    {
+      "capability": "delivery.ansible",
+      "surfaces": ["api", "content", "postgres"],
+      "positive": "Jenkins-to-Ansible handoff preserves playbook, inventory, group vars, host vars, and role hints."
+    },
+    {
+      "capability": "delivery.docker_compose",
+      "surfaces": ["api", "graph", "postgres"],
+      "positive": "Compose build, image, ports, and depends_on evidence surface without upgrading local runtime evidence to production deployment truth."
+    },
+    {
+      "capability": "delivery.argocd",
+      "surfaces": ["api", "graph", "postgres"],
+      "positive": "ArgoCD Application evidence links service repositories to deployment repositories and shared config."
+    },
+    {
+      "capability": "delivery.terraform",
+      "surfaces": ["api", "graph", "postgres"],
+      "positive": "Terraform stack evidence resolves module and service relationships without relying on repo-name coincidence."
+    }
+  ]
+}
+

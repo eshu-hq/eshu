@@ -1,0 +1,10 @@
+src/com/example/app/misc/Outer.java
+src/com/example/app/util/IOHelper.java
+src/com/example/app/util/CollectionUtils.java
+src/com/example/app/annotations/Logged.java
+src/com/example/app/Main.java
+src/com/example/app/model/User.java
+src/com/example/app/model/Role.java
+src/com/example/app/service/impl/GreetingServiceImpl.java
+src/com/example/app/service/AbstractGreeter.java
+src/com/example/app/service/GreetingService.java

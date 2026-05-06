@@ -1,0 +1,10 @@
+version: v2
+
+# Wave 1 keeps generation reproducible without requiring a local buf install.
+# Once the Go module lands, this file can drive `buf generate` into `go/gen/proto`.
+managed:
+  enabled: true
+
+plugins:
+  - remote: buf.build/protocolbuffers/go
+    out: go/gen/proto

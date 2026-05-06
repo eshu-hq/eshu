@@ -1,0 +1,98 @@
+%%{ init: { 'theme': 'base', 'themeVariables': { 'fontSize': '13px' } } }%%
+flowchart TB
+    subgraph INPUTS["Inputs to Finalization"]
+        I1["committed_repo_paths: list[Path]"]
+        I2["merged_imports_map: dict[str, list[str]]<br/>(built during commit phase)"]
+        I3["NDJSON snapshots on disk<br/>(streamed back per-repo)"]
+    end
+
+    subgraph INHERIT["Stage 1: inheritance"]
+        direction TB
+        IN1["Per-repo (or batch if not run per-repo)"] --> IN2["For each file: _prepare_call_rows()-style<br/>in-memory import resolution"]
+        IN2 --> IN3["Non-C#: collect all bases -> single UNWIND<br/>MATCH child:Class, MATCH parent:Class<br/>MERGE INHERITS"]
+        IN2 --> IN4["C#: per-entity Cypher queries<br/>MATCH + MERGE per base class/interface"]
+    end
+
+    subgraph CALLS["Stage 2: function_calls (MOST EXPENSIVE)"]
+        direction TB
+        FC0["Per-repo iteration over committed repos"]
+        FC0 --> FC1
+
+        subgraph PREPARE["In-Memory Phase: _prepare_call_rows()"]
+            FC1["For each file, for each function_call:"]
+            FC1 --> FC2{"Is Python builtin?"}
+            FC2 -->|Yes| FC_SKIP["Skip"]
+            FC2 -->|No| FC3["Resolve via imports_map (in-memory):<br/>1. self/this/super -> caller_file_path<br/>2. local_names -> caller_file_path<br/>3. inferred_obj_type -> imports_map lookup<br/>4. imports_map[lookup_name]<br/>5. local_imports disambiguation"]
+            FC3 --> FC4["Build row dict: caller_file_path, called_name,<br/>called_file_path, line_number, args, row_id"]
+            FC4 --> FC5{"Has caller context<br/>(function/class)?"}
+            FC5 -->|Yes| FC6["contextual_buffer"]
+            FC5 -->|No| FC7["file_level_buffer"]
+        end
+
+        FC8["ESHU_MAX_CALLS_PER_FILE=50 cap<br/>(total contextual + file-level rows per file)"]
+
+        subgraph FLUSH["Buffer Flush (at 2000 rows or end)"]
+            FL1["contextual_buffer flush"] --> FL2["create_contextual_call_relationships_batched()"]
+            FL3["file_level_buffer flush"] --> FL4["create_file_level_call_relationships_batched()"]
+        end
+
+        subgraph RESOLUTION["3-Tier UNWIND Resolution Chain"]
+            direction TB
+            R1["Pass 1: EXACT<br/>UNWIND $rows (250/batch)<br/>MATCH caller by name+path<br/>MATCH called by name+path<br/>MERGE CALLS edge<br/>RETURN matched_row_ids"]
+            R1 -->|Unresolved rows| R2["Pass 2: REPO-SCOPED<br/>(ESHU_CALL_RESOLUTION_SCOPE=repo)<br/>MATCH called by name WHERE<br/>path STARTS WITH repo_path"]
+            R2 -->|Unresolved rows| R3{"ESHU_FUNCTION_CALL_GLOBAL_FALLBACK?"}
+            R3 -->|true| R4["Pass 3: GLOBAL FALLBACK<br/>MATCH called by name only<br/>(filter low-signal JS/PHP names)"]
+            R3 -->|false (default)| R5["Rows remain unresolved<br/>(precision over recall)"]
+        end
+
+        FC6 --> FL1
+        FC7 --> FL3
+        FL2 --> R1
+        FL4 --> R1
+    end
+
+    subgraph INFRA["Stage 3: infra_links"]
+        direction TB
+        IL1["CrossRepoLinker.link_all()"] --> IL2["11 sequential phases:<br/>1. ArgoCD app -> repo<br/>2. ArgoCD app -> Helm chart<br/>3. ArgoCD app -> K8s namespace<br/>4. Helm values -> deployments<br/>5. Kustomize -> resources<br/>6. Terraform module sources<br/>7. Terraform remote state<br/>8. Crossplane XRD -> composition<br/>9. Crossplane claim -> XRD<br/>10. CloudFormation cross-stack refs<br/>11. Platform evidence links"]
+        IL2 --> IL3["Each phase: own Neo4j session,<br/>targeted MATCH + MERGE queries"]
+    end
+
+    subgraph WORKLOADS["Stage 4: workloads"]
+        WK1["Global materialization"] --> WK2["MERGE Workload nodes from<br/>K8s Deployments, StatefulSets,<br/>ArgoCD Applications, etc."]
+        WK2 --> WK3["MERGE DEPENDS_ON edges<br/>between Workloads"]
+    end
+
+    subgraph RELRES["Stage 5: relationship_resolution"]
+        direction TB
+        RR1["Check Postgres relationship store"] --> RR2["Build repository checkouts<br/>(repo name, remote URL, slug)"]
+        RR2 --> RR3["Evidence Discovery (3 passes):"]
+        RR3 --> RR4["A. Workload DEPENDS_ON Cypher query"]
+        RR3 --> RR5["B. Cross-repo USES_MODULE edges"]
+        RR3 --> RR6["C. File evidence: Terraform + GitOps<br/>(regex patterns, Postgres content store,<br/>alias catalog matching)"]
+        RR4 --> RR7["Deduplicate evidence"]
+        RR5 --> RR7
+        RR6 --> RR7
+        RR7 --> RR8["Load assertions from Postgres"]
+        RR8 --> RR9["Resolve candidates: group evidence,<br/>score confidence, apply assertions"]
+        RR9 --> RR10["Write relationships to Postgres<br/>+ Neo4j REPOSITORY_DEPENDS_ON edges"]
+    end
+
+    INPUTS --> INHERIT
+    INHERIT --> CALLS
+    CALLS --> INFRA
+    INFRA --> WORKLOADS
+    WORKLOADS --> RELRES
+
+    classDef inputs fill:#e8eaf6,stroke:#283593
+    classDef inherit fill:#e1f5fe,stroke:#01579b
+    classDef calls fill:#fce4ec,stroke:#880e4f
+    classDef infra fill:#e8f5e9,stroke:#1b5e20
+    classDef workloads fill:#fff3e0,stroke:#e65100
+    classDef relres fill:#f3e5f5,stroke:#4a148c
+
+    class INPUTS inputs
+    class INHERIT inherit
+    class CALLS calls
+    class INFRA infra
+    class WORKLOADS workloads
+    class RELRES relres

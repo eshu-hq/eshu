@@ -1,0 +1,18 @@
+{{- if and .Values.exposure.ingress.enabled .Values.exposure.gateway.enabled -}}
+{{- fail "exposure.ingress.enabled and exposure.gateway.enabled cannot both be true" -}}
+{{- end -}}
+{{- if and (eq .Values.repoSync.auth.method "ssh") (eq .Values.repoSync.source.mode "githubOrg") -}}
+{{- fail "repoSync.auth.method=ssh requires repoSync.source.mode=explicit or filesystem" -}}
+{{- end -}}
+{{- if and (eq .Values.exposure.ingress.backend "mcp") (not .Values.mcpServer.enabled) -}}
+{{- fail "exposure.ingress.backend=mcp requires mcpServer.enabled=true" -}}
+{{- end -}}
+{{- if and (eq .Values.exposure.gateway.backend "mcp") (not .Values.mcpServer.enabled) -}}
+{{- fail "exposure.gateway.backend=mcp requires mcpServer.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.workflowCoordinator.enabled (ne .Values.workflowCoordinator.deploymentMode "dark") -}}
+{{- fail "workflowCoordinator.deploymentMode must remain dark in this chart until coordinator-owned claims finish proof validation" -}}
+{{- end -}}
+{{- if and .Values.workflowCoordinator.enabled .Values.workflowCoordinator.claimsEnabled -}}
+{{- fail "workflowCoordinator.claimsEnabled must remain false in this chart; use the documented Compose proof path for active claim validation" -}}
+{{- end -}}

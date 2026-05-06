@@ -1,0 +1,76 @@
+name: test-platform
+org: myorg
+
+tiers:
+  infrastructure:
+    risk_level: high
+    repos:
+      - terraform-stack-monitoring
+    depends_on: []
+  core:
+    risk_level: high
+    repos:
+      - terraform-module-core-irsa
+      - iac-eks-argocd
+    depends_on:
+      - infrastructure
+  gitops:
+    risk_level: medium
+    repos:
+      - argocd-iac-deployment
+    depends_on:
+      - core
+  xrd:
+    risk_level: medium
+    repos:
+      - crossplane-xrd-iam
+    depends_on:
+      - core
+  utility:
+    risk_level: low
+    repos:
+      - platform-tools
+    depends_on:
+      - core
+      - gitops
+
+repos:
+  terraform-stack-monitoring:
+    tier: infrastructure
+    role: Monitoring Terraform stack
+    github_url: https://github.com/myorg/terraform-stack-monitoring.git
+    dependencies: []
+  terraform-module-core-irsa:
+    tier: core
+    role: IRSA IAM role Terraform module
+    github_url: https://github.com/myorg/terraform-module-core-irsa.git
+    dependencies:
+      - terraform-stack-monitoring
+  iac-eks-argocd:
+    tier: core
+    role: ArgoCD deployment configuration
+    github_url: https://github.com/myorg/iac-eks-argocd.git
+    dependencies:
+      - terraform-module-core-irsa
+    key_docs:
+      - AGENTS.md
+      - docs/architecture.md
+  argocd-iac-deployment:
+    tier: gitops
+    role: ArgoCD application definitions
+    github_url: https://github.com/myorg/argocd-iac-deployment.git
+    dependencies:
+      - iac-eks-argocd
+  crossplane-xrd-iam:
+    tier: xrd
+    role: Crossplane IAM XRD definitions
+    github_url: https://github.com/myorg/crossplane-xrd-iam.git
+    dependencies:
+      - terraform-module-core-irsa
+  platform-tools:
+    tier: utility
+    role: Platform tooling and automation
+    github_url: https://github.com/myorg/platform-tools.git
+    dependencies:
+      - iac-eks-argocd
+      - argocd-iac-deployment

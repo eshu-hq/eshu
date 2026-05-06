@@ -1,0 +1,134 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "eshu.apiFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eshu.apiSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+        {{- if .Values.observability.prometheus.enabled }}
+        - protocol: TCP
+          port: {{ .Values.observability.prometheus.port }}
+        {{- end }}
+  egress:
+    - {}
+---
+{{- if .Values.mcpServer.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "eshu.mcpServerFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eshu.mcpServerSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+        {{- if .Values.observability.prometheus.enabled }}
+        - protocol: TCP
+          port: {{ .Values.observability.prometheus.port }}
+        {{- end }}
+  egress:
+    - {}
+{{- end }}
+---
+{{- if .Values.repoSync.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "eshu.ingesterFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingester
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eshu.ingesterSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if .Values.observability.prometheus.enabled }}
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.observability.prometheus.port }}
+    {{- else }}
+    []
+    {{- end }}
+  egress:
+    - {}
+{{- end }}
+---
+{{- if .Values.resolutionEngine.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "eshu.resolutionEngineFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resolution-engine
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eshu.resolutionEngineSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if .Values.observability.prometheus.enabled }}
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.observability.prometheus.port }}
+    {{- else }}
+    []
+    {{- end }}
+  egress:
+    - {}
+{{- end }}
+---
+{{- if .Values.workflowCoordinator.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "eshu.workflowCoordinatorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: workflow-coordinator
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eshu.workflowCoordinatorSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+        {{- if .Values.observability.prometheus.enabled }}
+        - protocol: TCP
+          port: {{ .Values.observability.prometheus.port }}
+        {{- end }}
+  egress:
+    - {}
+{{- end }}
+{{- end }}

@@ -1,0 +1,185 @@
+image:
+  repository: registry.example.invalid/example/platform-service
+  tag: "v0.0.23"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: template-platform-service
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+api:
+  replicas: 1
+  env: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 8Gi
+    limits:
+      cpu: 4000m
+      memory: 32Gi
+
+exposure:
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts: []
+    tls: []
+  gateway:
+    enabled: false
+    hostnames: []
+    parentRefs: []
+
+ingester:
+  replicas: 1
+  env: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  persistence:
+    enabled: true
+    existingClaim: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 100Gi
+    storageClass: gp3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 8Gi
+
+env:
+  DEFAULT_DATABASE: neo4j
+  NEO4J_DATABASE: neo4j
+  ENABLE_APP_LOGS: INFO
+  LIBRARY_LOG_LEVEL: WARNING
+
+contentStore:
+  secretName: template-platform-service-postgresql-auth
+  dsnKey: dsn
+  dsn: ""
+
+argocd:
+  syncWave: "1"
+
+observability:
+  environment: ""
+  otel:
+    enabled: false
+    endpoint: ""
+    protocol: grpc
+    insecure: true
+    headers: {}
+    resourceAttributes: {}
+    excludedUrls:
+      - /health
+      - /api/v0/health
+      - /api/v0/openapi.json
+      - /api/v0/docs
+      - /api/v0/redoc
+    metricExportIntervalSeconds: 30
+
+neo4j:
+  uri: bolt://template-platform-service-neo4j:7687
+  auth:
+    secretName: template-platform-service-neo4j-auth
+    usernameKey: username
+    passwordKey: password
+
+repoSync:
+  enabled: true
+  bootstrap: true
+  initialDelaySeconds: 0
+  intervalSeconds: 900
+  source:
+    mode: githubOrg
+    githubOrg: demo-org
+    repositories: []
+    rules: []
+    filesystemRoot: /fixtures
+    cloneDepth: 1
+    limit: 4000
+  auth:
+    method: githubApp
+    githubApp:
+      secretName: template-platform-service-github-app-credentials
+      appIdKey: app-id
+      installationIdKey: installation-id
+      privateKeyKey: private-key
+    token:
+      secretName: github-token
+      tokenKey: token
+    ssh:
+      secretName: github-ssh
+      privateKeyKey: id_rsa
+      knownHostsKey: known_hosts
+
+eshuignore: |
+  # Python
+  __pycache__/
+  *.pyc
+  *.pyo
+  *.pyd
+  .Python
+  .venv/
+  .env
+  env/
+  venv/
+
+  # Node
+  node_modules/
+
+  # Python packaging
+  *.egg-info/
+
+  # IDEs
+  .idea/
+  .vscode/
+  *.swp
+  *.swo
+
+  # Git and IaC cache directories
+  .git/
+  .terraform/
+  .terragrunt-cache/
+  .terramate-cache/
+  .crossplane/
+  .pulumi/
+  cdk.out/
+  .serverless/
+  .aws-sam/
+
+  # Build artifacts
+  dist/
+  build/
+  target/
+  out/
+
+  # Coverage, databases, and temp data
+  .pytest_cache/
+  coverage/
+  htmlcov/
+  *.log
+  *.sqlite3
+  *.db
+  *.tmp
+  *.temp
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
