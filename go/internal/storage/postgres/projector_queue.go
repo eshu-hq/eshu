@@ -54,7 +54,33 @@ WITH candidate AS (
             AND inflight.status IN ('claimed', 'running')
             AND inflight.claim_until > $1
       )
-    ORDER BY work.updated_at ASC, work.work_item_id ASC
+      -- Every concurrent projector claimer for a scope must target the same
+      -- oldest ready row. Otherwise FOR UPDATE SKIP LOCKED lets workers skip a
+      -- locked older row and start a newer generation for the same repository.
+      AND work.work_item_id = (
+          SELECT same.work_item_id
+          FROM fact_work_items AS same
+          WHERE same.stage = 'projector'
+            AND same.scope_id = work.scope_id
+            AND same.status IN ('pending', 'retrying', 'claimed', 'running')
+            AND (same.visible_at IS NULL OR same.visible_at <= $1)
+            AND (same.claim_until IS NULL OR same.claim_until <= $1)
+          ORDER BY
+            CASE
+              WHEN same.status IN ('claimed', 'running') AND same.claim_until <= $1 THEN 0
+              ELSE 1
+            END,
+            same.updated_at ASC,
+            same.work_item_id ASC
+          LIMIT 1
+      )
+    ORDER BY
+      CASE
+        WHEN work.status IN ('claimed', 'running') AND work.claim_until <= $1 THEN 0
+        ELSE 1
+      END,
+      work.updated_at ASC,
+      work.work_item_id ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED
 ),

@@ -58,6 +58,13 @@ func TestProjectorQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) 
 		"inflight.scope_id = work.scope_id",
 		"inflight.status IN ('claimed', 'running')",
 		"inflight.claim_until > $1",
+		"work.work_item_id = (",
+		"same.status IN ('claimed', 'running') AND same.claim_until <= $1 THEN 0",
+		"same.stage = 'projector'",
+		"same.scope_id = work.scope_id",
+		"same.status IN ('pending', 'retrying', 'claimed', 'running')",
+		"same.work_item_id ASC",
+		"work.status IN ('claimed', 'running') AND work.claim_until <= $1 THEN 0",
 		"prior_generation.generation_id <> claimed.generation_id",
 		"FOR UPDATE SKIP LOCKED",
 	} {

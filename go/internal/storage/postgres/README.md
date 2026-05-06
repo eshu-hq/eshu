@@ -70,12 +70,16 @@ recommitting identical snapshots.
 ### Projector queue
 
 `ProjectorQueue.Claim` uses `SELECT ... FOR UPDATE SKIP LOCKED` with a
-per-scope in-flight conflict guard: only one item per `scope_id` can be
-`claimed` or `running` at a time. `Ack` runs a four-step atomic transaction:
-supersede stale active generation → activate target generation → update scope
-pointer → mark work succeeded. If `projector.IsRetryable(cause)` returns true
-and `attempt_count < MaxAttempts`, `Fail` transitions to `retrying` instead of
-`dead_letter`.
+per-scope in-flight conflict guard and an oldest-ready-row guard. Concurrent
+claimers for the same `scope_id` must all target the same oldest ready work
+item, so a worker cannot skip a locked older row and start a newer generation
+for the same repository. Expired `claimed` or `running` rows are ordered ahead
+of ordinary pending rows so stale leases are reclaimed before fresh work makes
+the status surface look permanently overdue. `Ack` runs a four-step atomic
+transaction: supersede stale active generation → activate target generation →
+update scope pointer → mark work succeeded. If `projector.IsRetryable(cause)`
+returns true and `attempt_count < MaxAttempts`, `Fail` transitions to
+`retrying` instead of `dead_letter`.
 
 ### Reducer queue
 
@@ -265,7 +269,7 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 ## Gotchas / invariants
 
 - `ProjectorQueue.Ack` runs four SQL statements inside a transaction
-  (`projector_queue.go:315`). Pass a `SQLDB` or an `InstrumentedDB` wrapping
+  (`projector_queue.go:346`). Pass a `SQLDB` or an `InstrumentedDB` wrapping
   a `SQLDB`; a plain `ExecQueryer` without `Beginner` will cause Ack to fail.
 - `upsertFacts` deduplicates by `fact_id` before batching (`facts.go:192`).
   Skipping deduplication causes `SQLSTATE 21000` on `ON CONFLICT DO UPDATE`

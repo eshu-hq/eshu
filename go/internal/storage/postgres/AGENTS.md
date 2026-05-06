@@ -29,13 +29,20 @@
   and raw control bytes before every fact INSERT (`facts.go:435`). Skipping
   this causes Postgres errors on repositories with binary or non-UTF-8 content.
 - **Ack atomicity** — `ProjectorQueue.Ack` wraps four SQL statements in a
-  single transaction (`projector_queue.go:315`). If any step fails, the
+  single transaction (`projector_queue.go:346`). If any step fails, the
   transaction rolls back. Always pass a `SQLDB` or `InstrumentedDB(SQLDB)` to
   `NewProjectorQueue`; a bare `ExecQueryer` without `Beginner` will fail.
 - **Lease fencing** — `ProjectorQueue.Heartbeat` and `WorkflowControlStore`
   claims check `lease_owner` on UPDATE. A zero `RowsAffected` returns
   `ErrProjectorClaimRejected` or `ErrWorkflowClaimRejected`. Callers must stop
   processing on these errors and must not retry the ack.
+- **Projector scope ordering** — `ProjectorQueue.Claim` must preserve one
+  active source-local generation per `scope_id`. Keep the oldest-ready-row
+  subquery with `FOR UPDATE SKIP LOCKED`; without it, parallel claimers can skip
+  a locked older row and start a newer generation for the same repository.
+  Expired `claimed` or `running` rows must stay ahead of ordinary pending rows
+  in the claim ordering, or stale leases remain overdue while newer generations
+  drain.
 - **NornicDB semantic gate** — `ReducerQueue.Claim` blocks
   `semantic_entity_materialization` while source-local projection is in-flight
   when the NornicDB gate parameter is true. Do not remove or bypass this gate
@@ -74,6 +81,13 @@
 - Symptom: claim latency high (`eshu_dp_postgres_query_duration_seconds{store="queue"}`)
   → check index coverage on `fact_work_items(stage, status, visible_at,
   claim_until)` and `FOR UPDATE SKIP LOCKED` contention.
+
+- Symptom: multiple `projector` rows are `running` for the same `scope_id` →
+  check the oldest-ready-row guard in `ProjectorQueue.Claim`. Same-scope
+  duplicate running rows can fence pending generations and make local progress
+  look stalled even when processes are alive. If overdue claims stay visible
+  while pending rows continue to move, check that expired-lease priority still
+  precedes `updated_at` ordering.
 
 - Symptom: `ErrProjectorClaimRejected` or `ErrReducerClaimRejected` in logs →
   lease expired before ack; increase `LeaseDuration` or reduce projection time;
