@@ -1,0 +1,23 @@
+go/cmd/eshu/graph_lifecycle_test.go
+  0fdb6fbe5bc880aa 4,169,175,193-195,216-338,341,346,351-354,362-364,371
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "d52c4b065c737722505d5419df1b86d5d7184c77",
+  "prompts": {
+    "0fdb6fbe5bc880aa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dfda7-b67d-7d01-abd4-1370d870116b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria",
+      "messages": [],
+      "total_additions": 139,
+      "total_deletions": 1,
+      "accepted_lines": 139,
+      "overriden_lines": 0
+    }
+  }
+}
