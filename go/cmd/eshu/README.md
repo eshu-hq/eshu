@@ -54,6 +54,10 @@ launched runtime via the shared `telemetry` package. Errors print to
 - `SilenceUsage` and `SilenceErrors` are set on the root command
 - `eshu graph start` requires `eshu-reducer` and `eshu-ingester` on `PATH`;
   fresh local Eshu service runs need `go/bin` on `PATH` after rebuilding
+- `eshu graph stop` sends `SIGTERM` to the owner supervisor for both
+  `local_lightweight` and `local_authoritative` profiles; lightweight stop
+  waits for the owner PID to exit while authoritative stop additionally waits
+  for the graph sidecar (NornicDB) to become unreachable
 - The default local graph path is embedded NornicDB when `eshu` is built with
   `nolocalllm`; `ESHU_NORNICDB_RUNTIME=process` is the only runtime-mode
   override, while `ESHU_NORNICDB_BINARY` selects process mode for a specific

@@ -4,7 +4,8 @@
 // The binary registers root flags (`--database`, `--visual`, `--version`,
 // `-v`) and a tree of subcommands covering local indexing (`index`, `list`, `watch`, `query`,
 // `stats`), service launch (`mcp start`, `api start`, `serve`), authenticated
-// local Eshu service commands (`graph`), backend installation (`install`),
+// local Eshu service commands (`graph` — `stop` handles both `local_lightweight`
+// and `local_authoritative` profiles), backend installation (`install`),
 // admin/operator workflows (`admin ...`), configuration (`config`, `neo4j`),
 // discovery (`find`, `analyze`, `ecosystem`), internal local-service
 // orchestration, and the `doctor` diagnostic. Its local-authoritative graph

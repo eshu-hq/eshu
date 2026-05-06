@@ -341,7 +341,18 @@ func graphStopForLayout(layout eshulocal.Layout) error {
 	if err != nil {
 		return err
 	}
-	if runtimeConfig.Profile != query.ProfileLocalAuthoritative || record.GraphPID <= 0 {
+
+	if runtimeConfig.Profile == query.ProfileLocalLightweight {
+		if !graphProcessAlive(record.PID) {
+			return nil
+		}
+		if err := graphSignalProcess(record.PID, syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return fmt.Errorf("signal local Eshu service pid %d: %w", record.PID, err)
+		}
+		return waitForOwnerStop(record, graphStopTimeout)
+	}
+
+	if record.GraphPID <= 0 {
 		return fmt.Errorf("workspace %q has no local_authoritative graph backend to stop", layout.WorkspaceRoot)
 	}
 
@@ -359,6 +370,17 @@ func graphStopForLayout(layout eshulocal.Layout) error {
 		return err
 	}
 	return waitForGraphStop(record, graphStopTimeout)
+}
+
+func waitForOwnerStop(record eshulocal.OwnerRecord, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if !graphProcessAlive(record.PID) {
+			return nil
+		}
+		time.Sleep(graphStopPollInterval)
+	}
+	return fmt.Errorf("local Eshu service pid %d did not stop within %s", record.PID, timeout)
 }
 
 func graphUpgradeForLayout(layout eshulocal.Layout, opts installNornicDBOptions) (installNornicDBResult, error) {

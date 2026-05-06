@@ -117,23 +117,72 @@ func TestGraphStopStopsRecordedGraphWhenOwnerIsDead(t *testing.T) {
 	}
 }
 
-func TestGraphStopRejectsLightweightOwner(t *testing.T) {
+func TestGraphStopSignalsLightweightOwnerWhenAlive(t *testing.T) {
 	originalReadOwnerRecord := graphReadOwnerRecord
+	originalProcessAlive := graphProcessAlive
+	originalSignalProcess := graphSignalProcess
+	originalStopPollInterval := graphStopPollInterval
 	t.Cleanup(func() {
 		graphReadOwnerRecord = originalReadOwnerRecord
+		graphProcessAlive = originalProcessAlive
+		graphSignalProcess = originalSignalProcess
+		graphStopPollInterval = originalStopPollInterval
 	})
+
+	record := eshulocal.OwnerRecord{
+		PID:     99,
+		Profile: string(query.ProfileLocalLightweight),
+	}
 	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
-		return eshulocal.OwnerRecord{
-			Profile: string(query.ProfileLocalLightweight),
-		}, nil
+		return record, nil
+	}
+	alive := true
+	graphProcessAlive = func(pid int) bool {
+		return alive && pid == record.PID
+	}
+	var signaledPID int
+	graphSignalProcess = func(pid int, signal os.Signal) error {
+		signaledPID = pid
+		alive = false
+		return nil
+	}
+	graphStopPollInterval = time.Millisecond
+
+	err := graphStopForLayout(eshulocal.Layout{OwnerRecordPath: "/workspace/owner.json"})
+	if err != nil {
+		t.Fatalf("graphStopForLayout() error = %v, want nil", err)
+	}
+	if signaledPID != record.PID {
+		t.Fatalf("signaledPID = %d, want owner pid %d", signaledPID, record.PID)
+	}
+}
+
+func TestGraphStopReturnsNilWhenLightweightOwnerAlreadyDead(t *testing.T) {
+	originalReadOwnerRecord := graphReadOwnerRecord
+	originalProcessAlive := graphProcessAlive
+	originalSignalProcess := graphSignalProcess
+	t.Cleanup(func() {
+		graphReadOwnerRecord = originalReadOwnerRecord
+		graphProcessAlive = originalProcessAlive
+		graphSignalProcess = originalSignalProcess
+	})
+
+	record := eshulocal.OwnerRecord{
+		PID:     99,
+		Profile: string(query.ProfileLocalLightweight),
+	}
+	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
+		return record, nil
+	}
+	graphProcessAlive = func(pid int) bool { return false }
+	graphSignalProcess = func(pid int, signal os.Signal) error {
+		t.Fatal("graphSignalProcess called for already-dead owner")
+		return nil
 	}
 
 	err := graphStopForLayout(eshulocal.Layout{OwnerRecordPath: "/workspace/owner.json"})
-	if err == nil {
-		t.Fatal("graphStopForLayout() error = nil, want lightweight guidance")
-	}
-	if !strings.Contains(err.Error(), "no local_authoritative graph backend") {
-		t.Fatalf("graphStopForLayout() error = %q, want no graph guidance", err.Error())
+	if err != nil {
+		t.Fatalf("graphStopForLayout() error = %v, want nil", err)
 	}
 }
 
