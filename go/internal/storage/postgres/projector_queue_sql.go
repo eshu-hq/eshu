@@ -70,9 +70,9 @@ superseded_stale_projector_generations AS (
         )
     FROM scope_generations AS stale_generation
     WHERE stale.stage = 'projector'
-      AND stale.status IN ('pending', 'retrying')
+      AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
       AND stale_generation.generation_id = stale.generation_id
-      AND stale_generation.status = 'pending'
+      AND stale_generation.status IN ('pending', 'failed')
       AND EXISTS (
           SELECT 1
           FROM fact_work_items AS newer
@@ -98,7 +98,7 @@ superseded_stale_scope_generations AS (
         superseded_at = $1
     FROM superseded_stale_projector_generations AS stale
     WHERE generation.generation_id = stale.generation_id
-      AND generation.status = 'pending'
+      AND generation.status IN ('pending', 'failed')
 ),
 candidate AS (
     SELECT work.work_item_id

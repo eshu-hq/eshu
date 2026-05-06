@@ -73,7 +73,7 @@ func TestProjectorQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) 
 		"RETURNING stale.work_item_id, stale.generation_id",
 		"superseded_stale_scope_generations AS (",
 		"FROM superseded_stale_projector_generations AS stale",
-		"generation.status = 'pending'",
+		"generation.status IN ('pending', 'failed')",
 		"FROM superseded_stale_projector_generations AS superseded",
 		"superseded.work_item_id = work.work_item_id",
 		"FROM superseded_stale_projector_generations AS superseded_same",

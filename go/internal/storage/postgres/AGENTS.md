@@ -48,9 +48,10 @@
   expired same-scope siblings to `retrying` when another live or newly claimed
   sibling owns the scope. Keep the `ProjectorQueue.Claim`
   stale-generation coalescing path (`projector_queue.go:74`) and the companion
-  CTEs together; they move older waiting same-scope projector rows and
-  still-pending `scope_generations` to `superseded` so durable snapshot history
-  remains available without reprocessing obsolete local polling generations.
+  CTEs together; they move older same-scope projector rows and pending or
+  failed `scope_generations` to `superseded` so durable snapshot history
+  remains available without reprocessing obsolete local polling generations or
+  reporting superseded terminal failures as current health.
   Keep the `ProjectorQueue.Heartbeat` supersede check with that claim behavior:
   live older same-scope generations must return `projector.ErrWorkSuperseded`
   once a newer generation is visible, or local polling can spend minutes writing

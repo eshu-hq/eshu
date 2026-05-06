@@ -74,9 +74,11 @@ per-scope in-flight conflict guard and an oldest-ready-row guard. Concurrent
 claimers for the same `scope_id` must all target the same oldest ready work
 item, so a worker cannot skip a locked older row and start a newer generation
 for the same repository. Before selecting a candidate, claim coalesces older
-waiting same-scope projector rows and their still-pending `scope_generations`
-to `superseded` when a newer generation exists. That keeps durable snapshot
-history without leaving obsolete local polling generations in the live backlog.
+same-scope projector rows and their pending or failed `scope_generations` to
+`superseded` when a newer generation exists. That covers waiting rows and
+obsolete terminal failures, so durable snapshot history remains available
+without leaving stale local polling generations in the live backlog or health
+summary.
 `ProjectorQueue.Heartbeat` applies the same freshness check to a live claimed
 or running row. When a newer pending or active generation exists for the scope,
 heartbeat marks the older row and its generation `superseded` in one statement
