@@ -21,14 +21,14 @@ Use these settings when creating or checking the Pages project:
 | --- | --- |
 | Framework preset | Vite React |
 | Build command | `npm run build` |
-| Build output directory | `dist` |
+| Build output directory | `site-dist` |
 | Production branch | Do not use `main` unless explicitly approved |
 
 The Pages output directory is also declared in `wrangler.jsonc`:
 
 ```jsonc
 {
-  "pages_build_output_dir": "./dist"
+  "pages_build_output_dir": "./site-dist"
 }
 ```
 

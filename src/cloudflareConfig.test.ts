@@ -9,6 +9,6 @@ describe("Cloudflare Pages configuration", () => {
       "utf8"
     );
 
-    expect(wranglerConfig).toContain('"pages_build_output_dir": "./dist"');
+    expect(wranglerConfig).toContain('"pages_build_output_dir": "./site-dist"');
   });
 });
