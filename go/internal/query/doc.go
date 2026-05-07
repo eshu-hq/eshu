@@ -7,6 +7,8 @@
 // built from openapi*.go fragments and served at /api/v0/openapi.json;
 // handler behavior, OpenAPI fragments, and docs/docs/reference/http-api.md
 // must agree whenever public routes or response shapes change. Response
-// envelopes and truth metadata are stable wire contracts and must not
-// change in ways that break MCP tool dispatch.
+// envelopes, truth metadata, and capability gates are stable wire contracts;
+// local_authoritative and local_full_stack both answer graph-backed platform
+// impact queries, while local_lightweight returns structured unsupported
+// errors for those routes.
 package query

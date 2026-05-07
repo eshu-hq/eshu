@@ -22,16 +22,19 @@ var (
 	graphBuildLayout = func(workspaceRoot string) (eshulocal.Layout, error) {
 		return eshulocal.BuildLayout(os.Getenv, os.UserHomeDir, runtime.GOOS, workspaceRoot)
 	}
-	graphReadOwnerRecord   = eshulocal.ReadOwnerRecord
-	graphResolveBinary     = resolveNornicDBBinary
-	graphReadVersion       = readLocalGraphVersion
-	graphProcessAlive      = eshulocal.ProcessAlive
-	graphStopGraphHealthy  = graphHealthyFromOwnerRecord
-	graphStopRecordedGraph = stopRecordedLocalGraph
-	graphSignalProcess     = signalProcess
-	graphStopPollInterval  = 200 * time.Millisecond
-	graphStopTimeout       = localGraphShutdownTimeout
-	graphInstallNornicDB   = installNornicDB
+	graphReadOwnerRecord    = eshulocal.ReadOwnerRecord
+	graphAcquireOwnerLock   = eshulocal.AcquireOwnerLock
+	graphResolveBinary      = resolveNornicDBBinary
+	graphReadVersion        = readLocalGraphVersion
+	graphProcessAlive       = eshulocal.ProcessAlive
+	graphOwnerSocketHealthy = eshulocal.SocketHealthy
+	graphStopPostgres       = eshulocal.StopEmbeddedPostgres
+	graphStopGraphHealthy   = graphHealthyFromOwnerRecord
+	graphStopRecordedGraph  = stopRecordedLocalGraph
+	graphSignalProcess      = signalProcess
+	graphStopPollInterval   = 200 * time.Millisecond
+	graphStopTimeout        = localGraphShutdownTimeout
+	graphInstallNornicDB    = installNornicDB
 )
 
 type graphStatusOutput struct {
@@ -341,7 +344,18 @@ func graphStopForLayout(layout eshulocal.Layout) error {
 	if err != nil {
 		return err
 	}
-	if runtimeConfig.Profile != query.ProfileLocalAuthoritative || record.GraphPID <= 0 {
+
+	if runtimeConfig.Profile == query.ProfileLocalLightweight {
+		if !graphLightweightOwnerHealthy(record) {
+			return graphReclaimStaleLightweightOwner(layout)
+		}
+		if err := graphSignalProcess(record.PID, syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return fmt.Errorf("signal local Eshu service pid %d: %w", record.PID, err)
+		}
+		return waitForOwnerStop(record, graphStopTimeout)
+	}
+
+	if record.GraphPID <= 0 {
 		return fmt.Errorf("workspace %q has no local_authoritative graph backend to stop", layout.WorkspaceRoot)
 	}
 
@@ -353,12 +367,122 @@ func graphStopForLayout(layout eshulocal.Layout) error {
 	}
 
 	if !graphStopGraphHealthy(record) {
-		return nil
+		return graphReclaimStaleAuthoritativeOwner(layout)
 	}
 	if err := graphStopRecordedGraph(record); err != nil {
 		return err
 	}
 	return waitForGraphStop(record, graphStopTimeout)
+}
+
+func graphLightweightOwnerHealthy(record eshulocal.OwnerRecord) bool {
+	return graphProcessAlive(record.PID) && graphOwnerSocketHealthy(record.PostgresSocketPath)
+}
+
+func graphReclaimStaleLightweightOwner(layout eshulocal.Layout) (retErr error) {
+	lock, err := graphAcquireOwnerLock(layout.OwnerLockPath)
+	if err != nil {
+		return fmt.Errorf("reclaim stale local lightweight owner: %w", err)
+	}
+	defer func() {
+		if err := lock.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("release owner lock: %w", err)
+		}
+	}()
+
+	record, err := graphReadOwnerRecord(layout.OwnerRecordPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	runtimeConfig, err := runtimeConfigFromOwnerRecord(record)
+	if err != nil {
+		return err
+	}
+	if runtimeConfig.Profile != query.ProfileLocalLightweight {
+		return fmt.Errorf("owner record changed to profile %q while reclaiming local lightweight stop", runtimeConfig.Profile)
+	}
+	if graphOwnerSocketHealthy(record.SocketPath) {
+		return fmt.Errorf("%w: socket=%q", eshulocal.ErrWorkspaceOwnerActive, record.SocketPath)
+	}
+	if graphRecordedPostgresActive(record) {
+		if record.PostgresDataDir == "" {
+			return fmt.Errorf("%w: postgres_data_dir is required when postgres appears active", eshulocal.ErrInvalidOwnerRecord)
+		}
+		if err := graphStopPostgres(record.PostgresDataDir); err != nil {
+			return fmt.Errorf("stop stale embedded postgres: %w", err)
+		}
+		if graphRecordedPostgresActive(record) {
+			return fmt.Errorf("%w: pid=%d socket=%q data_dir=%q", eshulocal.ErrEmbeddedPostgresActive, record.PostgresPID, record.PostgresSocketPath, record.PostgresDataDir)
+		}
+	}
+	return removeStaleOwnerRecord(layout.OwnerRecordPath)
+}
+
+func graphReclaimStaleAuthoritativeOwner(layout eshulocal.Layout) (retErr error) {
+	lock, err := graphAcquireOwnerLock(layout.OwnerLockPath)
+	if err != nil {
+		return fmt.Errorf("reclaim stale local authoritative owner: %w", err)
+	}
+	defer func() {
+		if err := lock.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("release owner lock: %w", err)
+		}
+	}()
+
+	record, err := graphReadOwnerRecord(layout.OwnerRecordPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	runtimeConfig, err := runtimeConfigFromOwnerRecord(record)
+	if err != nil {
+		return err
+	}
+	if runtimeConfig.Profile != query.ProfileLocalAuthoritative {
+		return fmt.Errorf("owner record changed to profile %q while reclaiming local authoritative stop", runtimeConfig.Profile)
+	}
+	if graphProcessAlive(record.PID) || graphStopGraphHealthy(record) {
+		return fmt.Errorf("%w: pid=%d graph_pid=%d", eshulocal.ErrWorkspaceOwnerActive, record.PID, record.GraphPID)
+	}
+	if graphRecordedPostgresActive(record) {
+		if record.PostgresDataDir == "" {
+			return fmt.Errorf("%w: postgres_data_dir is required when postgres appears active", eshulocal.ErrInvalidOwnerRecord)
+		}
+		if err := graphStopPostgres(record.PostgresDataDir); err != nil {
+			return fmt.Errorf("stop stale embedded postgres: %w", err)
+		}
+		if graphRecordedPostgresActive(record) {
+			return fmt.Errorf("%w: pid=%d socket=%q data_dir=%q", eshulocal.ErrEmbeddedPostgresActive, record.PostgresPID, record.PostgresSocketPath, record.PostgresDataDir)
+		}
+	}
+	return removeStaleOwnerRecord(layout.OwnerRecordPath)
+}
+
+func graphRecordedPostgresActive(record eshulocal.OwnerRecord) bool {
+	return graphProcessAlive(record.PostgresPID) || graphOwnerSocketHealthy(record.PostgresSocketPath)
+}
+
+func removeStaleOwnerRecord(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove stale owner record %q: %w", path, err)
+	}
+	return nil
+}
+
+func waitForOwnerStop(record eshulocal.OwnerRecord, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if !graphProcessAlive(record.PID) {
+			return nil
+		}
+		time.Sleep(graphStopPollInterval)
+	}
+	return fmt.Errorf("local Eshu service pid %d did not stop within %s", record.PID, timeout)
 }
 
 func graphUpgradeForLayout(layout eshulocal.Layout, opts installNornicDBOptions) (installNornicDBResult, error) {

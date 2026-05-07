@@ -312,8 +312,9 @@ is rising.
 
 The ingester collector uses a goroutine worker pool for concurrent repository
 snapshots. Set `ESHU_SNAPSHOT_WORKERS` to control parallelism (default:
-`min(NumCPU, 4)`). In Kubernetes, align CPU requests with the worker count to
-avoid CPU throttling under concurrent parsing load.
+`min(NumCPU, 8)`; the local-authoritative owner injects `NumCPU` on developer
+machines). In Kubernetes, align CPU requests with the worker count to avoid CPU
+throttling under concurrent parsing load.
 
 ## Resolution Engine
 
@@ -348,10 +349,10 @@ adding more workers.
 ### Concurrency tuning
 
 The reducer supports concurrent intent execution (`ESHU_REDUCER_WORKERS`,
-default NornicDB `min(NumCPU, 8)`, Neo4j `min(NumCPU, 4)`) and concurrent shared projection
-partition processing (`ESHU_SHARED_PROJECTION_WORKERS`, default 1). Increase
-these when queue age rises and single-worker CPU is not saturated. On
-NornicDB, raise reducer workers only with queue and graph-write telemetry in
+default NornicDB `NumCPU`, Neo4j `min(NumCPU, 4)`) and concurrent shared
+projection partition processing (`ESHU_SHARED_PROJECTION_WORKERS`, default 1).
+Increase these when queue age rises and single-worker CPU is not saturated. On
+NornicDB, lower reducer workers only with queue and graph-write telemetry in
 view because long graph writes can make lease ownership and backend contention
 the limiting factor before CPU.
 

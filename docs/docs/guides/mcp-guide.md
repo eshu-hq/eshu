@@ -34,7 +34,8 @@ exposes:
 - `truth.level` — `exact`, `derived`, or `fallback`.
 - `truth.capability` — the capability ID from
   [capability-matrix.v1.yaml](../reference/capability-conformance-spec.md).
-- `truth.profile` — `local_lightweight`, `local_full_stack`, or `production`.
+- `truth.profile` — `local_lightweight`, `local_authoritative`,
+  `local_full_stack`, or `production`.
 - `truth.freshness.state` — `fresh`, `stale`, `building`, or `unavailable`.
 
 On unsupported capabilities (for example `call_graph.transitive_callers` in

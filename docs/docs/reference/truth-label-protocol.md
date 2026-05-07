@@ -178,7 +178,7 @@ return:
     "capability": "call_graph.transitive_callers",
     "profiles": {
       "current": "local_lightweight",
-      "required": "local_full_stack"
+      "required": "local_authoritative"
     }
   }
 }
@@ -247,7 +247,7 @@ actionable explanation:
 ```text
 unsupported capability: call_graph.transitive_callers
 current profile: local_lightweight
-required profile: local_full_stack
+required profile: local_authoritative
 ```
 
 ### CLI JSON Mode

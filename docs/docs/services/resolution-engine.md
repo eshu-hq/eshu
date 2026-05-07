@@ -83,7 +83,7 @@ Processing model:
 ## Concurrency Model
 
 - **Main reducer loop**: Concurrent by default. NornicDB uses
-  `min(NumCPU, 8)` workers and a claim window equal to workers; Neo4j uses
+  `NumCPU` workers and a claim window equal to workers; Neo4j uses
   `min(NumCPU, 4)` workers and a larger bounded claim window.
 - **SharedProjectionRunner**: Sequential by default (Workers=1). Supports
   concurrent partition workers via `ESHU_SHARED_PROJECTION_WORKERS`.
@@ -105,7 +105,7 @@ Processing model:
 |---------|---------|---------|
 | `ESHU_REDUCER_RETRY_DELAY` | 30s | Retry delay for failed intents |
 | `ESHU_REDUCER_MAX_ATTEMPTS` | 3 | Max retry attempts |
-| `ESHU_REDUCER_WORKERS` | Neo4j: `min(NumCPU, 4)`; NornicDB: `min(NumCPU, 8)` | Concurrent reducer intent workers |
+| `ESHU_REDUCER_WORKERS` | Neo4j: `min(NumCPU, 4)`; NornicDB: `NumCPU` | Concurrent reducer intent workers |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | Neo4j: `workers * 4` capped at `64`; NornicDB: `workers` | Reducer intents leased per claim cycle |
 | `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | NornicDB: `1`; otherwise disabled | Concurrent semantic entity materialization claims after source-local drain |
 | `ESHU_SHARED_PROJECTION_WORKERS` | 1 | Concurrent shared projection workers |

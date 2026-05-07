@@ -9,6 +9,7 @@
 // wires the reducer service with shared-projection, code-call,
 // repo-dependency, and graph-projection-phase repair runners, and hosts it
 // through app.NewHostedWithStatusServer so it exposes the shared `/healthz`,
-// `/readyz`, `/metrics`, and `/admin/status` admin surface. SIGINT and
-// SIGTERM trigger clean shutdown through the hosted runtime drain.
+// `/readyz`, `/metrics`, and `/admin/status` admin surface. NornicDB reducer
+// workers default to NumCPU, while Neo4j remains capped lower by default.
+// SIGINT and SIGTERM trigger clean shutdown through the hosted runtime drain.
 package main

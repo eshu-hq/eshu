@@ -50,9 +50,11 @@ var (
 	localHostGraphHealthy                         = graphHealthyFromOwnerRecord
 	localHostStartChildProcess                    = startLocalChildProcess
 	localHostStartManagedGraph                    = startManagedLocalGraph
+	localHostResetAuthoritativeState              = resetLocalAuthoritativeState
 	localHostWaitChildProcess                     = waitLocalChildProcess
 	localHostWaitManagedChildren                  = waitLocalHostChildren
 	localHostWaitOwnerChildren                    = waitLocalHostChildrenKeepingAllowedCleanExits
+	localHostNumCPU                               = runtime.NumCPU
 	localHostApplyBootstrap                       = applyLocalBootstrap
 	localHostApplyGraphBootstrap                  = applyLocalGraphBootstrap
 	localHostStartProgressReporter                = startLocalHostProgressReporter
@@ -143,6 +145,12 @@ func runOwnedLocalHostWithLayout(ctx context.Context, layout eshulocal.Layout, m
 			retErr = closeErr
 		}
 	}()
+
+	if runtimeConfig.Profile == query.ProfileLocalAuthoritative {
+		if err := localHostResetAuthoritativeState(layout); err != nil {
+			return err
+		}
+	}
 
 	managedPostgres, err := localHostStartEmbeddedPostgres(ctx, layout)
 	if err != nil {
@@ -244,7 +252,7 @@ func runOwnedLocalHostWithLayout(ctx context.Context, layout eshulocal.Layout, m
 		reducerCmd, err := localHostStartChildProcess(
 			"eshu-reducer",
 			[]string{"eshu-reducer"},
-			localHostEnv(managedPostgres.DSN, runtimeConfig, managedGraph, localHostReducerOverrides(expectedProjectors)),
+			localHostEnv(managedPostgres.DSN, runtimeConfig, managedGraph, localHostReducerOverrides(expectedProjectors, runtimeConfig, os.Getenv)),
 		)
 		if err != nil {
 			return err
@@ -257,7 +265,7 @@ func runOwnedLocalHostWithLayout(ctx context.Context, layout eshulocal.Layout, m
 		children = append(children, localHostChild{name: "eshu-reducer", cmd: reducerCmd})
 	}
 
-	ingester, err := localHostStartChildProcess("eshu-ingester", []string{"eshu-ingester", "--watch", layout.WorkspaceRoot}, localHostEnv(managedPostgres.DSN, runtimeConfig, managedGraph, localHostIngesterOverrides(layout, mode, runtimeConfig)))
+	ingester, err := localHostStartChildProcess("eshu-ingester", []string{"eshu-ingester", "--watch", layout.WorkspaceRoot}, localHostEnv(managedPostgres.DSN, runtimeConfig, managedGraph, localHostIngesterOverrides(layout, mode, runtimeConfig, os.Getenv)))
 	if err != nil {
 		return err
 	}
@@ -310,13 +318,15 @@ func runOwnedLocalHostWithLayout(ctx context.Context, layout eshulocal.Layout, m
 	return localHostWaitManagedChildren(ctx, children, "eshu-mcp-server")
 }
 
-func localHostReducerOverrides(expectedProjectors int) map[string]string {
-	if expectedProjectors <= 0 {
-		return nil
+func localHostReducerOverrides(expectedProjectors int, runtimeConfig localHostRuntimeConfig, getenv func(string) string) map[string]string {
+	overrides := map[string]string{}
+	if expectedProjectors > 0 {
+		overrides[reducerExpectedSourceLocalProjectorsEnv] = strconv.Itoa(expectedProjectors)
 	}
-	return map[string]string{
-		reducerExpectedSourceLocalProjectorsEnv: strconv.Itoa(expectedProjectors),
+	if shouldTuneLocalAuthoritativeNornicDB(runtimeConfig) {
+		setOverrideIfUnset(overrides, getenv, "ESHU_REDUCER_WORKERS", strconv.Itoa(localHostCPUCount()))
 	}
+	return overrides
 }
 
 func runAttachedLocalMCPStdio(ctx context.Context, layout eshulocal.Layout) (bool, error) {

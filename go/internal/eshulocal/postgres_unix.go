@@ -5,6 +5,7 @@ package eshulocal
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -32,6 +33,7 @@ var (
 	postgresRuntimeDir = func(layout Layout) string {
 		return runtimeSocketDir(layout, os.TempDir())
 	}
+	postmasterLockPostgresReady = postgresReadyFromPostmasterLock
 )
 
 type embeddedPostgresRuntime interface {
@@ -85,6 +87,9 @@ func StartEmbeddedPostgres(ctx context.Context, layout Layout) (*ManagedPostgres
 	runtimeDir := filepath.Join(layout.PostgresDir, "runtime")
 	binariesDir := filepath.Join(layout.PostgresDir, "binaries")
 	cacheDir := filepath.Join(layout.CacheDir, "embedded-postgres")
+	if err := stopOrphanedPostgresFromLockFile(dataDir); err != nil {
+		return nil, err
+	}
 
 	var (
 		port    int
@@ -233,4 +238,82 @@ func readPostmasterPID(dataDir string) (int, error) {
 		return 0, fmt.Errorf("read embedded postgres pid: %w", err)
 	}
 	return pid, nil
+}
+
+// stopOrphanedPostgresFromLockFile reclaims a live Postgres left behind after
+// owner metadata was removed but the workspace owner lock became available.
+func stopOrphanedPostgresFromLockFile(dataDir string) error {
+	lock, err := readPostmasterLockFile(dataDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	if lock.pid <= 0 || lock.port <= 0 || lock.socketPath == "" {
+		return nil
+	}
+	if !ProcessAlive(lock.pid) || !SocketHealthy(lock.socketPath) {
+		return nil
+	}
+	if !postmasterLockPostgresReady(lock) {
+		return nil
+	}
+	if err := StopEmbeddedPostgres(dataDir); err != nil {
+		return fmt.Errorf("stop orphaned embedded postgres: %w", err)
+	}
+	if SocketHealthy(lock.socketPath) {
+		return fmt.Errorf("%w: pid=%d socket=%q data_dir=%q", ErrEmbeddedPostgresActive, lock.pid, lock.socketPath, dataDir)
+	}
+	return nil
+}
+
+type postmasterLockFile struct {
+	pid        int
+	port       int
+	socketPath string
+}
+
+func readPostmasterLockFile(dataDir string) (postmasterLockFile, error) {
+	content, err := os.ReadFile(filepath.Join(dataDir, "postmaster.pid"))
+	if err != nil {
+		return postmasterLockFile{}, err
+	}
+	lines := strings.Split(string(content), "\n")
+	if len(lines) < 5 {
+		return postmasterLockFile{}, nil
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(lines[0]))
+	if err != nil {
+		return postmasterLockFile{}, nil
+	}
+	port, err := strconv.Atoi(strings.TrimSpace(lines[3]))
+	if err != nil || port <= 0 {
+		return postmasterLockFile{pid: pid}, nil
+	}
+	socketDir := strings.TrimSpace(lines[4])
+	if socketDir == "" {
+		return postmasterLockFile{pid: pid}, nil
+	}
+	return postmasterLockFile{
+		pid:        pid,
+		port:       port,
+		socketPath: postgresSocketPath(socketDir, port),
+	}, nil
+}
+
+func postgresReadyFromPostmasterLock(lock postmasterLockFile) bool {
+	if lock.port <= 0 {
+		return false
+	}
+	db, err := sql.Open("pgx", PostgresDSN(localPostgresHost, lock.port))
+	if err != nil {
+		return false
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), localProbeTimeout)
+	defer cancel()
+	return db.PingContext(ctx) == nil
 }

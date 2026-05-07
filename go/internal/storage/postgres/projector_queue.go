@@ -11,206 +11,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-const enqueueProjectorWorkQuery = `
-INSERT INTO fact_work_items (
-    work_item_id,
-    scope_id,
-    generation_id,
-    stage,
-    domain,
-    status,
-    attempt_count,
-    lease_owner,
-    claim_until,
-    visible_at,
-    last_attempt_at,
-    next_attempt_at,
-    failure_class,
-    failure_message,
-    failure_details,
-    payload,
-    created_at,
-    updated_at
-) VALUES (
-    $1, $2, $3, 'projector', $4, 'pending', 0, NULL, NULL, $5, NULL, NULL, NULL, NULL, NULL, '{}'::jsonb, $5, $5
-)
-ON CONFLICT (work_item_id) DO NOTHING
-`
-
-const claimProjectorWorkQuery = `
-WITH candidate AS (
-    SELECT work.work_item_id
-    FROM fact_work_items AS work
-    WHERE stage = 'projector'
-      AND work.status IN ('pending', 'retrying', 'claimed', 'running')
-      AND (work.visible_at IS NULL OR work.visible_at <= $1)
-      AND (work.claim_until IS NULL OR work.claim_until <= $1)
-      AND NOT EXISTS (
-          SELECT 1
-          FROM fact_work_items AS inflight
-          WHERE inflight.stage = 'projector'
-            AND inflight.scope_id = work.scope_id
-            AND inflight.work_item_id <> work.work_item_id
-            AND inflight.status IN ('claimed', 'running')
-            AND inflight.claim_until > $1
-      )
-    ORDER BY work.updated_at ASC, work.work_item_id ASC
-    LIMIT 1
-    FOR UPDATE SKIP LOCKED
-),
-claimed AS (
-    UPDATE fact_work_items AS work
-    SET status = 'claimed',
-        attempt_count = work.attempt_count + 1,
-        lease_owner = $2,
-        claim_until = $3,
-        last_attempt_at = $1,
-        updated_at = $1
-    FROM candidate
-    WHERE work.work_item_id = candidate.work_item_id
-    RETURNING work.scope_id, work.generation_id, work.attempt_count
-)
-SELECT
-    scope.scope_id,
-    scope.source_system,
-    scope.scope_kind,
-    COALESCE(scope.parent_scope_id, ''),
-    COALESCE(scope.active_generation_id, ''),
-    EXISTS (
-        SELECT 1
-        FROM scope_generations AS prior_generation
-        WHERE prior_generation.scope_id = scope.scope_id
-          AND prior_generation.generation_id <> claimed.generation_id
-    ),
-    scope.collector_kind,
-    scope.partition_key,
-    generation.generation_id,
-    claimed.attempt_count,
-    generation.observed_at,
-    generation.ingested_at,
-    generation.status,
-    generation.trigger_kind,
-    COALESCE(generation.freshness_hint, ''),
-    COALESCE(scope.payload, '{}'::jsonb)
-FROM claimed
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = claimed.scope_id
-JOIN scope_generations AS generation
-  ON generation.generation_id = claimed.generation_id
-`
-
-const supersedeProjectorActiveGenerationQuery = `
-UPDATE scope_generations
-SET status = 'superseded',
-    superseded_at = $1
-WHERE scope_id = $2
-  AND generation_id <> $3
-  AND status = 'active'
-`
-
-const activateProjectorGenerationQuery = `
-UPDATE scope_generations
-SET status = 'active',
-    activated_at = COALESCE(activated_at, $1),
-    superseded_at = NULL
-WHERE scope_id = $2
-  AND generation_id = $3
-`
-
-const updateProjectorScopeGenerationQuery = `
-UPDATE ingestion_scopes
-SET status = 'active',
-    active_generation_id = $3,
-    ingested_at = $1
-WHERE scope_id = $2
-`
-
-const ackProjectorWorkItemQuery = `
-UPDATE fact_work_items
-SET status = 'succeeded',
-    lease_owner = NULL,
-    claim_until = NULL,
-    visible_at = NULL,
-    updated_at = $1,
-    failure_class = NULL,
-    failure_message = NULL,
-    failure_details = NULL
-WHERE stage = 'projector'
-  AND scope_id = $2
-  AND generation_id = $3
-  AND lease_owner = $4
-  AND status IN ('claimed', 'running')
-`
-
-const heartbeatProjectorWorkQuery = `
-UPDATE fact_work_items
-SET status = 'running',
-    claim_until = $1,
-    updated_at = $2
-WHERE stage = 'projector'
-  AND scope_id = $3
-  AND generation_id = $4
-  AND lease_owner = $5
-  AND status IN ('claimed', 'running')
-`
-
-const retryProjectorWorkQuery = `
-UPDATE fact_work_items
-SET status = 'retrying',
-    lease_owner = NULL,
-    claim_until = NULL,
-    visible_at = $5,
-    next_attempt_at = $5,
-    updated_at = $1,
-    failure_class = $2,
-    failure_message = $3,
-    failure_details = $4
-WHERE stage = 'projector'
-  AND scope_id = $6
-  AND generation_id = $7
-  AND lease_owner = $8
-  AND status IN ('claimed', 'running')
-`
-
-const failProjectorWorkQuery = `
-WITH failed_generation AS (
-    UPDATE scope_generations
-    SET status = 'failed'
-    WHERE generation_id = $6
-      AND status IN ('pending', 'active')
-),
-scope_update AS (
-    UPDATE ingestion_scopes
-    SET status = CASE
-            WHEN active_generation_id = $6 OR active_generation_id IS NULL THEN 'failed'
-            ELSE status
-        END,
-        active_generation_id = CASE
-            WHEN active_generation_id = $6 THEN NULL
-            ELSE active_generation_id
-        END,
-        ingested_at = CASE
-            WHEN active_generation_id = $6 OR active_generation_id IS NULL THEN $1
-            ELSE ingested_at
-        END
-    WHERE scope_id = $5
-)
-UPDATE fact_work_items
-SET status = 'dead_letter',
-    lease_owner = NULL,
-    claim_until = NULL,
-    visible_at = NULL,
-    updated_at = $1,
-    failure_class = $2,
-    failure_message = $3,
-    failure_details = $4
-WHERE stage = 'projector'
-  AND scope_id = $5
-  AND generation_id = $6
-  AND lease_owner = $7
-  AND status IN ('claimed', 'running')
-`
-
 // ProjectorQueue provides projector-stage queue claim and ack behavior.
 type ProjectorQueue struct {
 	db            ExecQueryer
@@ -376,6 +176,14 @@ func (q ProjectorQueue) Heartbeat(ctx context.Context, work projector.ScopeGener
 	}
 
 	now := q.now()
+	superseded, err := q.supersedeRunningWorkIfNewerGenerationExists(ctx, work, now)
+	if err != nil {
+		return err
+	}
+	if superseded {
+		return projector.ErrWorkSuperseded
+	}
+
 	result, err := q.db.ExecContext(
 		ctx,
 		heartbeatProjectorWorkQuery,
@@ -396,6 +204,32 @@ func (q ProjectorQueue) Heartbeat(ctx context.Context, work projector.ScopeGener
 		return ErrProjectorClaimRejected
 	}
 	return nil
+}
+
+func (q ProjectorQueue) supersedeRunningWorkIfNewerGenerationExists(
+	ctx context.Context,
+	work projector.ScopeGenerationWork,
+	now time.Time,
+) (bool, error) {
+	result, err := q.db.ExecContext(
+		ctx,
+		supersedeRunningProjectorWorkQuery,
+		now,
+		work.Scope.ScopeID,
+		work.Generation.GenerationID,
+		q.LeaseOwner,
+	)
+	if err != nil {
+		return false, fmt.Errorf("supersede running projector work: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("supersede running projector work: rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return false, nil
+	}
+	return true, nil
 }
 
 // Fail marks one claimed projector work item as failed.

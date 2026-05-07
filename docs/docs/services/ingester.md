@@ -41,8 +41,9 @@ work. It runs indefinitely until stopped via SIGTERM.
   GitSource internally uses N snapshot workers with size-tiered scheduling
   (two-lane channels for small/large repos, semaphore-limited large repo
   concurrency).
-- **Projector**: N workers (default min(NumCPU, 4), configurable via
-  `ESHU_PROJECTOR_WORKERS`) competing for queue items via `FOR UPDATE SKIP LOCKED`.
+- **Projector**: N workers (default min(NumCPU, 8); NornicDB
+  local-authoritative uses NumCPU) competing for queue items via
+  `FOR UPDATE SKIP LOCKED`.
 - **Key difference from Bootstrap-Index**: The ingester runs indefinitely.
   After draining the current batch, `GitSource.Next()` resets and triggers a
   fresh discovery cycle on the next poll.
@@ -58,7 +59,7 @@ work. It runs indefinitely until stopped via SIGTERM.
 
 | Env Var | Default | Purpose |
 |---------|---------|---------|
-| `ESHU_PROJECTOR_WORKERS` | min(NumCPU, 4) | Concurrent projection workers |
+| `ESHU_PROJECTOR_WORKERS` | min(NumCPU, 8); NornicDB local-authoritative: NumCPU | Concurrent projection workers |
 | `ESHU_RETRY_DELAY` | 30s | Retry delay for failed projections |
 | `ESHU_MAX_ATTEMPTS` | 3 | Max retry attempts before terminal failure |
 | `ESHU_NEO4J_BATCH_SIZE` | 500 | Records per UNWIND batch |
@@ -89,14 +90,12 @@ source-local writes with batched UNWIND.
 - **Impact**: Proportional to edge count per projection cycle. For repos with
   thousands of edges, this eliminates thousands of round-trips.
 
-**2. Projector worker count ceiling at 4** (`cmd/ingester/wiring.go:153-168`)
+**2. Projector worker count tuning** (`cmd/ingester/wiring.go`)
 
-`projectorWorkerCount()` caps at 4 even on 16+ core instances. During
-projection-heavy periods, this leaves CPU idle.
-
-- **Fix**: Raise the default cap to `min(NumCPU, 8)` (matching bootstrap-index)
-  or remove the cap entirely since `ESHU_PROJECTOR_WORKERS` already exists for
-  manual override.
+`projectorWorkerCount()` now uses NumCPU for NornicDB local-authoritative runs
+and `min(NumCPU, 8)` elsewhere. If projection-heavy periods still leave CPU
+idle, compare projector stage timings and graph-write telemetry before raising
+`ESHU_PROJECTOR_WORKERS` beyond host CPU count.
 
 **3. Fixed polling interval with no adaptive backoff**
 

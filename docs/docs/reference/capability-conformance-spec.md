@@ -279,6 +279,15 @@ actual Neo4j or NornicDB instances.
       verification:
         - integration_test: lightweight-local-unsupported-transitive-callers
       notes: Lightweight local mode must not fake authoritative transitive truth.
+    local_authoritative:
+      status: supported
+      max_truth_level: exact
+      required_runtime: local_host_plus_graph
+      p95_latency_ms: 2000
+      max_scope_size: active_repo
+      verification:
+        - integration_test: local-authoritative-transitive-callers
+      notes: Authoritative local graph mode.
     local_full_stack:
       status: supported
       max_truth_level: exact
@@ -304,6 +313,15 @@ actual Neo4j or NornicDB instances.
       verification:
         - integration_test: local-lightweight-unsupported-context-overview
       notes: Requires full platform topology and deployed context truth.
+    local_authoritative:
+      status: supported
+      max_truth_level: exact
+      required_runtime: local_host_plus_graph
+      p95_latency_ms: 4000
+      max_scope_size: indexed_workspace
+      verification:
+        - go_test: ./internal/query
+      notes: Authoritative local graph context for the indexed workspace.
     local_full_stack:
       status: supported
       max_truth_level: exact

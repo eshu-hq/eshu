@@ -180,18 +180,19 @@ func TestCanonicalNodeWriterBatching(t *testing.T) {
 	// Collect file-phase calls
 	var fileCalls []Statement
 	for _, call := range exec.calls {
-		if call.Operation == OperationCanonicalUpsert && strings.Contains(call.Cypher, "MERGE (f:File") {
+		if call.Operation == OperationCanonicalUpsert && call.Parameters[StatementMetadataPhaseKey] == CanonicalPhaseFiles {
 			fileCalls = append(fileCalls, call)
 		}
 	}
 
-	// 3 files with batch size 2 => 2 batches (2 + 1)
-	if len(fileCalls) != 2 {
-		t.Fatalf("file batches = %d, want 2", len(fileCalls))
+	// 3 files with batch size 2 => 2 batches (2 + 1), each with
+	// update-existing and create-missing statements.
+	if len(fileCalls) != 4 {
+		t.Fatalf("file statements = %d, want 4", len(fileCalls))
 	}
 
 	batch1Rows := fileCalls[0].Parameters["rows"].([]map[string]any)
-	batch2Rows := fileCalls[1].Parameters["rows"].([]map[string]any)
+	batch2Rows := fileCalls[2].Parameters["rows"].([]map[string]any)
 	if len(batch1Rows) != 2 {
 		t.Fatalf("batch 1 rows = %d, want 2", len(batch1Rows))
 	}
@@ -203,6 +204,15 @@ func TestCanonicalNodeWriterBatching(t *testing.T) {
 	}
 	if summary, _ := fileCalls[0].Parameters[StatementMetadataSummaryKey].(string); !strings.Contains(summary, "phase=files rows=2") {
 		t.Fatalf("file statement summary = %q, want row count", summary)
+	}
+	if !strings.Contains(fileCalls[0].Cypher, "MATCH (f:File {path: row.path})") {
+		t.Fatalf("first file statement = %q, want existing-file update", fileCalls[0].Cypher)
+	}
+	if strings.Contains(fileCalls[0].Cypher, "MERGE (f:File") {
+		t.Fatalf("existing-file update statement must not MERGE File: %s", fileCalls[0].Cypher)
+	}
+	if !strings.Contains(fileCalls[1].Cypher, "WHERE NOT EXISTS { MATCH (:File {path: row.path}) }") {
+		t.Fatalf("second file statement = %q, want missing-file guard", fileCalls[1].Cypher)
 	}
 }
 
@@ -243,19 +253,19 @@ func TestCanonicalNodeWriterFileBatchSizeOverride(t *testing.T) {
 
 	var fileCalls []Statement
 	for _, call := range exec.calls {
-		if call.Operation == OperationCanonicalUpsert && strings.Contains(call.Cypher, "MERGE (f:File") {
+		if call.Operation == OperationCanonicalUpsert && call.Parameters[StatementMetadataPhaseKey] == CanonicalPhaseFiles {
 			fileCalls = append(fileCalls, call)
 		}
 	}
-	if len(fileCalls) != 3 {
-		t.Fatalf("file batches = %d, want 3", len(fileCalls))
+	if len(fileCalls) != 6 {
+		t.Fatalf("file statements = %d, want 6", len(fileCalls))
 	}
 	for i, wantRows := range []int{3, 3, 1} {
-		rows := fileCalls[i].Parameters["rows"].([]map[string]any)
+		rows := fileCalls[i*2].Parameters["rows"].([]map[string]any)
 		if len(rows) != wantRows {
 			t.Fatalf("file batch %d rows = %d, want %d", i, len(rows), wantRows)
 		}
-		if got, want := fileCalls[i].Parameters[StatementMetadataPhaseKey], CanonicalPhaseFiles; got != want {
+		if got, want := fileCalls[i*2].Parameters[StatementMetadataPhaseKey], CanonicalPhaseFiles; got != want {
 			t.Fatalf("file batch %d phase = %#v, want %#v", i, got, want)
 		}
 	}
@@ -299,19 +309,34 @@ func TestCanonicalNodeWriterRetraction(t *testing.T) {
 		t.Fatal("expected retraction calls, got 0")
 	}
 
-	// Retraction calls should all come before any upsert
-	lastRetractIdx := -1
+	// Early retraction calls run before upserts; entity_retract intentionally
+	// runs after entity upserts so current nodes carry the new generation_id.
+	lastEarlyRetractIdx := -1
 	firstUpsertIdx := -1
+	entityRetractIdx := -1
+	entityUpsertIdx := -1
 	for i, call := range exec.calls {
-		if call.Operation == OperationCanonicalRetract {
-			lastRetractIdx = i
+		phase, _ := call.Parameters[StatementMetadataPhaseKey].(string)
+		if call.Operation == OperationCanonicalRetract &&
+			phase != "directory_cleanup" &&
+			phase != "entity_retract" {
+			lastEarlyRetractIdx = i
+		}
+		if phase == "entity_retract" && entityRetractIdx == -1 {
+			entityRetractIdx = i
+		}
+		if phase == "entities" && entityUpsertIdx == -1 {
+			entityUpsertIdx = i
 		}
 		if call.Operation == OperationCanonicalUpsert && firstUpsertIdx == -1 {
 			firstUpsertIdx = i
 		}
 	}
-	if firstUpsertIdx >= 0 && lastRetractIdx >= firstUpsertIdx {
-		t.Fatalf("retraction call at index %d came after upsert at index %d", lastRetractIdx, firstUpsertIdx)
+	if firstUpsertIdx >= 0 && lastEarlyRetractIdx >= firstUpsertIdx {
+		t.Fatalf("early retraction call at index %d came after upsert at index %d", lastEarlyRetractIdx, firstUpsertIdx)
+	}
+	if entityUpsertIdx >= 0 && entityRetractIdx >= 0 && entityRetractIdx <= entityUpsertIdx {
+		t.Fatalf("entity_retract call at index %d came before entity upsert at index %d", entityRetractIdx, entityUpsertIdx)
 	}
 
 	// Verify retraction deletes stale nodes or refreshes current structural
@@ -324,7 +349,9 @@ func TestCanonicalNodeWriterRetraction(t *testing.T) {
 		if _, ok := params["repo_id"]; !ok {
 			if _, ok := params["file_paths"]; !ok {
 				if _, ok := params["entity_ids"]; !ok {
-					t.Fatalf("retract call[%d] missing repo_id, file_paths, or entity_ids param", i)
+					if _, ok := params["rows"]; !ok {
+						t.Fatalf("retract call[%d] missing repo_id, file_paths, entity_ids, or rows param", i)
+					}
 				}
 			}
 		}
@@ -411,44 +438,44 @@ func TestCanonicalNodeWriterRetractPreservesCurrentEntityAndDirectoryIdentities(
 		},
 	}
 
-	var codeRetract Statement
+	var functionRetract Statement
+	var structRetract Statement
 	var infraRetract Statement
 	var directoryRetract Statement
-	for _, stmt := range writer.buildRetractStatements(mat) {
+	for _, stmt := range writer.buildEntityRetractStatements(mat) {
 		switch {
-		case strings.Contains(stmt.Cypher, "n:Function OR n:Class"):
-			codeRetract = stmt
-		case strings.Contains(stmt.Cypher, "n:K8sResource OR n:ArgoCDApplication"):
+		case strings.Contains(stmt.Cypher, "MATCH (n:Function)"):
+			functionRetract = stmt
+		case strings.Contains(stmt.Cypher, "MATCH (n:Struct)"):
+			structRetract = stmt
+		case strings.Contains(stmt.Cypher, "MATCH (n:K8sResource)"):
 			infraRetract = stmt
 		case strings.Contains(stmt.Cypher, "MATCH (d:Directory)"):
 			directoryRetract = stmt
 		}
 	}
-	if codeRetract.Cypher == "" {
-		t.Fatal("missing code entity retract statement")
+	if functionRetract.Cypher == "" {
+		t.Fatal("missing Function entity retract statement")
 	}
-	if !strings.Contains(codeRetract.Cypher, "NOT (n.uid IN $entity_ids)") {
-		t.Fatalf("code entity retract cypher = %q, want current entity exclusion", codeRetract.Cypher)
+	if strings.Contains(functionRetract.Cypher, "IN $entity_ids") {
+		t.Fatalf("Function entity retract cypher = %q, want generation-only stale cleanup", functionRetract.Cypher)
 	}
-	gotEntityIDs, ok := codeRetract.Parameters["entity_ids"].([]string)
-	if !ok {
-		t.Fatalf("entity_ids parameter type = %T, want []string", codeRetract.Parameters["entity_ids"])
+	if _, ok := functionRetract.Parameters["entity_ids"]; ok {
+		t.Fatalf("Function entity retract should not carry entity_ids after current entity upsert")
 	}
-	wantEntityIDs := []string{"entity-function-1", "entity-struct-1"}
-	if strings.Join(gotEntityIDs, "\n") != strings.Join(wantEntityIDs, "\n") {
-		t.Fatalf("entity_ids = %v, want %v", gotEntityIDs, wantEntityIDs)
+	if structRetract.Cypher == "" {
+		t.Fatal("missing Struct entity retract statement")
 	}
 	if infraRetract.Cypher == "" {
-		t.Fatal("missing infra entity retract statement")
-	}
-	gotInfraEntityIDs, ok := infraRetract.Parameters["entity_ids"].([]string)
-	if !ok {
-		t.Fatalf("infra entity_ids parameter type = %T, want []string", infraRetract.Parameters["entity_ids"])
-	}
-	if strings.Join(gotInfraEntityIDs, "\n") != "entity-k8s-1" {
-		t.Fatalf("infra entity_ids = %v, want [entity-k8s-1]", gotInfraEntityIDs)
+		t.Fatal("missing K8sResource entity retract statement")
 	}
 
+	for _, stmt := range writer.buildRetractStatements(mat) {
+		if strings.Contains(stmt.Cypher, "MATCH (d:Directory)") {
+			directoryRetract = stmt
+			break
+		}
+	}
 	if directoryRetract.Cypher == "" {
 		t.Fatal("missing Directory retract statement")
 	}

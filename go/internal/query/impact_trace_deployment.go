@@ -39,7 +39,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			w,
 			r,
 			http.StatusNotImplemented,
-			"deployment-chain tracing requires full platform truth",
+			"deployment-chain tracing requires authoritative platform truth",
 			"unsupported_capability",
 			"platform_impact.deployment_chain",
 			h.profile(),

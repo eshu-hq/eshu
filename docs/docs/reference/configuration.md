@@ -85,16 +85,16 @@ bootstrap, reducer, and watch flows.
 
 | Key | Default | Description |
 | :--- | :--- | :--- |
-| **`ESHU_SNAPSHOT_WORKERS`** | `min(NumCPU, 8)` | Concurrent repository snapshot workers for collector/bootstrap discovery and collection. |
-| **`ESHU_PARSE_WORKERS`** | `min(NumCPU, 8)` | Concurrent file-parse workers inside a repository snapshot. |
+| **`ESHU_SNAPSHOT_WORKERS`** | `min(NumCPU, 8)`; local-authoritative owner: `NumCPU` | Concurrent repository snapshot workers for collector/bootstrap discovery and collection. |
+| **`ESHU_PARSE_WORKERS`** | `min(NumCPU, 8)`; local-authoritative owner: `NumCPU` | Concurrent file-parse workers inside a repository snapshot. |
 | **`ESHU_STREAM_BUFFER`** | `0` | Optional buffer for streaming collected generations. `0` means use the worker-count-derived default. |
 | **`ESHU_LARGE_REPO_FILE_THRESHOLD`** | `1000` | File-count threshold above which a repository is treated as “large” for concurrency limiting. |
 | **`ESHU_LARGE_REPO_MAX_CONCURRENT`** | `2` | Maximum number of large repositories that may be snapshotted concurrently. |
-| **`ESHU_PROJECTOR_WORKERS`** | Default: `min(NumCPU, 8)`; NornicDB local-authoritative: `1` | Concurrent source-local projection workers in the ingester runtime. |
+| **`ESHU_PROJECTOR_WORKERS`** | Default: `min(NumCPU, 8)`; NornicDB local-authoritative: `NumCPU` | Concurrent source-local projection workers in the ingester runtime. |
 | **`ESHU_LARGE_GEN_THRESHOLD`** | `10000` | Fact-count threshold above which a projector generation is treated as “large”. |
 | **`ESHU_LARGE_GEN_MAX_CONCURRENT`** | Default: `2`; local-authoritative: `4` | Maximum number of large projector generations processed concurrently. |
 | **`ESHU_PROJECTION_WORKERS`** | `min(NumCPU, 8)` | Concurrent bootstrap-index projection workers. |
-| **`ESHU_REDUCER_WORKERS`** | Neo4j: `min(NumCPU, 4)`; NornicDB: `min(NumCPU, 8)` | Concurrent reducer intent workers in the resolution engine. |
+| **`ESHU_REDUCER_WORKERS`** | Neo4j: `min(NumCPU, 4)`; NornicDB: `NumCPU` | Concurrent reducer intent workers in the resolution engine. |
 | **`ESHU_REDUCER_BATCH_CLAIM_SIZE`** | Neo4j: `workers * 4` (min 4, max 64); NornicDB: `workers` | Number of reducer intents claimed per polling cycle. |
 | **`ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT`** | NornicDB: `1`; otherwise disabled | Concurrent semantic entity materialization claims after source-local drain. |
 | **`ESHU_REDUCER_CLAIM_DOMAIN`** | unset | Optional domain filter for split-reducer diagnostics, for example `sql_relationship_materialization` or `deployment_mapping`. Leave unset for the normal all-domain reducer. |

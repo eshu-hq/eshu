@@ -21,30 +21,12 @@ func (w *CanonicalNodeWriter) buildRetractStatements(mat projector.CanonicalMate
 	for i, f := range mat.Files {
 		filePaths[i] = f.Path
 	}
-	entityIDsByFamily := map[string][]string{
-		canonicalNodeRetractCodeEntitiesCypher:           canonicalEntityIDsForLabels(mat.Entities, canonicalNodeRetractCodeEntityLabels),
-		canonicalNodeRetractInfraEntitiesCypher:          canonicalEntityIDsForLabels(mat.Entities, canonicalNodeRetractInfraEntityLabels),
-		canonicalNodeRetractTerraformEntitiesCypher:      canonicalEntityIDsForLabels(mat.Entities, canonicalNodeRetractTerraformEntityLabels),
-		canonicalNodeRetractCloudFormationEntitiesCypher: canonicalEntityIDsForLabels(mat.Entities, canonicalNodeRetractCloudFormationEntityLabels),
-		canonicalNodeRetractSQLEntitiesCypher:            canonicalEntityIDsForLabels(mat.Entities, canonicalNodeRetractSQLEntityLabels),
-		canonicalNodeRetractDataEntitiesCypher:           canonicalEntityIDsForLabels(mat.Entities, canonicalNodeRetractDataEntityLabels),
-	}
 	directoryPaths := make([]string, len(mat.Directories))
 	for i, directory := range mat.Directories {
 		directoryPaths[i] = directory.Path
 	}
 
-	retractions := []string{
-		canonicalNodeRetractCodeEntitiesCypher,
-		canonicalNodeRetractInfraEntitiesCypher,
-		canonicalNodeRetractTerraformEntitiesCypher,
-		canonicalNodeRetractCloudFormationEntitiesCypher,
-		canonicalNodeRetractSQLEntitiesCypher,
-		canonicalNodeRetractDataEntitiesCypher,
-		canonicalNodeRetractDirectoriesCypher,
-	}
-
-	stmts := make([]Statement, 0, len(retractions)+2)
+	stmts := make([]Statement, 0, 3)
 	fileRetractCypher := canonicalNodeRetractFilesCypher
 	fileRetractParams := retractParams
 	if len(filePaths) > 0 {
@@ -73,29 +55,18 @@ func (w *CanonicalNodeWriter) buildRetractStatements(mat projector.CanonicalMate
 				canonicalNodeRefreshFilePathBatchSize,
 			)...)
 		}
-		stmts = append(stmts, buildFileEntityRefreshStatements(mat.Files, mat.Entities)...)
 	}
 	stmts = append(stmts, buildEntityContainmentRefreshStatements(mat.Entities, mat.ClassMembers, mat.NestedFuncs)...)
 
-	for _, cypher := range retractions {
-		params := map[string]any{
-			"repo_id":       mat.RepoID,
-			"generation_id": mat.GenerationID,
-			"entity_ids":    entityIDsByFamily[cypher],
-		}
-		if cypher == canonicalNodeRetractDirectoriesCypher {
-			params = map[string]any{
-				"repo_id":         mat.RepoID,
-				"generation_id":   mat.GenerationID,
-				"directory_paths": directoryPaths,
-			}
-		}
-		stmts = append(stmts, Statement{
-			Operation:  OperationCanonicalRetract,
-			Cypher:     cypher,
-			Parameters: params,
-		})
-	}
+	stmts = append(stmts, Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher:    canonicalNodeRetractDirectoriesCypher,
+		Parameters: map[string]any{
+			"repo_id":         mat.RepoID,
+			"generation_id":   mat.GenerationID,
+			"directory_paths": directoryPaths,
+		},
+	})
 
 	// Parameter retraction uses file_paths
 	if len(filePaths) > 0 {
@@ -112,14 +83,46 @@ func (w *CanonicalNodeWriter) buildRetractStatements(mat projector.CanonicalMate
 	return stmts
 }
 
-func canonicalEntityIDsForLabels(entities []projector.EntityRow, labels map[string]struct{}) []string {
-	entityIDs := make([]string, 0, len(entities))
-	for _, entity := range entities {
-		if _, ok := labels[entity.Label]; ok {
-			entityIDs = append(entityIDs, entity.EntityID)
+func (w *CanonicalNodeWriter) buildEntityRetractStatements(mat projector.CanonicalMaterialization) []Statement {
+	if mat.FirstGeneration {
+		return nil
+	}
+	labels := canonicalNodeRetractEntityLabels()
+	stmts := make([]Statement, 0, len(labels))
+	for _, label := range labels {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    fmt.Sprintf(canonicalNodeRetractEntityTemplate, label),
+			Parameters: map[string]any{
+				"repo_id":       mat.RepoID,
+				"generation_id": mat.GenerationID,
+			},
+		})
+	}
+	return stmts
+}
+
+func canonicalNodeRetractEntityLabels() []string {
+	labels := make(map[string]struct{})
+	for _, family := range []map[string]struct{}{
+		canonicalNodeRetractCodeEntityLabels,
+		canonicalNodeRetractInfraEntityLabels,
+		canonicalNodeRetractTerraformEntityLabels,
+		canonicalNodeRetractCloudFormationEntityLabels,
+		canonicalNodeRetractSQLEntityLabels,
+		canonicalNodeRetractDataEntityLabels,
+	} {
+		for label := range family {
+			labels[label] = struct{}{}
 		}
 	}
-	return entityIDs
+
+	sorted := make([]string, 0, len(labels))
+	for label := range labels {
+		sorted = append(sorted, label)
+	}
+	sort.Strings(sorted)
+	return sorted
 }
 
 func buildStringSliceRetractStatements(cypher string, paramName string, values []string, batchSize int) []Statement {
@@ -146,56 +149,13 @@ func buildStringSliceRetractStatements(cypher string, paramName string, values [
 	return stmts
 }
 
-func buildFileEntityRefreshStatements(files []projector.FileRow, entities []projector.EntityRow) []Statement {
-	if len(files) == 0 {
-		return nil
-	}
-	entityIDsByFile := make(map[string][]string, len(files))
-	seenByFile := make(map[string]map[string]struct{}, len(files))
-	for _, entity := range entities {
-		if entity.FilePath == "" || entity.EntityID == "" {
-			continue
-		}
-		seen := seenByFile[entity.FilePath]
-		if seen == nil {
-			seen = make(map[string]struct{})
-			seenByFile[entity.FilePath] = seen
-		}
-		if _, ok := seen[entity.EntityID]; ok {
-			continue
-		}
-		seen[entity.EntityID] = struct{}{}
-		entityIDsByFile[entity.FilePath] = append(entityIDsByFile[entity.FilePath], entity.EntityID)
-	}
-
-	stmts := make([]Statement, 0, len(files))
-	seenFiles := make(map[string]struct{}, len(files))
-	for _, file := range files {
-		if file.Path == "" {
-			continue
-		}
-		if _, ok := seenFiles[file.Path]; ok {
-			continue
-		}
-		seenFiles[file.Path] = struct{}{}
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    canonicalNodeRefreshCurrentFileEntityEdgesCypher,
-			Parameters: map[string]any{
-				"file_path":  file.Path,
-				"entity_ids": append([]string(nil), entityIDsByFile[file.Path]...),
-			},
-		})
-	}
-	return stmts
-}
-
 func buildEntityContainmentRefreshStatements(
 	entities []projector.EntityRow,
 	classMembers []projector.ClassMemberRow,
 	nestedFuncs []projector.NestedFunctionRow,
 ) []Statement {
 	parentChildIDs := make(map[string]map[string]struct{})
+	parentLabels := make(map[string]string)
 	classIDsByFileName := make(map[string][]string)
 	functionIDsByFileName := make(map[string][]string)
 	functionIDsByFileNameLine := make(map[string][]string)
@@ -207,12 +167,14 @@ func buildEntityContainmentRefreshStatements(
 		switch entity.Label {
 		case "Class":
 			parentChildIDs[entity.EntityID] = make(map[string]struct{})
+			parentLabels[entity.EntityID] = entity.Label
 			classIDsByFileName[fileNameKey(entity.FilePath, entity.EntityName)] = append(
 				classIDsByFileName[fileNameKey(entity.FilePath, entity.EntityName)],
 				entity.EntityID,
 			)
 		case "Function":
 			parentChildIDs[entity.EntityID] = make(map[string]struct{})
+			parentLabels[entity.EntityID] = entity.Label
 			functionIDsByFileName[fileNameKey(entity.FilePath, entity.EntityName)] = append(
 				functionIDsByFileName[fileNameKey(entity.FilePath, entity.EntityName)],
 				entity.EntityID,
@@ -257,19 +219,40 @@ func buildEntityContainmentRefreshStatements(
 	}
 	sort.Strings(parentIDs)
 
-	rows := make([]map[string]any, 0, len(parentIDs))
+	rowsByLabel := make(map[string][]map[string]any, 2)
 	for _, parentID := range parentIDs {
 		childIDs := make([]string, 0, len(parentChildIDs[parentID]))
 		for childID := range parentChildIDs[parentID] {
 			childIDs = append(childIDs, childID)
 		}
 		sort.Strings(childIDs)
-		rows = append(rows, map[string]any{
+		label := parentLabels[parentID]
+		rowsByLabel[label] = append(rowsByLabel[label], map[string]any{
 			"parent_entity_id": parentID,
 			"child_entity_ids": childIDs,
 		})
 	}
-	return buildBatchedRetractStatements(canonicalNodeRefreshCurrentEntityContainmentEdgesCypher, rows, canonicalNodeRefreshEntityContainmentBatchSize)
+
+	labels := make([]string, 0, len(rowsByLabel))
+	for label := range rowsByLabel {
+		if label != "" {
+			labels = append(labels, label)
+		}
+	}
+	sort.Strings(labels)
+
+	stmts := make([]Statement, 0, len(parentIDs))
+	for _, label := range labels {
+		stmts = append(
+			stmts,
+			buildBatchedRetractStatements(
+				fmt.Sprintf(canonicalNodeRefreshCurrentEntityContainmentEdgesTemplate, label),
+				rowsByLabel[label],
+				canonicalNodeRefreshEntityContainmentBatchSize,
+			)...,
+		)
+	}
+	return stmts
 }
 
 func fileNameKey(filePath, name string) string {

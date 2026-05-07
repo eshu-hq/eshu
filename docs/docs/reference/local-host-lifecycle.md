@@ -8,14 +8,17 @@ local Eshu service.
 1. acquire `owner.lock`
 2. validate `VERSION`
 3. validate or reclaim stale service record
-4. start embedded Postgres and wait until it accepts local connections
-5. if profile is `local_authoritative`, start embedded NornicDB and wait until
+4. if no owner record remains but the workspace Postgres data directory still
+   has a live `postmaster.pid`, verify PID liveness, socket health, and the
+   recorded Postgres port before stopping that ownerless process
+5. start embedded Postgres and wait until it accepts local connections
+6. if profile is `local_authoritative`, start embedded NornicDB and wait until
    its recorded loopback health and Bolt endpoints accept connections
-6. start local service socket
-7. start watcher / index pipeline
-8. begin serving CLI and MCP attach traffic
+7. start local service socket
+8. start watcher / index pipeline
+9. begin serving CLI and MCP attach traffic
 
-Step 5 is skipped entirely on `local_lightweight`. Embedded NornicDB is the
+Step 6 is skipped entirely on `local_lightweight`. Embedded NornicDB is the
 default local-authoritative graph runtime; process mode is an explicit testing
 override documented in `graph-backend-installation.md` and
 `graph-backend-operations.md`.
@@ -56,9 +59,12 @@ On restart:
    if still alive but the Eshu service is dead, attempt a clean internal stop
    through the recorded PID before reclaiming
 3. detect stale service records
-4. reclaim ownership only after lock acquisition, liveness checks, and
+4. if `owner.json` was already removed but `postmaster.pid` remains live in the
+   workspace Postgres data directory, stop it only after `owner.lock` is held
+   and PID, socket, and Postgres protocol probes all agree
+5. reclaim ownership only after lock acquisition, liveness checks, and
    any graph-backend stop step above has succeeded
-5. rebuild any derived local caches if necessary
+6. rebuild any derived local caches if necessary
 
 For the current NornicDB-backed path, graph health is loopback-TCP based:
 

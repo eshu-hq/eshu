@@ -57,7 +57,7 @@ func TestNornicDBTuningDocCanonicalDefaultsMatchCode(t *testing.T) {
 	}
 }
 
-func TestProjectorWorkerCountDefaultsToOneForNornicDBLocalAuthoritative(t *testing.T) {
+func TestProjectorWorkerCountDefaultsToCPUForNornicDBLocalAuthoritative(t *testing.T) {
 	t.Parallel()
 
 	got := projectorWorkerCount(func(key string) string {
@@ -70,8 +70,8 @@ func TestProjectorWorkerCountDefaultsToOneForNornicDBLocalAuthoritative(t *testi
 			return ""
 		}
 	})
-	if got != 1 {
-		t.Fatalf("projectorWorkerCount() = %d, want 1 for NornicDB local_authoritative safety", got)
+	if got != runtime.NumCPU() {
+		t.Fatalf("projectorWorkerCount() = %d, want runtime.NumCPU()", got)
 	}
 }
 

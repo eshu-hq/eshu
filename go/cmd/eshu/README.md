@@ -54,6 +54,39 @@ launched runtime via the shared `telemetry` package. Errors print to
 - `SilenceUsage` and `SilenceErrors` are set on the root command
 - `eshu graph start` requires `eshu-reducer` and `eshu-ingester` on `PATH`;
   fresh local Eshu service runs need `go/bin` on `PATH` after rebuilding
+- `eshu graph start` acquires `owner.lock` through the local host startup path
+  before embedded Postgres starts. If an earlier shutdown removed `owner.json`
+  but left a live workspace `postmaster.pid`, startup verifies PID liveness,
+  socket health, and the Postgres protocol before running `pg_ctl stop` and
+  starting a fresh embedded Postgres.
+- `local_authoritative` rebuilds from the workspace source tree on owner start,
+  so startup clears the rebuildable Postgres `data` / `runtime` directories and
+  the local NornicDB graph store before launching children. The reset preserves
+  managed Postgres binaries and logs while avoiding stale queue rows, old graph
+  nodes, and NornicDB search-index warmup over obsolete data
+  (`local_host_reset.go`).
+- For `local_authoritative` + NornicDB, the local owner sets snapshot, parse,
+  projector, and reducer worker env vars to the developer machine's CPU count
+  before launching `eshu-ingester` and `eshu-reducer`. Explicit env vars still
+  win, so a developer can lower or raise a single pool without changing the
+  owner code (`local_host_config.go` and `local_host.go`).
+- `graphBoltHealthy` sends the Bolt magic + four version proposals and reads
+  the 4-byte server response. The response must match one offered protocol
+  version; `00 00 00 00` means the server rejected negotiation and is not ready.
+  A TCP-only dial is insufficient because embedded NornicDB accepts connections
+  before the Bolt protocol handler is fully ready, causing a handshake EOF on
+  the first schema bootstrap attempt.
+- `eshu graph stop` sends `SIGTERM` to the owner supervisor for both
+  `local_lightweight` and `local_authoritative` profiles only after ownership
+  checks pass. Lightweight stop requires the recorded Postgres socket to be
+  healthy before signaling the owner PID; otherwise it acquires `owner.lock`,
+  stops any recorded embedded Postgres child, and only then removes stale
+  metadata. Authoritative stop uses the same lock-before-reclaim discipline when
+  the owner PID is already gone: if the graph is unhealthy, it stops any
+  recorded embedded Postgres child and removes stale metadata. If the lock is
+  still held, the record is preserved for the running owner or the next reclaim
+  path. Authoritative stop additionally waits for the graph sidecar (NornicDB)
+  to become unreachable.
 - The default local graph path is embedded NornicDB when `eshu` is built with
   `nolocalllm`; `ESHU_NORNICDB_RUNTIME=process` is the only runtime-mode
   override, while `ESHU_NORNICDB_BINARY` selects process mode for a specific
@@ -62,6 +95,10 @@ launched runtime via the shared `telemetry` package. Errors print to
   under the local graph data directory; child services receive the same values
   through `ESHU_NEO4J_USERNAME`, `ESHU_NEO4J_PASSWORD`, `NEO4J_USERNAME`, and
   `NEO4J_PASSWORD`
+- Embedded NornicDB must wire Bolt through the HTTP server's role, database
+  access, and resolved-access callbacks. Without that shared RBAC path,
+  authenticated child services can connect but projector writes to the default
+  `nornic` database fail with a Neo4j security-forbidden error.
 - `--database` mutates the process environment via `os.Setenv`
 
 ## Related docs

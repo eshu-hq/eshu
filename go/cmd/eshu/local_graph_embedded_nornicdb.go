@@ -156,6 +156,8 @@ func startEmbeddedNornicDBRuntime(
 	boltConfig.Authenticator = boltAuth
 	boltConfig.RequireAuth = true
 	boltServer := nornicbolt.NewWithDatabaseManager(boltConfig, nil, httpServer.GetDatabaseManager())
+	boltServer.SetDatabaseAccessModeResolver(httpServer.GetDatabaseAccessModeForRoles)
+	boltServer.SetResolvedAccessResolver(httpServer.GetResolvedAccessForRoles)
 	runtime.boltServer = boltServer
 	go func() {
 		if serveErr := boltServer.ListenAndServe(); serveErr != nil {

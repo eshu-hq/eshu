@@ -16,21 +16,46 @@ func (w *CanonicalNodeWriter) buildRepositoryStatements(mat projector.CanonicalM
 		return nil
 	}
 	r := mat.Repository
+	params := map[string]any{
+		"repo_id":       r.RepoID,
+		"name":          r.Name,
+		"path":          r.Path,
+		"local_path":    r.LocalPath,
+		"remote_url":    r.RemoteURL,
+		"repo_slug":     r.RepoSlug,
+		"has_remote":    r.HasRemote,
+		"scope_id":      mat.ScopeID,
+		"generation_id": mat.GenerationID,
+	}
 	return []Statement{{
-		Operation: OperationCanonicalUpsert,
-		Cypher:    canonicalNodeRepositoryUpsertCypher,
-		Parameters: map[string]any{
-			"repo_id":       r.RepoID,
-			"name":          r.Name,
-			"path":          r.Path,
-			"local_path":    r.LocalPath,
-			"remote_url":    r.RemoteURL,
-			"repo_slug":     r.RepoSlug,
-			"has_remote":    r.HasRemote,
-			"scope_id":      mat.ScopeID,
-			"generation_id": mat.GenerationID,
-		},
+		Operation:  OperationCanonicalUpsert,
+		Cypher:     canonicalNodeRepositoryUpsertCypher,
+		Parameters: params,
 	}}
+}
+
+func (w *CanonicalNodeWriter) buildRepositoryCleanupStatements(mat projector.CanonicalMaterialization) []Statement {
+	if mat.Repository == nil {
+		return nil
+	}
+	r := mat.Repository
+	return []Statement{
+		{
+			Operation: OperationCanonicalRetract,
+			Cypher:    canonicalNodeRepositoryIDCleanupCypher,
+			Parameters: map[string]any{
+				"repo_id": r.RepoID,
+			},
+		},
+		{
+			Operation: OperationCanonicalRetract,
+			Cypher:    canonicalNodeRepositoryPathCleanupCypher,
+			Parameters: map[string]any{
+				"repo_id": r.RepoID,
+				"path":    r.Path,
+			},
+		},
+	}
 }
 
 // --- Phase C: Directories (depth-ordered) ---
@@ -109,20 +134,26 @@ func (w *CanonicalNodeWriter) buildFileStatements(mat projector.CanonicalMateria
 			end = len(rows)
 		}
 		batchRows := rows[start:end]
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalUpsert,
-			Cypher:    canonicalNodeFileUpsertCypher,
-			Parameters: map[string]any{
-				"rows":                    batchRows,
-				StatementMetadataPhaseKey: CanonicalPhaseFiles,
-				StatementMetadataSummaryKey: fmt.Sprintf(
-					"phase=files rows=%d first_path=%v last_path=%v",
-					len(batchRows),
-					batchRows[0]["path"],
-					batchRows[len(batchRows)-1]["path"],
-				),
-			},
-		})
+		summary := fmt.Sprintf(
+			"phase=files rows=%d first_path=%v last_path=%v",
+			len(batchRows),
+			batchRows[0]["path"],
+			batchRows[len(batchRows)-1]["path"],
+		)
+		for _, cypher := range []string{
+			canonicalNodeFileUpdateExistingCypher,
+			canonicalNodeFileCreateMissingCypher,
+		} {
+			stmts = append(stmts, Statement{
+				Operation: OperationCanonicalUpsert,
+				Cypher:    cypher,
+				Parameters: map[string]any{
+					"rows":                      batchRows,
+					StatementMetadataPhaseKey:   CanonicalPhaseFiles,
+					StatementMetadataSummaryKey: summary,
+				},
+			})
+		}
 	}
 	return stmts
 }

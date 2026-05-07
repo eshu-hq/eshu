@@ -120,7 +120,7 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 			w,
 			r,
 			http.StatusNotImplemented,
-			"repository context requires full platform context truth",
+			"repository context requires authoritative platform context truth",
 			"unsupported_capability",
 			"platform_impact.context_overview",
 			h.profile(),

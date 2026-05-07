@@ -10,10 +10,12 @@
 3. `go/internal/storage/postgres/projector_queue.go` — `ProjectorQueue.Claim`
    and `Ack`; the four-step atomic ack transaction is the most sensitive path
    in this package
-4. `go/internal/storage/postgres/facts.go` — `upsertFacts`,
+4. `go/internal/storage/postgres/projector_queue_sql.go` — projector claim,
+   stale-generation coalescing, duplicate-lease reclaim, and lifecycle SQL
+5. `go/internal/storage/postgres/facts.go` — `upsertFacts`,
    `deduplicateEnvelopes`, `sanitizeJSONB`; understand the batching and
    deduplication constraints before changing fact write paths
-5. `go/internal/storage/postgres/schema.go` — `BootstrapDefinitions`,
+6. `go/internal/storage/postgres/schema.go` — `BootstrapDefinitions`,
    `ApplyDefinitions`; DDL ordering and idempotency rules
 
 ## Invariants this package enforces
@@ -25,17 +27,42 @@
   `deduplicateEnvelopes` before each batch to prevent `SQLSTATE 21000` on
   `ON CONFLICT DO UPDATE` when the same `fact_id` appears twice in one batch
   (`facts.go:192`).
+- **Freshness de-dupe covers in-flight generations** —
+  `CommitScopeGeneration` must compare the incoming `FreshnessHint` with the
+  newest same-scope `pending` or `active` generation. Restricting the check to
+  `ingestion_scopes.active_generation_id` lets local polling recommit the same
+  snapshot while projection is still in flight, which creates avoidable
+  supersession churn. Do not include `failed` generations in this skip path; a
+  failed first projection must remain retryable by a later snapshot.
 - **JSONB sanitization** — `sanitizeJSONB` removes ` ` escape sequences
   and raw control bytes before every fact INSERT (`facts.go:435`). Skipping
   this causes Postgres errors on repositories with binary or non-UTF-8 content.
 - **Ack atomicity** — `ProjectorQueue.Ack` wraps four SQL statements in a
-  single transaction (`projector_queue.go:315`). If any step fails, the
+  single transaction (`projector_queue.go:105`). If any step fails, the
   transaction rolls back. Always pass a `SQLDB` or `InstrumentedDB(SQLDB)` to
   `NewProjectorQueue`; a bare `ExecQueryer` without `Beginner` will fail.
 - **Lease fencing** — `ProjectorQueue.Heartbeat` and `WorkflowControlStore`
   claims check `lease_owner` on UPDATE. A zero `RowsAffected` returns
   `ErrProjectorClaimRejected` or `ErrWorkflowClaimRejected`. Callers must stop
   processing on these errors and must not retry the ack.
+- **Projector scope ordering** — `ProjectorQueue.Claim` must preserve one
+  active source-local generation per `scope_id`. Keep the oldest-ready-row
+  subquery with `FOR UPDATE SKIP LOCKED`; without it, parallel claimers can skip
+  a locked older row and start a newer generation for the same repository.
+  Expired `claimed` or `running` rows must stay ahead of ordinary pending rows
+  in the claim ordering, or stale leases remain overdue while newer generations
+  drain. Keep the stale duplicate reclaim CTEs in the claim path: they demote
+  expired same-scope siblings to `retrying` when another live or newly claimed
+  sibling owns the scope. Keep the `ProjectorQueue.Claim`
+  stale-generation coalescing path (`projector_queue.go:74`) and the companion
+  CTEs together; they move older same-scope projector rows and pending or
+  failed `scope_generations` to `superseded` so durable snapshot history
+  remains available without reprocessing obsolete local polling generations or
+  reporting superseded terminal failures as current health.
+  Keep the `ProjectorQueue.Heartbeat` supersede check with that claim behavior:
+  live older same-scope generations must return `projector.ErrWorkSuperseded`
+  once a newer generation is visible, or local polling can spend minutes writing
+  graph state that will be immediately obsolete.
 - **NornicDB semantic gate** — `ReducerQueue.Claim` blocks
   `semantic_entity_materialization` while source-local projection is in-flight
   when the NornicDB gate parameter is true. Do not remove or bypass this gate
@@ -74,6 +101,14 @@
 - Symptom: claim latency high (`eshu_dp_postgres_query_duration_seconds{store="queue"}`)
   → check index coverage on `fact_work_items(stage, status, visible_at,
   claim_until)` and `FOR UPDATE SKIP LOCKED` contention.
+
+- Symptom: multiple `projector` rows are `running` for the same `scope_id` →
+  check the oldest-ready-row guard in `ProjectorQueue.Claim`. Same-scope
+  duplicate running rows can fence pending generations and make local progress
+  look stalled even when processes are alive. If overdue claims stay visible
+  while pending rows continue to move, check that expired-lease priority still
+  precedes `updated_at` ordering and that stale duplicate reclaim still demotes
+  expired siblings to `retrying`.
 
 - Symptom: `ErrProjectorClaimRejected` or `ErrReducerClaimRejected` in logs →
   lease expired before ack; increase `LeaseDuration` or reduce projection time;

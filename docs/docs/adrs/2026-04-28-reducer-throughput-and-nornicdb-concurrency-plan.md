@@ -19,11 +19,15 @@ accepted proof recorded in this ADR is the full-corpus NornicDB run
 repositories and `8458` queue rows in about `14m33s` with healthy projector,
 reducer, API, MCP, graph, and Postgres parity.
 
-Read-only validation on 2026-05-03 found the current repo aligned with the
-closeout state: NornicDB reducer workers default to `min(NumCPU, 8)`, reducer
-batch claims default to the worker count on NornicDB, durable reducer conflict
-keys are present in `fact_work_items`, `/admin/status` can report
-`queue_blockages`, and the service/runtime docs now point at those defaults.
+Follow-up validation on 2026-05-06 moved local-authoritative defaults from the
+older bounded-worker posture to host CPU count: NornicDB reducer workers now
+default to `NumCPU`, NornicDB local-authoritative projector workers default to
+`NumCPU`, and the local owner injects snapshot, parse, projector, and reducer
+worker env vars from the developer machine's CPU count unless explicit env vars
+are already present. Reducer batch claims still default to worker count on
+NornicDB, durable reducer conflict keys are present in `fact_work_items`,
+`/admin/status` can report `queue_blockages`, and the service/runtime docs now
+point at those defaults.
 
 **Remaining work:** keep NornicDB PR #136 release/pin status explicit, continue
 large query-file and storage-boundary maintainability follow-ups, and keep

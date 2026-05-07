@@ -243,9 +243,9 @@ not implement the retry contract.
 
 | Variable | Default | Scope | Use |
 | --- | --- | --- | --- |
-| `ESHU_PROJECTOR_WORKERS` | `1` on NornicDB local-authoritative | ingester source-local projector | Keeps canonical source-local graph writes serialized for NornicDB until backend write concurrency is proven safe. Override only when the NornicDB binary has passed concurrent canonical-write proof runs. |
+| `ESHU_PROJECTOR_WORKERS` | `NumCPU` on NornicDB local-authoritative | ingester source-local projector | Runs source-local projection at the developer or host CPU count. Lower only when graph-write telemetry shows backend saturation or conflict-key contention. |
 | `ESHU_NORNICDB_SEMANTIC_ENTITY_LABEL_BATCH_SIZES` | `Annotation=5,Function=10,ImplBlock=10,Module=10,TypeAlias=5,TypeAnnotation=50,Variable=10` | reducer semantic entity materialization | Overrides NornicDB row caps for semantic labels after parser-enriched semantic metadata proves expensive. |
-| `ESHU_REDUCER_WORKERS` | `min(NumCPU, 8)` on NornicDB | reducer graph writers | Overrides reducer work concurrency. Leave unset for normal NornicDB runs; lower only when conflict-domain fencing still shows graph write conflicts or backend saturation. |
+| `ESHU_REDUCER_WORKERS` | `NumCPU` on NornicDB | reducer graph writers | Overrides reducer work concurrency. Leave unset for normal NornicDB runs; lower only when conflict-domain fencing still shows graph write conflicts or backend saturation. |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | `workers` on NornicDB | reducer queue claim window | Limits how many reducer intents one claim cycle leases before workers start them. Keep this near worker count so queued-but-not-started items do not expire their leases. |
 | `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | `1` on NornicDB | reducer semantic entity materialization | Caps concurrent semantic entity reducer claims after the source-local drain gate opens. Raise only in focused proofs after the active NornicDB binary proves semantic `MATCH SET` writes stay bounded. |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | reducer code-call projection | Bounds how many code-call shared intents one accepted repo/run may scan or load before failing safely. Raise only when a real repo has more CALLS intents than the default and memory headroom is known. |

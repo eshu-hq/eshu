@@ -155,9 +155,6 @@ func loadReducerWorkerCount(getenv func(string) string, graphBackend runtimecfg.
 	}
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		n := runtime.NumCPU()
-		if n > 8 {
-			n = 8
-		}
 		if n < 1 {
 			n = 1
 		}

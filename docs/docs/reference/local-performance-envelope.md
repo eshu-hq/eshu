@@ -169,9 +169,11 @@ The following targets remain open until their own perf gates land:
   facts.
 - **Idle and active memory budgets** for the combined Eshu host + graph
   backend footprint.
-- **Full-corpus `local_authoritative` drain gate** — latest remote run is
-  healthy/progressing with no dead letters or `graph_write_timeout`, but
-  projection/reducer queues have not drained to zero yet.
+- **Full-corpus `local_authoritative` drain gate** — latest accepted remote
+  run drained `896` repositories and `8458` queue rows in about `14m33s` with
+  `0` pending, in-flight, retrying, failed, or dead-letter rows. Local
+  developer runs now size snapshot, parse, projector, and NornicDB reducer
+  workers from host CPU count unless explicit env vars are present.
 - **Active-repo transitive-caller and active-repo call-chain** — current
   evidence is synthetic only; active-repo numbers are required before
   promoting the matrix entries past `derived`.

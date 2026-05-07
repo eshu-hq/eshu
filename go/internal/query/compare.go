@@ -41,7 +41,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 			w,
 			r,
 			http.StatusNotImplemented,
-			"environment comparison requires deployed environment truth",
+			"environment comparison requires authoritative environment truth",
 			"unsupported_capability",
 			"platform_impact.environment_compare",
 			h.profile(),

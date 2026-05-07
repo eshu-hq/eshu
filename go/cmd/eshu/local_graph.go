@@ -426,11 +426,45 @@ func graphHTTPHealthy(address string, port int, timeout time.Duration) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
+// graphBoltHandshake is the 20-byte client preamble: 4-byte Bolt magic followed
+// by four 4-byte version proposals (5.1, 5.0, 4.4, 4.0). The server must reply
+// with 4 bytes (the selected version) before we consider Bolt ready.
+var graphBoltHandshake = []byte{
+	0x60, 0x60, 0xB0, 0x17, // magic
+	0x00, 0x00, 0x01, 0x05, // Bolt 5.1
+	0x00, 0x00, 0x00, 0x05, // Bolt 5.0
+	0x00, 0x00, 0x04, 0x04, // Bolt 4.4
+	0x00, 0x00, 0x00, 0x04, // Bolt 4.0
+}
+
 func graphBoltHealthy(address string, port int, timeout time.Duration) bool {
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort(address, fmt.Sprintf("%d", port)), timeout)
 	if err != nil {
 		return false
 	}
-	_ = conn.Close()
-	return true
+	defer func() { _ = conn.Close() }()
+	_ = conn.SetDeadline(time.Now().Add(timeout))
+	if _, err := conn.Write(graphBoltHandshake); err != nil {
+		return false
+	}
+	var response [4]byte
+	if _, err := io.ReadFull(conn, response[:]); err != nil {
+		return false
+	}
+	return graphBoltSelectedOfferedVersion(response)
+}
+
+func graphBoltSelectedOfferedVersion(response [4]byte) bool {
+	var zero [4]byte
+	if response == zero {
+		return false
+	}
+	for offset := 4; offset < len(graphBoltHandshake); offset += 4 {
+		var offered [4]byte
+		copy(offered[:], graphBoltHandshake[offset:offset+4])
+		if response == offered {
+			return true
+		}
+	}
+	return false
 }

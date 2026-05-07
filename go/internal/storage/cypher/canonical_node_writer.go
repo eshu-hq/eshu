@@ -112,12 +112,15 @@ func (w *CanonicalNodeWriter) WithBatchedEntityContainmentInEntityUpsert() *Cano
 // Write executes all canonical writes in strict phase order:
 //
 //	A: retract stale nodes
-//	B: repository
-//	C: directories (depth-ordered)
-//	D: files
-//	E: entities (per-label)
-//	F: modules
-//	G: structural edges
+//	B: repository_cleanup
+//	C: repository
+//	D: directories (depth-ordered)
+//	E: files
+//	F: entities (per-label)
+//	G: entity_retract
+//	H: entity_containment
+//	I: modules
+//	J: structural edges
 //
 // When the executor implements GroupExecutor, all statements are dispatched as
 // a single atomic transaction. Otherwise, statements execute sequentially.
@@ -217,10 +220,12 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization) []canonicalWritePhase {
 	return []canonicalWritePhase{
 		{name: "retract", statements: w.buildRetractStatements(mat)},
+		{name: "repository_cleanup", statements: w.buildRepositoryCleanupStatements(mat)},
 		{name: "repository", statements: w.buildRepositoryStatements(mat)},
 		{name: "directories", statements: w.buildDirectoryStatements(mat)},
 		{name: "files", statements: w.buildFileStatements(mat)},
 		{name: "entities", statements: w.buildEntityStatements(mat)},
+		{name: "entity_retract", statements: w.buildEntityRetractStatements(mat)},
 		{name: "entity_containment", statements: w.buildEntityContainmentStatements(mat)},
 		{name: "modules", statements: w.buildModuleStatements(mat)},
 		{name: "structural_edges", statements: w.buildStructuralEdgeStatements(mat)},

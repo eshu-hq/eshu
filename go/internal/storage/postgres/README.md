@@ -1,6 +1,6 @@
 # storage/postgres
 
-`storage/postgres` owns PCG's relational persistence layer: facts, queue state,
+`storage/postgres` owns Eshu's relational persistence layer: facts, queue state,
 content store, status, recovery data, decisions, shared projection intents, and
 workflow coordination tables. It is the single durable source of truth for
 pipeline state that projector, reducer, ingester, and the API surface all share.
@@ -63,19 +63,39 @@ generation contains self-overwrites.
 non-UTF-8 content.
 
 `CommitScopeGeneration` compares the incoming generation `FreshnessHint` with
-the active generation for the scope. When the hint is unchanged, the commit path
-logs and skips the redundant write so local polling can observe files without
-recommitting identical snapshots.
+the newest pending or active generation for the same scope. When the hint is
+unchanged, the commit path logs and skips the redundant write so local polling
+can observe files without recommitting identical snapshots or superseding
+in-flight projector work. Failed generations do not satisfy this check, so a
+failed first projection can still be retried by the next snapshot.
 
 ### Projector queue
 
 `ProjectorQueue.Claim` uses `SELECT ... FOR UPDATE SKIP LOCKED` with a
-per-scope in-flight conflict guard: only one item per `scope_id` can be
-`claimed` or `running` at a time. `Ack` runs a four-step atomic transaction:
-supersede stale active generation → activate target generation → update scope
-pointer → mark work succeeded. If `projector.IsRetryable(cause)` returns true
-and `attempt_count < MaxAttempts`, `Fail` transitions to `retrying` instead of
-`dead_letter`.
+per-scope in-flight conflict guard and an oldest-ready-row guard. Concurrent
+claimers for the same `scope_id` must all target the same oldest ready work
+item, so a worker cannot skip a locked older row and start a newer generation
+for the same repository. Before selecting a candidate, claim coalesces older
+same-scope projector rows and their pending or failed `scope_generations` to
+`superseded` when a newer generation exists. That covers waiting rows and
+obsolete terminal failures, so durable snapshot history remains available
+without leaving stale local polling generations in the live backlog or health
+summary.
+`ProjectorQueue.Heartbeat` applies the same freshness check to a live claimed
+or running row. When a newer pending or active generation exists for the scope,
+heartbeat marks the older row and its generation `superseded` in one statement
+and returns `projector.ErrWorkSuperseded` so the worker stops without acking
+stale graph state.
+Expired `claimed` or `running` rows are ordered ahead of ordinary pending rows
+so stale leases are reclaimed before fresh work makes the status surface look
+permanently overdue. Claim also demotes expired same-scope duplicate in-flight
+rows back to `retrying` when a live sibling or a newly claimed sibling owns the
+scope, which repairs queue state left by older owner crashes or claim races
+without breaking the one-active-generation invariant. `Ack` runs a four-step atomic
+transaction: supersede stale active generation → activate target generation →
+update scope pointer → mark work succeeded. If `projector.IsRetryable(cause)`
+returns true and `attempt_count < MaxAttempts`, `Fail` transitions to
+`retrying` instead of `dead_letter`.
 
 ### Reducer queue
 
@@ -265,7 +285,7 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 ## Gotchas / invariants
 
 - `ProjectorQueue.Ack` runs four SQL statements inside a transaction
-  (`projector_queue.go:315`). Pass a `SQLDB` or an `InstrumentedDB` wrapping
+  (`projector_queue.go:105`). Pass a `SQLDB` or an `InstrumentedDB` wrapping
   a `SQLDB`; a plain `ExecQueryer` without `Beginner` will cause Ack to fail.
 - `upsertFacts` deduplicates by `fact_id` before batching (`facts.go:192`).
   Skipping deduplication causes `SQLSTATE 21000` on `ON CONFLICT DO UPDATE`

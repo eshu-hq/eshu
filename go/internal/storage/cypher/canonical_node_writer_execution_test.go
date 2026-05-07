@@ -76,7 +76,8 @@ func TestCanonicalNodeWriterDirectoryGenerationID(t *testing.T) {
 
 	// Verify directory row maps include generation_id and scope_id
 	for _, call := range exec.calls {
-		if call.Operation != OperationCanonicalUpsert || !strings.Contains(call.Cypher, "MERGE (d:Directory") {
+		if call.Operation != OperationCanonicalUpsert ||
+			!strings.Contains(call.Cypher, "Directory {path: row.path}") {
 			continue
 		}
 		rows, ok := call.Parameters["rows"].([]map[string]any)
@@ -95,19 +96,23 @@ func TestCanonicalNodeWriterDirectoryGenerationID(t *testing.T) {
 
 	// Verify directory MERGE Cypher sets generation_id
 	for _, call := range exec.calls {
-		if call.Operation == OperationCanonicalUpsert && strings.Contains(call.Cypher, "MERGE (d:Directory") {
+		if call.Operation == OperationCanonicalUpsert &&
+			strings.Contains(call.Cypher, "Directory {path: row.path}") {
 			if !strings.Contains(call.Cypher, "d.generation_id") {
-				t.Fatalf("directory MERGE Cypher missing generation_id: %s", call.Cypher)
+				t.Fatalf("directory write Cypher missing generation_id: %s", call.Cypher)
 			}
 			if !strings.Contains(call.Cypher, "d.scope_id") {
-				t.Fatalf("directory MERGE Cypher missing scope_id: %s", call.Cypher)
+				t.Fatalf("directory write Cypher missing scope_id: %s", call.Cypher)
 			}
 		}
 	}
 
 	// Verify directory retract Cypher includes generation_id filter
 	for _, call := range exec.calls {
-		if call.Operation == OperationCanonicalRetract && strings.Contains(call.Cypher, "Directory") {
+		phase, _ := call.Parameters[StatementMetadataPhaseKey].(string)
+		if call.Operation == OperationCanonicalRetract &&
+			phase != "directory_cleanup" &&
+			strings.Contains(call.Cypher, "Directory") {
 			if !strings.Contains(call.Cypher, "generation_id") {
 				t.Fatalf("directory retract Cypher missing generation_id filter: %s", call.Cypher)
 			}
@@ -155,7 +160,8 @@ func TestCanonicalNodeWriterAtomicGroupExecutor(t *testing.T) {
 		t.Fatalf("Execute calls = %d, want 0 (should use atomic path)", len(exec.executeCalls))
 	}
 
-	// Verify statements include all phases in order: retract, repository, directories, files, entities
+	// Verify statements include all phases in order, including the post-entity
+	// stale cleanup that must run after current entity upserts.
 	stmts := exec.groupStmts
 	if len(stmts) == 0 {
 		t.Fatal("expected grouped statements, got 0")
@@ -172,19 +178,32 @@ func TestCanonicalNodeWriterAtomicGroupExecutor(t *testing.T) {
 		t.Fatalf("last statement operation = %q, want %q", last.Operation, OperationCanonicalUpsert)
 	}
 
-	// Verify phase ordering within the group: retracts before upserts
-	lastRetractIdx := -1
+	lastEarlyRetractIdx := -1
 	firstUpsertIdx := -1
+	entityUpsertIdx := -1
+	entityRetractIdx := -1
 	for i, stmt := range stmts {
-		if stmt.Operation == OperationCanonicalRetract {
-			lastRetractIdx = i
+		phase, _ := stmt.Parameters[StatementMetadataPhaseKey].(string)
+		if stmt.Operation == OperationCanonicalRetract &&
+			phase != "directory_cleanup" &&
+			phase != "entity_retract" {
+			lastEarlyRetractIdx = i
 		}
 		if stmt.Operation == OperationCanonicalUpsert && firstUpsertIdx == -1 {
 			firstUpsertIdx = i
 		}
+		if phase == "entities" && entityUpsertIdx == -1 {
+			entityUpsertIdx = i
+		}
+		if phase == "entity_retract" && entityRetractIdx == -1 {
+			entityRetractIdx = i
+		}
 	}
-	if firstUpsertIdx >= 0 && lastRetractIdx >= firstUpsertIdx {
-		t.Fatalf("retraction at index %d came after upsert at index %d", lastRetractIdx, firstUpsertIdx)
+	if firstUpsertIdx >= 0 && lastEarlyRetractIdx >= firstUpsertIdx {
+		t.Fatalf("early retraction at index %d came after upsert at index %d", lastEarlyRetractIdx, firstUpsertIdx)
+	}
+	if entityUpsertIdx >= 0 && entityRetractIdx >= 0 && entityRetractIdx <= entityUpsertIdx {
+		t.Fatalf("entity_retract at index %d came before entity upsert at index %d", entityRetractIdx, entityUpsertIdx)
 	}
 }
 

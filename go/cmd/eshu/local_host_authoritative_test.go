@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -16,6 +18,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph(t *testing.T
 	originalPrepareWorkspace := localHostPrepareWorkspace
 	originalStartEmbeddedPostgres := localHostStartEmbeddedPostgres
 	originalStartManagedGraph := localHostStartManagedGraph
+	originalResetAuthoritativeState := localHostResetAuthoritativeState
 	originalWriteOwnerRecord := localHostWriteOwnerRecord
 	originalHostname := localHostHostname
 	originalStartChild := localHostStartChildProcess
@@ -29,6 +32,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph(t *testing.T
 		localHostPrepareWorkspace = originalPrepareWorkspace
 		localHostStartEmbeddedPostgres = originalStartEmbeddedPostgres
 		localHostStartManagedGraph = originalStartManagedGraph
+		localHostResetAuthoritativeState = originalResetAuthoritativeState
 		localHostWriteOwnerRecord = originalWriteOwnerRecord
 		localHostHostname = originalHostname
 		localHostStartChildProcess = originalStartChild
@@ -42,6 +46,9 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph(t *testing.T
 
 	localHostPrepareWorkspace = func(layout eshulocal.Layout) (*eshulocal.OwnerLock, error) {
 		return &eshulocal.OwnerLock{}, nil
+	}
+	localHostResetAuthoritativeState = func(layout eshulocal.Layout) error {
+		return nil
 	}
 	localHostStartEmbeddedPostgres = func(ctx context.Context, layout eshulocal.Layout) (*eshulocal.ManagedPostgres, error) {
 		return &eshulocal.ManagedPostgres{
@@ -169,5 +176,150 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph(t *testing.T
 	}
 	if !finalizerStarted {
 		t.Fatal("IaC reachability finalizer was not started for local authoritative owner")
+	}
+}
+
+func TestRunOwnedLocalHostWithLayoutAuthoritativeResetsStateBeforePostgres(t *testing.T) {
+	t.Setenv("ESHU_QUERY_PROFILE", string(query.ProfileLocalAuthoritative))
+
+	originalPrepareWorkspace := localHostPrepareWorkspace
+	originalResetAuthoritativeState := localHostResetAuthoritativeState
+	originalStartEmbeddedPostgres := localHostStartEmbeddedPostgres
+	originalStartManagedGraph := localHostStartManagedGraph
+	originalWriteOwnerRecord := localHostWriteOwnerRecord
+	originalHostname := localHostHostname
+	originalStartChild := localHostStartChildProcess
+	originalWaitOwnerChildren := localHostWaitOwnerChildren
+	originalApplyBootstrap := localHostApplyBootstrap
+	originalApplyGraphBootstrap := localHostApplyGraphBootstrap
+	originalExpectedProjectors := localHostContentSearchIndexExpectedProjectors
+	originalStartIaCReachabilityFinalizer := localHostStartIaCReachabilityFinalizer
+	t.Cleanup(func() {
+		localHostPrepareWorkspace = originalPrepareWorkspace
+		localHostResetAuthoritativeState = originalResetAuthoritativeState
+		localHostStartEmbeddedPostgres = originalStartEmbeddedPostgres
+		localHostStartManagedGraph = originalStartManagedGraph
+		localHostWriteOwnerRecord = originalWriteOwnerRecord
+		localHostHostname = originalHostname
+		localHostStartChildProcess = originalStartChild
+		localHostWaitOwnerChildren = originalWaitOwnerChildren
+		localHostApplyBootstrap = originalApplyBootstrap
+		localHostApplyGraphBootstrap = originalApplyGraphBootstrap
+		localHostContentSearchIndexExpectedProjectors = originalExpectedProjectors
+		localHostStartIaCReachabilityFinalizer = originalStartIaCReachabilityFinalizer
+	})
+
+	var order []string
+	localHostPrepareWorkspace = func(layout eshulocal.Layout) (*eshulocal.OwnerLock, error) {
+		order = append(order, "prepare")
+		return &eshulocal.OwnerLock{}, nil
+	}
+	localHostResetAuthoritativeState = func(layout eshulocal.Layout) error {
+		if layout.PostgresDir != "/workspace/postgres" {
+			t.Fatalf("PostgresDir = %q, want /workspace/postgres", layout.PostgresDir)
+		}
+		if layout.GraphDir != "/workspace/graph" {
+			t.Fatalf("GraphDir = %q, want /workspace/graph", layout.GraphDir)
+		}
+		order = append(order, "reset")
+		return nil
+	}
+	localHostStartEmbeddedPostgres = func(ctx context.Context, layout eshulocal.Layout) (*eshulocal.ManagedPostgres, error) {
+		order = append(order, "postgres")
+		return &eshulocal.ManagedPostgres{
+			DSN:        "host=127.0.0.1 port=15439 user=eshu password=change-me dbname=postgres sslmode=disable",
+			Port:       15439,
+			DataDir:    "/workspace/postgres/data",
+			SocketDir:  "/tmp/eshu",
+			SocketPath: "/tmp/eshu/.s.PGSQL.15439",
+			PID:        21,
+		}, nil
+	}
+	localHostApplyBootstrap = func(ctx context.Context, dsn string) error { return nil }
+	localHostStartManagedGraph = func(ctx context.Context, layout eshulocal.Layout, runtimeConfig localHostRuntimeConfig) (*managedLocalGraph, error) {
+		order = append(order, "graph")
+		return &managedLocalGraph{
+			Backend:  query.GraphBackendNornicDB,
+			Address:  "127.0.0.1",
+			BoltPort: 17687,
+			HTTPPort: 17474,
+			PID:      88,
+		}, nil
+	}
+	localHostApplyGraphBootstrap = func(ctx context.Context, runtimeConfig localHostRuntimeConfig, graph *managedLocalGraph) error {
+		return nil
+	}
+	localHostHostname = func() (string, error) { return "local-test", nil }
+	localHostWriteOwnerRecord = func(path string, record eshulocal.OwnerRecord) error { return nil }
+	localHostContentSearchIndexExpectedProjectors = func(workspaceRoot string) (int, error) { return 1, nil }
+	localHostStartIaCReachabilityFinalizer = func(ctx context.Context, dsn string, expectedProjectors int) (func() error, error) {
+		return func() error { return nil }, nil
+	}
+	localHostStartChildProcess = func(name string, args []string, env []string) (*exec.Cmd, error) {
+		return &exec.Cmd{}, nil
+	}
+	localHostWaitOwnerChildren = func(ctx context.Context, children []localHostChild, allowedCleanExits map[string]struct{}) error {
+		return nil
+	}
+
+	err := runOwnedLocalHostWithLayout(context.Background(), eshulocal.Layout{
+		WorkspaceID:     "workspace-id",
+		WorkspaceRoot:   "/workspace/repo",
+		OwnerRecordPath: "/workspace/owner.json",
+		PostgresDir:     "/workspace/postgres",
+		CacheDir:        "/workspace/cache",
+		LogsDir:         "/workspace/logs",
+		GraphDir:        "/workspace/graph",
+	}, localHostModeWatch)
+	if err != nil {
+		t.Fatalf("runOwnedLocalHostWithLayout() error = %v, want nil", err)
+	}
+	if got, want := order, []string{"prepare", "reset", "postgres", "graph"}; !slices.Equal(got, want) {
+		t.Fatalf("order = %#v, want %#v", got, want)
+	}
+}
+
+func TestResetLocalAuthoritativeStatePreservesPostgresBinariesAndLogs(t *testing.T) {
+	root := t.TempDir()
+	layout := eshulocal.Layout{
+		PostgresDir: filepath.Join(root, "postgres"),
+		GraphDir:    filepath.Join(root, "graph"),
+		LogsDir:     filepath.Join(root, "logs"),
+	}
+	for _, path := range []string{
+		filepath.Join(layout.PostgresDir, "data", "PG_VERSION"),
+		filepath.Join(layout.PostgresDir, "runtime", "postmaster.pid"),
+		filepath.Join(layout.PostgresDir, "binaries", "bin", "pg_ctl"),
+		filepath.Join(layout.GraphDir, "nornicdb", "graph.db"),
+		filepath.Join(layout.LogsDir, "graph-nornicdb.log"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatalf("MkdirAll() error = %v", err)
+		}
+		if err := os.WriteFile(path, []byte("state"), 0o600); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+	}
+
+	if err := resetLocalAuthoritativeState(layout); err != nil {
+		t.Fatalf("resetLocalAuthoritativeState() error = %v, want nil", err)
+	}
+
+	for _, path := range []string{
+		filepath.Join(layout.PostgresDir, "data"),
+		filepath.Join(layout.PostgresDir, "runtime"),
+		filepath.Join(layout.GraphDir, "nornicdb"),
+	} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("Stat(%q) error = %v, want not exist", path, err)
+		}
+	}
+	for _, path := range []string{
+		filepath.Join(layout.PostgresDir, "binaries", "bin", "pg_ctl"),
+		filepath.Join(layout.LogsDir, "graph-nornicdb.log"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("Stat(%q) error = %v, want preserved", path, err)
+		}
 	}
 }

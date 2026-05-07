@@ -69,6 +69,17 @@
   `local-host watch` supervisor discovers them through `PATH`. Rebuild all
   binaries and check `PATH` before running.
 
+- Symptom: `eshu graph status` reports `owner_present=true` but the owner PID is
+  already dead → cause: stale `owner.json`; `eshu graph stop` must acquire
+  `owner.lock`, stop any recorded embedded Postgres child, and remove the stale
+  metadata for both `local_lightweight` and `local_authoritative` profiles.
+
+- Symptom: `local_authoritative` spends minutes on old projector work or stale
+  graph retraction after restart → cause: rebuildable local state was preserved
+  across owner starts; `local_host_reset.go` must clear Postgres `data` /
+  `runtime` and graph `nornicdb` state after `owner.lock` acquisition and
+  before embedded Postgres starts.
+
 - Symptom: a `eshu admin` command returns a non-200 response → cause: the
   `APIClient` target URL is wrong or the API server is down; check the
   service URL config and that `eshu api start` is running.

@@ -10,4 +10,13 @@
 // on ESHU_GRAPH_BACKEND. Writes must be idempotent and retry-safe; the
 // canonical writers (CanonicalNodeWriter, EdgeWriter) are the boundary where
 // node and edge invariants are enforced before bytes reach Neo4j or NornicDB.
+// Canonical entity retractions run after current entity upserts and keep
+// concrete labels in the Cypher anchor so stale-node and stale-edge cleanup
+// remains selective on supported graph backends. Stale File-to-entity CONTAINS
+// cleanup is owned by entity retraction, not a separate per-file relationship
+// filter. Repository writes clear current identity nodes in a dedicated cleanup
+// phase before their MERGE phase. Directory and File nodes update in place
+// because replacing them with DETACH DELETE is too expensive on local graph
+// backends; missing files use a guarded MERGE so existing File.path rows never
+// hit the MERGE unique-conflict path.
 package cypher
