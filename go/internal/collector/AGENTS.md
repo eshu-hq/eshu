@@ -38,6 +38,11 @@
   `.eshu/vendor-roots.json` before the `ESHU_DISCOVERY_IGNORED_PATH_GLOBS`
   operator overlay. This order is intentional and documented in CLAUDE.md.
 
+- **Filesystem manifests describe effective input** — `fingerprintTree` includes
+  `.gitignore` and `.eshuignore` rule files but skips files those rules exclude.
+  Local watch mode depends on this to avoid publishing newer generations for
+  ignored logs, build output, or editor scratch files.
+
 - **Source is best-effort** — `doc.go` states collection is best-effort over
   remote and local filesystems. `partial-snapshot` and `discovery-skip`
   outcomes must be handled explicitly by callers.
@@ -97,6 +102,11 @@
   likely cause: all files matched an ignored dir, ignored extension, or
   `.eshu/discovery.json` rule → run `eshu index --discovery-report` on the repo;
   check the discovery advisory skip breakdown from `eshu index --discovery-report`.
+
+- Symptom: local watch mode keeps superseding projector work for an unchanged
+  repository → likely cause: the filesystem manifest is hashing a generated file
+  the snapshot path later ignores → compare `fingerprintTree` and
+  `shouldSkipFilesystemEntry` behavior before changing worker counts.
 
 ## Anti-patterns specific to this package
 

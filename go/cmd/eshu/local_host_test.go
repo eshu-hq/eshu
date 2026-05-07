@@ -70,6 +70,12 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 	if !strings.Contains(dsn, "host=127.0.0.1") || !strings.Contains(dsn, "port=15439") {
 		t.Fatalf("ESHU_POSTGRES_DSN = %q, want loopback DSN with recorded port", dsn)
 	}
+	if got := envValue(gotEnv, "ESHU_MCP_TRANSPORT"); got != "stdio" {
+		t.Fatalf("ESHU_MCP_TRANSPORT = %q, want stdio", got)
+	}
+	if got := envValue(gotEnv, "ESHU_LOCAL_LOG_MODE"); got != "terminal" {
+		t.Fatalf("ESHU_LOCAL_LOG_MODE = %q, want terminal for MCP stdio", got)
+	}
 }
 
 func TestLocalBootstrapDefinitionsCanDeferContentSearchIndexes(t *testing.T) {
@@ -98,6 +104,43 @@ func TestLocalBootstrapDefinitionsCanDeferContentSearchIndexes(t *testing.T) {
 	}
 	if strings.Contains(contentStoreSQL, "content_files_content_trgm_idx") {
 		t.Fatal("content_store SQL includes deferred file search index")
+	}
+}
+
+func TestLocalHostChildOverridesDefaultsLogsToWorkspaceFile(t *testing.T) {
+	layout := eshulocal.Layout{LogsDir: "/workspace/logs"}
+	overrides := localHostChildOverrides(layout, map[string]string{"ESHU_REPOS_DIR": "/workspace/cache/repos"}, func(string) string {
+		return ""
+	})
+
+	if got := overrides["ESHU_REPOS_DIR"]; got != "/workspace/cache/repos" {
+		t.Fatalf("ESHU_REPOS_DIR = %q, want preserved override", got)
+	}
+	if got := overrides[localHostLogModeEnv]; got != localHostLogModeFile {
+		t.Fatalf("%s = %q, want %q", localHostLogModeEnv, got, localHostLogModeFile)
+	}
+	if got := overrides[localHostLogDirEnv]; got != layout.LogsDir {
+		t.Fatalf("%s = %q, want %q", localHostLogDirEnv, got, layout.LogsDir)
+	}
+}
+
+func TestLocalHostChildOverridesPreservesExplicitLogMode(t *testing.T) {
+	layout := eshulocal.Layout{LogsDir: "/workspace/logs"}
+	overrides := localHostChildOverrides(layout, map[string]string{}, func(key string) string {
+		if key == localHostLogModeEnv {
+			return localHostLogModeTerminal
+		}
+		if key == localHostLogDirEnv {
+			return "/custom/logs"
+		}
+		return ""
+	})
+
+	if _, ok := overrides[localHostLogModeEnv]; ok {
+		t.Fatalf("%s override was set despite explicit environment", localHostLogModeEnv)
+	}
+	if _, ok := overrides[localHostLogDirEnv]; ok {
+		t.Fatalf("%s override was set despite explicit environment", localHostLogDirEnv)
 	}
 }
 

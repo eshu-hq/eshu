@@ -3,14 +3,68 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"log"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
+
+func TestEmbeddedLocalNornicDBRuntimeRedirectsStandardLogger(t *testing.T) {
+	original := log.Writer()
+	t.Cleanup(func() {
+		log.SetOutput(original)
+	})
+
+	var previous bytes.Buffer
+	log.SetOutput(&previous)
+
+	var embeddedLogs bytes.Buffer
+	restore := redirectEmbeddedNornicDBStandardLogger(&embeddedLogs)
+	log.Print("embedded startup line")
+	restore()
+	log.Print("owner line")
+
+	if got := embeddedLogs.String(); !strings.Contains(got, "embedded startup line") {
+		t.Fatalf("embedded log output = %q, want startup line", got)
+	}
+	if got := embeddedLogs.String(); strings.Contains(got, "owner line") {
+		t.Fatalf("embedded log output = %q, want owner line restored away from embedded writer", got)
+	}
+	if got := previous.String(); !strings.Contains(got, "owner line") {
+		t.Fatalf("previous log output = %q, want owner line after restore", got)
+	}
+	if got := previous.String(); strings.Contains(got, "embedded startup line") {
+		t.Fatalf("previous log output = %q, want embedded line routed away", got)
+	}
+}
+
+func TestEmbeddedLocalNornicDBRuntimeRedirectsStartupProcessOutput(t *testing.T) {
+	var embeddedLogs bytes.Buffer
+
+	restore, err := redirectEmbeddedNornicDBStartupProcessOutput(&embeddedLogs)
+	if err != nil {
+		t.Fatalf("redirectEmbeddedNornicDBStartupProcessOutput() error = %v, want nil", err)
+	}
+	_, _ = fmt.Fprintln(os.Stdout, "embedded stdout startup line")
+	_, _ = fmt.Fprintln(os.Stderr, "embedded stderr startup line")
+	if err := restore(); err != nil {
+		t.Fatalf("restore redirected process output: %v", err)
+	}
+
+	got := embeddedLogs.String()
+	for _, want := range []string{"embedded stdout startup line", "embedded stderr startup line"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("embedded log output = %q, want %q", got, want)
+		}
+	}
+}
 
 func TestEmbeddedLocalNornicDBRuntimeStartsHTTPAndBolt(t *testing.T) {
 	boltPort, err := reserveLocalGraphPort()
@@ -96,7 +150,22 @@ func TestEmbeddedLocalNornicDBRuntimeAllowsAdminWritesToDefaultDatabase(t *testi
 		}
 	})
 
+	waitForEmbeddedNornicDBRuntimeHealthy(t, boltPort, httpPort)
 	assertEmbeddedBoltDefaultDatabaseWriteAccepted(t, boltPort, credentials)
+}
+
+func waitForEmbeddedNornicDBRuntimeHealthy(t *testing.T, boltPort int, httpPort int) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if graphHTTPHealthy(localNornicDBBindAddress, httpPort, localGraphHealthTimeout) &&
+			graphBoltHealthy(localNornicDBBindAddress, boltPort, localGraphHealthTimeout) {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatal("embedded NornicDB runtime did not become healthy")
 }
 
 func assertEmbeddedBoltNoAuthRejected(t *testing.T, boltPort int) {

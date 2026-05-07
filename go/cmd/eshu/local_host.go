@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,6 +24,15 @@ import (
 const localHostShutdownTimeout = 5 * time.Second
 const deferContentSearchIndexesEnv = "ESHU_LOCAL_AUTHORITATIVE_DEFER_CONTENT_SEARCH_INDEXES"
 const reducerExpectedSourceLocalProjectorsEnv = "ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS"
+const localHostProgressModeEnv = "ESHU_LOCAL_PROGRESS_MODE"
+const localHostLogModeEnv = "ESHU_LOCAL_LOG_MODE"
+const localHostLogDirEnv = "ESHU_LOCAL_LOG_DIR"
+const localHostProgressModeAuto = "auto"
+const localHostProgressModePlain = "plain"
+const localHostProgressModeQuiet = "quiet"
+const localHostLogModeFile = "file"
+const localHostLogModeTerminal = "terminal"
+const localHostLogModeQuiet = "quiet"
 
 var (
 	localHostBuildLayout = func(workspaceRoot string) (eshulocal.Layout, error) {
@@ -252,7 +262,7 @@ func runOwnedLocalHostWithLayout(ctx context.Context, layout eshulocal.Layout, m
 		reducerCmd, err := localHostStartChildProcess(
 			"eshu-reducer",
 			[]string{"eshu-reducer"},
-			localHostEnv(managedPostgres.DSN, runtimeConfig, managedGraph, localHostReducerOverrides(expectedProjectors, runtimeConfig, os.Getenv)),
+			localHostEnv(managedPostgres.DSN, runtimeConfig, managedGraph, localHostChildOverrides(layout, localHostReducerOverrides(expectedProjectors, runtimeConfig, os.Getenv), os.Getenv)),
 		)
 		if err != nil {
 			return err
@@ -265,7 +275,7 @@ func runOwnedLocalHostWithLayout(ctx context.Context, layout eshulocal.Layout, m
 		children = append(children, localHostChild{name: "eshu-reducer", cmd: reducerCmd})
 	}
 
-	ingester, err := localHostStartChildProcess("eshu-ingester", []string{"eshu-ingester", "--watch", layout.WorkspaceRoot}, localHostEnv(managedPostgres.DSN, runtimeConfig, managedGraph, localHostIngesterOverrides(layout, mode, runtimeConfig, os.Getenv)))
+	ingester, err := localHostStartChildProcess("eshu-ingester", []string{"eshu-ingester", "--watch", layout.WorkspaceRoot}, localHostEnv(managedPostgres.DSN, runtimeConfig, managedGraph, localHostChildOverrides(layout, localHostIngesterOverrides(layout, mode, runtimeConfig, os.Getenv), os.Getenv)))
 	if err != nil {
 		return err
 	}
@@ -276,7 +286,7 @@ func runOwnedLocalHostWithLayout(ctx context.Context, layout eshulocal.Layout, m
 	}()
 	children = append(children, localHostChild{name: "eshu-ingester", cmd: ingester})
 
-	if mode == localHostModeWatch {
+	if mode == localHostModeWatch && localHostProgressEnabled(os.Getenv) {
 		stopProgress, progressErr := localHostStartProgressReporter(
 			ctx,
 			layout.WorkspaceRoot,
@@ -303,9 +313,7 @@ func runOwnedLocalHostWithLayout(ctx context.Context, layout eshulocal.Layout, m
 		return localHostWaitManagedChildren(ctx, children, "")
 	}
 
-	mcpServer, err := localHostStartChildProcess("eshu-mcp-server", []string{"eshu-mcp-server"}, localHostEnv(managedPostgres.DSN, runtimeConfig, managedGraph, map[string]string{
-		"ESHU_MCP_TRANSPORT": "stdio",
-	}))
+	mcpServer, err := localHostStartChildProcess("eshu-mcp-server", []string{"eshu-mcp-server"}, localHostEnv(managedPostgres.DSN, runtimeConfig, managedGraph, localHostMCPStdioOverrides()))
 	if err != nil {
 		return err
 	}
@@ -316,6 +324,42 @@ func runOwnedLocalHostWithLayout(ctx context.Context, layout eshulocal.Layout, m
 	}()
 	children = append(children, localHostChild{name: "eshu-mcp-server", cmd: mcpServer})
 	return localHostWaitManagedChildren(ctx, children, "eshu-mcp-server")
+}
+
+func localHostChildOverrides(layout eshulocal.Layout, overrides map[string]string, getenv func(string) string) map[string]string {
+	merged := make(map[string]string, len(overrides)+2)
+	for key, value := range overrides {
+		merged[key] = value
+	}
+	setOverrideIfUnset(merged, getenv, localHostLogModeEnv, localHostLogModeFile)
+	setOverrideIfUnset(merged, getenv, localHostLogDirEnv, layout.LogsDir)
+	return merged
+}
+
+func localHostMCPStdioOverrides() map[string]string {
+	return map[string]string{
+		"ESHU_MCP_TRANSPORT": "stdio",
+		localHostLogModeEnv:  localHostLogModeTerminal,
+	}
+}
+
+func localHostProgressEnabled(getenv func(string) string) bool {
+	return localHostProgressMode(getenv) != localHostProgressModeQuiet
+}
+
+func localHostProgressMode(getenv func(string) string) string {
+	if getenv == nil {
+		return localHostProgressModeAuto
+	}
+	mode := strings.TrimSpace(getenv(localHostProgressModeEnv))
+	switch mode {
+	case localHostProgressModeAuto, localHostProgressModePlain, localHostProgressModeQuiet:
+		return mode
+	case "":
+		return localHostProgressModeAuto
+	default:
+		return localHostProgressModeAuto
+	}
 }
 
 func localHostReducerOverrides(expectedProjectors int, runtimeConfig localHostRuntimeConfig, getenv func(string) string) map[string]string {
@@ -375,9 +419,7 @@ func runAttachedLocalMCPStdio(ctx context.Context, layout eshulocal.Layout) (boo
 		)
 	}
 
-	mcpServer, err := localHostStartChildProcess("eshu-mcp-server", []string{"eshu-mcp-server"}, localHostEnv(dsn, runtimeConfig, managedGraphFromRecord(record), map[string]string{
-		"ESHU_MCP_TRANSPORT": "stdio",
-	}))
+	mcpServer, err := localHostStartChildProcess("eshu-mcp-server", []string{"eshu-mcp-server"}, localHostEnv(dsn, runtimeConfig, managedGraphFromRecord(record), localHostMCPStdioOverrides()))
 	if err != nil {
 		return true, err
 	}

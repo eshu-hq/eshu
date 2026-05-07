@@ -68,6 +68,13 @@ Subsequent `Next` calls read one generation from `s.stream`. When the stream
 channel closes, `Next` returns `ok=false` and resets for the next discovery
 cycle.
 
+For filesystem sources, `NativeRepositorySelector.SelectRepositories` uses a
+manifest under the managed repository cache to avoid reselecting unchanged
+workspaces. The manifest hashes the files the collector can actually use:
+`.gitignore` and `.eshuignore` rule files are included, while files excluded by
+those rules are skipped. This keeps local watch mode from creating new
+generations for ignored logs, build outputs, or editor scratch files.
+
 `NativeRepositorySnapshotter.SnapshotRepository` runs four sequential stages
 per repository:
 
@@ -168,6 +175,9 @@ per repository:
 - Repo-local `.eshu/discovery.json` and `.eshu/vendor-roots.json` override default
   discovery options before the operator-level `ESHU_DISCOVERY_IGNORED_PATH_GLOBS`
   overlay is applied.
+- Filesystem manifest fingerprints include `.gitignore` and `.eshuignore` rule
+  files but exclude paths filtered by those rules. Changing an ignore rule
+  reselects the repository; changing only ignored output does not.
 - Two-phase streaming: `ContentFileMeta` carries no body; `streamFacts`
   re-reads file bodies from disk at emit time. The OS page cache keeps re-reads
   fast. Do not change this design to in-memory bodies without accounting for
@@ -200,6 +210,10 @@ per repository:
   repo path before building the `sourceRunID` hash. Do not pass relative paths
   to `NativeRepositorySnapshotter.SnapshotRepository` — it calls
   `filepath.Abs` again but the fact IDs would differ.
+- Filesystem manifests must stay aligned with copy/direct snapshot filtering.
+  If `fingerprintTree` starts hashing ignored generated files, local watch mode
+  can keep publishing newer generations and supersede projector work before the
+  graph settles.
 
 ## Related docs
 

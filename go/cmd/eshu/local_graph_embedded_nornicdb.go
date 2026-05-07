@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	nornicauth "github.com/orneryd/nornicdb/pkg/auth"
 	nornicbolt "github.com/orneryd/nornicdb/pkg/bolt"
@@ -57,8 +59,14 @@ func startEmbeddedLocalNornicDB(ctx context.Context, layout eshulocal.Layout) (*
 	if err != nil {
 		return nil, fmt.Errorf("open graph log file: %w", err)
 	}
+	restoreStartupOutput, err := redirectEmbeddedNornicDBStartupProcessOutput(logFile)
+	if err != nil {
+		_ = logFile.Close()
+		return nil, fmt.Errorf("redirect embedded nornicdb startup output: %w", err)
+	}
 	embedded, err := startEmbeddedNornicDBRuntime(dataDir, localNornicDBBindAddress, boltPort, httpPort, credentials, logFile)
 	if err != nil {
+		_ = restoreStartupOutput()
 		_ = logFile.Close()
 		return nil, err
 	}
@@ -78,16 +86,22 @@ func startEmbeddedLocalNornicDB(ctx context.Context, layout eshulocal.Layout) (*
 		shutdown: embedded.stop,
 	}
 	if err := waitForManagedLocalGraph(ctx, graph, localGraphStartupTimeout); err != nil {
+		_ = restoreStartupOutput()
 		_ = stopManagedLocalGraph(graph, localGraphShutdownTimeout)
 		return nil, err
+	}
+	if err := restoreStartupOutput(); err != nil {
+		_ = stopManagedLocalGraph(graph, localGraphShutdownTimeout)
+		return nil, fmt.Errorf("restore embedded nornicdb startup output: %w", err)
 	}
 	return graph, nil
 }
 
 type embeddedNornicDBRuntime struct {
-	db         *nornicdb.DB
-	httpServer *nornicserver.Server
-	boltServer *nornicbolt.Server
+	db                    *nornicdb.DB
+	httpServer            *nornicserver.Server
+	boltServer            *nornicbolt.Server
+	restoreStandardLogger func()
 }
 
 // startEmbeddedNornicDBRuntime composes NornicDB's public DB, HTTP server, and
@@ -101,10 +115,11 @@ func startEmbeddedNornicDBRuntime(
 	httpPort int,
 	credentials localGraphCredentials,
 	logs io.Writer,
-) (*embeddedNornicDBRuntime, error) {
+) (_ *embeddedNornicDBRuntime, retErr error) {
 	if logs == nil {
 		logs = io.Discard
 	}
+	restoreStandardLogger := redirectEmbeddedNornicDBStandardLogger(logs)
 	dbConfig := nornicdb.DefaultConfig()
 	dbConfig.Database.DataDir = dataDir
 	dbConfig.Database.DefaultDatabase = localNornicDBDefaultDatabase
@@ -112,16 +127,18 @@ func startEmbeddedNornicDBRuntime(
 	dbConfig.Features.HeimdallEnabled = false
 	dbConfig.Features.QdrantGRPCEnabled = false
 
+	runtime := &embeddedNornicDBRuntime{restoreStandardLogger: restoreStandardLogger}
+	defer func() {
+		if retErr != nil {
+			_ = runtime.stop(context.Background())
+		}
+	}()
+
 	db, err := nornicdb.Open(dataDir, dbConfig)
 	if err != nil {
 		return nil, fmt.Errorf("open embedded nornicdb: %w", err)
 	}
-	runtime := &embeddedNornicDBRuntime{db: db}
-	defer func() {
-		if err != nil {
-			_ = runtime.stop(context.Background())
-		}
-	}()
+	runtime.db = db
 
 	authenticator, err := newEmbeddedNornicDBAuthenticator(db, credentials)
 	if err != nil {
@@ -168,6 +185,55 @@ func startEmbeddedNornicDBRuntime(
 	return runtime, nil
 }
 
+func redirectEmbeddedNornicDBStandardLogger(logs io.Writer) func() {
+	if logs == nil {
+		logs = io.Discard
+	}
+	previous := log.Writer()
+	log.SetOutput(logs)
+	return func() {
+		log.SetOutput(previous)
+	}
+}
+
+func redirectEmbeddedNornicDBStartupProcessOutput(logs io.Writer) (func() error, error) {
+	if logs == nil {
+		logs = io.Discard
+	}
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		return nil, fmt.Errorf("create embedded nornicdb output pipe: %w", err)
+	}
+	previousStdout := os.Stdout
+	previousStderr := os.Stderr
+
+	var (
+		once    sync.Once
+		copyErr error
+		done    = make(chan struct{})
+	)
+	go func() {
+		defer close(done)
+		_, copyErr = io.Copy(logs, reader)
+		_ = reader.Close()
+	}()
+
+	os.Stdout = writer
+	os.Stderr = writer
+
+	return func() error {
+		var restoreErr error
+		once.Do(func() {
+			os.Stdout = previousStdout
+			os.Stderr = previousStderr
+			restoreErr = writer.Close()
+			<-done
+			restoreErr = errors.Join(restoreErr, copyErr)
+		})
+		return restoreErr
+	}, nil
+}
+
 // newEmbeddedNornicDBAuthenticator gives embedded Bolt and HTTP the same
 // workspace-scoped admin user that process mode receives through NORNICDB_AUTH.
 func newEmbeddedNornicDBAuthenticator(db *nornicdb.DB, credentials localGraphCredentials) (*nornicauth.Authenticator, error) {
@@ -197,6 +263,9 @@ func newEmbeddedNornicDBAuthenticator(db *nornicdb.DB, credentials localGraphCre
 func (r *embeddedNornicDBRuntime) stop(ctx context.Context) error {
 	if r == nil {
 		return nil
+	}
+	if r.restoreStandardLogger != nil {
+		defer r.restoreStandardLogger()
 	}
 	var err error
 	if r.boltServer != nil {

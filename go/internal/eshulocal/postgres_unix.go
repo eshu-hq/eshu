@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -102,24 +103,11 @@ func StartEmbeddedPostgres(ctx context.Context, layout Layout) (*ManagedPostgres
 			return nil, err
 		}
 
-		runtime = newEmbeddedPostgres(
-			embeddedpostgres.DefaultConfig().
-				Version(embeddedpostgres.V16).
-				Username(localPostgresUser).
-				Password(localPostgresPassword).
-				Database(localPostgresDatabase).
-				Port(uint32(port)).
-				StartTimeout(45 * time.Second).
-				RuntimePath(runtimeDir).
-				DataPath(dataDir).
-				BinariesPath(binariesDir).
-				CachePath(cacheDir).
-				StartParameters(map[string]string{
-					"listen_addresses":        "localhost",
-					"max_connections":         "35",
-					"unix_socket_directories": socketDir,
-				}),
-		)
+		postgresLog, closePostgresLog := postgresStartupLogWriter(layout)
+		runtime = newEmbeddedPostgres(embeddedPostgresConfig(dataDir, runtimeDir, binariesDir, cacheDir, socketDir, port, postgresLog))
+		if closePostgresLog != nil {
+			defer closePostgresLog()
+		}
 		if err = runtime.Start(); err == nil {
 			break
 		}
@@ -162,6 +150,52 @@ func StartEmbeddedPostgres(ctx context.Context, layout Layout) (*ManagedPostgres
 		CtlPath:    filepath.Join(binariesDir, "bin", "pg_ctl"),
 		runtime:    runtime,
 	}, nil
+}
+
+func embeddedPostgresConfig(
+	dataDir string,
+	runtimeDir string,
+	binariesDir string,
+	cacheDir string,
+	socketDir string,
+	port int,
+	logs io.Writer,
+) embeddedpostgres.Config {
+	if logs == nil {
+		logs = io.Discard
+	}
+	return embeddedpostgres.DefaultConfig().
+		Version(embeddedpostgres.V16).
+		Username(localPostgresUser).
+		Password(localPostgresPassword).
+		Database(localPostgresDatabase).
+		Port(uint32(port)).
+		StartTimeout(45 * time.Second).
+		RuntimePath(runtimeDir).
+		DataPath(dataDir).
+		BinariesPath(binariesDir).
+		CachePath(cacheDir).
+		Logger(logs).
+		StartParameters(map[string]string{
+			"listen_addresses":        "localhost",
+			"max_connections":         "35",
+			"unix_socket_directories": socketDir,
+		})
+}
+
+func postgresStartupLogWriter(layout Layout) (io.Writer, func()) {
+	if strings.TrimSpace(layout.LogsDir) == "" {
+		return io.Discard, nil
+	}
+	if err := os.MkdirAll(layout.LogsDir, 0o700); err != nil {
+		return io.Discard, nil
+	}
+	logPath := filepath.Join(layout.LogsDir, "postgres.log")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return io.Discard, nil
+	}
+	return logFile, func() { _ = logFile.Close() }
 }
 
 // PostgresDSN returns the loopback TCP connection string for the local workspace database.

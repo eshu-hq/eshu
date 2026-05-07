@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -29,6 +30,7 @@ var (
 	localHostProgressWriter       io.Writer = os.Stderr
 	localHostProgressNow                    = func() time.Time { return time.Now().UTC() }
 	localHostProgressPollInterval           = defaultLocalHostProgressPollInterval
+	localHostProgressIsTerminal             = localHostProgressWriterIsTerminal
 )
 
 func startLocalHostProgressReporter(
@@ -47,6 +49,13 @@ func startLocalHostProgressReporter(
 	}
 
 	reader := pgstorage.NewStatusStore(pgstorage.SQLQueryer{DB: db})
+	renderer := newLocalHostProgressRenderer(
+		workspaceRoot,
+		runtimeConfig,
+		localHostProgressMode(os.Getenv),
+		localHostProgressWriter,
+		localHostProgressIsTerminal,
+	)
 	reporterCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 
@@ -61,9 +70,8 @@ func startLocalHostProgressReporter(
 			report, err := localHostLoadProgressReport(reporterCtx, reader, localHostProgressNow())
 			if err == nil {
 				fingerprint := localHostProgressFingerprint(workspaceRoot, runtimeConfig, report)
-				rendered := renderLocalHostProgressSnapshot(workspaceRoot, runtimeConfig, report)
 				if fingerprint != lastFingerprint {
-					_, _ = io.WriteString(localHostProgressWriter, rendered)
+					_ = renderer.Render(report)
 					lastFingerprint = fingerprint
 				}
 			}
@@ -79,7 +87,7 @@ func startLocalHostProgressReporter(
 	return func() error {
 		cancel()
 		<-done
-		return db.Close()
+		return errors.Join(renderer.Close(), db.Close())
 	}, nil
 }
 
@@ -102,15 +110,7 @@ func renderLocalHostProgressSnapshot(
 	)
 	fmt.Fprintf(&builder, "  Health: %s\n", report.Health.State)
 
-	for _, row := range report.FlowSummaries {
-		fmt.Fprintf(
-			&builder,
-			"  %s: progress=%s | backlog=%s\n",
-			localHostProgressLaneLabel(row.Lane),
-			row.Progress,
-			row.Backlog,
-		)
-	}
+	renderLocalHostKnownWorkTable(&builder, report)
 
 	fmt.Fprintf(
 		&builder,
@@ -135,6 +135,168 @@ func localHostProgressBackendLabel(runtimeConfig localHostRuntimeConfig) string 
 	return string(runtimeConfig.GraphBackend)
 }
 
+type localHostKnownWorkRow struct {
+	stage     string
+	done      int
+	active    int
+	waiting   int
+	failed    int
+	total     int
+	workLabel string
+}
+
+func renderLocalHostKnownWorkTable(builder *strings.Builder, report statuspkg.Report) {
+	rows := localHostKnownWorkRows(report)
+	fmt.Fprintf(
+		builder,
+		"  %-10s %-11s %-15s %-6s %-7s %-8s %-7s %s\n",
+		"Stage",
+		"State",
+		"Progress",
+		"Done",
+		"Active",
+		"Waiting",
+		"Failed",
+		"Unit",
+	)
+	for _, row := range rows {
+		if row.total <= 0 {
+			fmt.Fprintf(
+				builder,
+				"  %-10s %-11s %-15s %-6s %-7d %-8d %-7d %s\n",
+				row.stage,
+				localHostProgressRowState(row),
+				"-",
+				"-",
+				row.active,
+				row.waiting,
+				row.failed,
+				localHostIdleWorkLabel(row),
+			)
+			continue
+		}
+		fmt.Fprintf(
+			builder,
+			"  %-10s %-11s %-15s %-6s %-7d %-8d %-7d %s\n",
+			row.stage,
+			localHostProgressRowState(row),
+			localHostProgressBar(row.done, row.total),
+			localHostProgressDoneText(row.done, row.total),
+			row.active,
+			row.waiting,
+			row.failed,
+			row.workLabel,
+		)
+	}
+	if report.GenerationHistory.Superseded > 0 {
+		fmt.Fprintf(builder, "  Superseded generations: %d\n", report.GenerationHistory.Superseded)
+	}
+}
+
+func localHostProgressRowState(row localHostKnownWorkRow) string {
+	if row.failed > 0 {
+		return "attention"
+	}
+	if row.active > 0 {
+		return "running"
+	}
+	if row.waiting > 0 {
+		return "waiting"
+	}
+	if row.total > 0 && row.done >= row.total {
+		return "complete"
+	}
+	return "idle"
+}
+
+func localHostIdleWorkLabel(row localHostKnownWorkRow) string {
+	if row.stage == "Collector" {
+		return "watching source"
+	}
+	return "no known work"
+}
+
+func localHostKnownWorkRows(report statuspkg.Report) []localHostKnownWorkRow {
+	projector := localHostStageSummary(report.StageSummaries, "projector")
+	reducer := localHostStageSummary(report.StageSummaries, "reducer")
+	return []localHostKnownWorkRow{
+		localHostCollectorKnownWorkRow(report.GenerationHistory),
+		localHostStageKnownWorkRow("Projector", projector),
+		localHostStageKnownWorkRow("Reducer", reducer),
+	}
+}
+
+func localHostCollectorKnownWorkRow(history statuspkg.GenerationHistorySnapshot) localHostKnownWorkRow {
+	current := history.Completed + history.Active
+	total := current + history.Pending + history.Failed + history.Other
+	return localHostKnownWorkRow{
+		stage:     "Collector",
+		done:      current,
+		active:    0,
+		waiting:   history.Pending,
+		failed:    history.Failed + history.Other,
+		total:     total,
+		workLabel: "generations",
+	}
+}
+
+func localHostStageKnownWorkRow(stage string, summary statuspkg.StageSummary) localHostKnownWorkRow {
+	active := summary.Claimed + summary.Running
+	waiting := summary.Pending + summary.Retrying
+	failed := summary.Failed + summary.DeadLetter
+	total := summary.Succeeded + active + waiting + failed
+	return localHostKnownWorkRow{
+		stage:     stage,
+		done:      summary.Succeeded,
+		active:    active,
+		waiting:   waiting,
+		failed:    failed,
+		total:     total,
+		workLabel: "work items",
+	}
+}
+
+func localHostStageSummary(rows []statuspkg.StageSummary, stage string) statuspkg.StageSummary {
+	for _, row := range rows {
+		if row.Stage == stage {
+			return row
+		}
+	}
+	return statuspkg.StageSummary{Stage: stage}
+}
+
+func localHostProgressDoneText(done int, total int) string {
+	return fmt.Sprintf("%d/%d", done, total)
+}
+
+func localHostProgressBar(done int, total int) string {
+	const width = 12
+	if done < 0 {
+		done = 0
+	}
+	if total <= 0 {
+		return "[" + strings.Repeat("-", width) + "]"
+	}
+	if done > total {
+		done = total
+	}
+	filled := done * width / total
+	return "[" + strings.Repeat("#", filled) + strings.Repeat("-", width-filled) + "]"
+}
+
+func localHostProgressFraction(done int, total int) float64 {
+	if total <= 0 {
+		return 0
+	}
+	if done < 0 {
+		done = 0
+	}
+	if done > total {
+		done = total
+	}
+	return float64(done) / float64(total)
+}
+
 func localHostProgressAge(age time.Duration) string {
 	if age <= 0 {
 		return "0s"
@@ -143,13 +305,6 @@ func localHostProgressAge(age time.Duration) string {
 		return age.String()
 	}
 	return age.Truncate(time.Second).String()
-}
-
-func localHostProgressLaneLabel(lane string) string {
-	if lane == "" {
-		return "Lane"
-	}
-	return strings.ToUpper(lane[:1]) + lane[1:]
 }
 
 func localHostProgressFingerprint(

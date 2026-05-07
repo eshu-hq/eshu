@@ -61,15 +61,32 @@ launched runtime via the shared `telemetry` package. Errors print to
   starting a fresh embedded Postgres.
 - `local_authoritative` rebuilds from the workspace source tree on owner start,
   so startup clears the rebuildable Postgres `data` / `runtime` directories and
-  the local NornicDB graph store before launching children. The reset preserves
-  managed Postgres binaries and logs while avoiding stale queue rows, old graph
-  nodes, and NornicDB search-index warmup over obsolete data
+  the local NornicDB graph store before launching children. It also clears the
+  filesystem selector manifest under `cache/repos` so a restarted owner cannot
+  mistake an empty fresh Postgres for an unchanged source tree. The reset
+  preserves managed Postgres binaries and logs while avoiding stale queue rows,
+  old graph nodes, and NornicDB search-index warmup over obsolete data
   (`local_host_reset.go`).
 - For `local_authoritative` + NornicDB, the local owner sets snapshot, parse,
   projector, and reducer worker env vars to the developer machine's CPU count
   before launching `eshu-ingester` and `eshu-reducer`. Explicit env vars still
   win, so a developer can lower or raise a single pool without changing the
   owner code (`local_host_config.go` and `local_host.go`).
+- Foreground `eshu graph start` defaults child service logs to workspace log
+  files (`eshu-ingester.log`, `eshu-reducer.log`) while `--progress auto`
+  renders a branded Bubble Tea progress panel on the terminal alternate screen.
+  The panel leads with a verdict (`Watching`, `Indexing`, `Settling`,
+  `Complete`, or `Attention`) and uses animated Ember-to-Signal-Teal bars with
+  stage states and known-work denominators: collector generations and
+  projector/reducer work items. An active collector generation is the current
+  snapshot and counts as done in this table; pending collector generations keep
+  the verdict at `Indexing` until the collector settles. `Complete` means every
+  known stage has drained. The table pads columns by display width, so colored
+  progress bars do not shift the `Done`, `Active`, `Waiting`, or `Failed`
+  counts. It shows `idle` when the status store has no active denominator yet.
+  `--progress plain` writes append-only text snapshots, `--verbose` and `--logs
+  terminal` restore direct terminal logs for debugging, `--logs quiet` discards
+  child logs, and `--progress quiet` suppresses the progress reporter.
 - `graphBoltHealthy` sends the Bolt magic + four version proposals and reads
   the 4-byte server response. The response must match one offered protocol
   version; `00 00 00 00` means the server rejected negotiation and is not ready.

@@ -8,5 +8,8 @@
 // make graph projection or query-time truth decisions, which belong to the
 // projector, reducer, storage, and query packages. Callers must treat
 // collection as best-effort over remote and local filesystems and handle
-// partial-snapshot and discovery-skip outcomes explicitly.
+// partial-snapshot and discovery-skip outcomes explicitly. Filesystem source
+// manifests fingerprint the effective collector input, including ignore-rule
+// files but excluding paths removed by `.gitignore` or `.eshuignore`, so local
+// watch mode does not reindex on ignored generated output.
 package collector

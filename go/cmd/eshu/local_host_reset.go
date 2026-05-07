@@ -15,6 +15,7 @@ func resetLocalAuthoritativeState(layout eshulocal.Layout) error {
 		filepath.Join(layout.PostgresDir, "data"),
 		filepath.Join(layout.PostgresDir, "runtime"),
 		filepath.Join(layout.GraphDir, "nornicdb"),
+		filepath.Join(layout.CacheDir, "repos"),
 	}
 	for _, path := range paths {
 		if err := os.RemoveAll(path); err != nil {
