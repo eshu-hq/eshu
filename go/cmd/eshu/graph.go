@@ -367,7 +367,7 @@ func graphStopForLayout(layout eshulocal.Layout) error {
 	}
 
 	if !graphStopGraphHealthy(record) {
-		return nil
+		return graphReclaimStaleAuthoritativeOwner(layout)
 	}
 	if err := graphStopRecordedGraph(record); err != nil {
 		return err
@@ -406,6 +406,48 @@ func graphReclaimStaleLightweightOwner(layout eshulocal.Layout) (retErr error) {
 	}
 	if graphOwnerSocketHealthy(record.SocketPath) {
 		return fmt.Errorf("%w: socket=%q", eshulocal.ErrWorkspaceOwnerActive, record.SocketPath)
+	}
+	if graphRecordedPostgresActive(record) {
+		if record.PostgresDataDir == "" {
+			return fmt.Errorf("%w: postgres_data_dir is required when postgres appears active", eshulocal.ErrInvalidOwnerRecord)
+		}
+		if err := graphStopPostgres(record.PostgresDataDir); err != nil {
+			return fmt.Errorf("stop stale embedded postgres: %w", err)
+		}
+		if graphRecordedPostgresActive(record) {
+			return fmt.Errorf("%w: pid=%d socket=%q data_dir=%q", eshulocal.ErrEmbeddedPostgresActive, record.PostgresPID, record.PostgresSocketPath, record.PostgresDataDir)
+		}
+	}
+	return removeStaleOwnerRecord(layout.OwnerRecordPath)
+}
+
+func graphReclaimStaleAuthoritativeOwner(layout eshulocal.Layout) (retErr error) {
+	lock, err := graphAcquireOwnerLock(layout.OwnerLockPath)
+	if err != nil {
+		return fmt.Errorf("reclaim stale local authoritative owner: %w", err)
+	}
+	defer func() {
+		if err := lock.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("release owner lock: %w", err)
+		}
+	}()
+
+	record, err := graphReadOwnerRecord(layout.OwnerRecordPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	runtimeConfig, err := runtimeConfigFromOwnerRecord(record)
+	if err != nil {
+		return err
+	}
+	if runtimeConfig.Profile != query.ProfileLocalAuthoritative {
+		return fmt.Errorf("owner record changed to profile %q while reclaiming local authoritative stop", runtimeConfig.Profile)
+	}
+	if graphProcessAlive(record.PID) || graphStopGraphHealthy(record) {
+		return fmt.Errorf("%w: pid=%d graph_pid=%d", eshulocal.ErrWorkspaceOwnerActive, record.PID, record.GraphPID)
 	}
 	if graphRecordedPostgresActive(record) {
 		if record.PostgresDataDir == "" {

@@ -134,10 +134,11 @@ ON CONFLICT (generation_id) DO UPDATE SET
 
 const activeGenerationFreshnessQuery = `
 SELECT generation.generation_id, COALESCE(generation.freshness_hint, '')
-FROM ingestion_scopes AS scope
-JOIN scope_generations AS generation
-  ON generation.generation_id = scope.active_generation_id
-WHERE scope.scope_id = $1
+FROM scope_generations AS generation
+WHERE generation.scope_id = $1
+  AND generation.status IN ('pending', 'active')
+  AND COALESCE(generation.freshness_hint, '') <> ''
+ORDER BY generation.ingested_at DESC, generation.generation_id DESC
 LIMIT 1
 `
 

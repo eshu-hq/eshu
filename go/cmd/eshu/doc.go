@@ -6,14 +6,16 @@
 // `stats`), service launch (`mcp start`, `api start`, `serve`), authenticated
 // local Eshu service commands (`graph` — `stop` handles both `local_lightweight`
 // and `local_authoritative` profiles; lightweight stop verifies the owner
-// socket before signaling and uses owner.lock before stale metadata cleanup;
+// socket before signaling; stale lightweight and authoritative stops use
+// owner.lock before stopping recorded Postgres children and removing metadata;
 // Bolt health requires a selected protocol version to avoid a
 // TCP-accept/protocol-ready race), backend installation (`install`),
 // admin/operator workflows (`admin ...`), configuration (`config`, `neo4j`),
 // discovery (`find`, `analyze`, `ecosystem`), internal local-service
 // orchestration, and the `doctor` diagnostic. Its local-authoritative graph
 // path first acquires owner.lock, reclaims ownerless live Postgres only after
-// PID, socket, and protocol probes agree, starts embedded or process-mode
+// PID, socket, and protocol probes agree, clears rebuildable local
+// authoritative Postgres and graph state, starts embedded or process-mode
 // NornicDB, injects the workspace-scoped Bolt credentials plus CPU-count worker
 // defaults from local_host_config.go into child services, and keeps embedded
 // Bolt database access aligned with the HTTP server's RBAC callbacks. It hands

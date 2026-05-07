@@ -118,6 +118,57 @@ func TestGraphStopStopsRecordedGraphWhenOwnerIsDead(t *testing.T) {
 	}
 }
 
+func TestGraphStopReclaimsDeadAuthoritativeOwnerRecord(t *testing.T) {
+	originalReadOwnerRecord := graphReadOwnerRecord
+	originalAcquireOwnerLock := graphAcquireOwnerLock
+	originalProcessAlive := graphProcessAlive
+	originalGraphHealthy := graphStopGraphHealthy
+	originalSignalProcess := graphSignalProcess
+	t.Cleanup(func() {
+		graphReadOwnerRecord = originalReadOwnerRecord
+		graphAcquireOwnerLock = originalAcquireOwnerLock
+		graphProcessAlive = originalProcessAlive
+		graphStopGraphHealthy = originalGraphHealthy
+		graphSignalProcess = originalSignalProcess
+	})
+
+	ownerRecordPath := t.TempDir() + "/owner.json"
+	if err := os.WriteFile(ownerRecordPath, []byte("{}\n"), 0o600); err != nil {
+		t.Fatalf("write owner record: %v", err)
+	}
+	record := eshulocal.OwnerRecord{
+		PID:          42,
+		WorkspaceID:  "workspace-id",
+		Profile:      string(query.ProfileLocalAuthoritative),
+		GraphBackend: string(query.GraphBackendNornicDB),
+		GraphPID:     42,
+	}
+	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
+		return record, nil
+	}
+	graphAcquireOwnerLock = func(path string) (*eshulocal.OwnerLock, error) {
+		return &eshulocal.OwnerLock{}, nil
+	}
+	graphProcessAlive = func(pid int) bool {
+		return false
+	}
+	graphStopGraphHealthy = func(record eshulocal.OwnerRecord) bool {
+		return false
+	}
+	graphSignalProcess = func(pid int, signal os.Signal) error {
+		t.Fatalf("graphSignalProcess called for already-dead owner pid %d", pid)
+		return nil
+	}
+
+	err := graphStopForLayout(eshulocal.Layout{OwnerRecordPath: ownerRecordPath})
+	if err != nil {
+		t.Fatalf("graphStopForLayout() error = %v, want nil", err)
+	}
+	if _, err := os.Stat(ownerRecordPath); !os.IsNotExist(err) {
+		t.Fatalf("owner record stat error = %v, want not exist", err)
+	}
+}
+
 func TestGraphStopSignalsLightweightOwnerWhenAlive(t *testing.T) {
 	originalReadOwnerRecord := graphReadOwnerRecord
 	originalProcessAlive := graphProcessAlive

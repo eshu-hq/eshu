@@ -14,40 +14,8 @@ WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical' AND f.g
   AND (f.path IS NULL OR NOT (f.path IN $file_paths))
 DETACH DELETE f`
 
-const canonicalNodeRetractCodeEntitiesCypher = `MATCH (n)
+const canonicalNodeRetractEntityTemplate = `MATCH (n:%s)
 WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical' AND n.generation_id <> $generation_id
-  AND (n:Function OR n:Class OR n:Variable OR n:Interface OR n:Trait OR n:Struct OR n:Enum OR n:Macro OR n:Union OR n:Record OR n:Property OR n:Annotation OR n:Typedef OR n:TypeAlias OR n:TypeAnnotation OR n:Component OR n:ImplBlock OR n:Protocol OR n:ProtocolImplementation)
-  AND (n.uid IS NULL OR NOT (n.uid IN $entity_ids))
-DETACH DELETE n`
-
-const canonicalNodeRetractInfraEntitiesCypher = `MATCH (n)
-WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical' AND n.generation_id <> $generation_id
-  AND (n:K8sResource OR n:ArgoCDApplication OR n:ArgoCDApplicationSet OR n:CrossplaneXRD OR n:CrossplaneComposition OR n:CrossplaneClaim OR n:KustomizeOverlay OR n:HelmChart OR n:HelmValues)
-  AND (n.uid IS NULL OR NOT (n.uid IN $entity_ids))
-DETACH DELETE n`
-
-const canonicalNodeRetractTerraformEntitiesCypher = `MATCH (n)
-WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical' AND n.generation_id <> $generation_id
-  AND (n:TerraformResource OR n:TerraformModule OR n:TerraformVariable OR n:TerraformOutput OR n:TerraformDataSource OR n:TerraformProvider OR n:TerraformLocal OR n:TerragruntConfig OR n:TerragruntDependency OR n:TerragruntInput OR n:TerragruntLocal)
-  AND (n.uid IS NULL OR NOT (n.uid IN $entity_ids))
-DETACH DELETE n`
-
-const canonicalNodeRetractCloudFormationEntitiesCypher = `MATCH (n)
-WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical' AND n.generation_id <> $generation_id
-  AND (n:CloudFormationResource OR n:CloudFormationParameter OR n:CloudFormationOutput)
-  AND (n.uid IS NULL OR NOT (n.uid IN $entity_ids))
-DETACH DELETE n`
-
-const canonicalNodeRetractSQLEntitiesCypher = `MATCH (n)
-WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical' AND n.generation_id <> $generation_id
-  AND (n:SqlTable OR n:SqlView OR n:SqlFunction OR n:SqlTrigger OR n:SqlIndex OR n:SqlColumn)
-  AND (n.uid IS NULL OR NOT (n.uid IN $entity_ids))
-DETACH DELETE n`
-
-const canonicalNodeRetractDataEntitiesCypher = `MATCH (n)
-WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical' AND n.generation_id <> $generation_id
-  AND (n:DataAsset OR n:DataColumn OR n:AnalyticsModel OR n:DashboardAsset OR n:DataQualityCheck OR n:QueryExecution OR n:DataContract OR n:DataOwner)
-  AND (n.uid IS NULL OR NOT (n.uid IN $entity_ids))
 DETACH DELETE n`
 
 const canonicalNodeRetractDirectoriesCypher = `MATCH (d:Directory)
@@ -68,8 +36,8 @@ WHERE n.evidence_source = 'projector/canonical'
   AND (n.uid IS NULL OR NOT (n.uid IN $entity_ids))
 DELETE r`
 
-const canonicalNodeRefreshCurrentEntityContainmentEdgesCypher = `UNWIND $rows AS row
-MATCH (n {uid: row.parent_entity_id})-[r:CONTAINS]->(m)
+const canonicalNodeRefreshCurrentEntityContainmentEdgesTemplate = `UNWIND $rows AS row
+MATCH (n:%s {uid: row.parent_entity_id})-[r:CONTAINS]->(m)
 WHERE n.evidence_source = 'projector/canonical'
   AND m.evidence_source = 'projector/canonical'
   AND (m.uid IS NULL OR NOT (m.uid IN row.child_entity_ids))
@@ -81,6 +49,13 @@ WHERE p.path IN $file_paths AND p.evidence_source = 'projector/canonical'
 DETACH DELETE p`
 
 // --- Phase B: Repository Cypher ---
+
+const canonicalNodeRepositoryIDCleanupCypher = `MATCH (r:Repository {id: $repo_id})
+DETACH DELETE r`
+
+const canonicalNodeRepositoryPathCleanupCypher = `MATCH (r:Repository {path: $path})
+WHERE r.id <> $repo_id
+DETACH DELETE r`
 
 const canonicalNodeRepositoryUpsertCypher = `MERGE (r:Repository {id: $repo_id})
 SET r.name = $name, r.path = $path, r.local_path = $local_path,
@@ -111,8 +86,8 @@ SET rel.evidence_source = 'projector/canonical',
 
 // --- Phase D: File Cypher ---
 
-const canonicalNodeFileUpsertCypher = `UNWIND $rows AS row
-MERGE (f:File {path: row.path})
+const canonicalNodeFileUpdateExistingCypher = `UNWIND $rows AS row
+MATCH (f:File {path: row.path})
 SET f.name = row.name, f.relative_path = row.relative_path,
     f.language = row.language, f.lang = row.language,
     f.repo_id = row.repo_id,
@@ -125,6 +100,23 @@ SET repoRel.evidence_source = 'projector/canonical',
     repoRel.generation_id = row.generation_id
 WITH f, row
 MATCH (d:Directory {path: row.dir_path})
+MERGE (d)-[dirRel:CONTAINS]->(f)
+SET dirRel.evidence_source = 'projector/canonical',
+    dirRel.generation_id = row.generation_id`
+
+const canonicalNodeFileCreateMissingCypher = `UNWIND $rows AS row
+MATCH (r:Repository {id: row.repo_id})
+MATCH (d:Directory {path: row.dir_path})
+WHERE NOT EXISTS { MATCH (:File {path: row.path}) }
+MERGE (f:File {path: row.path})
+SET f.name = row.name, f.relative_path = row.relative_path,
+    f.language = row.language, f.lang = row.language,
+    f.repo_id = row.repo_id,
+    f.scope_id = row.scope_id, f.generation_id = row.generation_id,
+    f.evidence_source = 'projector/canonical'
+MERGE (r)-[repoRel:REPO_CONTAINS]->(f)
+SET repoRel.evidence_source = 'projector/canonical',
+    repoRel.generation_id = row.generation_id
 MERGE (d)-[dirRel:CONTAINS]->(f)
 SET dirRel.evidence_source = 'projector/canonical',
     dirRel.generation_id = row.generation_id`

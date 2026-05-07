@@ -27,6 +27,13 @@
   `deduplicateEnvelopes` before each batch to prevent `SQLSTATE 21000` on
   `ON CONFLICT DO UPDATE` when the same `fact_id` appears twice in one batch
   (`facts.go:192`).
+- **Freshness de-dupe covers in-flight generations** —
+  `CommitScopeGeneration` must compare the incoming `FreshnessHint` with the
+  newest same-scope `pending` or `active` generation. Restricting the check to
+  `ingestion_scopes.active_generation_id` lets local polling recommit the same
+  snapshot while projection is still in flight, which creates avoidable
+  supersession churn. Do not include `failed` generations in this skip path; a
+  failed first projection must remain retryable by a later snapshot.
 - **JSONB sanitization** — `sanitizeJSONB` removes ` ` escape sequences
   and raw control bytes before every fact INSERT (`facts.go:435`). Skipping
   this causes Postgres errors on repositories with binary or non-UTF-8 content.

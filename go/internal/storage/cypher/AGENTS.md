@@ -19,9 +19,11 @@
 - **Idempotency** — every write path uses MERGE or ON CONFLICT semantics; no
   unconditional CREATE. `doc.go` states this as a package invariant.
 - **Phase order** — `CanonicalNodeWriter.Write` phases run strictly in order:
-  retract → repository → directories → files → entities → entity_containment →
-  modules → structural_edges. Parent nodes must exist before child MATCH
-  statements run (`canonical_node_writer.go:218`).
+  retract → repository_cleanup → repository → directories → files → entities →
+  entity_retract → entity_containment → modules → structural_edges. Parent
+  nodes must exist before child MATCH statements run, repository cleanup must
+  commit before the repository MERGE, and stale entity cleanup must run after
+  current entity upserts so it can avoid giant `uid IN` exclusion filters.
 - **No GraphWrite type** — this package does not export a GraphWrite port.
   The backend seam is `Executor`. Every caller in `internal/projector` and
   `internal/reducer` uses the projector CanonicalWriter or
@@ -36,6 +38,21 @@
 - **OperationCanonicalUpsert vs. OperationUpsertNode** — canonical domain nodes
   use `OperationCanonicalUpsert`; source-local `SourceLocalRecord` writes use
   `OperationUpsertNode`/`OperationDeleteNode`. Do not mix them.
+- **Identity cleanup** — repository upserts must keep cleanup before MERGE and
+  in a separate phase group. Directory and File writers must not restore
+  current-directory or current-file `DETACH DELETE` cleanup.
+- **Entity cleanup anchors** — stale entity retractions and current-generation
+  `Class`/`Function` containment cleanup must use label-specific anchors. Do
+  not collapse those statements back into unlabelled `MATCH (n)` or UID MATCH
+  shapes; they are correct Cypher but can force broad graph scans on local
+  NornicDB. Stale entity retractions belong in the `entity_retract` phase after
+  current entity upserts, not in the pre-upsert `retract` phase.
+- **Directory and File nodes update in place** — do not replace current
+  `Directory` or `File` nodes just to avoid stale edges. Local NornicDB pays
+  heavily for `DETACH DELETE` on those identities. File paths update with
+  `MATCH (f:File {path: row.path})`; missing files use a `WHERE NOT EXISTS`
+  guard before MERGE so existing `File.path` rows avoid the MERGE
+  unique-conflict path.
 
 ## Common changes and how to scope them
 
@@ -80,7 +97,9 @@
 - Symptom: `failure_class=graph_write_timeout` in queue rows → likely cause:
   `TimeoutExecutor.Timeout` too short for current write volume → check
   `TimeoutHint` in the error for the env var to adjust; check
-  `eshu_dp_canonical_phase_duration_seconds` for the slow phase.
+  `eshu_dp_canonical_phase_duration_seconds` for the slow phase. If the slow
+  statement is source-local entity cleanup, verify it is anchored to the
+  concrete entity label before raising timeouts.
 
 - Symptom: `eshu_dp_canonical_atomic_fallbacks_total` > 0 → the executor does
   not implement `GroupExecutor`; writes are sequential; investigate whether

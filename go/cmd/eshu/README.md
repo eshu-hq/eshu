@@ -59,6 +59,12 @@ launched runtime via the shared `telemetry` package. Errors print to
   but left a live workspace `postmaster.pid`, startup verifies PID liveness,
   socket health, and the Postgres protocol before running `pg_ctl stop` and
   starting a fresh embedded Postgres.
+- `local_authoritative` rebuilds from the workspace source tree on owner start,
+  so startup clears the rebuildable Postgres `data` / `runtime` directories and
+  the local NornicDB graph store before launching children. The reset preserves
+  managed Postgres binaries and logs while avoiding stale queue rows, old graph
+  nodes, and NornicDB search-index warmup over obsolete data
+  (`local_host_reset.go`).
 - For `local_authoritative` + NornicDB, the local owner sets snapshot, parse,
   projector, and reducer worker env vars to the developer machine's CPU count
   before launching `eshu-ingester` and `eshu-reducer`. Explicit env vars still
@@ -75,9 +81,12 @@ launched runtime via the shared `telemetry` package. Errors print to
   checks pass. Lightweight stop requires the recorded Postgres socket to be
   healthy before signaling the owner PID; otherwise it acquires `owner.lock`,
   stops any recorded embedded Postgres child, and only then removes stale
-  metadata. If the lock is still held, the record is preserved for the running
-  owner or the next reclaim path. Authoritative stop additionally waits for the
-  graph sidecar (NornicDB) to become unreachable.
+  metadata. Authoritative stop uses the same lock-before-reclaim discipline when
+  the owner PID is already gone: if the graph is unhealthy, it stops any
+  recorded embedded Postgres child and removes stale metadata. If the lock is
+  still held, the record is preserved for the running owner or the next reclaim
+  path. Authoritative stop additionally waits for the graph sidecar (NornicDB)
+  to become unreachable.
 - The default local graph path is embedded NornicDB when `eshu` is built with
   `nolocalllm`; `ESHU_NORNICDB_RUNTIME=process` is the only runtime-mode
   override, while `ESHU_NORNICDB_BINARY` selects process mode for a specific

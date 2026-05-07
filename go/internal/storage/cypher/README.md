@@ -40,12 +40,22 @@ related, `BuildPlan`) and pass them to a writer
 (`CanonicalNodeWriter`, `EdgeWriter`, `SemanticEntityWriter`) or directly to
 an `Executor`.
 
-`CanonicalNodeWriter.Write` executes all canonical writes in eight named
-phases (`retract`, `repository`, `directories`, `files`, `entities`,
-`entity_containment`, `modules`, `structural_edges`). When the executor
+`CanonicalNodeWriter.Write` executes all canonical writes in named phases:
+`retract`, `repository_cleanup`, `repository`, `directories`, `files`,
+`entities`, `entity_retract`, `entity_containment`, `modules`, and
+`structural_edges`. When the executor
 implements `GroupExecutor`, all phases are sent in a single atomic transaction.
-When it implements `PhaseGroupExecutor`, each phase executes as a bounded
-group. Otherwise phases run sequentially.
+When it implements
+`PhaseGroupExecutor`, each phase executes as a bounded group. Otherwise phases
+run sequentially.
+
+The `repository_cleanup` phase is the only replacement barrier left in the
+canonical node path. Directory rows use depth-ordered `MERGE` after the
+repository is present. File rows update current nodes in place with
+`MATCH (f:File {path: row.path})`, then send only missing rows through a
+`WHERE NOT EXISTS { MATCH (:File {path: row.path}) }` guard before `MERGE`.
+This avoids NornicDB's expensive `DETACH DELETE` cost for current directories
+or files.
 
 `EdgeWriter.WriteEdges` maps a `reducer.Domain` to a batched UNWIND Cypher
 template and dispatches rows in batches of `BatchSize` (default
@@ -181,8 +191,11 @@ adapter seam.
   implement `GroupExecutor`; write ordering relies on sequential phase execution
   which is slower and non-atomic.
 - `eshu_dp_canonical_phase_duration_seconds{phase="retract"}` elevated for
-  non-first generations indicates stale node volume; inspect retract batch sizes
-  and generation freshness.
+  non-first generations indicates stale node volume or an unselective cleanup
+  shape; source-local entity retractions and containment refreshes must stay
+  anchored on concrete labels (`Function`, `Class`, `K8sResource`, etc.) so
+  graph backends can use the schema indexes instead of scanning all canonical
+  nodes.
 - `GraphWriteTimeoutError` surfaces as `failure_class=graph_write_timeout` in
   projector/reducer queue rows; the `TimeoutHint` field names the env var to
   tune.
@@ -212,8 +225,23 @@ adapter seam.
   source-local `SourceLocalRecord` writes. Do not mix them.
 - `CanonicalNodeWriter` phase order is strict: parent nodes (Repository,
   Directory) must exist before child nodes (File, Entity) because later phases
-  use MATCH on these nodes. `directories` are sorted by `Depth` ascending
+  use MATCH on these nodes. Identity cleanup phases run immediately before the
+  corresponding MERGE phase, and `directories` are sorted by `Depth` ascending
   (`canonical_node_writer_phases.go`).
+- Canonical entity containment refreshes prune stale `CONTAINS` edges from
+  current `Class` and `Function` parents. Keep those cleanup statements
+  label-anchored on `uid`; unlabelled UID anchors are portable Cypher but can
+  miss the NornicDB and Neo4j hot path for this package's schema.
+- Canonical stale entity retractions run after current entity upserts and are
+  emitted per projectable label, not as broad label-family `MATCH (n)` scans or
+  giant `uid IN` exclusion filters. Current nodes have already been stamped with
+  the new `generation_id`, so stale cleanup can use generation-only deletion
+  while keeping each graph lookup bounded to one schema label.
+- Repository cleanup first deletes an existing `Repository` found by unique
+  `path` when its `id` differs from the current repository id, then the
+  `repository` phase runs the normal id-based MERGE. Keeping this in a separate
+  `PhaseGroupExecutor` phase lets NornicDB validate the unique `path` after the
+  delete commits and before the new id owns that path.
 - `RetryingExecutor.ExecuteGroup` does not retry; the inner `ExecuteWrite`
   session call already handles transient errors for the group path
   (`retrying_executor.go:87`).

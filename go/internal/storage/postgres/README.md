@@ -63,9 +63,11 @@ generation contains self-overwrites.
 non-UTF-8 content.
 
 `CommitScopeGeneration` compares the incoming generation `FreshnessHint` with
-the active generation for the scope. When the hint is unchanged, the commit path
-logs and skips the redundant write so local polling can observe files without
-recommitting identical snapshots.
+the newest pending or active generation for the same scope. When the hint is
+unchanged, the commit path logs and skips the redundant write so local polling
+can observe files without recommitting identical snapshots or superseding
+in-flight projector work. Failed generations do not satisfy this check, so a
+failed first projection can still be retried by the next snapshot.
 
 ### Projector queue
 

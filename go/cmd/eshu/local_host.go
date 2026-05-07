@@ -50,6 +50,7 @@ var (
 	localHostGraphHealthy                         = graphHealthyFromOwnerRecord
 	localHostStartChildProcess                    = startLocalChildProcess
 	localHostStartManagedGraph                    = startManagedLocalGraph
+	localHostResetAuthoritativeState              = resetLocalAuthoritativeState
 	localHostWaitChildProcess                     = waitLocalChildProcess
 	localHostWaitManagedChildren                  = waitLocalHostChildren
 	localHostWaitOwnerChildren                    = waitLocalHostChildrenKeepingAllowedCleanExits
@@ -144,6 +145,12 @@ func runOwnedLocalHostWithLayout(ctx context.Context, layout eshulocal.Layout, m
 			retErr = closeErr
 		}
 	}()
+
+	if runtimeConfig.Profile == query.ProfileLocalAuthoritative {
+		if err := localHostResetAuthoritativeState(layout); err != nil {
+			return err
+		}
+	}
 
 	managedPostgres, err := localHostStartEmbeddedPostgres(ctx, layout)
 	if err != nil {

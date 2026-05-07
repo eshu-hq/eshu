@@ -119,23 +119,36 @@ func TestCanonicalNodeWriterWritePhaseOrder(t *testing.T) {
 		t.Fatal("expected executor calls, got 0")
 	}
 
-	// Verify strict phase order: retract phases first, then repository, directories, files, entities, entity containment, modules, structural edges.
+	// Verify strict phase order, including post-entity stale cleanup.
 	// Find the phase boundaries by inspecting operation types and cypher content.
 	phaseOrder := []string{}
 	for _, call := range exec.calls {
 		switch call.Operation {
 		case OperationCanonicalRetract:
-			if len(phaseOrder) == 0 || phaseOrder[len(phaseOrder)-1] != "retract" {
+			phase, _ := call.Parameters[StatementMetadataPhaseKey].(string)
+			if phase == "repository_cleanup" {
+				if len(phaseOrder) == 0 || phaseOrder[len(phaseOrder)-1] != "repository_cleanup" {
+					phaseOrder = append(phaseOrder, "repository_cleanup")
+				}
+			} else if phase == "entity_retract" {
+				if len(phaseOrder) == 0 || phaseOrder[len(phaseOrder)-1] != "entity_retract" {
+					phaseOrder = append(phaseOrder, "entity_retract")
+				}
+			} else if len(phaseOrder) == 0 || phaseOrder[len(phaseOrder)-1] != "retract" {
 				phaseOrder = append(phaseOrder, "retract")
 			}
 		case OperationCanonicalUpsert:
 			if strings.Contains(call.Cypher, "MERGE (r:Repository") {
 				phaseOrder = append(phaseOrder, "repository")
-			} else if strings.Contains(call.Cypher, "MERGE (d:Directory") {
+			} else if strings.Contains(call.Cypher, "MATCH (d:Directory {path: row.path})") ||
+				strings.Contains(call.Cypher, "MERGE (d:Directory") ||
+				strings.Contains(call.Cypher, "CREATE (d:Directory") {
 				if len(phaseOrder) == 0 || phaseOrder[len(phaseOrder)-1] != "directories" {
 					phaseOrder = append(phaseOrder, "directories")
 				}
-			} else if strings.Contains(call.Cypher, "MERGE (f:File") {
+			} else if strings.Contains(call.Cypher, "MATCH (f:File {path: row.path})") ||
+				strings.Contains(call.Cypher, "MERGE (f:File") ||
+				strings.Contains(call.Cypher, "CREATE (f:File") {
 				if len(phaseOrder) == 0 || phaseOrder[len(phaseOrder)-1] != "files" {
 					phaseOrder = append(phaseOrder, "files")
 				}
@@ -159,7 +172,7 @@ func TestCanonicalNodeWriterWritePhaseOrder(t *testing.T) {
 		}
 	}
 
-	expected := []string{"retract", "repository", "directories", "files", "entities", "entity_containment", "modules", "structural_edges"}
+	expected := []string{"retract", "repository_cleanup", "repository", "directories", "files", "entities", "entity_retract", "entity_containment", "modules", "structural_edges"}
 	if len(phaseOrder) != len(expected) {
 		t.Fatalf("phase order = %v, want %v", phaseOrder, expected)
 	}
@@ -240,10 +253,11 @@ func TestCanonicalNodeWriterDirectoryDepthOrder(t *testing.T) {
 		t.Fatalf("Write() error = %v", err)
 	}
 
-	// Collect directory-phase calls (MERGE (d:Directory ...))
+	// Collect directory-phase calls.
 	var dirCalls []Statement
 	for _, call := range exec.calls {
-		if call.Operation == OperationCanonicalUpsert && strings.Contains(call.Cypher, "MERGE (d:Directory") {
+		if call.Operation == OperationCanonicalUpsert &&
+			strings.Contains(call.Cypher, "Directory {path: row.path}") {
 			dirCalls = append(dirCalls, call)
 		}
 	}
@@ -258,8 +272,9 @@ func TestCanonicalNodeWriterDirectoryDepthOrder(t *testing.T) {
 		t.Fatalf("first directory call should match Repository parent, got: %s", dirCalls[0].Cypher)
 	}
 
-	// Subsequent calls must use Directory parent
-	for i := 1; i < len(dirCalls); i++ {
+	// Subsequent depth groups must use Directory parents. Each depth emits an
+	// update-existing and guarded create-missing statement.
+	for i := 2; i < len(dirCalls); i++ {
 		if !strings.Contains(dirCalls[i].Cypher, "MATCH (p:Directory") {
 			t.Fatalf("directory call[%d] should match Directory parent, got: %s", i, dirCalls[i].Cypher)
 		}

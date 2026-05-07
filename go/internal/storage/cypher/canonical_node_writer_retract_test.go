@@ -2,6 +2,7 @@ package cypher
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -22,22 +23,23 @@ func TestCanonicalNodeWriterRetractLeavesRemovedIdentitiesEligibleForDeletion(t 
 		Directories: []projector.DirectoryRow{
 			{Path: "/repos/my-repo"},
 		},
-		Entities: []projector.EntityRow{
-			{EntityID: "content-entity:readded", Label: "Function"},
-		},
 	}
 
 	var fileRetract Statement
-	var codeRetract Statement
 	var directoryRetract Statement
 	for _, stmt := range writer.buildRetractStatements(mat) {
 		switch {
 		case strings.Contains(stmt.Cypher, "MATCH (f:File)"):
 			fileRetract = stmt
-		case strings.Contains(stmt.Cypher, "n:Function OR n:Class"):
-			codeRetract = stmt
 		case strings.Contains(stmt.Cypher, "MATCH (d:Directory)"):
 			directoryRetract = stmt
+		}
+	}
+	var codeRetract Statement
+	for _, stmt := range writer.buildEntityRetractStatements(mat) {
+		if strings.Contains(stmt.Cypher, "MATCH (n:Function)") {
+			codeRetract = stmt
+			break
 		}
 	}
 
@@ -49,23 +51,28 @@ func TestCanonicalNodeWriterRetractLeavesRemovedIdentitiesEligibleForDeletion(t 
 		removed   string
 	}{
 		{name: "file", stmt: fileRetract, paramName: "file_paths", current: "/repos/my-repo/readded.go", removed: "/repos/my-repo/deleted.go"},
-		{name: "code entity", stmt: codeRetract, paramName: "entity_ids", current: "content-entity:readded", removed: "content-entity:deleted"},
 		{name: "directory", stmt: directoryRetract, paramName: "directory_paths", current: "/repos/my-repo", removed: "/repos/old"},
 	} {
 		values, ok := tt.stmt.Parameters[tt.paramName].([]string)
 		if !ok {
 			t.Fatalf("%s %s parameter type = %T, want []string", tt.name, tt.paramName, tt.stmt.Parameters[tt.paramName])
 		}
-		if !stringSliceContains(values, tt.current) {
+		if !slices.Contains(values, tt.current) {
 			t.Fatalf("%s %s = %v, want current identity %q preserved", tt.name, tt.paramName, values, tt.current)
 		}
-		if stringSliceContains(values, tt.removed) {
+		if slices.Contains(values, tt.removed) {
 			t.Fatalf("%s %s = %v, removed identity %q should remain retractable", tt.name, tt.paramName, values, tt.removed)
 		}
 	}
+	if _, ok := codeRetract.Parameters["entity_ids"]; ok {
+		t.Fatalf("code entity retract carries entity_ids after current entity upsert")
+	}
+	if strings.Contains(codeRetract.Cypher, "IN $entity_ids") {
+		t.Fatalf("code entity retract Cypher = %q, want generation-only stale cleanup", codeRetract.Cypher)
+	}
 }
 
-func TestCanonicalNodeWriterRetractRefreshesCurrentStructuralEdges(t *testing.T) {
+func TestCanonicalNodeWriterRefreshesCurrentFileStructuralEdges(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
@@ -86,7 +93,6 @@ func TestCanonicalNodeWriterRetractRefreshesCurrentStructuralEdges(t *testing.T)
 
 	var importRefresh Statement
 	var directoryFileRefresh Statement
-	var fileEntityRefresh Statement
 	var entityContainmentRefreshes []Statement
 	for _, stmt := range writer.buildRetractStatements(mat) {
 		switch {
@@ -95,8 +101,8 @@ func TestCanonicalNodeWriterRetractRefreshesCurrentStructuralEdges(t *testing.T)
 		case strings.Contains(stmt.Cypher, "]->(f:File)"):
 			directoryFileRefresh = stmt
 		case strings.Contains(stmt.Cypher, "[r:CONTAINS]->(n)"):
-			fileEntityRefresh = stmt
-		case strings.Contains(stmt.Cypher, "(n {uid: row.parent_entity_id})-[r:CONTAINS]->(m)"):
+			t.Fatalf("file/entity edge refresh should be handled by entity retraction, got: %s", stmt.Cypher)
+		case strings.Contains(stmt.Cypher, "{uid: row.parent_entity_id})-[r:CONTAINS]->(m)"):
 			entityContainmentRefreshes = append(entityContainmentRefreshes, stmt)
 		}
 	}
@@ -117,19 +123,9 @@ func TestCanonicalNodeWriterRetractRefreshesCurrentStructuralEdges(t *testing.T)
 		if !ok {
 			t.Fatalf("%s %s parameter type = %T, want []string", tt.name, tt.paramName, tt.stmt.Parameters[tt.paramName])
 		}
-		if !stringSliceContains(values, tt.want) {
+		if !slices.Contains(values, tt.want) {
 			t.Fatalf("%s %s = %v, want %q", tt.name, tt.paramName, values, tt.want)
 		}
-	}
-	if got, want := fileEntityRefresh.Parameters["file_path"], "/repos/my-repo/main.go"; got != want {
-		t.Fatalf("file entity contains file_path = %#v, want %#v", got, want)
-	}
-	entityIDs, ok := fileEntityRefresh.Parameters["entity_ids"].([]string)
-	if !ok {
-		t.Fatalf("file entity contains entity_ids type = %T, want []string", fileEntityRefresh.Parameters["entity_ids"])
-	}
-	if !stringSliceContains(entityIDs, "content-entity:function") {
-		t.Fatalf("file entity contains entity_ids = %v, want current entity", entityIDs)
 	}
 	var foundClassRefresh bool
 	for _, stmt := range entityContainmentRefreshes {
@@ -146,7 +142,7 @@ func TestCanonicalNodeWriterRetractRefreshesCurrentStructuralEdges(t *testing.T)
 			if !ok {
 				t.Fatalf("entity contains child_entity_ids type = %T, want []string", row["child_entity_ids"])
 			}
-			if !stringSliceContains(childIDs, "content-entity:function") {
+			if !slices.Contains(childIDs, "content-entity:function") {
 				t.Fatalf("entity contains child_entity_ids = %v, want current child entity", childIDs)
 			}
 		}
@@ -171,30 +167,34 @@ func TestCanonicalNodeWriterRefreshesStructuralEdgesBeforeEntityRetract(t *testi
 		},
 	}
 
-	fileEntityRefreshIdx := -1
-	codeEntityRetractIdx := -1
-	for i, stmt := range writer.buildRetractStatements(mat) {
-		switch {
-		case strings.Contains(stmt.Cypher, "[r:CONTAINS]->(n)"):
-			fileEntityRefreshIdx = i
-		case strings.Contains(stmt.Cypher, "n:Function OR n:Class"):
-			codeEntityRetractIdx = i
+	importRefreshPhaseIdx := -1
+	entityRetractPhaseIdx := -1
+	for i, phase := range writer.buildPhases(mat) {
+		switch phase.name {
+		case "retract":
+			for _, stmt := range phase.statements {
+				if strings.Contains(stmt.Cypher, "-[r:IMPORTS]->") {
+					importRefreshPhaseIdx = i
+				}
+			}
+		case "entity_retract":
+			entityRetractPhaseIdx = i
 		}
 	}
 
-	if fileEntityRefreshIdx < 0 {
-		t.Fatal("missing file/entity refresh statement")
+	if importRefreshPhaseIdx < 0 {
+		t.Fatal("missing import refresh statement")
 	}
-	if codeEntityRetractIdx < 0 {
-		t.Fatal("missing code entity retract statement")
+	if entityRetractPhaseIdx < 0 {
+		t.Fatal("missing entity_retract phase")
 	}
-	if fileEntityRefreshIdx > codeEntityRetractIdx {
-		t.Fatalf("file/entity refresh index = %d, code entity retract index = %d; refresh must run first",
-			fileEntityRefreshIdx, codeEntityRetractIdx)
+	if importRefreshPhaseIdx > entityRetractPhaseIdx {
+		t.Fatalf("import refresh phase index = %d, entity_retract phase index = %d; refresh must run first",
+			importRefreshPhaseIdx, entityRetractPhaseIdx)
 	}
 }
 
-func TestCanonicalNodeWriterRefreshesOnlyStaleFileEntityEdges(t *testing.T) {
+func TestCanonicalNodeWriterDoesNotRefreshFileEntityEdgesPerFile(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
@@ -211,43 +211,12 @@ func TestCanonicalNodeWriterRefreshesOnlyStaleFileEntityEdges(t *testing.T) {
 		},
 	}
 
-	var fileEntityRefreshes []Statement
 	for _, stmt := range writer.buildRetractStatements(mat) {
 		if strings.Contains(stmt.Cypher, "[r:CONTAINS]->(n)") {
-			fileEntityRefreshes = append(fileEntityRefreshes, stmt)
+			t.Fatalf("retract still emits per-file entity refresh after entity retraction owns stale edge cleanup: %s", stmt.Cypher)
 		}
 	}
-	if got, want := len(fileEntityRefreshes), 2; got != want {
-		t.Fatalf("file/entity refresh statement count = %d, want %d", got, want)
-	}
-	for _, stmt := range fileEntityRefreshes {
-		if !strings.Contains(stmt.Cypher, "MATCH (f:File {path: $file_path})-[r:CONTAINS]->(n)") {
-			t.Fatalf("refresh Cypher = %q, want single file_path anchor", stmt.Cypher)
-		}
-		if strings.Contains(stmt.Cypher, "f.path IN $file_paths") {
-			t.Fatalf("refresh Cypher = %q, must not prune multiple files in one statement", stmt.Cypher)
-		}
-		filePath, ok := stmt.Parameters["file_path"].(string)
-		if !ok {
-			t.Fatalf("refresh file_path type = %T, want string", stmt.Parameters["file_path"])
-		}
-		entityIDs, ok := stmt.Parameters["entity_ids"].([]string)
-		if !ok {
-			t.Fatalf("refresh[%s] entity_ids type = %T, want []string", filePath, stmt.Parameters["entity_ids"])
-		}
-		switch filePath {
-		case "/repos/my-repo/current.go":
-			if got, want := strings.Join(entityIDs, ","), "function-current,struct-current"; got != want {
-				t.Fatalf("refresh[%s] entity_ids = %q, want %q", filePath, got, want)
-			}
-		case "/repos/my-repo/empty.go":
-			if len(entityIDs) != 0 {
-				t.Fatalf("refresh[%s] entity_ids = %#v, want empty", filePath, entityIDs)
-			}
-		default:
-			t.Fatalf("unexpected refresh file_path %q", filePath)
-		}
-	}
+
 }
 
 func TestCanonicalNodeWriterRefreshesOnlyStaleEntityContainmentEdges(t *testing.T) {
@@ -269,16 +238,24 @@ func TestCanonicalNodeWriterRefreshesOnlyStaleEntityContainmentEdges(t *testing.
 
 	var containmentRefreshes []Statement
 	for _, stmt := range writer.buildRetractStatements(mat) {
-		if strings.Contains(stmt.Cypher, "(n {uid: row.parent_entity_id})-[r:CONTAINS]->(m)") {
+		if strings.Contains(stmt.Cypher, "{uid: row.parent_entity_id})-[r:CONTAINS]->(m)") {
 			containmentRefreshes = append(containmentRefreshes, stmt)
 		}
 	}
-	if got, want := len(containmentRefreshes), 1; got != want {
+	if got, want := len(containmentRefreshes), 2; got != want {
 		t.Fatalf("entity containment refresh statement count = %d, want %d", got, want)
 	}
-	rows, ok := containmentRefreshes[0].Parameters["rows"].([]map[string]any)
-	if !ok {
-		t.Fatalf("rows type = %T, want []map[string]any", containmentRefreshes[0].Parameters["rows"])
+	var rows []map[string]any
+	for _, stmt := range containmentRefreshes {
+		if !strings.Contains(stmt.Cypher, "MATCH (n:Class {uid: row.parent_entity_id})") &&
+			!strings.Contains(stmt.Cypher, "MATCH (n:Function {uid: row.parent_entity_id})") {
+			t.Fatalf("entity containment refresh Cypher = %q, want label-specific uid anchor", stmt.Cypher)
+		}
+		stmtRows, ok := stmt.Parameters["rows"].([]map[string]any)
+		if !ok {
+			t.Fatalf("rows type = %T, want []map[string]any", stmt.Parameters["rows"])
+		}
+		rows = append(rows, stmtRows...)
 	}
 	if got, want := len(rows), 3; got != want {
 		t.Fatalf("rows count = %d, want %d", got, want)
@@ -318,24 +295,24 @@ func TestCanonicalNodeWriterRetractCoversProjectableEntityLabels(t *testing.T) {
 	for _, family := range []struct {
 		name   string
 		labels map[string]struct{}
-		cypher string
 	}{
-		{name: "code", labels: canonicalNodeRetractCodeEntityLabels, cypher: canonicalNodeRetractCodeEntitiesCypher},
-		{name: "infra", labels: canonicalNodeRetractInfraEntityLabels, cypher: canonicalNodeRetractInfraEntitiesCypher},
-		{name: "terraform", labels: canonicalNodeRetractTerraformEntityLabels, cypher: canonicalNodeRetractTerraformEntitiesCypher},
-		{name: "cloudformation", labels: canonicalNodeRetractCloudFormationEntityLabels, cypher: canonicalNodeRetractCloudFormationEntitiesCypher},
-		{name: "sql", labels: canonicalNodeRetractSQLEntityLabels, cypher: canonicalNodeRetractSQLEntitiesCypher},
-		{name: "data", labels: canonicalNodeRetractDataEntityLabels, cypher: canonicalNodeRetractDataEntitiesCypher},
+		{name: "code", labels: canonicalNodeRetractCodeEntityLabels},
+		{name: "infra", labels: canonicalNodeRetractInfraEntityLabels},
+		{name: "terraform", labels: canonicalNodeRetractTerraformEntityLabels},
+		{name: "cloudformation", labels: canonicalNodeRetractCloudFormationEntityLabels},
+		{name: "sql", labels: canonicalNodeRetractSQLEntityLabels},
+		{name: "data", labels: canonicalNodeRetractDataEntityLabels},
 	} {
 		for label := range family.labels {
 			if previous, exists := covered[label]; exists {
 				t.Fatalf("label %s covered by both %s and %s retract families", label, previous, family.name)
 			}
 			covered[label] = family.name
-			if !strings.Contains(family.cypher, "n:"+label) {
-				t.Fatalf("%s label set includes %s but cypher does not", family.name, label)
-			}
 		}
+	}
+	retractLabels := make(map[string]struct{})
+	for _, label := range canonicalNodeRetractEntityLabels() {
+		retractLabels[label] = struct{}{}
 	}
 
 	var missing []string
@@ -345,21 +322,16 @@ func TestCanonicalNodeWriterRetractCoversProjectableEntityLabels(t *testing.T) {
 		}
 		if _, ok := covered[label]; !ok {
 			missing = append(missing, label)
+			continue
+		}
+		if _, ok := retractLabels[label]; !ok {
+			missing = append(missing, label)
 		}
 	}
 	if len(missing) > 0 {
 		sort.Strings(missing)
 		t.Fatalf("retract families missing projectable labels: %s", strings.Join(missing, ", "))
 	}
-}
-
-func stringSliceContains(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
 }
 
 func TestCanonicalNodeWriterEmptyMaterialization(t *testing.T) {
@@ -465,7 +437,9 @@ func TestCanonicalNodeWriterFilesCreateRepoContainsEdges(t *testing.T) {
 	// Find the file upsert call and verify it includes REPO_CONTAINS and CONTAINS edges
 	var fileCypher string
 	for _, call := range exec.calls {
-		if call.Operation == OperationCanonicalUpsert && strings.Contains(call.Cypher, "MERGE (f:File") {
+		if call.Operation == OperationCanonicalUpsert &&
+			call.Parameters[StatementMetadataPhaseKey] == CanonicalPhaseFiles &&
+			strings.Contains(call.Cypher, "MATCH (f:File {path: row.path})") {
 			fileCypher = call.Cypher
 			break
 		}
