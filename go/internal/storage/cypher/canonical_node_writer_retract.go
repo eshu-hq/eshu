@@ -149,50 +149,6 @@ func buildStringSliceRetractStatements(cypher string, paramName string, values [
 	return stmts
 }
 
-func buildFileEntityRefreshStatements(files []projector.FileRow, entities []projector.EntityRow) []Statement {
-	if len(files) == 0 {
-		return nil
-	}
-	entityIDsByFile := make(map[string][]string, len(files))
-	seenByFile := make(map[string]map[string]struct{}, len(files))
-	for _, entity := range entities {
-		if entity.FilePath == "" || entity.EntityID == "" {
-			continue
-		}
-		seen := seenByFile[entity.FilePath]
-		if seen == nil {
-			seen = make(map[string]struct{})
-			seenByFile[entity.FilePath] = seen
-		}
-		if _, ok := seen[entity.EntityID]; ok {
-			continue
-		}
-		seen[entity.EntityID] = struct{}{}
-		entityIDsByFile[entity.FilePath] = append(entityIDsByFile[entity.FilePath], entity.EntityID)
-	}
-
-	stmts := make([]Statement, 0, len(files))
-	seenFiles := make(map[string]struct{}, len(files))
-	for _, file := range files {
-		if file.Path == "" {
-			continue
-		}
-		if _, ok := seenFiles[file.Path]; ok {
-			continue
-		}
-		seenFiles[file.Path] = struct{}{}
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    canonicalNodeRefreshCurrentFileEntityEdgesCypher,
-			Parameters: map[string]any{
-				"file_path":  file.Path,
-				"entity_ids": append([]string(nil), entityIDsByFile[file.Path]...),
-			},
-		})
-	}
-	return stmts
-}
-
 func buildEntityContainmentRefreshStatements(
 	entities []projector.EntityRow,
 	classMembers []projector.ClassMemberRow,

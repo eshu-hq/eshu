@@ -237,6 +237,10 @@ adapter seam.
   giant `uid IN` exclusion filters. Current nodes have already been stamped with
   the new `generation_id`, so stale cleanup can use generation-only deletion
   while keeping each graph lookup bounded to one schema label.
+- Stale File-to-entity `CONTAINS` edges are removed when stale entity nodes are
+  retracted. Do not add a separate per-file relationship refresh unless a future
+  ADR changes the canonical entity lifecycle; that shape is easier to make slow
+  or backend-specific than the current label-anchored retraction path.
 - Repository cleanup first deletes an existing `Repository` found by unique
   `path` when its `id` differs from the current repository id, then the
   `repository` phase runs the normal id-based MERGE. Keeping this in a separate
