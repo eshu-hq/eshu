@@ -97,9 +97,10 @@ button {
 
 .hero-logo {
   display: block;
-  height: 58px;
-  margin-bottom: 36px;
-  width: 194px;
+  height: auto;
+  margin-bottom: 40px;
+  max-width: 560px;
+  width: min(100%, 560px);
 }
 
 .core-line {

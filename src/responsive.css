@@ -43,8 +43,8 @@
   }
 
   .hero-logo {
-    height: 48px;
-    width: 162px;
+    max-width: 460px;
+    width: 100%;
   }
 
   .hero-copy h1 {
