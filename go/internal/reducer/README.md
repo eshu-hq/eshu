@@ -122,6 +122,27 @@ publisher directly.
 handle the case where a graph write commits but the subsequent phase
 publication fails; the repairer retries exact rows durably.
 
+## Code-call materialization
+
+`ExtractCodeCallRows` turns parser `function_calls` and SCIP call facts into
+canonical `CALLS` edges. Native parser calls resolve in this order: same-file
+symbols, Go same-directory symbols, repository-unique symbols, then imported
+cross-file symbols when the prescan import map proves the target file. The Go
+same-directory step applies to functions and type entities from `structs` and
+`interfaces`; command packages commonly reuse local helper names such as
+`wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name resolution
+must stay ambiguous in that case.
+
+Parser metadata rows with `call_kind=go.composite_literal_type_reference`
+materialize as deduplicated `REFERENCES` edges. They prove Go type-reference
+roots for dead-code classification, but must not materialize as `CALLS` because
+that would make graph truth claim that struct literals invoke types.
+
+SCIP edges bypass the heuristic resolver when both caller and callee locations
+map to known entities. Keep the native and SCIP paths idempotent: duplicate
+facts for the same caller, callee, and reference line must collapse to one
+intent row before graph writes.
+
 ## Shared projection runner
 
 `SharedProjectionRunner` (`shared_projection_runner.go:95`) iterates all
@@ -255,6 +276,10 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `code_calls`, `sql_relationships`, and `inheritance_edges` gate on
   `canonical_nodes_committed` or `semantic_nodes_committed` being present
   before writing edges (`shared_projection.go:91–99`).
+- **Bare code-call names are scoped before they are broadened** — same-file
+  resolution wins first. Go then allows a same-directory match before the
+  repository-unique fallback; if another package has the same bare name, do
+  not create a repo-wide edge.
 - **`BuildSharedProjectionIntent` produces a stable SHA256 ID** —
   changing any of the identity fields breaks idempotency for in-flight
   intents (`shared_projection.go:59–66`).

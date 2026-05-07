@@ -85,8 +85,9 @@ per repository:
 2. **Pre-scan** — `engine.PreScanRepositoryPathsWithWorkers` builds the import
    map concurrently.
 3. **Parse** — `buildParsedRepositoryFiles` parses each file through the
-   `parser.Engine` worker pool; each parsed file becomes a `map[string]any` entry
-   in `snapshot.FileData`.
+   `parser.Engine` worker pool; each parsed file becomes a `map[string]any`
+   entry in `snapshot.FileData` and may carry semantic metadata such as
+   dead-code root evidence.
 4. **Materialize** — `shape.Materialize` turns parsed files into
    `ContentFileMeta` records and `ContentEntitySnapshot` rows. Body strings are
    released after materialization; `streamFacts` re-reads them from disk at emit

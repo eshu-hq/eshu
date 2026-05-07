@@ -85,6 +85,74 @@ def celery_bound(self):
 	)
 }
 
+func TestDefaultEngineParsePathPythonEmitsDeadCodeCLIRootKinds(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "cli.py")
+	writeTestFile(
+		t,
+		filePath,
+		`import click
+import typer
+
+cli = click.Group()
+app = typer.Typer()
+
+@click.command()
+def click_standalone():
+    return "ok"
+
+@cli.command("sync")
+def click_group_command():
+    return "ok"
+
+@app.command()
+def typer_command():
+    return "ok"
+
+@app.callback()
+def typer_callback():
+    return "ok"
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "click_standalone"),
+		"dead_code_root_kinds",
+		[]string{"python.click_command_decorator"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "click_group_command"),
+		"dead_code_root_kinds",
+		[]string{"python.click_command_decorator"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "typer_command"),
+		"dead_code_root_kinds",
+		[]string{"python.typer_command_decorator"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "typer_callback"),
+		"dead_code_root_kinds",
+		[]string{"python.typer_callback_decorator"},
+	)
+}
+
 func TestDefaultEngineParsePathPythonDoesNotMarkUnknownDecoratorsAsDeadCodeRoots(t *testing.T) {
 	t.Parallel()
 

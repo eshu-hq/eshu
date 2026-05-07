@@ -7,7 +7,8 @@ import (
 
 func canonicalEntityRowNeedsSingletonFallback(label string, row map[string]any) bool {
 	return canonicalEntityValueContainsSubstring(row, "shortestpath") ||
-		canonicalEntityValueContainsSubstring(row, "allshortestpaths")
+		canonicalEntityValueContainsSubstring(row, "allshortestpaths") ||
+		canonicalEntityValueContainsSubstring(row, "remove ")
 }
 
 func canonicalEntitySingletonFallbackMode(label string, row map[string]any) string {

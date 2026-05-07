@@ -43,6 +43,7 @@ still needs an owner.
 | `2026-04-19-multi-source-correlation-dsl-and-collector-readiness.md` | In progress | DSL/rule-pack substrate and source-kind contracts exist; AWS, Terraform-state, webhook, and full cloud/runtime joins remain. |
 | `2026-04-20-embedded-local-backends-implementation-plan.md` | In progress | Local host, embedded local-authoritative runtime, backend conformance harness, profile matrix, and latest-main NornicDB proof are in place; release packaging, host envelope, and plugin work still open. |
 | `2026-04-24-iac-usage-reachability-and-refactor-impact.md` | In progress | Dead-IaC reachability and pagination are proven; shared neighborhood, impact, integrity, and remaining IaC-family coverage remain. |
+| `2026-05-07-dead-code-root-model-and-language-reachability.md` | Proposed | Freeze the Eshu dogfood false positives, add language-scoped maturity metadata, materialize root reachability, and promote exactness only after per-language gates pass. |
 | `2026-05-04-neo4j-parity-optimization-plan.md` | Accepted | Records the schema-first Neo4j proof, the shared writer cleanup, and the resulting support posture. |
 
 ## Discussion Shortlist
@@ -55,3 +56,5 @@ The ADRs that need active planning next are:
 4. AWS cloud scanner and Terraform state collector implementation.
 5. IaC impact/integrity beyond dead-IaC reachability.
 6. Multi-source correlation beyond the current Git/config rule packs.
+7. Dead-code exactness by language family, starting with the Eshu dogfood Go
+   false positives.

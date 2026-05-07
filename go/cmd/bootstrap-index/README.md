@@ -73,6 +73,10 @@ collector goroutine is running, an empty queue triggers a 500ms poll-wait and
 retry; once `collectorDone` is closed, `maxEmptyPolls` (5) consecutive empty
 claims trigger a clean exit via the `errProjectorDrained` sentinel.
 
+Bootstrap uses the same canonical writer policy as the steady-state ingester.
+That keeps graph-property filtering and NornicDB phase-group behavior aligned
+between one-shot seeding and local-authoritative watch runs.
+
 `deployment_mapping` work items may project and succeed, or remain pending,
 during this phase. Both outcomes are valid because `backward_evidence` is not
 committed yet.

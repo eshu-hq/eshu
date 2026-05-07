@@ -243,6 +243,8 @@ func codeCallLanguage(call map[string]any, rawPath string, relativePath string) 
 
 	path := codeCallPreferredPath(rawPath, relativePath)
 	switch strings.ToLower(filepath.Ext(path)) {
+	case ".go":
+		return "go"
 	case ".php":
 		return "php"
 	case ".swift":

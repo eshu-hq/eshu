@@ -54,10 +54,9 @@ eshu graph start --workspace-root /path/to/repo
 
 Eshu chooses the local NornicDB runtime in this order:
 
-1. `ESHU_NORNICDB_BINARY` set: run that binary as an external process
-2. `ESHU_NORNICDB_RUNTIME=process`: run a discovered external process
-3. embedded runtime available: run NornicDB inside the local `eshu` process
-4. embedded runtime unavailable: fail with guidance to rebuild with
+1. `ESHU_NORNICDB_RUNTIME=process`: run a discovered external process
+2. embedded runtime available: run NornicDB inside the local `eshu` process
+3. embedded runtime unavailable: fail with guidance to rebuild with
    `-tags nolocalllm` or select process mode explicitly
 
 When process mode is used, Eshu defaults to the laptop-friendly headless
@@ -69,8 +68,9 @@ artifact and discovers binaries in this order:
 3. `nornicdb-headless` on `PATH`
 4. `nornicdb` on `PATH`
 
-The environment variable stays first so maintainers can temporarily test a
-different binary without mutating the managed install.
+`ESHU_NORNICDB_BINARY` is a process-mode binary override, not a runtime
+selector. Set `ESHU_NORNICDB_RUNTIME=process` with it when testing a different
+binary without mutating the managed install.
 
 The full `nornicdb` binary is supported when users opt in with
 `ESHU_NORNICDB_BINARY` or place it on `PATH`, but it is not the local-laptop

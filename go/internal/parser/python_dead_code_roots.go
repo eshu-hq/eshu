@@ -26,6 +26,12 @@ func pythonDeadCodeRootKinds(decorators []string) []string {
 			rootKinds = appendUniqueString(rootKinds, "python.flask_route_decorator")
 		case pythonIsCeleryTaskDecorator(normalized):
 			rootKinds = appendUniqueString(rootKinds, "python.celery_task_decorator")
+		case pythonIsClickCommandDecorator(normalized):
+			rootKinds = appendUniqueString(rootKinds, "python.click_command_decorator")
+		case pythonIsTyperCallbackDecorator(normalized):
+			rootKinds = appendUniqueString(rootKinds, "python.typer_callback_decorator")
+		case pythonIsTyperCommandDecorator(normalized):
+			rootKinds = appendUniqueString(rootKinds, "python.typer_command_decorator")
 		}
 	}
 	return rootKinds
@@ -52,4 +58,25 @@ func pythonIsCeleryTaskDecorator(normalized string) bool {
 		return true
 	}
 	return strings.HasPrefix(normalized, "@") && strings.Contains(normalized, ".task(")
+}
+
+func pythonIsClickCommandDecorator(normalized string) bool {
+	if normalized == "@click.command" || strings.HasPrefix(normalized, "@click.command(") {
+		return true
+	}
+	return strings.HasPrefix(normalized, "@cli.command(")
+}
+
+func pythonIsTyperCommandDecorator(normalized string) bool {
+	if strings.HasPrefix(normalized, "@typer.") && strings.Contains(normalized, ".command(") {
+		return true
+	}
+	return strings.HasPrefix(normalized, "@app.command(")
+}
+
+func pythonIsTyperCallbackDecorator(normalized string) bool {
+	if strings.HasPrefix(normalized, "@typer.") && strings.Contains(normalized, ".callback(") {
+		return true
+	}
+	return strings.HasPrefix(normalized, "@app.callback(")
 }

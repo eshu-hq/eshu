@@ -33,7 +33,7 @@ func TestUseProcessLocalNornicDBRequiresEmbeddedForDefaultMode(t *testing.T) {
 	}
 }
 
-func TestUseProcessLocalNornicDBHonorsExplicitBinary(t *testing.T) {
+func TestUseProcessLocalNornicDBIgnoresBinaryWithoutProcessRuntime(t *testing.T) {
 	got, err := useProcessLocalNornicDB(func(key string) string {
 		if key == "ESHU_NORNICDB_BINARY" {
 			return "/tmp/nornicdb-headless"
@@ -43,8 +43,27 @@ func TestUseProcessLocalNornicDBHonorsExplicitBinary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("useProcessLocalNornicDB() error = %v, want nil", err)
 	}
+	if got {
+		t.Fatal("useProcessLocalNornicDB() = true, want embedded mode unless runtime is process")
+	}
+}
+
+func TestUseProcessLocalNornicDBHonorsProcessRuntimeWithBinary(t *testing.T) {
+	got, err := useProcessLocalNornicDB(func(key string) string {
+		switch key {
+		case localNornicDBRuntimeModeEnv:
+			return "process"
+		case "ESHU_NORNICDB_BINARY":
+			return "/tmp/nornicdb-headless"
+		default:
+			return ""
+		}
+	}, true)
+	if err != nil {
+		t.Fatalf("useProcessLocalNornicDB() error = %v, want nil", err)
+	}
 	if !got {
-		t.Fatal("useProcessLocalNornicDB() = false, want process mode for explicit binary")
+		t.Fatal("useProcessLocalNornicDB() = false, want process mode for explicit runtime")
 	}
 }
 

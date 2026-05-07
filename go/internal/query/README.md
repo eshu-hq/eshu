@@ -7,6 +7,10 @@ contract, and all read models that back the public Eshu query API. It defines th
 `GraphQuery` and `ContentStore` ports through which every handler accesses the
 graph and Postgres content store, and it enforces the capability matrix that
 determines which queries are permitted under each runtime profile.
+Code-quality routes also classify graph-derived findings before they reach
+HTTP, MCP, or CLI callers; `code_quality.dead_code` returns candidate evidence,
+language maturity, exclusions, and truth metadata instead of presenting a raw
+Cypher scan as a cleanup list.
 
 ## Where this fits in the pipeline
 
@@ -33,7 +37,7 @@ flowchart TB
   E -- content --> G["ContentReader method\n(content_reader.go)"]
   F --> H["collect result rows"]
   G --> H
-  H --> I["build response model"]
+  H --> I["build response model\nclassification + truth metadata"]
   I --> J{"Accept: application/eshu.envelope+json?"}
   J -- yes --> K["WriteSuccess\n(handler.go:28)\nResponseEnvelope{Data, Truth, Error}"]
   J -- no --> L["WriteJSON\n(handler.go:12)\nlegacy payload shape"]
@@ -56,6 +60,9 @@ session, execute a Cypher query, and return `[]map[string]any` rows. Row values
 are extracted via `StringVal`, `BoolVal`, `IntVal`, `StringSliceVal`
 (`neo4j.go:120–182`). `ContentReader` methods (`content_reader.go`) issue
 parametrized Postgres queries against `content_files` and `content_entities`.
+Code dead-code queries add an analysis pass over graph rows so parser-provided
+`dead_code_root_kinds`, language maturity, test/generated exclusions, and
+candidate classifications are visible in the response body.
 
 Both backends instrument every query with an OTEL span (`neo4j.query`,
 `postgres.query`). Handlers that span multiple read stages use
@@ -200,6 +207,12 @@ wired in `cmd/api/wiring.go`, not here.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
   a capability string not in `capabilityMatrix` (`contract.go:384`). Add missing
   capability IDs to `capabilityMatrix` before shipping new handlers.
+- `code_quality.dead_code` is a derived query unless the language maturity row
+  says otherwise. Handler changes must preserve `classification`,
+  `dead_code_language_maturity`, and `analysis` fields so MCP and CLI callers
+  can distinguish actionable unused symbols from excluded or ambiguous ones.
+  Go root-kind evidence covers function roots and type roots, including
+  `go.type_reference` and `go.interface_implementation_type`.
 - Content reads return `source_backend=unavailable` when Postgres does not have
   a cached row for the requested file. This is not a Postgres error; the ingester
   has not yet written content for that scope.

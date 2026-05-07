@@ -19,7 +19,10 @@ func deadCodeIsPythonFrameworkRoot(result map[string]any, entity *EntityContent,
 	}
 	if slices.Contains(rootKinds, "python.fastapi_route_decorator") ||
 		slices.Contains(rootKinds, "python.flask_route_decorator") ||
-		slices.Contains(rootKinds, "python.celery_task_decorator") {
+		slices.Contains(rootKinds, "python.celery_task_decorator") ||
+		slices.Contains(rootKinds, "python.click_command_decorator") ||
+		slices.Contains(rootKinds, "python.typer_command_decorator") ||
+		slices.Contains(rootKinds, "python.typer_callback_decorator") {
 		stats.ParserMetadataFrameworkRoots++
 		return true
 	}

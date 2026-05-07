@@ -97,6 +97,25 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 	}
 
 	for i, stmt := range stmts {
+		if stmt.Operation == sourcecypher.OperationCanonicalRetract {
+			if err := flushGrouped(); err != nil {
+				return err
+			}
+			statementStart := time.Now()
+			statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
+			if err := e.inner.Execute(ctx, sanitizedStatement(stmt)); err != nil {
+				return fmt.Errorf(
+					"phase-group retract statement %d/%d (phase=%s, duration=%s, first_statement=%q): %w",
+					i+1,
+					len(stmts),
+					phase,
+					time.Since(statementStart),
+					statementSummary,
+					err,
+				)
+			}
+			continue
+		}
 		if statementPhaseGroupMode(stmt) == sourcecypher.PhaseGroupModeExecuteOnly {
 			if err := flushGrouped(); err != nil {
 				return err

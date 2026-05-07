@@ -72,12 +72,16 @@ func javaScriptRegisteredDeadCodeRootKinds(
 			return
 		}
 
-		handlerName := javaScriptIdentifierName(&args[1], source)
-		if handlerName == "" {
-			return
+		handlerStart := 1
+		if javaScriptIsExpressRouteChain(functionNode, source) {
+			handlerStart = 0
 		}
-		key := strings.ToLower(handlerName)
-		registered[key] = appendUniqueString(registered[key], "javascript.express_route_registration")
+		for i := handlerStart; i < len(args); i++ {
+			for _, handlerName := range javaScriptExpressHandlerNames(&args[i], source) {
+				key := strings.ToLower(handlerName)
+				registered[key] = appendUniqueString(registered[key], "javascript.express_route_registration")
+			}
+		}
 	})
 
 	return registered
@@ -149,12 +153,76 @@ func javaScriptMemberBaseAndProperty(node *tree_sitter.Node, source []byte) (str
 	}
 	objectNode := node.ChildByFieldName("object")
 	propertyNode := node.ChildByFieldName("property")
-	base := javaScriptIdentifierName(objectNode, source)
+	base := javaScriptMemberExpressionBase(objectNode, source)
 	property := javaScriptIdentifierName(propertyNode, source)
 	if base == "" || property == "" {
 		return "", "", false
 	}
 	return base, property, true
+}
+
+func javaScriptMemberExpressionBase(node *tree_sitter.Node, source []byte) string {
+	if node == nil {
+		return ""
+	}
+	if base := javaScriptIdentifierName(node, source); base != "" {
+		return base
+	}
+	switch node.Kind() {
+	case "call_expression":
+		functionNode := node.ChildByFieldName("function")
+		if functionNode == nil || functionNode.Kind() != "member_expression" {
+			return ""
+		}
+		routeBase, routeProperty, ok := javaScriptMemberBaseAndProperty(functionNode, source)
+		if !ok || strings.ToLower(routeProperty) != "route" {
+			return ""
+		}
+		return routeBase
+	default:
+		return ""
+	}
+}
+
+func javaScriptIsExpressRouteChain(node *tree_sitter.Node, source []byte) bool {
+	if node == nil || node.Kind() != "member_expression" {
+		return false
+	}
+	objectNode := node.ChildByFieldName("object")
+	if objectNode == nil || objectNode.Kind() != "call_expression" {
+		return false
+	}
+	functionNode := objectNode.ChildByFieldName("function")
+	_, property, ok := javaScriptMemberBaseAndProperty(functionNode, source)
+	return ok && strings.ToLower(property) == "route"
+}
+
+// javaScriptExpressHandlerNames returns named route callbacks from an Express
+// route argument, including handler arrays. Anonymous inline callbacks are not
+// roots because the parser has no stable symbol to annotate.
+func javaScriptExpressHandlerNames(node *tree_sitter.Node, source []byte) []string {
+	if node == nil {
+		return nil
+	}
+	if name := javaScriptIdentifierName(node, source); name != "" {
+		return []string{name}
+	}
+	switch node.Kind() {
+	case "array", "parenthesized_expression":
+	default:
+		return nil
+	}
+
+	names := []string{}
+	cursor := node.Walk()
+	children := node.NamedChildren(cursor)
+	cursor.Close()
+	for i := range children {
+		for _, name := range javaScriptExpressHandlerNames(&children[i], source) {
+			names = appendUniqueString(names, name)
+		}
+	}
+	return names
 }
 
 func javaScriptIdentifierName(node *tree_sitter.Node, source []byte) string {

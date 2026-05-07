@@ -106,8 +106,9 @@ for the backend history and compatibility notes.
 path. Users do not need to install `nornicdb-headless` for that mode.
 
 External process mode remains available when maintainers need to test a
-specific NornicDB build. Set `ESHU_NORNICDB_RUNTIME=process`, or set
-`ESHU_NORNICDB_BINARY` directly. Process-mode binary discovery uses this order:
+specific NornicDB build. Set `ESHU_NORNICDB_RUNTIME=process`; add
+`ESHU_NORNICDB_BINARY` when you need a specific binary path. Process-mode
+binary discovery uses this order:
 
 1. `ESHU_NORNICDB_BINARY`
 2. `${ESHU_HOME}/bin/nornicdb-headless` installed by

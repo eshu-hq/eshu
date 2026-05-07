@@ -140,6 +140,13 @@ func graphResultMetadata(row map[string]any) map[string]any {
 		}
 		metadata["type_parameters"] = typeParameters
 	}
+	if values := StringSliceVal(row, "dead_code_root_kinds"); len(values) > 0 {
+		rootKinds := make([]any, 0, len(values))
+		for _, value := range values {
+			rootKinds = append(rootKinds, value)
+		}
+		metadata["dead_code_root_kinds"] = rootKinds
+	}
 	if v := StringVal(row, "type_alias_kind"); v != "" {
 		metadata["type_alias_kind"] = v
 	}
@@ -297,6 +304,7 @@ func graphSemanticMetadataProjection() string {
 		       e.type_annotation_count as type_annotation_count,
 		       e.type_annotation_kinds as type_annotation_kinds,
 		       e.type_parameters as type_parameters,
+		       e.dead_code_root_kinds as dead_code_root_kinds,
 		       e.type_alias_kind as type_alias_kind,
 		       e.framework as framework,
 		       e.module_kind as module_kind,

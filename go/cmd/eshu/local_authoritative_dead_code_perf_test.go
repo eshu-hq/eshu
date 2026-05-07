@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"runtime"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -27,9 +26,6 @@ func TestLocalAuthoritativeDeadCodeSyntheticEnvelope(t *testing.T) {
 	}
 	if !perfGateEnabled(localAuthoritativePerfGateEnv) {
 		t.Skipf("set %s=true to run the local-authoritative query perf smoke", localAuthoritativePerfGateEnv)
-	}
-	if strings.TrimSpace(os.Getenv("ESHU_NORNICDB_BINARY")) == "" {
-		t.Skip("set ESHU_NORNICDB_BINARY to run the local-authoritative query perf smoke")
 	}
 	if runtime.GOOS == "windows" {
 		t.Skip("local-authoritative query perf smoke is Unix-only in this slice")
@@ -58,9 +54,11 @@ func TestLocalAuthoritativeDeadCodeSyntheticEnvelope(t *testing.T) {
 func measureLocalAuthoritativeDeadCodeLatency(layout eshulocal.Layout) (time.Duration, error) {
 	originalStartChild := localHostStartChildProcess
 	originalWaitManagedChildren := localHostWaitManagedChildren
+	originalWaitOwnerChildren := localHostWaitOwnerChildren
 	defer func() {
 		localHostStartChildProcess = originalStartChild
 		localHostWaitManagedChildren = originalWaitManagedChildren
+		localHostWaitOwnerChildren = originalWaitOwnerChildren
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -86,6 +84,9 @@ func measureLocalAuthoritativeDeadCodeLatency(layout eshulocal.Layout) (time.Dur
 		return &exec.Cmd{}, nil
 	}
 	localHostWaitManagedChildren = func(ctx context.Context, children []localHostChild, allowCleanExit string) error {
+		return nil
+	}
+	localHostWaitOwnerChildren = func(ctx context.Context, children []localHostChild, allowedCleanExits map[string]struct{}) error {
 		return nil
 	}
 
@@ -161,32 +162,60 @@ func seedSyntheticDeadCodeGraph(ctx context.Context, driver neo4jdriver.DriverWi
 	}
 	rows := []map[string]any{
 		{
-			"file_id":    prefix + "-main-file",
-			"id":         prefix + "-main",
-			"name":       "main",
-			"start_line": 1,
-			"end_line":   3,
+			"file_id":              prefix + "-main-file",
+			"id":                   prefix + "-main",
+			"name":                 "main",
+			"start_line":           1,
+			"end_line":             3,
+			"dead_code_root_kinds": []string{},
 		},
 		{
-			"file_id":    prefix + "-main-file",
-			"id":         prefix + "-live",
-			"name":       "liveWorker",
-			"start_line": 5,
-			"end_line":   7,
+			"file_id":              prefix + "-main-file",
+			"id":                   prefix + "-live",
+			"name":                 "liveWorker",
+			"start_line":           5,
+			"end_line":             7,
+			"dead_code_root_kinds": []string{},
 		},
 		{
-			"file_id":    prefix + "-dead-file",
-			"id":         prefix + "-dead-a",
-			"name":       "deadHelperA",
-			"start_line": 1,
-			"end_line":   3,
+			"file_id":              prefix + "-main-file",
+			"id":                   prefix + "-function-value",
+			"name":                 "wiredCallback",
+			"start_line":           9,
+			"end_line":             11,
+			"dead_code_root_kinds": []string{"go.function_value_reference"},
 		},
 		{
-			"file_id":    prefix + "-dead-file",
-			"id":         prefix + "-dead-b",
-			"name":       "deadHelperB",
-			"start_line": 5,
-			"end_line":   7,
+			"file_id":              prefix + "-main-file",
+			"id":                   prefix + "-interface-method",
+			"name":                 "Execute",
+			"start_line":           13,
+			"end_line":             15,
+			"dead_code_root_kinds": []string{"go.interface_method_implementation"},
+		},
+		{
+			"file_id":              prefix + "-main-file",
+			"id":                   prefix + "-di-callback",
+			"name":                 "openBootstrapDB",
+			"start_line":           17,
+			"end_line":             19,
+			"dead_code_root_kinds": []string{"go.dependency_injection_callback"},
+		},
+		{
+			"file_id":              prefix + "-dead-file",
+			"id":                   prefix + "-dead-a",
+			"name":                 "deadHelperA",
+			"start_line":           1,
+			"end_line":             3,
+			"dead_code_root_kinds": []string{},
+		},
+		{
+			"file_id":              prefix + "-dead-file",
+			"id":                   prefix + "-dead-b",
+			"name":                 "deadHelperB",
+			"start_line":           5,
+			"end_line":             7,
+			"dead_code_root_kinds": []string{},
 		},
 	}
 	calls := []map[string]any{
@@ -259,7 +288,8 @@ MERGE (e:Function {id: $id})
 SET e.name = $name,
     e.language = 'go',
     e.start_line = $start_line,
-    e.end_line = $end_line
+    e.end_line = $end_line,
+    e.dead_code_root_kinds = $dead_code_root_kinds
 MERGE (f)-[:CONTAINS]->(e)
 `, row); err != nil {
 			return nil, err

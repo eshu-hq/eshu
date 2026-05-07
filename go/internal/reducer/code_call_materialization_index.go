@@ -2,17 +2,20 @@ package reducer
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 type codeEntityIndex struct {
-	entitiesByPathLine map[string]string
-	spansByPath        map[string][]codeFunctionSpan
-	uniqueNameByPath   map[string]map[string]string
-	uniqueNameByRepo   map[string]map[string]string
-	entityFileByID     map[string]string
+	entitiesByPathLine  map[string]string
+	spansByPath         map[string][]codeFunctionSpan
+	uniqueNameByPath    map[string]map[string]string
+	uniqueNameByRepo    map[string]map[string]string
+	uniqueNameByRepoDir map[string]map[string]map[string]string
+	entityFileByID      map[string]string
 }
 
 type codeFunctionSpan struct {
@@ -23,14 +26,16 @@ type codeFunctionSpan struct {
 
 func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 	index := codeEntityIndex{
-		entitiesByPathLine: make(map[string]string),
-		spansByPath:        make(map[string][]codeFunctionSpan),
-		uniqueNameByPath:   make(map[string]map[string]string),
-		uniqueNameByRepo:   make(map[string]map[string]string),
-		entityFileByID:     make(map[string]string),
+		entitiesByPathLine:  make(map[string]string),
+		spansByPath:         make(map[string][]codeFunctionSpan),
+		uniqueNameByPath:    make(map[string]map[string]string),
+		uniqueNameByRepo:    make(map[string]map[string]string),
+		uniqueNameByRepoDir: make(map[string]map[string]map[string]string),
+		entityFileByID:      make(map[string]string),
 	}
 	nameCandidates := make(map[string]map[string]map[string]struct{})
 	repoNameCandidates := make(map[string]map[string]map[string]struct{})
+	repoDirNameCandidates := make(map[string]map[string]map[string]map[string]struct{})
 
 	for _, env := range envelopes {
 		if env.FactKind != "file" {
@@ -82,35 +87,39 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 							repoNameCandidates[repositoryID][candidateName] = make(map[string]struct{})
 						}
 						repoNameCandidates[repositoryID][candidateName][entityID] = struct{}{}
+						addCodeCallRepoDirNameCandidate(repoDirNameCandidates, repositoryID, preferredPath, candidateName, entityID)
 					}
 				}
 			}
 		}
-		for _, item := range mapSlice(fileData["classes"]) {
-			entityID := anyToString(item["uid"])
-			if entityID == "" {
-				continue
-			}
-			if preferredPath != "" {
-				index.entityFileByID[entityID] = preferredPath
-			}
-			for _, pathKey := range codeCallPathKeys(rawPath, relativePath) {
-				for _, candidateName := range codeCallTypeCandidateNames(item) {
-					if _, ok := nameCandidates[pathKey]; !ok {
-						nameCandidates[pathKey] = make(map[string]map[string]struct{})
-					}
-					if _, ok := nameCandidates[pathKey][candidateName]; !ok {
-						nameCandidates[pathKey][candidateName] = make(map[string]struct{})
-					}
-					nameCandidates[pathKey][candidateName][entityID] = struct{}{}
-					if repositoryID != "" {
-						if _, ok := repoNameCandidates[repositoryID]; !ok {
-							repoNameCandidates[repositoryID] = make(map[string]map[string]struct{})
+		for _, bucket := range []string{"classes", "structs", "interfaces"} {
+			for _, item := range mapSlice(fileData[bucket]) {
+				entityID := anyToString(item["uid"])
+				if entityID == "" {
+					continue
+				}
+				if preferredPath != "" {
+					index.entityFileByID[entityID] = preferredPath
+				}
+				for _, pathKey := range codeCallPathKeys(rawPath, relativePath) {
+					for _, candidateName := range codeCallTypeCandidateNames(item) {
+						if _, ok := nameCandidates[pathKey]; !ok {
+							nameCandidates[pathKey] = make(map[string]map[string]struct{})
 						}
-						if _, ok := repoNameCandidates[repositoryID][candidateName]; !ok {
-							repoNameCandidates[repositoryID][candidateName] = make(map[string]struct{})
+						if _, ok := nameCandidates[pathKey][candidateName]; !ok {
+							nameCandidates[pathKey][candidateName] = make(map[string]struct{})
 						}
-						repoNameCandidates[repositoryID][candidateName][entityID] = struct{}{}
+						nameCandidates[pathKey][candidateName][entityID] = struct{}{}
+						if repositoryID != "" {
+							if _, ok := repoNameCandidates[repositoryID]; !ok {
+								repoNameCandidates[repositoryID] = make(map[string]map[string]struct{})
+							}
+							if _, ok := repoNameCandidates[repositoryID][candidateName]; !ok {
+								repoNameCandidates[repositoryID][candidateName] = make(map[string]struct{})
+							}
+							repoNameCandidates[repositoryID][candidateName][entityID] = struct{}{}
+							addCodeCallRepoDirNameCandidate(repoDirNameCandidates, repositoryID, preferredPath, candidateName, entityID)
+						}
 					}
 				}
 			}
@@ -148,7 +157,52 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 			}
 		}
 	}
+	for repositoryID, dirs := range repoDirNameCandidates {
+		index.uniqueNameByRepoDir[repositoryID] = make(map[string]map[string]string, len(dirs))
+		for dir, names := range dirs {
+			index.uniqueNameByRepoDir[repositoryID][dir] = make(map[string]string, len(names))
+			for name, entityIDs := range names {
+				if len(entityIDs) != 1 {
+					continue
+				}
+				for entityID := range entityIDs {
+					index.uniqueNameByRepoDir[repositoryID][dir][name] = entityID
+				}
+			}
+		}
+	}
 	return index
+}
+
+func addCodeCallRepoDirNameCandidate(
+	candidates map[string]map[string]map[string]map[string]struct{},
+	repositoryID string,
+	filePath string,
+	name string,
+	entityID string,
+) {
+	dir := codeCallDirectoryKey(filePath)
+	if repositoryID == "" || dir == "" || name == "" || entityID == "" {
+		return
+	}
+	if _, ok := candidates[repositoryID]; !ok {
+		candidates[repositoryID] = make(map[string]map[string]map[string]struct{})
+	}
+	if _, ok := candidates[repositoryID][dir]; !ok {
+		candidates[repositoryID][dir] = make(map[string]map[string]struct{})
+	}
+	if _, ok := candidates[repositoryID][dir][name]; !ok {
+		candidates[repositoryID][dir][name] = make(map[string]struct{})
+	}
+	candidates[repositoryID][dir][name][entityID] = struct{}{}
+}
+
+func codeCallDirectoryKey(filePath string) string {
+	normalized := normalizeCodeCallPath(filePath)
+	if normalized == "" || normalized == "." || !strings.Contains(normalized, "/") {
+		return ""
+	}
+	return normalizeCodeCallPath(filepath.Dir(normalized))
 }
 
 func resolveCodeEntityID(index codeEntityIndex, pathValue any, lineValue any) string {
@@ -234,7 +288,8 @@ func extractGenericCodeCallRows(
 			continue
 		}
 
-		key := repositoryID + "|" + callerID + "|" + calleeID + "|" + fmt.Sprintf("%d", callLine)
+		relationshipType := codeCallRelationshipType(edge)
+		key := codeCallRowKey(repositoryID, callerID, calleeID, relationshipType, callLine)
 		if _, exists := seenRows[key]; exists {
 			continue
 		}
@@ -251,9 +306,32 @@ func extractGenericCodeCallRows(
 		}
 		copyOptionalCodeCallField(row, edge, "full_name")
 		copyOptionalCodeCallField(row, edge, "call_kind")
+		if relationshipType != "" {
+			row["relationship_type"] = relationshipType
+		}
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// codeCallRelationshipType maps parser call-like metadata to the canonical
+// relationship that truthfully describes the edge.
+func codeCallRelationshipType(edge map[string]any) string {
+	switch anyToString(edge["call_kind"]) {
+	case "go.composite_literal_type_reference":
+		return "REFERENCES"
+	default:
+		return ""
+	}
+}
+
+// codeCallRowKey deduplicates type references by entity pair because repeated
+// literal sites do not carry distinct reachability truth.
+func codeCallRowKey(repositoryID string, callerID string, calleeID string, relationshipType string, line int) string {
+	if relationshipType == "REFERENCES" {
+		return repositoryID + "|" + callerID + "|" + calleeID + "|" + relationshipType
+	}
+	return repositoryID + "|" + callerID + "|" + calleeID + "|" + fmt.Sprintf("%d", line)
 }
 
 func resolveContainingCodeEntityID(
