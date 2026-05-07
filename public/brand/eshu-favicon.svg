@@ -1,0 +1,20 @@
+<svg width="64" height="64" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Eshu favicon</title>
+  <desc id="desc">Small-size optimized Eshu icon mark.</desc>
+  <rect width="512" height="512" rx="92" fill="#0B0F14" />
+  <g stroke="#FF8A00" stroke-width="44" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M152 112H344" />
+    <path d="M152 112V190" />
+    <path d="M152 322V400" />
+    <path d="M198 256H304" />
+    <path d="M152 400H344" />
+  </g>
+  <g fill="#14B8A6">
+    <circle cx="152" cy="112" r="34" />
+    <circle cx="344" cy="112" r="34" />
+    <circle cx="304" cy="256" r="34" />
+    <circle cx="152" cy="400" r="34" />
+    <circle cx="344" cy="400" r="34" />
+  </g>
+  <circle cx="152" cy="256" r="48" stroke="#14B8A6" stroke-width="36" />
+</svg>
