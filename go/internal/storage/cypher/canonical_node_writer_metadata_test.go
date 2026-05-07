@@ -149,6 +149,40 @@ func TestCanonicalNodeWriterProjectsInfrastructureIdentityMetadata(t *testing.T)
 	}
 }
 
+func TestCanonicalNodeWriterKeepsDeadCodeRootKindsOutOfGraphHotPath(t *testing.T) {
+	t.Parallel()
+
+	props := canonicalEntityProperties(
+		projector.EntityRow{
+			EntityID:     "function-root",
+			Label:        "Function",
+			EntityName:   "ExecuteGroup",
+			FilePath:     "/repo/wiring.go",
+			RelativePath: "wiring.go",
+			StartLine:    27,
+			EndLine:      35,
+			Language:     "go",
+			RepoID:       "repo-1",
+			Metadata: map[string]any{
+				"dead_code_root_kinds": []string{
+					"go.interface_method_implementation",
+					"go.function_value_reference",
+				},
+				"method_kind": "method",
+			},
+		},
+		"scope-1",
+		"gen-1",
+	)
+
+	if _, ok := props["dead_code_root_kinds"]; ok {
+		t.Fatalf("dead_code_root_kinds graph property present, want content-store-only metadata")
+	}
+	if got, want := props["method_kind"], "method"; got != want {
+		t.Fatalf("method_kind = %#v, want %#v", got, want)
+	}
+}
+
 func TestCanonicalNodeWriterBatching(t *testing.T) {
 	t.Parallel()
 

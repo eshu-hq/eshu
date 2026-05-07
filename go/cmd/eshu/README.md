@@ -106,8 +106,8 @@ launched runtime via the shared `telemetry` package. Errors print to
   to become unreachable.
 - The default local graph path is embedded NornicDB when `eshu` is built with
   `nolocalllm`; `ESHU_NORNICDB_RUNTIME=process` is the only runtime-mode
-  override, while `ESHU_NORNICDB_BINARY` selects process mode for a specific
-  backend binary
+  override, while `ESHU_NORNICDB_BINARY` only chooses the specific backend
+  binary after process mode is selected
 - Embedded and process NornicDB both use the per-workspace credentials written
   under the local graph data directory; child services receive the same values
   through `ESHU_NEO4J_USERNAME`, `ESHU_NEO4J_PASSWORD`, `NEO4J_USERNAME`, and

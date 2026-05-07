@@ -242,7 +242,7 @@ func goIdentifierNames(node *tree_sitter.Node, source []byte) []string {
 		return nil
 	}
 	switch node.Kind() {
-	case "identifier":
+	case "field_identifier", "identifier", "type_identifier":
 		name := strings.TrimSpace(nodeText(node, source))
 		if name == "" {
 			return nil

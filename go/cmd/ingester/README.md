@@ -65,7 +65,9 @@ The projector service runs in the same process and drains the projector queue
 filled by the collector. Worker count defaults to `min(NumCPU, 8)`; on
 `local_authoritative` + NornicDB it defaults to the developer or host CPU count
 so the local authoritative path matches the production-proven concurrency
-profile.
+profile. The NornicDB phase-group executor keeps canonical retractions outside
+matching upsert groups so slow cleanup and normal entity writes are timed and
+reported as separate phases.
 
 ## Exported surface
 
@@ -180,6 +182,10 @@ The ingester inherits collector and projector telemetry. Key signals:
 - NornicDB grouped writes remain disabled by default. Enabling
   ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true requires the fixed rollback binary
   and a full conformance pass before production use.
+- NornicDB phase grouping keeps canonical retraction statements outside
+  matching upsert groups. Grouping a REMOVE-style retract with same-label
+  UNWIND upserts can produce a Cypher shape that NornicDB rejects during
+  rollback validation.
 - ESHU_PROJECTOR_WORKERS defaults to NumCPU when
   ESHU_QUERY_PROFILE=local_authoritative and ESHU_GRAPH_BACKEND=nornicdb. The
   local-authoritative owner also injects that value for normal `eshu graph

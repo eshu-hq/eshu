@@ -17,6 +17,11 @@ var canonicalEntityMetadataReservedProperties = map[string]struct{}{
 	"scope_id":        {},
 	"start_line":      {},
 	"uid":             {},
+
+	// Dead-code roots are high-volume analysis metadata. The dead-code API
+	// merges them from the content store by entity ID, so keeping them off the
+	// canonical graph avoids list-property writes on the hot entity path.
+	"dead_code_root_kinds": {},
 }
 
 func canonicalEntityMetadataProperties(row map[string]any) map[string]any {

@@ -2,8 +2,9 @@
 
 ## Purpose
 
-`internal/parser` owns the native Go parser registry, language adapters, and
-SCIP reduction support used to extract source-level entities and metadata.
+`internal/parser` owns the native Go parser registry, language adapters,
+dead-code root metadata, and SCIP reduction support used to extract
+source-level entities and metadata.
 Parser changes must preserve fact truth: when a parser starts emitting a new
 entity, relationship, or metadata field, the relevant fixtures, fact contracts
 in `internal/facts`, and downstream docs must move in lockstep. Parsers must
@@ -31,7 +32,8 @@ flowchart TB
   C -- known --> D["parseDefinition\ndispatch to language adapter"]
   C -- unknown --> E["error: no parser registered"]
   D --> F["language-specific parse\ne.g. parseGo, parsePython, parseKotlin"]
-  F --> G["inferContentMetadata\nartifact_type, template_dialect, iac_relevant"]
+  F --> F2["language semantic metadata\ndead_code_root_kinds, framework roots"]
+  F2 --> G["inferContentMetadata\nartifact_type, template_dialect, iac_relevant"]
   G --> H["map[string]any payload"]
 
   A2["Engine.PreScanRepositoryPathsWithWorkers\nworker pool"] --> I["preScanPathsConcurrent\njob channel → workers"]
@@ -51,15 +53,26 @@ language handles; grammars are loaded on first use and reused across calls.
 `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form, calls
 `Registry.LookupByPath` to identify the language, then dispatches to the
 language-specific adapter function (e.g. `parseGo`, `parsePython`,
-`parseKotlin`). After the language adapter returns, `inferContentMetadata` sets
-`artifact_type`, `template_dialect`, and `iac_relevant` on the payload. The
-final payload also carries `repo_path`.
+`parseKotlin`). Language adapters may attach semantic metadata such as
+`dead_code_root_kinds` when syntax proves an entrypoint, framework callback,
+function-value callback, or interface method implementation. After the
+language adapter returns, `inferContentMetadata` sets `artifact_type`,
+`template_dialect`, and `iac_relevant` on the payload. The final payload also
+carries `repo_path`.
+
+Go composite literals also emit `function_calls` rows with
+`call_kind=go.composite_literal_type_reference`. Those rows are parser metadata
+for dead-code root evidence. The reducer materializes them as deduplicated
+REFERENCES edges, not canonical CALLS edges, so sibling files in one Go
+package can keep local structs such as wiring configs out of dead-code
+candidate lists without claiming that type references are invocations.
 
 `Engine.PreScanRepositoryPathsWithWorkers` runs a pre-scan pass that extracts
-import names and referenced symbol names from each file. Results are merged
-across workers and sorted by input order to produce a deterministic import map.
-The pre-scan is a lighter parse used to build cross-file import context before
-the full parse pass.
+import names, package-level interface references, type references, and
+referenced symbol names from each file. Results are merged across workers and
+sorted by input order to produce a deterministic import map. The pre-scan is a
+lighter parse used to build cross-file import context before the full parse
+pass.
 
 **SCIP path**: when SCIP_INDEXER=true, the collector snapshotter detects the
 dominant SCIP-capable language via `DetectSCIPProjectLanguage`, runs the
@@ -209,6 +222,12 @@ errors are surfaced in `collector snapshot stage completed` logs with
   `shape.Materialize` consume keys by string. Adding a new key to a language
   adapter's output requires corresponding updates in `content/shape` and
   downstream fact contracts.
+- `dead_code_root_kinds` is conservative evidence, not a cleanup verdict.
+  Go roots currently cover entrypoints, selected framework registrations,
+  function-valued parameters, local interface references, concrete methods
+  that flow into local or imported interface-typed seams, and struct types
+  referenced by composite literals. Dynamic reflection and build-tag-specific
+  reachability still need query-side ambiguity handling.
 - `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form.
   Passing a relative path produces an absolute resolved path in the payload's
   `repo_path` field; this is correct behavior but callers should pass absolute

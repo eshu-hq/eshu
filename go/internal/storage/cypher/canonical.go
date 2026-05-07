@@ -177,12 +177,12 @@ SET rel.confidence = 0.95,
     rel.evidence_source = row.evidence_source,
     rel.call_kind = row.call_kind`
 
-const batchCanonicalJSXComponentReferenceUpsertCypher = `UNWIND $rows AS row
+const batchCanonicalCodeReferenceUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Function|Class|File {uid: row.caller_entity_id})
-MATCH (target:Function|Class|File {uid: row.callee_entity_id})
+MATCH (target:Function|Class|Struct|Interface|File {uid: row.callee_entity_id})
 MERGE (source)-[rel:REFERENCES]->(target)
 SET rel.confidence = 0.95,
-    rel.reason = 'Parser and symbol analysis resolved a TSX component reference edge',
+    rel.reason = 'Parser and symbol analysis resolved a code reference edge',
     rel.evidence_source = row.evidence_source,
     rel.call_kind = row.call_kind`
 

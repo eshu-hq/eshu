@@ -55,6 +55,7 @@ func TestDefaultEngineParsePathJavaScriptEmitsDeadCodeRootKinds(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	nextPath := filepath.Join(repoRoot, "app", "api", "health", "route.ts")
+	nextTSXPath := filepath.Join(repoRoot, "app", "api", "profile", "route.tsx")
 	expressPath := filepath.Join(repoRoot, "server", "routes.ts")
 	writeTestFile(
 		t,
@@ -70,6 +71,16 @@ async function helper() {
 	)
 	writeTestFile(
 		t,
+		nextTSXPath,
+		`export const POST = async () => {
+  return Response.json({ ok: true });
+};
+
+const localHelper = () => Response.json({ ok: true });
+`,
+	)
+	writeTestFile(
+		t,
 		expressPath,
 		`import express from "express";
 
@@ -81,8 +92,26 @@ function login(req, res) {
 
 const createVideo = (req, res) => res.send("ok");
 
+function requireAuth(req, res, next) {
+  return next();
+}
+
+function updateProfile(req, res) {
+  return res.send("ok");
+}
+
+function arrayMiddleware(req, res, next) {
+  return next();
+}
+
+function listUsers(req, res) {
+  return res.send("ok");
+}
+
 router.get("/auth/login", login);
 router.post("/", createVideo);
+router.put("/profile", requireAuth, updateProfile);
+router.get("/users", [arrayMiddleware], listUsers);
 `,
 	)
 
@@ -99,6 +128,10 @@ router.post("/", createVideo);
 	if err != nil {
 		t.Fatalf("ParsePath(express) error = %v, want nil", err)
 	}
+	nextTSXPayload, err := engine.ParsePath(repoRoot, nextTSXPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(next tsx) error = %v, want nil", err)
+	}
 
 	assertParserStringSliceFieldValue(
 		t,
@@ -112,6 +145,16 @@ router.post("/", createVideo);
 	}
 	assertParserStringSliceFieldValue(
 		t,
+		assertFunctionByName(t, nextTSXPayload, "POST"),
+		"dead_code_root_kinds",
+		[]string{"javascript.nextjs_route_export"},
+	)
+	localHelperItem := assertFunctionByName(t, nextTSXPayload, "localHelper")
+	if _, ok := localHelperItem["dead_code_root_kinds"]; ok {
+		t.Fatalf("dead_code_root_kinds = %#v, want absent for non-exported TSX route helper", localHelperItem["dead_code_root_kinds"])
+	}
+	assertParserStringSliceFieldValue(
+		t,
 		assertFunctionByName(t, expressPayload, "login"),
 		"dead_code_root_kinds",
 		[]string{"javascript.express_route_registration"},
@@ -122,4 +165,95 @@ router.post("/", createVideo);
 		"dead_code_root_kinds",
 		[]string{"javascript.express_route_registration"},
 	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, expressPayload, "requireAuth"),
+		"dead_code_root_kinds",
+		[]string{"javascript.express_route_registration"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, expressPayload, "updateProfile"),
+		"dead_code_root_kinds",
+		[]string{"javascript.express_route_registration"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, expressPayload, "arrayMiddleware"),
+		"dead_code_root_kinds",
+		[]string{"javascript.express_route_registration"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, expressPayload, "listUsers"),
+		"dead_code_root_kinds",
+		[]string{"javascript.express_route_registration"},
+	)
+}
+
+func TestDefaultEngineParsePathTypeScriptDeadCodeRootsReuseJavaScriptFamilyPolicy(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoFixturePath("deadcode", "typescript")
+	expressPath := filepath.Join(repoRoot, "src", "service.ts")
+	nextPath := filepath.Join(repoRoot, "src", "app", "api", "accounts", "route.ts")
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	expressPayload, err := engine.ParsePath(repoRoot, expressPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(express ts) error = %v, want nil", err)
+	}
+	nextPayload, err := engine.ParsePath(repoRoot, nextPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(next ts) error = %v, want nil", err)
+	}
+
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, expressPayload, "saveAccount"),
+		"dead_code_root_kinds",
+		[]string{"javascript.express_route_registration"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, nextPayload, "GET"),
+		"dead_code_root_kinds",
+		[]string{"javascript.nextjs_route_export"},
+	)
+	localRouteHelperItem := assertFunctionByName(t, nextPayload, "localRouteHelper")
+	if _, ok := localRouteHelperItem["dead_code_root_kinds"]; ok {
+		t.Fatalf("dead_code_root_kinds = %#v, want absent for TypeScript local route helper", localRouteHelperItem["dead_code_root_kinds"])
+	}
+}
+
+func TestDefaultEngineParsePathTSXDeadCodeRootsReuseJavaScriptFamilyPolicy(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoFixturePath("deadcode", "tsx")
+	nextPath := filepath.Join(repoRoot, "src", "app", "api", "profile", "route.tsx")
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	nextPayload, err := engine.ParsePath(repoRoot, nextPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(next tsx) error = %v, want nil", err)
+	}
+
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, nextPayload, "POST"),
+		"dead_code_root_kinds",
+		[]string{"javascript.nextjs_route_export"},
+	)
+	localRouteHelperItem := assertFunctionByName(t, nextPayload, "localRouteHelper")
+	if _, ok := localRouteHelperItem["dead_code_root_kinds"]; ok {
+		t.Fatalf("dead_code_root_kinds = %#v, want absent for TSX local route helper", localRouteHelperItem["dead_code_root_kinds"])
+	}
 }

@@ -95,6 +95,7 @@ Any dead-code result should be able to report:
 
 - root categories used
 - frameworks recognized
+- dead-code maturity for each parser-supported source language
 - whether reflection/dynamic patterns were modeled
 - whether tests or generated code were excluded
 - applied user overrides
@@ -105,6 +106,23 @@ Any dead-code result should be able to report:
 - whether IaC reachability was modeled by this analysis
 
 That explanation must be returned in structured form, not just text prose.
+
+Language maturity is separate from parser support. A parser-supported language
+can still be `derived_candidate_only` for dead-code cleanup until it has a
+dead-code fixture suite, root model, reachability proof, and API/MCP evidence.
+The initial maturity states are:
+
+- `derived`: current Go, Python, JavaScript, TypeScript, and TSX candidate
+  scans with partial root modeling
+- `derived_candidate_only`: parser-supported source languages where Eshu can
+  return graph-backed candidates but has not implemented enough language roots
+  and fixtures for cleanup-safe answers
+- `unsupported_language`: languages outside Eshu's parser/indexing contract for
+  this capability
+- future `exact`: language scopes whose fixture and runtime gates prove the
+  answer is cleanup-safe
+- future `ambiguous_only`: language scopes where Eshu can identify uncertainty
+  but cannot return actionable unused symbols
 
 The current `code_quality.dead_code` capability is code-call oriented. It must
 not classify Terraform, Helm, Kustomize, Kubernetes, ArgoCD, or other IaC
@@ -158,6 +176,9 @@ Current branch status:
 - Go stdlib HTTP handler signatures are modeled
 - Go stdlib HTTP direct and proven `ServeMux` registrations are modeled
 - Go controller-runtime `Reconcile` signatures are modeled
+- Go composite-literal type references are modeled as `REFERENCES` edges, not
+  `CALLS`, so type usage can protect struct/interface candidates without
+  claiming invocation semantics
 - Python FastAPI route decorators are modeled
 - Python Flask route decorators are modeled
 - Python Celery task decorators are modeled
@@ -175,12 +196,38 @@ Current branch status:
   worker/public-API roots remain
   open, so dead-code truth stays `derived`
 
-Initial MVP is explicitly limited to those families. Other languages and
-frameworks should return non-exact or unsupported dead-code results until
-their root models exist.
+Initial MVP is explicitly limited to those families. Other parser-supported
+languages and frameworks should return `derived_candidate_only`, `derived`, or
+`ambiguous_only` dead-code results until their root models exist.
 
 Chunk 4 should also add a diff-oriented dead-code mode for CI-style questions
 such as "did this change introduce dead code?"
+
+## Dead-Code Fixtures
+
+Each parser-supported source language needs a dedicated dead-code fixture suite
+before exactness can be claimed. The parser fixture matrix proves syntax
+extraction coverage; it does not prove cleanup safety.
+
+The fixture inventory lives at
+`../../../tests/fixtures/deadcode/README.md`.
+
+Every language fixture should include:
+
+- a truly unused symbol that should be reported
+- a direct call/reference that should not be reported
+- an executable entrypoint or initializer
+- an exported/public API surface
+- a common framework, router, worker, annotation, decorator, or callback root
+- a language-specific semantic dispatch case such as function values, method
+  values, interfaces, traits, dynamic imports, or generated registries
+- a generated-code or test-owned exclusion
+- an ambiguous dynamic case that keeps truth non-exact
+
+Fixture intent must be asserted at three layers when the language supports
+them: parser evidence, graph/query classification, and API/MCP/local proof.
+A language with parser fixtures but no dead-code fixtures remains `derived` or
+`derived_candidate_only` for `code_quality.dead_code`.
 
 ## Test Requirements
 

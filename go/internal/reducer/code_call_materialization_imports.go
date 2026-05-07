@@ -91,6 +91,11 @@ func resolveGenericCallee(
 	}
 
 	language := codeCallLanguage(call, rawPath, relativePath)
+	if language == "go" && !codeCallHasQualifiedScope(call, language) {
+		if entityID := resolveGoSameDirectoryCalleeEntityID(index, repositoryID, rawPath, relativePath, call, language); entityID != "" {
+			return entityID, index.entityFileByID[entityID]
+		}
+	}
 	for _, name := range codeCallExactCandidateNames(call, language) {
 		if entityID := index.uniqueNameByRepo[repositoryID][name]; entityID != "" {
 			return entityID, index.entityFileByID[entityID]
@@ -112,6 +117,31 @@ func resolveGenericCallee(
 		fileData,
 		call,
 	)
+}
+
+func resolveGoSameDirectoryCalleeEntityID(
+	index codeEntityIndex,
+	repositoryID string,
+	rawPath string,
+	relativePath string,
+	call map[string]any,
+	language string,
+) string {
+	dir := codeCallDirectoryKey(codeCallPreferredPath(rawPath, relativePath))
+	if repositoryID == "" || dir == "" {
+		return ""
+	}
+	for _, name := range codeCallExactCandidateNames(call, language) {
+		if entityID := index.uniqueNameByRepoDir[repositoryID][dir][name]; entityID != "" {
+			return entityID
+		}
+	}
+	for _, name := range codeCallBroadCandidateNames(call, language) {
+		if entityID := index.uniqueNameByRepoDir[repositoryID][dir][name]; entityID != "" {
+			return entityID
+		}
+	}
+	return ""
 }
 
 func resolveImportedCrossFileCallee(

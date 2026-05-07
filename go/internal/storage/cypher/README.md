@@ -55,12 +55,17 @@ repository is present. File rows update current nodes in place with
 `MATCH (f:File {path: row.path})`, then send only missing rows through a
 `WHERE NOT EXISTS { MATCH (:File {path: row.path}) }` guard before `MERGE`.
 This avoids NornicDB's expensive `DETACH DELETE` cost for current directories
-or files.
+or files. Entity property filtering also keeps high-volume analysis metadata
+such as `dead_code_root_kinds` out of canonical graph rows; the dead-code API
+merges that evidence from the content store by entity ID.
 
 `EdgeWriter.WriteEdges` maps a `reducer.Domain` to a batched UNWIND Cypher
 template and dispatches rows in batches of `BatchSize` (default
 `DefaultBatchSize` = 500). Domain-specific sub-batch sizes are available for
 `DomainCodeCalls`, `DomainInheritanceEdges`, and `DomainSQLRelationships`.
+`DomainCodeCalls` writes direct call evidence as `CALLS`, JSX component and Go
+type-reference evidence as `REFERENCES`, and Python metaclass evidence as
+`USES_METACLASS`.
 
 The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
@@ -232,6 +237,10 @@ adapter seam.
   current `Class` and `Function` parents. Keep those cleanup statements
   label-anchored on `uid`; unlabelled UID anchors are portable Cypher but can
   miss the NornicDB and Neo4j hot path for this package's schema.
+- Code reference writes must allow type targets (`Struct`, `Interface`) as well
+  as callable targets. Do not route Go composite-literal type references through
+  `CALLS`; dead-code queries depend on incoming `REFERENCES` to model type
+  usage without inventing invocation truth.
 - Canonical stale entity retractions run after current entity upserts and are
   emitted per projectable label, not as broad label-family `MATCH (n)` scans or
   giant `uid IN` exclusion filters. Current nodes have already been stamped with

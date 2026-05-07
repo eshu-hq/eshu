@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"path/filepath"
-	"slices"
 	"strings"
 	"unicode"
 )
@@ -71,6 +70,7 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	results, policyStats := filterDeadCodeResultsByDefaultPolicy(results, contentByID)
+	classifyDeadCodeResults(results, contentByID)
 	results = filterResultsByDecoratorExclusions(results, req.ExcludeDecoratedWith)
 	truncated := len(rows) >= candidateLimit || len(results) > req.Limit
 	if len(results) > req.Limit {
@@ -239,6 +239,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsLanguageEntrypoint(result, entity) {
 		return true
 	}
+	if deadCodeIsGoSemanticRoot(result, goPolicy, stats) {
+		return true
+	}
 	if deadCodeIsGoFrameworkRoot(result, goPolicy, stats) {
 		return true
 	}
@@ -391,67 +394,6 @@ func deadCodeEntityLanguage(result map[string]any, entity *EntityContent) string
 	return StringVal(result, "language")
 }
 
-func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats deadCodePolicyStats) map[string]any {
-	frameworks := make([]string, 0)
-	seenFrameworks := make(map[string]struct{})
-	for _, result := range results {
-		metadata, _ := result["metadata"].(map[string]any)
-		framework := strings.TrimSpace(StringVal(metadata, "framework"))
-		if framework == "" {
-			continue
-		}
-		if _, ok := seenFrameworks[framework]; ok {
-			continue
-		}
-		seenFrameworks[framework] = struct{}{}
-		frameworks = append(frameworks, framework)
-	}
-	slices.Sort(frameworks)
-
-	return map[string]any{
-		"root_categories_used": []string{
-			"language_entrypoints",
-			"generated_and_tool_owned",
-			"library_public_api",
-			"cli_command_roots",
-			"http_and_rpc_roots",
-			"framework_callback_roots",
-		},
-		"frameworks_recognized":                frameworks,
-		"reflection_modeled":                   false,
-		"tests_excluded":                       true,
-		"generated_code_excluded":              true,
-		"framework_roots_from_parser_metadata": stats.ParserMetadataFrameworkRoots,
-		"framework_roots_from_source_fallback": stats.SourceFallbackFrameworkRoots,
-		"roots_skipped_missing_source":         stats.RootsSkippedMissingSource,
-		"user_overrides_applied":               len(excluded) > 0,
-		"iac_reachability_mode":                "not_modeled_by_code_dead_code",
-		"iac_deadness_capability":              "iac_usage.reachability",
-		"modeled_entrypoints":                  []string{"go.main", "go.init", "python.__main__"},
-		"modeled_framework_roots": []string{
-			"go.cobra_run_registration",
-			"go.cobra_run_signature",
-			"go.net_http_handler_registration",
-			"go.net_http_handler_signature",
-			"go.controller_runtime_reconcile_signature",
-			"python.fastapi_route_decorator",
-			"python.flask_route_decorator",
-			"python.celery_task_decorator",
-			"javascript.nextjs_route_export",
-			"javascript.express_route_registration",
-		},
-		"modeled_public_api": []string{"go.exported_non_internal_package_symbol"},
-		"notes": []string{
-			"dead-code remains derived until broader framework, public-API, and reflection root models land",
-			"go CLI registrations/signatures, stdlib HTTP registrations/signatures, controller-runtime reconcile signatures, Python FastAPI/Flask/Celery decorator roots, and JavaScript/TypeScript Next.js/Express route roots are modeled as derived framework roots",
-			"analysis reports whether a modeled framework root came from parser metadata or the legacy source fallback path",
-			"go framework-root signature checks require entity source; missing source leaves those roots unevaluated",
-			"go exported symbols outside cmd/, internal/, and vendor/ are treated as public API roots by default",
-			"IaC deadness is not inferred by the code dead-code analyzer; use the IaC usage/reachability capability once available",
-		},
-	}
-}
-
 func deadCodeIsGoFrameworkRoot(result map[string]any, policy deadCodeGoPolicyContext, stats *deadCodePolicyStats) bool {
 	if policy.language != "go" {
 		return false
@@ -473,61 +415,4 @@ func deadCodeIsGoFrameworkRoot(result map[string]any, policy deadCodeGoPolicyCon
 		return true
 	}
 	return false
-}
-
-func filterResultsByDecoratorExclusions(results []map[string]any, excluded []string) []map[string]any {
-	if len(results) == 0 || len(excluded) == 0 {
-		return results
-	}
-
-	normalizedExcluded := make([]string, 0, len(excluded))
-	for _, decorator := range excluded {
-		if normalized := normalizeDecoratorName(decorator); normalized != "" {
-			normalizedExcluded = append(normalizedExcluded, normalized)
-		}
-	}
-	if len(normalizedExcluded) == 0 {
-		return results
-	}
-
-	filtered := make([]map[string]any, 0, len(results))
-	for _, result := range results {
-		metadata, ok := result["metadata"].(map[string]any)
-		if !ok {
-			filtered = append(filtered, result)
-			continue
-		}
-		if !resultMatchesDecoratorExclusion(metadata, normalizedExcluded) {
-			filtered = append(filtered, result)
-		}
-	}
-
-	return filtered
-}
-
-func resultMatchesDecoratorExclusion(metadata map[string]any, excluded []string) bool {
-	rawDecorators, ok := metadata["decorators"].([]any)
-	if !ok {
-		return false
-	}
-
-	for _, raw := range rawDecorators {
-		decorator, ok := raw.(string)
-		if !ok {
-			continue
-		}
-		if slices.Contains(excluded, normalizeDecoratorName(decorator)) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func normalizeDecoratorName(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return ""
-	}
-	return strings.TrimPrefix(trimmed, "@")
 }

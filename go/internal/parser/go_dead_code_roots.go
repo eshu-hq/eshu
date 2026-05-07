@@ -8,6 +8,34 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
+type goDeadCodeEvidenceSet struct {
+	functionRootKinds  map[string][]string
+	interfaceRootKinds map[string][]string
+	structRootKinds    map[string][]string
+}
+
+func goDeadCodeEvidence(
+	root *tree_sitter.Node,
+	source []byte,
+	importAliases map[string][]string,
+	importedParamMethods GoImportedInterfaceParamMethods,
+) goDeadCodeEvidenceSet {
+	evidence := goDeadCodeEvidenceSet{
+		functionRootKinds:  goRegisteredDeadCodeRootKinds(root, source, importAliases),
+		interfaceRootKinds: make(map[string][]string),
+		structRootKinds:    make(map[string][]string),
+	}
+	goCollectSemanticDeadCodeRoots(
+		root,
+		source,
+		importedParamMethods,
+		evidence.functionRootKinds,
+		evidence.interfaceRootKinds,
+		evidence.structRootKinds,
+	)
+	return evidence
+}
+
 func goImportAliasIndex(root *tree_sitter.Node, source []byte) map[string][]string {
 	index := make(map[string][]string)
 	if root == nil {
@@ -62,6 +90,12 @@ func goDeadCodeRootKinds(
 	rootKinds := make([]string, 0, 5)
 	if node.Kind() == "function_declaration" {
 		for _, kind := range registeredRootKinds[strings.ToLower(name)] {
+			rootKinds = appendUniqueImportAlias(rootKinds, kind)
+		}
+	}
+	if node.Kind() == "method_declaration" {
+		methodKey := strings.ToLower(goReceiverContext(node, source) + "." + name)
+		for _, kind := range registeredRootKinds[methodKey] {
 			rootKinds = appendUniqueImportAlias(rootKinds, kind)
 		}
 	}

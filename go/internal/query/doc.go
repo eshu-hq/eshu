@@ -7,8 +7,10 @@
 // built from openapi*.go fragments and served at /api/v0/openapi.json;
 // handler behavior, OpenAPI fragments, and docs/docs/reference/http-api.md
 // must agree whenever public routes or response shapes change. Response
-// envelopes, truth metadata, and capability gates are stable wire contracts;
-// local_authoritative and local_full_stack both answer graph-backed platform
-// impact queries, while local_lightweight returns structured unsupported
-// errors for those routes.
+// envelopes, truth metadata, capability gates, and code-quality classifications
+// are stable wire contracts. Dead-code responses preserve language maturity and
+// root-kind evidence for functions and types so callers can separate cleanup
+// candidates from modeled roots. local_authoritative and local_full_stack both
+// answer graph-backed platform impact queries, while local_lightweight returns
+// structured unsupported errors for those routes.
 package query

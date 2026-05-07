@@ -78,6 +78,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFiles(
 	engine *parser.Engine,
 	commitSHA string,
 	isDependency bool,
+	goPackageTargets parser.GoPackageImportedInterfaceParamMethods,
 ) ([]shape.File, []map[string]any, error) {
 	if shapeFiles, parsedFiles, used, err := s.trySCIPSnapshot(
 		ctx,
@@ -86,6 +87,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFiles(
 		engine,
 		commitSHA,
 		isDependency,
+		goPackageTargets,
 	); err != nil {
 		return nil, nil, err
 	} else if used {
@@ -93,9 +95,9 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFiles(
 	}
 
 	if s.ParseWorkers <= 1 {
-		return s.buildParsedRepositoryFilesSequential(ctx, repoPath, fileSet, engine, commitSHA, isDependency)
+		return s.buildParsedRepositoryFilesSequential(ctx, repoPath, fileSet, engine, commitSHA, isDependency, goPackageTargets)
 	}
-	return s.buildParsedRepositoryFilesConcurrent(ctx, repoPath, fileSet, engine, commitSHA, isDependency)
+	return s.buildParsedRepositoryFilesConcurrent(ctx, repoPath, fileSet, engine, commitSHA, isDependency, goPackageTargets)
 }
 
 func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
@@ -105,6 +107,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 	engine *parser.Engine,
 	commitSHA string,
 	isDependency bool,
+	goPackageTargets parser.GoPackageImportedInterfaceParamMethods,
 ) ([]shape.File, []map[string]any, error) {
 	shapeFiles := make([]shape.File, 0, len(fileSet.Files))
 	parsedFiles := make([]map[string]any, 0, len(fileSet.Files))
@@ -114,10 +117,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 		}
 
 		startTime := time.Now()
-		parsed, err := engine.ParsePath(repoPath, filePath, isDependency, parser.Options{
-			IndexSource:   true,
-			VariableScope: "all",
-		})
+		parsed, err := engine.ParsePath(repoPath, filePath, isDependency, snapshotParserOptions(filePath, goPackageTargets))
 		duration := fileParseDurationSeconds(startTime)
 
 		if err != nil {
@@ -187,6 +187,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 	engine *parser.Engine,
 	commitSHA string,
 	isDependency bool,
+	goPackageTargets parser.GoPackageImportedInterfaceParamMethods,
 ) ([]shape.File, []map[string]any, error) {
 	fileCount := len(fileSet.Files)
 	if fileCount == 0 {
@@ -219,10 +220,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 				}
 
 				startTime := time.Now()
-				parsed, err := engine.ParsePath(repoPath, job.path, isDependency, parser.Options{
-					IndexSource:   true,
-					VariableScope: "all",
-				})
+				parsed, err := engine.ParsePath(repoPath, job.path, isDependency, snapshotParserOptions(job.path, goPackageTargets))
 				duration := fileParseDurationSeconds(startTime)
 
 				if err != nil {
@@ -327,6 +325,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 	engine *parser.Engine,
 	commitSHA string,
 	isDependency bool,
+	goPackageTargets parser.GoPackageImportedInterfaceParamMethods,
 ) ([]shape.File, []map[string]any, bool, error) {
 	config := s.scipConfig()
 	if !config.Enabled {
@@ -379,10 +378,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 		}
 
 		parsed := clonePayload(result.Files[filePath])
-		supplement, err := engine.ParsePath(repoPath, filePath, isDependency, parser.Options{
-			IndexSource:   true,
-			VariableScope: "all",
-		})
+		supplement, err := engine.ParsePath(repoPath, filePath, isDependency, snapshotParserOptions(filePath, goPackageTargets))
 		if err != nil {
 			return nil, nil, false, nil
 		}

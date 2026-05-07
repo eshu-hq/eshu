@@ -9,6 +9,7 @@ type deadCodePolicyStats struct {
 	RootsSkippedMissingSource    int
 	ParserMetadataFrameworkRoots int
 	SourceFallbackFrameworkRoots int
+	GoSemanticRootsFromMetadata  int
 }
 
 type deadCodeGoPolicyContext struct {
@@ -127,6 +128,31 @@ func deadCodeRootKindsFromMetadata(metadata map[string]any) []string {
 	default:
 		return nil
 	}
+}
+
+var deadCodeGoSemanticRootKinds = map[string]struct{}{
+	"go.dependency_injection_callback":   {},
+	"go.function_value_reference":        {},
+	"go.interface_implementation_type":   {},
+	"go.interface_method_implementation": {},
+	"go.interface_type_reference":        {},
+	"go.method_value_reference":          {},
+	"go.type_reference":                  {},
+}
+
+// deadCodeIsGoSemanticRoot honors parser or reducer evidence that a Go symbol
+// participates in language-level dispatch that direct CALLS edges may not show.
+func deadCodeIsGoSemanticRoot(result map[string]any, policy deadCodeGoPolicyContext, stats *deadCodePolicyStats) bool {
+	if policy.language != "go" {
+		return false
+	}
+	for _, rootKind := range policy.rootKinds {
+		if _, ok := deadCodeGoSemanticRootKinds[rootKind]; ok {
+			stats.GoSemanticRootsFromMetadata++
+			return true
+		}
+	}
+	return false
 }
 
 func stripGoComments(source string) string {

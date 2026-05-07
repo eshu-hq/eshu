@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"runtime"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -29,9 +28,6 @@ func TestLocalAuthoritativeCallChainSyntheticEnvelope(t *testing.T) {
 	}
 	if !perfGateEnabled(localAuthoritativePerfGateEnv) {
 		t.Skipf("set %s=true to run the local-authoritative query perf smoke", localAuthoritativePerfGateEnv)
-	}
-	if strings.TrimSpace(os.Getenv("ESHU_NORNICDB_BINARY")) == "" {
-		t.Skip("set ESHU_NORNICDB_BINARY to run the local-authoritative query perf smoke")
 	}
 	if runtime.GOOS == "windows" {
 		t.Skip("local-authoritative query perf smoke is Unix-only in this slice")
@@ -63,9 +59,6 @@ func TestLocalAuthoritativeTransitiveCallersSyntheticEnvelope(t *testing.T) {
 	}
 	if !perfGateEnabled(localAuthoritativePerfGateEnv) {
 		t.Skipf("set %s=true to run the local-authoritative query perf smoke", localAuthoritativePerfGateEnv)
-	}
-	if strings.TrimSpace(os.Getenv("ESHU_NORNICDB_BINARY")) == "" {
-		t.Skip("set ESHU_NORNICDB_BINARY to run the local-authoritative query perf smoke")
 	}
 	if runtime.GOOS == "windows" {
 		t.Skip("local-authoritative query perf smoke is Unix-only in this slice")

@@ -170,6 +170,10 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Int("import_symbol_count", len(importsMap)),
 		slog.Int("pre_scan_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
 	)
+	goPackageTargets, err := engine.PreScanGoPackageImportedInterfaceParamMethods(repoPath, fileSet.Files)
+	if err != nil {
+		return RepositorySnapshot{}, fmt.Errorf("pre-scan go package interface params for %q: %w", repoPath, err)
+	}
 
 	repoMetadata, err := repositoryidentity.MetadataFor(
 		filepath.Base(repoPath),
@@ -187,6 +191,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		engine,
 		commitSHA,
 		repository.IsDependency,
+		goPackageTargets,
 	)
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("build parsed repository files for %q: %w", repoPath, err)

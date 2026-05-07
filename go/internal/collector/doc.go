@@ -11,5 +11,7 @@
 // partial-snapshot and discovery-skip outcomes explicitly. Filesystem source
 // manifests fingerprint the effective collector input, including ignore-rule
 // files but excluding paths removed by `.gitignore` or `.eshuignore`, so local
-// watch mode does not reindex on ignored generated output.
+// watch mode does not reindex on ignored generated output. Native and SCIP
+// snapshots preserve parser-emitted dead-code root metadata in content entity
+// facts; query-time classification decides how that evidence is presented.
 package collector

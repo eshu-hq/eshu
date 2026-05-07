@@ -23,9 +23,6 @@ func TestLocalAuthoritativeStartupEnvelope(t *testing.T) {
 	if !perfGateEnabled(localAuthoritativePerfGateEnv) {
 		t.Skipf("set %s=true to run the local-authoritative startup perf smoke", localAuthoritativePerfGateEnv)
 	}
-	if strings.TrimSpace(os.Getenv("ESHU_NORNICDB_BINARY")) == "" {
-		t.Skip("set ESHU_NORNICDB_BINARY to run the local-authoritative startup perf smoke")
-	}
 	if runtime.GOOS == "windows" {
 		t.Skip("local-authoritative perf smoke is Unix-only in this slice")
 	}

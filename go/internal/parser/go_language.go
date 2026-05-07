@@ -36,7 +36,7 @@ func (e *Engine) parseGo(
 	payload["embedded_sql_queries"] = extractGoEmbeddedSQLQueries(string(source))
 	root := tree.RootNode()
 	importAliases := goImportAliasIndex(root, source)
-	registeredRootKinds := goRegisteredDeadCodeRootKinds(root, source, importAliases)
+	deadCodeEvidence := goDeadCodeEvidence(root, source, importAliases, options.GoImportedInterfaceParamMethods)
 	scope := options.normalizedVariableScope()
 
 	walkNamed(root, func(node *tree_sitter.Node) {
@@ -61,7 +61,7 @@ func (e *Engine) parseGo(
 			if classContext := goReceiverContext(node, source); classContext != "" {
 				item["class_context"] = classContext
 			}
-			if rootKinds := goDeadCodeRootKinds(node, source, importAliases, registeredRootKinds); len(rootKinds) > 0 {
+			if rootKinds := goDeadCodeRootKinds(node, source, importAliases, deadCodeEvidence.functionRootKinds); len(rootKinds) > 0 {
 				item["dead_code_root_kinds"] = rootKinds
 			}
 			if options.IndexSource {
@@ -86,8 +86,14 @@ func (e *Engine) parseGo(
 			}
 			switch typeNode.Kind() {
 			case "struct_type":
+				if rootKinds := deadCodeEvidence.structRootKinds[strings.ToLower(name)]; len(rootKinds) > 0 {
+					item["dead_code_root_kinds"] = rootKinds
+				}
 				appendBucket(payload, "structs", item)
 			case "interface_type":
+				if rootKinds := deadCodeEvidence.interfaceRootKinds[strings.ToLower(name)]; len(rootKinds) > 0 {
+					item["dead_code_root_kinds"] = rootKinds
+				}
 				appendBucket(payload, "interfaces", item)
 			}
 		case "import_spec":
@@ -118,6 +124,18 @@ func (e *Engine) parseGo(
 			}
 			goAnnotateCallMetadata(item, node, functionNode, source, importAliases)
 			appendBucket(payload, "function_calls", item)
+		case "composite_literal":
+			name := goCompositeLiteralTypeName(node.ChildByFieldName("type"), source)
+			if strings.TrimSpace(name) == "" {
+				return
+			}
+			appendBucket(payload, "function_calls", map[string]any{
+				"name":        name,
+				"full_name":   strings.TrimSpace(nodeText(node.ChildByFieldName("type"), source)),
+				"line_number": nodeLine(node),
+				"call_kind":   "go.composite_literal_type_reference",
+				"lang":        "go",
+			})
 		case "var_spec", "const_spec":
 			if scope == "module" && goInsideFunction(node) {
 				return
@@ -168,6 +186,17 @@ func goCallName(node *tree_sitter.Node, source []byte) string {
 	default:
 		return ""
 	}
+}
+
+func goCompositeLiteralTypeName(node *tree_sitter.Node, source []byte) string {
+	if node == nil {
+		return ""
+	}
+	if node.Kind() == "type_identifier" {
+		return nodeText(node, source)
+	}
+	nameNode := firstNamedDescendant(node, "type_identifier")
+	return nodeText(nameNode, source)
 }
 
 func goAnnotateCallMetadata(

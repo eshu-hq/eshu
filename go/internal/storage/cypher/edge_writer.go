@@ -355,8 +355,8 @@ func buildRowMap(
 		if callKind := payloadString(row.Payload, "call_kind"); callKind != "" {
 			rowMap["call_kind"] = callKind
 		}
-		if rowMap["call_kind"] == "jsx_component" {
-			return batchCanonicalJSXComponentReferenceUpsertCypher, rowMap, true
+		if rowMap["call_kind"] == "jsx_component" || payloadString(row.Payload, "relationship_type") == "REFERENCES" {
+			return batchCanonicalCodeReferenceUpsertCypher, rowMap, true
 		}
 		return batchCanonicalCodeCallUpsertCypher, rowMap, true
 

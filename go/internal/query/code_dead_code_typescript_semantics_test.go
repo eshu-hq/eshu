@@ -85,3 +85,115 @@ func TestHandleDeadCodeReturnsGraphBackedTypeScriptSemantics(t *testing.T) {
 		t.Fatalf("typescript_semantics[type_parameters] = %#v, want %#v", got, want)
 	}
 }
+
+func TestHandleDeadCodeTypeScriptAndTSXRootsRemainDerivedMaturity(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+				return []map[string]any{
+					{
+						"entity_id": "ts-next", "name": "GET", "labels": []any{"Function"},
+						"file_path": "app/api/accounts/route.ts", "repo_id": "repo-1", "repo_name": "payments", "language": "typescript",
+					},
+					{
+						"entity_id": "tsx-next", "name": "POST", "labels": []any{"Function"},
+						"file_path": "app/api/profile/route.tsx", "repo_id": "repo-1", "repo_name": "payments", "language": "tsx",
+					},
+					{
+						"entity_id": "ts-unused", "name": "unusedTypedHelper", "labels": []any{"Function"},
+						"file_path": "src/service.ts", "repo_id": "repo-1", "repo_name": "payments", "language": "typescript",
+					},
+				}, nil
+			},
+		},
+		Content: fakeDeadCodeContentStore{
+			entities: map[string]EntityContent{
+				"ts-next": {
+					EntityID:     "ts-next",
+					RelativePath: "app/api/accounts/route.ts",
+					EntityType:   "Function",
+					EntityName:   "GET",
+					Language:     "typescript",
+					Metadata: map[string]any{
+						"dead_code_root_kinds": []string{"javascript.nextjs_route_export"},
+					},
+				},
+				"tsx-next": {
+					EntityID:     "tsx-next",
+					RelativePath: "app/api/profile/route.tsx",
+					EntityType:   "Function",
+					EntityName:   "POST",
+					Language:     "tsx",
+					Metadata: map[string]any{
+						"dead_code_root_kinds": []string{"javascript.nextjs_route_export"},
+					},
+				},
+				"ts-unused": {
+					EntityID:     "ts-unused",
+					RelativePath: "src/service.ts",
+					EntityType:   "Function",
+					EntityName:   "unusedTypedHelper",
+					Language:     "typescript",
+				},
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code",
+		bytes.NewBufferString(`{"repo_id":"repo-1"}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	truth, ok := resp["truth"].(map[string]any)
+	if !ok {
+		t.Fatalf("truth type = %T, want map[string]any", resp["truth"])
+	}
+	if got, want := truth["level"], string(TruthLevelDerived); got != want {
+		t.Fatalf("truth[level] = %#v, want %#v", got, want)
+	}
+	data, ok := resp["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("data type = %T, want map[string]any", resp["data"])
+	}
+	results, ok := data["results"].([]any)
+	if !ok {
+		t.Fatalf("results type = %T, want []any", data["results"])
+	}
+	if got, want := len(results), 1; got != want {
+		t.Fatalf("len(results) = %d, want %d", got, want)
+	}
+	analysis, ok := data["analysis"].(map[string]any)
+	if !ok {
+		t.Fatalf("analysis type = %T, want map[string]any", data["analysis"])
+	}
+	maturity, ok := analysis["dead_code_language_maturity"].(map[string]any)
+	if !ok {
+		t.Fatalf("analysis[dead_code_language_maturity] type = %T, want map[string]any", analysis["dead_code_language_maturity"])
+	}
+	if got, want := maturity["typescript"], "derived"; got != want {
+		t.Fatalf("dead_code_language_maturity[typescript] = %#v, want %#v", got, want)
+	}
+	if got, want := maturity["tsx"], "derived"; got != want {
+		t.Fatalf("dead_code_language_maturity[tsx] = %#v, want %#v", got, want)
+	}
+	if got, want := analysis["framework_roots_from_parser_metadata"], float64(2); got != want {
+		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
+	}
+}

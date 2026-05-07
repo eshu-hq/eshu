@@ -10,7 +10,10 @@
 // a Postgres FOR UPDATE SKIP LOCKED queue, and then drives the post-collection
 // passes that the facts-first ordering documented in CLAUDE.md requires.
 // Projector work superseded by a newer same-scope generation exits that worker
-// item without acking stale graph state. The binary exits when the queue
-// drains; it is not a steady-state runtime and does not mount the shared
-// `/healthz`, `/readyz`, or `/admin/status` admin surface.
+// item without acking stale graph state. Its canonical writer configuration
+// uses the same graph-property and NornicDB phase-group policy as the ingester
+// path, so bootstrap and steady-state projection keep the same write contract.
+// The binary exits when the queue drains; it is not a steady-state runtime and
+// does not mount the shared `/healthz`, `/readyz`, or `/admin/status` admin
+// surface.
 package main

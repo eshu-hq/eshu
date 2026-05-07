@@ -16,7 +16,9 @@
 // path first acquires owner.lock, reclaims ownerless live Postgres only after
 // PID, socket, and protocol probes agree, clears rebuildable local
 // authoritative Postgres, graph, and filesystem-selector state, starts embedded
-// or process-mode NornicDB, injects the workspace-scoped Bolt credentials plus
+// NornicDB by default, allows external process mode only when
+// ESHU_NORNICDB_RUNTIME=process is explicit, injects the workspace-scoped Bolt
+// credentials plus
 // CPU-count worker defaults from local_host_config.go into child services,
 // captures embedded NornicDB startup output in the workspace graph log, keeps
 // noisy child runtime logs in workspace log files by default while rendering a

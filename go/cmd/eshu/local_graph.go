@@ -85,9 +85,6 @@ func startManagedLocalNornicDB(ctx context.Context, layout eshulocal.Layout) (*m
 // runtime mode means embedded; process mode is an explicit maintainer escape
 // hatch for testing a patched backend.
 func useProcessLocalNornicDB(getenv func(string) string, embeddedAvailable bool) (bool, error) {
-	if strings.TrimSpace(getenv("ESHU_NORNICDB_BINARY")) != "" {
-		return true, nil
-	}
 	switch mode := strings.ToLower(strings.TrimSpace(getenv(localNornicDBRuntimeModeEnv))); mode {
 	case "", "embedded":
 		if !embeddedAvailable {

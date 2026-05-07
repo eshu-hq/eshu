@@ -1,0 +1,447 @@
+# ADR: Dead-Code Root Model And Language Reachability
+
+**Date:** 2026-05-07
+**Status:** Proposed
+**Authors:** Allen Sanabria
+**Deciders:** Platform Engineering
+**Related:**
+
+- `../reference/dead-code-reachability-spec.md`
+- `../languages/feature-matrix.md`
+- `../../superpowers/plans/2026-05-07-dead-code-root-model-and-language-reachability.md`
+- `2026-04-24-iac-usage-reachability-and-refactor-impact.md`
+
+---
+
+## Context
+
+The MCP `find_dead_code` workflow returned false-positive candidates for the
+Eshu repository itself. The reported candidates included local wiring
+functions, bootstrap interfaces, structs, and methods such as `wireAPI`,
+`ExecuteCypher`, `Claim`, `Close`, `applySchema`, `openBootstrapDB`, and
+`openBootstrapGraph`.
+
+Local validation showed those candidates are not confidently dead. They are
+reachable through Go function-value wiring, dependency-injection structs,
+interface satisfaction, method dispatch, or local bootstrap orchestration. The
+focused package gate still passed:
+
+```bash
+cd go && go test ./cmd/api ./cmd/bootstrap-data-plane ./cmd/bootstrap-index -count=1
+```
+
+The MCP envelope was truthful about its confidence: `code_quality.dead_code`
+returned `truth.level=derived`, and the analysis metadata said the result used
+partial root modeling. The product issue is that users expect dead-code
+analysis to work for every Eshu-supported language, while the current
+implementation only has partial root policy coverage:
+
+- Go entrypoints, selected Cobra roots, selected `net/http` roots,
+  controller-runtime `Reconcile` roots, and Go public API roots.
+- Python FastAPI, Flask, and Celery decorator roots.
+- JavaScript and TypeScript Next.js route exports and Express registrations.
+- Test and generated-code exclusions.
+
+The parser feature matrix covers many more source languages than this policy
+does: C, C++, C#, Dart, Elixir, Go, Haskell, Java, JavaScript, Kotlin, Perl,
+PHP, Python, Ruby, Rust, Scala, Swift, TypeScript, TSX, and related IaC/config
+parsers. Parser support is not the same thing as exact dead-code support.
+
+## Tree-Sitter Research
+
+Tree-sitter is the right syntax substrate for this work, but it is not by
+itself a complete dead-code oracle.
+
+The official Tree-sitter documentation describes the core objects as
+languages, parsers, syntax trees, and syntax nodes:
+<https://tree-sitter.github.io/tree-sitter/using-parsers/1-getting-started.html>.
+The parser produces concrete syntax trees with nodes, source positions, and
+named/anonymous node distinctions:
+<https://tree-sitter.github.io/tree-sitter/using-parsers/2-basic-parsing.html>.
+
+Tree-sitter queries can capture definitions and references. Its code-navigation
+guide describes captures such as `@definition.function`,
+`@definition.interface`, `@reference.call`, and
+`@reference.implementation`:
+<https://tree-sitter.github.io/tree-sitter/4-code-navigation.html>. The query
+language supports alternation, captures, grouping, quantifiers, and anchors:
+<https://tree-sitter.github.io/tree-sitter/using-parsers/queries/2-operators.html>.
+
+Those capabilities are enough to extract syntax evidence across languages.
+They are not enough to prove cross-file type resolution, Go interface
+satisfaction, dynamic registration, reflection, build-tag reachability, or
+framework-specific roots without additional language adapters, SCIP evidence,
+configuration rules, and conservative ambiguity handling. Eshu already states
+this in `go/internal/parser/README.md`: SCIP supplements native Tree-sitter
+output where Tree-sitter alone cannot reliably produce type-qualified call
+graphs.
+
+## Problem
+
+The current dead-code query starts from this graph condition:
+
+```cypher
+MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
+WHERE (e:Function OR e:Class OR e:Struct OR e:Interface)
+  AND NOT ()-[:CALLS|IMPORTS|REFERENCES]->(e)
+```
+
+That is a useful candidate scan, not a dead-code proof.
+
+The missing model has three parts:
+
+1. **Root completeness:** each supported language needs a tested set of
+   language entrypoints, public API roots, framework roots, callback roots,
+   dynamic registration roots, and generated/tool-owned exclusions.
+2. **Reachability semantics:** candidates must be evaluated against transitive
+   reachability from roots, not just absence of direct inbound call/reference
+   edges.
+3. **Evidence grading:** when a parser-supported language or framework lacks
+   enough proof, the result must be `derived_candidate_only`, `derived`, or
+   `ambiguous`. It must not look like a confident cleanup list.
+
+Go exposed the gap first because its real-world code frequently uses function
+values, local interfaces, method sets, and dependency injection. Other
+languages have equivalent dynamic surfaces: Python decorators and imports,
+JavaScript/TypeScript module exports and framework routers, Java annotations,
+Rust traits, Ruby metaprogramming, PHP framework controllers, and Swift/Scala
+framework callbacks.
+
+## Decision
+
+Eshu will implement a language-aware dead-code reachability model instead of
+adding more ad hoc query filters.
+
+This ADR owns the dead-code maturity PR. The PR is not a narrow Go-only fix.
+It should make the dead-code capability visibly mature across the full
+parser-supported source-language surface by adding:
+
+- language maturity metadata in the API/MCP response
+- a dedicated dead-code fixture strategy and checked-in fixture inventory for
+  every parser-supported source language
+- dogfood regressions for the Eshu false positives that exposed the gap
+- first-wave Go semantic root handling for function values, interfaces, method
+  dispatch, and dependency-injection callbacks
+- a promotion path from candidate-only to derived to exact that is backed by
+  fixtures, root modeling, and runtime proof
+
+The implementation may land exactness language by language, but the PR scope is
+the maturity framework for the whole dead-code capability.
+
+Dead-code analysis will be split into four explicit layers:
+
+1. **Syntax evidence extraction.** Tree-sitter and existing language adapters
+   emit definitions, calls, references, exported/public surfaces, decorators or
+   annotations, registrations, type declarations, interface or trait
+   declarations, and source spans.
+2. **Language semantic evidence.** Language adapters and SCIP, where available,
+   enrich syntax evidence with package/module identity, receiver or class
+   context, method ownership, interface/trait implementation evidence, import
+   resolution, and known framework registrations.
+3. **Reachability materialization.** Reducer-owned work materializes root facts
+   and reachable entities from language roots, framework roots, public API
+   roots, generated exclusions, test exclusions, user overrides, and graph
+   call/reference edges.
+4. **Query classification.** HTTP, MCP, and CLI dead-code surfaces return
+   unused, reachable, ambiguous, derived-candidate-only, unsupported-language,
+   or excluded results with structured evidence and truth labels.
+
+For a language to be called exact for dead-code, it must have:
+
+- definition extraction for the candidate kinds it reports
+- call/reference extraction or SCIP-backed equivalent
+- a tested root policy for executable entrypoints and public API surfaces
+- framework or dynamic-dispatch rules for common roots in that ecosystem
+- a dedicated dead-code fixture corpus for that language, separate from the
+  general parser feature fixture
+- positive, negative, and ambiguous fixtures
+- API/MCP/CLI tests that prove the truth label and limitations metadata
+- backend conformance proof for both NornicDB and Neo4j query shapes
+
+Until a language meets those gates, Eshu may still return candidate findings,
+but the response must remain non-exact and must include which language/root
+categories were not modeled. Parser-supported languages without dedicated
+dead-code fixtures are `derived_candidate_only`, not unsupported.
+
+## Go Acceptance Slice
+
+The first implementation slice will close the false positives seen in the Eshu
+repo and make that regression permanent.
+
+Required Go evidence:
+
+- function values passed into wiring structs and constructor fields
+- functions used as dependency-injection callbacks
+- local interfaces used as parameter, field, or return types
+- structs that satisfy local interfaces by method set
+- methods reachable through interface dispatch
+- exported symbols outside `cmd/`, `internal/`, and `vendor/`
+- `main`, `init`, Cobra, `net/http`, and controller-runtime roots already
+  modeled today
+- ambiguous cases for reflection, build tags, generated registries, and dynamic
+  maps of function names
+
+The exact candidates from the 2026-05-07 MCP run must become regression
+fixtures. Eshu should not report the following as dead in the dogfood fixture
+unless a future code change truly removes their usage:
+
+- `wireAPI`
+- `ExecuteCypher`
+- `bootstrapDB`
+- `bootstrapExecutor`
+- `neo4jDeps`
+- `neo4jSchemaExecutor`
+- `openBootstrapDB`
+- `openNeo4j`
+- `bootstrapCanonicalWriterConfig`
+- `Claim`
+- `Close`
+- `applySchema`
+- `bootstrapCommitter`
+- `collectorDeps`
+- `drainingWorkSource`
+- `openBootstrapGraph`
+
+Current local-authoritative evidence on 2026-05-07 found and fixed a runtime
+selection regression that had made local graph proof look like a dead-code
+canonical writer regression.
+
+Fast baseline runs in this worktree before the later dead-code additions stayed
+inside the existing local-authoritative envelope:
+
+- `phase=files` completed in `7.89s`.
+- `Function` canonical entity writes completed `8,424` rows as `1,320`
+  statements and `268` grouped executions in `1.01s`, with average grouped
+  execution `0.0038s`.
+- `phase=entities` completed in `6.19s`.
+- Source-local projection succeeded in `20.79s`.
+
+Later live validation on the same branch exposed a slow canonical write profile:
+
+- `phase=files` rose to about `16.9s`.
+- `Function` canonical entity writes rose to `8,467` rows as `1,333`
+  statements and `272` grouped executions in `431.24s`, with average grouped
+  execution `1.585s`.
+- Removing the speculative pre-entity retract experiment did not restore the
+  fast path.
+- Keeping `dead_code_root_kinds` out of canonical graph properties is still a
+  useful graph hot-path cleanup, but by itself did not restore performance.
+- Enabling `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=true` reduced statement
+  shape but still showed slow grouped Function executions, so it is not the
+  acceptance fix for this PR.
+
+The root cause was not the dead-code payload or canonical writer shape. It was
+sticky process-mode selection: setting `ESHU_NORNICDB_BINARY` alone selected
+external-process NornicDB for `eshu graph start`, even though normal
+local-authoritative proof is expected to use the embedded runtime when
+available. On this machine that process-mode lane reproduced the slow profile;
+the embedded lane stayed inside the previous envelope.
+
+Accepted fix: process-mode local graph now requires
+`ESHU_NORNICDB_RUNTIME=process`. `ESHU_NORNICDB_BINARY` is only a binary path
+override after process mode is selected.
+
+Post-fix live proof on 2026-05-07 intentionally left
+`ESHU_NORNICDB_BINARY=/Users/allen/Library/Application Support/pcg/bin/nornicdb-headless`
+set while omitting `ESHU_NORNICDB_RUNTIME`. Eshu selected embedded NornicDB and
+restored the fast profile:
+
+- `phase=files` completed in `7.85s`.
+- `Function` canonical entity writes completed `8,467` rows as `1,333`
+  statements and `272` grouped executions in `1.04s`, with average grouped
+  execution `0.0038s`.
+- `phase=entities` completed in `6.14s`.
+- Canonical phase-group write completed in `14.00s`.
+- Source-local projection succeeded in `19.42s`.
+
+Therefore this PR must add or use a local-authoritative canonical-write
+regression gate before it is ready. The existing synthetic dead-code query
+perf gate proves API latency on a small synthetic graph; it does not exercise
+repo-scale canonical `File` and `Function` writes and did not catch this
+runtime-selection regression.
+
+## Cross-Language Rollout
+
+Roll out exactness by language family, not by marketing claim.
+
+1. **Go:** function values, interfaces, method sets, public API, entrypoints,
+   Cobra, HTTP, controller-runtime, build tags, and reflection ambiguity.
+2. **Python:** module entrypoints, decorators, web/worker/CLI frameworks,
+   imports, class methods, public package surfaces, and dynamic import
+   ambiguity.
+3. **JavaScript/TypeScript/TSX:** ESM/CommonJS exports, Next.js, Express,
+   route handlers, class methods, framework callbacks, package public surface,
+   and dynamic property access ambiguity.
+4. **Rust/Java/C#/Scala/Swift/Kotlin:** traits/interfaces, annotations,
+   exported/public symbols, package/module roots, framework callbacks, and
+   compiler/indexer-backed semantics where available.
+5. **C/C++/Dart/Elixir/Haskell/Perl/PHP/Ruby:** exactness only after each
+   language has tested entrypoints, public API rules, call/reference evidence,
+   and framework root policies.
+
+IaC remains outside `code_quality.dead_code`. Terraform, Helm, Kustomize,
+Kubernetes, ArgoCD, CloudFormation, Crossplane, and related artifacts use the
+separate IaC usage and reachability model.
+
+## Fixture Strategy
+
+Every parser-supported source language must get a dedicated dead-code fixture
+suite before Eshu claims exactness for that language. The existing parser
+fixtures prove that Eshu can extract definitions, imports, calls, variables,
+types, and other syntax-level facts. They do not prove cleanup safety.
+
+Dead-code fixtures must be purpose-built around reachability. Each language
+fixture should include:
+
+- one truly unused symbol that should be returned as `unused`
+- one direct call/reference case that should be reachable
+- one language entrypoint or initializer
+- one public API/exported surface case
+- one framework or callback root common to that ecosystem
+- one function-value, method-value, trait/interface, annotation/decorator, or
+  dynamic dispatch case where the language supports it
+- one generated or test-owned exclusion
+- one ambiguous dynamic case that forces non-exact truth
+
+The fixture output must be asserted through the same product surfaces users
+touch: parser/unit tests for emitted evidence, graph/query tests for
+classification, and at least one API/MCP or local-authoritative proof for the
+language family before promotion. A language with parser coverage but no
+dead-code fixture remains `derived_candidate_only` for dead-code.
+
+## Output Contract
+
+Dead-code responses will include per-result classification:
+
+- `unused`: no modeled root reaches the entity and required language gates are
+  satisfied
+- `reachable`: the entity is reachable from modeled roots
+- `ambiguous`: Eshu found possible dynamic reachability or missing semantic
+  evidence
+- `derived_candidate_only`: Eshu can parse the language and return graph-backed
+  candidates, but exact cleanup semantics are not fixture/root-model complete
+- `excluded`: test, generated, public API, or user-configured exclusion
+- `unsupported_language`: the language is outside the parser/indexing contract
+  for this capability
+
+The response analysis will include:
+
+- root categories applied
+- root categories unavailable
+- languages included and their dead-code maturity
+- framework roots recognized
+- public API rules applied
+- reflection and dynamic-dispatch status
+- parser metadata root count
+- query-time fallback count
+- candidates suppressed by root evidence
+- candidates downgraded to ambiguous
+- generated and test exclusions
+- user overrides
+
+## Observability
+
+Runtime-affecting implementation must add operator-visible telemetry:
+
+- root extraction duration histogram
+- roots extracted counter by language and root kind
+- unreachable candidates counter by language and classification
+- candidates suppressed counter by root category
+- ambiguous candidates counter by ambiguity reason
+- reachability materialization duration histogram
+- graph traversal duration histogram
+- structured logs with `failure_class`, query profile, backend, language, and
+  root category
+
+Metric labels must stay low-cardinality. File paths, function names, and entity
+IDs belong in spans or structured logs, not metric labels.
+
+## Performance Gate
+
+Dead-code maturity work is allowed to add parser metadata and query
+classification, but it must not make local dogfood indexing unusable. The
+acceptance bar for this PR includes a repo-scale local-authoritative graph
+proof, not only synthetic query latency.
+
+The required performance gate must prove:
+
+- clean local-authoritative startup resets Postgres and the NornicDB graph store
+  before indexing
+- collector discovery, pre-scan, parse, materialize, fact commit, content
+  write, canonical graph write, and reducer enqueue timings are captured from
+  the same run
+- canonical `files` and `entities` phases stay within the previous self-repo
+  envelope, with special attention to `Function` rows, statement count, grouped
+  execution count, average execution duration, and max execution duration
+- API or MCP dead-code proof runs only after indexing reaches a healthy,
+  drained state
+
+The first remediation step is diagnostic, not another query-shape guess:
+
+1. Reproduce the slow `Function` canonical write path with no unrelated local
+   owner process contending for CPU or graph storage.
+2. Compare the same worktree with and without the dead-code branch data shape.
+3. Compare file-scoped containment, cross-file batched containment, and any
+   NornicDB latest-main hot-path requirements using the same corpus.
+4. Fix the narrow owner from evidence: parser metadata shape, canonical writer
+   query shape, NornicDB hot-path eligibility, reset/dirty graph behavior, or
+   local process contention.
+5. Keep the rejected experiments recorded in this ADR or the implementation
+   plan so the team does not repeat them.
+
+## Consequences
+
+This ADR makes the current product contract more honest. Eshu can still support
+dead-code analysis locally and through MCP, but exactness becomes a
+language-scoped claim with proof gates.
+
+The implementation will require parser, content-shape, fact, reducer, query,
+MCP, CLI, spec, and documentation changes. That is larger than a query-only
+patch, but it prevents dead-code cleanup workflows from deleting live code.
+
+The capability matrix should continue to report `derived` until the language
+gates and backend conformance evidence justify promotion.
+
+## Non-Goals
+
+- Do not delete or auto-fix code based on derived candidates.
+- Do not infer IaC deadness from code-call edges.
+- Do not claim Tree-sitter alone proves dead-code exactness.
+- Do not mark all parser-supported languages exact at once.
+- Do not hide missing parser/indexer support behind a generic derived response
+  when a scoped `unsupported_language` classification is more accurate.
+
+## Acceptance Criteria
+
+- The Eshu dogfood false-positive list is encoded as a regression fixture.
+- Every parser-supported source language has a dedicated dead-code fixture
+  plan, and exact languages have checked-in fixtures with positive, negative,
+  and ambiguous cases.
+- Go root and reachability tests cover function values, DI callbacks, local
+  interfaces, method-set satisfaction, public API roots, and ambiguous dynamic
+  cases.
+- Python and JavaScript/TypeScript keep their existing modeled roots and gain
+  language-maturity metadata in the response.
+- All parser-supported source languages have explicit dead-code maturity rows:
+  exact, derived, derived-candidate-only, or ambiguous-only.
+- `find_dead_code` responses explain modeled and unmodeled root categories.
+- Local-authoritative self-repo graph indexing is back inside the pre-regression
+  envelope, or the PR remains blocked with the regression explicitly documented.
+- The canonical-write gate captures at least `phase=files`, `phase=entities`,
+  `Function` label rows/statements/executions/durations, and total projection
+  duration from a single local-authoritative run.
+- Local-authoritative dead-code proof passes:
+
+  ```bash
+  ESHU_NORNICDB_BINARY=/tmp/eshu-bare-install-smoke/bin/nornicdb-headless \
+    ESHU_LOCAL_AUTHORITATIVE_PERF=true \
+    go test ./cmd/eshu -run TestLocalAuthoritativeDeadCodeSyntheticEnvelope -count=1 -v
+  ```
+
+- Compose graph-analysis proof passes:
+
+  ```bash
+  ./scripts/verify_graph_analysis_compose.sh
+  ```
+
+- Capability and backend conformance specs remain honest about exactness.

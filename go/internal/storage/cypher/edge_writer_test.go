@@ -189,6 +189,44 @@ func TestEdgeWriterWriteEdgesCodeCallDispatch(t *testing.T) {
 	}
 }
 
+func TestEdgeWriterWriteEdgesGoTypeReferenceDispatch(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"repo_id":           "repo-a",
+				"caller_entity_id":  "entity:function:caller",
+				"callee_entity_id":  "entity:struct:callee",
+				"relationship_type": "REFERENCES",
+				"call_kind":         "go.composite_literal_type_reference",
+			},
+		},
+	}
+
+	err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls")
+	if err != nil {
+		t.Fatalf("WriteEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("executor calls = %d, want %d", got, want)
+	}
+	if !strings.Contains(executor.calls[0].Cypher, "REFERENCES") {
+		t.Fatalf("cypher missing REFERENCES edge: %s", executor.calls[0].Cypher)
+	}
+	if !strings.Contains(executor.calls[0].Cypher, "target:Function|Class|Struct|Interface|File") {
+		t.Fatalf("cypher missing type target labels: %s", executor.calls[0].Cypher)
+	}
+	if strings.Contains(executor.calls[0].Cypher, "MERGE (source)-[rel:CALLS]") {
+		t.Fatalf("cypher unexpectedly included CALLS edge: %s", executor.calls[0].Cypher)
+	}
+}
+
 func TestEdgeWriterWriteEdgesDirectCodeCallDispatch(t *testing.T) {
 	t.Parallel()
 
