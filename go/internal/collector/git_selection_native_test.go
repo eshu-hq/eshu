@@ -178,6 +178,126 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemReturnsEmptyBatchWh
 	}
 }
 
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemIgnoresGitignoredManifestChurn(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".gitignore"), "generated.log\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "generated.log"), "first\n")
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			Component:      "collector-git",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+	}
+
+	firstBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("first SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(firstBatch.Repositories), 1; got != want {
+		t.Fatalf("len(first.Repositories) = %d, want %d", got, want)
+	}
+
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "generated.log"), "second\n")
+	secondBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("second SelectRepositories() error = %v, want nil", err)
+	}
+	if got := len(secondBatch.Repositories); got != 0 {
+		t.Fatalf("len(second.Repositories) = %d, want 0 when only gitignored files changed", got)
+	}
+}
+
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemIgnoresEshuignoredManifestChurn(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".eshuignore"), "scratch.json\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "scratch.json"), "{\"version\":1}\n")
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			Component:      "collector-git",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+	}
+
+	firstBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("first SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(firstBatch.Repositories), 1; got != want {
+		t.Fatalf("len(first.Repositories) = %d, want %d", got, want)
+	}
+
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "scratch.json"), "{\"version\":2}\n")
+	secondBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("second SelectRepositories() error = %v, want nil", err)
+	}
+	if got := len(secondBatch.Repositories); got != 0 {
+		t.Fatalf("len(second.Repositories) = %d, want 0 when only eshuignored files changed", got)
+	}
+}
+
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemReselectsWhenIgnoreRulesChange(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".gitignore"), "generated.log\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "generated.log"), "first\n")
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			Component:      "collector-git",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+	}
+
+	firstBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("first SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(firstBatch.Repositories), 1; got != want {
+		t.Fatalf("len(first.Repositories) = %d, want %d", got, want)
+	}
+
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".gitignore"), "other.log\n")
+	secondBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("second SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(secondBatch.Repositories), 1; got != want {
+		t.Fatalf("len(second.Repositories) = %d, want %d when ignore rules changed", got, want)
+	}
+}
+
 func TestNativeRepositorySelectorSelectRepositoriesFilesystemRootRepository(t *testing.T) {
 	t.Parallel()
 

@@ -15,10 +15,18 @@
 // orchestration, and the `doctor` diagnostic. Its local-authoritative graph
 // path first acquires owner.lock, reclaims ownerless live Postgres only after
 // PID, socket, and protocol probes agree, clears rebuildable local
-// authoritative Postgres and graph state, starts embedded or process-mode
-// NornicDB, injects the workspace-scoped Bolt credentials plus CPU-count worker
-// defaults from local_host_config.go into child services, and keeps embedded
-// Bolt database access aligned with the HTTP server's RBAC callbacks. It hands
-// off to the Go runtime binaries discovered through `PATH`. Exit codes reflect
-// the underlying Cobra command result.
+// authoritative Postgres, graph, and filesystem-selector state, starts embedded
+// or process-mode NornicDB, injects the workspace-scoped Bolt credentials plus
+// CPU-count worker defaults from local_host_config.go into child services,
+// captures embedded NornicDB startup output in the workspace graph log, keeps
+// noisy child runtime logs in workspace log files by default while rendering a
+// branded animated Bubble Tea known-work progress panel from the shared status
+// store on terminals, includes explicit stage states so collector generations
+// and projector/reducer work items are not conflated, pads styled progress
+// columns by visible display width so counts stay aligned, keeps the panel
+// verdict at `Indexing` while collector generations are pending, treats the
+// active collector generation as the current snapshot rather than a running
+// worker, and keeps embedded Bolt database access aligned with the HTTP
+// server's RBAC callbacks. It hands off to the Go runtime binaries discovered
+// through `PATH`. Exit codes reflect the underlying Cobra command result.
 package main

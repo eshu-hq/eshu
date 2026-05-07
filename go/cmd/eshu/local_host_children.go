@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -129,13 +131,64 @@ func startLocalChildProcess(name string, args []string, env []string) (*exec.Cmd
 	cmd := exec.Command(binary, args[1:]...)
 	cmd.Args = append([]string(nil), args...)
 	cmd.Env = env
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	closeIO, err := configureLocalChildProcessIOWithCleanup(cmd, name, env)
+	if err != nil {
+		return nil, err
+	}
 	if err := cmd.Start(); err != nil {
+		if closeIO != nil {
+			_ = closeIO()
+		}
 		return nil, fmt.Errorf("start %s: %w", name, err)
 	}
+	if closeIO != nil {
+		_ = closeIO()
+	}
 	return cmd, nil
+}
+
+func configureLocalChildProcessIO(cmd *exec.Cmd, name string, env []string) error {
+	_, err := configureLocalChildProcessIOWithCleanup(cmd, name, env)
+	return err
+}
+
+func configureLocalChildProcessIOWithCleanup(cmd *exec.Cmd, name string, env []string) (func() error, error) {
+	mode := strings.TrimSpace(localHostEnvValue(env, localHostLogModeEnv))
+	if mode == "" {
+		mode = localHostLogModeFile
+	}
+
+	switch mode {
+	case localHostLogModeTerminal:
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		return nil, nil
+	case localHostLogModeQuiet:
+		cmd.Stdout = io.Discard
+		cmd.Stderr = io.Discard
+		cmd.Stdin = nil
+		return nil, nil
+	case localHostLogModeFile:
+		logDir := strings.TrimSpace(localHostEnvValue(env, localHostLogDirEnv))
+		if logDir == "" {
+			return nil, fmt.Errorf("%s is required when %s=%s", localHostLogDirEnv, localHostLogModeEnv, localHostLogModeFile)
+		}
+		if err := os.MkdirAll(logDir, 0o700); err != nil {
+			return nil, fmt.Errorf("create local child log dir: %w", err)
+		}
+		logPath := filepath.Join(logDir, filepath.Base(name)+".log")
+		logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		if err != nil {
+			return nil, fmt.Errorf("open %s log: %w", name, err)
+		}
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+		cmd.Stdin = nil
+		return logFile.Close, nil
+	default:
+		return nil, fmt.Errorf("unsupported %s %q; expected %s, %s, or %s", localHostLogModeEnv, mode, localHostLogModeFile, localHostLogModeTerminal, localHostLogModeQuiet)
+	}
 }
 
 func waitLocalChildProcess(ctx context.Context, cmd *exec.Cmd) error {
@@ -218,4 +271,14 @@ func normalizeLocalChildStoppedExit(err error) error {
 		return nil
 	}
 	return err
+}
+
+func localHostEnvValue(env []string, key string) string {
+	prefix := key + "="
+	for _, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
+			return strings.TrimPrefix(entry, prefix)
+		}
+	}
+	return ""
 }

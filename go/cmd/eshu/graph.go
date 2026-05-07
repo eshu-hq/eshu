@@ -125,6 +125,9 @@ another terminal for the same workspace.
 		RunE: runGraphStart,
 	}
 	graphStartCmd.Flags().String("workspace-root", "", "Explicit workspace root for local graph start")
+	graphStartCmd.Flags().String("progress", localHostProgressModeAuto, "Progress output mode: auto, plain, or quiet")
+	graphStartCmd.Flags().String("logs", localHostLogModeFile, "Child service log output mode: file, terminal, or quiet")
+	graphStartCmd.Flags().Bool("verbose", false, "Show child service logs in the terminal")
 	graphCmd.AddCommand(graphStartCmd)
 	graphStopCmd := &cobra.Command{
 		Use:   "stop",
@@ -194,16 +197,61 @@ func runGraphStart(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	progressMode, err := cmd.Flags().GetString("progress")
+	if err != nil {
+		return err
+	}
+	progressMode = strings.TrimSpace(progressMode)
+	if err := validateLocalProgressMode(progressMode); err != nil {
+		return err
+	}
+	logMode, err := cmd.Flags().GetString("logs")
+	if err != nil {
+		return err
+	}
+	logMode = strings.TrimSpace(logMode)
+	if verbose, err := cmd.Flags().GetBool("verbose"); err != nil {
+		return err
+	} else if verbose {
+		logMode = localHostLogModeTerminal
+	}
+	if err := validateLocalLogMode(logMode); err != nil {
+		return err
+	}
 	binary, err := eshuExecutable()
 	if err != nil {
 		return fmt.Errorf("resolve eshu executable: %w", err)
 	}
 	env := mergeEnvironment(eshuEnviron(), map[string]string{
-		"ESHU_QUERY_PROFILE": string(query.ProfileLocalAuthoritative),
-		"ESHU_GRAPH_BACKEND": string(query.GraphBackendNornicDB),
+		"ESHU_QUERY_PROFILE":     string(query.ProfileLocalAuthoritative),
+		"ESHU_GRAPH_BACKEND":     string(query.GraphBackendNornicDB),
+		localHostProgressModeEnv: progressMode,
+		localHostLogModeEnv:      logMode,
+		localHostLogDirEnv:       layout.LogsDir,
 	})
 	fmt.Fprintf(os.Stderr, "Starting local Eshu service for %s...\n", layout.WorkspaceRoot)
+	if logMode == localHostLogModeFile {
+		fmt.Fprintf(os.Stderr, "Child service logs: %s\n", layout.LogsDir)
+	}
 	return eshuExec(binary, []string{cleanExecutableArg0(binary), "local-host", "watch", layout.WorkspaceRoot}, env)
+}
+
+func validateLocalProgressMode(mode string) error {
+	switch mode {
+	case localHostProgressModeAuto, localHostProgressModePlain, localHostProgressModeQuiet:
+		return nil
+	default:
+		return fmt.Errorf("unsupported --progress %q; expected %s, %s, or %s", mode, localHostProgressModeAuto, localHostProgressModePlain, localHostProgressModeQuiet)
+	}
+}
+
+func validateLocalLogMode(mode string) error {
+	switch mode {
+	case localHostLogModeFile, localHostLogModeTerminal, localHostLogModeQuiet:
+		return nil
+	default:
+		return fmt.Errorf("unsupported --logs %q; expected %s, %s, or %s", mode, localHostLogModeFile, localHostLogModeTerminal, localHostLogModeQuiet)
+	}
 }
 
 func runGraphStop(cmd *cobra.Command, args []string) error {

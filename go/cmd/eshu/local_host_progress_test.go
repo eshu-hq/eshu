@@ -12,7 +12,7 @@ import (
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
-func TestRenderLocalHostProgressSnapshotIncludesOwnerFlowAndQueue(t *testing.T) {
+func TestRenderLocalHostProgressSnapshotIncludesKnownWorkTableAndQueue(t *testing.T) {
 	t.Parallel()
 
 	rendered := renderLocalHostProgressSnapshot(
@@ -26,10 +26,16 @@ func TestRenderLocalHostProgressSnapshotIncludesOwnerFlowAndQueue(t *testing.T) 
 			Health: statuspkg.HealthSummary{
 				State: "progressing",
 			},
-			FlowSummaries: []statuspkg.FlowSummary{
-				{Lane: "collector", Progress: "scopes active=1", Backlog: "generations pending=1"},
-				{Lane: "projector", Progress: "stage running=2", Backlog: "queue outstanding=6"},
-				{Lane: "reducer", Progress: "stage retrying=1", Backlog: "top domain code_call_materialization outstanding=4"},
+			GenerationHistory: statuspkg.GenerationHistorySnapshot{
+				Active:     1,
+				Pending:    2,
+				Completed:  3,
+				Superseded: 20,
+				Failed:     1,
+			},
+			StageSummaries: []statuspkg.StageSummary{
+				{Stage: "projector", Pending: 3, Claimed: 1, Running: 2, Retrying: 1, Succeeded: 4, DeadLetter: 1},
+				{Stage: "reducer", Pending: 1, Succeeded: 7},
 			},
 			Queue: statuspkg.QueueSnapshot{
 				Pending:              3,
@@ -54,9 +60,11 @@ func TestRenderLocalHostProgressSnapshotIncludesOwnerFlowAndQueue(t *testing.T) 
 		"Local progress 2026-04-23T21:15:00Z",
 		"Owner: running | profile=local_authoritative | backend=nornicdb | workspace=/workspace/repo",
 		"Health: progressing",
-		"Collector: progress=scopes active=1 | backlog=generations pending=1",
-		"Projector: progress=stage running=2 | backlog=queue outstanding=6",
-		"Reducer: progress=stage retrying=1 | backlog=top domain code_call_materialization outstanding=4",
+		"Stage      State       Progress        Done   Active  Waiting  Failed  Unit",
+		"Collector  attention   [######------]  4/7    0       2        1       generations",
+		"Projector  attention   [####--------]  4/12   3       4        1       work items",
+		"Reducer    waiting     [##########--]  7/8    0       1        0       work items",
+		"Superseded generations: 20",
 		"Queue: pending=3 in_flight=2 retrying=1 dead_letter=0 failed=0 oldest=5m2s",
 		"Latest failure: stage=reducer domain=code_call_materialization status=retrying class=graph_write_timeout",
 		"message=\"neo4j execute group timed out after 2s\" details=\"phase=semantic label=Variable rows=500\"",
@@ -64,6 +72,37 @@ func TestRenderLocalHostProgressSnapshotIncludesOwnerFlowAndQueue(t *testing.T) 
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("rendered progress missing %q in %q", want, rendered)
 		}
+	}
+}
+
+func TestRenderLocalHostProgressSnapshotShowsIdleWhenNoKnownWork(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderLocalHostProgressSnapshot(
+		"/workspace/repo",
+		localHostRuntimeConfig{
+			Profile:      query.ProfileLocalAuthoritative,
+			GraphBackend: query.GraphBackendNornicDB,
+		},
+		statuspkg.Report{
+			AsOf: time.Date(2026, time.April, 23, 21, 15, 0, 0, time.UTC),
+			Health: statuspkg.HealthSummary{
+				State: "healthy",
+			},
+		},
+	)
+
+	for _, want := range []string{
+		"Collector  idle",
+		"Projector  idle",
+		"Reducer    idle",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("rendered progress missing idle row %q in %q", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, "0/0") {
+		t.Fatalf("rendered progress = %q, want idle state instead of 0/0 denominator", rendered)
 	}
 }
 
@@ -135,6 +174,38 @@ func TestLocalHostProgressFingerprintIgnoresAsOfAndBucketsAge(t *testing.T) {
 	}
 	if got, want := localHostProgressFingerprint("/workspace/repo", runtimeConfig, withFailure), localHostProgressFingerprint("/workspace/repo", runtimeConfig, base); got == want {
 		t.Fatal("progress fingerprint stayed the same after latest failure details changed")
+	}
+}
+
+func TestLocalHostProgressEnabledHonorsQuietMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		env  string
+		want bool
+	}{
+		{name: "unset defaults on", want: true},
+		{name: "auto", env: "auto", want: true},
+		{name: "plain", env: "plain", want: true},
+		{name: "quiet", env: "quiet", want: false},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := localHostProgressEnabled(func(key string) string {
+				if key == localHostProgressModeEnv {
+					return tt.env
+				}
+				return ""
+			})
+			if got != tt.want {
+				t.Fatalf("localHostProgressEnabled() = %t, want %t", got, tt.want)
+			}
+		})
 	}
 }
 

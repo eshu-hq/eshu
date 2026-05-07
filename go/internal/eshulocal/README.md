@@ -126,8 +126,9 @@ Embedded Postgres (Unix only):
 - `StartEmbeddedPostgres(ctx, layout)` — starts the embedded Postgres instance,
   first stops an ownerless live workspace Postgres proven by `postmaster.pid`,
   PID liveness, socket health, and a Postgres protocol ping, then reserves a
-  loopback port, waits for a successful ping, and reads the postmaster PID.
-  Returns an error on Windows.
+  loopback port, routes `initdb` / `pg_ctl` output to
+  `LogsDir/postgres.log`, waits for a successful ping, and reads the postmaster
+  PID. Returns an error on Windows.
 - `PostgresDSN(host, port)` — builds the loopback TCP connection string.
 - `LocalQueryProfile()` — returns `"local_lightweight"`.
 
@@ -168,6 +169,9 @@ None. The startup and reclaim paths do not emit metrics or spans.
   reclaim path requires the lock-file PID to be alive, the lock-file socket to
   accept connections, and the recorded port to answer as Postgres before
   running `pg_ctl stop`.
+- Embedded Postgres startup logs belong in `LogsDir/postgres.log`. Do not let
+  `initdb` or `pg_ctl start` write to the foreground by default; the CLI
+  progress panel owns the terminal during `eshu graph start`.
 - Layout version is the `local-data-root-spec` version. Bumping it without a
   documented migration breaks existing workspaces that have data in the old
   layout.

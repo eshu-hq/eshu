@@ -69,6 +69,25 @@
   `local-host watch` supervisor discovers them through `PATH`. Rebuild all
   binaries and check `PATH` before running.
 
+- Symptom: `eshu graph start` appears noisy in local foreground mode → cause:
+  child service logs are being routed to the terminal with `--verbose` or
+  `--logs terminal`. Default local runs should keep `eshu-ingester.log` and
+  `eshu-reducer.log` under the workspace log directory and leave the terminal to
+  the branded Bubble Tea known-work progress panel. The verdict line is the
+  primary operator signal: `Complete` means all known work drained, `Indexing`
+  means pending collector generations or active work remain, `Settling` means
+  queued work remains, and `Attention` means a failure/dead-letter path is
+  present. The collector row treats `scope_generations.status='active'` as the
+  current snapshot, not a running worker; only pending generations should keep
+  the collector waiting. Use `--progress plain` when testing append-only output
+  and `--progress quiet` only when another wrapper owns progress display.
+
+- Symptom: the progress table is healthy but stays at `idle` after a
+  local-authoritative restart → first check whether `cache/repos` was reset.
+  A stale filesystem selector manifest can make the ingester skip collection
+  against fresh Postgres state, so `resetLocalAuthoritativeState` must remove
+  that directory while preserving embedded Postgres binaries.
+
 - Symptom: `eshu graph status` reports `owner_present=true` but the owner PID is
   already dead → cause: stale `owner.json`; `eshu graph stop` must acquire
   `owner.lock`, stop any recorded embedded Postgres child, and remove the stale

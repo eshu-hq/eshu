@@ -107,6 +107,7 @@ func fingerprintTree(root string) (string, error) {
 	}
 
 	files := make([]string, 0)
+	ignoreCaches := newCollectorIgnoreCaches()
 	if err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip entries we cannot read (permission denied, etc.)
@@ -115,10 +116,32 @@ func fingerprintTree(root string) (string, error) {
 			}
 			return nil
 		}
-		// Skip hidden directories (e.g. .git, .claude) — they are not
-		// part of the source fingerprint and may have restricted perms.
-		if entry.IsDir() && path != root && strings.HasPrefix(entry.Name(), ".") {
-			return filepath.SkipDir
+		if path == root {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(filepath.Clean(rel))
+		name := entry.Name()
+
+		// Ignore-control files affect the next collection shape and must
+		// participate in the manifest even though normal hidden files do not.
+		if isCollectorIgnoreControlFile(name) {
+			if !entry.IsDir() {
+				files = append(files, path)
+			}
+			return nil
+		}
+		if shouldSkipFilesystemEntry(root, path, rel, name, entry.IsDir(), ignoreCaches) {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil
 		}
 		if entry.IsDir() {
 			return nil
@@ -193,7 +216,7 @@ func copyRepositoryTree(sourceRoot string, targetRoot string) error {
 		return fmt.Errorf("create target repo %q: %w", targetRoot, err)
 	}
 
-	gitignoreCache := make(map[string]*collectorGitignoreSpec)
+	ignoreCaches := newCollectorIgnoreCaches()
 	return filepath.WalkDir(sourceRoot, func(current string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip entries we cannot read (permission denied, etc.)
@@ -212,7 +235,7 @@ func copyRepositoryTree(sourceRoot string, targetRoot string) error {
 		rel = filepath.ToSlash(filepath.Clean(rel))
 		name := entry.Name()
 
-		if shouldSkipFilesystemEntry(sourceRoot, current, rel, name, entry.IsDir(), gitignoreCache) {
+		if shouldSkipFilesystemEntry(sourceRoot, current, rel, name, entry.IsDir(), ignoreCaches) {
 			if entry.IsDir() {
 				return filepath.SkipDir
 			}
@@ -276,7 +299,7 @@ func shouldSkipFilesystemEntry(
 	rel string,
 	name string,
 	isDir bool,
-	cache map[string]*collectorGitignoreSpec,
+	caches collectorIgnoreCaches,
 ) bool {
 	if name == ".DS_Store" {
 		return true
@@ -284,16 +307,22 @@ func shouldSkipFilesystemEntry(
 	if strings.HasPrefix(name, ".") && !preserveFilesystemHiddenPath(rel) {
 		return true
 	}
-	if isCollectorGitignoredInRepo(repoRoot, fullPath, cache) {
+	if isCollectorGitignoredInRepo(repoRoot, fullPath, caches.gitignore) ||
+		isCollectorEshuignoredInRepo(repoRoot, fullPath, caches.eshuignore) {
 		return true
 	}
 	if isDir {
 		probePath := filepath.Join(fullPath, "__eshu_dir_probe__")
-		if isCollectorGitignoredInRepo(repoRoot, probePath, cache) {
+		if isCollectorGitignoredInRepo(repoRoot, probePath, caches.gitignore) ||
+			isCollectorEshuignoredInRepo(repoRoot, probePath, caches.eshuignore) {
 			return true
 		}
 	}
 	return rel == "."
+}
+
+func isCollectorIgnoreControlFile(name string) bool {
+	return name == ".gitignore" || name == ".eshuignore"
 }
 
 func preserveFilesystemHiddenPath(rel string) bool {
@@ -305,6 +334,18 @@ func preserveFilesystemHiddenPath(rel string) bool {
 	return normalized == ".github" ||
 		normalized == ".github/workflows" ||
 		strings.HasPrefix(normalized, ".github/workflows/")
+}
+
+type collectorIgnoreCaches struct {
+	gitignore  map[string]*collectorGitignoreSpec
+	eshuignore map[string]*collectorGitignoreSpec
+}
+
+func newCollectorIgnoreCaches() collectorIgnoreCaches {
+	return collectorIgnoreCaches{
+		gitignore:  make(map[string]*collectorGitignoreSpec),
+		eshuignore: make(map[string]*collectorGitignoreSpec),
+	}
 }
 
 type collectorGitignoreSpec struct {
@@ -323,12 +364,29 @@ func isCollectorGitignoredInRepo(
 	filePath string,
 	cache map[string]*collectorGitignoreSpec,
 ) bool {
+	return isCollectorIgnoredInRepo(repoRoot, filePath, ".gitignore", cache)
+}
+
+func isCollectorEshuignoredInRepo(
+	repoRoot string,
+	filePath string,
+	cache map[string]*collectorGitignoreSpec,
+) bool {
+	return isCollectorIgnoredInRepo(repoRoot, filePath, ".eshuignore", cache)
+}
+
+func isCollectorIgnoredInRepo(
+	repoRoot string,
+	filePath string,
+	ignoreFileName string,
+	cache map[string]*collectorGitignoreSpec,
+) bool {
 	if !collectorPathWithinRoot(repoRoot, filePath) {
 		return false
 	}
 	ignored := false
 	for _, dir := range collectorAncestorDirs(repoRoot, filePath) {
-		spec := loadCollectorGitignoreSpec(filepath.Join(dir, ".gitignore"), cache)
+		spec := loadCollectorGitignoreSpec(filepath.Join(dir, ignoreFileName), cache)
 		if spec == nil {
 			continue
 		}

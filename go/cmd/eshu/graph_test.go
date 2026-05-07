@@ -251,6 +251,7 @@ func TestRunGraphStartExecsAuthoritativeLocalHost(t *testing.T) {
 		return eshulocal.Layout{
 			WorkspaceRoot: workspaceRoot,
 			WorkspaceID:   "workspace-id",
+			LogsDir:       filepath.Join(workspaceRoot, ".eshu-logs"),
 		}, nil
 	}
 	eshuExecutable = func() (string, error) {
@@ -272,6 +273,9 @@ func TestRunGraphStartExecsAuthoritativeLocalHost(t *testing.T) {
 
 	cmd := &cobra.Command{}
 	cmd.Flags().String("workspace-root", "", "")
+	cmd.Flags().String("progress", "auto", "")
+	cmd.Flags().String("logs", "file", "")
+	cmd.Flags().Bool("verbose", false, "")
 
 	stderr := captureStderr(t, func() {
 		err := runGraphStart(cmd, nil)
@@ -294,6 +298,15 @@ func TestRunGraphStartExecsAuthoritativeLocalHost(t *testing.T) {
 	}
 	if envValue(gotEnv, "ESHU_GRAPH_BACKEND") != string(query.GraphBackendNornicDB) {
 		t.Fatalf("ESHU_GRAPH_BACKEND = %q, want nornicdb", envValue(gotEnv, "ESHU_GRAPH_BACKEND"))
+	}
+	if envValue(gotEnv, "ESHU_LOCAL_PROGRESS_MODE") != "auto" {
+		t.Fatalf("ESHU_LOCAL_PROGRESS_MODE = %q, want auto", envValue(gotEnv, "ESHU_LOCAL_PROGRESS_MODE"))
+	}
+	if envValue(gotEnv, "ESHU_LOCAL_LOG_MODE") != "file" {
+		t.Fatalf("ESHU_LOCAL_LOG_MODE = %q, want file", envValue(gotEnv, "ESHU_LOCAL_LOG_MODE"))
+	}
+	if envValue(gotEnv, "ESHU_LOCAL_LOG_DIR") != filepath.Join(resolvedWorkspaceRoot, ".eshu-logs") {
+		t.Fatalf("ESHU_LOCAL_LOG_DIR = %q, want workspace log dir", envValue(gotEnv, "ESHU_LOCAL_LOG_DIR"))
 	}
 }
 

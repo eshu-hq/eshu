@@ -285,6 +285,7 @@ func TestResetLocalAuthoritativeStatePreservesPostgresBinariesAndLogs(t *testing
 		PostgresDir: filepath.Join(root, "postgres"),
 		GraphDir:    filepath.Join(root, "graph"),
 		LogsDir:     filepath.Join(root, "logs"),
+		CacheDir:    filepath.Join(root, "cache"),
 	}
 	for _, path := range []string{
 		filepath.Join(layout.PostgresDir, "data", "PG_VERSION"),
@@ -292,6 +293,8 @@ func TestResetLocalAuthoritativeStatePreservesPostgresBinariesAndLogs(t *testing
 		filepath.Join(layout.PostgresDir, "binaries", "bin", "pg_ctl"),
 		filepath.Join(layout.GraphDir, "nornicdb", "graph.db"),
 		filepath.Join(layout.LogsDir, "graph-nornicdb.log"),
+		filepath.Join(layout.CacheDir, "repos", ".eshu-fixture-manifest"),
+		filepath.Join(layout.CacheDir, "embedded-postgres", "embedded-postgres-binaries.txz"),
 	} {
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			t.Fatalf("MkdirAll() error = %v", err)
@@ -309,6 +312,7 @@ func TestResetLocalAuthoritativeStatePreservesPostgresBinariesAndLogs(t *testing
 		filepath.Join(layout.PostgresDir, "data"),
 		filepath.Join(layout.PostgresDir, "runtime"),
 		filepath.Join(layout.GraphDir, "nornicdb"),
+		filepath.Join(layout.CacheDir, "repos"),
 	} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("Stat(%q) error = %v, want not exist", path, err)
@@ -317,6 +321,7 @@ func TestResetLocalAuthoritativeStatePreservesPostgresBinariesAndLogs(t *testing
 	for _, path := range []string{
 		filepath.Join(layout.PostgresDir, "binaries", "bin", "pg_ctl"),
 		filepath.Join(layout.LogsDir, "graph-nornicdb.log"),
+		filepath.Join(layout.CacheDir, "embedded-postgres", "embedded-postgres-binaries.txz"),
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("Stat(%q) error = %v, want preserved", path, err)
