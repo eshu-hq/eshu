@@ -96,18 +96,16 @@ button {
 }
 
 .hero-logo-frame {
-  aspect-ratio: 1200 / 500;
+  aspect-ratio: 1200 / 630;
   margin-bottom: 40px;
-  max-width: 680px;
+  max-width: 760px;
   overflow: hidden;
-  width: min(100%, 680px);
+  width: min(100%, 760px);
 }
 
 .hero-logo {
   display: block;
   height: auto;
-  transform: scale(1.32);
-  transform-origin: left top;
   width: 100%;
 }
 

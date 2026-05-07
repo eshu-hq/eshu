@@ -20,9 +20,13 @@ describe("App", () => {
       "href",
       "https://github.com/eshu-hq/eshu/tree/main/docs/docs"
     );
-    expect(screen.getByAltText("Eshu display logo")).toHaveAttribute(
+    const displayLogo = screen.getByAltText("Eshu display logo");
+    expect(displayLogo).toHaveAttribute(
       "src",
       "/brand/eshu-social-preview-1200x630.png"
+    );
+    expect(displayLogo.closest(".hero-logo-frame")).toHaveClass(
+      "hero-logo-frame--full-preview"
     );
     expect(screen.getByLabelText("Source to runtime graph")).toBeInTheDocument();
     expect(screen.getByText(/eshu trace service checkout/)).toBeInTheDocument();

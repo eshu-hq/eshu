@@ -49,7 +49,7 @@ export function App(): React.JSX.Element {
       <main>
         <section className="hero-section">
           <div className="hero-copy">
-            <div className="hero-logo-frame">
+            <div className="hero-logo-frame hero-logo-frame--full-preview">
               <img
                 className="hero-logo"
                 src="/brand/eshu-social-preview-1200x630.png"
