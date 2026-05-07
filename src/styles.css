@@ -84,7 +84,7 @@ button {
 .hero-section {
   display: grid;
   gap: 62px;
-  grid-template-columns: minmax(0, 0.9fr) minmax(460px, 1fr);
+  grid-template-columns: minmax(0, 1.08fr) minmax(440px, 0.92fr);
   margin: 0 auto;
   max-width: 1240px;
   min-height: calc(100vh - 72px);
@@ -95,12 +95,20 @@ button {
   align-self: center;
 }
 
+.hero-logo-frame {
+  aspect-ratio: 1200 / 500;
+  margin-bottom: 40px;
+  max-width: 680px;
+  overflow: hidden;
+  width: min(100%, 680px);
+}
+
 .hero-logo {
   display: block;
   height: auto;
-  margin-bottom: 40px;
-  max-width: 560px;
-  width: min(100%, 560px);
+  transform: scale(1.32);
+  transform-origin: left top;
+  width: 100%;
 }
 
 .core-line {

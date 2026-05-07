@@ -49,11 +49,13 @@ export function App(): React.JSX.Element {
       <main>
         <section className="hero-section">
           <div className="hero-copy">
-            <img
-              className="hero-logo"
-              src="/brand/eshu-social-preview-1200x630.png"
-              alt="Eshu display logo"
-            />
+            <div className="hero-logo-frame">
+              <img
+                className="hero-logo"
+                src="/brand/eshu-social-preview-1200x630.png"
+                alt="Eshu display logo"
+              />
+            </div>
             <h1>{siteContent.hero.heading}</h1>
             <p>{siteContent.hero.description}</p>
             <div className="hero-actions" aria-label="Primary actions">
