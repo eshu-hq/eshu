@@ -8,11 +8,12 @@ import (
 )
 
 type javaScriptPackageManifest struct {
-	Main    string `json:"main"`
-	Module  string `json:"module"`
-	Types   string `json:"types"`
-	Exports any    `json:"exports"`
-	Bin     any    `json:"bin"`
+	Main    string            `json:"main"`
+	Module  string            `json:"module"`
+	Types   string            `json:"types"`
+	Exports any               `json:"exports"`
+	Bin     any               `json:"bin"`
+	Scripts map[string]string `json:"scripts"`
 }
 
 // javaScriptPackageFileRootKinds returns package-level root evidence for one
@@ -37,6 +38,11 @@ func javaScriptPackageFileRootKinds(repoRoot string, path string) []string {
 	for _, target := range javaScriptPackageBinTargets(manifest.Bin) {
 		if javaScriptPackageTargetMatchesSource(target, relativePath) {
 			rootKinds = appendUniqueString(rootKinds, "javascript.node_package_bin")
+		}
+	}
+	for _, target := range javaScriptPackageScriptTargets(manifest.Scripts) {
+		if javaScriptPackageTargetMatchesSource(target, relativePath) {
+			rootKinds = appendUniqueString(rootKinds, "javascript.node_package_entrypoint")
 		}
 	}
 	for _, target := range javaScriptPackageExportTargets(manifest.Exports) {
@@ -80,6 +86,31 @@ func javaScriptPackageBinTargets(raw any) []string {
 	default:
 		return nil
 	}
+}
+
+func javaScriptPackageScriptTargets(scripts map[string]string) []string {
+	if len(scripts) == 0 {
+		return nil
+	}
+	targets := []string{}
+	for name, command := range scripts {
+		switch name {
+		case "start", "dev":
+		default:
+			continue
+		}
+		for _, token := range strings.Fields(command) {
+			target := strings.Trim(token, `"'`)
+			if target == "" || strings.HasPrefix(target, "-") {
+				continue
+			}
+			switch filepath.Ext(target) {
+			case ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts":
+				targets = append(targets, target)
+			}
+		}
+	}
+	return targets
 }
 
 func javaScriptPackageExportTargets(exports any) []string {

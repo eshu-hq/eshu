@@ -127,11 +127,19 @@ publication fails; the repairer retries exact rows durably.
 `ExtractCodeCallRows` turns parser `function_calls` and SCIP call facts into
 canonical `CALLS` edges. Native parser calls resolve in this order: same-file
 symbols, Go same-directory symbols, repository-unique symbols, then imported
-cross-file symbols when the prescan import map proves the target file. The Go
-same-directory step applies to functions and type entities from `structs` and
-`interfaces`; command packages commonly reuse local helper names such as
-`wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name resolution
-must stay ambiguous in that case.
+cross-file symbols when the prescan import map proves the target file. For
+JavaScript-family files, import resolution also honors parser-proven namespace
+aliases, tsconfig `baseUrl` `resolved_source` metadata, and one bounded hop
+through static relative re-export barrels. Constructor calls and local receiver
+type metadata let `new Type()` and `value.method()` resolve to class and method
+entities when parser evidence proves the local type. For package entrypoint,
+package bin, and package export files, top-level calls may use the repository
+scoped `File.uid` as the caller so executable module bodies can make `main()`,
+constructor, and member calls reachable without treating every library module as
+a root. The Go same-directory step applies to functions and type entities from
+`structs` and `interfaces`; command packages commonly reuse local helper names
+such as `wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name
+resolution must stay ambiguous in that case.
 
 Parser metadata rows with `call_kind=go.composite_literal_type_reference`
 materialize as deduplicated `REFERENCES` edges. They prove Go type-reference
@@ -280,6 +288,10 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   resolution wins first. Go then allows a same-directory match before the
   repository-unique fallback; if another package has the same bare name, do
   not create a repo-wide edge.
+- **JavaScript-family top-level calls need file-root evidence** — only
+  package entrypoint, package bin, and package export files can use the
+  repo-scoped `File.uid` caller for top-level calls. Do not promote arbitrary
+  module-body calls to roots.
 - **`BuildSharedProjectionIntent` produces a stable SHA256 ID** —
   changing any of the identity fields breaks idempotency for in-flight
   intents (`shared_projection.go:59–66`).

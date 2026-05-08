@@ -43,6 +43,11 @@ func (e *Engine) parseJavaScriptLike(
 	root := tree.RootNode()
 	reactAliases := javaScriptReactAliases(root, source, outputLanguage)
 	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source)
+	if len(deadCodeRoots.fileRootKinds) > 0 {
+		payload["dead_code_file_root_kinds"] = append([]string(nil), deadCodeRoots.fileRootKinds...)
+	}
+	tsConfigImports := newJavaScriptTSConfigImportResolver(repoRoot, path)
+	newExpressionTypes := javaScriptNewExpressionVariableTypes(root, source)
 
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -145,6 +150,7 @@ func (e *Engine) parseJavaScriptLike(
 			}
 			if requireItems := javaScriptRequireImportEntries(node, source, outputLanguage); len(requireItems) > 0 {
 				for _, item := range requireItems {
+					tsConfigImports.annotateImport(item)
 					appendBucket(payload, "imports", item)
 				}
 			}
@@ -168,6 +174,12 @@ func (e *Engine) parseJavaScriptLike(
 			appendBucket(payload, "variables", item)
 		case "import_statement":
 			for _, item := range javaScriptImportEntries(node, source, outputLanguage) {
+				tsConfigImports.annotateImport(item)
+				appendBucket(payload, "imports", item)
+			}
+		case "export_statement":
+			for _, item := range javaScriptReExportEntries(node, source, outputLanguage) {
+				tsConfigImports.annotateImport(item)
 				appendBucket(payload, "imports", item)
 			}
 		case "call_expression":
@@ -176,10 +188,26 @@ func (e *Engine) parseJavaScriptLike(
 			if strings.TrimSpace(name) == "" {
 				return
 			}
-			appendBucket(payload, "function_calls", map[string]any{
+			item := map[string]any{
 				"name":        name,
 				"full_name":   javaScriptCallFullName(functionNode, source),
 				"call_kind":   "function_call",
+				"line_number": nodeLine(node),
+				"lang":        outputLanguage,
+			}
+			if inferredType := javaScriptCallInferredObjectType(functionNode, source, newExpressionTypes); inferredType != "" {
+				item["inferred_obj_type"] = inferredType
+			}
+			appendBucket(payload, "function_calls", item)
+		case "new_expression":
+			constructorName, constructorFullName := javaScriptNewExpressionConstructorName(node, source)
+			if constructorName == "" {
+				return
+			}
+			appendBucket(payload, "function_calls", map[string]any{
+				"name":        constructorName,
+				"full_name":   constructorFullName,
+				"call_kind":   "constructor_call",
 				"line_number": nodeLine(node),
 				"lang":        outputLanguage,
 			})
@@ -299,7 +327,7 @@ func appendFunctionDeclaration(
 	if docstring := javaScriptDocstring(declarationNode, source); docstring != "" {
 		item["docstring"] = docstring
 	}
-	for key, value := range javaScriptFunctionSemantics(declarationNode, lang) {
+	for key, value := range javaScriptFunctionSemantics(declarationNode, source, lang) {
 		item[key] = value
 	}
 	if options.IndexSource {

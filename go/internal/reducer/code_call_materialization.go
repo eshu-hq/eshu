@@ -141,8 +141,9 @@ func ExtractAllCodeRelationshipRows(envelopes []facts.Envelope) (
 
 	entityIndex := buildCodeEntityIndex(envelopes)
 	repositoryImports := collectCodeCallRepositoryImports(envelopes)
+	reexportIndex := buildCodeCallReexportIndex(envelopes)
 
-	ccRepoIDs, ccRows := extractCodeCallRowsWithIndex(envelopes, repositoryIDs, entityIndex, repositoryImports)
+	ccRepoIDs, ccRows := extractCodeCallRowsWithIndex(envelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 	mcRepoIDs, mcRows := extractPythonMetaclassRowsWithIndex(envelopes, repositoryIDs, entityIndex, repositoryImports)
 	return ccRepoIDs, ccRows, mcRepoIDs, mcRows
 }
@@ -161,7 +162,8 @@ func ExtractCodeCallRows(envelopes []facts.Envelope) ([]string, []map[string]any
 
 	entityIndex := buildCodeEntityIndex(envelopes)
 	repositoryImports := collectCodeCallRepositoryImports(envelopes)
-	return extractCodeCallRowsWithIndex(envelopes, repositoryIDs, entityIndex, repositoryImports)
+	reexportIndex := buildCodeCallReexportIndex(envelopes)
+	return extractCodeCallRowsWithIndex(envelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 }
 
 func extractCodeCallRowsWithIndex(
@@ -169,6 +171,7 @@ func extractCodeCallRowsWithIndex(
 	repositoryIDs []string,
 	entityIndex codeEntityIndex,
 	repositoryImports map[string]map[string][]string,
+	reexportIndex codeCallReexportIndex,
 ) ([]string, []map[string]any) {
 	seenRows := make(map[string]struct{})
 	rows := make([]map[string]any, 0)
@@ -198,6 +201,7 @@ func extractCodeCallRowsWithIndex(
 				anyToString(fileData["path"]),
 				entityIndex,
 				repositoryImports[repositoryID],
+				reexportIndex,
 				seenRows,
 				fileData,
 			)...,

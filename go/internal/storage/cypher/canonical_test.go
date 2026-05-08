@@ -339,6 +339,19 @@ func TestBuildCanonicalCodeCallUpsertStatementUsesCallsForRegularFunctions(t *te
 	}
 }
 
+func TestCanonicalFileUpsertStatementsWriteUIDFromPath(t *testing.T) {
+	t.Parallel()
+
+	for name, cypher := range map[string]string{
+		"update_existing": canonicalNodeFileUpdateExistingCypher,
+		"create_missing":  canonicalNodeFileCreateMissingCypher,
+	} {
+		if !strings.Contains(cypher, "f.uid = row.uid") {
+			t.Fatalf("%s file upsert cypher missing File uid assignment: %s", name, cypher)
+		}
+	}
+}
+
 func TestBuildCanonicalCodeCallUpsertStatementUsesMetaclassEdges(t *testing.T) {
 	t.Parallel()
 

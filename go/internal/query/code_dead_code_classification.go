@@ -20,10 +20,10 @@ func classifyDeadCodeResults(results []map[string]any, contentByID map[string]*E
 
 func deadCodeResultClassification(result map[string]any, entity *EntityContent) string {
 	language := strings.ToLower(strings.TrimSpace(deadCodeEntityLanguage(result, entity)))
-	maturity, ok := deadCodeLanguageMaturity[language]
-	if !ok {
+	if !deadCodeLanguageSupported(language) {
 		return deadCodeClassificationUnsupportedLanguage
 	}
+	maturity := deadCodeLanguageMaturity[language]
 	switch maturity {
 	case deadCodeMaturityDerived:
 		return deadCodeClassificationUnused
@@ -32,4 +32,9 @@ func deadCodeResultClassification(result map[string]any, entity *EntityContent) 
 	default:
 		return deadCodeClassificationAmbiguous
 	}
+}
+
+func deadCodeLanguageSupported(language string) bool {
+	_, ok := deadCodeLanguageMaturity[strings.ToLower(strings.TrimSpace(language))]
+	return ok
 }

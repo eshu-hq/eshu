@@ -10,7 +10,7 @@ import (
 var javaScriptHapiHandlersPathRe = regexp.MustCompile(`handlers\s*:\s*path\.(?:resolve|join)\(\s*__dirname\s*,\s*['"]([^'"]+)['"]\s*\)`)
 
 // javaScriptIsHapiHandlerFile reports whether the current source file sits
-// under a lib-api-hapi OpenAPI handler directory declared in this repository.
+// under a Hapi OpenAPI handler directory declared in this repository.
 func javaScriptIsHapiHandlerFile(repoRoot string, path string) bool {
 	if strings.TrimSpace(repoRoot) == "" || strings.TrimSpace(path) == "" {
 		return false
@@ -42,7 +42,7 @@ func javaScriptHapiHandlerDirs(repoRoot string) []string {
 			continue
 		}
 		source := string(body)
-		if !strings.Contains(source, "@dmm/lib-api-hapi/init/plugins/specs") {
+		if !javaScriptLooksLikeHapiSpecsPlugin(source) {
 			continue
 		}
 		for _, match := range javaScriptHapiHandlersPathRe.FindAllStringSubmatch(source, -1) {
@@ -54,4 +54,10 @@ func javaScriptHapiHandlerDirs(repoRoot string) []string {
 		}
 	}
 	return dirs
+}
+
+func javaScriptLooksLikeHapiSpecsPlugin(source string) bool {
+	normalized := strings.ToLower(source)
+	return strings.Contains(normalized, "openapi") &&
+		strings.Contains(normalized, "/init/plugins/specs")
 }

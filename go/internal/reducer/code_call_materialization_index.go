@@ -15,6 +15,7 @@ type codeEntityIndex struct {
 	uniqueNameByPath    map[string]map[string]string
 	uniqueNameByRepo    map[string]map[string]string
 	uniqueNameByRepoDir map[string]map[string]map[string]string
+	constructorByPath   map[string]map[string]string
 	entityFileByID      map[string]string
 }
 
@@ -31,6 +32,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 		uniqueNameByPath:    make(map[string]map[string]string),
 		uniqueNameByRepo:    make(map[string]map[string]string),
 		uniqueNameByRepoDir: make(map[string]map[string]map[string]string),
+		constructorByPath:   make(map[string]map[string]string),
 		entityFileByID:      make(map[string]string),
 	}
 	nameCandidates := make(map[string]map[string]map[string]struct{})
@@ -71,6 +73,15 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 					endLine:   endLine,
 					entityID:  entityID,
 				})
+				if anyToString(item["name"]) == "constructor" {
+					classContext := strings.TrimSpace(anyToString(item["class_context"]))
+					if classContext != "" {
+						if _, ok := index.constructorByPath[pathKey]; !ok {
+							index.constructorByPath[pathKey] = make(map[string]string)
+						}
+						index.constructorByPath[pathKey][classContext] = entityID
+					}
+				}
 				for _, candidateName := range codeCallFunctionCandidateNames(item) {
 					if _, ok := nameCandidates[pathKey]; !ok {
 						nameCandidates[pathKey] = make(map[string]map[string]struct{})
@@ -261,6 +272,7 @@ func extractGenericCodeCallRows(
 	rawPath string,
 	entityIndex codeEntityIndex,
 	repositoryImports map[string][]string,
+	reexportIndex codeCallReexportIndex,
 	seenRows map[string]struct{},
 	fileData map[string]any,
 ) []map[string]any {
@@ -273,12 +285,16 @@ func extractGenericCodeCallRows(
 		}
 		callerID := resolveContainingCodeEntityID(entityIndex, rawPath, relativePath, callLine)
 		if callerID == "" {
+			callerID = resolveFileRootCodeCallCallerID(repositoryID, relativePath, fileData)
+		}
+		if callerID == "" {
 			continue
 		}
 		calleeID, calleeFilePath := resolveGenericCallee(
 			entityIndex,
 			repositoryID,
 			repositoryImports,
+			reexportIndex,
 			rawPath,
 			relativePath,
 			fileData,
@@ -288,30 +304,92 @@ func extractGenericCodeCallRows(
 			continue
 		}
 
-		relationshipType := codeCallRelationshipType(edge)
-		key := codeCallRowKey(repositoryID, callerID, calleeID, relationshipType, callLine)
-		if _, exists := seenRows[key]; exists {
-			continue
+		rows = appendCodeCallRow(rows, seenRows, repositoryID, callerID, calleeID, callerFilePath, calleeFilePath, callLine, edge)
+		if constructorID := resolveConstructorMethodCalleeID(entityIndex, calleeFilePath, edge); constructorID != "" {
+			rows = appendCodeCallRow(rows, seenRows, repositoryID, callerID, constructorID, callerFilePath, calleeFilePath, callLine, edge)
 		}
-		seenRows[key] = struct{}{}
-
-		row := map[string]any{
-			"repo_id":          repositoryID,
-			"caller_entity_id": callerID,
-			"callee_entity_id": calleeID,
-			"caller_file":      callerFilePath,
-			"callee_file":      calleeFilePath,
-			"ref_line":         callLine,
-			"action":           IntentActionUpsert,
-		}
-		copyOptionalCodeCallField(row, edge, "full_name")
-		copyOptionalCodeCallField(row, edge, "call_kind")
-		if relationshipType != "" {
-			row["relationship_type"] = relationshipType
-		}
-		rows = append(rows, row)
 	}
 	return rows
+}
+
+func appendCodeCallRow(
+	rows []map[string]any,
+	seenRows map[string]struct{},
+	repositoryID string,
+	callerID string,
+	calleeID string,
+	callerFilePath string,
+	calleeFilePath string,
+	callLine int,
+	edge map[string]any,
+) []map[string]any {
+	relationshipType := codeCallRelationshipType(edge)
+	key := codeCallRowKey(repositoryID, callerID, calleeID, relationshipType, callLine)
+	if _, exists := seenRows[key]; exists {
+		return rows
+	}
+	seenRows[key] = struct{}{}
+
+	row := map[string]any{
+		"repo_id":          repositoryID,
+		"caller_entity_id": callerID,
+		"callee_entity_id": calleeID,
+		"caller_file":      callerFilePath,
+		"callee_file":      calleeFilePath,
+		"ref_line":         callLine,
+		"action":           IntentActionUpsert,
+	}
+	copyOptionalCodeCallField(row, edge, "full_name")
+	copyOptionalCodeCallField(row, edge, "call_kind")
+	if relationshipType != "" {
+		row["relationship_type"] = relationshipType
+	}
+	return append(rows, row)
+}
+
+func resolveConstructorMethodCalleeID(index codeEntityIndex, calleeFilePath string, edge map[string]any) string {
+	if anyToString(edge["call_kind"]) != "constructor_call" {
+		return ""
+	}
+	className := strings.TrimSpace(anyToString(edge["name"]))
+	if className == "" {
+		className = strings.TrimSpace(anyToString(edge["full_name"]))
+	}
+	if className == "" {
+		return ""
+	}
+	for _, pathKey := range codeCallPathKeys(calleeFilePath, "") {
+		if entityID := index.constructorByPath[pathKey][className]; entityID != "" {
+			return entityID
+		}
+	}
+	return ""
+}
+
+// resolveFileRootCodeCallCallerID returns the file path identity for top-level
+// calls in JavaScript package-root files. This keeps executable module bodies
+// visible to dead-code reachability without treating every library module's
+// top-level expressions as roots.
+func resolveFileRootCodeCallCallerID(repositoryID string, relativePath string, fileData map[string]any) string {
+	language := anyToString(fileData["language"])
+	if language == "" {
+		language = anyToString(fileData["lang"])
+	}
+	switch strings.ToLower(language) {
+	case "javascript", "jsx", "typescript", "tsx":
+	default:
+		return ""
+	}
+	for _, rootKind := range toStringSlice(fileData["dead_code_file_root_kinds"]) {
+		switch rootKind {
+		case "javascript.node_package_entrypoint", "javascript.node_package_bin", "javascript.node_package_export":
+			if repositoryID == "" || relativePath == "" {
+				return ""
+			}
+			return repositoryID + ":" + normalizeCodeCallPath(relativePath)
+		}
+	}
+	return ""
 }
 
 // codeCallRelationshipType maps parser call-like metadata to the canonical

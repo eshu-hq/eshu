@@ -25,13 +25,29 @@ func javaScriptTypeAliasItem(
 	return item
 }
 
-func javaScriptFunctionSemantics(node *tree_sitter.Node, lang string) map[string]any {
-	if lang != "tsx" || !javaScriptContainsJSXFragmentShorthand(node) {
+func javaScriptFunctionSemantics(node *tree_sitter.Node, source []byte, lang string) map[string]any {
+	semantics := make(map[string]any)
+	if classContext := javaScriptEnclosingClassName(node, source); classContext != "" {
+		semantics["class_context"] = classContext
+	}
+	if lang == "tsx" && javaScriptContainsJSXFragmentShorthand(node) {
+		semantics["jsx_fragment_shorthand"] = true
+	}
+	if len(semantics) == 0 {
 		return nil
 	}
-	return map[string]any{
-		"jsx_fragment_shorthand": true,
+	return semantics
+}
+
+func javaScriptEnclosingClassName(node *tree_sitter.Node, source []byte) string {
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		switch current.Kind() {
+		case "class_declaration", "abstract_class_declaration":
+			nameNode := current.ChildByFieldName("name")
+			return strings.TrimSpace(nodeText(nameNode, source))
+		}
 	}
+	return ""
 }
 
 func javaScriptTypeAliasKind(node *tree_sitter.Node) string {

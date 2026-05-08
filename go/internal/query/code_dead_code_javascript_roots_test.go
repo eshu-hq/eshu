@@ -117,27 +117,27 @@ func TestHandleDeadCodeExcludesJavaScriptNodeAndHapiRootsFromMetadata(t *testing
 				return []map[string]any{
 					{
 						"entity_id": "js-entry", "name": "bootstrap", "labels": []any{"Function"},
-						"file_path": "api-node-sample.ts", "repo_id": "repo-1", "repo_name": "api-node-sample", "language": "typescript",
+						"file_path": "service-sample.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
 					},
 					{
 						"entity_id": "js-bin", "name": "runCli", "labels": []any{"Function"},
-						"file_path": "cli.ts", "repo_id": "repo-1", "repo_name": "api-node-sample", "language": "typescript",
+						"file_path": "cli.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
 					},
 					{
 						"entity_id": "js-export", "name": "publicApi", "labels": []any{"Function"},
-						"file_path": "server/public-api.ts", "repo_id": "repo-1", "repo_name": "api-node-sample", "language": "typescript",
+						"file_path": "server/public-api.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
 					},
 					{
 						"entity_id": "js-export-class", "name": "PublicClient", "labels": []any{"Class"},
-						"file_path": "server/public-api.ts", "repo_id": "repo-1", "repo_name": "api-node-sample", "language": "typescript",
+						"file_path": "server/public-api.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
 					},
 					{
 						"entity_id": "js-hapi", "name": "post", "labels": []any{"Function"},
-						"file_path": "server/handlers/chat/response.ts", "repo_id": "repo-1", "repo_name": "api-node-sample", "language": "typescript",
+						"file_path": "server/handlers/chat/response.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
 					},
 					{
 						"entity_id": "js-helper", "name": "unusedHelper", "labels": []any{"Function"},
-						"file_path": "server/private-helper.ts", "repo_id": "repo-1", "repo_name": "api-node-sample", "language": "typescript",
+						"file_path": "server/private-helper.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
 					},
 				}, nil
 			},
@@ -145,7 +145,7 @@ func TestHandleDeadCodeExcludesJavaScriptNodeAndHapiRootsFromMetadata(t *testing
 		Content: fakeDeadCodeContentStore{
 			entities: map[string]EntityContent{
 				"js-entry": {
-					EntityID: "js-entry", RelativePath: "api-node-sample.ts", EntityType: "Function", EntityName: "bootstrap", Language: "typescript",
+					EntityID: "js-entry", RelativePath: "service-sample.ts", EntityType: "Function", EntityName: "bootstrap", Language: "typescript",
 					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.node_package_entrypoint"}},
 				},
 				"js-bin": {

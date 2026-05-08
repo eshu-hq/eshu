@@ -54,10 +54,13 @@ canonical node path. Directory rows use depth-ordered `MERGE` after the
 repository is present. File rows update current nodes in place with
 `MATCH (f:File {path: row.path})`, then send only missing rows through a
 `WHERE NOT EXISTS { MATCH (:File {path: row.path}) }` guard before `MERGE`.
-This avoids NornicDB's expensive `DETACH DELETE` cost for current directories
-or files. Entity property filtering also keeps high-volume analysis metadata
-such as `dead_code_root_kinds` out of canonical graph rows; the dead-code API
-merges that evidence from the content store by entity ID.
+Nested files require a parent `Directory` match for the directory containment
+edge. Repository-root files use a separate Repository-contained statement shape
+so package entrypoint files can materialize without inventing a root
+`Directory`. This avoids NornicDB's expensive `DETACH DELETE` cost for current
+directories or files. Entity property filtering also keeps high-volume analysis
+metadata such as `dead_code_root_kinds` out of canonical graph rows; the
+dead-code API merges that evidence from the content store by entity ID.
 
 `EdgeWriter.WriteEdges` maps a `reducer.Domain` to a batched UNWIND Cypher
 template and dispatches rows in batches of `BatchSize` (default
@@ -233,6 +236,10 @@ adapter seam.
   use MATCH on these nodes. Identity cleanup phases run immediately before the
   corresponding MERGE phase, and `directories` are sorted by `Depth` ascending
   (`canonical_node_writer_phases.go`).
+- Repository-root `File` rows are the exception to the Directory parent rule:
+  they must attach directly to `Repository` through `REPO_CONTAINS` because
+  `buildDirectoryChain` intentionally does not create a synthetic Directory for
+  the repository root.
 - Canonical entity containment refreshes prune stale `CONTAINS` edges from
   current `Class` and `Function` parents. Keep those cleanup statements
   label-anchored on `uid`; unlabelled UID anchors are portable Cypher but can

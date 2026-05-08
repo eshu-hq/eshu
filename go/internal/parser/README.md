@@ -3,8 +3,8 @@
 ## Purpose
 
 `internal/parser` owns the native Go parser registry, language adapters,
-import metadata, dead-code root metadata, and SCIP reduction support used to
-extract source-level entities and metadata.
+import, re-export, and constructor receiver metadata, dead-code root metadata,
+and SCIP reduction support used to extract source-level entities and metadata.
 Parser changes must preserve fact truth: when a parser starts emitting a new
 entity, relationship, or metadata field, the relevant fixtures, fact contracts
 in `internal/facts`, and downstream docs must move in lockstep. Parsers must
@@ -57,8 +57,10 @@ language-specific adapter function (e.g. `parseGo`, `parsePython`,
 `dead_code_root_kinds` when syntax proves an entrypoint, framework callback,
 function-value callback, JavaScript package export, configured Hapi handler
 export, or interface method implementation. JavaScript-family adapters also
-preserve import alias metadata so reducer call materialization can resolve
-namespace member calls across files. After the language adapter returns,
+preserve import alias metadata, tsconfig `baseUrl` `resolved_source` metadata,
+static relative re-export metadata, constructor calls, and local receiver type
+metadata from `const value = new Type()` so reducer call materialization can
+resolve bounded cross-file calls. After the language adapter returns,
 `inferContentMetadata` sets `artifact_type`, `template_dialect`, and
 `iac_relevant` on the payload. The final payload also carries `repo_path`.
 
@@ -230,11 +232,13 @@ errors are surfaced in `collector snapshot stage completed` logs with
   that flow into local or imported interface-typed seams, and struct types
   referenced by composite literals. JavaScript-family roots cover Node package
   entrypoints, package `bin` targets, package public exports, and exported
-  functions under Hapi/lib-api-hapi handler directories when bounded local
-  config proves those directories. JavaScript-family import metadata preserves
-  namespace aliases used by reducer call materialization. Dynamic reflection,
-  build-tag-specific reachability, TypeScript path aliases, barrel re-exports,
-  and computed dispatch still need query-side ambiguity handling.
+  functions under Hapi-style handler directories when bounded local config
+  proves those directories. JavaScript-family import metadata preserves
+  namespace aliases, tsconfig `baseUrl` resolved sources, and one-hop static
+  relative re-exports used by reducer call materialization. Dynamic reflection,
+  build-tag-specific reachability, custom TypeScript `paths`, multi-hop barrel
+  graphs, package-manager resolution, and computed dispatch still need
+  query-side ambiguity handling.
 - `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form.
   Passing a relative path produces an absolute resolved path in the payload's
   `repo_path` field; this is correct behavior but callers should pass absolute

@@ -13,18 +13,22 @@ func TestDefaultEngineParsePathJavaScriptPackageDeadCodeRoots(t *testing.T) {
 		t,
 		filepath.Join(repoRoot, "package.json"),
 		`{
-  "name": "api-node-sample",
-  "main": "dist/api-node-sample.js",
-  "module": "dist/api-node-sample.mjs",
+  "name": "service-sample",
+  "main": "dist/service-sample.js",
+  "module": "dist/service-sample.mjs",
+  "scripts": {
+    "start": "node dist/service-sample.js",
+    "dev": "tsx service-sample.ts"
+  },
   "bin": {
-    "api-node-sample": "dist/cli.js"
+    "service-sample": "dist/cli.js"
   },
   "exports": {
     ".": "./dist/server/public-api.js"
   }
 }`,
 	)
-	entryPath := filepath.Join(repoRoot, "api-node-sample.ts")
+	entryPath := filepath.Join(repoRoot, "service-sample.ts")
 	binPath := filepath.Join(repoRoot, "cli.ts")
 	publicPath := filepath.Join(repoRoot, "server", "public-api.ts")
 	privatePath := filepath.Join(repoRoot, "server", "private-helper.ts")
@@ -139,12 +143,12 @@ func TestDefaultEngineParsePathJavaScriptHapiHandlerRoots(t *testing.T) {
 	writeTestFile(
 		t,
 		filepath.Join(repoRoot, "package.json"),
-		`{"name":"api-node-hapi"}`,
+		`{"name":"service-hapi"}`,
 	)
 	writeTestFile(
 		t,
 		filepath.Join(repoRoot, "server", "init", "plugins", "specs.ts"),
-		`import { plugin } from '@dmm/lib-api-hapi/init/plugins/specs';
+		`import { plugin } from '@example/hapi-service/init/plugins/specs';
 import path from 'path';
 
 export const options = {

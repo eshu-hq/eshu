@@ -230,6 +230,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if !deadCodeIsCandidateEntity(result, entity) {
 		return true
 	}
+	if !deadCodeLanguageSupported(deadCodeEntityLanguage(result, entity)) {
+		return true
+	}
 
 	goPolicy := newDeadCodeGoPolicyContext(result, entity)
 	if goPolicy.language == "go" && goPolicy.normalizedSource == "" && entity != nil && len(goPolicy.rootKinds) == 0 {
@@ -340,7 +343,10 @@ func deadCodeIsTestFile(result map[string]any, entity *EntityContent) bool {
 		return true
 	case strings.Contains(path, "/__tests__/"),
 		strings.Contains(path, "/tests/"),
-		strings.Contains(path, "/test/"):
+		strings.Contains(path, "/test/"),
+		strings.HasPrefix(path, "__tests__/"),
+		strings.HasPrefix(path, "tests/"),
+		strings.HasPrefix(path, "test/"):
 		return true
 	case strings.HasPrefix(base, "test_"),
 		strings.HasSuffix(base, "_test.py"),

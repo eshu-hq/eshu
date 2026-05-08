@@ -10,7 +10,9 @@
 // envelopes, truth metadata, capability gates, and code-quality classifications
 // are stable wire contracts. Dead-code responses preserve language maturity,
 // modeled framework-root lists, and root-kind evidence for functions and types
-// so callers can separate cleanup candidates from modeled roots.
+// so callers can separate cleanup candidates from modeled roots; unsupported
+// language metadata and test fixtures are suppressed from default cleanup
+// candidates.
 // local_authoritative and local_full_stack both answer graph-backed platform
 // impact queries, while local_lightweight returns structured unsupported errors
 // for those routes.

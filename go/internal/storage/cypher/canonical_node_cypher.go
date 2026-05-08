@@ -84,6 +84,7 @@ SET rel.evidence_source = 'projector/canonical',
 const canonicalNodeFileUpdateExistingCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.path})
 SET f.name = row.name, f.relative_path = row.relative_path,
+    f.uid = row.uid,
     f.language = row.language, f.lang = row.language,
     f.repo_id = row.repo_id,
     f.scope_id = row.scope_id, f.generation_id = row.generation_id,
@@ -105,6 +106,7 @@ MATCH (d:Directory {path: row.dir_path})
 WHERE NOT EXISTS { MATCH (:File {path: row.path}) }
 MERGE (f:File {path: row.path})
 SET f.name = row.name, f.relative_path = row.relative_path,
+    f.uid = row.uid,
     f.language = row.language, f.lang = row.language,
     f.repo_id = row.repo_id,
     f.scope_id = row.scope_id, f.generation_id = row.generation_id,
@@ -115,6 +117,34 @@ SET repoRel.evidence_source = 'projector/canonical',
 MERGE (d)-[dirRel:CONTAINS]->(f)
 SET dirRel.evidence_source = 'projector/canonical',
     dirRel.generation_id = row.generation_id`
+
+const canonicalNodeRootFileUpdateExistingCypher = `UNWIND $rows AS row
+MATCH (f:File {path: row.path})
+SET f.name = row.name, f.relative_path = row.relative_path,
+    f.uid = row.uid,
+    f.language = row.language, f.lang = row.language,
+    f.repo_id = row.repo_id,
+    f.scope_id = row.scope_id, f.generation_id = row.generation_id,
+    f.evidence_source = 'projector/canonical'
+WITH f, row
+MATCH (r:Repository {id: row.repo_id})
+MERGE (r)-[repoRel:REPO_CONTAINS]->(f)
+SET repoRel.evidence_source = 'projector/canonical',
+    repoRel.generation_id = row.generation_id`
+
+const canonicalNodeRootFileCreateMissingCypher = `UNWIND $rows AS row
+MATCH (r:Repository {id: row.repo_id})
+WHERE NOT EXISTS { MATCH (:File {path: row.path}) }
+MERGE (f:File {path: row.path})
+SET f.name = row.name, f.relative_path = row.relative_path,
+    f.uid = row.uid,
+    f.language = row.language, f.lang = row.language,
+    f.repo_id = row.repo_id,
+    f.scope_id = row.scope_id, f.generation_id = row.generation_id,
+    f.evidence_source = 'projector/canonical'
+MERGE (r)-[repoRel:REPO_CONTAINS]->(f)
+SET repoRel.evidence_source = 'projector/canonical',
+    repoRel.generation_id = row.generation_id`
 
 // --- Phase E: Entity Cypher (template — label inserted via fmt.Sprintf) ---
 

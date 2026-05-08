@@ -81,6 +81,7 @@ func resolveGenericCallee(
 	index codeEntityIndex,
 	repositoryID string,
 	repositoryImports map[string][]string,
+	reexportIndex codeCallReexportIndex,
 	rawPath string,
 	relativePath string,
 	fileData map[string]any,
@@ -112,6 +113,8 @@ func resolveGenericCallee(
 	return resolveImportedCrossFileCallee(
 		index,
 		repositoryImports,
+		reexportIndex,
+		repositoryID,
 		rawPath,
 		relativePath,
 		fileData,
@@ -147,38 +150,45 @@ func resolveGoSameDirectoryCalleeEntityID(
 func resolveImportedCrossFileCallee(
 	index codeEntityIndex,
 	repositoryImports map[string][]string,
+	reexportIndex codeCallReexportIndex,
+	repositoryID string,
 	rawPath string,
 	relativePath string,
 	fileData map[string]any,
 	call map[string]any,
 ) (string, string) {
-	if len(repositoryImports) == 0 {
-		return "", ""
-	}
-
 	importEntries := mapSlice(fileData["imports"])
 	if len(importEntries) == 0 {
 		return "", ""
 	}
 
 	for _, target := range codeCallImportedTargets(importEntries, call) {
-		paths := repositoryImports[target.symbolName]
-		if len(paths) == 0 {
-			continue
-		}
 		language := codeCallLanguage(call, rawPath, relativePath)
-		matchedPath := codeCallMatchImportedPath(
+		if len(repositoryImports) > 0 {
+			paths := repositoryImports[target.symbolName]
+			matchedPath := codeCallMatchImportedPath(
+				rawPath,
+				relativePath,
+				target.importSource,
+				language,
+				paths,
+			)
+			if matchedPath != "" {
+				if entityID := index.uniqueNameByPath[matchedPath][target.symbolName]; entityID != "" {
+					return entityID, index.entityFileByID[entityID]
+				}
+			}
+		}
+		if entityID, calleeFile := resolveReexportedCrossFileCallee(
+			index,
+			reexportIndex,
+			repositoryID,
 			rawPath,
 			relativePath,
-			target.importSource,
 			language,
-			paths,
-		)
-		if matchedPath == "" {
-			continue
-		}
-		if entityID := index.uniqueNameByPath[matchedPath][target.symbolName]; entityID != "" {
-			return entityID, index.entityFileByID[entityID]
+			target,
+		); entityID != "" {
+			return entityID, calleeFile
 		}
 	}
 
@@ -232,18 +242,41 @@ func codeCallImportedTargets(
 			localName = entryAlias
 		}
 		if localName == callName && entryName != "*" {
-			appendTarget(entryName, entrySource)
+			for _, source := range codeCallImportEntrySources(entry) {
+				appendTarget(entryName, source)
+			}
 		}
 
 		if (entryName == "*" || entryType == "import") && entryAlias != "" {
 			prefix := entryAlias + "."
 			if strings.HasPrefix(callFullName, prefix) {
-				appendTarget(callName, entrySource)
+				for _, source := range codeCallImportEntrySources(entry) {
+					appendTarget(callName, source)
+				}
 			}
 		}
 	}
 
 	return targets
+}
+
+func codeCallImportEntrySources(entry map[string]any) []string {
+	sources := make([]string, 0, 2)
+	appendSource := func(value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		for _, existing := range sources {
+			if existing == value {
+				return
+			}
+		}
+		sources = append(sources, value)
+	}
+	appendSource(anyToString(entry["resolved_source"]))
+	appendSource(anyToString(entry["source"]))
+	return sources
 }
 
 func codeCallMatchImportedPath(
@@ -304,7 +337,7 @@ func codeCallImportSourceCandidates(
 	if strings.HasPrefix(importSource, ".") && callerPath != "" {
 		basePath := normalizeCodeCallPath(filepath.Join(filepath.Dir(callerPath), importSource))
 		appendCandidate(basePath)
-		for _, ext := range []string{".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"} {
+		for _, ext := range []string{".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts"} {
 			appendCandidate(basePath + ext)
 			appendCandidate(filepath.Join(basePath, "index"+ext))
 		}

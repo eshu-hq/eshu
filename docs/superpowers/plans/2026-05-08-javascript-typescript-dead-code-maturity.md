@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Mature Eshu dead-code detection for Node, JavaScript, TypeScript, and TSX so the main `api-node*` service family returns useful, bounded, evidence-explained findings without overclaiming cleanup-safe truth.
+**Goal:** Mature Eshu dead-code detection for Node, JavaScript, TypeScript, and TSX so the main local Node service family returns useful, bounded, evidence-explained findings without overclaiming cleanup-safe truth.
 
-**Architecture:** Treat JavaScript, JSX, TypeScript, and TSX as one JavaScript-family dead-code capability with dialect-specific parser details. Keep `truth.level=derived` until package entrypoints, module resolution, framework roots, dynamic ambiguity, fixtures, API/MCP proof, and local dogfood gates agree. Add first-class Node/Hapi roots because the local validation corpus is dominated by `@dmm/lib-api-hapi` services with `server/handlers`, `server/init/plugins/spec*`, and `package.json` start/dev scripts.
+**Architecture:** Treat JavaScript, JSX, TypeScript, and TSX as one JavaScript-family dead-code capability with dialect-specific parser details. Keep `truth.level=derived` until package entrypoints, module resolution, framework roots, dynamic ambiguity, fixtures, API/MCP proof, and local dogfood gates agree. Add first-class Node/Hapi roots because the local validation corpus is dominated by Hapi services with `server/handlers`, `server/init/plugins/spec*`, and `package.json` start/dev scripts.
 
-**Tech Stack:** Go parser/query code, Tree-sitter JavaScript/TypeScript grammars, Eshu local-authoritative NornicDB graph, API/MCP `code_quality.dead_code`, Node package metadata, `tsconfig.json`, JavaScript/TypeScript fixtures, and local dogfood repos under `/Users/allen/repos/services/api-node*`.
+**Tech Stack:** Go parser/query code, Tree-sitter JavaScript/TypeScript grammars, Eshu local-authoritative NornicDB graph, API/MCP `code_quality.dead_code`, Node package metadata, `tsconfig.json`, JavaScript/TypeScript fixtures, and local dogfood repos selected outside the open-source tree.
 
 ---
 
@@ -22,14 +22,14 @@ Current Eshu state:
 
 Local target evidence:
 
-- `/Users/allen/repos/services` contains about 106 `api-node*` service repos with `package.json`.
-- Sample services use Node 20, `tsx`, `tsup`, `typescript`, `@hapi/lab`, `@dmm/lib-api-hapi`, and `@dmm/lib-typescript-build-tools`.
-- Runtime entrypoints usually appear in `package.json` as `start: node dist/api-node-*.js` and `dev: tsx api-node-*.ts`.
+- The local validation corpus contains many Node service repos with `package.json`.
+- Sample services use Node 20, `tsx`, `tsup`, `typescript`, Hapi test tooling, an internal Hapi service framework, and internal TypeScript build tooling.
+- Runtime entrypoints usually appear in `package.json` as `start: node dist/<service>.js` and `dev: tsx <service>.ts`.
 - Hapi route roots are mostly file-convention driven through `server/init/plugins/spec*` options:
   - `openapi.handlers: path.join(__dirname, '../../handlers')`
   - `openapi.handlers: path.resolve(__dirname, '../../handlers')`
 - Route handler roots usually export HTTP methods, plus library-specific
-  callback exports such as lib-api-hapi status payload builders:
+  callback exports such as framework status payload builders:
   - CommonJS: `module.exports.get = async (...) => {}`
   - TypeScript/ESM: `export const get = async (...) => {}`
   - Supported method names should include `get`, `post`, `put`, `patch`, `delete`, `head`, and `options`.
@@ -45,11 +45,11 @@ Acceptance posture:
 Expected implementation touch points:
 
 - Modify `go/internal/parser/javascript_dead_code_roots.go`
-  - Add root-kind constants and parser-backed roots for Node package entrypoints, Hapi/lib-api-hapi handler exports, and public module exports.
+  - Add root-kind constants and parser-backed roots for Node package entrypoints, Hapi handler exports, and public module exports.
 - Create `go/internal/parser/javascript_dead_code_package.go`
   - Parse and normalize `package.json` entrypoint evidence adjacent to a parsed source file.
 - Create `go/internal/parser/javascript_dead_code_hapi.go`
-  - Detect `@dmm/lib-api-hapi/init/plugins/specs` config and handler roots under configured handler directories.
+  - Detect internal Hapi specs-plugin config and handler roots under configured handler directories.
 - Create `go/internal/parser/javascript_dead_code_modules.go`
   - Model static import/export/require evidence and ambiguity markers without attempting full TypeScript resolution in one pass.
 - Modify `go/internal/parser/javascript_language.go`
@@ -116,14 +116,14 @@ Add a test repository with:
 
 ```text
 package.json
-api-node-sample.ts
+service-entry.ts
 server/public-api.ts
 server/private-helper.ts
 ```
 
 Assert:
 
-- `api-node-sample.ts` root function or top-level entrypoint receives `javascript.node_package_entrypoint`.
+- `service-entry.ts` root function or top-level entrypoint receives `javascript.node_package_entrypoint`.
 - file named by `bin` receives `javascript.node_package_bin`.
 - exported symbol reachable from package `exports` receives `javascript.node_package_export`.
 - `private-helper.ts` unused local helper does not receive any root kind.
@@ -149,7 +149,7 @@ Implementation rules:
 
 - [x] **Step 3: Emit root metadata**
 
-Attach root kinds to source entities only when evidence points at that source file or exported symbol. If the package points to `dist/api-node-jwt.js` and source has `api-node-jwt.ts`, root the source file entrypoint only when the basename relationship is direct and local tests prove it.
+Attach root kinds to source entities only when evidence points at that source file or exported symbol. If the package points to `dist/service-entry.js` and source has `service-entry.ts`, root the source file entrypoint only when the basename relationship is direct and local tests prove it.
 
 - [x] **Step 4: Re-run focused tests**
 
@@ -190,11 +190,11 @@ go test ./internal/parser ./internal/query -run 'JavaScriptPackage|DeadCode.*Jav
 
 Expected: PASS.
 
-## Chunk 2: Hapi / lib-api-hapi Handler Roots
+## Chunk 2: Hapi Handler Roots
 
 **Owner:** Subagent B.
 
-**Scope:** Model the route convention used by the local `api-node*` service family. This is the highest-value business slice.
+**Scope:** Model the route convention used by the local Node service family. This is the highest-value business slice.
 
 **Files:**
 
@@ -221,7 +221,7 @@ server/resources/unused-service.ts
 `specs.ts` should include:
 
 ```ts
-import { plugin } from '@dmm/lib-api-hapi/init/plugins/specs';
+import { plugin } from '@example/hapi-service/init/plugins/specs';
 import path from 'path';
 
 export const options = {
@@ -258,7 +258,7 @@ Assert all exported functions receive `javascript.hapi_handler_export`.
 
 Detection should require at least one strong signal:
 
-- import or require of `@dmm/lib-api-hapi/init/plugins/specs`
+- import or require of the internal Hapi service specs plugin
 - `openapi.handlers` path configured in the plugin options
 
 Resolve `path.join(__dirname, '../../handlers')` and `path.resolve(__dirname, '../../handlers')` conservatively. If resolution fails, do not root all handlers; emit ambiguity metadata later instead.
@@ -268,7 +268,7 @@ Resolve `path.join(__dirname, '../../handlers')` and `path.resolve(__dirname, '.
 Root exported function symbols under configured handler directories. This
 includes normal HTTP method exports and callback exports consumed by wrapper
 handlers, such as `module.exports.payload` beside
-`@dmm/lib-api-hapi/handlers/status`. Do not root non-exported helper functions
+the framework status handler. Do not root non-exported helper functions
 inside handlers; they still need normal call/reference evidence.
 
 - [x] **Step 5: Add query test and policy update**
@@ -290,10 +290,16 @@ Chunk 3 adds static ESM/CommonJS import, require, re-export, and barrel-file
 reachability. It must prove relative static imports without emulating a full
 bundler. TypeScript namespace member calls such as `jwt.encode()` now resolve
 to `server/resources/jwt.ts::encode` from
-`import * as jwt from "../resources/jwt"`; the remaining Chunk 3 work should
-cover re-export, barrel-file, and tsconfig `baseUrl` cases. Parser-backed
-CommonJS `require()` namespace calls and destructured require aliases are
-covered by reducer regression tests.
+`import * as jwt from "../resources/jwt"`. Parser-backed CommonJS `require()`
+namespace calls and destructured require aliases are covered by reducer
+regression tests. Static relative one-hop barrels such as
+`export { encode } from "./jwt"` and `export * from "./jwt"` now resolve from a
+caller import of the barrel to the original exported function. Tsconfig
+`baseUrl` imports now emit bounded `resolved_source` metadata when an authored
+file exists under the repo root. Constructor calls such as
+`new SnapshotSync()` and local receiver calls such as `sync.invoke()` now
+emit parser metadata that lets the reducer connect constructor, class method,
+and static method edges through the same bounded import/re-export path.
 
 Chunk 4 adds ambiguity metadata for dynamic imports, computed property
 dispatch, DI containers, and event callback registrations. It should explain
@@ -302,25 +308,25 @@ uncertainty without hiding every candidate in the file.
 Chunk 5 upgrades JS/TS/TSX fixtures into enforced parser, query, API, and MCP
 proof. It must keep maturity at `derived` while exactness gates remain open.
 
-Chunk 6 dogfoods against representative local services:
-`api-node-jwt`, `api-node-geo`, `api-node-ai-provider`, `api-node-chat`,
-`api-node-whisper`, and `api-node-forex`. Each run must record discovery shape,
-query duration, result count, truncation, and evidence-backed false positives.
+Chunk 6 dogfoods against representative local Node services selected outside
+the open-source tree. Each run must record discovery shape, query duration,
+result count, truncation, and evidence-backed false positives without copying
+private service names, paths, repository IDs, IP/domain-specific symbols, or
+customer-specific package names into committed artifacts.
 
-Live proof note from `api-node-jwt`: after rebuilding local binaries, `eshu
-graph start` indexed 50 files and MCP `find_dead_code` returned fresh derived
-results with 3 parser metadata framework roots. That proof caught and fixed the
-lib-api-hapi `module.exports.payload` handler-root gap. A follow-up namespace
-import fix increased reducer code call materialization from 19 to 24 calls, and
-MCP `execute_cypher_query` confirmed handler/resource edges such as
-`post -> encode`, `getHealthChecks -> secretIsSafe`, `decode -> getSecret`,
-`getSecret -> get/init`, and `payload -> getHealthChecks`. MCP
-`find_dead_code` then returned only 6 fresh candidates, all under `scripts/`,
-with no `server/resources/jwt.ts` or `server/resources/ssm.ts` false positives.
-Local `api-node*` tsconfig evidence showed broad `compilerOptions.baseUrl: "."`
-usage and no common `compilerOptions.paths` usage in the sampled services, so
-the next TypeScript resolver slice should prioritize bounded baseUrl imports
-before custom path aliases.
+Live proof note from a representative local Node service: after rebuilding
+local binaries, `eshu graph start` indexed 50 files and MCP `find_dead_code`
+returned fresh derived results with 3 parser metadata framework roots. That
+proof caught and fixed the Hapi `module.exports.payload` handler-root gap. A
+follow-up namespace import fix increased reducer code call materialization from
+19 to 24 calls, and MCP `execute_cypher_query` confirmed handler/resource edges
+such as `post -> encode`, `getHealthChecks -> secretIsSafe`, `decode -> getSecret`,
+`getSecret -> get/init`, and `payload -> getHealthChecks`. MCP `find_dead_code`
+then returned only 6 fresh candidates, all under `scripts/`, with no resource
+false positives. Local tsconfig evidence showed broad
+`compilerOptions.baseUrl: "."` usage and no common `compilerOptions.paths`
+usage in the sampled services, so this branch prioritized bounded baseUrl
+imports before custom path aliases.
 
 ## Final Verification Gate
 
@@ -353,7 +359,7 @@ PR 2:
 PR 3:
 
 - Chunk 5 fixture/API/MCP proof
-- Chunk 6 local dogfood evidence against selected `api-node*` repos
+- Chunk 6 local dogfood evidence against selected local Node service repos
 - Docs/ADR updates and capability-matrix language notes
 
 ## Subagent Assignment Prompt Template
@@ -370,7 +376,7 @@ Own only Chunk <N>. Do not edit files owned by other chunks unless the plan says
 
 ## Open Questions For The Coordinator
 
-- Should Hapi/lib-api-hapi roots live under the generic `javascript.*` root namespace or a more specific `node.hapi.*` namespace?
-- Should package entrypoint rooting map `dist/api-node-*.js` back to `api-node-*.ts` by basename, or should that require `tsup` config evidence first?
+- Should Hapi roots live under the generic `javascript.*` root namespace or a more specific `node.hapi.*` namespace?
+- Should package entrypoint rooting map `dist/<service>.js` back to `<service>.ts` by basename, or should that require `tsup` config evidence first?
 - Should dynamic ambiguity metadata be stored as `dead_code_ambiguity_kinds`, or folded into `dead_code_root_kinds` with `*.ambiguous` suffixes?
-- Which three `api-node*` repos become mandatory local dogfood gates for this feature branch?
+- Which three local Node service repos become mandatory dogfood gates for this feature branch, tracked only in private session notes?
