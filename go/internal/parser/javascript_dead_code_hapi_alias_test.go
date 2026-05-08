@@ -231,6 +231,32 @@ const plainObject = {
 	}
 }
 
+func TestDefaultEngineParsePathJavaScriptCommonJSHapiRouteArrayHandlerReferences(t *testing.T) {
+	t.Parallel()
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	repoRoot := nodeTypeScriptFixtureRoot()
+	filePath := filepath.Join(repoRoot, "server", "routes", "search.js")
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	insert := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "searchController.insertApiKey")
+	assertStringFieldValue(t, insert, "call_kind", "javascript.hapi_route_handler_reference")
+	getKeys := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "searchController.getKeys")
+	assertStringFieldValue(t, getKeys, "call_kind", "javascript.hapi_route_handler_reference")
+	update := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "searchController.updateKey")
+	assertStringFieldValue(t, update, "call_kind", "javascript.hapi_route_handler_reference")
+	if item := bucketItemByFieldValue(got, "function_calls", "full_name", "searchController.notMounted"); item != nil {
+		t.Fatalf("unexpected non-exported route handler reference call = %#v", item)
+	}
+}
+
 func TestDefaultEngineParsePathJavaScriptHapiServerRouteHandlerRootsAndReferences(t *testing.T) {
 	t.Parallel()
 

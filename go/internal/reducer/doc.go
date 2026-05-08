@@ -4,11 +4,12 @@
 // The reducer admits candidates from relationship evidence, projects
 // resolved relationships, materializes code-call and code-reference edges
 // between source entities, including bounded JavaScript-family import,
-// CommonJS property require, module.exports self-alias, function receiver,
-// constructor, re-export, dynamic import, returned function-value,
-// TypeScript type-reference, static JavaScript registry dispatch, and
-// package-file-root evidence, and drives repair flows for domains that depend
-// on later phases of the bootstrap
+// CommonJS property require, module.exports self-alias, imported JavaScript
+// namespace calls before same-file trailing-name fallback, function receiver,
+// constructor, re-export, dynamic import, returned function-value, TypeScript
+// type-reference, static JavaScript registry dispatch, and package-file-root
+// evidence, and drives repair flows for domains that depend on later phases of
+// the bootstrap
 // pipeline. Changes here need careful proof: track raw evidence, admitted
 // candidates, projected rows, graph writes, and query surfaces before changing
 // ordering, admission, retries, or backend-specific behavior. Reducer code must

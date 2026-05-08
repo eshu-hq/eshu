@@ -7,8 +7,9 @@
 // and package entrypoint files, package-level interface/type reference pre-scans,
 // nearest-package JavaScript roots, CommonJS module.exports alias and mixin
 // roots, JSONC tsconfig comment/trailing-comma baseUrl and paths metadata,
-// Hapi handler, plugin, and route-reference roots, Next.js app and route
-// exports, Express/Koa/Fastify/NestJS callback roots, Node migration exports,
+// Hapi handler, plugin, and exported route-array reference roots including
+// direct, config, and options handlers, Next.js app and route exports,
+// Express/Koa/Fastify/NestJS callback roots, Node migration exports,
 // TypeScript interface implementation, module-contract, package
 // public-surface, and exported static-registry roots, returned function-value
 // references, static re-export metadata, composite-literal type references,

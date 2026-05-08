@@ -18,7 +18,8 @@ func javaScriptIsHapiRouteConfigHandler(node *tree_sitter.Node, name string, sou
 		return false
 	}
 	return javaScriptObjectIsCommonJSExported(routeConfigObject, source) ||
-		javaScriptObjectIsInHapiServerRoute(routeConfigObject, source)
+		javaScriptObjectIsInHapiServerRoute(routeConfigObject, source) ||
+		javaScriptObjectIsInCommonJSExportedHapiRouteCollection(routeConfigObject, source)
 }
 
 func javaScriptHapiRouteHandlerReferenceCall(
@@ -43,7 +44,8 @@ func javaScriptHapiRouteHandlerReferenceCall(
 		return nil
 	}
 	if (!evidence.hapiControllerFile || !javaScriptObjectIsCommonJSExported(routeConfigObject, source)) &&
-		!javaScriptObjectIsInHapiServerRoute(routeConfigObject, source) {
+		!javaScriptObjectIsInHapiServerRoute(routeConfigObject, source) &&
+		!javaScriptObjectIsInCommonJSExportedHapiRouteCollection(routeConfigObject, source) {
 		return nil
 	}
 	fullName := strings.TrimSpace(nodeText(valueNode, source))
@@ -91,6 +93,78 @@ func javaScriptObjectIsInHapiServerRoute(objectNode *tree_sitter.Node, source []
 	return false
 }
 
+func javaScriptObjectIsInCommonJSExportedHapiRouteCollection(objectNode *tree_sitter.Node, source []byte) bool {
+	routeObject := javaScriptHapiRouteObject(objectNode, source)
+	if routeObject == nil {
+		return false
+	}
+	collection := routeObject.Parent()
+	if collection == nil || collection.Kind() != "array" {
+		return false
+	}
+	if javaScriptNodeIsCommonJSExportedValue(collection, source) {
+		return true
+	}
+	collectionName := javaScriptVariableNameForValue(collection, source)
+	if collectionName == "" {
+		return false
+	}
+	return javaScriptRootExportsIdentifier(collection, collectionName, source)
+}
+
+func javaScriptNodeIsCommonJSExportedValue(valueNode *tree_sitter.Node, source []byte) bool {
+	if valueNode == nil {
+		return false
+	}
+	parent := valueNode.Parent()
+	if parent == nil || parent.Kind() != "assignment_expression" {
+		return false
+	}
+	if !javaScriptNodeSameRange(parent.ChildByFieldName("right"), valueNode) {
+		return false
+	}
+	return javaScriptCommonJSAssignmentTarget(parent.ChildByFieldName("left"), source)
+}
+
+func javaScriptVariableNameForValue(valueNode *tree_sitter.Node, source []byte) string {
+	if valueNode == nil {
+		return ""
+	}
+	parent := valueNode.Parent()
+	if parent == nil || parent.Kind() != "variable_declarator" {
+		return ""
+	}
+	if !javaScriptNodeSameRange(parent.ChildByFieldName("value"), valueNode) {
+		return ""
+	}
+	return javaScriptIdentifierName(parent.ChildByFieldName("name"), source)
+}
+
+func javaScriptRootExportsIdentifier(node *tree_sitter.Node, name string, source []byte) bool {
+	name = strings.TrimSpace(name)
+	if node == nil || name == "" {
+		return false
+	}
+	root := node
+	for root.Parent() != nil {
+		root = root.Parent()
+	}
+	found := false
+	walkNamed(root, func(candidate *tree_sitter.Node) {
+		if found || candidate.Kind() != "assignment_expression" {
+			return
+		}
+		rightNode := candidate.ChildByFieldName("right")
+		if javaScriptIdentifierName(rightNode, source) != name {
+			return
+		}
+		if javaScriptCommonJSAssignmentTarget(candidate.ChildByFieldName("left"), source) {
+			found = true
+		}
+	})
+	return found
+}
+
 func javaScriptHapiRouteObject(objectNode *tree_sitter.Node, source []byte) *tree_sitter.Node {
 	if objectNode == nil || objectNode.Kind() != "object" {
 		return nil
@@ -99,7 +173,12 @@ func javaScriptHapiRouteObject(objectNode *tree_sitter.Node, source []byte) *tre
 		return objectNode
 	}
 	parent := objectNode.Parent()
-	if parent == nil || parent.Kind() != "pair" || strings.TrimSpace(nodeText(parent.ChildByFieldName("key"), source)) != "config" {
+	if parent == nil || parent.Kind() != "pair" {
+		return nil
+	}
+	switch strings.TrimSpace(nodeText(parent.ChildByFieldName("key"), source)) {
+	case "config", "options":
+	default:
 		return nil
 	}
 	routeObject := parent.Parent()

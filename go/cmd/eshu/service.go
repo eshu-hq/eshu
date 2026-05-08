@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
+	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 var mcpCmd = &cobra.Command{
@@ -39,9 +40,9 @@ func init() {
 		Short: "Start the Eshu MCP server",
 		RunE:  runMCPStart,
 	}
-	mcpStartCmd.Flags().StringP("transport", "t", "stdio", "Transport mode: stdio or sse")
-	mcpStartCmd.Flags().String("host", "0.0.0.0", "Host to bind SSE server")
-	mcpStartCmd.Flags().IntP("port", "p", 8080, "Port for SSE server")
+	mcpStartCmd.Flags().StringP("transport", "t", "stdio", "Transport mode: stdio, http, or sse")
+	mcpStartCmd.Flags().String("host", "0.0.0.0", "Host to bind HTTP MCP server")
+	mcpStartCmd.Flags().IntP("port", "p", 8080, "Port for HTTP MCP server")
 	mcpStartCmd.Flags().String("workspace-root", "", "Explicit workspace root for local lightweight ownership")
 	mcpCmd.AddCommand(mcpStartCmd)
 
@@ -106,15 +107,20 @@ func init() {
 var (
 	eshuExecutable = os.Executable
 	eshuGetwd      = os.Getwd
+	eshuLookPath   = exec.LookPath
 	eshuExec       = func(binary string, args []string, env []string) error { return syscall.Exec(binary, args, env) }
 	eshuEnviron    = os.Environ
 )
 
 func runMCPStart(cmd *cobra.Command, args []string) error {
-	transport, _ := cmd.Flags().GetString("transport")
+	rawTransport, _ := cmd.Flags().GetString("transport")
 	host, _ := cmd.Flags().GetString("host")
 	port, _ := cmd.Flags().GetInt("port")
 	workspaceRootFlag, _ := cmd.Flags().GetString("workspace-root")
+	transport, err := normalizeMCPTransport(rawTransport)
+	if err != nil {
+		return err
+	}
 
 	if transport == "stdio" {
 		startPath, err := eshuGetwd()
@@ -133,7 +139,7 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 		return eshuExec(binary, []string{cleanExecutableArg0(binary), "local-host", "mcp-stdio", workspaceRoot}, eshuEnviron())
 	}
 
-	binary, err := exec.LookPath("eshu-mcp-server")
+	binary, err := eshuLookPath("eshu-mcp-server")
 	if err != nil {
 		printError("eshu-mcp-server binary not found in PATH.")
 		fmt.Println("\nThe MCP server is a Go binary. Ensure:")
@@ -142,17 +148,86 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("eshu-mcp-server not found")
 	}
 
-	if err := os.Setenv("ESHU_MCP_TRANSPORT", transport); err != nil {
-		return err
-	}
-	if transport == "sse" {
-		if err := os.Setenv("ESHU_MCP_ADDR", fmt.Sprintf("%s:%d", host, port)); err != nil {
+	env := mergeEnvironment(eshuEnviron(), map[string]string{
+		"ESHU_MCP_TRANSPORT": transport,
+		"ESHU_MCP_ADDR":      fmt.Sprintf("%s:%d", host, port),
+	})
+	if strings.TrimSpace(workspaceRootFlag) != "" {
+		startPath, err := eshuGetwd()
+		if err != nil {
+			return fmt.Errorf("resolve current working directory: %w", err)
+		}
+		workspaceRoot, err := eshulocal.ResolveWorkspaceRoot(startPath, workspaceRootFlag)
+		if err != nil {
+			return err
+		}
+		layout, err := localHostBuildLayout(workspaceRoot)
+		if err != nil {
+			return err
+		}
+		env, err = localMCPHTTPEnvFromOwner(layout, host, port)
+		if err != nil {
 			return err
 		}
 	}
 
 	fmt.Printf("Starting Eshu MCP Server (%s transport)...\n", transport)
-	return syscall.Exec(binary, []string{"eshu-mcp-server"}, os.Environ())
+	return eshuExec(binary, []string{"eshu-mcp-server"}, env)
+}
+
+// normalizeMCPTransport keeps the historical sse flag value as an alias for
+// the current HTTP JSON-RPC transport used by eshu-mcp-server.
+func normalizeMCPTransport(raw string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "stdio":
+		return "stdio", nil
+	case "http", "sse":
+		return "http", nil
+	default:
+		return "", fmt.Errorf("unsupported MCP transport %q: expected stdio, http, or sse", raw)
+	}
+}
+
+// localMCPHTTPEnvFromOwner attaches an HTTP MCP server to the active local
+// owner so graph and content reads use the same workspace-scoped stores.
+func localMCPHTTPEnvFromOwner(layout eshulocal.Layout, host string, port int) ([]string, error) {
+	record, err := localHostReadOwnerRecord(layout.OwnerRecordPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("no running local Eshu service owner for workspace %q; start it with eshu graph start --workspace-root %q", layout.WorkspaceRoot, layout.WorkspaceRoot)
+		}
+		return nil, err
+	}
+	if record.WorkspaceID != "" && record.WorkspaceID != layout.WorkspaceID {
+		return nil, fmt.Errorf("owner record workspace %q does not match requested workspace %q", record.WorkspaceID, layout.WorkspaceID)
+	}
+	if !localHostProcessAlive(record.PID) {
+		return nil, fmt.Errorf("no running local Eshu service owner for workspace %q; recorded owner pid %d is not alive", layout.WorkspaceRoot, record.PID)
+	}
+	if !localHostSocketHealthy(record.PostgresSocketPath) {
+		return nil, fmt.Errorf("local Eshu service owner for workspace %q has an unhealthy Postgres socket", layout.WorkspaceRoot)
+	}
+	if record.PostgresPort <= 0 {
+		return nil, fmt.Errorf("owner record for workspace %q missing postgres_port", layout.WorkspaceRoot)
+	}
+
+	runtimeConfig, err := runtimeConfigFromOwnerRecord(record)
+	if err != nil {
+		return nil, err
+	}
+	if runtimeConfig.Profile == query.ProfileLocalAuthoritative && !localHostGraphHealthy(record) {
+		return nil, fmt.Errorf("local Eshu service owner for workspace %q has an unhealthy graph backend", layout.WorkspaceRoot)
+	}
+
+	return localHostEnv(
+		eshulocal.PostgresDSN("127.0.0.1", record.PostgresPort),
+		runtimeConfig,
+		managedGraphFromRecord(record),
+		map[string]string{
+			"ESHU_MCP_TRANSPORT": "http",
+			"ESHU_MCP_ADDR":      fmt.Sprintf("%s:%d", host, port),
+		},
+	), nil
 }
 
 func runMCPSetup(cmd *cobra.Command, args []string) error {

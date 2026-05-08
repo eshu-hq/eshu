@@ -9,6 +9,7 @@ Eshu can serve MCP in three ways:
 | Shape | Use it when | Endpoint |
 | --- | --- | --- |
 | Local Eshu service stdio | You want one local service for a workspace | `eshu mcp start --workspace-root <repo>` |
+| Local Eshu service HTTP | You want a local MCP URL backed by the same workspace owner | `eshu mcp start --workspace-root <repo> --transport http --host 127.0.0.1 --port 8081` |
 | Docker Compose MCP service | You want the full local stack on your laptop | `http://localhost:8081` by default |
 | Deployed MCP service | You want assistants to query shared indexed state | Deployed `mcp-server` runtime |
 
@@ -16,6 +17,12 @@ Eshu can serve MCP in three ways:
 
 ```bash
 eshu mcp start --workspace-root /path/to/repo
+```
+
+For a local HTTP endpoint:
+
+```bash
+eshu mcp start --workspace-root /path/to/repo --transport http --host 127.0.0.1 --port 8081
 ```
 
 ## Compose MCP

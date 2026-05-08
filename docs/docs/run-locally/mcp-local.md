@@ -15,6 +15,15 @@ eshu mcp start --workspace-root /path/to/repo
 The MCP process attaches to the local Eshu service when it is already running.
 If needed, it can start the same local path for a stdio MCP session.
 
+For an HTTP MCP endpoint backed by the same running local service, use:
+
+```bash
+eshu mcp start --workspace-root /path/to/repo --transport http --host 127.0.0.1 --port 8081
+```
+
+The legacy `--transport sse` value is accepted as an alias for the HTTP
+transport.
+
 ## Use the Compose MCP service
 
 Docker Compose starts an MCP server service:
