@@ -21,7 +21,7 @@ const (
 	deadCodeCandidateLabelPredicate = "(e:Function OR e:Class OR e:Struct OR e:Interface)"
 
 	deadCodeCandidateQueryMultiplier = 10
-	deadCodeCandidateQueryMin        = 501
+	deadCodeCandidateQueryMin        = 1000
 	deadCodeCandidateQueryMax        = 1000
 	deadCodeCandidateScanMaxPages    = 10
 )
@@ -93,6 +93,7 @@ func buildDeadCodeGraphCypher(hasRepoID bool, backend GraphBackend) string {
 	} else {
 		cypher += ` WHERE ` + deadCodeCandidateLabelPredicate + ` AND NOT ()-[:CALLS|IMPORTS|REFERENCES]->(e)`
 	}
+	cypher += deadCodeGraphPolicyPredicate()
 	cypher += `
 		RETURN coalesce(e.id, e.uid) as entity_id, e.name as name, labels(e) as labels,
 		       f.relative_path as file_path,

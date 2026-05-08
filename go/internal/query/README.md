@@ -68,9 +68,13 @@ results before classification. The analysis block also names modeled framework
 roots such as JavaScript package exports, Hapi-style handler exports, Next.js
 exports, Node migration exports, TypeScript module-contract exports, and
 TypeScript interface implementation methods, which lets MCP and CLI callers
-explain why a candidate was suppressed. The response separates display
+explain why a candidate was suppressed. The graph query applies cheap path and
+scope filters from `deadCodeGraphPolicyPredicate` before `scanDeadCodeCandidates`
+does content-backed policy checks. Small display limits still get the full
+10,000-row scan window, so a narrow MCP request does not become incomplete just
+because most raw candidates are later suppressed. The response separates display
 truncation from bounded raw candidate-scan truncation so callers know whether
-the returned page was clipped or the pre-filter scan window was exhausted.
+the returned page was clipped or the scan window was exhausted.
 
 Both backends instrument every query with an OTEL span (`neo4j.query`,
 `postgres.query`). Handlers that span multiple read stages use
@@ -226,7 +230,9 @@ wired in `cmd/api/wiring.go`, not here.
   TypeScript interface implementation roots when query policy suppresses those
   candidates.
   The handler scans raw graph candidates in bounded pages before policy
-  exclusions, and reports `candidate_scan_pages` plus `candidate_scan_rows`.
+  exclusions, with graph-side path filters from `deadCodeGraphPolicyPredicate`
+  and a 10,000-row scan window for small result limits. It reports
+  `candidate_scan_pages` plus `candidate_scan_rows`.
   `display_truncated` and `candidate_scan_truncated` must stay separate so
   performance bounds do not blur result-list pagination with raw scan coverage.
   Unsupported language metadata and repository-root

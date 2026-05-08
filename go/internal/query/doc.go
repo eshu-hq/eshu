@@ -13,9 +13,11 @@
 // so callers can separate cleanup candidates from modeled roots; TypeScript
 // interface implementation and module-contract roots are reported alongside
 // JavaScript-family package, CommonJS mixin, Next.js, migration, and framework
-// roots. Unsupported language metadata and test fixtures are suppressed from default cleanup candidates. The
-// dead-code scan reports display truncation separately from bounded raw
-// candidate pages and rows so callers can tell whether the result list was
+// roots. Unsupported language metadata and test fixtures are suppressed from
+// default cleanup candidates. The dead-code scan applies cheap graph-side path
+// filters before content-backed policy checks, keeps a 10,000-row window for
+// small result limits, and reports display truncation separately from bounded
+// raw candidate pages and rows so callers can tell whether the result list was
 // clipped or the graph scan cap was reached.
 // local_authoritative and local_full_stack both answer graph-backed platform
 // impact queries, while local_lightweight returns structured unsupported errors
