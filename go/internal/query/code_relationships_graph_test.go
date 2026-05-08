@@ -12,15 +12,36 @@ import (
 )
 
 type fakeGraphReader struct {
-	run       func(context.Context, string, map[string]any) ([]map[string]any, error)
-	runSingle func(context.Context, string, map[string]any) (map[string]any, error)
+	run         func(context.Context, string, map[string]any) ([]map[string]any, error)
+	runIncoming func(context.Context, string, map[string]any) ([]map[string]any, error)
+	runSingle   func(context.Context, string, map[string]any) (map[string]any, error)
 }
 
 func (f fakeGraphReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	if strings.Contains(cypher, "incoming_entity_id") {
+		if f.runIncoming != nil {
+			return f.runIncoming(ctx, cypher, params)
+		}
+		return nil, nil
+	}
+	if isFakeDeadCodeNonFunctionCandidateQuery(cypher) {
+		return nil, nil
+	}
 	if f.run == nil {
 		return nil, nil
 	}
 	return f.run(ctx, cypher, params)
+}
+
+func isFakeDeadCodeNonFunctionCandidateQuery(cypher string) bool {
+	if !strings.Contains(cypher, "RETURN coalesce(e.uid, e.id) as entity_id") ||
+		!strings.Contains(cypher, "SKIP $skip") ||
+		!strings.Contains(cypher, "LIMIT $limit") {
+		return false
+	}
+	return strings.Contains(cypher, "e:Class") ||
+		strings.Contains(cypher, "e:Struct") ||
+		strings.Contains(cypher, "e:Interface")
 }
 
 func (f fakeGraphReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {

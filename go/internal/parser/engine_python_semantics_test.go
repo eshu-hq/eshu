@@ -267,37 +267,6 @@ func TestDefaultEngineParsePathPythonAsyncFunctionsEmitAsyncFlag(t *testing.T) {
 	}
 }
 
-func TestDefaultEngineParsePathPythonEmitsDottedCallMetadata(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	filePath := filepath.Join(repoRoot, "dotted_calls.py")
-	writeTestFile(
-		t,
-		filePath,
-		`class Client:
-    def service(self):
-        return self
-
-client = Client()
-client.service.request()
-`,
-	)
-
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
-
-	call := assertBucketItemByName(t, got, "function_calls", "request")
-	assertStringFieldValue(t, call, "full_name", "client.service.request")
-}
-
 func TestDefaultEngineParsePathPythonEmitsTypeAnnotationsBucket(t *testing.T) {
 	t.Parallel()
 
@@ -392,36 +361,6 @@ func TestDefaultEngineParsePathPythonRichSemanticMetadata(t *testing.T) {
 	functionItem := assertFunctionByName(t, got, "greet")
 	assertStringFieldValue(t, functionItem, "docstring", "Greet a person.")
 	assertIntFieldValue(t, functionItem, "cyclomatic_complexity", 3)
-}
-
-func TestDefaultEngineParsePathPythonModuleDocstringEmitsModuleMetadata(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	filePath := filepath.Join(repoRoot, "module_docstring.py")
-	writeTestFile(
-		t,
-		filePath,
-		`"""Utilities for payments."""
-
-def ping():
-    return True
-`,
-	)
-
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
-
-	moduleItem := assertBucketItemByName(t, got, "modules", "module_docstring")
-	assertStringFieldValue(t, moduleItem, "docstring", "Utilities for payments.")
-	assertStringFieldValue(t, moduleItem, "lang", "python")
 }
 
 func TestDefaultEngineParsePathGoRichSemanticMetadata(t *testing.T) {

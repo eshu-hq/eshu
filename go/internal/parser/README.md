@@ -54,14 +54,27 @@ language handles; grammars are loaded on first use and reused across calls.
 `Registry.LookupByPath` to identify the language, then dispatches to the
 language-specific adapter function (e.g. `parseGo`, `parsePython`,
 `parseKotlin`). Language adapters may attach semantic metadata such as
-`dead_code_root_kinds` when syntax proves an entrypoint, framework callback,
-function-value callback, JavaScript package export, CommonJS default export,
+`dead_code_root_kinds` when syntax or bounded config proves an entrypoint,
+framework callback, function-value callback, Python route/task/CLI decorator,
+Python AWS Lambda handler, JavaScript package export, CommonJS default export,
 CommonJS mixin method export, configured Hapi handler or exported route-array
-handler reference, Next.js app or route export, Express/Koa/Fastify/NestJS callback root,
-Node migration export, TypeScript module-contract export, TypeScript public
-method on a class that declares `implements`, or TypeScript package public API
-surface proven through a nearest-package `exports` or `types` target and a
-static one-hop re-export.
+handler reference, Next.js app or route export,
+Express/Koa/Fastify/NestJS callback root, Node migration export, TypeScript
+module-contract export, TypeScript public method on a class that declares
+`implements`, or TypeScript package public API surface proven through a
+nearest-package `exports` or `types` target and a static one-hop re-export.
+Java adapters mark `main` methods, constructors, and `@Override` methods as
+dead-code roots so query policy does not report JVM entrypoints and dispatch
+callbacks as cleanup candidates.
+Python adapters also preserve method `class_context`, constructor call
+metadata, class receiver references, dataclass/property roots, dunder protocol
+roots, inheritance base names, same-module `__all__` public API roots, package
+`__init__.py` reexport roots, public base classes inherited by those
+parser-proven public classes, public methods on those classes, and simple
+local constructor or `self` receiver metadata. The public API helper walks
+bounded package evidence instead of treating every non-underscore symbol as
+live, so reducer call materialization can connect class, constructor, and
+instance method calls without broad guessing.
 Exported TypeScript object registries also mark same-file function values as
 `typescript.static_registry_member`; private registries do not create roots.
 JavaScript-family adapters also preserve import alias metadata, CommonJS
@@ -95,6 +108,10 @@ referenced symbol names from each file. Results are merged across workers and
 sorted by input order to produce a deterministic import map. The pre-scan is a
 lighter parse used to build cross-file import context before the full parse
 pass.
+
+Python `.ipynb` files are converted to a temporary Python source view before
+tree-sitter parsing, then the temporary file is removed after parse. The
+notebook path shares the same payload contract as `.py` files.
 
 **SCIP path**: when SCIP_INDEXER=true, the collector snapshotter detects the
 dominant SCIP-capable language via `DetectSCIPProjectLanguage`, runs the

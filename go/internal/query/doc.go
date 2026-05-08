@@ -13,12 +13,19 @@
 // so callers can separate cleanup candidates from modeled roots; TypeScript
 // interface implementation, module-contract, and static-registry roots are
 // reported alongside JavaScript-family package, CommonJS mixin, Next.js,
-// Express, Koa, Fastify, NestJS, migration, and framework roots. Unsupported
-// language metadata and test fixtures are suppressed from default cleanup
-// candidates. The dead-code scan applies cheap graph-side path
-// filters before content-backed policy checks, keeps a 10,000-row window for
-// small result limits, and reports display truncation separately from bounded
-// raw candidate pages and rows so callers can tell whether the result list was
+// Express, Koa, Fastify, NestJS, migration, and framework roots, plus Python
+// route, worker, CLI, AWS Lambda handler, dataclass, post-init, property,
+// dunder protocol, __all__, package __init__.py, public API base, and public
+// API member roots, plus Java main, constructor, and override roots. The
+// analysis payload names modeled root kinds and counts parser-metadata
+// suppressions so callers can explain why an entity was not returned as a
+// cleanup candidate. Unsupported language metadata and test fixtures are
+// suppressed from default cleanup candidates. The dead-code scan
+// keeps raw candidate reads label-scoped and repo-anchored, applies
+// content-backed policy checks before relational incoming-edge lookups, keeps
+// exact graph probes as a fallback, keeps a bounded scan window for small
+// result limits, and reports display truncation separately from bounded raw
+// candidate pages and rows so callers can tell whether the result list was
 // clipped or the graph scan cap was reached.
 // local_authoritative and local_full_stack both answer graph-backed platform
 // impact queries, while local_lightweight returns structured unsupported errors

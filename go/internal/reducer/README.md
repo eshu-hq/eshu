@@ -153,11 +153,22 @@ and type entities from
 such as `wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name
 resolution must stay ambiguous in that case.
 
+For Python, parser-provided `class_context`, `inferred_obj_type`, and
+`constructor_call` metadata keep method and constructor resolution bounded to
+evidence in the parsed file. Local constructor assignments and `self` member
+calls can both carry receiver type. Constructor calls can reach both the class
+entity and its `__init__` method. Class receiver rows with
+`call_kind=python.class_reference` materialize as `REFERENCES`, while a
+class-qualified method call may resolve to a
+unique inherited method name when no exact class-context method exists. That
+protects dataclass and model helper paths without making all same-named Python
+methods reachable.
+
 Parser metadata rows with `call_kind=go.composite_literal_type_reference` or
-`call_kind=typescript.type_reference` materialize as deduplicated `REFERENCES`
-edges. They prove type-reference roots for dead-code classification, but must
-not materialize as `CALLS` because that would make graph truth claim that type
-literals invoke types.
+`call_kind=typescript.type_reference` or `call_kind=python.class_reference`
+materialize as deduplicated `REFERENCES` edges. They prove reference roots for
+dead-code classification, but must not materialize as `CALLS` because that
+would make graph truth claim that type or class references are invocations.
 
 SCIP edges bypass the heuristic resolver when both caller and callee locations
 map to known entities. Keep the native and SCIP paths idempotent: duplicate

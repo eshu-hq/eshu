@@ -554,6 +554,11 @@ func (c *contentReaderConn) QueryContext(_ context.Context, query string, _ []dr
 		(len(c.results) == 0 || !contentReaderResultColumnsEqual(c.results[0], []string{"count"})) {
 		return &contentReaderRows{columns: []string{"count"}, rows: [][]driver.Value{{int64(0)}}}, nil
 	}
+	if strings.Contains(query, "FROM shared_projection_intents") &&
+		strings.Contains(query, "projection_domain = 'code_calls'") &&
+		(len(c.results) == 0 || !contentReaderResultColumnsEqual(c.results[0], []string{"incoming_entity_id"})) {
+		return &contentReaderRows{columns: []string{"incoming_entity_id"}, rows: nil}, nil
+	}
 	if len(c.results) == 0 {
 		return nil, fmt.Errorf("unexpected query")
 	}

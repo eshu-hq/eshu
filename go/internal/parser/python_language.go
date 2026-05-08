@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +15,7 @@ var pythonFunctionSignatureRe = regexp.MustCompile(`(?s)^(?:async\s+)?def\s+([A-
 var pythonClassHeaderRe = regexp.MustCompile(`(?m)^class\s+[A-Za-z_][A-Za-z0-9_]*\s*\((.*)\)\s*:`)
 
 func (e *Engine) parsePython(
+	repoRoot string,
 	path string,
 	isDependency bool,
 	options Options,
@@ -54,6 +54,10 @@ func (e *Engine) parsePython(
 	payload["type_annotations"] = []map[string]any{}
 	root := tree.RootNode()
 	scope := options.normalizedVariableScope()
+	lambdaHandlers := pythonLambdaHandlerRoots(repoRoot, path)
+	dataclassClasses := pythonDataclassClassNames(root, source)
+	scriptMainRoots := pythonScriptMainGuardRoots(source)
+	publicAPIRootKinds := pythonPublicAPIRootKinds(repoRoot, path, root, source)
 	if docstring := pythonDocstring(root, source); docstring != "" {
 		moduleName := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 		if moduleName == "" {
@@ -85,8 +89,21 @@ func (e *Engine) parsePython(
 			if docstring := pythonDocstring(node, source); docstring != "" {
 				item["docstring"] = docstring
 			}
+			decorators := pythonDecorators(node, source)
+			if len(decorators) > 0 {
+				item["decorators"] = decorators
+			}
+			if bases := pythonClassBaseNames(node, source); len(bases) > 0 {
+				item["bases"] = bases
+			}
 			if metaclass := pythonClassMetaclass(node, source); metaclass != "" {
 				item["metaclass"] = metaclass
+			}
+			if rootKinds := pythonClassDeadCodeRootKinds(decorators); len(rootKinds) > 0 {
+				item["dead_code_root_kinds"] = rootKinds
+			}
+			if publicKinds := publicAPIRootKinds[name]; len(publicKinds) > 0 {
+				item["dead_code_root_kinds"] = pythonMergeRootKinds(item["dead_code_root_kinds"], publicKinds)
 			}
 			appendBucket(payload, "classes", item)
 		case "function_definition":
@@ -107,7 +124,30 @@ func (e *Engine) parsePython(
 			}
 			decorators := pythonDecorators(node, source)
 			item["decorators"] = decorators
-			if rootKinds := pythonDeadCodeRootKinds(decorators); len(rootKinds) > 0 {
+			classContext := pythonEnclosingClassName(node, source)
+			if classContext != "" {
+				item["class_context"] = classContext
+			}
+			rootKinds := pythonDeadCodeRootKinds(decorators)
+			if scriptMainRoots[name] {
+				rootKinds = appendUniqueString(rootKinds, "python.script_main_guard")
+			}
+			if lambdaHandlers.Has(path, name) {
+				rootKinds = appendUniqueString(rootKinds, "python.aws_lambda_handler")
+			}
+			if name == "__post_init__" && dataclassClasses[classContext] {
+				rootKinds = appendUniqueString(rootKinds, "python.dataclass_post_init")
+			}
+			if classContext != "" && pythonIsDunderMethod(name) {
+				rootKinds = appendUniqueString(rootKinds, "python.dunder_method")
+			}
+			if classContext != "" && pythonPublicAPIClassMember(publicAPIRootKinds[classContext], name) {
+				rootKinds = appendUniqueString(rootKinds, "python.public_api_member")
+			}
+			if publicKinds := publicAPIRootKinds[name]; len(publicKinds) > 0 {
+				rootKinds = pythonMergeRootKinds(rootKinds, publicKinds)
+			}
+			if len(rootKinds) > 0 {
 				item["dead_code_root_kinds"] = rootKinds
 			}
 			if pythonFunctionIsGenerator(node) {
@@ -172,8 +212,17 @@ func (e *Engine) parsePython(
 			}
 			if fullName := pythonCallFullName(function, source); fullName != "" {
 				item["full_name"] = fullName
+				if pythonLooksLikeConstructor(fullName) {
+					item["call_kind"] = "constructor_call"
+				}
+			}
+			if inferredType := pythonCallInferredObjectType(node, function, source); inferredType != "" {
+				item["inferred_obj_type"] = inferredType
 			}
 			appendBucket(payload, "function_calls", item)
+			if classReference := pythonClassReferenceCallItem(function, node, source); classReference != nil {
+				appendBucket(payload, "function_calls", classReference)
+			}
 		case "lambda":
 			if lambdaItem, ok := pythonAnonymousLambdaItem(node, source, options); ok {
 				appendBucket(payload, "functions", lambdaItem)
@@ -195,7 +244,7 @@ func (e *Engine) parsePython(
 }
 
 func (e *Engine) preScanPython(path string) ([]string, error) {
-	payload, err := e.parsePython(path, false, Options{})
+	payload, err := e.parsePython(filepath.Dir(path), path, false, Options{})
 	if err != nil {
 		return nil, err
 	}
@@ -413,73 +462,6 @@ func pythonModuleScoped(node *tree_sitter.Node) bool {
 		}
 	}
 	return true
-}
-
-func convertNotebookToTempPython(path string, source []byte) (string, error) {
-	code, err := pythonNotebookSource(source)
-	if err != nil {
-		return "", fmt.Errorf("convert notebook %q: %w", path, err)
-	}
-
-	tempFile, err := os.CreateTemp("", "eshu-notebook-*.py")
-	if err != nil {
-		return "", fmt.Errorf("create temporary python file for %q: %w", path, err)
-	}
-	defer func() {
-		_ = tempFile.Close()
-	}()
-
-	if _, err := tempFile.WriteString(code); err != nil {
-		_ = os.Remove(tempFile.Name())
-		return "", fmt.Errorf("write temporary python file for %q: %w", path, err)
-	}
-	return tempFile.Name(), nil
-}
-
-func pythonNotebookSource(source []byte) (string, error) {
-	var notebook map[string]any
-	if err := json.Unmarshal(source, &notebook); err != nil {
-		return "", fmt.Errorf("decode notebook json: %w", err)
-	}
-
-	cells, _ := notebook["cells"].([]any)
-	if len(cells) == 0 {
-		return "", nil
-	}
-
-	codeCells := make([]string, 0, len(cells))
-	for _, rawCell := range cells {
-		cell, ok := rawCell.(map[string]any)
-		if !ok {
-			continue
-		}
-		if !strings.EqualFold(fmt.Sprint(cell["cell_type"]), "code") {
-			continue
-		}
-		cellSource := notebookCellSource(cell["source"])
-		if strings.TrimSpace(cellSource) == "" {
-			continue
-		}
-		codeCells = append(codeCells, cellSource)
-	}
-	return strings.Join(codeCells, "\n\n"), nil
-}
-
-func notebookCellSource(raw any) string {
-	switch typed := raw.(type) {
-	case string:
-		return typed
-	case []any:
-		parts := make([]string, 0, len(typed))
-		for _, item := range typed {
-			parts = append(parts, fmt.Sprint(item))
-		}
-		return strings.Join(parts, "")
-	case []string:
-		return strings.Join(typed, "")
-	default:
-		return fmt.Sprint(raw)
-	}
 }
 
 func sortNamedBucket(payload map[string]any, key string) {

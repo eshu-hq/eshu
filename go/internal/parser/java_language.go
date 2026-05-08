@@ -60,7 +60,7 @@ func (e *Engine) parseJava(
 		case "enum_declaration":
 			appendNamedType(payload, "enums", node, source, "java")
 		case "method_declaration", "constructor_declaration":
-			appendFunctionWithContext(payload, node, source, "java", options, "class_declaration", "interface_declaration")
+			appendJavaFunction(payload, node, source, options)
 		case "field_declaration":
 			for _, item := range javaDeclarators(node, node, source, "java") {
 				appendBucket(payload, "variables", item)
@@ -92,6 +92,86 @@ func (e *Engine) parseJava(
 	payload["framework_semantics"] = map[string]any{"frameworks": []string{}}
 
 	return payload, nil
+}
+
+func appendJavaFunction(
+	payload map[string]any,
+	node *tree_sitter.Node,
+	source []byte,
+	options Options,
+) {
+	nameNode := node.ChildByFieldName("name")
+	name := nodeText(nameNode, source)
+	if strings.TrimSpace(name) == "" {
+		return
+	}
+
+	item := map[string]any{
+		"name":        name,
+		"line_number": nodeLine(nameNode),
+		"end_line":    nodeEndLine(node),
+		"decorators":  javaDecorators(node, source),
+		"lang":        "java",
+	}
+	if classContext := nearestNamedAncestor(node, source, "class_declaration", "interface_declaration"); classContext != "" {
+		item["class_context"] = classContext
+	}
+	if rootKinds := javaDeadCodeRootKinds(node, source, name); len(rootKinds) > 0 {
+		item["dead_code_root_kinds"] = rootKinds
+	}
+	if options.IndexSource {
+		item["source"] = nodeText(node, source)
+	}
+	appendBucket(payload, "functions", item)
+}
+
+func javaDeadCodeRootKinds(node *tree_sitter.Node, source []byte, name string) []string {
+	rootKinds := make([]string, 0, 2)
+	raw := nodeText(node, source)
+	switch node.Kind() {
+	case "constructor_declaration":
+		rootKinds = appendUniqueString(rootKinds, "java.constructor")
+	case "method_declaration":
+		if javaIsMainMethod(raw, name) {
+			rootKinds = appendUniqueString(rootKinds, "java.main_method")
+		}
+		if javaHasAnnotation(raw, "Override") {
+			rootKinds = appendUniqueString(rootKinds, "java.override_method")
+		}
+	}
+	return rootKinds
+}
+
+func javaIsMainMethod(raw string, name string) bool {
+	normalized := " " + strings.Join(strings.Fields(raw), " ") + " "
+	return strings.TrimSpace(name) == "main" &&
+		strings.Contains(normalized, " public ") &&
+		strings.Contains(normalized, " static ") &&
+		strings.Contains(normalized, " void ") &&
+		strings.Contains(raw, "String")
+}
+
+func javaDecorators(node *tree_sitter.Node, source []byte) []string {
+	raw := nodeText(node, source)
+	var decorators []string
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "@") {
+			continue
+		}
+		decorators = append(decorators, line)
+	}
+	return decorators
+}
+
+func javaHasAnnotation(raw string, name string) bool {
+	for _, decorator := range strings.Split(raw, "\n") {
+		decorator = strings.TrimSpace(decorator)
+		if decorator == "@"+name || strings.HasPrefix(decorator, "@"+name+"(") {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *Engine) preScanJava(path string) ([]string, error) {

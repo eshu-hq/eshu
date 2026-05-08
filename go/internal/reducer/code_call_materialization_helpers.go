@@ -52,6 +52,9 @@ func codeCallExactCandidateNames(call map[string]any, language string) []string 
 	fullName := anyToString(call["full_name"])
 	if codeCallHasQualifiedFullName(fullName) {
 		appendName(fullName)
+		if language == "python" && codeCallPythonQualifiedClassReceiver(fullName) {
+			appendName(codeCallTrailingName(fullName))
+		}
 		if codeCallJavaScriptFamily(language) && strings.HasPrefix(fullName, "module.exports.") {
 			appendName(codeCallTrailingName(fullName))
 		}
@@ -84,6 +87,20 @@ func codeCallExactCandidateNames(call map[string]any, language string) []string 
 		appendName(contextName + "." + name)
 	}
 	return names
+}
+
+func codeCallPythonQualifiedClassReceiver(fullName string) bool {
+	trimmed := strings.TrimSpace(fullName)
+	dot := strings.LastIndex(trimmed, ".")
+	if dot <= 0 || dot >= len(trimmed)-1 {
+		return false
+	}
+	receiver := codeCallTrailingName(trimmed[:dot])
+	if receiver == "" {
+		return false
+	}
+	first := rune(receiver[0])
+	return first >= 'A' && first <= 'Z'
 }
 
 func codeCallJavaScriptFunctionReceiverNames(fullName string) []string {

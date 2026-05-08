@@ -14,7 +14,7 @@ var deadCodeLanguageMaturity = map[string]string{
 	"go":         deadCodeMaturityDerived,
 	"groovy":     deadCodeMaturityDerivedCandidate,
 	"haskell":    deadCodeMaturityDerivedCandidate,
-	"java":       deadCodeMaturityDerivedCandidate,
+	"java":       deadCodeMaturityDerived,
 	"javascript": deadCodeMaturityDerived,
 	"kotlin":     deadCodeMaturityDerivedCandidate,
 	"perl":       deadCodeMaturityDerivedCandidate,

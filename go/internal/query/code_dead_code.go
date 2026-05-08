@@ -18,13 +18,13 @@ const (
 	deadCodeDefaultLimit = 100
 	deadCodeMaxLimit     = 500
 
-	deadCodeCandidateLabelPredicate = "(e:Function OR e:Class OR e:Struct OR e:Interface)"
-
 	deadCodeCandidateQueryMultiplier = 10
-	deadCodeCandidateQueryMin        = 1000
-	deadCodeCandidateQueryMax        = 1000
+	deadCodeCandidateQueryMin        = 100
+	deadCodeCandidateQueryMax        = 250
 	deadCodeCandidateScanMaxPages    = 10
 )
+
+var deadCodeCandidateLabels = []string{"Function", "Class", "Struct", "Interface"}
 
 // handleDeadCode finds graph-backed dead-code candidates and then applies the
 // current default reachability policy before returning a derived result.
@@ -79,34 +79,55 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 	}, BuildTruthEnvelope(h.profile(), "code_quality.dead_code", TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
 }
 
-func buildDeadCodeGraphCypher(hasRepoID bool, backend GraphBackend) string {
+func buildDeadCodeGraphCypher(hasRepoID bool, _ GraphBackend) string {
+	return buildDeadCodeGraphCypherForLabel(hasRepoID, "Function")
+}
+
+func buildDeadCodeGraphCypherForLabel(hasRepoID bool, label string) string {
+	if !isDeadCodeCandidateLabel(label) {
+		label = "Function"
+	}
 	cypher := `
-		MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
-	`
+			MATCH (e:` + label + `)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
+		`
 	if hasRepoID {
 		cypher = `
-		MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)
-	`
+			MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e:` + label + `)
+		`
 	}
-	if backend == GraphBackendNornicDB {
-		cypher += ` WHERE ` + deadCodeCandidateLabelPredicate + ` AND NOT EXISTS { MATCH (e)<-[:CALLS|IMPORTS|REFERENCES]-() }`
-	} else {
-		cypher += ` WHERE ` + deadCodeCandidateLabelPredicate + ` AND NOT ()-[:CALLS|IMPORTS|REFERENCES]->(e)`
-	}
-	cypher += deadCodeGraphPolicyPredicate()
 	cypher += `
-		RETURN coalesce(e.id, e.uid) as entity_id, e.name as name, labels(e) as labels,
+		RETURN coalesce(e.uid, e.id) as entity_id, e.name as name, labels(e) as labels,
 		       f.relative_path as file_path,
 		       r.id as repo_id, r.name as repo_name,
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
 ` + graphSemanticMetadataProjection() + `
-		ORDER BY f.relative_path, e.name, coalesce(e.id, e.uid)
+		ORDER BY f.relative_path, e.name, coalesce(e.uid, e.id)
 		SKIP $skip
 		LIMIT $limit
 	`
 	return cypher
+}
+
+func buildDeadCodeIncomingProbeCypher(label string) string {
+	if !isDeadCodeCandidateLabel(label) {
+		label = "Function"
+	}
+	return `
+		MATCH (e:` + label + ` {uid: $entity_id})<-[:CALLS|IMPORTS|REFERENCES|INHERITS]-(source)
+		RETURN coalesce(e.uid, e.id) as incoming_entity_id
+		LIMIT 1
+	`
+}
+
+func isDeadCodeCandidateLabel(label string) bool {
+	for _, candidate := range deadCodeCandidateLabels {
+		if label == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 func deadCodeCandidateQueryLimit(displayLimit int) int {
@@ -248,6 +269,12 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 		return true
 	}
 	if deadCodeIsPythonFrameworkRoot(result, entity, stats) {
+		return true
+	}
+	if deadCodeIsPythonAnonymousLambda(result, entity) {
+		return true
+	}
+	if deadCodeIsJavaRoot(result, entity, stats) {
 		return true
 	}
 	if deadCodeIsJavaScriptFrameworkRoot(result, entity, stats) {

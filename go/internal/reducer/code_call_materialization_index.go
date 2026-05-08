@@ -79,7 +79,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 				}
 				index.spansByPath[pathKey] = append(index.spansByPath[pathKey], span)
 				index.containersByPath[pathKey] = append(index.containersByPath[pathKey], span)
-				if anyToString(item["name"]) == "constructor" {
+				if name := anyToString(item["name"]); name == "constructor" || name == "__init__" {
 					classContext := strings.TrimSpace(anyToString(item["class_context"]))
 					if classContext != "" {
 						if _, ok := index.constructorByPath[pathKey]; !ok {

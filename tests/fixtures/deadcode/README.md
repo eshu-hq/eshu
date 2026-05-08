@@ -51,7 +51,7 @@ Each language fixture must include:
 | Kotlin | planned | `derived_candidate_only` | public APIs, interfaces, annotations, Spring/Ktor roots |
 | Perl | planned | `derived_candidate_only` | packages, exported subs, dynamic symbol ambiguity |
 | PHP | planned | `derived_candidate_only` | public classes, framework controllers, attributes |
-| Python | active | `derived` | decorators, module exports, dynamic imports, CLI roots |
+| Python | active | `derived` | Lambda roots, bounded public APIs, dataclasses/properties, dynamic imports |
 | Ruby | planned | `derived_candidate_only` | Rails routes, public methods, metaprogramming ambiguity |
 | Rust | planned | `derived_candidate_only` | public items, traits, macro-generated roots |
 | Scala | planned | `derived_candidate_only` | public APIs, traits, annotations, framework roots |

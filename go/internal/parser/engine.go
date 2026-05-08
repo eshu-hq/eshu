@@ -300,7 +300,7 @@ func (e *Engine) parseDefinition(
 	case "php":
 		return e.parsePHP(resolvedPath, isDependency, options)
 	case "python":
-		return e.parsePython(resolvedPath, isDependency, options)
+		return e.parsePython(repoRoot, resolvedPath, isDependency, options)
 	case "ruby":
 		return e.parseRuby(resolvedPath, isDependency, options)
 	case "rust":

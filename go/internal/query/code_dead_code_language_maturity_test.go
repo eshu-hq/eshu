@@ -62,6 +62,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		"go":         "derived",
 		"python":     "derived",
 		"javascript": "derived",
+		"java":       "derived",
 		"typescript": "derived",
 		"tsx":        "derived",
 		"rust":       "derived_candidate_only",

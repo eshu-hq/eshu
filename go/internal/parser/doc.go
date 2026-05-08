@@ -5,15 +5,22 @@
 // and relationship extraction helpers, import alias, resolved-source, and
 // constructor receiver metadata, dead-code root metadata for functions, types,
 // and package entrypoint files, package-level interface/type reference pre-scans,
-// nearest-package JavaScript roots, CommonJS module.exports alias and mixin
-// roots, JSONC tsconfig comment/trailing-comma baseUrl and paths metadata,
-// Hapi handler, plugin, and exported route-array reference roots including
-// direct, config, and options handlers, Next.js app and route exports,
-// Express/Koa/Fastify/NestJS callback roots, Node migration exports,
-// TypeScript interface implementation, module-contract, package
-// public-surface, and exported static-registry roots, returned function-value
-// references, static re-export metadata, composite-literal type references,
-// Helm/YAML metadata extraction, and SCIP support for index-derived facts.
+// nearest-package JavaScript roots, Python route/task/CLI and AWS Lambda root
+// metadata, Python method class context, constructor calls, class receiver
+// references, dataclass/property roots, dunder protocol roots, inheritance
+// base names, bounded __all__/__init__.py public API roots, bases, and members,
+// and local constructor or self receiver metadata without marking every
+// non-underscore Python symbol live, Jupyter notebook source extraction, CommonJS
+// module.exports alias and mixin roots, JSONC tsconfig comment/trailing-comma
+// baseUrl and paths
+// metadata, Hapi handler, plugin, and exported route-array reference roots
+// including direct, config, and options handlers, Next.js app and route
+// exports, Express/Koa/Fastify/NestJS callback roots, Node migration exports,
+// TypeScript interface implementation, module-contract, package public-surface,
+// and exported static-registry roots, Java main, constructor, and override
+// roots, returned function-value references, static re-export metadata,
+// composite-literal type references, Helm/YAML metadata extraction, and SCIP
+// support for index-derived facts.
 // Parser changes must preserve fact truth: when a parser starts emitting a new
 // entity, relationship, or metadata field, the relevant fixtures, fact
 // contracts in internal/facts, and downstream docs must move in lockstep.

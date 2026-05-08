@@ -10,6 +10,104 @@ import (
 	"testing"
 )
 
+func deadCodeScanRow(entityID string, name string) map[string]any {
+	return map[string]any{
+		"entity_id":  entityID,
+		"name":       name,
+		"labels":     []any{"Function"},
+		"file_path":  "internal/payments/" + name + ".go",
+		"repo_id":    "repo-1",
+		"repo_name":  "payments",
+		"language":   "go",
+		"start_line": int64(10),
+		"end_line":   int64(12),
+	}
+}
+
+func TestHandleDeadCodeFiltersIncomingEdgesWithContentReadModel(t *testing.T) {
+	t.Parallel()
+
+	var candidateCalls int
+	handler := &CodeHandler{
+		Profile: ProfileLocalAuthoritative,
+		GraphBackend: GraphBackendNornicDB,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				candidateCalls++
+				if strings.Contains(cypher, "NOT EXISTS") || strings.Contains(cypher, "NOT ()-[:") {
+					t.Fatalf("candidate query should not include incoming-edge anti-join:\n%s", cypher)
+				}
+				if _, ok := params["entity_ids"]; ok {
+					t.Fatalf("candidate params unexpectedly contain entity_ids: %#v", params)
+				}
+				return []map[string]any{
+					deadCodeScanRow("live-helper", "liveHelper"),
+					deadCodeScanRow("dead-helper", "deadHelper"),
+				}, nil
+			},
+			runIncoming: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				t.Fatalf("dead-code should use content read model before graph probes: cypher=%s params=%#v", cypher, params)
+				return nil, nil
+			},
+		},
+		Content: fakeDeadCodeContentStore{
+			entities: map[string]EntityContent{
+				"live-helper": {
+					EntityID:     "live-helper",
+					RepoID:       "repo-1",
+					RelativePath: "internal/payments/live.go",
+					EntityType:   "Function",
+					EntityName:   "liveHelper",
+					Language:     "go",
+					SourceCache:  "func liveHelper() {}",
+				},
+				"dead-helper": {
+					EntityID:     "dead-helper",
+					RepoID:       "repo-1",
+					RelativePath: "internal/payments/dead.go",
+					EntityType:   "Function",
+					EntityName:   "deadHelper",
+					Language:     "go",
+					SourceCache:  "func deadHelper() {}",
+				},
+			},
+			incomingEntityIDs: map[string]bool{"live-helper": true},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code",
+		bytes.NewBufferString(`{"repo_id":"repo-1","limit":10}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := resp["data"].(map[string]any)
+	results := data["results"].([]any)
+	if got, want := len(results), 1; got != want {
+		t.Fatalf("len(results) = %d, want %d results=%#v", got, want, results)
+	}
+	result := results[0].(map[string]any)
+	if got, want := result["entity_id"], "dead-helper"; got != want {
+		t.Fatalf("result[entity_id] = %#v, want %#v", got, want)
+	}
+	if got, want := candidateCalls, 1; got != want {
+		t.Fatalf("candidate graph calls = %d, want %d", got, want)
+	}
+}
+
 func TestHandleDeadCodeContinuesCandidateScanAfterPolicyExclusions(t *testing.T) {
 	t.Parallel()
 
@@ -113,7 +211,7 @@ func TestHandleDeadCodeContinuesCandidateScanAfterPolicyExclusions(t *testing.T)
 	if got, want := resp["candidate_scan_truncated"], false; got != want {
 		t.Fatalf("resp[candidate_scan_truncated] = %#v, want %#v", got, want)
 	}
-	if got, want := resp["candidate_scan_pages"], float64(2); got != want {
+	if got, want := resp["candidate_scan_pages"], float64(5); got != want {
 		t.Fatalf("resp[candidate_scan_pages] = %#v, want %#v", got, want)
 	}
 	if got, want := resp["candidate_scan_rows"], float64(pageLimit+1); got != want {

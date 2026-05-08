@@ -7,14 +7,14 @@
 // CommonJS property require, module.exports self-alias, imported JavaScript
 // namespace calls before same-file trailing-name fallback, function receiver,
 // constructor, re-export, dynamic import, returned function-value, TypeScript
-// type-reference, static JavaScript registry dispatch, and package-file-root
-// evidence, and drives repair flows for domains that depend on later phases of
-// the bootstrap
-// pipeline. Changes here need careful proof: track raw evidence, admitted
-// candidates, projected rows, graph writes, and query surfaces before changing
-// ordering, admission, retries, or backend-specific behavior. Reducer code must
-// remain idempotent across retries and replays so repair runs converge on the
-// same truth.
+// type-reference, Python constructor, self receiver, class receiver, inherited
+// classmethod, and local receiver evidence, static JavaScript registry dispatch, and
+// package-file-root evidence, and drives repair flows for domains that depend
+// on later phases of the bootstrap pipeline. Changes here need careful proof:
+// track raw evidence, admitted candidates, projected rows, graph writes, and
+// query surfaces before changing ordering, admission, retries, or
+// backend-specific behavior. Reducer code must remain idempotent across
+// retries and replays so repair runs converge on the same truth.
 // Workload materialization inputs reuse the deployable-unit correlation gate
 // before projecting workload rows.
 package reducer
