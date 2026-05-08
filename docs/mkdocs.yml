@@ -176,6 +176,9 @@ nav:
       - Terragrunt: languages/terragrunt.md
   - Project:
     - Contributing: contributing.md
+    - Release Log:
+      - Overview: releases/index.md
+      - v0.0.2: releases/v0.0.2.md
     - License: license.md
 
 markdown_extensions:
