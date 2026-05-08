@@ -291,7 +291,9 @@ reachability. It must prove relative static imports without emulating a full
 bundler. TypeScript namespace member calls such as `jwt.encode()` now resolve
 to `server/resources/jwt.ts::encode` from
 `import * as jwt from "../resources/jwt"`; the remaining Chunk 3 work should
-cover broader CommonJS require, re-export, barrel-file, and path-alias cases.
+cover re-export, barrel-file, and tsconfig `baseUrl` cases. Parser-backed
+CommonJS `require()` namespace calls and destructured require aliases are
+covered by reducer regression tests.
 
 Chunk 4 adds ambiguity metadata for dynamic imports, computed property
 dispatch, DI containers, and event callback registrations. It should explain
@@ -315,6 +317,10 @@ MCP `execute_cypher_query` confirmed handler/resource edges such as
 `getSecret -> get/init`, and `payload -> getHealthChecks`. MCP
 `find_dead_code` then returned only 6 fresh candidates, all under `scripts/`,
 with no `server/resources/jwt.ts` or `server/resources/ssm.ts` false positives.
+Local `api-node*` tsconfig evidence showed broad `compilerOptions.baseUrl: "."`
+usage and no common `compilerOptions.paths` usage in the sampled services, so
+the next TypeScript resolver slice should prioritize bounded baseUrl imports
+before custom path aliases.
 
 ## Final Verification Gate
 
