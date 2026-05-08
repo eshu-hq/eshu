@@ -7,7 +7,7 @@ The chart lives at `deploy/helm/eshu`.
 | Value | Default | Purpose |
 | --- | --- | --- |
 | `image.repository` | `ghcr.io/eshu-hq/eshu` | Runtime image. |
-| `image.tag` | `v0.0.1` | Runtime image tag. |
+| `image.tag` | `v0.0.2` | Runtime image tag. |
 | `service.type` | `ClusterIP` | API service type. |
 | `api.replicas` | `1` | API replica count. |
 | `mcpServer.enabled` | `true` | Deploy the MCP runtime. |
