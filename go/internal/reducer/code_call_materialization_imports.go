@@ -81,11 +81,16 @@ func resolveGenericCallee(
 	index codeEntityIndex,
 	repositoryID string,
 	repositoryImports map[string][]string,
+	reexportIndex codeCallReexportIndex,
 	rawPath string,
 	relativePath string,
 	fileData map[string]any,
 	call map[string]any,
 ) (string, string) {
+	callLine := codeCallInt(call["line_number"], call["ref_line"])
+	if entityID := resolveSameFileScopedCalleeEntityID(index, rawPath, relativePath, call, callLine); entityID != "" {
+		return entityID, codeCallPreferredPath(rawPath, relativePath)
+	}
 	if entityID := resolveSameFileCalleeEntityID(index, rawPath, relativePath, call); entityID != "" {
 		return entityID, codeCallPreferredPath(rawPath, relativePath)
 	}
@@ -112,6 +117,8 @@ func resolveGenericCallee(
 	return resolveImportedCrossFileCallee(
 		index,
 		repositoryImports,
+		reexportIndex,
+		repositoryID,
 		rawPath,
 		relativePath,
 		fileData,
@@ -147,38 +154,41 @@ func resolveGoSameDirectoryCalleeEntityID(
 func resolveImportedCrossFileCallee(
 	index codeEntityIndex,
 	repositoryImports map[string][]string,
+	reexportIndex codeCallReexportIndex,
+	repositoryID string,
 	rawPath string,
 	relativePath string,
 	fileData map[string]any,
 	call map[string]any,
 ) (string, string) {
-	if len(repositoryImports) == 0 {
-		return "", ""
-	}
-
 	importEntries := mapSlice(fileData["imports"])
-	if len(importEntries) == 0 {
-		return "", ""
-	}
-
 	for _, target := range codeCallImportedTargets(importEntries, call) {
-		paths := repositoryImports[target.symbolName]
-		if len(paths) == 0 {
-			continue
-		}
 		language := codeCallLanguage(call, rawPath, relativePath)
-		matchedPath := codeCallMatchImportedPath(
+		if len(repositoryImports) > 0 {
+			paths := repositoryImports[target.symbolName]
+			matchedPath := codeCallMatchImportedPath(
+				rawPath,
+				relativePath,
+				target.importSource,
+				language,
+				paths,
+			)
+			if matchedPath != "" {
+				if entityID := index.uniqueNameByPath[matchedPath][target.symbolName]; entityID != "" {
+					return entityID, index.entityFileByID[entityID]
+				}
+			}
+		}
+		if entityID, calleeFile := resolveReexportedCrossFileCallee(
+			index,
+			reexportIndex,
+			repositoryID,
 			rawPath,
 			relativePath,
-			target.importSource,
 			language,
-			paths,
-		)
-		if matchedPath == "" {
-			continue
-		}
-		if entityID := index.uniqueNameByPath[matchedPath][target.symbolName]; entityID != "" {
-			return entityID, index.entityFileByID[entityID]
+			target,
+		); entityID != "" {
+			return entityID, calleeFile
 		}
 	}
 
@@ -218,6 +228,10 @@ func codeCallImportedTargets(
 		})
 	}
 
+	if source := codeCallDynamicImportSource(callFullName); source != "" {
+		appendTarget(callName, source)
+	}
+
 	for _, entry := range importEntries {
 		entryName := strings.TrimSpace(anyToString(entry["name"]))
 		entryAlias := strings.TrimSpace(anyToString(entry["alias"]))
@@ -232,18 +246,73 @@ func codeCallImportedTargets(
 			localName = entryAlias
 		}
 		if localName == callName && entryName != "*" {
-			appendTarget(entryName, entrySource)
+			for _, source := range codeCallImportEntrySources(entry) {
+				appendTarget(entryName, source)
+			}
+		}
+
+		if localName != "" && entryName == localName && strings.HasPrefix(callFullName, localName+".") {
+			qualifiedName := entryName + strings.TrimPrefix(callFullName, localName)
+			for _, source := range codeCallImportEntrySources(entry) {
+				appendTarget(qualifiedName, source)
+			}
 		}
 
 		if (entryName == "*" || entryType == "import") && entryAlias != "" {
 			prefix := entryAlias + "."
 			if strings.HasPrefix(callFullName, prefix) {
-				appendTarget(callName, entrySource)
+				for _, source := range codeCallImportEntrySources(entry) {
+					appendTarget(callName, source)
+				}
 			}
 		}
 	}
 
 	return targets
+}
+
+func codeCallDynamicImportSource(fullName string) string {
+	fullName = strings.TrimSpace(fullName)
+	if fullName == "" || !strings.Contains(fullName, "import(") {
+		return ""
+	}
+	start := strings.Index(fullName, "import(")
+	if start < 0 {
+		return ""
+	}
+	remainder := fullName[start+len("import("):]
+	remainder = strings.TrimLeft(remainder, " \t\n\r")
+	if remainder == "" {
+		return ""
+	}
+	quote := remainder[0]
+	if quote != '\'' && quote != '"' {
+		return ""
+	}
+	end := strings.IndexByte(remainder[1:], quote)
+	if end < 0 {
+		return ""
+	}
+	return strings.TrimSpace(remainder[1 : 1+end])
+}
+
+func codeCallImportEntrySources(entry map[string]any) []string {
+	sources := make([]string, 0, 2)
+	appendSource := func(value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		for _, existing := range sources {
+			if existing == value {
+				return
+			}
+		}
+		sources = append(sources, value)
+	}
+	appendSource(anyToString(entry["resolved_source"]))
+	appendSource(anyToString(entry["source"]))
+	return sources
 }
 
 func codeCallMatchImportedPath(
@@ -304,9 +373,15 @@ func codeCallImportSourceCandidates(
 	if strings.HasPrefix(importSource, ".") && callerPath != "" {
 		basePath := normalizeCodeCallPath(filepath.Join(filepath.Dir(callerPath), importSource))
 		appendCandidate(basePath)
-		for _, ext := range []string{".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"} {
+		for _, ext := range []string{".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts"} {
 			appendCandidate(basePath + ext)
 			appendCandidate(filepath.Join(basePath, "index"+ext))
+		}
+		if withoutJSExt := codeCallTrimJavaScriptRuntimeExtension(basePath); withoutJSExt != "" {
+			for _, ext := range []string{".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"} {
+				appendCandidate(withoutJSExt + ext)
+				appendCandidate(filepath.Join(withoutJSExt, "index"+ext))
+			}
 		}
 		if language == "python" {
 			appendCandidate(basePath + ".py")
@@ -324,6 +399,15 @@ func codeCallImportSourceCandidates(
 	}
 
 	return candidates
+}
+
+func codeCallTrimJavaScriptRuntimeExtension(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".js", ".jsx", ".mjs", ".cjs":
+		return strings.TrimSuffix(path, filepath.Ext(path))
+	default:
+		return ""
+	}
 }
 
 func codeCallRepositoryRoot(rawPath string, relativePath string) string {

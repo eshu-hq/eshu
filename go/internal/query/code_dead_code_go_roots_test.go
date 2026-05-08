@@ -211,7 +211,7 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if !ok {
 		t.Fatalf("analysis[modeled_framework_roots] type = %T, want []any", analysis["modeled_framework_roots"])
 	}
-	if got, want := len(modeledFrameworkRoots), 10; got != want {
+	if got, want := len(modeledFrameworkRoots), 23; got != want {
 		t.Fatalf("len(analysis[modeled_framework_roots]) = %d, want %d", got, want)
 	}
 	if got, want := modeledFrameworkRoots[0], "go.cobra_run_registration"; got != want {
@@ -241,8 +241,47 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if got, want := modeledFrameworkRoots[8], "javascript.nextjs_route_export"; got != want {
 		t.Fatalf("analysis[modeled_framework_roots][8] = %#v, want %#v", got, want)
 	}
-	if got, want := modeledFrameworkRoots[9], "javascript.express_route_registration"; got != want {
+	if got, want := modeledFrameworkRoots[9], "javascript.nextjs_app_export"; got != want {
 		t.Fatalf("analysis[modeled_framework_roots][9] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[10], "javascript.express_route_registration"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][10] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[11], "javascript.commonjs_default_export"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][11] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[12], "javascript.commonjs_mixin_export"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][12] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[13], "javascript.node_package_export"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][13] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[14], "javascript.node_seed_execute"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][14] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[15], "javascript.node_migration_export"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][15] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[16], "javascript.hapi_amqp_consumer"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][16] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[17], "javascript.hapi_handler_export"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][17] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[18], "javascript.hapi_plugin_register"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][18] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[19], "javascript.hapi_route_config_handler"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][19] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[20], "javascript.hapi_proxy_callback"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][20] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[21], "typescript.interface_method_implementation"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][21] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[22], "typescript.module_contract_export"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][22] = %#v, want %#v", got, want)
 	}
 	if got, want := analysis["framework_roots_from_parser_metadata"], float64(0); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)

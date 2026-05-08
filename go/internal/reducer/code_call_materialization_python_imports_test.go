@@ -137,6 +137,7 @@ func TestExtractCodeCallRowsResolvesPythonModuleAndFromImports(t *testing.T) {
 		entityIndex,
 		"repo-python",
 		repositoryImports["repo-python"],
+		codeCallReexportIndex{},
 		callerPath,
 		"module_a.py",
 		fileData,

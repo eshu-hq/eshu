@@ -62,7 +62,19 @@ are extracted via `StringVal`, `BoolVal`, `IntVal`, `StringSliceVal`
 parametrized Postgres queries against `content_files` and `content_entities`.
 Code dead-code queries add an analysis pass over graph rows so parser-provided
 `dead_code_root_kinds`, language maturity, test/generated exclusions, and
-candidate classifications are visible in the response body.
+candidate classifications are visible in the response body. Unsupported
+languages such as JSON package-script metadata are suppressed from cleanup
+results before classification. The analysis block also names modeled framework
+roots such as JavaScript package exports, Hapi-style handler exports, Next.js
+exports, Node migration exports, TypeScript module-contract exports, and
+TypeScript interface implementation methods, which lets MCP and CLI callers
+explain why a candidate was suppressed. The graph query applies cheap path and
+scope filters from `deadCodeGraphPolicyPredicate` before `scanDeadCodeCandidates`
+does content-backed policy checks. Small display limits still get the full
+10,000-row scan window, so a narrow MCP request does not become incomplete just
+because most raw candidates are later suppressed. The response separates display
+truncation from bounded raw candidate-scan truncation so callers know whether
+the returned page was clipped or the scan window was exhausted.
 
 Both backends instrument every query with an OTEL span (`neo4j.query`,
 `postgres.query`). Handlers that span multiple read stages use
@@ -212,7 +224,19 @@ wired in `cmd/api/wiring.go`, not here.
   `dead_code_language_maturity`, and `analysis` fields so MCP and CLI callers
   can distinguish actionable unused symbols from excluded or ambiguous ones.
   Go root-kind evidence covers function roots and type roots, including
-  `go.type_reference` and `go.interface_implementation_type`.
+  `go.type_reference` and `go.interface_implementation_type`. JavaScript-family
+  analysis must list Node package, CommonJS default export, CommonJS mixin,
+  Next.js, Node migration, Hapi-style, TypeScript module-contract, and
+  TypeScript interface implementation roots when query policy suppresses those
+  candidates.
+  The handler scans raw graph candidates in bounded pages before policy
+  exclusions, with graph-side path filters from `deadCodeGraphPolicyPredicate`
+  and a 10,000-row scan window for small result limits. It reports
+  `candidate_scan_pages` plus `candidate_scan_rows`.
+  `display_truncated` and `candidate_scan_truncated` must stay separate so
+  performance bounds do not blur result-list pagination with raw scan coverage.
+  Unsupported language metadata and repository-root
+  `test/`, `tests/`, and `__tests__/` paths stay out of default cleanup results.
 - Content reads return `source_backend=unavailable` when Postgres does not have
   a cached row for the requested file. This is not a Postgres error; the ingester
   has not yet written content for that scope.

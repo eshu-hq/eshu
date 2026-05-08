@@ -333,6 +333,45 @@ func TestSemanticEntityWriterWritesGoFunctionClassContextMetadata(t *testing.T) 
 	}
 }
 
+func TestSemanticEntityWriterIncludesNullableOptionalFunctionProperties(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewSemanticEntityWriter(executor, 0)
+
+	_, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+		RepoIDs: []string{"repo-1"},
+		Rows: []reducer.SemanticEntityRow{
+			{
+				RepoID:       "repo-1",
+				EntityID:     "function-1",
+				EntityType:   "Function",
+				EntityName:   "handler",
+				FilePath:     "/repo/src/app.ts",
+				RelativePath: "src/app.ts",
+				Language:     "typescript",
+				StartLine:    10,
+				EndLine:      20,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteSemanticEntities() error = %v", err)
+	}
+
+	functionRows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	row := functionRows[0]
+	for _, key := range []string{"docstring", "method_kind", "class_context", "context", "type_parameters"} {
+		value, ok := row[key]
+		if !ok {
+			t.Fatalf("function row missing nullable key %q", key)
+		}
+		if value != nil {
+			t.Fatalf("function row key %q = %#v, want nil", key, value)
+		}
+	}
+}
+
 func TestSemanticEntityWriterWritesKotlinSecondaryConstructorSemanticMetadata(t *testing.T) {
 	t.Parallel()
 

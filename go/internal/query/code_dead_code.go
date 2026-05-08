@@ -21,8 +21,9 @@ const (
 	deadCodeCandidateLabelPredicate = "(e:Function OR e:Class OR e:Struct OR e:Interface)"
 
 	deadCodeCandidateQueryMultiplier = 10
-	deadCodeCandidateQueryMin        = 501
+	deadCodeCandidateQueryMin        = 1000
 	deadCodeCandidateQueryMax        = 1000
+	deadCodeCandidateScanMaxPages    = 10
 )
 
 // handleDeadCode finds graph-backed dead-code candidates and then applies the
@@ -57,32 +58,24 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	candidateLimit := deadCodeCandidateQueryLimit(req.Limit)
-	rows, err := h.Neo4j.Run(r.Context(), buildDeadCodeGraphCypher(req.RepoID != "", h.graphBackend()), deadCodeGraphParams(req.RepoID, candidateLimit))
+	scan, err := h.scanDeadCodeCandidates(r.Context(), req)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	results, contentByID, err := h.buildDeadCodeResults(r.Context(), rows)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	results, policyStats := filterDeadCodeResultsByDefaultPolicy(results, contentByID)
-	classifyDeadCodeResults(results, contentByID)
-	results = filterResultsByDecoratorExclusions(results, req.ExcludeDecoratedWith)
-	truncated := len(rows) >= candidateLimit || len(results) > req.Limit
-	if len(results) > req.Limit {
-		results = results[:req.Limit]
-	}
+	truncated := scan.CandidateScanTruncated || scan.DisplayTruncated
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"repo_id":   req.RepoID,
-		"limit":     req.Limit,
-		"truncated": truncated,
-		"results":   results,
-		"analysis":  buildDeadCodeAnalysis(results, req.ExcludeDecoratedWith, policyStats),
+		"repo_id":                  req.RepoID,
+		"limit":                    req.Limit,
+		"truncated":                truncated,
+		"display_truncated":        scan.DisplayTruncated,
+		"candidate_scan_truncated": scan.CandidateScanTruncated,
+		"candidate_scan_limit":     scan.CandidateScanLimit,
+		"candidate_scan_pages":     scan.CandidateScanPages,
+		"candidate_scan_rows":      scan.CandidateScanRows,
+		"results":                  scan.Results,
+		"analysis":                 buildDeadCodeAnalysis(scan.Results, req.ExcludeDecoratedWith, scan.PolicyStats),
 	}, BuildTruthEnvelope(h.profile(), "code_quality.dead_code", TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
 }
 
@@ -100,6 +93,7 @@ func buildDeadCodeGraphCypher(hasRepoID bool, backend GraphBackend) string {
 	} else {
 		cypher += ` WHERE ` + deadCodeCandidateLabelPredicate + ` AND NOT ()-[:CALLS|IMPORTS|REFERENCES]->(e)`
 	}
+	cypher += deadCodeGraphPolicyPredicate()
 	cypher += `
 		RETURN coalesce(e.id, e.uid) as entity_id, e.name as name, labels(e) as labels,
 		       f.relative_path as file_path,
@@ -108,7 +102,8 @@ func buildDeadCodeGraphCypher(hasRepoID bool, backend GraphBackend) string {
 		       e.start_line as start_line,
 		       e.end_line as end_line,
 ` + graphSemanticMetadataProjection() + `
-		ORDER BY f.relative_path, e.name
+		ORDER BY f.relative_path, e.name, coalesce(e.id, e.uid)
+		SKIP $skip
 		LIMIT $limit
 	`
 	return cypher
@@ -131,8 +126,12 @@ func deadCodeCandidateQueryLimit(displayLimit int) int {
 	return candidateLimit
 }
 
-func deadCodeGraphParams(repoID string, limit int) map[string]any {
-	params := map[string]any{"limit": limit}
+func deadCodeCandidateScanLimit(displayLimit int) int {
+	return deadCodeCandidateQueryLimit(displayLimit) * deadCodeCandidateScanMaxPages
+}
+
+func deadCodeGraphParams(repoID string, limit int, skip int) map[string]any {
+	params := map[string]any{"limit": limit, "skip": skip}
 	if strings.TrimSpace(repoID) != "" {
 		params["repo_id"] = strings.TrimSpace(repoID)
 	}
@@ -230,6 +229,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if !deadCodeIsCandidateEntity(result, entity) {
 		return true
 	}
+	if !deadCodeLanguageSupported(deadCodeEntityLanguage(result, entity)) {
+		return true
+	}
 
 	goPolicy := newDeadCodeGoPolicyContext(result, entity)
 	if goPolicy.language == "go" && goPolicy.normalizedSource == "" && entity != nil && len(goPolicy.rootKinds) == 0 {
@@ -249,6 +251,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 		return true
 	}
 	if deadCodeIsJavaScriptFrameworkRoot(result, entity, stats) {
+		return true
+	}
+	if deadCodeIsNestedJavaScriptFunction(result, entity) {
 		return true
 	}
 	if deadCodeIsLibraryPublicAPIRoot(result, entity) {
@@ -298,6 +303,25 @@ func deadCodeIsLanguageEntrypoint(result map[string]any, entity *EntityContent) 
 	}
 }
 
+func deadCodeIsNestedJavaScriptFunction(result map[string]any, entity *EntityContent) bool {
+	switch strings.ToLower(deadCodeEntityLanguage(result, entity)) {
+	case "javascript", "jsx", "typescript", "tsx":
+	default:
+		return false
+	}
+	if primaryEntityLabel(result) != "Function" {
+		return false
+	}
+	metadata, _ := result["metadata"].(map[string]any)
+	if strings.TrimSpace(StringVal(metadata, "enclosing_function")) != "" {
+		return true
+	}
+	if entity != nil && strings.TrimSpace(StringVal(entity.Metadata, "enclosing_function")) != "" {
+		return true
+	}
+	return false
+}
+
 func deadCodeIsLibraryPublicAPIRoot(result map[string]any, entity *EntityContent) bool {
 	if strings.ToLower(deadCodeEntityLanguage(result, entity)) != "go" {
 		return false
@@ -339,10 +363,25 @@ func deadCodeIsTestFile(result map[string]any, entity *EntityContent) bool {
 	case strings.HasSuffix(path, "_test.go"):
 		return true
 	case strings.Contains(path, "/__tests__/"),
+		strings.Contains(path, "/cypress/"),
 		strings.Contains(path, "/tests/"),
-		strings.Contains(path, "/test/"):
+		strings.Contains(path, "/test/"),
+		strings.HasPrefix(path, "__tests__/"),
+		strings.HasPrefix(path, "cypress/"),
+		strings.HasPrefix(path, "tests/"),
+		strings.HasPrefix(path, "test/"):
 		return true
 	case strings.HasPrefix(base, "test_"),
+		strings.HasPrefix(base, "cypress.config."),
+		deadCodeIsJavaScriptConfigFile(base),
+		strings.HasSuffix(base, ".cy.js"),
+		strings.HasSuffix(base, ".cy.jsx"),
+		strings.HasSuffix(base, ".cy.ts"),
+		strings.HasSuffix(base, ".cy.tsx"),
+		strings.HasSuffix(base, ".lab.js"),
+		strings.HasSuffix(base, ".lab.jsx"),
+		strings.HasSuffix(base, ".lab.ts"),
+		strings.HasSuffix(base, ".lab.tsx"),
 		strings.HasSuffix(base, "_test.py"),
 		strings.HasSuffix(base, ".test.js"),
 		strings.HasSuffix(base, ".test.jsx"),
@@ -356,6 +395,15 @@ func deadCodeIsTestFile(result map[string]any, entity *EntityContent) bool {
 	default:
 		return false
 	}
+}
+
+func deadCodeIsJavaScriptConfigFile(base string) bool {
+	for _, suffix := range []string{".config.js", ".config.jsx", ".config.ts", ".config.tsx", ".config.mjs", ".config.cjs", ".config.mts", ".config.cts"} {
+		if strings.HasSuffix(base, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func deadCodeIsGeneratedCode(result map[string]any, entity *EntityContent) bool {

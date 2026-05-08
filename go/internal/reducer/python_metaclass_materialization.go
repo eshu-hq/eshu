@@ -160,6 +160,8 @@ func resolvePythonMetaclassEntityID(
 	return resolveImportedCrossFileCallee(
 		index,
 		repositoryImports,
+		codeCallReexportIndex{},
+		repositoryID,
 		rawPath,
 		relativePath,
 		fileData,

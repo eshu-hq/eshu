@@ -570,8 +570,10 @@ content store did not have source cached. `analysis.framework_roots_from_parser_
 and `analysis.framework_roots_from_source_fallback` show whether the excluded
 Go framework roots came from parser-emitted metadata or the legacy query-time
 source heuristic path. `limit` defaults to `100` and is capped at `500`. The
-response also includes `truncated=true` when the bounded dead-code scan found
-more candidates than were returned.
+response includes `display_truncated=true` when filtered results were clipped
+to `limit`, `candidate_scan_truncated=true` when the raw graph scan reached
+`candidate_scan_limit` before exclusions ran, and top-level `truncated=true`
+when either condition is true.
 
 ## IaC Quality API
 

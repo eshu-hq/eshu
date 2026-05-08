@@ -9,6 +9,7 @@ import (
 )
 
 func (e *Engine) parseJavaScriptLike(
+	repoRoot string,
 	path string,
 	runtimeLanguage string,
 	outputLanguage string,
@@ -41,21 +42,27 @@ func (e *Engine) parseJavaScriptLike(
 	scope := options.normalizedVariableScope()
 	root := tree.RootNode()
 	reactAliases := javaScriptReactAliases(root, source, outputLanguage)
-	registeredRootKinds := javaScriptRegisteredDeadCodeRootKinds(root, source)
+	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source)
+	if len(deadCodeRoots.fileRootKinds) > 0 {
+		payload["dead_code_file_root_kinds"] = append([]string(nil), deadCodeRoots.fileRootKinds...)
+	}
+	commonJSModuleAliases := javaScriptCommonJSModuleExportAliases(root, source)
+	tsConfigImports := newJavaScriptTSConfigImportResolver(repoRoot, path)
+	newExpressionTypes := javaScriptNewExpressionVariableTypes(root, source)
 
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration":
 			nameNode := node.ChildByFieldName("name")
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, registeredRootKinds)
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
 		case "generator_function_declaration":
 			nameNode := node.ChildByFieldName("name")
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, registeredRootKinds)
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
-		case "method_definition", "method_signature":
+		case "method_definition":
 			nameNode := node.ChildByFieldName("name")
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, registeredRootKinds)
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 		case "class_declaration", "abstract_class_declaration":
 			nameNode := node.ChildByFieldName("name")
 			name := nodeText(nameNode, source)
@@ -71,6 +78,9 @@ func (e *Engine) parseJavaScriptLike(
 			if outputLanguage != "javascript" {
 				classItem["decorators"] = javaScriptDecorators(node, source)
 				classItem["type_parameters"] = javaScriptTypeParameters(node, source)
+			}
+			if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
+				classItem["dead_code_root_kinds"] = rootKinds
 			}
 			appendBucket(payload, "classes", classItem)
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
@@ -91,6 +101,9 @@ func (e *Engine) parseJavaScriptLike(
 			}
 			if outputLanguage != "javascript" {
 				item["type_parameters"] = javaScriptTypeParameters(node, source)
+			}
+			if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
+				item["dead_code_root_kinds"] = rootKinds
 			}
 			appendBucket(payload, "interfaces", item)
 		case "type_alias_declaration":
@@ -126,7 +139,7 @@ func (e *Engine) parseJavaScriptLike(
 			}
 			valueNode := node.ChildByFieldName("value")
 			if isJavaScriptFunctionValue(valueNode) {
-				appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, registeredRootKinds)
+				appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 				maybeAppendJavaScriptComponent(payload, valueNode, nameNode, source, outputLanguage, reactAliases)
 				return
 			}
@@ -138,6 +151,7 @@ func (e *Engine) parseJavaScriptLike(
 			}
 			if requireItems := javaScriptRequireImportEntries(node, source, outputLanguage); len(requireItems) > 0 {
 				for _, item := range requireItems {
+					tsConfigImports.annotateImport(item)
 					appendBucket(payload, "imports", item)
 				}
 			}
@@ -159,8 +173,24 @@ func (e *Engine) parseJavaScriptLike(
 				}
 			}
 			appendBucket(payload, "variables", item)
+		case "pair":
+			nameNode := node.ChildByFieldName("key")
+			valueNode := node.ChildByFieldName("value")
+			if !isJavaScriptFunctionValue(valueNode) {
+				if item := javaScriptHapiRouteHandlerReferenceCall(node, nameNode, valueNode, source, outputLanguage, deadCodeRoots); item != nil {
+					appendBucket(payload, "function_calls", item)
+				}
+				return
+			}
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 		case "import_statement":
 			for _, item := range javaScriptImportEntries(node, source, outputLanguage) {
+				tsConfigImports.annotateImport(item)
+				appendBucket(payload, "imports", item)
+			}
+		case "export_statement":
+			for _, item := range javaScriptReExportEntries(node, source, outputLanguage) {
+				tsConfigImports.annotateImport(item)
 				appendBucket(payload, "imports", item)
 			}
 		case "call_expression":
@@ -169,13 +199,57 @@ func (e *Engine) parseJavaScriptLike(
 			if strings.TrimSpace(name) == "" {
 				return
 			}
-			appendBucket(payload, "function_calls", map[string]any{
+			fullName := rewriteJavaScriptCommonJSModuleExportAliasFullName(
+				javaScriptCallFullName(functionNode, source),
+				commonJSModuleAliases,
+			)
+			item := map[string]any{
 				"name":        name,
-				"full_name":   javaScriptCallFullName(functionNode, source),
+				"full_name":   fullName,
 				"call_kind":   "function_call",
 				"line_number": nodeLine(node),
 				"lang":        outputLanguage,
+			}
+			if inferredType := javaScriptCallInferredObjectType(functionNode, source, newExpressionTypes); inferredType != "" {
+				item["inferred_obj_type"] = inferredType
+			}
+			if strings.HasPrefix(fullName, "this.") {
+				if classContext := javaScriptEnclosingClassName(node, source); classContext != "" {
+					item["class_context"] = classContext
+				}
+			}
+			appendBucket(payload, "function_calls", item)
+			for _, reference := range javaScriptFunctionValueReferenceCalls(node, source, outputLanguage, commonJSModuleAliases) {
+				appendBucket(payload, "function_calls", reference)
+			}
+		case "new_expression":
+			constructorName, constructorFullName := javaScriptNewExpressionConstructorName(node, source)
+			if constructorName == "" {
+				return
+			}
+			appendBucket(payload, "function_calls", map[string]any{
+				"name":        constructorName,
+				"full_name":   constructorFullName,
+				"call_kind":   "constructor_call",
+				"line_number": nodeLine(node),
+				"lang":        outputLanguage,
 			})
+		case "return_statement":
+			valueNode := javaScriptReturnValueNode(node)
+			if item := javaScriptFunctionValueReferenceCall(valueNode, source, outputLanguage, commonJSModuleAliases); item != nil {
+				appendBucket(payload, "function_calls", item)
+			}
+		case "assignment_expression":
+			leftNode := node.ChildByFieldName("left")
+			rightNode := node.ChildByFieldName("right")
+			if !isJavaScriptFunctionValue(rightNode) {
+				return
+			}
+			nameNode := javaScriptExportAssignmentNameNode(leftNode, source)
+			if nameNode == nil {
+				return
+			}
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 		case "jsx_opening_element", "jsx_self_closing_element":
 			if outputLanguage != "tsx" {
 				return
@@ -202,6 +276,7 @@ func (e *Engine) parseJavaScriptLike(
 		}
 	})
 
+	appendJavaScriptTypeReferenceCalls(payload, root, source, outputLanguage)
 	annotateTypeScriptDeclarationMerges(payload, outputLanguage)
 	sortNamedBucket(payload, "functions")
 	sortNamedBucket(payload, "classes")
@@ -221,11 +296,12 @@ func (e *Engine) parseJavaScriptLike(
 }
 
 func (e *Engine) preScanJavaScriptLike(
+	repoRoot string,
 	path string,
 	runtimeLanguage string,
 	outputLanguage string,
 ) ([]string, error) {
-	payload, err := e.parseJavaScriptLike(path, runtimeLanguage, outputLanguage, false, Options{})
+	payload, err := e.parseJavaScriptLike(repoRoot, path, runtimeLanguage, outputLanguage, false, Options{})
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +322,7 @@ func appendFunctionDeclaration(
 	source []byte,
 	lang string,
 	options Options,
-	registeredRootKinds map[string][]string,
+	deadCodeRoots javaScriptDeadCodeEvidence,
 ) {
 	name := javaScriptFunctionName(nameNode, source)
 	if strings.TrimSpace(name) == "" {
@@ -255,6 +331,11 @@ func appendFunctionDeclaration(
 
 	declarationNode := node
 	if node != nil && node.Kind() == "variable_declarator" {
+		if valueNode := node.ChildByFieldName("value"); isJavaScriptFunctionValue(valueNode) {
+			declarationNode = valueNode
+		}
+	}
+	if node != nil && node.Kind() == "pair" {
 		if valueNode := node.ChildByFieldName("value"); isJavaScriptFunctionValue(valueNode) {
 			declarationNode = valueNode
 		}
@@ -268,7 +349,7 @@ func appendFunctionDeclaration(
 		"type_parameters": javaScriptTypeParameters(declarationNode, source),
 		"lang":            lang,
 	}
-	if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, registeredRootKinds); len(rootKinds) > 0 {
+	if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
 	if functionType := javaScriptFunctionKind(declarationNode, source); functionType != "" {
@@ -280,7 +361,7 @@ func appendFunctionDeclaration(
 	if docstring := javaScriptDocstring(declarationNode, source); docstring != "" {
 		item["docstring"] = docstring
 	}
-	for key, value := range javaScriptFunctionSemantics(declarationNode, lang) {
+	for key, value := range javaScriptFunctionSemantics(declarationNode, source, lang) {
 		item[key] = value
 	}
 	if options.IndexSource {
@@ -338,123 +419,14 @@ func javaScriptDecorators(node *tree_sitter.Node, source []byte) []string {
 }
 
 func javaScriptTypeParameters(node *tree_sitter.Node, source []byte) []string {
-	return javaScriptTypeParameterNames(nodeText(node, source))
-}
-
-func javaScriptImportEntries(node *tree_sitter.Node, source []byte, lang string) []map[string]any {
-	sourceNode := node.ChildByFieldName("source")
-	moduleSource := strings.Trim(nodeText(sourceNode, source), `"'`)
-	if strings.TrimSpace(moduleSource) == "" {
-		return nil
-	}
-
-	importNode := node.ChildByFieldName("import")
-	if importNode == nil {
-		cursor := node.Walk()
-		defer cursor.Close()
-		for _, child := range node.NamedChildren(cursor) {
-			child := child
-			if child.Kind() == "string" {
-				continue
-			}
-			importNode = &child
-			break
-		}
-	}
-	if importNode == nil {
-		return []map[string]any{{
-			"name":        moduleSource,
-			"source":      moduleSource,
-			"line_number": nodeLine(sourceNode),
-			"lang":        lang,
-		}}
-	}
-
-	items := make([]map[string]any, 0)
-	cursor := importNode.Walk()
-	defer cursor.Close()
-	children := importNode.NamedChildren(cursor)
-	if len(children) == 0 {
-		children = []tree_sitter.Node{*importNode}
-	}
-	for _, child := range children {
-		child := child
-		switch child.Kind() {
-		case "import_clause":
-			clauseCursor := child.Walk()
-			defer clauseCursor.Close()
-			for _, clauseChild := range child.NamedChildren(clauseCursor) {
-				clauseChild := clauseChild
-				items = append(items, javaScriptImportEntriesFromClause(&clauseChild, moduleSource, source, lang)...)
-			}
-		case "identifier":
-			items = append(items, javaScriptImportEntriesFromClause(&child, moduleSource, source, lang)...)
-		case "namespace_import", "named_imports":
-			items = append(items, javaScriptImportEntriesFromClause(&child, moduleSource, source, lang)...)
-		}
-	}
-	if len(items) == 0 {
-		items = append(items, map[string]any{
-			"name":        moduleSource,
-			"source":      moduleSource,
-			"line_number": nodeLine(sourceNode),
-			"lang":        lang,
-		})
-	}
-	return items
-}
-
-func javaScriptImportEntriesFromClause(
-	node *tree_sitter.Node,
-	moduleSource string,
-	source []byte,
-	lang string,
-) []map[string]any {
 	if node == nil {
-		return nil
+		return []string{}
 	}
-
-	switch node.Kind() {
-	case "identifier":
-		return []map[string]any{{
-			"name":        "default",
-			"source":      moduleSource,
-			"alias":       nodeText(node, source),
-			"line_number": nodeLine(node),
-			"lang":        lang,
-		}}
-	case "namespace_import":
-		aliasNode := node.ChildByFieldName("name")
-		return []map[string]any{{
-			"name":        "*",
-			"source":      moduleSource,
-			"alias":       nodeText(aliasNode, source),
-			"line_number": nodeLine(node),
-			"lang":        lang,
-		}}
-	case "named_imports":
-		items := make([]map[string]any, 0)
-		cursor := node.Walk()
-		defer cursor.Close()
-		for _, specifier := range node.NamedChildren(cursor) {
-			specifier := specifier
-			if specifier.Kind() != "import_specifier" {
-				continue
-			}
-			nameNode := specifier.ChildByFieldName("name")
-			aliasNode := specifier.ChildByFieldName("alias")
-			items = append(items, map[string]any{
-				"name":        nodeText(nameNode, source),
-				"source":      moduleSource,
-				"alias":       nodeText(aliasNode, source),
-				"line_number": nodeLine(&specifier),
-				"lang":        lang,
-			})
-		}
-		return items
-	default:
-		return nil
+	typeParametersNode := node.ChildByFieldName("type_parameters")
+	if typeParametersNode == nil {
+		return []string{}
 	}
+	return javaScriptTypeParameterNames(nodeText(typeParametersNode, source))
 }
 
 func javaScriptCallName(node *tree_sitter.Node, source []byte) string {

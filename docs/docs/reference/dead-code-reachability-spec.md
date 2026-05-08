@@ -184,16 +184,24 @@ Current branch status:
 - Python Celery task decorators are modeled
 - JavaScript/TypeScript Next.js route exports are modeled
 - JavaScript/TypeScript Express handler registrations are modeled
+- JavaScript/TypeScript Node package entrypoints, package `bin` targets,
+  package public exports, and exported functions under configured
+  Hapi/lib-api-hapi handler directories are modeled when `package.json` and
+  `server/init/plugins/spec*` provide bounded local evidence
+- TypeScript public methods on classes that declare `implements` are modeled as
+  interface implementation method roots; private and protected class helpers
+  remain candidates unless another root or incoming edge reaches them
 - those Go signature roots are now emitted by the Go parser into entity
   metadata when imports, registrations, and signatures match directly; mixed
   native+SCIP indexing now preserves `dead_code_root_kinds` through the
   supplement merge path; Python route/task decorators and
-  JavaScript/TypeScript Next.js/Express route roots are also emitted as
-  parser-backed `dead_code_root_kinds`; Go query-time source heuristics remain
-  as a fallback while broader registry coverage lands
+  JavaScript/TypeScript Next.js/Express/Node/Hapi plus TypeScript interface
+  implementation method roots are also emitted as parser-backed
+  `dead_code_root_kinds`; Go query-time source heuristics remain as a fallback
+  while broader registry coverage lands
 - broader Go router, webhook, worker, reflection, and build-tag roots plus
   broader Python worker/CLI/public-API roots and broader JavaScript/TypeScript
-  worker/public-API roots remain
+  worker, static module graph, and dynamic-dispatch roots remain
   open, so dead-code truth stays `derived`
 
 Initial MVP is explicitly limited to those families. Other parser-supported

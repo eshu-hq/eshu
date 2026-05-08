@@ -652,6 +652,105 @@ func TestHandleDeadCodeFetchesPolicyBufferBeforeApplyingLimit(t *testing.T) {
 	}
 }
 
+func TestHandleDeadCodeDistinguishesDisplayAndCandidateScanTruncation(t *testing.T) {
+	t.Parallel()
+
+	scanLimit := deadCodeCandidateScanLimit(2)
+	rawCandidates := make([]map[string]any, 0, scanLimit)
+	for i := 0; i < scanLimit-1; i++ {
+		rawCandidates = append(rawCandidates, map[string]any{
+			"entity_id": "public-api", "name": "PublicAPI", "labels": []any{"Function"},
+			"file_path": "pkg/payments/api.go", "repo_id": "repo-1", "repo_name": "payments", "language": "go",
+		})
+	}
+	rawCandidates = append(rawCandidates, map[string]any{
+		"entity_id": "internal-helper", "name": "privateAlpha", "labels": []any{"Function"},
+		"file_path": "internal/payments/a.go", "repo_id": "repo-1", "repo_name": "payments", "language": "go",
+	})
+
+	handler := &CodeHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+				offset, ok := params["skip"].(int)
+				if !ok {
+					t.Fatalf("params[skip] type = %T, want int", params["skip"])
+				}
+				limit, ok := params["limit"].(int)
+				if !ok {
+					t.Fatalf("params[limit] type = %T, want int", params["limit"])
+				}
+				if offset >= len(rawCandidates) {
+					return nil, nil
+				}
+				end := offset + limit
+				if end > len(rawCandidates) {
+					end = len(rawCandidates)
+				}
+				return rawCandidates[offset:end], nil
+			},
+		},
+		Content: fakeDeadCodeContentStore{
+			entities: map[string]EntityContent{
+				"public-api": {
+					EntityID:     "public-api",
+					RelativePath: "pkg/payments/api.go",
+					EntityType:   "Function",
+					EntityName:   "PublicAPI",
+					Language:     "go",
+					SourceCache:  "func PublicAPI() {}",
+				},
+				"internal-helper": {
+					EntityID:     "internal-helper",
+					RelativePath: "internal/payments/a.go",
+					EntityType:   "Function",
+					EntityName:   "privateAlpha",
+					Language:     "go",
+					SourceCache:  "func privateAlpha() {}",
+				},
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code",
+		bytes.NewBufferString(`{"repo_id":"repo-1","limit":2}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	results, ok := resp["results"].([]any)
+	if !ok {
+		t.Fatalf("results type = %T, want []any", resp["results"])
+	}
+	if got, want := len(results), 1; got != want {
+		t.Fatalf("len(results) = %d, want %d", got, want)
+	}
+	if got, want := resp["truncated"], true; got != want {
+		t.Fatalf("resp[truncated] = %#v, want %#v", got, want)
+	}
+	if got, want := resp["display_truncated"], false; got != want {
+		t.Fatalf("resp[display_truncated] = %#v, want %#v", got, want)
+	}
+	if got, want := resp["candidate_scan_truncated"], true; got != want {
+		t.Fatalf("resp[candidate_scan_truncated] = %#v, want %#v", got, want)
+	}
+	if got, want := resp["candidate_scan_limit"], float64(scanLimit); got != want {
+		t.Fatalf("resp[candidate_scan_limit] = %#v, want %#v", got, want)
+	}
+}
+
 func TestDeadCodeCandidateQueryLimitUsesMinimumPolicyWindowForSmallDisplayLimits(t *testing.T) {
 	t.Parallel()
 

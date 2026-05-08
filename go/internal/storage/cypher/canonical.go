@@ -178,8 +178,8 @@ SET rel.confidence = 0.95,
     rel.call_kind = row.call_kind`
 
 const batchCanonicalCodeReferenceUpsertCypher = `UNWIND $rows AS row
-MATCH (source:Function|Class|File {uid: row.caller_entity_id})
-MATCH (target:Function|Class|Struct|Interface|File {uid: row.callee_entity_id})
+MATCH (source:Function|Class|Struct|Interface|TypeAlias|File {uid: row.caller_entity_id})
+MATCH (target:Function|Class|Struct|Interface|TypeAlias|File {uid: row.callee_entity_id})
 MERGE (source)-[rel:REFERENCES]->(target)
 SET rel.confidence = 0.95,
     rel.reason = 'Parser and symbol analysis resolved a code reference edge',
@@ -277,7 +277,7 @@ WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractCodeCallParserEdgesCypher = `MATCH (source:Function|Class|File)-[rel:CALLS|REFERENCES]->()
+const retractCodeCallParserEdgesCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES]->()
 WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -287,7 +287,7 @@ WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractCodeCallFallbackEdgesCypher = `MATCH (source:Function|Class|File)-[rel:CALLS|REFERENCES|USES_METACLASS]->()
+const retractCodeCallFallbackEdgesCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES|USES_METACLASS]->()
 WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`

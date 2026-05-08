@@ -1,0 +1,436 @@
+package parser
+
+import (
+	"path/filepath"
+	"testing"
+)
+
+func TestDefaultEngineParsePathJavaScriptPackageDeadCodeRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeTestFile(
+		t,
+		filepath.Join(repoRoot, "package.json"),
+		`{
+  "name": "service-sample",
+  "main": "dist/service-sample.js",
+  "module": "dist/service-sample.mjs",
+  "scripts": {
+    "start": "node dist/service-sample.js",
+    "dev": "tsx service-sample.ts"
+  },
+  "bin": {
+    "service-sample": "dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/server/public-api.js"
+  }
+}`,
+	)
+	entryPath := filepath.Join(repoRoot, "service-sample.ts")
+	binPath := filepath.Join(repoRoot, "cli.ts")
+	publicPath := filepath.Join(repoRoot, "server", "public-api.ts")
+	privatePath := filepath.Join(repoRoot, "server", "private-helper.ts")
+	writeTestFile(
+		t,
+		entryPath,
+		`function bootstrap() {
+  return "ready";
+}
+
+function entryHelper() {
+  return "helper";
+}
+`,
+	)
+	writeTestFile(
+		t,
+		binPath,
+		`function runCli() {
+  return "cli";
+}
+`,
+	)
+	writeTestFile(
+		t,
+		publicPath,
+		`export function publicApi() {
+  return "api";
+}
+
+export class PublicClient {
+  request() {
+    return "ok";
+  }
+}
+
+function privatePublicFileHelper() {
+  return "helper";
+}
+`,
+	)
+	writeTestFile(
+		t,
+		privatePath,
+		`function unusedPrivateHelper() {
+  return "unused";
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	entryPayload, err := engine.ParsePath(repoRoot, entryPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(entry) error = %v, want nil", err)
+	}
+	binPayload, err := engine.ParsePath(repoRoot, binPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(bin) error = %v, want nil", err)
+	}
+	publicPayload, err := engine.ParsePath(repoRoot, publicPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(public) error = %v, want nil", err)
+	}
+	privatePayload, err := engine.ParsePath(repoRoot, privatePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(private) error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, entryPayload, "bootstrap"),
+		"dead_code_root_kinds",
+		"javascript.node_package_entrypoint",
+	)
+	if _, ok := assertFunctionByName(t, entryPayload, "entryHelper")["dead_code_root_kinds"]; ok {
+		t.Fatalf("entryHelper dead_code_root_kinds present, want absent for non-exported entrypoint helper")
+	}
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, binPayload, "runCli"),
+		"dead_code_root_kinds",
+		"javascript.node_package_bin",
+	)
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, publicPayload, "publicApi"),
+		"dead_code_root_kinds",
+		"javascript.node_package_export",
+	)
+	assertParserStringSliceContains(
+		t,
+		assertBucketItemByName(t, publicPayload, "classes", "PublicClient"),
+		"dead_code_root_kinds",
+		"javascript.node_package_export",
+	)
+	if _, ok := assertFunctionByName(t, publicPayload, "privatePublicFileHelper")["dead_code_root_kinds"]; ok {
+		t.Fatalf("privatePublicFileHelper dead_code_root_kinds present, want absent for non-exported helper")
+	}
+	if _, ok := assertFunctionByName(t, privatePayload, "unusedPrivateHelper")["dead_code_root_kinds"]; ok {
+		t.Fatalf("unusedPrivateHelper dead_code_root_kinds present, want absent outside package public roots")
+	}
+}
+
+func TestDefaultEngineParsePathJavaScriptNestedPackageDeadCodeRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	serviceRoot := filepath.Join(repoRoot, "packages", "api")
+	writeTestFile(
+		t,
+		filepath.Join(serviceRoot, "package.json"),
+		`{
+  "name": "@example/api",
+  "main": "dist/src/index.js",
+  "exports": {
+    ".": "./dist/src/public-api.js"
+  }
+}`,
+	)
+	entryPath := filepath.Join(serviceRoot, "src", "index.ts")
+	publicPath := filepath.Join(serviceRoot, "src", "public-api.ts")
+	writeTestFile(
+		t,
+		entryPath,
+		`export function bootstrap() {
+  return "ready";
+}
+`,
+	)
+	writeTestFile(
+		t,
+		publicPath,
+		`export function publicApi() {
+  return "api";
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	entryPayload, err := engine.ParsePath(repoRoot, entryPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(entry) error = %v, want nil", err)
+	}
+	publicPayload, err := engine.ParsePath(repoRoot, publicPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(public) error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, entryPayload, "bootstrap"),
+		"dead_code_root_kinds",
+		"javascript.node_package_entrypoint",
+	)
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, publicPayload, "publicApi"),
+		"dead_code_root_kinds",
+		"javascript.node_package_export",
+	)
+}
+
+func TestDefaultEngineParsePathJavaScriptHapiHandlerRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeTestFile(
+		t,
+		filepath.Join(repoRoot, "package.json"),
+		`{"name":"service-hapi"}`,
+	)
+	writeTestFile(
+		t,
+		filepath.Join(repoRoot, "server", "init", "plugins", "specs.ts"),
+		`import { plugin } from '@example/hapi-service/init/plugins/specs';
+import path from 'path';
+
+export const options = {
+  openapi: {
+    handlers: path.resolve(__dirname, '../../handlers'),
+  },
+};
+
+export default { plugin, options };
+`,
+	)
+	esModuleHandlerPath := filepath.Join(repoRoot, "server", "handlers", "chat", "response.ts")
+	commonJSHandlerPath := filepath.Join(repoRoot, "server", "handlers", "_status.js")
+	resourcePath := filepath.Join(repoRoot, "server", "resources", "status.ts")
+	writeTestFile(
+		t,
+		esModuleHandlerPath,
+		`export const post = async (request) => request.payload;
+
+const localHelper = () => "helper";
+`,
+	)
+	writeTestFile(
+		t,
+		commonJSHandlerPath,
+		`module.exports.get = async () => ({ statusCode: 200 });
+
+module.exports.payload = async () => ({ message: "ok" });
+`,
+	)
+	writeTestFile(
+		t,
+		resourcePath,
+		`export const get = async () => "not a handler";
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	esModulePayload, err := engine.ParsePath(repoRoot, esModuleHandlerPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(es module handler) error = %v, want nil", err)
+	}
+	commonJSPayload, err := engine.ParsePath(repoRoot, commonJSHandlerPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(commonjs handler) error = %v, want nil", err)
+	}
+	resourcePayload, err := engine.ParsePath(repoRoot, resourcePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(resource) error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, esModulePayload, "post"),
+		"dead_code_root_kinds",
+		"javascript.hapi_handler_export",
+	)
+	if _, ok := assertFunctionByName(t, esModulePayload, "localHelper")["dead_code_root_kinds"]; ok {
+		t.Fatalf("localHelper dead_code_root_kinds present, want absent for non-exported handler helper")
+	}
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, commonJSPayload, "get"),
+		"dead_code_root_kinds",
+		"javascript.hapi_handler_export",
+	)
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, commonJSPayload, "payload"),
+		"dead_code_root_kinds",
+		"javascript.hapi_handler_export",
+	)
+	if _, ok := assertFunctionByName(t, resourcePayload, "get")["dead_code_root_kinds"]; ok {
+		t.Fatalf("resource get dead_code_root_kinds present, want absent outside configured handlers")
+	}
+}
+
+func TestDefaultEngineParsePathJavaScriptNestedHapiHandlerRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	serviceRoot := filepath.Join(repoRoot, "packages", "api")
+	writeTestFile(
+		t,
+		filepath.Join(serviceRoot, "package.json"),
+		`{"name":"@example/api"}`,
+	)
+	writeTestFile(
+		t,
+		filepath.Join(serviceRoot, "server", "init", "plugins", "specs.ts"),
+		`import path from 'path';
+
+export const options = {
+  openapi: {
+    handlers: path.join(__dirname, '../../handlers'),
+  },
+};
+`,
+	)
+	handlerPath := filepath.Join(serviceRoot, "server", "handlers", "status.ts")
+	writeTestFile(
+		t,
+		handlerPath,
+		`export const get = async () => ({ ok: true });
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, handlerPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(handler) error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, got, "get"),
+		"dead_code_root_kinds",
+		"javascript.hapi_handler_export",
+	)
+}
+
+func TestDefaultEngineParsePathTypeScriptInterfaceImplementationMethodRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "server", "providers", "GeminiAdapter.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`interface AIProvider {
+  createResponse(options: unknown): Promise<unknown>;
+}
+
+export class GeminiAdapter implements AIProvider {
+  async createResponse(options: unknown): Promise<unknown> {
+    return options;
+  }
+
+  private normalizeConfig(config: unknown): unknown {
+    return config;
+  }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, payload, "createResponse"),
+		"dead_code_root_kinds",
+		"typescript.interface_method_implementation",
+	)
+	if _, ok := assertFunctionByName(t, payload, "normalizeConfig")["dead_code_root_kinds"]; ok {
+		t.Fatalf("normalizeConfig dead_code_root_kinds present, want absent for private helper")
+	}
+}
+
+func TestDefaultEngineParsePathJavaScriptHapiPluginRegisterRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	pluginPath := filepath.Join(repoRoot, "server", "init", "plugins", "metrics.ts")
+	writeTestFile(
+		t,
+		filepath.Join(repoRoot, "package.json"),
+		`{"name":"service-hapi"}`,
+	)
+	writeTestFile(
+		t,
+		pluginPath,
+		`import type { Plugin, Server } from "hapi";
+
+const plugin: Plugin<unknown> = {
+  name: "service-metrics",
+  register: async (server: Server): Promise<void> => {
+    await server.register({});
+  },
+};
+
+const localHelper = () => "helper";
+
+export default { plugin };
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, pluginPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(plugin) error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, got, "register"),
+		"dead_code_root_kinds",
+		"javascript.hapi_plugin_register",
+	)
+	if _, ok := assertFunctionByName(t, got, "localHelper")["dead_code_root_kinds"]; ok {
+		t.Fatalf("localHelper dead_code_root_kinds present, want absent for non-plugin helper")
+	}
+}

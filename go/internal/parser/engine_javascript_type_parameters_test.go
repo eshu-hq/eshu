@@ -51,3 +51,35 @@ type Box<T extends Result<Map<string, number>, Error>> = { value: T };
 	boxAlias := findNamedBucketItem(t, got, "type_aliases", "Box")
 	assertStringSliceFieldValue(t, boxAlias, "type_parameters", []string{"T"})
 }
+
+func TestDefaultEngineParsePathTypeScriptDoesNotTreatReturnTypeArgumentsAsTypeParameters(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "service.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`type SearchExecutionResult = { ok: boolean };
+
+export class SearchService {
+  async searchText(): Promise<SearchExecutionResult> {
+    return { ok: true };
+  }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	searchText := findNamedBucketItem(t, got, "functions", "searchText")
+	assertStringSliceFieldValue(t, searchText, "type_parameters", []string{})
+}

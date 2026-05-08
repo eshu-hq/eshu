@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -109,9 +110,11 @@ func (w *CanonicalNodeWriter) buildFileStatements(mat projector.CanonicalMateria
 		return nil
 	}
 
-	rows := make([]map[string]any, len(mat.Files))
-	for i, f := range mat.Files {
-		rows[i] = map[string]any{
+	nestedRows := make([]map[string]any, 0, len(mat.Files))
+	rootRows := make([]map[string]any, 0)
+	for _, f := range mat.Files {
+		row := map[string]any{
+			"uid":           f.RepoID + ":" + f.RelativePath,
 			"path":          f.Path,
 			"name":          f.Name,
 			"relative_path": f.RelativePath,
@@ -121,6 +124,11 @@ func (w *CanonicalNodeWriter) buildFileStatements(mat projector.CanonicalMateria
 			"scope_id":      mat.ScopeID,
 			"generation_id": mat.GenerationID,
 		}
+		if canonicalNodeFileRowIsRepositoryRoot(f) {
+			rootRows = append(rootRows, row)
+			continue
+		}
+		nestedRows = append(nestedRows, row)
 	}
 
 	var stmts []Statement
@@ -128,6 +136,23 @@ func (w *CanonicalNodeWriter) buildFileStatements(mat projector.CanonicalMateria
 	if w.fileBatchSize > 0 {
 		batchSize = w.fileBatchSize
 	}
+	stmts = append(stmts, w.buildFileStatementsForRows(nestedRows, batchSize, []string{
+		canonicalNodeFileUpdateExistingCypher,
+		canonicalNodeFileCreateMissingCypher,
+	})...)
+	stmts = append(stmts, w.buildFileStatementsForRows(rootRows, batchSize, []string{
+		canonicalNodeRootFileUpdateExistingCypher,
+		canonicalNodeRootFileCreateMissingCypher,
+	})...)
+	return stmts
+}
+
+func canonicalNodeFileRowIsRepositoryRoot(file projector.FileRow) bool {
+	return strings.TrimSpace(file.RelativePath) != "" && !strings.Contains(file.RelativePath, "/")
+}
+
+func (w *CanonicalNodeWriter) buildFileStatementsForRows(rows []map[string]any, batchSize int, cyphers []string) []Statement {
+	var stmts []Statement
 	for start := 0; start < len(rows); start += batchSize {
 		end := start + batchSize
 		if end > len(rows) {
@@ -140,10 +165,7 @@ func (w *CanonicalNodeWriter) buildFileStatements(mat projector.CanonicalMateria
 			batchRows[0]["path"],
 			batchRows[len(batchRows)-1]["path"],
 		)
-		for _, cypher := range []string{
-			canonicalNodeFileUpdateExistingCypher,
-			canonicalNodeFileCreateMissingCypher,
-		} {
+		for _, cypher := range cyphers {
 			stmts = append(stmts, Statement{
 				Operation: OperationCanonicalUpsert,
 				Cypher:    cypher,

@@ -12,9 +12,11 @@ import (
 type codeEntityIndex struct {
 	entitiesByPathLine  map[string]string
 	spansByPath         map[string][]codeFunctionSpan
+	containersByPath    map[string][]codeFunctionSpan
 	uniqueNameByPath    map[string]map[string]string
 	uniqueNameByRepo    map[string]map[string]string
 	uniqueNameByRepoDir map[string]map[string]map[string]string
+	constructorByPath   map[string]map[string]string
 	entityFileByID      map[string]string
 }
 
@@ -22,15 +24,18 @@ type codeFunctionSpan struct {
 	startLine int
 	endLine   int
 	entityID  string
+	names     []string
 }
 
 func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 	index := codeEntityIndex{
 		entitiesByPathLine:  make(map[string]string),
 		spansByPath:         make(map[string][]codeFunctionSpan),
+		containersByPath:    make(map[string][]codeFunctionSpan),
 		uniqueNameByPath:    make(map[string]map[string]string),
 		uniqueNameByRepo:    make(map[string]map[string]string),
 		uniqueNameByRepoDir: make(map[string]map[string]map[string]string),
+		constructorByPath:   make(map[string]map[string]string),
 		entityFileByID:      make(map[string]string),
 	}
 	nameCandidates := make(map[string]map[string]map[string]struct{})
@@ -66,11 +71,23 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 			}
 			for _, pathKey := range codeCallPathKeys(rawPath, relativePath) {
 				index.entitiesByPathLine[codeCallPathLineKey(pathKey, startLine)] = entityID
-				index.spansByPath[pathKey] = append(index.spansByPath[pathKey], codeFunctionSpan{
+				span := codeFunctionSpan{
 					startLine: startLine,
 					endLine:   endLine,
 					entityID:  entityID,
-				})
+					names:     codeCallFunctionCandidateNames(item),
+				}
+				index.spansByPath[pathKey] = append(index.spansByPath[pathKey], span)
+				index.containersByPath[pathKey] = append(index.containersByPath[pathKey], span)
+				if anyToString(item["name"]) == "constructor" {
+					classContext := strings.TrimSpace(anyToString(item["class_context"]))
+					if classContext != "" {
+						if _, ok := index.constructorByPath[pathKey]; !ok {
+							index.constructorByPath[pathKey] = make(map[string]string)
+						}
+						index.constructorByPath[pathKey][classContext] = entityID
+					}
+				}
 				for _, candidateName := range codeCallFunctionCandidateNames(item) {
 					if _, ok := nameCandidates[pathKey]; !ok {
 						nameCandidates[pathKey] = make(map[string]map[string]struct{})
@@ -92,7 +109,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 				}
 			}
 		}
-		for _, bucket := range []string{"classes", "structs", "interfaces"} {
+		for _, bucket := range []string{"classes", "structs", "interfaces", "type_aliases"} {
 			for _, item := range mapSlice(fileData[bucket]) {
 				entityID := anyToString(item["uid"])
 				if entityID == "" {
@@ -102,6 +119,19 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 					index.entityFileByID[entityID] = preferredPath
 				}
 				for _, pathKey := range codeCallPathKeys(rawPath, relativePath) {
+					startLine := codeCallInt(item["line_number"], item["start_line"])
+					endLine := codeCallInt(item["end_line"])
+					if startLine > 0 {
+						if endLine < startLine {
+							endLine = startLine
+						}
+						index.containersByPath[pathKey] = append(index.containersByPath[pathKey], codeFunctionSpan{
+							startLine: startLine,
+							endLine:   endLine,
+							entityID:  entityID,
+							names:     codeCallTypeCandidateNames(item),
+						})
+					}
 					for _, candidateName := range codeCallTypeCandidateNames(item) {
 						if _, ok := nameCandidates[pathKey]; !ok {
 							nameCandidates[pathKey] = make(map[string]map[string]struct{})
@@ -134,6 +164,15 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 			return spans[i].startLine < spans[j].startLine
 		})
 		index.spansByPath[pathKey] = spans
+	}
+	for pathKey, spans := range index.containersByPath {
+		sort.Slice(spans, func(i, j int) bool {
+			if spans[i].startLine == spans[j].startLine {
+				return spans[i].endLine < spans[j].endLine
+			}
+			return spans[i].startLine < spans[j].startLine
+		})
+		index.containersByPath[pathKey] = spans
 	}
 	for pathKey, names := range nameCandidates {
 		index.uniqueNameByPath[pathKey] = make(map[string]string, len(names))
@@ -261,6 +300,7 @@ func extractGenericCodeCallRows(
 	rawPath string,
 	entityIndex codeEntityIndex,
 	repositoryImports map[string][]string,
+	reexportIndex codeCallReexportIndex,
 	seenRows map[string]struct{},
 	fileData map[string]any,
 ) []map[string]any {
@@ -273,12 +313,13 @@ func extractGenericCodeCallRows(
 		}
 		callerID := resolveContainingCodeEntityID(entityIndex, rawPath, relativePath, callLine)
 		if callerID == "" {
-			continue
+			callerID = resolveFileRootCodeCallCallerID(repositoryID, relativePath, fileData)
 		}
 		calleeID, calleeFilePath := resolveGenericCallee(
 			entityIndex,
 			repositoryID,
 			repositoryImports,
+			reexportIndex,
 			rawPath,
 			relativePath,
 			fileData,
@@ -287,76 +328,140 @@ func extractGenericCodeCallRows(
 		if calleeID == "" {
 			continue
 		}
-
-		relationshipType := codeCallRelationshipType(edge)
-		key := codeCallRowKey(repositoryID, callerID, calleeID, relationshipType, callLine)
-		if _, exists := seenRows[key]; exists {
+		if callerID == "" {
+			callerID = resolveJavaScriptTopLevelReferenceCallerID(repositoryID, callerFilePath, edge)
+		}
+		if callerID == "" {
+			callerID = resolveSameFileTopLevelCodeCallCallerID(
+				repositoryID,
+				callerFilePath,
+				calleeFilePath,
+				edge,
+			)
+		}
+		if callerID == "" {
 			continue
 		}
-		seenRows[key] = struct{}{}
 
-		row := map[string]any{
-			"repo_id":          repositoryID,
-			"caller_entity_id": callerID,
-			"callee_entity_id": calleeID,
-			"caller_file":      callerFilePath,
-			"callee_file":      calleeFilePath,
-			"ref_line":         callLine,
-			"action":           IntentActionUpsert,
+		rows = appendCodeCallRow(rows, seenRows, repositoryID, callerID, calleeID, callerFilePath, calleeFilePath, callLine, edge)
+		if constructorID := resolveConstructorMethodCalleeID(entityIndex, calleeFilePath, edge); constructorID != "" {
+			rows = appendCodeCallRow(rows, seenRows, repositoryID, callerID, constructorID, callerFilePath, calleeFilePath, callLine, edge)
 		}
-		copyOptionalCodeCallField(row, edge, "full_name")
-		copyOptionalCodeCallField(row, edge, "call_kind")
-		if relationshipType != "" {
-			row["relationship_type"] = relationshipType
-		}
-		rows = append(rows, row)
 	}
 	return rows
 }
 
-// codeCallRelationshipType maps parser call-like metadata to the canonical
-// relationship that truthfully describes the edge.
-func codeCallRelationshipType(edge map[string]any) string {
-	switch anyToString(edge["call_kind"]) {
-	case "go.composite_literal_type_reference":
-		return "REFERENCES"
-	default:
-		return ""
-	}
-}
-
-// codeCallRowKey deduplicates type references by entity pair because repeated
-// literal sites do not carry distinct reachability truth.
-func codeCallRowKey(repositoryID string, callerID string, calleeID string, relationshipType string, line int) string {
-	if relationshipType == "REFERENCES" {
-		return repositoryID + "|" + callerID + "|" + calleeID + "|" + relationshipType
-	}
-	return repositoryID + "|" + callerID + "|" + calleeID + "|" + fmt.Sprintf("%d", line)
-}
-
-func resolveContainingCodeEntityID(
+func resolveSameFileScopedCalleeEntityID(
 	index codeEntityIndex,
 	rawPath string,
 	relativePath string,
+	call map[string]any,
 	line int,
 ) string {
-	var (
-		bestEntityID string
-		bestWidth    int
+	if line <= 0 {
+		return ""
+	}
+	language := codeCallLanguage(call, rawPath, relativePath)
+	callNames := append(
+		codeCallExactCandidateNames(call, language),
+		codeCallBroadCandidateNames(call, language)...,
 	)
 	for _, pathKey := range codeCallPathKeys(rawPath, relativePath) {
+		caller := codeFunctionSpan{}
 		for _, span := range index.spansByPath[pathKey] {
-			if line < span.startLine || line > span.endLine {
-				continue
-			}
-			width := span.endLine - span.startLine
-			if bestEntityID == "" || width < bestWidth {
-				bestEntityID = span.entityID
-				bestWidth = width
+			if line >= span.startLine && line <= span.endLine &&
+				(caller.entityID == "" || spanWidth(span) < spanWidth(caller)) {
+				caller = span
 			}
 		}
-		if bestEntityID != "" {
-			return bestEntityID
+		if caller.entityID == "" {
+			continue
+		}
+
+		match := ""
+		for _, span := range index.spansByPath[pathKey] {
+			if span.entityID == caller.entityID ||
+				span.startLine < caller.startLine ||
+				span.endLine > caller.endLine ||
+				!codeCallSpanMatchesAnyName(span, callNames) {
+				continue
+			}
+			if match != "" {
+				return ""
+			}
+			match = span.entityID
+		}
+		if match != "" {
+			return match
+		}
+	}
+	return ""
+}
+
+func spanWidth(span codeFunctionSpan) int {
+	return span.endLine - span.startLine
+}
+
+func codeCallSpanMatchesAnyName(span codeFunctionSpan, names []string) bool {
+	for _, spanName := range span.names {
+		for _, name := range names {
+			if spanName == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func appendCodeCallRow(
+	rows []map[string]any,
+	seenRows map[string]struct{},
+	repositoryID string,
+	callerID string,
+	calleeID string,
+	callerFilePath string,
+	calleeFilePath string,
+	callLine int,
+	edge map[string]any,
+) []map[string]any {
+	relationshipType := codeCallRelationshipType(edge)
+	key := codeCallRowKey(repositoryID, callerID, calleeID, relationshipType, callLine)
+	if _, exists := seenRows[key]; exists {
+		return rows
+	}
+	seenRows[key] = struct{}{}
+
+	row := map[string]any{
+		"repo_id":          repositoryID,
+		"caller_entity_id": callerID,
+		"callee_entity_id": calleeID,
+		"caller_file":      callerFilePath,
+		"callee_file":      calleeFilePath,
+		"ref_line":         callLine,
+		"action":           IntentActionUpsert,
+	}
+	copyOptionalCodeCallField(row, edge, "full_name")
+	copyOptionalCodeCallField(row, edge, "call_kind")
+	if relationshipType != "" {
+		row["relationship_type"] = relationshipType
+	}
+	return append(rows, row)
+}
+
+func resolveConstructorMethodCalleeID(index codeEntityIndex, calleeFilePath string, edge map[string]any) string {
+	if anyToString(edge["call_kind"]) != "constructor_call" {
+		return ""
+	}
+	className := strings.TrimSpace(anyToString(edge["name"]))
+	if className == "" {
+		className = strings.TrimSpace(anyToString(edge["full_name"]))
+	}
+	if className == "" {
+		return ""
+	}
+	for _, pathKey := range codeCallPathKeys(calleeFilePath, "") {
+		if entityID := index.constructorByPath[pathKey][className]; entityID != "" {
+			return entityID
 		}
 	}
 	return ""

@@ -219,8 +219,11 @@ func TestEdgeWriterWriteEdgesGoTypeReferenceDispatch(t *testing.T) {
 	if !strings.Contains(executor.calls[0].Cypher, "REFERENCES") {
 		t.Fatalf("cypher missing REFERENCES edge: %s", executor.calls[0].Cypher)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "target:Function|Class|Struct|Interface|File") {
+	if !strings.Contains(executor.calls[0].Cypher, "target:Function|Class|Struct|Interface|TypeAlias|File") {
 		t.Fatalf("cypher missing type target labels: %s", executor.calls[0].Cypher)
+	}
+	if !strings.Contains(executor.calls[0].Cypher, "source:Function|Class|Struct|Interface|TypeAlias|File") {
+		t.Fatalf("cypher missing type source labels: %s", executor.calls[0].Cypher)
 	}
 	if strings.Contains(executor.calls[0].Cypher, "MERGE (source)-[rel:CALLS]") {
 		t.Fatalf("cypher unexpectedly included CALLS edge: %s", executor.calls[0].Cypher)
