@@ -1,0 +1,143 @@
+go/internal/reducer/code_call_materialization_index.go
+  s_bdaf44668b73dc::t_e4eb0f637c3351 475
+  s_bdaf44668b73dc::t_246b8ed84ea38c 27,78,343-402
+  s_bdaf44668b73dc::t_1cee09015de930 15,34,74,79-81,122-134,168-175,518
+  s_bdaf44668b73dc::t_f9320b508e07c0 112,491
+go/internal/parser/javascript_typescript_semantics.go
+  s_bdaf44668b73dc::t_70712d1ae22a72 50,54-56,66-69
+  s_bdaf44668b73dc::t_f80fcf5cf1f48e 33-36,83-102,104
+  s_bdaf44668b73dc::t_2d0f87df94a602 53
+  s_bdaf44668b73dc::t_f8c1cd873bf0f5 37-39,49,51-52,57-65
+  s_bdaf44668b73dc::t_18cd693828b7bc 103,105-109
+go/internal/reducer/code_call_materialization_javascript_scope_test.go
+  s_bdaf44668b73dc::t_3f7baf2933d02f 111-184
+  s_bdaf44668b73dc::t_d65fa5b640a93d 216-295
+  s_bdaf44668b73dc::t_536c05b2eba640 1-110,296-328
+  s_bdaf44668b73dc::t_f2f7685636d6d3 185-215
+go/internal/parser/javascript_language.go
+  s_bdaf44668b73dc::t_e50a5e35a320c3 264
+  s_bdaf44668b73dc::t_06e1bedc6d1908 198,201,209-212
+  s_bdaf44668b73dc::t_1a3d9b8b5d8036 62
+  s_bdaf44668b73dc::t_fb9f32cdf41af1 175-181,323
+  s_bdaf44668b73dc::t_40d31d02e38f64 407-414
+go/internal/storage/cypher/canonical.go
+  s_bdaf44668b73dc::t_e63ccd8ede4a87 181-182,280,290
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_6374981183530e 9-10
+go/internal/parser/javascript_type_references.go
+  s_bdaf44668b73dc::t_cb3a54fc532760 1-3,5-10,33-43,45-67,69-100
+  s_bdaf44668b73dc::t_89400255778d75 4,68
+  s_bdaf44668b73dc::t_67d4bd64f1c86b 11-32,44
+go/internal/parser/engine_typescript_advanced_semantics_test.go
+  s_bdaf44668b73dc::t_7945621547ca7b 92-130
+  s_bdaf44668b73dc::t_154fd83afa6c49 131-160
+  s_bdaf44668b73dc::t_408cc24c48fad0 48-91
+go/internal/parser/engine_javascript_type_parameters_test.go
+  s_bdaf44668b73dc::t_1a05ae21d73dd0 54-85
+go/internal/parser/javascript_dead_code_package.go
+  s_bdaf44668b73dc::t_d3bcb9007d5cdb 45,129
+go/internal/query/README.md
+  s_bdaf44668b73dc::t_3ef7d73114c2f8 70-72,225-226
+  s_bdaf44668b73dc::t_8a5c2468183e5f 68-69,223-224,227
+go/internal/reducer/code_call_materialization_imports.go
+  s_bdaf44668b73dc::t_03bcb06ed13cd2 254
+  s_bdaf44668b73dc::t_f59e4b4ed68507 90-93,255-257
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_000c755d6ef466 7
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_6d0702ad159e83 59-60,242-245
+go/internal/parser/javascript_dead_code_package_scripts_test.go
+  s_bdaf44668b73dc::t_d6ff9578cea484 1-59
+go/internal/parser/javascript_dead_code_node_roots_test.go
+  s_bdaf44668b73dc::t_34062ed651b9c5 344-388
+  s_bdaf44668b73dc::t_5db3d5c2d9d0d2 343,389-405,407-436
+  s_bdaf44668b73dc::t_effb0e85384849 406
+go/internal/storage/cypher/README.md
+  s_bdaf44668b73dc::t_04cbe54a2bd1e7 69-71,247-250
+go/internal/storage/cypher/semantic_entity_test.go
+  s_bdaf44668b73dc::t_0015b06f983ff9 336-374
+go/internal/query/code_dead_code_analysis.go
+  s_bdaf44668b73dc::t_8305c05ad3bf09 75
+  s_bdaf44668b73dc::t_300ce1310d3abb 60
+  s_bdaf44668b73dc::t_9946f0dc40b839 61
+go/internal/query/code_dead_code.go
+  s_bdaf44668b73dc::t_0ab79b7745ad7c 262-264,312-328
+  s_bdaf44668b73dc::t_f96340c587fb8a 372,376,381,383-390
+  s_bdaf44668b73dc::t_f6f7143793aff0 382,406-412
+  s_bdaf44668b73dc::t_f1a11e3a3abd99 75-77,83-90
+go/internal/query/code_dead_code_javascript_roots.go
+  s_bdaf44668b73dc::t_5d6af676f721c4 30
+  s_bdaf44668b73dc::t_e6fe3bc2921344 31-32
+  s_bdaf44668b73dc::t_3c412df68679fe 29
+go/internal/query/doc.go
+  s_bdaf44668b73dc::t_9ace085ed5a69f 16-18
+  s_bdaf44668b73dc::t_fb5cf2ddfbd5a3 13-15
+go/internal/storage/cypher/doc.go
+  s_bdaf44668b73dc::t_91969560a79aec 14-15
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_d63280a7c5f03c 144-148
+go/internal/query/code_dead_code_go_roots_test.go
+  s_bdaf44668b73dc::t_6c1c7c54f1386c 253-254
+  s_bdaf44668b73dc::t_b8e9837c986ac1 214,255-257
+docs/docs/reference/http-api.md
+  s_bdaf44668b73dc::t_e9eeb85c21f257 573-576
+go/internal/storage/cypher/semantic_entity_rows.go
+  s_bdaf44668b73dc::t_1cfb14a751c746 140,259-261,320
+  s_bdaf44668b73dc::t_08843abfbda906 107,281,285-319,321-325
+go/internal/query/openapi_paths_code.go
+  s_bdaf44668b73dc::t_de42ba7bc29ec5 284-287
+go/internal/reducer/semantic_entity_materialization_helpers.go
+  s_bdaf44668b73dc::t_354076a5d3eab9 20,350
+go/internal/storage/cypher/semantic_entity_statements.go
+  s_bdaf44668b73dc::t_35555a5795c2c0 224
+  s_bdaf44668b73dc::t_dcb7d3832b66b6 407
+go/internal/query/code_dead_code_javascript_exclusions_test.go
+  s_bdaf44668b73dc::t_f839ba303c6c48 1-15,17-30
+  s_bdaf44668b73dc::t_9d76fbcff1e004 16
+go/internal/storage/cypher/edge_writer_test.go
+  s_bdaf44668b73dc::t_40fe9106efe1af 222,225-226
+docs/docs/reference/dead-code-reachability-spec.md
+  s_bdaf44668b73dc::t_c9cf442321908c 191-193,198-201
+go/internal/query/code_dead_code_javascript_roots_test.go
+  s_bdaf44668b73dc::t_07bb7d6fc8ac76 234
+  s_bdaf44668b73dc::t_2104da70f17082 32-36,69-77
+  s_bdaf44668b73dc::t_f428409a4d5e92 157-160,189-191
+go/internal/parser/javascript_dead_code_roots.go
+  s_bdaf44668b73dc::t_1c344b1dedad04 163-165,170-195
+  s_bdaf44668b73dc::t_b715d15c8ca220 15,28,160-162,197-207,218-228
+  s_bdaf44668b73dc::t_00fc1b91cee3ad 147-150,325-332
+  s_bdaf44668b73dc::t_31fb29a0846137 208-217
+  s_bdaf44668b73dc::t_84a947553cfd44 196
+go/internal/parser/engine_javascript_call_metadata_test.go
+  s_bdaf44668b73dc::t_56a45988a67f56 190-218
+  s_bdaf44668b73dc::t_1e81d019dd64b7 115-189
+  s_bdaf44668b73dc::t_8435a4a21a4f79 76-114
+go/internal/reducer/code_call_materialization_typescript_type_reference_test.go
+  s_bdaf44668b73dc::t_b1f82b688a118b 153-216
+  s_bdaf44668b73dc::t_eba8926d9baf60 28-40,61-63,92-93
+  s_bdaf44668b73dc::t_7148cd917800bd 96-152
+  s_bdaf44668b73dc::t_d5d34083e12f03 1-27,41-60,64-91,94-95,217-231
+go/internal/parser/javascript_constructor_calls.go
+  s_bdaf44668b73dc::t_b2e218271c5717 15-26,33-51,95-101,107-111,114
+  s_bdaf44668b73dc::t_0d1d96e8ee3a42 61
+  s_bdaf44668b73dc::t_c6c11a7f491c5e 112-113,115-124
+  s_bdaf44668b73dc::t_3391c9ad6b39d8 13,27-32,57-60,62-79
+go/internal/query/code_dead_code_contract_test.go
+  s_bdaf44668b73dc::t_4b7a21e229b81a 655-737
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "2298787157f58f7b23a7d9457b4aee7d09eb2716",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
