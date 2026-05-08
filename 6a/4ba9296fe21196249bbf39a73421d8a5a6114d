@@ -1,0 +1,19 @@
+docs/superpowers/plans/2026-05-08-javascript-typescript-dead-code-maturity.md
+  s_bdaf44668b73dc::t_e67803e1b83102 1-607
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "6a4ba9296fe21196249bbf39a73421d8a5a6114d",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
