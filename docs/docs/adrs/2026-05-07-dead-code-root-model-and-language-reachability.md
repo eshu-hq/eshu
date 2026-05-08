@@ -269,9 +269,10 @@ Roll out exactness by language family, not by marketing claim.
 2. **Python:** module entrypoints, decorators, web/worker/CLI frameworks,
    imports, class methods, public package surfaces, and dynamic import
    ambiguity.
-3. **JavaScript/TypeScript/TSX:** ESM/CommonJS exports, Next.js, Express,
-   route handlers, class methods, framework callbacks, package public surface,
-   and dynamic property access ambiguity.
+3. **JavaScript/TypeScript/TSX:** Node package entrypoints, package `bin`
+   targets, package public exports, Hapi/lib-api-hapi handler exports,
+   ESM/CommonJS exports, Next.js, Express, route handlers, class methods,
+   framework callbacks, and dynamic property access ambiguity.
 4. **Rust/Java/C#/Scala/Swift/Kotlin:** traits/interfaces, annotations,
    exported/public symbols, package/module roots, framework callbacks, and
    compiler/indexer-backed semantics where available.
@@ -420,7 +421,8 @@ gates and backend conformance evidence justify promotion.
 - Go root and reachability tests cover function values, DI callbacks, local
   interfaces, method-set satisfaction, public API roots, and ambiguous dynamic
   cases.
-- Python and JavaScript/TypeScript keep their existing modeled roots and gain
+- Python and JavaScript/TypeScript keep their existing modeled roots, add
+  Node/Hapi parser-backed roots for the local service shape, and retain
   language-maturity metadata in the response.
 - All parser-supported source languages have explicit dead-code maturity rows:
   exact, derived, derived-candidate-only, or ambiguous-only.

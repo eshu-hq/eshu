@@ -107,6 +107,112 @@ func TestHandleDeadCodeExcludesJavaScriptFrameworkRootsFromMetadata(t *testing.T
 	}
 }
 
+func TestHandleDeadCodeExcludesJavaScriptNodeAndHapiRootsFromMetadata(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+				return []map[string]any{
+					{
+						"entity_id": "js-entry", "name": "bootstrap", "labels": []any{"Function"},
+						"file_path": "api-node-sample.ts", "repo_id": "repo-1", "repo_name": "api-node-sample", "language": "typescript",
+					},
+					{
+						"entity_id": "js-bin", "name": "runCli", "labels": []any{"Function"},
+						"file_path": "cli.ts", "repo_id": "repo-1", "repo_name": "api-node-sample", "language": "typescript",
+					},
+					{
+						"entity_id": "js-export", "name": "publicApi", "labels": []any{"Function"},
+						"file_path": "server/public-api.ts", "repo_id": "repo-1", "repo_name": "api-node-sample", "language": "typescript",
+					},
+					{
+						"entity_id": "js-export-class", "name": "PublicClient", "labels": []any{"Class"},
+						"file_path": "server/public-api.ts", "repo_id": "repo-1", "repo_name": "api-node-sample", "language": "typescript",
+					},
+					{
+						"entity_id": "js-hapi", "name": "post", "labels": []any{"Function"},
+						"file_path": "server/handlers/chat/response.ts", "repo_id": "repo-1", "repo_name": "api-node-sample", "language": "typescript",
+					},
+					{
+						"entity_id": "js-helper", "name": "unusedHelper", "labels": []any{"Function"},
+						"file_path": "server/private-helper.ts", "repo_id": "repo-1", "repo_name": "api-node-sample", "language": "typescript",
+					},
+				}, nil
+			},
+		},
+		Content: fakeDeadCodeContentStore{
+			entities: map[string]EntityContent{
+				"js-entry": {
+					EntityID: "js-entry", RelativePath: "api-node-sample.ts", EntityType: "Function", EntityName: "bootstrap", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.node_package_entrypoint"}},
+				},
+				"js-bin": {
+					EntityID: "js-bin", RelativePath: "cli.ts", EntityType: "Function", EntityName: "runCli", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.node_package_bin"}},
+				},
+				"js-export": {
+					EntityID: "js-export", RelativePath: "server/public-api.ts", EntityType: "Function", EntityName: "publicApi", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.node_package_export"}},
+				},
+				"js-export-class": {
+					EntityID: "js-export-class", RelativePath: "server/public-api.ts", EntityType: "Class", EntityName: "PublicClient", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.node_package_export"}},
+				},
+				"js-hapi": {
+					EntityID: "js-hapi", RelativePath: "server/handlers/chat/response.ts", EntityType: "Function", EntityName: "post", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.hapi_handler_export"}},
+				},
+				"js-helper": {
+					EntityID: "js-helper", RelativePath: "server/private-helper.ts", EntityType: "Function", EntityName: "unusedHelper", Language: "typescript",
+				},
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code",
+		bytes.NewBufferString(`{"repo_id":"repo-1"}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	results, ok := resp["results"].([]any)
+	if !ok {
+		t.Fatalf("results type = %T, want []any", resp["results"])
+	}
+	if got, want := len(results), 1; got != want {
+		t.Fatalf("len(results) = %d, want %d", got, want)
+	}
+	only, ok := results[0].(map[string]any)
+	if !ok {
+		t.Fatalf("results[0] type = %T, want map[string]any", results[0])
+	}
+	if got, want := only["entity_id"], "js-helper"; got != want {
+		t.Fatalf("results[0][entity_id] = %#v, want %#v", got, want)
+	}
+
+	analysis, ok := resp["analysis"].(map[string]any)
+	if !ok {
+		t.Fatalf("analysis type = %T, want map[string]any", resp["analysis"])
+	}
+	if got, want := analysis["framework_roots_from_parser_metadata"], float64(5); got != want {
+		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
+	}
+}
+
 func TestHandleDeadCodeJavaScriptRootsRemainDerivedMaturity(t *testing.T) {
 	t.Parallel()
 

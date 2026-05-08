@@ -8,6 +8,25 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
+type javaScriptDeadCodeEvidence struct {
+	registeredRootKinds map[string][]string
+	fileRootKinds       []string
+	hapiHandlerFile     bool
+}
+
+func javaScriptDeadCodeRootEvidence(
+	repoRoot string,
+	path string,
+	root *tree_sitter.Node,
+	source []byte,
+) javaScriptDeadCodeEvidence {
+	return javaScriptDeadCodeEvidence{
+		registeredRootKinds: javaScriptRegisteredDeadCodeRootKinds(root, source),
+		fileRootKinds:       javaScriptPackageFileRootKinds(repoRoot, path),
+		hapiHandlerFile:     javaScriptIsHapiHandlerFile(repoRoot, path),
+	}
+}
+
 var javaScriptRouteExportNames = map[string]struct{}{
 	"GET":     {},
 	"POST":    {},
@@ -106,11 +125,32 @@ func javaScriptDeadCodeRootKinds(
 	path string,
 	node *tree_sitter.Node,
 	name string,
-	registered map[string][]string,
+	source []byte,
+	evidence javaScriptDeadCodeEvidence,
 ) []string {
-	rootKinds := append([]string(nil), registered[strings.ToLower(strings.TrimSpace(name))]...)
+	rootKinds := append([]string(nil), evidence.registeredRootKinds[strings.ToLower(strings.TrimSpace(name))]...)
 	if javaScriptIsNextJSRouteExport(path, node, name) {
 		rootKinds = appendUniqueString(rootKinds, "javascript.nextjs_route_export")
+	}
+	for _, rootKind := range evidence.fileRootKinds {
+		switch rootKind {
+		case "javascript.node_package_entrypoint":
+			if javaScriptIsNodeEntrypointFunctionName(name) {
+				rootKinds = appendUniqueString(rootKinds, rootKind)
+			}
+		case "javascript.node_package_bin":
+			if javaScriptIsNodeBinFunctionName(name) {
+				rootKinds = appendUniqueString(rootKinds, rootKind)
+			}
+		case "javascript.node_package_export":
+			if javaScriptIsExported(node) || javaScriptIsCommonJSExport(node, name, source) {
+				rootKinds = appendUniqueString(rootKinds, rootKind)
+			}
+		}
+	}
+	if evidence.hapiHandlerFile && javaScriptIsHapiHandlerName(name) &&
+		(javaScriptIsExported(node) || javaScriptIsCommonJSExport(node, name, source)) {
+		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_handler_export")
 	}
 	slices.Sort(rootKinds)
 	return rootKinds
@@ -145,6 +185,78 @@ func javaScriptIsExported(node *tree_sitter.Node) bool {
 		}
 	}
 	return false
+}
+
+func javaScriptIsCommonJSExport(node *tree_sitter.Node, name string, source []byte) bool {
+	if strings.TrimSpace(name) == "" {
+		return false
+	}
+	for current := node; current != nil; current = current.Parent() {
+		if current.Kind() != "assignment_expression" {
+			continue
+		}
+		leftNode := current.ChildByFieldName("left")
+		exportName := javaScriptCommonJSExportName(leftNode, source)
+		return exportName == name
+	}
+	return false
+}
+
+func javaScriptCommonJSExportName(node *tree_sitter.Node, source []byte) string {
+	if node == nil || node.Kind() != "member_expression" {
+		return ""
+	}
+	objectNode := node.ChildByFieldName("object")
+	propertyNode := node.ChildByFieldName("property")
+	if objectNode == nil || propertyNode == nil {
+		return ""
+	}
+	objectText := strings.TrimSpace(nodeText(objectNode, source))
+	switch objectText {
+	case "module.exports":
+		return javaScriptIdentifierName(propertyNode, source)
+	case "exports":
+		return javaScriptIdentifierName(propertyNode, source)
+	default:
+		return ""
+	}
+}
+
+func javaScriptExportAssignmentNameNode(node *tree_sitter.Node, source []byte) *tree_sitter.Node {
+	if node == nil || node.Kind() != "member_expression" {
+		return nil
+	}
+	if javaScriptCommonJSExportName(node, source) == "" {
+		return nil
+	}
+	propertyNode := node.ChildByFieldName("property")
+	return cloneNode(propertyNode)
+}
+
+func javaScriptIsNodeEntrypointFunctionName(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "main", "bootstrap", "start", "run", "handler":
+		return true
+	default:
+		return false
+	}
+}
+
+func javaScriptIsNodeBinFunctionName(name string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(name))
+	if javaScriptIsNodeEntrypointFunctionName(normalized) {
+		return true
+	}
+	return strings.HasPrefix(normalized, "run") || strings.HasSuffix(normalized, "cli")
+}
+
+func javaScriptIsHapiHandlerName(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "get", "post", "put", "patch", "delete", "head", "options":
+		return true
+	default:
+		return false
+	}
 }
 
 func javaScriptMemberBaseAndProperty(node *tree_sitter.Node, source []byte) (string, string, bool) {

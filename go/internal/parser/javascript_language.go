@@ -9,6 +9,7 @@ import (
 )
 
 func (e *Engine) parseJavaScriptLike(
+	repoRoot string,
 	path string,
 	runtimeLanguage string,
 	outputLanguage string,
@@ -41,21 +42,21 @@ func (e *Engine) parseJavaScriptLike(
 	scope := options.normalizedVariableScope()
 	root := tree.RootNode()
 	reactAliases := javaScriptReactAliases(root, source, outputLanguage)
-	registeredRootKinds := javaScriptRegisteredDeadCodeRootKinds(root, source)
+	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source)
 
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration":
 			nameNode := node.ChildByFieldName("name")
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, registeredRootKinds)
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
 		case "generator_function_declaration":
 			nameNode := node.ChildByFieldName("name")
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, registeredRootKinds)
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
 		case "method_definition", "method_signature":
 			nameNode := node.ChildByFieldName("name")
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, registeredRootKinds)
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 		case "class_declaration", "abstract_class_declaration":
 			nameNode := node.ChildByFieldName("name")
 			name := nodeText(nameNode, source)
@@ -71,6 +72,9 @@ func (e *Engine) parseJavaScriptLike(
 			if outputLanguage != "javascript" {
 				classItem["decorators"] = javaScriptDecorators(node, source)
 				classItem["type_parameters"] = javaScriptTypeParameters(node, source)
+			}
+			if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
+				classItem["dead_code_root_kinds"] = rootKinds
 			}
 			appendBucket(payload, "classes", classItem)
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
@@ -91,6 +95,9 @@ func (e *Engine) parseJavaScriptLike(
 			}
 			if outputLanguage != "javascript" {
 				item["type_parameters"] = javaScriptTypeParameters(node, source)
+			}
+			if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
+				item["dead_code_root_kinds"] = rootKinds
 			}
 			appendBucket(payload, "interfaces", item)
 		case "type_alias_declaration":
@@ -126,7 +133,7 @@ func (e *Engine) parseJavaScriptLike(
 			}
 			valueNode := node.ChildByFieldName("value")
 			if isJavaScriptFunctionValue(valueNode) {
-				appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, registeredRootKinds)
+				appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 				maybeAppendJavaScriptComponent(payload, valueNode, nameNode, source, outputLanguage, reactAliases)
 				return
 			}
@@ -176,6 +183,17 @@ func (e *Engine) parseJavaScriptLike(
 				"line_number": nodeLine(node),
 				"lang":        outputLanguage,
 			})
+		case "assignment_expression":
+			leftNode := node.ChildByFieldName("left")
+			rightNode := node.ChildByFieldName("right")
+			if !isJavaScriptFunctionValue(rightNode) {
+				return
+			}
+			nameNode := javaScriptExportAssignmentNameNode(leftNode, source)
+			if nameNode == nil {
+				return
+			}
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 		case "jsx_opening_element", "jsx_self_closing_element":
 			if outputLanguage != "tsx" {
 				return
@@ -221,11 +239,12 @@ func (e *Engine) parseJavaScriptLike(
 }
 
 func (e *Engine) preScanJavaScriptLike(
+	repoRoot string,
 	path string,
 	runtimeLanguage string,
 	outputLanguage string,
 ) ([]string, error) {
-	payload, err := e.parseJavaScriptLike(path, runtimeLanguage, outputLanguage, false, Options{})
+	payload, err := e.parseJavaScriptLike(repoRoot, path, runtimeLanguage, outputLanguage, false, Options{})
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +265,7 @@ func appendFunctionDeclaration(
 	source []byte,
 	lang string,
 	options Options,
-	registeredRootKinds map[string][]string,
+	deadCodeRoots javaScriptDeadCodeEvidence,
 ) {
 	name := javaScriptFunctionName(nameNode, source)
 	if strings.TrimSpace(name) == "" {
@@ -268,7 +287,7 @@ func appendFunctionDeclaration(
 		"type_parameters": javaScriptTypeParameters(declarationNode, source),
 		"lang":            lang,
 	}
-	if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, registeredRootKinds); len(rootKinds) > 0 {
+	if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
 	if functionType := javaScriptFunctionKind(declarationNode, source); functionType != "" {

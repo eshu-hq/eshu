@@ -211,7 +211,7 @@ func (e *Engine) preScanOnePath(resolvedRepoRoot string, rawPath string) (preSca
 	case "haskell":
 		names, err = e.preScanHaskell(resolvedPath)
 	case "javascript":
-		names, err = e.preScanJavaScriptLike(resolvedPath, "javascript", "javascript")
+		names, err = e.preScanJavaScriptLike(resolvedRepoRoot, resolvedPath, "javascript", "javascript")
 	case "java":
 		names, err = e.preScanJava(resolvedPath)
 	case "kotlin":
@@ -235,9 +235,9 @@ func (e *Engine) preScanOnePath(resolvedRepoRoot string, rawPath string) (preSca
 	case "swift":
 		names, err = e.preScanSwift(resolvedPath)
 	case "tsx":
-		names, err = e.preScanJavaScriptLike(resolvedPath, "tsx", "tsx")
+		names, err = e.preScanJavaScriptLike(resolvedRepoRoot, resolvedPath, "tsx", "tsx")
 	case "typescript":
-		names, err = e.preScanJavaScriptLike(resolvedPath, "typescript", "typescript")
+		names, err = e.preScanJavaScriptLike(resolvedRepoRoot, resolvedPath, "typescript", "typescript")
 	default:
 		return preScanPathResult{}, nil
 	}
@@ -288,7 +288,7 @@ func (e *Engine) parseDefinition(
 	case "haskell":
 		return e.parseHaskell(resolvedPath, isDependency, options)
 	case "javascript":
-		return e.parseJavaScriptLike(resolvedPath, "javascript", "javascript", isDependency, options)
+		return e.parseJavaScriptLike(repoRoot, resolvedPath, "javascript", "javascript", isDependency, options)
 	case "json":
 		return e.parseJSON(resolvedPath, isDependency, options)
 	case "java":
@@ -318,9 +318,9 @@ func (e *Engine) parseDefinition(
 	case "swift":
 		return e.parseSwift(resolvedPath, isDependency, options)
 	case "tsx":
-		return e.parseJavaScriptLike(resolvedPath, "tsx", "tsx", isDependency, options)
+		return e.parseJavaScriptLike(repoRoot, resolvedPath, "tsx", "tsx", isDependency, options)
 	case "typescript":
-		return e.parseJavaScriptLike(resolvedPath, "typescript", "typescript", isDependency, options)
+		return e.parseJavaScriptLike(repoRoot, resolvedPath, "typescript", "typescript", isDependency, options)
 	case "raw_text":
 		return parseRawText(resolvedPath, isDependency), nil
 	case "yaml":

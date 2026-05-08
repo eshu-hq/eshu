@@ -106,7 +106,7 @@ Use these root-kind names unless a worker finds a better local convention:
 - Test: `go/internal/parser/javascript_dead_code_node_roots_test.go`
 - Test fixture updates under `tests/fixtures/deadcode/javascript` and `tests/fixtures/deadcode/typescript`
 
-- [ ] **Step 1: Write failing parser tests for package entry roots**
+- [x] **Step 1: Write failing parser tests for package entry roots**
 
 Add a test repository with:
 
@@ -133,7 +133,7 @@ go test ./internal/parser -run TestDefaultEngineParsePathJavaScriptPackageDeadCo
 
 Expected: FAIL because package metadata is not read yet.
 
-- [ ] **Step 2: Implement package metadata discovery**
+- [x] **Step 2: Implement package metadata discovery**
 
 Implementation rules:
 
@@ -143,11 +143,11 @@ Implementation rules:
 - Handle extensionless candidates by checking `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, `.cjs`, `.mts`, and `.cts`.
 - Ignore `dist/`, `build/`, and generated output unless source maps back to an authored source file in the fixture. This first chunk should root authored source entrypoints, not compiled output.
 
-- [ ] **Step 3: Emit root metadata**
+- [x] **Step 3: Emit root metadata**
 
 Attach root kinds to source entities only when evidence points at that source file or exported symbol. If the package points to `dist/api-node-jwt.js` and source has `api-node-jwt.ts`, root the source file entrypoint only when the basename relationship is direct and local tests prove it.
 
-- [ ] **Step 4: Re-run focused tests**
+- [x] **Step 4: Re-run focused tests**
 
 Run:
 
@@ -158,7 +158,7 @@ go test ./internal/parser -run 'TestDefaultEngineParsePathJavaScriptPackageDeadC
 
 Expected: PASS.
 
-- [ ] **Step 5: Add query exclusion test**
+- [x] **Step 5: Add query exclusion test**
 
 Add a failing query test that candidate rows with `javascript.node_package_entrypoint`, `javascript.node_package_bin`, and `javascript.node_package_export` are excluded and counted as parser metadata framework/public roots.
 
@@ -171,11 +171,11 @@ go test ./internal/query -run TestHandleDeadCodeExcludesJavaScriptPackageRoots -
 
 Expected before query change: FAIL.
 
-- [ ] **Step 6: Update query policy**
+- [x] **Step 6: Update query policy**
 
 Modify `deadCodeIsJavaScriptFrameworkRoot` or split a clearer `deadCodeIsJavaScriptRoot` helper so package roots are excluded by root metadata.
 
-- [ ] **Step 7: Verify**
+- [x] **Step 7: Verify**
 
 Run:
 
@@ -202,7 +202,7 @@ Expected: PASS.
 - Test: `go/internal/query/code_dead_code_javascript_hapi_roots_test.go`
 - Fixture: `tests/fixtures/deadcode/typescript-hapi` or expanded `tests/fixtures/deadcode/typescript`
 
-- [ ] **Step 1: Write failing parser tests for handler exports**
+- [x] **Step 1: Write failing parser tests for handler exports**
 
 Fixture shape:
 
@@ -238,7 +238,7 @@ export const post = async (request: Request) => request.payload;
 
 Assert `get` and `post` under the configured handlers directory receive `javascript.hapi_handler_export`.
 
-- [ ] **Step 2: Add CommonJS fixture**
+- [x] **Step 2: Add CommonJS fixture**
 
 Add:
 
@@ -249,7 +249,7 @@ module.exports.patch = async (request) => request.payload;
 
 Assert both exports receive `javascript.hapi_handler_export`.
 
-- [ ] **Step 3: Implement Hapi spec-plugin detection**
+- [x] **Step 3: Implement Hapi spec-plugin detection**
 
 Detection should require at least one strong signal:
 
@@ -258,7 +258,7 @@ Detection should require at least one strong signal:
 
 Resolve `path.join(__dirname, '../../handlers')` and `path.resolve(__dirname, '../../handlers')` conservatively. If resolution fails, do not root all handlers; emit ambiguity metadata later instead.
 
-- [ ] **Step 4: Implement handler export roots**
+- [x] **Step 4: Implement handler export roots**
 
 Root only exported HTTP method symbols under configured handler directories:
 
@@ -268,7 +268,7 @@ get, post, put, patch, delete, head, options
 
 Do not root every function in handler files. Helper functions inside handlers still need normal call/reference evidence.
 
-- [ ] **Step 5: Add query test and policy update**
+- [x] **Step 5: Add query test and policy update**
 
 Add a query test that `javascript.hapi_handler_export` excludes a candidate and appears in analysis root categories.
 
@@ -281,277 +281,23 @@ go test ./internal/parser ./internal/query -run 'Hapi|JavaScript.*Handler' -coun
 
 Expected: PASS after implementation.
 
-## Chunk 3: Static Import, Require, Re-export, And Barrel Reachability
-
-**Owner:** Subagent C.
-
-**Scope:** Improve static references so Eshu stops treating imported/exported symbols as dead when JS/TS code reaches them through module syntax. This chunk must stay conservative and avoid full bundler emulation.
-
-**Files:**
-
-- Create: `go/internal/parser/javascript_dead_code_modules.go`
-- Modify: `go/internal/parser/javascript_language.go`
-- Modify: `go/internal/parser/javascript_require.go`
-- Modify: `go/internal/query/code_dead_code_javascript_roots.go`
-- Test: `go/internal/parser/javascript_dead_code_module_roots_test.go`
-- Test: `go/internal/query/code_dead_code_javascript_module_roots_test.go`
-
-- [ ] **Step 1: Write failing parser tests for ESM imports**
-
-Fixture:
-
-```ts
-import { formatUser } from './format';
-import DefaultClient from './client';
-export { PublicThing } from './public-thing';
-export * from './barrel';
-
-formatUser('a');
-new DefaultClient();
-```
-
-Assert imported/re-exported symbols produce reference or root metadata sufficient to suppress false positives.
-
-- [ ] **Step 2: Write failing parser tests for CommonJS require**
-
-Fixture:
-
-```js
-const forex = require('../resources/forex');
-const { formatRate } = require('../resources/format');
-
-module.exports.get = async () => forex.getRates(formatRate());
-```
-
-Assert required members are referenced.
-
-- [ ] **Step 3: Implement static module evidence**
-
-Model:
-
-- `import x from './x'`
-- `import { x } from './x'`
-- `import * as x from './x'`
-- `require('./x')`
-- destructured `require`
-- `export { x } from './x'`
-- `export * from './x'`
-
-Rules:
-
-- Static relative imports can produce references.
-- Package imports should not root local source unless workspace/package metadata maps them to a local package.
-- Dynamic imports with non-literal arguments should emit ambiguity metadata, not roots.
-
-- [ ] **Step 4: Add query classification**
-
-If a candidate is excluded because parser metadata says it is statically imported or re-exported, report the root category in `analysis.modeled_framework_roots` or a better JavaScript-family root list.
-
-- [ ] **Step 5: Verify**
-
-Run:
-
-```bash
-cd go
-go test ./internal/parser ./internal/query -run 'JavaScript.*Module|TypeScript.*Module|Require|Reexport' -count=1
-```
-
-Expected: PASS.
-
-## Chunk 4: Dynamic Ambiguity And Framework Callback Markers
-
-**Owner:** Subagent D.
-
-**Scope:** Make uncertain JS/TS patterns explicit so results are useful without pretending to be exact.
-
-**Files:**
-
-- Modify: `go/internal/parser/javascript_dead_code_roots.go`
-- Create or modify: `go/internal/parser/javascript_dead_code_modules.go`
-- Modify: `go/internal/query/code_dead_code_classification.go`
-- Modify: `go/internal/query/code_dead_code_analysis.go`
-- Test: `go/internal/parser/javascript_dead_code_ambiguity_test.go`
-- Test: `go/internal/query/code_dead_code_javascript_ambiguity_test.go`
-
-- [ ] **Step 1: Write ambiguity tests**
-
-Cover:
-
-```ts
-await import(pluginName);
-handlers[method](request);
-container.register('name', Handler);
-server.events.on(eventName, callback);
-```
-
-Expected behavior:
-
-- dynamic imports with non-literal module specifiers become ambiguous evidence
-- computed property dispatch becomes ambiguous evidence
-- obvious event callback registration can root the named callback only when both emitter method and callback identifier are visible in the same file
-
-- [ ] **Step 2: Add metadata without suppressing too much**
-
-Prefer `dead_code_ambiguity_kinds` or similar metadata if existing result classification has a place for ambiguity. Do not hide all candidates in a file just because one dynamic expression appears.
-
-- [ ] **Step 3: Report ambiguity in analysis**
-
-API/MCP responses should include counts and categories so callers can see why truth remains `derived`.
-
-- [ ] **Step 4: Verify**
-
-Run:
-
-```bash
-cd go
-go test ./internal/parser ./internal/query -run 'JavaScript.*Ambigu|DeadCode.*Ambigu' -count=1
-```
-
-Expected: PASS.
-
-## Chunk 5: Fixture And API/MCP Proof Gate
-
-**Owner:** Subagent E.
-
-**Depends On:** Chunks 1 through 4.
-
-**Scope:** Turn JS/TS/TSX fixtures into enforced dead-code truth gates.
-
-**Files:**
-
-- Modify: `tests/fixtures/deadcode/README.md`
-- Modify: `tests/fixtures/deadcode/javascript/README.md`
-- Modify: `tests/fixtures/deadcode/typescript/README.md`
-- Modify: `tests/fixtures/deadcode/tsx/README.md`
-- Add fixture source files as needed
-- Add tests under `go/internal/query` or `go/cmd/eshu` for fixture-backed API/local proof
-
-- [ ] **Step 1: Normalize fixture intent**
-
-Each JS-family fixture must include:
-
-- truly unused symbol that should be reported
-- direct call/reference that should not be reported
-- Node package entrypoint
-- package public API export
-- Hapi handler export
-- Express or Next.js root where appropriate
-- static import and re-export
-- CommonJS require
-- generated/test exclusion
-- dynamic ambiguous case
-
-- [ ] **Step 2: Add parser fixture tests**
-
-Assert each fixture emits expected `dead_code_root_kinds` or ambiguity metadata.
-
-- [ ] **Step 3: Add query/API fixture tests**
-
-Assert:
-
-- known live symbols are not returned
-- known unused symbols are returned
-- generated/test symbols are excluded by default
-- ambiguous symbols carry explanation metadata
-- language maturity remains `derived`
-
-- [ ] **Step 4: Add MCP-shaped proof**
-
-Add or extend a local-authoritative test that exercises the same result envelope the MCP `find_dead_code` tool uses. It must require a bounded `repo_id` or workspace target and a limit.
-
-- [ ] **Step 5: Verify**
-
-Run:
-
-```bash
-cd go
-go test ./internal/parser ./internal/query ./cmd/eshu -run 'DeadCode.*JavaScript|DeadCode.*TypeScript|LocalAuthoritativeDeadCode' -count=1
-```
-
-Expected: PASS.
-
-## Chunk 6: Local Dogfood Against api-node Services
-
-**Owner:** Subagent F, or current-session coordinator after code slices merge.
-
-**Depends On:** Chunks 1 through 5.
-
-**Scope:** Prove the behavior on representative local service repos without requiring the full `/Users/allen/repos/services` tree in every developer environment.
-
-**Dogfood targets:**
-
-- `/Users/allen/repos/services/api-node-jwt`
-- `/Users/allen/repos/services/api-node-geo`
-- `/Users/allen/repos/services/api-node-ai-provider`
-- `/Users/allen/repos/services/api-node-chat`
-- `/Users/allen/repos/services/api-node-whisper`
-- `/Users/allen/repos/services/api-node-forex`
-
-These cover mixed JS/TS, Hapi handlers, plugin specs, resource modules, OpenAPI specs, generated clients, and larger service shape.
-
-- [ ] **Step 1: Capture discovery baselines**
-
-Run for each target:
-
-```bash
-eshu index /Users/allen/repos/services/api-node-jwt --discovery-report /tmp/eshu-api-node-jwt-before.json
-```
-
-Inspect:
-
-- `summary.content_files`
-- `summary.content_entities`
-- `top_noisy_directories`
-- generated/client directories
-- test/fixture directories
-
-- [ ] **Step 2: Run local-authoritative indexing**
-
-Before runtime proof:
-
-```bash
-./scripts/install-local-binaries.sh
-export PATH="$(go env GOPATH)/bin:$PATH"
-```
-
-Then index one repo at a time. Do not run compose verification lanes in parallel.
-
-- [ ] **Step 3: Query dead code through API/MCP shape**
-
-Use bounded calls:
-
-- scope by `repo_id`
-- set a small limit first
-- request summary/analysis metadata before large payloads
-- record duration and truncation
-
-Expected:
-
-- Hapi handlers such as `_status.get`, route `post`, and dynamic handler-file exports are not reported as dead only because no caller edge exists.
-- Resource helpers directly imported by handlers are not reported as dead.
-- Generated and test-owned symbols are excluded by default.
-- Dynamic registry cases are labeled ambiguous.
-
-- [ ] **Step 4: Capture false positives**
-
-For each repo, record a table:
-
-| Repo | Candidate | File | Why live/dead/ambiguous | Missing root kind |
-| --- | --- | --- | --- | --- |
-
-Only turn evidence-backed false positives into fixtures.
-
-- [ ] **Step 5: Performance acceptance**
-
-Record:
-
-- indexing wall time
-- dead-code query duration
-- result count
-- truncation state
-- whether source fallback was used
-
-The target is a bounded call that returns under the `code_quality.dead_code` local-authoritative envelope in `specs/capability-matrix.v1.yaml`.
+## Later Chunks
+
+Chunk 3 adds static ESM/CommonJS import, require, re-export, and barrel-file
+reachability. It owns `go/internal/parser/javascript_dead_code_modules.go` and
+must prove relative static imports without emulating a full bundler.
+
+Chunk 4 adds ambiguity metadata for dynamic imports, computed property
+dispatch, DI containers, and event callback registrations. It should explain
+uncertainty without hiding every candidate in the file.
+
+Chunk 5 upgrades JS/TS/TSX fixtures into enforced parser, query, API, and MCP
+proof. It must keep maturity at `derived` while exactness gates remain open.
+
+Chunk 6 dogfoods against representative local services:
+`api-node-jwt`, `api-node-geo`, `api-node-ai-provider`, `api-node-chat`,
+`api-node-whisper`, and `api-node-forex`. Each run must record discovery shape,
+query duration, result count, truncation, and evidence-backed false positives.
 
 ## Final Verification Gate
 
