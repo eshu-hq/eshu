@@ -326,7 +326,23 @@ then returned only 6 fresh candidates, all under `scripts/`, with no resource
 false positives. Local tsconfig evidence showed broad
 `compilerOptions.baseUrl: "."` usage and no common `compilerOptions.paths`
 usage in the sampled services, so this branch prioritized bounded baseUrl
-imports before custom path aliases.
+imports before custom path aliases. The private service names, local paths,
+repository IDs, package scopes, and customer-specific symbols are intentionally
+kept out of committed docs.
+
+## Final Evidence After PR #10
+
+The final Node/TypeScript maturity slice keeps JavaScript-family dead-code
+truth at `derived`. It is useful for triage, but it is not a cleanup-safe exact
+claim while dynamic imports, computed dispatch, runtime plugin loading, and
+unmodeled TypeScript path aliases remain open.
+
+| Lane | Scope | Evidence | Result |
+| --- | --- | --- | --- |
+| Parser and query roots | Node, JavaScript, TypeScript, TSX | Package entrypoints, package `bin`, package exports, Next.js routes, Express registrations, configured Hapi/lib-api-hapi handler exports, TypeScript interface implementation methods, and bounded static module references | Parser-backed roots are excluded from dead-code candidates and reported as derived root evidence |
+| MCP dogfood | Representative private Node/TypeScript service | Rebuilt local binaries, ran local-authoritative indexing, then called MCP `find_dead_code` | Fresh derived results, 3 parser metadata framework roots, 6 remaining candidates under `scripts/`, no resource-layer false positives |
+| Graph drilldown | Same private service, sanitized in committed notes | MCP `execute_cypher_query` checked handler/resource edges after namespace-import materialization increased calls from 19 to 24 | Expected edges appeared, including handler-to-resource and payload-to-health-check paths |
+| Privacy boundary | Local dogfood repositories | Evidence records only counts, result shape, tool names, and sanitized edge examples | Private repo names, local paths, repository IDs, package scopes, and customer-specific symbols are not committed |
 
 ## Final Verification Gate
 
@@ -367,7 +383,7 @@ PR 3:
 Use this prompt for each worker:
 
 ```text
-You are working in /Users/allen/personal-repos/eshu-hq/eshu on the docs/js-ts-dead-code-plan branch or its implementation successor branch.
+You are working in the Eshu repository on the docs/js-ts-dead-code-plan branch or its implementation successor branch.
 
 Read AGENTS.md, docs/docs/reference/dead-code-reachability-spec.md, docs/docs/adrs/2026-05-07-dead-code-root-model-and-language-reachability.md, and docs/superpowers/plans/2026-05-08-javascript-typescript-dead-code-maturity.md before editing.
 

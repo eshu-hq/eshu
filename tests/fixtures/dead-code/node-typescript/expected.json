@@ -52,7 +52,7 @@
     },
     {
       "id": "typescript-module-contract",
-      "name": "validatePayload",
+      "name": "validate",
       "entity_type": "Function",
       "language": "typescript",
       "path": "src/contracts.ts",
@@ -68,6 +68,36 @@
       "path": "src/registry.ts",
       "source_file": "src/registry.ts",
       "root_kinds": ["typescript.static_registry_member"],
+      "expected": "live"
+    },
+    {
+      "id": "hapi-handler-post",
+      "name": "post",
+      "entity_type": "Function",
+      "language": "typescript",
+      "path": "server/handlers/accounts.ts",
+      "source_file": "server/handlers/accounts.ts",
+      "root_kinds": ["javascript.hapi_handler_export"],
+      "expected": "live"
+    },
+    {
+      "id": "hapi-handler-get",
+      "name": "get",
+      "entity_type": "Function",
+      "language": "javascript",
+      "path": "server/handlers/status.js",
+      "source_file": "server/handlers/status.js",
+      "root_kinds": ["javascript.hapi_handler_export"],
+      "expected": "live"
+    },
+    {
+      "id": "hapi-handler-payload",
+      "name": "payload",
+      "entity_type": "Function",
+      "language": "javascript",
+      "path": "server/handlers/status.js",
+      "source_file": "server/handlers/status.js",
+      "root_kinds": ["javascript.hapi_handler_export"],
       "expected": "live"
     },
     {

@@ -128,11 +128,17 @@ when you are done.
 
 ## Use MCP with the local Eshu service
 
-If the local Eshu service is already running, a stdio MCP process can attach to
-it:
+If the local Eshu service is already running, MCP can attach to it over stdio:
 
 ```bash
 eshu mcp start --workspace-root /path/to/repo
+```
+
+For a local HTTP MCP endpoint backed by the same owner, pass an HTTP transport
+and bind address:
+
+```bash
+eshu mcp start --workspace-root /path/to/repo --transport http --host 127.0.0.1 --port 8081
 ```
 
 See [Local MCP](mcp-local.md) for client setup and the difference between local

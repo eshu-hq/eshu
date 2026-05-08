@@ -295,7 +295,7 @@ fix.
 | `eshu graph upgrade --from <source> [--sha256 <hex>] [--workspace-root <path>]` | Replace the managed process-mode graph binary from a binary path, tar archive, macOS package, or URL after the workspace graph is stopped. |
 | `eshu install nornicdb [--from <source>] [--sha256 <hex>] [--force] [--full]` | Install a verified latest-main NornicDB binary into the managed Eshu home for explicit process-mode testing. Normal embedded local mode does not require this command. Bare no-argument installs and `--full` are present in the CLI but reserved for a future accepted manifest policy. |
 | `eshu mcp setup` | Configure IDE and CLI MCP integrations. |
-| `eshu mcp start` | Start the MCP server. |
+| `eshu mcp start [--workspace-root <path>] [--transport stdio\|http\|sse] [--host <host>] [--port <port>]` | Start the MCP server. With `--workspace-root`, stdio attaches through the local owner path, while `http` and legacy `sse` attach to the running local Eshu service and bind the MCP HTTP transport on the requested host and port. |
 | `eshu mcp tools` | List MCP tools. |
 | `eshu api start` | Start the HTTP API server. |
 | `eshu serve start` | Start the HTTP API runtime convenience process. Use `eshu mcp start` for MCP. |

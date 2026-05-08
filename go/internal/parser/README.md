@@ -56,8 +56,8 @@ language-specific adapter function (e.g. `parseGo`, `parsePython`,
 `parseKotlin`). Language adapters may attach semantic metadata such as
 `dead_code_root_kinds` when syntax proves an entrypoint, framework callback,
 function-value callback, JavaScript package export, CommonJS default export,
-CommonJS mixin method export, configured Hapi handler or route-reference
-export, Next.js app or route export, Express/Koa/Fastify/NestJS callback root,
+CommonJS mixin method export, configured Hapi handler or exported route-array
+handler reference, Next.js app or route export, Express/Koa/Fastify/NestJS callback root,
 Node migration export, TypeScript module-contract export, TypeScript public
 method on a class that declares `implements`, or TypeScript package public API
 surface proven through a nearest-package `exports` or `types` target and a
@@ -75,7 +75,9 @@ Package-level roots are resolved from the nearest owning `package.json`, so
 nested workspaces can expose
 their own entrypoints, `bin` targets, and package exports without depending on
 the repository root manifest. Hapi handler roots search from the owning
-service/package root before falling back to repository-root conventions. After
+service/package root before falling back to repository-root conventions, and
+route arrays recognize both `config.handler` and `options.handler` as mounted
+handler references. After
 the language adapter returns,
 `inferContentMetadata` sets `artifact_type`, `template_dialect`, and
 `iac_relevant` on the payload. The final payload also carries `repo_path`.
@@ -249,7 +251,8 @@ errors are surfaced in `collector snapshot stage completed` logs with
   referenced by composite literals. JavaScript-family roots cover Node package
   entrypoints, package `bin` targets, package public exports from the nearest
   owning package manifest, exported functions under Hapi-style handler
-  directories, Hapi plugin `register` methods, Next.js app and route exports,
+  directories, Hapi plugin `register` methods, Hapi exported route arrays with
+  direct, `config`, or `options` handlers, Next.js app and route exports,
   Node migration `up`/`down` exports, TypeScript module-contract exports, and
   TypeScript public methods on classes that declare `implements` when bounded
   local evidence proves the root. TypeScript public surface roots also cover

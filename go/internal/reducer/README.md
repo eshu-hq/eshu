@@ -133,6 +133,9 @@ aliases, CommonJS property requires such as `require("./x").handler`, CommonJS
 `module.exports` self-aliases, tsconfig `baseUrl` `resolved_source` metadata,
 one bounded hop through static relative re-export barrels, and dynamic
 JavaScript imports whose runtime `.js` specifiers point at TypeScript source.
+Qualified JavaScript-family calls that match an imported namespace resolve the
+imported target before trying same-file trailing-name matches, so controller and
+model functions with the same method name do not collapse into self-calls.
 Constructor calls, local receiver type metadata, returned function-value
 references, TypeScript type references, and Function prototype receiver calls
 such as `callback.call(...)` let `new Type()`, `value.method()`, type-only
@@ -227,6 +230,15 @@ Key construction functions:
   SHA256 intent ID matching the Python implementation.
 - `BuildProjectionRows`, `BuildProjectionRowsWithInfrastructurePlatforms` —
   `projection.go:233, 243`.
+
+In-memory runtime types used by focused reducer tests:
+
+- `Runtime` — `runtime.go:55` — bounded in-memory reducer queue over a
+  `Registry`.
+- `Result`, `RunReport`, `Stats`, and `DomainStats` — `runtime.go:10`,
+  `runtime.go:20`, `runtime.go:29`, `runtime.go:40` — terminal execution
+  outcome, one-run drain summary, and queue/domain snapshots returned by
+  `Runtime.RunOnce` and `Runtime.Stats`.
 
 Domain and intent helpers:
 

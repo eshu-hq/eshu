@@ -4,7 +4,8 @@
 // The binary registers root flags (`--database`, `--visual`, `--version`,
 // `-v`) and a tree of subcommands covering local indexing (`index`, `list`, `watch`, `query`,
 // `stats`), service launch (`mcp start`, `api start`, `serve`), authenticated
-// local Eshu service commands (`graph` — `stop` handles both `local_lightweight`
+// local Eshu service commands (`graph` — `mcp start --workspace-root` can attach
+// stdio or HTTP MCP transports to the active local owner; `stop` handles both `local_lightweight`
 // and `local_authoritative` profiles; lightweight stop verifies the owner
 // socket before signaling; stale lightweight and authoritative stops use
 // owner.lock before stopping recorded Postgres children and removing metadata;

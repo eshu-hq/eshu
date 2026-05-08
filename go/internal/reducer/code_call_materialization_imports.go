@@ -87,6 +87,22 @@ func resolveGenericCallee(
 	fileData map[string]any,
 	call map[string]any,
 ) (string, string) {
+	language := codeCallLanguage(call, rawPath, relativePath)
+	if codeCallPrefersImportedQualifiedTarget(call, language) {
+		if entityID, calleeFile := resolveImportedCrossFileCallee(
+			index,
+			repositoryImports,
+			reexportIndex,
+			repositoryID,
+			rawPath,
+			relativePath,
+			fileData,
+			call,
+		); entityID != "" {
+			return entityID, calleeFile
+		}
+	}
+
 	callLine := codeCallInt(call["line_number"], call["ref_line"])
 	if entityID := resolveSameFileScopedCalleeEntityID(index, rawPath, relativePath, call, callLine); entityID != "" {
 		return entityID, codeCallPreferredPath(rawPath, relativePath)
@@ -98,7 +114,6 @@ func resolveGenericCallee(
 		return entityID, codeCallPreferredPath(rawPath, relativePath)
 	}
 
-	language := codeCallLanguage(call, rawPath, relativePath)
 	if language == "go" && !codeCallHasQualifiedScope(call, language) {
 		if entityID := resolveGoSameDirectoryCalleeEntityID(index, repositoryID, rawPath, relativePath, call, language); entityID != "" {
 			return entityID, index.entityFileByID[entityID]
@@ -127,6 +142,10 @@ func resolveGenericCallee(
 		fileData,
 		call,
 	)
+}
+
+func codeCallPrefersImportedQualifiedTarget(call map[string]any, language string) bool {
+	return codeCallJavaScriptFamily(language) && codeCallHasQualifiedFullName(anyToString(call["full_name"]))
 }
 
 func resolveGoSameDirectoryCalleeEntityID(

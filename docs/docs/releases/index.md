@@ -5,5 +5,6 @@ runtime, deployment defaults, or published artifacts.
 
 ## Releases
 
-- [v0.0.2](v0.0.2.md) - Dead-code finding matures for Go, local runtime behavior
-  gets faster again, and release artifacts move to the `v0.0.2` tag.
+- [v0.0.2](v0.0.2.md) - Dead-code finding matures for Go and Node/TypeScript,
+  local runtime behavior gets faster again, and release artifacts move to the
+  `v0.0.2` tag.

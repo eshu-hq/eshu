@@ -54,6 +54,12 @@ launched runtime via the shared `telemetry` package. Errors print to
 - `SilenceUsage` and `SilenceErrors` are set on the root command
 - `eshu graph start` requires `eshu-reducer` and `eshu-ingester` on `PATH`;
   fresh local Eshu service runs need `go/bin` on `PATH` after rebuilding
+- `eshu mcp start --workspace-root <repo>` attaches to the active local owner.
+  The stdio path execs the internal `local-host mcp-stdio` attach command, while
+  `--transport http` and legacy `--transport sse` exec `eshu-mcp-server` with
+  the owner-derived Postgres DSN, graph backend, graph URI, and workspace
+  credentials. HTTP attach fails fast if the owner record, Postgres socket, or
+  graph backend health probe is not ready.
 - `eshu graph start` acquires `owner.lock` through the local host startup path
   before embedded Postgres starts. If an earlier shutdown removed `owner.json`
   but left a live workspace `postmaster.pid`, startup verifies PID liveness,

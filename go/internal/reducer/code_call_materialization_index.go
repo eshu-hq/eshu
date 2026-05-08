@@ -362,10 +362,10 @@ func resolveSameFileScopedCalleeEntityID(
 		return ""
 	}
 	language := codeCallLanguage(call, rawPath, relativePath)
-	callNames := append(
-		codeCallExactCandidateNames(call, language),
-		codeCallBroadCandidateNames(call, language)...,
-	)
+	callNames := codeCallExactCandidateNames(call, language)
+	if !codeCallPrefersImportedQualifiedTarget(call, language) {
+		callNames = append(callNames, codeCallBroadCandidateNames(call, language)...)
+	}
 	for _, pathKey := range codeCallPathKeys(rawPath, relativePath) {
 		caller := codeFunctionSpan{}
 		for _, span := range index.spansByPath[pathKey] {

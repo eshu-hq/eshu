@@ -1,3 +1,5 @@
+export const RULE_NAME = "fixture-contract";
+
 export interface ResponseAdapter {
   createResponse(input: string): string;
 }
@@ -8,6 +10,6 @@ export class JsonResponseAdapter implements ResponseAdapter {
   }
 }
 
-export function validatePayload(input: unknown): boolean {
+export function validate(input: unknown): boolean {
   return typeof input === "object" && input !== null;
 }
