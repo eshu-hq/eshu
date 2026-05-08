@@ -1,0 +1,104 @@
+{
+  "cases": [
+    {
+      "id": "next-route-get",
+      "name": "GET",
+      "entity_type": "Function",
+      "language": "typescript",
+      "path": "app/api/accounts/route.ts",
+      "source_file": "app/api/accounts/route.ts",
+      "root_kinds": ["javascript.nextjs_route_export"],
+      "expected": "live"
+    },
+    {
+      "id": "node-package-entrypoint",
+      "name": "bootstrap",
+      "entity_type": "Function",
+      "language": "typescript",
+      "path": "src/runtime.ts",
+      "source_file": "src/runtime.ts",
+      "root_kinds": ["javascript.node_package_entrypoint"],
+      "expected": "live"
+    },
+    {
+      "id": "node-package-bin",
+      "name": "runCli",
+      "entity_type": "Function",
+      "language": "typescript",
+      "path": "src/cli.ts",
+      "source_file": "src/cli.ts",
+      "root_kinds": ["javascript.node_package_bin"],
+      "expected": "live"
+    },
+    {
+      "id": "node-package-export",
+      "name": "createClient",
+      "entity_type": "Function",
+      "language": "typescript",
+      "path": "src/public-api.ts",
+      "source_file": "src/public-api.ts",
+      "root_kinds": ["javascript.node_package_export"],
+      "expected": "live"
+    },
+    {
+      "id": "typescript-interface-implementation",
+      "name": "createResponse",
+      "entity_type": "Function",
+      "language": "typescript",
+      "path": "src/contracts.ts",
+      "source_file": "src/contracts.ts",
+      "root_kinds": ["typescript.interface_method_implementation"],
+      "expected": "live"
+    },
+    {
+      "id": "typescript-module-contract",
+      "name": "validatePayload",
+      "entity_type": "Function",
+      "language": "typescript",
+      "path": "src/contracts.ts",
+      "source_file": "src/contracts.ts",
+      "root_kinds": ["typescript.module_contract_export"],
+      "expected": "live"
+    },
+    {
+      "id": "typescript-static-registry-member",
+      "name": "dispatchRegisteredEvent",
+      "entity_type": "Function",
+      "language": "typescript",
+      "path": "src/registry.ts",
+      "source_file": "src/registry.ts",
+      "root_kinds": ["typescript.static_registry_member"],
+      "expected": "live"
+    },
+    {
+      "id": "production-dead-helper",
+      "name": "unusedLegacyTransform",
+      "entity_type": "Function",
+      "language": "typescript",
+      "path": "src/legacy.ts",
+      "source_file": "src/legacy.ts",
+      "root_kinds": [],
+      "expected": "dead"
+    },
+    {
+      "id": "test-only-reference",
+      "name": "factoryOnlyUsedFromSpec",
+      "entity_type": "Function",
+      "language": "typescript",
+      "path": "src/test-only-reference.ts",
+      "source_file": "src/test-only-reference.ts",
+      "root_kinds": [],
+      "expected": "dead"
+    },
+    {
+      "id": "test-owned-helper",
+      "name": "makeAccountFixture",
+      "entity_type": "Function",
+      "language": "typescript",
+      "path": "src/account.test.ts",
+      "source_file": "src/account.test.ts",
+      "root_kinds": [],
+      "expected": "excluded"
+    }
+  ]
+}

@@ -66,9 +66,12 @@ candidate classifications are visible in the response body. Unsupported
 languages such as JSON package-script metadata are suppressed from cleanup
 results before classification. The analysis block also names modeled framework
 roots such as JavaScript package exports, Hapi-style handler exports, Next.js
-exports, Node migration exports, TypeScript module-contract exports, and
-TypeScript interface implementation methods, which lets MCP and CLI callers
-explain why a candidate was suppressed. The graph query applies cheap path and
+exports, Express/Koa/Fastify/NestJS callbacks, Node migration exports,
+TypeScript module-contract exports, and TypeScript interface implementation
+methods. It also reports static TypeScript registry members when parser
+metadata proves an exported object registry holds the same-file function value.
+That lets MCP and CLI callers explain why a candidate was suppressed. The graph
+query applies cheap path and
 scope filters from `deadCodeGraphPolicyPredicate` before `scanDeadCodeCandidates`
 does content-backed policy checks. Small display limits still get the full
 10,000-row scan window, so a narrow MCP request does not become incomplete just

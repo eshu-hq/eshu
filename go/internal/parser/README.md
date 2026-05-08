@@ -57,15 +57,20 @@ language-specific adapter function (e.g. `parseGo`, `parsePython`,
 `dead_code_root_kinds` when syntax proves an entrypoint, framework callback,
 function-value callback, JavaScript package export, CommonJS default export,
 CommonJS mixin method export, configured Hapi handler or route-reference
-export, Next.js app or route export, Node migration export, TypeScript
-module-contract export, or TypeScript public method on a class that declares
-`implements`.
+export, Next.js app or route export, Express/Koa/Fastify/NestJS callback root,
+Node migration export, TypeScript module-contract export, TypeScript public
+method on a class that declares `implements`, or TypeScript package public API
+surface proven through a nearest-package `exports` or `types` target and a
+static one-hop re-export.
+Exported TypeScript object registries also mark same-file function values as
+`typescript.static_registry_member`; private registries do not create roots.
 JavaScript-family adapters also preserve import alias metadata, CommonJS
-`module.exports` self-aliases, JSONC tsconfig `baseUrl` `resolved_source`
-metadata even when the config uses comments or trailing commas, returned
-function-value references, static relative re-export metadata, constructor
-calls, and local receiver type metadata from `const value = new Type()` so
-reducer call materialization can resolve bounded cross-file calls.
+`module.exports` self-aliases, JSONC tsconfig `baseUrl` and `paths`
+`resolved_source` metadata even when the config uses comments or trailing
+commas, returned function-value references, static relative re-export metadata,
+constructor calls, and local receiver type metadata from
+`const value = new Type()` so reducer call materialization can resolve bounded
+cross-file calls.
 Package-level roots are resolved from the nearest owning `package.json`, so
 nested workspaces can expose
 their own entrypoints, `bin` targets, and package exports without depending on
@@ -247,13 +252,16 @@ errors are surfaced in `collector snapshot stage completed` logs with
   directories, Hapi plugin `register` methods, Next.js app and route exports,
   Node migration `up`/`down` exports, TypeScript module-contract exports, and
   TypeScript public methods on classes that declare `implements` when bounded
-  local evidence proves the root. JavaScript-family import metadata preserves namespace
-  aliases, JSONC tsconfig `baseUrl` resolved sources with comments and
-  trailing commas accepted, and one-hop static relative re-exports used by
-  reducer call materialization. Dynamic reflection, build-tag-specific
-  reachability, custom TypeScript `paths`, multi-hop barrel graphs,
-  package-manager resolution, and computed dispatch still need query-side
-  ambiguity handling.
+  local evidence proves the root. TypeScript public surface roots also cover
+  package `exports` or `types` targets that statically re-export same-repo
+  declarations through one barrel hop, including declaration-only `*.d.ts`
+  barrels and `tsconfig.json` `paths` aliases that resolve to local files.
+  JavaScript-family import metadata preserves namespace aliases, JSONC
+  tsconfig `baseUrl` and `paths` resolved sources with comments and trailing
+  commas accepted, and one-hop static relative re-exports used by reducer call
+  materialization. Dynamic reflection, build-tag-specific reachability,
+  multi-hop barrel graphs, package-manager resolution, and computed dispatch
+  still need query-side ambiguity handling.
 - `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form.
   Passing a relative path produces an absolute resolved path in the payload's
   `repo_path` field; this is correct behavior but callers should pass absolute

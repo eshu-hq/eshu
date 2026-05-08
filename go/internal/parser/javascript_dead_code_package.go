@@ -3,6 +3,7 @@ package parser
 import (
 	"encoding/json"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -128,17 +129,30 @@ func javaScriptPackageScriptTargets(scripts map[string]string) []string {
 	targets := []string{}
 	for _, command := range scripts {
 		for _, token := range strings.Fields(command) {
-			target := strings.Trim(token, `"'`)
-			if target == "" || strings.HasPrefix(target, "-") {
-				continue
-			}
-			switch filepath.Ext(target) {
-			case ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts":
+			if target, ok := javaScriptPackageScriptTokenTarget(token); ok {
 				targets = append(targets, target)
 			}
 		}
 	}
 	return targets
+}
+
+func javaScriptPackageScriptTokenTarget(token string) (string, bool) {
+	target := strings.Trim(strings.TrimSpace(token), `"'`)
+	if target == "" || strings.HasPrefix(target, "-") || strings.Contains(target, "=") || strings.Contains(target, "*") {
+		return "", false
+	}
+	if strings.Contains(target, "://") {
+		return "", false
+	}
+	switch filepath.Ext(target) {
+	case ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts":
+		return target, true
+	}
+	if strings.HasPrefix(target, "./") || strings.HasPrefix(target, "../") || strings.Contains(filepath.ToSlash(target), "/") {
+		return target, true
+	}
+	return "", false
 }
 
 func javaScriptPackageExportTargets(exports any) []string {
@@ -169,11 +183,19 @@ func javaScriptPackageTargetMatchesSource(target string, relativeSourcePath stri
 		return false
 	}
 	for _, candidate := range javaScriptPackageSourceCandidates(target) {
-		if candidate == relativeSourcePath {
+		if javaScriptPackageSourceCandidateMatches(candidate, relativeSourcePath) {
 			return true
 		}
 	}
 	return false
+}
+
+func javaScriptPackageSourceCandidateMatches(candidate string, relativeSourcePath string) bool {
+	if !strings.Contains(candidate, "*") {
+		return candidate == relativeSourcePath
+	}
+	matched, err := path.Match(candidate, relativeSourcePath)
+	return err == nil && matched
 }
 
 func normalizeJavaScriptPackageTarget(target string) string {
@@ -193,13 +215,19 @@ func javaScriptPackageSourceCandidates(target string) []string {
 	}
 	candidates := []string{target}
 	withoutBuildDir := target
-	for _, prefix := range []string{"dist/", "build/"} {
+	for _, prefix := range []string{"dist/", "build/", "lib/"} {
 		withoutBuildDir = strings.TrimPrefix(withoutBuildDir, prefix)
 	}
 	candidates = appendUniqueString(candidates, withoutBuildDir)
+	if !strings.HasPrefix(withoutBuildDir, "src/") {
+		candidates = appendUniqueString(candidates, "src/"+withoutBuildDir)
+	}
 	withoutExtension := strings.TrimSuffix(withoutBuildDir, filepath.Ext(withoutBuildDir))
 	for _, extension := range []string{".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"} {
 		candidates = appendUniqueString(candidates, withoutExtension+extension)
+		if !strings.HasPrefix(withoutExtension, "src/") {
+			candidates = appendUniqueString(candidates, "src/"+withoutExtension+extension)
+		}
 	}
 	return candidates
 }

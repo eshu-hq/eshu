@@ -115,7 +115,7 @@ func (e *Engine) parseJavaScriptLike(
 			if strings.TrimSpace(name) == "" {
 				return
 			}
-			appendBucket(payload, "type_aliases", javaScriptTypeAliasItem(node, nameNode, source, outputLanguage))
+			appendBucket(payload, "type_aliases", javaScriptTypeAliasItem(node, nameNode, source, outputLanguage, deadCodeRoots))
 		case "enum_declaration":
 			if outputLanguage == "javascript" {
 				return
@@ -125,12 +125,16 @@ func (e *Engine) parseJavaScriptLike(
 			if strings.TrimSpace(name) == "" {
 				return
 			}
-			appendBucket(payload, "enums", map[string]any{
+			item := map[string]any{
 				"name":        name,
 				"line_number": nodeLine(nameNode),
 				"end_line":    nodeEndLine(node),
 				"lang":        outputLanguage,
-			})
+			}
+			if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
+				item["dead_code_root_kinds"] = rootKinds
+			}
+			appendBucket(payload, "enums", item)
 		case "variable_declarator":
 			nameNode := node.ChildByFieldName("name")
 			name := nodeText(nameNode, source)
