@@ -332,8 +332,8 @@ scoped, cancellable, observable, and cheap to fail.
 
 Before designing or running a potentially expensive read:
 
-- resolve the canonical scope first (`repo_id`, workload id, service id, or
-  explicit environment); do not default to the whole graph when a local scope is
+- resolve the canonical scope first (`repo_id`, `workload_id`, `service_id`, or
+  `environment`); do not default to the whole graph when a local scope is
   available
 - require a `limit`, timeout, deterministic ordering, and `truncated` signal for
   list-style tools

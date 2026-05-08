@@ -3,7 +3,7 @@ name: eshu-mcp-call-rigor
 description: Use when calling Eshu MCP/API tools, debugging local Eshu MCP connectivity, designing or reviewing MCP tool schemas, or running graph-backed query tools where scope, pagination, timeout, stale local owner ports, truth labels, or payload size affect correctness and performance.
 ---
 
-# Eshu MCP Call Rigor
+# eshu-mcp-call-rigor
 
 Use this skill before any Eshu MCP/API call that might query the graph, read the
 content store, or return a list of results. The goal is a correct answer through
@@ -13,8 +13,8 @@ a call shape that is bounded, scoped, and diagnosable.
 
 Every list or search tool should have:
 
-- canonical scope such as `repo_id`, workload id, service id, environment, or an
-  explicit `scope`
+- canonical scope such as `repo_id`, `workload_id`, `service_id`,
+  `environment`, or an explicit `scope`
 - required or defaulted `limit`
 - deterministic ordering
 - server-side timeout or cancellation path
