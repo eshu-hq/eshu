@@ -11,6 +11,7 @@ import (
 type javaScriptDeadCodeEvidence struct {
 	registeredRootKinds map[string][]string
 	fileRootKinds       []string
+	hapiControllerFile  bool
 	hapiHandlerFile     bool
 	hapiPluginFile      bool
 }
@@ -21,10 +22,37 @@ func javaScriptDeadCodeRootEvidence(
 	root *tree_sitter.Node,
 	source []byte,
 ) javaScriptDeadCodeEvidence {
+	hapiHandlerFile := javaScriptIsHapiHandlerFile(repoRoot, path)
+	registeredRootKinds := javaScriptRegisteredDeadCodeRootKinds(root, source)
+	mergeJavaScriptRegisteredRootKinds(
+		registeredRootKinds,
+		javaScriptHapiPluginRegisterAliasRootKinds(root, source),
+	)
+	if javaScriptIsHapiPluginFile(repoRoot, path) {
+		mergeJavaScriptRegisteredRootKinds(
+			registeredRootKinds,
+			javaScriptDefaultObjectExportAliasRootKinds(root, source, "register", "javascript.hapi_plugin_register"),
+		)
+	}
+	mergeJavaScriptRegisteredRootKinds(
+		registeredRootKinds,
+		javaScriptCommonJSDefaultExportAliasRootKinds(root, source),
+	)
+	if hapiHandlerFile {
+		mergeJavaScriptRegisteredRootKinds(
+			registeredRootKinds,
+			javaScriptCommonJSExportAliasRootKinds(root, source, "javascript.hapi_handler_export"),
+		)
+		mergeJavaScriptRegisteredRootKinds(
+			registeredRootKinds,
+			javaScriptTypeScriptExportAssignmentAliasRootKinds(root, source, "javascript.hapi_handler_export"),
+		)
+	}
 	return javaScriptDeadCodeEvidence{
-		registeredRootKinds: javaScriptRegisteredDeadCodeRootKinds(root, source),
+		registeredRootKinds: registeredRootKinds,
 		fileRootKinds:       javaScriptPackageFileRootKinds(repoRoot, path),
-		hapiHandlerFile:     javaScriptIsHapiHandlerFile(repoRoot, path),
+		hapiControllerFile:  javaScriptIsHapiControllerFile(repoRoot, path),
+		hapiHandlerFile:     hapiHandlerFile,
 		hapiPluginFile:      javaScriptIsHapiPluginFile(repoRoot, path),
 	}
 }
@@ -131,8 +159,20 @@ func javaScriptDeadCodeRootKinds(
 	evidence javaScriptDeadCodeEvidence,
 ) []string {
 	rootKinds := append([]string(nil), evidence.registeredRootKinds[strings.ToLower(strings.TrimSpace(name))]...)
+	if classNode, className := javaScriptConstructorClass(node, name, source); classNode != nil {
+		rootKinds = appendRegisteredJavaScriptRootKinds(rootKinds, className, evidence)
+		for _, rootKind := range evidence.fileRootKinds {
+			if rootKind == "javascript.node_package_export" &&
+				(javaScriptIsExported(classNode) || javaScriptIsCommonJSExport(classNode, className, source)) {
+				rootKinds = appendUniqueString(rootKinds, rootKind)
+			}
+		}
+	}
 	if javaScriptIsNextJSRouteExport(path, node, name) {
 		rootKinds = appendUniqueString(rootKinds, "javascript.nextjs_route_export")
+	}
+	if javaScriptIsNextJSAppExport(path, node) {
+		rootKinds = appendUniqueString(rootKinds, "javascript.nextjs_app_export")
 	}
 	for _, rootKind := range evidence.fileRootKinds {
 		switch rootKind {
@@ -157,14 +197,61 @@ func javaScriptDeadCodeRootKinds(
 	if evidence.hapiHandlerFile && (javaScriptIsExported(node) || javaScriptIsCommonJSExport(node, name, source)) {
 		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_handler_export")
 	}
-	if evidence.hapiPluginFile && javaScriptIsHapiPluginRegister(node, name) {
+	if javaScriptIsCommonJSMixinExport(node, name, source) {
+		rootKinds = appendUniqueString(rootKinds, "javascript.commonjs_mixin_export")
+	}
+	if javaScriptIsHapiPluginRegister(node, name, source, evidence.hapiPluginFile) {
 		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_plugin_register")
+	}
+	if javaScriptIsHapiRouteConfigHandler(node, name, source) {
+		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_route_config_handler")
+	}
+	if javaScriptIsNodeSeedExecute(path, node, name, source) {
+		rootKinds = appendUniqueString(rootKinds, "javascript.node_seed_execute")
+	}
+	if javaScriptIsNodeMigrationExport(path, node, name) {
+		rootKinds = appendUniqueString(rootKinds, "javascript.node_migration_export")
+	}
+	if javaScriptIsHapiAMQPConsumer(path, node, name, source) {
+		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_amqp_consumer")
+	}
+	if javaScriptIsHapiProxyCallback(node, name, source) {
+		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_proxy_callback")
 	}
 	if javaScriptIsTypeScriptInterfaceImplementationMethod(node, name, source) {
 		rootKinds = appendUniqueString(rootKinds, "typescript.interface_method_implementation")
 	}
+	if javaScriptIsTypeScriptModuleContractExport(node, name, source) {
+		rootKinds = appendUniqueString(rootKinds, "typescript.module_contract_export")
+	}
 	slices.Sort(rootKinds)
 	return rootKinds
+}
+
+func appendRegisteredJavaScriptRootKinds(rootKinds []string, name string, evidence javaScriptDeadCodeEvidence) []string {
+	for _, rootKind := range evidence.registeredRootKinds[strings.ToLower(strings.TrimSpace(name))] {
+		rootKinds = appendUniqueString(rootKinds, rootKind)
+	}
+	return rootKinds
+}
+
+func javaScriptConstructorClass(node *tree_sitter.Node, name string, source []byte) (*tree_sitter.Node, string) {
+	if node == nil || node.Kind() != "method_definition" || strings.TrimSpace(name) != "constructor" {
+		return nil, ""
+	}
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		switch current.Kind() {
+		case "class_declaration", "abstract_class_declaration":
+			className := nodeText(current.ChildByFieldName("name"), source)
+			if strings.TrimSpace(className) == "" {
+				return nil, ""
+			}
+			return current, className
+		case "program":
+			return nil, ""
+		}
+	}
+	return nil, ""
 }
 
 func javaScriptIsTypeScriptInterfaceImplementationMethod(node *tree_sitter.Node, name string, source []byte) bool {
@@ -201,10 +288,21 @@ func javaScriptIsHapiPluginFile(repoRoot string, path string) bool {
 	if !ok {
 		relativePath = filepath.ToSlash(path)
 	}
-	return strings.Contains(relativePath, "/server/init/plugins/") || strings.HasPrefix(relativePath, "server/init/plugins/")
+	return strings.Contains(relativePath, "/server/init/plugins/") ||
+		strings.HasPrefix(relativePath, "server/init/plugins/") ||
+		strings.Contains(relativePath, "/server/init/hapi-") ||
+		strings.HasPrefix(relativePath, "server/init/hapi-")
 }
 
-func javaScriptIsHapiPluginRegister(node *tree_sitter.Node, name string) bool {
+func javaScriptIsHapiControllerFile(repoRoot string, path string) bool {
+	relativePath, ok := relativeSlashPath(repoRoot, path)
+	if !ok {
+		relativePath = filepath.ToSlash(path)
+	}
+	return strings.Contains(relativePath, "/server/controllers/") || strings.HasPrefix(relativePath, "server/controllers/")
+}
+
+func javaScriptIsHapiPluginRegister(node *tree_sitter.Node, name string, source []byte, hapiPluginFile bool) bool {
 	if strings.ToLower(strings.TrimSpace(name)) != "register" || node == nil {
 		return false
 	}
@@ -215,6 +313,12 @@ func javaScriptIsHapiPluginRegister(node *tree_sitter.Node, name string) bool {
 			return false
 		}
 	default:
+		return false
+	}
+	if javaScriptPairInsideCommonJSPluginObject(node, source) {
+		return true
+	}
+	if !hapiPluginFile {
 		return false
 	}
 	for current := node.Parent(); current != nil; current = current.Parent() {
@@ -247,6 +351,24 @@ func javaScriptIsNextJSRouteModule(path string) bool {
 	}
 }
 
+func javaScriptIsNodeSeedExecute(path string, node *tree_sitter.Node, name string, source []byte) bool {
+	relativePath := filepath.ToSlash(path)
+	if !strings.Contains(relativePath, "/seed/") && !strings.HasPrefix(relativePath, "seed/") &&
+		!strings.Contains(relativePath, "/seeds/") && !strings.HasPrefix(relativePath, "seeds/") {
+		return false
+	}
+	return strings.TrimSpace(name) == "execute" && javaScriptIsCommonJSExport(node, name, source)
+}
+
+func javaScriptIsHapiAMQPConsumer(path string, node *tree_sitter.Node, name string, source []byte) bool {
+	relativePath := filepath.ToSlash(path)
+	if !strings.Contains(relativePath, "/server/resources/consumers/") &&
+		!strings.HasPrefix(relativePath, "server/resources/consumers/") {
+		return false
+	}
+	return strings.TrimSpace(name) == "consume" && javaScriptIsCommonJSExport(node, name, source)
+}
+
 func javaScriptIsExported(node *tree_sitter.Node) bool {
 	for current := node; current != nil; current = current.Parent() {
 		switch current.Kind() {
@@ -257,52 +379,6 @@ func javaScriptIsExported(node *tree_sitter.Node) bool {
 		}
 	}
 	return false
-}
-
-func javaScriptIsCommonJSExport(node *tree_sitter.Node, name string, source []byte) bool {
-	if strings.TrimSpace(name) == "" {
-		return false
-	}
-	for current := node; current != nil; current = current.Parent() {
-		if current.Kind() != "assignment_expression" {
-			continue
-		}
-		leftNode := current.ChildByFieldName("left")
-		exportName := javaScriptCommonJSExportName(leftNode, source)
-		return exportName == name
-	}
-	return false
-}
-
-func javaScriptCommonJSExportName(node *tree_sitter.Node, source []byte) string {
-	if node == nil || node.Kind() != "member_expression" {
-		return ""
-	}
-	objectNode := node.ChildByFieldName("object")
-	propertyNode := node.ChildByFieldName("property")
-	if objectNode == nil || propertyNode == nil {
-		return ""
-	}
-	objectText := strings.TrimSpace(nodeText(objectNode, source))
-	switch objectText {
-	case "module.exports":
-		return javaScriptIdentifierName(propertyNode, source)
-	case "exports":
-		return javaScriptIdentifierName(propertyNode, source)
-	default:
-		return ""
-	}
-}
-
-func javaScriptExportAssignmentNameNode(node *tree_sitter.Node, source []byte) *tree_sitter.Node {
-	if node == nil || node.Kind() != "member_expression" {
-		return nil
-	}
-	if javaScriptCommonJSExportName(node, source) == "" {
-		return nil
-	}
-	propertyNode := node.ChildByFieldName("property")
-	return cloneNode(propertyNode)
 }
 
 func javaScriptIsNodeEntrypointFunctionName(name string) bool {

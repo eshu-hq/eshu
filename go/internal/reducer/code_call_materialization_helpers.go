@@ -52,6 +52,17 @@ func codeCallExactCandidateNames(call map[string]any, language string) []string 
 	fullName := anyToString(call["full_name"])
 	if codeCallHasQualifiedFullName(fullName) {
 		appendName(fullName)
+		if codeCallJavaScriptFamily(language) && strings.HasPrefix(fullName, "module.exports.") {
+			appendName(codeCallTrailingName(fullName))
+		}
+		if codeCallJavaScriptFamily(language) {
+			for _, receiver := range codeCallJavaScriptFunctionReceiverNames(fullName) {
+				appendName(receiver)
+				if strings.HasPrefix(receiver, "module.exports.") {
+					appendName(codeCallTrailingName(receiver))
+				}
+			}
+		}
 	}
 	classContext := codeCallClassContext(call["class_context"])
 	if classContext != "" && strings.TrimSpace(name) != "" {
@@ -73,6 +84,25 @@ func codeCallExactCandidateNames(call map[string]any, language string) []string 
 		appendName(contextName + "." + name)
 	}
 	return names
+}
+
+func codeCallJavaScriptFunctionReceiverNames(fullName string) []string {
+	fullName = strings.TrimSpace(fullName)
+	for _, method := range []string{".call", ".apply", ".bind"} {
+		if receiver, ok := strings.CutSuffix(fullName, method); ok && strings.TrimSpace(receiver) != "" {
+			return []string{receiver}
+		}
+	}
+	return nil
+}
+
+func codeCallJavaScriptFamily(language string) bool {
+	switch strings.ToLower(strings.TrimSpace(language)) {
+	case "javascript", "jsx", "typescript", "tsx":
+		return true
+	default:
+		return false
+	}
 }
 
 func codeCallBroadCandidateNames(call map[string]any, language string) []string {

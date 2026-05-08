@@ -19,8 +19,13 @@ func javaScriptRequireImportEntries(
 	nameNode := node.ChildByFieldName("name")
 	valueNode := node.ChildByFieldName("value")
 	moduleSource, ok := javaScriptRequireModuleSource(valueNode, source)
+	requirePropertyName := ""
 	if !ok {
-		return nil
+		var propertyOK bool
+		moduleSource, requirePropertyName, propertyOK = javaScriptRequireMemberModuleSource(valueNode, source)
+		if !propertyOK {
+			return nil
+		}
 	}
 
 	fullImportName := fmt.Sprintf("const %s = require(%q)", strings.TrimSpace(nodeText(nameNode, source)), moduleSource)
@@ -31,6 +36,20 @@ func javaScriptRequireImportEntries(
 		localName := strings.TrimSpace(nodeText(nameNode, source))
 		if localName == "" {
 			return nil
+		}
+		if requirePropertyName != "" {
+			item := map[string]any{
+				"name":             requirePropertyName,
+				"source":           moduleSource,
+				"import_type":      "require",
+				"full_import_name": fullImportName,
+				"line_number":      lineNumber,
+				"lang":             lang,
+			}
+			if localName != requirePropertyName {
+				item["alias"] = localName
+			}
+			return []map[string]any{item}
 		}
 		return []map[string]any{{
 			"name":             "*",
@@ -46,6 +65,23 @@ func javaScriptRequireImportEntries(
 	default:
 		return nil
 	}
+}
+
+func javaScriptRequireMemberModuleSource(node *tree_sitter.Node, source []byte) (string, string, bool) {
+	if node == nil || node.Kind() != "member_expression" {
+		return "", "", false
+	}
+	objectNode := node.ChildByFieldName("object")
+	propertyNode := node.ChildByFieldName("property")
+	moduleSource, ok := javaScriptRequireModuleSource(objectNode, source)
+	if !ok {
+		return "", "", false
+	}
+	propertyName := javaScriptIdentifierName(propertyNode, source)
+	if propertyName == "" {
+		return "", "", false
+	}
+	return moduleSource, propertyName, true
 }
 
 func javaScriptRequireModuleSource(node *tree_sitter.Node, source []byte) (string, bool) {

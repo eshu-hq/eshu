@@ -65,7 +65,8 @@ Code dead-code queries add an analysis pass over graph rows so parser-provided
 candidate classifications are visible in the response body. Unsupported
 languages such as JSON package-script metadata are suppressed from cleanup
 results before classification. The analysis block also names modeled framework
-roots such as JavaScript package exports, Hapi-style handler exports, and
+roots such as JavaScript package exports, Hapi-style handler exports, Next.js
+exports, Node migration exports, TypeScript module-contract exports, and
 TypeScript interface implementation methods, which lets MCP and CLI callers
 explain why a candidate was suppressed. The response separates display
 truncation from bounded raw candidate-scan truncation so callers know whether
@@ -220,8 +221,12 @@ wired in `cmd/api/wiring.go`, not here.
   can distinguish actionable unused symbols from excluded or ambiguous ones.
   Go root-kind evidence covers function roots and type roots, including
   `go.type_reference` and `go.interface_implementation_type`. JavaScript-family
-  analysis must list Node package, Hapi-style, and TypeScript interface
-  implementation roots when query policy suppresses those candidates.
+  analysis must list Node package, CommonJS default export, CommonJS mixin,
+  Next.js, Node migration, Hapi-style, TypeScript module-contract, and
+  TypeScript interface implementation roots when query policy suppresses those
+  candidates.
+  The handler scans raw graph candidates in bounded pages before policy
+  exclusions, and reports `candidate_scan_pages` plus `candidate_scan_rows`.
   `display_truncated` and `candidate_scan_truncated` must stay separate so
   performance bounds do not blur result-list pagination with raw scan coverage.
   Unsupported language metadata and repository-root

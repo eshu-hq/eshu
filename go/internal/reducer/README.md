@@ -129,14 +129,20 @@ canonical `CALLS` edges. Native parser calls resolve in this order: same-file
 symbols, Go same-directory symbols, repository-unique symbols, then imported
 cross-file symbols when the prescan import map proves the target file. For
 JavaScript-family files, import resolution also honors parser-proven namespace
-aliases, tsconfig `baseUrl` `resolved_source` metadata, and one bounded hop
-through static relative re-export barrels. Constructor calls and local receiver
-type metadata let `new Type()` and `value.method()` resolve to class and method
-entities when parser evidence proves the local type. For package entrypoint,
-package bin, and package export files, top-level calls may use the repository
-scoped `File.uid` as the caller so executable module bodies can make `main()`,
-constructor, and member calls reachable without treating every library module as
-a root. The Go same-directory step applies to functions and type entities from
+aliases, CommonJS property requires such as `require("./x").handler`, CommonJS
+`module.exports` self-aliases, tsconfig `baseUrl` `resolved_source` metadata,
+one bounded hop through static relative re-export barrels, and dynamic
+JavaScript imports whose runtime `.js` specifiers point at TypeScript source.
+Constructor calls, local receiver type metadata, returned function-value
+references, TypeScript type references, and Function prototype receiver calls
+such as `callback.call(...)` let `new Type()`, `value.method()`, type-only
+imports, callback returns, and function receiver dispatch resolve when parser
+evidence proves the local target. For package entrypoint, package bin, package
+export, and top-level JavaScript reference files, the repository scoped
+`File.uid` may be the caller so executable module bodies can make `main()`,
+constructor, member, function-value, and type-reference edges reachable without
+treating every library module as a root. The Go same-directory step applies to functions
+and type entities from
 `structs` and `interfaces`; command packages commonly reuse local helper names
 such as `wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name
 resolution must stay ambiguous in that case.

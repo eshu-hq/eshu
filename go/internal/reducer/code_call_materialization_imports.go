@@ -162,10 +162,6 @@ func resolveImportedCrossFileCallee(
 	call map[string]any,
 ) (string, string) {
 	importEntries := mapSlice(fileData["imports"])
-	if len(importEntries) == 0 {
-		return "", ""
-	}
-
 	for _, target := range codeCallImportedTargets(importEntries, call) {
 		language := codeCallLanguage(call, rawPath, relativePath)
 		if len(repositoryImports) > 0 {
@@ -232,6 +228,10 @@ func codeCallImportedTargets(
 		})
 	}
 
+	if source := codeCallDynamicImportSource(callFullName); source != "" {
+		appendTarget(callName, source)
+	}
+
 	for _, entry := range importEntries {
 		entryName := strings.TrimSpace(anyToString(entry["name"]))
 		entryAlias := strings.TrimSpace(anyToString(entry["alias"]))
@@ -269,6 +269,31 @@ func codeCallImportedTargets(
 	}
 
 	return targets
+}
+
+func codeCallDynamicImportSource(fullName string) string {
+	fullName = strings.TrimSpace(fullName)
+	if fullName == "" || !strings.Contains(fullName, "import(") {
+		return ""
+	}
+	start := strings.Index(fullName, "import(")
+	if start < 0 {
+		return ""
+	}
+	remainder := fullName[start+len("import("):]
+	remainder = strings.TrimLeft(remainder, " \t\n\r")
+	if remainder == "" {
+		return ""
+	}
+	quote := remainder[0]
+	if quote != '\'' && quote != '"' {
+		return ""
+	}
+	end := strings.IndexByte(remainder[1:], quote)
+	if end < 0 {
+		return ""
+	}
+	return strings.TrimSpace(remainder[1 : 1+end])
 }
 
 func codeCallImportEntrySources(entry map[string]any) []string {
@@ -352,6 +377,12 @@ func codeCallImportSourceCandidates(
 			appendCandidate(basePath + ext)
 			appendCandidate(filepath.Join(basePath, "index"+ext))
 		}
+		if withoutJSExt := codeCallTrimJavaScriptRuntimeExtension(basePath); withoutJSExt != "" {
+			for _, ext := range []string{".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"} {
+				appendCandidate(withoutJSExt + ext)
+				appendCandidate(filepath.Join(withoutJSExt, "index"+ext))
+			}
+		}
 		if language == "python" {
 			appendCandidate(basePath + ".py")
 			appendCandidate(filepath.Join(basePath, "__init__.py"))
@@ -368,6 +399,15 @@ func codeCallImportSourceCandidates(
 	}
 
 	return candidates
+}
+
+func codeCallTrimJavaScriptRuntimeExtension(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".js", ".jsx", ".mjs", ".cjs":
+		return strings.TrimSuffix(path, filepath.Ext(path))
+	default:
+		return ""
+	}
 }
 
 func codeCallRepositoryRoot(rawPath string, relativePath string) string {

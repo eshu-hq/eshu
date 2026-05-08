@@ -281,10 +281,12 @@ const openAPIPathsCode = `
                   "properties": {
                     "repo_id": {"type": "string"},
                     "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean", "description": "True when either displayed results were clipped to limit or the bounded raw candidate scan reached its scan cap."},
+                    "truncated": {"type": "boolean", "description": "True when either displayed results were clipped to limit or the bounded paged raw candidate scan reached its scan cap."},
                     "display_truncated": {"type": "boolean", "description": "True when filtered display results exceeded limit and were clipped."},
-                    "candidate_scan_truncated": {"type": "boolean", "description": "True when the raw graph candidate scan reached candidate_scan_limit before policy exclusions were applied."},
-                    "candidate_scan_limit": {"type": "integer", "description": "Raw graph candidate scan cap used before dead-code policy exclusions."},
+                    "candidate_scan_truncated": {"type": "boolean", "description": "True when the paged raw graph candidate scan reached candidate_scan_limit before exhausting graph candidates."},
+                    "candidate_scan_limit": {"type": "integer", "description": "Maximum raw graph rows the bounded dead-code scan may inspect before policy exclusions."},
+                    "candidate_scan_pages": {"type": "integer", "description": "Number of raw graph pages read before returning results."},
+                    "candidate_scan_rows": {"type": "integer", "description": "Number of raw graph candidate rows inspected before policy exclusions."},
                     "results": {
                       "type": "array",
                       "items": {

@@ -655,8 +655,9 @@ func TestHandleDeadCodeFetchesPolicyBufferBeforeApplyingLimit(t *testing.T) {
 func TestHandleDeadCodeDistinguishesDisplayAndCandidateScanTruncation(t *testing.T) {
 	t.Parallel()
 
-	rawCandidates := make([]map[string]any, 0, deadCodeCandidateQueryLimit(2))
-	for i := 0; i < deadCodeCandidateQueryLimit(2)-1; i++ {
+	scanLimit := deadCodeCandidateScanLimit(2)
+	rawCandidates := make([]map[string]any, 0, scanLimit)
+	for i := 0; i < scanLimit-1; i++ {
 		rawCandidates = append(rawCandidates, map[string]any{
 			"entity_id": "public-api", "name": "PublicAPI", "labels": []any{"Function"},
 			"file_path": "pkg/payments/api.go", "repo_id": "repo-1", "repo_name": "payments", "language": "go",
@@ -670,8 +671,23 @@ func TestHandleDeadCodeDistinguishesDisplayAndCandidateScanTruncation(t *testing
 	handler := &CodeHandler{
 		Profile: ProfileLocalAuthoritative,
 		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
-				return rawCandidates, nil
+			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+				offset, ok := params["skip"].(int)
+				if !ok {
+					t.Fatalf("params[skip] type = %T, want int", params["skip"])
+				}
+				limit, ok := params["limit"].(int)
+				if !ok {
+					t.Fatalf("params[limit] type = %T, want int", params["limit"])
+				}
+				if offset >= len(rawCandidates) {
+					return nil, nil
+				}
+				end := offset + limit
+				if end > len(rawCandidates) {
+					end = len(rawCandidates)
+				}
+				return rawCandidates[offset:end], nil
 			},
 		},
 		Content: fakeDeadCodeContentStore{
@@ -730,7 +746,7 @@ func TestHandleDeadCodeDistinguishesDisplayAndCandidateScanTruncation(t *testing
 	if got, want := resp["candidate_scan_truncated"], true; got != want {
 		t.Fatalf("resp[candidate_scan_truncated] = %#v, want %#v", got, want)
 	}
-	if got, want := resp["candidate_scan_limit"], float64(deadCodeCandidateQueryLimit(2)); got != want {
+	if got, want := resp["candidate_scan_limit"], float64(scanLimit); got != want {
 		t.Fatalf("resp[candidate_scan_limit] = %#v, want %#v", got, want)
 	}
 }

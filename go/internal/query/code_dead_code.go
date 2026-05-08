@@ -23,6 +23,7 @@ const (
 	deadCodeCandidateQueryMultiplier = 10
 	deadCodeCandidateQueryMin        = 501
 	deadCodeCandidateQueryMax        = 1000
+	deadCodeCandidateScanMaxPages    = 10
 )
 
 // handleDeadCode finds graph-backed dead-code candidates and then applies the
@@ -57,37 +58,24 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	candidateLimit := deadCodeCandidateQueryLimit(req.Limit)
-	rows, err := h.Neo4j.Run(r.Context(), buildDeadCodeGraphCypher(req.RepoID != "", h.graphBackend()), deadCodeGraphParams(req.RepoID, candidateLimit))
+	scan, err := h.scanDeadCodeCandidates(r.Context(), req)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	results, contentByID, err := h.buildDeadCodeResults(r.Context(), rows)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	results, policyStats := filterDeadCodeResultsByDefaultPolicy(results, contentByID)
-	classifyDeadCodeResults(results, contentByID)
-	results = filterResultsByDecoratorExclusions(results, req.ExcludeDecoratedWith)
-	candidateScanTruncated := len(rows) >= candidateLimit
-	displayTruncated := len(results) > req.Limit
-	truncated := candidateScanTruncated || displayTruncated
-	if len(results) > req.Limit {
-		results = results[:req.Limit]
-	}
+	truncated := scan.CandidateScanTruncated || scan.DisplayTruncated
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"repo_id":                  req.RepoID,
 		"limit":                    req.Limit,
 		"truncated":                truncated,
-		"display_truncated":        displayTruncated,
-		"candidate_scan_truncated": candidateScanTruncated,
-		"candidate_scan_limit":     candidateLimit,
-		"results":                  results,
-		"analysis":                 buildDeadCodeAnalysis(results, req.ExcludeDecoratedWith, policyStats),
+		"display_truncated":        scan.DisplayTruncated,
+		"candidate_scan_truncated": scan.CandidateScanTruncated,
+		"candidate_scan_limit":     scan.CandidateScanLimit,
+		"candidate_scan_pages":     scan.CandidateScanPages,
+		"candidate_scan_rows":      scan.CandidateScanRows,
+		"results":                  scan.Results,
+		"analysis":                 buildDeadCodeAnalysis(scan.Results, req.ExcludeDecoratedWith, scan.PolicyStats),
 	}, BuildTruthEnvelope(h.profile(), "code_quality.dead_code", TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
 }
 
@@ -113,7 +101,8 @@ func buildDeadCodeGraphCypher(hasRepoID bool, backend GraphBackend) string {
 		       e.start_line as start_line,
 		       e.end_line as end_line,
 ` + graphSemanticMetadataProjection() + `
-		ORDER BY f.relative_path, e.name
+		ORDER BY f.relative_path, e.name, coalesce(e.id, e.uid)
+		SKIP $skip
 		LIMIT $limit
 	`
 	return cypher
@@ -136,8 +125,12 @@ func deadCodeCandidateQueryLimit(displayLimit int) int {
 	return candidateLimit
 }
 
-func deadCodeGraphParams(repoID string, limit int) map[string]any {
-	params := map[string]any{"limit": limit}
+func deadCodeCandidateScanLimit(displayLimit int) int {
+	return deadCodeCandidateQueryLimit(displayLimit) * deadCodeCandidateScanMaxPages
+}
+
+func deadCodeGraphParams(repoID string, limit int, skip int) map[string]any {
+	params := map[string]any{"limit": limit, "skip": skip}
 	if strings.TrimSpace(repoID) != "" {
 		params["repo_id"] = strings.TrimSpace(repoID)
 	}

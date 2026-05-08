@@ -315,9 +315,6 @@ func extractGenericCodeCallRows(
 		if callerID == "" {
 			callerID = resolveFileRootCodeCallCallerID(repositoryID, relativePath, fileData)
 		}
-		if callerID == "" {
-			continue
-		}
 		calleeID, calleeFilePath := resolveGenericCallee(
 			entityIndex,
 			repositoryID,
@@ -329,6 +326,20 @@ func extractGenericCodeCallRows(
 			edge,
 		)
 		if calleeID == "" {
+			continue
+		}
+		if callerID == "" {
+			callerID = resolveJavaScriptTopLevelReferenceCallerID(repositoryID, callerFilePath, edge)
+		}
+		if callerID == "" {
+			callerID = resolveSameFileTopLevelCodeCallCallerID(
+				repositoryID,
+				callerFilePath,
+				calleeFilePath,
+				edge,
+			)
+		}
+		if callerID == "" {
 			continue
 		}
 
@@ -451,82 +462,6 @@ func resolveConstructorMethodCalleeID(index codeEntityIndex, calleeFilePath stri
 	for _, pathKey := range codeCallPathKeys(calleeFilePath, "") {
 		if entityID := index.constructorByPath[pathKey][className]; entityID != "" {
 			return entityID
-		}
-	}
-	return ""
-}
-
-// resolveFileRootCodeCallCallerID returns the file path identity for top-level
-// calls in JavaScript package-root files. This keeps executable module bodies
-// visible to dead-code reachability without treating every library module's
-// top-level expressions as roots.
-func resolveFileRootCodeCallCallerID(repositoryID string, relativePath string, fileData map[string]any) string {
-	language := anyToString(fileData["language"])
-	if language == "" {
-		language = anyToString(fileData["lang"])
-	}
-	switch strings.ToLower(language) {
-	case "javascript", "jsx", "typescript", "tsx":
-	default:
-		return ""
-	}
-	for _, rootKind := range toStringSlice(fileData["dead_code_file_root_kinds"]) {
-		switch rootKind {
-		case "javascript.node_package_entrypoint", "javascript.node_package_bin", "javascript.node_package_script", "javascript.node_package_export":
-			if repositoryID == "" || relativePath == "" {
-				return ""
-			}
-			return repositoryID + ":" + normalizeCodeCallPath(relativePath)
-		}
-	}
-	return ""
-}
-
-// codeCallRelationshipType maps parser call-like metadata to the canonical
-// relationship that truthfully describes the edge.
-func codeCallRelationshipType(edge map[string]any) string {
-	switch anyToString(edge["call_kind"]) {
-	case "go.composite_literal_type_reference":
-		return "REFERENCES"
-	case "typescript.type_reference":
-		return "REFERENCES"
-	default:
-		return ""
-	}
-}
-
-// codeCallRowKey deduplicates type references by entity pair because repeated
-// literal sites do not carry distinct reachability truth.
-func codeCallRowKey(repositoryID string, callerID string, calleeID string, relationshipType string, line int) string {
-	if relationshipType == "REFERENCES" {
-		return repositoryID + "|" + callerID + "|" + calleeID + "|" + relationshipType
-	}
-	return repositoryID + "|" + callerID + "|" + calleeID + "|" + fmt.Sprintf("%d", line)
-}
-
-func resolveContainingCodeEntityID(
-	index codeEntityIndex,
-	rawPath string,
-	relativePath string,
-	line int,
-) string {
-	var (
-		bestEntityID string
-		bestWidth    int
-	)
-	for _, pathKey := range codeCallPathKeys(rawPath, relativePath) {
-		for _, span := range index.containersByPath[pathKey] {
-			if line < span.startLine || line > span.endLine {
-				continue
-			}
-			width := span.endLine - span.startLine
-			if bestEntityID == "" || width < bestWidth {
-				bestEntityID = span.entityID
-				bestWidth = width
-			}
-		}
-		if bestEntityID != "" {
-			return bestEntityID
 		}
 	}
 	return ""

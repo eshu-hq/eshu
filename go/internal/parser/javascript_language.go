@@ -46,6 +46,7 @@ func (e *Engine) parseJavaScriptLike(
 	if len(deadCodeRoots.fileRootKinds) > 0 {
 		payload["dead_code_file_root_kinds"] = append([]string(nil), deadCodeRoots.fileRootKinds...)
 	}
+	commonJSModuleAliases := javaScriptCommonJSModuleExportAliases(root, source)
 	tsConfigImports := newJavaScriptTSConfigImportResolver(repoRoot, path)
 	newExpressionTypes := javaScriptNewExpressionVariableTypes(root, source)
 
@@ -176,6 +177,9 @@ func (e *Engine) parseJavaScriptLike(
 			nameNode := node.ChildByFieldName("key")
 			valueNode := node.ChildByFieldName("value")
 			if !isJavaScriptFunctionValue(valueNode) {
+				if item := javaScriptHapiRouteHandlerReferenceCall(node, nameNode, valueNode, source, outputLanguage, deadCodeRoots); item != nil {
+					appendBucket(payload, "function_calls", item)
+				}
 				return
 			}
 			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
@@ -195,7 +199,10 @@ func (e *Engine) parseJavaScriptLike(
 			if strings.TrimSpace(name) == "" {
 				return
 			}
-			fullName := javaScriptCallFullName(functionNode, source)
+			fullName := rewriteJavaScriptCommonJSModuleExportAliasFullName(
+				javaScriptCallFullName(functionNode, source),
+				commonJSModuleAliases,
+			)
 			item := map[string]any{
 				"name":        name,
 				"full_name":   fullName,
@@ -212,6 +219,9 @@ func (e *Engine) parseJavaScriptLike(
 				}
 			}
 			appendBucket(payload, "function_calls", item)
+			for _, reference := range javaScriptFunctionValueReferenceCalls(node, source, outputLanguage, commonJSModuleAliases) {
+				appendBucket(payload, "function_calls", reference)
+			}
 		case "new_expression":
 			constructorName, constructorFullName := javaScriptNewExpressionConstructorName(node, source)
 			if constructorName == "" {
@@ -224,6 +234,11 @@ func (e *Engine) parseJavaScriptLike(
 				"line_number": nodeLine(node),
 				"lang":        outputLanguage,
 			})
+		case "return_statement":
+			valueNode := javaScriptReturnValueNode(node)
+			if item := javaScriptFunctionValueReferenceCall(valueNode, source, outputLanguage, commonJSModuleAliases); item != nil {
+				appendBucket(payload, "function_calls", item)
+			}
 		case "assignment_expression":
 			leftNode := node.ChildByFieldName("left")
 			rightNode := node.ChildByFieldName("right")
