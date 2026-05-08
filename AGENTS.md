@@ -84,6 +84,8 @@ Add specialized skills only when the change touches that surface:
   queue ordering.
 - `eshu-correlation-truth` for correlation, materialization truth, or query
   truth.
+- `eshu-mcp-call-rigor` for MCP/API tool calls, new MCP tool contracts, local
+  MCP diagnostics, or any graph-backed query that could become unbounded.
 - `skill-creator` for creating or updating skills.
 
 ## Golden Rules
@@ -321,6 +323,33 @@ Performance work must show measurable value:
 Do not lower graph-write timeouts, global batch sizes, or worker counts because
 one repository is noisy. First use `eshu index --discovery-report` and consider a
 repo-local `.eshu/discovery.json` or process-local discovery overlay.
+
+## MCP And API Call Performance
+
+MCP, HTTP API, and direct graph helper calls must be bounded before they run.
+Correctness still comes first, but an accurate call contract must also be
+scoped, cancellable, observable, and cheap to fail.
+
+Before designing or running a potentially expensive read:
+
+- resolve the canonical scope first (`repo_id`, `workload_id`, `service_id`, or
+  `environment`); do not default to the whole graph when a local scope is
+  available
+- require a `limit`, timeout, deterministic ordering, and `truncated` signal for
+  list-style tools
+- run a cheap preflight for local MCP: owner record, current Postgres port,
+  current graph/Bolt port, repo freshness, and profile/truth label
+- prefer two-step calls: summary/count/handles first, payload or drilldown
+  second
+- keep high-volume or per-node metadata out of graph hot paths unless a measured
+  indexed query needs it
+- if a call is slow, stop and classify the delay as transport, stale local owner
+  ports, backend health, query shape, payload size, or missing index before
+  retrying
+
+Runtime modes with different performance profiles must require explicit opt-in;
+an auxiliary env var must not silently move a normal local run onto a slower
+runtime.
 
 ## Concurrency Workflow
 
