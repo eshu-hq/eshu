@@ -20,11 +20,11 @@ type javaScriptPackageManifest struct {
 // source file. The mapping is intentionally conservative: compiled dist targets
 // are mapped back only to same-repository source paths with matching basenames.
 func javaScriptPackageFileRootKinds(repoRoot string, path string) []string {
-	manifest, ok := readJavaScriptPackageManifest(repoRoot)
+	manifest, packageRoot, ok := nearestJavaScriptPackageManifest(repoRoot, path)
 	if !ok {
 		return nil
 	}
-	relativePath, ok := relativeSlashPath(repoRoot, path)
+	relativePath, ok := relativeSlashPath(packageRoot, path)
 	if !ok {
 		return nil
 	}
@@ -56,19 +56,52 @@ func javaScriptPackageFileRootKinds(repoRoot string, path string) []string {
 	return rootKinds
 }
 
-func readJavaScriptPackageManifest(repoRoot string) (javaScriptPackageManifest, bool) {
-	if strings.TrimSpace(repoRoot) == "" {
-		return javaScriptPackageManifest{}, false
+func nearestJavaScriptPackageManifest(repoRoot string, path string) (javaScriptPackageManifest, string, bool) {
+	packagePath, packageRoot, ok := nearestJavaScriptPackageJSON(repoRoot, path)
+	if !ok {
+		return javaScriptPackageManifest{}, "", false
 	}
-	body, err := os.ReadFile(filepath.Join(repoRoot, "package.json"))
+	body, err := os.ReadFile(packagePath)
 	if err != nil {
-		return javaScriptPackageManifest{}, false
+		return javaScriptPackageManifest{}, "", false
 	}
 	var manifest javaScriptPackageManifest
 	if err := json.Unmarshal(body, &manifest); err != nil {
-		return javaScriptPackageManifest{}, false
+		return javaScriptPackageManifest{}, "", false
 	}
-	return manifest, true
+	return manifest, packageRoot, true
+}
+
+func nearestJavaScriptPackageRoot(repoRoot string, path string) (string, bool) {
+	_, packageRoot, ok := nearestJavaScriptPackageJSON(repoRoot, path)
+	return packageRoot, ok
+}
+
+func nearestJavaScriptPackageJSON(repoRoot string, path string) (string, string, bool) {
+	repoRoot = cleanJavaScriptPath(repoRoot)
+	path = cleanJavaScriptPath(path)
+	if repoRoot == "" || path == "" {
+		return "", "", false
+	}
+	dir := path
+	if info, err := os.Stat(path); err != nil || !info.IsDir() {
+		dir = filepath.Dir(path)
+	}
+	for javaScriptPathWithin(repoRoot, dir) {
+		candidate := filepath.Join(dir, "package.json")
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate, dir, true
+		}
+		if dir == repoRoot {
+			break
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return "", "", false
 }
 
 func javaScriptPackageBinTargets(raw any) []string {
@@ -182,4 +215,16 @@ func relativeSlashPath(repoRoot string, path string) (string, bool) {
 		return "", false
 	}
 	return filepath.ToSlash(filepath.Clean(relativePath)), true
+}
+
+func cleanJavaScriptPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return ""
+	}
+	return filepath.Clean(abs)
 }

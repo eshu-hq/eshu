@@ -19,7 +19,7 @@ func javaScriptIsHapiHandlerFile(repoRoot string, path string) bool {
 	if !ok || !strings.Contains(relativePath, "/handlers/") {
 		return false
 	}
-	for _, handlerDir := range javaScriptHapiHandlerDirs(repoRoot) {
+	for _, handlerDir := range javaScriptHapiHandlerDirs(repoRoot, path) {
 		if path == handlerDir || strings.HasPrefix(path, handlerDir+string(filepath.Separator)) {
 			return true
 		}
@@ -27,12 +27,20 @@ func javaScriptIsHapiHandlerFile(repoRoot string, path string) bool {
 	return false
 }
 
-func javaScriptHapiHandlerDirs(repoRoot string) []string {
-	candidates := []string{
-		filepath.Join(repoRoot, "server", "init", "plugins", "spec.js"),
-		filepath.Join(repoRoot, "server", "init", "plugins", "spec.ts"),
-		filepath.Join(repoRoot, "server", "init", "plugins", "specs.js"),
-		filepath.Join(repoRoot, "server", "init", "plugins", "specs.ts"),
+func javaScriptHapiHandlerDirs(repoRoot string, path string) []string {
+	serviceRoots := []string{repoRoot}
+	if packageRoot, ok := nearestJavaScriptPackageRoot(repoRoot, path); ok {
+		serviceRoots = appendUniqueString(serviceRoots, packageRoot)
+	}
+
+	candidates := []string{}
+	for _, serviceRoot := range serviceRoots {
+		candidates = append(candidates,
+			filepath.Join(serviceRoot, "server", "init", "plugins", "spec.js"),
+			filepath.Join(serviceRoot, "server", "init", "plugins", "spec.ts"),
+			filepath.Join(serviceRoot, "server", "init", "plugins", "specs.js"),
+			filepath.Join(serviceRoot, "server", "init", "plugins", "specs.ts"),
+		)
 	}
 
 	dirs := []string{}
@@ -58,6 +66,5 @@ func javaScriptHapiHandlerDirs(repoRoot string) []string {
 
 func javaScriptLooksLikeHapiSpecsPlugin(source string) bool {
 	normalized := strings.ToLower(source)
-	return strings.Contains(normalized, "openapi") &&
-		strings.Contains(normalized, "/init/plugins/specs")
+	return strings.Contains(normalized, "openapi")
 }

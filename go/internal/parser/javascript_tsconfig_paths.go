@@ -103,10 +103,103 @@ func javaScriptTSConfigBaseURL(path string) string {
 			BaseURL string `json:"baseUrl"`
 		} `json:"compilerOptions"`
 	}
-	if err := json.Unmarshal(raw, &config); err != nil {
+	if err := json.Unmarshal(stripJavaScriptJSONC(raw), &config); err != nil {
 		return ""
 	}
 	return strings.TrimSpace(config.CompilerOptions.BaseURL)
+}
+
+func stripJavaScriptJSONC(raw []byte) []byte {
+	withoutComments := make([]byte, 0, len(raw))
+	inString := false
+	escaped := false
+	for i := 0; i < len(raw); i++ {
+		ch := raw[i]
+		if inString {
+			withoutComments = append(withoutComments, ch)
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+		if ch == '"' {
+			inString = true
+			withoutComments = append(withoutComments, ch)
+			continue
+		}
+		if ch == '/' && i+1 < len(raw) {
+			switch raw[i+1] {
+			case '/':
+				i += 2
+				for i < len(raw) && raw[i] != '\n' && raw[i] != '\r' {
+					i++
+				}
+				if i < len(raw) {
+					withoutComments = append(withoutComments, raw[i])
+				}
+				continue
+			case '*':
+				i += 2
+				for i+1 < len(raw) && (raw[i] != '*' || raw[i+1] != '/') {
+					i++
+				}
+				if i+1 < len(raw) {
+					i++
+				}
+				continue
+			}
+		}
+		withoutComments = append(withoutComments, ch)
+	}
+	return stripJavaScriptJSONCTrailingCommas(withoutComments)
+}
+
+func stripJavaScriptJSONCTrailingCommas(raw []byte) []byte {
+	out := make([]byte, 0, len(raw))
+	inString := false
+	escaped := false
+	for i := 0; i < len(raw); i++ {
+		ch := raw[i]
+		if inString {
+			out = append(out, ch)
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+		if ch == '"' {
+			inString = true
+			out = append(out, ch)
+			continue
+		}
+		if ch == ',' {
+			next := i + 1
+			for next < len(raw) && (raw[next] == ' ' || raw[next] == '\t' || raw[next] == '\n' || raw[next] == '\r') {
+				next++
+			}
+			if next < len(raw) && (raw[next] == '}' || raw[next] == ']') {
+				continue
+			}
+		}
+		out = append(out, ch)
+	}
+	return out
 }
 
 func javaScriptTSConfigSourceCandidates(basePath string) []string {

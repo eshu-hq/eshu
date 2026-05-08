@@ -57,10 +57,16 @@ language-specific adapter function (e.g. `parseGo`, `parsePython`,
 `dead_code_root_kinds` when syntax proves an entrypoint, framework callback,
 function-value callback, JavaScript package export, configured Hapi handler
 export, or interface method implementation. JavaScript-family adapters also
-preserve import alias metadata, tsconfig `baseUrl` `resolved_source` metadata,
-static relative re-export metadata, constructor calls, and local receiver type
-metadata from `const value = new Type()` so reducer call materialization can
-resolve bounded cross-file calls. After the language adapter returns,
+preserve import alias metadata, JSONC tsconfig `baseUrl` `resolved_source`
+metadata even when the config uses comments or trailing commas, static relative
+re-export metadata, constructor calls, and local receiver type metadata from
+`const value = new Type()` so reducer call
+materialization can resolve bounded cross-file calls. Package-level roots are
+resolved from the nearest owning `package.json`, so nested workspaces can expose
+their own entrypoints, `bin` targets, and package exports without depending on
+the repository root manifest. Hapi handler roots search from the owning
+service/package root before falling back to repository-root conventions. After
+the language adapter returns,
 `inferContentMetadata` sets `artifact_type`, `template_dialect`, and
 `iac_relevant` on the payload. The final payload also carries `repo_path`.
 
@@ -231,14 +237,16 @@ errors are surfaced in `collector snapshot stage completed` logs with
   function-valued parameters, local interface references, concrete methods
   that flow into local or imported interface-typed seams, and struct types
   referenced by composite literals. JavaScript-family roots cover Node package
-  entrypoints, package `bin` targets, package public exports, and exported
-  functions under Hapi-style handler directories when bounded local config
-  proves those directories. JavaScript-family import metadata preserves
-  namespace aliases, tsconfig `baseUrl` resolved sources, and one-hop static
-  relative re-exports used by reducer call materialization. Dynamic reflection,
-  build-tag-specific reachability, custom TypeScript `paths`, multi-hop barrel
-  graphs, package-manager resolution, and computed dispatch still need
-  query-side ambiguity handling.
+  entrypoints, package `bin` targets, package public exports from the nearest
+  owning package manifest, and exported functions under Hapi-style handler
+  directories when bounded local config proves those directories from the
+  service/package root. JavaScript-family import metadata preserves namespace
+  aliases, JSONC tsconfig `baseUrl` resolved sources with comments and
+  trailing commas accepted, and one-hop static relative re-exports used by
+  reducer call materialization. Dynamic reflection, build-tag-specific
+  reachability, custom TypeScript `paths`, multi-hop barrel graphs,
+  package-manager resolution, and computed dispatch still need query-side
+  ambiguity handling.
 - `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form.
   Passing a relative path produces an absolute resolved path in the payload's
   `repo_path` field; this is correct behavior but callers should pass absolute
