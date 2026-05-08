@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
@@ -211,77 +212,41 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if !ok {
 		t.Fatalf("analysis[modeled_framework_roots] type = %T, want []any", analysis["modeled_framework_roots"])
 	}
-	if got, want := len(modeledFrameworkRoots), 24; got != want {
-		t.Fatalf("len(analysis[modeled_framework_roots]) = %d, want %d", got, want)
+	wantModeledFrameworkRoots := []any{
+		"go.cobra_run_registration",
+		"go.cobra_run_signature",
+		"go.net_http_handler_registration",
+		"go.net_http_handler_signature",
+		"go.controller_runtime_reconcile_signature",
+		"python.fastapi_route_decorator",
+		"python.flask_route_decorator",
+		"python.celery_task_decorator",
+		"javascript.nextjs_route_export",
+		"javascript.nextjs_app_export",
+		"javascript.express_route_registration",
+		"javascript.express_middleware_registration",
+		"javascript.koa_middleware_registration",
+		"javascript.koa_route_registration",
+		"javascript.fastify_hook_registration",
+		"javascript.fastify_route_registration",
+		"javascript.fastify_plugin_registration",
+		"javascript.nestjs_controller_method",
+		"javascript.commonjs_default_export",
+		"javascript.commonjs_mixin_export",
+		"javascript.node_package_export",
+		"javascript.node_seed_execute",
+		"javascript.node_migration_export",
+		"javascript.hapi_amqp_consumer",
+		"javascript.hapi_handler_export",
+		"javascript.hapi_plugin_register",
+		"javascript.hapi_route_config_handler",
+		"javascript.hapi_proxy_callback",
+		"typescript.interface_method_implementation",
+		"typescript.module_contract_export",
+		"typescript.static_registry_member",
 	}
-	if got, want := modeledFrameworkRoots[0], "go.cobra_run_registration"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][0] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[1], "go.cobra_run_signature"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][1] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[2], "go.net_http_handler_registration"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][2] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[3], "go.net_http_handler_signature"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][3] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[4], "go.controller_runtime_reconcile_signature"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][4] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[5], "python.fastapi_route_decorator"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][5] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[6], "python.flask_route_decorator"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][6] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[7], "python.celery_task_decorator"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][7] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[8], "javascript.nextjs_route_export"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][8] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[9], "javascript.nextjs_app_export"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][9] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[10], "javascript.express_route_registration"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][10] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[11], "javascript.commonjs_default_export"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][11] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[12], "javascript.commonjs_mixin_export"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][12] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[13], "javascript.node_package_export"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][13] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[14], "javascript.node_seed_execute"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][14] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[15], "javascript.node_migration_export"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][15] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[16], "javascript.hapi_amqp_consumer"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][16] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[17], "javascript.hapi_handler_export"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][17] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[18], "javascript.hapi_plugin_register"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][18] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[19], "javascript.hapi_route_config_handler"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][19] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[20], "javascript.hapi_proxy_callback"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][20] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[21], "typescript.interface_method_implementation"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][21] = %#v, want %#v", got, want)
-	}
-	if got, want := modeledFrameworkRoots[22], "typescript.module_contract_export"; got != want {
-		t.Fatalf("analysis[modeled_framework_roots][22] = %#v, want %#v", got, want)
+	if !reflect.DeepEqual(modeledFrameworkRoots, wantModeledFrameworkRoots) {
+		t.Fatalf("analysis[modeled_framework_roots] = %#v, want %#v", modeledFrameworkRoots, wantModeledFrameworkRoots)
 	}
 	if got, want := analysis["framework_roots_from_parser_metadata"], float64(0); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)

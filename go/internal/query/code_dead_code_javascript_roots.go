@@ -29,6 +29,13 @@ func deadCodeIsJavaScriptFrameworkRoot(result map[string]any, entity *EntityCont
 	if slices.Contains(rootKinds, "javascript.nextjs_route_export") ||
 		slices.Contains(rootKinds, "javascript.nextjs_app_export") ||
 		slices.Contains(rootKinds, "javascript.express_route_registration") ||
+		slices.Contains(rootKinds, "javascript.express_middleware_registration") ||
+		slices.Contains(rootKinds, "javascript.koa_middleware_registration") ||
+		slices.Contains(rootKinds, "javascript.koa_route_registration") ||
+		slices.Contains(rootKinds, "javascript.fastify_hook_registration") ||
+		slices.Contains(rootKinds, "javascript.fastify_route_registration") ||
+		slices.Contains(rootKinds, "javascript.fastify_plugin_registration") ||
+		slices.Contains(rootKinds, "javascript.nestjs_controller_method") ||
 		slices.Contains(rootKinds, "javascript.node_package_entrypoint") ||
 		slices.Contains(rootKinds, "javascript.node_package_bin") ||
 		slices.Contains(rootKinds, "javascript.node_package_script") ||

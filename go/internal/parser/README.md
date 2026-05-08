@@ -57,10 +57,11 @@ language-specific adapter function (e.g. `parseGo`, `parsePython`,
 `dead_code_root_kinds` when syntax proves an entrypoint, framework callback,
 function-value callback, JavaScript package export, CommonJS default export,
 CommonJS mixin method export, configured Hapi handler or route-reference
-export, Next.js app or route export, Node migration export, TypeScript
-module-contract export, TypeScript public method on a class that declares
-`implements`, or TypeScript package public API surface proven through a
-nearest-package `exports` or `types` target and a static one-hop re-export.
+export, Next.js app or route export, Express/Koa/Fastify/NestJS callback root,
+Node migration export, TypeScript module-contract export, TypeScript public
+method on a class that declares `implements`, or TypeScript package public API
+surface proven through a nearest-package `exports` or `types` target and a
+static one-hop re-export.
 Exported TypeScript object registries also mark same-file function values as
 `typescript.static_registry_member`; private registries do not create roots.
 JavaScript-family adapters also preserve import alias metadata, CommonJS

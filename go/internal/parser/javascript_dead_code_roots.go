@@ -313,10 +313,27 @@ func javaScriptIsNextJSRouteExport(path string, node *tree_sitter.Node, name str
 	if !javaScriptIsNextJSRouteModule(path) {
 		return false
 	}
+	if !javaScriptIsRouteHandlerDeclaration(node) {
+		return false
+	}
 	if _, ok := javaScriptRouteExportNames[strings.ToUpper(strings.TrimSpace(name))]; !ok {
 		return false
 	}
 	return javaScriptIsExported(node)
+}
+
+func javaScriptIsRouteHandlerDeclaration(node *tree_sitter.Node) bool {
+	if node == nil {
+		return false
+	}
+	switch node.Kind() {
+	case "function_declaration", "generator_function_declaration":
+		return true
+	case "variable_declarator":
+		return isJavaScriptFunctionValue(node.ChildByFieldName("value"))
+	default:
+		return false
+	}
 }
 
 func javaScriptIsNextJSRouteModule(path string) bool {

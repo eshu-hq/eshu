@@ -56,6 +56,7 @@ func TestDefaultEngineParsePathJavaScriptEmitsDeadCodeRootKinds(t *testing.T) {
 	repoRoot := t.TempDir()
 	nextPath := filepath.Join(repoRoot, "app", "api", "health", "route.ts")
 	nextTSXPath := filepath.Join(repoRoot, "app", "api", "profile", "route.tsx")
+	nextEnumPath := filepath.Join(repoRoot, "app", "api", "enum", "route.ts")
 	expressPath := filepath.Join(repoRoot, "server", "routes.ts")
 	writeTestFile(
 		t,
@@ -77,6 +78,14 @@ async function helper() {
 };
 
 const localHelper = () => Response.json({ ok: true });
+`,
+	)
+	writeTestFile(
+		t,
+		nextEnumPath,
+		`export enum GET {
+  Read = "read",
+}
 `,
 	)
 	writeTestFile(
@@ -132,6 +141,10 @@ router.get("/users", [arrayMiddleware], listUsers);
 	if err != nil {
 		t.Fatalf("ParsePath(next tsx) error = %v, want nil", err)
 	}
+	nextEnumPayload, err := engine.ParsePath(repoRoot, nextEnumPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(next enum) error = %v, want nil", err)
+	}
 
 	assertParserStringSliceFieldValue(
 		t,
@@ -152,6 +165,10 @@ router.get("/users", [arrayMiddleware], listUsers);
 	localHelperItem := assertFunctionByName(t, nextTSXPayload, "localHelper")
 	if _, ok := localHelperItem["dead_code_root_kinds"]; ok {
 		t.Fatalf("dead_code_root_kinds = %#v, want absent for non-exported TSX route helper", localHelperItem["dead_code_root_kinds"])
+	}
+	enumItem := assertBucketItemByName(t, nextEnumPayload, "enums", "GET")
+	if _, ok := enumItem["dead_code_root_kinds"]; ok {
+		t.Fatalf("dead_code_root_kinds = %#v, want absent for route enum", enumItem["dead_code_root_kinds"])
 	}
 	assertParserStringSliceFieldValue(
 		t,

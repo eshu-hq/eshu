@@ -194,6 +194,34 @@ func TestHandleDeadCodeExcludesJavaScriptNodeAndHapiRootsFromMetadata(t *testing
 						"entity_id": "ts-impl", "name": "createResponse", "labels": []any{"Function"},
 						"file_path": "server/providers/GeminiAdapter.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
 					},
+					{
+						"entity_id": "js-express-middleware", "name": "requireAuth", "labels": []any{"Function"},
+						"file_path": "server/routes.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
+					},
+					{
+						"entity_id": "js-koa-middleware", "name": "auditRequest", "labels": []any{"Function"},
+						"file_path": "server/koa-routes.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
+					},
+					{
+						"entity_id": "js-koa-route", "name": "koaHandler", "labels": []any{"Function"},
+						"file_path": "server/koa-routes.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
+					},
+					{
+						"entity_id": "js-fastify-hook", "name": "authHook", "labels": []any{"Function"},
+						"file_path": "server/fastify.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
+					},
+					{
+						"entity_id": "js-fastify-route", "name": "healthHandler", "labels": []any{"Function"},
+						"file_path": "server/fastify.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
+					},
+					{
+						"entity_id": "js-fastify-plugin", "name": "pluginHandler", "labels": []any{"Function"},
+						"file_path": "server/fastify.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
+					},
+					{
+						"entity_id": "js-nest-controller", "name": "listUsers", "labels": []any{"Function"},
+						"file_path": "server/users.controller.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
+					},
 				}, nil
 			},
 		},
@@ -262,6 +290,34 @@ func TestHandleDeadCodeExcludesJavaScriptNodeAndHapiRootsFromMetadata(t *testing
 					EntityID: "ts-impl", RelativePath: "server/providers/GeminiAdapter.ts", EntityType: "Function", EntityName: "createResponse", Language: "typescript",
 					Metadata: map[string]any{"dead_code_root_kinds": []string{"typescript.interface_method_implementation"}},
 				},
+				"js-express-middleware": {
+					EntityID: "js-express-middleware", RelativePath: "server/routes.ts", EntityType: "Function", EntityName: "requireAuth", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.express_middleware_registration"}},
+				},
+				"js-koa-middleware": {
+					EntityID: "js-koa-middleware", RelativePath: "server/koa-routes.ts", EntityType: "Function", EntityName: "auditRequest", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.koa_middleware_registration"}},
+				},
+				"js-koa-route": {
+					EntityID: "js-koa-route", RelativePath: "server/koa-routes.ts", EntityType: "Function", EntityName: "koaHandler", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.koa_route_registration"}},
+				},
+				"js-fastify-hook": {
+					EntityID: "js-fastify-hook", RelativePath: "server/fastify.ts", EntityType: "Function", EntityName: "authHook", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.fastify_hook_registration"}},
+				},
+				"js-fastify-route": {
+					EntityID: "js-fastify-route", RelativePath: "server/fastify.ts", EntityType: "Function", EntityName: "healthHandler", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.fastify_route_registration"}},
+				},
+				"js-fastify-plugin": {
+					EntityID: "js-fastify-plugin", RelativePath: "server/fastify.ts", EntityType: "Function", EntityName: "pluginHandler", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.fastify_plugin_registration"}},
+				},
+				"js-nest-controller": {
+					EntityID: "js-nest-controller", RelativePath: "server/users.controller.ts", EntityType: "Function", EntityName: "listUsers", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"javascript.nestjs_controller_method"}},
+				},
 			},
 		},
 	}
@@ -303,7 +359,7 @@ func TestHandleDeadCodeExcludesJavaScriptNodeAndHapiRootsFromMetadata(t *testing
 	if !ok {
 		t.Fatalf("analysis type = %T, want map[string]any", resp["analysis"])
 	}
-	if got, want := analysis["framework_roots_from_parser_metadata"], float64(15); got != want {
+	if got, want := analysis["framework_roots_from_parser_metadata"], float64(22); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
 	}
 }

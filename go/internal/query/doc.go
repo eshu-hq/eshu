@@ -13,9 +13,9 @@
 // so callers can separate cleanup candidates from modeled roots; TypeScript
 // interface implementation, module-contract, and static-registry roots are
 // reported alongside JavaScript-family package, CommonJS mixin, Next.js,
-// migration, and framework roots. Unsupported language metadata and test
-// fixtures are suppressed from
-// default cleanup candidates. The dead-code scan applies cheap graph-side path
+// Express, Koa, Fastify, NestJS, migration, and framework roots. Unsupported
+// language metadata and test fixtures are suppressed from default cleanup
+// candidates. The dead-code scan applies cheap graph-side path
 // filters before content-backed policy checks, keeps a 10,000-row window for
 // small result limits, and reports display truncation separately from bounded
 // raw candidate pages and rows so callers can tell whether the result list was
