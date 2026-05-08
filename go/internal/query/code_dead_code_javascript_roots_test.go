@@ -29,6 +29,11 @@ func TestHandleDeadCodeExcludesJavaScriptFrameworkRootsFromMetadata(t *testing.T
 						"entity_id": "js-helper", "name": "helper", "labels": []any{"Function"},
 						"file_path": "server/helpers.ts", "repo_id": "repo-1", "repo_name": "payments", "language": "typescript",
 					},
+					{
+						"entity_id": "js-nested-helper", "name": "findAndUpdate", "labels": []any{"Function"},
+						"file_path": "scripts/create-new-version.js", "repo_id": "repo-1", "repo_name": "payments", "language": "javascript",
+						"metadata": map[string]any{"enclosing_function": "updateSpecs"},
+					},
 				}, nil
 			},
 		},
@@ -60,6 +65,16 @@ func TestHandleDeadCodeExcludesJavaScriptFrameworkRootsFromMetadata(t *testing.T
 					EntityType:   "Function",
 					EntityName:   "helper",
 					Language:     "typescript",
+				},
+				"js-nested-helper": {
+					EntityID:     "js-nested-helper",
+					RelativePath: "scripts/create-new-version.js",
+					EntityType:   "Function",
+					EntityName:   "findAndUpdate",
+					Language:     "javascript",
+					Metadata: map[string]any{
+						"enclosing_function": "updateSpecs",
+					},
 				},
 			},
 		},
@@ -139,6 +154,10 @@ func TestHandleDeadCodeExcludesJavaScriptNodeAndHapiRootsFromMetadata(t *testing
 						"entity_id": "js-helper", "name": "unusedHelper", "labels": []any{"Function"},
 						"file_path": "server/private-helper.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
 					},
+					{
+						"entity_id": "ts-impl", "name": "createResponse", "labels": []any{"Function"},
+						"file_path": "server/providers/GeminiAdapter.ts", "repo_id": "repo-1", "repo_name": "service-sample", "language": "typescript",
+					},
 				}, nil
 			},
 		},
@@ -166,6 +185,10 @@ func TestHandleDeadCodeExcludesJavaScriptNodeAndHapiRootsFromMetadata(t *testing
 				},
 				"js-helper": {
 					EntityID: "js-helper", RelativePath: "server/private-helper.ts", EntityType: "Function", EntityName: "unusedHelper", Language: "typescript",
+				},
+				"ts-impl": {
+					EntityID: "ts-impl", RelativePath: "server/providers/GeminiAdapter.ts", EntityType: "Function", EntityName: "createResponse", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"typescript.interface_method_implementation"}},
 				},
 			},
 		},
@@ -208,7 +231,7 @@ func TestHandleDeadCodeExcludesJavaScriptNodeAndHapiRootsFromMetadata(t *testing
 	if !ok {
 		t.Fatalf("analysis type = %T, want map[string]any", resp["analysis"])
 	}
-	if got, want := analysis["framework_roots_from_parser_metadata"], float64(5); got != want {
+	if got, want := analysis["framework_roots_from_parser_metadata"], float64(6); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
 	}
 }

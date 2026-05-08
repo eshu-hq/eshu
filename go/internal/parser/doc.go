@@ -6,7 +6,8 @@
 // constructor receiver metadata, dead-code root metadata for functions, types,
 // and package entrypoint files, package-level interface/type reference pre-scans,
 // nearest-package JavaScript roots, JSONC tsconfig comment/trailing-comma
-// baseUrl metadata, Hapi handler roots, and static re-export metadata,
+// baseUrl metadata, Hapi handler and plugin roots, TypeScript interface
+// implementation method roots, and static re-export metadata,
 // composite-literal type references, Helm/YAML metadata extraction, and SCIP
 // support for index-derived facts. Parser changes must preserve fact truth:
 // when a parser starts emitting a new entity, relationship, or metadata field,

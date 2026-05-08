@@ -59,7 +59,7 @@ func (e *Engine) parseJavaScriptLike(
 			nameNode := node.ChildByFieldName("name")
 			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
-		case "method_definition", "method_signature":
+		case "method_definition":
 			nameNode := node.ChildByFieldName("name")
 			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 		case "class_declaration", "abstract_class_declaration":
@@ -172,6 +172,13 @@ func (e *Engine) parseJavaScriptLike(
 				}
 			}
 			appendBucket(payload, "variables", item)
+		case "pair":
+			nameNode := node.ChildByFieldName("key")
+			valueNode := node.ChildByFieldName("value")
+			if !isJavaScriptFunctionValue(valueNode) {
+				return
+			}
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 		case "import_statement":
 			for _, item := range javaScriptImportEntries(node, source, outputLanguage) {
 				tsConfigImports.annotateImport(item)
@@ -188,15 +195,21 @@ func (e *Engine) parseJavaScriptLike(
 			if strings.TrimSpace(name) == "" {
 				return
 			}
+			fullName := javaScriptCallFullName(functionNode, source)
 			item := map[string]any{
 				"name":        name,
-				"full_name":   javaScriptCallFullName(functionNode, source),
+				"full_name":   fullName,
 				"call_kind":   "function_call",
 				"line_number": nodeLine(node),
 				"lang":        outputLanguage,
 			}
 			if inferredType := javaScriptCallInferredObjectType(functionNode, source, newExpressionTypes); inferredType != "" {
 				item["inferred_obj_type"] = inferredType
+			}
+			if strings.HasPrefix(fullName, "this.") {
+				if classContext := javaScriptEnclosingClassName(node, source); classContext != "" {
+					item["class_context"] = classContext
+				}
 			}
 			appendBucket(payload, "function_calls", item)
 		case "new_expression":
@@ -248,6 +261,7 @@ func (e *Engine) parseJavaScriptLike(
 		}
 	})
 
+	appendJavaScriptTypeReferenceCalls(payload, root, source, outputLanguage)
 	annotateTypeScriptDeclarationMerges(payload, outputLanguage)
 	sortNamedBucket(payload, "functions")
 	sortNamedBucket(payload, "classes")
@@ -302,6 +316,11 @@ func appendFunctionDeclaration(
 
 	declarationNode := node
 	if node != nil && node.Kind() == "variable_declarator" {
+		if valueNode := node.ChildByFieldName("value"); isJavaScriptFunctionValue(valueNode) {
+			declarationNode = valueNode
+		}
+	}
+	if node != nil && node.Kind() == "pair" {
 		if valueNode := node.ChildByFieldName("value"); isJavaScriptFunctionValue(valueNode) {
 			declarationNode = valueNode
 		}
@@ -385,7 +404,14 @@ func javaScriptDecorators(node *tree_sitter.Node, source []byte) []string {
 }
 
 func javaScriptTypeParameters(node *tree_sitter.Node, source []byte) []string {
-	return javaScriptTypeParameterNames(nodeText(node, source))
+	if node == nil {
+		return []string{}
+	}
+	typeParametersNode := node.ChildByFieldName("type_parameters")
+	if typeParametersNode == nil {
+		return []string{}
+	}
+	return javaScriptTypeParameterNames(nodeText(typeParametersNode, source))
 }
 
 func javaScriptCallName(node *tree_sitter.Node, source []byte) string {

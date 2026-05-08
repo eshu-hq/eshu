@@ -30,6 +30,13 @@ func javaScriptFunctionSemantics(node *tree_sitter.Node, source []byte, lang str
 	if classContext := javaScriptEnclosingClassName(node, source); classContext != "" {
 		semantics["class_context"] = classContext
 	}
+	if objectContext := javaScriptEnclosingObjectLiteralName(node, source); objectContext != "" {
+		semantics["context"] = objectContext
+		semantics["context_type"] = "module"
+	}
+	if enclosingFunction := javaScriptEnclosingFunctionName(node, source); enclosingFunction != "" {
+		semantics["enclosing_function"] = enclosingFunction
+	}
 	if lang == "tsx" && javaScriptContainsJSXFragmentShorthand(node) {
 		semantics["jsx_fragment_shorthand"] = true
 	}
@@ -39,6 +46,29 @@ func javaScriptFunctionSemantics(node *tree_sitter.Node, source []byte, lang str
 	return semantics
 }
 
+func javaScriptEnclosingFunctionName(node *tree_sitter.Node, source []byte) string {
+	original := node
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		switch current.Kind() {
+		case "function_declaration", "generator_function_declaration", "method_definition", "variable_declarator":
+			if current.Kind() == "variable_declarator" && javaScriptNodeSameRange(current.ChildByFieldName("value"), original) {
+				continue
+			}
+			name := strings.TrimSpace(javaScriptFunctionName(current.ChildByFieldName("name"), source))
+			if name != "" {
+				return name
+			}
+		case "program":
+			return ""
+		}
+	}
+	return ""
+}
+
+func javaScriptNodeSameRange(left *tree_sitter.Node, right *tree_sitter.Node) bool {
+	return left != nil && right != nil && left.StartByte() == right.StartByte() && left.EndByte() == right.EndByte()
+}
+
 func javaScriptEnclosingClassName(node *tree_sitter.Node, source []byte) string {
 	for current := node.Parent(); current != nil; current = current.Parent() {
 		switch current.Kind() {
@@ -46,6 +76,37 @@ func javaScriptEnclosingClassName(node *tree_sitter.Node, source []byte) string 
 			nameNode := current.ChildByFieldName("name")
 			return strings.TrimSpace(nodeText(nameNode, source))
 		}
+	}
+	return ""
+}
+
+func javaScriptEnclosingObjectLiteralName(node *tree_sitter.Node, source []byte) string {
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		if current.Kind() != "object" {
+			continue
+		}
+		return javaScriptObjectLiteralBindingName(current, source)
+	}
+	return ""
+}
+
+func javaScriptObjectLiteralBindingName(objectNode *tree_sitter.Node, source []byte) string {
+	if objectNode == nil {
+		return ""
+	}
+	parent := objectNode.Parent()
+	if parent == nil {
+		return ""
+	}
+	switch parent.Kind() {
+	case "variable_declarator":
+		return strings.TrimSpace(nodeText(parent.ChildByFieldName("name"), source))
+	case "assignment_expression":
+		leftNode := parent.ChildByFieldName("left")
+		if exportName := javaScriptCommonJSExportName(leftNode, source); exportName != "" {
+			return exportName
+		}
+		return strings.TrimSpace(nodeText(leftNode, source))
 	}
 	return ""
 }

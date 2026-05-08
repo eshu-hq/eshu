@@ -45,6 +45,119 @@ func TestDefaultEngineParsePathTypeScriptCapturesAdvancedTypeSemantics(t *testin
 	assertStringSliceFieldValue(t, conditionalAlias, "type_parameters", []string{"T"})
 }
 
+func TestDefaultEngineParsePathTypeScriptEmitsTypeReferenceMetadata(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "client.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`interface ClientOptions {
+  apiKey: string;
+}
+
+type Completion = {
+  text: string;
+};
+
+export class Client {
+  constructor(options: ClientOptions) {
+    this.options = options;
+  }
+
+  async complete(): Promise<Completion> {
+    return { text: "" };
+  }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	optionsRef := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "ClientOptions")
+	assertStringFieldValue(t, optionsRef, "call_kind", "typescript.type_reference")
+	completionRef := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "Completion")
+	assertStringFieldValue(t, completionRef, "call_kind", "typescript.type_reference")
+}
+
+func TestDefaultEngineParsePathTypeScriptEmitsTypeAssertionReferenceMetadata(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "plugin.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`interface AppConfig {
+  services?: Record<string, string>;
+}
+
+interface ServerWithConfig {
+  app?: AppConfig;
+}
+
+export function register(server: unknown) {
+  const typed = server as ServerWithConfig;
+  return typed.app as AppConfig | undefined;
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	serverRef := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "ServerWithConfig")
+	assertStringFieldValue(t, serverRef, "call_kind", "typescript.type_reference")
+	configRef := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "AppConfig")
+	assertStringFieldValue(t, configRef, "call_kind", "typescript.type_reference")
+}
+
+func TestDefaultEngineParsePathTypeScriptDoesNotEmitInterfaceMethodSignaturesAsFunctions(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "config.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`export interface ConfigPlugin {
+  get(key: string): string;
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertNamedBucketContains(t, got, "interfaces", "ConfigPlugin")
+	if functions := got["functions"].([]map[string]any); len(functions) != 0 {
+		t.Fatalf("functions = %#v, want empty for interface method signatures", functions)
+	}
+}
+
 func TestDefaultEngineParsePathTypeScriptCapturesDeclarationMerging(t *testing.T) {
 	t.Parallel()
 

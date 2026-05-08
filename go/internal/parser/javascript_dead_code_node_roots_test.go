@@ -340,3 +340,97 @@ export const options = {
 		"javascript.hapi_handler_export",
 	)
 }
+
+func TestDefaultEngineParsePathTypeScriptInterfaceImplementationMethodRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "server", "providers", "GeminiAdapter.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`interface AIProvider {
+  createResponse(options: unknown): Promise<unknown>;
+}
+
+export class GeminiAdapter implements AIProvider {
+  async createResponse(options: unknown): Promise<unknown> {
+    return options;
+  }
+
+  private normalizeConfig(config: unknown): unknown {
+    return config;
+  }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, payload, "createResponse"),
+		"dead_code_root_kinds",
+		"typescript.interface_method_implementation",
+	)
+	if _, ok := assertFunctionByName(t, payload, "normalizeConfig")["dead_code_root_kinds"]; ok {
+		t.Fatalf("normalizeConfig dead_code_root_kinds present, want absent for private helper")
+	}
+}
+
+func TestDefaultEngineParsePathJavaScriptHapiPluginRegisterRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	pluginPath := filepath.Join(repoRoot, "server", "init", "plugins", "metrics.ts")
+	writeTestFile(
+		t,
+		filepath.Join(repoRoot, "package.json"),
+		`{"name":"service-hapi"}`,
+	)
+	writeTestFile(
+		t,
+		pluginPath,
+		`import type { Plugin, Server } from "hapi";
+
+const plugin: Plugin<unknown> = {
+  name: "service-metrics",
+  register: async (server: Server): Promise<void> => {
+    await server.register({});
+  },
+};
+
+const localHelper = () => "helper";
+
+export default { plugin };
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, pluginPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(plugin) error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, got, "register"),
+		"dead_code_root_kinds",
+		"javascript.hapi_plugin_register",
+	)
+	if _, ok := assertFunctionByName(t, got, "localHelper")["dead_code_root_kinds"]; ok {
+		t.Fatalf("localHelper dead_code_root_kinds present, want absent for non-plugin helper")
+	}
+}

@@ -4,7 +4,7 @@
 // The reducer admits candidates from relationship evidence, projects
 // resolved relationships, materializes code-call and code-reference edges
 // between source entities, including bounded JavaScript-family import,
-// constructor, receiver, re-export, and package-file-root evidence, and drives
+// constructor, receiver, re-export, TypeScript type-reference, and package-file-root evidence, and drives
 // repair flows for domains that depend on later phases of the bootstrap
 // pipeline. Changes here need careful proof: track raw evidence, admitted
 // candidates, projected rows, graph writes, and query surfaces before changing

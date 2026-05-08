@@ -56,7 +56,8 @@ language-specific adapter function (e.g. `parseGo`, `parsePython`,
 `parseKotlin`). Language adapters may attach semantic metadata such as
 `dead_code_root_kinds` when syntax proves an entrypoint, framework callback,
 function-value callback, JavaScript package export, configured Hapi handler
-export, or interface method implementation. JavaScript-family adapters also
+export, or TypeScript public method on a class that declares `implements`.
+JavaScript-family adapters also
 preserve import alias metadata, JSONC tsconfig `baseUrl` `resolved_source`
 metadata even when the config uses comments or trailing commas, static relative
 re-export metadata, constructor calls, and local receiver type metadata from
@@ -238,9 +239,10 @@ errors are surfaced in `collector snapshot stage completed` logs with
   that flow into local or imported interface-typed seams, and struct types
   referenced by composite literals. JavaScript-family roots cover Node package
   entrypoints, package `bin` targets, package public exports from the nearest
-  owning package manifest, and exported functions under Hapi-style handler
-  directories when bounded local config proves those directories from the
-  service/package root. JavaScript-family import metadata preserves namespace
+  owning package manifest, exported functions under Hapi-style handler
+  directories, Hapi plugin `register` methods, and TypeScript public methods on
+  classes that declare `implements` when bounded local evidence proves the
+  root. JavaScript-family import metadata preserves namespace
   aliases, JSONC tsconfig `baseUrl` resolved sources with comments and
   trailing commas accepted, and one-hop static relative re-exports used by
   reducer call materialization. Dynamic reflection, build-tag-specific

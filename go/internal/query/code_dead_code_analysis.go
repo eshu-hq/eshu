@@ -57,6 +57,8 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 			"javascript.express_route_registration",
 			"javascript.node_package_export",
 			"javascript.hapi_handler_export",
+			"javascript.hapi_plugin_register",
+			"typescript.interface_method_implementation",
 		},
 		"modeled_public_api": []string{"go.exported_non_internal_package_symbol"},
 		"modeled_go_semantic_roots": []string{
@@ -70,7 +72,7 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 		},
 		"notes": []string{
 			"dead-code remains derived until broader framework, public-API, and reflection root models land",
-			"go CLI registrations/signatures, stdlib HTTP registrations/signatures, controller-runtime reconcile signatures, Python FastAPI/Flask/Celery decorator roots, and JavaScript/TypeScript Next.js/Express/Node/Hapi roots are modeled as derived framework roots",
+			"go CLI registrations/signatures, stdlib HTTP registrations/signatures, controller-runtime reconcile signatures, Python FastAPI/Flask/Celery decorator roots, and JavaScript/TypeScript Next.js/Express/Node/Hapi plus TypeScript interface implementation method roots are modeled as derived roots",
 			"go function-value references, dependency-injection callbacks, type references, interface type references, interface implementation types, interface method implementations, and method values are honored when parser or reducer metadata marks them explicitly",
 			"analysis reports whether a modeled framework root came from parser metadata or the legacy source fallback path",
 			"go framework-root signature checks require entity source; missing source leaves those roots unevaluated",

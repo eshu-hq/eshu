@@ -87,6 +87,10 @@ func resolveGenericCallee(
 	fileData map[string]any,
 	call map[string]any,
 ) (string, string) {
+	callLine := codeCallInt(call["line_number"], call["ref_line"])
+	if entityID := resolveSameFileScopedCalleeEntityID(index, rawPath, relativePath, call, callLine); entityID != "" {
+		return entityID, codeCallPreferredPath(rawPath, relativePath)
+	}
 	if entityID := resolveSameFileCalleeEntityID(index, rawPath, relativePath, call); entityID != "" {
 		return entityID, codeCallPreferredPath(rawPath, relativePath)
 	}
@@ -244,6 +248,13 @@ func codeCallImportedTargets(
 		if localName == callName && entryName != "*" {
 			for _, source := range codeCallImportEntrySources(entry) {
 				appendTarget(entryName, source)
+			}
+		}
+
+		if localName != "" && entryName == localName && strings.HasPrefix(callFullName, localName+".") {
+			qualifiedName := entryName + strings.TrimPrefix(callFullName, localName)
+			for _, source := range codeCallImportEntrySources(entry) {
+				appendTarget(qualifiedName, source)
 			}
 		}
 

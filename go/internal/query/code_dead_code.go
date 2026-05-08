@@ -72,17 +72,22 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 	results, policyStats := filterDeadCodeResultsByDefaultPolicy(results, contentByID)
 	classifyDeadCodeResults(results, contentByID)
 	results = filterResultsByDecoratorExclusions(results, req.ExcludeDecoratedWith)
-	truncated := len(rows) >= candidateLimit || len(results) > req.Limit
+	candidateScanTruncated := len(rows) >= candidateLimit
+	displayTruncated := len(results) > req.Limit
+	truncated := candidateScanTruncated || displayTruncated
 	if len(results) > req.Limit {
 		results = results[:req.Limit]
 	}
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"repo_id":   req.RepoID,
-		"limit":     req.Limit,
-		"truncated": truncated,
-		"results":   results,
-		"analysis":  buildDeadCodeAnalysis(results, req.ExcludeDecoratedWith, policyStats),
+		"repo_id":                  req.RepoID,
+		"limit":                    req.Limit,
+		"truncated":                truncated,
+		"display_truncated":        displayTruncated,
+		"candidate_scan_truncated": candidateScanTruncated,
+		"candidate_scan_limit":     candidateLimit,
+		"results":                  results,
+		"analysis":                 buildDeadCodeAnalysis(results, req.ExcludeDecoratedWith, policyStats),
 	}, BuildTruthEnvelope(h.profile(), "code_quality.dead_code", TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
 }
 
@@ -254,6 +259,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsJavaScriptFrameworkRoot(result, entity, stats) {
 		return true
 	}
+	if deadCodeIsNestedJavaScriptFunction(result, entity) {
+		return true
+	}
 	if deadCodeIsLibraryPublicAPIRoot(result, entity) {
 		return true
 	}
@@ -301,6 +309,25 @@ func deadCodeIsLanguageEntrypoint(result map[string]any, entity *EntityContent) 
 	}
 }
 
+func deadCodeIsNestedJavaScriptFunction(result map[string]any, entity *EntityContent) bool {
+	switch strings.ToLower(deadCodeEntityLanguage(result, entity)) {
+	case "javascript", "jsx", "typescript", "tsx":
+	default:
+		return false
+	}
+	if primaryEntityLabel(result) != "Function" {
+		return false
+	}
+	metadata, _ := result["metadata"].(map[string]any)
+	if strings.TrimSpace(StringVal(metadata, "enclosing_function")) != "" {
+		return true
+	}
+	if entity != nil && strings.TrimSpace(StringVal(entity.Metadata, "enclosing_function")) != "" {
+		return true
+	}
+	return false
+}
+
 func deadCodeIsLibraryPublicAPIRoot(result map[string]any, entity *EntityContent) bool {
 	if strings.ToLower(deadCodeEntityLanguage(result, entity)) != "go" {
 		return false
@@ -342,13 +369,25 @@ func deadCodeIsTestFile(result map[string]any, entity *EntityContent) bool {
 	case strings.HasSuffix(path, "_test.go"):
 		return true
 	case strings.Contains(path, "/__tests__/"),
+		strings.Contains(path, "/cypress/"),
 		strings.Contains(path, "/tests/"),
 		strings.Contains(path, "/test/"),
 		strings.HasPrefix(path, "__tests__/"),
+		strings.HasPrefix(path, "cypress/"),
 		strings.HasPrefix(path, "tests/"),
 		strings.HasPrefix(path, "test/"):
 		return true
 	case strings.HasPrefix(base, "test_"),
+		strings.HasPrefix(base, "cypress.config."),
+		deadCodeIsJavaScriptConfigFile(base),
+		strings.HasSuffix(base, ".cy.js"),
+		strings.HasSuffix(base, ".cy.jsx"),
+		strings.HasSuffix(base, ".cy.ts"),
+		strings.HasSuffix(base, ".cy.tsx"),
+		strings.HasSuffix(base, ".lab.js"),
+		strings.HasSuffix(base, ".lab.jsx"),
+		strings.HasSuffix(base, ".lab.ts"),
+		strings.HasSuffix(base, ".lab.tsx"),
 		strings.HasSuffix(base, "_test.py"),
 		strings.HasSuffix(base, ".test.js"),
 		strings.HasSuffix(base, ".test.jsx"),
@@ -362,6 +401,15 @@ func deadCodeIsTestFile(result map[string]any, entity *EntityContent) bool {
 	default:
 		return false
 	}
+}
+
+func deadCodeIsJavaScriptConfigFile(base string) bool {
+	for _, suffix := range []string{".config.js", ".config.jsx", ".config.ts", ".config.tsx", ".config.mjs", ".config.cjs", ".config.mts", ".config.cts"} {
+		if strings.HasSuffix(base, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func deadCodeIsGeneratedCode(result map[string]any, entity *EntityContent) bool {

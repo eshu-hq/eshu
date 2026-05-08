@@ -26,7 +26,10 @@ func deadCodeIsJavaScriptFrameworkRoot(result map[string]any, entity *EntityCont
 		slices.Contains(rootKinds, "javascript.express_route_registration") ||
 		slices.Contains(rootKinds, "javascript.node_package_entrypoint") ||
 		slices.Contains(rootKinds, "javascript.node_package_bin") ||
-		slices.Contains(rootKinds, "javascript.hapi_handler_export") {
+		slices.Contains(rootKinds, "javascript.node_package_script") ||
+		slices.Contains(rootKinds, "javascript.hapi_handler_export") ||
+		slices.Contains(rootKinds, "javascript.hapi_plugin_register") ||
+		slices.Contains(rootKinds, "typescript.interface_method_implementation") {
 		stats.ParserMetadataFrameworkRoots++
 		return true
 	}

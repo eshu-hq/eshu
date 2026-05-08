@@ -17,7 +17,7 @@ func collectSemanticMetadata(payload map[string]any) map[string]any {
 			metadata[key] = value
 		}
 	}
-	for _, key := range []string{"docstring", "method_kind", "semantic_kind", "module_kind", "declaration_merge_group", "annotation_kind", "context"} {
+	for _, key := range []string{"docstring", "method_kind", "semantic_kind", "module_kind", "declaration_merge_group", "annotation_kind", "context", "enclosing_function"} {
 		if value := semanticPayloadMetadataString(payload, key); value != "" {
 			metadata[key] = value
 		}
@@ -347,6 +347,7 @@ func hasSemanticFunctionMetadata(payload map[string]any) bool {
 		"constructor_kind",
 		"annotation_kind",
 		"context",
+		"enclosing_function",
 		"impl_context",
 	} {
 		if semanticPayloadMetadataString(payload, key) != "" {

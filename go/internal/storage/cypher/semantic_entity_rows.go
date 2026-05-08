@@ -104,7 +104,7 @@ func semanticEntityProperties(rowMap map[string]any) map[string]any {
 		"evidence_source": rowMap["evidence_source"],
 	}
 
-	if semanticKind, ok := rowMap["semantic_kind"]; ok {
+	if semanticKind, ok := rowMap["semantic_kind"]; ok && semanticKind != nil {
 		properties["semantic_kind"] = semanticKind
 	} else {
 		properties["semantic_kind"] = rowMap["entity_type"]
@@ -137,6 +137,7 @@ func semanticEntityProperties(rowMap map[string]any) map[string]any {
 		"constructor_kind",
 		"annotation_kind",
 		"context",
+		"enclosing_function",
 		"type_annotation_count",
 		"type_annotation_kinds",
 		"decorators",
@@ -255,6 +256,9 @@ func buildSemanticEntityRowMap(row reducer.SemanticEntityRow) (map[string]any, b
 		if context := semanticMetadataString(row.Metadata, "context"); context != "" {
 			rowMap["context"] = context
 		}
+		if enclosingFunction := semanticMetadataString(row.Metadata, "enclosing_function"); enclosingFunction != "" {
+			rowMap["enclosing_function"] = enclosingFunction
+		}
 		if count := semanticMetadataInt(row.Metadata, "type_annotation_count"); count > 0 {
 			rowMap["type_annotation_count"] = count
 		}
@@ -274,7 +278,51 @@ func buildSemanticEntityRowMap(row reducer.SemanticEntityRow) (map[string]any, b
 			rowMap["semantic_kind"] = semanticKind
 		}
 	}
+	semanticEntityEnsureNullableKeys(rowMap)
 	return rowMap, true
+}
+
+func semanticEntityEnsureNullableKeys(rowMap map[string]any) {
+	for _, key := range semanticEntityNullableRowKeys {
+		if _, ok := rowMap[key]; !ok {
+			rowMap[key] = nil
+		}
+	}
+}
+
+var semanticEntityNullableRowKeys = []string{
+	"kind",
+	"target_kind",
+	"type",
+	"type_alias_kind",
+	"type_parameters",
+	"framework",
+	"module_kind",
+	"declaration_merge_group",
+	"declaration_merge_count",
+	"declaration_merge_kinds",
+	"jsx_fragment_shorthand",
+	"component_type_assertion",
+	"component_wrapper_kind",
+	"impl_context",
+	"trait",
+	"target",
+	"protocol",
+	"implemented_for",
+	"attribute_kind",
+	"value",
+	"docstring",
+	"class_context",
+	"method_kind",
+	"constructor_kind",
+	"annotation_kind",
+	"context",
+	"enclosing_function",
+	"type_annotation_count",
+	"type_annotation_kinds",
+	"decorators",
+	"async",
+	"semantic_kind",
 }
 
 func buildRustImplBlockOwnershipRows(rows []reducer.SemanticEntityRow) []map[string]any {

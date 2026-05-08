@@ -281,7 +281,10 @@ const openAPIPathsCode = `
                   "properties": {
                     "repo_id": {"type": "string"},
                     "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "truncated": {"type": "boolean", "description": "True when either displayed results were clipped to limit or the bounded raw candidate scan reached its scan cap."},
+                    "display_truncated": {"type": "boolean", "description": "True when filtered display results exceeded limit and were clipped."},
+                    "candidate_scan_truncated": {"type": "boolean", "description": "True when the raw graph candidate scan reached candidate_scan_limit before policy exclusions were applied."},
+                    "candidate_scan_limit": {"type": "integer", "description": "Raw graph candidate scan cap used before dead-code policy exclusions."},
                     "results": {
                       "type": "array",
                       "items": {

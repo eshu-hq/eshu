@@ -11,8 +11,8 @@
 // canonical writers (CanonicalNodeWriter, EdgeWriter) are the boundary where
 // node and edge invariants are enforced before bytes reach Neo4j or NornicDB.
 // Code-call rows may materialize as CALLS or REFERENCES depending on parser
-// semantics; type-reference metadata must remain REFERENCES so graph truth does
-// not claim that type literals are invocations.
+// semantics; Go and TypeScript type-reference metadata must remain REFERENCES
+// so graph truth does not claim that type literals are invocations.
 // Canonical entity retractions run after current entity upserts and keep
 // concrete labels in the Cypher anchor so stale-node and stale-edge cleanup
 // remains selective on supported graph backends. Stale File-to-entity CONTAINS

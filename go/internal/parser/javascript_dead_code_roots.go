@@ -12,6 +12,7 @@ type javaScriptDeadCodeEvidence struct {
 	registeredRootKinds map[string][]string
 	fileRootKinds       []string
 	hapiHandlerFile     bool
+	hapiPluginFile      bool
 }
 
 func javaScriptDeadCodeRootEvidence(
@@ -24,6 +25,7 @@ func javaScriptDeadCodeRootEvidence(
 		registeredRootKinds: javaScriptRegisteredDeadCodeRootKinds(root, source),
 		fileRootKinds:       javaScriptPackageFileRootKinds(repoRoot, path),
 		hapiHandlerFile:     javaScriptIsHapiHandlerFile(repoRoot, path),
+		hapiPluginFile:      javaScriptIsHapiPluginFile(repoRoot, path),
 	}
 }
 
@@ -142,6 +144,10 @@ func javaScriptDeadCodeRootKinds(
 			if javaScriptIsNodeBinFunctionName(name) {
 				rootKinds = appendUniqueString(rootKinds, rootKind)
 			}
+		case "javascript.node_package_script":
+			if javaScriptIsNodeScriptFunctionName(name) {
+				rootKinds = appendUniqueString(rootKinds, rootKind)
+			}
 		case "javascript.node_package_export":
 			if javaScriptIsExported(node) || javaScriptIsCommonJSExport(node, name, source) {
 				rootKinds = appendUniqueString(rootKinds, rootKind)
@@ -151,8 +157,75 @@ func javaScriptDeadCodeRootKinds(
 	if evidence.hapiHandlerFile && (javaScriptIsExported(node) || javaScriptIsCommonJSExport(node, name, source)) {
 		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_handler_export")
 	}
+	if evidence.hapiPluginFile && javaScriptIsHapiPluginRegister(node, name) {
+		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_plugin_register")
+	}
+	if javaScriptIsTypeScriptInterfaceImplementationMethod(node, name, source) {
+		rootKinds = appendUniqueString(rootKinds, "typescript.interface_method_implementation")
+	}
 	slices.Sort(rootKinds)
 	return rootKinds
+}
+
+func javaScriptIsTypeScriptInterfaceImplementationMethod(node *tree_sitter.Node, name string, source []byte) bool {
+	if node == nil || node.Kind() != "method_definition" {
+		return false
+	}
+	if strings.TrimSpace(name) == "" || strings.TrimSpace(name) == "constructor" {
+		return false
+	}
+	methodSource := strings.TrimSpace(nodeText(node, source))
+	if strings.HasPrefix(methodSource, "private ") || strings.HasPrefix(methodSource, "protected ") {
+		return false
+	}
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		switch current.Kind() {
+		case "class_declaration", "abstract_class_declaration":
+			return javaScriptClassHasImplementsClause(current)
+		case "program":
+			return false
+		}
+	}
+	return false
+}
+
+func javaScriptClassHasImplementsClause(node *tree_sitter.Node) bool {
+	if node == nil {
+		return false
+	}
+	return javaScriptNodeContainsKind(node, "implements_clause")
+}
+
+func javaScriptIsHapiPluginFile(repoRoot string, path string) bool {
+	relativePath, ok := relativeSlashPath(repoRoot, path)
+	if !ok {
+		relativePath = filepath.ToSlash(path)
+	}
+	return strings.Contains(relativePath, "/server/init/plugins/") || strings.HasPrefix(relativePath, "server/init/plugins/")
+}
+
+func javaScriptIsHapiPluginRegister(node *tree_sitter.Node, name string) bool {
+	if strings.ToLower(strings.TrimSpace(name)) != "register" || node == nil {
+		return false
+	}
+	switch node.Kind() {
+	case "method_definition":
+	case "pair":
+		if !isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
+			return false
+		}
+	default:
+		return false
+	}
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		switch current.Kind() {
+		case "object":
+			return true
+		case "program":
+			return false
+		}
+	}
+	return false
 }
 
 func javaScriptIsNextJSRouteExport(path string, node *tree_sitter.Node, name string) bool {
@@ -249,6 +322,15 @@ func javaScriptIsNodeBinFunctionName(name string) bool {
 	return strings.HasPrefix(normalized, "run") || strings.HasSuffix(normalized, "cli")
 }
 
+func javaScriptIsNodeScriptFunctionName(name string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(name))
+	switch normalized {
+	case "main", "run", "start", "build", "generate", "bootstrap":
+		return true
+	default:
+		return strings.HasPrefix(normalized, "run") || strings.HasPrefix(normalized, "generate")
+	}
+}
 
 func javaScriptMemberBaseAndProperty(node *tree_sitter.Node, source []byte) (string, string, bool) {
 	if node == nil || node.Kind() != "member_expression" {

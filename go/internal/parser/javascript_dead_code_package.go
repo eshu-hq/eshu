@@ -42,7 +42,7 @@ func javaScriptPackageFileRootKinds(repoRoot string, path string) []string {
 	}
 	for _, target := range javaScriptPackageScriptTargets(manifest.Scripts) {
 		if javaScriptPackageTargetMatchesSource(target, relativePath) {
-			rootKinds = appendUniqueString(rootKinds, "javascript.node_package_entrypoint")
+			rootKinds = appendUniqueString(rootKinds, "javascript.node_package_script")
 		}
 	}
 	for _, target := range javaScriptPackageExportTargets(manifest.Exports) {
@@ -126,12 +126,7 @@ func javaScriptPackageScriptTargets(scripts map[string]string) []string {
 		return nil
 	}
 	targets := []string{}
-	for name, command := range scripts {
-		switch name {
-		case "start", "dev":
-		default:
-			continue
-		}
+	for _, command := range scripts {
 		for _, token := range strings.Fields(command) {
 			target := strings.Trim(token, `"'`)
 			if target == "" || strings.HasPrefix(target, "-") {

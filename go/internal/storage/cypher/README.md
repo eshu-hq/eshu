@@ -66,9 +66,9 @@ dead-code API merges that evidence from the content store by entity ID.
 template and dispatches rows in batches of `BatchSize` (default
 `DefaultBatchSize` = 500). Domain-specific sub-batch sizes are available for
 `DomainCodeCalls`, `DomainInheritanceEdges`, and `DomainSQLRelationships`.
-`DomainCodeCalls` writes direct call evidence as `CALLS`, JSX component and Go
-type-reference evidence as `REFERENCES`, and Python metaclass evidence as
-`USES_METACLASS`.
+`DomainCodeCalls` writes direct call evidence as `CALLS`, JSX component plus Go
+and TypeScript type-reference evidence as `REFERENCES`, and Python metaclass
+evidence as `USES_METACLASS`.
 
 The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
@@ -244,10 +244,10 @@ adapter seam.
   current `Class` and `Function` parents. Keep those cleanup statements
   label-anchored on `uid`; unlabelled UID anchors are portable Cypher but can
   miss the NornicDB and Neo4j hot path for this package's schema.
-- Code reference writes must allow type targets (`Struct`, `Interface`) as well
-  as callable targets. Do not route Go composite-literal type references through
-  `CALLS`; dead-code queries depend on incoming `REFERENCES` to model type
-  usage without inventing invocation truth.
+- Code reference writes must allow type targets (`Struct`, `Interface`,
+  `TypeAlias`) as well as callable targets. Do not route Go composite-literal
+  or TypeScript type references through `CALLS`; dead-code queries depend on
+  incoming `REFERENCES` to model type usage without inventing invocation truth.
 - Canonical stale entity retractions run after current entity upserts and are
   emitted per projectable label, not as broad label-family `MATCH (n)` scans or
   giant `uid IN` exclusion filters. Current nodes have already been stamped with

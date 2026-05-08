@@ -141,10 +141,11 @@ a root. The Go same-directory step applies to functions and type entities from
 such as `wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name
 resolution must stay ambiguous in that case.
 
-Parser metadata rows with `call_kind=go.composite_literal_type_reference`
-materialize as deduplicated `REFERENCES` edges. They prove Go type-reference
-roots for dead-code classification, but must not materialize as `CALLS` because
-that would make graph truth claim that struct literals invoke types.
+Parser metadata rows with `call_kind=go.composite_literal_type_reference` or
+`call_kind=typescript.type_reference` materialize as deduplicated `REFERENCES`
+edges. They prove type-reference roots for dead-code classification, but must
+not materialize as `CALLS` because that would make graph truth claim that type
+literals invoke types.
 
 SCIP edges bypass the heuristic resolver when both caller and callee locations
 map to known entities. Keep the native and SCIP paths idempotent: duplicate

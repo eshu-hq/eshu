@@ -10,9 +10,12 @@
 // envelopes, truth metadata, capability gates, and code-quality classifications
 // are stable wire contracts. Dead-code responses preserve language maturity,
 // modeled framework-root lists, and root-kind evidence for functions and types
-// so callers can separate cleanup candidates from modeled roots; unsupported
-// language metadata and test fixtures are suppressed from default cleanup
-// candidates.
+// so callers can separate cleanup candidates from modeled roots; TypeScript
+// interface implementation method roots are reported alongside JavaScript-family
+// package and framework roots. Unsupported language metadata and test fixtures
+// are suppressed from default cleanup candidates. Display truncation and raw
+// candidate-scan truncation are reported separately so bounded scans remain
+// explicit without implying the shown result list was clipped.
 // local_authoritative and local_full_stack both answer graph-backed platform
 // impact queries, while local_lightweight returns structured unsupported errors
 // for those routes.
