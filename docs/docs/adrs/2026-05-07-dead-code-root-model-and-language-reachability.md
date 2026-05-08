@@ -270,9 +270,10 @@ Roll out exactness by language family, not by marketing claim.
    imports, class methods, public package surfaces, and dynamic import
    ambiguity.
 3. **JavaScript/TypeScript/TSX:** Node package entrypoints, package `bin`
-   targets, package public exports, Hapi/lib-api-hapi handler exports,
-   ESM/CommonJS exports, Next.js, Express, route handlers, class methods,
-   framework callbacks, and dynamic property access ambiguity.
+   targets, package public exports, exported functions under configured
+   Hapi/lib-api-hapi handler directories, ESM/CommonJS exports, Next.js,
+   Express, route handlers, class methods, framework callbacks, and dynamic
+   property access ambiguity.
 4. **Rust/Java/C#/Scala/Swift/Kotlin:** traits/interfaces, annotations,
    exported/public symbols, package/module roots, framework callbacks, and
    compiler/indexer-backed semantics where available.

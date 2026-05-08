@@ -8,9 +8,10 @@
 // handler behavior, OpenAPI fragments, and docs/docs/reference/http-api.md
 // must agree whenever public routes or response shapes change. Response
 // envelopes, truth metadata, capability gates, and code-quality classifications
-// are stable wire contracts. Dead-code responses preserve language maturity and
-// root-kind evidence for functions and types so callers can separate cleanup
-// candidates from modeled roots. local_authoritative and local_full_stack both
-// answer graph-backed platform impact queries, while local_lightweight returns
-// structured unsupported errors for those routes.
+// are stable wire contracts. Dead-code responses preserve language maturity,
+// modeled framework-root lists, and root-kind evidence for functions and types
+// so callers can separate cleanup candidates from modeled roots.
+// local_authoritative and local_full_stack both answer graph-backed platform
+// impact queries, while local_lightweight returns structured unsupported errors
+// for those routes.
 package query

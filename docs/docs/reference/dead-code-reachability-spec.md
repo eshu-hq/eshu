@@ -185,9 +185,9 @@ Current branch status:
 - JavaScript/TypeScript Next.js route exports are modeled
 - JavaScript/TypeScript Express handler registrations are modeled
 - JavaScript/TypeScript Node package entrypoints, package `bin` targets,
-  package public exports, and Hapi/lib-api-hapi handler exports are modeled
-  when `package.json` and `server/init/plugins/spec*` provide bounded local
-  evidence
+  package public exports, and exported functions under configured
+  Hapi/lib-api-hapi handler directories are modeled when `package.json` and
+  `server/init/plugins/spec*` provide bounded local evidence
 - those Go signature roots are now emitted by the Go parser into entity
   metadata when imports, registrations, and signatures match directly; mixed
   native+SCIP indexing now preserves `dead_code_root_kinds` through the

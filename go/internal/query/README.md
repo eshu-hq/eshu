@@ -62,7 +62,10 @@ are extracted via `StringVal`, `BoolVal`, `IntVal`, `StringSliceVal`
 parametrized Postgres queries against `content_files` and `content_entities`.
 Code dead-code queries add an analysis pass over graph rows so parser-provided
 `dead_code_root_kinds`, language maturity, test/generated exclusions, and
-candidate classifications are visible in the response body.
+candidate classifications are visible in the response body. The analysis block
+also names modeled framework roots such as JavaScript package exports and
+Hapi/lib-api-hapi handler exports, which lets MCP and CLI callers explain why a
+candidate was suppressed.
 
 Both backends instrument every query with an OTEL span (`neo4j.query`,
 `postgres.query`). Handlers that span multiple read stages use
@@ -212,7 +215,9 @@ wired in `cmd/api/wiring.go`, not here.
   `dead_code_language_maturity`, and `analysis` fields so MCP and CLI callers
   can distinguish actionable unused symbols from excluded or ambiguous ones.
   Go root-kind evidence covers function roots and type roots, including
-  `go.type_reference` and `go.interface_implementation_type`.
+  `go.type_reference` and `go.interface_implementation_type`. JavaScript-family
+  analysis must list Node package and Hapi/lib-api-hapi roots when query policy
+  suppresses those candidates.
 - Content reads return `source_backend=unavailable` when Postgres does not have
   a cached row for the requested file. This is not a Postgres error; the ingester
   has not yet written content for that scope.

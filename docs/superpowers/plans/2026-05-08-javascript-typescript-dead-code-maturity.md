@@ -28,7 +28,8 @@ Local target evidence:
 - Hapi route roots are mostly file-convention driven through `server/init/plugins/spec*` options:
   - `openapi.handlers: path.join(__dirname, '../../handlers')`
   - `openapi.handlers: path.resolve(__dirname, '../../handlers')`
-- Route handler roots usually export HTTP methods:
+- Route handler roots usually export HTTP methods, plus library-specific
+  callback exports such as lib-api-hapi status payload builders:
   - CommonJS: `module.exports.get = async (...) => {}`
   - TypeScript/ESM: `export const get = async (...) => {}`
   - Supported method names should include `get`, `post`, `put`, `patch`, `delete`, `head`, and `options`.
@@ -53,6 +54,9 @@ Expected implementation touch points:
   - Model static import/export/require evidence and ambiguity markers without attempting full TypeScript resolution in one pass.
 - Modify `go/internal/parser/javascript_language.go`
   - Attach new `dead_code_root_kinds` to functions, classes, variables, and components where parser evidence proves a root.
+- Modify or create `go/internal/parser/javascript_imports.go`
+  - Preserve import alias metadata needed by reducer call materialization,
+    including TypeScript namespace imports such as `import * as jwt from ...`.
 - Add parser tests:
   - `go/internal/parser/javascript_dead_code_node_roots_test.go`
   - `go/internal/parser/javascript_dead_code_hapi_roots_test.go`
@@ -245,9 +249,10 @@ Add:
 ```js
 module.exports.get = async (request) => ({ ok: true });
 module.exports.patch = async (request) => request.payload;
+module.exports.payload = async () => ({ statusCode: 200 });
 ```
 
-Assert both exports receive `javascript.hapi_handler_export`.
+Assert all exported functions receive `javascript.hapi_handler_export`.
 
 - [x] **Step 3: Implement Hapi spec-plugin detection**
 
@@ -260,13 +265,11 @@ Resolve `path.join(__dirname, '../../handlers')` and `path.resolve(__dirname, '.
 
 - [x] **Step 4: Implement handler export roots**
 
-Root only exported HTTP method symbols under configured handler directories:
-
-```text
-get, post, put, patch, delete, head, options
-```
-
-Do not root every function in handler files. Helper functions inside handlers still need normal call/reference evidence.
+Root exported function symbols under configured handler directories. This
+includes normal HTTP method exports and callback exports consumed by wrapper
+handlers, such as `module.exports.payload` beside
+`@dmm/lib-api-hapi/handlers/status`. Do not root non-exported helper functions
+inside handlers; they still need normal call/reference evidence.
 
 - [x] **Step 5: Add query test and policy update**
 
@@ -284,8 +287,11 @@ Expected: PASS after implementation.
 ## Later Chunks
 
 Chunk 3 adds static ESM/CommonJS import, require, re-export, and barrel-file
-reachability. It owns `go/internal/parser/javascript_dead_code_modules.go` and
-must prove relative static imports without emulating a full bundler.
+reachability. It must prove relative static imports without emulating a full
+bundler. TypeScript namespace member calls such as `jwt.encode()` now resolve
+to `server/resources/jwt.ts::encode` from
+`import * as jwt from "../resources/jwt"`; the remaining Chunk 3 work should
+cover broader CommonJS require, re-export, barrel-file, and path-alias cases.
 
 Chunk 4 adds ambiguity metadata for dynamic imports, computed property
 dispatch, DI containers, and event callback registrations. It should explain
@@ -298,6 +304,17 @@ Chunk 6 dogfoods against representative local services:
 `api-node-jwt`, `api-node-geo`, `api-node-ai-provider`, `api-node-chat`,
 `api-node-whisper`, and `api-node-forex`. Each run must record discovery shape,
 query duration, result count, truncation, and evidence-backed false positives.
+
+Live proof note from `api-node-jwt`: after rebuilding local binaries, `eshu
+graph start` indexed 50 files and MCP `find_dead_code` returned fresh derived
+results with 3 parser metadata framework roots. That proof caught and fixed the
+lib-api-hapi `module.exports.payload` handler-root gap. A follow-up namespace
+import fix increased reducer code call materialization from 19 to 24 calls, and
+MCP `execute_cypher_query` confirmed handler/resource edges such as
+`post -> encode`, `getHealthChecks -> secretIsSafe`, `decode -> getSecret`,
+`getSecret -> get/init`, and `payload -> getHealthChecks`. MCP
+`find_dead_code` then returned only 6 fresh candidates, all under `scripts/`,
+with no `server/resources/jwt.ts` or `server/resources/ssm.ts` false positives.
 
 ## Final Verification Gate
 

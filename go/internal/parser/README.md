@@ -3,8 +3,8 @@
 ## Purpose
 
 `internal/parser` owns the native Go parser registry, language adapters,
-dead-code root metadata, and SCIP reduction support used to extract
-source-level entities and metadata.
+import metadata, dead-code root metadata, and SCIP reduction support used to
+extract source-level entities and metadata.
 Parser changes must preserve fact truth: when a parser starts emitting a new
 entity, relationship, or metadata field, the relevant fixtures, fact contracts
 in `internal/facts`, and downstream docs must move in lockstep. Parsers must
@@ -55,10 +55,12 @@ language handles; grammars are loaded on first use and reused across calls.
 language-specific adapter function (e.g. `parseGo`, `parsePython`,
 `parseKotlin`). Language adapters may attach semantic metadata such as
 `dead_code_root_kinds` when syntax proves an entrypoint, framework callback,
-function-value callback, or interface method implementation. After the
-language adapter returns, `inferContentMetadata` sets `artifact_type`,
-`template_dialect`, and `iac_relevant` on the payload. The final payload also
-carries `repo_path`.
+function-value callback, JavaScript package export, configured Hapi handler
+export, or interface method implementation. JavaScript-family adapters also
+preserve import alias metadata so reducer call materialization can resolve
+namespace member calls across files. After the language adapter returns,
+`inferContentMetadata` sets `artifact_type`, `template_dialect`, and
+`iac_relevant` on the payload. The final payload also carries `repo_path`.
 
 Go composite literals also emit `function_calls` rows with
 `call_kind=go.composite_literal_type_reference`. Those rows are parser metadata
@@ -226,8 +228,13 @@ errors are surfaced in `collector snapshot stage completed` logs with
   Go roots currently cover entrypoints, selected framework registrations,
   function-valued parameters, local interface references, concrete methods
   that flow into local or imported interface-typed seams, and struct types
-  referenced by composite literals. Dynamic reflection and build-tag-specific
-  reachability still need query-side ambiguity handling.
+  referenced by composite literals. JavaScript-family roots cover Node package
+  entrypoints, package `bin` targets, package public exports, and exported
+  functions under Hapi/lib-api-hapi handler directories when bounded local
+  config proves those directories. JavaScript-family import metadata preserves
+  namespace aliases used by reducer call materialization. Dynamic reflection,
+  build-tag-specific reachability, TypeScript path aliases, barrel re-exports,
+  and computed dispatch still need query-side ambiguity handling.
 - `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form.
   Passing a relative path produces an absolute resolved path in the payload's
   `repo_path` field; this is correct behavior but callers should pass absolute

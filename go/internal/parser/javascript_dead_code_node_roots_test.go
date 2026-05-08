@@ -215,9 +215,12 @@ module.exports.payload = async () => ({ message: "ok" });
 		"dead_code_root_kinds",
 		"javascript.hapi_handler_export",
 	)
-	if _, ok := assertFunctionByName(t, commonJSPayload, "payload")["dead_code_root_kinds"]; ok {
-		t.Fatalf("payload dead_code_root_kinds present, want absent for non-route export")
-	}
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, commonJSPayload, "payload"),
+		"dead_code_root_kinds",
+		"javascript.hapi_handler_export",
+	)
 	if _, ok := assertFunctionByName(t, resourcePayload, "get")["dead_code_root_kinds"]; ok {
 		t.Fatalf("resource get dead_code_root_kinds present, want absent outside configured handlers")
 	}

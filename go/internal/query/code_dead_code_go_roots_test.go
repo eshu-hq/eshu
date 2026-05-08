@@ -211,7 +211,7 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if !ok {
 		t.Fatalf("analysis[modeled_framework_roots] type = %T, want []any", analysis["modeled_framework_roots"])
 	}
-	if got, want := len(modeledFrameworkRoots), 10; got != want {
+	if got, want := len(modeledFrameworkRoots), 12; got != want {
 		t.Fatalf("len(analysis[modeled_framework_roots]) = %d, want %d", got, want)
 	}
 	if got, want := modeledFrameworkRoots[0], "go.cobra_run_registration"; got != want {
@@ -243,6 +243,12 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	}
 	if got, want := modeledFrameworkRoots[9], "javascript.express_route_registration"; got != want {
 		t.Fatalf("analysis[modeled_framework_roots][9] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[10], "javascript.node_package_export"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][10] = %#v, want %#v", got, want)
+	}
+	if got, want := modeledFrameworkRoots[11], "javascript.hapi_handler_export"; got != want {
+		t.Fatalf("analysis[modeled_framework_roots][11] = %#v, want %#v", got, want)
 	}
 	if got, want := analysis["framework_roots_from_parser_metadata"], float64(0); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)

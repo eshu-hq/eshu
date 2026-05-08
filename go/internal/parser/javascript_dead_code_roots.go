@@ -148,8 +148,7 @@ func javaScriptDeadCodeRootKinds(
 			}
 		}
 	}
-	if evidence.hapiHandlerFile && javaScriptIsHapiHandlerName(name) &&
-		(javaScriptIsExported(node) || javaScriptIsCommonJSExport(node, name, source)) {
+	if evidence.hapiHandlerFile && (javaScriptIsExported(node) || javaScriptIsCommonJSExport(node, name, source)) {
 		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_handler_export")
 	}
 	slices.Sort(rootKinds)
@@ -250,14 +249,6 @@ func javaScriptIsNodeBinFunctionName(name string) bool {
 	return strings.HasPrefix(normalized, "run") || strings.HasSuffix(normalized, "cli")
 }
 
-func javaScriptIsHapiHandlerName(name string) bool {
-	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "get", "post", "put", "patch", "delete", "head", "options":
-		return true
-	default:
-		return false
-	}
-}
 
 func javaScriptMemberBaseAndProperty(node *tree_sitter.Node, source []byte) (string, string, bool) {
 	if node == nil || node.Kind() != "member_expression" {
