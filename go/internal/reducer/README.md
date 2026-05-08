@@ -137,7 +137,10 @@ Constructor calls, local receiver type metadata, returned function-value
 references, TypeScript type references, and Function prototype receiver calls
 such as `callback.call(...)` let `new Type()`, `value.method()`, type-only
 imports, callback returns, and function receiver dispatch resolve when parser
-evidence proves the local target. For package entrypoint, package bin, package
+evidence proves the local target. Static object registries are resolved only
+inside the containing function source, including destructured aliases and
+literal bracket keys; runtime-computed keys do not create edges. For package
+entrypoint, package bin, package
 export, and top-level JavaScript reference files, the repository scoped
 `File.uid` may be the caller so executable module bodies can make `main()`,
 constructor, member, function-value, and type-reference edges reachable without

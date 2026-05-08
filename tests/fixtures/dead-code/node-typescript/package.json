@@ -1,0 +1,15 @@
+{
+  "name": "node-typescript-dead-code-fixture",
+  "private": true,
+  "type": "module",
+  "main": "./dist/runtime.js",
+  "bin": {
+    "generic-service": "./dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/public-api.js"
+  },
+  "scripts": {
+    "start": "node ./dist/runtime.js"
+  }
+}

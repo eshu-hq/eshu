@@ -91,6 +91,9 @@ func resolveGenericCallee(
 	if entityID := resolveSameFileScopedCalleeEntityID(index, rawPath, relativePath, call, callLine); entityID != "" {
 		return entityID, codeCallPreferredPath(rawPath, relativePath)
 	}
+	if entityID := resolveDynamicJavaScriptCalleeEntityID(index, rawPath, relativePath, fileData, call); entityID != "" {
+		return entityID, codeCallPreferredPath(rawPath, relativePath)
+	}
 	if entityID := resolveSameFileCalleeEntityID(index, rawPath, relativePath, call); entityID != "" {
 		return entityID, codeCallPreferredPath(rawPath, relativePath)
 	}

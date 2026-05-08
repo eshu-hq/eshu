@@ -11,9 +11,11 @@ func javaScriptTypeAliasItem(
 	nameNode *tree_sitter.Node,
 	source []byte,
 	lang string,
+	deadCodeRoots javaScriptDeadCodeEvidence,
 ) map[string]any {
+	name := nodeText(nameNode, source)
 	item := map[string]any{
-		"name":            nodeText(nameNode, source),
+		"name":            name,
 		"line_number":     nodeLine(nameNode),
 		"end_line":        nodeEndLine(node),
 		"lang":            lang,
@@ -21,6 +23,9 @@ func javaScriptTypeAliasItem(
 	}
 	if aliasKind := javaScriptTypeAliasKind(node); aliasKind != "" {
 		item["type_alias_kind"] = aliasKind
+	}
+	if rootKinds := javaScriptDeadCodeRootKinds("", node, name, source, deadCodeRoots); len(rootKinds) > 0 {
+		item["dead_code_root_kinds"] = rootKinds
 	}
 	return item
 }

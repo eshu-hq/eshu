@@ -211,7 +211,7 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if !ok {
 		t.Fatalf("analysis[modeled_framework_roots] type = %T, want []any", analysis["modeled_framework_roots"])
 	}
-	if got, want := len(modeledFrameworkRoots), 23; got != want {
+	if got, want := len(modeledFrameworkRoots), 24; got != want {
 		t.Fatalf("len(analysis[modeled_framework_roots]) = %d, want %d", got, want)
 	}
 	if got, want := modeledFrameworkRoots[0], "go.cobra_run_registration"; got != want {

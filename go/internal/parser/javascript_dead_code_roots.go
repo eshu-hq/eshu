@@ -10,6 +10,7 @@ import (
 
 type javaScriptDeadCodeEvidence struct {
 	registeredRootKinds map[string][]string
+	typeScriptRootKinds map[string][]string
 	fileRootKinds       []string
 	hapiControllerFile  bool
 	hapiHandlerFile     bool
@@ -38,6 +39,7 @@ func javaScriptDeadCodeRootEvidence(
 		registeredRootKinds,
 		javaScriptCommonJSDefaultExportAliasRootKinds(root, source),
 	)
+	mergeJavaScriptRegisteredRootKinds(registeredRootKinds, javaScriptFrameworkRegisteredDeadCodeRootKinds(root, source))
 	if hapiHandlerFile {
 		mergeJavaScriptRegisteredRootKinds(
 			registeredRootKinds,
@@ -50,6 +52,7 @@ func javaScriptDeadCodeRootEvidence(
 	}
 	return javaScriptDeadCodeEvidence{
 		registeredRootKinds: registeredRootKinds,
+		typeScriptRootKinds: javaScriptTypeScriptSurfaceRootKinds(repoRoot, path, root, source),
 		fileRootKinds:       javaScriptPackageFileRootKinds(repoRoot, path),
 		hapiControllerFile:  javaScriptIsHapiControllerFile(repoRoot, path),
 		hapiHandlerFile:     hapiHandlerFile,
@@ -136,10 +139,7 @@ func javaScriptRegisteredDeadCodeRootKinds(
 	return registered
 }
 
-// javaScriptExpressServerSymbols extracts the typed server_symbols contract
-// emitted by detectExpressSemantics. The detector intentionally requires the
-// stable []string shape so registration-driven dead-code roots fail closed if
-// the upstream helper changes shape.
+// javaScriptExpressServerSymbols extracts the typed server_symbols contract.
 func javaScriptExpressServerSymbols(express map[string]any) []string {
 	if len(express) == 0 {
 		return nil
@@ -224,6 +224,12 @@ func javaScriptDeadCodeRootKinds(
 	if javaScriptIsTypeScriptModuleContractExport(node, name, source) {
 		rootKinds = appendUniqueString(rootKinds, "typescript.module_contract_export")
 	}
+	for _, rootKind := range evidence.typeScriptRootKinds[strings.TrimSpace(name)] {
+		rootKinds = appendUniqueString(rootKinds, rootKind)
+	}
+	if javaScriptIsNestJSControllerMethod(node, source) {
+		rootKinds = appendUniqueString(rootKinds, "javascript.nestjs_controller_method")
+	}
 	slices.Sort(rootKinds)
 	return rootKinds
 }
@@ -252,35 +258,6 @@ func javaScriptConstructorClass(node *tree_sitter.Node, name string, source []by
 		}
 	}
 	return nil, ""
-}
-
-func javaScriptIsTypeScriptInterfaceImplementationMethod(node *tree_sitter.Node, name string, source []byte) bool {
-	if node == nil || node.Kind() != "method_definition" {
-		return false
-	}
-	if strings.TrimSpace(name) == "" || strings.TrimSpace(name) == "constructor" {
-		return false
-	}
-	methodSource := strings.TrimSpace(nodeText(node, source))
-	if strings.HasPrefix(methodSource, "private ") || strings.HasPrefix(methodSource, "protected ") {
-		return false
-	}
-	for current := node.Parent(); current != nil; current = current.Parent() {
-		switch current.Kind() {
-		case "class_declaration", "abstract_class_declaration":
-			return javaScriptClassHasImplementsClause(current)
-		case "program":
-			return false
-		}
-	}
-	return false
-}
-
-func javaScriptClassHasImplementsClause(node *tree_sitter.Node) bool {
-	if node == nil {
-		return false
-	}
-	return javaScriptNodeContainsKind(node, "implements_clause")
 }
 
 func javaScriptIsHapiPluginFile(repoRoot string, path string) bool {
