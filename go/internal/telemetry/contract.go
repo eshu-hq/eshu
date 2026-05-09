@@ -68,6 +68,12 @@ const (
 	SpanQueryRelationshipEvidence      = "query.relationship_evidence"
 	SpanQueryDeadIaC                   = "query.dead_iac"
 	SpanQueryInfraResourceSearch       = "query.infra_resource_search"
+	SpanTerraformStateClaimProcess     = "tfstate.collector.claim.process"
+	SpanTerraformStateDiscoveryResolve = "tfstate.discovery.resolve"
+	SpanTerraformStateSourceOpen       = "tfstate.source.open"
+	SpanTerraformStateParserStream     = "tfstate.parser.stream"
+	SpanTerraformStateFactEmitBatch    = "tfstate.fact.emit_batch"
+	SpanTerraformStateCoordinatorDone  = "tfstate.coordinator.complete"
 
 	// Dependency service spans — track external call performance.
 	SpanPostgresExec  = "postgres.exec"
@@ -137,6 +143,12 @@ var spanNames = []string{
 	SpanQueryRelationshipEvidence,
 	SpanQueryDeadIaC,
 	SpanQueryInfraResourceSearch,
+	SpanTerraformStateClaimProcess,
+	SpanTerraformStateDiscoveryResolve,
+	SpanTerraformStateSourceOpen,
+	SpanTerraformStateParserStream,
+	SpanTerraformStateFactEmitBatch,
+	SpanTerraformStateCoordinatorDone,
 	SpanPostgresExec,
 	SpanPostgresQuery,
 	SpanNeo4jExecute,

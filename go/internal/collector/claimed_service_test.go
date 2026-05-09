@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -187,6 +188,33 @@ func TestClaimedServiceTerminalFailsIdentityMismatch(t *testing.T) {
 	}
 }
 
+func TestClaimedServiceErrorUsesConfiguredCollectorKind(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("claim store unavailable")
+	service := ClaimedService{
+		ControlStore:        &stubClaimStore{claimErr: wantErr},
+		Source:              &stubClaimedSource{},
+		Committer:           &stubCommitter{},
+		CollectorKind:       scope.CollectorTerraformState,
+		CollectorInstanceID: "collector-tfstate-primary",
+		OwnerID:             "collector-owner-1",
+		ClaimIDFunc:         func() string { return "claim-tfstate-1" },
+		PollInterval:        time.Millisecond,
+		ClaimLeaseTTL:       time.Minute,
+		HeartbeatInterval:   time.Second,
+		Clock:               func() time.Time { return time.Date(2026, time.April, 20, 22, 40, 0, 0, time.UTC) },
+	}
+
+	err := service.Run(context.Background())
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Run() error = %v, want wrapped %v", err, wantErr)
+	}
+	if got := err.Error(); !strings.Contains(got, "terraform_state") || strings.Contains(got, "git work item") {
+		t.Fatalf("Run() error = %q, want configured collector kind without git wording", got)
+	}
+}
+
 func testClaimedWorkItem(now time.Time) workflow.WorkItem {
 	return workflow.WorkItem{
 		WorkItemID:          "item-claim-1",
@@ -260,6 +288,7 @@ type stubClaimStore struct {
 	item               workflow.WorkItem
 	claim              workflow.Claim
 	found              bool
+	claimErr           error
 	claimCalls         int
 	completeCalls      int
 	releaseCalls       int
@@ -279,6 +308,9 @@ func (s *stubClaimStore) ClaimNextEligible(
 	time.Duration,
 ) (workflow.WorkItem, workflow.Claim, bool, error) {
 	s.claimCalls++
+	if s.claimErr != nil {
+		return workflow.WorkItem{}, workflow.Claim{}, false, s.claimErr
+	}
 	return s.item, s.claim, s.found, nil
 }
 

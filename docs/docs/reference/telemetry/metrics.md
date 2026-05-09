@@ -138,6 +138,15 @@ collector/projector/reducer path.
 - Use them for: Understanding whether slowdowns happen before queueing or after
   facts are already materialized.
 
+### `eshu_dp_tfstate_discovery_candidates_total`
+
+- Type: Counter
+- Labels: `source` (`seed` or `graph`)
+- Meaning: Terraform-state discovery candidates accepted by the resolver before
+  any state source is opened.
+- Use it for: Confirming whether tfstate collection is bootstrapping from
+  operator seeds or from Git-observed backend evidence.
+
 ### `eshu_dp_projector_run_duration_seconds`
 ### `eshu_dp_projector_stage_duration_seconds`
 ### `eshu_dp_projections_completed_total`
