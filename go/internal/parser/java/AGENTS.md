@@ -2,49 +2,74 @@
 
 ## Read first
 
-1. README.md - package boundary, supported metadata files, and invariants
-2. doc.go - godoc contract for ClassReference and MetadataClassReferences
-3. metadata.go - ServiceLoader and Spring metadata extraction
-4. metadata_test.go - behavior coverage for continued Spring factories,
-   invalid class names, and duplicate suppression
+1. `README.md` - package boundary, exported surface, and invariants
+2. `doc.go` - godoc contract for `Parse`, `PreScan`, `ParseMetadata`,
+   `ClassReference`, and `MetadataClassReferences`
+3. `parser.go` - payload assembly, declaration traversal, imports, and calls
+4. `call_inference.go`, `call_context.go`, and `type_inference_helpers.go` -
+   Java receiver, argument, class-context, and return-type inference
+5. `dead_code_roots.go` and `reflection.go` - Java root classification and
+   literal reflection references
+6. `metadata.go` and `parser_metadata.go` - ServiceLoader, Spring metadata,
+   decorators, parameter types, and method-reference target evidence
 
 ## Invariants this package enforces
 
 - Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import internal/parser.
-- MetadataClassReferences only emits class references for supported metadata
-  paths. Unsupported paths return no evidence.
-- Class names must look like fully qualified Java class names. Dynamic,
-  invalid, or duplicate names stay out of the result set.
-- Ordering follows file order after comment cleanup and continuation handling.
-  Do not introduce map iteration into the emitted order.
+  package, but this package must not import `go/internal/parser`.
+- `Parse` preserves the parent payload contract for `functions`, `classes`,
+  `interfaces`, `annotations`, `enums`, `variables`, `imports`, and
+  `function_calls`; `ParseMetadata` preserves the `java_metadata`
+  compatibility payload.
+- The caller owns the tree-sitter parser and must configure it for Java before
+  calling `Parse` or `PreScan`.
+- Local variables are emitted only when `Options.VariableScope` normalizes to
+  `all`; module scope remains the default.
+- Reflection and metadata evidence stay static. Dynamic strings and invalid
+  class names must not become graph evidence.
+- Ordering follows source line, then name, through shared bucket sorting.
 
 ## Common changes and how to scope them
 
-- Add a new Java metadata file shape by extending the path classifier in
-  metadata.go and adding a fixture in metadata_test.go first.
-- Add a new field to ClassReference only when the parent parser has a real
-  consumer for it. Keep payload map keys in the parent parser package.
-- Keep tree-sitter Java source parsing out of this package until the shared
-  node helper boundary has a separate design.
+- Add Java syntax payload fields in `parser.go` with a parent engine test first
+  when the contract is visible through Engine ParsePath.
+- Add receiver or argument inference in `call_inference.go`,
+  `call_context.go`, or `type_inference_helpers.go` with a child-package unit
+  test when the helper contract is internal.
+- Add dead-code roots in `dead_code_roots.go` with positive and negative parent
+  parser tests so ordinary methods do not become roots by name alone.
+- Add reflection support in `reflection.go` only for literal, statically named
+  evidence.
+- Add a metadata file shape by extending `metadata.go` and `metadata_test.go`
+  first.
 
 ## Failure modes and how to debug
 
-- Missing ServiceLoader roots usually mean the path classifier did not match
-  the metadata path. Check metadata.go and add a focused test.
-- Extra dead-code roots usually mean invalid names were accepted too broadly.
-  Tighten the class-name validation before changing reducer policy.
-- Wrong line numbers in Spring factories usually mean continuation handling was
-  changed without preserving the first line of the joined value.
+- Missing Java symbols usually mean the tree-sitter kind changed or the walk in
+  `parser.go` missed a declaration kind.
+- Missing receiver types usually mean the declaration was outside the scope
+  indexed by `buildJavaCallInferenceIndex`.
+- Extra dead-code roots usually mean annotation, framework, or hook matching in
+  `dead_code_roots.go` accepted a broad shape.
+- Missing ServiceLoader roots usually mean the path classifier in `metadata.go`
+  did not match the resource path.
+- Wrong line numbers usually mean helper code used the enclosing node instead
+  of the declaration or literal node that proves the evidence.
 
 ## Anti-patterns specific to this package
 
-- Importing the parent parser package to reuse payload helpers.
-- Returning map[string]any from this package. Typed rows keep the package seam
-  small and testable.
-- Treating arbitrary strings in metadata as class references.
+- Importing the parent parser package to reuse private helpers.
+- Adding backend, collector, reducer, or graph storage dependencies.
+- Emitting graph truth from dynamic Java strings, comments, or naming
+  conventions without source evidence.
+- Keeping compatibility wrappers in this package; parent Engine signatures
+  remain in `go/internal/parser/java_language.go`.
 
 ## What NOT to change without an ADR
 
-- Do not move the full Java tree-sitter adapter here until shared tree helpers,
-  payload helpers, and registry wiring have explicit package contracts.
+- Do not change the Java payload bucket names or parent Engine method
+  signatures.
+- Do not change Java dead-code root semantics without fixture evidence and
+  query-surface impact review.
+- Do not add runtime telemetry directly here unless the parser telemetry
+  contract moves out of the parent engine.

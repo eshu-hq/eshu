@@ -75,8 +75,8 @@ captures parameter counts and parameter types. Serialization and
 Externalizable hook signatures are also roots because the JVM can invoke
 methods such as `readObject` and `writeExternal` outside ordinary source calls.
 Java call metadata captures method references such as `this::configureTask`,
-bounded literal reflection calls such as `Class.forName("com.example.Plugin")`
-and `Plugin.class.getDeclaredMethod("run", String.class)`, argument counts,
+bounded literal reflection calls such as Class.forName class names and
+getDeclaredMethod method names, argument counts,
 and bounded argument types from parameters, fields, inline constructors, and
 class-literal typed lambdas, so the reducer can distinguish overloaded methods
 when local receiver evidence points at a type. Receiver inference builds a local
@@ -94,9 +94,9 @@ bodies can still produce typed receiver evidence.
 Record declarations use the same class-style context for nested method parsing,
 which keeps Java record helper methods addressable by the reducer.
 Java metadata files under META-INF/services, Spring Boot
-`AutoConfiguration.imports`, and `spring.factories` parse as `java_metadata`
-payloads. The parent parser assembles payload maps, while the Java helper
-subpackage extracts the bounded class-reference evidence for provider and
+AutoConfiguration.imports, and `spring.factories` parse as `java_metadata`
+payloads. The parent parser keeps the wrapper and payload shape, while the Java
+helper subpackage extracts bounded class-reference evidence for provider and
 auto-configuration classes without scanning the repository from each Java
 source file.
 Python adapters also preserve method `class_context`, constructor call
@@ -148,6 +148,18 @@ candidate lists without claiming that type references are invocations.
 Java method-reference, literal-reflection, ServiceLoader provider, and Spring
 auto-configuration rows follow the same rule: they prove reachability roots but
 do not claim an invocation happened.
+
+Full Go, Java, Python, and JavaScript/TypeScript/TSX adapters now live in their
+language helper subpackages behind thin parent wrappers. Parent-owned runtime
+grammar caching, registry dispatch, raw-text payload construction, SCIP payload
+assembly, and dbt SQL lineage callbacks remain in this package. The
+`shared_bridge.go` wrapper converts parent `Options` into shared adapter
+options so child adapters do not import the dispatcher.
+
+dbt SQL lineage extraction now lives in the dbt SQL helper subpackage. The
+parent parser keeps `ColumnLineage`, `CompiledModelLineage`, and the
+`extractCompiledModelLineage` compatibility wrapper because JSON dbt manifest
+parsing receives lineage through a parent-supplied callback.
 
 `Engine.PreScanRepositoryPathsWithWorkers` runs a pre-scan pass that extracts
 import names, package-level interface references, type references, and

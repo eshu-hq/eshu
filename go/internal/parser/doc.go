@@ -27,7 +27,8 @@
 // classes, Spring request/bean/event/scheduled methods, Java lifecycle
 // callbacks, JUnit test and lifecycle methods, Jenkins extension/symbol/
 // initializer/data-bound setter methods, Stapler web methods, and serialization
-// hook methods. Java metadata includes method-reference rows, bounded literal
+// hook methods. Java metadata payload assembly stays in the parent wrapper,
+// while the Java helper subpackage extracts method-reference rows, bounded literal
 // reflection references, ServiceLoader provider and Spring auto-configuration
 // metadata files extracted through the Java helper subpackage, local receiver
 // type metadata backed by a per-file variable, enhanced-for variable, field,
@@ -45,10 +46,12 @@
 // CloudFormation/SAM template extraction through the CloudFormation helper
 // subpackage, returned function-value references, static re-export metadata,
 // composite-literal type references, and SCIP support for index-derived facts.
-// First-wave child adapter packages also own C, C++, Rust, C#, Scala, Elixir,
-// Swift, Dart, Ruby, Perl, Haskell, SQL, and HCL/Terraform parse and pre-scan
-// behavior behind thin parent wrappers, using shared parser helper contracts
-// instead of importing the parent dispatcher.
+// dbt SQL lineage extraction through the dbt SQL helper subpackage. Language
+// child packages also own Go, Java, Python, JavaScript/TypeScript/TSX, C, C++,
+// Rust, C#, Scala, Elixir, Swift, Dart, Ruby, Perl, Haskell, SQL, and
+// HCL/Terraform parse and pre-scan behavior behind thin parent wrappers. The
+// parent bridge converts Options and payload helpers into shared parser helper
+// contracts instead of making child packages import the parent dispatcher.
 // Parser changes must preserve fact truth: when a parser emits a new
 // entity, relationship, or metadata field, the relevant fixtures, fact
 // contracts in internal/facts, and downstream docs must move in lockstep.

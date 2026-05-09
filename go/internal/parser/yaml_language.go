@@ -12,11 +12,3 @@ func (e *Engine) parseYAML(
 		VariableScope: options.VariableScope,
 	})
 }
-
-func decodeYAMLDocuments(source string) ([]any, error) {
-	return yamlparser.DecodeDocuments(source)
-}
-
-func sanitizeYAMLTemplating(source string) string {
-	return yamlparser.SanitizeTemplating(source)
-}

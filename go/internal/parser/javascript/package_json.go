@@ -256,11 +256,3 @@ func packageSourceCandidates(target string) []string {
 	}
 	return candidates
 }
-
-func relativeSlashPath(repoRoot string, path string) (string, bool) {
-	relativePath, err := filepath.Rel(repoRoot, path)
-	if err != nil || strings.HasPrefix(relativePath, "..") {
-		return "", false
-	}
-	return filepath.ToSlash(filepath.Clean(relativePath)), true
-}

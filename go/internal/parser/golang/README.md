@@ -1,43 +1,78 @@
-# Go Parser Helpers
+# Go Parser
 
 ## Purpose
 
-This package owns Go parser helpers that do not need tree-sitter nodes or parent
-parser payload helpers. The first helper extracts embedded SQL table references
-from string literals passed to common database/sql and sqlx methods.
+This package owns Go source parsing for the parent parser dispatcher. It turns
+one Go source file into the payload buckets used by collector materialization,
+and it provides the lighter pre-scan contracts that let same-package interface
+evidence flow into later parse calls.
 
 ## Ownership boundary
 
-The package is responsible for typed Go evidence that can be computed from
-source text alone. The parent parser package still owns file I/O, tree-sitter
-parsing, payload assembly, Go dead-code roots, import aliases, call metadata,
-and bucket sorting.
+This package is responsible for Go tree-sitter parsing, Go payload assembly,
+Go dead-code root evidence, import alias tracking, receiver and call metadata,
+composite-literal type references, package interface pre-scan rows, and
+embedded SQL extraction.
+
+The parent parser package still owns registry lookup, path normalization,
+content metadata inference, runtime parser allocation, and the compatibility
+methods on `Engine`. Shared payload and tree helpers come from
+`internal/parser/shared`; this package must not import the parent parser
+package.
 
 ## Exported surface
 
-The godoc contract is in doc.go. Current exports are EmbeddedSQLQuery and
-EmbeddedSQLQueries.
+The godoc contract is in `doc.go`.
+
+- `Parse` builds the full Go file payload.
+- `PreScan` returns deterministic Go symbol names for import-map pre-scans.
+- `ImportedInterfaceParamMethods` extracts imported-interface parameter
+  contracts from one file for same-package dead-code evidence.
+- `EmbeddedSQLQueries` returns typed SQL table evidence from recognized Go
+  database call sites.
+- `EmbeddedSQLQuery`, `Options`, and `GoImportedInterfaceParamMethods` carry the
+  typed contracts used by those functions.
 
 ## Dependencies
 
-This package imports only the Go standard library. It must not import the
-parent parser package, collector packages, graph storage, or reducer code.
+This package imports `go/internal/parser/shared` for payload helpers,
+tree-sitter node helpers, source reads, and parser options. It imports
+`github.com/tree-sitter/go-tree-sitter` for the parser and node contracts.
+
+It must not import collector, query, projector, reducer, storage, telemetry, or
+the parent parser package.
 
 ## Telemetry
 
-This package emits no telemetry. Parse timing remains owned by the parent
-parser engine.
+This package emits no metrics, spans, or logs. Parse timing and error
+observation remain owned by the parent engine and collector runtime path.
 
 ## Gotchas / invariants
 
-EmbeddedSQLQueries is intentionally conservative. It only emits rows when a SQL
-literal is passed to a recognized database/sql or sqlx call and the SQL contains
-an obvious table reference.
+Payload bucket ordering is part of the fact-input contract. `Parse` sorts
+functions, structs, interfaces, variables, imports, and function calls before
+returning.
 
-The helper preserves source line numbers by carrying literal offsets through
-function-body extraction. Changing offset math can break downstream evidence
-even when the table name is still correct.
+Cyclomatic complexity counts Go control-flow branches once. The helper layer
+counts a `for range` statement through the enclosing `for_statement`, not again
+through its `range_clause`; this preserves the parent parser fixture contract.
+
+Dead-code evidence is conservative. Handler signatures, Cobra run signatures,
+controller-runtime reconciler signatures, registration calls, function-value
+references, interface implementations, and dependency-injection callbacks add
+`dead_code_root_kinds` only when the local syntax or same-package pre-scan
+evidence proves the root.
+
+`ImportedInterfaceParamMethods` is file-local by design. The parent `Engine`
+groups those rows by package directory before passing them back through
+`Options`.
+
+Embedded SQL evidence only records recognized database/sql and sqlx call sites
+where a string literal contains an obvious table reference. Line numbers refer
+to the original Go source.
 
 ## Related docs
 
-- docs/plans/2026-05-09-parser-language-layout.md
+- `docs/plans/2026-05-09-parser-language-layout.md`
+- `go/internal/parser/README.md`
+- `go/internal/parser/shared/README.md`

@@ -1,7 +1,9 @@
-// Package python extracts Python parser evidence that can stay independent from
-// the parent parser dispatch package.
+// Package python extracts Python parser evidence behind the parent engine's
+// Python dispatch methods.
 //
-// The package currently owns Jupyter notebook source extraction. NotebookSource
-// accepts notebook JSON bytes, returns only executable code cells, and leaves
-// temporary-file creation and tree-sitter parsing to the parent parser package.
+// Parse reads .py and .ipynb inputs, runs tree-sitter with a caller-owned parser,
+// and returns the payload buckets consumed by source collection and query truth.
+// PreScan uses the same adapter path for import-map discovery. NotebookSource
+// preserves the notebook code-cell invariant so notebook parsing cannot index
+// markdown, raw cells, or partial JSON.
 package python

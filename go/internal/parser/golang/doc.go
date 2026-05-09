@@ -1,8 +1,13 @@
-// Package golang extracts Go parser evidence that can stay independent from
-// the parent parser dispatch package.
+// Package golang owns Go source parsing behind the parent parser dispatch
+// boundary.
 //
-// The package currently owns embedded SQL extraction from Go string literals.
-// EmbeddedSQLQueries returns typed query rows for conservative database/sql and
-// sqlx call sites, leaving payload map assembly and tree-sitter parsing to the
-// parent parser package.
+// Parse builds the Go payload consumed by collector materialization, including
+// functions, methods, structs, interfaces, imports, variables, function calls,
+// dead-code root evidence, composite-literal type references, and embedded SQL
+// rows. PreScan and ImportedInterfaceParamMethods provide the lighter package
+// evidence that the parent Engine uses before full parsing. Helper functions
+// preserve the parent parser's branch-counting contract for cyclomatic
+// complexity, including range loops. The package uses shared helper contracts
+// instead of parent parser helpers, so language-owned adapters do not create
+// dispatcher import cycles.
 package golang
