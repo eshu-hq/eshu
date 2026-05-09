@@ -3,6 +3,7 @@ package terraformstate
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 )
 
 func readOpeningDelim(decoder *json.Decoder, want json.Delim, label string) error {
@@ -68,4 +69,15 @@ func skipNested(decoder *json.Decoder, opening json.Delim) error {
 	}
 	_, err := decoder.Token()
 	return err
+}
+
+func expectEOF(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err == io.EOF {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read trailing terraform state content: %w", err)
+	}
+	return fmt.Errorf("terraform state contains trailing content after root object: %v", token)
 }

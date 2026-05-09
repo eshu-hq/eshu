@@ -38,6 +38,19 @@ func resourceAddress(resource resourceContext, instance instanceContext, instanc
 	return address
 }
 
+func validateResourceIdentity(resource resourceContext) error {
+	if strings.TrimSpace(resource.Mode) == "" {
+		return fmt.Errorf("terraform state resource mode must not be blank")
+	}
+	if strings.TrimSpace(resource.Type) == "" {
+		return fmt.Errorf("terraform state resource type must not be blank")
+	}
+	if strings.TrimSpace(resource.Name) == "" {
+		return fmt.Errorf("terraform state resource name must not be blank")
+	}
+	return nil
+}
+
 func expectedSnapshotIdentity(freshnessHint string) (string, int64, error) {
 	var lineage string
 	var serialValue string

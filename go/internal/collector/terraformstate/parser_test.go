@@ -2,6 +2,8 @@ package terraformstate_test
 
 import (
 	"context"
+	"errors"
+	"io"
 	"sort"
 	"strings"
 	"testing"
@@ -203,6 +205,118 @@ func TestParserSkipsLargeIgnoredTopLevelFields(t *testing.T) {
 	result := parseFixtureFacts(t, state)
 
 	requireFactKinds(t, result, facts.TerraformStateSnapshotFactKind)
+}
+
+func TestParserRejectsTrailingBytes(t *testing.T) {
+	t.Parallel()
+
+	state := `{"serial":17,"lineage":"lineage-123"} trailing`
+	_, err := terraformstate.Parse(context.Background(), strings.NewReader(state), parseFixtureOptions(t))
+	if err == nil {
+		t.Fatal("Parse() trailing bytes error = nil, want non-nil")
+	}
+}
+
+func TestParserSurfacesReadLimitAfterCompleteJSONObject(t *testing.T) {
+	t.Parallel()
+
+	state := `{"serial":17,"lineage":"lineage-123"}`
+	source, err := terraformstate.NewS3StateSource(terraformstate.S3SourceConfig{
+		Bucket:   "tfstate-prod",
+		Key:      "state.tfstate",
+		Region:   "us-east-1",
+		MaxBytes: int64(len(state)),
+		Client: &recordingS3Client{
+			output: terraformstate.S3GetObjectOutput{
+				Body: io.NopCloser(strings.NewReader(state + strings.Repeat(" ", 8))),
+				Size: int64(len(state)),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewS3StateSource() error = %v, want nil", err)
+	}
+	reader, _, err := source.Open(context.Background())
+	if err != nil {
+		t.Fatalf("Open() error = %v, want nil", err)
+	}
+	defer closeReader(t, reader)
+
+	_, err = terraformstate.Parse(context.Background(), reader, parseFixtureOptions(t))
+	if !errors.Is(err, terraformstate.ErrStateTooLarge) {
+		t.Fatalf("Parse() error = %v, want ErrStateTooLarge", err)
+	}
+}
+
+func TestParserRejectsInstancesBeforeResourceIdentity(t *testing.T) {
+	t.Parallel()
+
+	state := `{"serial":17,"lineage":"lineage-123","resources":[{
+		"instances":[{"attributes":{"id":"i-1"}}],
+		"mode":"managed",
+		"type":"aws_instance",
+		"name":"api"
+	}]}`
+	_, err := terraformstate.Parse(context.Background(), strings.NewReader(state), parseFixtureOptions(t))
+	if err == nil {
+		t.Fatal("Parse() instances-before-identity error = nil, want non-nil")
+	}
+}
+
+func TestParserUsesIndexHashWhenAttributesPrecedeIndexKey(t *testing.T) {
+	t.Parallel()
+
+	state := `{"serial":17,"lineage":"lineage-123","resources":[{
+		"mode":"managed",
+		"type":"aws_instance",
+		"name":"tenant",
+		"instances":[{
+			"attributes":{"id":"i-1","password":"secret"},
+			"index_key":"tenant@example.com"
+		}]
+	}]}`
+
+	result := parseFixtureFacts(t, state)
+	resource := factByKind(t, result, facts.TerraformStateResourceFactKind)
+	address, ok := resource.Payload["address"].(string)
+	if !ok {
+		t.Fatalf("resource address = %#v, want string", resource.Payload["address"])
+	}
+	if !strings.Contains(address, "[key:") {
+		t.Fatalf("resource address = %q, want hashed index key", address)
+	}
+	attributes, ok := resource.Payload["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
+	}
+	password, ok := attributes["password"].(map[string]any)
+	if !ok {
+		t.Fatalf("attributes[password] = %#v, want redaction marker map", attributes["password"])
+	}
+	source, ok := password["source"].(string)
+	if !ok {
+		t.Fatalf("password source = %#v, want string", password["source"])
+	}
+	if !strings.Contains(source, address) {
+		t.Fatalf("password source = %q, want resource address %q", source, address)
+	}
+	assertNoRawSecret(t, result, "tenant@example.com")
+	assertNoRawSecretInRefs(t, result, "tenant@example.com")
+}
+
+func TestParserRejectsMalformedResourceIdentity(t *testing.T) {
+	t.Parallel()
+
+	state := `{"serial":17,"lineage":"lineage-123","resources":[{
+		"mode":"managed",
+		"type":"",
+		"name":"api",
+		"instances":[{"attributes":{"id":"i-1"}}]
+	}]}`
+	_, err := terraformstate.Parse(context.Background(), strings.NewReader(state), parseFixtureOptions(t))
+	if err == nil {
+		t.Fatal("Parse() malformed resource identity error = nil, want non-nil")
+	}
 }
 
 func TestParserRejectsMalformedState(t *testing.T) {

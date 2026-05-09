@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -150,6 +151,8 @@ func scalarBytes(raw any) ([]byte, bool) {
 			return []byte("NaN"), true
 		}
 		return []byte(strconv.FormatFloat(typed, 'g', -1, 64)), true
+	case json.Number:
+		return []byte(typed.String()), true
 	case textMarshaler:
 		encoded, err := typed.MarshalText()
 		return encoded, err == nil

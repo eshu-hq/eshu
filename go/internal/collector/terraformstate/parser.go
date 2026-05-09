@@ -99,6 +99,9 @@ func (p *stateParser) parse() error {
 	if _, err := p.decoder.Token(); err != nil {
 		return fmt.Errorf("close terraform state object: %w", err)
 	}
+	if err := expectEOF(p.decoder); err != nil {
+		return err
+	}
 	if err := p.validateSnapshotIdentity(); err != nil {
 		return err
 	}
@@ -249,6 +252,9 @@ func (p *stateParser) readResource(resourceIndex int) error {
 		case "provider":
 			resource.Provider, err = readString(p.decoder, "terraform state resource provider")
 		case "instances":
+			if err := validateResourceIdentity(resource); err != nil {
+				return fmt.Errorf("terraform state resource %d identity before instances: %w", resourceIndex, err)
+			}
 			sawInstances = true
 			err = p.readInstances(resource)
 		default:
@@ -262,7 +268,7 @@ func (p *stateParser) readResource(resourceIndex int) error {
 		return fmt.Errorf("close terraform state resource %d: %w", resourceIndex, err)
 	}
 	if !sawInstances {
-		p.emitResourceInstance(resource, instanceContext{}, 0, map[string]any{})
+		return p.emitResourceInstance(resource, instanceContext{}, 0, map[string]any{})
 	}
 	return nil
 }
@@ -281,14 +287,14 @@ func (p *stateParser) readInstances(resource resourceContext) error {
 		return fmt.Errorf("close terraform state resource instances: %w", err)
 	}
 	if count == 0 {
-		p.emitResourceInstance(resource, instanceContext{}, 0, map[string]any{})
+		return p.emitResourceInstance(resource, instanceContext{}, 0, map[string]any{})
 	}
 	return nil
 }
 
 func (p *stateParser) readInstance(resource resourceContext, instanceIndex int) error {
 	instance := instanceContext{}
-	attributes := map[string]any{}
+	attributes := []attributeValue{}
 	if err := readOpeningDelim(p.decoder, '{', "terraform state resource instance"); err != nil {
 		return err
 	}
@@ -312,8 +318,7 @@ func (p *stateParser) readInstance(resource resourceContext, instanceIndex int) 
 				instance.IndexKeyHash = instanceIndexHash(value)
 			}
 		case "attributes":
-			address := resourceAddress(resource, instance, instanceIndex)
-			readAttributes, err := p.readAttributes(address)
+			readAttributes, err := readAttributeValues(p.decoder)
 			if err != nil {
 				return err
 			}
@@ -327,62 +332,14 @@ func (p *stateParser) readInstance(resource resourceContext, instanceIndex int) 
 	if _, err := p.decoder.Token(); err != nil {
 		return fmt.Errorf("close terraform state resource instance: %w", err)
 	}
-	p.emitResourceInstance(resource, instance, instanceIndex, attributes)
-	return nil
+	address := resourceAddress(resource, instance, instanceIndex)
+	return p.emitResourceInstance(resource, instance, instanceIndex, p.classifyAttributes(address, attributes))
 }
 
-func (p *stateParser) readAttributes(address string) (map[string]any, error) {
-	if err := readOpeningDelim(p.decoder, '{', "terraform state resource attributes"); err != nil {
-		return nil, err
+func (p *stateParser) emitResourceInstance(resource resourceContext, instance instanceContext, instanceIndex int, attributes map[string]any) error {
+	if err := validateResourceIdentity(resource); err != nil {
+		return err
 	}
-	attributes := map[string]any{}
-	for p.decoder.More() {
-		token, err := p.decoder.Token()
-		if err != nil {
-			return nil, fmt.Errorf("read terraform state resource attribute key: %w", err)
-		}
-		key, ok := token.(string)
-		if !ok {
-			return nil, fmt.Errorf("terraform state resource attribute key must be a string")
-		}
-		value, scalar, err := readScalarOrSkip(p.decoder)
-		if err != nil {
-			return nil, fmt.Errorf("decode terraform state resource attribute %q: %w", key, err)
-		}
-		p.classifyAttribute(attributes, address, key, value, scalar)
-	}
-	if _, err := p.decoder.Token(); err != nil {
-		return nil, fmt.Errorf("close terraform state resource attributes: %w", err)
-	}
-	return attributes, nil
-}
-
-func (p *stateParser) classifyAttribute(attributes map[string]any, address string, key string, value any, scalar bool) {
-	source := "resources." + address + ".attributes." + key
-	kind := redact.FieldComposite
-	if scalar {
-		kind = redact.FieldScalar
-	}
-	decision := p.options.RedactionRules.Classify(source, redact.SchemaKnown, kind)
-	if decision.Action == redact.ActionPreserve {
-		decision = p.options.RedactionRules.Classify(source, redact.SchemaUnknown, kind)
-	}
-
-	switch decision.Action {
-	case redact.ActionPreserve:
-		attributes[key] = value
-	case redact.ActionRedact:
-		attributes[key] = redactionMap(redact.Scalar(value, decision.Reason, decision.Source, p.options.RedactionKey))
-	case redact.ActionDrop:
-		p.warnings = append(p.warnings, warningPayload{
-			WarningKind: "attribute_dropped",
-			Reason:      decision.Reason,
-			Source:      decision.Source,
-		})
-	}
-}
-
-func (p *stateParser) emitResourceInstance(resource resourceContext, instance instanceContext, instanceIndex int, attributes map[string]any) {
 	address := resourceAddress(resource, instance, instanceIndex)
 	payload := map[string]any{
 		"address":    address,
@@ -394,6 +351,7 @@ func (p *stateParser) emitResourceInstance(resource resourceContext, instance in
 		"attributes": attributes,
 	}
 	p.facts = append(p.facts, p.envelope(facts.TerraformStateResourceFactKind, "resource:"+address, payload, address))
+	return nil
 }
 
 func (p *stateParser) emitSnapshot() {

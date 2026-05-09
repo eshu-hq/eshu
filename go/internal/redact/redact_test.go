@@ -1,6 +1,7 @@
 package redact_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -165,6 +166,22 @@ func TestBytesAndScalarUseSameCanonicalBytes(t *testing.T) {
 	}
 	if fromScalar.Marker != fromString.Marker {
 		t.Fatalf("Scalar().Marker = %q, want String().Marker %q", fromScalar.Marker, fromString.Marker)
+	}
+}
+
+func TestScalarJSONNumberUsesNumberBytes(t *testing.T) {
+	t.Parallel()
+
+	key := testKey(t)
+	fromNumber := redact.Scalar(json.Number("42"), "known_sensitive_key", "aws_instance.secret", key)
+	fromString := redact.String("42", "known_sensitive_key", "aws_instance.secret", key)
+	otherNumber := redact.Scalar(json.Number("43"), "known_sensitive_key", "aws_instance.secret", key)
+
+	if fromNumber.Marker != fromString.Marker {
+		t.Fatalf("Scalar(json.Number).Marker = %q, want String marker %q", fromNumber.Marker, fromString.Marker)
+	}
+	if fromNumber.Marker == otherNumber.Marker {
+		t.Fatalf("Scalar(json.Number) marker did not change with number value: %q", fromNumber.Marker)
 	}
 }
 
