@@ -93,7 +93,8 @@ Record declarations use the same class-style context for nested method parsing,
 which keeps Java record helper methods addressable by the reducer.
 Java metadata files under META-INF/services, Spring Boot
 `AutoConfiguration.imports`, and `spring.factories` parse as `java_metadata`
-payloads. They emit bounded class-reference rows for provider and
+payloads. The parent parser assembles payload maps, while the Java helper
+subpackage extracts the bounded class-reference evidence for provider and
 auto-configuration classes without scanning the repository from each Java
 source file.
 Python adapters also preserve method `class_context`, constructor call
@@ -109,15 +110,18 @@ Exported TypeScript object registries also mark same-file function values as
 `typescript.static_registry_member`; private registries do not create roots.
 JavaScript-family adapters also preserve import alias metadata, CommonJS
 `module.exports` self-aliases, JSONC tsconfig `baseUrl` and `paths`
-`resolved_source` metadata even when the config uses comments or trailing
-commas, returned function-value references, static relative re-export metadata,
-constructor calls, and local receiver type metadata from
+`resolved_source` metadata through the JavaScript helper subpackage even when
+the config uses comments or trailing commas, returned function-value references,
+static relative re-export metadata, constructor calls, and local receiver type
+metadata from
 `const value = new Type()` so reducer call materialization can resolve bounded
 cross-file calls.
 Package-level roots are resolved from the nearest owning `package.json`, so
 nested workspaces can expose
 their own entrypoints, `bin` targets, and package exports without depending on
-the repository root manifest. Hapi handler roots search from the owning
+the repository root manifest. That nearest-package evidence now lives in the
+JavaScript helper subpackage, while the parent parser decides which parsed
+functions or types receive root metadata. Hapi handler roots search from the owning
 service/package root before falling back to repository-root conventions, and
 route arrays recognize both `config.handler` and `options.handler` as mounted
 handler references. After
@@ -254,6 +258,10 @@ SCIP is opt-in via SCIP_INDEXER=true. The allowed language list defaults to
 - `github.com/tree-sitter/go-tree-sitter` — `Runtime` and grammar dispatch
 - Tree-sitter grammar bindings: C, C#, C++, Go, Java, JavaScript, Python, Rust,
   Scala, TypeScript
+- `internal/parser/java` — typed Java metadata evidence extracted before parent
+  payload assembly
+- `internal/parser/javascript` — tsconfig import resolution and package.json
+  root evidence used before parent payload annotation
 - `internal/terraformschema` — provider schema assets consumed by the HCL adapter
 - Standard library only for non-tree-sitter adapters
 

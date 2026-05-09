@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	jsparser "github.com/eshu-hq/eshu/go/internal/parser/javascript"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -47,7 +48,7 @@ func (e *Engine) parseJavaScriptLike(
 		payload["dead_code_file_root_kinds"] = append([]string(nil), deadCodeRoots.fileRootKinds...)
 	}
 	commonJSModuleAliases := javaScriptCommonJSModuleExportAliases(root, source)
-	tsConfigImports := newJavaScriptTSConfigImportResolver(repoRoot, path)
+	tsConfigImports := jsparser.NewTSConfigImportResolver(repoRoot, path)
 	newExpressionTypes := javaScriptNewExpressionVariableTypes(root, source)
 
 	walkNamed(root, func(node *tree_sitter.Node) {
@@ -155,7 +156,7 @@ func (e *Engine) parseJavaScriptLike(
 			}
 			if requireItems := javaScriptRequireImportEntries(node, source, outputLanguage); len(requireItems) > 0 {
 				for _, item := range requireItems {
-					tsConfigImports.annotateImport(item)
+					annotateJavaScriptResolvedImport(item, tsConfigImports)
 					appendBucket(payload, "imports", item)
 				}
 			}
@@ -189,12 +190,12 @@ func (e *Engine) parseJavaScriptLike(
 			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
 		case "import_statement":
 			for _, item := range javaScriptImportEntries(node, source, outputLanguage) {
-				tsConfigImports.annotateImport(item)
+				annotateJavaScriptResolvedImport(item, tsConfigImports)
 				appendBucket(payload, "imports", item)
 			}
 		case "export_statement":
 			for _, item := range javaScriptReExportEntries(node, source, outputLanguage) {
-				tsConfigImports.annotateImport(item)
+				annotateJavaScriptResolvedImport(item, tsConfigImports)
 				appendBucket(payload, "imports", item)
 			}
 		case "call_expression":

@@ -9,11 +9,15 @@
 3. `go/internal/parser/engine.go` — `Engine`, `DefaultEngine`, `ParsePath`,
    `PreScanRepositoryPathsWithWorkers`, and the `parseDefinition` dispatch
 4. `go/internal/parser/runtime.go` — `Runtime`; tree-sitter grammar caching
-5. `go/internal/parser/scip_support.go` — `SCIPIndexer`,
+5. `go/internal/parser/java/README.md` — Java-owned helper package boundary
+   for metadata evidence that does not need parent parser internals
+6. `go/internal/parser/javascript/README.md` — JavaScript-owned helper package
+   boundary for tsconfig evidence that does not need parent parser internals
+7. `go/internal/parser/scip_support.go` — `SCIPIndexer`,
    `DetectSCIPProjectLanguage`, SCIP binary map
-6. `go/internal/parser/doc.go` — the package contract, especially the
+8. `go/internal/parser/doc.go` — the package contract, especially the
    determinism invariant
-7. `go/internal/telemetry/instruments.go` — `telemetry.FileParseDuration` before
+9. `go/internal/telemetry/instruments.go` — `telemetry.FileParseDuration` before
    adding parse-time metrics
 
 ## Invariants this package enforces
@@ -125,6 +129,11 @@
   the parser package is a leaf that `internal/collector` and `internal/query`
   depend on. Reverse or lateral imports create cycles or break the ownership
   boundary.
+
+- **Letting child parser packages import the parent parser package** — language
+  helper packages such as `internal/parser/java` and
+  `internal/parser/javascript` exist to remove parent-package sprawl. Keep their
+  APIs typed and parent-independent.
 
 - **Emitting new entity keys without updating shape.Materialize** — keys not
   consumed by `shape.Materialize` are silently discarded. The fixture tests will

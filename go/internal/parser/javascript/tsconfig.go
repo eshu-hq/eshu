@@ -1,4 +1,4 @@
-package parser
+package javascript
 
 import (
 	"encoding/json"
@@ -7,39 +7,49 @@ import (
 	"strings"
 )
 
-type javaScriptTSConfigImportResolver struct {
+// TSConfigImportResolver resolves TypeScript baseUrl and paths aliases for one
+// source file. The zero value is disabled and returns no resolved sources.
+type TSConfigImportResolver struct {
 	repoRoot string
 	baseDir  string
 	paths    map[string][]string
 	ok       bool
 }
 
-func newJavaScriptTSConfigImportResolver(repoRoot string, path string) javaScriptTSConfigImportResolver {
-	repoRoot = cleanJavaScriptTSConfigPath(repoRoot)
-	path = cleanJavaScriptTSConfigPath(path)
+type tsConfigOptions struct {
+	BaseURL string              `json:"baseUrl"`
+	Paths   map[string][]string `json:"paths"`
+}
+
+// NewTSConfigImportResolver builds a resolver from the nearest tsconfig.json
+// owned by path. It accepts JSONC syntax and rejects absolute or out-of-repo
+// baseUrl values so imports cannot resolve outside the indexed repository.
+func NewTSConfigImportResolver(repoRoot string, path string) TSConfigImportResolver {
+	repoRoot = cleanPath(repoRoot)
+	path = cleanPath(path)
 	if repoRoot == "" || path == "" {
-		return javaScriptTSConfigImportResolver{}
+		return TSConfigImportResolver{}
 	}
 
-	configPath, ok := nearestJavaScriptTSConfig(repoRoot, path)
+	configPath, ok := nearestTSConfig(repoRoot, path)
 	if !ok {
-		return javaScriptTSConfigImportResolver{}
+		return TSConfigImportResolver{}
 	}
 
-	options := javaScriptTSConfigCompilerOptions(configPath)
+	options := tsConfigCompilerOptions(configPath)
 	baseURL := options.BaseURL
 	if baseURL == "" && len(options.Paths) > 0 {
 		baseURL = "."
 	}
 	if baseURL == "" || filepath.IsAbs(baseURL) {
-		return javaScriptTSConfigImportResolver{}
+		return TSConfigImportResolver{}
 	}
 
-	baseDir := cleanJavaScriptTSConfigPath(filepath.Join(filepath.Dir(configPath), filepath.FromSlash(baseURL)))
-	if !javaScriptPathWithin(repoRoot, baseDir) {
-		return javaScriptTSConfigImportResolver{}
+	baseDir := cleanPath(filepath.Join(filepath.Dir(configPath), filepath.FromSlash(baseURL)))
+	if !pathWithin(repoRoot, baseDir) {
+		return TSConfigImportResolver{}
 	}
-	return javaScriptTSConfigImportResolver{
+	return TSConfigImportResolver{
 		repoRoot: repoRoot,
 		baseDir:  baseDir,
 		paths:    options.Paths,
@@ -47,18 +57,10 @@ func newJavaScriptTSConfigImportResolver(repoRoot string, path string) javaScrip
 	}
 }
 
-func (r javaScriptTSConfigImportResolver) annotateImport(item map[string]any) {
-	if !r.ok || item == nil {
-		return
-	}
-	source, _ := item["source"].(string)
-	source = strings.TrimSpace(source)
-	if resolved := r.resolveSource(source); resolved != "" {
-		item["resolved_source"] = resolved
-	}
-}
-
-func (r javaScriptTSConfigImportResolver) resolveSource(source string) string {
+// ResolveSource returns the repository-relative source file matched by an
+// import, or an empty string when the import is external, relative, unresolved,
+// or outside the repository.
+func (r TSConfigImportResolver) ResolveSource(source string) string {
 	source = strings.TrimSpace(source)
 	if !r.ok || source == "" || strings.HasPrefix(source, ".") || filepath.IsAbs(source) {
 		return ""
@@ -72,10 +74,10 @@ func (r javaScriptTSConfigImportResolver) resolveSource(source string) string {
 	return r.resolveBaseRelativeSource(source)
 }
 
-func (r javaScriptTSConfigImportResolver) resolveBaseRelativeSource(source string) string {
-	basePath := cleanJavaScriptTSConfigPath(filepath.Join(r.baseDir, filepath.FromSlash(source)))
-	for _, candidate := range javaScriptTSConfigSourceCandidates(basePath) {
-		if !javaScriptPathWithin(r.repoRoot, candidate) {
+func (r TSConfigImportResolver) resolveBaseRelativeSource(source string) string {
+	basePath := cleanPath(filepath.Join(r.baseDir, filepath.FromSlash(source)))
+	for _, candidate := range TSConfigSourceCandidates(basePath) {
+		if !pathWithin(r.repoRoot, candidate) {
 			continue
 		}
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
@@ -89,9 +91,9 @@ func (r javaScriptTSConfigImportResolver) resolveBaseRelativeSource(source strin
 	return ""
 }
 
-func nearestJavaScriptTSConfig(repoRoot string, path string) (string, bool) {
+func nearestTSConfig(repoRoot string, path string) (string, bool) {
 	dir := filepath.Dir(path)
-	for javaScriptPathWithin(repoRoot, dir) {
+	for pathWithin(repoRoot, dir) {
 		candidate := filepath.Join(dir, "tsconfig.json")
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
 			return candidate, true
@@ -108,33 +110,28 @@ func nearestJavaScriptTSConfig(repoRoot string, path string) (string, bool) {
 	return "", false
 }
 
-type javaScriptTSConfigOptions struct {
-	BaseURL string              `json:"baseUrl"`
-	Paths   map[string][]string `json:"paths"`
-}
-
-func javaScriptTSConfigCompilerOptions(path string) javaScriptTSConfigOptions {
+func tsConfigCompilerOptions(path string) tsConfigOptions {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return javaScriptTSConfigOptions{}
+		return tsConfigOptions{}
 	}
 	var config struct {
-		CompilerOptions javaScriptTSConfigOptions `json:"compilerOptions"`
+		CompilerOptions tsConfigOptions `json:"compilerOptions"`
 	}
-	if err := json.Unmarshal(stripJavaScriptJSONC(raw), &config); err != nil {
-		return javaScriptTSConfigOptions{}
+	if err := json.Unmarshal(stripJSONC(raw), &config); err != nil {
+		return tsConfigOptions{}
 	}
 	config.CompilerOptions.BaseURL = strings.TrimSpace(config.CompilerOptions.BaseURL)
 	return config.CompilerOptions
 }
 
-func (r javaScriptTSConfigImportResolver) resolvePathMappedSources(source string) []string {
+func (r TSConfigImportResolver) resolvePathMappedSources(source string) []string {
 	mapped := make([]string, 0)
 	for pattern, targets := range r.paths {
 		if len(targets) == 0 {
 			continue
 		}
-		if match, ok := javaScriptTSConfigPathPatternMatch(pattern, source); ok {
+		if match, ok := tsConfigPathPatternMatch(pattern, source); ok {
 			for _, target := range targets {
 				target = strings.TrimSpace(target)
 				if target == "" || filepath.IsAbs(target) {
@@ -147,7 +144,7 @@ func (r javaScriptTSConfigImportResolver) resolvePathMappedSources(source string
 	return mapped
 }
 
-func javaScriptTSConfigPathPatternMatch(pattern string, source string) (string, bool) {
+func tsConfigPathPatternMatch(pattern string, source string) (string, bool) {
 	pattern = strings.TrimSpace(pattern)
 	source = strings.TrimSpace(source)
 	if pattern == "" || source == "" {
@@ -168,7 +165,7 @@ func javaScriptTSConfigPathPatternMatch(pattern string, source string) (string, 
 	return match, true
 }
 
-func stripJavaScriptJSONC(raw []byte) []byte {
+func stripJSONC(raw []byte) []byte {
 	withoutComments := make([]byte, 0, len(raw))
 	inString := false
 	escaped := false
@@ -218,10 +215,10 @@ func stripJavaScriptJSONC(raw []byte) []byte {
 		}
 		withoutComments = append(withoutComments, ch)
 	}
-	return stripJavaScriptJSONCTrailingCommas(withoutComments)
+	return stripJSONCTrailingCommas(withoutComments)
 }
 
-func stripJavaScriptJSONCTrailingCommas(raw []byte) []byte {
+func stripJSONCTrailingCommas(raw []byte) []byte {
 	out := make([]byte, 0, len(raw))
 	inString := false
 	escaped := false
@@ -261,19 +258,16 @@ func stripJavaScriptJSONCTrailingCommas(raw []byte) []byte {
 	return out
 }
 
-func javaScriptTSConfigSourceCandidates(basePath string) []string {
+// TSConfigSourceCandidates returns the deterministic file candidates used to
+// resolve an extensionless TypeScript or JavaScript import base path.
+func TSConfigSourceCandidates(basePath string) []string {
 	candidates := make([]string, 0, 16)
 	appendCandidate := func(path string) {
-		path = cleanJavaScriptTSConfigPath(path)
+		path = cleanPath(path)
 		if path == "" {
 			return
 		}
-		for _, existing := range candidates {
-			if existing == path {
-				return
-			}
-		}
-		candidates = append(candidates, path)
+		candidates = appendUniqueString(candidates, path)
 	}
 
 	appendCandidate(basePath)
@@ -289,7 +283,7 @@ func javaScriptTSConfigSourceCandidates(basePath string) []string {
 	return candidates
 }
 
-func cleanJavaScriptTSConfigPath(path string) string {
+func cleanPath(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return ""
@@ -301,9 +295,9 @@ func cleanJavaScriptTSConfigPath(path string) string {
 	return filepath.Clean(abs)
 }
 
-func javaScriptPathWithin(root string, path string) bool {
-	root = cleanJavaScriptTSConfigPath(root)
-	path = cleanJavaScriptTSConfigPath(path)
+func pathWithin(root string, path string) bool {
+	root = cleanPath(root)
+	path = cleanPath(path)
 	if root == "" || path == "" {
 		return false
 	}
@@ -312,4 +306,13 @@ func javaScriptPathWithin(root string, path string) bool {
 		return false
 	}
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+func appendUniqueString(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
 }

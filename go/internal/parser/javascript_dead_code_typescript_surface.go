@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	jsparser "github.com/eshu-hq/eshu/go/internal/parser/javascript"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -140,24 +141,7 @@ func javaScriptTypeScriptDeclarationName(node *tree_sitter.Node, source []byte) 
 }
 
 func javaScriptPackagePublicSourcePaths(repoRoot string, path string) []string {
-	manifest, packageRoot, ok := nearestJavaScriptPackageManifest(repoRoot, path)
-	if !ok {
-		return nil
-	}
-	targets := append([]string{}, javaScriptPackageExportTargets(manifest.Exports)...)
-	if manifest.Types != "" {
-		targets = append(targets, manifest.Types)
-	}
-	paths := make([]string, 0, len(targets))
-	for _, target := range targets {
-		for _, candidate := range javaScriptPackageSourceCandidates(target) {
-			candidatePath := filepath.Join(packageRoot, filepath.FromSlash(candidate))
-			if info, err := os.Stat(candidatePath); err == nil && !info.IsDir() {
-				paths = appendUniqueString(paths, cleanJavaScriptPath(candidatePath))
-			}
-		}
-	}
-	return paths
+	return jsparser.PackagePublicSourcePaths(repoRoot, path)
 }
 
 func javaScriptTypeScriptStaticReexportsFromFile(path string) []javaScriptTypeScriptSurfaceReexport {
@@ -213,14 +197,14 @@ func javaScriptTypeScriptReexportSourceCandidates(repoRoot string, fromPath stri
 	}
 	if strings.HasPrefix(source, ".") {
 		basePath := filepath.Join(filepath.Dir(fromPath), filepath.FromSlash(source))
-		for _, candidate := range javaScriptTSConfigSourceCandidates(basePath) {
+		for _, candidate := range jsparser.TSConfigSourceCandidates(basePath) {
 			appendCandidate(candidate)
 		}
 		return candidates
 	}
 
-	resolver := newJavaScriptTSConfigImportResolver(repoRoot, fromPath)
-	if resolved := resolver.resolveSource(source); resolved != "" {
+	resolver := jsparser.NewTSConfigImportResolver(repoRoot, fromPath)
+	if resolved := resolver.ResolveSource(source); resolved != "" {
 		appendCandidate(filepath.Join(repoRoot, filepath.FromSlash(resolved)))
 	}
 	return candidates

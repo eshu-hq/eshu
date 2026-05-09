@@ -25,17 +25,19 @@ to reason about.
 
 ## Proposed Layout
 
-Start with folders under `go/internal/parser` while keeping package name
-`parser` during the first mechanical pass:
+Go treats every directory as a separate package. The first implementation pass
+therefore must not create child folders that pretend to share the parent
+`parser` package. Start with narrow language-owned subpackages only when their
+dependency direction is clean:
 
 ```text
 go/internal/parser/
-  shared/
-  go/
+  java/
   javascript/
   python/
-  java/
+  shared/
   sql/
+  go/
   yaml/
   hcl/
   php/
@@ -43,22 +45,28 @@ go/internal/parser/
   longtail/
 ```
 
-The first pass is allowed to be boring. File moves, folder docs, and import
-cleanup are enough. If a later package-boundary split is worth doing, it should
-get its own design note because it affects exported helpers, registry wiring,
-and test package shape.
+The first pass is intentionally boring, but it must compile as real Go. Move
+leaf helpers into language packages first, keep `engine.go`, `registry.go`, and
+payload assembly in `internal/parser`, and widen exported helper APIs only for
+actual parent-package consumers. Large language adapters can move later after
+their tree-sitter helpers and shared payload helpers have explicit package
+contracts.
 
 ## Work Slices
 
 1. Inventory the current files by language family and shared helper ownership.
-2. Add folder docs for the target parser areas.
-3. Move the largest mature families first: JavaScript/TypeScript, Python, Java,
-   and Go.
-4. Move SQL, YAML/HCL/IaC, PHP, Kotlin, and long-tail languages after the main
+2. Add folder docs for each target parser subpackage before moving code into
+   it.
+3. Move leaf helpers first, starting with Java metadata extraction because it
+   can return typed class-reference evidence without importing the parent
+   parser package.
+4. Move JavaScript/TypeScript, Python, Java, and Go adapters only after their
+   shared tree-sitter and payload dependencies are explicit.
+5. Move SQL, YAML/HCL/IaC, PHP, Kotlin, and long-tail languages after the main
    families are stable.
-5. Keep `registry.go`, `engine.go`, SCIP support, and truly shared helpers in
+6. Keep `registry.go`, `engine.go`, SCIP support, and truly shared helpers in
    the top-level or `shared` area until a package-boundary decision exists.
-6. Run parser tests after each slice and the collector parser gate before the
+7. Run parser tests after each slice and the collector parser gate before the
    PR leaves draft.
 
 ## Acceptance
