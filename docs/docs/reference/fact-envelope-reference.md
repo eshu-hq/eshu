@@ -80,6 +80,22 @@ truth. Reducers and documentation drift findings may compare documentation
 evidence with graph truth, but documentation facts must not be treated as graph
 truth by themselves.
 
+## Core Terraform State Fact Families
+
+Terraform state facts use `collector_kind: "terraform_state"` and
+`schema_version: "1.0.0"` for the first collector contract. The reader must
+redact sensitive values before it emits any of these facts.
+
+| Fact kind | Purpose |
+| --- | --- |
+| `terraform_state_snapshot` | One observed state object with backend metadata, serial, lineage, size, and observation time. |
+| `terraform_state_resource` | One resource instance from state, including safe identity fields and redacted attributes. |
+| `terraform_state_output` | One named output with its sensitive flag and redacted or digest value. |
+| `terraform_state_module` | One module entry with source, version, path, and input digest. |
+| `terraform_state_provider_binding` | One provider configuration reference such as alias, region, assume-role ARN, or account hint. |
+| `terraform_state_tag_observation` | One tag key/value observation split out for correlation indexing. |
+| `terraform_state_warning` | One non-fatal warning such as `state_in_vcs`, `lineage_rotation`, or `serial_regression`. |
+
 ## Compatibility rules
 
 `schema_version` uses [semantic versioning](https://semver.org/). Runtime

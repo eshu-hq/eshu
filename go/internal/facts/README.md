@@ -50,6 +50,21 @@ Documentation fact kinds use schema version `1.0.0`:
 - `documentation_entity_mention`
 - `documentation_claim_candidate`
 
+Terraform state fact kinds also use schema version `1.0.0` for the first
+collector contract:
+
+- `terraform_state_snapshot`
+- `terraform_state_resource`
+- `terraform_state_output`
+- `terraform_state_module`
+- `terraform_state_provider_binding`
+- `terraform_state_tag_observation`
+- `terraform_state_warning`
+
+Use `TerraformStateFactKinds` when callers need the full accepted set, and
+`TerraformStateSchemaVersion` when building envelopes. That keeps reader code
+from copying string literals.
+
 See `doc.go` for the full godoc contract.
 
 ## Dependencies
