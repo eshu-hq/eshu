@@ -35,6 +35,7 @@ func (e *Engine) parseJava(
 	payload["enums"] = []map[string]any{}
 	root := tree.RootNode()
 	scope := options.normalizedVariableScope()
+	callInference := buildJavaCallInferenceIndex(root, source)
 
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -75,9 +76,9 @@ func (e *Engine) parseJava(
 		case "import_declaration":
 			appendJavaImport(payload, node, source)
 		case "method_invocation":
-			appendJavaCall(payload, node, source)
+			appendJavaCall(payload, node, source, callInference)
 		case "object_creation_expression":
-			appendJavaCall(payload, node, source)
+			appendJavaCall(payload, node, source, callInference)
 		}
 	})
 
@@ -176,13 +177,40 @@ func javaHasAnnotation(raw string, name string) bool {
 }
 
 func (e *Engine) preScanJava(path string) ([]string, error) {
-	payload, err := e.parseJava(path, false, Options{})
+	parser, err := e.runtime.Parser("java")
 	if err != nil {
 		return nil, err
 	}
-	names := collectBucketNames(payload, "functions", "classes", "interfaces", "annotations", "enums")
+	defer parser.Close()
+
+	source, err := readSource(path)
+	if err != nil {
+		return nil, err
+	}
+	tree := parser.Parse(source, nil)
+	if tree == nil {
+		return nil, fmt.Errorf("parse java file %q: parser returned nil tree", path)
+	}
+	defer tree.Close()
+
+	names := javaPreScanNames(tree.RootNode(), source)
 	slices.Sort(names)
 	return names, nil
+}
+
+func javaPreScanNames(root *tree_sitter.Node, source []byte) []string {
+	var names []string
+	walkNamed(root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "class_declaration", "interface_declaration", "annotation_type_declaration", "enum_declaration",
+			"method_declaration", "constructor_declaration":
+			name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+			if name != "" {
+				names = append(names, name)
+			}
+		}
+	})
+	return names
 }
 
 func javaDeclarators(
@@ -257,7 +285,12 @@ func javaImportAlias(name string) string {
 	return trimmed
 }
 
-func appendJavaCall(payload map[string]any, node *tree_sitter.Node, source []byte) {
+func appendJavaCall(
+	payload map[string]any,
+	node *tree_sitter.Node,
+	source []byte,
+	inference *javaCallInferenceIndex,
+) {
 	if node == nil {
 		return
 	}
@@ -293,7 +326,7 @@ func appendJavaCall(payload map[string]any, node *tree_sitter.Node, source []byt
 	if fullName := javaCallFullName(node, source); fullName != "" {
 		item["full_name"] = fullName
 	}
-	if inferredType := javaCallInferredObjectType(node, source); inferredType != "" {
+	if inferredType := javaCallInferredObjectType(node, source, inference); inferredType != "" {
 		item["inferred_obj_type"] = inferredType
 	}
 	appendBucket(payload, "function_calls", item)

@@ -3,6 +3,8 @@ package parser
 import (
 	"path/filepath"
 	"testing"
+
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 func TestDefaultEngineParsePathJavaEmitsDeadCodeRootKinds(t *testing.T) {
@@ -91,4 +93,63 @@ public class CLIConnectionFactory {
 	assertStringFieldValue(t, basicAuth, "inferred_obj_type", "CLIConnectionFactory")
 	assertIntFieldValue(t, basicAuth, "argument_count", 1)
 	assertIntFieldValue(t, assertFunctionByName(t, got, "basicAuth"), "parameter_count", 1)
+}
+
+func TestJavaCallInferenceIndexResolvesReceiversFromSinglePass(t *testing.T) {
+	t.Parallel()
+
+	source := []byte(`package example;
+
+public class SearchController {
+    private SearchService fieldService;
+
+    public void handle(SearchService parameterService) {
+        SearchService localService = new SearchService();
+        localService.search();
+        parameterService.search();
+        fieldService.search();
+    }
+}
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	parser, err := engine.runtime.Parser("java")
+	if err != nil {
+		t.Fatalf("Parser(java) error = %v, want nil", err)
+	}
+	defer parser.Close()
+	tree := parser.Parse(source, nil)
+	if tree == nil {
+		t.Fatal("Parse() returned nil tree")
+	}
+	defer tree.Close()
+
+	index := buildJavaCallInferenceIndex(tree.RootNode(), source)
+	got := map[string]string{}
+	walkNamed(tree.RootNode(), func(node *tree_sitter.Node) {
+		if node.Kind() != "method_invocation" {
+			return
+		}
+		fullName := javaCallFullName(node, source)
+		if fullName == "" {
+			return
+		}
+		got[fullName] = javaCallInferredObjectType(node, source, index)
+	})
+
+	want := map[string]string{
+		"localService.search":     "SearchService",
+		"parameterService.search": "SearchService",
+		"fieldService.search":     "SearchService",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("inferred calls = %#v, want %#v", got, want)
+	}
+	for call, wantType := range want {
+		if gotType := got[call]; gotType != wantType {
+			t.Fatalf("inferred type for %s = %q, want %q; all calls %#v", call, gotType, wantType, got)
+		}
+	}
 }
