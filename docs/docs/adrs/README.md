@@ -40,6 +40,7 @@ still needs an owner.
 
 | ADR | Current state | What remains |
 | --- | --- | --- |
+| `2026-05-09-optional-component-boundary.md` | Proposed | Decide and enforce the component boundary before Terraform-state and AWS harden as optional first-party collectors. |
 | `2026-04-19-multi-source-correlation-dsl-and-collector-readiness.md` | In progress | DSL/rule-pack substrate and source-kind contracts exist; AWS, Terraform-state, webhook, and full cloud/runtime joins remain. |
 | `2026-04-20-embedded-local-backends-implementation-plan.md` | In progress | Local host, embedded local-authoritative runtime, backend conformance harness, profile matrix, and latest-main NornicDB proof are in place; release packaging, host envelope, and plugin work still open. |
 | `2026-04-24-iac-usage-reachability-and-refactor-impact.md` | In progress | Dead-IaC reachability and pagination are proven; shared neighborhood, impact, integrity, and remaining IaC-family coverage remain. |

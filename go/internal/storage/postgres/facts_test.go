@@ -45,9 +45,53 @@ func TestFactStoreUpsertFactsPersistsPayload(t *testing.T) {
 	if !strings.Contains(db.execs[0].query, "INSERT INTO fact_records") {
 		t.Fatalf("query = %q, want fact_records insert", db.execs[0].query)
 	}
-	payload, ok := db.execs[0].args[12].([]byte)
+	payload, ok := db.execs[0].args[16].([]byte)
 	if !ok || !strings.Contains(string(payload), "eshu") {
-		t.Fatalf("payload arg = %#v, want json payload", db.execs[0].args[12])
+		t.Fatalf("payload arg = %#v, want json payload", db.execs[0].args[16])
+	}
+}
+
+func TestFactStoreUpsertFactsPersistsCollectorContractFields(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	store := NewFactStore(db)
+
+	envelope := facts.Envelope{
+		FactID:           "fact-1",
+		ScopeID:          "scope-123",
+		GenerationID:     "generation-456",
+		FactKind:         "terraform_state_resource",
+		StableFactKey:    "terraform_state_resource:aws_instance.app",
+		SchemaVersion:    "terraform_state_resource.v1",
+		CollectorKind:    "terraform_state",
+		FencingToken:     42,
+		SourceConfidence: "exact",
+		ObservedAt:       time.Date(2026, time.May, 9, 9, 0, 0, 0, time.UTC),
+		SourceRef: facts.Ref{
+			SourceSystem: "terraform_state",
+			FactKey:      "aws_instance.app",
+		},
+	}
+
+	if err := store.UpsertFacts(context.Background(), []facts.Envelope{envelope}); err != nil {
+		t.Fatalf("UpsertFacts() error = %v, want nil", err)
+	}
+
+	if got, want := len(db.execs[0].args), columnsPerFactRow; got != want {
+		t.Fatalf("arg count = %d, want %d", got, want)
+	}
+	if got, want := db.execs[0].args[5], "terraform_state_resource.v1"; got != want {
+		t.Fatalf("schema_version arg = %q, want %q", got, want)
+	}
+	if got, want := db.execs[0].args[6], "terraform_state"; got != want {
+		t.Fatalf("collector_kind arg = %q, want %q", got, want)
+	}
+	if got, want := db.execs[0].args[7], int64(42); got != want {
+		t.Fatalf("fencing_token arg = %v, want %v", got, want)
+	}
+	if got, want := db.execs[0].args[8], "exact"; got != want {
+		t.Fatalf("source_confidence arg = %q, want %q", got, want)
 	}
 }
 
@@ -63,6 +107,10 @@ func TestFactStoreLoadFactsReturnsEnvelope(t *testing.T) {
 					"generation-456",
 					"repository",
 					"repository:scope-123",
+					"repository.v1",
+					"git",
+					int64(7),
+					"exact",
 					"git",
 					"fact-key",
 					"file:///repo/path",
@@ -92,6 +140,18 @@ func TestFactStoreLoadFactsReturnsEnvelope(t *testing.T) {
 	}
 	if got, want := loaded[0].SourceRef.SourceSystem, "git"; got != want {
 		t.Fatalf("LoadFacts()[0].SourceRef.SourceSystem = %q, want %q", got, want)
+	}
+	if got, want := loaded[0].SchemaVersion, "repository.v1"; got != want {
+		t.Fatalf("LoadFacts()[0].SchemaVersion = %q, want %q", got, want)
+	}
+	if got, want := loaded[0].CollectorKind, "git"; got != want {
+		t.Fatalf("LoadFacts()[0].CollectorKind = %q, want %q", got, want)
+	}
+	if got, want := loaded[0].FencingToken, int64(7); got != want {
+		t.Fatalf("LoadFacts()[0].FencingToken = %d, want %d", got, want)
+	}
+	if got, want := loaded[0].SourceConfidence, "exact"; got != want {
+		t.Fatalf("LoadFacts()[0].SourceConfidence = %q, want %q", got, want)
 	}
 	if got, want := loaded[0].Payload["name"], "eshu"; got != want {
 		t.Fatalf("LoadFacts()[0].Payload[name] = %v, want %v", got, want)

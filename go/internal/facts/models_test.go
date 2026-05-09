@@ -80,3 +80,41 @@ func TestFactEnvelopeCloneIsCopySafe(t *testing.T) {
 		t.Fatalf("original.SourceRef.FactKey = %q, want %q", got, want)
 	}
 }
+
+func TestFactEnvelopeClonePreservesDurableCollectorFields(t *testing.T) {
+	t.Parallel()
+
+	original := Envelope{
+		FactID:           "fact-1",
+		ScopeID:          "scope-123",
+		GenerationID:     "generation-456",
+		FactKind:         "terraform_state_resource",
+		StableFactKey:    "terraform_state_resource:aws_instance.app",
+		SchemaVersion:    "terraform_state_resource.v1",
+		CollectorKind:    "terraform_state",
+		FencingToken:     42,
+		SourceConfidence: "exact",
+		ObservedAt:       time.Date(2026, time.May, 9, 9, 0, 0, 0, time.UTC),
+		SourceRef: Ref{
+			SourceSystem: "terraform_state",
+			ScopeID:      "scope-123",
+			GenerationID: "generation-456",
+			FactKey:      "aws_instance.app",
+		},
+	}
+
+	cloned := original.Clone()
+
+	if cloned.SchemaVersion != original.SchemaVersion {
+		t.Fatalf("Clone().SchemaVersion = %q, want %q", cloned.SchemaVersion, original.SchemaVersion)
+	}
+	if cloned.CollectorKind != original.CollectorKind {
+		t.Fatalf("Clone().CollectorKind = %q, want %q", cloned.CollectorKind, original.CollectorKind)
+	}
+	if cloned.FencingToken != original.FencingToken {
+		t.Fatalf("Clone().FencingToken = %d, want %d", cloned.FencingToken, original.FencingToken)
+	}
+	if cloned.SourceConfidence != original.SourceConfidence {
+		t.Fatalf("Clone().SourceConfidence = %q, want %q", cloned.SourceConfidence, original.SourceConfidence)
+	}
+}

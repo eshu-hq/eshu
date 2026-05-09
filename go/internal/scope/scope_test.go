@@ -155,6 +155,65 @@ func TestIngestionScopeValidateAllowsAdditionalScopeKinds(t *testing.T) {
 	}
 }
 
+func TestTerraformStateSnapshotScopeIsDeterministic(t *testing.T) {
+	t.Parallel()
+
+	first, err := NewTerraformStateSnapshotScope(
+		"repo-scope-123",
+		"s3",
+		"s3://tfstate-prod/envs/prod.tfstate",
+		map[string]string{"workspace": "prod"},
+	)
+	if err != nil {
+		t.Fatalf("NewTerraformStateSnapshotScope() error = %v, want nil", err)
+	}
+	second, err := NewTerraformStateSnapshotScope(
+		"repo-scope-123",
+		"s3",
+		"s3://tfstate-prod/envs/prod.tfstate",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("NewTerraformStateSnapshotScope() second error = %v, want nil", err)
+	}
+
+	if first.ScopeID != second.ScopeID {
+		t.Fatalf("ScopeID mismatch: %q != %q", first.ScopeID, second.ScopeID)
+	}
+	if first.PartitionKey != second.PartitionKey {
+		t.Fatalf("PartitionKey mismatch: %q != %q", first.PartitionKey, second.PartitionKey)
+	}
+	if got, want := first.SourceSystem, string(CollectorTerraformState); got != want {
+		t.Fatalf("SourceSystem = %q, want %q", got, want)
+	}
+	if first.ScopeKind != KindStateSnapshot {
+		t.Fatalf("ScopeKind = %q, want %q", first.ScopeKind, KindStateSnapshot)
+	}
+	if first.CollectorKind != CollectorTerraformState {
+		t.Fatalf("CollectorKind = %q, want %q", first.CollectorKind, CollectorTerraformState)
+	}
+	if first.ParentScopeID != "repo-scope-123" {
+		t.Fatalf("ParentScopeID = %q, want repo-scope-123", first.ParentScopeID)
+	}
+	if got, want := first.Metadata["backend_kind"], "s3"; got != want {
+		t.Fatalf("Metadata[backend_kind] = %q, want %q", got, want)
+	}
+	if got, want := first.Metadata["workspace"], "prod"; got != want {
+		t.Fatalf("Metadata[workspace] = %q, want %q", got, want)
+	}
+	if err := first.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
+func TestTerraformStateSnapshotScopeRejectsBlankLocator(t *testing.T) {
+	t.Parallel()
+
+	if _, err := NewTerraformStateSnapshotScope("repo-scope-123", "s3", "", nil); err == nil {
+		t.Fatal("NewTerraformStateSnapshotScope() error = nil, want non-nil")
+	}
+}
+
 func TestIngestionScopeValidateRejectsBlankIdentifiers(t *testing.T) {
 	t.Parallel()
 
