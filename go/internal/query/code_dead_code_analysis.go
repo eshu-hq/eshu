@@ -68,6 +68,7 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 			"python.public_api_base",
 			"java.constructor",
 			"java.override_method",
+			"java.ant_task_setter",
 			"javascript.nextjs_route_export",
 			"javascript.nextjs_app_export",
 			"javascript.express_route_registration",
@@ -110,7 +111,7 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 		},
 		"notes": []string{
 			"dead-code remains derived until broader framework, public-API, and reflection root models land",
-			"go CLI registrations/signatures, stdlib HTTP registrations/signatures, controller-runtime reconcile signatures, Python FastAPI/Flask/Celery/Click/Typer decorator roots, Python AWS Lambda handler roots, Python dataclass/property roots, Java main/constructor/override roots, and JavaScript/TypeScript Next.js, Express, Koa, Fastify, NestJS, Node, Hapi, migration, interface, module-contract, and static-registry roots are modeled as derived roots",
+			"go CLI registrations/signatures, stdlib HTTP registrations/signatures, controller-runtime reconcile signatures, Python FastAPI/Flask/Celery/Click/Typer decorator roots, Python AWS Lambda handler roots, Python dataclass/property roots, Java main/constructor/override/Ant task setter roots, and JavaScript/TypeScript Next.js, Express, Koa, Fastify, NestJS, Node, Hapi, migration, interface, module-contract, and static-registry roots are modeled as derived roots",
 			"go function-value references, dependency-injection callbacks, type references, interface type references, interface implementation types, interface method implementations, and method values are honored when parser or reducer metadata marks them explicitly",
 			"analysis reports whether a modeled framework root came from parser metadata or the legacy source fallback path",
 			"go framework-root signature checks require entity source; missing source leaves those roots unevaluated",

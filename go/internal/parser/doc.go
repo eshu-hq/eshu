@@ -17,7 +17,8 @@
 // including direct, config, and options handlers, Next.js app and route
 // exports, Express/Koa/Fastify/NestJS callback roots, Node migration exports,
 // TypeScript interface implementation, module-contract, package public-surface,
-// and exported static-registry roots, Java main, constructor, override roots,
+// and exported static-registry roots, Java main, constructor, override, and
+// JavaBean-style public Ant Task setter roots,
 // local receiver type metadata backed by a per-file variable and field index,
 // and arity metadata for overload-safe call resolution, returned function-value
 // references, static re-export metadata, composite-literal type references,

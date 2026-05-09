@@ -33,6 +33,11 @@ func TestHandleDeadCodeExcludesJavaRootKindsFromMetadata(t *testing.T) {
 						"dead_code_root_kinds": []any{"java.override_method"},
 					},
 					{
+						"entity_id": "java-ant-setter", "name": "setClassesRoot", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/FindMainClass.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.ant_task_setter"},
+					},
+					{
 						"entity_id": "java-helper", "name": "helper", "labels": []any{"Function"},
 						"file_path": "src/main/java/example/CLI.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
 					},

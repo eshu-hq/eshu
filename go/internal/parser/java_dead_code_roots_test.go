@@ -50,6 +50,52 @@ public class CLI implements AutoCloseable {
 	}
 }
 
+func TestDefaultEngineParsePathJavaMarksAntTaskSettersAsRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src/main/java/example/FindMainClass.java")
+	writeTestFile(t, filePath, `package example;
+
+import java.io.File;
+
+import org.apache.tools.ant.Task;
+
+public class FindMainClass extends Task {
+    private File classesRoot;
+
+    public void setClassesRoot(File classesRoot) {
+        this.classesRoot = classesRoot;
+    }
+
+    public void setup(File classesRoot) {
+        this.classesRoot = classesRoot;
+    }
+
+    private void helper() {
+    }
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "setClassesRoot"), "dead_code_root_kinds", "java.ant_task_setter")
+	if _, ok := assertFunctionByName(t, got, "setup")["dead_code_root_kinds"]; ok {
+		t.Fatalf("setup dead_code_root_kinds present, want absent")
+	}
+	if _, ok := assertFunctionByName(t, got, "helper")["dead_code_root_kinds"]; ok {
+		t.Fatalf("helper dead_code_root_kinds present, want absent")
+	}
+}
+
 func TestDefaultEngineParsePathJavaInfersLocalReceiverTypes(t *testing.T) {
 	t.Parallel()
 

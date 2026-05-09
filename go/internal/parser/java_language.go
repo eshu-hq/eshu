@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -140,8 +142,49 @@ func javaDeadCodeRootKinds(node *tree_sitter.Node, source []byte, name string) [
 		if javaHasAnnotation(raw, "Override") {
 			rootKinds = appendUniqueString(rootKinds, "java.override_method")
 		}
+		if javaIsAntTaskSetter(node, source, raw, name) {
+			rootKinds = appendUniqueString(rootKinds, "java.ant_task_setter")
+		}
 	}
 	return rootKinds
+}
+
+func javaIsAntTaskSetter(node *tree_sitter.Node, source []byte, raw string, name string) bool {
+	if !javaIsSetterName(name) {
+		return false
+	}
+	normalized := " " + strings.Join(strings.Fields(raw), " ") + " "
+	if !strings.Contains(normalized, " public ") ||
+		!strings.Contains(normalized, " void ") ||
+		javaParameterCount(node) != 1 {
+		return false
+	}
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		if current.Kind() != "class_declaration" {
+			continue
+		}
+		classHeader := javaClassDeclarationHeader(current, source)
+		return strings.Contains(classHeader, " extends Task ") ||
+			strings.Contains(classHeader, " extends org.apache.tools.ant.Task ")
+	}
+	return false
+}
+
+func javaIsSetterName(name string) bool {
+	trimmed := strings.TrimSpace(name)
+	if len(trimmed) <= len("set") || !strings.HasPrefix(trimmed, "set") {
+		return false
+	}
+	firstPropertyRune, _ := utf8.DecodeRuneInString(trimmed[len("set"):])
+	return unicode.IsUpper(firstPropertyRune)
+}
+
+func javaClassDeclarationHeader(node *tree_sitter.Node, source []byte) string {
+	raw := nodeText(node, source)
+	if open := strings.Index(raw, "{"); open >= 0 {
+		raw = raw[:open]
+	}
+	return " " + strings.Join(strings.Fields(raw), " ") + " "
 }
 
 func javaIsMainMethod(raw string, name string) bool {

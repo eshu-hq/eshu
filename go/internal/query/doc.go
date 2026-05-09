@@ -16,7 +16,9 @@
 // Express, Koa, Fastify, NestJS, migration, and framework roots, plus Python
 // route, worker, CLI, AWS Lambda handler, dataclass, post-init, property,
 // dunder protocol, __all__, package __init__.py, public API base, and public
-// API member roots, plus Java main, constructor, and override roots. The
+// API member roots, plus Java main, constructor, override, and Ant Task setter
+// roots. The analysis notes and modeled-root list use the same Java root
+// family so callers see why those entities were suppressed. The
 // analysis payload names modeled root kinds and counts parser-metadata
 // suppressions so callers can explain why an entity was not returned as a
 // cleanup candidate. Unsupported language metadata and test fixtures are

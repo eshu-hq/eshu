@@ -236,6 +236,7 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 		"python.public_api_base",
 		"java.constructor",
 		"java.override_method",
+		"java.ant_task_setter",
 		"javascript.nextjs_route_export",
 		"javascript.nextjs_app_export",
 		"javascript.express_route_registration",

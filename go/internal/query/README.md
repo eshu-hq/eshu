@@ -72,7 +72,7 @@ methods. It also suppresses parser-proven Python FastAPI, Flask, Celery,
 Click, Typer, AWS Lambda handler, dataclass, post-init, property, dunder
 protocol, `__all__`, package `__init__.py`, public API base, and public API
 member roots, Python `if __name__ == "__main__"` script-main guards, and
-Java `main`, constructor, and `@Override` roots.
+Java `main`, constructor, `@Override`, and Ant `Task` setter roots.
 Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
 payload names those Python root kinds in `modeled_framework_roots` as well as
@@ -238,8 +238,9 @@ wired in `cmd/api/wiring.go`, not here.
   `go.type_reference` and `go.interface_implementation_type`. JavaScript-family
   analysis must list Node package, CommonJS default export, CommonJS mixin,
   Next.js, Node migration, Hapi-style, TypeScript module-contract, and
-  TypeScript interface implementation roots, plus Java main, constructor, and
-  override roots when query policy suppresses those candidates.
+  TypeScript interface implementation roots, plus Java main, constructor,
+  override, and Ant `Task` setter roots when query policy suppresses those
+  candidates; the analysis notes name the same Java root family.
   The handler scans raw graph candidates in bounded label-scoped pages before
   policy exclusions, then checks completed reducer code-call intent rows for
   incoming edges on the remaining candidates and uses a 2,500-row scan window

@@ -15,7 +15,8 @@ func deadCodeIsJavaRoot(result map[string]any, entity *EntityContent, stats *dea
 	}
 	if slices.Contains(rootKinds, "java.main_method") ||
 		slices.Contains(rootKinds, "java.constructor") ||
-		slices.Contains(rootKinds, "java.override_method") {
+		slices.Contains(rootKinds, "java.override_method") ||
+		slices.Contains(rootKinds, "java.ant_task_setter") {
 		stats.ParserMetadataFrameworkRoots++
 		return true
 	}
