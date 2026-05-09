@@ -24,6 +24,18 @@ func TestNewKeyRejectsBlankMaterial(t *testing.T) {
 	}
 }
 
+func TestKeyIsZeroReportsMissingMaterial(t *testing.T) {
+	t.Parallel()
+
+	var empty redact.Key
+	if !empty.IsZero() {
+		t.Fatal("empty Key IsZero() = false, want true")
+	}
+	if testKey(t).IsZero() {
+		t.Fatal("configured Key IsZero() = true, want false")
+	}
+}
+
 func TestStringReturnsDeterministicMarkerWithEvidence(t *testing.T) {
 	t.Parallel()
 

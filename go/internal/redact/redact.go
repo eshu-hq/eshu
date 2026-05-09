@@ -34,6 +34,11 @@ func NewKey(material []byte) (Key, error) {
 	return Key{material: copied}, nil
 }
 
+// IsZero reports whether the key has no material.
+func (k Key) IsZero() bool {
+	return len(k.material) == 0
+}
+
 // Value is a redaction result that can replace a sensitive scalar in facts,
 // maps, logs, or spans without retaining raw secret material.
 //
