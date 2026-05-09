@@ -106,6 +106,50 @@ func TestRenderLocalHostProgressSnapshotShowsIdleWhenNoKnownWork(t *testing.T) {
 	}
 }
 
+func TestRenderLocalHostProgressSnapshotShowsSharedProjectionBacklog(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderLocalHostProgressSnapshot(
+		"/workspace/repo",
+		localHostRuntimeConfig{
+			Profile:      query.ProfileLocalAuthoritative,
+			GraphBackend: query.GraphBackendNornicDB,
+		},
+		statuspkg.Report{
+			AsOf:   time.Date(2026, time.May, 9, 12, 23, 53, 0, time.UTC),
+			Health: statuspkg.HealthSummary{State: "progressing"},
+			GenerationHistory: statuspkg.GenerationHistorySnapshot{
+				Active: 1,
+			},
+			StageSummaries: []statuspkg.StageSummary{
+				{Stage: "projector", Succeeded: 1},
+				{Stage: "reducer", Succeeded: 8},
+			},
+			DomainBacklogs: []statuspkg.DomainBacklog{
+				{
+					Domain:      "code_calls",
+					Outstanding: 622561,
+					InFlight:    1,
+					OldestAge:   10*time.Minute + 22*time.Second,
+				},
+			},
+		},
+	)
+
+	for _, want := range []string{
+		"Health: progressing",
+		"Collector  complete",
+		"Projector  complete",
+		"Reducer    complete",
+		"Queue: pending=0 in_flight=0 retrying=0 dead_letter=0 failed=0 oldest=0s",
+		"Shared projections: code_calls outstanding=622561 in_flight=1 retrying=0 dead_letter=0 failed=0 oldest=10m22s",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("rendered progress missing %q in %q", want, rendered)
+		}
+	}
+}
+
 func TestLocalHostProgressFingerprintIgnoresAsOfAndBucketsAge(t *testing.T) {
 	t.Parallel()
 
@@ -174,6 +218,14 @@ func TestLocalHostProgressFingerprintIgnoresAsOfAndBucketsAge(t *testing.T) {
 	}
 	if got, want := localHostProgressFingerprint("/workspace/repo", runtimeConfig, withFailure), localHostProgressFingerprint("/workspace/repo", runtimeConfig, base); got == want {
 		t.Fatal("progress fingerprint stayed the same after latest failure details changed")
+	}
+
+	withActiveSharedProjection := base
+	withActiveSharedProjection.DomainBacklogs = []statuspkg.DomainBacklog{
+		{Domain: "source_local", Outstanding: 1, InFlight: 1, OldestAge: 35 * time.Second},
+	}
+	if got, want := localHostProgressFingerprint("/workspace/repo", runtimeConfig, withActiveSharedProjection), localHostProgressFingerprint("/workspace/repo", runtimeConfig, base); got == want {
+		t.Fatal("progress fingerprint stayed the same after shared projection in-flight count changed")
 	}
 }
 

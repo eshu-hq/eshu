@@ -87,12 +87,15 @@ launched runtime via the shared `telemetry` package. Errors print to
   projector/reducer work items. An active collector generation is the current
   snapshot and counts as done in this table; pending collector generations keep
   the verdict at `Indexing` until the collector settles. `Complete` means every
-  known stage has drained. The table pads columns by display width, so colored
-  progress bars do not shift the `Done`, `Active`, `Waiting`, or `Failed`
-  counts. It shows `idle` when the status store has no active denominator yet.
-  `--progress plain` writes append-only text snapshots, `--verbose` and `--logs
-  terminal` restore direct terminal logs for debugging, `--logs quiet` discards
-  child logs, and `--progress quiet` suppresses the progress reporter.
+  known stage has drained; if shared projection intents still need to become
+  graph-visible, the verdict stays at `Settling` and the panel prints a
+  `Shared projections` backlog line with outstanding and in-flight counts. The
+  table pads columns by display width, so colored progress bars do not shift
+  the `Done`, `Active`, `Waiting`, or `Failed` counts. It shows `idle` when the
+  status store has no active denominator yet. `--progress plain` writes
+  append-only text snapshots, `--verbose` and `--logs terminal` restore direct
+  terminal logs for debugging, `--logs quiet` discards child logs, and
+  `--progress quiet` suppresses the progress reporter.
 - `graphBoltHealthy` sends the Bolt magic + four version proposals and reads
   the 4-byte server response. The response must match one offered protocol
   version; `00 00 00 00` means the server rejected negotiation and is not ready.

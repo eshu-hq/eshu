@@ -144,6 +144,51 @@ func TestLocalHostProgressTUIModelShowsCompleteVerdict(t *testing.T) {
 	}
 }
 
+func TestLocalHostProgressTUIModelShowsSharedProjectionBacklog(t *testing.T) {
+	t.Parallel()
+
+	model := localHostProgressTUIModel{
+		runtimeConfig: localHostRuntimeConfig{
+			Profile:      query.ProfileLocalAuthoritative,
+			GraphBackend: query.GraphBackendNornicDB,
+		},
+	}
+	updated, _ := model.Update(localHostProgressReportMsg{report: statuspkg.Report{
+		AsOf:   time.Date(2026, time.May, 9, 12, 23, 53, 0, time.UTC),
+		Health: statuspkg.HealthSummary{State: "progressing"},
+		GenerationHistory: statuspkg.GenerationHistorySnapshot{
+			Active: 1,
+		},
+		StageSummaries: []statuspkg.StageSummary{
+			{Stage: "projector", Succeeded: 1},
+			{Stage: "reducer", Succeeded: 8},
+		},
+		DomainBacklogs: []statuspkg.DomainBacklog{
+			{
+				Domain:      "code_calls",
+				Outstanding: 622561,
+				InFlight:    1,
+				OldestAge:   10*time.Minute + 22*time.Second,
+			},
+		},
+	}})
+	tuiModel, ok := updated.(localHostProgressTUIModel)
+	if !ok {
+		t.Fatalf("Update() model = %T, want localHostProgressTUIModel", updated)
+	}
+
+	view := tuiModel.View()
+	for _, want := range []string{
+		"Settling",
+		"shared projection work is becoming graph-visible",
+		"Shared projections code_calls outstanding=622561 in_flight=1 retrying=0 dead_letter=0 failed=0 oldest=10m22s",
+	} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("View() missing %q in:\n%s", want, view)
+		}
+	}
+}
+
 func TestLocalHostProgressTUIModelKeepsCollectorPendingAsIndexing(t *testing.T) {
 	t.Parallel()
 

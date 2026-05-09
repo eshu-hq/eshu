@@ -127,6 +127,14 @@ func (m localHostProgressTUIModel) View() string {
 		m.report.Queue.Failed,
 		localHostProgressAge(m.report.Queue.OldestOutstandingAge),
 	)
+	if backlog, ok := localHostProgressSharedProjectionBacklog(m.report); ok {
+		fmt.Fprintf(
+			&builder,
+			"%s %s\n",
+			localHostProgressMutedStyle.Render("Shared projections"),
+			localHostProgressDomainBacklogText(backlog),
+		)
+	}
 	if latestFailure := localHostProgressFailureText(m.report.LatestQueueFailure); latestFailure != "" {
 		fmt.Fprintf(&builder, "%s %s\n", localHostProgressWarningStyle.Render("Latest failure"), latestFailure)
 	}
@@ -270,6 +278,13 @@ func localHostProgressVerdictForReport(report statuspkg.Report) localHostProgres
 		return localHostProgressVerdict{
 			label:  "Settling",
 			detail: "known work remains queued or waiting for a worker",
+			style:  localHostProgressHeaderStyle,
+		}
+	}
+	if _, ok := localHostProgressSharedProjectionBacklog(report); ok {
+		return localHostProgressVerdict{
+			label:  "Settling",
+			detail: "shared projection work is becoming graph-visible",
 			style:  localHostProgressHeaderStyle,
 		}
 	}

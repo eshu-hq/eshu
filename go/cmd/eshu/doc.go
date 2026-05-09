@@ -26,7 +26,8 @@
 // files by default while rendering a branded animated Bubble Tea known-work
 // progress panel from the shared status store on terminals, includes explicit
 // stage states so collector generations and projector/reducer work items are
-// not conflated, pads styled progress columns by visible display width so
+// not conflated, surfaces shared projection backlog while graph-visible work is
+// still settling, pads styled progress columns by visible display width so
 // counts stay aligned, keeps the panel verdict at `Indexing` while collector
 // generations are pending, treats the active collector generation as the
 // current snapshot rather than a running worker, and keeps embedded Bolt
