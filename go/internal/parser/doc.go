@@ -38,9 +38,10 @@
 // call resolution.
 // Java pre-scan includes records in the same source-name map as classes and
 // methods. The package also emits Go embedded SQL metadata through the Go
-// helper subpackage, returned function-value references, static re-export
-// metadata, composite-literal type references, Helm/YAML metadata extraction,
-// and SCIP support for index-derived facts.
+// helper subpackage, Groovy/Jenkins delivery metadata through the Groovy helper
+// subpackage, returned function-value references, static re-export metadata,
+// composite-literal type references, Helm/YAML metadata extraction, and SCIP
+// support for index-derived facts.
 // Parser changes must preserve fact truth: when a parser emits a new
 // entity, relationship, or metadata field, the relevant fixtures, fact
 // contracts in internal/facts, and downstream docs must move in lockstep.

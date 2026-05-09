@@ -17,11 +17,13 @@
    for notebook source extraction that does not need parent parser internals
 8. `go/internal/parser/golang/README.md` — Go-owned helper package boundary for
    embedded SQL evidence that does not need parent parser internals
-9. `go/internal/parser/scip_support.go` — `SCIPIndexer`,
+9. `go/internal/parser/groovy/README.md` — Groovy-owned helper package boundary
+   for Jenkins delivery metadata that does not need parent parser internals
+10. `go/internal/parser/scip_support.go` — `SCIPIndexer`,
    `DetectSCIPProjectLanguage`, SCIP binary map
-10. `go/internal/parser/doc.go` — the package contract, especially the
+11. `go/internal/parser/doc.go` — the package contract, especially the
    determinism invariant
-11. `go/internal/telemetry/instruments.go` — `telemetry.FileParseDuration` before
+12. `go/internal/telemetry/instruments.go` — `telemetry.FileParseDuration` before
    adding parse-time metrics
 
 ## Invariants this package enforces
@@ -137,8 +139,8 @@
 - **Letting child parser packages import the parent parser package** — language
   helper packages such as `internal/parser/java` and
   `internal/parser/javascript`, `internal/parser/python`, and
-  `internal/parser/golang` exist to remove parent-package sprawl. Keep their
-  APIs typed and parent-independent.
+  `internal/parser/golang`, and `internal/parser/groovy` exist to remove
+  parent-package sprawl. Keep their APIs typed and parent-independent.
 
 - **Emitting new entity keys without updating shape.Materialize** — keys not
   consumed by `shape.Materialize` are silently discarded. The fixture tests will
