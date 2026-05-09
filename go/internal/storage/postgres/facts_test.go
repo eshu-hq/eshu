@@ -95,6 +95,62 @@ func TestFactStoreUpsertFactsPersistsCollectorContractFields(t *testing.T) {
 	}
 }
 
+func TestFactStoreUpsertFactsAcceptsAllTerraformStateFactKinds(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	store := NewFactStore(db)
+	observedAt := time.Date(2026, time.May, 9, 10, 0, 0, 0, time.UTC)
+	kinds := facts.TerraformStateFactKinds()
+	envelopes := make([]facts.Envelope, 0, len(kinds))
+	for _, kind := range kinds {
+		version, ok := facts.TerraformStateSchemaVersion(kind)
+		if !ok {
+			t.Fatalf("TerraformStateSchemaVersion(%q) ok = false, want true", kind)
+		}
+		envelopes = append(envelopes, facts.Envelope{
+			FactID:           "fact-" + kind,
+			ScopeID:          "scope-state-123",
+			GenerationID:     "serial-7",
+			FactKind:         kind,
+			StableFactKey:    kind + ":fixture",
+			SchemaVersion:    version,
+			CollectorKind:    string(scope.CollectorTerraformState),
+			FencingToken:     7,
+			SourceConfidence: facts.SourceConfidenceObserved,
+			ObservedAt:       observedAt,
+			Payload:          map[string]any{"kind": kind},
+			SourceRef: facts.Ref{
+				SourceSystem: string(scope.CollectorTerraformState),
+				FactKey:      kind + ":fixture",
+			},
+		})
+	}
+
+	if err := store.UpsertFacts(context.Background(), envelopes); err != nil {
+		t.Fatalf("UpsertFacts() error = %v, want nil", err)
+	}
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+	for i, kind := range kinds {
+		offset := i * columnsPerFactRow
+		if got := db.execs[0].args[offset+3]; got != kind {
+			t.Fatalf("row %d fact_kind arg = %v, want %q", i, got, kind)
+		}
+		wantVersion, ok := facts.TerraformStateSchemaVersion(kind)
+		if !ok {
+			t.Fatalf("TerraformStateSchemaVersion(%q) ok = false, want true", kind)
+		}
+		if got := db.execs[0].args[offset+5]; got != wantVersion {
+			t.Fatalf("row %d schema_version arg = %v, want %q", i, got, wantVersion)
+		}
+		if got := db.execs[0].args[offset+6]; got != string(scope.CollectorTerraformState) {
+			t.Fatalf("row %d collector_kind arg = %v, want %q", i, got, scope.CollectorTerraformState)
+		}
+	}
+}
+
 func TestFactStoreLoadFactsReturnsEnvelope(t *testing.T) {
 	t.Parallel()
 

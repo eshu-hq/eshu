@@ -39,6 +39,102 @@ func TestDesiredCollectorInstanceValidateRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestDesiredCollectorInstanceValidateAcceptsTerraformStateGraphDiscovery(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "collector-tfstate-primary",
+		CollectorKind: scope.CollectorTerraformState,
+		Mode:          CollectorModeScheduled,
+		Configuration: `{"discovery":{"graph":true}}`,
+	}
+
+	if err := instance.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
+func TestDesiredCollectorInstanceValidateAcceptsTerraformStateS3SeedWithRole(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "collector-tfstate-primary",
+		CollectorKind: scope.CollectorTerraformState,
+		Mode:          CollectorModeScheduled,
+		Configuration: `{
+			"discovery": {
+				"seeds": [{
+					"kind": "s3",
+					"bucket": "app-tfstate-prod",
+					"key": "services/api/terraform.tfstate",
+					"region": "us-east-1"
+				}]
+			},
+			"aws": {
+				"role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-reader"
+			}
+		}`,
+	}
+
+	if err := instance.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
+func TestDesiredCollectorInstanceValidateRejectsTerraformStateMissingDiscovery(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "collector-tfstate-primary",
+		CollectorKind: scope.CollectorTerraformState,
+		Mode:          CollectorModeScheduled,
+		Configuration: `{}`,
+	}
+
+	if err := instance.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
+	}
+}
+
+func TestDesiredCollectorInstanceValidateRejectsTerraformStateBlankLocalRepo(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "collector-tfstate-primary",
+		CollectorKind: scope.CollectorTerraformState,
+		Mode:          CollectorModeScheduled,
+		Configuration: `{"discovery":{"local_repos":[" "]}}`,
+	}
+
+	if err := instance.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
+	}
+}
+
+func TestDesiredCollectorInstanceValidateRejectsTerraformStateS3SeedWithoutRole(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "collector-tfstate-primary",
+		CollectorKind: scope.CollectorTerraformState,
+		Mode:          CollectorModeScheduled,
+		Configuration: `{
+			"discovery": {
+				"seeds": [{
+					"kind": "s3",
+					"bucket": "app-tfstate-prod",
+					"key": "services/api/terraform.tfstate",
+					"region": "us-east-1"
+				}]
+			}
+		}`,
+	}
+
+	if err := instance.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
+	}
+}
+
 func TestDesiredCollectorInstanceMaterializeNormalizesConfiguration(t *testing.T) {
 	t.Parallel()
 

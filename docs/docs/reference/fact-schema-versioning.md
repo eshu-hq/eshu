@@ -62,6 +62,16 @@ Core documentation facts use these fact kinds at schema version `1.0.0`:
 - `documentation_entity_mention`
 - `documentation_claim_candidate`
 
+Core Terraform state facts use these fact kinds at schema version `1.0.0`:
+
+- `terraform_state_snapshot`
+- `terraform_state_resource`
+- `terraform_state_output`
+- `terraform_state_module`
+- `terraform_state_provider_binding`
+- `terraform_state_tag_observation`
+- `terraform_state_warning`
+
 ## Compatibility Rules
 
 ### Major incompatibility

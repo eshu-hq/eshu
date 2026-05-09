@@ -125,6 +125,13 @@ Types in this package flow through four phases of the workflow control plane:
 - `FairnessCandidatesFromCollectorInstances` — extracts claim-enabled durable
   instances into `FairnessCandidate` slices
 
+`DesiredCollectorInstance.Validate` applies a stricter configuration check for
+`terraform_state` instances. A Terraform state collector must declare a
+`discovery` block with graph discovery, explicit seeds, or local repo limits.
+S3 seeds must include bucket, key, and region; any S3 seed also requires
+`aws.role_arn`. This keeps unsafe or incomplete state-reader config out of the
+durable `collector_instances` table.
+
 **Defaults**:
 - `DefaultClaimLeaseTTL()` — 60s
 - `DefaultHeartbeatInterval()` — 20s

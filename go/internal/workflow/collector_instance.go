@@ -36,6 +36,11 @@ func (d DesiredCollectorInstance) Validate() error {
 	if err := validateJSONDocument("configuration", d.Configuration); err != nil {
 		return err
 	}
+	if d.CollectorKind == scope.CollectorTerraformState {
+		if err := validateTerraformStateCollectorConfiguration(d.Configuration); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

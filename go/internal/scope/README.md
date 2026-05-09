@@ -58,6 +58,10 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
   `ObservedAt`, `IngestedAt`, `Status`, `TriggerKind`, `FreshnessHint`.
   Methods: `Validate`, `ValidateForScope`, `IsTerminal`, `CanTransitionTo`,
   `TransitionTo`, `MarkActive`, `MarkCompleted`, `MarkSuperseded`, `MarkFailed`.
+- `NewTerraformStateSnapshotScope` — builds a stable `state_snapshot` scope from
+  backend kind and locator hash.
+- `NewTerraformStateSnapshotGeneration` — builds the pending generation for one
+  Terraform state serial and lineage.
 
 See `doc.go` for the full godoc contract.
 
@@ -86,6 +90,9 @@ This package emits no metrics, spans, or logs.
   a non-blank partition key even when the collector does not use partitioning.
 - `ParentScopeID` must differ from `ScopeID` when set. Self-referential parent
   pointers are rejected by `Validate`.
+- Terraform state scope identity stays stable across serials. The scope is
+  keyed by backend kind and locator hash; serial and lineage belong to the
+  `ScopeGeneration`.
 
 ## Related docs
 
