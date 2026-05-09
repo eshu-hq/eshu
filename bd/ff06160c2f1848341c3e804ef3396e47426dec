@@ -1,0 +1,83 @@
+go/internal/parser/ruby/parser_test.go
+  s_eb0190ed0a2d16::t_b19642875d5513 53-104
+go/internal/parser/rust/parser_test.go
+  s_ba5859d09617b7::t_d19fdbad607da7 76-83,168-190
+  s_ba5859d09617b7::t_11efe1e9535323 1-75,84-167,191-224
+go/internal/parser/ruby/AGENTS.md
+  s_bdaf44668b73dc::t_f29b419d54065a 25-27
+go/internal/parser/sql/language_test.go
+  s_6160d5be8b26c4::t_ea70d154b5a08f 1-49,56-71,73-74,76-183
+  s_6160d5be8b26c4::t_e6db304e712c11 50-55,72,75
+go/internal/parser/sql/shared.go
+  s_bdaf44668b73dc::t_f29b419d54065a 99-117
+go/internal/parser/rust/doc.go
+  s_bdaf44668b73dc::t_a0c1191183ab1e 2-9
+go/internal/parser/ruby/parser.go
+  s_eb0190ed0a2d16::t_e7a5a9e3e4f76d 22,25,139-141,208-210,312,315-319
+  s_eb0190ed0a2d16::t_f4fc6ee158d2c8 313-314
+go/internal/parser/ruby/README.md
+  s_bdaf44668b73dc::t_f29b419d54065a 38-44
+go/internal/parser/sql/doc.go
+  s_bdaf44668b73dc::t_a0c1191183ab1e 8-9
+go/internal/parser/ruby/doc.go
+  s_bdaf44668b73dc::t_a0c1191183ab1e 6-9
+go/internal/parser/rust/README.md
+  s_bdaf44668b73dc::t_f29b419d54065a 30-38
+go/internal/parser/rust/AGENTS.md
+  s_bdaf44668b73dc::t_f29b419d54065a 23-26
+go/internal/parser/ruby/calls.go
+  s_eb0190ed0a2d16::t_b6dd6e91351f54 80
+  s_eb0190ed0a2d16::t_25040939642794 61,136-145
+  s_eb0190ed0a2d16::t_a2a12f6730b6dc 11
+  s_eb0190ed0a2d16::t_6b3e0d8a6e03bf 134-135
+go/internal/parser/rust/helpers.go
+  s_ba5859d09617b7::t_2020b4932643b5 26-38,127
+go/internal/parser/sql/AGENTS.md
+  s_bdaf44668b73dc::t_f29b419d54065a 29
+  s_bdaf44668b73dc::t_f24fa21907d40b 30
+go/internal/parser/sql/language.go
+  s_6160d5be8b26c4::t_6e48f449d5d7df 114
+go/internal/parser/sql/README.md
+  s_bdaf44668b73dc::t_f24fa21907d40b 45
+  s_bdaf44668b73dc::t_f29b419d54065a 44,46-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "bdff06160c2f1848341c3e804ef3396e47426dec",
+  "prompts": {},
+  "sessions": {
+    "s_6160d5be8b26c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0edf-2c75-7ab3-903b-b36ef6e94d20",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_ba5859d09617b7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0edf-2c4d-7673-a79a-5d7a51b05769",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_eb0190ed0a2d16": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0edf-2ca5-7e63-a30a-511734b76fc9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
