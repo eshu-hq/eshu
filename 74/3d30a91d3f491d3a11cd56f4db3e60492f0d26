@@ -1,0 +1,63 @@
+go/internal/reducer/code_call_materialization_java_test.go
+  s_bdaf44668b73dc::t_444d1313f2be99 1-70
+  s_bdaf44668b73dc::t_b849eb692d09d0 71-94,99-126,134-162,166
+  s_bdaf44668b73dc::t_cf1a36eec12407 95-98,127-133,163-165
+go/internal/reducer/code_call_materialization_index.go
+  s_bdaf44668b73dc::t_b867f821496812 85
+  s_bdaf44668b73dc::t_877f57226519f0 21,41,74,124,288-292,294-299,360,362,434
+  s_bdaf44668b73dc::t_5808fa6415f46c 450-458
+go/internal/storage/cypher/edge_writer.go
+  s_bdaf44668b73dc::t_db84eccaf29581 331
+go/internal/parser/java_language.go
+  s_bdaf44668b73dc::t_84e4d533d436b8 98-100,102-109
+  s_bdaf44668b73dc::t_f7395718f35b8b 116,118-119,121-128
+  s_bdaf44668b73dc::t_b87278a06b9236 142,145,174,177,186-187
+  s_bdaf44668b73dc::t_40fb79f332e58f 295
+  s_bdaf44668b73dc::t_6bfa20d442e158 300-301,110-112,114-115,288,290-291,302-308,310-311,316,319-320
+  s_bdaf44668b73dc::t_b46573a2fd2911 352-354,298,309,312-313,321-322
+  s_bdaf44668b73dc::t_783f054a7f73d3 297
+go/internal/parser/java_call_inference.go
+  s_bdaf44668b73dc::t_783f054a7f73d3 1-11,13-25,28-31,34-35,44-46,48,54-93,175
+  s_bdaf44668b73dc::t_4a75e7079935a4 26,32-33
+go/internal/reducer/code_call_materialization_helpers.go
+  s_bdaf44668b73dc::t_b867f821496812 55-57,95-106
+  s_bdaf44668b73dc::t_44c3caac1926ca 88,89-90,153-154,219-220
+  s_bdaf44668b73dc::t_6cc1344b3adbc5 266-268,91,155,221
+go/internal/storage/cypher/edge_writer_code_call_labels.go
+  s_bdaf44668b73dc::t_b826ed73781bb1 1-5,12-105
+  s_bdaf44668b73dc::t_2e88c7f3547cc6 6-11
+go/internal/reducer/code_call_materialization_endpoint_types_test.go
+  s_bdaf44668b73dc::t_0433577b1329b8 1-100
+go/internal/reducer/code_call_materialization_arity.go
+  s_bdaf44668b73dc::t_26a216e8006d4c 1-58
+go/internal/storage/cypher/edge_writer_code_call_labels_test.go
+  s_bdaf44668b73dc::t_0433577b1329b8 1-47,85-149
+  s_bdaf44668b73dc::t_a6f1873f6c3b6c 48-84
+go/internal/reducer/code_call_materialization_endpoint_types.go
+  s_bdaf44668b73dc::t_075712cffef5f7 1-32
+go/internal/parser/java_dead_code_roots_test.go
+  s_bdaf44668b73dc::t_6f2c7545668ea3 1-45
+  s_bdaf44668b73dc::t_5b5902d04bf6d7 46
+  s_bdaf44668b73dc::t_fffd7e810d928b 47
+  s_bdaf44668b73dc::t_de2d776b658fa4 48-50,52-53,57,63-65,69-70,73-81,83,85-86,94
+  s_bdaf44668b73dc::t_b849eb692d09d0 51,55,58-62,66-68,71-72
+  s_bdaf44668b73dc::t_357ef7fda354f6 54,56,82,84
+  s_bdaf44668b73dc::t_5d87f3f74764cd 87-88,90-91
+  s_bdaf44668b73dc::t_f07f14239b580e 89,92-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "743d30a91d3f491d3a11cd56f4db3e60492f0d26",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

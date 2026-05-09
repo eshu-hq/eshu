@@ -1,0 +1,121 @@
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_ca18f0f1604d5d 10-12,20-24
+go/internal/parser/java_language.go
+  s_bdaf44668b73dc::t_61446d0353d09c 354
+go/internal/reducer/code_call_materialization_java_reflection_test.go
+  s_a79a10e213fbb6::t_85059a0fba9df7 1-126
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_4ff44ca956b764 27-34
+tests/fixtures/ecosystems/java_comprehensive/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
+  s_bdaf44668b73dc::t_efb9bcda121aa8 1
+docs/docs/adrs/2026-05-07-dead-code-root-model-and-language-reachability.md
+  s_bdaf44668b73dc::t_7ecb38e20a88c1 277-281,284,403-404,435-439,450-452
+go/internal/query/code_dead_code_java_roots.go
+  s_7ac362c864f606::t_0daa6f9ea570ab 35-36
+go/internal/parser/java_metadata_test.go
+  s_bdaf44668b73dc::t_4527aad80c9461 1-12,14-15,17-94
+  s_bdaf44668b73dc::t_0077e963f5f238 13,16
+go/internal/parser/java_dead_code_serialization_roots_test.go
+  s_7ac362c864f606::t_5242d356be599e 1-121
+go/internal/query/doc.go
+  s_bdaf44668b73dc::t_34b2b6dd2303f1 22-29
+go/internal/parser/registry.go
+  s_bdaf44668b73dc::t_1174a4ef04d5e9 145-147,150-152
+  s_bdaf44668b73dc::t_0f2f49a3108685 116-120,143-144,148-149,153-155,258-260
+tests/fixtures/ecosystems/java_comprehensive/deadcode/RuntimeEntrypoints.java
+  s_bdaf44668b73dc::t_a74cef41c1e689 1-49
+go/internal/query/code_dead_code_contract_test.go
+  s_bdaf44668b73dc::t_326393cae61070 123
+go/internal/query/code_dead_code_java_roots_test.go
+  s_7ac362c864f606::t_a77ce188d42f15 151-159
+go/internal/reducer/code_call_materialization_index.go
+  s_bdaf44668b73dc::t_19602a97cf6999 349-350
+go/internal/parser/java_reflection_test.go
+  s_a79a10e213fbb6::t_2bd7df4bd867b9 1-97
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_bbf95e7b18d522 185-192,207-211
+go/internal/query/code_dead_code_analysis_roots_test.go
+  s_bdaf44668b73dc::t_a90cd98eaaa8fa 152-155
+  s_7ac362c864f606::t_12933b09802320 150-151
+go/internal/reducer/code_call_materialization_java_metadata_test.go
+  s_bdaf44668b73dc::t_44be8d3f38e5f8 1-65
+go/internal/reducer/code_call_materialization_relationship.go
+  s_bdaf44668b73dc::t_d6a0c0fb1382eb 17-20
+  s_bdaf44668b73dc::t_8a916bff67634f 21-24
+tests/fixtures/ecosystems/java_comprehensive/META-INF/spring.factories
+  s_bdaf44668b73dc::t_b7a3b62e25c77a 1-3
+go/internal/query/README.md
+  s_bdaf44668b73dc::t_204ffed3ebb4c6 81-84,93-96
+docs/docs/languages/javascript.md
+  s_bdaf44668b73dc::t_e69d193ce87357 15-42
+go/internal/parser/engine.go
+  s_bdaf44668b73dc::t_17f7f1be08c1cc 217-218,298-299
+go/internal/parser/java_metadata_files.go
+  s_bdaf44668b73dc::t_979374a65833c0 1-45,48-49,53-64,67-149
+  s_bdaf44668b73dc::t_256d343427b740 46-47,50-52,65-66
+docs/docs/reference/dead-code-reachability-spec.md
+  s_bdaf44668b73dc::t_cac5d6f3538076 215-219,227-228,235-236,253-254
+go/internal/parser/java_reflection.go
+  s_bdaf44668b73dc::t_6f7264a3164f0c 1-130
+docs/docs/languages/typescript.md
+  s_bdaf44668b73dc::t_d4b856a9f3ef87 15-43
+docs/docs/languages/typescriptjsx.md
+  s_bdaf44668b73dc::t_c1524f5e9d37f7 15-45
+go/internal/reducer/code_call_materialization_javascript_roots.go
+  s_bdaf44668b73dc::t_331dead07d48ed 31-42
+go/internal/parser/java_dead_code_roots.go
+  s_7ac362c864f606::t_b7e6a2e6e59825 53-58,233-284
+docs/docs/languages/python.md
+  s_bdaf44668b73dc::t_36a55543f21e46 15-42
+docs/docs/languages/support-maturity.md
+  s_bdaf44668b73dc::t_c1524f5e9d37f7 12-13,36,62-64
+  s_bdaf44668b73dc::t_0d67b4d9bdfa3f 55,61
+go/internal/query/code_dead_code_analysis.go
+  s_bdaf44668b73dc::t_d4128e2684354b 35
+  s_bdaf44668b73dc::t_30390e2d007828 94-95
+  s_bdaf44668b73dc::t_6d24705cde0a8a 96-99
+tests/fixtures/ecosystems/java_comprehensive/META-INF/services/comprehensive.deadcode.Plugin
+  s_bdaf44668b73dc::t_d8d168b39fbc17 1
+go/internal/parser/java_dead_code_fixture_test.go
+  s_bdaf44668b73dc::t_846dc38712c185 1-85
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_7c64cda1391192 72,74-91,95-98,134-136,175,177
+  s_bdaf44668b73dc::t_9759cbe994c303 73,94,176,215
+docs/docs/languages/java.md
+  s_bdaf44668b73dc::t_b077c159d03cab 71
+  s_bdaf44668b73dc::t_032d2787d56090 15-54,76-80
+go/internal/reducer/code_call_materialization_helpers.go
+  s_bdaf44668b73dc::t_9d742b7068724d 55-57,100-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "a42edb01737bb9edc3922a62ee31b767629032a4",
+  "prompts": {},
+  "sessions": {
+    "s_7ac362c864f606": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0def-a04d-7e22-8bcd-e1b754cb61c1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_a79a10e213fbb6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0def-a033-79c3-abcb-91c96c2f3093",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

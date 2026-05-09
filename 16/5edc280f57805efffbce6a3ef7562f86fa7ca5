@@ -1,0 +1,36 @@
+go/internal/storage/cypher/canonical_node_writer_phases.go
+  s_bdaf44668b73dc::t_5824abb327e05e 139,142-143,146-152
+go/internal/storage/cypher/canonical_node_writer.go
+  s_bdaf44668b73dc::t_eec30fbf48f3de 225-226
+go/cmd/ingester/wiring_nornicdb_directory_phase_test.go
+  s_bdaf44668b73dc::t_ec1dcceb2dd0f6 1-30,32-36
+  s_bdaf44668b73dc::t_fec505f51cebad 31
+go/cmd/ingester/wiring_nornicdb_directory_phase.go
+  s_bdaf44668b73dc::t_103bf19b580c1a 1-8
+go/cmd/ingester/wiring_nornicdb_phase_group_stats.go
+  s_bdaf44668b73dc::t_f74add09050b89 210-215
+go/cmd/ingester/wiring_nornicdb_phase_group.go
+  s_bdaf44668b73dc::t_0987bbfc4c3ee1 15
+go/internal/storage/cypher/canonical_node_writer_first_generation_files_test.go
+  s_bdaf44668b73dc::t_f6ea5aeb4cf5a1 1-119
+go/internal/storage/cypher/canonical_node_cypher.go
+  s_bdaf44668b73dc::t_8ab4d7cd63da72 121-137,166-167
+go/internal/storage/cypher/phase_group_metadata.go
+  s_bdaf44668b73dc::t_acd47715d15f00 30-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "165edc280f57805efffbce6a3ef7562f86fa7ca5",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

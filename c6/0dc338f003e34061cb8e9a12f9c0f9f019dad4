@@ -1,0 +1,68 @@
+go/internal/status/status_health.go
+  s_bdaf44668b73dc::t_36dff84fca1b3a 1-59,74-111,113-115,117-122,62,64-65,67-68,70-73
+  s_bdaf44668b73dc::t_e326286b6c7013 61,63,66,69
+go/internal/status/README.md
+  s_bdaf44668b73dc::t_b2b59719a0fb2a 9-10,32-33
+  s_bdaf44668b73dc::t_08551c5a0134d1 34
+  s_bdaf44668b73dc::t_1951d5ea62d7b0 98,160
+  s_bdaf44668b73dc::t_983d49e7eb50e4 64-65,97,161
+go/internal/status/json.go
+  s_bdaf44668b73dc::t_02abda6c1966a6 127,190
+go/internal/storage/postgres/doc.go
+  s_bdaf44668b73dc::t_2c6c4141c4e57f 15
+  s_bdaf44668b73dc::t_775c21ded3fef3 21-24
+  s_bdaf44668b73dc::t_0f203362723d21 25-27
+  s_bdaf44668b73dc::t_4a0c4967a64755 19-20
+go/internal/status/flow.go
+  s_bdaf44668b73dc::t_7066cd5220c300 130
+go/internal/status/status.go
+  s_bdaf44668b73dc::t_c7f594957a5567 201
+  s_bdaf44668b73dc::t_70b4a74cf6d69b 77,291,294
+go/internal/storage/postgres/status.go
+  s_bdaf44668b73dc::t_eb1c81989b73cf 297,305,316
+go/internal/status/status_health_test.go
+  s_bdaf44668b73dc::t_36583b8a9a3364 1-191,229-283,193-198,202,210-217,220,226-228
+  s_bdaf44668b73dc::t_67bab095fad22e 192,205-208,225
+  s_bdaf44668b73dc::t_0845fb1a596001 199-201,203-204,209,218-219,221-224
+go/internal/storage/postgres/status_test.go
+  s_bdaf44668b73dc::t_60dadac6090f29 225
+  s_bdaf44668b73dc::t_0e3f8b723f51f7 232-236
+  s_bdaf44668b73dc::t_0845fb1a596001 237,165,240,243
+  s_bdaf44668b73dc::t_9f4e5b21cb6711 55-56,163-164,238-239,241-242
+go/internal/status/doc.go
+  s_bdaf44668b73dc::t_97e4782fbeaaa5 8
+  s_bdaf44668b73dc::t_70c2a0294dc655 9
+go/internal/storage/postgres/status_queries.go
+  s_bdaf44668b73dc::t_f06f021017c24a 1-46,48-65,79-85,88-89,98-100,102-111,113-142
+  s_bdaf44668b73dc::t_e92e03a11c6041 47,66,68-73,75,77-78,86-87,94,97,101
+  s_bdaf44668b73dc::t_f444293d85a9ae 74
+go/internal/status/status_test.go
+  s_bdaf44668b73dc::t_77d21049cc3877 221
+go/internal/storage/postgres/README.md
+  s_bdaf44668b73dc::t_9bc7f71f71d5a4 23,206-208,70,126,134
+  s_bdaf44668b73dc::t_029e393c9c1c56 119-123
+  s_bdaf44668b73dc::t_753b2672c8e22c 124,125,127-133,196-198,344-348
+  s_bdaf44668b73dc::t_8e99e5cab25c06 209
+  s_bdaf44668b73dc::t_5f4d2617860240 63,333,335-336
+  s_bdaf44668b73dc::t_574e7d8d1973c2 64,334
+  s_bdaf44668b73dc::t_775c21ded3fef3 65-69,165,195,337-343
+  s_bdaf44668b73dc::t_6744058f619bb2 24-25,210
+docs/docs/reference/runtime-admin-api.md
+  s_bdaf44668b73dc::t_f9a95511af3d8b 114,118-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "c60dc338f003e34061cb8e9a12f9c0f9f019dad4",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
