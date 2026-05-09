@@ -18,6 +18,7 @@ type codeEntityIndex struct {
 	uniqueNameByRepoDir map[string]map[string]map[string]string
 	constructorByPath   map[string]map[string]string
 	entityFileByID      map[string]string
+	entityTypeByID      map[string]string
 }
 
 type codeFunctionSpan struct {
@@ -37,6 +38,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 		uniqueNameByRepoDir: make(map[string]map[string]map[string]string),
 		constructorByPath:   make(map[string]map[string]string),
 		entityFileByID:      make(map[string]string),
+		entityTypeByID:      make(map[string]string),
 	}
 	nameCandidates := make(map[string]map[string]map[string]struct{})
 	repoNameCandidates := make(map[string]map[string]map[string]struct{})
@@ -69,6 +71,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 			if preferredPath != "" {
 				index.entityFileByID[entityID] = preferredPath
 			}
+			index.entityTypeByID[entityID] = "Function"
 			for _, pathKey := range codeCallPathKeys(rawPath, relativePath) {
 				index.entitiesByPathLine[codeCallPathLineKey(pathKey, startLine)] = entityID
 				span := codeFunctionSpan{
@@ -118,6 +121,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 				if preferredPath != "" {
 					index.entityFileByID[entityID] = preferredPath
 				}
+				index.entityTypeByID[entityID] = codeCallEntityTypeForBucket(bucket)
 				for _, pathKey := range codeCallPathKeys(rawPath, relativePath) {
 					startLine := codeCallInt(item["line_number"], item["start_line"])
 					endLine := codeCallInt(item["end_line"])
@@ -281,8 +285,18 @@ func extractSCIPCodeCallRows(
 		row := map[string]any{
 			"repo_id":          repositoryID,
 			"caller_entity_id": callerID,
+			"caller_entity_type": codeCallEndpointEntityType(
+				entityIndex,
+				repositoryID,
+				callerID,
+			),
 			"callee_entity_id": calleeID,
-			"action":           IntentActionUpsert,
+			"callee_entity_type": codeCallEndpointEntityType(
+				entityIndex,
+				repositoryID,
+				calleeID,
+			),
+			"action": IntentActionUpsert,
 		}
 		copyOptionalCodeCallField(row, edge, "caller_symbol")
 		copyOptionalCodeCallField(row, edge, "callee_symbol")
@@ -343,9 +357,9 @@ func extractGenericCodeCallRows(
 			continue
 		}
 
-		rows = appendCodeCallRow(rows, seenRows, repositoryID, callerID, calleeID, callerFilePath, calleeFilePath, callLine, edge)
+		rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, calleeID, callerFilePath, calleeFilePath, callLine, edge)
 		if constructorID := resolveConstructorMethodCalleeID(entityIndex, calleeFilePath, edge); constructorID != "" {
-			rows = appendCodeCallRow(rows, seenRows, repositoryID, callerID, constructorID, callerFilePath, calleeFilePath, callLine, edge)
+			rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, constructorID, callerFilePath, calleeFilePath, callLine, edge)
 		}
 	}
 	return rows
@@ -417,6 +431,7 @@ func appendCodeCallRow(
 	rows []map[string]any,
 	seenRows map[string]struct{},
 	repositoryID string,
+	entityIndex codeEntityIndex,
 	callerID string,
 	calleeID string,
 	callerFilePath string,
@@ -432,13 +447,15 @@ func appendCodeCallRow(
 	seenRows[key] = struct{}{}
 
 	row := map[string]any{
-		"repo_id":          repositoryID,
-		"caller_entity_id": callerID,
-		"callee_entity_id": calleeID,
-		"caller_file":      callerFilePath,
-		"callee_file":      calleeFilePath,
-		"ref_line":         callLine,
-		"action":           IntentActionUpsert,
+		"repo_id":            repositoryID,
+		"caller_entity_id":   callerID,
+		"caller_entity_type": codeCallEndpointEntityType(entityIndex, repositoryID, callerID),
+		"callee_entity_id":   calleeID,
+		"callee_entity_type": codeCallEndpointEntityType(entityIndex, repositoryID, calleeID),
+		"caller_file":        callerFilePath,
+		"callee_file":        calleeFilePath,
+		"ref_line":           callLine,
+		"action":             IntentActionUpsert,
 	}
 	copyOptionalCodeCallField(row, edge, "full_name")
 	copyOptionalCodeCallField(row, edge, "call_kind")

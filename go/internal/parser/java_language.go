@@ -107,11 +107,12 @@ func appendJavaFunction(
 	}
 
 	item := map[string]any{
-		"name":        name,
-		"line_number": nodeLine(nameNode),
-		"end_line":    nodeEndLine(node),
-		"decorators":  javaDecorators(node, source),
-		"lang":        "java",
+		"name":            name,
+		"line_number":     nodeLine(nameNode),
+		"end_line":        nodeEndLine(node),
+		"decorators":      javaDecorators(node, source),
+		"lang":            "java",
+		"parameter_count": javaParameterCount(node),
 	}
 	if classContext := nearestNamedAncestor(node, source, "class_declaration", "interface_declaration"); classContext != "" {
 		item["class_context"] = classContext
@@ -284,14 +285,39 @@ func appendJavaCall(payload map[string]any, node *tree_sitter.Node, source []byt
 	}
 
 	item := map[string]any{
-		"name":        name,
-		"line_number": nodeLine(nameNode),
-		"lang":        "java",
+		"name":           name,
+		"line_number":    nodeLine(nameNode),
+		"lang":           "java",
+		"argument_count": javaArgumentCount(node),
 	}
 	if fullName := javaCallFullName(node, source); fullName != "" {
 		item["full_name"] = fullName
 	}
+	if inferredType := javaCallInferredObjectType(node, source); inferredType != "" {
+		item["inferred_obj_type"] = inferredType
+	}
 	appendBucket(payload, "function_calls", item)
+}
+
+func javaParameterCount(node *tree_sitter.Node) int {
+	parametersNode := node.ChildByFieldName("parameters")
+	count := 0
+	walkDirectNamed(parametersNode, func(child *tree_sitter.Node) {
+		switch child.Kind() {
+		case "formal_parameter", "spread_parameter":
+			count++
+		}
+	})
+	return count
+}
+
+func javaArgumentCount(node *tree_sitter.Node) int {
+	argumentsNode := node.ChildByFieldName("arguments")
+	count := 0
+	walkDirectNamed(argumentsNode, func(child *tree_sitter.Node) {
+		count++
+	})
+	return count
 }
 
 func javaCallFullName(node *tree_sitter.Node, source []byte) string {

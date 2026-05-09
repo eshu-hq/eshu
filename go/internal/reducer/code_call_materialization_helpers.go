@@ -86,6 +86,9 @@ func codeCallExactCandidateNames(call map[string]any, language string) []string 
 		strings.TrimSpace(name) != "" {
 		appendName(contextName + "." + name)
 	}
+	if arity, ok := codeCallMetadataInt(call, "argument_count"); ok {
+		names = codeCallAppendArityNames(names, arity)
+	}
 	return names
 }
 
@@ -147,6 +150,9 @@ func codeCallBroadCandidateNames(call map[string]any, language string) []string 
 	appendName(fullName)
 	appendName(codeCallTrailingName(fullName))
 	appendName(codeCallTrailingSegments(fullName, 2))
+	if arity, ok := codeCallMetadataInt(call, "argument_count"); ok {
+		names = codeCallAppendArityNames(names, arity)
+	}
 	return names
 }
 
@@ -209,6 +215,9 @@ func codeCallFunctionCandidateNames(item map[string]any) []string {
 		(contextType == "class" || contextType == "module") &&
 		strings.TrimSpace(name) != "" {
 		appendName(contextName + "." + name)
+	}
+	if arity, ok := codeCallMetadataInt(item, "parameter_count"); ok {
+		names = codeCallAppendArityNames(names, arity)
 	}
 	return names
 }

@@ -328,37 +328,7 @@ func buildRowMap(
 		}, true
 
 	case reducer.DomainCodeCalls:
-		if relationshipType := payloadString(row.Payload, "relationship_type"); relationshipType == "USES_METACLASS" {
-			sourceEntityID := payloadString(row.Payload, "source_entity_id")
-			targetEntityID := payloadString(row.Payload, "target_entity_id")
-			if sourceEntityID == "" || targetEntityID == "" {
-				return "", nil, false
-			}
-			return batchCanonicalMetaclassUpsertCypher, map[string]any{
-				"source_entity_id":  sourceEntityID,
-				"target_entity_id":  targetEntityID,
-				"relationship_type": relationshipType,
-				"evidence_source":   evidenceSource,
-			}, true
-		}
-
-		callerEntityID := payloadString(row.Payload, "caller_entity_id")
-		calleeEntityID := payloadString(row.Payload, "callee_entity_id")
-		if callerEntityID == "" || calleeEntityID == "" {
-			return "", nil, false
-		}
-		rowMap := map[string]any{
-			"caller_entity_id": callerEntityID,
-			"callee_entity_id": calleeEntityID,
-			"evidence_source":  evidenceSource,
-		}
-		if callKind := payloadString(row.Payload, "call_kind"); callKind != "" {
-			rowMap["call_kind"] = callKind
-		}
-		if rowMap["call_kind"] == "jsx_component" || payloadString(row.Payload, "relationship_type") == "REFERENCES" {
-			return batchCanonicalCodeReferenceUpsertCypher, rowMap, true
-		}
-		return batchCanonicalCodeCallUpsertCypher, rowMap, true
+		return buildCodeCallRowMap(row.Payload, evidenceSource)
 
 	case reducer.DomainInheritanceEdges:
 		childEntityID := payloadString(row.Payload, "child_entity_id")
