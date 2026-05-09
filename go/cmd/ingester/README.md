@@ -67,7 +67,9 @@ filled by the collector. Worker count defaults to `min(NumCPU, 8)`; on
 so the local authoritative path matches the production-proven concurrency
 profile. The NornicDB phase-group executor keeps canonical retractions outside
 matching upsert groups so slow cleanup and normal entity writes are timed and
-reported as separate phases.
+reported as separate phases. Directory and file writes remain separate bounded
+phases so large local-authoritative repos can keep parent containment selective
+without reintroducing replacement-style cleanup.
 
 ## Exported surface
 

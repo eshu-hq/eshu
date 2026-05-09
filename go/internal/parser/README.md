@@ -65,7 +65,10 @@ module-contract export, TypeScript public method on a class that declares
 nearest-package `exports` or `types` target and a static one-hop re-export.
 Java adapters mark `main` methods, constructors, and `@Override` methods as
 dead-code roots so query policy does not report JVM entrypoints and dispatch
-callbacks as cleanup candidates.
+callbacks as cleanup candidates. Java method and constructor metadata also
+captures parameter counts, and Java call metadata captures argument counts, so
+the reducer can distinguish overloaded methods when local receiver evidence
+points at a type.
 Python adapters also preserve method `class_context`, constructor call
 metadata, class receiver references, dataclass/property roots, dunder protocol
 roots, inheritance base names, same-module `__all__` public API roots, package
@@ -275,7 +278,12 @@ errors are surfaced in `collector snapshot stage completed` logs with
   local evidence proves the root. TypeScript public surface roots also cover
   package `exports` or `types` targets that statically re-export same-repo
   declarations through one barrel hop, including declaration-only `*.d.ts`
-  barrels and `tsconfig.json` `paths` aliases that resolve to local files.
+  barrels and `tsconfig.json` `paths` aliases that resolve to local files. Java
+  dead-code roots cover `main`, constructors, and `@Override`; Java call
+  metadata also preserves local receiver types from parameters, variables,
+  fields, inline constructor receivers, and call/function arity so the reducer
+  can connect bounded method calls without treating every same-named overload
+  as live.
   JavaScript-family import metadata preserves namespace aliases, JSONC
   tsconfig `baseUrl` and `paths` resolved sources with comments and trailing
   commas accepted, and one-hop static relative re-exports used by reducer call

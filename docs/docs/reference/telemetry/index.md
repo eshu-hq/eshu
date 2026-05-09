@@ -32,6 +32,9 @@ the reported state is live or inferred.
   checkpointed completeness view exposed by the Go API.
 - `/admin/status` proves the live stage, backlog, and failure view for a
   runtime.
+- For code graph and dead-code readiness, `/admin/status` must show the fact
+  queue drained and no shared projection domain backlog; otherwise reducer-owned
+  edges may still be waiting to become graph-visible.
 - `POST /admin/refinalize` and `POST /admin/replay` are the runtime recovery
   controls on the ingester runtime.
 - A service can be healthy while indexing is incomplete. Use all three views

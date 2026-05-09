@@ -151,7 +151,8 @@ The direct process contract includes `eshu-reducer --version` and
   `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`
 - `internal/storage/postgres` — `NewReducerQueue`, `InstrumentedDB`,
   `NewSharedIntentStore`, `NewGraphProjectionPhaseStateStore`,
-  `NewGraphProjectionPhaseRepairQueueStore`, all fact/relationship stores
+  `NewGraphProjectionPhaseRepairQueueStore`, `NewReducerGraphDrain`, all
+  fact/relationship stores
 - `internal/storage/cypher` — `InstrumentedExecutor`, `NewEdgeWriter`
 - `internal/runtime` — `OpenPostgres`, `LoadGraphBackend`, retry policy
 - `internal/query` — `GraphQuery` port, `ParseQueryProfile`
@@ -193,6 +194,10 @@ ESHU_POSTGRES_DSN.
 - The projector drain gate (ESHU_QUERY_PROFILE=local-authoritative +
   ESHU_GRAPH_BACKEND=nornicdb) delays semantic-entity claims until
   source-local projectors have finished.
+- In that same local-authoritative NornicDB profile, `CodeCallProjectionRunner`
+  is wired with `NewReducerGraphDrain` so code-call edge projection waits until
+  reducer-owned graph domains have drained. Keep this as a scheduling gate, not
+  a graph-truth shortcut.
 
 ## Gotchas / invariants
 

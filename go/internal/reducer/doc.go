@@ -7,14 +7,19 @@
 // CommonJS property require, module.exports self-alias, imported JavaScript
 // namespace calls before same-file trailing-name fallback, function receiver,
 // constructor, re-export, dynamic import, returned function-value, TypeScript
-// type-reference, Python constructor, self receiver, class receiver, inherited
-// classmethod, and local receiver evidence, static JavaScript registry dispatch, and
-// package-file-root evidence, and drives repair flows for domains that depend
-// on later phases of the bootstrap pipeline. Changes here need careful proof:
+// type-reference, Java local receiver and overload arity, Python constructor,
+// self receiver, class receiver, inherited classmethod, and local receiver
+// evidence, static JavaScript registry dispatch, and package-file-root evidence.
+// Code-call rows carry endpoint IDs plus the endpoint entity labels needed by
+// the graph writer to keep canonical CALLS and REFERENCES writes selective, and
+// the reducer drives repair flows for domains that depend on later phases of the
+// bootstrap pipeline. Changes here need careful proof:
 // track raw evidence, admitted candidates, projected rows, graph writes, and
 // query surfaces before changing ordering, admission, retries, or
-// backend-specific behavior. Reducer code must remain idempotent across
-// retries and replays so repair runs converge on the same truth.
+// backend-specific behavior. Code-call projection may wait for reducer graph
+// domains to drain in local NornicDB runs, but that gate only controls write
+// scheduling. Reducer code must remain idempotent across retries and replays so
+// repair runs converge on the same truth.
 // Workload materialization inputs reuse the deployable-unit correlation gate
 // before projecting workload rows.
 package reducer

@@ -147,11 +147,24 @@ entrypoint, package bin, package
 export, and top-level JavaScript reference files, the repository scoped
 `File.uid` may be the caller so executable module bodies can make `main()`,
 constructor, member, function-value, and type-reference edges reachable without
-treating every library module as a root. The Go same-directory step applies to functions
-and type entities from
-`structs` and `interfaces`; command packages commonly reuse local helper names
-such as `wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name
-resolution must stay ambiguous in that case.
+treating every library module as a root. Code-call rows now carry
+`caller_entity_type` and `callee_entity_type` from the entity index, using
+`File` for repository-scoped file-root callers, so the graph writer can use the
+exact endpoint label and `uid` instead of a broad label family. The Go
+same-directory step applies to functions and type entities from `structs` and
+`interfaces`; command packages commonly reuse local helper names such as
+`wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name resolution must
+stay ambiguous in that case.
+
+For Java, parser-provided `inferred_obj_type` metadata lets receiver-qualified
+calls such as `factory.basicAuth(...)` resolve to methods on the parsed
+receiver type when local syntax proves the variable, parameter, field, or
+inline constructor receiver. `code_call_materialization_arity.go` converts
+`argument_count` and `parameter_count` metadata into `name#arity` candidates
+before broad name matching, so overloaded methods such as `basicAuth(String)`
+and `basicAuth(String, String)` do not collapse into one reachability result.
+This keeps Java method reachability bounded to evidence from the parsed files
+instead of treating every method with the same name as live.
 
 For Python, parser-provided `class_context`, `inferred_obj_type`, and
 `constructor_call` metadata keep method and constructor resolution bounded to
@@ -187,6 +200,14 @@ The runner uses exponential back-off (doubling each empty cycle, capped at
 `5s`) to avoid sustained high-frequency polling during idle periods. When
 intents are blocked on a readiness phase (`BlockedReadiness > 0`), it
 re-polls at the base interval without backing off.
+
+`CodeCallProjectionRunner` owns the `code_calls` domain separately because it
+must load and rewrite a complete acceptance unit before marking intents
+complete. In local-authoritative NornicDB runs it can receive a
+`ReducerGraphDrain`; when active reducer graph domains remain, the runner
+records a blocked cycle and waits before claiming the code-call partition. The
+gate only schedules work. It does not change which rows become `CALLS`,
+`REFERENCES`, or `USES_METACLASS`.
 
 Configuration via `LoadSharedProjectionConfig` reads
 ESHU_SHARED_PROJECTION_* env vars; see `cmd/reducer/README.md`.

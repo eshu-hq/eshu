@@ -20,6 +20,7 @@ flowchart LR
   H -->|ReadinessLookup| F
   F -->|WriteDecisions| I["postgres.DecisionStore\n(projection_decisions)"]
   F -->|WriteIntents| J["postgres.SharedIntentStore\n(shared_projection_intents)"]
+  J -->|ReadBacklog| K["postgres.StatusStore\n/admin/status domain backlog"]
 ```
 
 ## Internal flow
@@ -105,6 +106,12 @@ NornicDB-specific semantic gates. When the NornicDB gate is active (`$5 = true`)
 projection is in-flight, preventing cross-scope contention on NornicDB label
 indexes. The gate is disabled for Neo4j.
 
+`NewReducerGraphDrain` exposes a small read-side gate for code-call projection.
+It checks whether reducer-owned graph domains are still pending, claimed,
+running, or retrying so the local-authoritative NornicDB profile can avoid
+overlapping code-call edge writes with semantic, inheritance, SQL relationship,
+deployment, or workload graph materialization.
+
 ### Graph projection phase state
 
 `GraphProjectionPhaseStateStore` persists `canonical_nodes_committed` phase
@@ -172,6 +179,14 @@ mutation is rejected because the current owner no longer holds the lease.
 - `CodeCallIntentWriter` / `NewCodeCallIntentWriter` — type alias for
   `SharedIntentAcceptanceWriter`
 - `SharedProjectionAcceptanceStore` / `NewSharedProjectionAcceptanceStore`
+
+**Status**
+
+- `StatusStore` / `NewStatusStore` — reads scope, generation, queue, blockage,
+  failure, coordinator, and domain backlog aggregates. `status_queries.go`
+  merges `fact_work_items` with pending `shared_projection_intents` for domain
+  backlog rows, so `/admin/status` does not report healthy while reducer-owned
+  shared projection work is still waiting to become graph-visible.
 
 **Decision store**
 

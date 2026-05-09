@@ -17,8 +17,9 @@
 // including direct, config, and options handlers, Next.js app and route
 // exports, Express/Koa/Fastify/NestJS callback roots, Node migration exports,
 // TypeScript interface implementation, module-contract, package public-surface,
-// and exported static-registry roots, Java main, constructor, and override
-// roots, returned function-value references, static re-export metadata,
+// and exported static-registry roots, Java main, constructor, override roots,
+// local receiver type metadata, and arity metadata for overload-safe call
+// resolution, returned function-value references, static re-export metadata,
 // composite-literal type references, Helm/YAML metadata extraction, and SCIP
 // support for index-derived facts.
 // Parser changes must preserve fact truth: when a parser starts emitting a new

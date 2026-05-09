@@ -231,6 +231,28 @@ symbols:
 - `excluded`
 - `ambiguous`
 
+## Open-Source Dogfood Matrix
+
+Use open-source dogfood after each language track has focused fixture coverage
+and before promoting confidence language-wide. The point is not just to find a
+large repo; it is to prove accuracy and performance on real project shapes that
+exercise Eshu's parser and graph contracts.
+
+| Track | Primary repos | Why these repos | Acceptance evidence |
+| --- | --- | --- | --- |
+| Java | Jenkins plus one additional Java service/tool | Large Maven layout, annotations, plugin callbacks, CLI helpers, nested packages | local-authoritative index reaches healthy queue-drained state; dead-code query returns bounded results; sample is manually triaged for live entrypoints, constructors, overrides, callbacks, and same-class calls |
+| Python | Ansible plus one Python framework/tool repo | Python spread across libraries, CLI tools, plugins, tests, dataclasses, dynamic dispatch | local-authoritative index reaches healthy queue-drained state; dataclass and public API roots hold; dynamic-dispatch findings are classified as derived rather than cleanup-safe |
+| Go | Helm, Kustomize, Kubernetes, Terraform | Popular Go CLIs with command wiring, interfaces, reflection, generated code, Kubernetes/Helm/Kustomize/Terraform artifacts | each repo indexes within the target envelope for its size; dead-code samples suppress known command roots and callback/DI helpers; parser relationship evidence remains useful for supported IaC surfaces |
+
+Dogfood runs should record:
+
+- repository commit or tag
+- file/entity counts and skipped generated/vendor counts
+- end-to-end index time and query latency
+- candidate scan pages, rows, scan limit, and truncation state
+- a short manual triage of at least ten returned candidates
+- false positives that become fixtures before the language is considered done
+
 ## Language Track: Go
 
 **Owner:** Go worker

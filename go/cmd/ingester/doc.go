@@ -11,8 +11,9 @@
 // surface together with the `/admin/recovery` route. For local-authoritative
 // NornicDB runs, projector workers default to NumCPU unless explicitly
 // configured; NornicDB phase grouping keeps canonical retractions outside
-// matching upsert groups so rollback validation and write timing stay
-// attributable to the correct phase. It is the only long-running runtime that
-// mounts the workspace PVC in Kubernetes, runs as
+// matching upsert groups, and directory/file writes stay in separate bounded
+// phases so rollback validation and write timing stay attributable to the
+// correct phase. It is the only long-running runtime that mounts the
+// workspace PVC in Kubernetes, runs as
 // a StatefulSet, and shuts down cleanly on SIGINT or SIGTERM.
 package main

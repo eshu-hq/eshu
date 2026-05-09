@@ -4,16 +4,17 @@
 
 1. `go/internal/status/README.md` — ownership boundary, exported surface,
    health states, JSON contract, and gotchas
-2. `go/internal/status/status.go` — `Reader`, `RawSnapshot`, `Report`,
-   `BuildReport`, `evaluateHealth`; understand the health state machine before
-   touching projection logic
-3. `go/internal/status/http.go` — `NewHTTPHandler`; the format negotiation and
+2. `go/internal/status/status.go` — `Reader`, `RawSnapshot`, `Report`, and
+   `BuildReport`; understand projection before touching status shape
+3. `go/internal/status/status_health.go` — `evaluateHealth`; understand the
+   health state machine before touching readiness logic
+4. `go/internal/status/http.go` — `NewHTTPHandler`; the format negotiation and
    method guard logic
-4. `go/internal/status/json.go` — `RenderJSON`; the full JSON wire shape; every
+5. `go/internal/status/json.go` — `RenderJSON`; the full JSON wire shape; every
    field name here is part of the operator contract
-5. `go/internal/status/coordinator.go` — `CoordinatorSnapshot`,
+6. `go/internal/status/coordinator.go` — `CoordinatorSnapshot`,
    `CollectorInstanceSummary`; how the workflow coordinator state plugs in
-6. `docs/docs/reference/http-api.md` and `docs/docs/reference/cli-reference.md`
+7. `docs/docs/reference/http-api.md` and `docs/docs/reference/cli-reference.md`
    — the documented operator contract this package backs
 
 ## Invariants this package enforces
@@ -29,6 +30,10 @@
   possible without a storage dependency.
 - **`evaluateHealth` priority order is: stalled > degraded > progressing >
   healthy.** Do not swap the check order without updating operator runbooks.
+- **Shared projection work is part of readiness.** After the fact queue drains,
+  outstanding `DomainBacklogs` are shared projection intents that still need to
+  become graph-visible. Keep that path in `evaluateHealth`; otherwise code graph
+  and dead-code queries can look ready before reducer-owned edges are written.
 - **`DomainBacklogs` are capped at `Options.DomainLimit` (default 5)** by
   `topDomainBacklogs`. Do not remove this cap — unbounded domain output breaks
   CLI pagination and admin dashboards.

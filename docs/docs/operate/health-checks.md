@@ -9,6 +9,9 @@ Health checks answer three different questions. Keep them separate.
 | Is indexed data complete enough for the question? | `GET /api/v0/index-status`, `GET /api/v0/status/index`, or repository coverage |
 
 A green process health check does not mean indexing finished.
+For code graph and dead-code queries, also wait for `/admin/status` to report
+no shared projection domain backlog; pending shared projection intents mean the
+reducer has not finished making all accepted edges graph-visible yet.
 
 ## Runtime Endpoints
 

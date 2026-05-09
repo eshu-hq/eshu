@@ -15,7 +15,9 @@
 5. `go/internal/storage/postgres/facts.go` — `upsertFacts`,
    `deduplicateEnvelopes`, `sanitizeJSONB`; understand the batching and
    deduplication constraints before changing fact write paths
-6. `go/internal/storage/postgres/schema.go` — `BootstrapDefinitions`,
+6. `go/internal/storage/postgres/status_queries.go` — status aggregate SQL,
+   including fact queue and shared projection domain backlog
+7. `go/internal/storage/postgres/schema.go` — `BootstrapDefinitions`,
    `ApplyDefinitions`; DDL ordering and idempotency rules
 
 ## Invariants this package enforces
@@ -67,6 +69,10 @@
   `semantic_entity_materialization` while source-local projection is in-flight
   when the NornicDB gate parameter is true. Do not remove or bypass this gate
   without an ADR.
+- **Status domain backlog includes shared projection.** `StatusStore` merges
+  `fact_work_items` backlog with pending `shared_projection_intents` so
+  `/admin/status` remains `progressing` until reducer-owned shared edges are
+  graph-visible. Do not remove that union when editing `status.go`.
 - **Schema ordering** — tables with foreign key constraints must appear after
   their referenced tables in `bootstrapDefinitions`. Current FK dependencies:
   `graph_projection_phase_state` → `ingestion_scopes` + `scope_generations`.
