@@ -90,7 +90,7 @@ func TestFactEnvelopeClonePreservesDurableCollectorFields(t *testing.T) {
 		GenerationID:     "generation-456",
 		FactKind:         "terraform_state_resource",
 		StableFactKey:    "terraform_state_resource:aws_instance.app",
-		SchemaVersion:    "terraform_state_resource.v1",
+		SchemaVersion:    "1.0.0",
 		CollectorKind:    "terraform_state",
 		FencingToken:     42,
 		SourceConfidence: "exact",

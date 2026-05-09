@@ -126,11 +126,11 @@ func TestBootstrapDefinitionsIncludeFactContractColumns(t *testing.T) {
 		t.Fatal("fact_records definition missing")
 	}
 	for _, want := range []string{
-		"schema_version TEXT NOT NULL DEFAULT 'unknown.v1'",
+		"schema_version TEXT NOT NULL DEFAULT '0.0.0'",
 		"collector_kind TEXT NOT NULL DEFAULT 'unknown'",
 		"fencing_token BIGINT NOT NULL DEFAULT 0",
 		"source_confidence TEXT NOT NULL DEFAULT 'unknown'",
-		"ADD COLUMN IF NOT EXISTS schema_version TEXT NOT NULL DEFAULT 'unknown.v1'",
+		"ADD COLUMN IF NOT EXISTS schema_version TEXT NOT NULL DEFAULT '0.0.0'",
 		"ADD COLUMN IF NOT EXISTS collector_kind TEXT NOT NULL DEFAULT 'unknown'",
 		"ADD COLUMN IF NOT EXISTS fencing_token BIGINT NOT NULL DEFAULT 0",
 		"ADD COLUMN IF NOT EXISTS source_confidence TEXT NOT NULL DEFAULT 'unknown'",

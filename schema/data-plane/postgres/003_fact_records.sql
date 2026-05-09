@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS fact_records (
     generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
     fact_kind TEXT NOT NULL,
     stable_fact_key TEXT NOT NULL,
-    schema_version TEXT NOT NULL DEFAULT 'unknown.v1',
+    schema_version TEXT NOT NULL DEFAULT '0.0.0',
     collector_kind TEXT NOT NULL DEFAULT 'unknown',
     fencing_token BIGINT NOT NULL DEFAULT 0,
     source_confidence TEXT NOT NULL DEFAULT 'unknown',
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS fact_records (
 );
 
 ALTER TABLE fact_records
-    ADD COLUMN IF NOT EXISTS schema_version TEXT NOT NULL DEFAULT 'unknown.v1';
+    ADD COLUMN IF NOT EXISTS schema_version TEXT NOT NULL DEFAULT '0.0.0';
 
 ALTER TABLE fact_records
     ADD COLUMN IF NOT EXISTS collector_kind TEXT NOT NULL DEFAULT 'unknown';

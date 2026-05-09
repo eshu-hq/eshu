@@ -12,9 +12,9 @@
   redaction marker.
 - **No raw leakage** — marker strings must not contain raw input, source text,
   or reason text.
-- **Deterministic evidence** — the same raw value, reason, and source must
-  produce the same marker, and changing reason or source must change the
-  marker digest.
+- **Keyed deterministic evidence** — the same key, raw value, reason, and source
+  must produce the same marker, and changing key, reason, or source must change
+  the marker digest.
 - **Collector-neutral** — keep collector-specific key lists, provider schemas,
   and telemetry counters in callers.
 
@@ -34,3 +34,4 @@
 - Adding Terraform, AWS, or provider-specific sensitive-key policy here.
 - Emitting logs, metrics, or spans from this package.
 - Returning raw input on empty, nil, unsupported, or malformed values.
+- Hardcoding production redaction keys in code or tests.

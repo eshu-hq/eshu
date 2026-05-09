@@ -1,24 +1,44 @@
 package redact
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
 )
 
 const (
-	markerPrefix = "redacted:sha256:"
+	markerPrefix = "redacted:hmac-sha256:"
 	unknown      = "unknown"
 )
+
+// Key is deployment-scoped secret material used to produce redaction markers.
+type Key struct {
+	material []byte
+}
+
+// NewKey constructs a redaction key from deployment-scoped secret material.
+//
+// The material is copied. Blank key material is rejected because unkeyed
+// redaction markers are vulnerable to offline guessing for low-entropy values.
+func NewKey(material []byte) (Key, error) {
+	if len(strings.TrimSpace(string(material))) == 0 {
+		return Key{}, fmt.Errorf("redaction key material must not be blank")
+	}
+	copied := make([]byte, len(material))
+	copy(copied, material)
+	return Key{material: copied}, nil
+}
 
 // Value is a redaction result that can replace a sensitive scalar in facts,
 // maps, logs, or spans without retaining raw secret material.
 //
-// Marker is deterministic for the same raw value, reason, and source. Reason
-// and Source should be stable classification labels such as
+// Marker is deterministic for the same key, raw value, reason, and source.
+// Reason and Source should be stable classification labels such as
 // "sensitive_output" or "aws_db_instance.password"; callers must not place raw
 // secret values in either field.
 type Value struct {
@@ -35,19 +55,19 @@ type Value struct {
 // Empty strings still produce a marker. Blank reason or source values are
 // normalized to "unknown" so callers fail closed instead of passing raw input
 // through.
-func String(raw string, reason string, source string) Value {
-	return Bytes([]byte(raw), reason, source)
+func String(raw string, reason string, source string, key Key) Value {
+	return Bytes([]byte(raw), reason, source, key)
 }
 
 // Bytes redacts sensitive bytes into a deterministic non-secret marker.
 //
 // The marker digest includes the raw bytes, normalized reason, and normalized
 // source. Only the digest is returned; raw bytes are not retained.
-func Bytes(raw []byte, reason string, source string) Value {
+func Bytes(raw []byte, reason string, source string, key Key) Value {
 	normalizedReason := normalizeContext(reason)
 	normalizedSource := normalizeContext(source)
 	return Value{
-		Marker: marker(raw, normalizedReason, normalizedSource),
+		Marker: marker(raw, normalizedReason, normalizedSource, key),
 		Reason: normalizedReason,
 		Source: normalizedSource,
 	}
@@ -59,16 +79,16 @@ func Bytes(raw []byte, reason string, source string) Value {
 // integers, floats, and values implementing encoding.TextMarshaler. Unsupported
 // values still produce a marker from their type class and context without
 // serializing the value, so accidental structs, slices, or maps do not leak.
-func Scalar(raw any, reason string, source string) Value {
+func Scalar(raw any, reason string, source string, key Key) Value {
 	bytes, ok := scalarBytes(raw)
 	if !ok {
 		bytes = []byte("unsupported")
 	}
-	return Bytes(bytes, reason, source)
+	return Bytes(bytes, reason, source, key)
 }
 
-func marker(raw []byte, reason string, source string) string {
-	sum := sha256.New()
+func marker(raw []byte, reason string, source string, key Key) string {
+	sum := hmac.New(sha256.New, key.material)
 	writeField(sum, []byte("redact.v1"))
 	writeField(sum, []byte(reason))
 	writeField(sum, []byte(source))

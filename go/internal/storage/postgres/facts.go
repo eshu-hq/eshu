@@ -3,12 +3,15 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
+
+var schemaVersionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
 
 const (
 	// factBatchSize is the number of rows per multi-row INSERT batch.
@@ -263,7 +266,7 @@ func upsertFactBatch(ctx context.Context, db ExecQueryer, batch []facts.Envelope
 			envelope.GenerationID,
 			envelope.FactKind,
 			envelope.StableFactKey,
-			emptyToDefault(envelope.SchemaVersion, "unknown.v1"),
+			emptyToDefault(envelope.SchemaVersion, "0.0.0"),
 			emptyToDefault(envelope.CollectorKind, emptyToDefault(envelope.SourceRef.SourceSystem, "unknown")),
 			envelope.FencingToken,
 			emptyToDefault(envelope.SourceConfidence, "unknown"),
@@ -423,6 +426,9 @@ func validateFactEnvelope(envelope facts.Envelope) error {
 	observedAt := envelope.ObservedAt.UTC()
 	if observedAt.IsZero() {
 		return fmt.Errorf("fact %q observed_at must not be zero", envelope.FactID)
+	}
+	if !schemaVersionPattern.MatchString(emptyToDefault(envelope.SchemaVersion, "0.0.0")) {
+		return fmt.Errorf("fact %q schema_version must be semantic version", envelope.FactID)
 	}
 
 	return nil

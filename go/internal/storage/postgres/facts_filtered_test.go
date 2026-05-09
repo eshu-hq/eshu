@@ -19,7 +19,7 @@ func TestFactStoreListFactsByKindFiltersFactKinds(t *testing.T) {
 					"generation-456",
 					"content_entity",
 					"content_entity:repo-1:entity-1",
-					"content_entity.v1",
+					"1.0.0",
 					"git",
 					int64(0),
 					"unknown",

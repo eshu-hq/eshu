@@ -8,9 +8,9 @@ const (
 	TerraformStateResourceFactKind = "terraform_state_resource"
 
 	// TerraformStateSnapshotSchemaVersion is the first snapshot fact schema.
-	TerraformStateSnapshotSchemaVersion = "terraform_state_snapshot.v1"
+	TerraformStateSnapshotSchemaVersion = "1.0.0"
 	// TerraformStateResourceSchemaVersion is the first resource fact schema.
-	TerraformStateResourceSchemaVersion = "terraform_state_resource.v1"
+	TerraformStateResourceSchemaVersion = "1.0.0"
 )
 
 const (

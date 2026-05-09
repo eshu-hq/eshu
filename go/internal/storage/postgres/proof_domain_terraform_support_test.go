@@ -109,7 +109,7 @@ func proofFactEnvelopeRow(envelope facts.Envelope, payload []byte) []any {
 		envelope.GenerationID,
 		envelope.FactKind,
 		envelope.StableFactKey,
-		emptyToDefault(envelope.SchemaVersion, "unknown.v1"),
+		emptyToDefault(envelope.SchemaVersion, "0.0.0"),
 		emptyToDefault(envelope.CollectorKind, emptyToDefault(envelope.SourceRef.SourceSystem, "unknown")),
 		envelope.FencingToken,
 		emptyToDefault(envelope.SourceConfidence, "unknown"),

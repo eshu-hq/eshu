@@ -23,16 +23,21 @@ does not persist raw input or emit telemetry.
 ## Exported surface
 
 - `Value` — replacement payload with `Marker`, `Reason`, and `Source`.
-- `String(raw, reason, source string) Value` — redacts sensitive strings.
-- `Bytes(raw []byte, reason, source string) Value` — redacts sensitive bytes.
-- `Scalar(raw any, reason, source string) Value` — redacts scalar values and
-  fails closed for unsupported values.
+- `NewKey(material []byte) (Key, error)` — constructs deployment-scoped marker
+  key material.
+- `String(raw, reason, source string, key Key) Value` — redacts sensitive strings.
+- `Bytes(raw []byte, reason, source string, key Key) Value` — redacts sensitive
+  bytes.
+- `Scalar(raw any, reason, source string, key Key) Value` — redacts scalar
+  values and fails closed for unsupported values.
 
 ## Invariants
 
 - Markers are deterministic for the same raw value, reason, and source.
-- Markers use `redacted:sha256:<hex>` and do not include raw values, reason, or
-  source text.
+- Markers use `redacted:hmac-sha256:<hex>` and do not include raw values,
+  reason, or source text.
+- The HMAC key must come from deployment-scoped secret material. Do not hardcode
+  production redaction keys.
 - Blank reason or source values normalize to `unknown`.
 - Unsupported values still produce a marker without serializing the value.
 - Callers must pass classification labels and field paths as reason/source; do

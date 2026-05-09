@@ -37,20 +37,19 @@ Non-negotiable launch constraints:
 
 ### 1.0 Pre-implementation gaps found in the current tree
 
-This plan depends on several seams that are documented but not fully present
-in the current code. These are blockers for #47 and #46, not reasons to weaken
-the architecture:
+This plan depends on several seams that are documented but not fully complete
+in the current code. This branch starts closing #47 and #29, but these remain
+gate concerns until review accepts the contracts:
 
-- The Go fact envelope and `fact_records` table do not yet carry
-  `schema_version`, `collector_kind`, `fence_token`, or `source_confidence`.
-  #47 must add those fields or provide an equivalent durable contract before
-  Terraform-state facts are emitted.
+- The Go fact envelope and `fact_records` table now carry `schema_version`,
+  `collector_kind`, `fencing_token`, and `source_confidence`. #47 still needs
+  review acceptance before Terraform-state facts are emitted.
 - The current claim flow completes claims after fact commit, but fact commit is
   not mechanically fenced. #47/#45 must add transaction-time stale-fence
   rejection or a coordinator-validity check inside fact commit before #46 can
   rely on stale emit rejection.
-- `go/internal/redact` does not exist yet. #29 is a real prerequisite for #46
-  unless #46 creates the shared redaction package before adding the parser.
+- `go/internal/redact` now exists with keyed deterministic scalar redaction.
+  #46 must use it before any Terraform-state value crosses persistence.
 - The Terraform parser does not yet emit backend facts for
   `terraform { backend ... }` blocks. #45 must add graph-backed discovery
   inputs before graph-backed state discovery can be the normal path.
@@ -111,7 +110,7 @@ sequenceDiagram
   participant R as Reducer
 
   WC->>WC: Confirm upstream Git evidence for scope
-  WC->>TF: claim(work_item_id, scope_batch, fence_token=N)
+  WC->>TF: claim(work_item_id, scope_batch, fencing_token=N)
   TF->>WC: heartbeat(N) every 30s while claim active
   TF->>PG: discovery query for exact backend facts and seeds
   PG-->>TF: bounded StateKey list
@@ -225,7 +224,7 @@ Raw payload rules:
 Fact envelope requirements:
 
 - `scope_id`, `collector_kind=terraform_state`, `generation_id`
-- `fence_token`, `lineage_uuid`, `serial`, `backend_kind`, `locator_hash`
+- `fencing_token`, `lineage_uuid`, `serial`, `backend_kind`, `locator_hash`
 - `source_confidence`
 - `correlation_anchors[]`, excluding redactable values
 - `provider_resolved_arn`, `module_source_path`, `module_source_kind` when deterministic
@@ -270,7 +269,7 @@ Deadlock review:
 
 ### 4.3 Partial completion
 
-Ack fields: `work_item_id`, `fence_token`, `state_keys_total`, `state_keys_done`, `warnings_summary`, `resumable`, `ack_reason`.
+Ack fields: `work_item_id`, `fencing_token`, `state_keys_total`, `state_keys_done`, `warnings_summary`, `resumable`, `ack_reason`.
 
 Allowed `ack_reason`: `complete`, `partial_timeout`, `partial_backend_pressure`, `partial_queue_pressure`, `stale_fence`.
 
@@ -346,7 +345,7 @@ Cardinality caps: `backend_kind={s3,local,terragrunt}`; `result={changed,unchang
 
 Required spans: `tfstate.collector.claim.process`, `tfstate.discovery.resolve`, `tfstate.source.open`, `tfstate.parser.stream`, `tfstate.fact.emit_batch`, `tfstate.coordinator.complete`.
 
-Required span/log attributes: `scope_id`, `generation_id`, `lineage_uuid`, `collector_instance_id`, `work_item_id`, `fence_token`, `backend_kind`, `locator_hash`, `failure_class`.
+Required span/log attributes: `scope_id`, `generation_id`, `lineage_uuid`, `collector_instance_id`, `work_item_id`, `fencing_token`, `backend_kind`, `locator_hash`, `failure_class`.
 
 Forbidden telemetry fields: raw state bytes, output values, attribute values, full S3 URLs, unredacted Terragrunt config values.
 
