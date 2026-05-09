@@ -1,0 +1,35 @@
+go/internal/parser/python/README.md
+  s_bdaf44668b73dc::t_33d773870fcc40 1-43
+go/internal/parser/python/AGENTS.md
+  s_bdaf44668b73dc::t_33d773870fcc40 1-44
+go/internal/parser/python/notebook.go
+  s_bdaf44668b73dc::t_31f061732889c2 1-57
+go/internal/parser/python_notebook.go
+  s_bdaf44668b73dc::t_31f061732889c2 6-7,11
+go/internal/parser/python/doc.go
+  s_bdaf44668b73dc::t_33d773870fcc40 1-7
+go/internal/parser/python/notebook_test.go
+  s_bdaf44668b73dc::t_a414c48a79f46d 1-32
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_e08a27ae199e4d 151-154,266-267
+go/internal/parser/AGENTS.md
+  s_bdaf44668b73dc::t_e08a27ae199e4d 16-18,20,22,137-138
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_e08a27ae199e4d 14-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "575eebbc1df15e810f7d4deda56e632063801bd2",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
