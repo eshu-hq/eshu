@@ -57,7 +57,7 @@ CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_idx
     )
     WHERE fact_kind = 'documentation_finding'
       AND is_tombstone = FALSE
-      AND (payload->'permissions'->>'viewer_can_read_source' IS DISTINCT FROM 'false')
+      AND (payload->'permissions'->>'viewer_can_read_source') = 'true'
       AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied';
 
 CREATE INDEX IF NOT EXISTS fact_records_documentation_packets_finding_idx

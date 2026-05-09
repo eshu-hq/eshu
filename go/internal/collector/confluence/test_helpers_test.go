@@ -113,6 +113,11 @@ func payloadInt(payload map[string]any, key string) int {
 	}
 }
 
+func payloadBool(payload map[string]any, key string) bool {
+	value, ok := payload[key].(bool)
+	return ok && value
+}
+
 func payloadMap(payload map[string]any, key string) map[string]any {
 	value, ok := payload[key].(map[string]any)
 	if !ok {

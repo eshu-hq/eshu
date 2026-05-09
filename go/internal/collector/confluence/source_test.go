@@ -1,7 +1,10 @@
 package confluence
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -62,6 +65,18 @@ func TestSourceSyncsSpacePagesIntoDocumentationFacts(t *testing.T) {
 	assertFactCount(t, envelopes, facts.DocumentationLinkFactKind, 1)
 	if collected.FactCount != len(envelopes) {
 		t.Fatalf("FactCount = %d, want %d", collected.FactCount, len(envelopes))
+	}
+
+	sourceFact := factsByKind(envelopes, facts.DocumentationSourceFactKind)[0]
+	aclSummary := payloadMap(sourceFact.Payload, "acl_summary")
+	if got, want := payloadString(aclSummary, "visibility"), "credential_viewable"; got != want {
+		t.Fatalf("source acl visibility = %q, want %q", got, want)
+	}
+	if !payloadBool(aclSummary, "is_partial") {
+		t.Fatal("source acl is_partial = false, want true")
+	}
+	if got, want := payloadString(aclSummary, "partial_reason"), "confluence_source_restrictions_not_collected"; got != want {
+		t.Fatalf("source acl partial_reason = %q, want %q", got, want)
 	}
 
 	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
@@ -254,6 +269,41 @@ func TestSourceContinuesPastPermissionGapsInPageTree(t *testing.T) {
 	}
 	if got, want := payloadString(metadata, "sync_status"), "partial"; got != want {
 		t.Fatalf("sync_status = %q, want %q", got, want)
+	}
+}
+
+func TestSourceSyncLogDoesNotIncludePageTitlesOrExcerpts(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	client := &fakeClient{
+		space: Space{ID: "100", Key: "PLAT", Name: "Platform"},
+		spacePages: []Page{
+			confluencePage("123", "Secret Deployment Runbook", 17, `<p>private-token-value deploys from a sensitive path.</p>`),
+		},
+	}
+	source := Source{
+		Client: client,
+		Config: SourceConfig{
+			BaseURL: "https://example.atlassian.net/wiki",
+			SpaceID: "100",
+			Now:     fixedNow,
+		},
+		Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+	}
+
+	_, ok, err := source.Next(context.Background())
+	if err != nil {
+		t.Fatalf("Next() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("Next() ok = false, want true")
+	}
+	logText := logs.String()
+	for _, leaked := range []string{"Secret Deployment Runbook", "private-token-value", "sensitive path"} {
+		if strings.Contains(logText, leaked) {
+			t.Fatalf("log leaked %q: %s", leaked, logText)
+		}
 	}
 }
 

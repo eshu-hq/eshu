@@ -80,6 +80,13 @@ truth. Reducers and documentation drift findings may compare documentation
 evidence with graph truth, but documentation facts must not be treated as graph
 truth by themselves.
 
+ACL summaries on documentation facts are source evidence, not authorization
+decisions by themselves. A source may report only that the collector credential
+could view a document while the full page restrictions were not collected. In
+that case the payload should mark the ACL summary as partial, and evidence
+packet APIs must fail closed unless the packet carries an explicit
+`viewer_can_read_source=true` permission decision.
+
 ## Core Terraform State Fact Families
 
 Terraform state facts use `collector_kind: "terraform_state"` and

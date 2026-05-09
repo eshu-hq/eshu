@@ -131,6 +131,7 @@ func TestBootstrapDefinitionsIncludeDocumentationFactIndexes(t *testing.T) {
 		"fact_records_documentation_packets_packet_idx",
 		"WHERE fact_kind = 'documentation_finding'",
 		"WHERE fact_kind = 'documentation_evidence_packet'",
+		"(payload->'permissions'->>'viewer_can_read_source') = 'true'",
 		"LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'",
 		"payload->>'finding_id'",
 		"(payload->>'packet_id')",

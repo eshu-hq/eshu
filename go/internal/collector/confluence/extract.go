@@ -24,8 +24,9 @@ func documentPayload(sourceID string, baseURL string, page Page) facts.Documenta
 		Labels:           labelNames(pageLabels(page)),
 		OwnerRefs:        ownerRefs(page),
 		ACLSummary: &facts.DocumentationACLSummary{
-			Visibility: "viewable",
-			IsPartial:  false,
+			Visibility:    "credential_viewable",
+			IsPartial:     true,
+			PartialReason: "confluence_page_restrictions_not_collected",
 		},
 		SourceMetadata: map[string]string{
 			"space_id":  page.SpaceID,

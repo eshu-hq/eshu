@@ -59,12 +59,63 @@ func TestContentReaderDocumentationFindingsSkipsDeniedVisibility(t *testing.T) {
 	}
 }
 
+func TestContentReaderDocumentationFindingsSkipsUnknownVisibility(t *testing.T) {
+	t.Parallel()
+
+	unknown := []byte(`{
+		"finding_id": "finding:unknown",
+		"finding_type": "service_deployment_drift",
+		"status": "conflict",
+		"source_id": "doc-source:unknown",
+		"document_id": "doc:unknown:1",
+		"summary": "visibility was not evaluated"
+	}`)
+	visible := []byte(`{
+		"finding_id": "finding:visible",
+		"finding_type": "service_deployment_drift",
+		"status": "conflict",
+		"source_id": "doc-source:public",
+		"document_id": "doc:public:1",
+		"summary": "public deployment drift",
+		"permissions": {
+			"viewer_can_read_source": true
+		}
+	}`)
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		{
+			columns: []string{"payload"},
+			rows:    [][]driver.Value{{unknown}, {visible}},
+		},
+	})
+	reader := NewContentReader(db)
+
+	got, err := reader.documentationFindings(t.Context(), documentationFindingFilter{Limit: 50})
+	if err != nil {
+		t.Fatalf("documentationFindings() error = %v, want nil", err)
+	}
+	if gotLen, want := len(got.Findings), 1; gotLen != want {
+		t.Fatalf("len(Findings) = %d, want %d; findings = %#v", gotLen, want, got.Findings)
+	}
+	if got, want := got.Findings[0]["finding_id"], "finding:visible"; got != want {
+		t.Fatalf("finding_id = %#v, want %#v", got, want)
+	}
+}
+
 func TestBuildDocumentationFindingsSQLUsesCaseInsensitiveDeniedPredicate(t *testing.T) {
 	t.Parallel()
 
 	query, _ := buildDocumentationFindingsSQL(documentationFindingFilter{Limit: 50})
 	if !strings.Contains(query, "LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'") {
 		t.Fatalf("documentation findings SQL missing case-insensitive denied predicate: %s", query)
+	}
+}
+
+func TestBuildDocumentationFindingsSQLRequiresExplicitReadVisibility(t *testing.T) {
+	t.Parallel()
+
+	query, _ := buildDocumentationFindingsSQL(documentationFindingFilter{Limit: 50})
+	if !strings.Contains(query, "(payload->'permissions'->>'viewer_can_read_source') = 'true'") {
+		t.Fatalf("documentation findings SQL should require explicit read visibility: %s", query)
 	}
 }
 
@@ -206,6 +257,9 @@ func TestContentReaderDocumentationEvidencePacketFreshnessComparesSavedVersion(t
 	packet := []byte(`{
 		"packet_id": "doc-packet:service-deployment:1",
 		"packet_version": "2",
+		"permissions": {
+			"viewer_can_read_source": true
+		},
 		"states": {
 			"freshness_state": "fresh"
 		}
@@ -234,5 +288,71 @@ func TestContentReaderDocumentationEvidencePacketFreshnessComparesSavedVersion(t
 	}
 	if got, want := got.FreshnessState, "stale"; got != want {
 		t.Fatalf("FreshnessState = %#v, want %#v", got, want)
+	}
+}
+
+func TestContentReaderDocumentationEvidencePacketDeniesUnknownVisibility(t *testing.T) {
+	t.Parallel()
+
+	packet := []byte(`{
+		"packet_id": "doc-packet:service-deployment:1",
+		"packet_version": "1",
+		"finding_id": "finding:service-deployment:1",
+		"bounded_excerpt": {
+			"text": "private deployment text",
+			"text_hash": "sha256:excerpt"
+		}
+	}`)
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		{
+			columns: []string{"payload"},
+			rows:    [][]driver.Value{{packet}},
+		},
+	})
+	reader := NewContentReader(db)
+
+	got, err := reader.documentationEvidencePacket(t.Context(), "finding:service-deployment:1")
+	if err != nil {
+		t.Fatalf("documentationEvidencePacket() error = %v, want nil", err)
+	}
+	if !got.Denied {
+		t.Fatal("Denied = false, want true for packet without explicit visibility")
+	}
+	if got, want := got.DeniedReason, "documentation evidence visibility is unknown"; got != want {
+		t.Fatalf("DeniedReason = %#v, want %#v", got, want)
+	}
+}
+
+func TestContentReaderDocumentationEvidencePacketFreshnessDeniesUnknownVisibility(t *testing.T) {
+	t.Parallel()
+
+	packet := []byte(`{
+		"packet_id": "doc-packet:service-deployment:1",
+		"packet_version": "1",
+		"states": {
+			"freshness_state": "fresh"
+		}
+	}`)
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		{
+			columns: []string{"payload"},
+			rows:    [][]driver.Value{{packet}},
+		},
+	})
+	reader := NewContentReader(db)
+
+	got, err := reader.documentationEvidencePacketFreshness(
+		t.Context(),
+		"doc-packet:service-deployment:1",
+		"1",
+	)
+	if err != nil {
+		t.Fatalf("documentationEvidencePacketFreshness() error = %v, want nil", err)
+	}
+	if !got.Denied {
+		t.Fatal("Denied = false, want true for freshness packet without explicit visibility")
+	}
+	if got, want := got.DeniedReason, "documentation evidence visibility is unknown"; got != want {
+		t.Fatalf("DeniedReason = %#v, want %#v", got, want)
 	}
 }
