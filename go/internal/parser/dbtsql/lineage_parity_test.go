@@ -1,4 +1,4 @@
-package parser
+package dbtsql
 
 import (
 	"reflect"
@@ -191,7 +191,7 @@ join raw.public.payments p on p.order_id = o.id`,
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := extractCompiledModelLineage(testCase.sql, "order_metrics", testCase.relations)
+			got := ExtractCompiledModelLineage(testCase.sql, "order_metrics", testCase.relations)
 			if got.ProjectionCount != 1 {
 				t.Fatalf("ProjectionCount = %d, want 1", got.ProjectionCount)
 			}
@@ -268,7 +268,7 @@ join raw.public.customers c on c.id = o.customer_id`,
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := extractCompiledModelLineage(testCase.sql, "order_metrics", testCase.relations)
+			got := ExtractCompiledModelLineage(testCase.sql, "order_metrics", testCase.relations)
 			if got.ProjectionCount != 1 {
 				t.Fatalf("ProjectionCount = %d, want 1", got.ProjectionCount)
 			}

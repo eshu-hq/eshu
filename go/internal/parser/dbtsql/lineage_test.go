@@ -1,4 +1,4 @@
-package parser
+package dbtsql
 
 import (
 	"reflect"
@@ -8,7 +8,7 @@ import (
 func TestExtractCompiledModelLineageCapturesMacroProjectionWithoutUnresolvedGap(t *testing.T) {
 	t.Parallel()
 
-	got := extractCompiledModelLineage(
+	got := ExtractCompiledModelLineage(
 		`select
   dbt_utils.identity(o.amount) as macro_amount
 from raw.public.orders o`,
@@ -39,7 +39,7 @@ from raw.public.orders o`,
 func TestExtractCompiledModelLineageCapturesWindowProjectionWithoutUnresolvedGap(t *testing.T) {
 	t.Parallel()
 
-	got := extractCompiledModelLineage(
+	got := ExtractCompiledModelLineage(
 		`select
   sum(o.amount) over (partition by o.customer_id order by o.order_date) as rolling_amount
 from raw.public.orders o`,
@@ -76,7 +76,7 @@ from raw.public.orders o`,
 func TestExtractCompiledModelLineageCapturesNestedSafeWrapperWithoutUnresolvedGap(t *testing.T) {
 	t.Parallel()
 
-	got := extractCompiledModelLineage(
+	got := ExtractCompiledModelLineage(
 		`select
   upper(coalesce(c.segment, 'unknown')) as normalized_segment
 from raw.public.customers c`,
@@ -109,7 +109,7 @@ from raw.public.customers c`,
 func TestExtractCompiledModelLineageCapturesNestedWrapperOnCTEColumnWithoutUnresolvedGap(t *testing.T) {
 	t.Parallel()
 
-	got := extractCompiledModelLineage(
+	got := ExtractCompiledModelLineage(
 		`with customer_orders as (
   select
     c.full_name as source_customer_name
