@@ -16,5 +16,8 @@
 // local variables do not enter graph projection unless a language needs them
 // for query truth. Native and SCIP snapshots preserve parser-emitted dead-code
 // root metadata in content entity facts; query-time classification decides how
-// that evidence is presented.
+// that evidence is presented. Service.AfterBatchDrained fires only after at
+// least one committed generation and a drained source batch, so callers can
+// hook reducer or status work to a real collection boundary instead of an idle
+// poll.
 package collector

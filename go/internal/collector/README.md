@@ -99,6 +99,9 @@ per repository:
 
 `buildStreamingGeneration` launches a background goroutine that streams
 `facts.Envelope` values through a buffered channel (`factStreamBuffer = 500`).
+`AfterBatchDrained` runs only after the service has committed at least one
+generation and then observes the source batch drain. Idle polls do not trigger
+it.
 
 ## Exported surface
 
@@ -197,6 +200,9 @@ per repository:
 - Terraform-state sources are explicit-source only in the reader stack. Do not
   route repo-local `.tfstate` through Git content persistence or broad
   repository discovery.
+- `AfterBatchDrained` is a batch boundary hook, not a timer callback. Use it for
+  work that should follow committed collection, and keep idle-poll behavior in
+  `Source.Next` or the coordinator layer.
 
 ## Extension points
 
