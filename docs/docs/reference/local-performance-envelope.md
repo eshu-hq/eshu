@@ -57,6 +57,47 @@ Warm restart means the same workspace data root is reused and no full reindex is
 required. Cold start means starting the host from a stopped state with no warm
 processes already attached.
 
+## Dogfood Tiers
+
+Use these tiers when recording local-authoritative indexing and dead-code
+evidence. The tiers are comparison buckets, not excuses to keep slow paths.
+Every tier still follows accuracy first, then performance.
+
+| Tier | Shape | Typical use | Initial expectation |
+| --- | --- | --- | --- |
+| 0 | Synthetic fixtures and package tests | Prove handler, parser, graph, and query contracts | milliseconds to seconds |
+| 1 | Active repo under about `5K` files or `50K` entities | Normal local developer proof | end to end near or under `1m` |
+| 2 | Large repo under about `25K` files or `300K` entities | Language dogfood before promotion | measured, explain any stage over `1m` |
+| 3 | Stress repo over about `25K` files or `300K` entities | Backend and projection pressure tests | measured separately from Tier 1 targets |
+| 4 | Multi-repo corpus | Scheduling, queue, and memory pressure | measured with drained terminal state |
+
+A dogfood note must include the tier, commit or branch, repository name,
+language focus, file count, entity count, fact count, terminal state, and stage
+durations for collector stream, fact commit, projector fact load, canonical
+write, reducer domains, shared projections, and dead-code query latency.
+
+Tier 3 and Tier 4 runs are allowed to exceed the Tier 1 one-minute local target,
+but only with stage evidence that explains why. If a Tier 3 run spends most of
+its time in one write shape or one reducer domain, the next action should target
+that owner instead of averaging the result away.
+
+Current Tier 3 stress evidence:
+
+- Elasticsearch at commit `b8b07a60c0eb100c53120d6d2fa060f105d174a9` was
+  indexed from a disposable local worktree on 2026-05-08 local time with
+  NornicDB `v1.0.44`. The collector discovered `32966` files, parsed `32793`
+  files, emitted `1093371` content entities, and upserted `1153024` facts.
+- In the clean rerun, collector stream completed in `37.971s`, fact upsert in
+  `73.576s`, projector fact load in `22.329s`, canonical phase-group write in
+  `236.720s`, and source-local projection in `399.154s`.
+- Reducer domains observed before the run was stopped for analysis:
+  deployable-unit correlation `10.490s`, deployment mapping `11.258s`,
+  workload identity `0.006s`, workload materialization `21.483s`, and code-call
+  materialization `117.932s`.
+- This run classifies Elasticsearch as a Tier 3 stress repo, not a Tier 1 local
+  baseline. The next performance owner is canonical entity projection/write
+  shape, followed by code-call materialization.
+
 ## Backpressure Expectations
 
 - fsnotify events must be coalesced and debounced

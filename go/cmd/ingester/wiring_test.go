@@ -38,7 +38,7 @@ func TestNornicDBTuningDocCanonicalDefaultsMatchCode(t *testing.T) {
 		nornicDBEntityLabelBatchSizesEnv:           formatLabelSizes(defaultNornicDBEntityLabelBatchSizes(0)),
 		nornicDBEntityLabelPhaseGroupStatementsEnv: formatLabelSizes(defaultNornicDBEntityLabelPhaseGroupStatements(0)),
 		nornicDBCanonicalGroupedWritesEnv:          "unset / false",
-		nornicDBBatchedEntityContainmentEnv:        "unset / false",
+		nornicDBBatchedEntityContainmentEnv:        "unset / true",
 		canonicalWriteTimeoutEnv:                   fmt.Sprintf("%s on NornicDB", defaultNornicDBCanonicalWriteTimeout),
 	}
 	for envName, wantDefault := range cases {

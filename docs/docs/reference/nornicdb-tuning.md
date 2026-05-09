@@ -68,7 +68,7 @@ that the remaining performance target is high-cardinality source-local
 canonical entity writes and noisy repo input shape, not another semantic
 batch-cap tweak.
 
-Patched-binary batched-containment checkpoint: a 2026-04-27 isolated
+Promoted batched-containment checkpoint: a 2026-04-27 isolated
 `php-large-repo-b` rerun on Eshu `dcb5e466` with
 `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=true`, `ESHU_CANONICAL_WRITE_TIMEOUT=120s`,
 `ESHU_REDUCER_WORKERS=2`, and the `#119 + #120` NornicDB binary drained the
@@ -78,10 +78,10 @@ collection/emission took `161.706108907s`. Source-local projection reached
 `Variable=131,977`, `Function=28,926`, `Class=6`; canonical `Variable` used
 the intended `batch_across_files=true` shape and completed `131,977` rows as
 `13,198` statements / `2,640` grouped executions in `301.798956955s` with no
-singleton fallbacks. This validates the patched-binary switch for correctness
-on the noisy repo, but it is still not a default-path promotion: canonical
-`files` chunks and later `Variable` executions still showed graph-size slope,
-so the next optimization target is NornicDB file-anchor and relationship
+singleton fallbacks. A later Elasticsearch Tier 3 run showed file-scoped
+containment over-fragmented `Variable` writes on million-entity Java input, so
+batched containment is now the default NornicDB canonical entity shape. The
+next optimization target remains NornicDB file-anchor and relationship
 existence lookup behavior before adding more Eshu batch caps.
 
 Variable row-cap checkpoint: follow-up 2026-04-27 focused reruns on
@@ -322,13 +322,12 @@ profile make the label-scoped shape the safer repo-scale cleanup path.
 | --- | --- | --- | --- |
 | `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | unset / `false` | canonical writes | Conformance-only switch that exposes Neo4j-style grouped canonical writes on NornicDB. Leave unset for normal laptop runs. |
 | `ESHU_NORNICDB_REQUIRE_GROUPED_ROLLBACK` | unset / `false` | test gates | Makes rollback conformance mandatory in opt-in NornicDB grouped-write tests. |
-| `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT` | unset / `false` | canonical entity writes | Evaluation switch for cross-file batched entity containment. Enable it only with a latest-main NornicDB binary that includes the required row-safe hot path and has focused proof for the repo shape under test. |
+| `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT` | unset / `true` | canonical entity writes | Cross-file batched entity containment. Set to `false` only for focused fallback comparisons against the older file-scoped shape. |
 
-Do not enable `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT` just because the Neo4j
-parity path uses row-scoped batched containment. NornicDB's current default
-remains file-scoped inline containment: the latest-main production-profile
-full-corpus proof drained in `878s`, under the 15-minute envelope, so changing
-the default needs fresh NornicDB regression evidence.
+Do not disable `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT` just because one run is
+slow. The default row-scoped containment shape has repo-scale correctness proof;
+fallback comparisons should capture statement count, label summaries, retries,
+dead letters, and terminal drain state.
 
 ## NornicDB Runtime Diagnostics
 

@@ -183,6 +183,13 @@ materialize as deduplicated `REFERENCES` edges. They prove reference roots for
 dead-code classification, but must not materialize as `CALLS` because that
 would make graph truth claim that type or class references are invocations.
 
+`CodeCallMaterializationHandler` logs `code call materialization completed`
+with fact count, repository count, row counts, and timing for fact load,
+context build, extraction, intent build, intent upsert, and total duration
+(`code_call_materialization.go:62-156`). Keep that signal when changing the
+handler; it is the first split used to tell parser extraction cost from
+Postgres intent-write cost on large repositories.
+
 SCIP edges bypass the heuristic resolver when both caller and callee locations
 map to known entities. Keep the native and SCIP paths idempotent: duplicate
 facts for the same caller, callee, and reference line must collapse to one
@@ -211,6 +218,13 @@ gate only schedules work. It does not change which rows become `CALLS`,
 
 Configuration via `LoadSharedProjectionConfig` reads
 ESHU_SHARED_PROJECTION_* env vars; see `cmd/reducer/README.md`.
+
+`InheritanceMaterializationHandler` and `SQLRelationshipMaterializationHandler`
+load only the `content_entity` rows whose `entity_type` can participate in
+their domains (`inheritance_materialization.go:69-77`,
+`sql_relationship_materialization.go:60-69`). The filters are correctness
+filters, not sampling: every allowed type is still processed, and unsupported
+types stay invisible to those domain reducers.
 
 ## Facts-First Bootstrap Ordering
 

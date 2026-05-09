@@ -68,8 +68,9 @@ so the local authoritative path matches the production-proven concurrency
 profile. The NornicDB phase-group executor keeps canonical retractions outside
 matching upsert groups so slow cleanup and normal entity writes are timed and
 reported as separate phases. Directory and file writes remain separate bounded
-phases so large local-authoritative repos can keep parent containment selective
-without reintroducing replacement-style cleanup.
+phases, while entity containment is folded into row-scoped entity upserts by
+default for NornicDB after high-cardinality Java proof runs showed the older
+file-scoped shape over-fragmented canonical writes.
 
 ## Exported surface
 
@@ -98,6 +99,7 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_CANONICAL_WRITE_TIMEOUT | 30s | Graph write timeout |
 | ESHU_NEO4J_PROFILE_GROUP_STATEMENTS | false | Opt-in Neo4j grouped-write statement attempt logs for performance diagnostics |
 | ESHU_NORNICDB_CANONICAL_GROUPED_WRITES | false | Enable NornicDB grouped writes (conformance gated) |
+| ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT | true | Fold entity containment into row-scoped entity upserts; set false only for fallback comparisons |
 | ESHU_NORNICDB_PHASE_GROUP_STATEMENTS | 500 | NornicDB phase group statement cap |
 | ESHU_NORNICDB_ENTITY_BATCH_SIZE | 100 | Entity upsert row cap |
 | ESHU_QUERY_PROFILE | — | local_lightweight or local_authoritative |
@@ -184,6 +186,10 @@ The ingester inherits collector and projector telemetry. Key signals:
 - NornicDB grouped writes remain disabled by default. Enabling
   ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true requires the fixed rollback binary
   and a full conformance pass before production use.
+- NornicDB entity containment is batched into entity upserts by default
+  (`wiring_nornicdb_env.go:38-47`). Set
+  ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=false only for measured fallback
+  comparisons against the older file-scoped shape.
 - NornicDB phase grouping keeps canonical retraction statements outside
   matching upsert groups. Grouping a REMOVE-style retract with same-label
   UNWIND upserts can produce a Cypher shape that NornicDB rejects during

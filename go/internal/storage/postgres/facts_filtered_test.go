@@ -120,6 +120,64 @@ func TestFactStoreListFactsByKindUsesFactBatchSizedPages(t *testing.T) {
 	}
 }
 
+func TestFactStoreListFactsByKindAndPayloadValueFiltersTopLevelPayloadValues(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{
+				rows: [][]any{{
+					"fact-1",
+					"scope-123",
+					"generation-456",
+					"content_entity",
+					"content_entity:repo-1:entity-1",
+					"git",
+					"fact-key",
+					"file:///repo/path/main.go",
+					"record-123",
+					time.Date(2026, time.April, 28, 8, 0, 0, 0, time.UTC),
+					false,
+					[]byte(`{"repo_id":"repo-1","entity_id":"entity-1","entity_type":"Class"}`),
+				}},
+			},
+		},
+	}
+	store := NewFactStore(db)
+
+	loaded, err := store.ListFactsByKindAndPayloadValue(
+		context.Background(),
+		"scope-123",
+		"generation-456",
+		"content_entity",
+		"entity_type",
+		[]string{"Class", "Function"},
+	)
+	if err != nil {
+		t.Fatalf("ListFactsByKindAndPayloadValue() error = %v, want nil", err)
+	}
+	if got, want := len(loaded), 1; got != want {
+		t.Fatalf("ListFactsByKindAndPayloadValue() len = %d, want %d", got, want)
+	}
+	query := db.queries[0].query
+	if !strings.Contains(query, "fact_kind = $3") {
+		t.Fatalf("query = %q, want single fact kind filter", query)
+	}
+	if !strings.Contains(query, "payload ->> $4 = ANY($5::text[])") {
+		t.Fatalf("query = %q, want payload value allowlist", query)
+	}
+	if got, want := db.queries[0].args[3], "entity_type"; got != want {
+		t.Fatalf("payload key arg = %v, want %q", got, want)
+	}
+	values, ok := db.queries[0].args[4].([]string)
+	if !ok {
+		t.Fatalf("payload values arg type = %T, want []string", db.queries[0].args[4])
+	}
+	if got, want := strings.Join(values, ","), "Class,Function"; got != want {
+		t.Fatalf("payload values arg = %q, want %q", got, want)
+	}
+}
+
 func makeFactRowsForListFactsByKind(count int, offset int) [][]any {
 	rows := make([][]any, 0, count)
 	base := time.Date(2026, time.April, 28, 8, 0, 0, 0, time.UTC)

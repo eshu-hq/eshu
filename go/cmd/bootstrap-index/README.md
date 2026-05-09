@@ -74,8 +74,9 @@ retry; once `collectorDone` is closed, `maxEmptyPolls` (5) consecutive empty
 claims trigger a clean exit via the `errProjectorDrained` sentinel.
 
 Bootstrap uses the same canonical writer policy as the steady-state ingester.
-That keeps graph-property filtering and NornicDB phase-group behavior aligned
-between one-shot seeding and local-authoritative watch runs.
+That keeps graph-property filtering, NornicDB phase-group behavior, and
+row-scoped batched entity containment aligned between one-shot seeding and
+local-authoritative watch runs.
 
 `deployment_mapping` work items may project and succeed, or remain pending,
 during this phase. Both outcomes are valid because `backward_evidence` is not
@@ -260,6 +261,10 @@ Full NornicDB tuning reference: `docs/docs/reference/nornicdb-tuning.md`.
 - **NornicDB grouped writes.** `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false`
   by default. Enabling it without running the grouped-write safety probe test
   carries the same rollback-safety risks as the ingester path.
+- **NornicDB entity containment.** Bootstrap enables row-scoped batched entity
+  containment for NornicDB (`canonical_writer_config.go:20-38`) so cold-start
+  indexing and the steady-state ingester use the same high-cardinality entity
+  write shape.
 - **Discovery advisory reports.** Set `ESHU_DISCOVERY_REPORT=<path>` to write a
   per-repo advisory JSON. Useful for diagnosing oversized repositories before
   committing to a full bootstrap run.

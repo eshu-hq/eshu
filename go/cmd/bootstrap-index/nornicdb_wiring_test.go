@@ -137,7 +137,7 @@ func TestBootstrapContainmentMaterializationIncludesFileDirectories(t *testing.T
 	}
 }
 
-func TestConfigureBootstrapCanonicalWriterKeepsNornicDBFileScopedContainmentByDefault(t *testing.T) {
+func TestConfigureBootstrapCanonicalWriterBatchesContainmentAcrossFilesForNornicDBByDefault(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingBootstrapGroupExecutor{}
@@ -150,18 +150,18 @@ func TestConfigureBootstrapCanonicalWriterKeepsNornicDBFileScopedContainmentByDe
 		t.Fatalf("Write() error = %v", err)
 	}
 
-	var fileScopedEntities int
+	var batchedEntities int
 	for _, stmt := range executor.groupStatements {
 		if stmt.Parameters[sourcecypher.StatementMetadataPhaseKey] != sourcecypher.CanonicalPhaseEntities {
 			continue
 		}
-		if strings.Contains(stmt.Cypher, "MATCH (f:File {path: $file_path})") &&
+		if strings.Contains(stmt.Cypher, "MATCH (f:File {path: row.file_path})") &&
 			strings.Contains(stmt.Cypher, "MERGE (f)-[rel:CONTAINS]->(n)") {
-			fileScopedEntities++
+			batchedEntities++
 		}
 	}
-	if fileScopedEntities != 1 {
-		t.Fatalf("NornicDB file-scoped containment statements = %d, want 1", fileScopedEntities)
+	if batchedEntities != 1 {
+		t.Fatalf("NornicDB batched containment statements = %d, want 1", batchedEntities)
 	}
 }
 

@@ -28,6 +28,20 @@ type factKindLoader interface {
 	) ([]facts.Envelope, error)
 }
 
+// factPayloadValueLoader narrows large fact-kind scans with a top-level
+// payload allowlist. Reducer domains use it only when the payload predicate is
+// part of their correctness contract, such as content entity type.
+type factPayloadValueLoader interface {
+	ListFactsByKindAndPayloadValue(
+		ctx context.Context,
+		scopeID string,
+		generationID string,
+		factKind string,
+		payloadKey string,
+		payloadValues []string,
+	) ([]facts.Envelope, error)
+}
+
 // loadFactsForKinds uses a bounded fact-kind query when the backing store
 // supports it, falling back to the full FactLoader contract for test doubles
 // and older loader implementations.
@@ -50,6 +64,56 @@ func loadFactsForKinds(
 		return nil, classifyFactLoadError(err)
 	}
 	return envelopes, nil
+}
+
+func loadFactsForKindAndPayloadValue(
+	ctx context.Context,
+	loader FactLoader,
+	scopeID string,
+	generationID string,
+	factKind string,
+	payloadKey string,
+	payloadValues []string,
+) ([]facts.Envelope, error) {
+	factKind = strings.TrimSpace(factKind)
+	payloadKey = strings.TrimSpace(payloadKey)
+	payloadValues = cleanFactFilterValues(payloadValues)
+	if factKind == "" || payloadKey == "" || len(payloadValues) == 0 {
+		return nil, nil
+	}
+
+	if typed, ok := loader.(factPayloadValueLoader); ok {
+		envelopes, err := typed.ListFactsByKindAndPayloadValue(
+			ctx,
+			scopeID,
+			generationID,
+			factKind,
+			payloadKey,
+			payloadValues,
+		)
+		if err != nil {
+			return nil, classifyFactLoadError(err)
+		}
+		return envelopes, nil
+	}
+	return loadFactsForKinds(ctx, loader, scopeID, generationID, []string{factKind})
+}
+
+func cleanFactFilterValues(values []string) []string {
+	cleaned := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		cleaned = append(cleaned, value)
+	}
+	return cleaned
 }
 
 // classifyFactLoadError preserves semantic errors while marking transient

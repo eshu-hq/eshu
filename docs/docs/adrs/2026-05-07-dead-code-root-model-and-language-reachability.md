@@ -363,7 +363,8 @@ IDs belong in spans or structured logs, not metric labels.
 Dead-code maturity work is allowed to add parser metadata and query
 classification, but it must not make local dogfood indexing unusable. The
 acceptance bar for this PR includes a repo-scale local-authoritative graph
-proof, not only synthetic query latency.
+proof, not only synthetic query latency. Classify dogfood runs with the [local
+performance tiers](../reference/local-performance-envelope.md#dogfood-tiers).
 
 The required performance gate must prove:
 
@@ -427,13 +428,16 @@ Local and dogfood evidence gathered in this branch so far:
   `mark_completed_duration_seconds=1.113`. This confirms that readiness for
   dead-code queries must include shared projection completion, not only the
   reducer work-item queue.
+- Elasticsearch is now classified as Tier 3 Java stress evidence in the local
+  performance envelope: `32966` files, `1093371` content entities, `1153024`
+  facts, `399.154s` source-local projection, and `117.932s` code-call
+  materialization before the run was stopped for bottleneck analysis.
 
 Open proof work before this branch can close:
 
-- Run Elasticsearch and Spring Boot as the large Java pair after the page-size
-  fix.
-- Re-run at least one Python large-repo proof after the same storage change,
-  preferably Ansible plus one additional popular Python repository.
+- Complete the Tier 3 Elasticsearch run after canonical projection and
+  code-call fixes.
+- Re-run at least one Python large-repo proof after the same storage change.
 - Keep the language matrix at `derived` for Python and Java until dynamic and
   framework root categories have positive, negative, and ambiguous fixtures.
 

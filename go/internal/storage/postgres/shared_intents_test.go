@@ -286,7 +286,8 @@ func TestSharedIntentStoreUpsertIntentsBatch(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
-	// Create 1200 intents to test batching (should result in 3 batches of 500, 500, 200)
+	// Create 1200 intents to test batching; this should stay in one bounded
+	// multi-row INSERT under the shared intent batch size.
 	rows := make([]reducer.SharedProjectionIntentRow, 1200)
 	for i := 0; i < 1200; i++ {
 		rows[i] = reducer.SharedProjectionIntentRow{
@@ -308,12 +309,11 @@ func TestSharedIntentStoreUpsertIntentsBatch(t *testing.T) {
 		t.Fatalf("UpsertIntents: %v", err)
 	}
 
-	// Verify batching: 1200 intents should use 3 ExecContext calls (batches of 500, 500, 200)
-	// not 1200 calls
+	// Verify batching: 1200 intents should use one ExecContext call, not 1200.
 	execCallsAfter := db.execCalls
 	batchCallsUsed := execCallsAfter - execCallsBefore
 
-	expectedBatches := 3 // ceil(1200 / 500) = 3
+	expectedBatches := 1
 	if batchCallsUsed != expectedBatches {
 		t.Errorf("expected %d batch ExecContext calls, got %d (1200 intents should batch)", expectedBatches, batchCallsUsed)
 	}

@@ -15,6 +15,15 @@ const (
 	sqlRelationshipEvidenceSource = "reducer/sql-relationships"
 )
 
+var sqlRelationshipContentEntityTypes = []string{
+	"SqlTable",
+	"SqlColumn",
+	"SqlView",
+	"SqlFunction",
+	"SqlTrigger",
+	"SqlIndex",
+}
+
 // SQLRelationshipMaterializationHandler reduces one SQL relationship follow-up
 // into canonical SQL edge writes (REFERENCES_TABLE, HAS_COLUMN, TRIGGERS).
 type SQLRelationshipMaterializationHandler struct {
@@ -49,12 +58,14 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 	)
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := loadFactsForKindAndPayloadValue(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{factKindContentEntity},
+		factKindContentEntity,
+		"entity_type",
+		sqlRelationshipContentEntityTypes,
 	)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for sql relationship materialization: %w", err)

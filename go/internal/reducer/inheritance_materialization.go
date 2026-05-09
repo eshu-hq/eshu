@@ -23,6 +23,16 @@ var inheritableEntityTypes = map[string]struct{}{
 	"Enum":      {},
 }
 
+var inheritanceContentEntityTypes = []string{
+	"Class",
+	"Interface",
+	"Struct",
+	"Trait",
+	"Protocol",
+	"Enum",
+	"Function",
+}
+
 // InheritanceMaterializationHandler reduces one inheritance follow-up into
 // canonical INHERITS, OVERRIDES, and ALIASES edge writes using parser entity
 // bases and PHP trait adaptation metadata.
@@ -56,12 +66,14 @@ func (h InheritanceMaterializationHandler) Handle(
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
 	)
 
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := loadFactsForKindAndPayloadValue(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{factKindContentEntity},
+		factKindContentEntity,
+		"entity_type",
+		inheritanceContentEntityTypes,
 	)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for inheritance materialization: %w", err)

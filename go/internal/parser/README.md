@@ -68,7 +68,9 @@ dead-code roots so query policy does not report JVM entrypoints and dispatch
 callbacks as cleanup candidates. Java method and constructor metadata also
 captures parameter counts, and Java call metadata captures argument counts, so
 the reducer can distinguish overloaded methods when local receiver evidence
-points at a type.
+points at a type. Receiver inference builds a local index of parameters,
+variables, and fields for each parsed file before call extraction, so large
+classes do not repeat a full tree walk for every method invocation.
 Python adapters also preserve method `class_context`, constructor call
 metadata, class receiver references, dataclass/property roots, dunder protocol
 roots, inheritance base names, same-module `__all__` public API roots, package

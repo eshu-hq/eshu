@@ -3,10 +3,12 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
@@ -57,6 +59,8 @@ func (h CodeCallMaterializationHandler) Handle(
 		return Result{}, fmt.Errorf("code call materialization intent writer is required")
 	}
 
+	totalStart := time.Now()
+	loadStart := time.Now()
 	envelopes, err := loadFactsForKinds(
 		ctx,
 		h.FactLoader,
@@ -67,9 +71,19 @@ func (h CodeCallMaterializationHandler) Handle(
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for code call materialization: %w", err)
 	}
+	loadDuration := time.Since(loadStart)
 
+	contextStart := time.Now()
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
+	contextDuration := time.Since(contextStart)
 	if len(contextByRepoID) == 0 {
+		logCodeCallMaterializationCompleted(ctx, codeCallMaterializationTiming{
+			intent:          intent,
+			factCount:       len(envelopes),
+			loadDuration:    loadDuration,
+			contextDuration: contextDuration,
+			totalDuration:   time.Since(totalStart),
+		})
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainCodeCallMaterialization,
@@ -78,12 +92,15 @@ func (h CodeCallMaterializationHandler) Handle(
 		}, nil
 	}
 
+	extractStart := time.Now()
 	_, codeCallRows, _, metaclassRows := ExtractAllCodeRelationshipRows(envelopes)
+	extractDuration := time.Since(extractStart)
 	createdAt := intent.EnqueuedAt
 	if createdAt.IsZero() {
 		createdAt = time.Now().UTC()
 	}
 
+	intentBuildStart := time.Now()
 	intentRows := buildCodeCallRefreshIntents(contextByRepoID, createdAt)
 	intentRows = append(
 		intentRows,
@@ -93,8 +110,22 @@ func (h CodeCallMaterializationHandler) Handle(
 		intentRows,
 		buildCodeCallSharedIntentRows(metaclassRows, contextByRepoID, createdAt, pythonMetaclassEvidenceSource)...,
 	)
+	intentBuildDuration := time.Since(intentBuildStart)
 
 	if len(intentRows) == 0 {
+		logCodeCallMaterializationCompleted(ctx, codeCallMaterializationTiming{
+			intent:              intent,
+			factCount:           len(envelopes),
+			repoCount:           len(contextByRepoID),
+			codeCallRowCount:    len(codeCallRows),
+			metaclassRowCount:   len(metaclassRows),
+			intentRowCount:      0,
+			loadDuration:        loadDuration,
+			contextDuration:     contextDuration,
+			extractDuration:     extractDuration,
+			intentBuildDuration: intentBuildDuration,
+			totalDuration:       time.Since(totalStart),
+		})
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainCodeCallMaterialization,
@@ -103,9 +134,26 @@ func (h CodeCallMaterializationHandler) Handle(
 		}, nil
 	}
 
+	upsertStart := time.Now()
 	if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
 		return Result{}, fmt.Errorf("write code call intents: %w", err)
 	}
+	upsertDuration := time.Since(upsertStart)
+
+	logCodeCallMaterializationCompleted(ctx, codeCallMaterializationTiming{
+		intent:              intent,
+		factCount:           len(envelopes),
+		repoCount:           len(contextByRepoID),
+		codeCallRowCount:    len(codeCallRows),
+		metaclassRowCount:   len(metaclassRows),
+		intentRowCount:      len(intentRows),
+		loadDuration:        loadDuration,
+		contextDuration:     contextDuration,
+		extractDuration:     extractDuration,
+		intentBuildDuration: intentBuildDuration,
+		upsertDuration:      upsertDuration,
+		totalDuration:       time.Since(totalStart),
+	})
 
 	return Result{
 		IntentID: intent.IntentID,
@@ -118,6 +166,40 @@ func (h CodeCallMaterializationHandler) Handle(
 		),
 		CanonicalWrites: len(intentRows),
 	}, nil
+}
+
+type codeCallMaterializationTiming struct {
+	intent              Intent
+	factCount           int
+	repoCount           int
+	codeCallRowCount    int
+	metaclassRowCount   int
+	intentRowCount      int
+	loadDuration        time.Duration
+	contextDuration     time.Duration
+	extractDuration     time.Duration
+	intentBuildDuration time.Duration
+	upsertDuration      time.Duration
+	totalDuration       time.Duration
+}
+
+func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMaterializationTiming) {
+	slog.InfoContext(ctx, "code call materialization completed",
+		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
+		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
+		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),
+		slog.Int("fact_count", timing.factCount),
+		slog.Int("repo_count", timing.repoCount),
+		slog.Int("code_call_row_count", timing.codeCallRowCount),
+		slog.Int("metaclass_row_count", timing.metaclassRowCount),
+		slog.Int("intent_row_count", timing.intentRowCount),
+		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
+		slog.Float64("context_duration_seconds", timing.contextDuration.Seconds()),
+		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
+		slog.Float64("build_intents_duration_seconds", timing.intentBuildDuration.Seconds()),
+		slog.Float64("upsert_intents_duration_seconds", timing.upsertDuration.Seconds()),
+		slog.Float64("total_duration_seconds", timing.totalDuration.Seconds()),
+	)
 }
 
 // ExtractAllCodeRelationshipRows builds both code-call and metaclass edge rows

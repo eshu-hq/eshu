@@ -19,7 +19,10 @@
 // backend-specific behavior. Code-call projection may wait for reducer graph
 // domains to drain in local NornicDB runs, but that gate only controls write
 // scheduling. Reducer code must remain idempotent across retries and replays so
-// repair runs converge on the same truth.
+// repair runs converge on the same truth. Code-call materialization logs stage
+// timings for fact load, extraction, intent build, and intent upsert so
+// repo-scale bottlenecks can be classified before changing query shape or
+// worker counts.
 // Workload materialization inputs reuse the deployable-unit correlation gate
 // before projecting workload rows.
 package reducer

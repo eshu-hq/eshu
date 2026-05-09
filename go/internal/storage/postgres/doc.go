@@ -17,7 +17,9 @@
 // whether reducer-owned graph edges are ready for query truth, and
 // ReducerGraphDrain gives local NornicDB code-call projection a read-only view
 // of reducer graph-domain backlog before it starts its edge write lane.
-// FactStore kind-filtered reads use bounded, stable keyset pages so reducer
-// domains can avoid full-generation loads without returning partial graph
-// truth.
+// FactStore kind-filtered reads use bounded, stable keyset pages, and payload
+// value filters are available only for top-level payload fields that are part
+// of a reducer domain's truth contract. Shared projection intent writes use
+// bounded multi-row upserts so high-cardinality code-call materialization
+// reduces Postgres round trips without changing idempotency semantics.
 package postgres

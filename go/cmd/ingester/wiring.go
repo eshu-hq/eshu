@@ -455,7 +455,7 @@ func openIngesterCanonicalWriter(
 	orderedLabels := []string(nil)
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		if nornicDBBatchedEntityContainment {
-			slog.Warn("NornicDB batched entity containment enabled for patched-binary evaluation",
+			slog.Info("NornicDB batched entity containment enabled",
 				"graph_backend", string(graphBackend),
 				"env_var", nornicDBBatchedEntityContainmentEnv)
 		}

@@ -59,10 +59,12 @@ before sending to avoid `SQLSTATE 21000` on `ON CONFLICT DO UPDATE` when a
 generation contains self-overwrites.
 
 `FactStore.ListFactsByKind` uses the same 500-row page size for kind-filtered
-reads (`facts_filtered.go:42`). Reducer domains such as semantic entities,
-SQL relationships, inheritance, and code calls use this path to avoid
-full-generation loads and thousands of tiny Postgres round trips on large
-repositories.
+reads (`facts_filtered.go:71`). Reducer domains such as semantic entities and
+code calls use this path to avoid full-generation loads and thousands of tiny
+Postgres round trips on large repositories. `ListFactsByKindAndPayloadValue`
+adds a top-level JSON payload allowlist (`facts_filtered.go:107`) for reducer
+domains whose correctness contract is tied to `content_entity.entity_type`,
+such as inheritance and SQL relationships.
 
 `sanitizeJSONB` strips `\u0000` escape sequences and raw control bytes
 (`0x00–0x1F` except tab/newline/CR) from payloads before INSERT to prevent
@@ -148,7 +150,7 @@ mutation is rejected because the current owner no longer holds the lease.
 **Fact store**
 
 - `FactStore` / `NewFactStore` — `UpsertFacts`, `LoadFacts`, `ListFacts`,
-  `ListFactsByKind`, `CountFacts`
+  `ListFactsByKind`, `ListFactsByKindAndPayloadValue`, `CountFacts`
 
 **Queue stores**
 
@@ -178,7 +180,8 @@ mutation is rejected because the current owner no longer holds the lease.
 **Shared projection**
 
 - `SharedIntentStore` / `NewSharedIntentStore` — reads
-  `shared_projection_intents`
+  `shared_projection_intents` and writes shared projection intents in bounded
+  multi-row batches (`shared_intents_upsert.go:62`)
 - `SharedIntentAcceptanceWriter` / `NewSharedIntentAcceptanceWriter` — writes
   intent acceptance rows; `NewSharedIntentAcceptanceWriterWithInstruments` adds
   metrics
@@ -312,9 +315,16 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   Skipping deduplication causes `SQLSTATE 21000` on `ON CONFLICT DO UPDATE`
   when the same `fact_id` appears twice in one batch.
 - `ListFactsByKind` keeps a stable `(observed_at, fact_id)` keyset cursor
-  (`facts_filtered.go:42`). Lowering the page size below the write batch size
+  (`facts_filtered.go:71`). Lowering the page size below the write batch size
   can make reducer-only reads spend most of their time in Postgres round trips
   rather than extraction or graph writes.
+- `ListFactsByKindAndPayloadValue` is only for top-level JSON payload fields
+  that are part of a reducer domain's truth contract. Do not use it to paper
+  over missing parser metadata or to guess at nested payload shape.
+- Shared projection intents are idempotent by `intent_id`. Writers should
+  upsert the same row on retry rather than minting a new ID. The 2000-row
+  upsert batch keeps each statement below Postgres' parameter limit while
+  avoiding small-batch round trips on code-call-heavy repositories.
 - The NornicDB semantic gate in `ReducerQueue.Claim` is gated on a boolean
   parameter and must not be removed without an ADR; it prevents
   `semantic_entity_materialization` storms on NornicDB label indexes.
