@@ -55,18 +55,20 @@ flowchart TB
 ### Fact persistence
 
 `FactStore.UpsertFacts` batches facts into multi-row INSERT statements of up
-to 500 rows (13 columns each, well under the Postgres 65535-parameter limit).
+to 500 rows (17 columns each, well under the Postgres 65535-parameter limit).
 `deduplicateEnvelopes` removes duplicate `fact_id` values within each batch
 before sending to avoid `SQLSTATE 21000` on `ON CONFLICT DO UPDATE` when a
 generation contains self-overwrites.
 
 `FactStore.ListFactsByKind` uses the same 500-row page size for kind-filtered
-reads (`facts_filtered.go:71`). Reducer domains such as semantic entities and
+reads (`facts_filtered.go:77`). Reducer domains such as semantic entities and
 code calls use this path to avoid full-generation loads and thousands of tiny
 Postgres round trips on large repositories. `ListFactsByKindAndPayloadValue`
-adds a top-level JSON payload allowlist (`facts_filtered.go:107`) for reducer
+adds a top-level JSON payload allowlist (`facts_filtered.go:115`) for reducer
 domains whose correctness contract is tied to `content_entity.entity_type`,
-such as inheritance and SQL relationships.
+such as inheritance and SQL relationships. Both paths select the full
+`facts.Envelope` column shape before calling the shared scanner, so filtered
+reads keep schema version, collector, fencing, and source-confidence metadata.
 
 `sanitizeJSONB` strips `\u0000` escape sequences and raw control bytes
 (`0x00–0x1F` except tab/newline/CR) from payloads before INSERT to prevent
@@ -328,7 +330,7 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - `ProjectorQueue.Ack` runs four SQL statements inside a transaction
   (`projector_queue.go:105`). Pass a `SQLDB` or an `InstrumentedDB` wrapping
   a `SQLDB`; a plain `ExecQueryer` without `Beginner` will cause Ack to fail.
-- `upsertFacts` deduplicates by `fact_id` before batching (`facts.go:192`).
+- `upsertFacts` deduplicates by `fact_id` before batching (`facts.go:206`).
   Skipping deduplication causes `SQLSTATE 21000` on `ON CONFLICT DO UPDATE`
   when the same `fact_id` appears twice in one batch.
 - `ListFactsByKind` keeps a stable `(observed_at, fact_id)` keyset cursor

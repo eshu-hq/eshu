@@ -28,7 +28,7 @@
 - **Fact deduplication before batching** — `upsertFacts` calls
   `deduplicateEnvelopes` before each batch to prevent `SQLSTATE 21000` on
   `ON CONFLICT DO UPDATE` when the same `fact_id` appears twice in one batch
-  (`facts.go:192`).
+  (`facts.go:206`).
 - **Freshness de-dupe covers in-flight generations** —
   `CommitScopeGeneration` must compare the incoming `FreshnessHint` with the
   newest same-scope `pending` or `active` generation. Restricting the check to
@@ -36,9 +36,9 @@
   snapshot while projection is still in flight, which creates avoidable
   supersession churn. Do not include `failed` generations in this skip path; a
   failed first projection must remain retryable by a later snapshot.
-- **JSONB sanitization** — `sanitizeJSONB` removes ` ` escape sequences
-  and raw control bytes before every fact INSERT (`facts.go:435`). Skipping
-  this causes Postgres errors on repositories with binary or non-UTF-8 content.
+- **JSONB sanitization** — `sanitizeJSONB` removes `\u0000` escape sequences
+  and raw control bytes before every fact INSERT. Skipping this causes Postgres
+  errors on repositories with binary or non-UTF-8 content.
 - **Ack atomicity** — `ProjectorQueue.Ack` wraps four SQL statements in a
   single transaction (`projector_queue.go:105`). If any step fails, the
   transaction rolls back. Always pass a `SQLDB` or `InstrumentedDB(SQLDB)` to
@@ -128,8 +128,8 @@
   depth; check projector structured logs for `stage=canonical_write` error fields.
 
 - Symptom: `SQLSTATE 22P05` or `SQLSTATE 22P02` on fact INSERT → non-UTF-8 or
-  binary payload; `sanitizeJSONB` in `facts.go:435` should handle this; check
-  whether the repo emits raw binary in fact payloads.
+  binary payload; `sanitizeJSONB` should handle this; check whether the repo
+  emits raw binary in fact payloads.
 
 - Symptom: `SQLSTATE 21000` on fact INSERT → duplicate `fact_id` in a batch;
   check `deduplicateEnvelopes` is being called; should not happen in normal
