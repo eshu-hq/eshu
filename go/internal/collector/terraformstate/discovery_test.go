@@ -82,6 +82,41 @@ func TestDiscoveryWaitsForGitGenerationBeforeGraphDiscovery(t *testing.T) {
 	}
 }
 
+func TestDiscoveryReturnsSeedsWhenGraphWaitsForGitGeneration(t *testing.T) {
+	t.Parallel()
+
+	facts := &stubBackendFactReader{}
+	resolver := DiscoveryResolver{
+		Config: DiscoveryConfig{
+			Graph: true,
+			Seeds: []DiscoverySeed{{
+				Kind:   BackendS3,
+				Bucket: "app-tfstate-prod",
+				Key:    "services/api/terraform.tfstate",
+				Region: "us-east-1",
+				RepoID: "platform-infra",
+			}},
+			LocalRepos: []string{"platform-infra"},
+		},
+		GitReadiness: &stubGitReadiness{ready: map[string]bool{"platform-infra": false}},
+		BackendFacts: facts,
+	}
+
+	candidates, err := resolver.Resolve(context.Background())
+	if err != nil {
+		t.Fatalf("Resolve() error = %v, want nil for seed fallback", err)
+	}
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(candidates) = %d, want %d", got, want)
+	}
+	if got, want := candidates[0].Source, DiscoveryCandidateSourceSeed; got != want {
+		t.Fatalf("candidates[0].Source = %q, want %q", got, want)
+	}
+	if facts.calls != 0 {
+		t.Fatalf("backend fact reader calls = %d, want 0 while graph waits", facts.calls)
+	}
+}
+
 func TestDiscoveryDoesNotReadGraphFactsWithoutRepoScope(t *testing.T) {
 	t.Parallel()
 
@@ -140,6 +175,67 @@ func TestDiscoveryReadsGraphFactsAfterGitGenerationCommitted(t *testing.T) {
 	}
 }
 
+func TestDiscoveryRejectsGraphLocalCandidate(t *testing.T) {
+	t.Parallel()
+
+	resolver := DiscoveryResolver{
+		Config:       DiscoveryConfig{Graph: true, LocalRepos: []string{"platform-infra"}},
+		GitReadiness: &stubGitReadiness{ready: map[string]bool{"platform-infra": true}},
+		BackendFacts: &stubBackendFactReader{
+			candidates: []DiscoveryCandidate{{
+				State: StateKey{
+					BackendKind: BackendLocal,
+					Locator:     "/tmp/eshu/prod.tfstate",
+				},
+				Source: DiscoveryCandidateSourceGraph,
+				RepoID: "platform-infra",
+			}},
+		},
+	}
+
+	if _, err := resolver.Resolve(context.Background()); err == nil {
+		t.Fatal("Resolve() error = nil, want graph-local candidate rejection")
+	}
+}
+
+func TestDiscoveryRejectsGraphCandidateOutsideRepoScope(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		repoID string
+	}{
+		{name: "blank", repoID: ""},
+		{name: "out of scope", repoID: "other-infra"},
+		{name: "untrimmed", repoID: " platform-infra "},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			resolver := DiscoveryResolver{
+				Config:       DiscoveryConfig{Graph: true, LocalRepos: []string{"platform-infra"}},
+				GitReadiness: &stubGitReadiness{ready: map[string]bool{"platform-infra": true}},
+				BackendFacts: &stubBackendFactReader{
+					candidates: []DiscoveryCandidate{{
+						State: StateKey{
+							BackendKind: BackendS3,
+							Locator:     "s3://app-tfstate-prod/services/api/terraform.tfstate",
+						},
+						Source: DiscoveryCandidateSourceGraph,
+						RepoID: tt.repoID,
+					}},
+				},
+			}
+
+			if _, err := resolver.Resolve(context.Background()); err == nil {
+				t.Fatal("Resolve() error = nil, want repo-scope rejection")
+			}
+		})
+	}
+}
+
 func TestDiscoveryDeduplicatesSeedAndGraphCandidates(t *testing.T) {
 	t.Parallel()
 
@@ -195,6 +291,7 @@ func TestDiscoveryRejectsPrefixGraphCandidate(t *testing.T) {
 					Locator:     "s3://app-tfstate-prod/services/api/",
 				},
 				Source: DiscoveryCandidateSourceGraph,
+				RepoID: "platform-infra",
 			}},
 		},
 	}
@@ -219,6 +316,7 @@ func TestDiscoveryRejectsTerragruntGraphCandidateUntilResolved(t *testing.T) {
 					Locator:     "terragrunt://platform-infra/live/prod",
 				},
 				Source: DiscoveryCandidateSourceGraph,
+				RepoID: "platform-infra",
 			}},
 		},
 	}
@@ -274,6 +372,7 @@ func TestDiscoveryRecordsCandidateMetricsBySource(t *testing.T) {
 					Locator:     "s3://app-tfstate-prod/services/worker/terraform.tfstate",
 				},
 				Source: DiscoveryCandidateSourceGraph,
+				RepoID: "platform-infra",
 			}},
 		},
 		GitReadiness: &stubGitReadiness{

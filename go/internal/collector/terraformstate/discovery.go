@@ -140,6 +140,10 @@ func (r DiscoveryResolver) Resolve(ctx context.Context) ([]DiscoveryCandidate, e
 		return candidates, nil
 	}
 	if err := r.requireGitReady(ctx, repoIDs); err != nil {
+		if IsWaitingOnGitGeneration(err) && len(candidates) > 0 {
+			r.recordCandidates(ctx, counts)
+			return candidates, nil
+		}
 		return nil, err
 	}
 	if r.BackendFacts == nil {
@@ -154,6 +158,9 @@ func (r DiscoveryResolver) Resolve(ctx context.Context) ([]DiscoveryCandidate, e
 			candidate.Source = DiscoveryCandidateSourceGraph
 		}
 		if err := candidate.Validate(); err != nil {
+			return nil, fmt.Errorf("terraform state graph candidate %d: %w", index, err)
+		}
+		if err := validateGraphCandidateScope(candidate, repoIDs); err != nil {
 			return nil, fmt.Errorf("terraform state graph candidate %d: %w", index, err)
 		}
 		candidates = appendUniqueCandidate(candidates, seen, counts, candidate)
@@ -212,7 +219,26 @@ func (c DiscoveryCandidate) Validate() error {
 	default:
 		return fmt.Errorf("unsupported terraform state discovery source %q", c.Source)
 	}
+	if c.Source == DiscoveryCandidateSourceGraph && c.State.BackendKind == BackendLocal {
+		return fmt.Errorf("local state candidates require an explicit operator seed")
+	}
 	return nil
+}
+
+func validateGraphCandidateScope(candidate DiscoveryCandidate, repoIDs []string) error {
+	repoID := strings.TrimSpace(candidate.RepoID)
+	if repoID == "" {
+		return fmt.Errorf("graph candidate repo_id must not be blank")
+	}
+	if repoID != candidate.RepoID {
+		return fmt.Errorf("graph candidate repo_id must not have surrounding whitespace")
+	}
+	for _, allowed := range repoIDs {
+		if repoID == allowed {
+			return nil
+		}
+	}
+	return fmt.Errorf("graph candidate repo_id %q is outside requested repo scope", repoID)
 }
 
 func validateExactCandidateState(state StateKey) error {
