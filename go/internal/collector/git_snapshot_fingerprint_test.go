@@ -202,6 +202,30 @@ func TestStreamFactsReReadsBodyFromDisk(t *testing.T) {
 	}
 }
 
+func TestBuildStreamingGenerationTagsGitFactsAsObserved(t *testing.T) {
+	t.Parallel()
+
+	repoPath := t.TempDir()
+	observedAt := time.Date(2026, time.April, 12, 15, 30, 0, 0, time.UTC)
+	repo := testCollectorRepositoryMetadata(repoPath)
+	snapshot := testCollectorSnapshot(repoPath, "def handler():\n    return 1\n", "digest-1")
+
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	allFacts := drainFactChannel(collected.Facts)
+
+	if len(allFacts) == 0 {
+		t.Fatal("fact count = 0, want git facts")
+	}
+	for _, fact := range allFacts {
+		if got, want := fact.CollectorKind, "git"; got != want {
+			t.Fatalf("fact %q CollectorKind = %q, want %q", fact.FactKind, got, want)
+		}
+		if got, want := fact.SourceConfidence, "observed"; got != want {
+			t.Fatalf("fact %q SourceConfidence = %q, want %q", fact.FactKind, got, want)
+		}
+	}
+}
+
 func TestStreamFactsSkipsMissingFile(t *testing.T) {
 	t.Parallel()
 

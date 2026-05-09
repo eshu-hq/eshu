@@ -23,6 +23,7 @@ consume these types as their input or storage shape.
 
 - `Envelope` — the interchange unit that travels from collector to projector.
   Fields: `FactID`, `ScopeID`, `GenerationID`, `FactKind`, `StableFactKey`,
+  `SchemaVersion`, `CollectorKind`, `FencingToken`, `SourceConfidence`,
   `ObservedAt`, `Payload`, `IsTombstone`, `SourceRef`.
 - `Ref` — the source-local provenance record embedded in `Envelope.SourceRef`.
   Fields: `SourceSystem`, `ScopeID`, `GenerationID`, `FactKey`, `SourceURI`,
@@ -54,6 +55,11 @@ and processing lives in `internal/projector` and `internal/storage/postgres`.
 - `Envelope` fields and their types are frozen on-disk contracts. New fields
   must be additive; removing or renaming a field breaks stored rows. The
   `doc.go` contract states this explicitly.
+- `CollectorKind` and `SourceConfidence` are part of the durable collector
+  contract. `CollectorKind` says which collector family emitted the fact.
+  `SourceConfidence` says how Eshu learned it: direct observation, external
+  report, inference, or derived materialization. New collector code should set
+  both fields explicitly instead of relying on storage defaults.
 - `Envelope.Payload` is a `map[string]any`. Callers must not mutate the map
   after passing the envelope to a downstream stage. Use `Clone` when branching
   or replaying.

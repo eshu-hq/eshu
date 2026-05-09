@@ -1,540 +1,422 @@
 # Architecture Workflow Plan: Terraform State Collector
 
 **Date:** 2026-04-20
-**Status:** Draft (gate still open — awaits review sign-offs)
+**Status:** Draft - hard gate open for issue #49
 **Authors:** eshu-platform
 **Reviewers required:** Principal engineer, Principal SRE, Security
-**Related:**
+**Gate:** `eshu-hq/eshu#49`
+**Blocked implementation issues:** #29, #47, #46, #45, #44, #43
 
-- ADR: `docs/docs/adrs/2026-04-20-terraform-state-collector.md`
-- Gate issue: `eshu-hq/eshu#103`
+**Related docs:** `docs/docs/adrs/2026-04-20-terraform-state-collector.md`, `docs/docs/guides/collector-authoring.md`, `docs/docs/adrs/2026-04-20-workflow-coordinator-and-multi-collector-runtime-contract.md`, `docs/docs/adrs/2026-04-20-workflow-coordinator-claiming-fencing-and-convergence.md`, `docs/docs/adrs/2026-04-20-multi-source-reducer-and-consumer-contract.md`
 
-All numeric proposals in this doc are marked `[PROPOSED]`. Sign-off = acceptance.
-Reviewers may reject any value and force a revision cycle before gate closes.
+This plan is the issue #49 readiness artifact. It must close before any Terraform-state implementation issue merges. Older ADR text may still mention legacy gate and workstream issue IDs; for this branch, #49 and #47 through #43 are authoritative.
+
+Numeric values below are launch defaults. Review sign-off means the reviewer accepts the value, or records a replacement before #49 closes.
 
 ---
 
 ## Purpose
 
-Architecture workflow for the Terraform state collector. Must be approved
-**before any implementation work begins** on issues #105–#109 (tfstate/A–E).
+The Terraform state collector observes Terraform state as source truth and emits typed, redacted facts. It does not write canonical graph rows, compute drift, crawl infrastructure, or persist raw state payloads.
 
-ADR captures decisions. This plan captures **how those decisions are
-operationally correct under load, under failure, and under concurrent access,
-with telemetry strong enough to diagnose at 3 AM**.
+This plan proves the collector architecture is ready under load, failure, concurrency, security review, and SRE operation before implementation starts.
 
-Git-collector lesson: code before concurrency/memory/telemetry picture = wasted
-re-architecture cycles. Not repeated here. Gate issue #103 lists every
-prerequisite; every item maps to one section below.
+Non-negotiable launch constraints:
+
+- Parse with a streaming JSON decoder. Never unmarshal a full state file.
+- Redact during parsing, before any Eshu persistence boundary.
+- Persist only redacted typed facts and snapshot metadata. Never persist raw Terraform state in the content store, fact queue, logs, metrics, spans, admin status, traces, or crash dumps.
+- S3 access is read-only. No state backend write API is allowed.
+- Do not crawl S3 buckets, list unknown prefixes, or probe unknown accounts. Every locator must come from Git evidence or an explicit operator seed.
+- Coordinator must gate graph-backed discovery on upstream Git evidence.
+- Claim ownership, retries, and completion flow through coordinator fencing.
 
 ---
 
-## 1. Sequence Diagrams
+## 1. Architecture Skeleton
 
-### 1.1 Happy-path run
+### 1.0 Pre-implementation gaps found in the current tree
+
+This plan depends on several seams that are documented but not fully complete
+in the current code. This branch starts closing #47 and #29, but these remain
+gate concerns until review accepts the contracts:
+
+- The Go fact envelope and `fact_records` table now carry `schema_version`,
+  `collector_kind`, `fencing_token`, and `source_confidence`. #47 still needs
+  review acceptance before Terraform-state facts are emitted.
+- The current claim flow completes claims after fact commit, but fact commit is
+  not mechanically fenced. #47/#45 must add transaction-time stale-fence
+  rejection or a coordinator-validity check inside fact commit before #46 can
+  rely on stale emit rejection.
+- `go/internal/redact` now exists with keyed deterministic scalar redaction.
+  #46 must use it before any Terraform-state value crosses persistence.
+- The Terraform parser does not yet emit backend facts for
+  `terraform { backend ... }` blocks. #45 must add graph-backed discovery
+  inputs before graph-backed state discovery can be the normal path.
+- The Terraform-state ADR uses `ScopeKind.state_snapshot`, while one reducer
+  consumer note still mentions a Terraform-state-shaped scope kind. Code
+  currently follows `state_snapshot`; #47 should settle the docs/code contract
+  and avoid adding a second scope kind.
+- Repo-local `terraform.tfstate` files are excluded by default `.eshuignore`,
+  which is good for secret safety. If local state support is added, #46 must
+  read only explicit state sources and must not re-enable broad raw-state
+  content persistence.
+
+| Decision | Contract |
+| --- | --- |
+| Collector family | `terraform_state` |
+| Runtime identity | `collector-terraform-state` |
+| Source truth | Terraform state payload from local repo content or exact S3 object |
+| Scope | `state_snapshot` keyed by `(backend_kind, locator_hash)` |
+| Generation | Terraform state `serial`, scoped by `lineage_uuid` |
+| Fact path | collector -> fact queue -> reducer/tfstate -> DSL |
+| Completion path | coordinator collection ack -> reducer phases -> `cross_source_anchor_ready` |
+| Raw payload policy | Raw bytes allowed only in source reader and streaming parser window |
+
+Launch backends:
+
+- `local`: reads repo-local `terraform.tfstate` from the Postgres content store after Git collector completion; emits `state_in_vcs`.
+- `s3`: uses `GetObject` or `GetObjectVersion` on an exact bucket/key and optional DynamoDB `GetItem`/`Query` for lock metadata.
+- `terragrunt`: resolves `remote_state` into `local` or `s3`; resolver shim only, not a persisted backend kind.
+
+Launch non-goals: Terraform Cloud/TFE, GCS, Azure Blob, HTTP, Consul, Postgres backends, collector-owned drift, orphan, or unmanaged-resource calculation.
+
+Discovery order:
+
+1. Explicit operator seed in collector instance config.
+2. Git-collector-observed Terraform backend facts.
+3. Git-collector-observed Terragrunt `remote_state` facts.
+
+Discovery guards:
+
+- Graph-backed discovery waits for Git `canonical_nodes_committed` and related required phases for the bounded Git generation.
+- Seeds must name an exact local path or exact S3 bucket/key. Prefix-only seeds are rejected.
+- `ListBucket`, when configured, is scoped only to configured keys or prefixes required by known locators, and is not used to discover unknown state objects.
+- Candidate locators are deduplicated by canonical locator hash before claims are opened.
+
+---
+
+## 2. Sequence Diagrams
+
+### 2.1 Claim to completion
 
 ```mermaid
 sequenceDiagram
-    participant WC as Workflow Coordinator
-    participant Col as collector-terraform-state worker
-    participant CS as Postgres Content Store
-    participant S3 as AWS S3 (state backend)
-    participant FQ as Fact Queue
+  participant WC as Workflow Coordinator
+  participant TF as Terraform State Collector
+  participant PG as Postgres Content/Facts
+  participant S3 as AWS S3
+  participant DDB as DynamoDB Lock Table
+  participant R as Reducer
 
-    WC->>Col: Issue claim (instance, scope batch, fence_token)
-    Col->>CS: Query graph for backend facts in scope
-    CS-->>Col: candidate StateKey list
-    loop per StateKey
-        Col->>Col: heartbeat lease (every 30s)
-        alt backend=s3
-            Col->>S3: GetObject (If-None-Match: prev_etag)
-            alt 304 Not Modified
-                S3-->>Col: 304
-                Col->>FQ: emit snapshot(unchanged=true, fence_token)
-            else 200 OK
-                S3-->>Col: streaming body
-                Col->>Col: json.Decoder streaming parse
-                loop per resource / output / module
-                    Col->>Col: redact in parse loop
-                    Col->>FQ: emit fact (fence_token)
-                end
-                Col->>FQ: emit snapshot(lineage, serial, size, fence_token)
-            end
-        else backend=local
-            Col->>CS: GetContent(repo_id, workspace_path)
-            CS-->>Col: streaming body
-            Col->>Col: streaming parse + redact
-            Col->>FQ: emit state_in_vcs warning + facts
-        else backend=terragrunt
-            Col->>Col: resolve include chain (depth ≤ 10)
-            Col->>Col: produce effective backend locator
-            Col-->>Col: dispatch to s3 / local path
+  WC->>WC: Confirm upstream Git evidence for scope
+  WC->>TF: claim(work_item_id, scope_batch, fencing_token=N)
+  TF->>WC: heartbeat(N) every 30s while claim active
+  TF->>PG: discovery query for exact backend facts and seeds
+  PG-->>TF: bounded StateKey list
+
+  loop per StateKey
+    TF->>TF: canonicalize locator; reject speculative crawl
+    alt backend is s3
+      TF->>S3: GetObject(bucket,key,If-None-Match=previous_etag)
+      alt not modified
+        S3-->>TF: 304
+        TF->>PG: enqueue snapshot unchanged, fence=N
+      else changed
+        S3-->>TF: streaming body + metadata
+        opt lock table configured
+          TF->>DDB: GetItem/Query metadata read-only
+          DDB-->>TF: digest/lock metadata or empty
         end
+        TF->>TF: stream parse -> redact -> facts
+        TF->>PG: enqueue redacted fact batches, fence=N
+      end
+    else backend is local
+      TF->>PG: open exact repo content stream
+      PG-->>TF: streaming body
+      TF->>TF: stream parse -> redact -> state_in_vcs warning
+      TF->>PG: enqueue redacted fact batches, fence=N
+    else backend is terragrunt
+      TF->>PG: load exact Terragrunt files from Git evidence
+      TF->>TF: resolve include chain depth <= 10
+      TF->>TF: dispatch resolved local or s3 source
     end
-    Col->>WC: Ack completion (counts, serial, lineage, fence_token)
-    WC->>WC: mark claim complete (fence_token match required)
+  end
+
+  TF->>WC: complete(work_item_id, counts, warnings, fence=N)
+  WC->>WC: accept only if active fence=N
+  R->>PG: consume facts and publish reducer phases
+  WC->>PG: wait for reducer phases and cross_source_anchor_ready
 ```
 
-### 1.2 Failure-path run (serial regression)
+### 2.2 Lease expiry and stale emit rejection
 
 ```mermaid
 sequenceDiagram
-    participant Col as collector-terraform-state worker
-    participant CS as Postgres Content Store
-    participant S3 as AWS S3
-    participant FQ as Fact Queue
+  participant W1 as Worker A
+  participant WC as Workflow Coordinator
+  participant W2 as Worker B
+  participant PG as Fact Queue
 
-    Col->>S3: GetObject
-    S3-->>Col: body (serial=N-3, lineage=L1)
-    Col->>CS: lookup indexed(serial, lineage) for StateKey
-    CS-->>Col: indexed (serial=N, lineage=L1)
-    Col->>Col: detect regression (observed < indexed, same lineage)
-    Col->>FQ: emit terraform_state_warning(kind=serial_regression, observed=N-3, indexed=N)
-    Col->>Col: release claim WITHOUT overwriting indexed snapshot
-    Col->>Col: metric eshu_dp_tfstate_serial_regressions_total++
+  W1->>WC: claim token=42
+  W1->>W1: parse slow state
+  Note over W1: heartbeat stalls
+  WC->>WC: lease expires; reap claim; advance token to 43
+  W2->>WC: claim token=43
+  W2->>PG: enqueue facts token=43 accepted
+  W1->>PG: enqueue facts token=42 rejected stale
+  W1->>WC: complete token=42 rejected
 ```
+
+### 2.3 Serial and lineage safety
 
 ```mermaid
 sequenceDiagram
-    participant Col as collector-terraform-state worker
-    participant CS as Postgres Content Store
-    participant FQ as Fact Queue
+  participant TF as Collector
+  participant PG as Snapshot Index
+  participant FQ as Fact Queue
 
-    Col->>CS: lookup indexed lineage for StateKey
-    CS-->>Col: lineage=L1
-    Col->>Col: parse observed lineage=L2
-    Col->>Col: detect lineage rotation (L1 != L2)
-    Col->>FQ: emit terraform_state_warning(kind=lineage_rotation, prev=L1, new=L2)
-    Col->>FQ: emit snapshot with NEW lineage (no merge with L1 facts)
-    Col->>Col: metric eshu_dp_tfstate_lineage_rotations_total++
+  TF->>PG: read prior serial and lineage for locator_hash
+  PG-->>TF: serial=12 lineage=L1
+  TF->>TF: stream parse observed serial=10 lineage=L1
+  TF->>FQ: warning serial_regression
+  TF->>TF: reject replacement; preserve prior indexed facts
+  TF->>TF: stream parse observed serial=1 lineage=L2
+  TF->>FQ: warning lineage_rotation
+  TF->>FQ: emit new generation series with lineage=L2
 ```
-
-### 1.3 Failure-path run (lease expiry mid-parse)
-
-```mermaid
-sequenceDiagram
-    participant W1 as Worker A (original)
-    participant WC as Workflow Coordinator
-    participant W2 as Worker B (reaper)
-    participant FQ as Fact Queue
-
-    W1->>WC: claim(fence_token=42)
-    W1->>W1: begin parse (slow, 20 min)
-    Note over W1: heartbeat loop stalled (GC pause / IO stall)
-    WC->>WC: lease expired (>90s since last heartbeat)
-    WC->>WC: reap claim; advance fence to 43
-    W2->>WC: claim(fence_token=43)
-    W2->>W2: parse + emit
-    W2->>FQ: emit facts (fence_token=43) ✓ accepted
-    W1->>FQ: emit facts (fence_token=42) ✗ rejected (stale fence)
-    W1->>WC: ack (fence_token=42) ✗ rejected; W1 releases claim; logs stale_fence
-```
-
-### 1.4 Terragrunt resolver shim
-
-```mermaid
-sequenceDiagram
-    participant Col as collector-terraform-state worker
-    participant CS as Postgres Content Store (repo files)
-    participant TR as terragrunt resolver
-
-    Col->>CS: load terragrunt.hcl for workspace
-    CS-->>Col: hcl content
-    Col->>TR: resolve(content, include_depth_max=10)
-    TR->>TR: walk include{ } chain
-    alt depth exceeds 10
-        TR-->>Col: error(include_depth_exceeded)
-        Col->>Col: emit warning(kind=terragrunt_include_too_deep); skip key
-    else depth OK
-        TR-->>Col: effective remote_state{ backend, config }
-        Col->>Col: produce StateKey(backend_kind, locator)
-    end
-```
-
-### 1.5 DynamoDB metadata GetItem (read-only)
-
-```mermaid
-sequenceDiagram
-    participant Col as collector-terraform-state worker
-    participant DDB as DynamoDB lock table
-
-    Col->>DDB: GetItem(table=tf_locks, key=state_path)
-    alt item present
-        DDB-->>Col: {LockID, Digest, Info}
-        Col->>Col: emit terraform_lock_metadata(digest, holder_info[redacted])
-    else item absent
-        DDB-->>Col: nothing
-        Col->>Col: no emit (state not locked at observation time)
-    end
-```
-
-Launch scope: DynamoDB read is best-effort telemetry only; absence is not a
-failure. IAM requires `dynamodb:GetItem` only; no write permission granted.
 
 ---
 
-## 2. Data Flow Diagram
+## 3. Data Flow
 
 ```mermaid
 flowchart LR
-    A[state payload source<br/>S3 | local | terragrunt-resolved] -->|streaming reader<br/>≤16 MiB window| B[json.Decoder tokens]
-    B -->|per-resource struct| C[redaction pass<br/>sensitive outputs, known keys,<br/>unknown-schema conservative]
-    C -->|fact envelope<br/>fence_token + scope + gen| D[queue batch buffer<br/>≤8 MiB / 2k facts]
-    D -->|COMMIT tx| E[Fact Queue Postgres]
-    E -.->|reducer consumes| F[canonical graph]
+  A["Exact locator<br/>Git evidence or seed"] --> B["StateSource.Open<br/>S3/local stream"]
+  B --> C["Streaming JSON parser<br/>bounded token window"]
+  C --> D["Redaction before persistence<br/>outputs, keys, unknown schema"]
+  D --> E["Fact envelope<br/>scope, generation, lineage, fence"]
+  E --> F["Bounded batch buffer"]
+  F --> G["Postgres fact queue"]
+  G --> H["Reducer tfstate projectors"]
+  H --> I["DSL cross_source_anchor_ready"]
 
-    subgraph raw[Raw payload allowed ONLY here]
-        A
-        B
-    end
-
-    subgraph clean[No raw bytes past this line]
-        C
-        D
-        E
-    end
+  subgraph Raw["Raw state allowed"]
+    B
+    C
+  end
+  subgraph Clean["Only redacted structured data"]
+    D
+    E
+    F
+    G
+    H
+    I
+  end
 ```
 
-Memory footprint per stage (per worker):
+Raw payload rules:
 
-| Stage | Bytes resident | Lifetime |
-|---|---|---|
-| A streaming reader | ≤16 MiB | per state file |
-| B decoder state | ≤4 MiB | per state file |
-| C per-resource struct | ≤16 MiB | per resource (largest attr map) |
-| D batch buffer | ≤8 MiB | per batch flush (~2k facts) |
-| E commit | 0 (freed after COMMIT) | n/a |
+- Raw bytes may exist only in the backend stream and parser token buffer.
+- The parser emits redacted per-resource facts before enqueue.
+- Logs, spans, metrics, facts, content rows, warning rows, and admin status may include counts, hashes, locator hashes, sizes, serials, lineage, and error classes only.
 
-Raw payload is permitted ONLY in (A) and the sliding window in (B). Never
-persisted to content store. Never materialized in facts. Never logged.
+Fact envelope requirements:
 
----
-
-## 3. Concurrency Model
-
-### 3.1 Worker pool shape
-
-- [PROPOSED] Pool default: **8 workers per pod**
-  - Justification: 8 × 32 MiB peak per claim = 256 MiB peak; comfortably under
-    768 MiB GOMEMLIMIT target.
-- One claim per worker. No claim multiplexing (simpler fencing).
-- Goroutine topology per worker:
-  - 1 × **claim loop** (blocks on coordinator assign)
-  - 1 × **heartbeat loop** (30s tick; independent of parse)
-  - 1 × **emit loop** (reads parse channel, batches into queue)
-  - Parse runs inline in claim loop (single goroutine consumes `json.Decoder`)
-
-### 3.2 Claim fencing (inherited from coordinator contract)
-
-- Lease duration: **90s**
-- Heartbeat interval: **30s** (3× safety margin)
-- Fence token: monotonic int64 from coordinator; propagated into every fact
-  envelope and every emit RPC.
-- Fact queue enforces: `INSERT ... WHERE fence_token = current_active_fence`.
-  Stale emits rejected by constraint.
-- Ack from worker to coordinator includes fence_token; coordinator rejects ack
-  if fence advanced.
-
-### 3.3 Parser streaming bounds
-
-Bounded by largest resource attribute map, not by state size.
-
-- Hard ceiling per resource attribute map: **16 MiB**
-- Exceed behavior: truncate attribute map, emit `terraform_state_warning(kind=attr_map_truncated, resource_address, observed_bytes)`. Never panic.
-- Per-resource parse timeout: **30s** (guards against degenerate inputs).
-- Whole-state parse timeout: **5 min** (guards against pathological state).
-  Exceeded → yield claim with `warning(kind=parse_timeout)`; coordinator
-  schedules next run.
-
-### 3.4 Lock ordering proof
-
-Locks acquired by the collector:
-
-1. **Coordinator claim row** (Postgres row lock) — acquired at claim start, released at ack or reap.
-2. **Fact queue INSERT** (Postgres tx) — acquired per batch flush, <100ms scope.
-3. **Heartbeat UPDATE** (Postgres row lock, separate row from claim) — per 30s tick, <50ms scope.
-4. **Parser in-process mutex** — none required (single goroutine consumes decoder).
-
-Ordering invariant:
-
-- Claim loop acquires #1 at start, then alternates #2 (emit) and releases between batches.
-- Heartbeat loop acquires #3 only. Never touches #1 or #2.
-- Emit never blocks on heartbeat and vice versa (separate Postgres rows; row-level locking).
-
-No cycle possible:
-- #1 → #2: claim holds, emits batch (short tx).
-- #1 → #3: claim holds, heartbeat refreshes separate row (short tx).
-- #2 and #3 run in separate goroutines on separate rows — no shared lock.
-- Git collector and tfstate collector both read content-store rows — Postgres
-  MVCC ensures concurrent readers never block; writers are the reducer
-  (separate service).
-
-Deadlock-free by construction.
-
-### 3.5 Goroutine Choreography (concrete)
-
-Per worker, on claim accept:
-
-```go
-claimCtx, claimCancel := context.WithCancel(coordinatorCtx)
-parseCh   := make(chan *ResourceFact, 64) // bounded backpressure
-emitCh    := make(chan []Fact, 4)          // small; batch-flush serialized
-errCh     := make(chan error, 4)           // fan-in from all goroutines
-```
-
-Goroutines (5 total per active claim):
-
-| G | Role | Inputs | Outputs | Exit condition |
-|---|---|---|---|---|
-| G1 | claim+parse loop | `json.Decoder` on source body | sends `*ResourceFact` on `parseCh` | EOF or parseCtx cancel → `close(parseCh)` |
-| G2 | redact+batch | reads `parseCh` | sends `[]Fact` on `emitCh` when batch full (2k facts OR 500ms) | `parseCh` closed → final flush → `close(emitCh)` |
-| G3 | emit | reads `emitCh` | COMMIT tx per batch; error to `errCh` | `emitCh` closed → final ack |
-| G4 | heartbeat | ticker 30s | UPDATE heartbeat row | `claimCtx.Done()` |
-| G5 | fan-in error watcher | reads `errCh` | first error → `claimCancel()` | `claimCtx.Done()` |
-
-**Serialization invariants:**
-- G2 is the sole producer on `emitCh`; G3 is sole consumer — no multi-producer/multi-consumer channel.
-- G1 is single-writer on `parseCh`; G2 is single-reader.
-- Fact ordering per state file is preserved: G1 emits in JSON decode order; G2 appends in receive order; G3 commits batches in receive order. No reordering across the pipeline.
-
-### 3.6 Channel Sizing & Backpressure Propagation
-
-Channel buffer sizes are **deliberately small** so that slowness downstream pushes back through the pipeline naturally:
-
-- `parseCh=64`: ~256 KiB of pending resource facts (64 × ~4 KiB). If G3 is slow (queue tx stalls), G2 blocks sending to `emitCh`; G2's inbound receives block when `parseCh` fills; G1 blocks sending on `parseCh`; `json.Decoder.Token()` stops pulling from the source reader; S3/content-store TCP window shrinks; bytes stop flowing → **bounded memory**.
-- `emitCh=4`: at most 4 batches × ~8 MiB = 32 MiB queued emit work. Beyond that, G2 blocks.
-
-No unbounded channels. No goroutine leaks (every goroutine selects on `claimCtx.Done()`). No dropped facts.
-
-**Cancellation discipline:**
-- `claimCancel()` fires on: lease-expiry heartbeat failure, fatal emit error, parse timeout exceed, whole-state parse timeout (5m).
-- Every `select` includes `case <-claimCtx.Done(): return`.
-- `json.Decoder.Token()` does not accept ctx; wrap body reader with `ctxReader` that returns `ctx.Err()` on next `Read` after cancel — bounded by TCP chunk size (≤16 KiB latency to exit).
-
-### 3.7 Context Cancellation Tree
-
-```
-serviceCtx (process lifetime)
-  └── coordinatorCtx (set when worker registers)
-        └── claimCtx (per claim, cancelled on ack/reap/error)
-              ├── parseCtx (WithTimeout 5min — whole-state ceiling)
-              │     └── perResourceCtx (WithTimeout 30s — guards degenerate single-resource)
-              ├── emitCtx (inherits claimCtx; each COMMIT tx uses this)
-              ├── heartbeatCtx (WithTimeout 5s per UPDATE)
-              └── sourceReadCtx (inherits claimCtx; S3 GetObject + content-store reads)
-```
-
-Propagation rules:
-- Heartbeat UPDATE failure → `claimCancel()` → all children abort.
-- Parse timeout (5m) → `parseCtx` done → G1 exit → `close(parseCh)` → G2/G3 drain — **not** a hard cancel; allows partial-batch final flush.
-- Per-resource timeout (30s) → emit `attr_map_truncated` warning, skip resource, continue parse — does **not** cancel claimCtx.
-- Coordinator reap → `coordinatorCtx` cancelled → claimCtx cancelled.
-
-pgx honors ctx: stalled `COMMIT` aborts cleanly with `ctx.Err()`.
-
-### 3.8 Partial-Run Ack Protocol
-
-Ack envelope worker → coordinator:
-
-```go
-type ClaimAck struct {
-    FenceToken     int64
-    StateKeysDone  int      // keys successfully emitted
-    StateKeysTotal int      // keys in original batch
-    Resumable      bool     // true if coordinator should re-queue remaining
-    Warnings       []WarningSummary
-    ParseTimedOut  bool     // true if parseCtx 5m fired on any key
-    AckReason      string   // "complete" | "partial_lease" | "partial_timeout" | "partial_queue_pressure"
-}
-```
-
-Coordinator contract:
-- Ack with `FenceToken != activeFence` → **reject**; worker was reaped; emits were already ignored by queue constraint. Worker logs `stale_fence_ack` and exits.
-- Ack with `Resumable=true` → coordinator marks claim batch partial; remaining `StateKeys` re-queued at next interval tick (does not reopen immediately; respects refresh cadence).
-- Ack with `ParseTimedOut=true` → coordinator increments `tfstate_parse_timeouts_total`; affected StateKey gets 24h cooldown (prevents thrash on a genuinely broken state file).
-
-### 3.9 Content-Store Concurrency With Git Collector
-
-Tfstate local backend reads the state file from the Postgres content store, which is written by the Git collector (via reducer). Interaction:
-
-- **Reader (tfstate)** uses `READ COMMITTED` isolation (pgx default). Sees latest committed row; never sees uncommitted Git writes.
-- **Writer (reducer)** writes content-store rows as atomic per-file rows. A state file either exists at the new Git generation or it doesn't; no torn reads.
-- **Generation ordering:** coordinator gates tfstate run on Git generation (per ADR §coordinator). Tfstate never runs until Git collector has committed its generation — so the read always sees the intended snapshot.
-- **Postgres MVCC** guarantees readers never block writers and vice versa. No lock ordering hazard.
-
-**Failure mode:** if Git collector is mid-generation and tfstate somehow runs (coordinator bug), tfstate reads may see a prior generation's state file. This is safe: fact envelope carries `generation_id` = state serial (from the file content), not Git generation. Consumers key on state serial, so a stale Git generation merely delays fact updates — never corrupts.
+- `scope_id`, `collector_kind=terraform_state`, `generation_id`
+- `fencing_token`, `lineage_uuid`, `serial`, `backend_kind`, `locator_hash`
+- `source_confidence`
+- `correlation_anchors[]`, excluding redactable values
+- `provider_resolved_arn`, `module_source_path`, `module_source_kind` when deterministic
 
 ---
 
-## 4. Memory Budget Table
+## 4. Concurrency Model
 
-`[PROPOSED]` values. Validated by fixture in §9.
+### 4.1 Worker pool
 
-| Layer | Steady | Peak | Hard Ceiling | Justification |
-|---|---|---|---|---|
-| Per worker baseline | 12 MiB | 16 MiB | 24 MiB | SDK client 6 MiB + parser 2 MiB + queue buffer 4 MiB |
-| Per claim peak | 24 MiB | 32 MiB | 48 MiB | 16 MiB attr-map ceiling + 16 MiB streaming window |
-| Content-store chunking | 4 MiB | 8 MiB | 16 MiB | 1 MiB chunks × 8 buffered |
-| S3 streaming buffer | 8 MiB | 16 MiB | 16 MiB | SDK v2 default; no override |
-| Fact batch buffer | 4 MiB | 8 MiB | 12 MiB | ~2k facts × ~4 KiB |
-| Pool total (8 workers) | 384 MiB | 512 MiB | 640 MiB | sum of worker peaks plus 128 MiB overhead |
+| Item | Default | Constraint |
+| --- | --- | --- |
+| Workers per pod | 8 | One active coordinator claim per worker |
+| Claim lease | 90s | Reaped if no heartbeat before expiry |
+| Heartbeat interval | 30s | Independent of parse and emit loops |
+| State parse timeout | 5m | Claim becomes partial/resumable |
+| Per-resource parse guard | 30s | Resource skipped/truncated with warning |
+| Batch flush | 2,000 facts or 500ms | Commit transaction stays short |
+| State size ceiling | 512 MiB | Configurable per instance; reject above ceiling |
+| Resource attribute-map ceiling | 16 MiB | Truncate/hash-redact and warn |
 
-- **GOMEMLIMIT target per pod: 768 MiB** (20% headroom over hard ceiling).
-- **OOM behavior**: soft back-off at 85% GOMEMLIMIT — pause new claim pickup,
-  drain in-flight, re-enter ready when below 70%. No hard crash on budget
-  breach; coordinator re-schedules.
-- **Observable gauge**: `eshu_dp_gomemlimit_bytes` reports configured limit.
+Per claim bounded stages: claim/open, parser, redaction/batch, emit, heartbeat. Channels between stages are bounded. Queue pressure blocks emit, then redaction, then parsing, then source reads; this is the memory safety path.
 
----
+### 4.2 Locking and fencing
 
-## 5. Throughput Math
+Shared state: coordinator work item and claim rows, heartbeat row, fact queue rows, content-store rows read for local state, reducer phase state.
 
-### 5.1 Worst-case inventory
+Rules:
 
-- Orgs with ~2000 repos
-- 10–30% have Terraform → 200–600 state files
-- Average state size: **2 MiB** `[PROPOSED — measure against corpus]`
-- P99 state size: **100 MiB** `[PROPOSED — measure against corpus]`
+- Claim issuance uses row-backed bounded selection with `FOR UPDATE SKIP LOCKED`-style semantics.
+- Heartbeat, emit, failure, release, and completion carry the current fencing token.
+- Queue insert rejects facts whose fence token is not current for the active work item.
+- The collector never holds a coordinator row lock while performing S3 I/O or parsing.
+- Fact batch transactions are short and never wait on heartbeat updates.
+- Content-store reads use committed rows only and do not block Git/reducer writers under Postgres MVCC.
 
-### 5.2 Refresh cadence math
+Deadlock review:
 
-- Baseline refresh interval: **15m** (per-instance override allowed)
-- States per interval target: **600 cold / 90 changed (85% If-None-Match hit)**
-- Cold-start re-emit throughput per worker:
-  - Read: 20 MiB/s (bounded by S3 GET + JSON decode)
-  - Emit: 5k facts/s (bounded by batch commit latency)
-- 8 workers × 20 MiB/s = 160 MiB/s aggregate read throughput
-- 600 states × 2 MiB avg = 1.2 GiB → **~8s cold drain at aggregate**
-- P99 100 MiB state × 1 outlier → +5s per outlier
-- **Worst-case cold drain: ~5 min** (includes queueing, retries, S3 throttle headroom)
+- Heartbeat and fact enqueue update separate rows in separate transactions.
+- Stale token operations are rejected at coordinator and fact-queue boundaries.
+- Retry and requeue are durable operations on expired or terminal claims, not process-local recovery.
 
-### 5.3 Backpressure behavior
+### 4.3 Partial completion
 
-- Fact queue depth > 50k: claim loop pauses pickup; heartbeat continues;
-  drain until depth < 20k.
-- S3 throttle: SDK v2 adaptive retry (max 3 attempts, exponential backoff
-  capped at 20s). Three consecutive throttles on same StateKey → yield claim
-  with `warning(kind=s3_throttle_yield)`; coordinator schedules retry on next
-  interval.
-- Content-store read slow (>5s for chunk): yield claim with warning; no
-  partial emit (lineage/serial not yet observed).
+Ack fields: `work_item_id`, `fencing_token`, `state_keys_total`, `state_keys_done`, `warnings_summary`, `resumable`, `ack_reason`.
+
+Allowed `ack_reason`: `complete`, `partial_timeout`, `partial_backend_pressure`, `partial_queue_pressure`, `stale_fence`.
+
+Coordinator behavior: reject mismatched fence; requeue remaining `StateKey`s on next scheduled tick when `resumable=true`; apply 24h cooldown after repeated locator timeout; keep workflow incomplete until reducer phase readiness is true.
 
 ---
 
-## 6. Telemetry Specification (FROZEN BEFORE CODE)
+## 5. Memory Budget
 
-### 6.1 Metrics
+| Layer | Steady | Peak | Hard ceiling | Notes |
+| --- | --- | --- | --- | --- |
+| Worker baseline | 12 MiB | 16 MiB | 24 MiB | AWS client, parser structs, queues |
+| Source stream | 4 MiB | 16 MiB | 16 MiB | Reader window; no full payload buffer |
+| Parser token state | 2 MiB | 4 MiB | 8 MiB | Decoder state and current object |
+| Resource attributes | 4 MiB | 16 MiB | 16 MiB | Largest resource map bound |
+| Fact batch | 4 MiB | 8 MiB | 12 MiB | About 2,000 facts per flush |
+| Per-claim total | 24 MiB | 32 MiB | 48 MiB | Target for one active state |
+| Pool total, 8 workers | 384 MiB | 512 MiB | 640 MiB | Includes runtime overhead |
 
-| Metric | Type | Labels | Buckets |
-|---|---|---|---|
-| `eshu_dp_tfstate_snapshots_observed_total` | counter | `backend_kind`, `result` (`changed`/`unchanged`/`rejected`) | — |
-| `eshu_dp_tfstate_snapshot_bytes` | histogram | `backend_kind` | `[1KiB, 10KiB, 100KiB, 1MiB, 10MiB, 100MiB, 500MiB]` |
-| `eshu_dp_tfstate_resources_emitted_total` | counter | `backend_kind` | — |
-| `eshu_dp_tfstate_outputs_emitted_total` | counter | `backend_kind` | — |
-| `eshu_dp_tfstate_redactions_applied_total` | counter | `reason` ∈ {`sensitive_output`,`known_sensitive_key`,`unknown_schema`} | — |
-| `eshu_dp_tfstate_warnings_emitted_total` | counter | `warning_kind` (enum, 12 values) | — |
-| `eshu_dp_tfstate_backend_errors_total` | counter | `backend_kind`, `error_class` (enum, 8 values) | — |
-| `eshu_dp_tfstate_discovery_candidates_total` | counter | `source` ∈ {`graph`,`seed`} | — |
-| `eshu_dp_tfstate_parse_duration_seconds` | histogram | `backend_kind` | `[0.01, 0.05, 0.1, 0.5, 1, 5, 15, 60, 300]` |
-| `eshu_dp_tfstate_serial_regressions_total` | counter | — | — |
-| `eshu_dp_tfstate_lineage_rotations_total` | counter | — | — |
-| `eshu_dp_tfstate_unknown_provider_schema_total` | counter | `provider` (bounded: top 20 + `other`) | — |
-| `eshu_dp_tfstate_s3_conditional_get_not_modified_total` | counter | — | — |
-| `eshu_dp_tfstate_claim_wait_seconds` | histogram | — | `[0.01, 0.1, 0.5, 1, 5, 15, 60, 300, 900]` |
+Pod target: `GOMEMLIMIT=768MiB`; soft backoff at 85%; resume below 70%; publish `eshu_dp_gomemlimit_bytes`, `eshu_dp_tfstate_worker_memory_bytes`, and `eshu_dp_tfstate_memory_backoff_active`.
 
-Cardinality caps:
-- `backend_kind` ∈ {`s3`, `local`, `terragrunt`} (3 values)
-- `warning_kind` frozen enum (12); new warnings require contract.go update
-- `error_class` frozen enum (8)
-- `provider` bounded to top 20 providers by observed count; rest bucketed as `other`
-
-Reducer/consumer field contract carried by emitted tfstate facts:
-
-- `provider_resolved_arn`
-- `module_source_path`
-- `module_source_kind`
-- `correlation_anchors`
-- shared `source_confidence`
-
-### 6.2 Spans
-
-| Span | Required attributes |
-|---|---|
-| `tfstate.collector.claim.process` | `scope_id`, `generation_id`, `collector_instance_id`, `fence_token` |
-| `tfstate.discovery.resolve` | `scope_id`, `candidates_count`, `source_mix` (`graph:90,seed:10`) |
-| `tfstate.source.open` | `backend_kind`, `locator_hash` (sha256 of locator), `conditional_get` (bool) |
-| `tfstate.parser.stream` | `backend_kind`, `serial`, `lineage_uuid`, `resources_emitted`, `truncated` (bool) |
-| `tfstate.fact.emit_batch` | `batch_size`, `fact_kinds_mix` (JSON string) |
-
-Child structure under `claim.process`:
-- `discovery.resolve` (1×)
-- `source.open` (N× per StateKey)
-- `parser.stream` (N× per StateKey with 200 response)
-- `fact.emit_batch` (M× per batch flush)
-
-Span events for warnings: `name=tfstate.warning`, attrs: `warning_kind`,
-`resource_address` (redacted to module path, never attr values).
-
-### 6.3 Structured log keys
-
-Required on every log line:
-- `scope_id`, `generation_id` (= state serial), `lineage_uuid`
-- `backend_kind`, `locator_hash`
-- `collector_instance_id`, `fence_token`
-- `failure_class` on error paths
-
-Forbidden:
-- Any attribute value from state payload
-- Any output value (even non-sensitive — contract ambiguity risk)
-- Raw state bytes or raw sizes beyond histogram bucket granularity
-- Full S3 URLs (use locator_hash)
-
-Log level policy:
-- **INFO**: claim start, claim end, lineage rotation, unchanged snapshot
-- **WARN**: serial regression, unknown provider schema, state_in_vcs,
-  terragrunt include too deep, attr_map_truncated
-- **ERROR**: backend errors (throttle, access denied), parse_timeout,
-  coordinator fence mismatch
-
-Sampling: `parser.stream` span events for truncation → 100% (rare, always
-log). Per-resource emit logs → NEVER emitted (metrics only).
+Acceptance evidence required: 100 MiB/10,000-resource fixture stays below 512 MiB peak for 8 workers; 512 MiB ceiling fixture rejects before full read or unbounded allocation; attribute-map overflow emits warning without panic or raw-value leak.
 
 ---
 
-## 7. Failure Mode Matrix
+## 6. Throughput Math
 
-| Failure | Detection Signal | Recovery Path | Operator Action |
-|---|---|---|---|
-| S3 GetObject throttled | `backend_errors_total{error_class=throttle}` + span status | Adaptive retry 3×, then release claim; coordinator schedules next | Dashboard shows throttle spike; tune interval or request S3 quota |
-| S3 access denied | `backend_errors_total{error_class=access_denied}` + warning fact | Fail claim; coordinator marks instance unhealthy after 3 consecutive | Rotate/verify IAM role + external ID |
-| State serial regression | `serial_regressions_total` + `terraform_state_warning` fact | Reject emit; keep prior indexed state | Investigate backend (rollback, restore, split-brain) |
-| Lineage rotation | `lineage_rotations_total` + warning | Emit new lineage; never merge with prior | Audit with operator; usually intentional recreate |
-| Unknown provider schema | `unknown_provider_schema_total{provider=X}` + warning | Conservative redaction; emit partial | File issue to add provider schema pack |
-| State too large | `warnings_emitted_total{warning_kind=state_too_large}` | Skip + warning; no partial emit | Raise ceiling per instance or split state |
-| Redaction catch-all tripped | `redactions_applied_total{reason=unknown_schema}` spike | Continue emitting with conservative redaction | Review provider schema coverage |
-| Worker OOM | coordinator reap + `eshu_dp_gomemlimit_bytes` breach | Soft back-off, reduce pool concurrency | File incident; tune ceiling |
-| Lease expiry mid-parse | `claim_expired_total` (coordinator) + `stale_fence` log | Coordinator reap; fencing rejects stale emits | Investigate why parse exceeded lease |
-| Content-store read failure | `backend_errors_total{backend_kind=local,error_class=content_store}` | Retry 1×; then yield claim | Check content-store health; reducer logs |
-| Coordinator ack partial | `claim_ack_rejected_total` (coordinator) | Worker re-reads fence; discards stale state | Correlation window logs show fence advance cause |
-| Terragrunt include too deep | `warnings_emitted_total{warning_kind=terragrunt_include_too_deep}` | Skip StateKey; emit warning | Inspect HCL chain; fix cycle or split modules |
-| DynamoDB GetItem denied | `backend_errors_total{backend_kind=s3,error_class=ddb_denied}` | Continue without lock metadata (best-effort) | Grant `dynamodb:GetItem` if lock telemetry desired |
+Launch assumptions: 2,000 repos; 10% to 30% with Terraform state evidence; 200 to 600 StateKeys; 2 MiB average state; 100 MiB P99 state; 15m refresh interval; 85% conditional S3 hit ratio after warmup.
+
+| Step | Math | Result |
+| --- | --- | --- |
+| Average cold bytes | 600 states * 2 MiB | 1.2 GiB |
+| Read/decode throughput | 8 workers * 20 MiB/s | 160 MiB/s |
+| Raw read time | 1.2 GiB / 160 MiB/s | about 8s |
+| Commit and retry headroom | queue tx, backoff, outliers | target under 5m |
+| Warm changed set | 90 states * 2 MiB | 180 MiB |
+| Warm steady read time | 180 MiB / 160 MiB/s | about 2s plus overhead |
+
+Backpressure rules:
+
+- Fact queue depth above 50,000 pauses new claim pickup; resume below 20,000.
+- S3 throttling uses max 3 attempts, exponential backoff capped at 20s, then yields `s3_throttle_yield`.
+- Content-store read slower than 5s per chunk yields before partial emit unless serial and lineage were validated.
+- Reducer backlog delays final workflow completion through coordinator phase gates; it does not cause duplicate collection.
 
 ---
 
-## 8. Concurrency Review Checklist
+## 7. Telemetry Specification
 
-Shared state enumerated:
-- Coordinator claim row (per instance × scope batch)
-- Fact queue table (global)
-- Heartbeat row (per claim)
-- Content-store read surface (shared with Git collector, reducer)
+### 7.1 Metrics
 
-Proofs:
-- [x] Claim fencing prevents dual-writer on same scope (fence_token unique + monotonic; queue constraint rejects stale)
-- [x] Fact-queue enqueue is idempotent under fence (unique `(scope_id, generation_id, fact_kind, fact_stable_key)` constraint, per ADR §coordinator)
-- [x] Content-store reads safe under concurrent Git + tfstate collectors (MVCC readers; writers are reducer only)
-- [x] Heartbeat + parse cannot deadlock (separate goroutines, separate Postgres rows; heartbeat doesn't touch queue)
-- [x] Lock ordering cycle-free (see §3.4)
+| Metric | Type | Labels |
+| --- | --- | --- |
+| `eshu_dp_tfstate_snapshots_observed_total` | counter | `backend_kind`, `result` |
+| `eshu_dp_tfstate_snapshot_bytes` | histogram | `backend_kind` |
+| `eshu_dp_tfstate_resources_emitted_total` | counter | `backend_kind` |
+| `eshu_dp_tfstate_outputs_emitted_total` | counter | `backend_kind` |
+| `eshu_dp_tfstate_redactions_applied_total` | counter | `reason` |
+| `eshu_dp_tfstate_warnings_emitted_total` | counter | `warning_kind` |
+| `eshu_dp_tfstate_backend_errors_total` | counter | `backend_kind`, `error_class` |
+| `eshu_dp_tfstate_discovery_candidates_total` | counter | `source` |
+| `eshu_dp_tfstate_parse_duration_seconds` | histogram | `backend_kind` |
+| `eshu_dp_tfstate_serial_regressions_total` | counter | none |
+| `eshu_dp_tfstate_lineage_rotations_total` | counter | none |
+| `eshu_dp_tfstate_unknown_provider_schema_total` | counter | `provider_bucket` |
+| `eshu_dp_tfstate_s3_conditional_get_not_modified_total` | counter | none |
+| `eshu_dp_tfstate_claim_wait_seconds` | histogram | `collector_instance_id` |
+| `eshu_dp_tfstate_memory_backoff_active` | gauge | `collector_instance_id` |
+
+Cardinality caps: `backend_kind={s3,local,terragrunt}`; `result={changed,unchanged,rejected,partial}`; `warning_kind` and `error_class` are frozen enums; `provider_bucket` is top 20 providers plus `other`.
+
+### 7.2 Traces and logs
+
+Required spans: `tfstate.collector.claim.process`, `tfstate.discovery.resolve`, `tfstate.source.open`, `tfstate.parser.stream`, `tfstate.fact.emit_batch`, `tfstate.coordinator.complete`.
+
+Required span/log attributes: `scope_id`, `generation_id`, `lineage_uuid`, `collector_instance_id`, `work_item_id`, `fencing_token`, `backend_kind`, `locator_hash`, `failure_class`.
+
+Forbidden telemetry fields: raw state bytes, output values, attribute values, full S3 URLs, unredacted Terragrunt config values.
+
+Operator questions telemetry must answer:
+
+- Is the collector waiting on Git evidence, S3, parsing, queue, or reducer convergence?
+- Which locator is failing, identified only by locator hash and configured source reference?
+- Is memory pressure pausing claims?
+- Are serial regressions or lineage rotations occurring?
+- Did the run finish collection but wait on `cross_source_anchor_ready`?
+
+---
+
+## 8. Failure Mode Matrix
+
+| Failure | Detection | Recovery | Operator action |
+| --- | --- | --- | --- |
+| Missing Git evidence | coordinator status `waiting_on_git_generation` | do not run graph discovery | inspect Git collector/reducer phases |
+| Speculative locator requested | config validation error | reject seed or candidate | replace with exact bucket/key or repo path |
+| S3 throttling | `backend_errors_total{error_class=throttle}` | retry 3x, yield claim | tune interval/concurrency or AWS quota |
+| S3 access denied | `error_class=access_denied` | fail claim after retry classification | fix IAM role/trust/external ID |
+| S3 not found | `error_class=not_found` | emit warning, do not crawl | verify backend fact or seed |
+| DynamoDB denied | `error_class=ddb_denied` | continue without lock metadata | grant read-only lock table access if desired |
+| State too large | `state_too_large` warning | skip without partial facts | split state or raise explicit ceiling |
+| Parse timeout | `parse_timeout` warning | partial ack, cooldown after repeats | inspect state schema/size |
+| Attribute map too large | `attr_map_truncated` warning | truncate/hash-redact resource | improve schema coverage or split resource |
+| Unknown provider schema | provider bucket metric + warning | conservative redaction and partial facts | add schema pack |
+| Serial regression | metric + warning fact | reject replacement | investigate backend rollback/split brain |
+| Lineage rotation | metric + warning fact | start new lineage generation | confirm intentional state recreation |
+| Queue pressure | queue-depth and claim-wait metrics | pause new claims, drain | scale reducer or reduce collector workers |
+| Lease expiry | coordinator expired-claim metric | requeue with new fence | inspect worker stalls and memory pressure |
+| Stale emit | queue rejected stale fence | discard old worker output | correlate with lease expiry incident |
+| Raw-value telemetry attempt | redaction audit test failure | block merge | fix parser/logging before release |
+
+---
+
+## 9. Accuracy Checkpoints
+
+Required evidence before #49 closes:
+
+- [ ] S3 state with known AWS ARN emits `provider_resolved_arn`, `module_source_path`, and anchors.
+- [ ] Local state from content store emits `state_in_vcs` warning and redacted facts.
+- [ ] Terragrunt include depth 3 resolves to exact S3 locator.
+- [ ] Terragrunt include depth 12 is rejected with warning.
+- [ ] Prefix-only S3 seed is rejected; no bucket crawl occurs.
+- [ ] Serial regression rejects replacement facts.
+- [ ] State over 512 MiB rejects before full buffering.
+- [ ] Lineage rotation emits warning and new lineage series.
+- [ ] Sensitive outputs and known sensitive keys never appear in facts, logs, metrics, spans, or admin status.
+- [ ] Unknown provider fixture hash-redacts scalar leaves, drops non-scalar unknowns, and emits warning.
+- [ ] Conditional S3 ETag hit emits only unchanged snapshot metadata.
+- [ ] Stale worker facts are rejected after fence advance.
+- [ ] Coordinator fixture proves tfstate run waits for Git evidence and reducer phase readiness.
+- [ ] 600 StateKeys with 8 workers completes cold drain under 5m in test environment.
+
+TDD requirement for implementation issues: each slice lands failing tests before code, with positive, negative, and ambiguous cases when parsing, discovery, redaction, or concurrency changes.
+
+---
+
+## 10. Concurrency Review Checklist
+
+- [ ] Shared state enumerated: claims, heartbeats, fact queue, content store, reducer phase state.
+- [ ] Claim issuance uses durable row-backed ownership and bounded selection.
+- [ ] Fencing token is required on heartbeat, emit, failure, release, and ack.
+- [ ] Stale fact insert is rejected mechanically, not by convention.
+- [ ] Heartbeat cannot deadlock with emit transactions.
+- [ ] S3 and parser work never run while holding coordinator row locks.
+- [ ] Backpressure path is bounded from queue -> emit -> parser -> source read.
+- [ ] Retry rules are bounded and classified.
+- [ ] Partial completion is explicit and resumable.
+- [ ] Workflow completion waits for reducer-published downstream truth.
 
 Sign-offs:
 
@@ -543,49 +425,18 @@ Sign-offs:
 
 ---
 
-## 9. Accuracy Checkpoints (Tests Required Before Merge)
+## 11. Security Review Checklist
 
-- [ ] Fixture: 100 MiB state with 10k resources — memory peak stays <512 MiB pool
-- [ ] Fixture: state with sensitive outputs — values never appear in any emitted fact, log, or metric
-- [ ] Fixture: state with unknown provider — conservative redaction applied, warning emitted
-- [ ] Fixture: serial regression (two snapshots, second has lower serial) — emit rejected, warning emitted
-- [ ] Fixture: lineage rotation — new lineage carried forward; old state not merged
-- [ ] Fixture: Terragrunt include chain (depth 3) resolving to S3 — correct locator produced
-- [ ] Fixture: Terragrunt include chain depth 12 — warning emitted, StateKey skipped
-- [ ] Fixture: If-None-Match hit — zero facts emitted other than unchanged snapshot
-- [ ] Fixture: state too large (>500 MiB) — rejected with warning, no partial emit
-- [ ] Fixture: attr map >16 MiB — truncated, warning emitted, resource still recorded
-- [ ] Fixture: state_in_vcs (local backend) — warning emitted, facts still processed
-- [ ] Fixture: lease expiry mid-parse — stale emit rejected by fence
-- [ ] Integration: coordinator run gated on upstream Git generation; no facts before Git completes
-- [ ] Integration: 600 StateKeys × 8 workers — completes <5 min cold drain
-
-Fixture location: `go/internal/collector/tfstate/testdata/`
-E2E gate: remote instance drain test documented in
-`docs/docs/reference/local-testing.md` addendum.
-
----
-
-## 10. Security Review Checklist
-
-- [ ] IAM policy template: read-only (S3: `GetObject`, `ListBucket`;
-      DynamoDB: `GetItem`; no `Put*`/`Delete*`/`*Write*`)
-- [ ] Runtime guard: reject any configured role whose simulated policy
-      grants write capability (boot-time check via STS simulator or explicit
-      policy parse)
-- [ ] External ID required on every assume-role trust policy
-- [ ] Redaction library: `go/internal/redact` shared lib (gate #123)
-  - sensitive=true outputs → sha256 hash
-  - known-sensitive keys list: `password`, `secret`, `token`, `key`,
-    `credential`, `private_key`, `access_key`, `cert`, `passphrase`
-  - unknown-schema attribute maps: conservative (hash all string leaves
-    longer than 32 chars)
-- [ ] No raw state payload reaches any Eshu persistent surface (content
-      store, facts, logs, metrics)
-- [ ] Local-backend read produces `state_in_vcs` warning; operator
-      remediation documented
-- [ ] Logs audit: no attribute values, no output values, no raw bytes, no
-      full S3 URLs
+- [ ] IAM template grants only required reads: `s3:GetObject`, optional `s3:GetObjectVersion`, tightly scoped `s3:ListBucket`, and optional `dynamodb:GetItem`/`dynamodb:Query`.
+- [ ] IAM template denies or omits all S3/DynamoDB write APIs.
+- [ ] External ID or workload identity trust boundary is required for cross-account AWS access.
+- [ ] Runtime startup validates configured sources are exact locators, not crawl instructions.
+- [ ] Runtime guard rejects backend configs that request write capability.
+- [ ] Redaction happens before persistence and before structured logging.
+- [ ] Unknown provider schemas default to conservative redaction.
+- [ ] Raw state payload is not written to content store, facts, logs, metrics, spans, traces, crash dumps, or admin status.
+- [ ] Locator hashes, not full S3 URLs, are used in telemetry.
+- [ ] Local state produces operator-visible `state_in_vcs` warning.
 
 Sign-off:
 
@@ -593,43 +444,54 @@ Sign-off:
 
 ---
 
-## 11. Open Questions — Resolution Proposals
+## 12. PE/SRE Review Checklist
 
-| Question | Proposal |
-|---|---|
-| Memory ceiling | `GOMEMLIMIT=768 MiB` per pod; soft back-off at 85% |
-| Baseline refresh interval | 15m default; per-instance override allowed via coordinator config |
-| Terragrunt include depth limit | 10 (matches terragrunt's own default guard) |
-| DynamoDB lock-table usage | Read-only `GetItem` best-effort on launch; absence non-fatal |
-| Per-resource attr map ceiling | 16 MiB (truncate + warn on exceed) |
-| Whole-state parse timeout | 5 min |
-| Lease duration / heartbeat | 90s / 30s (3× safety margin) |
-| Provider label cardinality | Top 20 + `other`; registry updated per release |
+Principal engineer:
 
-Reviewers may challenge any row; mark accepted in sign-off comment.
+- [ ] Scope and generation identity are deterministic.
+- [ ] Fact fields satisfy reducer/consumer ADR requirements.
+- [ ] Discovery policy cannot invent unsupported locators.
+- [ ] Parser and redaction boundaries are enforceable in tests.
+- [ ] The collector remains facts-first and does not own drift/correlation.
+- [ ] The plan preserves accuracy before performance and reliability tuning.
+
+Principal SRE:
+
+- [ ] Memory budget has headroom and observable backoff.
+- [ ] Throughput math is credible for 600 states per 15m interval.
+- [ ] Retry behavior cannot create scan storms.
+- [ ] Queue pressure and reducer convergence are visible separately.
+- [ ] Failure classes map to clear operator actions.
+- [ ] 3 AM diagnosis path is covered by metrics, traces, logs, and status.
 
 ---
 
-## 12. Gate Closure Checklist
+## 13. Gate Closure Checklist
 
-All below checked, reviewed, and sign-offs recorded before #103 closes and
-implementation may begin.
+#49 may close only when every item below is complete:
 
-- [x] Section 1 diagrams complete (5 diagrams: happy, regression, lineage, lease expiry, terragrunt, ddb)
-- [x] Section 2 data flow complete
-- [x] Section 3 concurrency model complete + lock ordering proof
-- [x] Section 4 memory budget filled (pending fixture validation)
-- [x] Section 5 throughput math filled (pending corpus measurement for avg/p99 state size)
-- [x] Section 6 telemetry spec frozen (buckets + labels finalized)
-- [x] Section 7 failure matrix complete (13 rows)
-- [ ] Section 8 concurrency review signed off
-- [ ] Section 9 accuracy checkpoints have test fixtures committed
-- [ ] Section 10 security review signed off
-- [x] Section 11 open questions resolved (proposal table)
-- [x] **Consumer contract sign-off** — ADR `2026-04-20-multi-source-reducer-and-consumer-contract.md` accepted, and this plan's fact envelope updated with §7.1 required fields (`provider_resolved_arn`, `module_source_path`, `module_source_kind`, `correlation_anchors`, shared `source_confidence`)
-- [ ] Principal engineer sign-off
-- [ ] Principal SRE sign-off
-- [ ] Security sign-off
+- [x] Plan skeleton names scope, generation, backend, fact, and completion contracts.
+- [x] Sequence diagrams cover claim, discovery, open, parse, emit, complete, lease expiry, serial regression, and lineage rotation.
+- [x] Data-flow diagram marks the raw-payload boundary.
+- [x] Concurrency model covers bounded workers, fencing, lock ordering, partial ack, and backpressure.
+- [x] Memory budget is documented with acceptance evidence required.
+- [x] Throughput math is documented with cold and warm assumptions.
+- [x] Telemetry spec defines metrics, spans, log keys, cardinality caps, and forbidden fields.
+- [x] Failure matrix maps detection, recovery, and operator action.
+- [x] Accuracy checkpoints are enumerated for implementation TDD.
+- [x] Security checklist covers read-only S3, no crawl, no raw persistence, and redaction before persistence.
+- [ ] Concurrency review signed off.
+- [ ] Security review signed off.
+- [ ] Principal engineer review signed off.
+- [ ] Principal SRE review signed off.
+- [ ] Any reviewer-changed numeric defaults are recorded in this plan.
 
-Only after every box is checked does #103 close. Only after #103 closes may
-any tfstate/* PR merge.
+Only after #49 closes may implementation issues #47, #46, #45, #44, and #43 merge.
+
+---
+
+## 14. Reference Notes
+
+Local sources read: `README.md`, `AGENTS.md`, the Terraform-state ADR, collector authoring guide, coordinator runtime ADR, coordinator claiming ADR, and multi-source reducer/consumer ADR.
+
+Official behavior references used for architecture assumptions: AWS S3 `GetObject`, AWS S3 consistency model, AWS IAM S3 actions, DynamoDB `GetItem`, PostgreSQL transaction isolation, and PostgreSQL `SELECT` locking.

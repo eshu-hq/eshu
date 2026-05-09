@@ -17,11 +17,27 @@ A fact must be identified by:
 
 - `fact_kind`
 - `schema_version`
+- `collector_kind`
+- `source_confidence`
 
 `schema_version` is required on every fact family that crosses collector
 boundaries.
 
 `schema_version` uses semantic versioning.
+
+`collector_kind` identifies the collector family that produced the fact, such
+as `git`, `terraform_state`, `aws`, or `webhook`.
+
+`source_confidence` identifies how Eshu learned the fact:
+
+- `observed` — read directly from the source artifact
+- `reported` — returned by an external system or API
+- `inferred` — concluded by correlating other evidence
+- `derived` — materialized from existing Eshu facts
+- `unknown` — legacy or system fallback only
+
+New collectors must set `source_confidence` deliberately. `unknown` is allowed
+as a storage compatibility default, not as a normal authoring choice.
 
 ## Fact Kind Namespace
 
@@ -55,6 +71,8 @@ A plugin manifest must declare:
 
 - emitted fact kinds
 - supported schema versions
+- collector kind
+- source confidence values used by each fact family
 - minimum compatible Eshu core version
 
 ## Runtime Behavior

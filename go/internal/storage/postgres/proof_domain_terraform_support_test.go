@@ -30,20 +30,7 @@ func proofFactRows(input map[string]facts.Envelope, scopeID, generationID string
 			continue
 		}
 		payload, _ := json.Marshal(envelope.Payload)
-		rows = append(rows, []any{
-			envelope.FactID,
-			envelope.ScopeID,
-			envelope.GenerationID,
-			envelope.FactKind,
-			envelope.StableFactKey,
-			envelope.SourceRef.SourceSystem,
-			envelope.SourceRef.FactKey,
-			envelope.SourceRef.SourceURI,
-			envelope.SourceRef.SourceRecordID,
-			envelope.ObservedAt.UTC(),
-			envelope.IsTombstone,
-			payload,
-		})
+		rows = append(rows, proofFactEnvelopeRow(envelope, payload))
 	}
 	return rows
 }
@@ -110,22 +97,30 @@ func proofLatestRelationshipFactRows(state proofState) [][]any {
 	rows := make([][]any, 0, len(envelopes))
 	for _, envelope := range envelopes {
 		payload, _ := json.Marshal(envelope.Payload)
-		rows = append(rows, []any{
-			envelope.FactID,
-			envelope.ScopeID,
-			envelope.GenerationID,
-			envelope.FactKind,
-			envelope.StableFactKey,
-			envelope.SourceRef.SourceSystem,
-			envelope.SourceRef.FactKey,
-			envelope.SourceRef.SourceURI,
-			envelope.SourceRef.SourceRecordID,
-			envelope.ObservedAt.UTC(),
-			envelope.IsTombstone,
-			payload,
-		})
+		rows = append(rows, proofFactEnvelopeRow(envelope, payload))
 	}
 	return rows
+}
+
+func proofFactEnvelopeRow(envelope facts.Envelope, payload []byte) []any {
+	return []any{
+		envelope.FactID,
+		envelope.ScopeID,
+		envelope.GenerationID,
+		envelope.FactKind,
+		envelope.StableFactKey,
+		emptyToDefault(envelope.SchemaVersion, "0.0.0"),
+		emptyToDefault(envelope.CollectorKind, emptyToDefault(envelope.SourceRef.SourceSystem, "unknown")),
+		envelope.FencingToken,
+		emptyToDefault(envelope.SourceConfidence, "unknown"),
+		envelope.SourceRef.SourceSystem,
+		envelope.SourceRef.FactKey,
+		envelope.SourceRef.SourceURI,
+		envelope.SourceRef.SourceRecordID,
+		envelope.ObservedAt.UTC(),
+		envelope.IsTombstone,
+		payload,
+	}
 }
 
 func laterGeneration(current scope.ScopeGeneration, candidate scope.ScopeGeneration) bool {

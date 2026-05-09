@@ -1,10 +1,9 @@
 package postgres
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -12,15 +11,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
 
+var schemaVersionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
+
 const (
 	// factBatchSize is the number of rows per multi-row INSERT batch.
-	// 500 rows * 13 columns = 6500 parameters per query, well under the
+	// 500 rows * 17 columns = 8500 parameters per query, well under the
 	// Postgres limit of 65535. This reduces 91k facts from 91k round trips
 	// to ~184 queries.
 	factBatchSize = 500
 
 	// columnsPerFactRow is the number of columns in the fact_records INSERT.
-	columnsPerFactRow = 13
+	columnsPerFactRow = 17
 )
 
 // factUpsertStats summarizes one streaming fact persistence pass without
@@ -39,6 +40,10 @@ SELECT
     generation_id,
     fact_kind,
     stable_fact_key,
+    schema_version,
+    collector_kind,
+    fencing_token,
+    source_confidence,
     source_system,
     source_fact_key,
     COALESCE(source_uri, ''),
@@ -131,6 +136,10 @@ func scanFactEnvelope(rows Rows) (facts.Envelope, error) {
 	var generationID string
 	var factKind string
 	var stableFactKey string
+	var schemaVersion string
+	var collectorKind string
+	var fencingToken int64
+	var sourceConfidence string
 	var sourceSystem string
 	var sourceFactKey string
 	var sourceURI string
@@ -145,6 +154,10 @@ func scanFactEnvelope(rows Rows) (facts.Envelope, error) {
 		&generationID,
 		&factKind,
 		&stableFactKey,
+		&schemaVersion,
+		&collectorKind,
+		&fencingToken,
+		&sourceConfidence,
 		&sourceSystem,
 		&sourceFactKey,
 		&sourceURI,
@@ -162,14 +175,18 @@ func scanFactEnvelope(rows Rows) (facts.Envelope, error) {
 	}
 
 	return facts.Envelope{
-		FactID:        factID,
-		ScopeID:       scopeID,
-		GenerationID:  generationID,
-		FactKind:      factKind,
-		StableFactKey: stableFactKey,
-		ObservedAt:    observedAt.UTC(),
-		Payload:       payload,
-		IsTombstone:   isTombstone,
+		FactID:           factID,
+		ScopeID:          scopeID,
+		GenerationID:     generationID,
+		FactKind:         factKind,
+		StableFactKey:    stableFactKey,
+		SchemaVersion:    schemaVersion,
+		CollectorKind:    collectorKind,
+		FencingToken:     fencingToken,
+		SourceConfidence: sourceConfidence,
+		ObservedAt:       observedAt.UTC(),
+		Payload:          payload,
+		IsTombstone:      isTombstone,
 		SourceRef: facts.Ref{
 			SourceSystem:   sourceSystem,
 			ScopeID:        scopeID,
@@ -236,10 +253,11 @@ func upsertFactBatch(ctx context.Context, db ExecQueryer, batch []facts.Envelope
 		}
 		offset := i * columnsPerFactRow
 		fmt.Fprintf(&values,
-			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d::jsonb)",
+			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d::jsonb)",
 			offset+1, offset+2, offset+3, offset+4, offset+5,
 			offset+6, offset+7, offset+8, offset+9, offset+10,
-			offset+11, offset+12, offset+13,
+			offset+11, offset+12, offset+13, offset+14, offset+15,
+			offset+16, offset+17,
 		)
 
 		args = append(args,
@@ -248,6 +266,10 @@ func upsertFactBatch(ctx context.Context, db ExecQueryer, batch []facts.Envelope
 			envelope.GenerationID,
 			envelope.FactKind,
 			envelope.StableFactKey,
+			emptyToDefault(envelope.SchemaVersion, "0.0.0"),
+			emptyToDefault(envelope.CollectorKind, emptyToDefault(envelope.SourceRef.SourceSystem, "unknown")),
+			envelope.FencingToken,
+			emptyToDefault(envelope.SourceConfidence, "unknown"),
 			envelope.SourceRef.SourceSystem,
 			envelope.SourceRef.FactKey,
 			emptyToNil(envelope.SourceRef.SourceURI),
@@ -270,6 +292,7 @@ func upsertFactBatch(ctx context.Context, db ExecQueryer, batch []facts.Envelope
 
 const upsertFactBatchPrefix = `INSERT INTO fact_records (
     fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    schema_version, collector_kind, fencing_token, source_confidence,
     source_system, source_fact_key, source_uri, source_record_id,
     observed_at, ingested_at, is_tombstone, payload
 ) VALUES `
@@ -278,6 +301,10 @@ const upsertFactBatchSuffix = `
 ON CONFLICT (fact_id) DO UPDATE SET
     fact_kind = EXCLUDED.fact_kind,
     stable_fact_key = EXCLUDED.stable_fact_key,
+    schema_version = EXCLUDED.schema_version,
+    collector_kind = EXCLUDED.collector_kind,
+    fencing_token = EXCLUDED.fencing_token,
+    source_confidence = EXCLUDED.source_confidence,
     source_system = EXCLUDED.source_system,
     source_fact_key = EXCLUDED.source_fact_key,
     source_uri = EXCLUDED.source_uri,
@@ -400,87 +427,9 @@ func validateFactEnvelope(envelope facts.Envelope) error {
 	if observedAt.IsZero() {
 		return fmt.Errorf("fact %q observed_at must not be zero", envelope.FactID)
 	}
+	if !schemaVersionPattern.MatchString(emptyToDefault(envelope.SchemaVersion, "0.0.0")) {
+		return fmt.Errorf("fact %q schema_version must be semantic version", envelope.FactID)
+	}
 
 	return nil
-}
-
-func marshalPayload(payload map[string]any) ([]byte, error) {
-	if len(payload) == 0 {
-		return []byte("{}"), nil
-	}
-
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	data = sanitizeJSONB(data)
-
-	// Final guard: if sanitization produced invalid JSON, return empty object.
-	if !json.Valid(data) {
-		return []byte("{}"), nil
-	}
-
-	return data, nil
-}
-
-// sanitizeJSONB cleans marshaled JSON bytes for Postgres JSONB compatibility.
-//
-// Postgres JSONB is stricter than the JSON spec in two ways:
-//   - Rejects \u0000 null-byte escape sequences (SQLSTATE 22P05)
-//   - Rejects raw control bytes 0x00-0x1F that aren't JSON-escaped (SQLSTATE 22P02)
-//
-// Source code payloads (file content, entity source_cache) may contain these
-// bytes when repositories include binary files or non-UTF-8 content.
-func sanitizeJSONB(data []byte) []byte {
-	// Fast path: most payloads are clean.
-	needsSanitize := false
-	for _, b := range data {
-		if b < 0x20 && b != '\t' && b != '\n' && b != '\r' {
-			needsSanitize = true
-			break
-		}
-	}
-	if !needsSanitize && !bytes.Contains(data, []byte(`\u0000`)) {
-		return data
-	}
-
-	// Strip \u0000 escape sequences (Postgres JSONB rejects them).
-	data = bytes.ReplaceAll(data, []byte(`\u0000`), nil)
-
-	// Strip raw control bytes except tab, newline, carriage return
-	// (which json.Marshal already escapes properly).
-	cleaned := make([]byte, 0, len(data))
-	for _, b := range data {
-		if b < 0x20 && b != '\t' && b != '\n' && b != '\r' {
-			continue
-		}
-		cleaned = append(cleaned, b)
-	}
-
-	return cleaned
-}
-
-func unmarshalPayload(raw []byte) (map[string]any, error) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, fmt.Errorf("decode payload json: %w", err)
-	}
-	if len(payload) == 0 {
-		return nil, nil
-	}
-
-	return payload, nil
-}
-
-func emptyToNil(value string) any {
-	if value == "" {
-		return nil
-	}
-
-	return value
 }

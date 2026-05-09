@@ -23,15 +23,19 @@ func (r Ref) ScopeGenerationKey() string {
 
 // Envelope is the durable Go representation of a fact envelope.
 type Envelope struct {
-	FactID        string
-	ScopeID       string
-	GenerationID  string
-	FactKind      string
-	StableFactKey string
-	ObservedAt    time.Time
-	Payload       map[string]any
-	IsTombstone   bool
-	SourceRef     Ref
+	FactID           string
+	ScopeID          string
+	GenerationID     string
+	FactKind         string
+	StableFactKey    string
+	SchemaVersion    string
+	CollectorKind    string
+	FencingToken     int64
+	SourceConfidence string
+	ObservedAt       time.Time
+	Payload          map[string]any
+	IsTombstone      bool
+	SourceRef        Ref
 }
 
 // ScopeGenerationKey returns the durable scope-generation boundary for this envelope.

@@ -120,6 +120,10 @@ CREATE TABLE IF NOT EXISTS fact_records (
     generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
     fact_kind TEXT NOT NULL,
     stable_fact_key TEXT NOT NULL,
+    schema_version TEXT NOT NULL DEFAULT '0.0.0',
+    collector_kind TEXT NOT NULL DEFAULT 'unknown',
+    fencing_token BIGINT NOT NULL DEFAULT 0,
+    source_confidence TEXT NOT NULL DEFAULT 'unknown',
     source_system TEXT NOT NULL,
     source_fact_key TEXT NOT NULL,
     source_uri TEXT NULL,
@@ -129,6 +133,18 @@ CREATE TABLE IF NOT EXISTS fact_records (
     is_tombstone BOOLEAN NOT NULL DEFAULT FALSE,
     payload JSONB NOT NULL DEFAULT '{}'::jsonb
 );
+
+ALTER TABLE fact_records
+    ADD COLUMN IF NOT EXISTS schema_version TEXT NOT NULL DEFAULT '0.0.0';
+
+ALTER TABLE fact_records
+    ADD COLUMN IF NOT EXISTS collector_kind TEXT NOT NULL DEFAULT 'unknown';
+
+ALTER TABLE fact_records
+    ADD COLUMN IF NOT EXISTS fencing_token BIGINT NOT NULL DEFAULT 0;
+
+ALTER TABLE fact_records
+    ADD COLUMN IF NOT EXISTS source_confidence TEXT NOT NULL DEFAULT 'unknown';
 
 CREATE INDEX IF NOT EXISTS fact_records_scope_generation_idx
     ON fact_records (scope_id, generation_id, fact_kind, observed_at DESC);

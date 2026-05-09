@@ -442,26 +442,30 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 		}
 		for off := 0; off < len(args); off += columnsPerFactRow {
 			a := args[off : off+columnsPerFactRow]
-			payload, err := unmarshalPayload(a[12].([]byte))
+			payload, err := unmarshalPayload(a[16].([]byte))
 			if err != nil {
 				return nil, err
 			}
 			envelope := facts.Envelope{
-				FactID:        a[0].(string),
-				ScopeID:       a[1].(string),
-				GenerationID:  a[2].(string),
-				FactKind:      a[3].(string),
-				StableFactKey: a[4].(string),
-				ObservedAt:    a[9].(time.Time).UTC(),
-				IsTombstone:   a[11].(bool),
-				Payload:       payload,
+				FactID:           a[0].(string),
+				ScopeID:          a[1].(string),
+				GenerationID:     a[2].(string),
+				FactKind:         a[3].(string),
+				StableFactKey:    a[4].(string),
+				SchemaVersion:    a[5].(string),
+				CollectorKind:    a[6].(string),
+				FencingToken:     a[7].(int64),
+				SourceConfidence: a[8].(string),
+				ObservedAt:       a[13].(time.Time).UTC(),
+				IsTombstone:      a[15].(bool),
+				Payload:          payload,
 				SourceRef: facts.Ref{
-					SourceSystem:   a[5].(string),
+					SourceSystem:   a[9].(string),
 					ScopeID:        a[1].(string),
 					GenerationID:   a[2].(string),
-					FactKey:        a[6].(string),
-					SourceURI:      stringFromAny(a[7]),
-					SourceRecordID: stringFromAny(a[8]),
+					FactKey:        a[10].(string),
+					SourceURI:      stringFromAny(a[11]),
+					SourceRecordID: stringFromAny(a[12]),
 				},
 			}
 			tx.state.facts[envelope.FactID] = envelope

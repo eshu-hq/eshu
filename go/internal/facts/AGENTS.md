@@ -24,6 +24,12 @@
   writes graph nodes or content rows must check this flag and take the deletion
   path, not the upsert path.
 
+- **Collector provenance** — new fact emitters must set `CollectorKind` and
+  `SourceConfidence`. `CollectorKind` names the collector family. Use
+  `SourceConfidence` to say whether the claim was `observed`, `reported`,
+  `inferred`, or `derived`. Treat `unknown` as a compatibility fallback, not as
+  the expected value for new collector work.
+
 ## Common changes and how to scope them
 
 - **Add a new field to `Envelope`** → add it with a zero value default;
