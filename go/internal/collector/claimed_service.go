@@ -7,7 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -42,6 +46,8 @@ type ClaimedService struct {
 	ClaimLeaseTTL       time.Duration
 	HeartbeatInterval   time.Duration
 	Clock               func() time.Time
+	Tracer              trace.Tracer
+	Instruments         *telemetry.Instruments
 }
 
 // Run claims bounded work, emits facts through the existing commit boundary,
@@ -119,6 +125,13 @@ func (s ClaimedService) validate() error {
 }
 
 func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkItem, claim workflow.Claim) error {
+	if s.Tracer != nil && s.CollectorKind == scope.CollectorTerraformState {
+		var span trace.Span
+		ctx, span = s.Tracer.Start(ctx, telemetry.SpanTerraformStateClaimProcess)
+		defer span.End()
+	}
+	s.recordTerraformStateClaimWait(ctx, item)
+
 	mutation := s.claimMutation(item, claim)
 	if err := s.ControlStore.HeartbeatClaim(ctx, mutation); err != nil {
 		return fmt.Errorf("heartbeat claimed %s work item: %w", s.claimedKindLabel(), err)
@@ -198,6 +211,7 @@ func (s ClaimedService) failRetryable(
 	failureClass string,
 	err error,
 ) error {
+	failureClass = classifiedFailureClass(err, failureClass)
 	if failErr := s.ControlStore.FailClaimRetryable(ctx, withFailure(mutation, failureClass, err)); failErr != nil {
 		return fmt.Errorf("retryable-fail claimed %s work item: %w", s.claimedKindLabel(), failErr)
 	}
@@ -213,6 +227,27 @@ func (s ClaimedService) now() time.Time {
 		return s.Clock().UTC()
 	}
 	return time.Now().UTC()
+}
+
+func (s ClaimedService) recordTerraformStateClaimWait(ctx context.Context, item workflow.WorkItem) {
+	if s.CollectorKind != scope.CollectorTerraformState || s.Instruments == nil {
+		return
+	}
+	reference := item.VisibleAt
+	if reference.IsZero() {
+		reference = item.CreatedAt
+	}
+	if reference.IsZero() {
+		return
+	}
+	wait := s.now().Sub(reference.UTC()).Seconds()
+	if wait < 0 {
+		wait = 0
+	}
+	s.Instruments.TerraformStateClaimWaitDuration.Record(ctx, wait, metric.WithAttributes(
+		telemetry.AttrSourceSystem(item.SourceSystem),
+		telemetry.AttrCollectorKind(string(item.CollectorKind)),
+	))
 }
 
 func validateClaimedGeneration(item workflow.WorkItem, collected CollectedGeneration) error {
@@ -237,6 +272,20 @@ func withFailure(mutation workflow.ClaimMutation, failureClass string, err error
 		mutation.FailureMessage = err.Error()
 	}
 	return mutation
+}
+
+type classifiedFailure interface {
+	FailureClass() string
+}
+
+func classifiedFailureClass(err error, fallback string) string {
+	var classified classifiedFailure
+	if errors.As(err, &classified) {
+		if value := strings.TrimSpace(classified.FailureClass()); value != "" {
+			return value
+		}
+	}
+	return fallback
 }
 
 func drainHeartbeatError(errc <-chan error) error {

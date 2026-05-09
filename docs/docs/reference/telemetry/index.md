@@ -355,6 +355,7 @@ log streams.
 | Metric | Description | Unit | Custom buckets |
 | --- | --- | --- | --- |
 | `eshu_dp_collector_observe_duration_seconds` | Collector observe cycle duration | s | 0.01 .. 60 |
+| `eshu_dp_tfstate_claim_wait_seconds` | Terraform-state work item age when a claim starts | s | 0 .. 3600 |
 | `eshu_dp_scope_assign_duration_seconds` | Scope assignment duration | s | default |
 | `eshu_dp_fact_emit_duration_seconds` | Fact emission duration | s | default |
 | `eshu_dp_projector_run_duration_seconds` | Projector run cycle duration | s | 0.1 .. 120 |

@@ -56,6 +56,7 @@ type Instruments struct {
 
 	// Histograms track distributions
 	CollectorObserveDuration             metric.Float64Histogram
+	TerraformStateClaimWaitDuration      metric.Float64Histogram
 	ScopeAssignDuration                  metric.Float64Histogram
 	FactEmitDuration                     metric.Float64Histogram
 	ProjectorRunDuration                 metric.Float64Histogram
@@ -280,6 +281,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CollectorObserveDuration histogram: %w", err)
+	}
+
+	tfstateClaimWaitBuckets := []float64{0, 0.1, 0.5, 1, 5, 10, 30, 60, 300, 900, 1800, 3600}
+	inst.TerraformStateClaimWaitDuration, err = meter.Float64Histogram(
+		"eshu_dp_tfstate_claim_wait_seconds",
+		metric.WithDescription("Terraform state collector work item age when a claim starts"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(tfstateClaimWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TerraformStateClaimWaitDuration histogram: %w", err)
 	}
 
 	inst.ScopeAssignDuration, err = meter.Float64Histogram(

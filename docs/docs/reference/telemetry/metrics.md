@@ -147,6 +147,15 @@ collector/projector/reducer path.
 - Use it for: Confirming whether tfstate collection is bootstrapping from
   operator seeds or from Git-observed backend evidence.
 
+### `eshu_dp_tfstate_claim_wait_seconds`
+
+- Type: Histogram
+- Labels: `collector_kind`, `source_system`
+- Meaning: How old a Terraform-state workflow item is when the collector claims
+  it.
+- Use it for: Checking whether Terraform-state work is backing up before
+  collection begins without creating per-scope metric series.
+
 ### `eshu_dp_projector_run_duration_seconds`
 ### `eshu_dp_projector_stage_duration_seconds`
 ### `eshu_dp_projections_completed_total`

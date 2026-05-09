@@ -29,8 +29,15 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   config used by the resolver.
 - `NewDiscoveryMetrics` registers the candidate counter used during discovery.
 - `Parse` turns one state stream into redacted Terraform-state facts.
+- `ReadSnapshotIdentity` streams only the top-level serial and lineage fields so
+  runtime code can build the claimed generation identity without retaining raw
+  state bytes.
 - `ParseOptions` carries scope, generation, source, fencing, and redaction
   context.
+- `internal/collector/tfstateruntime` adapts these primitives to workflow
+  claims: it resolves exact candidates, opens a matching source, parses facts
+  with the claim fencing token, and leaves SDK-specific cloud wiring behind the
+  existing read-only source interfaces.
 
 ## Safety Rules
 
@@ -54,6 +61,4 @@ AWS SDK wiring belong to integration slices outside the reader stack.
 - AWS SDK adapter for `S3ObjectClient`.
 - DynamoDB lock metadata read-only adapter.
 - Bounded parser memory fixture for large state files.
-- Runtime source wiring that opens resolved state candidates and commits facts
-  through coordinator claim fencing.
 - Source open, parser stream, and fact batch emission telemetry.

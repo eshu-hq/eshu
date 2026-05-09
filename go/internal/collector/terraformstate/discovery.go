@@ -97,6 +97,11 @@ func (e WaitingOnGitGenerationError) Status() string {
 	return waitingOnGitGenerationStatus
 }
 
+// FailureClass returns the workflow retry classification for the waiting state.
+func (e WaitingOnGitGenerationError) FailureClass() string {
+	return e.Status()
+}
+
 // IsWaitingOnGitGeneration reports whether err is a Git-readiness wait.
 func IsWaitingOnGitGeneration(err error) bool {
 	var waitingValue WaitingOnGitGenerationError

@@ -141,6 +141,9 @@ it.
   pre-built `[]facts.Envelope` slice
 - `terraformstate` subpackage — exact Terraform-state source readers and
   streaming parser primitives that emit redacted Terraform-state facts
+- `tfstateruntime` subpackage — claim-aware Terraform-state runtime adapter that
+  resolves exact candidates, opens the matching state source, and emits a
+  fenced collected generation for `ClaimedService`
 
 ## Dependencies
 
@@ -200,6 +203,8 @@ it.
 - Terraform-state sources are explicit-source only in the reader stack. Do not
   route repo-local `.tfstate` through Git content persistence or broad
   repository discovery.
+- Terraform-state claim processing records `eshu_dp_tfstate_claim_wait_seconds`
+  and uses `tfstate.collector.claim.process` around the claimed work boundary.
 - `AfterBatchDrained` is a batch boundary hook, not a timer callback. Use it for
   work that should follow committed collection, and keep idle-poll behavior in
   `Source.Next` or the coordinator layer.
