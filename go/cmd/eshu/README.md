@@ -114,6 +114,12 @@ launched runtime via the shared `telemetry` package. Errors print to
   `nolocalllm`; `ESHU_NORNICDB_RUNTIME=process` is the only runtime-mode
   override, while `ESHU_NORNICDB_BINARY` only chooses the specific backend
   binary after process mode is selected
+- Embedded NornicDB writes its effective runtime settings to
+  `graph-nornicdb.log` after `nornicdb.Open` applies library defaults. The line
+  includes parallel execution, worker count, memory limit, GC percent, object
+  pooling, query cache, embedding, Heimdall, and Qdrant gRPC state so
+  performance runs can cite the actual active settings rather than inferred
+  defaults.
 - Embedded and process NornicDB both use the per-workspace credentials written
   under the local graph data directory; child services receive the same values
   through `ESHU_NEO4J_USERNAME`, `ESHU_NEO4J_PASSWORD`, `NEO4J_USERNAME`, and
