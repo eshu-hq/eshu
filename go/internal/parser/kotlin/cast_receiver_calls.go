@@ -1,9 +1,11 @@
-package parser
+package kotlin
 
 import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 var kotlinCastReceiverCallPattern = regexp.MustCompile(
@@ -37,7 +39,7 @@ func kotlinAppendCastReceiverCalls(
 		}
 		seenLineCalls[callKey] = struct{}{}
 
-		appendBucket(payload, "function_calls", map[string]any{
+		shared.AppendBucket(payload, "function_calls", map[string]any{
 			"name":              name,
 			"full_name":         fullName,
 			"inferred_obj_type": strings.TrimSuffix(strings.TrimSpace(trimmed[match[4]:match[5]]), "?"),

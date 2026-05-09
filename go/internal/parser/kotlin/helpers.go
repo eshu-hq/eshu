@@ -1,9 +1,11 @@
-package parser
+package kotlin
 
 import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 var kotlinPrimaryConstructorPropertyPattern = regexp.MustCompile(
@@ -280,173 +282,6 @@ func kotlinStripWrappingParentheses(value string) string {
 	return strings.TrimSpace(trimmed[1 : len(trimmed)-1])
 }
 
-func kotlinInferFunctionCallReturnType(
-	callExpression string,
-	variableTypes map[string]string,
-	classPropertyTypes map[string]map[string]string,
-	currentClass string,
-	packageName string,
-	functionReturnTypes map[string]string,
-	classTypeParameters map[string][]string,
-) string {
-	callExpression = strings.TrimSpace(callExpression)
-	if callExpression == "" {
-		return ""
-	}
-
-	if strings.Contains(callExpression, "(") && strings.HasSuffix(callExpression, ")") {
-		return kotlinInferMethodCallReturnType(
-			callExpression,
-			variableTypes,
-			classPropertyTypes,
-			currentClass,
-			packageName,
-			functionReturnTypes,
-			classTypeParameters,
-		)
-	}
-
-	return kotlinInferMethodCallReturnType(
-		callExpression+"()",
-		variableTypes,
-		classPropertyTypes,
-		currentClass,
-		packageName,
-		functionReturnTypes,
-		classTypeParameters,
-	)
-}
-
-func kotlinInferMethodCallReturnType(
-	callExpression string,
-	variableTypes map[string]string,
-	classPropertyTypes map[string]map[string]string,
-	currentClass string,
-	packageName string,
-	functionReturnTypes map[string]string,
-	classTypeParameters map[string][]string,
-) string {
-	callExpression = strings.TrimSpace(callExpression)
-	if callExpression == "" {
-		return ""
-	}
-	callExpression = kotlinNormalizeParenthesizedReceivers(callExpression)
-	for {
-		trimmedCallExpression := kotlinStripWrappingParentheses(callExpression)
-		if trimmedCallExpression == callExpression {
-			break
-		}
-		callExpression = trimmedCallExpression
-	}
-
-	callHead := callExpression
-	if idx := strings.LastIndex(callExpression, "("); idx >= 0 && strings.HasSuffix(callExpression, ")") {
-		callHead = strings.TrimSpace(callExpression[:idx])
-	}
-	if callHead == "" {
-		return ""
-	}
-
-	receiver := ""
-	name := callHead
-	if idx := strings.LastIndex(callHead, "."); idx >= 0 {
-		receiver = strings.TrimSpace(callHead[:idx])
-		name = strings.TrimSpace(callHead[idx+1:])
-	}
-	if name == "" {
-		return ""
-	}
-
-	if receiver == "" {
-		if kotlinLooksLikeTypeName(name) {
-			return kotlinCanonicalTypeReference(name)
-		}
-		return kotlinLookupFunctionReturnType(functionReturnTypes, packageName, currentClass, name)
-	}
-
-	inferredReceiverType := kotlinInferReceiverType(
-		receiver,
-		variableTypes,
-		classPropertyTypes,
-		currentClass,
-		packageName,
-		functionReturnTypes,
-		classTypeParameters,
-	)
-	if inferredReceiverType == "" {
-		return ""
-	}
-	return kotlinResolveTypeReference(
-		kotlinLookupFunctionReturnType(functionReturnTypes, packageName, kotlinBaseTypeName(inferredReceiverType), name),
-		inferredReceiverType,
-		classTypeParameters,
-	)
-}
-
-func kotlinInferReceiverSegmentType(
-	segment string,
-	variableTypes map[string]string,
-	classPropertyTypes map[string]map[string]string,
-	currentClass string,
-	packageName string,
-	functionReturnTypes map[string]string,
-	classTypeParameters map[string][]string,
-) string {
-	segment = strings.TrimSpace(segment)
-	if segment == "" {
-		return ""
-	}
-	segment = kotlinNormalizeParenthesizedReceivers(segment)
-	segment = kotlinStripWrappingParentheses(segment)
-
-	if strings.Contains(segment, "(") && strings.HasSuffix(segment, ")") {
-		return kotlinInferMethodCallReturnType(
-			segment,
-			variableTypes,
-			classPropertyTypes,
-			currentClass,
-			packageName,
-			functionReturnTypes,
-			classTypeParameters,
-		)
-	}
-
-	if inferredType := strings.TrimSpace(variableTypes[segment]); inferredType != "" {
-		return kotlinCanonicalTypeReference(inferredType)
-	}
-	if currentClass != "" {
-		if inferredType := strings.TrimSpace(classPropertyTypes[currentClass][segment]); inferredType != "" {
-			return kotlinCanonicalTypeReference(inferredType)
-		}
-	}
-	if kotlinLooksLikeTypeName(segment) {
-		return kotlinCanonicalTypeReference(segment)
-	}
-	return ""
-}
-
-func kotlinInferReceiverMethodReturnType(
-	receiverType string,
-	methodName string,
-	currentClass string,
-	packageName string,
-	functionReturnTypes map[string]string,
-	classTypeParameters map[string][]string,
-) string {
-	receiverType = kotlinCanonicalTypeReference(receiverType)
-	currentClass = strings.TrimSpace(currentClass)
-	methodName = strings.TrimSpace(methodName)
-	if receiverType == "" || methodName == "" {
-		return ""
-	}
-
-	returnType := kotlinLookupFunctionReturnType(functionReturnTypes, packageName, currentClass, methodName)
-	if returnType == "" {
-		return ""
-	}
-	return kotlinResolveTypeReference(returnType, receiverType, classTypeParameters)
-}
-
 func kotlinImportAlias(name string) string {
 	trimmed := strings.TrimSpace(name)
 	if trimmed == "" {
@@ -552,7 +387,7 @@ func kotlinAppendConstructorCalls(
 			continue
 		}
 		seenLineCalls[callKey] = struct{}{}
-		appendBucket(payload, "function_calls", map[string]any{
+		shared.AppendBucket(payload, "function_calls", map[string]any{
 			"name":        name,
 			"full_name":   name,
 			"line_number": lineNumber,
@@ -588,6 +423,6 @@ func kotlinAppendThisCalls(
 		if classContext != "" {
 			item["class_context"] = classContext
 		}
-		appendBucket(payload, "function_calls", item)
+		shared.AppendBucket(payload, "function_calls", item)
 	}
 }

@@ -1,10 +1,11 @@
-package parser
+package kotlin
 
 import (
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 var (
@@ -26,14 +27,16 @@ var (
 	kotlinInfixCallPattern     = regexp.MustCompile(`^(?:return\s+)?([A-Za-z_]\w*)\s+([A-Za-z_]\w*)\s+(.+)$`)
 )
 
-func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, options Options) (map[string]any, error) {
-	source, err := readSource(path)
+// Parse extracts Kotlin declarations, imports, variables, calls, and
+// receiver-type metadata from one source file.
+func Parse(repoRoot string, path string, isDependency bool, options shared.Options) (map[string]any, error) {
+	source, err := shared.ReadSource(path)
 	if err != nil {
 		return nil, err
 	}
 	packageName := kotlinFilePackage(string(source))
 
-	payload := basePayload(path, "kotlin", isDependency)
+	payload := shared.BasePayload(path, "kotlin", isDependency)
 	payload["interfaces"] = []map[string]any{}
 
 	siblingFunctionReturnTypes, err := kotlinCollectSiblingFunctionReturnTypes(repoRoot, path, packageName)
@@ -84,7 +87,7 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 			if alias != "" {
 				knownTypeNames[alias] = struct{}{}
 			}
-			appendBucket(payload, "imports", map[string]any{
+			shared.AppendBucket(payload, "imports", map[string]any{
 				"name":             importedName,
 				"source":           importedName,
 				"alias":            alias,
@@ -103,7 +106,7 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 			if typeParameters := kotlinDeclaredTypeParameters(trimmed); len(typeParameters) > 0 {
 				classTypeParameters[name] = typeParameters
 			}
-			appendBucket(payload, "classes", map[string]any{
+			shared.AppendBucket(payload, "classes", map[string]any{
 				"name":        name,
 				"line_number": lineNumber,
 				"end_line":    lineNumber,
@@ -123,7 +126,7 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 			name := matches[1]
 			knownTypeNames[name] = struct{}{}
 			declaredTypeNames[name] = struct{}{}
-			appendBucket(payload, "classes", map[string]any{
+			shared.AppendBucket(payload, "classes", map[string]any{
 				"name":        name,
 				"line_number": lineNumber,
 				"end_line":    lineNumber,
@@ -138,7 +141,7 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 			}
 			knownTypeNames[name] = struct{}{}
 			declaredTypeNames[name] = struct{}{}
-			appendBucket(payload, "classes", map[string]any{
+			shared.AppendBucket(payload, "classes", map[string]any{
 				"name":        name,
 				"line_number": lineNumber,
 				"end_line":    lineNumber,
@@ -153,7 +156,7 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 			if typeParameters := kotlinDeclaredTypeParameters(trimmed); len(typeParameters) > 0 {
 				classTypeParameters[name] = typeParameters
 			}
-			appendBucket(payload, "interfaces", map[string]any{
+			shared.AppendBucket(payload, "interfaces", map[string]any{
 				"name":        name,
 				"line_number": lineNumber,
 				"end_line":    lineNumber,
@@ -165,7 +168,7 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 			name := matches[1]
 			knownTypeNames[name] = struct{}{}
 			declaredTypeNames[name] = struct{}{}
-			appendBucket(payload, "classes", map[string]any{
+			shared.AppendBucket(payload, "classes", map[string]any{
 				"name":        name,
 				"line_number": lineNumber,
 				"end_line":    lineNumber,
@@ -199,7 +202,7 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 				if options.IndexSource {
 					item["source"] = rawLine
 				}
-				appendBucket(payload, "functions", item)
+				shared.AppendBucket(payload, "functions", item)
 				if receiverType, functionName, returnType := kotlinFunctionDeclarationReturnType(trimmed); functionName != "" && returnType != "" {
 					key := functionName
 					if receiverType != "" {
@@ -233,7 +236,7 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 			if options.IndexSource {
 				item["source"] = rawLine
 			}
-			appendBucket(payload, "functions", item)
+			shared.AppendBucket(payload, "functions", item)
 		}
 
 		if matches := kotlinVariablePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
@@ -289,7 +292,7 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 			}
 			if _, ok := seenVariables[name]; !ok {
 				seenVariables[name] = struct{}{}
-				appendBucket(payload, "variables", map[string]any{
+				shared.AppendBucket(payload, "variables", map[string]any{
 					"name":        name,
 					"line_number": lineNumber,
 					"end_line":    lineNumber,
@@ -360,7 +363,7 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 							if classContext != "" {
 								item["class_context"] = classContext
 							}
-							appendBucket(payload, "function_calls", item)
+							shared.AppendBucket(payload, "function_calls", item)
 						}
 					}
 				}
@@ -440,7 +443,7 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 						}
 					}
 				}
-				appendBucket(payload, "function_calls", item)
+				shared.AppendBucket(payload, "function_calls", item)
 			}
 		}
 
@@ -465,92 +468,21 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 		stack = popCompletedScopes(stack, braceDepth)
 	}
 
-	sortNamedBucket(payload, "functions")
-	sortNamedBucket(payload, "classes")
-	sortNamedBucket(payload, "interfaces")
-	sortNamedBucket(payload, "variables")
-	sortNamedBucket(payload, "imports")
-	sortNamedBucket(payload, "function_calls")
+	shared.SortNamedBucket(payload, "functions")
+	shared.SortNamedBucket(payload, "classes")
+	shared.SortNamedBucket(payload, "interfaces")
+	shared.SortNamedBucket(payload, "variables")
+	shared.SortNamedBucket(payload, "imports")
+	shared.SortNamedBucket(payload, "function_calls")
 
 	return payload, nil
 }
 
-func (e *Engine) preScanKotlin(repoRoot string, path string) ([]string, error) {
-	payload, err := e.parseKotlin(repoRoot, path, false, Options{})
+// PreScan returns Kotlin names used by the collector import-map pre-scan.
+func PreScan(repoRoot string, path string) ([]string, error) {
+	payload, err := Parse(repoRoot, path, false, shared.Options{})
 	if err != nil {
 		return nil, err
 	}
-	names := collectBucketNames(payload, "functions", "classes", "interfaces")
-	slices.Sort(names)
-	return names, nil
-}
-
-func kotlinInferReceiverType(
-	receiver string,
-	variableTypes map[string]string,
-	classPropertyTypes map[string]map[string]string,
-	currentClass string,
-	packageName string,
-	functionReturnTypes map[string]string,
-	classTypeParameters map[string][]string,
-) string {
-	receiver = strings.TrimSpace(receiver)
-	if receiver == "" {
-		return ""
-	}
-	receiver = kotlinNormalizeParenthesizedReceivers(receiver)
-	receiver = strings.TrimPrefix(receiver, "this.")
-	parts := strings.Split(receiver, ".")
-	if len(parts) == 0 {
-		return ""
-	}
-
-	currentType := ""
-	root := strings.TrimSpace(parts[0])
-	currentType = kotlinInferReceiverSegmentType(
-		root,
-		variableTypes,
-		classPropertyTypes,
-		currentClass,
-		packageName,
-		functionReturnTypes,
-		classTypeParameters,
-	)
-	if currentType == "" {
-		return ""
-	}
-	if len(parts) == 1 {
-		return currentType
-	}
-
-	for _, segment := range parts[1:] {
-		name := strings.TrimSpace(segment)
-		if name == "" {
-			return ""
-		}
-		if strings.Contains(name, "(") && strings.HasSuffix(name, ")") {
-			currentType = kotlinInferReceiverMethodReturnType(
-				currentType,
-				strings.TrimSuffix(name, "()"),
-				kotlinBaseTypeName(currentType),
-				packageName,
-				functionReturnTypes,
-				classTypeParameters,
-			)
-			if currentType == "" {
-				return ""
-			}
-			continue
-		}
-		properties := classPropertyTypes[kotlinBaseTypeName(currentType)]
-		if len(properties) == 0 {
-			return ""
-		}
-		nextType := strings.TrimSpace(properties[name])
-		if nextType == "" {
-			return ""
-		}
-		currentType = kotlinResolveTypeReference(nextType, currentType, classTypeParameters)
-	}
-	return currentType
+	return shared.DedupeNonEmptyStrings(shared.CollectBucketNames(payload, "functions", "classes", "interfaces")), nil
 }

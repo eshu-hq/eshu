@@ -1,10 +1,12 @@
-package parser
+package kotlin
 
 import (
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 var kotlinPackagePattern = regexp.MustCompile(`^\s*package\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*$`)
@@ -128,7 +130,7 @@ func kotlinCollectFunctionReturnTypesFromDirectory(directory string, currentAbs 
 }
 
 func kotlinCollectFunctionReturnTypesFromFile(path string, packageName string) (map[string]string, error) {
-	source, err := readSource(path)
+	source, err := shared.ReadSource(path)
 	if err != nil {
 		return nil, err
 	}
