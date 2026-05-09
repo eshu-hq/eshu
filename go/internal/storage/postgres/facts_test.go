@@ -66,7 +66,7 @@ func TestFactStoreUpsertFactsPersistsCollectorContractFields(t *testing.T) {
 		SchemaVersion:    "1.0.0",
 		CollectorKind:    "terraform_state",
 		FencingToken:     42,
-		SourceConfidence: "exact",
+		SourceConfidence: "observed",
 		ObservedAt:       time.Date(2026, time.May, 9, 9, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{
 			SourceSystem: "terraform_state",
@@ -90,7 +90,7 @@ func TestFactStoreUpsertFactsPersistsCollectorContractFields(t *testing.T) {
 	if got, want := db.execs[0].args[7], int64(42); got != want {
 		t.Fatalf("fencing_token arg = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[8], "exact"; got != want {
+	if got, want := db.execs[0].args[8], "observed"; got != want {
 		t.Fatalf("source_confidence arg = %q, want %q", got, want)
 	}
 }
@@ -110,7 +110,7 @@ func TestFactStoreLoadFactsReturnsEnvelope(t *testing.T) {
 					"1.0.0",
 					"git",
 					int64(7),
-					"exact",
+					"observed",
 					"git",
 					"fact-key",
 					"file:///repo/path",
@@ -150,7 +150,7 @@ func TestFactStoreLoadFactsReturnsEnvelope(t *testing.T) {
 	if got, want := loaded[0].FencingToken, int64(7); got != want {
 		t.Fatalf("LoadFacts()[0].FencingToken = %d, want %d", got, want)
 	}
-	if got, want := loaded[0].SourceConfidence, "exact"; got != want {
+	if got, want := loaded[0].SourceConfidence, "observed"; got != want {
 		t.Fatalf("LoadFacts()[0].SourceConfidence = %q, want %q", got, want)
 	}
 	if got, want := loaded[0].Payload["name"], "eshu"; got != want {

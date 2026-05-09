@@ -93,7 +93,7 @@ func TestFactEnvelopeClonePreservesDurableCollectorFields(t *testing.T) {
 		SchemaVersion:    "1.0.0",
 		CollectorKind:    "terraform_state",
 		FencingToken:     42,
-		SourceConfidence: "exact",
+		SourceConfidence: "observed",
 		ObservedAt:       time.Date(2026, time.May, 9, 9, 0, 0, 0, time.UTC),
 		SourceRef: Ref{
 			SourceSystem: "terraform_state",
