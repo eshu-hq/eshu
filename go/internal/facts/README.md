@@ -37,6 +37,18 @@ consume these types as their input or storage shape.
 - `StableID(factType, identity)` — deterministic SHA-256 hex ID derived from
   `factType` and the normalized `identity` map; used to assign a stable fact
   key that survives re-ingestion of the same source record.
+- Documentation fact payloads — source-neutral payload structs and stable-ID
+  helpers for documentation sources, documents, sections, links, entity
+  mentions, and non-authoritative claim candidates.
+
+Documentation fact kinds use schema version `1.0.0`:
+
+- `documentation_source`
+- `documentation_document`
+- `documentation_section`
+- `documentation_link`
+- `documentation_entity_mention`
+- `documentation_claim_candidate`
 
 See `doc.go` for the full godoc contract.
 
@@ -63,6 +75,9 @@ and processing lives in `internal/projector` and `internal/storage/postgres`.
 - `Envelope.Payload` is a `map[string]any`. Callers must not mutate the map
   after passing the envelope to a downstream stage. Use `Clone` when branching
   or replaying.
+- Documentation claim candidates are evidence about what documentation says.
+  They are not operational truth and must not override source-code, deployment,
+  runtime, or graph truth.
 - `StableID` panics if `json.Marshal` fails on the identity map. Callers must
   not pass identity maps containing non-serializable values.
 - `IsTombstone` is set by the collector to signal deletion. Projectors and

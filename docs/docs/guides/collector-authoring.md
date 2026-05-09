@@ -108,6 +108,13 @@ show what Terraform believes it manages. An AWS scan may report what exists in
 the account right now. Those are all useful facts, but they should not carry
 the same trust label.
 
+Documentation collectors are a special case of observed evidence. A Confluence
+page, Git Markdown file, or ADR can prove what the document says, who owns it,
+which section contains a claim, and which entities it mentions. It does not
+prove that the documented claim is operationally true. Documentation facts must
+therefore feed reducer-owned drift findings; they must not override graph,
+deployment, runtime, source-code, or infrastructure truth.
+
 ## Runtime Requirements
 
 Every collector runtime should be operable in the same way as the rest of the
@@ -142,6 +149,20 @@ Follow this order so the collector lands on stable boundaries:
 
 Do not reverse that order by starting with answer shaping, graph mutations, or
 temporary repair hooks.
+
+For documentation collectors, start with source-neutral facts:
+
+- `documentation_source`
+- `documentation_document`
+- `documentation_section`
+- `documentation_link`
+- `documentation_entity_mention`
+- `documentation_claim_candidate`
+
+Keep source-specific fields in metadata until a field proves stable across at
+least two documentation source families. Confluence page IDs and Git paths can
+both populate source-neutral document identity; neither should force the core
+schema to become source-specific.
 
 ## Verification Gates
 

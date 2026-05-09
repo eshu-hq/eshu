@@ -26,7 +26,7 @@ boundaries.
 `schema_version` uses semantic versioning.
 
 `collector_kind` identifies the collector family that produced the fact, such
-as `git`, `terraform_state`, `aws`, or `webhook`.
+as `git`, `terraform_state`, `aws`, `webhook`, or `documentation`.
 
 `source_confidence` identifies how Eshu learned the fact:
 
@@ -39,6 +39,12 @@ as `git`, `terraform_state`, `aws`, or `webhook`.
 New collectors must set `source_confidence` deliberately. `unknown` is allowed
 as a storage compatibility default, not as a normal authoring choice.
 
+Documentation collectors should use `source_confidence=observed` for page,
+document, section, link, mention, and claim-candidate facts read directly from
+the documentation source. A documentation claim candidate remains
+non-authoritative even when it is observed. It proves that the document says
+something, not that the claim is operationally true.
+
 ## Fact Kind Namespace
 
 - core fact kinds are owned by the Eshu core runtime
@@ -46,6 +52,15 @@ as a storage compatibility default, not as a normal authoring choice.
   collision-resistant prefix
 
 Two plugins must not emit the same unowned fact kind.
+
+Core documentation facts use these fact kinds at schema version `1.0.0`:
+
+- `documentation_source`
+- `documentation_document`
+- `documentation_section`
+- `documentation_link`
+- `documentation_entity_mention`
+- `documentation_claim_candidate`
 
 ## Compatibility Rules
 

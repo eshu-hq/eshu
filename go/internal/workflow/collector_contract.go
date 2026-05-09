@@ -116,6 +116,11 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 			},
 		},
 	},
+	scope.CollectorDocumentation: {
+		CollectorKind:      scope.CollectorDocumentation,
+		CanonicalKeyspaces: nil,
+		RequiredPhases:     nil,
+	},
 }
 
 // CollectorContractFor returns the accepted reducer-facing contract for one

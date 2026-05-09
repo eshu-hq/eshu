@@ -22,6 +22,8 @@ const (
 	KindStateSnapshot ScopeKind = "state_snapshot"
 	// KindEventTrigger represents an event-driven freshness trigger scope.
 	KindEventTrigger ScopeKind = "event_trigger"
+	// KindDocumentationSource represents a documentation source scope.
+	KindDocumentationSource ScopeKind = "documentation_source"
 )
 
 // CollectorKind identifies the collector family that owns the scope.
@@ -36,6 +38,8 @@ const (
 	CollectorTerraformState CollectorKind = "terraform_state"
 	// CollectorWebhook represents the event/webhook collector.
 	CollectorWebhook CollectorKind = "webhook"
+	// CollectorDocumentation represents the documentation source collector.
+	CollectorDocumentation CollectorKind = "documentation"
 )
 
 // TriggerKind identifies how a generation was produced.

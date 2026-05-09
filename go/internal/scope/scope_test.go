@@ -62,6 +62,11 @@ func TestIngestionScopeValidateAllowsAdditionalCollectorKinds(t *testing.T) {
 			sourceSystem:  "webhook",
 			collectorKind: CollectorWebhook,
 		},
+		{
+			name:          "documentation",
+			sourceSystem:  "documentation",
+			collectorKind: CollectorDocumentation,
+		},
 	}
 
 	for _, tt := range tests {
@@ -134,6 +139,14 @@ func TestIngestionScopeValidateAllowsAdditionalScopeKinds(t *testing.T) {
 			collectorKind: CollectorWebhook,
 			partitionKey:  "org-456",
 		},
+		{
+			name:          "documentation_source",
+			sourceSystem:  "documentation",
+			scopeID:       "documentation-source-confluence-platform",
+			scopeKind:     KindDocumentationSource,
+			collectorKind: CollectorDocumentation,
+			partitionKey:  "confluence-platform",
+		},
 	}
 
 	for _, tt := range tests {
@@ -202,6 +215,22 @@ func TestTerraformStateSnapshotScopeIsDeterministic(t *testing.T) {
 		t.Fatalf("Metadata[workspace] = %q, want %q", got, want)
 	}
 	if err := first.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
+func TestDocumentationScopeAndCollectorValidate(t *testing.T) {
+	t.Parallel()
+
+	scope := IngestionScope{
+		ScopeID:       "documentation-source-confluence-platform",
+		SourceSystem:  "documentation",
+		ScopeKind:     KindDocumentationSource,
+		CollectorKind: CollectorDocumentation,
+		PartitionKey:  "confluence-platform",
+	}
+
+	if err := scope.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v, want nil", err)
 	}
 }
