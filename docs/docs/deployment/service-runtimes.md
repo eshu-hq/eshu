@@ -99,6 +99,9 @@ overlay.
   repository.
 - A service can be healthy while indexing is incomplete. Operators should use
   completeness routes before assuming a full run has finished.
+- Code graph and dead-code query readiness also depends on shared projection
+  domain backlog. `/admin/status` remains `progressing` while pending shared
+  projection intents still need to make reducer-owned edges graph-visible.
 - `bootstrap-index` remains a one-shot helper for empty or recovered
   environments. It does not mount the shared runtime HTTP admin surface and is
   not a steady-state health target.

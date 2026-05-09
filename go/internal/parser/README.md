@@ -5,7 +5,7 @@
 `internal/parser` owns the native Go parser registry, language adapters,
 import, re-export, and constructor receiver metadata, dead-code root metadata,
 and SCIP reduction support used to extract source-level entities and metadata.
-Parser changes must preserve fact truth: when a parser starts emitting a new
+Parser changes must preserve fact truth: when a parser emits a new
 entity, relationship, or metadata field, the relevant fixtures, fact contracts
 in `internal/facts`, and downstream docs must move in lockstep. Parsers must
 be deterministic given the same source bytes so retries and repair runs
@@ -54,14 +54,57 @@ language handles; grammars are loaded on first use and reused across calls.
 `Registry.LookupByPath` to identify the language, then dispatches to the
 language-specific adapter function (e.g. `parseGo`, `parsePython`,
 `parseKotlin`). Language adapters may attach semantic metadata such as
-`dead_code_root_kinds` when syntax proves an entrypoint, framework callback,
-function-value callback, JavaScript package export, CommonJS default export,
+`dead_code_root_kinds` when syntax or bounded config proves an entrypoint,
+framework callback, function-value callback, Python route/task/CLI decorator,
+Python AWS Lambda handler, JavaScript package export, CommonJS default export,
 CommonJS mixin method export, configured Hapi handler or exported route-array
-handler reference, Next.js app or route export, Express/Koa/Fastify/NestJS callback root,
-Node migration export, TypeScript module-contract export, TypeScript public
-method on a class that declares `implements`, or TypeScript package public API
-surface proven through a nearest-package `exports` or `types` target and a
-static one-hop re-export.
+handler reference, Next.js app or route export,
+Express/Koa/Fastify/NestJS callback root, Node migration export, TypeScript
+module-contract export, TypeScript public method on a class that declares
+`implements`, or TypeScript package public API surface proven through a
+nearest-package `exports` or `types` target and a static one-hop re-export.
+Java adapters mark `main` methods, constructors, `@Override` methods, public
+Ant `Task` setters, Gradle plugin `apply` methods, Gradle task actions and
+properties, Gradle task setters and task-interface methods, public Gradle DSL
+methods, and same-class method-reference targets as dead-code roots so query
+policy does not report JVM entrypoints, dispatch callbacks, or framework-injected
+task properties as cleanup candidates. Java method and constructor metadata
+captures parameter counts and parameter types. Serialization and
+Externalizable hook signatures are also roots because the JVM can invoke
+methods such as `readObject` and `writeExternal` outside ordinary source calls.
+Java call metadata captures method references such as `this::configureTask`,
+bounded literal reflection calls such as `Class.forName("com.example.Plugin")`
+and `Plugin.class.getDeclaredMethod("run", String.class)`, argument counts,
+and bounded argument types from parameters, fields, inline constructors, and
+class-literal typed lambdas, so the reducer can distinguish overloaded methods
+when local receiver evidence points at a type. Receiver inference builds a local
+index of parameters, variables, enhanced-for loop variables, fields, and typed
+lambda parameters and same-class method return types for each parsed file
+before call extraction, so large classes do not repeat a full tree walk for
+every method invocation. Method-call arguments such as helper calls can then
+carry bounded return-type metadata when resolving overloads. Unqualified Java
+calls inside nested classes carry a nearest-to-outermost
+`enclosing_class_contexts` chain, which lets the reducer match inner-class
+helpers first and then enclosing class methods without broad same-name fallback.
+Explicit outer-this field receivers in Java's named-outer-instance field form
+reuse the field type index for the named enclosing class, so nested callback
+bodies can still produce typed receiver evidence.
+Record declarations use the same class-style context for nested method parsing,
+which keeps Java record helper methods addressable by the reducer.
+Java metadata files under META-INF/services, Spring Boot
+`AutoConfiguration.imports`, and `spring.factories` parse as `java_metadata`
+payloads. They emit bounded class-reference rows for provider and
+auto-configuration classes without scanning the repository from each Java
+source file.
+Python adapters also preserve method `class_context`, constructor call
+metadata, class receiver references, dataclass/property roots, dunder protocol
+roots, inheritance base names, same-module `__all__` public API roots, package
+`__init__.py` reexport roots, public base classes inherited by those
+parser-proven public classes, public methods on those classes, and simple
+local constructor or `self` receiver metadata. The public API helper walks
+bounded package evidence instead of treating every non-underscore symbol as
+live, so reducer call materialization can connect class, constructor, and
+instance method calls without broad guessing.
 Exported TypeScript object registries also mark same-file function values as
 `typescript.static_registry_member`; private registries do not create roots.
 JavaScript-family adapters also preserve import alias metadata, CommonJS
@@ -88,13 +131,22 @@ for dead-code root evidence. The reducer materializes them as deduplicated
 REFERENCES edges, not canonical CALLS edges, so sibling files in one Go
 package can keep local structs such as wiring configs out of dead-code
 candidate lists without claiming that type references are invocations.
+Java method-reference, literal-reflection, ServiceLoader provider, and Spring
+auto-configuration rows follow the same rule: they prove reachability roots but
+do not claim an invocation happened.
 
 `Engine.PreScanRepositoryPathsWithWorkers` runs a pre-scan pass that extracts
 import names, package-level interface references, type references, and
 referenced symbol names from each file. Results are merged across workers and
 sorted by input order to produce a deterministic import map. The pre-scan is a
 lighter parse used to build cross-file import context before the full parse
-pass.
+pass. Java pre-scan includes records alongside classes, interfaces, annotations,
+enums, methods, and constructors so record helper methods participate in the
+same downstream name map as class methods.
+
+Python `.ipynb` files are converted to a temporary Python source view before
+tree-sitter parsing, then the temporary file is removed after parse. The
+notebook path shares the same payload contract as `.py` files.
 
 **SCIP path**: when SCIP_INDEXER=true, the collector snapshotter detects the
 dominant SCIP-capable language via `DetectSCIPProjectLanguage`, runs the
@@ -120,7 +172,9 @@ JavaScript, Rust, Java, C, C++).
   `DefaultRegistry()` if the built-in definitions are invalid
 - `DefaultRegistry()` — built-in catalog for this wave of supported languages
 - `Registry.LookupByPath(path)` — extension / exact name / prefix name lookup;
-  `.tfvars.json` routes to the `hcl` definition
+  `.tfvars.json` routes to the `hcl` definition, and Java metadata files under
+  META-INF/services, META-INF/spring, and META-INF/spring.factories
+  route to `java_metadata`
 - `Registry.LookupByExtension(extension)` — direct extension lookup
 - `Registry.LookupByParserKey(parserKey)` — direct key lookup
 - `Registry.Definitions()` — cloned definitions in deterministic parser-key order
@@ -158,6 +212,7 @@ JavaScript, Rust, Java, C, C++).
 | Haskell | `haskell` | `.hs` | — |
 | HCL/Terraform | `hcl` | `.hcl`, `.tf`, `.tfvars`, `.tfvars.json` | — |
 | Java | `java` | `.java` | yes |
+| Java metadata | `java_metadata` | META-INF/services/*, AutoConfiguration.imports, spring.factories | — |
 | JavaScript | `javascript` | `.cjs`, `.js`, `.jsx`, `.mjs` | yes |
 | JSON | `json` | `.json` | — |
 | Kotlin | `kotlin` | `.kt` | — |
@@ -258,7 +313,18 @@ errors are surfaced in `collector snapshot stage completed` logs with
   local evidence proves the root. TypeScript public surface roots also cover
   package `exports` or `types` targets that statically re-export same-repo
   declarations through one barrel hop, including declaration-only `*.d.ts`
-  barrels and `tsconfig.json` `paths` aliases that resolve to local files.
+  barrels and `tsconfig.json` `paths` aliases that resolve to local files. Java
+  dead-code roots cover `main`, constructors, `@Override`, JavaBean-style
+  public Ant `Task` setters, Gradle plugin `apply` methods, Gradle task
+  actions and properties, public Gradle DSL methods, Spring component and
+  configuration-property classes, Spring request/bean/event/scheduled methods,
+  Java lifecycle callbacks, JUnit test and lifecycle methods, Jenkins extension
+  and symbol classes, Jenkins initializer/data-bound setter methods, and Stapler
+  web methods. Java call metadata also preserves local receiver types from
+  parameters, variables, fields, inline constructor receivers, typed method
+  references such as `processor::process`, unqualified same-class calls, and
+  call/function arity so the reducer can connect bounded method calls without
+  treating every same-named overload as live.
   JavaScript-family import metadata preserves namespace aliases, JSONC
   tsconfig `baseUrl` and `paths` resolved sources with comments and trailing
   commas accepted, and one-hop static relative re-exports used by reducer call

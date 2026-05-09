@@ -124,6 +124,7 @@ type coordinatorSnapshotJSON struct {
 type domainBacklogJSON struct {
 	Domain           string  `json:"domain"`
 	Outstanding      int     `json:"outstanding"`
+	InFlight         int     `json:"in_flight"`
 	Retrying         int     `json:"retrying"`
 	Failed           int     `json:"failed"`
 	DeadLetter       int     `json:"dead_letter"`
@@ -186,6 +187,7 @@ func domainBacklogsJSON(rows []DomainBacklog) []domainBacklogJSON {
 		projected = append(projected, domainBacklogJSON{
 			Domain:           row.Domain,
 			Outstanding:      row.Outstanding,
+			InFlight:         row.InFlight,
 			Retrying:         row.Retrying,
 			Failed:           row.Failed,
 			DeadLetter:       row.DeadLetter,

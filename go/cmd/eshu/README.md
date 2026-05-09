@@ -87,12 +87,15 @@ launched runtime via the shared `telemetry` package. Errors print to
   projector/reducer work items. An active collector generation is the current
   snapshot and counts as done in this table; pending collector generations keep
   the verdict at `Indexing` until the collector settles. `Complete` means every
-  known stage has drained. The table pads columns by display width, so colored
-  progress bars do not shift the `Done`, `Active`, `Waiting`, or `Failed`
-  counts. It shows `idle` when the status store has no active denominator yet.
-  `--progress plain` writes append-only text snapshots, `--verbose` and `--logs
-  terminal` restore direct terminal logs for debugging, `--logs quiet` discards
-  child logs, and `--progress quiet` suppresses the progress reporter.
+  known stage has drained; if shared projection intents still need to become
+  graph-visible, the verdict stays at `Settling` and the panel prints a
+  `Shared projections` backlog line with outstanding and in-flight counts. The
+  table pads columns by display width, so colored progress bars do not shift
+  the `Done`, `Active`, `Waiting`, or `Failed` counts. It shows `idle` when the
+  status store has no active denominator yet. `--progress plain` writes
+  append-only text snapshots, `--verbose` and `--logs terminal` restore direct
+  terminal logs for debugging, `--logs quiet` discards child logs, and
+  `--progress quiet` suppresses the progress reporter.
 - `graphBoltHealthy` sends the Bolt magic + four version proposals and reads
   the 4-byte server response. The response must match one offered protocol
   version; `00 00 00 00` means the server rejected negotiation and is not ready.
@@ -114,6 +117,12 @@ launched runtime via the shared `telemetry` package. Errors print to
   `nolocalllm`; `ESHU_NORNICDB_RUNTIME=process` is the only runtime-mode
   override, while `ESHU_NORNICDB_BINARY` only chooses the specific backend
   binary after process mode is selected
+- Embedded NornicDB writes its effective runtime settings to
+  `graph-nornicdb.log` after `nornicdb.Open` applies library defaults. The line
+  includes parallel execution, worker count, memory limit, GC percent, object
+  pooling, query cache, embedding, Heimdall, and Qdrant gRPC state so
+  performance runs can cite the actual active settings rather than inferred
+  defaults.
 - Embedded and process NornicDB both use the per-workspace credentials written
   under the local graph data directory; child services receive the same values
   through `ESHU_NEO4J_USERNAME`, `ESHU_NEO4J_PASSWORD`, `NEO4J_USERNAME`, and

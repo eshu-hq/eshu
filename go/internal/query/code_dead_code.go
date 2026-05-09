@@ -18,13 +18,13 @@ const (
 	deadCodeDefaultLimit = 100
 	deadCodeMaxLimit     = 500
 
-	deadCodeCandidateLabelPredicate = "(e:Function OR e:Class OR e:Struct OR e:Interface)"
-
 	deadCodeCandidateQueryMultiplier = 10
-	deadCodeCandidateQueryMin        = 1000
-	deadCodeCandidateQueryMax        = 1000
+	deadCodeCandidateQueryMin        = 100
+	deadCodeCandidateQueryMax        = 250
 	deadCodeCandidateScanMaxPages    = 10
 )
+
+var deadCodeCandidateLabels = []string{"Function", "Class", "Struct", "Interface"}
 
 // handleDeadCode finds graph-backed dead-code candidates and then applies the
 // current default reachability policy before returning a derived result.
@@ -79,34 +79,55 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 	}, BuildTruthEnvelope(h.profile(), "code_quality.dead_code", TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
 }
 
-func buildDeadCodeGraphCypher(hasRepoID bool, backend GraphBackend) string {
+func buildDeadCodeGraphCypher(hasRepoID bool, _ GraphBackend) string {
+	return buildDeadCodeGraphCypherForLabel(hasRepoID, "Function")
+}
+
+func buildDeadCodeGraphCypherForLabel(hasRepoID bool, label string) string {
+	if !isDeadCodeCandidateLabel(label) {
+		label = "Function"
+	}
 	cypher := `
-		MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
-	`
+			MATCH (e:` + label + `)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
+		`
 	if hasRepoID {
 		cypher = `
-		MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)
-	`
+			MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e:` + label + `)
+		`
 	}
-	if backend == GraphBackendNornicDB {
-		cypher += ` WHERE ` + deadCodeCandidateLabelPredicate + ` AND NOT EXISTS { MATCH (e)<-[:CALLS|IMPORTS|REFERENCES]-() }`
-	} else {
-		cypher += ` WHERE ` + deadCodeCandidateLabelPredicate + ` AND NOT ()-[:CALLS|IMPORTS|REFERENCES]->(e)`
-	}
-	cypher += deadCodeGraphPolicyPredicate()
 	cypher += `
-		RETURN coalesce(e.id, e.uid) as entity_id, e.name as name, labels(e) as labels,
+		RETURN coalesce(e.uid, e.id) as entity_id, e.name as name, labels(e) as labels,
 		       f.relative_path as file_path,
 		       r.id as repo_id, r.name as repo_name,
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
 ` + graphSemanticMetadataProjection() + `
-		ORDER BY f.relative_path, e.name, coalesce(e.id, e.uid)
+		ORDER BY f.relative_path, e.name, coalesce(e.uid, e.id)
 		SKIP $skip
 		LIMIT $limit
 	`
 	return cypher
+}
+
+func buildDeadCodeIncomingProbeCypher(label string) string {
+	if !isDeadCodeCandidateLabel(label) {
+		label = "Function"
+	}
+	return `
+		MATCH (e:` + label + ` {uid: $entity_id})<-[:CALLS|IMPORTS|REFERENCES|INHERITS]-(source)
+		RETURN coalesce(e.uid, e.id) as incoming_entity_id
+		LIMIT 1
+	`
+}
+
+func isDeadCodeCandidateLabel(label string) bool {
+	for _, candidate := range deadCodeCandidateLabels {
+		if label == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 func deadCodeCandidateQueryLimit(displayLimit int) int {
@@ -182,6 +203,10 @@ func (h *CodeHandler) enrichDeadCodeResultsWithContent(
 		return results, contentByID, nil
 	}
 
+	if batchContent, ok := h.Content.(deadCodeEntityContentBatchStore); ok {
+		return h.enrichDeadCodeResultsWithContentBatch(ctx, results, contentByID, batchContent)
+	}
+
 	for i := range results {
 		entityID := StringVal(results[i], "entity_id")
 		if entityID == "" {
@@ -203,6 +228,49 @@ func (h *CodeHandler) enrichDeadCodeResultsWithContent(
 	}
 
 	return results, contentByID, nil
+}
+
+func (h *CodeHandler) enrichDeadCodeResultsWithContentBatch(
+	ctx context.Context,
+	results []map[string]any,
+	contentByID map[string]*EntityContent,
+	batchContent deadCodeEntityContentBatchStore,
+) ([]map[string]any, map[string]*EntityContent, error) {
+	entityIDs := make([]string, 0, len(results))
+	seen := make(map[string]struct{}, len(results))
+	for i := range results {
+		entityID := StringVal(results[i], "entity_id")
+		if entityID == "" {
+			continue
+		}
+		if _, ok := seen[entityID]; ok {
+			continue
+		}
+		seen[entityID] = struct{}{}
+		entityIDs = append(entityIDs, entityID)
+	}
+	entities, err := batchContent.GetEntityContents(ctx, entityIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	for i := range results {
+		entityID := StringVal(results[i], "entity_id")
+		entity := entities[entityID]
+		if entity == nil {
+			continue
+		}
+		contentByID[entityID] = entity
+		if len(entity.Metadata) == 0 {
+			continue
+		}
+		results[i]["metadata"] = mergeGraphAndContentMetadata(results[i]["metadata"], entity.Metadata)
+		attachSemanticSummary(results[i])
+	}
+	return results, contentByID, nil
+}
+
+type deadCodeEntityContentBatchStore interface {
+	GetEntityContents(ctx context.Context, entityIDs []string) (map[string]*EntityContent, error)
 }
 
 func filterDeadCodeResultsByDefaultPolicy(
@@ -248,6 +316,12 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 		return true
 	}
 	if deadCodeIsPythonFrameworkRoot(result, entity, stats) {
+		return true
+	}
+	if deadCodeIsPythonAnonymousLambda(result, entity) {
+		return true
+	}
+	if deadCodeIsJavaRoot(result, entity, stats) {
 		return true
 	}
 	if deadCodeIsJavaScriptFrameworkRoot(result, entity, stats) {
@@ -354,78 +428,6 @@ func deadCodeIsLibraryPublicAPIRoot(result map[string]any, entity *EntityContent
 
 func deadCodeIsSupportedGoPublicAPIEntity(result map[string]any, entity *EntityContent) bool {
 	return deadCodeIsCandidateEntity(result, entity)
-}
-
-func deadCodeIsTestFile(result map[string]any, entity *EntityContent) bool {
-	path := strings.ToLower(deadCodeEntityPath(result, entity))
-	base := filepath.Base(path)
-	switch {
-	case strings.HasSuffix(path, "_test.go"):
-		return true
-	case strings.Contains(path, "/__tests__/"),
-		strings.Contains(path, "/cypress/"),
-		strings.Contains(path, "/tests/"),
-		strings.Contains(path, "/test/"),
-		strings.HasPrefix(path, "__tests__/"),
-		strings.HasPrefix(path, "cypress/"),
-		strings.HasPrefix(path, "tests/"),
-		strings.HasPrefix(path, "test/"):
-		return true
-	case strings.HasPrefix(base, "test_"),
-		strings.HasPrefix(base, "cypress.config."),
-		deadCodeIsJavaScriptConfigFile(base),
-		strings.HasSuffix(base, ".cy.js"),
-		strings.HasSuffix(base, ".cy.jsx"),
-		strings.HasSuffix(base, ".cy.ts"),
-		strings.HasSuffix(base, ".cy.tsx"),
-		strings.HasSuffix(base, ".lab.js"),
-		strings.HasSuffix(base, ".lab.jsx"),
-		strings.HasSuffix(base, ".lab.ts"),
-		strings.HasSuffix(base, ".lab.tsx"),
-		strings.HasSuffix(base, "_test.py"),
-		strings.HasSuffix(base, ".test.js"),
-		strings.HasSuffix(base, ".test.jsx"),
-		strings.HasSuffix(base, ".test.ts"),
-		strings.HasSuffix(base, ".test.tsx"),
-		strings.HasSuffix(base, ".spec.js"),
-		strings.HasSuffix(base, ".spec.jsx"),
-		strings.HasSuffix(base, ".spec.ts"),
-		strings.HasSuffix(base, ".spec.tsx"):
-		return true
-	default:
-		return false
-	}
-}
-
-func deadCodeIsJavaScriptConfigFile(base string) bool {
-	for _, suffix := range []string{".config.js", ".config.jsx", ".config.ts", ".config.tsx", ".config.mjs", ".config.cjs", ".config.mts", ".config.cts"} {
-		if strings.HasSuffix(base, suffix) {
-			return true
-		}
-	}
-	return false
-}
-
-func deadCodeIsGeneratedCode(result map[string]any, entity *EntityContent) bool {
-	path := strings.ToLower(deadCodeEntityPath(result, entity))
-	base := filepath.Base(path)
-	switch {
-	case strings.Contains(path, "/gen/"),
-		strings.Contains(path, "/generated/"),
-		strings.Contains(path, "/.generated/"),
-		strings.HasSuffix(base, ".pb.go"),
-		strings.HasSuffix(base, ".gen.go"),
-		strings.HasSuffix(base, "_generated.go"):
-		return true
-	}
-
-	source := ""
-	if entity != nil {
-		source = strings.ToLower(entity.SourceCache)
-	}
-	return strings.Contains(source, "code generated by") ||
-		strings.Contains(source, "do not edit") ||
-		strings.Contains(source, "@generated")
 }
 
 func deadCodeEntityPath(result map[string]any, entity *EntityContent) string {

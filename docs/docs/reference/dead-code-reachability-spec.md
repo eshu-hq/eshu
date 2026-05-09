@@ -20,6 +20,7 @@ Every dead-code analysis must classify roots into one or more of these groups:
 - language entrypoints
   - `main`
   - `__main__`
+  - Python functions called from `if __name__ == "__main__"` script guards
   - `init()` or equivalent initializer hooks
   - equivalent executable roots
 - CLI command roots
@@ -66,9 +67,15 @@ Every dead-code analysis must classify roots into one or more of these groups:
     Classes whose first rune is uppercase are public-API roots when the file
     path is outside `cmd/`, `internal/`, and `vendor/` subtrees. Binary
     entrypoints (`cmd/`) and internal packages (`internal/`) remain subject
-    to reachability rules. Other languages (Python, Rust, Java, TypeScript)
-    are not yet modeled; their exported-symbol rules are a Chunk 4
-    follow-up
+    to reachability rules.
+  - Python (currently modeled, bounded): same-module `__all__` entries and
+    names re-exported from package `__init__.py` are public-API roots. Public
+    methods on those parser-proven public classes are also roots. Base classes
+    inherited by parser-proven public classes are treated as public API bases
+    so inherited methods are protected. Eshu does not treat every
+    non-underscore Python symbol as public in application code.
+  - Rust, Java, and broader language-specific public-surface rules remain
+    Chunk 4 follow-up work.
 - conditional roots
   - build-tag, platform, or environment-specific reachability
 - user-declared roots
@@ -182,6 +189,20 @@ Current branch status:
 - Python FastAPI route decorators are modeled
 - Python Flask route decorators are modeled
 - Python Celery task decorators are modeled
+- Python Click and Typer command decorators are modeled
+- Python AWS Lambda handlers declared in bounded SAM/CloudFormation and
+  Serverless config files are modeled
+- Python class-method context and simple local constructor receiver calls are
+  modeled so same-file `Class.method` and `instance.method` calls can reach
+  methods without broad name guessing
+- Python constructor calls, inherited classmethod calls, class receiver
+  references, dataclass models, dataclass `__post_init__` hooks, and property
+  decorators are modeled conservatively
+- Python dunder protocol methods are modeled as runtime callback roots
+- Python same-module `__all__` exports and package `__init__.py` reexports are
+  modeled as bounded public-API roots, and public base classes plus public
+  methods on those parser-proven public classes are modeled without marking every
+  public-looking Python symbol live
 - JavaScript/TypeScript Next.js route exports are modeled
 - JavaScript/TypeScript Express handler registrations are modeled
 - JavaScript/TypeScript Node package entrypoints, package `bin` targets,
@@ -191,18 +212,28 @@ Current branch status:
 - TypeScript public methods on classes that declare `implements` are modeled as
   interface implementation method roots; private and protected class helpers
   remain candidates unless another root or incoming edge reaches them
+- Java main methods, constructors, overrides, Spring/JUnit/Jenkins/Stapler
+  callbacks, Gradle plugin/task surfaces, serialization and Externalizable
+  hook signatures, bounded literal reflection, ServiceLoader providers, Spring
+  Boot `AutoConfiguration.imports`, and legacy `spring.factories` metadata are
+  modeled with parser-backed roots or reducer-produced `REFERENCES` edges
 - those Go signature roots are now emitted by the Go parser into entity
   metadata when imports, registrations, and signatures match directly; mixed
   native+SCIP indexing now preserves `dead_code_root_kinds` through the
-  supplement merge path; Python route/task decorators and
-  JavaScript/TypeScript Next.js/Express/Node/Hapi plus TypeScript interface
-  implementation method roots are also emitted as parser-backed
-  `dead_code_root_kinds`; Go query-time source heuristics remain as a fallback
-  while broader registry coverage lands
+  supplement merge path; Python route/task/CLI decorators, AWS Lambda handler
+  config roots, dataclass/property roots, dunder protocol roots, bounded
+  public-API roots, bases, and members, and JavaScript/TypeScript
+  Next.js/Express/Node/Hapi plus TypeScript interface implementation method
+  roots are also emitted as parser-backed `dead_code_root_kinds`; Java metadata
+  and literal reflection evidence now materializes as `REFERENCES` edges; Go
+  query-time source heuristics remain as a fallback while broader registry
+  coverage lands
 - broader Go router, webhook, worker, reflection, and build-tag roots plus
-  broader Python worker/CLI/public-API roots and broader JavaScript/TypeScript
-  worker, static module graph, and dynamic-dispatch roots remain
-  open, so dead-code truth stays `derived`
+  broader Python worker, dynamic-dispatch, and non-export-declared public API
+  roots plus broader
+  JavaScript/TypeScript worker, static module graph, and dynamic-dispatch roots
+  plus broader Java dynamic dispatch, dependency injection, and string-built
+  reflection remain open, so dead-code truth stays `derived`
 
 Initial MVP is explicitly limited to those families. Other parser-supported
 languages and frameworks should return `derived_candidate_only`, `derived`, or
@@ -219,6 +250,8 @@ extraction coverage; it does not prove cleanup safety.
 
 The fixture inventory lives at
 `../../../tests/fixtures/deadcode/README.md`.
+The per-parser support pages under `../languages/` name the checked fixtures
+and root categories for each currently modeled source language.
 
 Every language fixture should include:
 

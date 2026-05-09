@@ -207,6 +207,12 @@ func (e nornicDBPhaseGroupExecutor) phaseGroupStatementLimit(stmts []sourcecyphe
 		}
 		return defaultNornicDBFilePhaseStatements
 	}
+	if phase == sourcecypher.CanonicalPhaseDirectories {
+		if e.directoryMaxStatements > 0 {
+			return e.directoryMaxStatements
+		}
+		return defaultNornicDBDirectoryPhaseStatements
+	}
 	if statementPhaseUsesEntityLabelStats(phase) {
 		if label := entityStatementLabel(stmts[0]); label != "" && e.entityLabelMaxStatements != nil {
 			if limit := e.entityLabelMaxStatements[label]; limit > 0 {

@@ -286,7 +286,8 @@ func TestSharedIntentStoreUpsertIntentsBatch(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
-	// Create 1200 intents to test batching (should result in 3 batches of 500, 500, 200)
+	// Create 1200 intents to test batching; this should stay in one bounded
+	// multi-row INSERT under the shared intent batch size.
 	rows := make([]reducer.SharedProjectionIntentRow, 1200)
 	for i := 0; i < 1200; i++ {
 		rows[i] = reducer.SharedProjectionIntentRow{
@@ -308,12 +309,11 @@ func TestSharedIntentStoreUpsertIntentsBatch(t *testing.T) {
 		t.Fatalf("UpsertIntents: %v", err)
 	}
 
-	// Verify batching: 1200 intents should use 3 ExecContext calls (batches of 500, 500, 200)
-	// not 1200 calls
+	// Verify batching: 1200 intents should use one ExecContext call, not 1200.
 	execCallsAfter := db.execCalls
 	batchCallsUsed := execCallsAfter - execCallsBefore
 
-	expectedBatches := 3 // ceil(1200 / 500) = 3
+	expectedBatches := 1
 	if batchCallsUsed != expectedBatches {
 		t.Errorf("expected %d batch ExecContext calls, got %d (1200 intents should batch)", expectedBatches, batchCallsUsed)
 	}
@@ -473,6 +473,72 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitDomainIntents(t *testing.T) 
 	}
 }
 
+func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunDomainIntents(t *testing.T) {
+	t.Parallel()
+
+	db := newSharedIntentTestDB()
+	store := NewSharedIntentStore(db)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	completedAt := now.Add(time.Second)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:         "si-completed-old-run",
+			ProjectionDomain: reducer.DomainCodeCalls,
+			PartitionKey:     "caller->callee",
+			ScopeID:          "scope-a",
+			AcceptanceUnitID: "repo-a",
+			RepositoryID:     "repo-a",
+			SourceRunID:      "run-old",
+			GenerationID:     "gen-old",
+			Payload:          map[string]any{"repo_id": "repo-a"},
+			CreatedAt:        now,
+			CompletedAt:      &completedAt,
+		},
+		{
+			IntentID:         "si-completed-current-run",
+			ProjectionDomain: reducer.DomainCodeCalls,
+			PartitionKey:     "caller->callee",
+			ScopeID:          "scope-a",
+			AcceptanceUnitID: "repo-a",
+			RepositoryID:     "repo-a",
+			SourceRunID:      "run-new",
+			GenerationID:     "gen-new",
+			Payload:          map[string]any{"repo_id": "repo-a"},
+			CreatedAt:        now,
+			CompletedAt:      &completedAt,
+		},
+	}
+	if err := store.UpsertIntents(ctx, rows); err != nil {
+		t.Fatalf("UpsertIntents: %v", err)
+	}
+
+	got, err := store.HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
+		ScopeID:          "scope-a",
+		AcceptanceUnitID: "repo-a",
+		SourceRunID:      "run-new",
+	}, reducer.DomainCodeCalls)
+	if err != nil {
+		t.Fatalf("HasCompletedAcceptanceUnitSourceRunDomainIntents: %v", err)
+	}
+	if !got {
+		t.Fatal("HasCompletedAcceptanceUnitSourceRunDomainIntents = false, want true")
+	}
+
+	got, err = store.HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
+		ScopeID:          "scope-a",
+		AcceptanceUnitID: "repo-a",
+		SourceRunID:      "run-missing",
+	}, reducer.DomainCodeCalls)
+	if err != nil {
+		t.Fatalf("HasCompletedAcceptanceUnitSourceRunDomainIntents missing run: %v", err)
+	}
+	if got {
+		t.Fatal("HasCompletedAcceptanceUnitSourceRunDomainIntents for missing run = true, want false")
+	}
+}
+
 // -- test helpers --
 
 // sharedIntentTestDB is an in-memory mock of ExecQueryer that stores shared
@@ -546,6 +612,26 @@ func (db *sharedIntentTestDB) ExecContext(_ context.Context, query string, args 
 
 func (db *sharedIntentTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
 	switch {
+	case strings.Contains(query, "SELECT EXISTS") &&
+		strings.Contains(query, "source_run_id = $3") &&
+		strings.Contains(query, "completed_at IS NOT NULL"):
+		scopeID := args[0].(string)
+		acceptanceUnitID := args[1].(string)
+		runID := args[2].(string)
+		domain := args[3].(string)
+		exists := false
+		for _, stored := range db.intents {
+			intent := stored.row
+			if stored.scopeID != scopeID || stored.acceptanceUnitID != acceptanceUnitID {
+				continue
+			}
+			if intent.SourceRunID == runID && intent.ProjectionDomain == domain && intent.CompletedAt != nil {
+				exists = true
+				break
+			}
+		}
+		return newSharedIntentRows([][]any{{exists}}), nil
+
 	case strings.Contains(query, "SELECT EXISTS") &&
 		strings.Contains(query, "completed_at IS NOT NULL"):
 		scopeID := args[0].(string)

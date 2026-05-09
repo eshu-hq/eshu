@@ -12,6 +12,7 @@ import (
 type nornicDBPhaseGroupExecutor struct {
 	inner                    sourcecypher.Executor
 	maxStatements            int
+	directoryMaxStatements   int
 	fileMaxStatements        int
 	entityMaxStatements      int
 	entityLabelMaxStatements map[string]int

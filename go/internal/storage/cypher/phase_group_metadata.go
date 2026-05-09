@@ -27,6 +27,8 @@ const (
 	// CanonicalPhaseEntityContainment identifies file-to-entity containment
 	// writes that may need backend-specific grouping limits.
 	CanonicalPhaseEntityContainment = "entity_containment"
+	// CanonicalPhaseDirectories identifies depth-ordered directory-node writes.
+	CanonicalPhaseDirectories = "directories"
 	// CanonicalPhaseFiles identifies canonical file-node writes.
 	CanonicalPhaseFiles = "files"
 	// PhaseGroupModeExecuteOnly tells executors to run a statement outside the

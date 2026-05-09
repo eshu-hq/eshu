@@ -56,6 +56,69 @@ func TestExtractCodeCallRowsSkipsQualifiedPHPCallsWithoutReceiverType(t *testing
 	}
 }
 
+func TestExtractCodeCallRowsResolvesJavaMethodReferences(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload: map[string]any{
+				"repo_id": "repo-java",
+			},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-java",
+				"relative_path": "BootExtension.java",
+				"parsed_file_data": map[string]any{
+					"path": "BootExtension.java",
+					"functions": []any{
+						map[string]any{
+							"name":          "buildInfo",
+							"class_context": "BootExtension",
+							"line_number":   3,
+							"end_line":      6,
+							"uid":           "content-entity:java-build-info",
+						},
+						map[string]any{
+							"name":          "configureBuildInfoTask",
+							"class_context": "BootExtension",
+							"line_number":   8,
+							"end_line":      10,
+							"uid":           "content-entity:java-configure-build-info-task",
+						},
+					},
+					"function_calls": []any{
+						map[string]any{
+							"name":          "configureBuildInfoTask",
+							"full_name":     "this.configureBuildInfoTask",
+							"class_context": "BootExtension",
+							"call_kind":     "java.method_reference",
+							"line_number":   4,
+							"lang":          "java",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, rows := ExtractCodeCallRows(envelopes)
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1", len(rows))
+	}
+	if got, want := rows[0]["caller_entity_id"], "content-entity:java-build-info"; got != want {
+		t.Fatalf("caller_entity_id = %#v, want %#v", got, want)
+	}
+	if got, want := rows[0]["callee_entity_id"], "content-entity:java-configure-build-info-task"; got != want {
+		t.Fatalf("callee_entity_id = %#v, want %#v", got, want)
+	}
+	if got, want := rows[0]["relationship_type"], "REFERENCES"; got != want {
+		t.Fatalf("relationship_type = %#v, want %#v", got, want)
+	}
+}
+
 func TestExtractCodeCallRowsResolvesPHPThisPropertyCallsUsingTypedPropertyInference(t *testing.T) {
 	t.Parallel()
 

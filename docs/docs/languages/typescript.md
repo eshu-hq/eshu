@@ -12,6 +12,35 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Unit test suite: `go/internal/parser/engine_javascript_semantics_test.go`
 - Integration validation: compose-backed fixture verification (see `../reference/local-testing.md`)
 
+## Dead-code Support
+
+TypeScript dead-code support is `derived`. It shares the JavaScript-family
+package and framework roots, then adds TypeScript-specific public surface and
+type-reference evidence. Runtime-built property access and framework behavior
+that is not represented in source or metadata remains outside the model.
+
+Supported roots and reachability evidence:
+
+- Node package roots: nearest owning `package.json` entrypoints, `bin` targets,
+  scripts, exports, and declaration/public-surface files.
+- TypeScript public surfaces: declaration-only barrels, one-hop static
+  re-exports, module-contract exports, exported static registry members, and
+  public methods on classes with `implements` evidence.
+- Framework routes and callbacks: Next.js app/route exports, Express, Koa,
+  Fastify, NestJS, and Hapi handler/plugin surfaces shared with the
+  JavaScript parser path.
+- Reference evidence: `typescript.type_reference` rows, returned function
+  values, static relative re-exports, and CommonJS/Hapi handler references.
+- Resolution evidence: JSONC `tsconfig.json` parsing for `baseUrl` and `paths`,
+  including comments and trailing commas.
+
+Checked Node/TypeScript fixtures live under `tests/fixtures/dead-code/node-typescript`
+and `tests/fixtures/ecosystems/typescript_comprehensive/`. Focused coverage
+lives in `go/internal/parser/javascript_dead_code_node_typescript_fixture_test.go`,
+`go/internal/parser/javascript_dead_code_typescript_surface_test.go`,
+`go/internal/query/code_dead_code_typescript_semantics_test.go`, and
+`go/internal/query/code_dead_code_node_typescript_matrix_test.go`.
+
 ## Capability Checklist
 | Capability | ID | Status | Extracted Bucket/Key | Required Fields | Graph Surface | Unit Coverage | Integration Coverage | Rationale |
 |-----------|----|--------|------------------------|-----------------|---------------|---------------|----------------------|-----------|

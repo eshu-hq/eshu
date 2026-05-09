@@ -6,7 +6,8 @@
 reports. It owns the `Report` type consumed by the CLI, the HTTP admin surface,
 and the runtime process-level status view. The package defines the `Reader`
 interface that Postgres storage backends implement and provides helpers for
-building, rendering, and serving status output in both text and JSON formats.
+building, health evaluation, rendering, and serving status output in both text
+and JSON formats.
 
 ## Ownership boundary
 
@@ -28,8 +29,9 @@ table.
 ```mermaid
 flowchart LR
   A["internal/storage/postgres\nReader.ReadStatusSnapshot"] --> B["RawSnapshot"]
-  B --> C["status.BuildReport\n(projection + health eval)"]
-  C --> D["Report"]
+  B --> C["status.BuildReport\n(projection)"]
+  C --> H["status_health.evaluateHealth\n(readiness state)"]
+  H --> D["Report"]
   D --> E["RenderText\n(CLI / admin/status)"]
   D --> F["RenderJSON\n(HTTP ?format=json)"]
   D --> G["NewHTTPHandler\nserves GET /admin/status"]
@@ -59,7 +61,8 @@ See `doc.go` for the godoc contract. Key types and functions:
   metric labels
 - `QueueBlockage` — conflict-domain-blocked work: stage, domain, conflict
   domain, conflict key, blocked count, oldest age
-- `DomainBacklog` — backlog depth for one reducer or projection domain
+- `DomainBacklog` — backlog depth and active in-flight work for one reducer or
+  projection domain
 - `ScopeActivitySnapshot` — active, changed, unchanged scope counts for
   incremental-refresh operator view
 - `GenerationHistorySnapshot` — active, pending, completed, superseded, failed,
@@ -91,8 +94,8 @@ states (in priority order):
 | --- | --- |
 | `stalled` | Overdue claims, or outstanding backlog with no in-flight work past `StallAfter` |
 | `degraded` | Dead-letter items, failed items, or failed generations present |
-| `progressing` | Work queued or in flight |
-| `healthy` | No outstanding queue backlog |
+| `progressing` | Work queued, in flight, pending generation work, or shared projection intents with active partition leases or still below `StallAfter` |
+| `healthy` | No outstanding queue backlog or shared projection backlog |
 
 ### Rendering and serving
 
@@ -153,6 +156,12 @@ strings.
 - **`BuildReport` is a pure function.** It can be called in tests without any
   storage dependency. Use it to unit-test health logic, flow summaries, and
   domain backlog ordering.
+- **Shared projection work blocks healthy.** Once the fact queue is drained,
+  outstanding `DomainBacklog` rows represent shared projection intents that still
+  need to become graph-visible. Active shared-projection partition leases count
+  as `DomainBacklog.InFlight`, even when no intent row is still pending, so
+  `evaluateHealth` returns `progressing` while reducer-owned edge projection is
+  still moving and only returns `stalled` for old backlog with no active lease.
 - **`DomainBacklogs` are capped.** `BuildReport` applies `topDomainBacklogs`
   with `Options.DomainLimit` (default 5) to prevent unbounded output when the
   reducer has many domains.

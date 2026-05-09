@@ -274,10 +274,14 @@ Roll out exactness by language family, not by marketing claim.
    Hapi/lib-api-hapi handler directories, ESM/CommonJS exports, Next.js,
    Express, route handlers, class methods, framework callbacks, and dynamic
    property access ambiguity.
-4. **Rust/Java/C#/Scala/Swift/Kotlin:** traits/interfaces, annotations,
+4. **Java:** annotations, framework callbacks, Gradle/Jenkins/Spring/JUnit
+   roots, serialization hooks, bounded literal reflection, ServiceLoader
+   providers, Spring auto-configuration metadata, and compiler/indexer-backed
+   semantics where available.
+5. **Rust/C#/Scala/Swift/Kotlin:** traits/interfaces, annotations,
    exported/public symbols, package/module roots, framework callbacks, and
    compiler/indexer-backed semantics where available.
-5. **C/C++/Dart/Elixir/Haskell/Perl/PHP/Ruby:** exactness only after each
+6. **C/C++/Dart/Elixir/Haskell/Perl/PHP/Ruby:** exactness only after each
    language has tested entrypoints, public API rules, call/reference evidence,
    and framework root policies.
 
@@ -363,7 +367,8 @@ IDs belong in spans or structured logs, not metric labels.
 Dead-code maturity work is allowed to add parser metadata and query
 classification, but it must not make local dogfood indexing unusable. The
 acceptance bar for this PR includes a repo-scale local-authoritative graph
-proof, not only synthetic query latency.
+proof, not only synthetic query latency. Classify dogfood runs with the [local
+performance tiers](../reference/local-performance-envelope.md#dogfood-tiers).
 
 The required performance gate must prove:
 
@@ -390,6 +395,61 @@ The first remediation step is diagnostic, not another query-shape guess:
    local process contention.
 5. Keep the rejected experiments recorded in this ADR or the implementation
    plan so the team does not repeat them.
+
+## Implementation Evidence
+
+The Python/Java slice is still a derived dead-code maturity step, not an
+exactness claim. It adds root metadata, query exclusions, and dogfood proof, but
+the language gates stay conservative while dynamic dispatch, broad reflection,
+and dependency injection remain intentionally bounded.
+
+Local and dogfood evidence gathered in this branch so far:
+
+- Ansible indexed as the large Python dogfood repo and returned a bounded
+  `dead-code` result window in `4.9s`.
+- Jenkins indexed as the first Java dogfood repo and returned a bounded
+  `dead-code` result window in `9.8s`.
+- Spring Boot indexed from a fresh local worktree through `eshu graph start
+  --workspace-root <spring-boot-worktree> --progress plain --logs file` on
+  2026-05-08 local time against NornicDB `v1.0.44`. The run drained healthy
+  with collector `1/1`, projector `1/1`, reducer `10/10`, queue `pending=0`,
+  `in_flight=0`, `retrying=0`, `failed=0`, and `dead_letter=0`.
+- Spring Boot collector stream completed in `27.352s`. Source-local projection
+  loaded `190459` facts in `3.444s`, wrote content in `16.848s`, completed the
+  canonical phase-group write in `31.846s`, and finished `project_generation`
+  in `51.179s`.
+- The first Spring Boot proof after exact code-call endpoint labels reduced
+  code-call projection from `236.842s` to `21.612s`, but semantic and SQL
+  materialization still spent about `60.5s` each in fact loading.
+- The current page-size fix keeps `FactStore.ListFactsByKind` on bounded
+  keyset pages, but raises those pages to the existing 500-row fact batch size.
+  On the fresh Spring Boot proof, semantic fact loading dropped from `60.510s`
+  to `13.547s`, and SQL fact loading dropped from `60.573s` to `13.396s`.
+  Semantic total dropped from `72.769s` to `26.210s`; SQL total dropped from
+  `60.644s` to `13.464s`.
+- Code-call shared projection completed after reducer queue drain, writing
+  `44988` rows in `21.187s` with `write_duration_seconds=19.133` and
+  `mark_completed_duration_seconds=1.113`. This confirms that readiness for
+  dead-code queries must include shared projection completion, not only the
+  reducer work-item queue.
+- The Java completion slice added parser/reducer fixtures for serialization
+  hooks, bounded literal reflection, ServiceLoader provider files, Spring Boot
+  `AutoConfiguration.imports`, and legacy `spring.factories`. These surfaces now
+  emit parser-backed roots or `REFERENCES` edges instead of relying on query-time
+  string matching.
+- Elasticsearch is now classified as Tier 3 Java stress evidence in the local
+  performance envelope: `32966` files, `1093371` content entities, `1153024`
+  facts, `399.154s` source-local projection, and `117.932s` code-call
+  materialization before the run was stopped for bottleneck analysis.
+
+Open proof work before this branch can close:
+
+- Complete the Tier 3 Elasticsearch run after canonical projection and
+  code-call fixes.
+- Re-run at least one Python large-repo proof after the same storage change.
+- Keep the language matrix at `derived` for Python and Java until dynamic
+  dispatch, broad reflection, and dependency-injection categories have positive,
+  negative, and ambiguous fixtures.
 
 ## Consequences
 

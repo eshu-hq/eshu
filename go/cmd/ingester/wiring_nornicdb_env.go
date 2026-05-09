@@ -38,7 +38,7 @@ func nornicDBCanonicalGroupedWrites(getenv func(string) string) (bool, error) {
 func nornicDBBatchedEntityContainmentEnabled(getenv func(string) string) (bool, error) {
 	raw := strings.TrimSpace(getenv(nornicDBBatchedEntityContainmentEnv))
 	if raw == "" {
-		return false, nil
+		return true, nil
 	}
 	enabled, err := strconv.ParseBool(raw)
 	if err != nil {

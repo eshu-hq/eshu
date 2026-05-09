@@ -2,6 +2,8 @@ package reducer
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -302,6 +304,28 @@ func TestCodeCallMaterializationHandlerUsesKindFilteredFactLoader(t *testing.T) 
 	}
 }
 
+func TestLoadFactsForKindsMarksUnexpectedEOFRetryable(t *testing.T) {
+	t.Parallel()
+
+	loader := &recordingKindFactLoader{
+		byKindErr: fmt.Errorf("list facts by kind: %w", io.ErrUnexpectedEOF),
+	}
+
+	_, err := loadFactsForKinds(
+		context.Background(),
+		loader,
+		"scope-1",
+		"generation-1",
+		[]string{factKindRepository, factKindFile},
+	)
+	if err == nil {
+		t.Fatal("loadFactsForKinds() error = nil, want unexpected EOF")
+	}
+	if !IsRetryable(err) {
+		t.Fatalf("loadFactsForKinds() retryable = false, want true for %v", err)
+	}
+}
+
 func TestDeployableUnitCorrelationHandlerUsesKindFilteredFactLoader(t *testing.T) {
 	t.Parallel()
 
@@ -392,6 +416,7 @@ func TestInheritanceMaterializationHandlerUsesKindFilteredFactLoader(t *testing.
 type recordingKindFactLoader struct {
 	all            []facts.Envelope
 	byKind         []facts.Envelope
+	byKindErr      error
 	listFactsCalls int
 	kindCalls      [][]string
 }
@@ -412,5 +437,8 @@ func (l *recordingKindFactLoader) ListFactsByKind(
 	factKinds []string,
 ) ([]facts.Envelope, error) {
 	l.kindCalls = append(l.kindCalls, append([]string(nil), factKinds...))
+	if l.byKindErr != nil {
+		return nil, l.byKindErr
+	}
 	return append([]facts.Envelope(nil), l.byKind...), nil
 }

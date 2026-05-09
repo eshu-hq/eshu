@@ -76,11 +76,14 @@
   the branded Bubble Tea known-work progress panel. The verdict line is the
   primary operator signal: `Complete` means all known work drained, `Indexing`
   means pending collector generations or active work remain, `Settling` means
-  queued work remains, and `Attention` means a failure/dead-letter path is
-  present. The collector row treats `scope_generations.status='active'` as the
-  current snapshot, not a running worker; only pending generations should keep
-  the collector waiting. Use `--progress plain` when testing append-only output
-  and `--progress quiet` only when another wrapper owns progress display.
+  queued work or shared projection backlog remains, and `Attention` means a
+  failure/dead-letter path is present. The collector row treats
+  `scope_generations.status='active'` as the current snapshot, not a running
+  worker; only pending generations should keep the collector waiting. When
+  queue counters are zero but readiness is still `progressing`, check the
+  `Shared projections` line before assuming the panel is stale. Use
+  `--progress plain` when testing append-only output and `--progress quiet`
+  only when another wrapper owns progress display.
 
 - Symptom: the progress table is healthy but stays at `idle` after a
   local-authoritative restart → first check whether `cache/repos` was reset.

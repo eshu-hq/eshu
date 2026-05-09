@@ -12,7 +12,8 @@ import (
 
 type fakeDeadCodeContentStore struct {
 	fakePortContentStore
-	entities map[string]EntityContent
+	entities          map[string]EntityContent
+	incomingEntityIDs map[string]bool
 }
 
 func (f fakeDeadCodeContentStore) GetEntityContent(_ context.Context, entityID string) (*EntityContent, error) {
@@ -22,6 +23,16 @@ func (f fakeDeadCodeContentStore) GetEntityContent(_ context.Context, entityID s
 	}
 	cloned := entity
 	return &cloned, nil
+}
+
+func (f fakeDeadCodeContentStore) DeadCodeIncomingEntityIDs(_ context.Context, _ string, entityIDs []string) (map[string]bool, error) {
+	incoming := make(map[string]bool)
+	for _, entityID := range entityIDs {
+		if f.incomingEntityIDs[entityID] {
+			incoming[entityID] = true
+		}
+	}
+	return incoming, nil
 }
 
 func TestHandleDeadCodeReturnsDerivedTruthAndAnalysisMetadata(t *testing.T) {
@@ -109,7 +120,7 @@ func TestHandleDeadCodeReturnsDerivedTruthAndAnalysisMetadata(t *testing.T) {
 	if got, want := analysis["generated_code_excluded"], true; got != want {
 		t.Fatalf("analysis[generated_code_excluded] = %#v, want %#v", got, want)
 	}
-	if got, want := analysis["reflection_modeled"], false; got != want {
+	if got, want := analysis["reflection_modeled"], true; got != want {
 		t.Fatalf("analysis[reflection_modeled] = %#v, want %#v", got, want)
 	}
 	if got, want := analysis["framework_roots_from_parser_metadata"], float64(0); got != want {
@@ -242,11 +253,11 @@ func TestHandleDeadCodeUsesNornicDBCompatibleCandidateQuery(t *testing.T) {
 		Profile:      ProfileLocalAuthoritative,
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, "WHERE NOT ()-[:CALLS|IMPORTS|REFERENCES]->(e)") {
+				if strings.Contains(cypher, "WHERE NOT ()-[:CALLS|IMPORTS|REFERENCES|INHERITS]->(e)") {
 					t.Fatalf("cypher = %q, want NornicDB dead-code query to avoid inline NOT pattern", cypher)
 				}
-				if !strings.Contains(cypher, "NOT EXISTS { MATCH (e)<-[:CALLS|IMPORTS|REFERENCES]-() }") {
-					t.Fatalf("cypher = %q, want NornicDB dead-code query to use NOT EXISTS pattern form", cypher)
+				if strings.Contains(cypher, "NOT EXISTS { MATCH (e)<-[:CALLS|IMPORTS|REFERENCES|INHERITS]-() }") {
+					t.Fatalf("cypher = %q, want NornicDB dead-code query to avoid expensive anti-join", cypher)
 				}
 				if got, want := params["limit"], deadCodeCandidateQueryLimit(deadCodeDefaultLimit); got != want {
 					t.Fatalf("params[limit] = %#v, want %#v", got, want)
@@ -297,7 +308,7 @@ func TestHandleDeadCodeCandidateQueryRestrictsCodeEntityLabelsBeforeLimit(t *tes
 				t.Fatalf("cypher = %q, want LIMIT $limit", cypher)
 			}
 
-			labelGate := "(e:Function OR e:Class OR e:Struct OR e:Interface)"
+			labelGate := "MATCH (e:Function)<-[:CONTAINS]-(f:File)"
 			labelGateIndex := strings.Index(cypher, labelGate)
 			if labelGateIndex < 0 {
 				t.Fatalf("cypher = %q, want code-entity label gate %q", cypher, labelGate)
@@ -318,7 +329,7 @@ func TestHandleDeadCodeCandidateQueryAnchorsRepoScopedReads(t *testing.T) {
 			t.Parallel()
 
 			cypher := buildDeadCodeGraphCypher(true, backend)
-			if !strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)") {
+			if !strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e:Function)") {
 				t.Fatalf("cypher = %q, want repo-scoped query to anchor on Repository id before entity traversal", cypher)
 			}
 			if strings.Contains(cypher, "AND r.id = $repo_id") {

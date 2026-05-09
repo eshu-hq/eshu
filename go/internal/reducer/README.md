@@ -147,17 +147,75 @@ entrypoint, package bin, package
 export, and top-level JavaScript reference files, the repository scoped
 `File.uid` may be the caller so executable module bodies can make `main()`,
 constructor, member, function-value, and type-reference edges reachable without
-treating every library module as a root. The Go same-directory step applies to functions
-and type entities from
-`structs` and `interfaces`; command packages commonly reuse local helper names
-such as `wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name
-resolution must stay ambiguous in that case.
+treating every library module as a root. Code-call rows now carry
+`caller_entity_type` and `callee_entity_type` from the entity index, using
+`File` for repository-scoped file-root callers, so the graph writer can use the
+exact endpoint label and `uid` instead of a broad label family. The Go
+same-directory step applies to functions and type entities from `structs` and
+`interfaces`; command packages commonly reuse local helper names such as
+`wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name resolution must
+stay ambiguous in that case.
 
-Parser metadata rows with `call_kind=go.composite_literal_type_reference` or
-`call_kind=typescript.type_reference` materialize as deduplicated `REFERENCES`
-edges. They prove type-reference roots for dead-code classification, but must
-not materialize as `CALLS` because that would make graph truth claim that type
-literals invoke types.
+For Java, parser-provided `inferred_obj_type` metadata lets receiver-qualified
+calls such as `factory.basicAuth(...)` resolve to methods on the parsed
+receiver type when local syntax proves the variable, parameter, field, or
+inline constructor receiver. Enhanced-for variables use the same receiver
+metadata, so loop-local calls such as `alignment.accepts(...)` resolve to the
+record or class declared in the loop header. Unqualified calls inside nested
+classes use parser-proven `enclosing_class_contexts` as exact candidates, so an
+inner helper wins before the reducer tries the enclosing class method. Explicit
+outer-this field receivers in Java's named-outer-instance field form use
+the enclosing class field type to resolve calls on collaborator objects.
+`code_call_materialization_arity.go` converts `argument_count` and
+`parameter_count` metadata into `name#arity` candidates before broad name
+matching, so overloaded methods such as `basicAuth(String)` and
+`basicAuth(String, String)` do not collapse into one reachability result.
+When Java parser rows also carry `argument_types` and `parameter_types`,
+the reducer adds type-signature candidates such as
+`configureBootJarTask(BootJar,TaskProvider)` before falling back to broader
+names. That lets class-literal typed Gradle lambdas and helper-call return
+values resolve overloaded callback methods without treating every same-name
+overload as reached.
+Parser rows with `call_kind=java.method_reference` resolve method-reference
+syntax such as `this::configureTask` to same-class methods and materialize as
+`REFERENCES`, because the source proves reachability through a functional
+callback without proving an immediate invocation.
+This keeps Java method reachability bounded to evidence from the parsed files
+instead of treating every method with the same name as live.
+Parser rows with `call_kind=java.reflection_class_reference` and
+`call_kind=java.reflection_method_reference` also materialize as `REFERENCES`
+when the parser saw literal class or method names in reflection calls. Dynamic
+reflection strings stay unmodeled. Java metadata files produce
+`call_kind=java.service_loader_provider` and
+`call_kind=java.spring_autoconfiguration_class` rows; the reducer uses the
+metadata file as the caller and the referenced provider or auto-configuration
+class as the callee.
+
+For Python, parser-provided `class_context`, `inferred_obj_type`, and
+`constructor_call` metadata keep method and constructor resolution bounded to
+evidence in the parsed file. Local constructor assignments and `self` member
+calls can both carry receiver type. Constructor calls can reach both the class
+entity and its `__init__` method. Class receiver rows with
+`call_kind=python.class_reference` materialize as `REFERENCES`, while a
+class-qualified method call may resolve to a
+unique inherited method name when no exact class-context method exists. That
+protects dataclass and model helper paths without making all same-named Python
+methods reachable.
+
+Parser metadata rows with `call_kind=go.composite_literal_type_reference`,
+`call_kind=typescript.type_reference`, `call_kind=python.class_reference`, or
+`call_kind=java.method_reference`, plus Java literal-reflection,
+ServiceLoader, and Spring auto-configuration class references, materialize as
+deduplicated `REFERENCES` edges. They prove reference roots for dead-code
+classification, but must not materialize as `CALLS` because that would make
+graph truth claim that type or class references are invocations.
+
+`CodeCallMaterializationHandler` logs `code call materialization completed`
+with fact count, repository count, row counts, and timing for fact load,
+context build, extraction, intent build, intent upsert, and total duration
+(`code_call_materialization.go:62-156`). Keep that signal when changing the
+handler; it is the first split used to tell parser extraction cost from
+Postgres intent-write cost on large repositories.
 
 SCIP edges bypass the heuristic resolver when both caller and callee locations
 map to known entities. Keep the native and SCIP paths idempotent: duplicate
@@ -177,8 +235,26 @@ The runner uses exponential back-off (doubling each empty cycle, capped at
 intents are blocked on a readiness phase (`BlockedReadiness > 0`), it
 re-polls at the base interval without backing off.
 
+`CodeCallProjectionRunner` owns the `code_calls` domain separately because it
+rewrites one accepted repo/run unit at a time while preserving repo-wide
+retraction semantics. Very large accepted units are processed in capped chunks:
+the first chunk retracts when prior durable history exists, and later chunks
+from the same source run skip retraction so earlier chunk writes stay
+graph-visible. In local-authoritative NornicDB runs it can receive a
+`ReducerGraphDrain`; when active reducer graph domains remain, the runner
+records a blocked cycle and waits before claiming the code-call partition. The
+gate only schedules work. It does not change which rows become `CALLS`,
+`REFERENCES`, or `USES_METACLASS`.
+
 Configuration via `LoadSharedProjectionConfig` reads
 ESHU_SHARED_PROJECTION_* env vars; see `cmd/reducer/README.md`.
+
+`InheritanceMaterializationHandler` and `SQLRelationshipMaterializationHandler`
+load only the `content_entity` rows whose `entity_type` can participate in
+their domains (`inheritance_materialization.go:69-77`,
+`sql_relationship_materialization.go:60-69`). The filters are correctness
+filters, not sampling: every allowed type is still processed, and unsupported
+types stay invisible to those domain reducers.
 
 ## Facts-First Bootstrap Ordering
 
@@ -306,6 +382,11 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `code_calls`, `sql_relationships`, and `inheritance_edges` gate on
   `canonical_nodes_committed` or `semantic_nodes_committed` being present
   before writing edges (`shared_projection.go:91–99`).
+- **Code-call chunks must not retract each other** — a code-call accepted
+  unit can exceed `DefaultCodeCallAcceptanceScanLimit`. The runner processes a
+  capped slice, marks it complete, and then continues with later slices from
+  the same source run. `CodeCallProjectionCurrentRunHistoryLookup` is the guard
+  that skips retraction after the first current-run chunk.
 - **Bare code-call names are scoped before they are broadened** — same-file
   resolution wins first. Go then allows a same-directory match before the
   repository-unique fallback; if another package has the same bare name, do

@@ -10,6 +10,8 @@
 // repo-dependency, and graph-projection-phase repair runners, and hosts it
 // through app.NewHostedWithStatusServer so it exposes the shared `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. NornicDB reducer
-// workers default to NumCPU, while Neo4j remains capped lower by default.
+// workers default to NumCPU, while Neo4j remains capped lower by default; the
+// local-authoritative NornicDB profile also wires a reducer graph-drain gate for
+// code-call projection so graph write lanes do not compete unnecessarily.
 // SIGINT and SIGTERM trigger clean shutdown through the hosted runtime drain.
 package main

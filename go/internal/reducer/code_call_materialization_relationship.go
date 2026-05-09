@@ -12,7 +12,19 @@ func codeCallRelationshipType(edge map[string]any) string {
 		return "REFERENCES"
 	case "javascript.function_value_reference":
 		return "REFERENCES"
+	case "java.method_reference":
+		return "REFERENCES"
+	case "java.reflection_class_reference":
+		return "REFERENCES"
+	case "java.reflection_method_reference":
+		return "REFERENCES"
+	case "java.service_loader_provider":
+		return "REFERENCES"
+	case "java.spring_autoconfiguration_class":
+		return "REFERENCES"
 	case "typescript.type_reference":
+		return "REFERENCES"
+	case "python.class_reference":
 		return "REFERENCES"
 	default:
 		return ""

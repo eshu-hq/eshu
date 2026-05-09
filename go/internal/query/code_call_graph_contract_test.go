@@ -3,7 +3,6 @@ package query
 import (
 	"bytes"
 	"context"
-	"database/sql/driver"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,33 +13,6 @@ import (
 
 func TestHandleDeadCodeExcludesDecoratedEntities(t *testing.T) {
 	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"function-1", "repo-1", "src/routes.py", "Function", "handler",
-					int64(10), int64(14), "python", "def handler(): pass", []byte(`{"decorators":["@route"]}`),
-				},
-			},
-		},
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"function-2", "repo-1", "src/payments.py", "Function", "helper",
-					int64(20), int64(30), "python", "def helper(): pass", []byte(`{"decorators":["@cached"]}`),
-				},
-			},
-		},
-	})
 
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
@@ -74,7 +46,30 @@ func TestHandleDeadCodeExcludesDecoratedEntities(t *testing.T) {
 				}, nil
 			},
 		},
-		Content: NewContentReader(db),
+		Content: fakeDeadCodeContentStore{
+			entities: map[string]EntityContent{
+				"function-1": {
+					EntityID:     "function-1",
+					RepoID:       "repo-1",
+					RelativePath: "src/routes.py",
+					EntityType:   "Function",
+					EntityName:   "handler",
+					Language:     "python",
+					SourceCache:  "def handler(): pass",
+					Metadata:     map[string]any{"decorators": []any{"@route"}},
+				},
+				"function-2": {
+					EntityID:     "function-2",
+					RepoID:       "repo-1",
+					RelativePath: "src/payments.py",
+					EntityType:   "Function",
+					EntityName:   "helper",
+					Language:     "python",
+					SourceCache:  "def helper(): pass",
+					Metadata:     map[string]any{"decorators": []any{"@cached"}},
+				},
+			},
+		},
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)

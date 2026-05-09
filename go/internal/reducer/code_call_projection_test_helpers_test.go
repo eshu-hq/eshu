@@ -22,8 +22,18 @@ type fakeCodeCallIntentStore struct {
 
 type historyAwareCodeCallIntentStore struct {
 	*fakeCodeCallIntentStore
-	hasCompleted bool
-	historyErr   error
+	hasCompleted           bool
+	hasCompletedCurrentRun bool
+	historyErr             error
+}
+
+type staticReducerGraphDrain struct {
+	active bool
+	err    error
+}
+
+func (s staticReducerGraphDrain) HasActiveReducerGraphWork(context.Context) (bool, error) {
+	return s.active, s.err
 }
 
 func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitDomainIntents(
@@ -35,6 +45,17 @@ func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitDomainIntent
 		return false, h.historyErr
 	}
 	return h.hasCompleted, nil
+}
+
+func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitSourceRunDomainIntents(
+	context.Context,
+	SharedProjectionAcceptanceKey,
+	string,
+) (bool, error) {
+	if h.historyErr != nil {
+		return false, h.historyErr
+	}
+	return h.hasCompletedCurrentRun, nil
 }
 
 func codeCallProjectionTestRow(intentID, generationID string, createdAt time.Time) SharedProjectionIntentRow {

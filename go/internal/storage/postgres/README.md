@@ -20,6 +20,9 @@ flowchart LR
   H -->|ReadinessLookup| F
   F -->|WriteDecisions| I["postgres.DecisionStore\n(projection_decisions)"]
   F -->|WriteIntents| J["postgres.SharedIntentStore\n(shared_projection_intents)"]
+  J -->|ReadBacklog| K["postgres.StatusStore\n/admin/status domain backlog"]
+  J -->|ClaimPartitions| L["shared_projection_partition_leases\nactive reducers"]
+  L -->|ReadActiveLeases| K
 ```
 
 ## Internal flow
@@ -52,10 +55,20 @@ flowchart TB
 ### Fact persistence
 
 `FactStore.UpsertFacts` batches facts into multi-row INSERT statements of up
-to 500 rows (13 columns each, well under the Postgres 65535-parameter limit).
+to 500 rows (17 columns each, well under the Postgres 65535-parameter limit).
 `deduplicateEnvelopes` removes duplicate `fact_id` values within each batch
 before sending to avoid `SQLSTATE 21000` on `ON CONFLICT DO UPDATE` when a
 generation contains self-overwrites.
+
+`FactStore.ListFactsByKind` uses the same 500-row page size for kind-filtered
+reads (`facts_filtered.go:77`). Reducer domains such as semantic entities and
+code calls use this path to avoid full-generation loads and thousands of tiny
+Postgres round trips on large repositories. `ListFactsByKindAndPayloadValue`
+adds a top-level JSON payload allowlist (`facts_filtered.go:115`) for reducer
+domains whose correctness contract is tied to `content_entity.entity_type`,
+such as inheritance and SQL relationships. Both paths select the full
+`facts.Envelope` column shape before calling the shared scanner, so filtered
+reads keep schema version, collector, fencing, and source-confidence metadata.
 
 `sanitizeJSONB` strips `\u0000` escape sequences and raw control bytes
 (`0x00–0x1F` except tab/newline/CR) from payloads before INSERT to prevent
@@ -105,6 +118,22 @@ NornicDB-specific semantic gates. When the NornicDB gate is active (`$5 = true`)
 projection is in-flight, preventing cross-scope contention on NornicDB label
 indexes. The gate is disabled for Neo4j.
 
+`NewReducerGraphDrain` exposes a small read-side gate for code-call projection.
+It checks whether reducer-owned graph domains are still pending, claimed,
+running, or retrying so the local-authoritative NornicDB profile can avoid
+overlapping code-call edge writes with semantic, inheritance, SQL relationship,
+deployment, or workload graph materialization.
+
+### Shared projection intents
+
+`SharedIntentStore` stores durable shared projection intents for reducer-owned
+edge domains. `ListPendingAcceptanceUnitIntents` reads one bounded
+scope/unit/run slice, while
+`HasCompletedAcceptanceUnitSourceRunDomainIntents` answers whether that exact
+source run has already completed a chunk. Code-call projection uses the latter
+lookup to process very large accepted units in chunks without retracting edges
+written by earlier chunks from the same run.
+
 ### Graph projection phase state
 
 `GraphProjectionPhaseStateStore` persists `canonical_nodes_committed` phase
@@ -135,7 +164,7 @@ mutation is rejected because the current owner no longer holds the lease.
 **Fact store**
 
 - `FactStore` / `NewFactStore` — `UpsertFacts`, `LoadFacts`, `ListFacts`,
-  `CountFacts`
+  `ListFactsByKind`, `ListFactsByKindAndPayloadValue`, `CountFacts`
 
 **Queue stores**
 
@@ -165,13 +194,27 @@ mutation is rejected because the current owner no longer holds the lease.
 **Shared projection**
 
 - `SharedIntentStore` / `NewSharedIntentStore` — reads
-  `shared_projection_intents`
+  `shared_projection_intents` and writes shared projection intents in bounded
+  multi-row batches (`shared_intents_upsert.go:62`). It also exposes history
+  lookups for prior acceptance-unit completion and current source-run chunk
+  completion.
 - `SharedIntentAcceptanceWriter` / `NewSharedIntentAcceptanceWriter` — writes
   intent acceptance rows; `NewSharedIntentAcceptanceWriterWithInstruments` adds
   metrics
 - `CodeCallIntentWriter` / `NewCodeCallIntentWriter` — type alias for
   `SharedIntentAcceptanceWriter`
 - `SharedProjectionAcceptanceStore` / `NewSharedProjectionAcceptanceStore`
+
+**Status**
+
+- `StatusStore` / `NewStatusStore` — reads scope, generation, queue, blockage,
+  failure, coordinator, and domain backlog aggregates. `status_queries.go`
+  merges `fact_work_items` with pending `shared_projection_intents` and active
+  `shared_projection_partition_leases` for domain backlog rows. Lease-only rows
+  stay visible even after the last pending intent is claimed, so `/admin/status`
+  does not report healthy while reducer-owned shared projection work is still
+  becoming graph-visible and does not report stalled while a reducer lease is
+  actively moving that domain.
 
 **Decision store**
 
@@ -287,9 +330,25 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - `ProjectorQueue.Ack` runs four SQL statements inside a transaction
   (`projector_queue.go:105`). Pass a `SQLDB` or an `InstrumentedDB` wrapping
   a `SQLDB`; a plain `ExecQueryer` without `Beginner` will cause Ack to fail.
-- `upsertFacts` deduplicates by `fact_id` before batching (`facts.go:192`).
+- `upsertFacts` deduplicates by `fact_id` before batching (`facts.go:206`).
   Skipping deduplication causes `SQLSTATE 21000` on `ON CONFLICT DO UPDATE`
   when the same `fact_id` appears twice in one batch.
+- `ListFactsByKind` keeps a stable `(observed_at, fact_id)` keyset cursor
+  (`facts_filtered.go:71`). Lowering the page size below the write batch size
+  can make reducer-only reads spend most of their time in Postgres round trips
+  rather than extraction or graph writes.
+- `ListFactsByKindAndPayloadValue` is only for top-level JSON payload fields
+  that are part of a reducer domain's truth contract. Do not use it to paper
+  over missing parser metadata or to guess at nested payload shape.
+- Shared projection intents are idempotent by `intent_id`. Writers should
+  upsert the same row on retry rather than minting a new ID. The 2000-row
+  upsert batch keeps each statement below Postgres' parameter limit while
+  avoiding small-batch round trips on code-call-heavy repositories.
+- Current source-run history is distinct from prior acceptance-unit history.
+  `HasCompletedAcceptanceUnitDomainIntents` intentionally ignores
+  `source_run_id` so new accepted runs can detect prior graph state;
+  `HasCompletedAcceptanceUnitSourceRunDomainIntents` includes `source_run_id`
+  so chunked code-call projection can skip only same-run retractions.
 - The NornicDB semantic gate in `ReducerQueue.Claim` is gated on a boolean
   parameter and must not be removed without an ADR; it prevents
   `semantic_entity_materialization` storms on NornicDB label indexes.

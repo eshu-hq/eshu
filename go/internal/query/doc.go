@@ -13,12 +13,27 @@
 // so callers can separate cleanup candidates from modeled roots; TypeScript
 // interface implementation, module-contract, and static-registry roots are
 // reported alongside JavaScript-family package, CommonJS mixin, Next.js,
-// Express, Koa, Fastify, NestJS, migration, and framework roots. Unsupported
+// Express, Koa, Fastify, NestJS, migration, and framework roots, plus Python
+// route, worker, CLI, AWS Lambda handler, dataclass, post-init, property,
+// dunder protocol, __all__, package __init__.py, public API base, and public
+// API member roots, plus Java main, constructor, override, Ant Task setter,
+// Gradle plugin apply, task action/property, task setter, task-interface method,
+// public Gradle DSL, same-class method-reference target, Spring component and
+// callback, lifecycle, JUnit, Jenkins, Stapler, serialization hook, bounded
+// reflection, ServiceLoader, and Spring auto-configuration roots. The analysis
+// notes and modeled-root list use the same Java root family so callers see why
+// those entities were suppressed. The analysis payload names modeled root kinds,
+// reports reflection support, and counts parser-metadata suppressions so callers
+// can explain why an entity was not returned as a cleanup candidate. Unsupported
 // language metadata and test fixtures are suppressed from default cleanup
-// candidates. The dead-code scan applies cheap graph-side path
-// filters before content-backed policy checks, keeps a 10,000-row window for
-// small result limits, and reports display truncation separately from bounded
-// raw candidate pages and rows so callers can tell whether the result list was
+// candidates. The dead-code scan
+// keeps raw candidate reads label-scoped and repo-anchored, prefers
+// content-model candidate paging before graph fallback, applies content-backed
+// policy checks before relational code-call and inheritance incoming-edge
+// lookups, hydrates candidate metadata through batch GetEntityContents reads,
+// keeps exact graph probes as a fallback, keeps a bounded scan window for small
+// result limits, and reports display truncation separately from bounded raw
+// candidate pages and rows so callers can tell whether the result list was
 // clipped or the graph scan cap was reached.
 // local_authoritative and local_full_stack both answer graph-backed platform
 // impact queries, while local_lightweight returns structured unsupported errors

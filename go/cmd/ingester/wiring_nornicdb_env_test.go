@@ -79,32 +79,32 @@ func TestNornicDBCanonicalGroupedWritesRejectsInvalidEnv(t *testing.T) {
 	}
 }
 
-func TestNornicDBBatchedEntityContainmentDefaultDisabled(t *testing.T) {
+func TestNornicDBBatchedEntityContainmentDefaultEnabled(t *testing.T) {
 	t.Parallel()
 
 	got, err := nornicDBBatchedEntityContainmentEnabled(func(string) string { return "" })
 	if err != nil {
 		t.Fatalf("nornicDBBatchedEntityContainmentEnabled() error = %v, want nil", err)
 	}
-	if got {
-		t.Fatal("nornicDBBatchedEntityContainmentEnabled() = true, want false by default")
+	if !got {
+		t.Fatal("nornicDBBatchedEntityContainmentEnabled() = false, want true by default")
 	}
 }
 
-func TestNornicDBBatchedEntityContainmentFromEnv(t *testing.T) {
+func TestNornicDBBatchedEntityContainmentCanBeDisabledFromEnv(t *testing.T) {
 	t.Parallel()
 
 	got, err := nornicDBBatchedEntityContainmentEnabled(func(key string) string {
 		if key == nornicDBBatchedEntityContainmentEnv {
-			return "true"
+			return "false"
 		}
 		return ""
 	})
 	if err != nil {
 		t.Fatalf("nornicDBBatchedEntityContainmentEnabled() error = %v, want nil", err)
 	}
-	if !got {
-		t.Fatal("nornicDBBatchedEntityContainmentEnabled() = false, want true")
+	if got {
+		t.Fatal("nornicDBBatchedEntityContainmentEnabled() = true, want false from env")
 	}
 }
 

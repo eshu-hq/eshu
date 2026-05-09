@@ -74,6 +74,7 @@ type QueueFailureSnapshot struct {
 type DomainBacklog struct {
 	Domain      string
 	Outstanding int
+	InFlight    int
 	Retrying    int
 	Failed      int
 	DeadLetter  int
@@ -197,7 +198,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 
 	return Report{
 		AsOf:                  raw.AsOf,
-		Health:                evaluateHealth(raw.Queue, generationTotals, opts),
+		Health:                evaluateHealth(raw.Queue, generationTotals, domainBacklogs, opts),
 		FlowSummaries:         flowSummaries,
 		Queue:                 raw.Queue,
 		RetryPolicies:         cloneRetryPolicies(raw.RetryPolicies),
@@ -287,9 +288,10 @@ func RenderText(report Report) string {
 			lines = append(
 				lines,
 				fmt.Sprintf(
-					"  %s outstanding=%d retrying=%d dead_letter=%d failed=%d oldest=%s",
+					"  %s outstanding=%d in_flight=%d retrying=%d dead_letter=%d failed=%d oldest=%s",
 					row.Domain,
 					row.Outstanding,
+					row.InFlight,
 					row.Retrying,
 					row.DeadLetter,
 					row.Failed,
@@ -300,60 +302,6 @@ func RenderText(report Report) string {
 	}
 
 	return strings.Join(lines, "\n")
-}
-
-func evaluateHealth(queue QueueSnapshot, generationTotals map[string]int, opts Options) HealthSummary {
-	if queue.OverdueClaims > 0 {
-		return HealthSummary{
-			State: healthStalled,
-			Reasons: []string{
-				fmt.Sprintf("%d overdue claims suggest stuck workers", queue.OverdueClaims),
-			},
-		}
-	}
-	if queue.Outstanding > 0 && queue.InFlight == 0 && queue.OldestOutstandingAge >= opts.StallAfter {
-		return HealthSummary{
-			State: healthStalled,
-			Reasons: []string{
-				fmt.Sprintf(
-					"backlog has %d outstanding items with no in-flight work for %s",
-					queue.Outstanding,
-					queue.OldestOutstandingAge,
-				),
-			},
-		}
-	}
-	if queue.DeadLetter > 0 || queue.Failed > 0 || generationTotals["failed"] > 0 {
-		reasons := make([]string, 0, 3)
-		if queue.DeadLetter > 0 {
-			reasons = append(reasons, fmt.Sprintf("%d work items are dead-lettered", queue.DeadLetter))
-		}
-		if queue.Failed > 0 {
-			reasons = append(reasons, fmt.Sprintf("%d legacy work items remain failed", queue.Failed))
-		}
-		if generationTotals["failed"] > 0 {
-			reasons = append(reasons, fmt.Sprintf("%d generations are failed", generationTotals["failed"]))
-		}
-		return HealthSummary{
-			State:   healthDegraded,
-			Reasons: reasons,
-		}
-	}
-	if queue.Outstanding > 0 || generationTotals["pending"] > 0 {
-		reason := "work remains queued"
-		if queue.InFlight > 0 {
-			reason = fmt.Sprintf("%d work items are currently in flight", queue.InFlight)
-		}
-		return HealthSummary{
-			State:   healthProgressing,
-			Reasons: []string{reason},
-		}
-	}
-
-	return HealthSummary{
-		State:   healthHealthy,
-		Reasons: []string{"no outstanding queue backlog"},
-	}
 }
 
 func summarizeStages(rows []StageStatusCount) []StageSummary {

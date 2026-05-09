@@ -16,6 +16,7 @@ import (
 	nornicbolt "github.com/orneryd/nornicdb/pkg/bolt"
 	nornicbuildinfo "github.com/orneryd/nornicdb/pkg/buildinfo"
 	nornicconfig "github.com/orneryd/nornicdb/pkg/config"
+	norniccypher "github.com/orneryd/nornicdb/pkg/cypher"
 	"github.com/orneryd/nornicdb/pkg/nornicdb"
 	nornicserver "github.com/orneryd/nornicdb/pkg/server"
 	nornicstorage "github.com/orneryd/nornicdb/pkg/storage"
@@ -139,6 +140,7 @@ func startEmbeddedNornicDBRuntime(
 		return nil, fmt.Errorf("open embedded nornicdb: %w", err)
 	}
 	runtime.db = db
+	writeEmbeddedNornicDBRuntimeSettings(logs, dbConfig)
 
 	authenticator, err := newEmbeddedNornicDBAuthenticator(db, credentials)
 	if err != nil {
@@ -183,6 +185,34 @@ func startEmbeddedNornicDBRuntime(
 	}()
 
 	return runtime, nil
+}
+
+func writeEmbeddedNornicDBRuntimeSettings(logs io.Writer, config *nornicdb.Config) {
+	if logs == nil || config == nil {
+		return
+	}
+	parallel := norniccypher.GetParallelConfig()
+	memoryLimit := "unlimited"
+	if config.Memory.RuntimeLimit > 0 {
+		memoryLimit = nornicconfig.FormatMemorySize(config.Memory.RuntimeLimit)
+	}
+	_, _ = fmt.Fprintf(
+		logs,
+		"embedded nornicdb runtime settings: parallel_enabled=%t parallel_workers=%d parallel_min_batch_size=%d memory_limit=%s gc_percent=%d object_pool_enabled=%t object_pool_max_size=%d query_cache_enabled=%t query_cache_size=%d query_cache_ttl=%s embedding_enabled=%t heimdall_enabled=%t qdrant_grpc_enabled=%t\n",
+		parallel.Enabled,
+		parallel.MaxWorkers,
+		parallel.MinBatchSize,
+		memoryLimit,
+		config.Memory.GCPercent,
+		config.Memory.PoolEnabled,
+		config.Memory.PoolMaxSize,
+		config.Memory.QueryCacheEnabled,
+		config.Memory.QueryCacheSize,
+		config.Memory.QueryCacheTTL,
+		config.Memory.EmbeddingEnabled,
+		config.Features.HeimdallEnabled,
+		config.Features.QdrantGRPCEnabled,
+	)
 }
 
 func redirectEmbeddedNornicDBStandardLogger(logs io.Writer) func() {

@@ -113,6 +113,11 @@ func (r Registry) LookupByExtension(extension string) (Definition, bool) {
 
 // LookupByPath returns the definition registered for one file path.
 func (r Registry) LookupByPath(path string) (Definition, bool) {
+	if isJavaMetadataPath(path) {
+		definition, ok := r.byKey["java_metadata"]
+		return cloneDefinition(definition), ok
+	}
+
 	base := strings.ToLower(filepath.Base(path))
 	if strings.HasSuffix(base, ".tfvars.json") {
 		if definition, ok := r.byKey["hcl"]; ok {
@@ -133,6 +138,19 @@ func (r Registry) LookupByPath(path string) (Definition, bool) {
 	}
 	definition, ok := r.byExtension[extension]
 	return cloneDefinition(definition), ok
+}
+
+func isJavaMetadataPath(path string) bool {
+	normalized := strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
+	if strings.HasPrefix(normalized, "meta-inf/services/") ||
+		strings.Contains(normalized, "/meta-inf/services/") {
+		_, serviceName, ok := strings.Cut(normalized, "meta-inf/services/")
+		return ok && strings.TrimSpace(serviceName) != ""
+	}
+	return normalized == "meta-inf/spring/org.springframework.boot.autoconfigure.autoconfiguration.imports" ||
+		strings.HasSuffix(normalized, "/meta-inf/spring/org.springframework.boot.autoconfigure.autoconfiguration.imports") ||
+		normalized == "meta-inf/spring.factories" ||
+		strings.HasSuffix(normalized, "/meta-inf/spring.factories")
 }
 
 // LookupByParserKey returns the definition registered for one parser key.
@@ -236,6 +254,10 @@ func defaultDefinitions() []Definition {
 			ParserKey:  "java",
 			Language:   "java",
 			Extensions: []string{".java"},
+		},
+		{
+			ParserKey: "java_metadata",
+			Language:  "java_metadata",
 		},
 		{
 			ParserKey:  "javascript",

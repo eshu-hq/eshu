@@ -58,8 +58,9 @@ traversals) or `ContentStore` (for Postgres content). `Neo4jReader.Run` and
 `Neo4jReader.RunSingle` (`neo4j.go:34`, `neo4j.go:81`) open a read-only Neo4j
 session, execute a Cypher query, and return `[]map[string]any` rows. Row values
 are extracted via `StringVal`, `BoolVal`, `IntVal`, `StringSliceVal`
-(`neo4j.go:120–182`). `ContentReader` methods (`content_reader.go`) issue
-parametrized Postgres queries against `content_files` and `content_entities`.
+(`neo4j.go:120`). `ContentReader` methods (`content_reader.go:44`,
+`content_reader_entity.go:13`) issue parametrized Postgres queries against
+`content_files` and `content_entities`.
 Code dead-code queries add an analysis pass over graph rows so parser-provided
 `dead_code_root_kinds`, language maturity, test/generated exclusions, and
 candidate classifications are visible in the response body. Unsupported
@@ -68,16 +69,39 @@ results before classification. The analysis block also names modeled framework
 roots such as JavaScript package exports, Hapi-style handler exports, Next.js
 exports, Express/Koa/Fastify/NestJS callbacks, Node migration exports,
 TypeScript module-contract exports, and TypeScript interface implementation
-methods. It also reports static TypeScript registry members when parser
-metadata proves an exported object registry holds the same-file function value.
-That lets MCP and CLI callers explain why a candidate was suppressed. The graph
-query applies cheap path and
-scope filters from `deadCodeGraphPolicyPredicate` before `scanDeadCodeCandidates`
-does content-backed policy checks. Small display limits still get the full
-10,000-row scan window, so a narrow MCP request does not become incomplete just
-because most raw candidates are later suppressed. The response separates display
-truncation from bounded raw candidate-scan truncation so callers know whether
-the returned page was clipped or the scan window was exhausted.
+methods. It also suppresses parser-proven Python FastAPI, Flask, Celery,
+Click, Typer, AWS Lambda handler, dataclass, post-init, property, dunder
+protocol, `__all__`, package `__init__.py`, public API base, and public API
+member roots, Python `if __name__ == "__main__"` script-main guards, and
+Java `main`, constructor, `@Override`, Ant `Task` setter, Gradle plugin
+`apply`, task action/property, task setter, task-interface method, public Gradle
+DSL, same-class method-reference target roots, Spring component and callback
+roots, Java lifecycle callbacks, JUnit test/lifecycle methods, Jenkins
+extension and symbol roots, Jenkins initializer/data-bound setter methods, and
+Stapler web methods. Java serialization hooks are suppressed from cleanup
+candidates when their signatures match JVM runtime contracts, and the analysis
+metadata now reports bounded Java reflection plus ServiceLoader and Spring
+auto-configuration references as modeled reachability evidence.
+Dead-code candidate paging uses `DeadCodeCandidateRows` in
+`content_reader_dead_code_candidates.go:13` when the content read model is
+available, avoiding graph-wide ordered scans on large repositories. Candidate
+hydration then uses `GetEntityContents` in `content_reader_entity.go:49` so
+large repo scans merge parser metadata in one bounded content-store read per
+candidate page instead of one Postgres round trip per graph row.
+Static TypeScript registry members are reported when parser metadata proves an
+exported object registry holds the same-file function value. The analysis
+payload names modeled root kinds in `modeled_framework_roots`, reports whether
+reflection evidence is modeled, and counts how many suppressions came from
+parser metadata. That lets MCP and CLI callers explain why a candidate was
+suppressed. The graph query keeps the
+candidate read label-scoped and repo-anchored, then applies content-backed
+policy checks before checking completed reducer code-call and inheritance intent
+rows for incoming edges. Exact one-entity graph probes remain a fallback for
+content stores without that relational read model. Small display limits use a bounded
+2,500-row scan window, so a narrow MCP request does not become incomplete just
+because most raw candidates are later suppressed. The response separates
+display truncation from bounded raw candidate-scan truncation so callers know
+whether the returned page was clipped or the scan window was exhausted.
 
 Both backends instrument every query with an OTEL span (`neo4j.query`,
 `postgres.query`). Handlers that span multiple read stages use
@@ -230,11 +254,14 @@ wired in `cmd/api/wiring.go`, not here.
   `go.type_reference` and `go.interface_implementation_type`. JavaScript-family
   analysis must list Node package, CommonJS default export, CommonJS mixin,
   Next.js, Node migration, Hapi-style, TypeScript module-contract, and
-  TypeScript interface implementation roots when query policy suppresses those
-  candidates.
-  The handler scans raw graph candidates in bounded pages before policy
-  exclusions, with graph-side path filters from `deadCodeGraphPolicyPredicate`
-  and a 10,000-row scan window for small result limits. It reports
+  TypeScript interface implementation roots, plus Java main, constructor,
+  override, Ant `Task` setter, Gradle plugin `apply`, task action/property, and
+  public Gradle DSL roots when query policy suppresses those candidates; the
+  analysis notes name the same Java root family.
+  The handler scans raw graph candidates in bounded label-scoped pages before
+  policy exclusions, then checks completed reducer code-call intent rows for
+  incoming edges on the remaining candidates and uses a 2,500-row scan window
+  for small result limits. It reports
   `candidate_scan_pages` plus `candidate_scan_rows`.
   `display_truncated` and `candidate_scan_truncated` must stay separate so
   performance bounds do not blur result-list pagination with raw scan coverage.

@@ -7,14 +7,30 @@
 // CommonJS property require, module.exports self-alias, imported JavaScript
 // namespace calls before same-file trailing-name fallback, function receiver,
 // constructor, re-export, dynamic import, returned function-value, TypeScript
-// type-reference, static JavaScript registry dispatch, and package-file-root
-// evidence, and drives repair flows for domains that depend on later phases of
-// the bootstrap
-// pipeline. Changes here need careful proof: track raw evidence, admitted
+// type-reference, Java local receiver, method-reference, literal reflection,
+// ServiceLoader provider, Spring auto-configuration, overload arity, and typed
+// argument/parameter signatures including helper-call return types, Java
+// enhanced-for receiver evidence, and Java enclosing-class and explicit
+// outer-this field receiver contexts, Python constructor, self receiver, class
+// receiver, inherited classmethod, and local receiver evidence, static
+// JavaScript registry dispatch, and package-file-root evidence.
+// Code-call rows carry endpoint IDs plus the endpoint entity labels needed by
+// the graph writer to keep canonical CALLS and REFERENCES writes selective, and
+// the reducer drives repair flows for domains that depend on later phases of the
+// bootstrap pipeline. Java reference materialization uses REFERENCES rather
+// than CALLS when source text proves runtime reachability without proving direct
+// invocation. Changes here need careful proof: track raw evidence, admitted
 // candidates, projected rows, graph writes, and query surfaces before changing
-// ordering, admission, retries, or backend-specific behavior. Reducer code must
-// remain idempotent across retries and replays so repair runs converge on the
-// same truth.
+// ordering, admission, retries, or
+// backend-specific behavior. Code-call projection may wait for reducer graph
+// domains to drain in local NornicDB runs, but that gate only controls write
+// scheduling. It can process large accepted repo/run units in chunks, and it
+// must skip retraction after the first current-run chunk so earlier chunk writes
+// remain graph-visible. Reducer code must remain idempotent across retries and
+// replays so repair runs converge on the same truth. Code-call materialization
+// logs stage timings for fact load, extraction, intent build, and intent upsert
+// so repo-scale bottlenecks can be classified before changing query shape or
+// worker counts.
 // Workload materialization inputs reuse the deployable-unit correlation gate
 // before projecting workload rows.
 package reducer

@@ -14,6 +14,8 @@ import (
 	"time"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	norniccypher "github.com/orneryd/nornicdb/pkg/cypher"
+	"github.com/orneryd/nornicdb/pkg/nornicdb"
 )
 
 func TestEmbeddedLocalNornicDBRuntimeRedirectsStandardLogger(t *testing.T) {
@@ -62,6 +64,40 @@ func TestEmbeddedLocalNornicDBRuntimeRedirectsStartupProcessOutput(t *testing.T)
 	for _, want := range []string{"embedded stdout startup line", "embedded stderr startup line"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("embedded log output = %q, want %q", got, want)
+		}
+	}
+}
+
+func TestEmbeddedLocalNornicDBRuntimeLogsEffectiveSettings(t *testing.T) {
+	previousParallel := norniccypher.GetParallelConfig()
+	t.Cleanup(func() {
+		norniccypher.SetParallelConfig(previousParallel)
+	})
+
+	norniccypher.SetParallelConfig(norniccypher.ParallelConfig{
+		Enabled:      true,
+		MaxWorkers:   3,
+		MinBatchSize: 250,
+	})
+	config := nornicdb.DefaultConfig()
+
+	var logs bytes.Buffer
+	writeEmbeddedNornicDBRuntimeSettings(&logs, config)
+
+	for _, want := range []string{
+		"embedded nornicdb runtime settings",
+		"parallel_enabled=true",
+		"parallel_workers=3",
+		"parallel_min_batch_size=250",
+		"memory_limit=unlimited",
+		"gc_percent=100",
+		"object_pool_enabled=true",
+		"query_cache_enabled=true",
+		"query_cache_size=1000",
+		"query_cache_ttl=5m0s",
+	} {
+		if got := logs.String(); !strings.Contains(got, want) {
+			t.Fatalf("settings log = %q, want %q", got, want)
 		}
 	}
 }

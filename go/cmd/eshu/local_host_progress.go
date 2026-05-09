@@ -122,6 +122,9 @@ func renderLocalHostProgressSnapshot(
 		report.Queue.Failed,
 		localHostProgressAge(report.Queue.OldestOutstandingAge),
 	)
+	if backlog, ok := localHostProgressSharedProjectionBacklog(report); ok {
+		fmt.Fprintf(&builder, "  Shared projections: %s\n", localHostProgressDomainBacklogText(backlog))
+	}
 	if latestFailure := localHostProgressFailureText(report.LatestQueueFailure); latestFailure != "" {
 		fmt.Fprintf(&builder, "  Latest failure: %s\n", latestFailure)
 	}
@@ -307,6 +310,35 @@ func localHostProgressAge(age time.Duration) string {
 	return age.Truncate(time.Second).String()
 }
 
+func localHostProgressSharedProjectionBacklog(report statuspkg.Report) (statuspkg.DomainBacklog, bool) {
+	if report.Queue.Pending > 0 ||
+		report.Queue.InFlight > 0 ||
+		report.Queue.Retrying > 0 ||
+		report.Queue.DeadLetter > 0 ||
+		report.Queue.Failed > 0 {
+		return statuspkg.DomainBacklog{}, false
+	}
+	for _, row := range report.DomainBacklogs {
+		if row.Outstanding > 0 || row.InFlight > 0 || row.Retrying > 0 || row.DeadLetter > 0 || row.Failed > 0 {
+			return row, true
+		}
+	}
+	return statuspkg.DomainBacklog{}, false
+}
+
+func localHostProgressDomainBacklogText(row statuspkg.DomainBacklog) string {
+	return fmt.Sprintf(
+		"%s outstanding=%d in_flight=%d retrying=%d dead_letter=%d failed=%d oldest=%s",
+		row.Domain,
+		row.Outstanding,
+		row.InFlight,
+		row.Retrying,
+		row.DeadLetter,
+		row.Failed,
+		localHostProgressAge(row.OldestAge),
+	)
+}
+
 func localHostProgressFingerprint(
 	workspaceRoot string,
 	runtimeConfig localHostRuntimeConfig,
@@ -340,9 +372,10 @@ func localHostProgressFingerprint(
 	for _, row := range report.DomainBacklogs {
 		fmt.Fprintf(
 			&builder,
-			"%s|%d|%d|%d|%d|%d|",
+			"%s|%d|%d|%d|%d|%d|%d|",
 			row.Domain,
 			row.Outstanding,
+			row.InFlight,
 			row.Retrying,
 			row.DeadLetter,
 			row.Failed,

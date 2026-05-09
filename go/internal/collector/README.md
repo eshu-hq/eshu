@@ -87,7 +87,11 @@ per repository:
 3. **Parse** — `buildParsedRepositoryFiles` parses each file through the
    `parser.Engine` worker pool; each parsed file becomes a `map[string]any`
    entry in `snapshot.FileData` and may carry semantic metadata such as
-   dead-code root evidence.
+   dead-code root evidence. `snapshotParserOptions` keeps language-specific
+   variable scope close to query needs: Java uses module-level variables so
+   method locals do not flood canonical graph projection, while dynamic
+   languages that rely on local-variable evidence still parse with
+   `VariableScope=all`.
 4. **Materialize** — `shape.Materialize` turns parsed files into
    `ContentFileMeta` records and `ContentEntitySnapshot` rows. Body strings are
    released after materialization; `streamFacts` re-reads them from disk at emit
@@ -183,6 +187,11 @@ per repository:
   re-reads file bodies from disk at emit time. The OS page cache keeps re-reads
   fast. Do not change this design to in-memory bodies without accounting for
   `O(repo_size)` memory growth on large repositories.
+- Parser variable scope is part of performance and truth. Java defaults to
+  module-level variables during native snapshots because dead-code candidates
+  and Java call inference do not need every method-local declaration as a
+  canonical `Variable` node. Keep JS/TS/Python local-variable coverage intact
+  unless their query contracts change.
 
 ## Extension points
 

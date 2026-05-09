@@ -28,6 +28,18 @@ func resolveFileRootCodeCallCallerID(repositoryID string, relativePath string, f
 	return ""
 }
 
+func resolveJavaMetadataFileRootCallerID(repositoryID string, callerFilePath string, call map[string]any) string {
+	if repositoryID == "" || callerFilePath == "" {
+		return ""
+	}
+	switch strings.TrimSpace(anyToString(call["call_kind"])) {
+	case "java.service_loader_provider", "java.spring_autoconfiguration_class":
+		return repositoryID + ":" + normalizeCodeCallPath(callerFilePath)
+	default:
+		return ""
+	}
+}
+
 // resolveSameFileTopLevelCodeCallCallerID promotes same-file top-level JS/TS
 // calls to file-root caller edges because module-body calls execute when the
 // file is loaded, even when the callee name is a project-specific factory.

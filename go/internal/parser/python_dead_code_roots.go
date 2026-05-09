@@ -1,6 +1,13 @@
 package parser
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+)
+
+var pythonMainGuardCallRe = regexp.MustCompile(`(?m)\b([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
 
 var pythonFastAPIRouteDecoratorKinds = map[string]struct{}{
 	".get(":     {},
@@ -32,9 +39,57 @@ func pythonDeadCodeRootKinds(decorators []string) []string {
 			rootKinds = appendUniqueString(rootKinds, "python.typer_callback_decorator")
 		case pythonIsTyperCommandDecorator(normalized):
 			rootKinds = appendUniqueString(rootKinds, "python.typer_command_decorator")
+		case pythonIsPropertyDecorator(normalized):
+			rootKinds = appendUniqueString(rootKinds, "python.property_decorator")
 		}
 	}
 	return rootKinds
+}
+
+func pythonClassDeadCodeRootKinds(decorators []string) []string {
+	rootKinds := make([]string, 0, 1)
+	for _, decorator := range decorators {
+		normalized := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(decorator)), ""))
+		if pythonIsDataclassDecorator(normalized) {
+			rootKinds = appendUniqueString(rootKinds, "python.dataclass_model")
+		}
+	}
+	return rootKinds
+}
+
+func pythonDataclassClassNames(root *tree_sitter.Node, source []byte) map[string]bool {
+	names := make(map[string]bool)
+	walkNamed(root, func(node *tree_sitter.Node) {
+		if node.Kind() != "class_definition" {
+			return
+		}
+		if len(pythonClassDeadCodeRootKinds(pythonDecorators(node, source))) == 0 {
+			return
+		}
+		name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+		if name != "" {
+			names[name] = true
+		}
+	})
+	return names
+}
+
+func pythonScriptMainGuardRoots(source []byte) map[string]bool {
+	text := string(source)
+	guardIndex := strings.Index(text, `if __name__ == "__main__":`)
+	if guardIndex < 0 {
+		guardIndex = strings.Index(text, `if __name__ == '__main__':`)
+	}
+	if guardIndex < 0 {
+		return nil
+	}
+	roots := make(map[string]bool)
+	for _, match := range pythonMainGuardCallRe.FindAllStringSubmatch(text[guardIndex:], -1) {
+		if len(match) == 2 && match[1] != "if" {
+			roots[match[1]] = true
+		}
+	}
+	return roots
 }
 
 func pythonIsFastAPIRouteDecorator(normalized string) bool {
@@ -79,4 +134,23 @@ func pythonIsTyperCallbackDecorator(normalized string) bool {
 		return true
 	}
 	return strings.HasPrefix(normalized, "@app.callback(")
+}
+
+func pythonIsPropertyDecorator(normalized string) bool {
+	return normalized == "@property"
+}
+
+func pythonIsDataclassDecorator(normalized string) bool {
+	return normalized == "@dataclass" ||
+		normalized == "@dataclasses.dataclass" ||
+		strings.HasPrefix(normalized, "@dataclass(") ||
+		strings.HasPrefix(normalized, "@dataclasses.dataclass(")
+}
+
+func pythonIsDunderMethod(name string) bool {
+	name = strings.TrimSpace(name)
+	return name != "__post_init__" &&
+		len(name) > 4 &&
+		strings.HasPrefix(name, "__") &&
+		strings.HasSuffix(name, "__")
 }

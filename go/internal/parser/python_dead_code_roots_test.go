@@ -153,6 +153,175 @@ def typer_callback():
 	)
 }
 
+func TestDefaultEngineParsePathPythonEmitsScriptMainGuardRoot(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "script.py")
+	writeTestFile(
+		t,
+		filePath,
+		`def main():
+    return 0
+
+def helper():
+    return 1
+
+if __name__ == "__main__":
+    main()
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "main"),
+		"dead_code_root_kinds",
+		[]string{"python.script_main_guard"},
+	)
+	if helper := assertFunctionByName(t, got, "helper"); helper["dead_code_root_kinds"] != nil {
+		t.Fatalf("helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
+	}
+}
+
+func TestDefaultEngineParsePathPythonEmitsSAMHandlerDeadCodeRootKind(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeTestFile(
+		t,
+		filepath.Join(repoRoot, "template.yaml"),
+		`AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Resources:
+  Worker:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      CodeUri: ./
+`,
+	)
+	filePath := filepath.Join(repoRoot, "app.py")
+	writeTestFile(
+		t,
+		filePath,
+		`def lambda_handler(event, context):
+    return "ok"
+
+def helper():
+    return "candidate"
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "lambda_handler"),
+		"dead_code_root_kinds",
+		[]string{"python.aws_lambda_handler"},
+	)
+	if _, ok := assertFunctionByName(t, got, "helper")["dead_code_root_kinds"]; ok {
+		t.Fatalf("helper dead_code_root_kinds present, want absent")
+	}
+}
+
+func TestDefaultEngineParsePathPythonEmitsPublicAPIRootKinds(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	packageDir := filepath.Join(repoRoot, "library")
+	writeTestFile(
+		t,
+		filepath.Join(packageDir, "__init__.py"),
+		`from .models import PublicService as Service
+`,
+	)
+	filePath := filepath.Join(packageDir, "models.py")
+	writeTestFile(
+		t,
+		filePath,
+		`__all__ = ["module_factory"]
+
+class BaseService:
+    def inherited(self):
+        return "ok"
+
+class PublicService(BaseService):
+    def run(self):
+        return "ok"
+
+def module_factory():
+    return PublicService()
+
+def private_helper():
+    return "candidate"
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceFieldValue(
+		t,
+		assertBucketItemByName(t, got, "classes", "PublicService"),
+		"dead_code_root_kinds",
+		[]string{"python.package_init_export"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertBucketItemByName(t, got, "classes", "BaseService"),
+		"dead_code_root_kinds",
+		[]string{"python.public_api_base"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "run"),
+		"dead_code_root_kinds",
+		[]string{"python.public_api_member"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "inherited"),
+		"dead_code_root_kinds",
+		[]string{"python.public_api_member"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "module_factory"),
+		"dead_code_root_kinds",
+		[]string{"python.module_all_export"},
+	)
+	if _, ok := assertFunctionByName(t, got, "private_helper")["dead_code_root_kinds"]; ok {
+		t.Fatalf("private_helper dead_code_root_kinds present, want absent")
+	}
+}
+
 func TestDefaultEngineParsePathPythonDoesNotMarkUnknownDecoratorsAsDeadCodeRoots(t *testing.T) {
 	t.Parallel()
 

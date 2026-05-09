@@ -9,6 +9,8 @@ Use:
 
 - the language pages under `docs/docs/languages/` for exact partial or
   unsupported capability details
+- the `Dead-code Support` section on each parser page for root modeling,
+  query evidence, checked fixtures, and bounded limitations
 
 This matrix tracks the higher-level support bar for each parser beyond
 the raw capability checklist. `-` means the page does not currently make a
@@ -31,7 +33,7 @@ For audited family-level closure status and bounded gaps, see
 | Groovy | `DefaultEngine (groovy)` | - | - | - | - | - | - | - |
 | Haskell | `DefaultEngine (haskell)` | - | - | - | - | - | - | - |
 | Helm | `DefaultEngine (yaml)` | - | - | - | - | - | - | - |
-| Java | `DefaultEngine (java)` | - | - | - | - | - | - | - |
+| Java | `DefaultEngine (java)` | supported | supported | supported | Spring, Gradle, JUnit, Jenkins, Stapler, ServiceLoader, serialization, bounded reflection | supported | supported | supported |
 | JavaScript | `DefaultEngine (javascript)` | supported | supported | supported | `react-base`, `nextjs-app-router-base`, `express-base`, `hapi-base`, `aws-sdk-base`, `gcp-sdk-base` | supported | supported | supported |
 | JSON Config | `DefaultEngine (json)` | - | - | - | - | - | - | - |
 | Kotlin | `DefaultEngine (kotlin)` | - | - | - | - | - | - | - |
@@ -50,12 +52,16 @@ For audited family-level closure status and bounded gaps, see
 | TypeScript | `DefaultEngine (typescript)` | supported | supported | supported | `react-base`, `nextjs-app-router-base`, `express-base`, `hapi-base`, `aws-sdk-base`, `gcp-sdk-base` | supported | supported | supported |
 | TypeScript JSX | `DefaultEngine (tsx)` | supported | supported | supported | `react-base`, `nextjs-app-router-base` | supported | supported | supported |
 
-For JavaScript, TypeScript, TypeScript JSX, and Python, query surfacing is now
+For JavaScript, TypeScript, TypeScript JSX, Python, and Java, query surfacing is now
 `supported` because the shared Go query outputs expose enriched metadata,
 semantic summaries, and a structured `semantic_profile` on the normal
 language-query, code-search, entities-resolve, and entity-context surfaces.
 JavaScript method-kind rows now also get a dedicated `javascript_method`
 surface kind in those shared query outputs.
+Java dead-code support remains `derived`, but parser and reducer coverage now
+models main/constructor/override roots, Gradle, Spring, JUnit, Jenkins,
+Stapler, serialization hooks, bounded literal reflection, ServiceLoader
+providers, and Spring metadata roots with checked fixtures.
 SQL real-repo and end-to-end indexing are `supported` on the current Go
 parser/query path. The remaining dbt lineage limits are bounded non-goals for
 the documented SQL surface.

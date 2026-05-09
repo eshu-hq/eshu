@@ -42,6 +42,18 @@ type CodeCallProjectionHistoryLookup interface {
 	HasCompletedAcceptanceUnitDomainIntents(ctx context.Context, key SharedProjectionAcceptanceKey, domain string) (bool, error)
 }
 
+// CodeCallProjectionCurrentRunHistoryLookup checks whether the selected source
+// run has already completed at least one code-call projection chunk.
+type CodeCallProjectionCurrentRunHistoryLookup interface {
+	HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx context.Context, key SharedProjectionAcceptanceKey, domain string) (bool, error)
+}
+
+// ReducerGraphDrain reports whether reducer graph-writing domains are still
+// active, letting local single-backend runners avoid graph write contention.
+type ReducerGraphDrain interface {
+	HasActiveReducerGraphWork(ctx context.Context) (bool, error)
+}
+
 // CodeCallProjectionRunnerConfig configures the controlled code-calls lane.
 type CodeCallProjectionRunnerConfig struct {
 	LeaseOwner          string
@@ -98,6 +110,7 @@ type CodeCallProjectionRunner struct {
 	AcceptedGenPrefetch AcceptedGenerationPrefetch
 	ReadinessLookup     GraphProjectionReadinessLookup
 	ReadinessPrefetch   GraphProjectionReadinessPrefetch
+	ReducerGraphDrain   ReducerGraphDrain
 	Config              CodeCallProjectionRunnerConfig
 	Wait                func(context.Context, time.Duration) error
 
@@ -170,6 +183,18 @@ func (r *CodeCallProjectionRunner) processOnce(ctx context.Context, now time.Tim
 		Instruments: r.Instruments,
 		Logger:      r.Logger,
 	}
+	if r.ReducerGraphDrain != nil {
+		active, err := r.ReducerGraphDrain.HasActiveReducerGraphWork(ctx)
+		if err != nil {
+			return PartitionProcessResult{}, fmt.Errorf("check reducer graph drain: %w", err)
+		}
+		if active {
+			result := PartitionProcessResult{BlockedReadiness: 1}
+			r.recordCodeCallTiming(ctx, result)
+			return result, nil
+		}
+	}
+
 	claimStart := time.Now()
 	claimed, err := r.LeaseManager.ClaimPartitionLease(
 		ctx,

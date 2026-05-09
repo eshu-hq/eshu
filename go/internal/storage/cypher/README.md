@@ -68,7 +68,10 @@ template and dispatches rows in batches of `BatchSize` (default
 `DomainCodeCalls`, `DomainInheritanceEdges`, and `DomainSQLRelationships`.
 `DomainCodeCalls` writes direct call evidence as `CALLS`, JSX component plus Go
 and TypeScript type-reference evidence as `REFERENCES`, and Python metaclass
-evidence as `USES_METACLASS`.
+evidence as `USES_METACLASS`. When reducer rows include
+`caller_entity_type` and `callee_entity_type`, code-call and code-reference
+writes use the exact endpoint label plus `uid`; incomplete legacy rows still
+use the label-family fallback.
 
 The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
@@ -248,6 +251,12 @@ adapter seam.
   `TypeAlias`) as well as callable targets. Do not route Go composite-literal
   or TypeScript type references through `CALLS`; dead-code queries depend on
   incoming `REFERENCES` to model type usage without inventing invocation truth.
+- Code-call endpoint labels are whitelist values, not caller-controlled Cypher.
+  `EdgeWriter` accepts exact `Function`, `Class`, `File`, `Interface`,
+  `Struct`, and `TypeAlias` labels for code relationship endpoints. This keeps
+  Java, Go, Python, and TypeScript rows on NornicDB's bounded label-plus-`uid`
+  lookup path instead of the broader label-family fallback. Unknown or missing
+  labels still fall back to the older query shape for legacy rows.
 - Canonical stale entity retractions run after current entity upserts and are
   emitted per projectable label, not as broad label-family `MATCH (n)` scans or
   giant `uid IN` exclusion filters. Current nodes have already been stamped with

@@ -10,97 +10,6 @@ import (
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
-const (
-	scopeCountsQuery = `
-SELECT status, COUNT(*) AS count
-FROM ingestion_scopes
-GROUP BY status
-ORDER BY status
-`
-	generationCountsQuery = `
-SELECT status, COUNT(*) AS count
-FROM scope_generations
-GROUP BY status
-ORDER BY status
-`
-	generationTransitionsQuery = `
-SELECT generation.scope_id,
-       generation.generation_id,
-       generation.status,
-       generation.trigger_kind,
-       COALESCE(generation.freshness_hint, '') AS freshness_hint,
-       generation.observed_at,
-       generation.activated_at,
-       generation.superseded_at,
-       COALESCE(scope.active_generation_id, '') AS current_active_generation_id
-FROM scope_generations AS generation
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = generation.scope_id
-WHERE generation.status IN ('active', 'superseded')
-   OR generation.activated_at IS NOT NULL
-   OR generation.superseded_at IS NOT NULL
-ORDER BY COALESCE(generation.superseded_at, generation.activated_at, generation.ingested_at, generation.observed_at) DESC,
-         generation.scope_id ASC,
-         generation.generation_id ASC
-LIMIT 5
-`
-	stageCountsQuery = `
-SELECT stage, status, COUNT(*) AS count
-FROM fact_work_items
-GROUP BY stage, status
-ORDER BY stage, status
-`
-	domainBacklogQuery = `
-SELECT domain,
-       COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding_count,
-       COUNT(*) FILTER (WHERE status = 'retrying') AS retrying_count,
-       COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter_count,
-       COUNT(*) FILTER (WHERE status = 'failed') AS failed_count,
-       COALESCE(
-         EXTRACT(
-           EPOCH FROM (
-             $1 - (
-               MIN(created_at)
-                 FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying'))
-             )
-           )
-         ),
-         0
-       ) AS oldest_outstanding_age_seconds
-FROM fact_work_items
-GROUP BY domain
-HAVING COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying', 'dead_letter', 'failed')) > 0
-ORDER BY outstanding_count DESC, oldest_outstanding_age_seconds DESC, domain ASC
-`
-	queueSnapshotQuery = `
-SELECT COUNT(*) AS total_count,
-       COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding_count,
-       COUNT(*) FILTER (WHERE status = 'pending') AS pending_count,
-       COUNT(*) FILTER (WHERE status IN ('claimed', 'running')) AS in_flight_count,
-       COUNT(*) FILTER (WHERE status = 'retrying') AS retrying_count,
-       COUNT(*) FILTER (WHERE status = 'succeeded') AS succeeded_count,
-       COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter_count,
-       COUNT(*) FILTER (WHERE status = 'failed') AS failed_count,
-       COALESCE(
-         EXTRACT(
-           EPOCH FROM (
-             $1 - (
-               MIN(created_at)
-                 FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying'))
-             )
-           )
-         ),
-         0
-       ) AS oldest_outstanding_age_seconds,
-       COUNT(*) FILTER (
-         WHERE status IN ('claimed', 'running')
-           AND claim_until IS NOT NULL
-           AND claim_until < $1
-       ) AS overdue_claim_count
-FROM fact_work_items
-`
-)
-
 // Rows is the small read-only row cursor surface used by the status reader.
 type Rows interface {
 	Next() bool
@@ -385,6 +294,7 @@ func listDomainBacklogs(
 	for rows.Next() {
 		var domain string
 		var outstandingCount int64
+		var inFlightCount int64
 		var retryingCount int64
 		var deadLetterCount int64
 		var failedCount int64
@@ -392,6 +302,7 @@ func listDomainBacklogs(
 		if scanErr := rows.Scan(
 			&domain,
 			&outstandingCount,
+			&inFlightCount,
 			&retryingCount,
 			&deadLetterCount,
 			&failedCount,
@@ -402,6 +313,7 @@ func listDomainBacklogs(
 		backlogs = append(backlogs, statuspkg.DomainBacklog{
 			Domain:      domain,
 			Outstanding: int(outstandingCount),
+			InFlight:    int(inFlightCount),
 			Retrying:    int(retryingCount),
 			DeadLetter:  int(deadLetterCount),
 			Failed:      int(failedCount),
