@@ -102,6 +102,7 @@ nav:
     - CLI K.I.S.S.: reference/cli-kiss.md
     - Configuration: reference/configuration.md
     - Environment Variables: reference/environment-variables.md
+    - Documentation Updater Actuator Contract: reference/documentation-updater-actuator-contract.md
     - Runtime Admin API: reference/runtime-admin-api.md
     - Legacy Entry Pages:
       - Prerequisites: getting-started/prerequisites.md
