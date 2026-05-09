@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/cloudformation"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -108,14 +110,14 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 	if lineNumber <= 0 {
 		lineNumber = 1
 	}
-	if isCloudFormationTemplate(document) {
-		result := parseCloudFormationTemplate(document, path, lineNumber, "yaml")
-		payload["cloudformation_resources"] = append(payload["cloudformation_resources"].([]map[string]any), result.resources...)
-		payload["cloudformation_parameters"] = append(payload["cloudformation_parameters"].([]map[string]any), result.params...)
-		payload["cloudformation_outputs"] = append(payload["cloudformation_outputs"].([]map[string]any), result.outputs...)
-		payload["cloudformation_conditions"] = append(payload["cloudformation_conditions"].([]map[string]any), result.conditions...)
-		payload["cloudformation_cross_stack_imports"] = append(payload["cloudformation_cross_stack_imports"].([]map[string]any), result.imports...)
-		payload["cloudformation_cross_stack_exports"] = append(payload["cloudformation_cross_stack_exports"].([]map[string]any), result.exports...)
+	if cloudformation.IsTemplate(document) {
+		result := cloudformation.Parse(document, path, lineNumber, "yaml")
+		payload["cloudformation_resources"] = append(payload["cloudformation_resources"].([]map[string]any), result.Resources...)
+		payload["cloudformation_parameters"] = append(payload["cloudformation_parameters"].([]map[string]any), result.Params...)
+		payload["cloudformation_outputs"] = append(payload["cloudformation_outputs"].([]map[string]any), result.Outputs...)
+		payload["cloudformation_conditions"] = append(payload["cloudformation_conditions"].([]map[string]any), result.Conditions...)
+		payload["cloudformation_cross_stack_imports"] = append(payload["cloudformation_cross_stack_imports"].([]map[string]any), result.Imports...)
+		payload["cloudformation_cross_stack_exports"] = append(payload["cloudformation_cross_stack_exports"].([]map[string]any), result.Exports...)
 		return
 	}
 

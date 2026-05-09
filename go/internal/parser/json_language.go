@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/cloudformation"
 )
 
 func (e *Engine) parseJSON(
@@ -46,14 +48,14 @@ func (e *Engine) parseJSON(
 	}
 
 	languageName := "json"
-	if isCloudFormationTemplate(object) {
-		result := parseCloudFormationTemplate(object, path, 1, languageName)
-		payload["cloudformation_resources"] = result.resources
-		payload["cloudformation_parameters"] = result.params
-		payload["cloudformation_outputs"] = result.outputs
-		payload["cloudformation_conditions"] = result.conditions
-		payload["cloudformation_cross_stack_imports"] = result.imports
-		payload["cloudformation_cross_stack_exports"] = result.exports
+	if cloudformation.IsTemplate(object) {
+		result := cloudformation.Parse(object, path, 1, languageName)
+		payload["cloudformation_resources"] = result.Resources
+		payload["cloudformation_parameters"] = result.Params
+		payload["cloudformation_outputs"] = result.Outputs
+		payload["cloudformation_conditions"] = result.Conditions
+		payload["cloudformation_cross_stack_imports"] = result.Imports
+		payload["cloudformation_cross_stack_exports"] = result.Exports
 		if options.IndexSource {
 			payload["source"] = string(source)
 		}

@@ -167,6 +167,10 @@ subpackage. The parent parser keeps file I/O, registry dispatch, and the
 `ExtractDockerfileRuntimeMetadata` compatibility wrapper used by query and
 relationship code.
 
+CloudFormation and SAM template evidence now lives in the CloudFormation helper
+subpackage so JSON and YAML adapters share the same template classification,
+condition evaluation, and bucket construction contract.
+
 First-wave language package moves also cover C, C++, Rust, C#, Scala, Elixir,
 Swift, Dart, Ruby, Perl, Haskell, SQL, and HCL/Terraform adapters. Those
 packages own parse and pre-scan behavior behind thin parent wrappers. Shared

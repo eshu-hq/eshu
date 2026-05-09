@@ -23,14 +23,16 @@
    for Jenkins delivery metadata that does not need parent parser internals
 11. `go/internal/parser/dockerfile/README.md` — Dockerfile-owned helper package
     boundary for runtime metadata that does not need parent parser internals
-12. Language-owned adapter READMEs for extracted parsers before touching their
+12. `go/internal/parser/cloudformation/README.md` — shared CloudFormation/SAM
+    parser package used by JSON and YAML adapters
+13. Language-owned adapter READMEs for extracted parsers before touching their
     parent wrappers: `c`, `cpp`, `rust`, `csharp`, `scala`, `elixir`, `swift`,
     `dart`, `ruby`, `perl`, `haskell`, `sql`, and `hcl`
-13. `go/internal/parser/scip_support.go` — `SCIPIndexer`,
+14. `go/internal/parser/scip_support.go` — `SCIPIndexer`,
    `DetectSCIPProjectLanguage`, SCIP binary map
-14. `go/internal/parser/doc.go` — the package contract, especially the
+15. `go/internal/parser/doc.go` — the package contract, especially the
    determinism invariant
-15. `go/internal/telemetry/instruments.go` — `telemetry.FileParseDuration` before
+16. `go/internal/telemetry/instruments.go` — `telemetry.FileParseDuration` before
    adding parse-time metrics
 
 ## Invariants this package enforces

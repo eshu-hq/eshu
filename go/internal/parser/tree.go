@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"sort"
+
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -52,6 +54,15 @@ func cloneNode(node *tree_sitter.Node) *tree_sitter.Node {
 func appendBucket(payload map[string]any, key string, item map[string]any) {
 	items, _ := payload[key].([]map[string]any)
 	payload[key] = append(items, item)
+}
+
+func sortedMapKeys(values map[string]any) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func basePayload(path string, lang string, isDependency bool) map[string]any {
