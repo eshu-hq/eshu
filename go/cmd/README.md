@@ -22,6 +22,7 @@ from the repository root when you need that exact binary set on `PATH`.
 | `eshu-bootstrap-index` | `bootstrap-index/` | One-shot multi-phase orchestration |
 | `eshu-bootstrap-data-plane` | `bootstrap-data-plane/` | One-shot data-plane setup |
 | `eshu-collector-git` | `collector-git/` | Local git-collector helper |
+| `eshu-collector-confluence` | `collector-confluence/` | Long-running Confluence documentation collector |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |
 | `eshu-workflow-coordinator` | `workflow-coordinator/` | Long-running workflow coordinator |
 
