@@ -51,6 +51,12 @@ func TestLocalStateSourceOpensExactFileStream(t *testing.T) {
 func TestLocalStateSourceRejectsNonExactSources(t *testing.T) {
 	t.Parallel()
 
+	targetPath := writeStateFile(t, `{"serial":17}`)
+	symlinkPath := filepath.Join(t.TempDir(), "linked.tfstate")
+	if err := os.Symlink(targetPath, symlinkPath); err != nil {
+		t.Fatalf("Symlink() error = %v, want nil", err)
+	}
+
 	tests := []struct {
 		name string
 		path string
@@ -58,6 +64,8 @@ func TestLocalStateSourceRejectsNonExactSources(t *testing.T) {
 		{name: "blank path", path: " "},
 		{name: "relative path", path: "terraform.tfstate"},
 		{name: "directory", path: t.TempDir()},
+		{name: "symlink", path: symlinkPath},
+		{name: "device", path: os.DevNull},
 	}
 
 	for _, test := range tests {
@@ -115,6 +123,30 @@ func TestLocalStateSourceEnforcesSizeCeilingWhileReading(t *testing.T) {
 	}
 	if !errors.Is(err, terraformstate.ErrStateTooLarge) {
 		t.Fatalf("read error = %v, want ErrStateTooLarge", err)
+	}
+}
+
+func TestLocalStateSourceRejectsSymlinkSwapBeforeOpen(t *testing.T) {
+	t.Parallel()
+
+	path := writeStateFile(t, `{"serial":17}`)
+	source, err := terraformstate.NewLocalStateSource(terraformstate.LocalSourceConfig{
+		Path:     path,
+		MaxBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("NewLocalStateSource() error = %v, want nil", err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("Remove() error = %v, want nil", err)
+	}
+	if err := os.Symlink(os.DevNull, path); err != nil {
+		t.Fatalf("Symlink() error = %v, want nil", err)
+	}
+
+	_, _, err = source.Open(context.Background())
+	if err == nil {
+		t.Fatal("Open() error = nil, want non-nil")
 	}
 }
 

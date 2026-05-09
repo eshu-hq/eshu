@@ -53,10 +53,7 @@ func (p *stateParser) classifyAttribute(attributes map[string]any, address strin
 	if attribute.Scalar {
 		kind = redact.FieldScalar
 	}
-	decision := p.options.RedactionRules.Classify(source, redact.SchemaKnown, kind)
-	if decision.Action == redact.ActionPreserve {
-		decision = p.options.RedactionRules.Classify(source, redact.SchemaUnknown, kind)
-	}
+	decision := p.options.RedactionRules.Classify(source, redact.SchemaUnknown, kind)
 
 	switch decision.Action {
 	case redact.ActionPreserve:

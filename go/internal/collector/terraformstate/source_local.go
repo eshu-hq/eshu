@@ -35,12 +35,8 @@ func NewLocalStateSource(config LocalSourceConfig) (*LocalStateSource, error) {
 	if !filepath.IsAbs(path) {
 		return nil, fmt.Errorf("local state path must be absolute")
 	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("stat local state path: %w", err)
-	}
-	if info.IsDir() {
-		return nil, fmt.Errorf("local state path must be a file")
+	if _, err := validateRegularLocalStatePath(path); err != nil {
+		return nil, err
 	}
 
 	maxBytes := config.MaxBytes
@@ -67,12 +63,9 @@ func (s *LocalStateSource) Open(ctx context.Context) (io.ReadCloser, SourceMetad
 		return nil, SourceMetadata{}, err
 	}
 
-	info, err := os.Stat(s.path)
+	info, err := validateRegularLocalStatePath(s.path)
 	if err != nil {
-		return nil, SourceMetadata{}, fmt.Errorf("stat local state path: %w", err)
-	}
-	if info.IsDir() {
-		return nil, SourceMetadata{}, fmt.Errorf("local state path must be a file")
+		return nil, SourceMetadata{}, err
 	}
 	if info.Size() > s.maxBytes {
 		return nil, SourceMetadata{}, fmt.Errorf("%w: size=%d max=%d", ErrStateTooLarge, info.Size(), s.maxBytes)
@@ -87,4 +80,18 @@ func (s *LocalStateSource) Open(ctx context.Context) (io.ReadCloser, SourceMetad
 		Size:         info.Size(),
 		LastModified: info.ModTime().UTC(),
 	}, nil
+}
+
+func validateRegularLocalStatePath(path string) (os.FileInfo, error) {
+	linkInfo, err := os.Lstat(path)
+	if err != nil {
+		return nil, fmt.Errorf("stat local state path: %w", err)
+	}
+	if linkInfo.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("local state path must not be a symlink")
+	}
+	if !linkInfo.Mode().IsRegular() {
+		return nil, fmt.Errorf("local state path must be a regular file")
+	}
+	return linkInfo, nil
 }
