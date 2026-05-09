@@ -46,6 +46,12 @@ func TestPostgresWorkloadIdentityWriterPersistsCanonicalFact(t *testing.T) {
 	if got, want := db.execs[0].args[0], "intent-1"; got != want {
 		t.Fatalf("ExecContext fact_id = %v, want %v", got, want)
 	}
+	if got, want := db.execs[0].args[5], "git"; got != want {
+		t.Fatalf("ExecContext collector_kind = %v, want %v", got, want)
+	}
+	if got, want := db.execs[0].args[6], "inferred"; got != want {
+		t.Fatalf("ExecContext source_confidence = %v, want %v", got, want)
+	}
 }
 
 func TestPostgresWorkloadIdentityWriterRequiresDatabase(t *testing.T) {

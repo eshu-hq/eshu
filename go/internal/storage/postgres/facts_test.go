@@ -66,7 +66,7 @@ func TestFactStoreUpsertFactsPersistsCollectorContractFields(t *testing.T) {
 		SchemaVersion:    "1.0.0",
 		CollectorKind:    "terraform_state",
 		FencingToken:     42,
-		SourceConfidence: "observed",
+		SourceConfidence: facts.SourceConfidenceObserved,
 		ObservedAt:       time.Date(2026, time.May, 9, 9, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{
 			SourceSystem: "terraform_state",
@@ -90,7 +90,7 @@ func TestFactStoreUpsertFactsPersistsCollectorContractFields(t *testing.T) {
 	if got, want := db.execs[0].args[7], int64(42); got != want {
 		t.Fatalf("fencing_token arg = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[8], "observed"; got != want {
+	if got, want := db.execs[0].args[8], facts.SourceConfidenceObserved; got != want {
 		t.Fatalf("source_confidence arg = %q, want %q", got, want)
 	}
 }
@@ -110,7 +110,7 @@ func TestFactStoreLoadFactsReturnsEnvelope(t *testing.T) {
 					"1.0.0",
 					"git",
 					int64(7),
-					"observed",
+					facts.SourceConfidenceObserved,
 					"git",
 					"fact-key",
 					"file:///repo/path",
@@ -150,7 +150,7 @@ func TestFactStoreLoadFactsReturnsEnvelope(t *testing.T) {
 	if got, want := loaded[0].FencingToken, int64(7); got != want {
 		t.Fatalf("LoadFacts()[0].FencingToken = %d, want %d", got, want)
 	}
-	if got, want := loaded[0].SourceConfidence, "observed"; got != want {
+	if got, want := loaded[0].SourceConfidence, facts.SourceConfidenceObserved; got != want {
 		t.Fatalf("LoadFacts()[0].SourceConfidence = %q, want %q", got, want)
 	}
 	if got, want := loaded[0].Payload["name"], "eshu"; got != want {
@@ -304,6 +304,37 @@ func TestUpsertFactsRejectsNonSemanticSchemaVersion(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "schema_version") {
 		t.Fatalf("upsertFacts() error = %v, want schema_version context", err)
+	}
+}
+
+func TestUpsertFactsRejectsUnsupportedSourceConfidence(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	envelope := facts.Envelope{
+		FactID:           "fact-1",
+		ScopeID:          "scope-123",
+		GenerationID:     "generation-456",
+		FactKind:         "terraform_state_resource",
+		StableFactKey:    "terraform_state_resource:aws_instance.app",
+		SchemaVersion:    "1.0.0",
+		SourceConfidence: "exact",
+		ObservedAt:       time.Date(2026, time.May, 9, 9, 0, 0, 0, time.UTC),
+		SourceRef: facts.Ref{
+			SourceSystem: "terraform_state",
+			FactKey:      "aws_instance.app",
+		},
+	}
+
+	err := upsertFacts(context.Background(), db, []facts.Envelope{envelope})
+	if err == nil {
+		t.Fatal("upsertFacts() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "source_confidence") {
+		t.Fatalf("upsertFacts() error = %v, want source_confidence context", err)
+	}
+	if got := len(db.execs); got != 0 {
+		t.Fatalf("exec count = %d, want 0", got)
 	}
 }
 

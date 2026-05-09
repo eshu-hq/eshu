@@ -55,6 +55,12 @@ func TestPostgresPlatformMaterializationWriterPersistsCanonicalFact(t *testing.T
 	if got, want := db.execs[0].args[3], "reducer_platform_materialization"; got != want {
 		t.Fatalf("ExecContext fact_kind = %v, want %v", got, want)
 	}
+	if got, want := db.execs[0].args[5], "git"; got != want {
+		t.Fatalf("ExecContext collector_kind = %v, want %v", got, want)
+	}
+	if got, want := db.execs[0].args[6], "inferred"; got != want {
+		t.Fatalf("ExecContext source_confidence = %v, want %v", got, want)
+	}
 }
 
 func TestPostgresPlatformMaterializationWriterRequiresDatabase(t *testing.T) {

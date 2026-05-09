@@ -12,12 +12,3 @@ const (
 	// TerraformStateResourceSchemaVersion is the first resource fact schema.
 	TerraformStateResourceSchemaVersion = "1.0.0"
 )
-
-const (
-	// SourceConfidenceUnknown marks facts whose source confidence is not set.
-	SourceConfidenceUnknown = "unknown"
-	// SourceConfidenceExact marks facts copied from source-authoritative data.
-	SourceConfidenceExact = "exact"
-	// SourceConfidenceDerived marks facts derived from deterministic evidence.
-	SourceConfidenceDerived = "derived"
-)

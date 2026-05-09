@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // PostgresPlatformMaterializationWriter persists one platform-materialization
@@ -40,6 +42,8 @@ func (w PostgresPlatformMaterializationWriter) WritePlatformMaterialization(
 		write.GenerationID,
 		"reducer_platform_materialization",
 		platformMaterializationStableFactKey(write),
+		reducerFactCollectorKind(write.SourceSystem),
+		facts.SourceConfidenceInferred,
 		write.SourceSystem,
 		write.IntentID,
 		nil,

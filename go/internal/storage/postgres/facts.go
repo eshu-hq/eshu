@@ -430,6 +430,11 @@ func validateFactEnvelope(envelope facts.Envelope) error {
 	if !schemaVersionPattern.MatchString(emptyToDefault(envelope.SchemaVersion, "0.0.0")) {
 		return fmt.Errorf("fact %q schema_version must be semantic version", envelope.FactID)
 	}
+	if envelope.SourceConfidence != "" {
+		if err := facts.ValidateSourceConfidence(envelope.SourceConfidence); err != nil {
+			return fmt.Errorf("fact %q source_confidence: %w", envelope.FactID, err)
+		}
+	}
 
 	return nil
 }

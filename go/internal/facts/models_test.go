@@ -93,7 +93,7 @@ func TestFactEnvelopeClonePreservesDurableCollectorFields(t *testing.T) {
 		SchemaVersion:    "1.0.0",
 		CollectorKind:    "terraform_state",
 		FencingToken:     42,
-		SourceConfidence: "observed",
+		SourceConfidence: SourceConfidenceObserved,
 		ObservedAt:       time.Date(2026, time.May, 9, 9, 0, 0, 0, time.UTC),
 		SourceRef: Ref{
 			SourceSystem: "terraform_state",
@@ -116,5 +116,29 @@ func TestFactEnvelopeClonePreservesDurableCollectorFields(t *testing.T) {
 	}
 	if cloned.SourceConfidence != original.SourceConfidence {
 		t.Fatalf("Clone().SourceConfidence = %q, want %q", cloned.SourceConfidence, original.SourceConfidence)
+	}
+}
+
+func TestValidateSourceConfidence(t *testing.T) {
+	t.Parallel()
+
+	valid := []string{
+		SourceConfidenceObserved,
+		SourceConfidenceReported,
+		SourceConfidenceInferred,
+		SourceConfidenceDerived,
+		SourceConfidenceUnknown,
+	}
+	for _, value := range valid {
+		if err := ValidateSourceConfidence(value); err != nil {
+			t.Fatalf("ValidateSourceConfidence(%q) error = %v, want nil", value, err)
+		}
+	}
+
+	invalid := []string{"", "exact", "OBSERVED", " observed "}
+	for _, value := range invalid {
+		if err := ValidateSourceConfidence(value); err == nil {
+			t.Fatalf("ValidateSourceConfidence(%q) error = nil, want non-nil", value)
+		}
 	}
 }
