@@ -93,8 +93,16 @@ const openAPIPathsEvidence = `
               }
             }
           },
+          "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "501": {"$ref": "#/components/responses/NotImplemented"}
+          "501": {
+            "description": "Documentation evidence packet capability or Postgres documentation read model is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          }
         }
       }
     },
@@ -144,7 +152,14 @@ const openAPIPathsEvidence = `
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "501": {"$ref": "#/components/responses/NotImplemented"}
+          "501": {
+            "description": "Documentation evidence packet capability or Postgres documentation read model is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          }
         }
       }
     },
@@ -185,7 +200,14 @@ const openAPIPathsEvidence = `
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "501": {"$ref": "#/components/responses/NotImplemented"}
+          "501": {
+            "description": "Documentation evidence packet capability or Postgres documentation read model is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          }
         }
       }
     },

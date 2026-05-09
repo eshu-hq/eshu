@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -28,7 +29,7 @@ type documentationFindingFilter struct {
 	Status         string
 	TruthLevel     string
 	FreshnessState string
-	UpdatedSince   string
+	UpdatedSince   *time.Time
 	Limit          int
 	Cursor         string
 }
@@ -87,7 +88,11 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 	if h.unsupported(w, r, documentationFindingsCapability) {
 		return
 	}
-	store, ok := h.documentationStore(w)
+	updatedSince, ok := documentationUpdatedSince(w, r)
+	if !ok {
+		return
+	}
+	store, ok := h.documentationStore(w, r)
 	if !ok {
 		return
 	}
@@ -98,12 +103,12 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 		Status:         QueryParam(r, "status"),
 		TruthLevel:     QueryParam(r, "truth_level"),
 		FreshnessState: QueryParam(r, "freshness_state"),
-		UpdatedSince:   QueryParam(r, "updated_since"),
+		UpdatedSince:   updatedSince,
 		Limit:          documentationLimit(r),
 		Cursor:         QueryParam(r, "cursor"),
 	})
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeDocumentationError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error(), "")
 		return
 	}
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
@@ -131,24 +136,31 @@ func (h *DocumentationHandler) getEvidencePacket(w http.ResponseWriter, r *http.
 	}
 	findingID := strings.TrimSpace(PathParam(r, "finding_id"))
 	if findingID == "" {
-		WriteError(w, http.StatusBadRequest, "finding_id is required")
+		writeDocumentationError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, "finding_id is required", "")
 		return
 	}
-	store, ok := h.documentationStore(w)
+	store, ok := h.documentationStore(w, r)
 	if !ok {
 		return
 	}
 	readModel, err := store.documentationEvidencePacket(r.Context(), findingID)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeDocumentationError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error(), "")
 		return
 	}
 	if readModel.Denied {
-		writeDocumentationPermissionDenied(w, readModel.DeniedReason)
+		writeDocumentationPermissionDenied(w, r, readModel.DeniedReason)
 		return
 	}
 	if !readModel.Available || len(readModel.Packet) == 0 {
-		WriteError(w, http.StatusNotFound, "documentation evidence packet not found")
+		writeDocumentationError(
+			w,
+			r,
+			http.StatusNotFound,
+			ErrorCodeNotFound,
+			"documentation evidence packet not found",
+			"",
+		)
 		return
 	}
 	WriteSuccess(w, r, http.StatusOK, readModel.Packet, BuildTruthEnvelope(
@@ -173,24 +185,31 @@ func (h *DocumentationHandler) getPacketFreshness(w http.ResponseWriter, r *http
 	}
 	packetID := strings.TrimSpace(PathParam(r, "packet_id"))
 	if packetID == "" {
-		WriteError(w, http.StatusBadRequest, "packet_id is required")
+		writeDocumentationError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, "packet_id is required", "")
 		return
 	}
-	store, ok := h.documentationStore(w)
+	store, ok := h.documentationStore(w, r)
 	if !ok {
 		return
 	}
 	readModel, err := store.documentationEvidencePacketFreshness(r.Context(), packetID)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeDocumentationError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error(), "")
 		return
 	}
 	if readModel.Denied {
-		writeDocumentationPermissionDenied(w, readModel.DeniedReason)
+		writeDocumentationPermissionDenied(w, r, readModel.DeniedReason)
 		return
 	}
 	if !readModel.Available {
-		WriteError(w, http.StatusNotFound, "documentation evidence packet not found")
+		writeDocumentationError(
+			w,
+			r,
+			http.StatusNotFound,
+			ErrorCodeNotFound,
+			"documentation evidence packet not found",
+			"",
+		)
 		return
 	}
 	WriteSuccess(w, r, http.StatusOK, readModel, BuildTruthEnvelope(
@@ -203,29 +222,45 @@ func (h *DocumentationHandler) getPacketFreshness(w http.ResponseWriter, r *http
 
 func (h *DocumentationHandler) unsupported(w http.ResponseWriter, r *http.Request, capability string) bool {
 	if capabilityUnsupported(h.profile(), capability) {
-		WriteContractError(
+		writeDocumentationCapabilityError(
 			w,
 			r,
 			http.StatusNotImplemented,
-			"documentation evidence packets require durable documentation facts",
 			ErrorCodeUnsupportedCapability,
+			"documentation evidence packets require durable documentation facts",
 			capability,
 			h.profile(),
-			requiredProfile(capability),
 		)
 		return true
 	}
 	return false
 }
 
-func (h *DocumentationHandler) documentationStore(w http.ResponseWriter) (documentationReadModelStore, bool) {
+func (h *DocumentationHandler) documentationStore(
+	w http.ResponseWriter,
+	r *http.Request,
+) (documentationReadModelStore, bool) {
 	if h.Content == nil {
-		WriteError(w, http.StatusNotImplemented, "documentation evidence packets require the Postgres documentation read model")
+		writeDocumentationError(
+			w,
+			r,
+			http.StatusNotImplemented,
+			ErrorCodeReadModelUnavailable,
+			"documentation evidence packets require the Postgres documentation read model",
+			"",
+		)
 		return nil, false
 	}
 	store, ok := h.Content.(documentationReadModelStore)
 	if !ok {
-		WriteError(w, http.StatusNotImplemented, "documentation evidence packets require the Postgres documentation read model")
+		writeDocumentationError(
+			w,
+			r,
+			http.StatusNotImplemented,
+			ErrorCodeReadModelUnavailable,
+			"documentation evidence packets require the Postgres documentation read model",
+			"",
+		)
 		return nil, false
 	}
 	return store, true
@@ -242,14 +277,86 @@ func documentationLimit(r *http.Request) int {
 	return limit
 }
 
-func writeDocumentationPermissionDenied(w http.ResponseWriter, reason string) {
+func documentationUpdatedSince(w http.ResponseWriter, r *http.Request) (*time.Time, bool) {
+	raw := QueryParam(r, "updated_since")
+	if raw == "" {
+		return nil, true
+	}
+	parsed, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		writeDocumentationError(
+			w,
+			r,
+			http.StatusBadRequest,
+			ErrorCodeInvalidArgument,
+			"updated_since must be an RFC3339 timestamp",
+			"",
+		)
+		return nil, false
+	}
+	return &parsed, true
+}
+
+func writeDocumentationPermissionDenied(w http.ResponseWriter, r *http.Request, reason string) {
 	if strings.TrimSpace(reason) == "" {
 		reason = "caller cannot view documentation evidence"
 	}
-	WriteJSON(w, http.StatusForbidden, map[string]any{
-		"error_code": "permission_denied",
-		"message":    reason,
-	})
+	writeDocumentationError(w, r, http.StatusForbidden, ErrorCodePermissionDenied, reason, "")
+}
+
+func writeDocumentationError(
+	w http.ResponseWriter,
+	r *http.Request,
+	status int,
+	code ErrorCode,
+	message string,
+	capability string,
+) {
+	if acceptsEnvelope(r) {
+		WriteJSON(w, status, ResponseEnvelope{Error: &ErrorEnvelope{
+			Code:       code,
+			Message:    message,
+			Capability: capability,
+		}})
+		return
+	}
+	body := map[string]any{
+		"error_code": code,
+		"message":    message,
+	}
+	if capability != "" {
+		body["capability"] = capability
+	}
+	WriteJSON(w, status, body)
+}
+
+func writeDocumentationCapabilityError(
+	w http.ResponseWriter,
+	r *http.Request,
+	status int,
+	code ErrorCode,
+	message string,
+	capability string,
+	currentProfile QueryProfile,
+) {
+	if acceptsEnvelope(r) {
+		WriteJSON(w, status, ResponseEnvelope{Error: &ErrorEnvelope{
+			Code:       code,
+			Message:    message,
+			Capability: capability,
+			Profiles: &ErrorProfiles{
+				Current:  currentProfile,
+				Required: requiredProfile(capability),
+			},
+		}})
+		return
+	}
+	body := map[string]any{
+		"error_code": code,
+		"message":    message,
+		"capability": capability,
+	}
+	WriteJSON(w, status, body)
 }
 
 func documentationCursorOffset(cursor string) int {

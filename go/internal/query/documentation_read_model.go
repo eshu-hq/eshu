@@ -166,9 +166,9 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 	addPayloadFilter("status", filter.Status)
 	addPayloadFilter("truth_level", filter.TruthLevel)
 	addPayloadFilter("freshness_state", filter.FreshnessState)
-	if strings.TrimSpace(filter.UpdatedSince) != "" {
-		args = append(args, strings.TrimSpace(filter.UpdatedSince))
-		clauses = append(clauses, fmt.Sprintf("observed_at >= $%d::timestamptz", len(args)))
+	if filter.UpdatedSince != nil {
+		args = append(args, *filter.UpdatedSince)
+		clauses = append(clauses, fmt.Sprintf("observed_at >= $%d", len(args)))
 	}
 	limit := filter.Limit
 	if limit <= 0 {

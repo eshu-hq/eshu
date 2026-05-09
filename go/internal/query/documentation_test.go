@@ -60,6 +60,63 @@ func TestDocumentationHandlerListsFindings(t *testing.T) {
 	}
 }
 
+func TestDocumentationHandlerRejectsInvalidUpdatedSince(t *testing.T) {
+	t.Parallel()
+
+	handler := &DocumentationHandler{
+		Content: fakePortContentStore{},
+		Profile: ProfileProduction,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/documentation/findings?updated_since=yesterday", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	assertDocumentationError(t, w.Body.Bytes(), "invalid_argument")
+}
+
+func TestDocumentationHandlerReportsUnsupportedProfileWithStableError(t *testing.T) {
+	t.Parallel()
+
+	handler := &DocumentationHandler{
+		Content: fakePortContentStore{},
+		Profile: ProfileLocalLightweight,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/documentation/findings", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusNotImplemented; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	assertDocumentationError(t, w.Body.Bytes(), "unsupported_capability")
+}
+
+func TestDocumentationHandlerReportsUnavailableReadModelWithStableError(t *testing.T) {
+	t.Parallel()
+
+	handler := &DocumentationHandler{Profile: ProfileProduction}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/documentation/findings", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusNotImplemented; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	assertDocumentationError(t, w.Body.Bytes(), "documentation_read_model_unavailable")
+}
+
 func TestDocumentationHandlerReturnsEvidencePacketStates(t *testing.T) {
 	t.Parallel()
 
@@ -164,6 +221,46 @@ func TestDocumentationHandlerDeniesEvidencePacketWhenVisibilityIsBlocked(t *test
 
 	if got, want := w.Code, http.StatusForbidden; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	assertDocumentationError(t, w.Body.Bytes(), "permission_denied")
+}
+
+func TestDocumentationHandlerPermissionDeniedUsesEnvelopeWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	handler := &DocumentationHandler{
+		Content: fakePortContentStore{
+			documentationFreshnessModel: documentationEvidencePacketFreshnessReadModel{
+				Denied:       true,
+				DeniedReason: "caller cannot read documentation source",
+			},
+		},
+		Profile: ProfileProduction,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/documentation/evidence-packets/doc-packet:service-deployment:1/freshness",
+		nil,
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusForbidden; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	var resp ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if resp.Error == nil {
+		t.Fatalf("resp.Error = nil, want permission_denied")
+	}
+	if got, want := resp.Error.Code, ErrorCodePermissionDenied; got != want {
+		t.Fatalf("resp.Error.Code = %#v, want %#v", got, want)
 	}
 }
 
@@ -383,5 +480,20 @@ func documentationPacketFixture(findingID, status string) map[string]any {
 			"freshness_state":     "fresh",
 			"permission_decision": "allowed",
 		},
+	}
+}
+
+func assertDocumentationError(t *testing.T, raw []byte, wantCode string) {
+	t.Helper()
+
+	var resp map[string]any
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if got := resp["error_code"]; got != wantCode {
+		t.Fatalf("error_code = %#v, want %#v; body = %s", got, wantCode, string(raw))
+	}
+	if got := resp["message"]; got == "" {
+		t.Fatalf("message = %#v, want non-empty; body = %s", got, string(raw))
 	}
 }
