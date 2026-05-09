@@ -8,7 +8,7 @@ import (
 var (
 	rubyChainedCallPattern   = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:[A-Za-z_]\w*|@[A-Za-z_]\w*|self|[A-Z][A-Za-z0-9_:]*)(?:\.[A-Za-z_]\w*[!?=]?)+)\(([^()]*)\)\.([A-Za-z_]\w*[!?=]?)(?:\s*\(([^)]*)\)|\s+([^#]+))?`)
 	rubyScopedCallPattern    = regexp.MustCompile(`([A-Z][A-Za-z0-9_:]*\.[A-Za-z_]\w*[!?=]?)\(`)
-	rubyQualifiedCallPattern = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:[A-Za-z_]\w*|@[A-Za-z_]\w*|self|[A-Z][A-Za-z0-9_:]*)(?:\.[A-Za-z_]\w*[!?=]?)+)(?:\s*\(|\b)`)
+	rubyQualifiedCallPattern = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:[A-Za-z_]\w*|@[A-Za-z_]\w*|self|[A-Z][A-Za-z0-9_:]*)(?:\.[A-Za-z_]\w*)+[!?=]?)(?:\s*\(|\b|[\s;])`)
 	rubyBareCallPattern      = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:require_relative|require|load|include|extend|attr_accessor|attr_reader|attr_writer|define_method|define_singleton_method|instance_method|instance_eval|cache_method|puts|sleep|method|public_send|send|super|bind))(?:\s*\(([^)]*)\)|\s+([^#]+))`)
 )
 
@@ -58,6 +58,7 @@ func rubyParseCalls(line string) []rubyCallMatch {
 		if fullName == "" {
 			continue
 		}
+		fullName = rubyRestoreCallPunctuation(line, fullName)
 		if _, ok := seen[fullName]; ok {
 			continue
 		}
@@ -76,6 +77,7 @@ func rubyParseCalls(line string) []rubyCallMatch {
 		if fullName == "" {
 			continue
 		}
+		fullName = rubyRestoreCallPunctuation(line, fullName)
 		if _, ok := seen[fullName]; ok {
 			continue
 		}
@@ -127,6 +129,20 @@ func rubyCallName(fullName string) string {
 		return trimmed[index+2:]
 	}
 	return trimmed
+}
+
+// rubyRestoreCallPunctuation preserves Ruby predicate, bang, and writer method
+// suffixes when the line-oriented call pattern also matched the bare name.
+func rubyRestoreCallPunctuation(line string, fullName string) string {
+	if strings.HasSuffix(fullName, "?") || strings.HasSuffix(fullName, "!") || strings.HasSuffix(fullName, "=") {
+		return fullName
+	}
+	for _, suffix := range []string{"?", "!", "="} {
+		if strings.Contains(line, fullName+suffix) {
+			return fullName + suffix
+		}
+	}
+	return fullName
 }
 
 func rubyInferAssignmentType(raw string) string {

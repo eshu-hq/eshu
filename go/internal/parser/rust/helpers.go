@@ -23,6 +23,19 @@ func firstNamedDescendant(node *tree_sitter.Node, kinds ...string) *tree_sitter.
 	return result
 }
 
+func lastNamedDescendant(node *tree_sitter.Node, kinds ...string) *tree_sitter.Node {
+	var result *tree_sitter.Node
+	shared.WalkNamed(node, func(child *tree_sitter.Node) {
+		for _, kind := range kinds {
+			if child.Kind() == kind {
+				result = shared.CloneNode(child)
+				return
+			}
+		}
+	})
+	return result
+}
+
 func sortSystemsPayload(payload map[string]any, keys ...string) {
 	for _, key := range keys {
 		shared.SortNamedBucket(payload, key)
@@ -111,7 +124,7 @@ func rustCallNameNode(node *tree_sitter.Node) *tree_sitter.Node {
 		return nil
 	}
 	if functionNode := node.ChildByFieldName("function"); functionNode != nil {
-		return firstNamedDescendant(functionNode, "identifier", "field_identifier")
+		return lastNamedDescendant(functionNode, "identifier", "field_identifier")
 	}
 	return firstNamedDescendant(node, "identifier", "field_identifier")
 }

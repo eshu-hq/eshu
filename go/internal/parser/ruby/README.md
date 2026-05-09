@@ -35,6 +35,13 @@ full name and source line so repeated calls on different lines remain visible.
 PreScan sorts names after collecting them from the parsed function, class, and
 module buckets.
 
+Constants are represented in the legacy `variables` bucket with class or module
+context instead of a separate constants bucket. Predicate, bang, and writer
+method suffixes are preserved for qualified calls. Rails-style DSL chains are
+captured as bounded call evidence only; this package does not mark Rails, Rake,
+or other framework roots by itself. `def self.name` and `class << self` are
+covered, while `def ClassName.name` is not part of the current contract.
+
 ## Related docs
 
 - docs/plans/2026-05-09-parser-language-layout.md

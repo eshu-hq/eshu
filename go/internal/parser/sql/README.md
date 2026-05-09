@@ -41,6 +41,14 @@ covered by package-local tests when adding support for another migration tool.
 
 SQL relationship extraction is conservative. Regex-backed mentions should not
 claim table truth unless the statement shape provides bounded evidence.
+Table constraints such as `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, and
+`EXCLUDE` are not SQL column rows, but their bounded references clauses still
+emit table relationships.
+
+This package is not a full SQL grammar. Routine body extraction expects
+dollar-quoted `AS $$...$$` or tagged dollar-quoted bodies, functions require a
+`RETURNS` clause, and DML mentions inside routines currently materialize as
+`READS_FROM` relationships instead of mutation-specific relationship types.
 
 ## Related docs
 

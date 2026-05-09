@@ -50,6 +50,58 @@ end
 	assertBucketField(t, payload, "function_calls", "full_name", "task.call")
 }
 
+func TestParseCapturesConstantsAndKeepsContextAcrossNestedBlocks(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "controller.rb", `class OrdersController
+  DEFAULT_LIMIT = 25
+
+  def self.call(env)
+    Rails.application.routes.draw do
+      get "/orders", to: "orders#index"
+    end
+
+    if env.ready?
+      limit = DEFAULT_LIMIT
+    end
+
+    @last_limit = limit
+  end
+end
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	constant := assertBucketName(t, payload, "variables", "DEFAULT_LIMIT")
+	if got := constant["context"]; got != "OrdersController" {
+		t.Fatalf("variables[DEFAULT_LIMIT][context] = %#v, want OrdersController", got)
+	}
+	if got := constant["context_type"]; got != "class" {
+		t.Fatalf("variables[DEFAULT_LIMIT][context_type] = %#v, want class", got)
+	}
+
+	function := assertBucketName(t, payload, "functions", "call")
+	if got := function["type"]; got != "singleton" {
+		t.Fatalf("functions[call][type] = %#v, want singleton", got)
+	}
+	if got := function["class_context"]; got != "OrdersController" {
+		t.Fatalf("functions[call][class_context] = %#v, want OrdersController", got)
+	}
+
+	lastLimit := assertBucketName(t, payload, "variables", "@last_limit")
+	if got := lastLimit["context"]; got != "call" {
+		t.Fatalf("variables[@last_limit][context] = %#v, want call", got)
+	}
+	if got := lastLimit["context_type"]; got != "def" {
+		t.Fatalf("variables[@last_limit][context_type] = %#v, want def", got)
+	}
+	assertBucketField(t, payload, "function_calls", "full_name", "Rails.application.routes.draw")
+	assertBucketField(t, payload, "function_calls", "full_name", "env.ready?")
+}
+
 func writeSource(t *testing.T, name string, source string) string {
 	t.Helper()
 

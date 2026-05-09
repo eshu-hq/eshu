@@ -19,8 +19,10 @@ var (
 	rubyLoadPattern            = regexp.MustCompile(`^\s*load\s+['"]([^'"]+)['"]`)
 	rubyIncludePattern         = regexp.MustCompile(`^\s*include\s+([A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)`)
 	rubyInstanceVarPattern     = regexp.MustCompile(`@\w+`)
+	rubyConstantAssignPattern  = regexp.MustCompile(`^\s*([A-Z]\w*(?:::[A-Z]\w*)*)\s*=\s*(.+)$`)
 	rubyLocalAssignmentPattern = regexp.MustCompile(`^\s*([a-z_]\w*)\s*=\s*(.+)$`)
 	rubyInstanceAssignPattern  = regexp.MustCompile(`^\s*(@\w+)\s*(?:\|\|)?=\s*(.+)$`)
+	rubyOpaqueBlockPattern     = regexp.MustCompile(`^(?:if|unless|case|begin|for|while|until)\b|\bdo\b`)
 )
 
 type rubyBlock struct {
@@ -134,6 +136,9 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		appendRubyModuleInclusion(payload, blocks, trimmed)
 		appendRubyVariables(payload, blocks, seenVariables, rawLine, trimmed, lineNumber)
 		appendRubyCalls(payload, blocks, seenCalls, trimmed, lineNumber)
+		if rubyStartsOpaqueBlock(trimmed) {
+			blocks = append(blocks, rubyBlock{kind: "block"})
+		}
 	}
 
 	shared.SortNamedBucket(payload, "functions")
@@ -200,6 +205,9 @@ func appendRubyVariables(
 	trimmed string,
 	lineNumber int,
 ) {
+	if matches := rubyConstantAssignPattern.FindStringSubmatch(trimmed); len(matches) >= 3 {
+		appendRubyVariable(payload, blocks, seenVariables, rubyLastSegment(matches[1]), rubyInferAssignmentType(matches[2]), lineNumber)
+	}
 	if matches := rubyInstanceAssignPattern.FindStringSubmatch(trimmed); len(matches) >= 3 {
 		appendRubyVariable(payload, blocks, seenVariables, matches[1], rubyInferAssignmentType(matches[2]), lineNumber)
 	}
@@ -300,4 +308,13 @@ func rubyCurrentContext(blocks []rubyBlock, kinds ...string) (string, string) {
 
 func rubyLastSegment(name string) string {
 	return shared.LastPathSegment(name, "::")
+}
+
+// rubyStartsOpaqueBlock tracks Ruby control and DSL blocks so their end tokens
+// do not pop the surrounding class, module, or method context.
+func rubyStartsOpaqueBlock(trimmed string) bool {
+	if !rubyOpaqueBlockPattern.MatchString(trimmed) {
+		return false
+	}
+	return !strings.Contains(trimmed, " end")
 }

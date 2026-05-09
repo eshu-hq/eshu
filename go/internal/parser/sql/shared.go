@@ -96,6 +96,25 @@ func collectSQLTableMentions(text string, includeReads bool) []sqlMention {
 	return mentions
 }
 
+func isSQLTableConstraintLine(line string) bool {
+	upper := strings.ToUpper(strings.TrimSpace(line))
+	for _, prefix := range []string{
+		"CONSTRAINT ",
+		"PRIMARY KEY",
+		"FOREIGN KEY",
+		"UNIQUE ",
+		"UNIQUE(",
+		"CHECK ",
+		"CHECK(",
+		"EXCLUDE ",
+	} {
+		if strings.HasPrefix(upper, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 type sqlMention struct {
 	name      string
 	operation string

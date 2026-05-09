@@ -22,6 +22,9 @@
 - Keep registry, Engine dispatch, and content-shape changes outside this
   package unless the task explicitly includes those files.
 - Use internal/parser/shared helpers for payload buckets and sorting.
+- Keep constants in the legacy `variables` bucket unless a downstream shape
+  change explicitly introduces a constants bucket. Rails/Rake framework roots
+  also need a separate root-modeling design; DSL calls alone are call evidence.
 
 ## Failure modes and how to debug
 
