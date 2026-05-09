@@ -35,6 +35,7 @@ still needs an owner.
 | `2026-04-20-workflow-coordinator-and-multi-collector-runtime-contract.md` | Accepted; Git claim proof path implemented | Keep Helm claims dark until remote full-corpus validation and future collector-family gates are ready. |
 | `2026-04-20-workflow-coordinator-claiming-fencing-and-convergence.md` | Accepted; guarded proof path implemented | Work items carry the full phase-state tuple, reconciliation uses exact downstream truth, release/fairness/Git claim primitives exist, and deployment promotion is blocked behind proof. |
 | `2026-04-22-nornicdb-graph-backend-candidate.md` | Accepted with conditions | Latest-main policy is explicit; backend conformance and profile gates have NornicDB evidence; Neo4j parity research is now complete and recorded in the accepted 2026-05-04 ADR; finish install trust and broader host coverage. |
+| `2026-05-09-documentation-truth-collectors-and-actuators.md` | Accepted; implementation not started | Add documentation-source collectors and read-only drift findings to Eshu; keep LLM diff generation, approvals, and publishing in external updater actuators. |
 
 ## In Progress
 
