@@ -1,7 +1,7 @@
 # ADR: Optional Component Boundary For Non-Git Collectors
 
 **Date:** 2026-05-09
-**Status:** Proposed
+**Status:** Accepted
 **Authors:** Allen Sanabria
 **Deciders:** Platform Engineering
 **Related:**
@@ -20,8 +20,13 @@
 
 ## Status
 
-Proposed. This ADR is the v0.0.3 architecture gate for optional non-Git
+Accepted. This ADR is the v0.0.3 architecture gate for optional non-Git
 collector boundaries before Terraform state and AWS runtime work hardens.
+
+Accepted on 2026-05-09 after platform-owner review in GitHub issue #59. The
+accepted boundary is intentionally narrow: Git remains the built-in default,
+Terraform state and AWS may incubate as first-party optional component
+candidates, and the full package manager remains separate follow-up work.
 
 ## Context
 

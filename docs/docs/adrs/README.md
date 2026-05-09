@@ -36,12 +36,12 @@ still needs an owner.
 | `2026-04-20-workflow-coordinator-claiming-fencing-and-convergence.md` | Accepted; guarded proof path implemented | Work items carry the full phase-state tuple, reconciliation uses exact downstream truth, release/fairness/Git claim primitives exist, and deployment promotion is blocked behind proof. |
 | `2026-04-22-nornicdb-graph-backend-candidate.md` | Accepted with conditions | Latest-main policy is explicit; backend conformance and profile gates have NornicDB evidence; Neo4j parity research is now complete and recorded in the accepted 2026-05-04 ADR; finish install trust and broader host coverage. |
 | `2026-05-09-documentation-truth-collectors-and-actuators.md` | Accepted; implementation not started | Add documentation-source collectors and read-only drift findings to Eshu; keep LLM diff generation, approvals, and publishing in external updater actuators. |
+| `2026-05-09-optional-component-boundary.md` | Accepted; manifest/package-manager follow-up | Git stays built-in and default. Terraform state and AWS may incubate as first-party optional component candidates but must stay disabled unless explicitly configured. Future manifest loading and package management remain separate follow-up work. |
 
 ## In Progress
 
 | ADR | Current state | What remains |
 | --- | --- | --- |
-| `2026-05-09-optional-component-boundary.md` | Proposed | Decide and enforce the component boundary before Terraform-state and AWS harden as optional first-party collectors. |
 | `2026-04-19-multi-source-correlation-dsl-and-collector-readiness.md` | In progress | DSL/rule-pack substrate and source-kind contracts exist; AWS, Terraform-state, webhook, and full cloud/runtime joins remain. |
 | `2026-04-20-embedded-local-backends-implementation-plan.md` | In progress | Local host, embedded local-authoritative runtime, backend conformance harness, profile matrix, and latest-main NornicDB proof are in place; release packaging, host envelope, and plugin work still open. |
 | `2026-04-24-iac-usage-reachability-and-refactor-impact.md` | In progress | Dead-IaC reachability and pagination are proven; shared neighborhood, impact, integrity, and remaining IaC-family coverage remain. |
