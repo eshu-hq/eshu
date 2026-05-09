@@ -67,15 +67,46 @@ Before implementation starts, lock these decisions:
    What counts as one authoritative snapshot replacement for that scope?
 4. Fact model
    Which typed facts are emitted before any projector or reducer work begins?
-5. Failure model
+5. Source confidence
+   How much trust should consumers place in the fact: was it observed directly,
+   reported by another system, inferred from evidence, or derived by Eshu?
+6. Failure model
    Which failures are retryable, terminal, rate-limit driven, or source-auth
    related?
-6. Operator model
+7. Operator model
    Which health, backlog, concurrency, and pool-tuning signals must be visible
    to operators?
 
-If those six points are still fuzzy, the collector is not ready for
+If those seven points are still fuzzy, the collector is not ready for
 implementation.
+
+## Source Confidence
+
+Every emitted fact must say how Eshu learned it. This is separate from
+`collector_kind`.
+
+`collector_kind` tells us which collector family produced the fact. For example,
+facts from the default repository collector should carry `collector_kind=git`.
+`source_confidence` tells downstream consumers how to treat the claim when two
+sources disagree.
+
+Use these values:
+
+- `observed` — Eshu read the source artifact directly. Git file contents and
+  Terraform state files fit here.
+- `reported` — an external API reported the value. AWS API responses fit here.
+- `inferred` — Eshu reached the claim by comparing or correlating other facts.
+  IaC reachability and ownership correlation fit here.
+- `derived` — Eshu materialized the value from existing Eshu facts without
+  claiming it came from a new external source.
+- `unknown` — compatibility fallback for older or system rows. New collector
+  work should not rely on this value.
+
+This matters most when the graph compares intent, managed state, and live
+reality. A Terraform file may express intent. A Terraform state snapshot may
+show what Terraform believes it manages. An AWS scan may report what exists in
+the account right now. Those are all useful facts, but they should not carry
+the same trust label.
 
 ## Runtime Requirements
 
