@@ -52,6 +52,9 @@ func Parse(
 		}
 	} else {
 		parseTerraformBlocks(payload, body, source, path)
+		for _, row := range parseTerraformBackends(body, source, path) {
+			shared.AppendBucket(payload, "terraform_backends", row)
+		}
 	}
 
 	shared.SortNamedBucket(payload, "terraform_blocks")
@@ -62,6 +65,7 @@ func Parse(
 	shared.SortNamedBucket(payload, "terraform_data_sources")
 	shared.SortNamedBucket(payload, "terraform_providers")
 	shared.SortNamedBucket(payload, "terraform_locals")
+	shared.SortNamedBucket(payload, "terraform_backends")
 	shared.SortNamedBucket(payload, "terragrunt_configs")
 	shared.SortNamedBucket(payload, "terragrunt_dependencies")
 	shared.SortNamedBucket(payload, "terragrunt_locals")
@@ -82,6 +86,7 @@ func hclBasePayload(path string, isDependency bool) map[string]any {
 	payload["terraform_data_sources"] = []map[string]any{}
 	payload["terraform_providers"] = []map[string]any{}
 	payload["terraform_locals"] = []map[string]any{}
+	payload["terraform_backends"] = []map[string]any{}
 	payload["terragrunt_configs"] = []map[string]any{}
 	payload["terragrunt_dependencies"] = []map[string]any{}
 	payload["terragrunt_locals"] = []map[string]any{}
