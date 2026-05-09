@@ -36,6 +36,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 
 	// Verify all histogram fields are non-nil
 	assert.NotNil(t, inst.CollectorObserveDuration, "CollectorObserveDuration histogram should be registered")
+	assert.NotNil(t, inst.TerraformStateClaimWaitDuration, "TerraformStateClaimWaitDuration histogram should be registered")
 	assert.NotNil(t, inst.ScopeAssignDuration, "ScopeAssignDuration histogram should be registered")
 	assert.NotNil(t, inst.FactEmitDuration, "FactEmitDuration histogram should be registered")
 	assert.NotNil(t, inst.ProjectorRunDuration, "ProjectorRunDuration histogram should be registered")
