@@ -46,9 +46,11 @@ func TestContentReaderDeadCodeIncomingEntityIDsReadsCompletedCodeCallIntents(t *
 	for _, want := range []string{
 		"FROM shared_projection_intents",
 		"projection_domain = 'code_calls'",
+		"projection_domain = 'inheritance_edges'",
 		"completed_at IS NOT NULL",
 		"payload->>'callee_entity_id'",
 		"payload->>'target_entity_id'",
+		"payload->>'parent_entity_id'",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("query missing %q:\n%s", want, query)

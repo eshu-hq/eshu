@@ -13,9 +13,9 @@
 // of projector rows and their scope generations must remain atomic. Schema and
 // queue contract changes require migration and a matching update to the
 // recovery and status surfaces. Status readers include pending shared
-// projection intents and active shared-projection leases in domain backlog
-// aggregates because those rows gate whether reducer-owned graph edges are ready
-// for query truth, and ReducerGraphDrain gives local NornicDB code-call
+// projection intents and lease-only active shared-projection lanes in domain
+// backlog aggregates because those rows gate whether reducer-owned graph edges
+// are ready for query truth, and ReducerGraphDrain gives local NornicDB code-call
 // projection a read-only view of reducer graph-domain backlog before it starts
 // its edge write lane.
 // FactStore kind-filtered reads use bounded, stable keyset pages, and payload

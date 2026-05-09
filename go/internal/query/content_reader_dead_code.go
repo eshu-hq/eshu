@@ -56,6 +56,13 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 			  AND completed_at IS NOT NULL
 			  AND payload->>'relationship_type' = 'USES_METACLASS'
 			  AND payload->>'target_entity_id' IN (` + entityIDSet + `)
+			UNION
+			SELECT payload->>'parent_entity_id' AS incoming_entity_id
+			FROM shared_projection_intents
+			WHERE repository_id = $1
+			  AND projection_domain = 'inheritance_edges'
+			  AND completed_at IS NOT NULL
+			  AND payload->>'parent_entity_id' IN (` + entityIDSet + `)
 		) incoming
 		WHERE incoming_entity_id IS NOT NULL
 		  AND incoming_entity_id <> ''

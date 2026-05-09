@@ -72,8 +72,15 @@ shared_projection_active_leases AS (
     AND lease_expires_at > $1
   GROUP BY projection_domain
 ),
+shared_projection_domains AS (
+  SELECT projection_domain AS domain
+  FROM shared_projection_intents
+  UNION
+  SELECT domain
+  FROM shared_projection_active_leases
+),
 shared_projection_domain_backlogs AS (
-  SELECT intents.projection_domain AS domain,
+  SELECT domains.domain AS domain,
          COUNT(*) FILTER (WHERE intents.completed_at IS NULL) AS outstanding_count,
          COALESCE(MAX(active.in_flight_count), 0) AS in_flight_count,
          0::BIGINT AS retrying_count,
@@ -87,14 +94,17 @@ shared_projection_domain_backlogs AS (
                    FILTER (WHERE intents.completed_at IS NULL)
                )
              )
-           ),
-           0
-         ) AS oldest_outstanding_age_seconds
-  FROM shared_projection_intents AS intents
+         ),
+         0
+       ) AS oldest_outstanding_age_seconds
+  FROM shared_projection_domains AS domains
+  LEFT JOIN shared_projection_intents AS intents
+    ON intents.projection_domain = domains.domain
   LEFT JOIN shared_projection_active_leases AS active
-    ON active.domain = intents.projection_domain
-  GROUP BY intents.projection_domain
+    ON active.domain = domains.domain
+  GROUP BY domains.domain
   HAVING COUNT(*) FILTER (WHERE intents.completed_at IS NULL) > 0
+      OR COALESCE(MAX(active.in_flight_count), 0) > 0
 )
 SELECT domain,
        SUM(outstanding_count) AS outstanding_count,
@@ -109,7 +119,7 @@ FROM (
   SELECT * FROM shared_projection_domain_backlogs
 ) AS domain_backlogs
 GROUP BY domain
-HAVING SUM(outstanding_count) + SUM(retrying_count) + SUM(dead_letter_count) + SUM(failed_count) > 0
+HAVING SUM(outstanding_count) + SUM(in_flight_count) + SUM(retrying_count) + SUM(dead_letter_count) + SUM(failed_count) > 0
 ORDER BY outstanding_count DESC, oldest_outstanding_age_seconds DESC, domain ASC
 `
 	queueSnapshotQuery = `

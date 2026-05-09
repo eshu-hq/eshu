@@ -208,10 +208,11 @@ mutation is rejected because the current owner no longer holds the lease.
 - `StatusStore` / `NewStatusStore` — reads scope, generation, queue, blockage,
   failure, coordinator, and domain backlog aggregates. `status_queries.go`
   merges `fact_work_items` with pending `shared_projection_intents` and active
-  `shared_projection_partition_leases` for domain backlog rows, so
-  `/admin/status` does not report healthy while reducer-owned shared projection
-  work is still waiting to become graph-visible and does not report stalled
-  while a reducer lease is actively moving that domain.
+  `shared_projection_partition_leases` for domain backlog rows. Lease-only rows
+  stay visible even after the last pending intent is claimed, so `/admin/status`
+  does not report healthy while reducer-owned shared projection work is still
+  becoming graph-visible and does not report stalled while a reducer lease is
+  actively moving that domain.
 
 **Decision store**
 

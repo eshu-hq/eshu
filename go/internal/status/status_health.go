@@ -57,7 +57,7 @@ func evaluateHealth(
 			Reasons: []string{reason},
 		}
 	}
-	if sharedBacklog := sharedProjectionBacklog(domainBacklogs); sharedBacklog.Outstanding > 0 {
+	if sharedBacklog := sharedProjectionBacklog(domainBacklogs); sharedBacklog.Outstanding > 0 || sharedBacklog.InFlight > 0 {
 		if sharedBacklog.InFlight > 0 {
 			return HealthSummary{
 				State: healthProgressing,
@@ -109,11 +109,12 @@ func evaluateHealth(
 func sharedProjectionBacklog(rows []DomainBacklog) DomainBacklog {
 	var largest DomainBacklog
 	for _, row := range rows {
-		if strings.TrimSpace(row.Domain) == "" || row.Outstanding <= 0 {
+		if strings.TrimSpace(row.Domain) == "" || (row.Outstanding <= 0 && row.InFlight <= 0) {
 			continue
 		}
 		if row.Outstanding > largest.Outstanding ||
-			(row.Outstanding == largest.Outstanding && row.OldestAge > largest.OldestAge) {
+			(row.Outstanding == largest.Outstanding && row.InFlight > largest.InFlight) ||
+			(row.Outstanding == largest.Outstanding && row.InFlight == largest.InFlight && row.OldestAge > largest.OldestAge) {
 			largest = row
 		}
 	}

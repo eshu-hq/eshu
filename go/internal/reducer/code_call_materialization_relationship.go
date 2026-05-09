@@ -12,6 +12,8 @@ func codeCallRelationshipType(edge map[string]any) string {
 		return "REFERENCES"
 	case "javascript.function_value_reference":
 		return "REFERENCES"
+	case "java.method_reference":
+		return "REFERENCES"
 	case "typescript.type_reference":
 		return "REFERENCES"
 	case "python.class_reference":

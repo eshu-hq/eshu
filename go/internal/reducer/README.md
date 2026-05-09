@@ -163,6 +163,10 @@ inline constructor receiver. `code_call_materialization_arity.go` converts
 `argument_count` and `parameter_count` metadata into `name#arity` candidates
 before broad name matching, so overloaded methods such as `basicAuth(String)`
 and `basicAuth(String, String)` do not collapse into one reachability result.
+Parser rows with `call_kind=java.method_reference` resolve method-reference
+syntax such as `this::configureTask` to same-class methods and materialize as
+`REFERENCES`, because the source proves reachability through a functional
+callback without proving an immediate invocation.
 This keeps Java method reachability bounded to evidence from the parsed files
 instead of treating every method with the same name as live.
 
@@ -177,8 +181,9 @@ unique inherited method name when no exact class-context method exists. That
 protects dataclass and model helper paths without making all same-named Python
 methods reachable.
 
-Parser metadata rows with `call_kind=go.composite_literal_type_reference` or
-`call_kind=typescript.type_reference` or `call_kind=python.class_reference`
+Parser metadata rows with `call_kind=go.composite_literal_type_reference`,
+`call_kind=typescript.type_reference`, `call_kind=python.class_reference`, or
+`call_kind=java.method_reference`
 materialize as deduplicated `REFERENCES` edges. They prove reference roots for
 dead-code classification, but must not materialize as `CALLS` because that
 would make graph truth claim that type or class references are invocations.

@@ -77,7 +77,7 @@ func (e *Engine) parseJava(
 			}
 		case "import_declaration":
 			appendJavaImport(payload, node, source)
-		case "method_invocation":
+		case "method_invocation", "method_reference":
 			appendJavaCall(payload, node, source, callInference)
 		case "object_creation_expression":
 			appendJavaCall(payload, node, source, callInference)
@@ -129,73 +129,6 @@ func appendJavaFunction(
 	appendBucket(payload, "functions", item)
 }
 
-func javaDeadCodeRootKinds(node *tree_sitter.Node, source []byte, name string) []string {
-	rootKinds := make([]string, 0, 2)
-	raw := nodeText(node, source)
-	switch node.Kind() {
-	case "constructor_declaration":
-		rootKinds = appendUniqueString(rootKinds, "java.constructor")
-	case "method_declaration":
-		if javaIsMainMethod(raw, name) {
-			rootKinds = appendUniqueString(rootKinds, "java.main_method")
-		}
-		if javaHasAnnotation(raw, "Override") {
-			rootKinds = appendUniqueString(rootKinds, "java.override_method")
-		}
-		if javaIsAntTaskSetter(node, source, raw, name) {
-			rootKinds = appendUniqueString(rootKinds, "java.ant_task_setter")
-		}
-	}
-	return rootKinds
-}
-
-func javaIsAntTaskSetter(node *tree_sitter.Node, source []byte, raw string, name string) bool {
-	if !javaIsSetterName(name) {
-		return false
-	}
-	normalized := " " + strings.Join(strings.Fields(raw), " ") + " "
-	if !strings.Contains(normalized, " public ") ||
-		!strings.Contains(normalized, " void ") ||
-		javaParameterCount(node) != 1 {
-		return false
-	}
-	for current := node.Parent(); current != nil; current = current.Parent() {
-		if current.Kind() != "class_declaration" {
-			continue
-		}
-		classHeader := javaClassDeclarationHeader(current, source)
-		return strings.Contains(classHeader, " extends Task ") ||
-			strings.Contains(classHeader, " extends org.apache.tools.ant.Task ")
-	}
-	return false
-}
-
-func javaIsSetterName(name string) bool {
-	trimmed := strings.TrimSpace(name)
-	if len(trimmed) <= len("set") || !strings.HasPrefix(trimmed, "set") {
-		return false
-	}
-	firstPropertyRune, _ := utf8.DecodeRuneInString(trimmed[len("set"):])
-	return unicode.IsUpper(firstPropertyRune)
-}
-
-func javaClassDeclarationHeader(node *tree_sitter.Node, source []byte) string {
-	raw := nodeText(node, source)
-	if open := strings.Index(raw, "{"); open >= 0 {
-		raw = raw[:open]
-	}
-	return " " + strings.Join(strings.Fields(raw), " ") + " "
-}
-
-func javaIsMainMethod(raw string, name string) bool {
-	normalized := " " + strings.Join(strings.Fields(raw), " ") + " "
-	return strings.TrimSpace(name) == "main" &&
-		strings.Contains(normalized, " public ") &&
-		strings.Contains(normalized, " static ") &&
-		strings.Contains(normalized, " void ") &&
-		strings.Contains(raw, "String")
-}
-
 func javaDecorators(node *tree_sitter.Node, source []byte) []string {
 	raw := nodeText(node, source)
 	var decorators []string
@@ -207,16 +140,6 @@ func javaDecorators(node *tree_sitter.Node, source []byte) []string {
 		decorators = append(decorators, line)
 	}
 	return decorators
-}
-
-func javaHasAnnotation(raw string, name string) bool {
-	for _, decorator := range strings.Split(raw, "\n") {
-		decorator = strings.TrimSpace(decorator)
-		if decorator == "@"+name || strings.HasPrefix(decorator, "@"+name+"(") {
-			return true
-		}
-	}
-	return false
 }
 
 func (e *Engine) preScanJava(path string) ([]string, error) {
@@ -339,34 +262,48 @@ func appendJavaCall(
 	}
 
 	var nameNode *tree_sitter.Node
+	raw := strings.TrimSpace(nodeText(node, source))
+	methodReferenceName := ""
+	methodReferenceFullName := ""
 	switch node.Kind() {
 	case "method_invocation":
 		nameNode = node.ChildByFieldName("name")
 		if nameNode == nil {
 			nameNode = javaFirstTypeIdentifier(node)
 		}
+	case "method_reference":
+		methodReferenceName, methodReferenceFullName = javaMethodReferenceName(raw)
 	case "object_creation_expression":
 		nameNode = node.ChildByFieldName("type")
 		if nameNode == nil {
 			nameNode = javaFirstTypeIdentifier(node)
 		}
 	}
-	if nameNode == nil {
+	if nameNode == nil && methodReferenceName == "" {
 		return
 	}
 
-	name := strings.TrimSpace(nodeText(nameNode, source))
+	name := methodReferenceName
+	if name == "" {
+		name = strings.TrimSpace(nodeText(nameNode, source))
+	}
 	if name == "" {
 		return
 	}
 
 	item := map[string]any{
 		"name":           name,
-		"line_number":    nodeLine(nameNode),
+		"line_number":    nodeLine(node),
 		"lang":           "java",
 		"argument_count": javaArgumentCount(node),
 	}
-	if fullName := javaCallFullName(node, source); fullName != "" {
+	if methodReferenceFullName != "" {
+		item["full_name"] = methodReferenceFullName
+		item["call_kind"] = "java.method_reference"
+		if classContext := nearestNamedAncestor(node, source, "class_declaration"); classContext != "" {
+			item["class_context"] = classContext
+		}
+	} else if fullName := javaCallFullName(node, source); fullName != "" {
 		item["full_name"] = fullName
 	}
 	if inferredType := javaCallInferredObjectType(node, source, inference); inferredType != "" {
@@ -426,6 +363,47 @@ func javaCallFullName(node *tree_sitter.Node, source []byte) string {
 	default:
 		return strings.TrimSpace(nodeText(node, source))
 	}
+}
+
+func javaMethodReferenceName(raw string) (string, string) {
+	receiver, method, ok := strings.Cut(strings.TrimSpace(raw), "::")
+	if !ok {
+		return "", ""
+	}
+	receiver = strings.TrimSpace(receiver)
+	method = strings.TrimSpace(method)
+	if receiver == "" || method == "" || method == "new" {
+		return "", ""
+	}
+	method = javaTrailingIdentifier(method)
+	if method == "" {
+		return "", ""
+	}
+	return method, receiver + "." + method
+}
+
+func javaTrailingIdentifier(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	end := len(value)
+	for end > 0 {
+		r, size := utf8.DecodeLastRuneInString(value[:end])
+		if r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r) {
+			break
+		}
+		end -= size
+	}
+	start := end
+	for start > 0 {
+		r, size := utf8.DecodeLastRuneInString(value[:start])
+		if r != '_' && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			break
+		}
+		start -= size
+	}
+	return value[start:end]
 }
 
 func javaFirstTypeIdentifier(node *tree_sitter.Node) *tree_sitter.Node {

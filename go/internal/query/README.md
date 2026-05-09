@@ -72,16 +72,17 @@ methods. It also suppresses parser-proven Python FastAPI, Flask, Celery,
 Click, Typer, AWS Lambda handler, dataclass, post-init, property, dunder
 protocol, `__all__`, package `__init__.py`, public API base, and public API
 member roots, Python `if __name__ == "__main__"` script-main guards, and
-Java `main`, constructor, `@Override`, and Ant `Task` setter roots.
+Java `main`, constructor, `@Override`, Ant `Task` setter, Gradle plugin
+`apply`, task action/property, and public Gradle DSL roots.
 Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
 payload names those Python root kinds in `modeled_framework_roots` as well as
 counting how many suppressions came from parser metadata. That lets MCP and CLI
 callers explain why a candidate was suppressed. The graph query keeps the
 candidate read label-scoped and repo-anchored, then applies content-backed
-policy checks before checking completed reducer code-call intent rows for
-incoming edges. Exact one-entity graph probes remain a fallback for content
-stores without that relational read model. Small display limits use a bounded
+policy checks before checking completed reducer code-call and inheritance intent
+rows for incoming edges. Exact one-entity graph probes remain a fallback for
+content stores without that relational read model. Small display limits use a bounded
 2,500-row scan window, so a narrow MCP request does not become incomplete just
 because most raw candidates are later suppressed. The response separates
 display truncation from bounded raw candidate-scan truncation so callers know
@@ -239,8 +240,9 @@ wired in `cmd/api/wiring.go`, not here.
   analysis must list Node package, CommonJS default export, CommonJS mixin,
   Next.js, Node migration, Hapi-style, TypeScript module-contract, and
   TypeScript interface implementation roots, plus Java main, constructor,
-  override, and Ant `Task` setter roots when query policy suppresses those
-  candidates; the analysis notes name the same Java root family.
+  override, Ant `Task` setter, Gradle plugin `apply`, task action/property, and
+  public Gradle DSL roots when query policy suppresses those candidates; the
+  analysis notes name the same Java root family.
   The handler scans raw graph candidates in bounded label-scoped pages before
   policy exclusions, then checks completed reducer code-call intent rows for
   incoming edges on the remaining candidates and uses a 2,500-row scan window

@@ -241,6 +241,15 @@ func TestStatusQueriesUseAggregateFilterSyntax(t *testing.T) {
 	if !strings.Contains(domainBacklogQuery, "lease_expires_at > $1") {
 		t.Fatalf("domainBacklogQuery missing active shared projection lease expiry check:\n%s", domainBacklogQuery)
 	}
+	if !strings.Contains(domainBacklogQuery, "shared_projection_domains AS") {
+		t.Fatalf("domainBacklogQuery missing lease-only shared projection domain source:\n%s", domainBacklogQuery)
+	}
+	if !strings.Contains(domainBacklogQuery, "COALESCE(MAX(active.in_flight_count), 0) > 0") {
+		t.Fatalf("domainBacklogQuery missing in-flight shared projection backlog HAVING:\n%s", domainBacklogQuery)
+	}
+	if !strings.Contains(domainBacklogQuery, "SUM(in_flight_count)") {
+		t.Fatalf("domainBacklogQuery final HAVING must include in-flight backlog:\n%s", domainBacklogQuery)
+	}
 }
 
 func TestLatestQueueFailureQueryIgnoresInFlightRows(t *testing.T) {

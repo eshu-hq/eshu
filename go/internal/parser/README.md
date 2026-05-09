@@ -63,13 +63,15 @@ Express/Koa/Fastify/NestJS callback root, Node migration export, TypeScript
 module-contract export, TypeScript public method on a class that declares
 `implements`, or TypeScript package public API surface proven through a
 nearest-package `exports` or `types` target and a static one-hop re-export.
-Java adapters mark `main` methods, constructors, `@Override` methods, and
-public Ant `Task` setters as dead-code roots so query policy does not report
-JVM entrypoints, dispatch callbacks, or framework-injected task properties as
-cleanup candidates. Java method and constructor metadata also captures
-parameter counts, and Java call metadata captures argument counts, so the
-reducer can distinguish overloaded methods when local receiver evidence points
-at a type. Receiver inference builds a local index of parameters,
+Java adapters mark `main` methods, constructors, `@Override` methods, public
+Ant `Task` setters, Gradle plugin `apply` methods, Gradle task actions and
+properties, and public Gradle DSL methods as dead-code roots so query policy
+does not report JVM entrypoints, dispatch callbacks, or framework-injected task
+properties as cleanup candidates. Java method and constructor metadata also
+captures parameter counts, and Java call metadata captures method references
+such as `this::configureTask` plus argument counts, so the reducer can
+distinguish overloaded methods when local receiver evidence points at a type.
+Receiver inference builds a local index of parameters,
 variables, and fields for each parsed file before call extraction, so large
 classes do not repeat a full tree walk for every method invocation.
 Python adapters also preserve method `class_context`, constructor call
@@ -282,8 +284,9 @@ errors are surfaced in `collector snapshot stage completed` logs with
   package `exports` or `types` targets that statically re-export same-repo
   declarations through one barrel hop, including declaration-only `*.d.ts`
   barrels and `tsconfig.json` `paths` aliases that resolve to local files. Java
-  dead-code roots cover `main`, constructors, `@Override`, and JavaBean-style
-  public Ant `Task` setters; Java call
+  dead-code roots cover `main`, constructors, `@Override`, JavaBean-style
+  public Ant `Task` setters, Gradle plugin `apply` methods, Gradle task
+  actions and properties, and public Gradle DSL methods; Java call
   metadata also preserves local receiver types from parameters, variables,
   fields, inline constructor receivers, and call/function arity so the reducer
   can connect bounded method calls without treating every same-named overload

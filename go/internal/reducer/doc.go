@@ -7,9 +7,10 @@
 // CommonJS property require, module.exports self-alias, imported JavaScript
 // namespace calls before same-file trailing-name fallback, function receiver,
 // constructor, re-export, dynamic import, returned function-value, TypeScript
-// type-reference, Java local receiver and overload arity, Python constructor,
-// self receiver, class receiver, inherited classmethod, and local receiver
-// evidence, static JavaScript registry dispatch, and package-file-root evidence.
+// type-reference, Java local receiver, method-reference, and overload arity,
+// Python constructor, self receiver, class receiver, inherited classmethod, and
+// local receiver evidence, static JavaScript registry dispatch, and
+// package-file-root evidence.
 // Code-call rows carry endpoint IDs plus the endpoint entity labels needed by
 // the graph writer to keep canonical CALLS and REFERENCES writes selective, and
 // the reducer drives repair flows for domains that depend on later phases of the

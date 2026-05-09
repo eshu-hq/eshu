@@ -156,12 +156,12 @@ strings.
 - **`BuildReport` is a pure function.** It can be called in tests without any
   storage dependency. Use it to unit-test health logic, flow summaries, and
   domain backlog ordering.
-- **Shared projection backlog blocks healthy.** Once the fact queue is drained,
+- **Shared projection work blocks healthy.** Once the fact queue is drained,
   outstanding `DomainBacklog` rows represent shared projection intents that still
   need to become graph-visible. Active shared-projection partition leases count
-  as `DomainBacklog.InFlight`, so `evaluateHealth` returns `progressing` while
-  reducer-owned edge projection is still moving and only returns `stalled` for
-  old backlog with no active lease.
+  as `DomainBacklog.InFlight`, even when no intent row is still pending, so
+  `evaluateHealth` returns `progressing` while reducer-owned edge projection is
+  still moving and only returns `stalled` for old backlog with no active lease.
 - **`DomainBacklogs` are capped.** `BuildReport` applies `topDomainBacklogs`
   with `Options.DomainLimit` (default 5) to prevent unbounded output when the
   reducer has many domains.

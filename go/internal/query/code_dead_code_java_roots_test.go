@@ -38,6 +38,26 @@ func TestHandleDeadCodeExcludesJavaRootKindsFromMetadata(t *testing.T) {
 						"dead_code_root_kinds": []any{"java.ant_task_setter"},
 					},
 					{
+						"entity_id": "java-gradle-apply", "name": "apply", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/BootPlugin.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.gradle_plugin_apply"},
+					},
+					{
+						"entity_id": "java-gradle-task-action", "name": "buildImage", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/BootBuildImage.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.gradle_task_action"},
+					},
+					{
+						"entity_id": "java-gradle-task-property", "name": "getMainClass", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/BootBuildImage.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.gradle_task_property"},
+					},
+					{
+						"entity_id": "java-gradle-dsl-method", "name": "buildInfo", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/BootExtension.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.gradle_dsl_public_method"},
+					},
+					{
 						"entity_id": "java-helper", "name": "helper", "labels": []any{"Function"},
 						"file_path": "src/main/java/example/CLI.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
 					},

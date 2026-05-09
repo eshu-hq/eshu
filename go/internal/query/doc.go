@@ -16,17 +16,18 @@
 // Express, Koa, Fastify, NestJS, migration, and framework roots, plus Python
 // route, worker, CLI, AWS Lambda handler, dataclass, post-init, property,
 // dunder protocol, __all__, package __init__.py, public API base, and public
-// API member roots, plus Java main, constructor, override, and Ant Task setter
-// roots. The analysis notes and modeled-root list use the same Java root
-// family so callers see why those entities were suppressed. The
-// analysis payload names modeled root kinds and counts parser-metadata
+// API member roots, plus Java main, constructor, override, Ant Task setter,
+// Gradle plugin apply, task action/property, and public Gradle DSL roots. The
+// analysis notes and modeled-root list use the same Java root family so callers
+// see why those entities were suppressed. The analysis payload names modeled
+// root kinds and counts parser-metadata
 // suppressions so callers can explain why an entity was not returned as a
 // cleanup candidate. Unsupported language metadata and test fixtures are
 // suppressed from default cleanup candidates. The dead-code scan
 // keeps raw candidate reads label-scoped and repo-anchored, applies
-// content-backed policy checks before relational incoming-edge lookups, keeps
-// exact graph probes as a fallback, keeps a bounded scan window for small
-// result limits, and reports display truncation separately from bounded raw
+// content-backed policy checks before relational code-call and inheritance
+// incoming-edge lookups, keeps exact graph probes as a fallback, keeps a bounded
+// scan window for small result limits, and reports display truncation separately from bounded raw
 // candidate pages and rows so callers can tell whether the result list was
 // clipped or the graph scan cap was reached.
 // local_authoritative and local_full_stack both answer graph-backed platform
