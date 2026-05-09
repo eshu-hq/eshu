@@ -11,9 +11,13 @@ observe plaintext secrets while parsing source truth.
 
 ```mermaid
 flowchart LR
-  A["collector parser"] --> B["redact.String / Bytes / Scalar"]
-  B --> C["redacted Value"]
-  C --> D["facts, logs, spans, metrics"]
+  A["collector parser"] --> B["caller-owned RuleSet"]
+  B --> C{"Decision"}
+  C -->|redact scalar| D["redact.String / Bytes / Scalar"]
+  C -->|preserve known-safe| E["typed fact field"]
+  C -->|drop unsafe nested value| F["warning / omission"]
+  D --> G["redacted Value"]
+  E & F & G --> H["facts, logs, spans, metrics"]
 ```
 
 Raw secret material should only exist in a caller's source reader or parser
@@ -25,6 +29,10 @@ does not persist raw input or emit telemetry.
 - `Value` — replacement payload with `Marker`, `Reason`, and `Source`.
 - `NewKey(material []byte) (Key, error)` — constructs deployment-scoped marker
   key material.
+- `NewRuleSet(version string, sensitiveKeys []string) (RuleSet, error)` —
+  constructs a caller-owned versioned sensitive-key classifier.
+- `RuleSet.Classify(source string, schemaTrust SchemaTrust, fieldKind FieldKind)
+  Decision` — returns `preserve`, `redact`, or `drop` for a field path.
 - `String(raw, reason, source string, key Key) Value` — redacts sensitive strings.
 - `Bytes(raw []byte, reason, source string, key Key) Value` — redacts sensitive
   bytes.
@@ -40,6 +48,15 @@ does not persist raw input or emit telemetry.
   production redaction keys.
 - Blank reason or source values normalize to `unknown`.
 - Unsupported values still produce a marker without serializing the value.
+- Unknown schema coverage fails closed: scalar fields are redacted and composite
+  fields are dropped.
+- An uninitialized `RuleSet` fails closed the same way and reports
+  `unknown_redaction_ruleset`.
+- Unknown `FieldKind` values are treated as unsafe and dropped.
+- Known sensitive composite values are dropped because this package only
+  represents safe scalar markers.
+- Sensitive-key policy is versioned by callers. Do not add Terraform, AWS, or
+  provider-specific key lists to this package.
 - Callers must pass classification labels and field paths as reason/source; do
   not put raw secret values in those fields.
 
