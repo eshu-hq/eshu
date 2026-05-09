@@ -127,6 +127,7 @@ func domainBacklogText(rows []DomainBacklog) string {
 	parts := []string{
 		row.Domain,
 		fmt.Sprintf("outstanding=%d", row.Outstanding),
+		fmt.Sprintf("in_flight=%d", row.InFlight),
 		fmt.Sprintf("retrying=%d", row.Retrying),
 		fmt.Sprintf("dead_letter=%d", row.DeadLetter),
 		fmt.Sprintf("failed=%d", row.Failed),

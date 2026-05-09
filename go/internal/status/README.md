@@ -61,7 +61,8 @@ See `doc.go` for the godoc contract. Key types and functions:
   metric labels
 - `QueueBlockage` — conflict-domain-blocked work: stage, domain, conflict
   domain, conflict key, blocked count, oldest age
-- `DomainBacklog` — backlog depth for one reducer or projection domain
+- `DomainBacklog` — backlog depth and active in-flight work for one reducer or
+  projection domain
 - `ScopeActivitySnapshot` — active, changed, unchanged scope counts for
   incremental-refresh operator view
 - `GenerationHistorySnapshot` — active, pending, completed, superseded, failed,
@@ -93,7 +94,7 @@ states (in priority order):
 | --- | --- |
 | `stalled` | Overdue claims, or outstanding backlog with no in-flight work past `StallAfter` |
 | `degraded` | Dead-letter items, failed items, or failed generations present |
-| `progressing` | Work queued, in flight, pending generation work, or shared projection intents still waiting to become graph-visible |
+| `progressing` | Work queued, in flight, pending generation work, or shared projection intents with active partition leases or still below `StallAfter` |
 | `healthy` | No outstanding queue backlog or shared projection backlog |
 
 ### Rendering and serving
@@ -157,8 +158,10 @@ strings.
   domain backlog ordering.
 - **Shared projection backlog blocks healthy.** Once the fact queue is drained,
   outstanding `DomainBacklog` rows represent shared projection intents that still
-  need to become graph-visible, so `evaluateHealth` returns `progressing` or
-  `stalled` instead of `healthy`.
+  need to become graph-visible. Active shared-projection partition leases count
+  as `DomainBacklog.InFlight`, so `evaluateHealth` returns `progressing` while
+  reducer-owned edge projection is still moving and only returns `stalled` for
+  old backlog with no active lease.
 - **`DomainBacklogs` are capped.** `BuildReport` applies `topDomainBacklogs`
   with `Options.DomainLimit` (default 5) to prevent unbounded output when the
   reducer has many domains.

@@ -74,6 +74,7 @@ type QueueFailureSnapshot struct {
 type DomainBacklog struct {
 	Domain      string
 	Outstanding int
+	InFlight    int
 	Retrying    int
 	Failed      int
 	DeadLetter  int
@@ -287,9 +288,10 @@ func RenderText(report Report) string {
 			lines = append(
 				lines,
 				fmt.Sprintf(
-					"  %s outstanding=%d retrying=%d dead_letter=%d failed=%d oldest=%s",
+					"  %s outstanding=%d in_flight=%d retrying=%d dead_letter=%d failed=%d oldest=%s",
 					row.Domain,
 					row.Outstanding,
+					row.InFlight,
 					row.Retrying,
 					row.DeadLetter,
 					row.Failed,

@@ -294,6 +294,7 @@ func listDomainBacklogs(
 	for rows.Next() {
 		var domain string
 		var outstandingCount int64
+		var inFlightCount int64
 		var retryingCount int64
 		var deadLetterCount int64
 		var failedCount int64
@@ -301,6 +302,7 @@ func listDomainBacklogs(
 		if scanErr := rows.Scan(
 			&domain,
 			&outstandingCount,
+			&inFlightCount,
 			&retryingCount,
 			&deadLetterCount,
 			&failedCount,
@@ -311,6 +313,7 @@ func listDomainBacklogs(
 		backlogs = append(backlogs, statuspkg.DomainBacklog{
 			Domain:      domain,
 			Outstanding: int(outstandingCount),
+			InFlight:    int(inFlightCount),
 			Retrying:    int(retryingCount),
 			DeadLetter:  int(deadLetterCount),
 			Failed:      int(failedCount),

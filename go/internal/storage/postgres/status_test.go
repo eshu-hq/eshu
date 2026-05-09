@@ -52,8 +52,8 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 			},
 			{
 				rows: [][]any{
-					{"repository", int64(3), int64(1), int64(0), int64(0), 90.0},
-					{"shared-platform", int64(1), int64(0), int64(1), int64(0), 30.0},
+					{"repository", int64(3), int64(2), int64(1), int64(0), int64(0), 90.0},
+					{"shared-platform", int64(1), int64(1), int64(0), int64(1), int64(0), 30.0},
 				},
 			},
 			{
@@ -160,6 +160,9 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 	if got.DomainBacklogs[0].OldestAge != 90*time.Second {
 		t.Fatalf("ReadRawSnapshot().DomainBacklogs[0].OldestAge = %v, want %v", got.DomainBacklogs[0].OldestAge, 90*time.Second)
 	}
+	if got.DomainBacklogs[0].InFlight != 2 {
+		t.Fatalf("ReadRawSnapshot().DomainBacklogs[0].InFlight = %d, want 2", got.DomainBacklogs[0].InFlight)
+	}
 	if len(got.QueueBlockages) != 1 {
 		t.Fatalf("ReadRawSnapshot().QueueBlockages len = %d, want 1", len(got.QueueBlockages))
 	}
@@ -231,6 +234,12 @@ func TestStatusQueriesUseAggregateFilterSyntax(t *testing.T) {
 	}
 	if !strings.Contains(domainBacklogQuery, "completed_at IS NULL") {
 		t.Fatalf("domainBacklogQuery missing pending shared projection filter:\n%s", domainBacklogQuery)
+	}
+	if !strings.Contains(domainBacklogQuery, "FROM shared_projection_partition_leases") {
+		t.Fatalf("domainBacklogQuery missing active shared projection lease source:\n%s", domainBacklogQuery)
+	}
+	if !strings.Contains(domainBacklogQuery, "lease_expires_at > $1") {
+		t.Fatalf("domainBacklogQuery missing active shared projection lease expiry check:\n%s", domainBacklogQuery)
 	}
 }
 

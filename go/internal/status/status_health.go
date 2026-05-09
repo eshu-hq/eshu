@@ -58,6 +58,19 @@ func evaluateHealth(
 		}
 	}
 	if sharedBacklog := sharedProjectionBacklog(domainBacklogs); sharedBacklog.Outstanding > 0 {
+		if sharedBacklog.InFlight > 0 {
+			return HealthSummary{
+				State: healthProgressing,
+				Reasons: []string{
+					fmt.Sprintf(
+						"shared projection domain %s has %d outstanding intents with %d in flight",
+						sharedBacklog.Domain,
+						sharedBacklog.Outstanding,
+						sharedBacklog.InFlight,
+					),
+				},
+			}
+		}
 		if sharedBacklog.OldestAge >= opts.StallAfter {
 			return HealthSummary{
 				State: healthStalled,

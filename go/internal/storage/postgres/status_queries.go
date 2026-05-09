@@ -44,6 +44,7 @@ ORDER BY stage, status
 WITH fact_domain_backlogs AS (
   SELECT domain,
          COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding_count,
+         COUNT(*) FILTER (WHERE status IN ('claimed', 'running')) AS in_flight_count,
          COUNT(*) FILTER (WHERE status = 'retrying') AS retrying_count,
          COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter_count,
          COUNT(*) FILTER (WHERE status = 'failed') AS failed_count,
@@ -62,9 +63,19 @@ WITH fact_domain_backlogs AS (
   GROUP BY domain
   HAVING COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying', 'dead_letter', 'failed')) > 0
 ),
-shared_projection_domain_backlogs AS (
+shared_projection_active_leases AS (
   SELECT projection_domain AS domain,
-         COUNT(*) FILTER (WHERE completed_at IS NULL) AS outstanding_count,
+         COUNT(*) AS in_flight_count
+  FROM shared_projection_partition_leases
+  WHERE lease_owner IS NOT NULL
+    AND lease_expires_at IS NOT NULL
+    AND lease_expires_at > $1
+  GROUP BY projection_domain
+),
+shared_projection_domain_backlogs AS (
+  SELECT intents.projection_domain AS domain,
+         COUNT(*) FILTER (WHERE intents.completed_at IS NULL) AS outstanding_count,
+         COALESCE(MAX(active.in_flight_count), 0) AS in_flight_count,
          0::BIGINT AS retrying_count,
          0::BIGINT AS dead_letter_count,
          0::BIGINT AS failed_count,
@@ -72,19 +83,22 @@ shared_projection_domain_backlogs AS (
            EXTRACT(
              EPOCH FROM (
                $1 - (
-                 MIN(created_at)
-                   FILTER (WHERE completed_at IS NULL)
+                 MIN(intents.created_at)
+                   FILTER (WHERE intents.completed_at IS NULL)
                )
              )
            ),
            0
          ) AS oldest_outstanding_age_seconds
-  FROM shared_projection_intents
-  GROUP BY projection_domain
-  HAVING COUNT(*) FILTER (WHERE completed_at IS NULL) > 0
+  FROM shared_projection_intents AS intents
+  LEFT JOIN shared_projection_active_leases AS active
+    ON active.domain = intents.projection_domain
+  GROUP BY intents.projection_domain
+  HAVING COUNT(*) FILTER (WHERE intents.completed_at IS NULL) > 0
 )
 SELECT domain,
        SUM(outstanding_count) AS outstanding_count,
+       SUM(in_flight_count) AS in_flight_count,
        SUM(retrying_count) AS retrying_count,
        SUM(dead_letter_count) AS dead_letter_count,
        SUM(failed_count) AS failed_count,

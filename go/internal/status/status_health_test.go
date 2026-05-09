@@ -189,6 +189,43 @@ func TestBuildReportTreatsOldSharedProjectionBacklogAsStalled(t *testing.T) {
 	}
 }
 
+func TestBuildReportTreatsActiveOldSharedProjectionBacklogAsProgressing(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: time.Date(2026, 4, 12, 16, 0, 0, 0, time.UTC),
+			Queue: status.QueueSnapshot{
+				Outstanding: 0,
+				InFlight:    0,
+				Pending:     0,
+			},
+			DomainBacklogs: []status.DomainBacklog{
+				{
+					Domain:      "code_calls",
+					Outstanding: 622558,
+					InFlight:    1,
+					OldestAge:   12 * time.Minute,
+				},
+			},
+		},
+		status.Options{
+			StallAfter:  10 * time.Minute,
+			DomainLimit: 5,
+		},
+	)
+
+	if got, want := report.Health.State, "progressing"; got != want {
+		t.Fatalf("BuildReport().Health.State = %q, want %q", got, want)
+	}
+	reasons := strings.Join(report.Health.Reasons, " ")
+	if !strings.Contains(reasons, "shared projection") ||
+		!strings.Contains(reasons, "code_calls") ||
+		!strings.Contains(reasons, "in flight") {
+		t.Fatalf("BuildReport().Health.Reasons = %v, want active shared projection reason", report.Health.Reasons)
+	}
+}
+
 func TestBuildReportClassifiesStalledBacklog(t *testing.T) {
 	t.Parallel()
 

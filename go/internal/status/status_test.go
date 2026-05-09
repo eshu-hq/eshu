@@ -218,7 +218,7 @@ func TestRenderTextIncludesOperatorSummary(t *testing.T) {
 		"Blocked queue work:",
 		"reducer domain=semantic_entity_materialization conflict_domain=code_graph conflict_key=scope-1:gen-1:code blocked=2 oldest=1m15s",
 		"projector pending=0 claimed=0 running=1 retrying=1 succeeded=0 dead_letter=0 failed=0",
-		"repository outstanding=2 retrying=1 dead_letter=0 failed=0 oldest=1m30s",
+		"repository outstanding=2 in_flight=0 retrying=1 dead_letter=0 failed=0 oldest=1m30s",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("RenderText() missing %q in output:\n%s", want, rendered)

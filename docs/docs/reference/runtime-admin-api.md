@@ -111,8 +111,14 @@ Queue entries include both a duration string and seconds value:
 
 Domain entries include both a duration string and seconds value:
 
+- `in_flight`
 - `oldest_age`
 - `oldest_age_seconds`
+
+For shared projection domains, `in_flight` counts active partition leases. A
+large domain backlog with a non-zero `in_flight` value means reducer-owned graph
+edges are still being written, so status remains `progressing` instead of
+`stalled`.
 
 `queue_blockages` entries are present when reducer work is visible and
 claimable except for an active coordination gate on the same conflict domain.
