@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
+
+const listFactsByKindPageSize = 100
 
 const listFactsByKindQuery = `
 SELECT
@@ -30,7 +33,12 @@ FROM fact_records
 WHERE scope_id = $1
   AND generation_id = $2
   AND fact_kind = ANY($3::text[])
+  AND (
+    $4::timestamptz IS NULL
+    OR (observed_at, fact_id) > ($4::timestamptz, $5::text)
+  )
 ORDER BY observed_at ASC, fact_id ASC
+LIMIT $6
 `
 
 // ListFactsByKind loads fact envelopes for one scope generation and a bounded
@@ -50,13 +58,58 @@ func (s FactStore) ListFactsByKind(
 		return nil, nil
 	}
 
-	rows, err := s.db.QueryContext(ctx, listFactsByKindQuery, scopeID, generationID, factKinds)
+	var loaded []facts.Envelope
+	var cursorObservedAt *time.Time
+	var cursorFactID string
+	for {
+		page, err := s.listFactsByKindPage(ctx, scopeID, generationID, factKinds, cursorObservedAt, cursorFactID)
+		if err != nil {
+			return nil, err
+		}
+
+		loaded = append(loaded, page...)
+		if len(page) < listFactsByKindPageSize {
+			return loaded, nil
+		}
+
+		last := page[len(page)-1]
+		observedAt := last.ObservedAt.UTC()
+		cursorObservedAt = &observedAt
+		cursorFactID = last.FactID
+	}
+}
+
+// listFactsByKindPage reads one stable-order page so large reducer inputs do
+// not rely on a single long-lived database cursor.
+func (s FactStore) listFactsByKindPage(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	factKinds []string,
+	cursorObservedAt *time.Time,
+	cursorFactID string,
+) ([]facts.Envelope, error) {
+	var cursor any
+	if cursorObservedAt != nil {
+		cursor = cursorObservedAt.UTC()
+	}
+
+	rows, err := s.db.QueryContext(
+		ctx,
+		listFactsByKindQuery,
+		scopeID,
+		generationID,
+		factKinds,
+		cursor,
+		cursorFactID,
+		listFactsByKindPageSize,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("list facts by kind: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	var loaded []facts.Envelope
+	loaded := make([]facts.Envelope, 0, listFactsByKindPageSize)
 	for rows.Next() {
 		envelope, scanErr := scanFactEnvelope(rows)
 		if scanErr != nil {

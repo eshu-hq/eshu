@@ -322,6 +322,9 @@ func TestBuildReducerServiceWiresNornicDBProjectorDrainGate(t *testing.T) {
 	if !queue.RequireProjectorDrainBeforeClaim {
 		t.Fatal("RequireProjectorDrainBeforeClaim = false, want true")
 	}
+	if service.CodeCallProjectionRunner.ReducerGraphDrain == nil {
+		t.Fatal("CodeCallProjectionRunner.ReducerGraphDrain = nil, want local-authoritative drain")
+	}
 }
 
 func TestBuildReducerServiceWiresExpectedSourceLocalProjectors(t *testing.T) {

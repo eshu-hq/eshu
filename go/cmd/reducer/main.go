@@ -279,6 +279,11 @@ func buildReducerService(
 	edgeWriter.InheritanceGroupBatchSize = inheritanceEdgeGroupBatchSize
 	edgeWriter.SQLRelationshipGroupBatchSize = sqlRelationshipEdgeGroupBatchSize
 
+	var reducerGraphDrain reducer.ReducerGraphDrain
+	if projectorDrainGate {
+		reducerGraphDrain = postgres.NewReducerGraphDrain(database)
+	}
+
 	workers := loadReducerWorkerCount(getenv, graphBackend)
 	return reducer.Service{
 		PollInterval:               time.Second,
@@ -309,6 +314,7 @@ func buildReducerService(
 			AcceptedGenPrefetch: acceptedGenerationPrefetch,
 			ReadinessLookup:     graphProjectionReadinessLookup,
 			ReadinessPrefetch:   graphProjectionReadinessPrefetch,
+			ReducerGraphDrain:   reducerGraphDrain,
 			Config:              codeCallCfg,
 			Tracer:              tracer,
 			Instruments:         instruments,

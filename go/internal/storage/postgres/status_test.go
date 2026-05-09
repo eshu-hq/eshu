@@ -219,12 +219,18 @@ func TestStatusQueriesUseAggregateFilterSyntax(t *testing.T) {
 		"domainBacklogQuery": domainBacklogQuery,
 		"queueSnapshotQuery": queueSnapshotQuery,
 	} {
-		if !strings.Contains(query, "MIN(created_at)\n                 FILTER") {
+		if !strings.Contains(query, "MIN(created_at)") || !strings.Contains(query, "FILTER") {
 			t.Fatalf("%s missing aggregate FILTER placement:\n%s", name, query)
 		}
 		if strings.Contains(query, "EXTRACT(EPOCH FROM ($1 - MIN(created_at)))\n           FILTER") {
 			t.Fatalf("%s uses invalid FILTER placement:\n%s", name, query)
 		}
+	}
+	if !strings.Contains(domainBacklogQuery, "FROM shared_projection_intents") {
+		t.Fatalf("domainBacklogQuery missing shared projection intent backlog:\n%s", domainBacklogQuery)
+	}
+	if !strings.Contains(domainBacklogQuery, "completed_at IS NULL") {
+		t.Fatalf("domainBacklogQuery missing pending shared projection filter:\n%s", domainBacklogQuery)
 	}
 }
 

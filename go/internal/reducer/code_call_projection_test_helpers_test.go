@@ -26,6 +26,15 @@ type historyAwareCodeCallIntentStore struct {
 	historyErr   error
 }
 
+type staticReducerGraphDrain struct {
+	active bool
+	err    error
+}
+
+func (s staticReducerGraphDrain) HasActiveReducerGraphWork(context.Context) (bool, error) {
+	return s.active, s.err
+}
+
 func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitDomainIntents(
 	context.Context,
 	SharedProjectionAcceptanceKey,

@@ -2,6 +2,9 @@ package reducer
 
 import (
 	"context"
+	"errors"
+	"io"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -36,7 +39,48 @@ func loadFactsForKinds(
 	factKinds []string,
 ) ([]facts.Envelope, error) {
 	if typed, ok := loader.(factKindLoader); ok {
-		return typed.ListFactsByKind(ctx, scopeID, generationID, factKinds)
+		envelopes, err := typed.ListFactsByKind(ctx, scopeID, generationID, factKinds)
+		if err != nil {
+			return nil, classifyFactLoadError(err)
+		}
+		return envelopes, nil
 	}
-	return loader.ListFacts(ctx, scopeID, generationID)
+	envelopes, err := loader.ListFacts(ctx, scopeID, generationID)
+	if err != nil {
+		return nil, classifyFactLoadError(err)
+	}
+	return envelopes, nil
+}
+
+// classifyFactLoadError preserves semantic errors while marking transient
+// database stream interruptions retryable for the durable reducer queue.
+func classifyFactLoadError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, io.ErrUnexpectedEOF) ||
+		strings.Contains(strings.ToLower(err.Error()), "unexpected eof") {
+		return retryableFactLoadError{err: err}
+	}
+	return err
+}
+
+type retryableFactLoadError struct {
+	err error
+}
+
+func (e retryableFactLoadError) Error() string {
+	return e.err.Error()
+}
+
+func (e retryableFactLoadError) Unwrap() error {
+	return e.err
+}
+
+func (retryableFactLoadError) Retryable() bool {
+	return true
+}
+
+func (retryableFactLoadError) FailureClass() string {
+	return "fact_load_transient"
 }
