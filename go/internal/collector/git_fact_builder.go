@@ -558,7 +558,7 @@ func factEnvelope(
 		FactKind:         factKind,
 		StableFactKey:    factKey,
 		CollectorKind:    "git",
-		SourceConfidence: "observed",
+		SourceConfidence: facts.SourceConfidenceObserved,
 		ObservedAt:       observedAt,
 		Payload:          payload,
 		SourceRef: facts.Ref{

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 const canonicalReducerFactInsertQuery = `
@@ -16,6 +18,8 @@ INSERT INTO fact_records (
     generation_id,
     fact_kind,
     stable_fact_key,
+    collector_kind,
+    source_confidence,
     source_system,
     source_fact_key,
     source_uri,
@@ -25,11 +29,13 @@ INSERT INTO fact_records (
     is_tombstone,
     payload
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb
 )
 ON CONFLICT (fact_id) DO UPDATE SET
     fact_kind = EXCLUDED.fact_kind,
     stable_fact_key = EXCLUDED.stable_fact_key,
+    collector_kind = EXCLUDED.collector_kind,
+    source_confidence = EXCLUDED.source_confidence,
     source_system = EXCLUDED.source_system,
     source_fact_key = EXCLUDED.source_fact_key,
     source_uri = EXCLUDED.source_uri,
@@ -75,6 +81,8 @@ func (w PostgresWorkloadIdentityWriter) WriteWorkloadIdentity(
 		write.GenerationID,
 		"reducer_workload_identity",
 		workloadIdentityStableFactKey(write),
+		reducerFactCollectorKind(write.SourceSystem),
+		facts.SourceConfidenceInferred,
 		write.SourceSystem,
 		write.IntentID,
 		nil,
@@ -100,6 +108,14 @@ func (w PostgresWorkloadIdentityWriter) WriteWorkloadIdentity(
 
 func (w PostgresWorkloadIdentityWriter) now() time.Time {
 	return reducerWriterNow(w.Now)
+}
+
+func reducerFactCollectorKind(sourceSystem string) string {
+	collectorKind := strings.TrimSpace(sourceSystem)
+	if collectorKind == "" {
+		return "unknown"
+	}
+	return collectorKind
 }
 
 func workloadIdentityStableFactKey(write WorkloadIdentityWrite) string {

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 func TestPostgresPlatformMaterializationWriterPersistsCanonicalFact(t *testing.T) {
@@ -54,6 +56,15 @@ func TestPostgresPlatformMaterializationWriterPersistsCanonicalFact(t *testing.T
 	}
 	if got, want := db.execs[0].args[3], "reducer_platform_materialization"; got != want {
 		t.Fatalf("ExecContext fact_kind = %v, want %v", got, want)
+	}
+	if got, want := len(db.execs[0].args), 15; got != want {
+		t.Fatalf("ExecContext arg count = %d, want %d", got, want)
+	}
+	if got, want := db.execs[0].args[5], "git"; got != want {
+		t.Fatalf("ExecContext collector_kind = %v, want %v", got, want)
+	}
+	if got, want := db.execs[0].args[6], facts.SourceConfidenceInferred; got != want {
+		t.Fatalf("ExecContext source_confidence = %v, want %v", got, want)
 	}
 }
 
