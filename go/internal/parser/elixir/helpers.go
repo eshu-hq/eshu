@@ -1,8 +1,19 @@
-package parser
+package elixir
 
-import "strings"
+import (
+	"strings"
 
-func parseElixirModuleLine(trimmed string) (string, string, string, bool) {
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+)
+
+type scope struct {
+	kind       string
+	name       string
+	lineNumber int
+	item       map[string]any
+}
+
+func parseModuleLine(trimmed string) (string, string, string, bool) {
 	matches := elixirModulePattern.FindStringSubmatch(trimmed)
 	if len(matches) != 3 {
 		return "", "", "", false
@@ -27,7 +38,7 @@ func parseElixirModuleLine(trimmed string) (string, string, string, bool) {
 	return keyword, fields[0], tail, true
 }
 
-func elixirModuleKind(keyword string) string {
+func moduleKind(keyword string) string {
 	switch keyword {
 	case "defprotocol":
 		return "protocol"
@@ -38,7 +49,7 @@ func elixirModuleKind(keyword string) string {
 	}
 }
 
-func elixirFunctionSemanticKind(keyword string) string {
+func functionSemanticKind(keyword string) string {
 	switch keyword {
 	case "defmacro", "defmacrop":
 		return "macro"
@@ -51,7 +62,7 @@ func elixirFunctionSemanticKind(keyword string) string {
 	}
 }
 
-func parseElixirDefImplTarget(tail string) string {
+func parseDefImplTarget(tail string) string {
 	trimmed := strings.TrimSpace(tail)
 	if trimmed == "" {
 		return ""
@@ -72,7 +83,7 @@ func parseElixirDefImplTarget(tail string) string {
 	return strings.TrimSuffix(fields[0], ",")
 }
 
-func parseElixirFunctionLine(trimmed string) (string, string, []string, bool, bool) {
+func parseFunctionLine(trimmed string) (string, string, []string, bool, bool) {
 	matches := elixirFunctionPattern.FindStringSubmatch(trimmed)
 	if len(matches) != 3 {
 		return "", "", nil, false, false
@@ -91,12 +102,12 @@ func parseElixirFunctionLine(trimmed string) (string, string, []string, bool, bo
 		return "", "", nil, false, false
 	}
 
-	args := parseElixirArgs(remainder)
-	openBlock := elixirLineOpensBlock(keyword, trimmed)
+	args := parseArgs(remainder)
+	openBlock := lineOpensBlock(keyword, trimmed)
 	return keyword, name, args, openBlock, true
 }
 
-func parseElixirImportLine(trimmed string) (string, []string, bool) {
+func parseImportLine(trimmed string) (string, []string, bool) {
 	matches := elixirImportPattern.FindStringSubmatch(trimmed)
 	if len(matches) != 3 {
 		return "", nil, false
@@ -106,7 +117,7 @@ func parseElixirImportLine(trimmed string) (string, []string, bool) {
 	if remainder == "" {
 		return "", nil, false
 	}
-	parts := splitElixirArgs(remainder)
+	parts := splitArgs(remainder)
 	if len(parts) == 0 {
 		return "", nil, false
 	}
@@ -116,7 +127,7 @@ func parseElixirImportLine(trimmed string) (string, []string, bool) {
 		if base == "" {
 			return "", nil, false
 		}
-		return keyword, expandElixirAliasPaths(base), true
+		return keyword, expandAliasPaths(base), true
 	}
 	fields := strings.Fields(remainder)
 	if len(fields) == 0 {
@@ -125,22 +136,11 @@ func parseElixirImportLine(trimmed string) (string, []string, bool) {
 	return keyword, []string{fields[0]}, true
 }
 
-func isElixirDefinitionLine(trimmed string) bool {
+func isDefinitionLine(trimmed string) bool {
 	for _, prefix := range []string{
-		"defmodule ",
-		"defprotocol ",
-		"defimpl ",
-		"def ",
-		"defp ",
-		"defmacro ",
-		"defmacrop ",
-		"defdelegate ",
-		"defguard ",
-		"defguardp ",
-		"use ",
-		"import ",
-		"alias ",
-		"require ",
+		"defmodule ", "defprotocol ", "defimpl ", "def ", "defp ",
+		"defmacro ", "defmacrop ", "defdelegate ", "defguard ",
+		"defguardp ", "use ", "import ", "alias ", "require ",
 	} {
 		if strings.HasPrefix(trimmed, prefix) {
 			return true
@@ -149,7 +149,7 @@ func isElixirDefinitionLine(trimmed string) bool {
 	return false
 }
 
-func elixirLineOpensBlock(keyword string, trimmed string) bool {
+func lineOpensBlock(keyword string, trimmed string) bool {
 	switch keyword {
 	case "defmodule", "defprotocol", "defimpl", "def", "defp", "defmacro", "defmacrop":
 		return strings.Contains(trimmed, " do") && !strings.Contains(trimmed, ", do:")
@@ -158,7 +158,7 @@ func elixirLineOpensBlock(keyword string, trimmed string) bool {
 	}
 }
 
-func parseElixirArgs(remainder string) []string {
+func parseArgs(remainder string) []string {
 	start := strings.Index(remainder, "(")
 	if start < 0 {
 		return []string{}
@@ -167,10 +167,10 @@ func parseElixirArgs(remainder string) []string {
 	if end <= start {
 		return []string{}
 	}
-	return splitElixirArgs(remainder[start+1 : end])
+	return splitArgs(remainder[start+1 : end])
 }
 
-func elixirCallArgs(trimmed string, openParenIndex int) []string {
+func callArgs(trimmed string, openParenIndex int) []string {
 	if openParenIndex < 0 || openParenIndex >= len(trimmed) {
 		return []string{}
 	}
@@ -178,7 +178,7 @@ func elixirCallArgs(trimmed string, openParenIndex int) []string {
 	if end <= openParenIndex {
 		return []string{}
 	}
-	return splitElixirArgs(trimmed[openParenIndex+1 : end])
+	return splitArgs(trimmed[openParenIndex+1 : end])
 }
 
 func findMatchingParen(text string, openParenIndex int) int {
@@ -221,7 +221,7 @@ func findMatchingParen(text string, openParenIndex int) int {
 	return -1
 }
 
-func splitElixirArgs(body string) []string {
+func splitArgs(body string) []string {
 	trimmed := strings.TrimSpace(body)
 	if trimmed == "" {
 		return []string{}
@@ -284,7 +284,7 @@ func splitElixirArgs(body string) []string {
 	return args
 }
 
-func elixirDocstringFromPreviousLine(previous string) string {
+func docstringFromPreviousLine(previous string) string {
 	trimmed := strings.TrimSpace(previous)
 	if trimmed == "" {
 		return ""
@@ -295,7 +295,7 @@ func elixirDocstringFromPreviousLine(previous string) string {
 	return ""
 }
 
-func currentElixirModule(scopes []elixirScope) (string, int) {
+func currentModule(scopes []scope) (string, int) {
 	for index := len(scopes) - 1; index >= 0; index-- {
 		if scopes[index].kind == "module" {
 			return scopes[index].name, scopes[index].lineNumber
@@ -304,7 +304,7 @@ func currentElixirModule(scopes []elixirScope) (string, int) {
 	return "", 0
 }
 
-func currentElixirContext(scopes []elixirScope) (string, string, int) {
+func currentContext(scopes []scope) (string, string, int) {
 	for index := len(scopes) - 1; index >= 0; index-- {
 		scope := scopes[index]
 		if scope.kind == "function" {
@@ -317,9 +317,9 @@ func currentElixirContext(scopes []elixirScope) (string, string, int) {
 	return "", "", 0
 }
 
-func popElixirScope(scopes []elixirScope) ([]elixirScope, elixirScope) {
+func popScope(scopes []scope) ([]scope, scope) {
 	if len(scopes) == 0 {
-		return scopes, elixirScope{}
+		return scopes, scope{}
 	}
 	popped := scopes[len(scopes)-1]
 	return scopes[:len(scopes)-1], popped
@@ -334,7 +334,7 @@ func lastAliasSegment(name string) string {
 	return parts[len(parts)-1]
 }
 
-func expandElixirAliasPaths(base string) []string {
+func expandAliasPaths(base string) []string {
 	trimmed := strings.TrimSpace(base)
 	if trimmed == "" {
 		return nil
@@ -347,7 +347,7 @@ func expandElixirAliasPaths(base string) []string {
 
 	prefix := strings.TrimSpace(trimmed[:openIndex])
 	suffix := strings.TrimSpace(trimmed[closeIndex+1:])
-	options := splitElixirArgs(trimmed[openIndex+1 : closeIndex])
+	options := splitArgs(trimmed[openIndex+1 : closeIndex])
 	expanded := make([]string, 0, len(options))
 	for _, option := range options {
 		value := strings.TrimSpace(option)
@@ -366,7 +366,79 @@ func expandElixirAliasPaths(base string) []string {
 	return expanded
 }
 
-func appendUniqueElixirCall(
+func appendAttribute(
+	payload map[string]any,
+	matches []string,
+	rawLine string,
+	lineNumber int,
+	scopes []scope,
+	isDependency bool,
+	options shared.Options,
+) bool {
+	attributeName := strings.TrimSpace(matches[1])
+	if attributeName == "@doc" || attributeName == "@moduledoc" {
+		return false
+	}
+	item := map[string]any{
+		"name":           attributeName,
+		"line_number":    lineNumber,
+		"end_line":       lineNumber,
+		"lang":           "elixir",
+		"is_dependency":  isDependency,
+		"value":          strings.TrimSpace(matches[2]),
+		"attribute_kind": "module_attribute",
+	}
+	if moduleName, moduleLine := currentModule(scopes); moduleName != "" {
+		item["context"] = []any{moduleName, "module", moduleLine}
+		item["context_type"] = "module"
+		item["class_context"] = moduleName
+	}
+	if options.IndexSource {
+		item["source"] = rawLine
+	}
+	shared.AppendBucket(payload, "variables", item)
+	return true
+}
+
+func appendLineCalls(payload map[string]any, seenCalls map[string]struct{}, trimmed string, lineNumber int, scopes []scope, isDependency bool) {
+	currentContextName, currentContextType, currentContextLine := currentContext(scopes)
+	currentModuleName, _ := currentModule(scopes)
+
+	for _, match := range elixirScopedCall.FindAllStringSubmatchIndex(trimmed, -1) {
+		if len(match) < 6 {
+			continue
+		}
+		receiver := trimmed[match[2]:match[3]]
+		name := trimmed[match[4]:match[5]]
+		args := callArgs(trimmed, match[1]-1)
+		appendUniqueCall(
+			payload, seenCalls, name, receiver+"."+name, receiver, args,
+			lineNumber, currentContextName, currentContextType,
+			currentContextLine, currentModuleName, isDependency,
+		)
+	}
+	for _, match := range elixirCallPattern.FindAllStringSubmatchIndex(trimmed, -1) {
+		if len(match) < 4 {
+			continue
+		}
+		if match[0] > 0 && trimmed[match[0]-1] == '.' {
+			continue
+		}
+		name := trimmed[match[2]:match[3]]
+		switch name {
+		case "def", "defp", "do", "fn":
+			continue
+		}
+		args := callArgs(trimmed, match[1]-1)
+		appendUniqueCall(
+			payload, seenCalls, name, name, "", args, lineNumber,
+			currentContextName, currentContextType, currentContextLine,
+			currentModuleName, isDependency,
+		)
+	}
+}
+
+func appendUniqueCall(
 	payload map[string]any,
 	seen map[string]struct{},
 	name string,
@@ -407,5 +479,5 @@ func appendUniqueElixirCall(
 	if classContext != "" {
 		item["class_context"] = classContext
 	}
-	appendBucket(payload, "function_calls", item)
+	shared.AppendBucket(payload, "function_calls", item)
 }

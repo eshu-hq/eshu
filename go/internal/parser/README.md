@@ -52,8 +52,10 @@ language handles; grammars are loaded on first use and reused across calls.
 
 `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form, calls
 `Registry.LookupByPath` to identify the language, then dispatches to the
-language-specific adapter function (e.g. `parseGo`, `parsePython`,
-`parseKotlin`). Language adapters may attach semantic metadata such as
+language-specific adapter wrapper. The wrapper keeps the parent parser
+signature stable while language-owned packages hold adapter logic that no
+longer needs parent internals. Language adapters may attach semantic metadata
+such as
 `dead_code_root_kinds` when syntax or bounded config proves an entrypoint,
 framework callback, function-value callback, Python route/task/CLI decorator,
 Python AWS Lambda handler, JavaScript package export, CommonJS default export,
@@ -155,15 +157,21 @@ code cells, then the parent parser writes that source view to a temporary
 Python file before tree-sitter parsing. The temporary file is removed after
 parse. The notebook path shares the same payload contract as `.py` files.
 
-Groovy/Jenkins pipeline metadata extraction lives in the Groovy helper
-subpackage. The parent parser keeps the file read, payload assembly,
-pre-scan names, and `ExtractGroovyPipelineMetadata` compatibility wrapper used
-by query and relationship code.
+Groovy/Jenkins pipeline metadata extraction, payload assembly, and pre-scan
+name extraction live in the Groovy helper subpackage. The parent parser keeps
+the `ExtractGroovyPipelineMetadata` compatibility wrapper used by query and
+relationship code.
 
 Dockerfile runtime metadata extraction lives in the Dockerfile helper
 subpackage. The parent parser keeps file I/O, registry dispatch, and the
 `ExtractDockerfileRuntimeMetadata` compatibility wrapper used by query and
 relationship code.
+
+First-wave language package moves also cover C, C++, Rust, C#, Scala, Elixir,
+Swift, Dart, Ruby, Perl, Haskell, SQL, and HCL/Terraform adapters. Those
+packages own parse and pre-scan behavior behind thin parent wrappers. Shared
+payload, tree-sitter, and value helpers live in the shared parser helper
+subpackage so child packages do not import the parent dispatcher.
 
 **SCIP path**: when SCIP_INDEXER=true, the collector snapshotter detects the
 dominant SCIP-capable language via `DetectSCIPProjectLanguage`, runs the

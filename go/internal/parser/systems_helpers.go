@@ -3,8 +3,17 @@ package parser
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
+
+func sharedOptions(options Options) shared.Options {
+	return shared.Options{
+		IndexSource:                     options.IndexSource,
+		VariableScope:                   options.VariableScope,
+		GoImportedInterfaceParamMethods: shared.GoImportedInterfaceParamMethods(options.GoImportedInterfaceParamMethods),
+	}
+}
 
 func firstNamedDescendant(node *tree_sitter.Node, kinds ...string) *tree_sitter.Node {
 	var result *tree_sitter.Node

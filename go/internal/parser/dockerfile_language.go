@@ -1,18 +1,21 @@
 package parser
 
-import dockerfileparser "github.com/eshu-hq/eshu/go/internal/parser/dockerfile"
+import (
+	dockerfileparser "github.com/eshu-hq/eshu/go/internal/parser/dockerfile"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+)
 
 func (e *Engine) parseDockerfile(
 	path string,
 	isDependency bool,
 	options Options,
 ) (map[string]any, error) {
-	source, err := readSource(path)
+	source, err := shared.ReadSource(path)
 	if err != nil {
 		return nil, err
 	}
 
-	payload := basePayload(path, "dockerfile", isDependency)
+	payload := shared.BasePayload(path, "dockerfile", isDependency)
 	for key, value := range buildDockerfilePayload(string(source)) {
 		payload[key] = value
 	}

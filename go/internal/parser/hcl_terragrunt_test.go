@@ -1,11 +1,13 @@
 package parser
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
+	hclparser "github.com/eshu-hq/eshu/go/internal/parser/hcl"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 func TestParseTerragruntTerraformSourceMaterializesModuleSource(t *testing.T) {
@@ -22,21 +24,16 @@ include "root" {
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	payload := parseTerragruntPayloadForTest(t, filePath, source)
+	config := firstTerragruntConfigForTest(t, payload)
 	if config["terraform_source"] != "../modules/app" {
 		t.Fatalf("terraform_source = %#v, want %#v", config["terraform_source"], "../modules/app")
 	}
 
-	rows := parseTerragruntModuleSources(body, source, filePath)
+	rows, ok := payload["terraform_modules"].([]map[string]any)
+	if !ok {
+		t.Fatalf("terraform_modules = %T, want []map[string]any", payload["terraform_modules"])
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -68,16 +65,7 @@ locals {
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	config := parseTerragruntConfigForTest(t, filePath, source)
 
 	if got, want := config["include_paths"], "root.hcl"; got != want {
 		t.Fatalf("include_paths = %#v, want %#v", got, want)
@@ -107,16 +95,7 @@ func TestParseTerragruntConfigExtractsJoinedHelperPaths(t *testing.T) {
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	config := parseTerragruntConfigForTest(t, filePath, source)
 
 	if got, want := config["local_config_asset_paths"], "global.yaml,templates/runtime.json"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
@@ -134,16 +113,7 @@ func TestParseTerragruntConfigExtractsParentDirJoinedHelperPaths(t *testing.T) {
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	config := parseTerragruntConfigForTest(t, filePath, source)
 
 	if got, want := config["local_config_asset_paths"], "global.yaml,templates/runtime.json"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
@@ -151,8 +121,6 @@ func TestParseTerragruntConfigExtractsParentDirJoinedHelperPaths(t *testing.T) {
 }
 
 func TestParseTerragruntConfigExtractsServiceLevelAssetsFromNamedPathRelativeToInclude(t *testing.T) {
-	t.Parallel()
-
 	filePath := filepath.FromSlash("accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl")
 	source := []byte(`include "root" {
   path = find_in_parent_folders("root.hcl")
@@ -170,16 +138,7 @@ locals {
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	config := parseTerragruntConfigForTest(t, filePath, source)
 
 	if got, want := config["local_config_asset_paths"], "accounts/bg-dev/account.yaml,accounts/bg-dev/us-east-1/dev.network-us-east-1/vpc.yaml,accounts/bg-dev/us-east-1/region.yaml"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
@@ -187,8 +146,6 @@ locals {
 }
 
 func TestParseTerragruntConfigExtractsServiceLevelAssetsFromUnnamedPathRelativeToInclude(t *testing.T) {
-	t.Parallel()
-
 	filePath := filepath.FromSlash("accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl")
 	source := []byte(`include "root" {
   path = find_in_parent_folders("root.hcl")
@@ -206,18 +163,51 @@ locals {
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	config := parseTerragruntConfigForTest(t, filePath, source)
 
 	if got, want := config["local_config_asset_paths"], "accounts/bg-dev/account.yaml,accounts/bg-dev/us-east-1/dev.network-us-east-1/vpc.yaml,accounts/bg-dev/us-east-1/region.yaml"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
 	}
+}
+
+func parseTerragruntConfigForTest(t *testing.T, filePath string, source []byte) map[string]any {
+	t.Helper()
+	return firstTerragruntConfigForTest(t, parseTerragruntPayloadForTest(t, filePath, source))
+}
+
+func parseTerragruntPayloadForTest(t *testing.T, filePath string, source []byte) map[string]any {
+	t.Helper()
+	cleanupRelativeTestPath(t, filePath)
+	writeTestFile(t, filePath, string(source))
+	payload, err := hclparser.Parse(filePath, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("hcl.Parse() error = %v, want nil", err)
+	}
+	return payload
+}
+
+func cleanupRelativeTestPath(t *testing.T, filePath string) {
+	t.Helper()
+	if filepath.IsAbs(filePath) {
+		return
+	}
+	cleanPath := filepath.Clean(filePath)
+	cleanupRoot, _, _ := strings.Cut(cleanPath, string(filepath.Separator))
+	t.Cleanup(func() {
+		if err := os.RemoveAll(cleanupRoot); err != nil {
+			t.Fatalf("os.RemoveAll(%q) error = %v, want nil", cleanupRoot, err)
+		}
+	})
+}
+
+func firstTerragruntConfigForTest(t *testing.T, payload map[string]any) map[string]any {
+	t.Helper()
+	rows, ok := payload["terragrunt_configs"].([]map[string]any)
+	if !ok {
+		t.Fatalf("terragrunt_configs = %T, want []map[string]any", payload["terragrunt_configs"])
+	}
+	if len(rows) != 1 {
+		t.Fatalf("len(terragrunt_configs) = %d, want 1", len(rows))
+	}
+	return rows[0]
 }

@@ -5,7 +5,8 @@
 `internal/parser/shared` holds the small contracts language-owned parser
 packages need without importing the parent `internal/parser` dispatcher. It
 contains common payload bucket helpers, source reads, tree-sitter node helpers,
-and parser options shared by adapter packages.
+string utilities, integer coercion, and parser options shared by adapter
+packages.
 
 ## Ownership boundary
 
@@ -19,7 +20,8 @@ The godoc contract is in `doc.go` and `shared.go`. Current exports are
 `Options`, `GoImportedInterfaceParamMethods`,
 `GoPackageImportedInterfaceParamMethods`, `BasePayload`, `ReadSource`,
 `WalkNamed`, `NodeText`, `NodeLine`, `NodeEndLine`, `CloneNode`,
-`AppendBucket`, `SortNamedBucket`, and `SortNamedMaps`.
+`AppendBucket`, `SortNamedBucket`, `SortNamedMaps`, `CollectBucketNames`,
+`IntValue`, `LastPathSegment`, and `DedupeNonEmptyStrings`.
 
 ## Dependencies
 
@@ -39,8 +41,15 @@ Child parser packages depend on this package to avoid import cycles. Keep it
 small and language-neutral; a helper that only one adapter needs belongs in
 that adapter package.
 
-`BasePayload` and bucket sorting are fact-input contracts. Changing their shape
-or ordering changes downstream materialization behavior.
+`BasePayload`, bucket sorting, and name collection are fact-input contracts.
+Changing their shape or ordering changes downstream materialization behavior.
+
+`SortNamedMaps` sorts by `line_number` first and `name` second. That preserves
+the parent parser ordering contract used before language packages were split.
+
+Utility helpers such as `IntValue`, `LastPathSegment`, and
+`DedupeNonEmptyStrings` are intentionally small. Keep language-specific parsing
+rules out of this package so shared does not become a second parser package.
 
 ## Related docs
 

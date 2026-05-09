@@ -1,12 +1,17 @@
-package parser
+package sql
 
 import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 const sqlNamePattern = "(?:\"[^\"]+\"|`[^`]+`|\\[[^\\]]+\\]|[A-Za-z_][\\w$]*)(?:\\s*\\.\\s*(?:\"[^\"]+\"|`[^`]+`|\\[[^\\]]+\\]|[A-Za-z_][\\w$]*))*"
+
+// Options configures one SQL parser execution.
+type Options = shared.Options
 
 var (
 	sqlFromJoinPattern   = regexp.MustCompile(`(?i)\b(?:FROM|JOIN)\s+(?P<name>` + sqlNamePattern + `)`)
