@@ -199,6 +199,7 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 		"fact_kind = '" + facts.DocumentationFindingFactKind + "'",
 		"is_tombstone = FALSE",
 		"(payload->'permissions'->>'viewer_can_read_source') = 'true'",
+		"LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'",
 		"LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'",
 	}
 	addPayloadFilter := func(field string, value string) {

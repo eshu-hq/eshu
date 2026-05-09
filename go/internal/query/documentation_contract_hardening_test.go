@@ -119,6 +119,15 @@ func TestBuildDocumentationFindingsSQLRequiresExplicitReadVisibility(t *testing.
 	}
 }
 
+func TestBuildDocumentationFindingsSQLSkipsUnevaluatedSourceACL(t *testing.T) {
+	t.Parallel()
+
+	query, _ := buildDocumentationFindingsSQL(documentationFindingFilter{Limit: 50})
+	if !strings.Contains(query, "LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'") {
+		t.Fatalf("documentation findings SQL should skip unevaluated source ACLs before pagination: %s", query)
+	}
+}
+
 func TestDocumentationHandlerRejectsInvalidPagination(t *testing.T) {
 	t.Parallel()
 

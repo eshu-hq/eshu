@@ -160,7 +160,7 @@ CREATE INDEX IF NOT EXISTS fact_records_framework_routes_repo_path_idx
           COALESCE(payload->'parsed_file_data'->'framework_semantics'->'frameworks', '[]'::jsonb)
       ) > 0;
 
-CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_idx
+CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_visible_idx
     ON fact_records (
         (payload->>'finding_type'),
         (payload->>'source_id'),
@@ -174,6 +174,7 @@ CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_idx
     WHERE fact_kind = 'documentation_finding'
       AND is_tombstone = FALSE
       AND (payload->'permissions'->>'viewer_can_read_source') = 'true'
+      AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'
       AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied';
 
 CREATE INDEX IF NOT EXISTS fact_records_documentation_packets_finding_idx
