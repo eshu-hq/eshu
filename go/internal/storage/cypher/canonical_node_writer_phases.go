@@ -136,14 +136,20 @@ func (w *CanonicalNodeWriter) buildFileStatements(mat projector.CanonicalMateria
 	if w.fileBatchSize > 0 {
 		batchSize = w.fileBatchSize
 	}
-	stmts = append(stmts, w.buildFileStatementsForRows(nestedRows, batchSize, []string{
+	nestedCyphers := []string{
 		canonicalNodeFileUpdateExistingCypher,
 		canonicalNodeFileCreateMissingCypher,
-	})...)
-	stmts = append(stmts, w.buildFileStatementsForRows(rootRows, batchSize, []string{
+	}
+	rootCyphers := []string{
 		canonicalNodeRootFileUpdateExistingCypher,
 		canonicalNodeRootFileCreateMissingCypher,
-	})...)
+	}
+	if mat.FirstGeneration {
+		nestedCyphers = []string{canonicalNodeFileFirstGenerationMergeCypher}
+		rootCyphers = []string{canonicalNodeRootFileFirstGenerationMergeCypher}
+	}
+	stmts = append(stmts, w.buildFileStatementsForRows(nestedRows, batchSize, nestedCyphers)...)
+	stmts = append(stmts, w.buildFileStatementsForRows(rootRows, batchSize, rootCyphers)...)
 	return stmts
 }
 
