@@ -1,14 +1,29 @@
-package parser
+package php
 
 import (
 	"regexp"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 type phpImportSpec struct {
 	name       string
 	alias      string
 	importType string
+}
+
+func braceDelta(line string) int {
+	delta := 0
+	for _, r := range line {
+		switch r {
+		case '{':
+			delta++
+		case '}':
+			delta--
+		}
+	}
+	return delta
 }
 
 func parsePHPImports(raw string) []phpImportSpec {
@@ -169,7 +184,7 @@ func appendPHPBaseList(raw string) []string {
 		if trimmed == "" {
 			continue
 		}
-		bases = append(bases, lastPathSegment(trimmed, `\`))
+		bases = append(bases, shared.LastPathSegment(trimmed, `\`))
 	}
 	return bases
 }
@@ -202,9 +217,9 @@ func parsePHPClassTraitUses(raw string) []string {
 		if trait == "" {
 			continue
 		}
-		traits = append(traits, lastPathSegment(trait, `\`))
+		traits = append(traits, shared.LastPathSegment(trait, `\`))
 	}
-	return dedupeNonEmptyStrings(traits)
+	return dedupePHPNonEmptyStrings(traits)
 }
 
 func appendPHPClassBases(payload map[string]any, className string, additionalBases []string) {
@@ -218,7 +233,7 @@ func appendPHPClassBases(payload map[string]any, className string, additionalBas
 			continue
 		}
 		existing, _ := item["bases"].([]string)
-		merged := dedupeNonEmptyStrings(append(existing, additionalBases...))
+		merged := dedupePHPNonEmptyStrings(append(existing, additionalBases...))
 		if len(merged) > 0 {
 			item["bases"] = merged
 		}
@@ -466,22 +481,4 @@ func splitPHPCallArguments(raw string) []string {
 
 	flush()
 	return args
-}
-
-func normalizePHPTypeName(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	trimmed = strings.TrimPrefix(trimmed, "?")
-	if index := strings.Index(trimmed, "|"); index >= 0 {
-		parts := strings.Split(trimmed, "|")
-		normalized := make([]string, 0, len(parts))
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			if part == "" {
-				continue
-			}
-			normalized = append(normalized, normalizePHPTypeName(part))
-		}
-		return strings.Join(normalized, "|")
-	}
-	return lastPathSegment(trimmed, `\`)
 }

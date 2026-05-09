@@ -1,4 +1,4 @@
-package parser
+package php
 
 import "strings"
 
@@ -32,7 +32,7 @@ func parsePHPClassTraitAdaptations(raw string) []string {
 		}
 		adaptations = append(adaptations, clause)
 	}
-	return dedupeNonEmptyStrings(adaptations)
+	return dedupePHPNonEmptyStrings(adaptations)
 }
 
 func appendPHPClassTraitAdaptations(payload map[string]any, className string, additionalAdaptations []string) {
@@ -46,7 +46,7 @@ func appendPHPClassTraitAdaptations(payload map[string]any, className string, ad
 			continue
 		}
 		existing, _ := item["trait_adaptations"].([]string)
-		merged := dedupeNonEmptyStrings(append(existing, additionalAdaptations...))
+		merged := dedupePHPNonEmptyStrings(append(existing, additionalAdaptations...))
 		if len(merged) > 0 {
 			item["trait_adaptations"] = merged
 		}

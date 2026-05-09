@@ -1,4 +1,4 @@
-package parser
+package php
 
 import (
 	"fmt"
