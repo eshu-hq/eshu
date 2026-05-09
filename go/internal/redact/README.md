@@ -7,6 +7,10 @@ values before they cross fact, persistence, log, metric, span, or admin-status
 boundaries. It is intended for Terraform-state and cloud collectors that may
 observe plaintext secrets while parsing source truth.
 
+The marker path is keyed. Callers construct a `Key` with deployment-scoped
+secret material before calling `String`, `Bytes`, or `Scalar`; blank key
+material is rejected instead of producing guessable markers.
+
 ## Where this fits
 
 ```mermaid
@@ -46,6 +50,7 @@ does not persist raw input or emit telemetry.
   reason, or source text.
 - The HMAC key must come from deployment-scoped secret material. Do not hardcode
   production redaction keys.
+- `NewKey` copies caller-provided material and rejects blank input.
 - Blank reason or source values normalize to `unknown`.
 - Unsupported values still produce a marker without serializing the value.
 - Unknown schema coverage fails closed: scalar fields are redacted and composite

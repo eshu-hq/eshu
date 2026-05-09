@@ -39,7 +39,8 @@ consume these types as their input or storage shape.
   key that survives re-ingestion of the same source record.
 - Documentation fact payloads — source-neutral payload structs and stable-ID
   helpers for documentation sources, documents, sections, links, entity
-  mentions, and non-authoritative claim candidates.
+  mentions, non-authoritative claim candidates, owner references, ACL
+  summaries, and evidence references.
 
 Documentation fact kinds use schema version `1.0.0`:
 
@@ -93,6 +94,9 @@ and processing lives in `internal/projector` and `internal/storage/postgres`.
 - Documentation claim candidates are evidence about what documentation says.
   They are not operational truth and must not override source-code, deployment,
   runtime, or graph truth.
+- Documentation ACL and owner fields are source-reported context. They help
+  explain provenance and visibility, but they do not become authorization
+  policy inside the facts package.
 - `StableID` panics if `json.Marshal` fails on the identity map. Callers must
   not pass identity maps containing non-serializable values.
 - `IsTombstone` is set by the collector to signal deletion. Projectors and
