@@ -1,0 +1,37 @@
+go/internal/parser/groovy/doc.go
+  s_bdaf44668b73dc::t_13a7b4ec3553ad 4-7
+  s_bdaf44668b73dc::t_a5561c13b01b93 1-3,8
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_082b9d2f054448 41-44
+go/internal/parser/groovy_language.go
+  s_bdaf44668b73dc::t_a5561c13b01b93 7,66
+go/internal/parser/AGENTS.md
+  s_bdaf44668b73dc::t_082b9d2f054448 20-22,24,26,142-143
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_082b9d2f054448 158-162,277-278
+go/internal/parser/groovy/metadata.go
+  s_bdaf44668b73dc::t_a5561c13b01b93 1-148
+go/internal/parser/groovy/AGENTS.md
+  s_bdaf44668b73dc::t_a5561c13b01b93 1-43
+go/internal/parser/groovy/README.md
+  s_bdaf44668b73dc::t_a5561c13b01b93 1-18,22-43
+  s_bdaf44668b73dc::t_13a7b4ec3553ad 19-21
+go/internal/parser/groovy/metadata_test.go
+  s_bdaf44668b73dc::t_26400af480ce8a 1-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "04cefd610c617db57cdfadd359ee0a80e05175d9",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
