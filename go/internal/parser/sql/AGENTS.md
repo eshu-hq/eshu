@@ -26,6 +26,8 @@
   the narrow parser helper that owns the statement shape.
 - Add migration-tool support in `migrations.go` with package-local coverage in
   `migrations_test.go`.
+- Keep table constraints out of `sql_columns` while preserving bounded
+  references relationships from those same constraint clauses.
 - Keep registry dispatch, engine routing, and content metadata inference in the
   parent parser package.
 - Keep shared helpers language-neutral. SQL-only helpers belong in this package.

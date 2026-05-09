@@ -111,7 +111,7 @@ func parseSQLTables(
 				continue
 			}
 			if candidate := columnPattern.FindStringSubmatchIndex(trimmed); candidate != nil &&
-				!strings.HasPrefix(strings.ToUpper(trimmed), "CONSTRAINT ") {
+				!isSQLTableConstraintLine(trimmed) {
 				columnName := normalizeSQLName(submatchValue(trimmed, candidate, namedCaptureIndexes(columnPattern)["name"]))
 				columnType := strings.TrimSpace(submatchValue(trimmed, candidate, namedCaptureIndexes(columnPattern)["type"]))
 				qualified := name + "." + columnName

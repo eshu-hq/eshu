@@ -20,6 +20,10 @@
   parser package or this package.
 - Keep registry dispatch and runtime parser lookup in the parent parser package.
 - Keep shared cross-language primitives in internal/parser/shared.
+- Preserve current limits in README.md when adding coverage. Brace imports,
+  generic type parameters, attributes, modules, consts, statics, type aliases,
+  and unsafe or async semantics are not structured metadata unless a test and
+  downstream contract prove the new claim.
 
 ## Anti-Patterns
 

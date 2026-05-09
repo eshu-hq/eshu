@@ -27,3 +27,12 @@ must not import the parent parser package.
 
 This package emits no telemetry directly. Parser timing and runtime observability
 remain owned by the parent engine.
+
+## Current Limits
+
+Brace imports are preserved as one raw `use` row instead of being expanded per
+symbol. Lifetime names are structured when they appear in signatures and impl
+headers, but generic type parameters, attributes and derives, module items,
+consts, statics, type aliases, and unsafe or async semantics are not emitted as
+separate metadata yet. Add package-local tests before widening any of those
+claims.
