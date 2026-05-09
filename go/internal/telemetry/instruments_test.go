@@ -31,6 +31,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.DocumentationEntityMentions, "DocumentationEntityMentions counter should be registered")
 	assert.NotNil(t, inst.DocumentationClaimCandidates, "DocumentationClaimCandidates counter should be registered")
 	assert.NotNil(t, inst.DocumentationClaimsSuppressed, "DocumentationClaimsSuppressed counter should be registered")
+	assert.NotNil(t, inst.DocumentationDriftFindings, "DocumentationDriftFindings counter should be registered")
 	assert.NotNil(t, inst.IaCReachabilityRows, "IaCReachabilityRows counter should be registered")
 
 	// Verify all histogram fields are non-nil
@@ -56,6 +57,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.SharedProjectionIntentWaitDuration, "SharedProjectionIntentWaitDuration histogram should be registered")
 	assert.NotNil(t, inst.SharedProjectionProcessingDuration, "SharedProjectionProcessingDuration histogram should be registered")
 	assert.NotNil(t, inst.SharedProjectionStepDuration, "SharedProjectionStepDuration histogram should be registered")
+	assert.NotNil(t, inst.DocumentationDriftGenerationDuration, "DocumentationDriftGenerationDuration histogram should be registered")
 	assert.NotNil(t, inst.IaCReachabilityMaterializationDuration, "IaCReachabilityMaterializationDuration histogram should be registered")
 }
 
