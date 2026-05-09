@@ -93,6 +93,31 @@ func TestLocalStateSourceRejectsFilesAboveSizeCeiling(t *testing.T) {
 	}
 }
 
+func TestLocalStateSourceEnforcesSizeCeilingWhileReading(t *testing.T) {
+	t.Parallel()
+
+	path := writeStateFile(t, strings.Repeat("x", 4))
+	source, err := terraformstate.NewLocalStateSource(terraformstate.LocalSourceConfig{
+		Path:     path,
+		MaxBytes: 4,
+	})
+	if err != nil {
+		t.Fatalf("NewLocalStateSource() error = %v, want nil", err)
+	}
+	if err := os.WriteFile(path, []byte(strings.Repeat("x", 8)), 0o600); err != nil {
+		t.Fatalf("WriteFile(grow) error = %v", err)
+	}
+
+	reader, _, err := source.Open(context.Background())
+	if err == nil {
+		defer reader.Close()
+		_, err = io.ReadAll(reader)
+	}
+	if !errors.Is(err, terraformstate.ErrStateTooLarge) {
+		t.Fatalf("read error = %v, want ErrStateTooLarge", err)
+	}
+}
+
 func writeStateFile(t *testing.T, body string) string {
 	t.Helper()
 

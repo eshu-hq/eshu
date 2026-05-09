@@ -118,6 +118,37 @@ func TestS3StateSourceReportsNotModified(t *testing.T) {
 	}
 }
 
+func TestS3StateSourceEnforcesSizeCeilingWhileReading(t *testing.T) {
+	t.Parallel()
+
+	source, err := terraformstate.NewS3StateSource(terraformstate.S3SourceConfig{
+		Bucket:   "tfstate-prod",
+		Key:      "state.tfstate",
+		Region:   "us-east-1",
+		MaxBytes: 4,
+		Client: &recordingS3Client{
+			output: terraformstate.S3GetObjectOutput{
+				Body: io.NopCloser(strings.NewReader(strings.Repeat("x", 8))),
+				Size: 4,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewS3StateSource() error = %v, want nil", err)
+	}
+
+	reader, _, err := source.Open(context.Background())
+	if err != nil {
+		t.Fatalf("Open() error = %v, want nil", err)
+	}
+	defer reader.Close()
+
+	_, err = io.ReadAll(reader)
+	if !errors.Is(err, terraformstate.ErrStateTooLarge) {
+		t.Fatalf("ReadAll() error = %v, want ErrStateTooLarge", err)
+	}
+}
+
 type recordingS3Client struct {
 	input  terraformstate.S3GetObjectInput
 	output terraformstate.S3GetObjectOutput

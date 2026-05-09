@@ -82,7 +82,7 @@ func (s *LocalStateSource) Open(ctx context.Context) (io.ReadCloser, SourceMetad
 	if err != nil {
 		return nil, SourceMetadata{}, fmt.Errorf("open local state path: %w", err)
 	}
-	return file, SourceMetadata{
+	return newSizeEnforcingReadCloser(file, s.maxBytes), SourceMetadata{
 		ObservedAt:   time.Now().UTC(),
 		Size:         info.Size(),
 		LastModified: info.ModTime().UTC(),

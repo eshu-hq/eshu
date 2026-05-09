@@ -2,6 +2,7 @@ package terraformstate_test
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -91,6 +92,7 @@ func TestParserStreamsTerraformStateIntoRedactedFacts(t *testing.T) {
 	assertNoRawSecret(t, result.Facts, "super-secret")
 	assertNoRawSecret(t, result.Facts, "plain-db-password")
 	assertNoRawSecret(t, result.Facts, "s3://tfstate-prod/services/api/terraform.tfstate")
+	assertNoRawSecretInRefs(t, result.Facts, "s3://tfstate-prod/services/api/terraform.tfstate")
 
 	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
 	if got, want := resource.CollectorKind, string(scope.CollectorTerraformState); got != want {
@@ -127,12 +129,129 @@ func TestParserStreamsTerraformStateIntoRedactedFacts(t *testing.T) {
 	}
 }
 
+func TestParserFactKeysAreStableAcrossResourceOrder(t *testing.T) {
+	t.Parallel()
+
+	first := `{"serial":17,"lineage":"lineage-123","resources":[
+		{"mode":"managed","type":"aws_instance","name":"api","instances":[{"attributes":{"id":"i-1"}}]},
+		{"mode":"managed","type":"aws_instance","name":"worker","instances":[{"attributes":{"id":"i-2"}}]}
+	]}`
+	second := `{"serial":17,"lineage":"lineage-123","resources":[
+		{"mode":"managed","type":"aws_instance","name":"worker","instances":[{"attributes":{"id":"i-2"}}]},
+		{"mode":"managed","type":"aws_instance","name":"api","instances":[{"attributes":{"id":"i-1"}}]}
+	]}`
+
+	firstFacts := parseFixtureFacts(t, first)
+	secondFacts := parseFixtureFacts(t, second)
+
+	if got, want := stableKeysByKind(firstFacts, facts.TerraformStateResourceFactKind), stableKeysByKind(secondFacts, facts.TerraformStateResourceFactKind); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("resource stable keys changed with order:\ngot  %#v\nwant %#v", got, want)
+	}
+}
+
+func TestParserRejectsInvalidEnvelopeContext(t *testing.T) {
+	t.Parallel()
+
+	key, err := redact.NewKey([]byte("test-redaction-key"))
+	if err != nil {
+		t.Fatalf("NewKey() error = %v, want nil", err)
+	}
+	_, err = terraformstate.Parse(context.Background(), strings.NewReader(`{"serial":17,"lineage":"lineage-123"}`), terraformstate.ParseOptions{
+		RedactionKey: key,
+	})
+	if err == nil {
+		t.Fatal("Parse() error = nil, want non-nil")
+	}
+}
+
+func TestParserRejectsSerialLineageMismatch(t *testing.T) {
+	t.Parallel()
+
+	options := parseFixtureOptions(t)
+	_, err := terraformstate.Parse(context.Background(), strings.NewReader(`{"serial":16,"lineage":"lineage-123"}`), options)
+	if err == nil {
+		t.Fatal("Parse() serial mismatch error = nil, want non-nil")
+	}
+	_, err = terraformstate.Parse(context.Background(), strings.NewReader(`{"serial":17,"lineage":"lineage-456"}`), options)
+	if err == nil {
+		t.Fatal("Parse() lineage mismatch error = nil, want non-nil")
+	}
+}
+
+func TestParserHashesInstanceIndexKeysInPersistedIdentity(t *testing.T) {
+	t.Parallel()
+
+	state := `{"serial":17,"lineage":"lineage-123","resources":[{
+		"mode":"managed",
+		"type":"aws_instance",
+		"name":"tenant",
+		"instances":[{
+			"index_key":"tenant@example.com",
+			"attributes":{"id":"i-1"}
+		}]
+	}]}`
+
+	result := parseFixtureFacts(t, state)
+	assertNoRawSecret(t, result, "tenant@example.com")
+	assertNoRawSecretInRefs(t, result, "tenant@example.com")
+}
+
+func TestParserSkipsLargeIgnoredTopLevelFields(t *testing.T) {
+	t.Parallel()
+
+	state := `{"checks":[` + strings.Repeat(`{"status":"pass","payload":["x","y","z"]},`, 1024) + `{"status":"pass"}],"serial":17,"lineage":"lineage-123"}`
+	result := parseFixtureFacts(t, state)
+
+	requireFactKinds(t, result, facts.TerraformStateSnapshotFactKind)
+}
+
 func TestParserRejectsMalformedState(t *testing.T) {
 	t.Parallel()
 
-	_, err := terraformstate.Parse(context.Background(), strings.NewReader(`{"resources":[`), terraformstate.ParseOptions{})
+	_, err := terraformstate.Parse(context.Background(), strings.NewReader(`{"resources":[`), parseFixtureOptions(t))
 	if err == nil {
 		t.Fatal("Parse() error = nil, want non-nil")
+	}
+}
+
+func parseFixtureFacts(t *testing.T, state string) []facts.Envelope {
+	t.Helper()
+
+	result, err := terraformstate.Parse(context.Background(), strings.NewReader(state), parseFixtureOptions(t))
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	return result.Facts
+}
+
+func parseFixtureOptions(t *testing.T) terraformstate.ParseOptions {
+	t.Helper()
+
+	key, err := redact.NewKey([]byte("test-redaction-key"))
+	if err != nil {
+		t.Fatalf("NewKey() error = %v, want nil", err)
+	}
+	rules, err := redact.NewRuleSet("test-schema", []string{"password"})
+	if err != nil {
+		t.Fatalf("NewRuleSet() error = %v, want nil", err)
+	}
+	scopeValue, err := scope.NewTerraformStateSnapshotScope("repo-scope-123", "s3", "s3://tfstate-prod/services/api/terraform.tfstate", nil)
+	if err != nil {
+		t.Fatalf("NewTerraformStateSnapshotScope() error = %v, want nil", err)
+	}
+	observedAt := time.Date(2026, time.May, 9, 16, 0, 0, 0, time.UTC)
+	generation, err := scope.NewTerraformStateSnapshotGeneration(scopeValue.ScopeID, 17, "lineage-123", observedAt)
+	if err != nil {
+		t.Fatalf("NewTerraformStateSnapshotGeneration() error = %v, want nil", err)
+	}
+	return terraformstate.ParseOptions{
+		Scope:          scopeValue,
+		Generation:     generation,
+		Source:         terraformstate.StateKey{BackendKind: terraformstate.BackendS3, Locator: "s3://tfstate-prod/services/api/terraform.tfstate"},
+		ObservedAt:     observedAt,
+		RedactionKey:   key,
+		RedactionRules: rules,
+		FencingToken:   42,
 	}
 }
 
@@ -183,6 +302,28 @@ func assertNoRawSecret(t *testing.T, envelopes []facts.Envelope, secret string) 
 			t.Fatalf("secret %q leaked in envelope %#v", secret, envelope)
 		}
 	}
+}
+
+func assertNoRawSecretInRefs(t *testing.T, envelopes []facts.Envelope, secret string) {
+	t.Helper()
+
+	for _, envelope := range envelopes {
+		if strings.Contains(envelope.SourceRef.SourceURI, secret) ||
+			strings.Contains(envelope.SourceRef.SourceRecordID, secret) {
+			t.Fatalf("secret %q leaked in source ref %#v", secret, envelope.SourceRef)
+		}
+	}
+}
+
+func stableKeysByKind(envelopes []facts.Envelope, kind string) []string {
+	keys := []string{}
+	for _, envelope := range envelopes {
+		if envelope.FactKind == kind {
+			keys = append(keys, envelope.StableFactKey)
+		}
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func payloadContains(value any, needle string) bool {

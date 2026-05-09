@@ -135,7 +135,7 @@ func (s *S3StateSource) Open(ctx context.Context) (io.ReadCloser, SourceMetadata
 		return nil, SourceMetadata{}, fmt.Errorf("%w: size=%d max=%d", ErrStateTooLarge, output.Size, s.maxBytes)
 	}
 
-	return output.Body, SourceMetadata{
+	return newSizeEnforcingReadCloser(output.Body, s.maxBytes), SourceMetadata{
 		ObservedAt:   time.Now().UTC(),
 		Size:         output.Size,
 		ETag:         strings.TrimSpace(output.ETag),
