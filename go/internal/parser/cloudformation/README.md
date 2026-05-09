@@ -3,8 +3,9 @@
 ## Purpose
 
 `internal/parser/cloudformation` owns CloudFormation and SAM template evidence
-shared by JSON and YAML parser adapters. It recognizes bounded template shapes
-and extracts resource, parameter, output, condition, import, and export rows.
+shared by JSON and YAML parser adapters. It recognizes bounded template shapes,
+evaluates simple condition expressions, and extracts resource, parameter,
+output, condition, import, and export rows.
 
 ## Ownership boundary
 
@@ -35,8 +36,8 @@ the collector snapshot path that calls the parent parser engine.
 ## Gotchas / invariants
 
 `Parse` preserves the legacy bucket names and row fields consumed by JSON and
-YAML callers. Keep the output deterministic: map keys are sorted before rows are
-emitted, and row slices are sorted by line number then name.
+YAML callers. Keep the output deterministic: map keys are sorted before rows
+are emitted, and row slices are sorted by line number then name.
 
 Condition evaluation is intentionally bounded to literal booleans, parameter
 defaults, `Condition`, and simple `Fn::Equals`, `Fn::And`, `Fn::Or`, and
