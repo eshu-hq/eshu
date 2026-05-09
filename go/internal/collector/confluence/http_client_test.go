@@ -138,6 +138,55 @@ func TestHTTPClientFollowsRelativeNextLinkWithQuery(t *testing.T) {
 	}
 }
 
+func TestHTTPClientFollowsContextRootedNextLinkWithoutDuplicatingBasePath(t *testing.T) {
+	t.Parallel()
+
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		switch requestCount {
+		case 1:
+			if got, want := r.URL.Path, "/wiki/api/v2/spaces/100/pages"; got != want {
+				t.Fatalf("first path = %q, want %q", got, want)
+			}
+			_ = json.NewEncoder(w).Encode(pageListResponse{
+				Results: []Page{confluencePage("123", "First", 1, "<p>first</p>")},
+				Links:   Links{Next: "/wiki/api/v2/spaces/100/pages?cursor=abc"},
+			})
+		case 2:
+			if got, want := r.URL.Path, "/wiki/api/v2/spaces/100/pages"; got != want {
+				t.Fatalf("second path = %q, want %q", got, want)
+			}
+			if got, want := r.URL.Query().Get("cursor"), "abc"; got != want {
+				t.Fatalf("second cursor = %q, want %q", got, want)
+			}
+			_ = json.NewEncoder(w).Encode(pageListResponse{
+				Results: []Page{confluencePage("124", "Second", 1, "<p>second</p>")},
+			})
+		default:
+			t.Fatalf("unexpected request count %d", requestCount)
+		}
+	}))
+	defer server.Close()
+
+	client, err := NewHTTPClient(HTTPClientConfig{
+		BaseURL:     server.URL + "/wiki",
+		BearerToken: "token",
+		Client:      server.Client(),
+	})
+	if err != nil {
+		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
+	}
+
+	pages, err := client.ListSpacePages(context.Background(), "100", 25)
+	if err != nil {
+		t.Fatalf("ListSpacePages() error = %v, want nil", err)
+	}
+	if got, want := len(pages), 2; got != want {
+		t.Fatalf("len(pages) = %d, want %d", got, want)
+	}
+}
+
 func TestHTTPClientListPageTreeKeepsOnlyPageDescendants(t *testing.T) {
 	t.Parallel()
 

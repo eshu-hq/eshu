@@ -191,11 +191,34 @@ func (c *HTTPClient) resolve(endpoint string) url.URL {
 	resolved := *c.baseURL
 	relative, err := url.Parse(endpoint)
 	if err != nil {
-		resolved.Path = path.Join(c.baseURL.Path, endpoint)
+		resolved.Path = c.resolvePath(endpoint)
 		return resolved
 	}
-	resolved.Path = path.Join(c.baseURL.Path, relative.Path)
+	resolved.Path = c.resolvePath(relative.Path)
 	resolved.RawQuery = relative.RawQuery
 	resolved.Fragment = relative.Fragment
 	return resolved
+}
+
+func (c *HTTPClient) resolvePath(endpointPath string) string {
+	if endpointPath == "" {
+		return c.baseURL.Path
+	}
+	basePath := cleanURLPath(c.baseURL.Path)
+	resolvedPath := cleanURLPath(endpointPath)
+	if basePath == "/" {
+		return resolvedPath
+	}
+	if resolvedPath == basePath || strings.HasPrefix(resolvedPath, basePath+"/") {
+		return resolvedPath
+	}
+	return path.Join(basePath, resolvedPath)
+}
+
+func cleanURLPath(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "/"
+	}
+	return path.Clean("/" + strings.TrimPrefix(value, "/"))
 }

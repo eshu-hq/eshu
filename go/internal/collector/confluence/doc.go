@@ -5,5 +5,7 @@
 // preserves source provenance, freshness, labels, links, ownership hints, and
 // partial-sync evidence without mutating Confluence. Callers may attach a
 // doctruth.Extractor plus claim hints to emit non-authoritative mention and
-// claim-candidate facts from the same page evidence.
+// claim-candidate facts from the same page evidence. The HTTP client keeps
+// pagination bounded to the configured Confluence base URL and handles next
+// links that already include the Atlassian Cloud /wiki context path.
 package confluence

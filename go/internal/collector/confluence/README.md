@@ -82,6 +82,9 @@ already gathered them from Eshu.
 
 - HTTP access is `GET` only and maps 403/404 responses to
   `ErrPermissionDenied`.
+- Pagination follows Confluence `_links.next` values without duplicating the
+  configured context path, so Atlassian Cloud base URLs that include `/wiki`
+  work with both `/api/v2/...` and `/wiki/api/v2/...` next links.
 - Empty spaces are valid and emit a source fact with `page_count=0`.
 - Duplicate titles are safe because stable document identity uses Confluence
   page ID, not title.
