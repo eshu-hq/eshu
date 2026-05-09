@@ -159,8 +159,9 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanIaCReachabilityMaterialization`, `SpanSQLRelationshipMaterialization`,
 `SpanInheritanceMaterialization`, `SpanCrossRepoResolution`,
 `SpanSharedAcceptanceLookup`, `SpanSharedAcceptanceUpsert`,
-`SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
-`SpanQueryInfraResourceSearch`, `SpanTerraformStateClaimProcess`,
+`SpanQueryRelationshipEvidence`, `SpanQueryDocumentationFindings`,
+`SpanQueryDocumentationEvidencePacket`, `SpanQueryDocumentationPacketFreshness`,
+`SpanQueryDeadIaC`, `SpanQueryInfraResourceSearch`, `SpanTerraformStateClaimProcess`,
 `SpanTerraformStateDiscoveryResolve`, `SpanTerraformStateSourceOpen`,
 `SpanTerraformStateParserStream`, `SpanTerraformStateFactEmitBatch`, and
 `SpanTerraformStateCoordinatorDone`.

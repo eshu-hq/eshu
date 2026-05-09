@@ -13,6 +13,10 @@ const (
 	DocumentationEntityMentionFactKind = "documentation_entity_mention"
 	// DocumentationClaimCandidateFactKind identifies one non-authoritative documentation claim candidate.
 	DocumentationClaimCandidateFactKind = "documentation_claim_candidate"
+	// DocumentationFindingFactKind identifies one read-only documentation truth finding.
+	DocumentationFindingFactKind = "documentation_finding"
+	// DocumentationEvidencePacketFactKind identifies one immutable documentation evidence packet.
+	DocumentationEvidencePacketFactKind = "documentation_evidence_packet"
 
 	// DocumentationFactSchemaVersion is the first documentation fact schema.
 	DocumentationFactSchemaVersion = "1.0.0"
@@ -216,5 +220,21 @@ func DocumentationClaimCandidateStableID(payload DocumentationClaimCandidatePayl
 		"claim_id":     payload.ClaimID,
 		"claim_hash":   payload.ClaimHash,
 		"excerpt_hash": payload.ExcerptHash,
+	})
+}
+
+// DocumentationFindingStableID returns a stable ID for one documentation finding.
+func DocumentationFindingStableID(findingID, findingVersion string) string {
+	return StableID(DocumentationFindingFactKind, map[string]any{
+		"finding_id":      findingID,
+		"finding_version": findingVersion,
+	})
+}
+
+// DocumentationEvidencePacketStableID returns a stable ID for one evidence packet.
+func DocumentationEvidencePacketStableID(packetID, packetVersion string) string {
+	return StableID(DocumentationEvidencePacketFactKind, map[string]any{
+		"packet_id":      packetID,
+		"packet_version": packetVersion,
 	})
 }

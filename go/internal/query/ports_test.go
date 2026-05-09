@@ -17,15 +17,18 @@ func (fakePortGraphQuery) RunSingle(context.Context, string, map[string]any) (ma
 }
 
 type fakePortContentStore struct {
-	coverage              RepositoryContentCoverage
-	summary               repositoryReadModelSummary
-	relationshipReadModel repositoryRelationshipReadModel
-	entryPoints           repositoryEntryPointReadModel
-	deploymentEvidence    repositoryDeploymentEvidenceReadModel
-	deploymentEvidenceErr error
-	relationshipEvidence  relationshipEvidenceReadModel
-	entities              []EntityContent
-	repositories          []RepositoryCatalogEntry
+	coverage                    RepositoryContentCoverage
+	summary                     repositoryReadModelSummary
+	relationshipReadModel       repositoryRelationshipReadModel
+	entryPoints                 repositoryEntryPointReadModel
+	deploymentEvidence          repositoryDeploymentEvidenceReadModel
+	deploymentEvidenceErr       error
+	relationshipEvidence        relationshipEvidenceReadModel
+	documentationFindingsModel  documentationFindingListReadModel
+	documentationPacketModel    documentationEvidencePacketReadModel
+	documentationFreshnessModel documentationEvidencePacketFreshnessReadModel
+	entities                    []EntityContent
+	repositories                []RepositoryCatalogEntry
 }
 
 func (f fakePortContentStore) GetFileContent(context.Context, string, string) (*FileContent, error) {
@@ -115,6 +118,18 @@ func (f fakePortContentStore) relationshipEvidenceByResolvedID(context.Context, 
 	return f.relationshipEvidence, nil
 }
 
+func (f fakePortContentStore) documentationFindings(context.Context, documentationFindingFilter) (documentationFindingListReadModel, error) {
+	return f.documentationFindingsModel, nil
+}
+
+func (f fakePortContentStore) documentationEvidencePacket(context.Context, string) (documentationEvidencePacketReadModel, error) {
+	return f.documentationPacketModel, nil
+}
+
+func (f fakePortContentStore) documentationEvidencePacketFreshness(context.Context, string) (documentationEvidencePacketFreshnessReadModel, error) {
+	return f.documentationFreshnessModel, nil
+}
+
 func (f fakePortContentStore) ListRepositories(context.Context) ([]RepositoryCatalogEntry, error) {
 	return append([]RepositoryCatalogEntry(nil), f.repositories...), nil
 }
@@ -156,6 +171,7 @@ func TestQueryHandlersAcceptCapabilityPorts(t *testing.T) {
 	_ = &CompareHandler{Neo4j: graph, Content: content}
 	_ = &ContentHandler{Content: content}
 	_ = &EvidenceHandler{Content: content}
+	_ = &DocumentationHandler{Content: content}
 	_ = &StatusHandler{Neo4j: graph}
 }
 

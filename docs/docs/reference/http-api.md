@@ -232,6 +232,31 @@ with the resolved relationship. Use this endpoint when an API or MCP client
 needs to explain why an edge exists without embedding the full evidence payload
 in every graph-facing response.
 
+### Documentation Truth Evidence
+
+Documentation updater services should use the documentation truth routes
+instead of reading graph internals directly.
+
+`GET /api/v0/documentation/findings` lists read-only findings such as
+`service_deployment_drift`. The endpoint accepts filters for `finding_type`,
+`source_id`, `document_id`, `status`, `truth_level`, `freshness_state`,
+`updated_since`, `limit`, and `cursor`. Each item includes the stable finding
+identity, document and section identity, status, truth labels, summary, and an
+`evidence_packet_url`.
+
+`GET /api/v0/documentation/findings/{finding_id}/evidence-packet` returns the
+bounded packet an external updater can snapshot before it plans a diff. The
+packet includes finding identity, document and section metadata, bounded
+excerpt, linked entities, current truth, evidence references, truth state,
+permission state, and explicit `states` for stale, ambiguous, unsupported, or
+ready findings. Eshu still does not draft text or write documentation; this
+route only gives the updater the evidence it is allowed to use.
+
+`GET /api/v0/documentation/evidence-packets/{packet_id}/freshness` lets an
+updater check a saved packet before publishing a diff. If the packet is stale,
+the updater should fetch the latest packet and restart planning from the new
+snapshot.
+
 ## Context API
 
 ### Resolve fuzzy input into canonical entities

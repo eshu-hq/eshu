@@ -231,7 +231,9 @@ const openAPIComponents = `  "components": {
         "type": "object",
         "properties": {
           "error": {"type": "string"},
-          "detail": {"type": "string"}
+          "detail": {"type": "string"},
+          "error_code": {"type": "string"},
+          "message": {"type": "string"}
         }
       }
     },
@@ -252,8 +254,24 @@ const openAPIComponents = `  "components": {
           }
         }
       },
+      "Forbidden": {
+        "description": "Permission denied",
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+          }
+        }
+      },
       "InternalError": {
         "description": "Internal server error",
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+          }
+        }
+      },
+      "NotImplemented": {
+        "description": "Capability is not available in the current runtime profile",
         "content": {
           "application/json": {
             "schema": {"$ref": "#/components/schemas/ErrorResponse"}

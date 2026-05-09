@@ -44,8 +44,9 @@ Eshu core must not:
 
 ## Required Eshu APIs
 
-The API names below define the contract target. Issue #71 owns the Eshu-side
-implementation.
+The API names below define the Eshu-side contract for updater actuators. These
+routes return read-only evidence; they do not draft text or write to destination
+systems.
 
 ### List Findings
 

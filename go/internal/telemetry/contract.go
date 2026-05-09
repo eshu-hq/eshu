@@ -58,22 +58,25 @@ const (
 	SpanCanonicalProjection  = "canonical.projection"
 	SpanCanonicalRetract     = "canonical.retract"
 
-	SpanEvidenceDiscovery              = "ingestion.evidence_discovery"
-	SpanIaCReachabilityMaterialization = "iac_reachability.materialize"
-	SpanSQLRelationshipMaterialization = "reducer.sql_relationship_materialization"
-	SpanInheritanceMaterialization     = "reducer.inheritance_materialization"
-	SpanCrossRepoResolution            = "reducer.cross_repo_resolution"
-	SpanSharedAcceptanceLookup         = "shared_acceptance.lookup"
-	SpanSharedAcceptanceUpsert         = "shared_acceptance.upsert"
-	SpanQueryRelationshipEvidence      = "query.relationship_evidence"
-	SpanQueryDeadIaC                   = "query.dead_iac"
-	SpanQueryInfraResourceSearch       = "query.infra_resource_search"
-	SpanTerraformStateClaimProcess     = "tfstate.collector.claim.process"
-	SpanTerraformStateDiscoveryResolve = "tfstate.discovery.resolve"
-	SpanTerraformStateSourceOpen       = "tfstate.source.open"
-	SpanTerraformStateParserStream     = "tfstate.parser.stream"
-	SpanTerraformStateFactEmitBatch    = "tfstate.fact.emit_batch"
-	SpanTerraformStateCoordinatorDone  = "tfstate.coordinator.complete"
+	SpanEvidenceDiscovery                 = "ingestion.evidence_discovery"
+	SpanIaCReachabilityMaterialization    = "iac_reachability.materialize"
+	SpanSQLRelationshipMaterialization    = "reducer.sql_relationship_materialization"
+	SpanInheritanceMaterialization        = "reducer.inheritance_materialization"
+	SpanCrossRepoResolution               = "reducer.cross_repo_resolution"
+	SpanSharedAcceptanceLookup            = "shared_acceptance.lookup"
+	SpanSharedAcceptanceUpsert            = "shared_acceptance.upsert"
+	SpanQueryRelationshipEvidence         = "query.relationship_evidence"
+	SpanQueryDocumentationFindings        = "query.documentation_findings"
+	SpanQueryDocumentationEvidencePacket  = "query.documentation_evidence_packet"
+	SpanQueryDocumentationPacketFreshness = "query.documentation_packet_freshness"
+	SpanQueryDeadIaC                      = "query.dead_iac"
+	SpanQueryInfraResourceSearch          = "query.infra_resource_search"
+	SpanTerraformStateClaimProcess        = "tfstate.collector.claim.process"
+	SpanTerraformStateDiscoveryResolve    = "tfstate.discovery.resolve"
+	SpanTerraformStateSourceOpen          = "tfstate.source.open"
+	SpanTerraformStateParserStream        = "tfstate.parser.stream"
+	SpanTerraformStateFactEmitBatch       = "tfstate.fact.emit_batch"
+	SpanTerraformStateCoordinatorDone     = "tfstate.coordinator.complete"
 
 	// Dependency service spans — track external call performance.
 	SpanPostgresExec  = "postgres.exec"
@@ -141,6 +144,9 @@ var spanNames = []string{
 	SpanSharedAcceptanceLookup,
 	SpanSharedAcceptanceUpsert,
 	SpanQueryRelationshipEvidence,
+	SpanQueryDocumentationFindings,
+	SpanQueryDocumentationEvidencePacket,
+	SpanQueryDocumentationPacketFreshness,
 	SpanQueryDeadIaC,
 	SpanQueryInfraResourceSearch,
 	SpanTerraformStateClaimProcess,
