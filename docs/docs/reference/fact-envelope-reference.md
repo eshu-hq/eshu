@@ -60,6 +60,26 @@ The full envelope shape is defined by the core Go fact types in
 `go/internal/facts/`. Plugins serialize against the shared envelope; they do
 not invent their own envelope shape.
 
+## Core documentation fact families
+
+Documentation collectors use the shared envelope and emit source-neutral
+payloads with `schema_version: "1.0.0"`. The first core fact kinds are:
+
+| Fact kind | Purpose |
+| --- | --- |
+| `documentation_source` | A documentation source such as a Confluence space, Git Markdown repository, Notion workspace, or Backstage docs source. |
+| `documentation_document` | One document revision with source ID, document ID, external ID, revision ID, URI, labels, owners, ACL summary, and content hash. |
+| `documentation_section` | One bounded section within a document revision, including section identity, ordinal path, excerpt hash, and source refs. |
+| `documentation_link` | One outbound or internal link observed in a document section. |
+| `documentation_entity_mention` | One possible mention of an Eshu entity with exact, ambiguous, or unmatched resolution state. |
+| `documentation_claim_candidate` | One conservative, non-authoritative claim candidate found in documentation text. |
+
+Documentation facts are evidence about what documentation says. They do not
+override source-code truth, deployment truth, runtime truth, or canonical graph
+truth. Reducers and documentation drift findings may compare documentation
+evidence with graph truth, but documentation facts must not be treated as graph
+truth by themselves.
+
 ## Compatibility rules
 
 `schema_version` uses [semantic versioning](https://semver.org/). Runtime

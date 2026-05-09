@@ -149,6 +149,24 @@ func TestCollectorContractForWebhookIncludesAcceptedCanonicalKeyspaces(t *testin
 	}
 }
 
+func TestCollectorContractForDocumentationHasNoOperationalKeyspaces(t *testing.T) {
+	t.Parallel()
+
+	contract, ok := CollectorContractFor(scope.CollectorDocumentation)
+	if !ok {
+		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorDocumentation)
+	}
+	if contract.CollectorKind != scope.CollectorDocumentation {
+		t.Fatalf("CollectorKind = %q, want %q", contract.CollectorKind, scope.CollectorDocumentation)
+	}
+	if len(contract.CanonicalKeyspaces) != 0 {
+		t.Fatalf("CanonicalKeyspaces = %#v, want empty for schema-only documentation slice", contract.CanonicalKeyspaces)
+	}
+	if len(contract.RequiredPhases) != 0 {
+		t.Fatalf("RequiredPhases = %#v, want empty for schema-only documentation slice", contract.RequiredPhases)
+	}
+}
+
 func TestCollectorContractForReturnsClonedSlices(t *testing.T) {
 	t.Parallel()
 
