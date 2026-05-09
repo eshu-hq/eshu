@@ -88,3 +88,128 @@ func (h *CodeHandler) handleRelationships() {
 		t.Fatalf("full_name = %#v, want %#v", got, want)
 	}
 }
+
+func TestExtractCodeCallRowsResolvesGoConstructorAssignedLocalReceiver(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	callerPath := filepath.Join(repoRoot, "eval.go")
+	if err := os.WriteFile(callerPath, []byte(`package main
+
+type HTTPHarness struct{}
+
+func NewHTTPHarness() *HTTPHarness {
+	return &HTTPHarness{}
+}
+
+func (h *HTTPHarness) AddTestCases() {}
+
+func addDemoTestCases() {
+	harness := NewHTTPHarness()
+	harness.AddTestCases()
+}
+`), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v, want nil", callerPath, err)
+	}
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	payload, err := engine.ParsePath(repoRoot, callerPath, false, parser.Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%q) error = %v, want nil", callerPath, err)
+	}
+	for _, function := range payload["functions"].([]map[string]any) {
+		name, _ := function["name"].(string)
+		classContext, _ := function["class_context"].(string)
+		switch {
+		case name == "addDemoTestCases":
+			function["uid"] = "content-entity:add-demo-test-cases"
+		case name == "AddTestCases" && classContext == "HTTPHarness":
+			function["uid"] = "content-entity:add-test-cases"
+		case name == "NewHTTPHarness":
+			function["uid"] = "content-entity:new-http-harness"
+		}
+	}
+
+	envelopes := []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload: map[string]any{
+				"repo_id": "repo-go",
+			},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":          "repo-go",
+				"relative_path":    "eval.go",
+				"parsed_file_data": payload,
+			},
+		},
+	}
+
+	_, rows := ExtractCodeCallRows(envelopes)
+	assertCodeCallRow(t, rows, "content-entity:add-demo-test-cases", "content-entity:add-test-cases")
+}
+
+func TestExtractCodeCallRowsResolvesGoTypedParameterReceiver(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	callerPath := filepath.Join(repoRoot, "eval.go")
+	if err := os.WriteFile(callerPath, []byte(`package main
+
+type HTTPHarness struct{}
+
+func (h *HTTPHarness) AddTestCases() {}
+
+func addDemoTestCases(harness *HTTPHarness) {
+	harness.AddTestCases()
+}
+`), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v, want nil", callerPath, err)
+	}
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	payload, err := engine.ParsePath(repoRoot, callerPath, false, parser.Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%q) error = %v, want nil", callerPath, err)
+	}
+	for _, function := range payload["functions"].([]map[string]any) {
+		name, _ := function["name"].(string)
+		classContext, _ := function["class_context"].(string)
+		switch {
+		case name == "addDemoTestCases":
+			function["uid"] = "content-entity:add-demo-test-cases"
+		case name == "AddTestCases" && classContext == "HTTPHarness":
+			function["uid"] = "content-entity:add-test-cases"
+		}
+	}
+
+	envelopes := []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload: map[string]any{
+				"repo_id": "repo-go",
+			},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":          "repo-go",
+				"relative_path":    "eval.go",
+				"parsed_file_data": payload,
+			},
+		},
+	}
+
+	_, rows := ExtractCodeCallRows(envelopes)
+	assertCodeCallRow(t, rows, "content-entity:add-demo-test-cases", "content-entity:add-test-cases")
+}

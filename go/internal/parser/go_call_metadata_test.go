@@ -61,3 +61,78 @@ func (h *CodeHandler) handleRelationships() {
 		t.Fatalf("class_context = %#v, want omitted for import-qualified call", importCall["class_context"])
 	}
 }
+
+func TestDefaultEngineParsePathGoInfersLocalReceiverFromConstructorReturn(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "eval.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package main
+
+type HTTPHarness struct{}
+
+func NewHTTPHarness() *HTTPHarness {
+	return &HTTPHarness{}
+}
+
+func (h *HTTPHarness) AddTestCases() {}
+
+func addDemoTestCases() {
+	harness := NewHTTPHarness()
+	harness.AddTestCases()
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	call := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "harness.AddTestCases")
+	assertStringFieldValue(t, call, "receiver_identifier", "harness")
+	assertStringFieldValue(t, call, "inferred_obj_type", "HTTPHarness")
+}
+
+func TestDefaultEngineParsePathGoInfersReceiverFromTypedParameter(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "eval.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package main
+
+type HTTPHarness struct{}
+
+func (h *HTTPHarness) AddTestCases() {}
+
+func addDemoTestCases(harness *HTTPHarness) {
+	harness.AddTestCases()
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	call := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "harness.AddTestCases")
+	assertStringFieldValue(t, call, "receiver_identifier", "harness")
+	assertStringFieldValue(t, call, "inferred_obj_type", "HTTPHarness")
+}
