@@ -38,6 +38,8 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   claims: it resolves exact candidates, opens a matching source, parses facts
   with the claim fencing token, and leaves SDK-specific cloud wiring behind the
   existing read-only source interfaces.
+- `cmd/collector-terraform-state` supplies the current AWS SDK adapter for
+  read-only S3 access in the claim-driven runtime.
 
 ## Safety Rules
 
@@ -58,7 +60,6 @@ AWS SDK wiring belong to integration slices outside the reader stack.
 
 ## Next Slices
 
-- AWS SDK adapter for `S3ObjectClient`.
 - DynamoDB lock metadata read-only adapter.
 - Bounded parser memory fixture for large state files.
 - Source open, parser stream, and fact batch emission telemetry.

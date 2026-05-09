@@ -1,14 +1,12 @@
 package coordinator
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -77,9 +75,9 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	instances, err := parseCollectorInstances(getenv("ESHU_COLLECTOR_INSTANCES_JSON"))
+	instances, err := workflow.ParseDesiredCollectorInstancesJSON(getenv("ESHU_COLLECTOR_INSTANCES_JSON"))
 	if err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("parse ESHU_COLLECTOR_INSTANCES_JSON: %w", err)
 	}
 
 	cfg := Config{
@@ -175,48 +173,6 @@ func (c Config) withDefaults() Config {
 		c.ExpiredClaimRequeueDelay = workflow.DefaultExpiredClaimRequeueDelay()
 	}
 	return c
-}
-
-type collectorInstanceConfig struct {
-	InstanceID    string          `json:"instance_id"`
-	CollectorKind string          `json:"collector_kind"`
-	Mode          string          `json:"mode"`
-	Enabled       bool            `json:"enabled"`
-	Bootstrap     bool            `json:"bootstrap"`
-	ClaimsEnabled bool            `json:"claims_enabled"`
-	DisplayName   string          `json:"display_name"`
-	Configuration json.RawMessage `json:"configuration"`
-}
-
-func parseCollectorInstances(raw string) ([]workflow.DesiredCollectorInstance, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return nil, nil
-	}
-
-	var decoded []collectorInstanceConfig
-	if err := json.Unmarshal([]byte(trimmed), &decoded); err != nil {
-		return nil, fmt.Errorf("parse ESHU_COLLECTOR_INSTANCES_JSON: %w", err)
-	}
-
-	instances := make([]workflow.DesiredCollectorInstance, 0, len(decoded))
-	for _, candidate := range decoded {
-		instance := workflow.DesiredCollectorInstance{
-			InstanceID:    strings.TrimSpace(candidate.InstanceID),
-			CollectorKind: scope.CollectorKind(strings.TrimSpace(candidate.CollectorKind)),
-			Mode:          workflow.CollectorMode(strings.TrimSpace(candidate.Mode)),
-			Enabled:       candidate.Enabled,
-			Bootstrap:     candidate.Bootstrap,
-			ClaimsEnabled: candidate.ClaimsEnabled,
-			DisplayName:   strings.TrimSpace(candidate.DisplayName),
-			Configuration: string(candidate.Configuration),
-		}
-		if strings.TrimSpace(instance.Configuration) == "" {
-			instance.Configuration = "{}"
-		}
-		instances = append(instances, instance)
-	}
-	return instances, nil
 }
 
 func envInt(getenv func(string) string, key string, fallback int) (int, error) {

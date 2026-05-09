@@ -159,7 +159,9 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		}
 		return err
 	}
-	if err := s.Committer.CommitScopeGeneration(ctx, collected.Scope, collected.Generation, collected.Facts); err != nil {
+	commitMutation := mutation
+	commitMutation.ObservedAt = s.now()
+	if err := s.commitCollected(ctx, commitMutation, collected); err != nil {
 		return s.failRetryable(ctx, mutation, "commit_failure", err)
 	}
 	stopHeartbeat()
@@ -170,6 +172,23 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		return fmt.Errorf("complete claimed %s work item: %w", s.claimedKindLabel(), err)
 	}
 	return nil
+}
+
+func (s ClaimedService) commitCollected(
+	ctx context.Context,
+	mutation workflow.ClaimMutation,
+	collected CollectedGeneration,
+) error {
+	if committer, ok := s.Committer.(ClaimedCommitter); ok {
+		return committer.CommitClaimedScopeGeneration(
+			ctx,
+			mutation,
+			collected.Scope,
+			collected.Generation,
+			collected.Facts,
+		)
+	}
+	return s.Committer.CommitScopeGeneration(ctx, collected.Scope, collected.Generation, collected.Facts)
 }
 
 func (s ClaimedService) claimMutation(item workflow.WorkItem, claim workflow.Claim) workflow.ClaimMutation {

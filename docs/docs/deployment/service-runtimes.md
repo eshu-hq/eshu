@@ -108,8 +108,8 @@ overlay.
 
 ## Local Verification Runtimes
 
-The repo also has three local verification runtimes that exercise the Go data
-plane directly.
+The repo also has local verification runtimes that exercise the Go data plane
+directly.
 
 They are not yet separate deployed Kubernetes workloads in the public chart.
 Only the long-running hosted variants that mount `go/internal/runtime` expose
@@ -117,12 +117,20 @@ the shared `/healthz`, `/readyz`, optional `/metrics`, and optional
 `/admin/status` contract:
 
 - `collector-git`: `go run ./cmd/collector-git`
+- `collector-terraform-state`: `go run ./cmd/collector-terraform-state`
 - `projector`: `go run ./cmd/projector`
 - `reducer`: `go run ./cmd/reducer`
 
 `collector-git` owns cycle orchestration, source-mode repository selection,
 repo sync, durable fact commit, per-repo snapshot collection, content shaping,
 the optional SCIP collector path, and the shared admin surface in Go.
+
+`collector-terraform-state` is claim-driven. It selects one enabled
+`terraform_state` collector instance from `ESHU_COLLECTOR_INSTANCES_JSON`, claims
+workflow work for that instance, opens exact local or S3 state sources, and
+commits redacted Terraform-state facts through the shared ingestion boundary.
+The workflow coordinator remains the control plane; it does not parse state or
+run collectors.
 
 ## Admin Contract
 

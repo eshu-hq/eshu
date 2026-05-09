@@ -70,6 +70,49 @@ func TestClaimedServiceClaimsHeartbeatsCommitsAndCompletes(t *testing.T) {
 	}
 }
 
+func TestClaimedServiceUsesFenceAwareCommitterWhenAvailable(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.May, 10, 10, 0, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		heartbeat: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
+	}
+	committer := &stubClaimedCommitter{}
+	service := ClaimedService{
+		ControlStore:        store,
+		Source:              &stubClaimedSource{collected: FactsFromSlice(testScope(), testGeneration(now), testFacts(now)), ok: true},
+		Committer:           committer,
+		CollectorKind:       scope.CollectorGit,
+		CollectorInstanceID: "collector-git-primary",
+		OwnerID:             "collector-owner-1",
+		ClaimIDFunc:         func() string { return claim.ClaimID },
+		PollInterval:        time.Millisecond,
+		ClaimLeaseTTL:       time.Minute,
+		HeartbeatInterval:   time.Millisecond,
+		Clock:               func() time.Time { return now },
+	}
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got, want := committer.claimedCalls, 1; got != want {
+		t.Fatalf("claimed commit calls = %d, want %d", got, want)
+	}
+	if got := committer.lastClaimMutation; got.WorkItemID != item.WorkItemID || got.ClaimID != claim.ClaimID || got.FencingToken != claim.FencingToken {
+		t.Fatalf("claimed commit mutation = %#v, want item/claim/fence from claim", got)
+	}
+}
+
 func TestClaimedServiceReleasesWhenClaimHasNoGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -458,6 +501,38 @@ type stubClaimedSource struct {
 
 func (s *stubClaimedSource) NextClaimed(context.Context, workflow.WorkItem) (CollectedGeneration, bool, error) {
 	return s.collected, s.ok, s.err
+}
+
+type stubClaimedCommitter struct {
+	claimedCalls      int
+	lastClaimMutation workflow.ClaimMutation
+	claimedCommit     func(context.Context, workflow.ClaimMutation, scope.IngestionScope, scope.ScopeGeneration, <-chan facts.Envelope) error
+}
+
+func (s *stubClaimedCommitter) CommitScopeGeneration(
+	context.Context,
+	scope.IngestionScope,
+	scope.ScopeGeneration,
+	<-chan facts.Envelope,
+) error {
+	return errors.New("generic commit should not be used")
+}
+
+func (s *stubClaimedCommitter) CommitClaimedScopeGeneration(
+	ctx context.Context,
+	mutation workflow.ClaimMutation,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	factStream <-chan facts.Envelope,
+) error {
+	s.claimedCalls++
+	s.lastClaimMutation = mutation
+	if s.claimedCommit != nil {
+		return s.claimedCommit(ctx, mutation, scopeValue, generation, factStream)
+	}
+	for range factStream {
+	}
+	return nil
 }
 
 func claimedHistogramCount(t *testing.T, rm metricdata.ResourceMetrics, metricName string) uint64 {

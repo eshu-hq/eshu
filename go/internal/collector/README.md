@@ -110,6 +110,9 @@ it.
   `Instruments`, `Logger`
 - `Source` — interface: `Next(context.Context) (CollectedGeneration, bool, error)`
 - `Committer` — interface: `CommitScopeGeneration(ctx, scope, generation, <-chan facts.Envelope) error`
+- `ClaimedCommitter` — optional fence-aware commit interface used by
+  `ClaimedService` so claim ownership can be verified in the same transaction
+  that persists facts
 - `CollectedGeneration` — `Scope`, `Generation`, `Facts` channel, `FactCount`,
   optional `DiscoveryAdvisory`
 - `GitSource` — implements `Source`; fields include `Selector`,
