@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // PostgresCloudAssetResolutionWriter persists one cloud-asset reducer
@@ -39,6 +41,8 @@ func (w PostgresCloudAssetResolutionWriter) WriteCloudAssetResolution(
 		write.GenerationID,
 		"reducer_cloud_asset_resolution",
 		cloudAssetResolutionStableFactKey(write),
+		reducerFactCollectorKind(write.SourceSystem),
+		facts.SourceConfidenceInferred,
 		write.SourceSystem,
 		write.IntentID,
 		nil,
