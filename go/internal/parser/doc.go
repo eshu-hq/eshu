@@ -39,6 +39,7 @@
 // Java pre-scan includes records in the same source-name map as classes and
 // methods. The package also emits Go embedded SQL metadata through the Go
 // helper subpackage, Groovy/Jenkins delivery metadata through the Groovy helper
+// subpackage, Dockerfile runtime metadata through the Dockerfile helper
 // subpackage, returned function-value references, static re-export metadata,
 // composite-literal type references, Helm/YAML metadata extraction, and SCIP
 // support for index-derived facts.

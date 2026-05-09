@@ -35,6 +35,7 @@ go/internal/parser/
   java/
   javascript/
   python/
+  dockerfile/
   shared/
   sql/
   go/

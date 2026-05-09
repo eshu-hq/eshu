@@ -160,6 +160,11 @@ subpackage. The parent parser keeps the file read, payload assembly,
 pre-scan names, and `ExtractGroovyPipelineMetadata` compatibility wrapper used
 by query and relationship code.
 
+Dockerfile runtime metadata extraction lives in the Dockerfile helper
+subpackage. The parent parser keeps file I/O, registry dispatch, and the
+`ExtractDockerfileRuntimeMetadata` compatibility wrapper used by query and
+relationship code.
+
 **SCIP path**: when SCIP_INDEXER=true, the collector snapshotter detects the
 dominant SCIP-capable language via `DetectSCIPProjectLanguage`, runs the
 external `scip-*` binary via `SCIPIndexer.Run`, and parses the resulting
@@ -276,6 +281,8 @@ SCIP is opt-in via SCIP_INDEXER=true. The allowed language list defaults to
   assembly
 - `internal/parser/groovy` — Jenkins/Groovy delivery metadata before parent
   payload assembly
+- `internal/parser/dockerfile` — Dockerfile stage and runtime metadata before
+  parent payload assembly
 - `internal/terraformschema` — provider schema assets consumed by the HCL adapter
 - Standard library only for non-tree-sitter adapters
 
