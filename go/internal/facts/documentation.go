@@ -30,15 +30,6 @@ const (
 	DocumentationClaimAuthorityDocumentEvidence = "document_evidence"
 )
 
-const (
-	// SourceConfidenceObserved marks facts read directly from a source artifact or API.
-	SourceConfidenceObserved = "observed"
-	// SourceConfidenceReported marks facts reported by an external system.
-	SourceConfidenceReported = "reported"
-	// SourceConfidenceInferred marks facts inferred from other evidence.
-	SourceConfidenceInferred = "inferred"
-)
-
 // DocumentationOwnerRef identifies an owner reference reported by a documentation source.
 type DocumentationOwnerRef struct {
 	Kind        string `json:"kind"`
@@ -69,37 +60,37 @@ type DocumentationEvidenceRef struct {
 
 // DocumentationSourcePayload describes a documentation source such as Confluence or Git Markdown.
 type DocumentationSourcePayload struct {
-	SourceID       string                  `json:"source_id"`
-	SourceSystem   string                  `json:"source_system"`
-	ExternalID     string                  `json:"external_id"`
-	DisplayName    string                  `json:"display_name,omitempty"`
-	BaseURI        string                  `json:"base_uri,omitempty"`
-	SourceType     string                  `json:"source_type,omitempty"`
-	Labels         []string                `json:"labels,omitempty"`
-	OwnerRefs      []DocumentationOwnerRef `json:"owner_refs,omitempty"`
-	ACLSummary     DocumentationACLSummary `json:"acl_summary,omitempty"`
-	SourceMetadata map[string]string       `json:"source_metadata,omitempty"`
+	SourceID       string                   `json:"source_id"`
+	SourceSystem   string                   `json:"source_system"`
+	ExternalID     string                   `json:"external_id"`
+	DisplayName    string                   `json:"display_name,omitempty"`
+	BaseURI        string                   `json:"base_uri,omitempty"`
+	SourceType     string                   `json:"source_type,omitempty"`
+	Labels         []string                 `json:"labels,omitempty"`
+	OwnerRefs      []DocumentationOwnerRef  `json:"owner_refs,omitempty"`
+	ACLSummary     *DocumentationACLSummary `json:"acl_summary,omitempty"`
+	SourceMetadata map[string]string        `json:"source_metadata,omitempty"`
 }
 
 // DocumentationDocumentPayload describes one source-neutral documentation document revision.
 type DocumentationDocumentPayload struct {
-	SourceID          string                  `json:"source_id"`
-	DocumentID        string                  `json:"document_id"`
-	ExternalID        string                  `json:"external_id"`
-	RevisionID        string                  `json:"revision_id"`
-	CanonicalURI      string                  `json:"canonical_uri,omitempty"`
-	Title             string                  `json:"title,omitempty"`
-	ParentDocumentID  string                  `json:"parent_document_id,omitempty"`
-	DocumentType      string                  `json:"document_type,omitempty"`
-	Format            string                  `json:"format,omitempty"`
-	Language          string                  `json:"language,omitempty"`
-	Labels            []string                `json:"labels,omitempty"`
-	OwnerRefs         []DocumentationOwnerRef `json:"owner_refs,omitempty"`
-	ACLSummary        DocumentationACLSummary `json:"acl_summary,omitempty"`
-	SourceMetadata    map[string]string       `json:"source_metadata,omitempty"`
-	ContentHash       string                  `json:"content_hash,omitempty"`
-	DocumentCreatedAt string                  `json:"document_created_at,omitempty"`
-	DocumentUpdatedAt string                  `json:"document_updated_at,omitempty"`
+	SourceID          string                   `json:"source_id"`
+	DocumentID        string                   `json:"document_id"`
+	ExternalID        string                   `json:"external_id"`
+	RevisionID        string                   `json:"revision_id"`
+	CanonicalURI      string                   `json:"canonical_uri,omitempty"`
+	Title             string                   `json:"title,omitempty"`
+	ParentDocumentID  string                   `json:"parent_document_id,omitempty"`
+	DocumentType      string                   `json:"document_type,omitempty"`
+	Format            string                   `json:"format,omitempty"`
+	Language          string                   `json:"language,omitempty"`
+	Labels            []string                 `json:"labels,omitempty"`
+	OwnerRefs         []DocumentationOwnerRef  `json:"owner_refs,omitempty"`
+	ACLSummary        *DocumentationACLSummary `json:"acl_summary,omitempty"`
+	SourceMetadata    map[string]string        `json:"source_metadata,omitempty"`
+	ContentHash       string                   `json:"content_hash,omitempty"`
+	DocumentCreatedAt string                   `json:"document_created_at,omitempty"`
+	DocumentUpdatedAt string                   `json:"document_updated_at,omitempty"`
 }
 
 // DocumentationSectionPayload describes one bounded section in a document revision.
@@ -191,6 +182,17 @@ func DocumentationSectionStableID(payload DocumentationSectionPayload) string {
 		"ordinal_path":   payload.OrdinalPath,
 		"text_hash":      payload.TextHash,
 		"excerpt_hash":   payload.ExcerptHash,
+	})
+}
+
+// DocumentationLinkStableID returns a stable ID for one documentation link.
+func DocumentationLinkStableID(payload DocumentationLinkPayload) string {
+	return StableID(DocumentationLinkFactKind, map[string]any{
+		"document_id": payload.DocumentID,
+		"revision_id": payload.RevisionID,
+		"section_id":  payload.SectionID,
+		"link_id":     payload.LinkID,
+		"target_uri":  payload.TargetURI,
 	})
 }
 

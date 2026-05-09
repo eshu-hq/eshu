@@ -29,7 +29,7 @@ func TestFactStoreUpsertFactsPersistsDocumentationDocument(t *testing.T) {
 		OwnerRefs: []facts.DocumentationOwnerRef{
 			{Kind: "group", ID: "team:payments", DisplayName: "Payments"},
 		},
-		ACLSummary: facts.DocumentationACLSummary{
+		ACLSummary: &facts.DocumentationACLSummary{
 			Visibility:   "restricted",
 			ReaderGroups: []string{"platform"},
 		},

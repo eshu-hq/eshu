@@ -1,6 +1,10 @@
 package facts
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestDocumentationDocumentPayloadIsSourceNeutral(t *testing.T) {
 	t.Parallel()
@@ -24,7 +28,7 @@ func TestDocumentationDocumentPayloadIsSourceNeutral(t *testing.T) {
 				Language:          "en",
 				Labels:            []string{"payments", "deployment"},
 				OwnerRefs:         []DocumentationOwnerRef{{Kind: "group", ID: "team:payments", DisplayName: "Payments"}},
-				ACLSummary:        DocumentationACLSummary{Visibility: "restricted", ReaderGroups: []string{"platform"}},
+				ACLSummary:        &DocumentationACLSummary{Visibility: "restricted", ReaderGroups: []string{"platform"}},
 				SourceMetadata:    map[string]string{"space_key": "PLAT"},
 				ContentHash:       "sha256:document-content",
 				DocumentUpdatedAt: "2026-05-09T12:00:00Z",
@@ -45,7 +49,7 @@ func TestDocumentationDocumentPayloadIsSourceNeutral(t *testing.T) {
 				Language:          "en",
 				Labels:            []string{"payments", "deployment"},
 				OwnerRefs:         []DocumentationOwnerRef{{Kind: "group", ID: "team:payments", DisplayName: "Payments"}},
-				ACLSummary:        DocumentationACLSummary{Visibility: "repository", ReaderGroups: []string{"platform"}},
+				ACLSummary:        &DocumentationACLSummary{Visibility: "repository", ReaderGroups: []string{"platform"}},
 				SourceMetadata:    map[string]string{"path": "docs/payment.md"},
 				ContentHash:       "sha256:document-content",
 				DocumentUpdatedAt: "2026-05-09T12:00:00Z",
@@ -74,6 +78,25 @@ func TestDocumentationDocumentPayloadIsSourceNeutral(t *testing.T) {
 				t.Fatalf("OwnerRefs len = %d, want 1", len(tt.payload.OwnerRefs))
 			}
 		})
+	}
+}
+
+func TestDocumentationDocumentPayloadOmitMissingACLSummary(t *testing.T) {
+	t.Parallel()
+
+	payload := DocumentationDocumentPayload{
+		SourceID:   "doc-source:git:platform-docs",
+		DocumentID: "doc:git:platform-docs:docs/payment.md",
+		ExternalID: "docs/payment.md",
+		RevisionID: "7f5a1dd",
+	}
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v, want nil", err)
+	}
+	if strings.Contains(string(encoded), "acl_summary") {
+		t.Fatalf("payload JSON = %s, want missing acl_summary when ACL was not collected", encoded)
 	}
 }
 
@@ -115,6 +138,36 @@ func TestDocumentationSectionStableIDIgnoresMutableTitle(t *testing.T) {
 	}
 	if first != second {
 		t.Fatalf("stable ID changed after heading edit: first=%q second=%q", first, second)
+	}
+}
+
+func TestDocumentationLinkStableIDUsesDurableIdentity(t *testing.T) {
+	t.Parallel()
+
+	first := DocumentationLinkStableID(DocumentationLinkPayload{
+		DocumentID:     "doc:confluence:12345",
+		RevisionID:     "17",
+		SectionID:      "section:deployment",
+		LinkID:         "link:deployment-chart",
+		TargetURI:      "https://github.com/example/platform-deployments/payment.yaml",
+		TargetKind:     "git_file",
+		AnchorTextHash: "sha256:deployment-link-text",
+	})
+	second := DocumentationLinkStableID(DocumentationLinkPayload{
+		DocumentID:     "doc:confluence:12345",
+		RevisionID:     "17",
+		SectionID:      "section:deployment",
+		LinkID:         "link:deployment-chart",
+		TargetURI:      "https://github.com/example/platform-deployments/payment.yaml",
+		TargetKind:     "source_file",
+		AnchorTextHash: "sha256:renamed-link-text",
+	})
+
+	if first == "" {
+		t.Fatal("DocumentationLinkStableID returned empty ID")
+	}
+	if first != second {
+		t.Fatalf("stable ID changed after link display metadata edit: first=%q second=%q", first, second)
 	}
 }
 
