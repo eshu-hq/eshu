@@ -28,6 +28,9 @@ func resourceAddress(resource resourceContext, instance instanceContext, instanc
 	if module := strings.TrimSpace(resource.Module); module != "" {
 		prefix = module + "."
 	}
+	if strings.TrimSpace(resource.Mode) == "data" {
+		prefix += "data."
+	}
 	address := prefix + strings.TrimSpace(resource.Type) + "." + strings.TrimSpace(resource.Name)
 	if instance.HasIndexKey {
 		return fmt.Sprintf("%s[key:%s]", address, instance.IndexKeyHash)
@@ -39,8 +42,10 @@ func resourceAddress(resource resourceContext, instance instanceContext, instanc
 }
 
 func validateResourceIdentity(resource resourceContext) error {
-	if strings.TrimSpace(resource.Mode) == "" {
-		return fmt.Errorf("terraform state resource mode must not be blank")
+	switch strings.TrimSpace(resource.Mode) {
+	case "managed", "data":
+	default:
+		return fmt.Errorf("terraform state resource mode must be managed or data")
 	}
 	if strings.TrimSpace(resource.Type) == "" {
 		return fmt.Errorf("terraform state resource type must not be blank")

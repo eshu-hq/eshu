@@ -201,7 +201,16 @@ func (p *stateParser) emitOutput(name string, output outputPayload) {
 	}
 	source := "outputs." + name
 	if output.Sensitive {
-		payload["value"] = redactionMap(redact.Scalar(output.Value, "sensitive_output", source, p.options.RedactionKey))
+		if output.HasScalar {
+			payload["value"] = redactionMap(redact.Scalar(output.Value, "sensitive_output", source, p.options.RedactionKey))
+		} else if output.HasValue {
+			payload["value_shape"] = "composite"
+			p.warnings = append(p.warnings, warningPayload{
+				WarningKind: "output_value_dropped",
+				Reason:      "sensitive_composite_output",
+				Source:      source,
+			})
+		}
 	} else if output.HasScalar {
 		payload["value"] = output.Value
 	} else if output.HasValue {
