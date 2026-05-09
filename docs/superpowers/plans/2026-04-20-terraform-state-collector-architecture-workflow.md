@@ -5,11 +5,11 @@
 **Authors:** eshu-platform
 **Reviewers required:** Principal engineer, Principal SRE, Security
 **Gate:** `eshu-hq/eshu#49`
-**Blocked implementation issues:** #29, #47, #46, #45, #44, #43
+**Blocked implementation issues:** #47, #46, #45, #44, #43
 
 **Related docs:** `docs/docs/adrs/2026-04-20-terraform-state-collector.md`, `docs/docs/guides/collector-authoring.md`, `docs/docs/adrs/2026-04-20-workflow-coordinator-and-multi-collector-runtime-contract.md`, `docs/docs/adrs/2026-04-20-workflow-coordinator-claiming-fencing-and-convergence.md`, `docs/docs/adrs/2026-04-20-multi-source-reducer-and-consumer-contract.md`
 
-This plan is the issue #49 readiness artifact. It must close before any Terraform-state implementation issue merges. Older ADR text may still mention legacy gate and workstream issue IDs; for this branch, #49 and #47 through #43 are authoritative.
+This plan is the issue #49 readiness artifact. It must close before any Terraform-state implementation issue merges. Older ADR text may still mention legacy gate, workstream issue IDs, or content-store-backed local state; for this branch, #49 and #47 through #43 are authoritative, and explicit local state streams supersede content-store-backed raw `.tfstate`. #29 is no longer listed as blocked because its shared redaction package is already on `main`.
 
 Numeric values below are launch defaults. Review sign-off means the reviewer accepts the value, or records a replacement before #49 closes.
 
@@ -38,8 +38,9 @@ Non-negotiable launch constraints:
 ### 1.0 Pre-implementation gaps found in the current tree
 
 This plan depends on several seams that are documented but not fully complete
-in the current code. This branch starts closing #47 and #29, but these remain
-gate concerns until review accepts the contracts:
+in the current code. Current `main` has the shared redaction package from #29;
+#47 contract completion is tracked in PR #81 and remains a gate concern until
+review accepts the contract:
 
 - The Go fact envelope and `fact_records` table now carry `schema_version`,
   `collector_kind`, `fencing_token`, and `source_confidence`. #47 still needs
@@ -48,8 +49,8 @@ gate concerns until review accepts the contracts:
   not mechanically fenced. #47/#45 must add transaction-time stale-fence
   rejection or a coordinator-validity check inside fact commit before #46 can
   rely on stale emit rejection.
-- `go/internal/redact` now exists with keyed deterministic scalar redaction.
-  #46 must use it before any Terraform-state value crosses persistence.
+- `go/internal/redact` exists with keyed deterministic scalar redaction. #46
+  must use it before any Terraform-state value crosses persistence.
 - The Terraform parser does not yet emit backend facts for
   `terraform { backend ... }` blocks. #45 must add graph-backed discovery
   inputs before graph-backed state discovery can be the normal path.
@@ -66,7 +67,7 @@ gate concerns until review accepts the contracts:
 | --- | --- |
 | Collector family | `terraform_state` |
 | Runtime identity | `collector-terraform-state` |
-| Source truth | Terraform state payload from local repo content or exact S3 object |
+| Source truth | Terraform state payload from an exact local source or exact S3 object |
 | Scope | `state_snapshot` keyed by `(backend_kind, locator_hash)` |
 | Generation | Terraform state `serial`, scoped by `lineage_uuid` |
 | Fact path | collector -> fact queue -> reducer/tfstate -> DSL |
@@ -75,7 +76,8 @@ gate concerns until review accepts the contracts:
 
 Launch backends:
 
-- `local`: reads repo-local `terraform.tfstate` from the Postgres content store after Git collector completion; emits `state_in_vcs`.
+- `local`: reads an exact operator-approved local state stream only; broad Git
+  discovery and content-store persistence of raw `.tfstate` stay disabled.
 - `s3`: uses `GetObject` or `GetObjectVersion` on an exact bucket/key and optional DynamoDB `GetItem`/`Query` for lock metadata.
 - `terragrunt`: resolves `remote_state` into `local` or `s3`; resolver shim only, not a persisted backend kind.
 
@@ -89,7 +91,7 @@ Discovery order:
 
 Discovery guards:
 
-- Graph-backed discovery waits for Git `canonical_nodes_committed` and related required phases for the bounded Git generation.
+- Graph-backed discovery waits for Git `canonical_nodes_committed` and may produce S3 or Terragrunt candidates; local `.tfstate` candidates require explicit operator-approved configured sources.
 - Seeds must name an exact local path or exact S3 bucket/key. Prefix-only seeds are rejected.
 - `ListBucket`, when configured, is scoped only to configured keys or prefixes required by known locators, and is not used to discover unknown state objects.
 - Candidate locators are deduplicated by canonical locator hash before claims are opened.
@@ -132,8 +134,7 @@ sequenceDiagram
         TF->>PG: enqueue redacted fact batches, fence=N
       end
     else backend is local
-      TF->>PG: open exact repo content stream
-      PG-->>TF: streaming body
+      TF->>TF: open exact configured local state stream
       TF->>TF: stream parse -> redact -> state_in_vcs warning
       TF->>PG: enqueue redacted fact batches, fence=N
     else backend is terragrunt
@@ -192,7 +193,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-  A["Exact locator<br/>Git evidence or seed"] --> B["StateSource.Open<br/>S3/local stream"]
+  A["Exact locator<br/>S3/Terragrunt Git evidence or explicit seed"] --> B["StateSource.Open<br/>S3 or explicit local stream"]
   B --> C["Streaming JSON parser<br/>bounded token window"]
   C --> D["Redaction before persistence<br/>outputs, keys, unknown schema"]
   D --> E["Fact envelope<br/>scope, generation, lineage, fence"]
@@ -250,7 +251,7 @@ Per claim bounded stages: claim/open, parser, redaction/batch, emit, heartbeat. 
 
 ### 4.2 Locking and fencing
 
-Shared state: coordinator work item and claim rows, heartbeat row, fact queue rows, content-store rows read for local state, reducer phase state.
+Shared state: coordinator work item and claim rows, heartbeat row, fact queue rows, configured local source handles, reducer phase state.
 
 Rules:
 
@@ -387,7 +388,7 @@ Operator questions telemetry must answer:
 Required evidence before #49 closes:
 
 - [ ] S3 state with known AWS ARN emits `provider_resolved_arn`, `module_source_path`, and anchors.
-- [ ] Local state from content store emits `state_in_vcs` warning and redacted facts.
+- [ ] Local state from an exact configured source emits `state_in_vcs` warning and redacted facts.
 - [ ] Terragrunt include depth 3 resolves to exact S3 locator.
 - [ ] Terragrunt include depth 12 is rejected with warning.
 - [ ] Prefix-only S3 seed is rejected; no bucket crawl occurs.
