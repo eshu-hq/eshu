@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 func TestPostgresCloudAssetResolutionWriterPersistsCanonicalFact(t *testing.T) {
@@ -52,7 +54,7 @@ func TestPostgresCloudAssetResolutionWriterPersistsCanonicalFact(t *testing.T) {
 	if got, want := db.execs[0].args[5], "git"; got != want {
 		t.Fatalf("ExecContext collector_kind = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[6], "inferred"; got != want {
+	if got, want := db.execs[0].args[6], facts.SourceConfidenceInferred; got != want {
 		t.Fatalf("ExecContext source_confidence = %v, want %v", got, want)
 	}
 }
