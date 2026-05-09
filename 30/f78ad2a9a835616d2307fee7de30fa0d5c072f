@@ -1,0 +1,85 @@
+go/internal/query/content_reader_entity_test.go
+  s_bdaf44668b73dc::t_64a3bf63563ab7 1-229
+  s_bdaf44668b73dc::t_e0e11937115129 230-276
+go/internal/query/code_dead_code_scan.go
+  s_bdaf44668b73dc::t_a93e76fe5e2819 31,70-83,149-150
+go/internal/query/content_reader_entity_search.go
+  s_bdaf44668b73dc::t_15f58fd0c90ad0 1-121
+go/internal/query/doc.go
+  s_bdaf44668b73dc::t_4a805ccbd2a8a0 20-23
+  s_bdaf44668b73dc::t_bda523ef679b34 28-33
+go/internal/parser/java_dead_code_maturity_test.go
+  s_bdaf44668b73dc::t_8e98cae1c04eaf 1-4,6-207,220
+  s_bdaf44668b73dc::t_b78846facd59c0 5,208-219
+go/internal/query/content_reader_test.go
+  s_bdaf44668b73dc::t_08273a71e0ae2e 381-386,423-426
+go/internal/query/content_reader_framework_routes.go
+  s_bdaf44668b73dc::t_cfca5d312be753 1-190
+go/internal/query/content_reader_framework_routes_test.go
+  s_bdaf44668b73dc::t_fdb0a6d5d16531 1-127
+go/internal/query/code_call_graph_contract_test.go
+  s_bdaf44668b73dc::t_6c02fd720a8f38 49-70
+go/internal/query/code_dead_code_scan_test.go
+  s_bdaf44668b73dc::t_f4368d3fecc757 167-237,360-365,397-420
+  s_bdaf44668b73dc::t_5ecd03fab087b5 32,111-155,157-161,164,366-369,372,374-384,389-396
+  s_bdaf44668b73dc::t_6b222cb4d744b1 156,162-163,370-371,373,385-388
+go/internal/reducer/code_call_materialization_java_overload_test.go
+  s_bdaf44668b73dc::t_a903dc9a9115d4 1-69
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_183c8fb93db00a 68-79
+  s_bdaf44668b73dc::t_7bbee8dd2101ef 80-81
+  s_bdaf44668b73dc::t_664b70aa46b6ae 123-125
+go/internal/parser/java_metadata.go
+  s_bdaf44668b73dc::t_9c43e9433f7e09 1-161
+go/internal/query/README.md
+  s_bdaf44668b73dc::t_b2d8769d7d4ccf 61-63
+  s_bdaf44668b73dc::t_4b4208f8458692 77-78
+  s_bdaf44668b73dc::t_19c8174fc3fb27 79-84
+go/internal/parser/java_language.go
+  s_bdaf44668b73dc::t_40fb79f332e58f 41,45,67,106,121-127,130,306-308
+  s_bdaf44668b73dc::t_fe9dc22adbc73d 165
+go/internal/query/code_dead_code_java_roots_test.go
+  s_bdaf44668b73dc::t_19c2bdd2fd52ad 56-64,70-73
+go/internal/query/code_dead_code.go
+  s_bdaf44668b73dc::t_376dbf31e512ad 206-209,233-273
+go/internal/query/content_reader_entity.go
+  s_bdaf44668b73dc::t_afac32e7ad020e 1-127
+go/internal/query/content_reader_dead_code_candidates.go
+  s_bdaf44668b73dc::t_f539b9c712b547 1-119
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_7e905e15efe520 27-31
+  s_bdaf44668b73dc::t_b0afb3b983a8ab 22-25
+  s_bdaf44668b73dc::t_98c2f8eb42335f 26
+go/internal/query/code_dead_code_java_roots.go
+  s_bdaf44668b73dc::t_157125929edd34 23-26
+go/internal/parser/java_call_inference.go
+  s_bdaf44668b73dc::t_93e4b2b43364ff 153-158,192-196
+  s_bdaf44668b73dc::t_8dcd642e24da93 59-63,124-129,208,355-427
+  s_bdaf44668b73dc::t_79b52723181255 122
+go/internal/parser/java_dead_code_roots.go
+  s_bdaf44668b73dc::t_c28bc9103c83cf 11-16,32-37,50-52,72-103,186-195
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_a56a12003f6f89 10-13
+go/internal/reducer/code_call_materialization_arity.go
+  s_bdaf44668b73dc::t_f751b74fa77fa2 31-63,94-113
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_ff62f8ac280e8b 166-170
+go/internal/reducer/code_call_materialization_helpers.go
+  s_bdaf44668b73dc::t_de9c295cf7feb8 92-94,159-161,228-229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "30f78ad2a9a835616d2307fee7de30fa0d5c072f",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
