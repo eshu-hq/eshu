@@ -11,8 +11,9 @@
 // references, dataclass/property roots, dunder protocol roots, inheritance
 // base names, bounded __all__/__init__.py public API roots, bases, and members,
 // and local constructor or self receiver metadata without marking every
-// non-underscore Python symbol live, Jupyter notebook source extraction, CommonJS
-// module.exports alias and mixin roots, JSONC tsconfig comment/trailing-comma
+// non-underscore Python symbol live, Jupyter notebook source extraction through
+// the Python helper subpackage, CommonJS module.exports alias and mixin roots,
+// JSONC tsconfig comment/trailing-comma
 // baseUrl and paths metadata extracted through the JavaScript helper
 // subpackage, Hapi handler, plugin, and exported route-array reference roots
 // including direct, config, and options handlers, Next.js app and route

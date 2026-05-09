@@ -13,11 +13,13 @@
    for metadata evidence that does not need parent parser internals
 6. `go/internal/parser/javascript/README.md` — JavaScript-owned helper package
    boundary for tsconfig evidence that does not need parent parser internals
-7. `go/internal/parser/scip_support.go` — `SCIPIndexer`,
+7. `go/internal/parser/python/README.md` — Python-owned helper package boundary
+   for notebook source extraction that does not need parent parser internals
+8. `go/internal/parser/scip_support.go` — `SCIPIndexer`,
    `DetectSCIPProjectLanguage`, SCIP binary map
-8. `go/internal/parser/doc.go` — the package contract, especially the
+9. `go/internal/parser/doc.go` — the package contract, especially the
    determinism invariant
-9. `go/internal/telemetry/instruments.go` — `telemetry.FileParseDuration` before
+10. `go/internal/telemetry/instruments.go` — `telemetry.FileParseDuration` before
    adding parse-time metrics
 
 ## Invariants this package enforces
@@ -132,8 +134,8 @@
 
 - **Letting child parser packages import the parent parser package** — language
   helper packages such as `internal/parser/java` and
-  `internal/parser/javascript` exist to remove parent-package sprawl. Keep their
-  APIs typed and parent-independent.
+  `internal/parser/javascript` and `internal/parser/python` exist to remove
+  parent-package sprawl. Keep their APIs typed and parent-independent.
 
 - **Emitting new entity keys without updating shape.Materialize** — keys not
   consumed by `shape.Materialize` are silently discarded. The fixture tests will

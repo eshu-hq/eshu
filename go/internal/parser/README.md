@@ -148,9 +148,10 @@ pass. Java pre-scan includes records alongside classes, interfaces, annotations,
 enums, methods, and constructors so record helper methods participate in the
 same downstream name map as class methods.
 
-Python `.ipynb` files are converted to a temporary Python source view before
-tree-sitter parsing, then the temporary file is removed after parse. The
-notebook path shares the same payload contract as `.py` files.
+Python `.ipynb` files use the Python helper subpackage to extract executable
+code cells, then the parent parser writes that source view to a temporary
+Python file before tree-sitter parsing. The temporary file is removed after
+parse. The notebook path shares the same payload contract as `.py` files.
 
 **SCIP path**: when SCIP_INDEXER=true, the collector snapshotter detects the
 dominant SCIP-capable language via `DetectSCIPProjectLanguage`, runs the
@@ -262,6 +263,8 @@ SCIP is opt-in via SCIP_INDEXER=true. The allowed language list defaults to
   payload assembly
 - `internal/parser/javascript` — tsconfig import resolution and package.json
   root evidence used before parent payload annotation
+- `internal/parser/python` — notebook source extraction before parent
+  temporary-file parsing
 - `internal/terraformschema` — provider schema assets consumed by the HCL adapter
 - Standard library only for non-tree-sitter adapters
 
