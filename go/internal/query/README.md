@@ -78,7 +78,10 @@ Java `main`, constructor, `@Override`, Ant `Task` setter, Gradle plugin
 DSL, same-class method-reference target roots, Spring component and callback
 roots, Java lifecycle callbacks, JUnit test/lifecycle methods, Jenkins
 extension and symbol roots, Jenkins initializer/data-bound setter methods, and
-Stapler web methods.
+Stapler web methods. Java serialization hooks are suppressed from cleanup
+candidates when their signatures match JVM runtime contracts, and the analysis
+metadata now reports bounded Java reflection plus ServiceLoader and Spring
+auto-configuration references as modeled reachability evidence.
 Dead-code candidate paging uses `DeadCodeCandidateRows` in
 `content_reader_dead_code_candidates.go:13` when the content read model is
 available, avoiding graph-wide ordered scans on large repositories. Candidate
@@ -87,9 +90,10 @@ large repo scans merge parser metadata in one bounded content-store read per
 candidate page instead of one Postgres round trip per graph row.
 Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
-payload names those Python root kinds in `modeled_framework_roots` as well as
-counting how many suppressions came from parser metadata. That lets MCP and CLI
-callers explain why a candidate was suppressed. The graph query keeps the
+payload names modeled root kinds in `modeled_framework_roots`, reports whether
+reflection evidence is modeled, and counts how many suppressions came from
+parser metadata. That lets MCP and CLI callers explain why a candidate was
+suppressed. The graph query keeps the
 candidate read label-scoped and repo-anchored, then applies content-backed
 policy checks before checking completed reducer code-call and inheritance intent
 rows for incoming edges. Exact one-entity graph probes remain a fallback for

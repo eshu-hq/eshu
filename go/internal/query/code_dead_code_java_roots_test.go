@@ -148,6 +148,16 @@ func TestHandleDeadCodeExcludesJavaRootKindsFromMetadata(t *testing.T) {
 						"dead_code_root_kinds": []any{"java.stapler_web_method"},
 					},
 					{
+						"entity_id": "java-serialization-hook", "name": "readObject", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/SerializedState.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.serialization_hook_method"},
+					},
+					{
+						"entity_id": "java-externalizable-hook", "name": "readExternal", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/ExternalizedState.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.externalizable_hook_method"},
+					},
+					{
 						"entity_id": "java-helper", "name": "helper", "labels": []any{"Function"},
 						"file_path": "src/main/java/example/CLI.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
 					},

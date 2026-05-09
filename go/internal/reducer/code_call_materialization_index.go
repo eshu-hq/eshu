@@ -346,6 +346,9 @@ func extractGenericCodeCallRows(
 			callerID = resolveJavaScriptTopLevelReferenceCallerID(repositoryID, callerFilePath, edge)
 		}
 		if callerID == "" {
+			callerID = resolveJavaMetadataFileRootCallerID(repositoryID, callerFilePath, edge)
+		}
+		if callerID == "" {
 			callerID = resolveSameFileTopLevelCodeCallCallerID(
 				repositoryID,
 				callerFilePath,

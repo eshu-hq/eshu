@@ -182,6 +182,14 @@ syntax such as `this::configureTask` to same-class methods and materialize as
 callback without proving an immediate invocation.
 This keeps Java method reachability bounded to evidence from the parsed files
 instead of treating every method with the same name as live.
+Parser rows with `call_kind=java.reflection_class_reference` and
+`call_kind=java.reflection_method_reference` also materialize as `REFERENCES`
+when the parser saw literal class or method names in reflection calls. Dynamic
+reflection strings stay unmodeled. Java metadata files produce
+`call_kind=java.service_loader_provider` and
+`call_kind=java.spring_autoconfiguration_class` rows; the reducer uses the
+metadata file as the caller and the referenced provider or auto-configuration
+class as the callee.
 
 For Python, parser-provided `class_context`, `inferred_obj_type`, and
 `constructor_call` metadata keep method and constructor resolution bounded to
@@ -196,10 +204,11 @@ methods reachable.
 
 Parser metadata rows with `call_kind=go.composite_literal_type_reference`,
 `call_kind=typescript.type_reference`, `call_kind=python.class_reference`, or
-`call_kind=java.method_reference`
-materialize as deduplicated `REFERENCES` edges. They prove reference roots for
-dead-code classification, but must not materialize as `CALLS` because that
-would make graph truth claim that type or class references are invocations.
+`call_kind=java.method_reference`, plus Java literal-reflection,
+ServiceLoader, and Spring auto-configuration class references, materialize as
+deduplicated `REFERENCES` edges. They prove reference roots for dead-code
+classification, but must not materialize as `CALLS` because that would make
+graph truth claim that type or class references are invocations.
 
 `CodeCallMaterializationHandler` logs `code call materialization completed`
 with fact count, repository count, row counts, and timing for fact load,

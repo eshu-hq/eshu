@@ -12,6 +12,34 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Unit test suite: `go/internal/parser/engine_javascript_semantics_test.go`
 - Integration validation: compose-backed fixture verification (see `../reference/local-testing.md`)
 
+## Dead-code Support
+
+JavaScript dead-code support is `derived`. Eshu models package, module, and
+framework roots that can be proven from source or package metadata. It does not
+guess through runtime-built property names or dynamic `require()` targets.
+
+Supported roots and reachability evidence:
+
+- Node package roots: nearest owning `package.json` entrypoints, `bin` targets,
+  scripts, package exports, and CommonJS default or mixin-style exports.
+- Framework routes and callbacks: Next.js app/route exports, Express, Koa,
+  Fastify, NestJS, Hapi route handlers, Hapi plugin registration, Hapi AMQP
+  consumers, route-array handlers, and proxy callbacks.
+- Operational entrypoints: Node migration exports and seed-style execute
+  functions.
+- Reference evidence: returned function values, static relative re-exports,
+  Hapi handler references, and CommonJS property require aliases.
+- Receiver evidence: local constructor assignments such as
+  `const value = new Type()` when they prove a bounded same-repo method call.
+
+Checked Node/JavaScript fixtures live under `tests/fixtures/dead-code/node-typescript`
+and the JavaScript ecosystem fixtures. Focused coverage lives in
+`go/internal/parser/javascript_dead_code_node_roots_test.go`,
+`go/internal/parser/javascript_dead_code_hapi_alias_test.go`,
+`go/internal/parser/javascript_dead_code_commonjs_class_test.go`,
+`go/internal/query/code_dead_code_javascript_roots_test.go`, and
+`go/internal/query/code_dead_code_node_typescript_matrix_test.go`.
+
 ## Capability Checklist
 | Capability | ID | Status | Extracted Bucket/Key | Required Fields | Graph Surface | Unit Coverage | Integration Coverage | Rationale |
 |-----------|----|--------|------------------------|-----------------|---------------|---------------|----------------------|-----------|

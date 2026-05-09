@@ -12,6 +12,37 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Unit test suite: `go/internal/parser/engine_javascript_semantics_test.go`
 - Integration validation: compose-backed fixture verification (see `../reference/local-testing.md`)
 
+## Dead-code Support
+
+TypeScript JSX dead-code support is `derived`. TSX uses the shared
+JavaScript-family root policy, plus TSX component metadata that proves JSX
+component usage and component-wrapper surfaces. Runtime-built component names
+and framework behavior that is not represented in source or package metadata
+remain outside the model.
+
+Supported roots and reachability evidence:
+
+- React and Next.js component surfaces: PascalCase JSX usage, React component
+  wrappers, `React.FC`, `React.FunctionComponent`, `lazy(...)`, fragment
+  shorthand, and component type narrowing metadata.
+- JavaScript-family package roots: nearest owning `package.json` entrypoints,
+  exports, `bin` targets, scripts, and static re-export evidence.
+- TypeScript-family public surfaces: type aliases, namespaces, declaration
+  merging metadata, and typed component wrapper evidence when it is present on
+  the parser row.
+- Query evidence: persisted `Component`, `TypeAlias`, `Module`, and
+  graph-backed TSX `Function` rows keep their semantic metadata on
+  language-query, search, resolve, context, story, relationship, and dead-code
+  surfaces.
+
+Checked fixtures live in `tests/fixtures/ecosystems/tsx_comprehensive/`.
+Focused coverage lives in
+`go/internal/parser/javascript_dead_code_roots_test.go`,
+`go/internal/parser/engine_tsx_advanced_semantics_test.go`,
+`go/internal/parser/engine_tsx_component_wrapper_test.go`,
+`go/internal/query/code_dead_code_node_typescript_matrix_test.go`, and the
+TSX query/projection tests listed below.
+
 ## Capability Checklist
 | Capability | ID | Status | Extracted Bucket/Key | Required Fields | Graph Surface | Unit Coverage | Integration Coverage | Rationale |
 |-----------|----|--------|------------------------|-----------------|---------------|---------------|----------------------|-----------|

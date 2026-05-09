@@ -351,6 +351,7 @@ func appendJavaCall(
 		item["argument_types"] = argumentTypes
 	}
 	appendBucket(payload, "function_calls", item)
+	appendJavaReflectionReferences(payload, node, source)
 }
 
 func javaCallIsUnqualifiedMethodInvocation(node *tree_sitter.Node) bool {

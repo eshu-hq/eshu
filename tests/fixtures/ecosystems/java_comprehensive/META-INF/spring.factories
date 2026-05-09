@@ -1,0 +1,3 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+comprehensive.deadcode.LegacyAutoConfiguration,\
+comprehensive.deadcode.MoreAutoConfiguration

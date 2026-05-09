@@ -69,24 +69,33 @@ properties, Gradle task setters and task-interface methods, public Gradle DSL
 methods, and same-class method-reference targets as dead-code roots so query
 policy does not report JVM entrypoints, dispatch callbacks, or framework-injected
 task properties as cleanup candidates. Java method and constructor metadata
-captures parameter counts and parameter types. Java call metadata captures
-method references such as `this::configureTask`, argument counts, and bounded
-argument types from parameters, fields, inline constructors, and class-literal
-typed lambdas, so the reducer can distinguish overloaded methods when local
-receiver evidence points at a type. Receiver inference builds a local index of
-parameters, variables, enhanced-for loop variables, fields, and typed lambda
-parameters and same-class method return types for each parsed file before call
-extraction, so large classes do not repeat a full tree walk for every method
-invocation. Method-call arguments such as helper calls can then carry bounded
-return-type metadata when resolving overloads. Unqualified Java calls
-inside nested classes carry a nearest-to-outermost `enclosing_class_contexts`
-chain, which lets the reducer match inner-class helpers first and then enclosing
-class methods without broad same-name fallback. Explicit outer-this field
-receivers in Java's named-outer-instance field form reuse the field type
-index for the named enclosing class, so nested callback bodies can still produce
-typed receiver evidence.
+captures parameter counts and parameter types. Serialization and
+Externalizable hook signatures are also roots because the JVM can invoke
+methods such as `readObject` and `writeExternal` outside ordinary source calls.
+Java call metadata captures method references such as `this::configureTask`,
+bounded literal reflection calls such as `Class.forName("com.example.Plugin")`
+and `Plugin.class.getDeclaredMethod("run", String.class)`, argument counts,
+and bounded argument types from parameters, fields, inline constructors, and
+class-literal typed lambdas, so the reducer can distinguish overloaded methods
+when local receiver evidence points at a type. Receiver inference builds a local
+index of parameters, variables, enhanced-for loop variables, fields, and typed
+lambda parameters and same-class method return types for each parsed file
+before call extraction, so large classes do not repeat a full tree walk for
+every method invocation. Method-call arguments such as helper calls can then
+carry bounded return-type metadata when resolving overloads. Unqualified Java
+calls inside nested classes carry a nearest-to-outermost
+`enclosing_class_contexts` chain, which lets the reducer match inner-class
+helpers first and then enclosing class methods without broad same-name fallback.
+Explicit outer-this field receivers in Java's named-outer-instance field form
+reuse the field type index for the named enclosing class, so nested callback
+bodies can still produce typed receiver evidence.
 Record declarations use the same class-style context for nested method parsing,
 which keeps Java record helper methods addressable by the reducer.
+Java metadata files under META-INF/services, Spring Boot
+`AutoConfiguration.imports`, and `spring.factories` parse as `java_metadata`
+payloads. They emit bounded class-reference rows for provider and
+auto-configuration classes without scanning the repository from each Java
+source file.
 Python adapters also preserve method `class_context`, constructor call
 metadata, class receiver references, dataclass/property roots, dunder protocol
 roots, inheritance base names, same-module `__all__` public API roots, package
@@ -122,6 +131,9 @@ for dead-code root evidence. The reducer materializes them as deduplicated
 REFERENCES edges, not canonical CALLS edges, so sibling files in one Go
 package can keep local structs such as wiring configs out of dead-code
 candidate lists without claiming that type references are invocations.
+Java method-reference, literal-reflection, ServiceLoader provider, and Spring
+auto-configuration rows follow the same rule: they prove reachability roots but
+do not claim an invocation happened.
 
 `Engine.PreScanRepositoryPathsWithWorkers` runs a pre-scan pass that extracts
 import names, package-level interface references, type references, and
@@ -160,7 +172,9 @@ JavaScript, Rust, Java, C, C++).
   `DefaultRegistry()` if the built-in definitions are invalid
 - `DefaultRegistry()` — built-in catalog for this wave of supported languages
 - `Registry.LookupByPath(path)` — extension / exact name / prefix name lookup;
-  `.tfvars.json` routes to the `hcl` definition
+  `.tfvars.json` routes to the `hcl` definition, and Java metadata files under
+  META-INF/services, META-INF/spring, and META-INF/spring.factories
+  route to `java_metadata`
 - `Registry.LookupByExtension(extension)` — direct extension lookup
 - `Registry.LookupByParserKey(parserKey)` — direct key lookup
 - `Registry.Definitions()` — cloned definitions in deterministic parser-key order
@@ -198,6 +212,7 @@ JavaScript, Rust, Java, C, C++).
 | Haskell | `haskell` | `.hs` | — |
 | HCL/Terraform | `hcl` | `.hcl`, `.tf`, `.tfvars`, `.tfvars.json` | — |
 | Java | `java` | `.java` | yes |
+| Java metadata | `java_metadata` | META-INF/services/*, AutoConfiguration.imports, spring.factories | — |
 | JavaScript | `javascript` | `.cjs`, `.js`, `.jsx`, `.mjs` | yes |
 | JSON | `json` | `.json` | — |
 | Kotlin | `kotlin` | `.kt` | — |

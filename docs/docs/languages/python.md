@@ -12,6 +12,34 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Unit test suites: `go/internal/parser/engine_python_semantics_test.go`, `go/internal/parser/engine_python_metaclass_test.go`
 - Integration validation: compose-backed fixture verification (see `../reference/local-testing.md`)
 
+## Dead-code Support
+
+Python dead-code support is `derived`. Eshu models the common runtime roots we
+can prove from source and bounded project metadata, then keeps the response
+truth label conservative for dynamic imports, monkey-patching, plugin discovery,
+and dependency injection.
+
+Supported roots and reachability evidence:
+
+- Web, worker, and CLI callbacks: FastAPI, Flask, Celery, Click, Typer, and
+  Python script-main guards.
+- Deployment handlers: AWS Lambda handlers declared in bounded SAM,
+  CloudFormation, or Serverless configuration.
+- Data/model surfaces: dataclasses, dataclass post-init hooks, properties,
+  dunder protocol methods, and class receiver references.
+- Public API evidence: same-module `__all__`, package `__init__.py` reexports,
+  public base classes inherited by parser-proven public classes, and public
+  methods on those classes.
+- Call evidence: constructor calls, `self` receiver calls, class receiver
+  references, inherited classmethods, cross-file imports, and anonymous lambda
+  suppression.
+
+Checked fixtures live in `tests/fixtures/ecosystems/python_comprehensive/`.
+Focused dead-code tests live in `go/internal/parser/python_dead_code_roots_test.go`,
+`go/internal/parser/engine_python_dead_code_semantics_test.go`,
+`go/internal/query/code_dead_code_python_roots_test.go`, and
+`go/internal/query/code_dead_code_python_public_roots_test.go`.
+
 ## Capability Checklist
 | Capability | ID | Status | Extracted Bucket/Key | Required Fields | Graph Surface | Unit Coverage | Integration Coverage | Rationale |
 |-----------|----|--------|------------------------|-----------------|---------------|---------------|----------------------|-----------|

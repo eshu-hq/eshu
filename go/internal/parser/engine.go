@@ -214,6 +214,8 @@ func (e *Engine) preScanOnePath(resolvedRepoRoot string, rawPath string) (preSca
 		names, err = e.preScanJavaScriptLike(resolvedRepoRoot, resolvedPath, "javascript", "javascript")
 	case "java":
 		names, err = e.preScanJava(resolvedPath)
+	case "java_metadata":
+		names = nil
 	case "kotlin":
 		names, err = e.preScanKotlin(resolvedRepoRoot, resolvedPath)
 	case "perl":
@@ -293,6 +295,8 @@ func (e *Engine) parseDefinition(
 		return e.parseJSON(resolvedPath, isDependency, options)
 	case "java":
 		return e.parseJava(resolvedPath, isDependency, options)
+	case "java_metadata":
+		return parseJavaMetadata(resolvedPath, isDependency)
 	case "kotlin":
 		return e.parseKotlin(repoRoot, resolvedPath, isDependency, options)
 	case "perl":

@@ -24,12 +24,14 @@
 // roots. Java roots also include Spring component/configuration-property
 // classes, Spring request/bean/event/scheduled methods, Java lifecycle
 // callbacks, JUnit test and lifecycle methods, Jenkins extension/symbol/
-// initializer/data-bound setter methods, and Stapler web methods. Java metadata
-// includes method-reference rows, local receiver type metadata backed by a
-// per-file variable, enhanced-for variable, field, and typed-lambda index, plus
-// record class context, unqualified same-class and enclosing-class call context,
-// explicit outer-this field receivers, typed method-reference receiver metadata,
-// arity metadata, same-class method return types for argument metadata, and
+// initializer/data-bound setter methods, Stapler web methods, and serialization
+// hook methods. Java metadata includes method-reference rows, bounded literal
+// reflection references, ServiceLoader provider and Spring auto-configuration
+// metadata files, local receiver type metadata backed by a per-file variable,
+// enhanced-for variable, field, and typed-lambda index, plus record class
+// context, unqualified same-class and enclosing-class call context, explicit
+// outer-this field receivers, typed method-reference receiver metadata, arity
+// metadata, same-class method return types for argument metadata, and
 // type-signature metadata for overload-safe call resolution.
 // Java pre-scan includes records in the same source-name map as classes and
 // methods. The package also emits returned function-value references, static

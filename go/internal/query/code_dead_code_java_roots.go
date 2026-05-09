@@ -32,6 +32,8 @@ var javaDeadCodeMetadataRootKinds = []string{
 	"java.jenkins_initializer_method",
 	"java.jenkins_databound_setter_method",
 	"java.stapler_web_method",
+	"java.serialization_hook_method",
+	"java.externalizable_hook_method",
 }
 
 func deadCodeIsJavaRoot(result map[string]any, entity *EntityContent, stats *deadCodePolicyStats) bool {

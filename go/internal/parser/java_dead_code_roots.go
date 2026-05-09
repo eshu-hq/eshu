@@ -50,6 +50,12 @@ func javaDeadCodeRootKinds(
 		if javaIsMethodReferenceTarget(node, source, name, methodReferences) {
 			rootKinds = appendUniqueString(rootKinds, "java.method_reference_target")
 		}
+		if javaIsSerializationHookMethod(node, source, name) {
+			rootKinds = appendUniqueString(rootKinds, "java.serialization_hook_method")
+		}
+		if javaIsExternalizableHookMethod(node, source, name) {
+			rootKinds = appendUniqueString(rootKinds, "java.externalizable_hook_method")
+		}
 		rootKinds = append(rootKinds, javaFrameworkMethodRootKinds(raw)...)
 	}
 	return rootKinds
@@ -222,6 +228,60 @@ func javaIsGradleTaskProperty(raw string) bool {
 		}
 	}
 	return false
+}
+
+func javaIsSerializationHookMethod(node *tree_sitter.Node, source []byte, name string) bool {
+	name = strings.TrimSpace(name)
+	switch name {
+	case "readObject":
+		return javaHasVoidReturn(node, source) && javaHasParameterTypes(node, source, []string{"ObjectInputStream"})
+	case "writeObject":
+		return javaHasVoidReturn(node, source) && javaHasParameterTypes(node, source, []string{"ObjectOutputStream"})
+	case "readResolve", "writeReplace":
+		return javaParameterCount(node) == 0 && javaMethodReturnType(node, source) == "Object"
+	default:
+		return false
+	}
+}
+
+func javaIsExternalizableHookMethod(node *tree_sitter.Node, source []byte, name string) bool {
+	name = strings.TrimSpace(name)
+	switch name {
+	case "readExternal":
+		return javaHasVoidReturn(node, source) && javaHasParameterTypes(node, source, []string{"ObjectInput"})
+	case "writeExternal":
+		return javaHasVoidReturn(node, source) && javaHasParameterTypes(node, source, []string{"ObjectOutput"})
+	default:
+		return false
+	}
+}
+
+func javaHasVoidReturn(node *tree_sitter.Node, source []byte) bool {
+	return javaMethodReturnType(node, source) == "void"
+}
+
+func javaHasParameterTypes(node *tree_sitter.Node, source []byte, want []string) bool {
+	got := javaParameterTypes(node, source)
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func javaMethodReturnType(node *tree_sitter.Node, source []byte) string {
+	if node == nil || node.Kind() != "method_declaration" {
+		return ""
+	}
+	typeNode := node.ChildByFieldName("type")
+	if typeNode == nil {
+		return ""
+	}
+	return javaTypeLeafName(nodeText(typeNode, source))
 }
 
 func javaIsGradleDSLPublicMethod(node *tree_sitter.Node, source []byte, raw string) bool {

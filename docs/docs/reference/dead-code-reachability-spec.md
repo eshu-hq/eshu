@@ -212,6 +212,11 @@ Current branch status:
 - TypeScript public methods on classes that declare `implements` are modeled as
   interface implementation method roots; private and protected class helpers
   remain candidates unless another root or incoming edge reaches them
+- Java main methods, constructors, overrides, Spring/JUnit/Jenkins/Stapler
+  callbacks, Gradle plugin/task surfaces, serialization and Externalizable
+  hook signatures, bounded literal reflection, ServiceLoader providers, Spring
+  Boot `AutoConfiguration.imports`, and legacy `spring.factories` metadata are
+  modeled with parser-backed roots or reducer-produced `REFERENCES` edges
 - those Go signature roots are now emitted by the Go parser into entity
   metadata when imports, registrations, and signatures match directly; mixed
   native+SCIP indexing now preserves `dead_code_root_kinds` through the
@@ -219,14 +224,16 @@ Current branch status:
   config roots, dataclass/property roots, dunder protocol roots, bounded
   public-API roots, bases, and members, and JavaScript/TypeScript
   Next.js/Express/Node/Hapi plus TypeScript interface implementation method
-  roots are also emitted as parser-backed `dead_code_root_kinds`; Go
+  roots are also emitted as parser-backed `dead_code_root_kinds`; Java metadata
+  and literal reflection evidence now materializes as `REFERENCES` edges; Go
   query-time source heuristics remain as a fallback while broader registry
   coverage lands
 - broader Go router, webhook, worker, reflection, and build-tag roots plus
   broader Python worker, dynamic-dispatch, and non-export-declared public API
   roots plus broader
   JavaScript/TypeScript worker, static module graph, and dynamic-dispatch roots
-  remain open, so dead-code truth stays `derived`
+  plus broader Java dynamic dispatch, dependency injection, and string-built
+  reflection remain open, so dead-code truth stays `derived`
 
 Initial MVP is explicitly limited to those families. Other parser-supported
 languages and frameworks should return `derived_candidate_only`, `derived`, or
@@ -243,6 +250,8 @@ extraction coverage; it does not prove cleanup safety.
 
 The fixture inventory lives at
 `../../../tests/fixtures/deadcode/README.md`.
+The per-parser support pages under `../languages/` name the checked fixtures
+and root categories for each currently modeled source language.
 
 Every language fixture should include:
 

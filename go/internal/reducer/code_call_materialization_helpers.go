@@ -52,6 +52,9 @@ func codeCallExactCandidateNames(call map[string]any, language string) []string 
 	fullName := anyToString(call["full_name"])
 	if codeCallHasQualifiedFullName(fullName) {
 		appendName(fullName)
+		if codeCallJavaClassReferenceKind(call) {
+			appendName(name)
+		}
 		if language == "python" && codeCallPythonQualifiedClassReceiver(fullName) {
 			appendName(codeCallTrailingName(fullName))
 		}
@@ -92,6 +95,15 @@ func codeCallExactCandidateNames(call map[string]any, language string) []string 
 		names = codeCallAppendTypedSignatureNames(names, argumentTypes)
 	}
 	return names
+}
+
+func codeCallJavaClassReferenceKind(call map[string]any) bool {
+	switch strings.TrimSpace(anyToString(call["call_kind"])) {
+	case "java.reflection_class_reference", "java.service_loader_provider", "java.spring_autoconfiguration_class":
+		return true
+	default:
+		return false
+	}
 }
 
 func codeCallPythonQualifiedClassReceiver(fullName string) bool {
