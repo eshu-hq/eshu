@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -32,6 +33,11 @@ func NewKey(material []byte) (Key, error) {
 	copied := make([]byte, len(material))
 	copy(copied, material)
 	return Key{material: copied}, nil
+}
+
+// IsZero reports whether the key has no material.
+func (k Key) IsZero() bool {
+	return len(k.material) == 0
 }
 
 // Value is a redaction result that can replace a sensitive scalar in facts,
@@ -145,6 +151,8 @@ func scalarBytes(raw any) ([]byte, bool) {
 			return []byte("NaN"), true
 		}
 		return []byte(strconv.FormatFloat(typed, 'g', -1, 64)), true
+	case json.Number:
+		return []byte(typed.String()), true
 	case textMarshaler:
 		encoded, err := typed.MarshalText()
 		return encoded, err == nil

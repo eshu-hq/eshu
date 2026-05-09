@@ -117,14 +117,14 @@ func (r RuleSet) Classify(source string, schemaTrust SchemaTrust, fieldKind Fiel
 	if r.version == "" {
 		return r.unknownRuleSetDecision(normalizedSource, fieldKind)
 	}
-	if schemaTrust != SchemaKnown {
-		return r.unknownSchemaDecision(normalizedSource, fieldKind)
-	}
 	if r.isSensitiveSource(normalizedSource) {
 		if fieldKind != FieldScalar {
 			return r.decision(ActionDrop, ReasonKnownSensitiveKey, normalizedSource)
 		}
 		return r.decision(ActionRedact, ReasonKnownSensitiveKey, normalizedSource)
+	}
+	if schemaTrust != SchemaKnown {
+		return r.unknownSchemaDecision(normalizedSource, fieldKind)
 	}
 	return r.decision(ActionPreserve, ReasonKnownProviderSchema, normalizedSource)
 }

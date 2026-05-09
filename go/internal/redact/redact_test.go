@@ -1,6 +1,7 @@
 package redact_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -21,6 +22,18 @@ func TestNewKeyRejectsBlankMaterial(t *testing.T) {
 
 	if _, err := redact.NewKey([]byte(" ")); err == nil {
 		t.Fatal("NewKey() error = nil, want non-nil")
+	}
+}
+
+func TestKeyIsZeroReportsMissingMaterial(t *testing.T) {
+	t.Parallel()
+
+	var empty redact.Key
+	if !empty.IsZero() {
+		t.Fatal("empty Key IsZero() = false, want true")
+	}
+	if testKey(t).IsZero() {
+		t.Fatal("configured Key IsZero() = true, want false")
 	}
 }
 
@@ -153,6 +166,22 @@ func TestBytesAndScalarUseSameCanonicalBytes(t *testing.T) {
 	}
 	if fromScalar.Marker != fromString.Marker {
 		t.Fatalf("Scalar().Marker = %q, want String().Marker %q", fromScalar.Marker, fromString.Marker)
+	}
+}
+
+func TestScalarJSONNumberUsesNumberBytes(t *testing.T) {
+	t.Parallel()
+
+	key := testKey(t)
+	fromNumber := redact.Scalar(json.Number("42"), "known_sensitive_key", "aws_instance.secret", key)
+	fromString := redact.String("42", "known_sensitive_key", "aws_instance.secret", key)
+	otherNumber := redact.Scalar(json.Number("43"), "known_sensitive_key", "aws_instance.secret", key)
+
+	if fromNumber.Marker != fromString.Marker {
+		t.Fatalf("Scalar(json.Number).Marker = %q, want String marker %q", fromNumber.Marker, fromString.Marker)
+	}
+	if fromNumber.Marker == otherNumber.Marker {
+		t.Fatalf("Scalar(json.Number) marker did not change with number value: %q", fromNumber.Marker)
 	}
 }
 

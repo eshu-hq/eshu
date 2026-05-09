@@ -136,6 +136,8 @@ per repository:
   workflow-coordinator-gated collection
 - `FactsFromSlice` — test helper: builds a `CollectedGeneration` from a
   pre-built `[]facts.Envelope` slice
+- `terraformstate` subpackage — exact Terraform-state source readers and
+  streaming parser primitives that emit redacted Terraform-state facts
 
 ## Dependencies
 
@@ -192,6 +194,9 @@ per repository:
   and Java call inference do not need every method-local declaration as a
   canonical `Variable` node. Keep JS/TS/Python local-variable coverage intact
   unless their query contracts change.
+- Terraform-state sources are explicit-source only in the reader stack. Do not
+  route repo-local `.tfstate` through Git content persistence or broad
+  repository discovery.
 
 ## Extension points
 

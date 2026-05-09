@@ -132,6 +132,31 @@ func TestRuleSetFailsClosedForUnknownProviderSchema(t *testing.T) {
 	}
 }
 
+func TestRuleSetSensitiveKeysOverrideUnknownProviderSchema(t *testing.T) {
+	t.Parallel()
+
+	rules, err := redact.NewRuleSet("fixture-schema-2026-05-09", []string{"password"})
+	if err != nil {
+		t.Fatalf("NewRuleSet() error = %v, want nil", err)
+	}
+
+	scalar := rules.Classify("custom_provider_resource.password", redact.SchemaUnknown, redact.FieldScalar)
+	if got, want := scalar.Action, redact.ActionRedact; got != want {
+		t.Fatalf("Classify(scalar).Action = %q, want %q", got, want)
+	}
+	if got, want := scalar.Reason, redact.ReasonKnownSensitiveKey; got != want {
+		t.Fatalf("Classify(scalar).Reason = %q, want %q", got, want)
+	}
+
+	composite := rules.Classify("custom_provider_resource.password", redact.SchemaUnknown, redact.FieldComposite)
+	if got, want := composite.Action, redact.ActionDrop; got != want {
+		t.Fatalf("Classify(composite).Action = %q, want %q", got, want)
+	}
+	if got, want := composite.Reason, redact.ReasonKnownSensitiveKey; got != want {
+		t.Fatalf("Classify(composite).Reason = %q, want %q", got, want)
+	}
+}
+
 func TestRuleSetFailsClosedWhenUninitialized(t *testing.T) {
 	t.Parallel()
 
