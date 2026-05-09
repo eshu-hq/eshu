@@ -52,8 +52,10 @@ language handles; grammars are loaded on first use and reused across calls.
 
 `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form, calls
 `Registry.LookupByPath` to identify the language, then dispatches to the
-language-specific adapter function (e.g. `parseGo`, `parsePython`,
-`parseKotlin`). Language adapters may attach semantic metadata such as
+language-specific adapter wrapper. The wrapper keeps the parent parser
+signature stable while language-owned packages hold adapter logic that no
+longer needs parent internals. Language adapters may attach semantic metadata
+such as
 `dead_code_root_kinds` when syntax or bounded config proves an entrypoint,
 framework callback, function-value callback, Python route/task/CLI decorator,
 Python AWS Lambda handler, JavaScript package export, CommonJS default export,
@@ -73,8 +75,8 @@ captures parameter counts and parameter types. Serialization and
 Externalizable hook signatures are also roots because the JVM can invoke
 methods such as `readObject` and `writeExternal` outside ordinary source calls.
 Java call metadata captures method references such as `this::configureTask`,
-bounded literal reflection calls such as `Class.forName("com.example.Plugin")`
-and `Plugin.class.getDeclaredMethod("run", String.class)`, argument counts,
+bounded literal reflection calls such as Class.forName class names and
+getDeclaredMethod method names, argument counts,
 and bounded argument types from parameters, fields, inline constructors, and
 class-literal typed lambdas, so the reducer can distinguish overloaded methods
 when local receiver evidence points at a type. Receiver inference builds a local
@@ -92,8 +94,9 @@ bodies can still produce typed receiver evidence.
 Record declarations use the same class-style context for nested method parsing,
 which keeps Java record helper methods addressable by the reducer.
 Java metadata files under META-INF/services, Spring Boot
-`AutoConfiguration.imports`, and `spring.factories` parse as `java_metadata`
-payloads. They emit bounded class-reference rows for provider and
+AutoConfiguration.imports, and `spring.factories` parse as `java_metadata`
+payloads. The parent parser keeps the wrapper and payload shape, while the Java
+helper subpackage extracts bounded class-reference evidence for provider and
 auto-configuration classes without scanning the repository from each Java
 source file.
 Python adapters also preserve method `class_context`, constructor call
@@ -109,15 +112,24 @@ Exported TypeScript object registries also mark same-file function values as
 `typescript.static_registry_member`; private registries do not create roots.
 JavaScript-family adapters also preserve import alias metadata, CommonJS
 `module.exports` self-aliases, JSONC tsconfig `baseUrl` and `paths`
-`resolved_source` metadata even when the config uses comments or trailing
-commas, returned function-value references, static relative re-export metadata,
-constructor calls, and local receiver type metadata from
+`resolved_source` metadata through the JavaScript helper subpackage even when
+the config uses comments or trailing commas, returned function-value references,
+static relative re-export metadata, constructor calls, and local receiver type
+metadata from
 `const value = new Type()` so reducer call materialization can resolve bounded
 cross-file calls.
+JSON parsing now lives in the JSON helper subpackage. The parent parser keeps
+the wrapper and dbt SQL lineage callback, while the child package owns
+ordered-object metadata, dependency manifests, TypeScript config rows,
+CloudFormation/SAM JSON attachment, dbt manifest payload construction, and
+data-intelligence replay documents.
+
 Package-level roots are resolved from the nearest owning `package.json`, so
 nested workspaces can expose
 their own entrypoints, `bin` targets, and package exports without depending on
-the repository root manifest. Hapi handler roots search from the owning
+the repository root manifest. That nearest-package evidence now lives in the
+JavaScript helper subpackage, while the parent parser decides which parsed
+functions or types receive root metadata. Hapi handler roots search from the owning
 service/package root before falling back to repository-root conventions, and
 route arrays recognize both `config.handler` and `options.handler` as mounted
 handler references. After
@@ -125,7 +137,9 @@ the language adapter returns,
 `inferContentMetadata` sets `artifact_type`, `template_dialect`, and
 `iac_relevant` on the payload. The final payload also carries `repo_path`.
 
-Go composite literals also emit `function_calls` rows with
+Go embedded SQL extraction now lives in the Go helper subpackage, while the
+parent parser keeps the `embedded_sql_queries` payload contract. Go composite
+literals also emit `function_calls` rows with
 `call_kind=go.composite_literal_type_reference`. Those rows are parser metadata
 for dead-code root evidence. The reducer materializes them as deduplicated
 REFERENCES edges, not canonical CALLS edges, so sibling files in one Go
@@ -134,6 +148,18 @@ candidate lists without claiming that type references are invocations.
 Java method-reference, literal-reflection, ServiceLoader provider, and Spring
 auto-configuration rows follow the same rule: they prove reachability roots but
 do not claim an invocation happened.
+
+Full Go, Java, Python, and JavaScript/TypeScript/TSX adapters now live in their
+language helper subpackages behind thin parent wrappers. Parent-owned runtime
+grammar caching, registry dispatch, raw-text payload construction, SCIP payload
+assembly, and dbt SQL lineage callbacks remain in this package. The
+`shared_bridge.go` wrapper converts parent `Options` into shared adapter
+options so child adapters do not import the dispatcher.
+
+dbt SQL lineage extraction now lives in the dbt SQL helper subpackage. The
+parent parser keeps `ColumnLineage`, `CompiledModelLineage`, and the
+`extractCompiledModelLineage` compatibility wrapper because JSON dbt manifest
+parsing receives lineage through a parent-supplied callback.
 
 `Engine.PreScanRepositoryPathsWithWorkers` runs a pre-scan pass that extracts
 import names, package-level interface references, type references, and
@@ -144,9 +170,35 @@ pass. Java pre-scan includes records alongside classes, interfaces, annotations,
 enums, methods, and constructors so record helper methods participate in the
 same downstream name map as class methods.
 
-Python `.ipynb` files are converted to a temporary Python source view before
-tree-sitter parsing, then the temporary file is removed after parse. The
-notebook path shares the same payload contract as `.py` files.
+Python `.ipynb` files use the Python helper subpackage to extract executable
+code cells, then the parent parser writes that source view to a temporary
+Python file before tree-sitter parsing. The temporary file is removed after
+parse. The notebook path shares the same payload contract as `.py` files.
+
+Groovy/Jenkins pipeline metadata extraction, payload assembly, and pre-scan
+name extraction live in the Groovy helper subpackage. The parent parser keeps
+the `ExtractGroovyPipelineMetadata` compatibility wrapper used by query and
+relationship code.
+
+Dockerfile runtime metadata extraction lives in the Dockerfile helper
+subpackage. The parent parser keeps file I/O, registry dispatch, and the
+`ExtractDockerfileRuntimeMetadata` compatibility wrapper used by query and
+relationship code.
+
+CloudFormation and SAM template evidence now lives in the CloudFormation helper
+subpackage so JSON and YAML adapters share the same template classification,
+condition evaluation, and bucket construction contract.
+
+YAML parsing now lives in the YAML helper subpackage. The parent parser keeps
+the wrapper, while the child package owns YAML decoding, Kubernetes and
+Crossplane resource rows, Argo CD rows, Kustomize rows, Helm chart/value rows,
+and YAML-side CloudFormation/SAM attachment.
+
+First-wave language package moves also cover C, C++, Rust, C#, Scala, Elixir,
+Swift, Dart, Ruby, Perl, Haskell, SQL, and HCL/Terraform adapters. Those
+packages own parse and pre-scan behavior behind thin parent wrappers. Shared
+payload, tree-sitter, and value helpers live in the shared parser helper
+subpackage so child packages do not import the parent dispatcher.
 
 **SCIP path**: when SCIP_INDEXER=true, the collector snapshotter detects the
 dominant SCIP-capable language via `DetectSCIPProjectLanguage`, runs the
@@ -254,6 +306,18 @@ SCIP is opt-in via SCIP_INDEXER=true. The allowed language list defaults to
 - `github.com/tree-sitter/go-tree-sitter` — `Runtime` and grammar dispatch
 - Tree-sitter grammar bindings: C, C#, C++, Go, Java, JavaScript, Python, Rust,
   Scala, TypeScript
+- `internal/parser/java` — typed Java metadata evidence extracted before parent
+  payload assembly
+- `internal/parser/javascript` — tsconfig import resolution and package.json
+  root evidence used before parent payload annotation
+- `internal/parser/python` — notebook source extraction before parent
+  temporary-file parsing
+- `internal/parser/golang` — embedded SQL evidence before parent payload
+  assembly
+- `internal/parser/groovy` — Jenkins/Groovy delivery metadata before parent
+  payload assembly
+- `internal/parser/dockerfile` — Dockerfile stage and runtime metadata before
+  parent payload assembly
 - `internal/terraformschema` — provider schema assets consumed by the HCL adapter
 - Standard library only for non-tree-sitter adapters
 

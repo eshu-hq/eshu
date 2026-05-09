@@ -9,11 +9,30 @@
 3. `go/internal/parser/engine.go` — `Engine`, `DefaultEngine`, `ParsePath`,
    `PreScanRepositoryPathsWithWorkers`, and the `parseDefinition` dispatch
 4. `go/internal/parser/runtime.go` — `Runtime`; tree-sitter grammar caching
-5. `go/internal/parser/scip_support.go` — `SCIPIndexer`,
+5. `go/internal/parser/java/README.md` — Java-owned helper package boundary
+   for metadata evidence that does not need parent parser internals
+6. `go/internal/parser/javascript/README.md` — JavaScript-owned helper package
+   boundary for tsconfig evidence that does not need parent parser internals
+7. `go/internal/parser/python/README.md` — Python-owned helper package boundary
+   for notebook source extraction that does not need parent parser internals
+8. `go/internal/parser/golang/README.md` — Go-owned helper package boundary for
+   embedded SQL evidence that does not need parent parser internals
+9. `go/internal/parser/shared/README.md` — dependency-safe helper contracts for
+   child parser packages
+10. `go/internal/parser/groovy/README.md` — Groovy-owned helper package boundary
+   for Jenkins delivery metadata that does not need parent parser internals
+11. `go/internal/parser/dockerfile/README.md` — Dockerfile-owned helper package
+    boundary for runtime metadata that does not need parent parser internals
+12. `go/internal/parser/cloudformation/README.md` — shared CloudFormation/SAM
+    parser package used by JSON and YAML adapters
+13. Language-owned adapter READMEs for extracted parsers before touching their
+    parent wrappers: `c`, `cpp`, `rust`, `csharp`, `scala`, `elixir`, `swift`,
+    `dart`, `ruby`, `perl`, `haskell`, `sql`, and `hcl`
+14. `go/internal/parser/scip_support.go` — `SCIPIndexer`,
    `DetectSCIPProjectLanguage`, SCIP binary map
-6. `go/internal/parser/doc.go` — the package contract, especially the
+15. `go/internal/parser/doc.go` — the package contract, especially the
    determinism invariant
-7. `go/internal/telemetry/instruments.go` — `telemetry.FileParseDuration` before
+16. `go/internal/telemetry/instruments.go` — `telemetry.FileParseDuration` before
    adding parse-time metrics
 
 ## Invariants this package enforces
@@ -125,6 +144,13 @@
   the parser package is a leaf that `internal/collector` and `internal/query`
   depend on. Reverse or lateral imports create cycles or break the ownership
   boundary.
+
+- **Letting child parser packages import the parent parser package** — language
+  helper packages such as `internal/parser/java`,
+  `internal/parser/javascript`, `internal/parser/python`,
+  `internal/parser/golang`, `internal/parser/groovy`,
+  `internal/parser/dockerfile`, and the extracted first-wave adapters exist to
+  remove parent-package sprawl. Keep their APIs typed and parent-independent.
 
 - **Emitting new entity keys without updating shape.Materialize** — keys not
   consumed by `shape.Materialize` are silently discarded. The fixture tests will

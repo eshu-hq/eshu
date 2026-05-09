@@ -1,0 +1,282 @@
+package rust
+
+import (
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+)
+
+var rustLifetimePattern = regexp.MustCompile(`'([A-Za-z_][A-Za-z0-9_]*)`)
+
+// Parse reads and parses a Rust file using a caller-owned tree-sitter parser.
+func Parse(
+	path string,
+	isDependency bool,
+	options shared.Options,
+	parser *tree_sitter.Parser,
+) (map[string]any, error) {
+	source, err := shared.ReadSource(path)
+	if err != nil {
+		return nil, err
+	}
+	tree := parser.Parse(source, nil)
+	if tree == nil {
+		return nil, fmt.Errorf("parse rust file %q: parser returned nil tree", path)
+	}
+	defer tree.Close()
+
+	payload := shared.BasePayload(path, "rust", isDependency)
+	payload["impl_blocks"] = []map[string]any{}
+	payload["traits"] = []map[string]any{}
+	root := tree.RootNode()
+
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "impl_item":
+			appendRustImplBlock(payload, node, source)
+		case "function_item", "function_signature_item":
+			appendRustFunction(payload, node, source, options)
+		case "struct_item", "enum_item", "union_item":
+			appendRustClass(payload, node, source)
+		case "trait_item":
+			appendRustTrait(payload, node, source)
+		case "use_declaration":
+			appendRustImportMetadata(payload, node, source)
+		case "call_expression":
+			appendRustCall(payload, node, source)
+		case "macro_invocation":
+			appendRustCall(payload, node, source)
+		}
+	})
+
+	sortSystemsPayload(payload, "functions", "classes", "traits", "imports", "function_calls", "impl_blocks")
+	payload["framework_semantics"] = map[string]any{"frameworks": []string{}}
+
+	return payload, nil
+}
+
+// PreScan returns named Rust symbols used by dependency pre-scanning.
+func PreScan(path string, parser *tree_sitter.Parser) ([]string, error) {
+	payload, err := Parse(path, false, shared.Options{}, parser)
+	if err != nil {
+		return nil, err
+	}
+	return shared.CollectBucketNames(payload, "functions", "classes", "traits", "impl_blocks"), nil
+}
+
+func appendRustClass(payload map[string]any, node *tree_sitter.Node, source []byte) {
+	nameNode := firstNamedDescendant(node, "type_identifier")
+	name := shared.NodeText(nameNode, source)
+	if strings.TrimSpace(name) == "" {
+		return
+	}
+	shared.AppendBucket(payload, "classes", map[string]any{
+		"name":        name,
+		"line_number": shared.NodeLine(nameNode),
+		"end_line":    shared.NodeEndLine(node),
+		"lang":        "rust",
+	})
+}
+
+func appendRustTrait(payload map[string]any, node *tree_sitter.Node, source []byte) {
+	nameNode := firstNamedDescendant(node, "type_identifier")
+	name := shared.NodeText(nameNode, source)
+	if strings.TrimSpace(name) == "" {
+		return
+	}
+	shared.AppendBucket(payload, "traits", map[string]any{
+		"name":        name,
+		"line_number": shared.NodeLine(nameNode),
+		"end_line":    shared.NodeEndLine(node),
+		"lang":        "rust",
+	})
+}
+
+func appendRustImplBlock(payload map[string]any, node *tree_sitter.Node, source []byte) {
+	header := strings.TrimSpace(shared.NodeText(node, source))
+	if idx := strings.Index(header, "{"); idx >= 0 {
+		header = header[:idx]
+	}
+	header = strings.TrimSpace(strings.TrimPrefix(header, "impl"))
+	lifetimeParameters := rustLeadingLifetimeParameters(header)
+	signatureLifetimes := rustLifetimeNames(header)
+	header = strings.TrimSpace(rustStripTypeParameters(header))
+
+	kind := "inherent_impl"
+	traitName := ""
+	targetName := header
+
+	if idx := strings.Index(header, " for "); idx >= 0 {
+		kind = "trait_impl"
+		traitName = strings.TrimSpace(header[:idx])
+		targetName = strings.TrimSpace(header[idx+len(" for "):])
+	}
+	if idx := strings.Index(targetName, " where "); idx >= 0 {
+		targetName = strings.TrimSpace(targetName[:idx])
+	}
+
+	item := map[string]any{
+		"name":        rustBaseTypeName(targetName),
+		"target":      targetName,
+		"line_number": shared.NodeLine(node),
+		"end_line":    shared.NodeEndLine(node),
+		"kind":        kind,
+		"lang":        "rust",
+	}
+	if traitName != "" {
+		item["trait"] = rustBaseTypeName(traitName)
+	}
+	if len(lifetimeParameters) > 0 {
+		item["lifetime_parameters"] = lifetimeParameters
+	}
+	if len(signatureLifetimes) > 0 {
+		item["signature_lifetimes"] = signatureLifetimes
+	}
+	shared.AppendBucket(payload, "impl_blocks", item)
+}
+
+func appendRustFunction(payload map[string]any, node *tree_sitter.Node, source []byte, options shared.Options) {
+	nameNode := firstNamedDescendant(node, "identifier")
+	name := shared.NodeText(nameNode, source)
+	if strings.TrimSpace(name) == "" {
+		return
+	}
+
+	item := map[string]any{
+		"name":        name,
+		"line_number": shared.NodeLine(nameNode),
+		"end_line":    shared.NodeEndLine(node),
+		"decorators":  []string{},
+		"lang":        "rust",
+	}
+	signature := rustSignatureHeader(shared.NodeText(node, source))
+	if lifetimeParameters := rustFunctionLifetimeParameters(signature, name); len(lifetimeParameters) > 0 {
+		item["lifetime_parameters"] = lifetimeParameters
+	}
+	if signatureLifetimes := rustLifetimeNames(signature); len(signatureLifetimes) > 0 {
+		item["signature_lifetimes"] = signatureLifetimes
+	}
+	if returnLifetime := rustReturnLifetime(signature); returnLifetime != "" {
+		item["return_lifetime"] = returnLifetime
+	}
+	if implContext := rustImplContext(node, source); implContext != "" {
+		item["impl_context"] = implContext
+	}
+	if options.IndexSource {
+		item["source"] = shared.NodeText(node, source)
+	}
+	shared.AppendBucket(payload, "functions", item)
+}
+
+func appendRustImportMetadata(payload map[string]any, node *tree_sitter.Node, source []byte) {
+	raw := strings.TrimSpace(shared.NodeText(node, source))
+	if raw == "" {
+		return
+	}
+
+	importText := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(raw, "use "), ";"))
+	if importText == "" {
+		return
+	}
+
+	importType := "use"
+	alias := rustImportAlias(importText)
+	if aliasIndex := strings.Index(importText, " as "); aliasIndex >= 0 {
+		importType = "alias"
+		alias = strings.TrimSpace(importText[aliasIndex+len(" as "):])
+		importText = strings.TrimSpace(importText[:aliasIndex])
+	}
+
+	shared.AppendBucket(payload, "imports", map[string]any{
+		"name":             importText,
+		"source":           importText,
+		"alias":            alias,
+		"full_import_name": raw,
+		"import_type":      importType,
+		"line_number":      shared.NodeLine(node),
+		"lang":             "rust",
+	})
+}
+
+func rustImplContext(node *tree_sitter.Node, source []byte) string {
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		if current.Kind() != "impl_item" {
+			continue
+		}
+		typeNode := current.ChildByFieldName("type")
+		implContext := shared.NodeText(typeNode, source)
+		implContext = strings.TrimSpace(implContext)
+		if implContext == "" {
+			return ""
+		}
+		implContext = strings.TrimSuffix(implContext, ";")
+		implContext = strings.TrimSpace(implContext)
+		if idx := strings.LastIndex(implContext, "::"); idx >= 0 {
+			implContext = implContext[idx+2:]
+		}
+		if idx := strings.Index(implContext, "<"); idx >= 0 {
+			implContext = implContext[:idx]
+		}
+		return strings.TrimSpace(implContext)
+	}
+	return ""
+}
+
+func rustStripTypeParameters(text string) string {
+	trimmed := strings.TrimSpace(text)
+	if !strings.HasPrefix(trimmed, "<") {
+		return trimmed
+	}
+	if end := strings.Index(trimmed, ">"); end >= 0 {
+		return strings.TrimSpace(trimmed[end+1:])
+	}
+	return trimmed
+}
+
+func rustImportAlias(text string) string {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return ""
+	}
+	if strings.Contains(trimmed, "{") || strings.HasSuffix(trimmed, "::*") {
+		return ""
+	}
+	if idx := strings.LastIndex(trimmed, "::"); idx >= 0 {
+		return strings.TrimSpace(trimmed[idx+2:])
+	}
+	return trimmed
+}
+
+func rustBaseTypeName(text string) string {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return ""
+	}
+	if idx := strings.Index(trimmed, "<"); idx >= 0 {
+		trimmed = trimmed[:idx]
+	}
+	if idx := strings.LastIndex(trimmed, "::"); idx >= 0 {
+		trimmed = trimmed[idx+2:]
+	}
+	return strings.TrimSpace(trimmed)
+}
+
+func rustFunctionLifetimeParameters(signature string, name string) []string {
+	marker := "fn " + name
+	idx := strings.Index(signature, marker)
+	if idx < 0 {
+		return nil
+	}
+	remainder := strings.TrimSpace(signature[idx+len(marker):])
+	if !strings.HasPrefix(remainder, "<") {
+		return nil
+	}
+	segment, ok := rustLeadingAngleSegment(remainder)
+	if !ok {
+		return nil
+	}
+	return rustLifetimeNames(segment)
+}

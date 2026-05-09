@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	golangparser "github.com/eshu-hq/eshu/go/internal/parser/golang"
 )
 
 // PreScanGoPackageImportedInterfaceParamMethods returns same-package Go
@@ -44,7 +46,7 @@ func (e *Engine) PreScanGoPackageImportedInterfaceParamMethods(
 		if _, ok := results[packageDir]; !ok {
 			results[packageDir] = make(GoImportedInterfaceParamMethods)
 		}
-		goMergeImportedInterfaceParamMethods(results[packageDir], targets)
+		mergeGoImportedInterfaceParamMethods(results[packageDir], targets)
 	}
 	return results, nil
 }
@@ -56,15 +58,40 @@ func (e *Engine) goImportedInterfaceParamMethodsForPath(path string) (GoImported
 	}
 	defer parser.Close()
 
-	source, err := readSource(path)
-	if err != nil {
-		return nil, err
-	}
-	tree := parser.Parse(source, nil)
-	if tree == nil {
-		return nil, fmt.Errorf("parse go file %q: parser returned nil tree", path)
-	}
-	defer tree.Close()
+	targets, err := golangparser.ImportedInterfaceParamMethods(parser, path)
+	return GoImportedInterfaceParamMethods(targets), err
+}
 
-	return goFunctionParamImportedInterfaceMethods(tree.RootNode(), source), nil
+func mergeGoImportedInterfaceParamMethods(
+	target GoImportedInterfaceParamMethods,
+	source GoImportedInterfaceParamMethods,
+) {
+	for functionName, byIndex := range source {
+		if _, ok := target[functionName]; !ok {
+			target[functionName] = make(map[int][]string)
+		}
+		for index, methods := range byIndex {
+			target[functionName][index] = appendUniqueGoMethods(target[functionName][index], methods)
+		}
+	}
+}
+
+func appendUniqueGoMethods(target []string, methods []string) []string {
+	for _, method := range methods {
+		trimmed := strings.TrimSpace(strings.ToLower(method))
+		if trimmed == "" {
+			continue
+		}
+		found := false
+		for _, existing := range target {
+			if existing == trimmed {
+				found = true
+				break
+			}
+		}
+		if !found {
+			target = append(target, trimmed)
+		}
+	}
+	return target
 }

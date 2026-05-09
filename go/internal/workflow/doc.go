@@ -9,4 +9,8 @@
 // collector progress and reducer phase publications, including blocked
 // completeness when terminal collector failures appear. The family fairness
 // scheduler chooses the next claim target across enabled collector instances.
+// Terraform state collector instances also validate their discovery config
+// before reaching durable storage: they must enable graph discovery, explicit
+// seeds, or local repo limits, and S3 seeds require bucket, key, region, and an
+// AWS role ARN.
 package workflow

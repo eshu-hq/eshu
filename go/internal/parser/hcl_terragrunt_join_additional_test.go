@@ -3,9 +3,6 @@ package parser
 import (
 	"path/filepath"
 	"testing"
-
-	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
 func TestParseTerragruntConfigExtractsRepoRootAndPathModuleJoinedHelperPaths(t *testing.T) {
@@ -19,16 +16,7 @@ func TestParseTerragruntConfigExtractsRepoRootAndPathModuleJoinedHelperPaths(t *
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	config := parseTerragruntConfigForTest(t, filePath, source)
 
 	if got, want := config["local_config_asset_paths"], "config/runtime.yaml,templates/runtime.json"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
@@ -46,16 +34,7 @@ func TestParseTerragruntConfigResolvesLocalInterpolationsInJoinedHelperPaths(t *
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	config := parseTerragruntConfigForTest(t, filePath, source)
 
 	if got, want := config["local_config_asset_paths"], "accounts/bg-dev/account.yaml"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
@@ -76,16 +55,7 @@ func TestParseTerragruntConfigResolvesNestedLocalBackedHelperPaths(t *testing.T)
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	config := parseTerragruntConfigForTest(t, filePath, source)
 
 	if got, want := config["local_config_asset_paths"], "batch/container-fargate.tpl"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
@@ -118,16 +88,7 @@ func TestParseTerragruntConfigResolvesLookupBackedTemplateLocalsWithTrimspaceWra
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	config := parseTerragruntConfigForTest(t, filePath, source)
 
 	if got, want := config["local_config_asset_paths"], "templates/cloudwatch-dashboard.tpl,templates/user_data.tpl"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
@@ -148,16 +109,7 @@ data "template_file" "task" {
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	config := parseTerragruntConfigForTest(t, filePath, source)
 
 	if got, want := config["local_config_asset_paths"], "templates/ecs/container.tpl"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
@@ -180,16 +132,7 @@ resource "example_instance" "this" {
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	config := parseTerragruntConfigForTest(t, filePath, source)
 
 	if got, want := config["local_config_asset_paths"], "templates/user_data.tpl"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
@@ -206,16 +149,7 @@ func TestParseTerragruntConfigResolvesDirectLookupWrappedByFile(t *testing.T) {
 }
 `)
 
-	file, diags := hclparse.NewParser().ParseHCL(source, filePath)
-	if diags.HasErrors() {
-		t.Fatalf("ParseHCL() diagnostics = %s", diags.Error())
-	}
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		t.Fatalf("file.Body = %T, want *hclsyntax.Body", file.Body)
-	}
-
-	config := parseTerragruntConfig(body, source, filePath)
+	config := parseTerragruntConfigForTest(t, filePath, source)
 
 	if got, want := config["local_config_asset_paths"], "batch/container.tpl"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)

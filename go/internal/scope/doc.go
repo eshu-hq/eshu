@@ -6,5 +6,8 @@
 // captures one observed snapshot and tracks the pending -> active ->
 // (superseded | completed | failed) lifecycle through an explicit transition
 // table. Validation rejects unknown statuses, blank identifiers, zero
-// timestamps, and forbidden transitions.
+// timestamps, and forbidden transitions. Terraform state helpers create stable
+// state-snapshot scopes from backend kind plus locator hash, while generation
+// identity carries state serial and lineage so serial changes do not rewrite
+// the scope boundary.
 package scope
