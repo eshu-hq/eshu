@@ -38,7 +38,7 @@ func TestS3StateSourceOpensExactObjectWithConditionalETag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v, want nil", err)
 	}
-	defer reader.Close()
+	defer closeReader(t, reader)
 
 	if got, want := client.input.Bucket, "tfstate-prod"; got != want {
 		t.Fatalf("Bucket = %q, want %q", got, want)
@@ -141,7 +141,7 @@ func TestS3StateSourceEnforcesSizeCeilingWhileReading(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v, want nil", err)
 	}
-	defer reader.Close()
+	defer closeReader(t, reader)
 
 	_, err = io.ReadAll(reader)
 	if !errors.Is(err, terraformstate.ErrStateTooLarge) {

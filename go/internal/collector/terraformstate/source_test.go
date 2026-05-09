@@ -28,7 +28,7 @@ func TestLocalStateSourceOpensExactFileStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v, want nil", err)
 	}
-	defer reader.Close()
+	defer closeReader(t, reader)
 
 	body, err := io.ReadAll(reader)
 	if err != nil {
@@ -110,7 +110,7 @@ func TestLocalStateSourceEnforcesSizeCeilingWhileReading(t *testing.T) {
 
 	reader, _, err := source.Open(context.Background())
 	if err == nil {
-		defer reader.Close()
+		defer closeReader(t, reader)
 		_, err = io.ReadAll(reader)
 	}
 	if !errors.Is(err, terraformstate.ErrStateTooLarge) {
@@ -126,4 +126,12 @@ func writeStateFile(t *testing.T, body string) string {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 	return path
+}
+
+func closeReader(t *testing.T, reader io.Closer) {
+	t.Helper()
+
+	if err := reader.Close(); err != nil {
+		t.Errorf("Close() error = %v, want nil", err)
+	}
 }
