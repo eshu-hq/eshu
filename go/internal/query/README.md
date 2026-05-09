@@ -147,6 +147,8 @@ panics if the capability string is not in `capabilityMatrix`.
 - `ImpactHandler` — blast radius, change surface, deployment trace, dependency
   paths (`impact.go:11`)
 - `EvidenceHandler` — relationship evidence drilldown (`evidence.go:14`)
+- `DocumentationHandler` — documentation truth findings and evidence packets
+  (`documentation.go`)
 - `StatusHandler` — pipeline and ingester status routes (`status.go:14`)
 - `CompareHandler` — environment comparison (`compare.go:12`)
 - `AdminHandler` — work-item inspection, replay, dead-letter, backfill, reindex
@@ -215,11 +217,18 @@ wired in `cmd/api/wiring.go`, not here.
 ## Telemetry
 
 - Spans: `telemetry.SpanQueryRelationshipEvidence` (`query.relationship_evidence`)
-  on evidence drilldown (`evidence.go:43`); `telemetry.SpanQueryDeadIaC`
-  (`query.dead_iac`) on IaC dead-code queries (`iac.go`);
-  `telemetry.SpanQueryInfraResourceSearch` (`query.infra_resource_search`) on
-  infrastructure search (`infra.go`). Per-query spans `neo4j.query` and
-  `postgres.query` on every graph and content read.
+  on evidence drilldown (`evidence.go:43`);
+  `telemetry.SpanQueryDocumentationFindings`
+  (`query.documentation_findings`),
+  `telemetry.SpanQueryDocumentationEvidencePacket`
+  (`query.documentation_evidence_packet`), and
+  `telemetry.SpanQueryDocumentationPacketFreshness`
+  (`query.documentation_packet_freshness`) on documentation truth evidence
+  routes (`documentation.go`); `telemetry.SpanQueryDeadIaC` (`query.dead_iac`)
+  on IaC dead-code queries (`iac.go`); `telemetry.SpanQueryInfraResourceSearch`
+  (`query.infra_resource_search`) on infrastructure search (`infra.go`).
+  Per-query spans `neo4j.query` and `postgres.query` on every graph and content
+  read.
 - Metrics: `eshu_dp_neo4j_query_duration_seconds` and
   `eshu_dp_postgres_query_duration_seconds` (instruments live in
   `internal/telemetry/instruments.go`).

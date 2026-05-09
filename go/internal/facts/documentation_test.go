@@ -292,6 +292,28 @@ func TestDocumentationClaimCandidateStableIDIncludesExcerptHash(t *testing.T) {
 	}
 }
 
+func TestDocumentationFindingAndPacketStableIDsUseVersions(t *testing.T) {
+	t.Parallel()
+
+	firstFinding := DocumentationFindingStableID("finding:service-deployment:1", "2026-05-09T19:00:00Z")
+	secondFinding := DocumentationFindingStableID("finding:service-deployment:1", "2026-05-09T20:00:00Z")
+	if firstFinding == "" {
+		t.Fatal("DocumentationFindingStableID returned empty ID")
+	}
+	if firstFinding == secondFinding {
+		t.Fatalf("finding stable ID did not change across versions: %q", firstFinding)
+	}
+
+	firstPacket := DocumentationEvidencePacketStableID("doc-packet:service-deployment:1", "1")
+	secondPacket := DocumentationEvidencePacketStableID("doc-packet:service-deployment:1", "2")
+	if firstPacket == "" {
+		t.Fatal("DocumentationEvidencePacketStableID returned empty ID")
+	}
+	if firstPacket == secondPacket {
+		t.Fatalf("packet stable ID did not change across versions: %q", firstPacket)
+	}
+}
+
 func TestDocumentationStableIDsUseDurableIdentity(t *testing.T) {
 	t.Parallel()
 

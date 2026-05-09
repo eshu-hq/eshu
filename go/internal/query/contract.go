@@ -91,11 +91,16 @@ type ErrorCode string
 
 const (
 	ErrorCodeUnsupportedCapability ErrorCode = "unsupported_capability"
+	ErrorCodeInvalidArgument       ErrorCode = "invalid_argument"
+	ErrorCodeNotFound              ErrorCode = "not_found"
+	ErrorCodePermissionDenied      ErrorCode = "permission_denied"
 	ErrorCodeBackendUnavailable    ErrorCode = "backend_unavailable"
 	ErrorCodeIndexBuilding         ErrorCode = "index_building"
 	ErrorCodeScopeNotFound         ErrorCode = "scope_not_found"
 	ErrorCodeCapabilityDegraded    ErrorCode = "capability_degraded"
 	ErrorCodeOverloaded            ErrorCode = "overloaded"
+	ErrorCodeInternalError         ErrorCode = "internal_error"
+	ErrorCodeReadModelUnavailable  ErrorCode = "documentation_read_model_unavailable"
 )
 
 type ErrorEnvelope struct {
@@ -282,6 +287,27 @@ var capabilityMatrix = map[string]capabilitySupport{
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
 	"relationship_evidence.drilldown": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
+	"documentation_findings.list": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
+	"documentation_evidence_packet.read": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
+	"documentation_evidence_packet.freshness": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,

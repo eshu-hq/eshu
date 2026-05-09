@@ -122,11 +122,16 @@ Initial error code set:
 | Code | When |
 | --- | --- |
 | `unsupported_capability` | Capability not supported in the current runtime profile. Returned as HTTP 501. |
+| `invalid_argument` | Request parameters are invalid or malformed. |
+| `not_found` | Requested finding, packet, entity, repo, or workspace scope does not exist. |
+| `permission_denied` | Caller cannot view the requested source, document, or evidence. |
 | `backend_unavailable` | Authoritative backend (Neo4j / Postgres) is unreachable. |
 | `index_building` | Initial indexing is in progress; authoritative data not ready. |
 | `scope_not_found` | Requested entity, repo, or workspace scope does not exist. |
 | `capability_degraded` | Capability supported but running under reduced fidelity (e.g. reducer lag). |
 | `overloaded` | Runtime is saturated; request rejected rather than queued unboundedly. |
+| `internal_error` | Eshu failed unexpectedly while serving a request. |
+| `documentation_read_model_unavailable` | Documentation packet routes are mounted without the Postgres documentation read model. |
 
 Details, freshness semantics, and MCP embedding live in
 `reference/truth-label-protocol.md`.
@@ -231,6 +236,31 @@ generation metadata, `evidence_preview`, and the decoded `details` JSON stored
 with the resolved relationship. Use this endpoint when an API or MCP client
 needs to explain why an edge exists without embedding the full evidence payload
 in every graph-facing response.
+
+### Documentation Truth Evidence
+
+Documentation updater services should use the documentation truth routes
+instead of reading graph internals directly.
+
+`GET /api/v0/documentation/findings` lists read-only findings such as
+`service_deployment_drift`. The endpoint accepts filters for `finding_type`,
+`source_id`, `document_id`, `status`, `truth_level`, `freshness_state`,
+`updated_since`, `limit`, and `cursor`. Each item includes the stable finding
+identity, document and section identity, status, truth labels, summary, and an
+`evidence_packet_url`.
+
+`GET /api/v0/documentation/findings/{finding_id}/evidence-packet` returns the
+bounded packet an external updater can snapshot before it plans a diff. The
+packet includes finding identity, document and section metadata, bounded
+excerpt, linked entities, current truth, evidence references, truth state,
+permission state, and explicit `states` for stale, ambiguous, unsupported, or
+ready findings. Eshu still does not draft text or write documentation; this
+route only gives the updater the evidence it is allowed to use.
+
+`GET /api/v0/documentation/evidence-packets/{packet_id}/freshness` lets an
+updater check a saved packet before publishing a diff. If the packet is stale,
+the updater should fetch the latest packet and restart planning from the new
+snapshot.
 
 ## Context API
 

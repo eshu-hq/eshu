@@ -44,8 +44,9 @@ Eshu core must not:
 
 ## Required Eshu APIs
 
-The API names below define the contract target. Issue #71 owns the Eshu-side
-implementation.
+The API names below define the Eshu-side contract for updater actuators. These
+routes return read-only evidence; they do not draft text or write to destination
+systems.
 
 ### List Findings
 
@@ -209,6 +210,7 @@ Eshu responses must use explicit states instead of vague failures.
 
 | HTTP status | Error code | Meaning | Updater behavior |
 | --- | --- | --- | --- |
+| `400` | `invalid_argument` | Request parameters are invalid, such as a malformed `updated_since` timestamp. | Fix the request before retrying. |
 | `401` | `unauthenticated` | Caller identity is missing or invalid. | Stop and require auth. |
 | `403` | `permission_denied` | Caller cannot view the requested source, document, or evidence. | Do not draft. |
 | `404` | `not_found` | Finding, packet, document, or section does not exist. | Drop or refresh the item. |
@@ -217,6 +219,8 @@ Eshu responses must use explicit states instead of vague failures.
 | `423` | `building` | Eshu is still collecting or reducing required evidence. | Retry later with backoff. |
 | `429` | `rate_limited` | Caller exceeded rate limits. | Retry after the stated interval. |
 | `500` | `internal_error` | Eshu failed unexpectedly. | Retry according to updater policy. |
+| `501` | `documentation_read_model_unavailable` | The runtime cannot serve documentation packets because the Postgres read model is not wired. | Disable drafting and alert the operator. |
+| `501` | `unsupported_capability` | The current runtime profile does not support documentation evidence packets. | Use a fuller Eshu profile before drafting. |
 | `503` | `source_unavailable` | Required source evidence is temporarily unavailable. | Retry later. |
 
 Error bodies must include:

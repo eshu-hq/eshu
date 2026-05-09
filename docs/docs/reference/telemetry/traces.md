@@ -33,6 +33,9 @@ The stable span families are:
 - `shared_acceptance.lookup`
 - `shared_acceptance.upsert`
 - `query.relationship_evidence`
+- `query.documentation_findings`
+- `query.documentation_evidence_packet`
+- `query.documentation_packet_freshness`
 - `query.dead_iac`
 - `query.infra_resource_search`
 - `postgres.exec`
@@ -42,6 +45,9 @@ The stable span families are:
 The read/query layer also emits:
 
 - `query.relationship_evidence`
+- `query.documentation_findings`
+- `query.documentation_evidence_packet`
+- `query.documentation_packet_freshness`
 - `query.dead_iac`
 - `query.infra_resource_search`
 - `postgres.query`
