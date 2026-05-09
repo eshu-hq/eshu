@@ -158,7 +158,10 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanInheritanceMaterialization`, `SpanCrossRepoResolution`,
 `SpanSharedAcceptanceLookup`, `SpanSharedAcceptanceUpsert`,
 `SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
-`SpanQueryInfraResourceSearch`.
+`SpanQueryInfraResourceSearch`, `SpanTerraformStateClaimProcess`,
+`SpanTerraformStateDiscoveryResolve`, `SpanTerraformStateSourceOpen`,
+`SpanTerraformStateParserStream`, `SpanTerraformStateFactEmitBatch`, and
+`SpanTerraformStateCoordinatorDone`.
 
 Dependency spans: `SpanPostgresExec`, `SpanPostgresQuery`, `SpanNeo4jExecute`.
 

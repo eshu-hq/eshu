@@ -66,7 +66,7 @@ func (s ClaimedService) Run(ctx context.Context) error {
 			ClaimID:             claimID,
 		}, s.now(), s.ClaimLeaseTTL)
 		if err != nil {
-			return fmt.Errorf("claim next git work item: %w", err)
+			return fmt.Errorf("claim next %s work item: %w", s.claimedKindLabel(), err)
 		}
 		if !found {
 			if err := waitForNextPoll(ctx, s.PollInterval); err != nil {
@@ -121,7 +121,7 @@ func (s ClaimedService) validate() error {
 func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkItem, claim workflow.Claim) error {
 	mutation := s.claimMutation(item, claim)
 	if err := s.ControlStore.HeartbeatClaim(ctx, mutation); err != nil {
-		return fmt.Errorf("heartbeat claimed git work item: %w", err)
+		return fmt.Errorf("heartbeat claimed %s work item: %w", s.claimedKindLabel(), err)
 	}
 
 	heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
@@ -135,7 +135,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	if !ok {
 		stopHeartbeat()
 		if err := s.ControlStore.ReleaseClaim(ctx, mutation); err != nil {
-			return fmt.Errorf("release claimed git work item: %w", err)
+			return fmt.Errorf("release claimed %s work item: %w", s.claimedKindLabel(), err)
 		}
 		return nil
 	}
@@ -154,7 +154,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		return err
 	}
 	if err := s.ControlStore.CompleteClaim(ctx, mutation); err != nil {
-		return fmt.Errorf("complete claimed git work item: %w", err)
+		return fmt.Errorf("complete claimed %s work item: %w", s.claimedKindLabel(), err)
 	}
 	return nil
 }
@@ -183,7 +183,7 @@ func (s ClaimedService) startHeartbeatLoop(ctx context.Context, mutation workflo
 				next := mutation
 				next.ObservedAt = s.now()
 				if err := s.ControlStore.HeartbeatClaim(ctx, next); err != nil {
-					errc <- fmt.Errorf("heartbeat claimed git work item: %w", err)
+					errc <- fmt.Errorf("heartbeat claimed %s work item: %w", s.claimedKindLabel(), err)
 					return
 				}
 			}
@@ -199,9 +199,13 @@ func (s ClaimedService) failRetryable(
 	err error,
 ) error {
 	if failErr := s.ControlStore.FailClaimRetryable(ctx, withFailure(mutation, failureClass, err)); failErr != nil {
-		return fmt.Errorf("retryable-fail claimed git work item: %w", failErr)
+		return fmt.Errorf("retryable-fail claimed %s work item: %w", s.claimedKindLabel(), failErr)
 	}
 	return fmt.Errorf("%s: %w", failureClass, err)
+}
+
+func (s ClaimedService) claimedKindLabel() string {
+	return string(s.CollectorKind)
 }
 
 func (s ClaimedService) now() time.Time {
