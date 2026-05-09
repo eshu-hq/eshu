@@ -82,6 +82,27 @@ func TestDiscoveryWaitsForGitGenerationBeforeGraphDiscovery(t *testing.T) {
 	}
 }
 
+func TestDiscoveryDoesNotReadGraphFactsWithoutRepoScope(t *testing.T) {
+	t.Parallel()
+
+	facts := &stubBackendFactReader{}
+	resolver := DiscoveryResolver{
+		Config:       DiscoveryConfig{Graph: true},
+		BackendFacts: facts,
+	}
+
+	candidates, err := resolver.Resolve(context.Background())
+	if err != nil {
+		t.Fatalf("Resolve() error = %v, want nil", err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("len(candidates) = %d, want 0", len(candidates))
+	}
+	if facts.calls != 0 {
+		t.Fatalf("backend fact reader calls = %d, want 0 without repo scope", facts.calls)
+	}
+}
+
 func TestDiscoveryReadsGraphFactsAfterGitGenerationCommitted(t *testing.T) {
 	t.Parallel()
 
@@ -163,7 +184,10 @@ func TestDiscoveryRejectsPrefixGraphCandidate(t *testing.T) {
 	t.Parallel()
 
 	resolver := DiscoveryResolver{
-		Config: DiscoveryConfig{Graph: true},
+		Config: DiscoveryConfig{Graph: true, LocalRepos: []string{"platform-infra"}},
+		GitReadiness: &stubGitReadiness{
+			ready: map[string]bool{"platform-infra": true},
+		},
 		BackendFacts: &stubBackendFactReader{
 			candidates: []DiscoveryCandidate{{
 				State: StateKey{
@@ -180,13 +204,62 @@ func TestDiscoveryRejectsPrefixGraphCandidate(t *testing.T) {
 	}
 }
 
+func TestDiscoveryRejectsTerragruntGraphCandidateUntilResolved(t *testing.T) {
+	t.Parallel()
+
+	resolver := DiscoveryResolver{
+		Config: DiscoveryConfig{Graph: true, LocalRepos: []string{"platform-infra"}},
+		GitReadiness: &stubGitReadiness{
+			ready: map[string]bool{"platform-infra": true},
+		},
+		BackendFacts: &stubBackendFactReader{
+			candidates: []DiscoveryCandidate{{
+				State: StateKey{
+					BackendKind: BackendTerragrunt,
+					Locator:     "terragrunt://platform-infra/live/prod",
+				},
+				Source: DiscoveryCandidateSourceGraph,
+			}},
+		},
+	}
+
+	if _, err := resolver.Resolve(context.Background()); err == nil {
+		t.Fatal("Resolve() error = nil, want unresolved terragrunt rejection")
+	}
+}
+
+func TestDiscoveryRejectsUntrimmedGraphCandidateLocator(t *testing.T) {
+	t.Parallel()
+
+	resolver := DiscoveryResolver{
+		Config: DiscoveryConfig{Graph: true, LocalRepos: []string{"platform-infra"}},
+		GitReadiness: &stubGitReadiness{
+			ready: map[string]bool{"platform-infra": true},
+		},
+		BackendFacts: &stubBackendFactReader{
+			candidates: []DiscoveryCandidate{{
+				State: StateKey{
+					BackendKind: BackendS3,
+					Locator:     " s3://app-tfstate-prod/services/api/terraform.tfstate ",
+				},
+				Source: DiscoveryCandidateSourceGraph,
+			}},
+		},
+	}
+
+	if _, err := resolver.Resolve(context.Background()); err == nil {
+		t.Fatal("Resolve() error = nil, want untrimmed locator rejection")
+	}
+}
+
 func TestDiscoveryRecordsCandidateMetricsBySource(t *testing.T) {
 	t.Parallel()
 
 	metrics := &stubDiscoveryMetrics{}
 	resolver := DiscoveryResolver{
 		Config: DiscoveryConfig{
-			Graph: true,
+			Graph:      true,
+			LocalRepos: []string{"platform-infra"},
 			Seeds: []DiscoverySeed{{
 				Kind:   BackendS3,
 				Bucket: "app-tfstate-prod",
@@ -202,6 +275,9 @@ func TestDiscoveryRecordsCandidateMetricsBySource(t *testing.T) {
 				},
 				Source: DiscoveryCandidateSourceGraph,
 			}},
+		},
+		GitReadiness: &stubGitReadiness{
+			ready: map[string]bool{"platform-infra": true},
 		},
 		Metrics: metrics,
 	}
@@ -265,6 +341,16 @@ func TestNewDiscoveryMetricsPublishesCandidateCounter(t *testing.T) {
 	}
 	if got, want := discoveryCounterValue(t, rm, "eshu_dp_tfstate_discovery_candidates_total", "seed"), int64(2); got != want {
 		t.Fatalf("candidate counter = %d, want %d", got, want)
+	}
+}
+
+func TestIsWaitingOnGitGenerationMatchesPointerError(t *testing.T) {
+	t.Parallel()
+
+	err := &WaitingOnGitGenerationError{RepoIDs: []string{"platform-infra"}}
+
+	if !IsWaitingOnGitGeneration(err) {
+		t.Fatal("IsWaitingOnGitGeneration() = false, want true for pointer error")
 	}
 }
 

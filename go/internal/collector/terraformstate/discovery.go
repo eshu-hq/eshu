@@ -99,8 +99,12 @@ func (e WaitingOnGitGenerationError) Status() string {
 
 // IsWaitingOnGitGeneration reports whether err is a Git-readiness wait.
 func IsWaitingOnGitGeneration(err error) bool {
-	var waiting WaitingOnGitGenerationError
-	return errors.As(err, &waiting)
+	var waitingValue WaitingOnGitGenerationError
+	if errors.As(err, &waitingValue) {
+		return true
+	}
+	var waitingPointer *WaitingOnGitGenerationError
+	return errors.As(err, &waitingPointer)
 }
 
 // Resolve returns exact Terraform state candidates from explicit seeds and
@@ -131,6 +135,10 @@ func (r DiscoveryResolver) Resolve(ctx context.Context) ([]DiscoveryCandidate, e
 		return candidates, nil
 	}
 	repoIDs := normalizedRepoIDs(r.Config.LocalRepos)
+	if len(repoIDs) == 0 {
+		r.recordCandidates(ctx, counts)
+		return candidates, nil
+	}
 	if err := r.requireGitReady(ctx, repoIDs); err != nil {
 		return nil, err
 	}
@@ -209,6 +217,9 @@ func (c DiscoveryCandidate) Validate() error {
 
 func validateExactCandidateState(state StateKey) error {
 	locator := strings.TrimSpace(state.Locator)
+	if locator != state.Locator {
+		return fmt.Errorf("terraform state source locator must not have surrounding whitespace")
+	}
 	switch state.BackendKind {
 	case BackendLocal:
 		if !strings.HasPrefix(locator, "/") {
@@ -226,6 +237,10 @@ func validateExactCandidateState(state StateKey) error {
 		if strings.HasSuffix(key, "/") {
 			return fmt.Errorf("s3 state locator must name an exact object")
 		}
+	case BackendTerragrunt:
+		return fmt.Errorf("terragrunt state candidates must be resolved to an exact backend before discovery emits them")
+	default:
+		return fmt.Errorf("unsupported terraform state backend kind %q", state.BackendKind)
 	}
 	return nil
 }
