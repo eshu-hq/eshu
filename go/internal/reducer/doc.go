@@ -8,7 +8,9 @@
 // namespace calls before same-file trailing-name fallback, function receiver,
 // constructor, re-export, dynamic import, returned function-value, TypeScript
 // type-reference, Java local receiver, method-reference, overload arity, and
-// typed argument/parameter signatures, Python constructor, self receiver, class
+// typed argument/parameter signatures including helper-call return types, Java
+// enhanced-for receiver evidence, and Java enclosing-class and explicit
+// outer-this field receiver contexts, Python constructor, self receiver, class
 // receiver, inherited classmethod, and local receiver evidence, static
 // JavaScript registry dispatch, and package-file-root evidence.
 // Code-call rows carry endpoint IDs plus the endpoint entity labels needed by

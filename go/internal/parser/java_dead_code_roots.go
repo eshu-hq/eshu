@@ -50,6 +50,93 @@ func javaDeadCodeRootKinds(
 		if javaIsMethodReferenceTarget(node, source, name, methodReferences) {
 			rootKinds = appendUniqueString(rootKinds, "java.method_reference_target")
 		}
+		rootKinds = append(rootKinds, javaFrameworkMethodRootKinds(raw)...)
+	}
+	return rootKinds
+}
+
+func javaTypeDeadCodeRootKinds(node *tree_sitter.Node, source []byte) []string {
+	name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+	decorators := javaDecorators(node, source, name)
+	rootKinds := make([]string, 0, 2)
+	if javaDecoratorsHaveAnyAnnotation(decorators, []string{
+		"Component",
+		"Service",
+		"Repository",
+		"Controller",
+		"RestController",
+		"Configuration",
+		"SpringBootApplication",
+		"AutoConfiguration",
+		"ControllerAdvice",
+		"RestControllerAdvice",
+	}) {
+		rootKinds = appendUniqueString(rootKinds, "java.spring_component_class")
+	}
+	if javaDecoratorsHaveAnnotation(decorators, "ConfigurationProperties") {
+		rootKinds = appendUniqueString(rootKinds, "java.spring_configuration_properties_class")
+	}
+	if javaDecoratorsHaveAnyAnnotation(decorators, []string{"Extension", "TestExtension"}) {
+		rootKinds = appendUniqueString(rootKinds, "java.jenkins_extension_class")
+	}
+	if javaDecoratorsHaveAnnotation(decorators, "Symbol") {
+		rootKinds = appendUniqueString(rootKinds, "java.jenkins_symbol_class")
+	}
+	return rootKinds
+}
+
+func javaFrameworkMethodRootKinds(raw string) []string {
+	rootKinds := make([]string, 0, 3)
+	if javaHasAnyAnnotation(raw, []string{
+		"RequestMapping",
+		"GetMapping",
+		"PostMapping",
+		"PutMapping",
+		"DeleteMapping",
+		"PatchMapping",
+	}) {
+		rootKinds = appendUniqueString(rootKinds, "java.spring_request_mapping_method")
+	}
+	if javaHasAnnotation(raw, "Bean") {
+		rootKinds = appendUniqueString(rootKinds, "java.spring_bean_method")
+	}
+	if javaHasAnnotation(raw, "EventListener") {
+		rootKinds = appendUniqueString(rootKinds, "java.spring_event_listener_method")
+	}
+	if javaHasAnyAnnotation(raw, []string{"Scheduled", "Schedules"}) {
+		rootKinds = appendUniqueString(rootKinds, "java.spring_scheduled_method")
+	}
+	if javaHasAnyAnnotation(raw, []string{"PostConstruct", "PreDestroy"}) {
+		rootKinds = appendUniqueString(rootKinds, "java.lifecycle_callback_method")
+	}
+	if javaHasAnyAnnotation(raw, []string{
+		"Test",
+		"ParameterizedTest",
+		"RepeatedTest",
+		"TestFactory",
+		"TestTemplate",
+	}) {
+		rootKinds = appendUniqueString(rootKinds, "java.junit_test_method")
+	}
+	if javaHasAnyAnnotation(raw, []string{
+		"BeforeEach",
+		"AfterEach",
+		"BeforeAll",
+		"AfterAll",
+	}) {
+		rootKinds = appendUniqueString(rootKinds, "java.junit_lifecycle_method")
+	}
+	if javaHasAnnotation(raw, "Symbol") {
+		rootKinds = appendUniqueString(rootKinds, "java.jenkins_symbol_method")
+	}
+	if javaHasAnnotation(raw, "Initializer") {
+		rootKinds = appendUniqueString(rootKinds, "java.jenkins_initializer_method")
+	}
+	if javaHasAnnotation(raw, "DataBoundSetter") {
+		rootKinds = appendUniqueString(rootKinds, "java.jenkins_databound_setter_method")
+	}
+	if javaHasAnyAnnotation(raw, []string{"RequirePOST", "POST", "GET", "WebMethod"}) {
+		rootKinds = appendUniqueString(rootKinds, "java.stapler_web_method")
 	}
 	return rootKinds
 }
@@ -232,6 +319,28 @@ func javaHasAnnotation(raw string, name string) bool {
 			strings.HasPrefix(decorator, "@"+name+"(") ||
 			strings.HasSuffix(decorator, "."+name) ||
 			strings.Contains(decorator, "."+name+"(") {
+			return true
+		}
+	}
+	return false
+}
+
+func javaHasAnyAnnotation(raw string, names []string) bool {
+	for _, name := range names {
+		if javaHasAnnotation(raw, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func javaDecoratorsHaveAnnotation(decorators []string, name string) bool {
+	return javaHasAnnotation(strings.Join(decorators, "\n"), name)
+}
+
+func javaDecoratorsHaveAnyAnnotation(decorators []string, names []string) bool {
+	for _, name := range names {
+		if javaDecoratorsHaveAnnotation(decorators, name) {
 			return true
 		}
 	}

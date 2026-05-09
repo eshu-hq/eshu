@@ -67,8 +67,7 @@ func codeCallExactCandidateNames(call map[string]any, language string) []string 
 			}
 		}
 	}
-	classContext := codeCallClassContext(call["class_context"])
-	if classContext != "" && strings.TrimSpace(name) != "" {
+	for _, classContext := range codeCallClassContexts(call) {
 		appendName(classContext + "." + name)
 	}
 	inferredType := strings.TrimSpace(anyToString(call["inferred_obj_type"]))
@@ -275,6 +274,37 @@ func codeCallClassContext(value any) string {
 	}
 }
 
+// codeCallClassContexts preserves nearest-to-outermost class scopes emitted by
+// language parsers, allowing exact same-file matching without broad fallback.
+func codeCallClassContexts(item map[string]any) []string {
+	contexts := make([]string, 0, 4)
+	appendContext := func(value string) {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return
+		}
+		for _, existing := range contexts {
+			if existing == trimmed {
+				return
+			}
+		}
+		contexts = append(contexts, trimmed)
+	}
+
+	appendContext(codeCallClassContext(item["class_context"]))
+	switch typed := item["enclosing_class_contexts"].(type) {
+	case []string:
+		for _, value := range typed {
+			appendContext(value)
+		}
+	case []any:
+		for _, value := range typed {
+			appendContext(anyToString(value))
+		}
+	}
+	return contexts
+}
+
 func codeCallContextName(value any) string {
 	switch typed := value.(type) {
 	case string:
@@ -327,7 +357,7 @@ func codeCallHasQualifiedScope(call map[string]any, language string) bool {
 	if codeCallHasQualifiedFullName(anyToString(call["full_name"])) {
 		return true
 	}
-	if codeCallClassContext(call["class_context"]) != "" {
+	if len(codeCallClassContexts(call)) > 0 {
 		return true
 	}
 	if strings.TrimSpace(anyToString(call["inferred_obj_type"])) != "" {

@@ -5,7 +5,7 @@
 `internal/parser` owns the native Go parser registry, language adapters,
 import, re-export, and constructor receiver metadata, dead-code root metadata,
 and SCIP reduction support used to extract source-level entities and metadata.
-Parser changes must preserve fact truth: when a parser starts emitting a new
+Parser changes must preserve fact truth: when a parser emits a new
 entity, relationship, or metadata field, the relevant fixtures, fact contracts
 in `internal/facts`, and downstream docs must move in lockstep. Parsers must
 be deterministic given the same source bytes so retries and repair runs
@@ -74,9 +74,17 @@ method references such as `this::configureTask`, argument counts, and bounded
 argument types from parameters, fields, inline constructors, and class-literal
 typed lambdas, so the reducer can distinguish overloaded methods when local
 receiver evidence points at a type. Receiver inference builds a local index of
-parameters, variables, fields, and typed lambda parameters for each parsed file
-before call extraction, so large classes do not repeat a full tree walk for
-every method invocation.
+parameters, variables, enhanced-for loop variables, fields, and typed lambda
+parameters and same-class method return types for each parsed file before call
+extraction, so large classes do not repeat a full tree walk for every method
+invocation. Method-call arguments such as helper calls can then carry bounded
+return-type metadata when resolving overloads. Unqualified Java calls
+inside nested classes carry a nearest-to-outermost `enclosing_class_contexts`
+chain, which lets the reducer match inner-class helpers first and then enclosing
+class methods without broad same-name fallback. Explicit outer-this field
+receivers in Java's named-outer-instance field form reuse the field type
+index for the named enclosing class, so nested callback bodies can still produce
+typed receiver evidence.
 Record declarations use the same class-style context for nested method parsing,
 which keeps Java record helper methods addressable by the reducer.
 Python adapters also preserve method `class_context`, constructor call
@@ -293,11 +301,15 @@ errors are surfaced in `collector snapshot stage completed` logs with
   barrels and `tsconfig.json` `paths` aliases that resolve to local files. Java
   dead-code roots cover `main`, constructors, `@Override`, JavaBean-style
   public Ant `Task` setters, Gradle plugin `apply` methods, Gradle task
-  actions and properties, and public Gradle DSL methods; Java call
-  metadata also preserves local receiver types from parameters, variables,
-  fields, inline constructor receivers, and call/function arity so the reducer
-  can connect bounded method calls without treating every same-named overload
-  as live.
+  actions and properties, public Gradle DSL methods, Spring component and
+  configuration-property classes, Spring request/bean/event/scheduled methods,
+  Java lifecycle callbacks, JUnit test and lifecycle methods, Jenkins extension
+  and symbol classes, Jenkins initializer/data-bound setter methods, and Stapler
+  web methods. Java call metadata also preserves local receiver types from
+  parameters, variables, fields, inline constructor receivers, typed method
+  references such as `processor::process`, unqualified same-class calls, and
+  call/function arity so the reducer can connect bounded method calls without
+  treating every same-named overload as live.
   JavaScript-family import metadata preserves namespace aliases, JSONC
   tsconfig `baseUrl` and `paths` resolved sources with comments and trailing
   commas accepted, and one-hop static relative re-exports used by reducer call

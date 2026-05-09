@@ -5,6 +5,35 @@ import (
 	"strings"
 )
 
+var javaDeadCodeMetadataRootKinds = []string{
+	"java.main_method",
+	"java.constructor",
+	"java.override_method",
+	"java.ant_task_setter",
+	"java.gradle_plugin_apply",
+	"java.gradle_task_action",
+	"java.gradle_task_property",
+	"java.gradle_task_setter",
+	"java.gradle_task_interface_method",
+	"java.gradle_dsl_public_method",
+	"java.method_reference_target",
+	"java.spring_component_class",
+	"java.spring_configuration_properties_class",
+	"java.spring_request_mapping_method",
+	"java.spring_bean_method",
+	"java.spring_event_listener_method",
+	"java.spring_scheduled_method",
+	"java.lifecycle_callback_method",
+	"java.junit_test_method",
+	"java.junit_lifecycle_method",
+	"java.jenkins_extension_class",
+	"java.jenkins_symbol_class",
+	"java.jenkins_symbol_method",
+	"java.jenkins_initializer_method",
+	"java.jenkins_databound_setter_method",
+	"java.stapler_web_method",
+}
+
 func deadCodeIsJavaRoot(result map[string]any, entity *EntityContent, stats *deadCodePolicyStats) bool {
 	if strings.ToLower(deadCodeEntityLanguage(result, entity)) != "java" {
 		return false
@@ -13,19 +42,11 @@ func deadCodeIsJavaRoot(result map[string]any, entity *EntityContent, stats *dea
 	if len(rootKinds) == 0 {
 		return false
 	}
-	if slices.Contains(rootKinds, "java.main_method") ||
-		slices.Contains(rootKinds, "java.constructor") ||
-		slices.Contains(rootKinds, "java.override_method") ||
-		slices.Contains(rootKinds, "java.ant_task_setter") ||
-		slices.Contains(rootKinds, "java.gradle_plugin_apply") ||
-		slices.Contains(rootKinds, "java.gradle_task_action") ||
-		slices.Contains(rootKinds, "java.gradle_task_property") ||
-		slices.Contains(rootKinds, "java.gradle_task_setter") ||
-		slices.Contains(rootKinds, "java.gradle_task_interface_method") ||
-		slices.Contains(rootKinds, "java.gradle_dsl_public_method") ||
-		slices.Contains(rootKinds, "java.method_reference_target") {
-		stats.ParserMetadataFrameworkRoots++
-		return true
+	for _, rootKind := range javaDeadCodeMetadataRootKinds {
+		if slices.Contains(rootKinds, rootKind) {
+			stats.ParserMetadataFrameworkRoots++
+			return true
+		}
 	}
 	return false
 }

@@ -21,15 +21,25 @@ type javaTypedName struct {
 type javaCallInferenceIndex struct {
 	variablesByScope map[javaNodeKey][]javaTypedName
 	fieldsByClass    map[javaNodeKey][]javaTypedName
+	returnsByClass   map[javaNodeKey][]javaTypedName
 }
 
 func buildJavaCallInferenceIndex(root *tree_sitter.Node, source []byte) *javaCallInferenceIndex {
 	index := &javaCallInferenceIndex{
 		variablesByScope: map[javaNodeKey][]javaTypedName{},
 		fieldsByClass:    map[javaNodeKey][]javaTypedName{},
+		returnsByClass:   map[javaNodeKey][]javaTypedName{},
 	}
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
+		case "method_declaration":
+			classNode := javaEnclosingClassNode(node)
+			if classNode == nil {
+				return
+			}
+			name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+			typeName := javaDeclaredTypeName(node, source)
+			index.addReturn(classNode, name, typeName, nodeLine(node))
 		case "formal_parameter":
 			scope := javaCallInferenceScope(node)
 			if scope == nil {
@@ -47,6 +57,16 @@ func buildJavaCallInferenceIndex(root *tree_sitter.Node, source []byte) *javaCal
 			for _, name := range javaDeclarationVariableNames(node, source) {
 				index.addVariable(scope, name, typeName, nodeLine(node))
 			}
+		case "enhanced_for_statement":
+			scope := javaCallInferenceScope(node)
+			if scope == nil {
+				return
+			}
+			typedName, ok := javaEnhancedForTypedName(node, source)
+			if !ok {
+				return
+			}
+			index.addVariable(scope, typedName.name, typedName.typeName, typedName.line)
 		case "field_declaration":
 			classNode := javaEnclosingClassNode(node)
 			if classNode == nil {
@@ -90,6 +110,18 @@ func (i *javaCallInferenceIndex) addField(classNode *tree_sitter.Node, name stri
 	})
 }
 
+func (i *javaCallInferenceIndex) addReturn(classNode *tree_sitter.Node, name string, typeName string, line int) {
+	if i == nil || classNode == nil || name == "" || typeName == "" {
+		return
+	}
+	key := javaNodeRangeKey(classNode)
+	i.returnsByClass[key] = append(i.returnsByClass[key], javaTypedName{
+		name:     name,
+		typeName: typeName,
+		line:     line,
+	})
+}
+
 func javaNodeRangeKey(node *tree_sitter.Node) javaNodeKey {
 	if node == nil {
 		return javaNodeKey{}
@@ -126,6 +158,12 @@ func javaCallInferredObjectType(
 			return index.fieldTypeBefore(javaEnclosingClassNode(callNode), fieldName, callLine+1)
 		}
 		return javaFieldTypeBefore(javaEnclosingClassNode(callNode), fieldName, source, callLine+1)
+	}
+	if className, fieldName, ok := javaExplicitOuterThisField(receiver); ok {
+		if index != nil {
+			return index.fieldTypeBefore(javaEnclosingClassNodeByName(callNode, source, className), fieldName, callLine+1)
+		}
+		return javaFieldTypeBefore(javaEnclosingClassNodeByName(callNode, source, className), fieldName, source, callLine+1)
 	}
 	if receiver == "" || strings.ContainsAny(receiver, ".()[") {
 		return ""
@@ -167,6 +205,23 @@ func (i *javaCallInferenceIndex) fieldTypeBefore(
 		return ""
 	}
 	return javaTypeBefore(i.fieldsByClass[javaNodeRangeKey(classNode)], receiver, beforeLine)
+}
+
+func (i *javaCallInferenceIndex) methodReturnType(
+	classNode *tree_sitter.Node,
+	name string,
+) string {
+	if i == nil || classNode == nil || name == "" {
+		return ""
+	}
+	entries := i.returnsByClass[javaNodeRangeKey(classNode)]
+	for i := len(entries) - 1; i >= 0; i-- {
+		entry := entries[i]
+		if entry.name == name {
+			return entry.typeName
+		}
+	}
+	return ""
 }
 
 func javaTypeBefore(entries []javaTypedName, receiver string, beforeLine int) string {
@@ -212,6 +267,21 @@ func javaEnclosingClassNode(node *tree_sitter.Node) *tree_sitter.Node {
 	return nil
 }
 
+func javaEnclosingClassNodeByName(node *tree_sitter.Node, source []byte, name string) *tree_sitter.Node {
+	if node == nil || name == "" {
+		return nil
+	}
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		switch current.Kind() {
+		case "class_declaration", "interface_declaration", "enum_declaration", "record_declaration":
+			if strings.TrimSpace(nodeText(current.ChildByFieldName("name"), source)) == name {
+				return current
+			}
+		}
+	}
+	return nil
+}
+
 func javaVariableTypeBefore(scope *tree_sitter.Node, receiver string, source []byte, beforeLine int) string {
 	if scope == nil || receiver == "" {
 		return ""
@@ -252,177 +322,4 @@ func javaFieldTypeBefore(classNode *tree_sitter.Node, receiver string, source []
 		}
 	})
 	return matched
-}
-
-func javaDeclarationHasVariable(node *tree_sitter.Node, receiver string, source []byte) bool {
-	if node == nil || receiver == "" {
-		return false
-	}
-	for _, name := range javaDeclarationVariableNames(node, source) {
-		if name == receiver {
-			return true
-		}
-	}
-	return false
-}
-
-func javaDeclarationVariableNames(node *tree_sitter.Node, source []byte) []string {
-	if node == nil {
-		return nil
-	}
-	var names []string
-	walkNamed(node, func(child *tree_sitter.Node) {
-		if child.Kind() != "variable_declarator" {
-			return
-		}
-		name := strings.TrimSpace(nodeText(child.ChildByFieldName("name"), source))
-		if name == "" {
-			return
-		}
-		names = append(names, name)
-	})
-	if len(names) == 0 {
-		return nil
-	}
-	return names
-}
-
-func javaParameterName(node *tree_sitter.Node, source []byte) string {
-	if node == nil {
-		return ""
-	}
-	if nameNode := node.ChildByFieldName("name"); nameNode != nil {
-		return strings.TrimSpace(nodeText(nameNode, source))
-	}
-	var name string
-	walkNamed(node, func(child *tree_sitter.Node) {
-		if name != "" || child.Kind() != "identifier" {
-			return
-		}
-		name = strings.TrimSpace(nodeText(child, source))
-	})
-	return name
-}
-
-func javaDeclaredTypeName(node *tree_sitter.Node, source []byte) string {
-	if node == nil {
-		return ""
-	}
-	if typeNode := node.ChildByFieldName("type"); typeNode != nil {
-		return javaTypeLeafName(nodeText(typeNode, source))
-	}
-	var typeName string
-	walkNamed(node, func(child *tree_sitter.Node) {
-		if typeName != "" {
-			return
-		}
-		switch child.Kind() {
-		case "type_identifier", "scoped_type_identifier", "generic_type", "integral_type", "floating_point_type", "boolean_type":
-			typeName = javaTypeLeafName(nodeText(child, source))
-		}
-	})
-	return typeName
-}
-
-func javaObjectCreationTypeName(node *tree_sitter.Node, source []byte) string {
-	if node == nil || node.Kind() != "object_creation_expression" {
-		return ""
-	}
-	if typeNode := node.ChildByFieldName("type"); typeNode != nil {
-		return javaTypeLeafName(nodeText(typeNode, source))
-	}
-	if typeNode := javaFirstTypeIdentifier(node); typeNode != nil {
-		return javaTypeLeafName(nodeText(typeNode, source))
-	}
-	return ""
-}
-
-func javaTypeLeafName(value string) string {
-	value = strings.TrimSpace(value)
-	value = strings.TrimPrefix(value, "? extends ")
-	value = strings.TrimPrefix(value, "? super ")
-	if value == "" {
-		return ""
-	}
-	if cut := strings.IndexAny(value, "<["); cut >= 0 {
-		value = strings.TrimSpace(value[:cut])
-	}
-	if idx := strings.LastIndex(value, "."); idx >= 0 {
-		value = strings.TrimSpace(value[idx+1:])
-	}
-	return strings.TrimSpace(value)
-}
-
-func javaLambdaTypedParameters(node *tree_sitter.Node, source []byte) []javaTypedName {
-	typeName := javaLambdaClassLiteralType(node, source)
-	if typeName == "" {
-		return nil
-	}
-	names := javaLambdaParameterNames(node, source)
-	if len(names) == 0 {
-		return nil
-	}
-	return []javaTypedName{{
-		name:     names[0],
-		typeName: typeName,
-		line:     nodeLine(node) - 1,
-	}}
-}
-
-func javaLambdaClassLiteralType(node *tree_sitter.Node, source []byte) string {
-	if node == nil || node.Kind() != "lambda_expression" {
-		return ""
-	}
-	argumentsNode := node.Parent()
-	if argumentsNode == nil || argumentsNode.Kind() != "argument_list" {
-		return ""
-	}
-	var previousClassLiteral string
-	walkDirectNamed(argumentsNode, func(child *tree_sitter.Node) {
-		if child.StartByte() >= node.StartByte() {
-			return
-		}
-		if typeName := javaClassLiteralTypeName(child, source); typeName != "" {
-			previousClassLiteral = typeName
-		}
-	})
-	return previousClassLiteral
-}
-
-func javaClassLiteralTypeName(node *tree_sitter.Node, source []byte) string {
-	if node == nil {
-		return ""
-	}
-	raw := strings.TrimSpace(nodeText(node, source))
-	typeName, ok := strings.CutSuffix(raw, ".class")
-	if !ok {
-		return ""
-	}
-	return javaTypeLeafName(typeName)
-}
-
-func javaLambdaParameterNames(node *tree_sitter.Node, source []byte) []string {
-	raw := strings.TrimSpace(nodeText(node, source))
-	parameters, _, ok := strings.Cut(raw, "->")
-	if !ok {
-		return nil
-	}
-	parameters = strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(strings.TrimSpace(parameters), ")"), "("))
-	if parameters == "" {
-		return nil
-	}
-	parts := strings.Split(parameters, ",")
-	names := make([]string, 0, len(parts))
-	for _, part := range parts {
-		fields := strings.Fields(strings.TrimSpace(part))
-		if len(fields) == 0 {
-			continue
-		}
-		name := strings.TrimSpace(fields[len(fields)-1])
-		name = strings.TrimPrefix(name, "@")
-		if name != "" {
-			names = append(names, name)
-		}
-	}
-	return names
 }

@@ -159,15 +159,23 @@ stay ambiguous in that case.
 For Java, parser-provided `inferred_obj_type` metadata lets receiver-qualified
 calls such as `factory.basicAuth(...)` resolve to methods on the parsed
 receiver type when local syntax proves the variable, parameter, field, or
-inline constructor receiver. `code_call_materialization_arity.go` converts
-`argument_count` and `parameter_count` metadata into `name#arity` candidates
-before broad name matching, so overloaded methods such as `basicAuth(String)`
-and `basicAuth(String, String)` do not collapse into one reachability result.
+inline constructor receiver. Enhanced-for variables use the same receiver
+metadata, so loop-local calls such as `alignment.accepts(...)` resolve to the
+record or class declared in the loop header. Unqualified calls inside nested
+classes use parser-proven `enclosing_class_contexts` as exact candidates, so an
+inner helper wins before the reducer tries the enclosing class method. Explicit
+outer-this field receivers in Java's named-outer-instance field form use
+the enclosing class field type to resolve calls on collaborator objects.
+`code_call_materialization_arity.go` converts `argument_count` and
+`parameter_count` metadata into `name#arity` candidates before broad name
+matching, so overloaded methods such as `basicAuth(String)` and
+`basicAuth(String, String)` do not collapse into one reachability result.
 When Java parser rows also carry `argument_types` and `parameter_types`,
 the reducer adds type-signature candidates such as
 `configureBootJarTask(BootJar,TaskProvider)` before falling back to broader
-names. That lets class-literal typed Gradle lambdas resolve overloaded callback
-methods without treating every same-name overload as reached.
+names. That lets class-literal typed Gradle lambdas and helper-call return
+values resolve overloaded callback methods without treating every same-name
+overload as reached.
 Parser rows with `call_kind=java.method_reference` resolve method-reference
 syntax such as `this::configureTask` to same-class methods and materialize as
 `REFERENCES`, because the source proves reachability through a functional

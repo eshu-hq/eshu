@@ -73,6 +73,81 @@ func TestHandleDeadCodeExcludesJavaRootKindsFromMetadata(t *testing.T) {
 						"dead_code_root_kinds": []any{"java.method_reference_target"},
 					},
 					{
+						"entity_id": "java-spring-component", "name": "GreetingController", "labels": []any{"Class"},
+						"file_path": "src/main/java/example/GreetingController.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.spring_component_class"},
+					},
+					{
+						"entity_id": "java-spring-config-props", "name": "DemoProperties", "labels": []any{"Class"},
+						"file_path": "src/main/java/example/DemoProperties.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.spring_configuration_properties_class"},
+					},
+					{
+						"entity_id": "java-spring-mapping", "name": "greeting", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/GreetingController.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.spring_request_mapping_method"},
+					},
+					{
+						"entity_id": "java-spring-bean", "name": "httpClient", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/GreetingController.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.spring_bean_method"},
+					},
+					{
+						"entity_id": "java-spring-event", "name": "onReady", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/GreetingController.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.spring_event_listener_method"},
+					},
+					{
+						"entity_id": "java-spring-scheduled", "name": "tick", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/GreetingController.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.spring_scheduled_method"},
+					},
+					{
+						"entity_id": "java-lifecycle-callback", "name": "init", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/GreetingController.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.lifecycle_callback_method"},
+					},
+					{
+						"entity_id": "java-junit-test", "name": "greets", "labels": []any{"Function"},
+						"file_path": "src/test/java/example/GreetingControllerTests.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.junit_test_method"},
+					},
+					{
+						"entity_id": "java-junit-lifecycle", "name": "beforeEach", "labels": []any{"Function"},
+						"file_path": "src/test/java/example/GreetingControllerTests.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.junit_lifecycle_method"},
+					},
+					{
+						"entity_id": "java-jenkins-extension", "name": "DemoDescriptor", "labels": []any{"Class"},
+						"file_path": "src/main/java/example/DemoBuilder.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.jenkins_extension_class"},
+					},
+					{
+						"entity_id": "java-jenkins-symbol-class", "name": "DemoDescriptor", "labels": []any{"Class"},
+						"file_path": "src/main/java/example/DemoBuilder.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.jenkins_symbol_class"},
+					},
+					{
+						"entity_id": "java-jenkins-symbol", "name": "getDisplayName", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/DemoBuilder.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.jenkins_symbol_method"},
+					},
+					{
+						"entity_id": "java-jenkins-initializer", "name": "register", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/DemoBuilder.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.jenkins_initializer_method"},
+					},
+					{
+						"entity_id": "java-jenkins-databound", "name": "setEnabled", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/DemoBuilder.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.jenkins_databound_setter_method"},
+					},
+					{
+						"entity_id": "java-stapler-web", "name": "doSave", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/DemoBuilder.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.stapler_web_method"},
+					},
+					{
 						"entity_id": "java-helper", "name": "helper", "labels": []any{"Function"},
 						"file_path": "src/main/java/example/CLI.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
 					},

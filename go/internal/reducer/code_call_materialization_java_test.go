@@ -164,3 +164,213 @@ public class CLIConnectionFactory {
 	assertReducerNoCodeCallRow(t, rows, "content-entity:java-_main", "content-entity:java-basic-auth-two-arg")
 	assertReducerCodeCallRow(t, rows, "content-entity:java-basic-auth-one-arg", "content-entity:java-authorization")
 }
+
+func TestExtractCodeCallRowsResolvesJavaTypedMethodReferences(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "build-plugin", "src", "main", "java", "example", "BootZipCopyAction.java")
+	writeReducerTestFile(t, filePath, `package example;
+
+public class BootZipCopyAction {
+    void run(CopyActionProcessingStream copyActions) {
+        Processor processor = new Processor();
+        copyActions.process(processor::process);
+    }
+
+    private static final class Processor {
+        void process(FileCopyDetails details) {
+        }
+    }
+}
+`)
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+	assignReducerTestFunctionUID(t, payload, "run", "content-entity:java-run")
+	assignReducerTestFunctionUID(t, payload, "process", "content-entity:java-process")
+
+	_, rows := ExtractCodeCallRows([]facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload:  map[string]any{"repo_id": "repo-java"},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":          "repo-java",
+				"relative_path":    reducerTestRelativePath(t, repoRoot, filePath),
+				"parsed_file_data": payload,
+			},
+		},
+	})
+
+	assertReducerCodeCallRow(t, rows, "content-entity:java-run", "content-entity:java-process")
+}
+
+func TestExtractCodeCallRowsResolvesJavaUnqualifiedSameClassCalls(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "build-plugin", "src", "main", "java", "example", "JavaPluginAction.java")
+	writeReducerTestFile(t, filePath, `package example;
+
+public class JavaPluginAction {
+    private void configureAdditionalMetadataLocations(Project project) {
+    }
+
+    private static final class AdditionalMetadataLocationsConfigurer implements Action<Task> {
+        public void execute(Task task) {
+            configureAdditionalMetadataLocations((JavaCompile) task);
+        }
+
+        private void configureAdditionalMetadataLocations(JavaCompile compile) {
+        }
+    }
+}
+`)
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+	assignReducerTestFunctionUID(t, payload, "execute", "content-entity:java-execute")
+	assignReducerTestDuplicateFunctionUIDs(
+		t,
+		payload,
+		"configureAdditionalMetadataLocations",
+		"content-entity:java-project-configurer",
+		"content-entity:java-compile-configurer",
+	)
+
+	_, rows := ExtractCodeCallRows([]facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload:  map[string]any{"repo_id": "repo-java"},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":          "repo-java",
+				"relative_path":    reducerTestRelativePath(t, repoRoot, filePath),
+				"parsed_file_data": payload,
+			},
+		},
+	})
+
+	assertReducerCodeCallRow(t, rows, "content-entity:java-execute", "content-entity:java-compile-configurer")
+	assertReducerNoCodeCallRow(t, rows, "content-entity:java-execute", "content-entity:java-project-configurer")
+}
+
+func TestExtractCodeCallRowsResolvesJavaEnhancedForReceiverCalls(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "build-plugin", "src", "main", "java", "example", "ProtobufPluginAction.java")
+	writeReducerTestFile(t, filePath, `package example;
+
+public class ProtobufPluginAction {
+    private VersionAlignment versionAlignmentFor(DependencyResolveDetails details) {
+        for (VersionAlignment alignment : versionAlignment) {
+            if (alignment.accepts(details)) {
+                return alignment;
+            }
+        }
+        return null;
+    }
+
+    private record VersionAlignment(Dependency target, Dependency source) {
+        boolean accepts(DependencyResolveDetails details) {
+            return true;
+        }
+    }
+}
+`)
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+	assignReducerTestFunctionUID(t, payload, "versionAlignmentFor", "content-entity:java-version-alignment-for")
+	assignReducerTestFunctionUID(t, payload, "accepts", "content-entity:java-accepts")
+
+	_, rows := ExtractCodeCallRows([]facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload:  map[string]any{"repo_id": "repo-java"},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":          "repo-java",
+				"relative_path":    reducerTestRelativePath(t, repoRoot, filePath),
+				"parsed_file_data": payload,
+			},
+		},
+	})
+
+	assertReducerCodeCallRow(t, rows, "content-entity:java-version-alignment-for", "content-entity:java-accepts")
+}
+
+func TestExtractCodeCallRowsResolvesJavaUnqualifiedOuterClassCalls(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "build-plugin", "src", "main", "java", "example", "BootJar.java")
+	writeReducerTestFile(t, filePath, `package example;
+
+public class BootJar {
+    protected ZipCompression resolveZipCompression(FileCopyDetails details) {
+        return ZipCompression.STORED;
+    }
+
+    private final class ZipCompressionResolver implements Function<FileCopyDetails, ZipCompression> {
+        public ZipCompression apply(FileCopyDetails details) {
+            return resolveZipCompression(details);
+        }
+    }
+}
+`)
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+	assignReducerTestFunctionUID(t, payload, "apply", "content-entity:java-apply")
+	assignReducerTestFunctionUID(t, payload, "resolveZipCompression", "content-entity:java-resolve-zip-compression")
+
+	_, rows := ExtractCodeCallRows([]facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload:  map[string]any{"repo_id": "repo-java"},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":          "repo-java",
+				"relative_path":    reducerTestRelativePath(t, repoRoot, filePath),
+				"parsed_file_data": payload,
+			},
+		},
+	})
+
+	assertReducerCodeCallRow(t, rows, "content-entity:java-apply", "content-entity:java-resolve-zip-compression")
+}

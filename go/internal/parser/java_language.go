@@ -38,14 +38,14 @@ func (e *Engine) parseJava(
 	root := tree.RootNode()
 	scope := options.normalizedVariableScope()
 	callInference := buildJavaCallInferenceIndex(root, source)
-	methodReferences := buildJavaMethodReferenceIndex(root, source)
+	methodReferences := buildJavaMethodReferenceIndex(root, source, callInference)
 
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "class_declaration", "record_declaration":
-			appendNamedType(payload, "classes", node, source, "java")
+			appendJavaNamedType(payload, "classes", node, source)
 		case "interface_declaration":
-			appendNamedType(payload, "interfaces", node, source, "java")
+			appendJavaNamedType(payload, "interfaces", node, source)
 		case "annotation_type_declaration":
 			nameNode := node.ChildByFieldName("name")
 			name := nodeText(nameNode, source)
@@ -96,6 +96,33 @@ func (e *Engine) parseJava(
 	payload["framework_semantics"] = map[string]any{"frameworks": []string{}}
 
 	return payload, nil
+}
+
+func appendJavaNamedType(
+	payload map[string]any,
+	bucket string,
+	node *tree_sitter.Node,
+	source []byte,
+) {
+	nameNode := node.ChildByFieldName("name")
+	name := nodeText(nameNode, source)
+	if strings.TrimSpace(name) == "" {
+		return
+	}
+
+	item := map[string]any{
+		"name":        name,
+		"line_number": nodeLine(nameNode),
+		"end_line":    nodeEndLine(node),
+		"lang":        "java",
+	}
+	if decorators := javaDecorators(node, source, name); len(decorators) > 0 {
+		item["decorators"] = decorators
+	}
+	if rootKinds := javaTypeDeadCodeRootKinds(node, source); len(rootKinds) > 0 {
+		item["dead_code_root_kinds"] = rootKinds
+	}
+	appendBucket(payload, bucket, item)
 }
 
 func appendJavaFunction(
@@ -258,6 +285,7 @@ func appendJavaCall(
 	var nameNode *tree_sitter.Node
 	raw := strings.TrimSpace(nodeText(node, source))
 	methodReferenceName := ""
+	methodReferenceReceiver := ""
 	methodReferenceFullName := ""
 	switch node.Kind() {
 	case "method_invocation":
@@ -266,7 +294,10 @@ func appendJavaCall(
 			nameNode = javaFirstTypeIdentifier(node)
 		}
 	case "method_reference":
-		methodReferenceName, methodReferenceFullName = javaMethodReferenceName(raw)
+		methodReferenceName, methodReferenceReceiver = javaMethodReferenceParts(raw)
+		if methodReferenceName != "" && methodReferenceReceiver != "" {
+			methodReferenceFullName = methodReferenceReceiver + "." + methodReferenceName
+		}
 	case "object_creation_expression":
 		nameNode = node.ChildByFieldName("type")
 		if nameNode == nil {
@@ -299,14 +330,31 @@ func appendJavaCall(
 		}
 	} else if fullName := javaCallFullName(node, source); fullName != "" {
 		item["full_name"] = fullName
+		if javaCallIsUnqualifiedMethodInvocation(node) {
+			if classContexts := javaClassContextChain(node, source); len(classContexts) > 0 {
+				item["class_context"] = classContexts[0]
+				if len(classContexts) > 1 {
+					item["enclosing_class_contexts"] = classContexts
+				}
+			}
+		}
 	}
 	if inferredType := javaCallInferredObjectType(node, source, inference); inferredType != "" {
 		item["inferred_obj_type"] = inferredType
+	}
+	if methodReferenceReceiver != "" {
+		if inferredType := javaVisibleNameType(node, methodReferenceReceiver, source, inference); inferredType != "" {
+			item["inferred_obj_type"] = inferredType
+		}
 	}
 	if argumentTypes := javaCallArgumentTypes(node, source, inference); len(argumentTypes) > 0 {
 		item["argument_types"] = argumentTypes
 	}
 	appendBucket(payload, "function_calls", item)
+}
+
+func javaCallIsUnqualifiedMethodInvocation(node *tree_sitter.Node) bool {
+	return node != nil && node.Kind() == "method_invocation" && node.ChildByFieldName("object") == nil
 }
 
 func javaParameterCount(node *tree_sitter.Node) int {
@@ -353,7 +401,7 @@ func javaCallFullName(node *tree_sitter.Node, source []byte) string {
 	}
 }
 
-func javaMethodReferenceName(raw string) (string, string) {
+func javaMethodReferenceParts(raw string) (string, string) {
 	receiver, method, ok := strings.Cut(strings.TrimSpace(raw), "::")
 	if !ok {
 		return "", ""
@@ -367,7 +415,7 @@ func javaMethodReferenceName(raw string) (string, string) {
 	if method == "" {
 		return "", ""
 	}
-	return method, receiver + "." + method
+	return method, receiver
 }
 
 func javaTrailingIdentifier(value string) string {

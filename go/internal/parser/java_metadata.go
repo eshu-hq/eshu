@@ -10,19 +10,31 @@ type javaMethodReferenceIndex struct {
 	namesByClass map[string]map[string]struct{}
 }
 
-func buildJavaMethodReferenceIndex(root *tree_sitter.Node, source []byte) *javaMethodReferenceIndex {
+func buildJavaMethodReferenceIndex(
+	root *tree_sitter.Node,
+	source []byte,
+	inference *javaCallInferenceIndex,
+) *javaMethodReferenceIndex {
 	index := &javaMethodReferenceIndex{namesByClass: map[string]map[string]struct{}{}}
 	walkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "method_reference" {
 			return
 		}
-		name, fullName := javaMethodReferenceName(nodeText(node, source))
-		if name == "" || !strings.HasPrefix(strings.TrimSpace(fullName), "this.") {
+		name, receiver := javaMethodReferenceParts(nodeText(node, source))
+		if name == "" {
 			return
 		}
+		receiver = strings.TrimSpace(receiver)
 		classContext := nearestNamedAncestor(node, source, "class_declaration", "record_declaration")
 		if classContext == "" {
 			return
+		}
+		if receiver != "this" {
+			receiverType := javaVisibleNameType(node, receiver, source, inference)
+			if receiverType == "" {
+				return
+			}
+			classContext = receiverType
 		}
 		if _, ok := index.namesByClass[classContext]; !ok {
 			index.namesByClass[classContext] = map[string]struct{}{}
@@ -119,6 +131,12 @@ func javaExpressionTypeName(node *tree_sitter.Node, source []byte, inference *ja
 		return javaObjectCreationTypeName(node, source)
 	case "identifier":
 		return javaVisibleNameType(node, strings.TrimSpace(nodeText(node, source)), source, inference)
+	case "method_invocation":
+		if !javaCallIsUnqualifiedMethodInvocation(node) || inference == nil {
+			return ""
+		}
+		name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+		return inference.methodReturnType(javaEnclosingClassNode(node), name)
 	case "field_access":
 		raw := strings.TrimSpace(nodeText(node, source))
 		if fieldName := strings.TrimPrefix(raw, "this."); fieldName != raw {

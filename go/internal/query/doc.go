@@ -18,10 +18,11 @@
 // dunder protocol, __all__, package __init__.py, public API base, and public
 // API member roots, plus Java main, constructor, override, Ant Task setter,
 // Gradle plugin apply, task action/property, task setter, task-interface method,
-// public Gradle DSL, and same-class method-reference target roots. The analysis
-// notes and modeled-root list use the same Java root family so callers see why
-// those entities were suppressed. The analysis payload names modeled
-// root kinds and counts parser-metadata
+// public Gradle DSL, same-class method-reference target, Spring component and
+// callback, lifecycle, JUnit, Jenkins, and Stapler roots. The analysis notes
+// and modeled-root list use the same Java root family so callers see why those
+// entities were suppressed. The analysis payload names modeled root kinds and
+// counts parser-metadata
 // suppressions so callers can explain why an entity was not returned as a
 // cleanup candidate. Unsupported language metadata and test fixtures are
 // suppressed from default cleanup candidates. The dead-code scan

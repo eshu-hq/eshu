@@ -75,7 +75,10 @@ protocol, `__all__`, package `__init__.py`, public API base, and public API
 member roots, Python `if __name__ == "__main__"` script-main guards, and
 Java `main`, constructor, `@Override`, Ant `Task` setter, Gradle plugin
 `apply`, task action/property, task setter, task-interface method, public Gradle
-DSL, and same-class method-reference target roots.
+DSL, same-class method-reference target roots, Spring component and callback
+roots, Java lifecycle callbacks, JUnit test/lifecycle methods, Jenkins
+extension and symbol roots, Jenkins initializer/data-bound setter methods, and
+Stapler web methods.
 Dead-code candidate paging uses `DeadCodeCandidateRows` in
 `content_reader_dead_code_candidates.go:13` when the content read model is
 available, avoiding graph-wide ordered scans on large repositories. Candidate

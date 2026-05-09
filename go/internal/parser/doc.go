@@ -21,15 +21,21 @@
 // JavaBean-style public Ant Task setter roots, Gradle plugin apply roots,
 // Gradle task action/property roots, Gradle task setter and task-interface
 // roots, public Gradle DSL method roots, and same-class method-reference target
-// roots. Java metadata includes method-reference rows, local receiver type
-// metadata backed by a per-file variable, field, and typed-lambda index, plus
-// record class context, arity metadata, and type-signature metadata for
-// overload-safe call resolution. Java pre-scan includes records in the same
-// source-name map as classes and methods. The package also emits returned
-// function-value references, static re-export metadata, composite-literal type
-// references, Helm/YAML metadata extraction, and SCIP support for index-derived
-// facts.
-// Parser changes must preserve fact truth: when a parser starts emitting a new
+// roots. Java roots also include Spring component/configuration-property
+// classes, Spring request/bean/event/scheduled methods, Java lifecycle
+// callbacks, JUnit test and lifecycle methods, Jenkins extension/symbol/
+// initializer/data-bound setter methods, and Stapler web methods. Java metadata
+// includes method-reference rows, local receiver type metadata backed by a
+// per-file variable, enhanced-for variable, field, and typed-lambda index, plus
+// record class context, unqualified same-class and enclosing-class call context,
+// explicit outer-this field receivers, typed method-reference receiver metadata,
+// arity metadata, same-class method return types for argument metadata, and
+// type-signature metadata for overload-safe call resolution.
+// Java pre-scan includes records in the same source-name map as classes and
+// methods. The package also emits returned function-value references, static
+// re-export metadata, composite-literal type references, Helm/YAML metadata
+// extraction, and SCIP support for index-derived facts.
+// Parser changes must preserve fact truth: when a parser emits a new
 // entity, relationship, or metadata field, the relevant fixtures, fact
 // contracts in internal/facts, and downstream docs must move in lockstep.
 // Parsers must be deterministic given the same source bytes so retries and

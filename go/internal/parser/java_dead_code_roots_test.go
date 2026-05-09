@@ -244,6 +244,67 @@ public class BootExtension {
 	assertStringFieldValue(t, determine, "class_context", "BootExtension")
 }
 
+func TestDefaultEngineParsePathJavaEmitsTypedMethodReferenceMetadata(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src/main/java/example/BootZipCopyAction.java")
+	writeTestFile(t, filePath, `package example;
+
+public class BootZipCopyAction {
+    void run(CopyActionProcessingStream copyActions) {
+        Processor processor = new Processor();
+        copyActions.process(processor::process);
+    }
+
+    private static final class Processor {
+        void process(FileCopyDetails details) {
+        }
+
+        void helper() {
+        }
+    }
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	processCall := assertJavaFunctionCallByNameAndKind(t, got, "process", "java.method_reference")
+	assertStringFieldValue(t, processCall, "call_kind", "java.method_reference")
+	assertStringFieldValue(t, processCall, "full_name", "processor.process")
+	assertStringFieldValue(t, processCall, "inferred_obj_type", "Processor")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "process", "Processor"), "dead_code_root_kinds", "java.method_reference_target")
+	if _, ok := assertFunctionByNameAndClass(t, got, "helper", "Processor")["dead_code_root_kinds"]; ok {
+		t.Fatalf("helper dead_code_root_kinds present, want absent")
+	}
+}
+
+func assertJavaFunctionCallByNameAndKind(t *testing.T, payload map[string]any, name string, kind string) map[string]any {
+	t.Helper()
+
+	items, ok := payload["function_calls"].([]map[string]any)
+	if !ok {
+		t.Fatalf("function_calls = %T, want []map[string]any", payload["function_calls"])
+	}
+	for _, item := range items {
+		itemName, _ := item["name"].(string)
+		callKind, _ := item["call_kind"].(string)
+		if itemName == name && callKind == kind {
+			return item
+		}
+	}
+	t.Fatalf("function_calls missing name %q with call_kind %q in %#v", name, kind, items)
+	return nil
+}
+
 func TestDefaultEngineParsePathJavaInfersLocalReceiverTypes(t *testing.T) {
 	t.Parallel()
 
@@ -287,6 +348,42 @@ public class CLIConnectionFactory {
 	assertStringFieldValue(t, basicAuth, "inferred_obj_type", "CLIConnectionFactory")
 	assertIntFieldValue(t, basicAuth, "argument_count", 1)
 	assertIntFieldValue(t, assertFunctionByName(t, got, "basicAuth"), "parameter_count", 1)
+}
+
+func TestDefaultEngineParsePathJavaAddsClassContextToUnqualifiedMethodCalls(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src/main/java/example/JavaPluginAction.java")
+	writeTestFile(t, filePath, `package example;
+
+public class JavaPluginAction {
+    private void configureAdditionalMetadataLocations(Project project) {
+    }
+
+    private static final class AdditionalMetadataLocationsConfigurer implements Action<Task> {
+        public void execute(Task task) {
+            configureAdditionalMetadataLocations((JavaCompile) task);
+        }
+
+        private void configureAdditionalMetadataLocations(JavaCompile compile) {
+        }
+    }
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	call := assertBucketItemByName(t, got, "function_calls", "configureAdditionalMetadataLocations")
+	assertStringFieldValue(t, call, "class_context", "AdditionalMetadataLocationsConfigurer")
 }
 
 func TestJavaCallInferenceIndexResolvesReceiversFromSinglePass(t *testing.T) {
