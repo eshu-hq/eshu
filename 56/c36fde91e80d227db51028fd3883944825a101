@@ -1,0 +1,86 @@
+go/internal/parser/javascript/tsconfig_test.go
+  s_bdaf44668b73dc::t_6c519c4b261672 1-34,36-75
+  s_bdaf44668b73dc::t_21498a1131117e 35
+go/internal/parser/AGENTS.md
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 12-13,133
+  s_bdaf44668b73dc::t_9884eef8ec6172 14-15
+go/internal/parser/javascript/AGENTS.md
+  s_bdaf44668b73dc::t_041bb160a90b60 1-4,10,13-18,21-22,25-28,34-41,44-49,51-54
+  s_bdaf44668b73dc::t_f37cadbf385c29 12,19-20,29-30,42-43
+docs/plans/2026-05-09-parser-language-layout.md
+  s_bdaf44668b73dc::t_7be6e2296b5344 1-27,32-34,36-37,39,41-47,54-57,66,68,70-86
+  s_bdaf44668b73dc::t_dc2f060361e1b6 28-31,35,38,40,48-53,58-65,67,69
+go/internal/parser/javascript/doc.go
+  s_bdaf44668b73dc::t_041bb160a90b60 3,10
+  s_bdaf44668b73dc::t_f37cadbf385c29 6
+go/internal/parser/java_metadata_files.go
+  s_bdaf44668b73dc::t_3cb24f9dee6728 4
+go/internal/parser/javascript/README.md
+  s_bdaf44668b73dc::t_041bb160a90b60 2-4,11-13,19-20,25-27,30-33,35-46,52-54
+  s_90f17fc0f060f9::t_69334aee072bca 18
+  s_bdaf44668b73dc::t_f37cadbf385c29 47-50
+go/internal/parser/javascript/tsconfig.go
+  s_bdaf44668b73dc::t_d665174b03f349 1,10-12,19-27,31,34,36,39,45,49-50,52,60-63,77,79-80,94,96,113,116,119,121-122,128,134,147,168,218,221,261-263,270,298,310-318
+  s_bdaf44668b73dc::t_e02317d1453193 28-29,48,78,266,286,299-300
+go/internal/parser/javascript/package_json_test.go
+  s_bdaf44668b73dc::t_34653b10f5c511 1-13,16-38,40-45,47-65,67-75
+  s_bdaf44668b73dc::t_11d71b842d1b06 14-15,39,46,66
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_9884eef8ec6172 113-116
+  s_bdaf44668b73dc::t_f37cadbf385c29 122-124
+  s_bdaf44668b73dc::t_91e8cda920576c 141
+  s_bdaf44668b73dc::t_082b9d2f054448 154
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 261-262
+  s_bdaf44668b73dc::t_8c4a5d3b1ed5da 263-264
+go/internal/parser/java/AGENTS.md
+  s_bdaf44668b73dc::t_620d8833153c91 1-4,10-13,21-23,30-32,39-41,46-48
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_fc95b7586ddfec 8-10
+  s_bdaf44668b73dc::t_9884eef8ec6172 16-17
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 31-37
+go/internal/parser/java/README.md
+  s_bdaf44668b73dc::t_620d8833153c91 2-4,9-11,16-18,21-23,26-28,31-33,36,40,44-45
+  s_c89b32ac0c52a8::t_d0f026e663e4fc 43
+go/internal/parser/java/metadata_test.go
+  s_bdaf44668b73dc::t_b1696680e64bd7 1-67
+go/internal/parser/javascript_language.go
+  s_bdaf44668b73dc::t_118e3f49ed06f9 8
+go/internal/parser/java/doc.go
+  s_bdaf44668b73dc::t_620d8833153c91 3,8
+go/internal/parser/java/metadata.go
+  s_bdaf44668b73dc::t_5867832ef84c1f 1-169
+go/internal/parser/javascript/package_json.go
+  s_bdaf44668b73dc::t_630b861ade1cf7 1-258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "56c36fde91e80d227db51028fd3883944825a101",
+  "prompts": {},
+  "sessions": {
+    "s_90f17fc0f060f9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e9a-afe3-78d2-afd0-09ce9368c337",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_c89b32ac0c52a8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e9a-af9d-7152-a574-3613953b081c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
