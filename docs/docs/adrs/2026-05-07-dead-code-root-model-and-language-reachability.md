@@ -391,6 +391,52 @@ The first remediation step is diagnostic, not another query-shape guess:
 5. Keep the rejected experiments recorded in this ADR or the implementation
    plan so the team does not repeat them.
 
+## Implementation Evidence
+
+The Python/Java slice is still a derived dead-code maturity step, not an
+exactness claim. It adds root metadata, query exclusions, and dogfood proof, but
+the language gates stay conservative while dynamic dispatch, annotation-driven
+frameworks, reflection, and dependency injection are still incomplete.
+
+Local and dogfood evidence gathered in this branch so far:
+
+- Ansible indexed as the large Python dogfood repo and returned a bounded
+  `dead-code` result window in `4.9s`.
+- Jenkins indexed as the first Java dogfood repo and returned a bounded
+  `dead-code` result window in `9.8s`.
+- Spring Boot indexed from a fresh local worktree through `eshu graph start
+  --workspace-root <spring-boot-worktree> --progress plain --logs file` on
+  2026-05-08 local time against NornicDB `v1.0.44`. The run drained healthy
+  with collector `1/1`, projector `1/1`, reducer `10/10`, queue `pending=0`,
+  `in_flight=0`, `retrying=0`, `failed=0`, and `dead_letter=0`.
+- Spring Boot collector stream completed in `27.352s`. Source-local projection
+  loaded `190459` facts in `3.444s`, wrote content in `16.848s`, completed the
+  canonical phase-group write in `31.846s`, and finished `project_generation`
+  in `51.179s`.
+- The first Spring Boot proof after exact code-call endpoint labels reduced
+  code-call projection from `236.842s` to `21.612s`, but semantic and SQL
+  materialization still spent about `60.5s` each in fact loading.
+- The current page-size fix keeps `FactStore.ListFactsByKind` on bounded
+  keyset pages, but raises those pages to the existing 500-row fact batch size.
+  On the fresh Spring Boot proof, semantic fact loading dropped from `60.510s`
+  to `13.547s`, and SQL fact loading dropped from `60.573s` to `13.396s`.
+  Semantic total dropped from `72.769s` to `26.210s`; SQL total dropped from
+  `60.644s` to `13.464s`.
+- Code-call shared projection completed after reducer queue drain, writing
+  `44988` rows in `21.187s` with `write_duration_seconds=19.133` and
+  `mark_completed_duration_seconds=1.113`. This confirms that readiness for
+  dead-code queries must include shared projection completion, not only the
+  reducer work-item queue.
+
+Open proof work before this branch can close:
+
+- Run Elasticsearch and Spring Boot as the large Java pair after the page-size
+  fix.
+- Re-run at least one Python large-repo proof after the same storage change,
+  preferably Ansible plus one additional popular Python repository.
+- Keep the language matrix at `derived` for Python and Java until dynamic and
+  framework root categories have positive, negative, and ambiguous fixtures.
+
 ## Consequences
 
 This ADR makes the current product contract more honest. Eshu can still support

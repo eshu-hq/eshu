@@ -9,7 +9,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-const listFactsByKindPageSize = 100
+// listFactsByKindPageSize matches factBatchSize so reducer handlers avoid
+// thousands of tiny Postgres round trips while still bounding each cursor page.
+const listFactsByKindPageSize = factBatchSize
 
 const listFactsByKindQuery = `
 SELECT

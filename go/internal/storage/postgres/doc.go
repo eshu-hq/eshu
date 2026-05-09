@@ -17,4 +17,7 @@
 // whether reducer-owned graph edges are ready for query truth, and
 // ReducerGraphDrain gives local NornicDB code-call projection a read-only view
 // of reducer graph-domain backlog before it starts its edge write lane.
+// FactStore kind-filtered reads use bounded, stable keyset pages so reducer
+// domains can avoid full-generation loads without returning partial graph
+// truth.
 package postgres

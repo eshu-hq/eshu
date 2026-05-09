@@ -58,6 +58,12 @@ to 500 rows (13 columns each, well under the Postgres 65535-parameter limit).
 before sending to avoid `SQLSTATE 21000` on `ON CONFLICT DO UPDATE` when a
 generation contains self-overwrites.
 
+`FactStore.ListFactsByKind` uses the same 500-row page size for kind-filtered
+reads (`facts_filtered.go:42`). Reducer domains such as semantic entities,
+SQL relationships, inheritance, and code calls use this path to avoid
+full-generation loads and thousands of tiny Postgres round trips on large
+repositories.
+
 `sanitizeJSONB` strips `\u0000` escape sequences and raw control bytes
 (`0x00–0x1F` except tab/newline/CR) from payloads before INSERT to prevent
 `SQLSTATE 22P05` and `SQLSTATE 22P02` errors on repositories with binary or
@@ -142,7 +148,7 @@ mutation is rejected because the current owner no longer holds the lease.
 **Fact store**
 
 - `FactStore` / `NewFactStore` — `UpsertFacts`, `LoadFacts`, `ListFacts`,
-  `CountFacts`
+  `ListFactsByKind`, `CountFacts`
 
 **Queue stores**
 
@@ -305,6 +311,10 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - `upsertFacts` deduplicates by `fact_id` before batching (`facts.go:192`).
   Skipping deduplication causes `SQLSTATE 21000` on `ON CONFLICT DO UPDATE`
   when the same `fact_id` appears twice in one batch.
+- `ListFactsByKind` keeps a stable `(observed_at, fact_id)` keyset cursor
+  (`facts_filtered.go:42`). Lowering the page size below the write batch size
+  can make reducer-only reads spend most of their time in Postgres round trips
+  rather than extraction or graph writes.
 - The NornicDB semantic gate in `ReducerQueue.Claim` is gated on a boolean
   parameter and must not be removed without an ADR; it prevents
   `semantic_entity_materialization` storms on NornicDB label indexes.

@@ -70,11 +70,11 @@ func TestFactStoreListFactsByKindFiltersFactKinds(t *testing.T) {
 	}
 }
 
-func TestFactStoreListFactsByKindPagesLargePayloadStreams(t *testing.T) {
+func TestFactStoreListFactsByKindUsesFactBatchSizedPages(t *testing.T) {
 	t.Parallel()
 
-	firstPage := makeFactRowsForListFactsByKind(100, 0)
-	secondPage := makeFactRowsForListFactsByKind(1, 100)
+	firstPage := makeFactRowsForListFactsByKind(factBatchSize, 0)
+	secondPage := makeFactRowsForListFactsByKind(1, factBatchSize)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: firstPage},
@@ -92,7 +92,7 @@ func TestFactStoreListFactsByKindPagesLargePayloadStreams(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListFactsByKind() error = %v, want nil", err)
 	}
-	if got, want := len(loaded), 101; got != want {
+	if got, want := len(loaded), factBatchSize+1; got != want {
 		t.Fatalf("ListFactsByKind() len = %d, want %d", got, want)
 	}
 	if got, want := len(db.queries), 2; got != want {
@@ -105,17 +105,17 @@ func TestFactStoreListFactsByKindPagesLargePayloadStreams(t *testing.T) {
 		if !strings.Contains(call.query, "(observed_at, fact_id) > ($4::timestamptz, $5::text)") {
 			t.Fatalf("query missing stable cursor:\n%s", call.query)
 		}
-		if got, want := call.args[5], listFactsByKindPageSize; got != want {
+		if got, want := call.args[5], factBatchSize; got != want {
 			t.Fatalf("page size arg = %v, want %d", got, want)
 		}
 	}
 	if got, want := db.queries[0].args[3], any(nil); got != want {
 		t.Fatalf("first page cursor timestamp = %v, want nil", got)
 	}
-	if got, want := db.queries[1].args[3], loaded[99].ObservedAt; got != want {
+	if got, want := db.queries[1].args[3], loaded[factBatchSize-1].ObservedAt; got != want {
 		t.Fatalf("second page cursor timestamp = %v, want %v", got, want)
 	}
-	if got, want := db.queries[1].args[4], loaded[99].FactID; got != want {
+	if got, want := db.queries[1].args[4], loaded[factBatchSize-1].FactID; got != want {
 		t.Fatalf("second page cursor fact ID = %v, want %v", got, want)
 	}
 }
