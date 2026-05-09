@@ -50,6 +50,99 @@ func TestDefaultEngineParsePathHCLTerraformBlockMetadata(t *testing.T) {
 	}
 }
 
+func TestDefaultEngineParsePathHCLTerraformBackendMetadata(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "backend.tf")
+	writeTestFile(
+		t,
+		filePath,
+		`terraform {
+  backend "s3" {
+    bucket = "app-tfstate-prod"
+    key    = "services/api/terraform.tfstate"
+    region = "us-east-1"
+    secret_key = "should-not-be-indexed"
+  }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	backend := findNamedBucketItem(t, got, "terraform_backends", "s3")
+	if got, want := backend["backend_kind"], "s3"; got != want {
+		t.Fatalf("terraform_backends[0].backend_kind = %#v, want %#v", got, want)
+	}
+	if got, want := backend["bucket"], "app-tfstate-prod"; got != want {
+		t.Fatalf("terraform_backends[0].bucket = %#v, want %#v", got, want)
+	}
+	if got, want := backend["key"], "services/api/terraform.tfstate"; got != want {
+		t.Fatalf("terraform_backends[0].key = %#v, want %#v", got, want)
+	}
+	if got, want := backend["region"], "us-east-1"; got != want {
+		t.Fatalf("terraform_backends[0].region = %#v, want %#v", got, want)
+	}
+	if got, want := backend["key_is_literal"], true; got != want {
+		t.Fatalf("terraform_backends[0].key_is_literal = %#v, want %#v", got, want)
+	}
+	if _, ok := backend["secret_key"]; ok {
+		t.Fatalf("terraform_backends[0].secret_key = %#v, want omitted", backend["secret_key"])
+	}
+	if _, ok := backend["secret_key_is_literal"]; ok {
+		t.Fatalf("terraform_backends[0].secret_key_is_literal = %#v, want omitted", backend["secret_key_is_literal"])
+	}
+}
+
+func TestDefaultEngineParsePathHCLTerraformBackendMarksDynamicMetadata(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "backend.tf")
+	writeTestFile(
+		t,
+		filePath,
+		`terraform {
+  backend "s3" {
+    bucket = var.state_bucket
+    key    = "services/${terraform.workspace}/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	backend := findNamedBucketItem(t, got, "terraform_backends", "s3")
+	if got, want := backend["bucket_is_literal"], false; got != want {
+		t.Fatalf("terraform_backends[0].bucket_is_literal = %#v, want %#v", got, want)
+	}
+	if got, want := backend["key_is_literal"], false; got != want {
+		t.Fatalf("terraform_backends[0].key_is_literal = %#v, want %#v", got, want)
+	}
+	if got, want := backend["region_is_literal"], true; got != want {
+		t.Fatalf("terraform_backends[0].region_is_literal = %#v, want %#v", got, want)
+	}
+}
+
 func TestDefaultEngineParsePathHCLTerraformResourceMultiplicityMetadata(t *testing.T) {
 	t.Parallel()
 

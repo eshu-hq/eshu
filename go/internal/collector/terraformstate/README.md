@@ -19,6 +19,12 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   exact bucket/key request with optional `If-None-Match` and version metadata.
 - `DiscoveryResolver` turns explicit seeds and Git-observed backend facts into
   exact `StateKey` candidates without opening raw state.
+- Git HCL parsing emits `terraform_backends` metadata for Terraform `backend`
+  blocks. The Postgres adapter reads those facts from active Git generations
+  and only returns exact S3 candidates with literal bucket, key, and region
+  values.
+- The Postgres readiness adapter reports graph discovery as ready only when the
+  upstream Git repository fact is tied to an active committed generation.
 - `ParseDiscoveryConfig` maps collector-instance JSON into the typed discovery
   config used by the resolver.
 - `NewDiscoveryMetrics` registers the candidate counter used during discovery.
@@ -36,6 +42,8 @@ AWS SDK wiring belong to integration slices outside the reader stack.
 - S3 reads are exact object reads. Prefix-only keys are rejected.
 - Graph-backed discovery waits for Git generation readiness before reading
   Terraform backend facts.
+- Dynamic backend expressions, workspace-prefixed S3 backends, non-S3 backends,
+  and local paths from Git facts are not discovery candidates.
 - S3 write capability is rejected at source construction.
 - Redaction key material is mandatory before parsing.
 - Unknown provider-schema scalar attributes are redacted. Unknown composite
@@ -46,5 +54,6 @@ AWS SDK wiring belong to integration slices outside the reader stack.
 - AWS SDK adapter for `S3ObjectClient`.
 - DynamoDB lock metadata read-only adapter.
 - Bounded parser memory fixture for large state files.
-- Fact emission integration with coordinator claim fencing.
+- Runtime source wiring that opens resolved state candidates and commits facts
+  through coordinator claim fencing.
 - Source open, parser stream, and fact batch emission telemetry.
