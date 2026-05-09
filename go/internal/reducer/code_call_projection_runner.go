@@ -42,6 +42,12 @@ type CodeCallProjectionHistoryLookup interface {
 	HasCompletedAcceptanceUnitDomainIntents(ctx context.Context, key SharedProjectionAcceptanceKey, domain string) (bool, error)
 }
 
+// CodeCallProjectionCurrentRunHistoryLookup checks whether the selected source
+// run has already completed at least one code-call projection chunk.
+type CodeCallProjectionCurrentRunHistoryLookup interface {
+	HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx context.Context, key SharedProjectionAcceptanceKey, domain string) (bool, error)
+}
+
 // ReducerGraphDrain reports whether reducer graph-writing domains are still
 // active, letting local single-backend runners avoid graph write contention.
 type ReducerGraphDrain interface {

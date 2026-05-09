@@ -21,5 +21,7 @@
 // value filters are available only for top-level payload fields that are part
 // of a reducer domain's truth contract. Shared projection intent writes use
 // bounded multi-row upserts so high-cardinality code-call materialization
-// reduces Postgres round trips without changing idempotency semantics.
+// reduces Postgres round trips without changing idempotency semantics; current
+// source-run history lookups let chunked code-call projection avoid retracting
+// edges written by earlier chunks from the same accepted run.
 package postgres

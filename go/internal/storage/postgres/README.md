@@ -120,6 +120,16 @@ running, or retrying so the local-authoritative NornicDB profile can avoid
 overlapping code-call edge writes with semantic, inheritance, SQL relationship,
 deployment, or workload graph materialization.
 
+### Shared projection intents
+
+`SharedIntentStore` stores durable shared projection intents for reducer-owned
+edge domains. `ListPendingAcceptanceUnitIntents` reads one bounded
+scope/unit/run slice, while
+`HasCompletedAcceptanceUnitSourceRunDomainIntents` answers whether that exact
+source run has already completed a chunk. Code-call projection uses the latter
+lookup to process very large accepted units in chunks without retracting edges
+written by earlier chunks from the same run.
+
 ### Graph projection phase state
 
 `GraphProjectionPhaseStateStore` persists `canonical_nodes_committed` phase
@@ -181,7 +191,9 @@ mutation is rejected because the current owner no longer holds the lease.
 
 - `SharedIntentStore` / `NewSharedIntentStore` — reads
   `shared_projection_intents` and writes shared projection intents in bounded
-  multi-row batches (`shared_intents_upsert.go:62`)
+  multi-row batches (`shared_intents_upsert.go:62`). It also exposes history
+  lookups for prior acceptance-unit completion and current source-run chunk
+  completion.
 - `SharedIntentAcceptanceWriter` / `NewSharedIntentAcceptanceWriter` — writes
   intent acceptance rows; `NewSharedIntentAcceptanceWriterWithInstruments` adds
   metrics
@@ -325,6 +337,11 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   upsert the same row on retry rather than minting a new ID. The 2000-row
   upsert batch keeps each statement below Postgres' parameter limit while
   avoiding small-batch round trips on code-call-heavy repositories.
+- Current source-run history is distinct from prior acceptance-unit history.
+  `HasCompletedAcceptanceUnitDomainIntents` intentionally ignores
+  `source_run_id` so new accepted runs can detect prior graph state;
+  `HasCompletedAcceptanceUnitSourceRunDomainIntents` includes `source_run_id`
+  so chunked code-call projection can skip only same-run retractions.
 - The NornicDB semantic gate in `ReducerQueue.Claim` is gated on a boolean
   parameter and must not be removed without an ADR; it prevents
   `semantic_entity_materialization` storms on NornicDB label indexes.

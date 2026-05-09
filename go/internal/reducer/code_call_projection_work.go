@@ -23,13 +23,7 @@ func (r *CodeCallProjectionRunner) loadAllAcceptanceUnitIntents(ctx context.Cont
 			return rows, nil
 		}
 		if limit >= acceptanceScanLimit {
-			return nil, fmt.Errorf(
-				"code call acceptance intent scan reached cap (%d) for scope %q unit %q run %q",
-				acceptanceScanLimit,
-				key.ScopeID,
-				key.AcceptanceUnitID,
-				key.SourceRunID,
-			)
+			return rows, nil
 		}
 		nextLimit := limit * 2
 		if nextLimit > acceptanceScanLimit {
@@ -56,6 +50,16 @@ func (r *CodeCallProjectionRunner) shouldSkipCodeCallRetract(
 ) (bool, error) {
 	if len(staleIDs) > 0 {
 		return false, nil
+	}
+	currentHistory, ok := r.IntentReader.(CodeCallProjectionCurrentRunHistoryLookup)
+	if ok {
+		hasCurrent, err := currentHistory.HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx, key, DomainCodeCalls)
+		if err != nil {
+			return false, fmt.Errorf("check completed current code call projection history: %w", err)
+		}
+		if hasCurrent {
+			return true, nil
+		}
 	}
 	history, ok := r.IntentReader.(CodeCallProjectionHistoryLookup)
 	if !ok {

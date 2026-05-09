@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestCodeCallProjectionRunnerLoadAllAcceptanceUnitIntentsRejectsSliceOverConfiguredCap(t *testing.T) {
+func TestCodeCallProjectionRunnerLoadAllAcceptanceUnitIntentsReturnsCappedChunk(t *testing.T) {
 	t.Parallel()
 
 	reader := &fakeCodeCallIntentStore{
@@ -35,13 +35,16 @@ func TestCodeCallProjectionRunnerLoadAllAcceptanceUnitIntentsRejectsSliceOverCon
 		},
 	}
 
-	_, err := runner.loadAllAcceptanceUnitIntents(context.Background(), SharedProjectionAcceptanceKey{
+	got, err := runner.loadAllAcceptanceUnitIntents(context.Background(), SharedProjectionAcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
 	})
-	if err == nil {
-		t.Fatal("loadAllAcceptanceUnitIntents() error = nil, want non-nil")
+	if err != nil {
+		t.Fatalf("loadAllAcceptanceUnitIntents() error = %v, want nil", err)
+	}
+	if len(got) != 1_000 {
+		t.Fatalf("loaded rows = %d, want capped chunk %d", len(got), 1_000)
 	}
 	if got, want := reader.acceptanceLimitRequests[len(reader.acceptanceLimitRequests)-1], 1_000; got != want {
 		t.Fatalf("final acceptance scan limit = %d, want cap %d", got, want)

@@ -209,8 +209,11 @@ intents are blocked on a readiness phase (`BlockedReadiness > 0`), it
 re-polls at the base interval without backing off.
 
 `CodeCallProjectionRunner` owns the `code_calls` domain separately because it
-must load and rewrite a complete acceptance unit before marking intents
-complete. In local-authoritative NornicDB runs it can receive a
+rewrites one accepted repo/run unit at a time while preserving repo-wide
+retraction semantics. Very large accepted units are processed in capped chunks:
+the first chunk retracts when prior durable history exists, and later chunks
+from the same source run skip retraction so earlier chunk writes stay
+graph-visible. In local-authoritative NornicDB runs it can receive a
 `ReducerGraphDrain`; when active reducer graph domains remain, the runner
 records a blocked cycle and waits before claiming the code-call partition. The
 gate only schedules work. It does not change which rows become `CALLS`,
@@ -352,6 +355,11 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `code_calls`, `sql_relationships`, and `inheritance_edges` gate on
   `canonical_nodes_committed` or `semantic_nodes_committed` being present
   before writing edges (`shared_projection.go:91–99`).
+- **Code-call chunks must not retract each other** — a code-call accepted
+  unit can exceed `DefaultCodeCallAcceptanceScanLimit`. The runner processes a
+  capped slice, marks it complete, and then continues with later slices from
+  the same source run. `CodeCallProjectionCurrentRunHistoryLookup` is the guard
+  that skips retraction after the first current-run chunk.
 - **Bare code-call names are scoped before they are broadened** — same-file
   resolution wins first. Go then allows a same-directory match before the
   repository-unique fallback; if another package has the same bare name, do
