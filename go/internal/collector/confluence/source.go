@@ -14,15 +14,18 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // Source emits one Confluence documentation source generation at a time.
 type Source struct {
-	Client Client
-	Config SourceConfig
-	Logger *slog.Logger
+	Client          Client
+	Config          SourceConfig
+	Logger          *slog.Logger
+	TruthExtractor  *doctruth.Extractor
+	TruthClaimHints func(Page, facts.DocumentationSectionPayload) []doctruth.ClaimHint
 
 	drained bool
 }
@@ -54,7 +57,7 @@ func (s *Source) Next(ctx context.Context) (collector.CollectedGeneration, bool,
 		TriggerKind:   scope.TriggerKindSnapshot,
 		FreshnessHint: freshnessHint(pages),
 	}
-	envelopes, err := s.factEnvelopes(scopeValue, generationValue, spaceValue, pages, failureCount)
+	envelopes, err := s.factEnvelopes(ctx, scopeValue, generationValue, spaceValue, pages, failureCount)
 	if err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
@@ -145,6 +148,7 @@ func (s *Source) ingestionScope(spaceValue Space) scope.IngestionScope {
 }
 
 func (s *Source) factEnvelopes(
+	ctx context.Context,
 	scopeValue scope.IngestionScope,
 	generationValue scope.ScopeGeneration,
 	spaceValue Space,
@@ -179,6 +183,7 @@ func (s *Source) factEnvelopes(
 		}
 		out = append(out, documentEnvelope)
 		sections := sectionsForPage(page)
+		links := linksForPage(page, sections)
 		for _, section := range sections {
 			sectionEnvelope, err := envelope(scopeValue, generationValue, facts.DocumentationSectionFactKind, facts.DocumentationSectionStableID(section), section, documentPayload.CanonicalURI, page.ID)
 			if err != nil {
@@ -186,15 +191,74 @@ func (s *Source) factEnvelopes(
 			}
 			out = append(out, sectionEnvelope)
 		}
-		for _, link := range linksForPage(page, sections) {
+		for _, link := range links {
 			linkEnvelope, err := envelope(scopeValue, generationValue, facts.DocumentationLinkFactKind, facts.DocumentationLinkStableID(link), link, documentPayload.CanonicalURI, page.ID)
 			if err != nil {
 				return nil, err
 			}
 			out = append(out, linkEnvelope)
 		}
+		if s.TruthExtractor != nil {
+			truthEnvelopes, err := s.documentationTruthEnvelopes(ctx, scopeValue, generationValue, documentPayload, sections, links, page)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, truthEnvelopes...)
+		}
 	}
 	return out, nil
+}
+
+func (s *Source) documentationTruthEnvelopes(
+	ctx context.Context,
+	scopeValue scope.IngestionScope,
+	generationValue scope.ScopeGeneration,
+	documentPayload facts.DocumentationDocumentPayload,
+	sections []facts.DocumentationSectionPayload,
+	links []facts.DocumentationLinkPayload,
+	page Page,
+) ([]facts.Envelope, error) {
+	out := []facts.Envelope{}
+	for _, section := range sections {
+		result, err := s.TruthExtractor.Extract(ctx, doctruth.SectionInput{
+			ScopeID:        scopeValue.ScopeID,
+			GenerationID:   generationValue.GenerationID,
+			SourceSystem:   scopeValue.SourceSystem,
+			DocumentID:     section.DocumentID,
+			RevisionID:     section.RevisionID,
+			SectionID:      section.SectionID,
+			CanonicalURI:   documentPayload.CanonicalURI,
+			ExcerptHash:    section.ExcerptHash,
+			SourceStartRef: section.SourceStartRef,
+			SourceEndRef:   section.SourceEndRef,
+			Text:           plainText(page.Body.Storage.Value),
+			Links:          linksForSection(links, section.SectionID),
+			ClaimHints:     s.claimHints(page, section),
+			ObservedAt:     generationValue.ObservedAt,
+		})
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, result.Envelopes...)
+	}
+	return out, nil
+}
+
+func (s *Source) claimHints(page Page, section facts.DocumentationSectionPayload) []doctruth.ClaimHint {
+	if s.TruthClaimHints == nil {
+		return nil
+	}
+	return s.TruthClaimHints(page, section)
+}
+
+func linksForSection(links []facts.DocumentationLinkPayload, sectionID string) []facts.DocumentationLinkPayload {
+	out := make([]facts.DocumentationLinkPayload, 0, len(links))
+	for _, link := range links {
+		if link.SectionID == sectionID {
+			out = append(out, link)
+		}
+	}
+	return out
 }
 
 func mergePageDetails(listed Page, detail Page) Page {

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -77,6 +78,64 @@ func TestSourceSyncsSpacePagesIntoDocumentationFacts(t *testing.T) {
 		if envelope.SourceConfidence != facts.SourceConfidenceObserved {
 			t.Fatalf("fact %q SourceConfidence = %q, want observed", envelope.FactKind, envelope.SourceConfidence)
 		}
+	}
+}
+
+func TestSourceEmitsDocumentationTruthMentionsAndClaimsWhenExtractorConfigured(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeClient{
+		space: Space{ID: "100", Key: "PLAT", Name: "Platform"},
+		spacePages: []Page{
+			confluencePage("123", "Payment Service Deployment", 17, `<p>payment-api deploys from <a href="https://github.com/example/platform-deployments">deployments</a>.</p>`),
+		},
+	}
+	source := Source{
+		Client: client,
+		Config: SourceConfig{
+			BaseURL: "https://example.atlassian.net/wiki",
+			SpaceID: "100",
+			Now:     fixedNow,
+		},
+		TruthExtractor: doctruth.NewExtractor([]doctruth.Entity{
+			{Kind: "service", ID: "service:payment-api", Aliases: []string{"payment-api"}},
+			{Kind: "repository", ID: "repo:platform-deployments", URIs: []string{"https://github.com/example/platform-deployments"}},
+		}, doctruth.Options{}),
+		TruthClaimHints: func(_ Page, _ facts.DocumentationSectionPayload) []doctruth.ClaimHint {
+			return []doctruth.ClaimHint{{
+				ClaimID:     "claim:payment-api:deployment",
+				ClaimType:   "service_deployment",
+				ClaimText:   "payment-api deploys from deployments.",
+				SubjectText: "payment-api",
+				SubjectKind: "service",
+			}}
+		},
+	}
+
+	collected, ok, err := source.Next(context.Background())
+	if err != nil {
+		t.Fatalf("Next() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("Next() ok = false, want true")
+	}
+
+	envelopes := drainFacts(t, collected.Facts)
+	assertFactCount(t, envelopes, facts.DocumentationEntityMentionFactKind, 2)
+	assertFactCount(t, envelopes, facts.DocumentationClaimCandidateFactKind, 1)
+	mentions := factsByKind(envelopes, facts.DocumentationEntityMentionFactKind)
+	for _, mention := range mentions {
+		if got, want := payloadString(mention.Payload, "resolution_status"), facts.DocumentationMentionResolutionExact; got != want {
+			t.Fatalf("resolution_status = %q, want %q", got, want)
+		}
+		if mention.SourceConfidence != facts.SourceConfidenceDerived {
+			t.Fatalf("SourceConfidence = %q, want derived", mention.SourceConfidence)
+		}
+	}
+	claim := factsByKind(envelopes, facts.DocumentationClaimCandidateFactKind)[0]
+	section := factsByKind(envelopes, facts.DocumentationSectionFactKind)[0]
+	if got, want := payloadString(claim.Payload, "excerpt_hash"), payloadString(section.Payload, "excerpt_hash"); got != want {
+		t.Fatalf("excerpt_hash = %q, want %q", got, want)
 	}
 }
 

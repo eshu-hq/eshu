@@ -75,6 +75,9 @@ gauge when a shared-acceptance observer is available.
 | `SharedProjectionStaleIntents` | `eshu_dp_shared_projection_stale_intents_total` |
 | `SharedAcceptanceUpserts` | `eshu_dp_shared_acceptance_upserts_total` |
 | `SharedAcceptanceLookupErrors` | `eshu_dp_shared_acceptance_lookup_errors_total` |
+| `DocumentationEntityMentions` | `eshu_dp_documentation_entity_mentions_extracted_total` |
+| `DocumentationClaimCandidates` | `eshu_dp_documentation_claim_candidates_extracted_total` |
+| `DocumentationClaimsSuppressed` | `eshu_dp_documentation_claim_candidates_suppressed_total` |
 | `SharedEdgeWriteGroups` | `eshu_dp_shared_edge_write_groups_total` |
 | `CodeCallEdgeBatches` | `eshu_dp_code_call_edge_batches_total` |
 | `Neo4jBatchesExecuted` | `eshu_dp_neo4j_batches_executed_total` |

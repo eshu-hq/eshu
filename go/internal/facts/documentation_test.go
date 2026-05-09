@@ -235,6 +235,7 @@ func TestDocumentationClaimCandidateIsNonAuthoritativeEvidence(t *testing.T) {
 		ClaimType:        "service_deployment",
 		ClaimText:        "payment-api deploys through the payment-prod Helm release.",
 		ClaimHash:        "sha256:claim-text",
+		ExcerptHash:      "sha256:bounded-excerpt",
 		SubjectMentionID: "mention:payment-api",
 		ObjectMentionIDs: []string{"mention:payment-prod"},
 		EvidenceRefs: []DocumentationEvidenceRef{
@@ -255,6 +256,39 @@ func TestDocumentationClaimCandidateIsNonAuthoritativeEvidence(t *testing.T) {
 	}
 	if payload.Authority == "operational_truth" {
 		t.Fatal("documentation claim candidate must not be operational truth")
+	}
+	if !strings.Contains(string(encoded), `"excerpt_hash":"sha256:bounded-excerpt"`) {
+		t.Fatalf("payload JSON = %s, want excerpt_hash for bounded source evidence", encoded)
+	}
+}
+
+func TestDocumentationClaimCandidateStableIDIncludesExcerptHash(t *testing.T) {
+	t.Parallel()
+
+	first := DocumentationClaimCandidateStableID(DocumentationClaimCandidatePayload{
+		DocumentID:  "doc:confluence:12345",
+		RevisionID:  "17",
+		SectionID:   "section:deployment",
+		ClaimID:     "claim:deployment:payment-api",
+		ClaimText:   "payment-api deploys through the payment-prod Helm release.",
+		ClaimHash:   "sha256:claim-text",
+		ExcerptHash: "sha256:bounded-excerpt-a",
+	})
+	second := DocumentationClaimCandidateStableID(DocumentationClaimCandidatePayload{
+		DocumentID:  "doc:confluence:12345",
+		RevisionID:  "17",
+		SectionID:   "section:deployment",
+		ClaimID:     "claim:deployment:payment-api",
+		ClaimText:   "payment-api deploys through the payment-prod Helm release.",
+		ClaimHash:   "sha256:claim-text",
+		ExcerptHash: "sha256:bounded-excerpt-b",
+	})
+
+	if first == "" {
+		t.Fatal("DocumentationClaimCandidateStableID returned empty ID")
+	}
+	if first == second {
+		t.Fatalf("stable ID did not change across excerpt bounds: %q", first)
 	}
 }
 

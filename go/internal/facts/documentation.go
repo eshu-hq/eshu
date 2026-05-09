@@ -145,6 +145,7 @@ type DocumentationClaimCandidatePayload struct {
 	ClaimType        string                     `json:"claim_type"`
 	ClaimText        string                     `json:"claim_text"`
 	ClaimHash        string                     `json:"claim_hash"`
+	ExcerptHash      string                     `json:"excerpt_hash,omitempty"`
 	SubjectMentionID string                     `json:"subject_mention_id,omitempty"`
 	ObjectMentionIDs []string                   `json:"object_mention_ids,omitempty"`
 	EvidenceRefs     []DocumentationEvidenceRef `json:"evidence_refs,omitempty"`
@@ -209,10 +210,11 @@ func DocumentationEntityMentionStableID(payload DocumentationEntityMentionPayloa
 // DocumentationClaimCandidateStableID returns a stable ID for one documentation claim candidate.
 func DocumentationClaimCandidateStableID(payload DocumentationClaimCandidatePayload) string {
 	return StableID(DocumentationClaimCandidateFactKind, map[string]any{
-		"document_id": payload.DocumentID,
-		"revision_id": payload.RevisionID,
-		"section_id":  payload.SectionID,
-		"claim_id":    payload.ClaimID,
-		"claim_hash":  payload.ClaimHash,
+		"document_id":  payload.DocumentID,
+		"revision_id":  payload.RevisionID,
+		"section_id":   payload.SectionID,
+		"claim_id":     payload.ClaimID,
+		"claim_hash":   payload.ClaimHash,
+		"excerpt_hash": payload.ExcerptHash,
 	})
 }

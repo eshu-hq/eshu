@@ -146,6 +146,18 @@ collector/projector/reducer path.
 - Meaning: Source-local projector latency and completion volume.
 - Use them for: Separating projector latency from reducer latency.
 
+### `eshu_dp_documentation_entity_mentions_extracted_total`
+### `eshu_dp_documentation_claim_candidates_extracted_total`
+### `eshu_dp_documentation_claim_candidates_suppressed_total`
+
+- Type: Counters
+- Meaning: Documentation truth extraction volume after a documentation section
+  has been collected.
+- Use them for: Checking whether entity mentions resolve cleanly and whether
+  claim candidates are being emitted. Ambiguous and unmatched mention outcomes
+  usually point to a catalog or alias problem, not a writer problem. Suppressed
+  claim counters show where exact-finding emission was blocked on purpose.
+
 ### `eshu_dp_reducer_intents_enqueued_total`
 ### `eshu_dp_reducer_executions_total`
 ### `eshu_dp_reducer_run_duration_seconds`
