@@ -149,7 +149,6 @@ type DocumentationClaimCandidatePayload struct {
 	ObjectMentionIDs []string                   `json:"object_mention_ids,omitempty"`
 	EvidenceRefs     []DocumentationEvidenceRef `json:"evidence_refs,omitempty"`
 	Authority        string                     `json:"authority"`
-	SourceConfidence string                     `json:"source_confidence"`
 	SourceMetadata   map[string]string          `json:"source_metadata,omitempty"`
 }
 

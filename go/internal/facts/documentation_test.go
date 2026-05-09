@@ -100,7 +100,7 @@ func TestDocumentationDocumentPayloadOmitMissingACLSummary(t *testing.T) {
 	}
 }
 
-func TestDocumentationSectionStableIDIgnoresMutableTitle(t *testing.T) {
+func TestDocumentationSectionStableIDIgnoresMutableHeading(t *testing.T) {
 	t.Parallel()
 
 	first := DocumentationSectionStableID(DocumentationSectionPayload{
@@ -240,15 +240,18 @@ func TestDocumentationClaimCandidateIsNonAuthoritativeEvidence(t *testing.T) {
 		EvidenceRefs: []DocumentationEvidenceRef{
 			{Kind: "document_section", ID: "section:deployment", Confidence: "observed"},
 		},
-		Authority:        DocumentationClaimAuthorityDocumentEvidence,
-		SourceConfidence: SourceConfidenceObserved,
+		Authority: DocumentationClaimAuthorityDocumentEvidence,
 	}
 
 	if payload.Authority != DocumentationClaimAuthorityDocumentEvidence {
 		t.Fatalf("Authority = %q, want %q", payload.Authority, DocumentationClaimAuthorityDocumentEvidence)
 	}
-	if payload.SourceConfidence != SourceConfidenceObserved {
-		t.Fatalf("SourceConfidence = %q, want observed", payload.SourceConfidence)
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v, want nil", err)
+	}
+	if strings.Contains(string(encoded), "source_confidence") {
+		t.Fatalf("payload JSON = %s, want source_confidence to be envelope-only", encoded)
 	}
 	if payload.Authority == "operational_truth" {
 		t.Fatal("documentation claim candidate must not be operational truth")
