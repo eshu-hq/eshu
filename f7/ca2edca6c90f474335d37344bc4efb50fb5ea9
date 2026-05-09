@@ -1,0 +1,30 @@
+go/internal/storage/postgres/facts_filtered_test.go
+  s_bdaf44668b73dc::t_e97051e56d2499 135-138,196-199
+go/internal/storage/postgres/doc.go
+  s_bdaf44668b73dc::t_3917e42d46e3fb 21-26
+go/internal/storage/postgres/README.md
+  s_bdaf44668b73dc::t_0d1bebfc2f22f8 333
+  s_bdaf44668b73dc::t_3917e42d46e3fb 58,64,67,69-71
+go/internal/storage/postgres/facts_filtered.go
+  s_bdaf44668b73dc::t_e97051e56d2499 53-56
+go/internal/storage/postgres/AGENTS.md
+  s_bdaf44668b73dc::t_4aea154c71f7d9 40-41,131-132
+  s_bdaf44668b73dc::t_0d1bebfc2f22f8 31
+  s_bdaf44668b73dc::t_df4fa36e30126d 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "f7ca2edca6c90f474335d37344bc4efb50fb5ea9",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
