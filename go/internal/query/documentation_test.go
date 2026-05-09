@@ -394,7 +394,7 @@ func TestContentReaderDocumentationEvidencePacketFreshness(t *testing.T) {
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationEvidencePacketFreshness(t.Context(), "doc-packet:service-deployment:1")
+	got, err := reader.documentationEvidencePacketFreshness(t.Context(), "doc-packet:service-deployment:1", "")
 	if err != nil {
 		t.Fatalf("documentationEvidencePacketFreshness() error = %v, want nil", err)
 	}

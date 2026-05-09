@@ -1,6 +1,7 @@
 package query
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -166,6 +167,38 @@ func TestAuthMiddleware_UnauthorizedResponse(t *testing.T) {
 	body := rec.Body.String()
 	if body == "" {
 		t.Error("expected non-empty JSON body")
+	}
+}
+
+func TestAuthMiddleware_UnauthorizedEnvelopeResponse(t *testing.T) {
+	token := "valid-secret-token"
+	handler := AuthMiddleware(token, mockHandler())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("X-Correlation-ID", "corr-auth-123")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("WWW-Authenticate"); got != "Bearer" {
+		t.Fatalf("expected WWW-Authenticate: Bearer, got %q", got)
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if envelope.Error == nil {
+		t.Fatalf("envelope.Error = nil, want unauthenticated error; body = %s", rec.Body.String())
+	}
+	if got, want := envelope.Error.Code, ErrorCodeUnauthenticated; got != want {
+		t.Fatalf("error code = %q, want %q", got, want)
+	}
+	if got, want := envelope.Error.CorrelationID, "corr-auth-123"; got != want {
+		t.Fatalf("correlation_id = %q, want %q", got, want)
 	}
 }
 

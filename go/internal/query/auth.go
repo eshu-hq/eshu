@@ -47,20 +47,20 @@ func AuthMiddleware(token string, next http.Handler) http.Handler {
 
 		// Validate scheme and credentials
 		if !found || strings.ToLower(strings.TrimSpace(scheme)) != "bearer" {
-			unauthorizedResponse(w)
+			unauthorizedResponse(w, r)
 			return
 		}
 
 		// Trim whitespace from credentials
 		credentials = strings.TrimSpace(credentials)
 		if credentials == "" {
-			unauthorizedResponse(w)
+			unauthorizedResponse(w, r)
 			return
 		}
 
 		// Compare tokens using constant-time comparison
 		if !constantTimeEqual(credentials, token) {
-			unauthorizedResponse(w)
+			unauthorizedResponse(w, r)
 			return
 		}
 
@@ -75,9 +75,19 @@ func constantTimeEqual(a, b string) bool {
 }
 
 // unauthorizedResponse writes a 401 JSON error response.
-func unauthorizedResponse(w http.ResponseWriter) {
+func unauthorizedResponse(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("WWW-Authenticate", "Bearer")
+	if acceptsEnvelope(r) {
+		WriteJSON(w, http.StatusUnauthorized, ResponseEnvelope{Error: &ErrorEnvelope{
+			Code:          ErrorCodeUnauthenticated,
+			Message:       "authentication is required",
+			CorrelationID: documentationCorrelationID(r),
+		}})
+		return
+	}
 	WriteJSON(w, http.StatusUnauthorized, map[string]string{
-		"detail": "Unauthorized",
+		"error_code":     string(ErrorCodeUnauthenticated),
+		"message":        "authentication is required",
+		"correlation_id": documentationCorrelationID(r),
 	})
 }

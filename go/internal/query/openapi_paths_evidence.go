@@ -74,8 +74,8 @@ const openAPIPathsEvidence = `
           {"name": "truth_level", "in": "query", "schema": {"type": "string"}},
           {"name": "freshness_state", "in": "query", "schema": {"type": "string"}},
           {"name": "updated_since", "in": "query", "schema": {"type": "string", "format": "date-time"}},
-          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 50, "maximum": 200}},
-          {"name": "cursor", "in": "query", "schema": {"type": "string"}}
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}},
+          {"name": "cursor", "in": "query", "schema": {"type": "string"}, "description": "Non-negative integer offset returned as next_cursor"}
         ],
         "responses": {
           "200": {
@@ -176,6 +176,13 @@ const openAPIPathsEvidence = `
             "required": true,
             "schema": {"type": "string"},
             "description": "Evidence packet ID returned by getDocumentationEvidencePacket"
+          },
+          {
+            "name": "packet_version",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Packet version held by the updater snapshot. When supplied, Eshu compares it with the latest packet version."
           }
         ],
         "responses": {

@@ -159,6 +159,40 @@ CREATE INDEX IF NOT EXISTS fact_records_framework_routes_repo_path_idx
       AND jsonb_array_length(
           COALESCE(payload->'parsed_file_data'->'framework_semantics'->'frameworks', '[]'::jsonb)
       ) > 0;
+
+CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_idx
+    ON fact_records (
+        (payload->>'finding_type'),
+        (payload->>'source_id'),
+        (payload->>'document_id'),
+        (payload->>'status'),
+        (payload->>'truth_level'),
+        (payload->>'freshness_state'),
+        observed_at DESC,
+        fact_id DESC
+    )
+    WHERE fact_kind = 'documentation_finding'
+      AND is_tombstone = FALSE
+      AND (payload->'permissions'->>'viewer_can_read_source' IS DISTINCT FROM 'false')
+      AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied';
+
+CREATE INDEX IF NOT EXISTS fact_records_documentation_packets_finding_idx
+    ON fact_records (
+        COALESCE(payload->>'finding_id', payload->'finding'->>'finding_id'),
+        observed_at DESC,
+        fact_id DESC
+    )
+    WHERE fact_kind = 'documentation_evidence_packet'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_documentation_packets_packet_idx
+    ON fact_records (
+        (payload->>'packet_id'),
+        observed_at DESC,
+        fact_id DESC
+    )
+    WHERE fact_kind = 'documentation_evidence_packet'
+      AND is_tombstone = FALSE;
 `
 
 const contentStoreBaseSchemaSQL = `

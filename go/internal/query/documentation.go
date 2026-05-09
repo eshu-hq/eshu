@@ -2,6 +2,8 @@ package query
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"net/http"
 	"strconv"
 	"strings"
@@ -32,6 +34,7 @@ type documentationFindingFilter struct {
 	UpdatedSince   *time.Time
 	Limit          int
 	Cursor         string
+	Offset         int
 }
 
 type documentationFindingListReadModel struct {
@@ -59,7 +62,7 @@ type documentationEvidencePacketFreshnessReadModel struct {
 type documentationReadModelStore interface {
 	documentationFindings(context.Context, documentationFindingFilter) (documentationFindingListReadModel, error)
 	documentationEvidencePacket(context.Context, string) (documentationEvidencePacketReadModel, error)
-	documentationEvidencePacketFreshness(context.Context, string) (documentationEvidencePacketFreshnessReadModel, error)
+	documentationEvidencePacketFreshness(context.Context, string, string) (documentationEvidencePacketFreshnessReadModel, error)
 }
 
 // Mount registers documentation truth routes.
@@ -92,6 +95,10 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
+	page, ok := documentationPagination(w, r)
+	if !ok {
+		return
+	}
 	store, ok := h.documentationStore(w, r)
 	if !ok {
 		return
@@ -104,11 +111,12 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 		TruthLevel:     QueryParam(r, "truth_level"),
 		FreshnessState: QueryParam(r, "freshness_state"),
 		UpdatedSince:   updatedSince,
-		Limit:          documentationLimit(r),
-		Cursor:         QueryParam(r, "cursor"),
+		Limit:          page.limit,
+		Cursor:         page.cursor,
+		Offset:         page.offset,
 	})
 	if err != nil {
-		writeDocumentationError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error(), "")
+		writeDocumentationInternalError(w, r)
 		return
 	}
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
@@ -145,7 +153,7 @@ func (h *DocumentationHandler) getEvidencePacket(w http.ResponseWriter, r *http.
 	}
 	readModel, err := store.documentationEvidencePacket(r.Context(), findingID)
 	if err != nil {
-		writeDocumentationError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error(), "")
+		writeDocumentationInternalError(w, r)
 		return
 	}
 	if readModel.Denied {
@@ -188,13 +196,14 @@ func (h *DocumentationHandler) getPacketFreshness(w http.ResponseWriter, r *http
 		writeDocumentationError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, "packet_id is required", "")
 		return
 	}
+	packetVersion := QueryParam(r, "packet_version")
 	store, ok := h.documentationStore(w, r)
 	if !ok {
 		return
 	}
-	readModel, err := store.documentationEvidencePacketFreshness(r.Context(), packetID)
+	readModel, err := store.documentationEvidencePacketFreshness(r.Context(), packetID, packetVersion)
 	if err != nil {
-		writeDocumentationError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error(), "")
+		writeDocumentationInternalError(w, r)
 		return
 	}
 	if readModel.Denied {
@@ -266,15 +275,47 @@ func (h *DocumentationHandler) documentationStore(
 	return store, true
 }
 
-func documentationLimit(r *http.Request) int {
-	limit := QueryParamInt(r, "limit", 50)
-	if limit < 1 {
-		return 50
+type documentationPage struct {
+	limit  int
+	cursor string
+	offset int
+}
+
+func documentationPagination(w http.ResponseWriter, r *http.Request) (documentationPage, bool) {
+	page := documentationPage{limit: 50}
+	rawLimit := QueryParam(r, "limit")
+	if rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit < 1 || limit > 200 {
+			writeDocumentationError(
+				w,
+				r,
+				http.StatusBadRequest,
+				ErrorCodeInvalidArgument,
+				"limit must be an integer between 1 and 200",
+				"",
+			)
+			return documentationPage{}, false
+		}
+		page.limit = limit
 	}
-	if limit > 200 {
-		return 200
+	page.cursor = QueryParam(r, "cursor")
+	if page.cursor != "" {
+		offset, err := strconv.Atoi(page.cursor)
+		if err != nil || offset < 0 {
+			writeDocumentationError(
+				w,
+				r,
+				http.StatusBadRequest,
+				ErrorCodeInvalidArgument,
+				"cursor must be a non-negative integer offset",
+				"",
+			)
+			return documentationPage{}, false
+		}
+		page.offset = offset
 	}
-	return limit
+	return page, true
 }
 
 func documentationUpdatedSince(w http.ResponseWriter, r *http.Request) (*time.Time, bool) {
@@ -297,6 +338,17 @@ func documentationUpdatedSince(w http.ResponseWriter, r *http.Request) (*time.Ti
 	return &parsed, true
 }
 
+func writeDocumentationInternalError(w http.ResponseWriter, r *http.Request) {
+	writeDocumentationError(
+		w,
+		r,
+		http.StatusInternalServerError,
+		ErrorCodeInternalError,
+		"documentation evidence request failed",
+		"",
+	)
+}
+
 func writeDocumentationPermissionDenied(w http.ResponseWriter, r *http.Request, reason string) {
 	if strings.TrimSpace(reason) == "" {
 		reason = "caller cannot view documentation evidence"
@@ -312,17 +364,20 @@ func writeDocumentationError(
 	message string,
 	capability string,
 ) {
+	correlationID := documentationCorrelationID(r)
 	if acceptsEnvelope(r) {
 		WriteJSON(w, status, ResponseEnvelope{Error: &ErrorEnvelope{
-			Code:       code,
-			Message:    message,
-			Capability: capability,
+			Code:          code,
+			Message:       message,
+			Capability:    capability,
+			CorrelationID: correlationID,
 		}})
 		return
 	}
 	body := map[string]any{
-		"error_code": code,
-		"message":    message,
+		"error_code":     code,
+		"message":        message,
+		"correlation_id": correlationID,
 	}
 	if capability != "" {
 		body["capability"] = capability
@@ -339,11 +394,13 @@ func writeDocumentationCapabilityError(
 	capability string,
 	currentProfile QueryProfile,
 ) {
+	correlationID := documentationCorrelationID(r)
 	if acceptsEnvelope(r) {
 		WriteJSON(w, status, ResponseEnvelope{Error: &ErrorEnvelope{
-			Code:       code,
-			Message:    message,
-			Capability: capability,
+			Code:          code,
+			Message:       message,
+			Capability:    capability,
+			CorrelationID: correlationID,
 			Profiles: &ErrorProfiles{
 				Current:  currentProfile,
 				Required: requiredProfile(capability),
@@ -352,17 +409,23 @@ func writeDocumentationCapabilityError(
 		return
 	}
 	body := map[string]any{
-		"error_code": code,
-		"message":    message,
-		"capability": capability,
+		"error_code":     code,
+		"message":        message,
+		"capability":     capability,
+		"correlation_id": correlationID,
 	}
 	WriteJSON(w, status, body)
 }
 
-func documentationCursorOffset(cursor string) int {
-	offset, err := strconv.Atoi(strings.TrimSpace(cursor))
-	if err != nil || offset < 0 {
-		return 0
+func documentationCorrelationID(r *http.Request) string {
+	for _, header := range []string{"X-Correlation-ID", "X-Request-ID"} {
+		if value := strings.TrimSpace(r.Header.Get(header)); value != "" {
+			return value
+		}
 	}
-	return offset
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+	}
+	return hex.EncodeToString(raw[:])
 }

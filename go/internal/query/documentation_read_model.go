@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // documentationFindings returns durable documentation findings from fact_records.
@@ -19,9 +21,19 @@ func (cr *ContentReader) documentationFindings(
 	if cr == nil || cr.db == nil {
 		return documentationFindingListReadModel{}, nil
 	}
+	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "list_documentation_findings"),
+			attribute.String("db.sql.table", "fact_records"),
+		),
+	)
+	defer span.End()
+
 	query, args := buildDocumentationFindingsSQL(filter)
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		span.RecordError(err)
 		return documentationFindingListReadModel{}, fmt.Errorf("query documentation findings: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
@@ -34,18 +46,23 @@ func (cr *ContentReader) documentationFindings(
 	for rows.Next() {
 		payload, err := scanJSONPayload(rows)
 		if err != nil {
+			span.RecordError(err)
 			return documentationFindingListReadModel{}, fmt.Errorf("query documentation findings: %w", err)
+		}
+		if documentationPayloadDenied(payload) {
+			continue
 		}
 		ensureEvidencePacketURL(payload)
 		findings = append(findings, payload)
 	}
 	if err := rows.Err(); err != nil {
+		span.RecordError(err)
 		return documentationFindingListReadModel{}, fmt.Errorf("query documentation findings: %w", err)
 	}
 	nextCursor := ""
 	if len(findings) > limit {
 		findings = findings[:limit]
-		nextCursor = strconv.Itoa(documentationCursorOffset(filter.Cursor) + limit)
+		nextCursor = strconv.Itoa(filter.Offset + limit)
 	}
 	return documentationFindingListReadModel{Findings: findings, NextCursor: nextCursor}, nil
 }
@@ -58,23 +75,35 @@ func (cr *ContentReader) documentationEvidencePacket(
 	if cr == nil || cr.db == nil || strings.TrimSpace(findingID) == "" {
 		return documentationEvidencePacketReadModel{}, nil
 	}
+	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "get_documentation_evidence_packet"),
+			attribute.String("db.sql.table", "fact_records"),
+		),
+	)
+	defer span.End()
+
 	rows, err := cr.db.QueryContext(ctx, documentationEvidencePacketByFindingSQL, findingID)
 	if err != nil {
+		span.RecordError(err)
 		return documentationEvidencePacketReadModel{}, fmt.Errorf("query documentation evidence packet: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
+			span.RecordError(err)
 			return documentationEvidencePacketReadModel{}, fmt.Errorf("query documentation evidence packet: %w", err)
 		}
 		return documentationEvidencePacketReadModel{}, nil
 	}
 	packet, err := scanJSONPayload(rows)
 	if err != nil {
+		span.RecordError(err)
 		return documentationEvidencePacketReadModel{}, fmt.Errorf("query documentation evidence packet: %w", err)
 	}
-	if documentationPacketDenied(packet) {
+	if documentationPayloadDenied(packet) {
 		return documentationEvidencePacketReadModel{
 			Denied:       true,
 			DeniedReason: documentationPermissionReason(packet),
@@ -87,39 +116,60 @@ func (cr *ContentReader) documentationEvidencePacket(
 func (cr *ContentReader) documentationEvidencePacketFreshness(
 	ctx context.Context,
 	packetID string,
+	savedPacketVersion string,
 ) (documentationEvidencePacketFreshnessReadModel, error) {
 	if cr == nil || cr.db == nil || strings.TrimSpace(packetID) == "" {
 		return documentationEvidencePacketFreshnessReadModel{}, nil
 	}
+	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "check_documentation_packet_freshness"),
+			attribute.String("db.sql.table", "fact_records"),
+		),
+	)
+	defer span.End()
+
 	rows, err := cr.db.QueryContext(ctx, documentationEvidencePacketByPacketSQL, packetID)
 	if err != nil {
+		span.RecordError(err)
 		return documentationEvidencePacketFreshnessReadModel{}, fmt.Errorf("query documentation evidence packet freshness: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
+			span.RecordError(err)
 			return documentationEvidencePacketFreshnessReadModel{}, fmt.Errorf("query documentation evidence packet freshness: %w", err)
 		}
 		return documentationEvidencePacketFreshnessReadModel{}, nil
 	}
 	packet, err := scanJSONPayload(rows)
 	if err != nil {
+		span.RecordError(err)
 		return documentationEvidencePacketFreshnessReadModel{}, fmt.Errorf("query documentation evidence packet freshness: %w", err)
 	}
-	if documentationPacketDenied(packet) {
+	if documentationPayloadDenied(packet) {
 		return documentationEvidencePacketFreshnessReadModel{
 			Denied:       true,
 			DeniedReason: documentationPermissionReason(packet),
 		}, nil
 	}
-	packetVersion := stringFromMap(packet, "packet_version")
+	latestPacketVersion := stringFromMap(packet, "packet_version")
+	packetVersion := strings.TrimSpace(savedPacketVersion)
+	if packetVersion == "" {
+		packetVersion = latestPacketVersion
+	}
+	freshnessState := nestedString(packet, "states", "freshness_state")
+	if packetVersion != latestPacketVersion {
+		freshnessState = string(FreshnessStale)
+	}
 	return documentationEvidencePacketFreshnessReadModel{
 		Available:           true,
 		PacketID:            stringFromMap(packet, "packet_id"),
 		PacketVersion:       packetVersion,
-		FreshnessState:      nestedString(packet, "states", "freshness_state"),
-		LatestPacketVersion: packetVersion,
+		FreshnessState:      freshnessState,
+		LatestPacketVersion: latestPacketVersion,
 	}, nil
 }
 
@@ -128,10 +178,7 @@ SELECT payload
 FROM fact_records
 WHERE fact_kind = '` + facts.DocumentationEvidencePacketFactKind + `'
   AND is_tombstone = FALSE
-  AND (
-    payload->>'finding_id' = $1 OR
-    payload->'finding'->>'finding_id' = $1
-  )
+  AND COALESCE(payload->>'finding_id', payload->'finding'->>'finding_id') = $1
 ORDER BY observed_at DESC, fact_id DESC
 LIMIT 1
 `
@@ -151,6 +198,8 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 	clauses := []string{
 		"fact_kind = '" + facts.DocumentationFindingFactKind + "'",
 		"is_tombstone = FALSE",
+		"(payload->'permissions'->>'viewer_can_read_source' IS DISTINCT FROM 'false')",
+		"LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'",
 	}
 	addPayloadFilter := func(field string, value string) {
 		value = strings.TrimSpace(value)
@@ -174,7 +223,7 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 	if limit <= 0 {
 		limit = 50
 	}
-	args = append(args, limit+1, documentationCursorOffset(filter.Cursor))
+	args = append(args, limit+1, filter.Offset)
 	return fmt.Sprintf(`
 SELECT payload
 FROM fact_records
@@ -210,11 +259,11 @@ func ensureEvidencePacketURL(finding map[string]any) {
 	finding["evidence_packet_url"] = "/api/v0/documentation/findings/" + findingID + "/evidence-packet"
 }
 
-func documentationPacketDenied(packet map[string]any) bool {
-	if canRead, ok := nestedBoolValue(packet, "permissions", "viewer_can_read_source"); ok && !canRead {
+func documentationPayloadDenied(payload map[string]any) bool {
+	if canRead, ok := nestedBoolValue(payload, "permissions", "viewer_can_read_source"); ok && !canRead {
 		return true
 	}
-	return strings.EqualFold(nestedString(packet, "states", "permission_decision"), "denied")
+	return strings.EqualFold(nestedString(payload, "states", "permission_decision"), "denied")
 }
 
 func documentationPermissionReason(packet map[string]any) string {

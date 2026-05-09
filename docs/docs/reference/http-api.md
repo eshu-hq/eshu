@@ -122,6 +122,7 @@ Initial error code set:
 | Code | When |
 | --- | --- |
 | `unsupported_capability` | Capability not supported in the current runtime profile. Returned as HTTP 501. |
+| `unauthenticated` | Authentication is missing or invalid. Returned as HTTP 401. |
 | `invalid_argument` | Request parameters are invalid or malformed. |
 | `not_found` | Requested finding, packet, entity, repo, or workspace scope does not exist. |
 | `permission_denied` | Caller cannot view the requested source, document, or evidence. |

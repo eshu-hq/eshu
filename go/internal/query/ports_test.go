@@ -25,8 +25,11 @@ type fakePortContentStore struct {
 	deploymentEvidenceErr       error
 	relationshipEvidence        relationshipEvidenceReadModel
 	documentationFindingsModel  documentationFindingListReadModel
+	documentationFindingsErr    error
 	documentationPacketModel    documentationEvidencePacketReadModel
+	documentationPacketErr      error
 	documentationFreshnessModel documentationEvidencePacketFreshnessReadModel
+	documentationFreshnessErr   error
 	entities                    []EntityContent
 	repositories                []RepositoryCatalogEntry
 }
@@ -119,14 +122,27 @@ func (f fakePortContentStore) relationshipEvidenceByResolvedID(context.Context, 
 }
 
 func (f fakePortContentStore) documentationFindings(context.Context, documentationFindingFilter) (documentationFindingListReadModel, error) {
+	if f.documentationFindingsErr != nil {
+		return documentationFindingListReadModel{}, f.documentationFindingsErr
+	}
 	return f.documentationFindingsModel, nil
 }
 
 func (f fakePortContentStore) documentationEvidencePacket(context.Context, string) (documentationEvidencePacketReadModel, error) {
+	if f.documentationPacketErr != nil {
+		return documentationEvidencePacketReadModel{}, f.documentationPacketErr
+	}
 	return f.documentationPacketModel, nil
 }
 
-func (f fakePortContentStore) documentationEvidencePacketFreshness(context.Context, string) (documentationEvidencePacketFreshnessReadModel, error) {
+func (f fakePortContentStore) documentationEvidencePacketFreshness(
+	context.Context,
+	string,
+	string,
+) (documentationEvidencePacketFreshnessReadModel, error) {
+	if f.documentationFreshnessErr != nil {
+		return documentationEvidencePacketFreshnessReadModel{}, f.documentationFreshnessErr
+	}
 	return f.documentationFreshnessModel, nil
 }
 
