@@ -66,9 +66,17 @@ Each generation emits:
 - one `documentation_document` fact per visible current page
 - one `documentation_section` body fact per document
 - one `documentation_link` fact per extracted storage-body link
+- optional `documentation_entity_mention` and `documentation_claim_candidate`
+  facts when a caller supplies a `doctruth.Extractor` and structured claim
+  hints
 
 Document facts preserve canonical URI, revision ID, labels, owner references,
 ACL summary, content hash, source metadata, and document freshness.
+
+The optional truth extraction seam is deterministic and read-only. The
+Confluence collector does not infer claims from broad prose and does not load an
+entity catalog by itself; callers provide those inputs when the runtime has
+already gathered them from Eshu.
 
 ## Operational Notes
 

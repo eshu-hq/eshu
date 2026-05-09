@@ -342,6 +342,9 @@ log streams.
 | `eshu_dp_canonical_writes_total` | Total canonical graph write batches | `domain` |
 | `eshu_dp_shared_projection_cycles_total` | Total shared projection partition cycles | `domain`, `partition_key` |
 | `eshu_dp_iac_reachability_rows_total` | Total IaC reachability rows materialized after source-local projection | `outcome` (`used`/`unused`/`ambiguous`) |
+| `eshu_dp_documentation_entity_mentions_extracted_total` | Documentation entity mentions extracted from bounded sections | `source_system`, `outcome` (`exact`/`ambiguous`/`unmatched`) |
+| `eshu_dp_documentation_claim_candidates_extracted_total` | Non-authoritative documentation claim candidates emitted after exact subject resolution | `source_system`, `outcome` |
+| `eshu_dp_documentation_claim_candidates_suppressed_total` | Documentation claim candidates suppressed before exact finding emission | `source_system`, `outcome` |
 | `eshu_dp_repos_snapshotted_total` | Total repositories snapshotted | status (`succeeded`/`failed`/`skipped`) |
 | `eshu_dp_files_parsed_total` | Total files parsed | status (`succeeded`/`failed`/`skipped`) |
 | `eshu_dp_fact_batches_committed_total` | Total fact batches committed to Postgres during streaming ingestion | `scope_id`, `source_system` |

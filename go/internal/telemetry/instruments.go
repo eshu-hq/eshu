@@ -39,16 +39,19 @@ type AcceptanceObserver interface {
 // Python eshu_ metrics.
 type Instruments struct {
 	// Counters track cumulative totals
-	FactsEmitted                 metric.Int64Counter
-	FactsCommitted               metric.Int64Counter
-	ProjectionsCompleted         metric.Int64Counter
-	ReducerIntentsEnqueued       metric.Int64Counter
-	ReducerExecutions            metric.Int64Counter
-	CanonicalWrites              metric.Int64Counter
-	SharedProjectionCycles       metric.Int64Counter
-	SharedAcceptanceUpserts      metric.Int64Counter
-	SharedAcceptanceLookupErrors metric.Int64Counter
-	SharedProjectionStaleIntents metric.Int64Counter
+	FactsEmitted                  metric.Int64Counter
+	FactsCommitted                metric.Int64Counter
+	ProjectionsCompleted          metric.Int64Counter
+	ReducerIntentsEnqueued        metric.Int64Counter
+	ReducerExecutions             metric.Int64Counter
+	CanonicalWrites               metric.Int64Counter
+	SharedProjectionCycles        metric.Int64Counter
+	SharedAcceptanceUpserts       metric.Int64Counter
+	SharedAcceptanceLookupErrors  metric.Int64Counter
+	SharedProjectionStaleIntents  metric.Int64Counter
+	DocumentationEntityMentions   metric.Int64Counter
+	DocumentationClaimCandidates  metric.Int64Counter
+	DocumentationClaimsSuppressed metric.Int64Counter
 
 	// Histograms track distributions
 	CollectorObserveDuration           metric.Float64Histogram
@@ -231,6 +234,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedProjectionStaleIntents counter: %w", err)
+	}
+
+	inst.DocumentationEntityMentions, err = meter.Int64Counter(
+		"eshu_dp_documentation_entity_mentions_extracted_total",
+		metric.WithDescription("Total documentation entity mentions extracted by resolution outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DocumentationEntityMentions counter: %w", err)
+	}
+
+	inst.DocumentationClaimCandidates, err = meter.Int64Counter(
+		"eshu_dp_documentation_claim_candidates_extracted_total",
+		metric.WithDescription("Total documentation claim candidates extracted by outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DocumentationClaimCandidates counter: %w", err)
+	}
+
+	inst.DocumentationClaimsSuppressed, err = meter.Int64Counter(
+		"eshu_dp_documentation_claim_candidates_suppressed_total",
+		metric.WithDescription("Total documentation claim candidates suppressed before exact finding emission"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DocumentationClaimsSuppressed counter: %w", err)
 	}
 
 	// Register histograms with explicit bucket boundaries where specified

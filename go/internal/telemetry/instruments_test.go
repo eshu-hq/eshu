@@ -28,6 +28,9 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.SharedAcceptanceUpserts, "SharedAcceptanceUpserts counter should be registered")
 	assert.NotNil(t, inst.SharedAcceptanceLookupErrors, "SharedAcceptanceLookupErrors counter should be registered")
 	assert.NotNil(t, inst.SharedProjectionStaleIntents, "SharedProjectionStaleIntents counter should be registered")
+	assert.NotNil(t, inst.DocumentationEntityMentions, "DocumentationEntityMentions counter should be registered")
+	assert.NotNil(t, inst.DocumentationClaimCandidates, "DocumentationClaimCandidates counter should be registered")
+	assert.NotNil(t, inst.DocumentationClaimsSuppressed, "DocumentationClaimsSuppressed counter should be registered")
 	assert.NotNil(t, inst.IaCReachabilityRows, "IaCReachabilityRows counter should be registered")
 
 	// Verify all histogram fields are non-nil
