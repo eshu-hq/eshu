@@ -1,4 +1,4 @@
-package parser
+package json
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ func isDBTManifestDocument(document map[string]any, filename string) bool {
 	return (lowered == "manifest.json" || lowered == "dbt_manifest.json") && metadata != nil && nodesOK && sourcesOK
 }
 
-func applyDBTManifestDocument(payload map[string]any, document map[string]any) {
+func applyDBTManifestDocument(payload map[string]any, document map[string]any, lineageExtractor LineageExtractor) {
 	sources, _ := document["sources"].(map[string]any)
 	nodes, _ := document["nodes"].(map[string]any)
 	macros, _ := document["macros"].(map[string]any)
@@ -89,7 +89,10 @@ func applyDBTManifestDocument(payload map[string]any, document map[string]any) {
 			})
 		}
 
-		lineage := extractCompiledModelLineage(fmt.Sprint(node["compiled_code"]), modelName, assetColumns)
+		lineage := CompiledModelLineage{}
+		if lineageExtractor != nil {
+			lineage = lineageExtractor(fmt.Sprint(node["compiled_code"]), modelName, assetColumns)
+		}
 		modelColumnNameSet := make(map[string]struct{}, len(modelColumnNames))
 		for _, columnName := range modelColumnNames {
 			modelColumnNameSet[columnName] = struct{}{}

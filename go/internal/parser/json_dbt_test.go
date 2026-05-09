@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -9,7 +10,6 @@ import (
 func TestApplyDBTManifestDocumentIncludesMacroDependenciesAndLineage(t *testing.T) {
 	t.Parallel()
 
-	payload := map[string]any{}
 	document := map[string]any{
 		"metadata": map[string]any{
 			"adapter_type": "postgres",
@@ -55,7 +55,21 @@ func TestApplyDBTManifestDocumentIncludesMacroDependenciesAndLineage(t *testing.
 		},
 	}
 
-	applyDBTManifestDocument(payload, document)
+	source, err := json.Marshal(document)
+	if err != nil {
+		t.Fatalf("json.Marshal(document) error = %v, want nil", err)
+	}
+	filePath := filepath.Join(t.TempDir(), "dbt_manifest.json")
+	writeTestFile(t, filePath, string(source))
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	payload, err := engine.ParsePath(filepath.Dir(filePath), filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
 
 	if got, want := dbtBucketNames(t, payload, "analytics_models"), []string{"order_metrics"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("analytics models = %#v, want %#v", got, want)

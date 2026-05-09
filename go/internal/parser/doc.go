@@ -40,14 +40,15 @@
 // methods. The package also emits Go embedded SQL metadata through the Go
 // helper subpackage, Groovy/Jenkins delivery metadata through the Groovy helper
 // subpackage, Dockerfile runtime metadata through the Dockerfile helper
-// subpackage, CloudFormation/SAM template extraction through the CloudFormation
-// helper subpackage, returned function-value references, static re-export
-// metadata, composite-literal type references, Helm/YAML metadata extraction,
-// and SCIP support for index-derived facts. First-wave child adapter packages
-// also own C, C++, Rust, C#, Scala, Elixir, Swift, Dart, Ruby, Perl, Haskell,
-// SQL, and HCL/Terraform parse and pre-scan behavior behind thin parent
-// wrappers, using shared parser helper contracts instead of importing the
-// parent dispatcher.
+// subpackage, JSON document extraction through the JSON helper subpackage,
+// YAML document extraction through the YAML helper subpackage,
+// CloudFormation/SAM template extraction through the CloudFormation helper
+// subpackage, returned function-value references, static re-export metadata,
+// composite-literal type references, and SCIP support for index-derived facts.
+// First-wave child adapter packages also own C, C++, Rust, C#, Scala, Elixir,
+// Swift, Dart, Ruby, Perl, Haskell, SQL, and HCL/Terraform parse and pre-scan
+// behavior behind thin parent wrappers, using shared parser helper contracts
+// instead of importing the parent dispatcher.
 // Parser changes must preserve fact truth: when a parser emits a new
 // entity, relationship, or metadata field, the relevant fixtures, fact
 // contracts in internal/facts, and downstream docs must move in lockstep.

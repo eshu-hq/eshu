@@ -1,4 +1,4 @@
-package parser
+package yaml
 
 import (
 	"fmt"
@@ -35,7 +35,7 @@ func isHelmTemplateManifest(path string) bool {
 }
 
 func parseHelmChart(path string, source []byte) map[string]any {
-	documents, err := decodeYAMLDocuments(string(source))
+	documents, err := DecodeDocuments(string(source))
 	if err != nil || len(documents) == 0 {
 		return nil
 	}
@@ -77,7 +77,7 @@ func parseHelmChart(path string, source []byte) map[string]any {
 }
 
 func parseHelmValues(path string, source []byte) map[string]any {
-	documents, err := decodeYAMLDocuments(string(source))
+	documents, err := DecodeDocuments(string(source))
 	if err != nil || len(documents) == 0 {
 		return nil
 	}
@@ -89,7 +89,7 @@ func parseHelmValues(path string, source []byte) map[string]any {
 	return map[string]any{
 		"name":               strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)),
 		"line_number":        1,
-		"top_level_keys":     strings.Join(sortedMapKeys(document), ","),
+		"top_level_keys":     strings.Join(sortedMapKeysAny(document), ","),
 		"image_repositories": strings.Join(collectHelmImageRepositories(document), ","),
 		"path":               path,
 		"lang":               "yaml",

@@ -118,6 +118,12 @@ static relative re-export metadata, constructor calls, and local receiver type
 metadata from
 `const value = new Type()` so reducer call materialization can resolve bounded
 cross-file calls.
+JSON parsing now lives in the JSON helper subpackage. The parent parser keeps
+the wrapper and dbt SQL lineage callback, while the child package owns
+ordered-object metadata, dependency manifests, TypeScript config rows,
+CloudFormation/SAM JSON attachment, dbt manifest payload construction, and
+data-intelligence replay documents.
+
 Package-level roots are resolved from the nearest owning `package.json`, so
 nested workspaces can expose
 their own entrypoints, `bin` targets, and package exports without depending on
@@ -170,6 +176,11 @@ relationship code.
 CloudFormation and SAM template evidence now lives in the CloudFormation helper
 subpackage so JSON and YAML adapters share the same template classification,
 condition evaluation, and bucket construction contract.
+
+YAML parsing now lives in the YAML helper subpackage. The parent parser keeps
+the wrapper, while the child package owns YAML decoding, Kubernetes and
+Crossplane resource rows, Argo CD rows, Kustomize rows, Helm chart/value rows,
+and YAML-side CloudFormation/SAM attachment.
 
 First-wave language package moves also cover C, C++, Rust, C#, Scala, Elixir,
 Swift, Dart, Ruby, Perl, Haskell, SQL, and HCL/Terraform adapters. Those
