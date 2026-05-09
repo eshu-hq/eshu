@@ -35,3 +35,17 @@ flowchart LR
   hash provenance.
 - Metrics use bounded labels only; section IDs and claim IDs belong in logs or
   payloads, not metric attributes.
+
+## Drift Findings
+
+`DeploymentDriftAnalyzer` compares `service_deployment` claim candidates with
+current deployment truth supplied by the caller. The analyzer does not query the
+graph or documentation source itself. It expects callers to pass exact mention
+payloads, the candidate claim, and the current deployment refs already loaded
+from Eshu truth.
+
+The analyzer returns read-only `service_deployment_drift` findings with explicit
+states: `match`, `conflict`, `ambiguous`, `unsupported`, `stale`, and
+`building`. Documentation claims never override graph truth; stale, building,
+missing, or ambiguous graph truth stays visible in the finding instead of being
+collapsed into a confident conflict.

@@ -149,14 +149,18 @@ collector/projector/reducer path.
 ### `eshu_dp_documentation_entity_mentions_extracted_total`
 ### `eshu_dp_documentation_claim_candidates_extracted_total`
 ### `eshu_dp_documentation_claim_candidates_suppressed_total`
+### `eshu_dp_documentation_drift_findings_total`
+### `eshu_dp_documentation_drift_generation_duration_seconds`
 
-- Type: Counters
+- Type: Counters and histogram
 - Meaning: Documentation truth extraction volume after a documentation section
-  has been collected.
+  has been collected, plus read-only drift finding volume and latency.
 - Use them for: Checking whether entity mentions resolve cleanly and whether
   claim candidates are being emitted. Ambiguous and unmatched mention outcomes
   usually point to a catalog or alias problem, not a writer problem. Suppressed
   claim counters show where exact-finding emission was blocked on purpose.
+  Drift finding outcomes show whether documentation is matching, conflicting,
+  ambiguous, unsupported, stale, or still building.
 
 ### `eshu_dp_reducer_intents_enqueued_total`
 ### `eshu_dp_reducer_executions_total`

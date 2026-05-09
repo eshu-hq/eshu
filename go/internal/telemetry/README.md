@@ -78,6 +78,7 @@ gauge when a shared-acceptance observer is available.
 | `DocumentationEntityMentions` | `eshu_dp_documentation_entity_mentions_extracted_total` |
 | `DocumentationClaimCandidates` | `eshu_dp_documentation_claim_candidates_extracted_total` |
 | `DocumentationClaimsSuppressed` | `eshu_dp_documentation_claim_candidates_suppressed_total` |
+| `DocumentationDriftFindings` | `eshu_dp_documentation_drift_findings_total` |
 | `SharedEdgeWriteGroups` | `eshu_dp_shared_edge_write_groups_total` |
 | `CodeCallEdgeBatches` | `eshu_dp_code_call_edge_batches_total` |
 | `Neo4jBatchesExecuted` | `eshu_dp_neo4j_batches_executed_total` |
@@ -123,6 +124,7 @@ gauge when a shared-acceptance observer is available.
 | `SharedProjectionIntentWaitDuration` | `eshu_dp_shared_projection_intent_wait_seconds` | 0.001–21600 s |
 | `SharedProjectionProcessingDuration` | `eshu_dp_shared_projection_processing_seconds` | 0.001–60 s |
 | `SharedProjectionStepDuration` | `eshu_dp_shared_projection_step_seconds` | 0.001–60 s |
+| `DocumentationDriftGenerationDuration` | `eshu_dp_documentation_drift_generation_duration_seconds` | default |
 | `SharedEdgeWriteGroupDuration` | `eshu_dp_shared_edge_write_group_duration_seconds` | 0.001–60 s |
 | `SharedEdgeWriteGroupStatementCount` | `eshu_dp_shared_edge_write_group_statement_count` (Int64) | 1–128 stmts |
 | `CodeCallEdgeDuration` | `eshu_dp_code_call_edge_batch_duration_seconds` | 0.001–5 s |
