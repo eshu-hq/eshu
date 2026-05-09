@@ -72,22 +72,3 @@ func loadOrgs(db *sqlx.DB) error {
 		t.Fatalf("embedded_sql_queries = %#v, want %#v", queries, want)
 	}
 }
-
-func TestIterGoStringLiteralsPreservesEscapedQuotes(t *testing.T) {
-	t.Parallel()
-
-	got := iterGoStringLiterals(
-		`db.Exec("SELECT id /* \"audit\" */ FROM public.users WHERE id = $1", 42)`,
-	)
-
-	want := []goStringLiteral{
-		{
-			body:   `SELECT id /* \"audit\" */ FROM public.users WHERE id = $1`,
-			offset: 9,
-		},
-	}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("iterGoStringLiterals() = %#v, want %#v", got, want)
-	}
-}

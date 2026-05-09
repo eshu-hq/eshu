@@ -129,7 +129,9 @@ the language adapter returns,
 `inferContentMetadata` sets `artifact_type`, `template_dialect`, and
 `iac_relevant` on the payload. The final payload also carries `repo_path`.
 
-Go composite literals also emit `function_calls` rows with
+Go embedded SQL extraction now lives in the Go helper subpackage, while the
+parent parser keeps the `embedded_sql_queries` payload contract. Go composite
+literals also emit `function_calls` rows with
 `call_kind=go.composite_literal_type_reference`. Those rows are parser metadata
 for dead-code root evidence. The reducer materializes them as deduplicated
 REFERENCES edges, not canonical CALLS edges, so sibling files in one Go
@@ -265,6 +267,8 @@ SCIP is opt-in via SCIP_INDEXER=true. The allowed language list defaults to
   root evidence used before parent payload annotation
 - `internal/parser/python` — notebook source extraction before parent
   temporary-file parsing
+- `internal/parser/golang` — embedded SQL evidence before parent payload
+  assembly
 - `internal/terraformschema` — provider schema assets consumed by the HCL adapter
 - Standard library only for non-tree-sitter adapters
 
