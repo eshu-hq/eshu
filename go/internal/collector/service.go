@@ -139,7 +139,7 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 		attrs := metric.WithAttributes(
 			telemetry.AttrScopeID(collected.Scope.ScopeID),
 			telemetry.AttrSourceSystem(collected.Scope.SourceSystem),
-			telemetry.AttrCollectorKind("git"),
+			telemetry.AttrCollectorKind(string(collected.Scope.CollectorKind)),
 		)
 		s.Instruments.CollectorObserveDuration.Record(ctx, duration, attrs)
 		s.Instruments.FactsEmitted.Add(ctx, factCount, attrs)

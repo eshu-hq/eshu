@@ -53,6 +53,7 @@ main() {
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-workflow-coordinator" ./cmd/workflow-coordinator
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-projector" ./cmd/projector
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-git" ./cmd/collector-git
+    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-confluence" ./cmd/collector-confluence
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-bootstrap-data-plane" ./cmd/bootstrap-data-plane
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-admin-status" ./cmd/admin-status
 

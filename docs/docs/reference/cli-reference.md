@@ -77,6 +77,7 @@ eshu-bootstrap-data-plane --version
 eshu-workflow-coordinator --version
 eshu-projector --version
 eshu-collector-git --version
+eshu-collector-confluence --version
 eshu-admin-status --version
 ```
 

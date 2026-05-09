@@ -8,7 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -308,6 +311,45 @@ func TestServiceRunWithTelemetry(t *testing.T) {
 	}
 }
 
+func TestServiceMetricsUseCollectedScopeCollectorKind(t *testing.T) {
+	t.Parallel()
+
+	scopeValue, generationValue, envelopes := testCollectedGeneration()
+	scopeValue.SourceSystem = "confluence"
+	scopeValue.ScopeKind = scope.KindDocumentationSource
+	scopeValue.CollectorKind = scope.CollectorDocumentation
+
+	metricReader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(metricReader))
+	instruments, err := telemetry.NewInstruments(meterProvider.Meter("collector-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+
+	service := Service{
+		Committer:    &stubCommitter{},
+		Instruments:  instruments,
+		PollInterval: time.Millisecond,
+	}
+	collected := FactsFromSlice(scopeValue, generationValue, envelopes)
+	if err := service.commitWithTelemetry(context.Background(), collected); err != nil {
+		t.Fatalf("commitWithTelemetry() error = %v, want nil", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := metricReader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+
+	if got := collectorCounterValue(t, rm, "eshu_dp_facts_emitted_total", map[string]string{
+		"scope_id":       scopeValue.ScopeID,
+		"source_system":  "confluence",
+		"collector_kind": string(scope.CollectorDocumentation),
+	}); got != int64(len(envelopes)) {
+		t.Fatalf("eshu_dp_facts_emitted_total = %d, want %d", got, len(envelopes))
+	}
+}
+
 func TestServiceRunNilTelemetry(t *testing.T) {
 	t.Parallel()
 
@@ -376,4 +418,54 @@ func TestServiceRunNilTelemetry(t *testing.T) {
 	if got, want := committer.calls, 1; got != want {
 		t.Fatalf("CommitScopeGeneration() call count = %d, want %d", got, want)
 	}
+}
+
+func collectorCounterValue(
+	t *testing.T,
+	rm metricdata.ResourceMetrics,
+	metricName string,
+	wantAttrs map[string]string,
+) int64 {
+	t.Helper()
+
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, metricRecord := range scopeMetrics.Metrics {
+			if metricRecord.Name != metricName {
+				continue
+			}
+
+			sum, ok := metricRecord.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf(
+					"metric %s data = %T, want metricdata.Sum[int64]",
+					metricName,
+					metricRecord.Data,
+				)
+			}
+
+			for _, dp := range sum.DataPoints {
+				if collectorHasAttrs(dp.Attributes.ToSlice(), wantAttrs) {
+					return dp.Value
+				}
+			}
+		}
+	}
+
+	t.Fatalf("metric %s with attrs %v not found", metricName, wantAttrs)
+	return 0
+}
+
+func collectorHasAttrs(actual []attribute.KeyValue, want map[string]string) bool {
+	matched := 0
+	for _, attr := range actual {
+		wantValue, ok := want[string(attr.Key)]
+		if !ok {
+			continue
+		}
+		if wantValue != attr.Value.AsString() {
+			return false
+		}
+		matched++
+	}
+	return matched == len(want)
 }
