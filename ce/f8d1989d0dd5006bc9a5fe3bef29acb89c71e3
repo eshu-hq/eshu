@@ -1,0 +1,80 @@
+go/cmd/reducer/README.md
+  s_bdaf44668b73dc::t_4cf83ed2272d38 154-155,197-200
+go/internal/storage/cypher/README.md
+  s_bdaf44668b73dc::t_fd25ff5974c486 71-74,254
+  s_bdaf44668b73dc::t_440f58a9731705 255-259
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_ce2e93aa9d8517 12-15
+  s_bdaf44668b73dc::t_a8c35db77bf59a 19-22
+  s_bdaf44668b73dc::t_4346a67aee732e 10-11,16
+go/internal/status/README.md
+  s_bdaf44668b73dc::t_b2b59719a0fb2a 9-10,32-33
+  s_bdaf44668b73dc::t_08551c5a0134d1 34
+  s_bdaf44668b73dc::t_1951d5ea62d7b0 96-97,158-161
+go/internal/storage/postgres/README.md
+  s_bdaf44668b73dc::t_9bc7f71f71d5a4 23,183-185
+  s_bdaf44668b73dc::t_029e393c9c1c56 109-114
+  s_bdaf44668b73dc::t_8e99e5cab25c06 186-189
+docs/docs/deployment/service-runtimes.md
+  s_bdaf44668b73dc::t_1f79e1030ebcf3 102-104
+go/internal/storage/postgres/AGENTS.md
+  s_bdaf44668b73dc::t_5a4bcde3e0f19f 72-75
+  s_bdaf44668b73dc::t_facee81858f11d 18-20
+go/cmd/reducer/AGENTS.md
+  s_bdaf44668b73dc::t_e91a33b96f0981 29
+go/cmd/reducer/doc.go
+  s_bdaf44668b73dc::t_b871a49a6b82dc 13-15
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_105f73a206a287 20
+  s_bdaf44668b73dc::t_1ee308b9864d87 21-22
+go/cmd/ingester/doc.go
+  s_bdaf44668b73dc::t_e4249e514ec1d4 14-17
+go/internal/status/AGENTS.md
+  s_bdaf44668b73dc::t_21bd2fb20af62e 33-36
+  s_bdaf44668b73dc::t_ab6ba15264331b 7-11,13,15,17
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_105f73a206a287 159-161
+  s_bdaf44668b73dc::t_d773741b62830f 204-211
+  s_bdaf44668b73dc::t_4346a67aee732e 162-167
+  s_bdaf44668b73dc::t_bef3d8359cceca 150-157
+docs/superpowers/plans/2026-05-07-dead-code-root-model-and-language-reachability.md
+  s_bdaf44668b73dc::t_444d1313f2be99 234-255
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_6e821f5b870bd3 68-71,284-286
+  s_bdaf44668b73dc::t_105f73a206a287 281-283
+go/internal/storage/cypher/doc.go
+  s_bdaf44668b73dc::t_c91d616668457f 15-16,19
+  s_bdaf44668b73dc::t_dc98983d521d5e 17-18
+go/cmd/ingester/README.md
+  s_bdaf44668b73dc::t_8161d098ee8b3b 70-71
+  s_bdaf44668b73dc::t_8ab905856ae20a 72
+go/internal/storage/postgres/doc.go
+  s_bdaf44668b73dc::t_590388cf23071b 17-19
+  s_bdaf44668b73dc::t_2c6c4141c4e57f 15-16
+docs/docs/languages/java.md
+  s_bdaf44668b73dc::t_35b19f480dac9e 18-19,25-27
+  s_bdaf44668b73dc::t_105f73a206a287 34-35
+docs/docs/reference/telemetry/index.md
+  s_bdaf44668b73dc::t_ef43c94fe7a3cc 35-37
+go/internal/status/doc.go
+  s_bdaf44668b73dc::t_70c2a0294dc655 9-12
+  s_bdaf44668b73dc::t_97e4782fbeaaa5 8
+docs/docs/operate/health-checks.md
+  s_bdaf44668b73dc::t_9fb39bc7fc9b42 12-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "cef8d1989d0dd5006bc9a5fe3bef29acb89c71e3",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
