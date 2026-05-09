@@ -233,7 +233,8 @@ const openAPIComponents = `  "components": {
           "error": {"type": "string"},
           "detail": {"type": "string"},
           "error_code": {"type": "string"},
-          "message": {"type": "string"}
+          "message": {"type": "string"},
+          "correlation_id": {"type": "string"}
         }
       }
     },

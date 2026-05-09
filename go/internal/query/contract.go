@@ -91,6 +91,7 @@ type ErrorCode string
 
 const (
 	ErrorCodeUnsupportedCapability ErrorCode = "unsupported_capability"
+	ErrorCodeUnauthenticated       ErrorCode = "unauthenticated"
 	ErrorCodeInvalidArgument       ErrorCode = "invalid_argument"
 	ErrorCodeNotFound              ErrorCode = "not_found"
 	ErrorCodePermissionDenied      ErrorCode = "permission_denied"
@@ -104,10 +105,11 @@ const (
 )
 
 type ErrorEnvelope struct {
-	Code       ErrorCode      `json:"code"`
-	Message    string         `json:"message"`
-	Capability string         `json:"capability,omitempty"`
-	Profiles   *ErrorProfiles `json:"profiles,omitempty"`
+	Code          ErrorCode      `json:"code"`
+	Message       string         `json:"message"`
+	Capability    string         `json:"capability,omitempty"`
+	CorrelationID string         `json:"correlation_id,omitempty"`
+	Profiles      *ErrorProfiles `json:"profiles,omitempty"`
 }
 
 type ResponseEnvelope struct {

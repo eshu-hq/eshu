@@ -52,7 +52,9 @@ systems.
 
 `GET /api/v0/documentation/findings`
 
-Returns documentation findings the updater may inspect.
+Returns documentation findings the updater may inspect. Eshu filters findings
+through the same documentation visibility rules used for evidence packets, so
+denied source or document metadata is not exposed in the list response.
 
 Required filters:
 
@@ -63,8 +65,8 @@ Required filters:
 - `truth_level`
 - `freshness_state`
 - `updated_since`
-- `limit`
-- `cursor`
+- `limit` as an integer from `1` through `200`
+- `cursor` as a non-negative integer offset returned by `next_cursor`
 
 Response shape:
 
@@ -188,10 +190,13 @@ Response shape:
 
 ### Check Packet Freshness
 
-`GET /api/v0/documentation/evidence-packets/{packet_id}/freshness`
+`GET /api/v0/documentation/evidence-packets/{packet_id}/freshness?packet_version={saved_packet_version}`
 
 Allows the updater to check whether a saved packet is still current before it
-publishes a diff.
+publishes a diff. The `packet_version` query parameter should be the version
+from the updater's immutable evidence snapshot. If it differs from the latest
+packet version, Eshu returns `freshness_state: "stale"` with the latest version
+for the caller to refetch.
 
 Response shape:
 

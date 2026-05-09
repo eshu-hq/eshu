@@ -112,6 +112,48 @@ func TestBootstrapDefinitionsIncludeFrameworkRouteFactIndex(t *testing.T) {
 	}
 }
 
+func TestBootstrapDefinitionsIncludeDocumentationFactIndexes(t *testing.T) {
+	t.Parallel()
+
+	var facts Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "fact_records" {
+			facts = def
+			break
+		}
+	}
+	if facts.Name == "" {
+		t.Fatal("fact_records definition missing")
+	}
+	for _, want := range []string{
+		"fact_records_documentation_findings_idx",
+		"fact_records_documentation_packets_finding_idx",
+		"fact_records_documentation_packets_packet_idx",
+		"WHERE fact_kind = 'documentation_finding'",
+		"WHERE fact_kind = 'documentation_evidence_packet'",
+		"LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'",
+		"payload->>'finding_id'",
+		"(payload->>'packet_id')",
+	} {
+		if !strings.Contains(facts.SQL, want) {
+			t.Fatalf("fact_records SQL missing %q", want)
+		}
+	}
+	start := strings.Index(facts.SQL, "CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_idx")
+	if start < 0 {
+		t.Fatal("documentation findings index missing")
+	}
+	indexSQL := facts.SQL[start:]
+	filterKey := strings.Index(indexSQL, "(payload->>'finding_type')")
+	orderKey := strings.Index(indexSQL, "observed_at DESC")
+	if filterKey < 0 || orderKey < 0 {
+		t.Fatalf("documentation findings index missing filter or order keys: %s", indexSQL)
+	}
+	if orderKey < filterKey {
+		t.Fatalf("documentation findings index should put equality filter keys before observed_at: %s", indexSQL)
+	}
+}
+
 func TestBootstrapDefinitionsIncludeFactContractColumns(t *testing.T) {
 	t.Parallel()
 
