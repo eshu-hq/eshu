@@ -58,8 +58,9 @@ traversals) or `ContentStore` (for Postgres content). `Neo4jReader.Run` and
 `Neo4jReader.RunSingle` (`neo4j.go:34`, `neo4j.go:81`) open a read-only Neo4j
 session, execute a Cypher query, and return `[]map[string]any` rows. Row values
 are extracted via `StringVal`, `BoolVal`, `IntVal`, `StringSliceVal`
-(`neo4j.go:120–182`). `ContentReader` methods (`content_reader.go`) issue
-parametrized Postgres queries against `content_files` and `content_entities`.
+(`neo4j.go:120`). `ContentReader` methods (`content_reader.go:44`,
+`content_reader_entity.go:13`) issue parametrized Postgres queries against
+`content_files` and `content_entities`.
 Code dead-code queries add an analysis pass over graph rows so parser-provided
 `dead_code_root_kinds`, language maturity, test/generated exclusions, and
 candidate classifications are visible in the response body. Unsupported
@@ -73,7 +74,14 @@ Click, Typer, AWS Lambda handler, dataclass, post-init, property, dunder
 protocol, `__all__`, package `__init__.py`, public API base, and public API
 member roots, Python `if __name__ == "__main__"` script-main guards, and
 Java `main`, constructor, `@Override`, Ant `Task` setter, Gradle plugin
-`apply`, task action/property, and public Gradle DSL roots.
+`apply`, task action/property, task setter, task-interface method, public Gradle
+DSL, and same-class method-reference target roots.
+Dead-code candidate paging uses `DeadCodeCandidateRows` in
+`content_reader_dead_code_candidates.go:13` when the content read model is
+available, avoiding graph-wide ordered scans on large repositories. Candidate
+hydration then uses `GetEntityContents` in `content_reader_entity.go:49` so
+large repo scans merge parser metadata in one bounded content-store read per
+candidate page instead of one Postgres round trip per graph row.
 Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
 payload names those Python root kinds in `modeled_framework_roots` as well as

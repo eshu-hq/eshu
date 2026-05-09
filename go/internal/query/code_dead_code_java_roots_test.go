@@ -53,9 +53,24 @@ func TestHandleDeadCodeExcludesJavaRootKindsFromMetadata(t *testing.T) {
 						"dead_code_root_kinds": []any{"java.gradle_task_property"},
 					},
 					{
+						"entity_id": "java-gradle-task-setter", "name": "setClasspathRoots", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/ProcessTestAot.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.gradle_task_setter"},
+					},
+					{
+						"entity_id": "java-gradle-task-interface", "name": "classpath", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/BootArchive.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.gradle_task_interface_method"},
+					},
+					{
 						"entity_id": "java-gradle-dsl-method", "name": "buildInfo", "labels": []any{"Function"},
 						"file_path": "src/main/java/example/BootExtension.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
 						"dead_code_root_kinds": []any{"java.gradle_dsl_public_method"},
+					},
+					{
+						"entity_id": "java-method-ref-target", "name": "configureUtf8Encoding", "labels": []any{"Function"},
+						"file_path": "src/main/java/example/JavaPluginAction.java", "repo_id": "repo-1", "repo_name": "example", "language": "java",
+						"dead_code_root_kinds": []any{"java.method_reference_target"},
 					},
 					{
 						"entity_id": "java-helper", "name": "helper", "labels": []any{"Function"},

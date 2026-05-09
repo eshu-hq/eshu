@@ -38,10 +38,11 @@ func (e *Engine) parseJava(
 	root := tree.RootNode()
 	scope := options.normalizedVariableScope()
 	callInference := buildJavaCallInferenceIndex(root, source)
+	methodReferences := buildJavaMethodReferenceIndex(root, source)
 
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
-		case "class_declaration":
+		case "class_declaration", "record_declaration":
 			appendNamedType(payload, "classes", node, source, "java")
 		case "interface_declaration":
 			appendNamedType(payload, "interfaces", node, source, "java")
@@ -63,7 +64,7 @@ func (e *Engine) parseJava(
 		case "enum_declaration":
 			appendNamedType(payload, "enums", node, source, "java")
 		case "method_declaration", "constructor_declaration":
-			appendJavaFunction(payload, node, source, options)
+			appendJavaFunction(payload, node, source, options, methodReferences)
 		case "field_declaration":
 			for _, item := range javaDeclarators(node, node, source, "java") {
 				appendBucket(payload, "variables", item)
@@ -102,6 +103,7 @@ func appendJavaFunction(
 	node *tree_sitter.Node,
 	source []byte,
 	options Options,
+	methodReferences *javaMethodReferenceIndex,
 ) {
 	nameNode := node.ChildByFieldName("name")
 	name := nodeText(nameNode, source)
@@ -113,33 +115,25 @@ func appendJavaFunction(
 		"name":            name,
 		"line_number":     nodeLine(nameNode),
 		"end_line":        nodeEndLine(node),
-		"decorators":      javaDecorators(node, source),
 		"lang":            "java",
 		"parameter_count": javaParameterCount(node),
 	}
-	if classContext := nearestNamedAncestor(node, source, "class_declaration", "interface_declaration"); classContext != "" {
+	if decorators := javaDecorators(node, source, name); len(decorators) > 0 {
+		item["decorators"] = decorators
+	}
+	if parameterTypes := javaParameterTypes(node, source); len(parameterTypes) > 0 {
+		item["parameter_types"] = parameterTypes
+	}
+	if classContext := nearestNamedAncestor(node, source, "class_declaration", "interface_declaration", "record_declaration"); classContext != "" {
 		item["class_context"] = classContext
 	}
-	if rootKinds := javaDeadCodeRootKinds(node, source, name); len(rootKinds) > 0 {
+	if rootKinds := javaDeadCodeRootKinds(node, source, name, methodReferences); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
 	if options.IndexSource {
 		item["source"] = nodeText(node, source)
 	}
 	appendBucket(payload, "functions", item)
-}
-
-func javaDecorators(node *tree_sitter.Node, source []byte) []string {
-	raw := nodeText(node, source)
-	var decorators []string
-	for _, line := range strings.Split(raw, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "@") {
-			continue
-		}
-		decorators = append(decorators, line)
-	}
-	return decorators
 }
 
 func (e *Engine) preScanJava(path string) ([]string, error) {
@@ -168,7 +162,7 @@ func javaPreScanNames(root *tree_sitter.Node, source []byte) []string {
 	var names []string
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
-		case "class_declaration", "interface_declaration", "annotation_type_declaration", "enum_declaration",
+		case "class_declaration", "interface_declaration", "annotation_type_declaration", "enum_declaration", "record_declaration",
 			"method_declaration", "constructor_declaration":
 			name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
 			if name != "" {
@@ -309,6 +303,9 @@ func appendJavaCall(
 	if inferredType := javaCallInferredObjectType(node, source, inference); inferredType != "" {
 		item["inferred_obj_type"] = inferredType
 	}
+	if argumentTypes := javaCallArgumentTypes(node, source, inference); len(argumentTypes) > 0 {
+		item["argument_types"] = argumentTypes
+	}
 	appendBucket(payload, "function_calls", item)
 }
 
@@ -320,15 +317,6 @@ func javaParameterCount(node *tree_sitter.Node) int {
 		case "formal_parameter", "spread_parameter":
 			count++
 		}
-	})
-	return count
-}
-
-func javaArgumentCount(node *tree_sitter.Node) int {
-	argumentsNode := node.ChildByFieldName("arguments")
-	count := 0
-	walkDirectNamed(argumentsNode, func(child *tree_sitter.Node) {
-		count++
 	})
 	return count
 }

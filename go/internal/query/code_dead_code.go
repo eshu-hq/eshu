@@ -203,6 +203,10 @@ func (h *CodeHandler) enrichDeadCodeResultsWithContent(
 		return results, contentByID, nil
 	}
 
+	if batchContent, ok := h.Content.(deadCodeEntityContentBatchStore); ok {
+		return h.enrichDeadCodeResultsWithContentBatch(ctx, results, contentByID, batchContent)
+	}
+
 	for i := range results {
 		entityID := StringVal(results[i], "entity_id")
 		if entityID == "" {
@@ -224,6 +228,49 @@ func (h *CodeHandler) enrichDeadCodeResultsWithContent(
 	}
 
 	return results, contentByID, nil
+}
+
+func (h *CodeHandler) enrichDeadCodeResultsWithContentBatch(
+	ctx context.Context,
+	results []map[string]any,
+	contentByID map[string]*EntityContent,
+	batchContent deadCodeEntityContentBatchStore,
+) ([]map[string]any, map[string]*EntityContent, error) {
+	entityIDs := make([]string, 0, len(results))
+	seen := make(map[string]struct{}, len(results))
+	for i := range results {
+		entityID := StringVal(results[i], "entity_id")
+		if entityID == "" {
+			continue
+		}
+		if _, ok := seen[entityID]; ok {
+			continue
+		}
+		seen[entityID] = struct{}{}
+		entityIDs = append(entityIDs, entityID)
+	}
+	entities, err := batchContent.GetEntityContents(ctx, entityIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	for i := range results {
+		entityID := StringVal(results[i], "entity_id")
+		entity := entities[entityID]
+		if entity == nil {
+			continue
+		}
+		contentByID[entityID] = entity
+		if len(entity.Metadata) == 0 {
+			continue
+		}
+		results[i]["metadata"] = mergeGraphAndContentMetadata(results[i]["metadata"], entity.Metadata)
+		attachSemanticSummary(results[i])
+	}
+	return results, contentByID, nil
+}
+
+type deadCodeEntityContentBatchStore interface {
+	GetEntityContents(ctx context.Context, entityIDs []string) (map[string]*EntityContent, error)
 }
 
 func filterDeadCodeResultsByDefaultPolicy(

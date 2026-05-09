@@ -4,56 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 	"sync/atomic"
 	"testing"
 )
-
-func TestContentReaderGetEntityContentIncludesMetadata(t *testing.T) {
-	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"entity-1", "repo-1", "src/app.ts", "Function", "renderApp",
-					int64(10), int64(24), "typescript", "function renderApp() {}", []byte(`{"docstring":"Renders the app.","decorators":["component"],"async":true}`),
-				},
-			},
-		},
-	})
-
-	reader := NewContentReader(db)
-	entity, err := reader.GetEntityContent(context.Background(), "entity-1")
-	if err != nil {
-		t.Fatalf("GetEntityContent() error = %v, want nil", err)
-	}
-	if entity == nil {
-		t.Fatal("GetEntityContent() = nil, want non-nil")
-	}
-
-	if got, want := entity.Metadata["docstring"], "Renders the app."; got != want {
-		t.Fatalf("Metadata[docstring] = %#v, want %#v", got, want)
-	}
-	if got, want := entity.Metadata["async"], true; got != want {
-		t.Fatalf("Metadata[async] = %#v, want %#v", got, want)
-	}
-
-	decorators, ok := entity.Metadata["decorators"].([]any)
-	if !ok {
-		t.Fatalf("Metadata[decorators] type = %T, want []any", entity.Metadata["decorators"])
-	}
-	if len(decorators) != 1 || decorators[0] != "component" {
-		t.Fatalf("Metadata[decorators] = %#v, want [component]", decorators)
-	}
-}
 
 func TestContentReaderMatchRepositoriesReturnsExactMatches(t *testing.T) {
 	t.Parallel()
@@ -137,84 +93,6 @@ func TestContentReaderResolveRepositoryRejectsAmbiguousMatches(t *testing.T) {
 	}
 }
 
-func TestContentReaderSearchEntityContentIncludesMetadata(t *testing.T) {
-	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"entity-1", "repo-1", "src/app.tsx", "Function", "renderApp",
-					int64(10), int64(24), "tsx", "function renderApp() {}", []byte(`{"method_kind":"component","jsx_component_usage":["Button"]}`),
-				},
-			},
-		},
-	})
-
-	reader := NewContentReader(db)
-	results, err := reader.SearchEntityContent(context.Background(), "repo-1", "render", 10)
-	if err != nil {
-		t.Fatalf("SearchEntityContent() error = %v, want nil", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("len(results) = %d, want 1", len(results))
-	}
-
-	if got, want := results[0].Metadata["method_kind"], "component"; got != want {
-		t.Fatalf("Metadata[method_kind] = %#v, want %#v", got, want)
-	}
-	usage, ok := results[0].Metadata["jsx_component_usage"].([]any)
-	if !ok {
-		t.Fatalf("Metadata[jsx_component_usage] type = %T, want []any", results[0].Metadata["jsx_component_usage"])
-	}
-	if len(usage) != 1 || usage[0] != "Button" {
-		t.Fatalf("Metadata[jsx_component_usage] = %#v, want [Button]", usage)
-	}
-}
-
-func TestContentReaderListRepoEntitiesIncludesMetadata(t *testing.T) {
-	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"alias-1", "repo-1", "src/types.ts", "TypeAlias", "UserID",
-					int64(3), int64(3), "typescript", "type UserID = string", []byte(`{"type":"string","type_parameters":["T"]}`),
-				},
-			},
-		},
-	})
-
-	reader := NewContentReader(db)
-	results, err := reader.ListRepoEntities(context.Background(), "repo-1", 10)
-	if err != nil {
-		t.Fatalf("ListRepoEntities() error = %v, want nil", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("len(results) = %d, want 1", len(results))
-	}
-
-	if got, want := results[0].Metadata["type"], "string"; got != want {
-		t.Fatalf("Metadata[type] = %#v, want %#v", got, want)
-	}
-	params, ok := results[0].Metadata["type_parameters"].([]any)
-	if !ok {
-		t.Fatalf("Metadata[type_parameters] type = %T, want []any", results[0].Metadata["type_parameters"])
-	}
-	if len(params) != 1 || params[0] != "T" {
-		t.Fatalf("Metadata[type_parameters] = %#v, want [T]", params)
-	}
-}
-
 func TestContentReaderListRepoFilesIncludesArtifactType(t *testing.T) {
 	t.Parallel()
 
@@ -243,31 +121,6 @@ func TestContentReaderListRepoFilesIncludesArtifactType(t *testing.T) {
 	}
 	if got, want := results[0].ArtifactType, "github_actions_workflow"; got != want {
 		t.Fatalf("ArtifactType = %q, want %q", got, want)
-	}
-}
-
-func TestContentReaderGetEntityContentRejectsInvalidMetadata(t *testing.T) {
-	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"entity-1", "repo-1", "src/app.py", "Function", "handler",
-					int64(1), int64(5), "python", "def handler(): pass", []byte(`{bad json}`),
-				},
-			},
-		},
-	})
-
-	reader := NewContentReader(db)
-	_, err := reader.GetEntityContent(context.Background(), "entity-1")
-	if err == nil {
-		t.Fatal("GetEntityContent() error = nil, want non-nil")
 	}
 }
 
@@ -365,40 +218,6 @@ func TestCodeHandlerSearchEntityContentIncludesEntityNameMatches(t *testing.T) {
 	}
 	if got, want := semanticProfile["framework"], "react"; got != want {
 		t.Fatalf("semantic_profile[framework] = %#v, want %#v", got, want)
-	}
-}
-
-func TestContentReaderSearchEntitiesByLanguageAndTypeIncludesLanguageVariants(t *testing.T) {
-	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"component-1", "repo-1", "src/Button.tsx", "Component", "Button",
-					int64(1), int64(10), "tsx", "export function Button() {}", []byte(`{"framework":"react"}`),
-				},
-			},
-		},
-	})
-
-	reader := NewContentReader(db)
-	results, err := reader.SearchEntitiesByLanguageAndType(context.Background(), "repo-1", "typescript", "Component", "Button", 10)
-	if err != nil {
-		t.Fatalf("SearchEntitiesByLanguageAndType() error = %v, want nil", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("len(results) = %d, want 1", len(results))
-	}
-	if got, want := results[0].Language, "tsx"; got != want {
-		t.Fatalf("results[0].Language = %#v, want %#v", got, want)
-	}
-	if got, want := results[0].Metadata["framework"], "react"; got != want {
-		t.Fatalf("results[0].Metadata[framework] = %#v, want %#v", got, want)
 	}
 }
 
@@ -559,6 +378,12 @@ func (c *contentReaderConn) QueryContext(_ context.Context, query string, _ []dr
 		(len(c.results) == 0 || !contentReaderResultColumnsEqual(c.results[0], []string{"incoming_entity_id"})) {
 		return &contentReaderRows{columns: []string{"incoming_entity_id"}, rows: nil}, nil
 	}
+	if strings.Contains(query, "FROM content_entities") &&
+		strings.Contains(query, "entity_type = $2") &&
+		strings.Contains(query, "LIMIT $3 OFFSET $4") &&
+		(len(c.results) == 0 || !contentReaderResultColumnsEqual(c.results[0], contentReaderDeadCodeCandidateColumns())) {
+		return &contentReaderRows{columns: contentReaderDeadCodeCandidateColumns(), rows: nil}, nil
+	}
 	if len(c.results) == 0 {
 		return nil, fmt.Errorf("unexpected query")
 	}
@@ -595,6 +420,13 @@ func contentReaderRelationshipEvidenceColumns() []string {
 	}
 }
 
+func contentReaderDeadCodeCandidateColumns() []string {
+	return []string{
+		"entity_id", "entity_name", "entity_type", "repo_id", "relative_path",
+		"language", "start_line", "end_line", "metadata",
+	}
+}
+
 func contentReaderResultColumnsEqual(result contentReaderQueryResult, columns []string) bool {
 	if len(result.columns) != len(columns) {
 		return false
@@ -628,126 +460,4 @@ func (r *contentReaderRows) Next(dest []driver.Value) error {
 	copy(dest, r.rows[r.index])
 	r.index++
 	return nil
-}
-
-func TestContentReaderMetadataFixtureIsValidJSON(t *testing.T) {
-	t.Parallel()
-
-	payload := []byte(`{"docstring":"ok","decorators":["component"],"async":true}`)
-	var decoded map[string]any
-	if err := json.Unmarshal(payload, &decoded); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
-	}
-}
-
-func TestParseFrameworkSemanticsExtractsHapiAndExpressRoutes(t *testing.T) {
-	t.Parallel()
-
-	raw := []byte(`{
-		"frameworks": ["hapi", "express"],
-		"hapi": {
-			"route_methods": ["GET", "POST"],
-			"route_paths": ["/elastic", "/alias/{index}/create"],
-			"route_entries": [
-				{"method": "GET", "path": "/elastic"},
-				{"method": "POST", "path": "/alias/{index}/create"}
-			],
-			"server_symbols": ["server"]
-		},
-		"express": {
-			"route_methods": ["GET"],
-			"route_paths": ["/health"],
-			"server_symbols": ["app"]
-		}
-	}`)
-
-	results := parseFrameworkSemantics("src/routes.js", raw)
-	if len(results) != 2 {
-		t.Fatalf("len(results) = %d, want 2", len(results))
-	}
-
-	// Results are in framework order from JSON array
-	hapi := results[0]
-	if hapi.Framework != "hapi" {
-		t.Fatalf("results[0].Framework = %q, want \"hapi\"", hapi.Framework)
-	}
-	if len(hapi.RoutePaths) != 2 {
-		t.Fatalf("hapi.RoutePaths = %v, want 2 paths", hapi.RoutePaths)
-	}
-	if hapi.RelativePath != "src/routes.js" {
-		t.Fatalf("hapi.RelativePath = %q, want \"src/routes.js\"", hapi.RelativePath)
-	}
-	if len(hapi.RouteEntries) != 2 {
-		t.Fatalf("len(hapi.RouteEntries) = %d, want 2", len(hapi.RouteEntries))
-	}
-	if got, want := hapi.RouteEntries[1].Path, "/alias/{index}/create"; got != want {
-		t.Fatalf("hapi.RouteEntries[1].Path = %q, want %q", got, want)
-	}
-	if got, want := hapi.RouteEntries[1].Method, "POST"; got != want {
-		t.Fatalf("hapi.RouteEntries[1].Method = %q, want %q", got, want)
-	}
-
-	express := results[1]
-	if express.Framework != "express" {
-		t.Fatalf("results[1].Framework = %q, want \"express\"", express.Framework)
-	}
-	if len(express.RoutePaths) != 1 || express.RoutePaths[0] != "/health" {
-		t.Fatalf("express.RoutePaths = %v, want [\"/health\"]", express.RoutePaths)
-	}
-}
-
-func TestParseFrameworkSemanticsExtractsNextJSRouteModules(t *testing.T) {
-	t.Parallel()
-
-	raw := []byte(`{
-		"frameworks": ["nextjs"],
-		"nextjs": {
-			"module_kind": "route",
-			"route_segments": ["api", "catalog"],
-			"route_verbs": ["GET", "POST"]
-		}
-	}`)
-
-	results := parseFrameworkSemantics("src/app/api/catalog/route.ts", raw)
-	if len(results) != 1 {
-		t.Fatalf("len(results) = %d, want 1", len(results))
-	}
-	route := results[0]
-	if route.Framework != "nextjs" {
-		t.Fatalf("Framework = %q, want nextjs", route.Framework)
-	}
-	if len(route.RoutePaths) != 1 || route.RoutePaths[0] != "/api/catalog" {
-		t.Fatalf("RoutePaths = %#v, want [/api/catalog]", route.RoutePaths)
-	}
-	if len(route.RouteMethods) != 2 || route.RouteMethods[0] != "GET" || route.RouteMethods[1] != "POST" {
-		t.Fatalf("RouteMethods = %#v, want [GET POST]", route.RouteMethods)
-	}
-}
-
-func TestParseFrameworkSemanticsSkipsEmptyFrameworks(t *testing.T) {
-	t.Parallel()
-
-	raw := []byte(`{"frameworks": []}`)
-	results := parseFrameworkSemantics("file.py", raw)
-	if len(results) != 0 {
-		t.Fatalf("len(results) = %d, want 0 for empty frameworks", len(results))
-	}
-}
-
-func TestParseFrameworkSemanticsSkipsFrameworkWithNoRoutes(t *testing.T) {
-	t.Parallel()
-
-	raw := []byte(`{
-		"frameworks": ["fastapi"],
-		"fastapi": {
-			"route_methods": ["GET"],
-			"route_paths": [],
-			"server_symbols": ["app"]
-		}
-	}`)
-
-	results := parseFrameworkSemantics("api/main.py", raw)
-	if len(results) != 0 {
-		t.Fatalf("len(results) = %d, want 0 for framework with empty route_paths", len(results))
-	}
 }

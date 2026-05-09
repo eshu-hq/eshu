@@ -23,13 +23,12 @@ func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadCodeRe
 	}
 
 	for _, label := range deadCodeCandidateLabels {
-		cypher := buildDeadCodeGraphCypherForLabel(req.RepoID != "", label)
 		for offset := 0; offset < scan.CandidateScanLimit; offset += pageLimit {
 			limit := pageLimit
 			if remaining := scan.CandidateScanLimit - offset; remaining < limit {
 				limit = remaining
 			}
-			rows, err := h.Neo4j.Run(ctx, cypher, deadCodeGraphParams(req.RepoID, limit, offset))
+			rows, err := h.deadCodeCandidateRows(ctx, req.RepoID, label, limit, offset)
 			if err != nil {
 				return scan, err
 			}
@@ -66,6 +65,20 @@ func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadCodeRe
 	}
 
 	return scan, nil
+}
+
+func (h *CodeHandler) deadCodeCandidateRows(
+	ctx context.Context,
+	repoID string,
+	label string,
+	limit int,
+	offset int,
+) ([]map[string]any, error) {
+	if content, ok := h.Content.(deadCodeCandidateContentStore); ok {
+		return content.DeadCodeCandidateRows(ctx, repoID, label, limit, offset)
+	}
+	cypher := buildDeadCodeGraphCypherForLabel(repoID != "", label)
+	return h.Neo4j.Run(ctx, cypher, deadCodeGraphParams(repoID, limit, offset))
 }
 
 func (h *CodeHandler) filterDeadCodeResultsWithoutIncomingEdges(
@@ -131,6 +144,10 @@ func (h *CodeHandler) deadCodeIncomingEntityIDs(
 
 type deadCodeIncomingContentStore interface {
 	DeadCodeIncomingEntityIDs(ctx context.Context, repoID string, entityIDs []string) (map[string]bool, error)
+}
+
+type deadCodeCandidateContentStore interface {
+	DeadCodeCandidateRows(ctx context.Context, repoID string, label string, limit int, offset int) ([]map[string]any, error)
 }
 
 func filterDeadCodeResultsByIncomingSet(results []map[string]any, incoming map[string]bool) []map[string]any {

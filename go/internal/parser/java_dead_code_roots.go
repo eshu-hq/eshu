@@ -8,7 +8,12 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func javaDeadCodeRootKinds(node *tree_sitter.Node, source []byte, name string) []string {
+func javaDeadCodeRootKinds(
+	node *tree_sitter.Node,
+	source []byte,
+	name string,
+	methodReferences *javaMethodReferenceIndex,
+) []string {
 	rootKinds := make([]string, 0, 3)
 	raw := nodeText(node, source)
 	switch node.Kind() {
@@ -24,6 +29,12 @@ func javaDeadCodeRootKinds(node *tree_sitter.Node, source []byte, name string) [
 		if javaIsAntTaskSetter(node, source, raw, name) {
 			rootKinds = appendUniqueString(rootKinds, "java.ant_task_setter")
 		}
+		if javaIsGradleTaskSetter(node, source, raw, name) {
+			rootKinds = appendUniqueString(rootKinds, "java.gradle_task_setter")
+		}
+		if javaIsGradleTaskInterfaceMethod(node, source) {
+			rootKinds = appendUniqueString(rootKinds, "java.gradle_task_interface_method")
+		}
 		if javaIsGradlePluginApply(node, source, raw, name) {
 			rootKinds = appendUniqueString(rootKinds, "java.gradle_plugin_apply")
 		}
@@ -35,6 +46,9 @@ func javaDeadCodeRootKinds(node *tree_sitter.Node, source []byte, name string) [
 		}
 		if javaIsGradleDSLPublicMethod(node, source, raw) {
 			rootKinds = appendUniqueString(rootKinds, "java.gradle_dsl_public_method")
+		}
+		if javaIsMethodReferenceTarget(node, source, name, methodReferences) {
+			rootKinds = appendUniqueString(rootKinds, "java.method_reference_target")
 		}
 	}
 	return rootKinds
@@ -53,6 +67,38 @@ func javaIsAntTaskSetter(node *tree_sitter.Node, source []byte, raw string, name
 	classHeader := javaNearestClassHeader(node, source)
 	return strings.Contains(classHeader, " extends Task ") ||
 		strings.Contains(classHeader, " extends org.apache.tools.ant.Task ")
+}
+
+func javaIsGradleTaskSetter(node *tree_sitter.Node, source []byte, raw string, name string) bool {
+	if !javaIsSetterName(name) || javaParameterCount(node) != 1 {
+		return false
+	}
+	normalized := javaNormalized(raw)
+	if !strings.Contains(normalized, " public ") || !strings.Contains(normalized, " void ") {
+		return false
+	}
+	classHeader := javaNearestClassHeader(node, source)
+	return javaClassExtendsGradleTask(classHeader)
+}
+
+func javaIsGradleTaskInterfaceMethod(node *tree_sitter.Node, source []byte) bool {
+	interfaceNode := javaNearestInterfaceDeclaration(node)
+	if interfaceNode == nil {
+		return false
+	}
+	header := javaClassDeclarationHeader(interfaceNode, source)
+	return strings.Contains(header, " extends Task ") ||
+		strings.Contains(header, " extends org.gradle.api.Task ")
+}
+
+func javaIsMethodReferenceTarget(
+	node *tree_sitter.Node,
+	source []byte,
+	name string,
+	methodReferences *javaMethodReferenceIndex,
+) bool {
+	classContext := nearestNamedAncestor(node, source, "class_declaration", "record_declaration")
+	return methodReferences.hasTarget(classContext, strings.TrimSpace(name))
 }
 
 func javaIsGradlePluginApply(node *tree_sitter.Node, source []byte, raw string, name string) bool {
@@ -137,7 +183,16 @@ func javaNearestClassHeader(node *tree_sitter.Node, source []byte) string {
 
 func javaNearestClassDeclaration(node *tree_sitter.Node) *tree_sitter.Node {
 	for current := node.Parent(); current != nil; current = current.Parent() {
-		if current.Kind() == "class_declaration" {
+		if current.Kind() == "class_declaration" || current.Kind() == "record_declaration" {
+			return current
+		}
+	}
+	return nil
+}
+
+func javaNearestInterfaceDeclaration(node *tree_sitter.Node) *tree_sitter.Node {
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		if current.Kind() == "interface_declaration" {
 			return current
 		}
 	}

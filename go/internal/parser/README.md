@@ -65,15 +65,20 @@ module-contract export, TypeScript public method on a class that declares
 nearest-package `exports` or `types` target and a static one-hop re-export.
 Java adapters mark `main` methods, constructors, `@Override` methods, public
 Ant `Task` setters, Gradle plugin `apply` methods, Gradle task actions and
-properties, and public Gradle DSL methods as dead-code roots so query policy
-does not report JVM entrypoints, dispatch callbacks, or framework-injected task
-properties as cleanup candidates. Java method and constructor metadata also
-captures parameter counts, and Java call metadata captures method references
-such as `this::configureTask` plus argument counts, so the reducer can
-distinguish overloaded methods when local receiver evidence points at a type.
-Receiver inference builds a local index of parameters,
-variables, and fields for each parsed file before call extraction, so large
-classes do not repeat a full tree walk for every method invocation.
+properties, Gradle task setters and task-interface methods, public Gradle DSL
+methods, and same-class method-reference targets as dead-code roots so query
+policy does not report JVM entrypoints, dispatch callbacks, or framework-injected
+task properties as cleanup candidates. Java method and constructor metadata
+captures parameter counts and parameter types. Java call metadata captures
+method references such as `this::configureTask`, argument counts, and bounded
+argument types from parameters, fields, inline constructors, and class-literal
+typed lambdas, so the reducer can distinguish overloaded methods when local
+receiver evidence points at a type. Receiver inference builds a local index of
+parameters, variables, fields, and typed lambda parameters for each parsed file
+before call extraction, so large classes do not repeat a full tree walk for
+every method invocation.
+Record declarations use the same class-style context for nested method parsing,
+which keeps Java record helper methods addressable by the reducer.
 Python adapters also preserve method `class_context`, constructor call
 metadata, class receiver references, dataclass/property roots, dunder protocol
 roots, inheritance base names, same-module `__all__` public API roots, package
@@ -115,7 +120,9 @@ import names, package-level interface references, type references, and
 referenced symbol names from each file. Results are merged across workers and
 sorted by input order to produce a deterministic import map. The pre-scan is a
 lighter parse used to build cross-file import context before the full parse
-pass.
+pass. Java pre-scan includes records alongside classes, interfaces, annotations,
+enums, methods, and constructors so record helper methods participate in the
+same downstream name map as class methods.
 
 Python `.ipynb` files are converted to a temporary Python source view before
 tree-sitter parsing, then the temporary file is removed after parse. The

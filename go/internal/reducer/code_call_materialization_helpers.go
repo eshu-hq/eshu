@@ -89,6 +89,9 @@ func codeCallExactCandidateNames(call map[string]any, language string) []string 
 	if arity, ok := codeCallMetadataInt(call, "argument_count"); ok {
 		names = codeCallAppendArityNames(names, arity)
 	}
+	if argumentTypes := codeCallMetadataStringSlice(call, "argument_types"); len(argumentTypes) > 0 {
+		names = codeCallAppendTypedSignatureNames(names, argumentTypes)
+	}
 	return names
 }
 
@@ -152,6 +155,9 @@ func codeCallBroadCandidateNames(call map[string]any, language string) []string 
 	appendName(codeCallTrailingSegments(fullName, 2))
 	if arity, ok := codeCallMetadataInt(call, "argument_count"); ok {
 		names = codeCallAppendArityNames(names, arity)
+	}
+	if argumentTypes := codeCallMetadataStringSlice(call, "argument_types"); len(argumentTypes) > 0 {
+		names = codeCallAppendTypedSignatureNames(names, argumentTypes)
 	}
 	return names
 }
@@ -218,6 +224,9 @@ func codeCallFunctionCandidateNames(item map[string]any) []string {
 	}
 	if arity, ok := codeCallMetadataInt(item, "parameter_count"); ok {
 		names = codeCallAppendArityNames(names, arity)
+	}
+	if parameterTypes := codeCallMetadataStringSlice(item, "parameter_types"); len(parameterTypes) > 0 {
+		names = codeCallAppendTypedSignatureNames(names, parameterTypes)
 	}
 	return names
 }

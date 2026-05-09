@@ -19,12 +19,16 @@
 // TypeScript interface implementation, module-contract, package public-surface,
 // and exported static-registry roots, Java main, constructor, override,
 // JavaBean-style public Ant Task setter roots, Gradle plugin apply roots,
-// Gradle task action/property roots, and public Gradle DSL method roots,
-// Java method-reference metadata, local receiver type metadata backed by a
-// per-file variable and field index, and arity metadata for overload-safe call
-// resolution, returned function-value
-// references, static re-export metadata, composite-literal type references,
-// Helm/YAML metadata extraction, and SCIP support for index-derived facts.
+// Gradle task action/property roots, Gradle task setter and task-interface
+// roots, public Gradle DSL method roots, and same-class method-reference target
+// roots. Java metadata includes method-reference rows, local receiver type
+// metadata backed by a per-file variable, field, and typed-lambda index, plus
+// record class context, arity metadata, and type-signature metadata for
+// overload-safe call resolution. Java pre-scan includes records in the same
+// source-name map as classes and methods. The package also emits returned
+// function-value references, static re-export metadata, composite-literal type
+// references, Helm/YAML metadata extraction, and SCIP support for index-derived
+// facts.
 // Parser changes must preserve fact truth: when a parser starts emitting a new
 // entity, relationship, or metadata field, the relevant fixtures, fact
 // contracts in internal/facts, and downstream docs must move in lockstep.

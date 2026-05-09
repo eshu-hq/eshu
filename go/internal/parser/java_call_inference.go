@@ -56,6 +56,11 @@ func buildJavaCallInferenceIndex(root *tree_sitter.Node, source []byte) *javaCal
 			for _, name := range javaDeclarationVariableNames(node, source) {
 				index.addField(classNode, name, typeName, nodeLine(node))
 			}
+		case "lambda_expression":
+			scope := node
+			for _, typedName := range javaLambdaTypedParameters(node, source) {
+				index.addVariable(scope, typedName.name, typedName.typeName, typedName.line)
+			}
 		}
 	})
 	return index
@@ -114,11 +119,17 @@ func javaCallInferredObjectType(
 	if objectNode.Kind() == "object_creation_expression" {
 		return javaObjectCreationTypeName(objectNode, source)
 	}
+	callLine := nodeLine(callNode)
 	receiver := strings.TrimSpace(nodeText(objectNode, source))
+	if fieldName := strings.TrimPrefix(receiver, "this."); fieldName != receiver && !strings.ContainsAny(fieldName, ".()[") {
+		if index != nil {
+			return index.fieldTypeBefore(javaEnclosingClassNode(callNode), fieldName, callLine+1)
+		}
+		return javaFieldTypeBefore(javaEnclosingClassNode(callNode), fieldName, source, callLine+1)
+	}
 	if receiver == "" || strings.ContainsAny(receiver, ".()[") {
 		return ""
 	}
-	callLine := nodeLine(callNode)
 	if index != nil {
 		if typeName := index.variableTypeBefore(javaCallInferenceScope(callNode), receiver, callLine); typeName != "" {
 			return typeName
@@ -139,7 +150,12 @@ func (i *javaCallInferenceIndex) variableTypeBefore(
 	if i == nil || scope == nil || receiver == "" {
 		return ""
 	}
-	return javaTypeBefore(i.variablesByScope[javaNodeRangeKey(scope)], receiver, beforeLine)
+	for current := scope; current != nil; current = javaParentCallInferenceScope(current) {
+		if typeName := javaTypeBefore(i.variablesByScope[javaNodeRangeKey(current)], receiver, beforeLine); typeName != "" {
+			return typeName
+		}
+	}
+	return ""
 }
 
 func (i *javaCallInferenceIndex) fieldTypeBefore(
@@ -173,10 +189,23 @@ func javaCallInferenceScope(node *tree_sitter.Node) *tree_sitter.Node {
 	return nil
 }
 
+func javaParentCallInferenceScope(scope *tree_sitter.Node) *tree_sitter.Node {
+	if scope == nil {
+		return nil
+	}
+	for current := scope.Parent(); current != nil; current = current.Parent() {
+		switch current.Kind() {
+		case "method_declaration", "constructor_declaration", "lambda_expression":
+			return current
+		}
+	}
+	return nil
+}
+
 func javaEnclosingClassNode(node *tree_sitter.Node) *tree_sitter.Node {
 	for current := node.Parent(); current != nil; current = current.Parent() {
 		switch current.Kind() {
-		case "class_declaration", "interface_declaration", "enum_declaration":
+		case "class_declaration", "interface_declaration", "enum_declaration", "record_declaration":
 			return current
 		}
 	}
@@ -322,4 +351,78 @@ func javaTypeLeafName(value string) string {
 		value = strings.TrimSpace(value[idx+1:])
 	}
 	return strings.TrimSpace(value)
+}
+
+func javaLambdaTypedParameters(node *tree_sitter.Node, source []byte) []javaTypedName {
+	typeName := javaLambdaClassLiteralType(node, source)
+	if typeName == "" {
+		return nil
+	}
+	names := javaLambdaParameterNames(node, source)
+	if len(names) == 0 {
+		return nil
+	}
+	return []javaTypedName{{
+		name:     names[0],
+		typeName: typeName,
+		line:     nodeLine(node) - 1,
+	}}
+}
+
+func javaLambdaClassLiteralType(node *tree_sitter.Node, source []byte) string {
+	if node == nil || node.Kind() != "lambda_expression" {
+		return ""
+	}
+	argumentsNode := node.Parent()
+	if argumentsNode == nil || argumentsNode.Kind() != "argument_list" {
+		return ""
+	}
+	var previousClassLiteral string
+	walkDirectNamed(argumentsNode, func(child *tree_sitter.Node) {
+		if child.StartByte() >= node.StartByte() {
+			return
+		}
+		if typeName := javaClassLiteralTypeName(child, source); typeName != "" {
+			previousClassLiteral = typeName
+		}
+	})
+	return previousClassLiteral
+}
+
+func javaClassLiteralTypeName(node *tree_sitter.Node, source []byte) string {
+	if node == nil {
+		return ""
+	}
+	raw := strings.TrimSpace(nodeText(node, source))
+	typeName, ok := strings.CutSuffix(raw, ".class")
+	if !ok {
+		return ""
+	}
+	return javaTypeLeafName(typeName)
+}
+
+func javaLambdaParameterNames(node *tree_sitter.Node, source []byte) []string {
+	raw := strings.TrimSpace(nodeText(node, source))
+	parameters, _, ok := strings.Cut(raw, "->")
+	if !ok {
+		return nil
+	}
+	parameters = strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(strings.TrimSpace(parameters), ")"), "("))
+	if parameters == "" {
+		return nil
+	}
+	parts := strings.Split(parameters, ",")
+	names := make([]string, 0, len(parts))
+	for _, part := range parts {
+		fields := strings.Fields(strings.TrimSpace(part))
+		if len(fields) == 0 {
+			continue
+		}
+		name := strings.TrimSpace(fields[len(fields)-1])
+		name = strings.TrimPrefix(name, "@")
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
 }

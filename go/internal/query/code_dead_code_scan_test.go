@@ -29,7 +29,7 @@ func TestHandleDeadCodeFiltersIncomingEdgesWithContentReadModel(t *testing.T) {
 
 	var candidateCalls int
 	handler := &CodeHandler{
-		Profile: ProfileLocalAuthoritative,
+		Profile:      ProfileLocalAuthoritative,
 		GraphBackend: GraphBackendNornicDB,
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -105,6 +105,133 @@ func TestHandleDeadCodeFiltersIncomingEdgesWithContentReadModel(t *testing.T) {
 	}
 	if got, want := candidateCalls, 1; got != want {
 		t.Fatalf("candidate graph calls = %d, want %d", got, want)
+	}
+}
+
+func TestHandleDeadCodePagesCandidatesFromContentReadModel(t *testing.T) {
+	t.Parallel()
+
+	content := &contentCandidateDeadCodeStore{
+		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
+			entities: map[string]EntityContent{
+				"dead-helper": {
+					EntityID:     "dead-helper",
+					RepoID:       "repo-1",
+					RelativePath: "internal/payments/dead.go",
+					EntityType:   "Function",
+					EntityName:   "deadHelper",
+					Language:     "go",
+					SourceCache:  "func deadHelper() {}",
+				},
+			},
+		},
+		rows: []map[string]any{
+			deadCodeScanRow("dead-helper", "deadHelper"),
+		},
+	}
+	handler := &CodeHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				t.Fatalf("dead-code candidate scan should use content read model before graph paging: cypher=%s params=%#v", cypher, params)
+				return nil, nil
+			},
+		},
+		Content: content,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code",
+		bytes.NewBufferString(`{"repo_id":"repo-1","limit":10}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if got, want := content.candidateCalls, len(deadCodeCandidateLabels); got != want {
+		t.Fatalf("candidate content calls = %d, want %d", got, want)
+	}
+	if got, want := content.candidateRepoID, "repo-1"; got != want {
+		t.Fatalf("candidate repo id = %q, want %q", got, want)
+	}
+	if got, want := content.candidateLabels, deadCodeCandidateLabels; !equalStringSlices(got, want) {
+		t.Fatalf("candidate labels = %#v, want %#v", got, want)
+	}
+}
+
+func TestHandleDeadCodeBatchesCandidateContentHydration(t *testing.T) {
+	t.Parallel()
+
+	singleCalls := 0
+	batchCalls := 0
+	var batchIDs []string
+	store := &batchingDeadCodeContentStore{
+		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
+			entities: map[string]EntityContent{
+				"first-helper": {
+					EntityID:     "first-helper",
+					RepoID:       "repo-1",
+					RelativePath: "internal/payments/first.go",
+					EntityType:   "Function",
+					EntityName:   "firstHelper",
+					Language:     "go",
+					SourceCache:  "func firstHelper() {}",
+					Metadata:     map[string]any{"root_kinds": []any{"none"}},
+				},
+				"second-helper": {
+					EntityID:     "second-helper",
+					RepoID:       "repo-1",
+					RelativePath: "internal/payments/second.go",
+					EntityType:   "Function",
+					EntityName:   "secondHelper",
+					Language:     "go",
+					SourceCache:  "func secondHelper() {}",
+				},
+			},
+		},
+		singleCalls: &singleCalls,
+		batchCalls:  &batchCalls,
+		batchIDs:    &batchIDs,
+	}
+	handler := &CodeHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+				return []map[string]any{
+					deadCodeScanRow("first-helper", "firstHelper"),
+					deadCodeScanRow("second-helper", "secondHelper"),
+				}, nil
+			},
+		},
+		Content: store,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code",
+		bytes.NewBufferString(`{"repo_id":"repo-1","limit":10}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if got, want := batchCalls, 1; got != want {
+		t.Fatalf("batch content calls = %d, want %d", got, want)
+	}
+	if got, want := singleCalls, 0; got != want {
+		t.Fatalf("single content calls = %d, want %d", got, want)
+	}
+	if got, want := batchIDs, []string{"first-helper", "second-helper"}; !equalStringSlices(got, want) {
+		t.Fatalf("batch ids = %#v, want %#v", got, want)
 	}
 }
 
@@ -229,4 +356,65 @@ func equalIntSlices(got, want []int) bool {
 		}
 	}
 	return true
+}
+
+type batchingDeadCodeContentStore struct {
+	fakeDeadCodeContentStore
+	singleCalls *int
+	batchCalls  *int
+	batchIDs    *[]string
+}
+
+type contentCandidateDeadCodeStore struct {
+	fakeDeadCodeContentStore
+	rows            []map[string]any
+	candidateCalls  int
+	candidateRepoID string
+	candidateLabels []string
+}
+
+func (f *contentCandidateDeadCodeStore) DeadCodeCandidateRows(
+	_ context.Context,
+	repoID string,
+	label string,
+	limit int,
+	offset int,
+) ([]map[string]any, error) {
+	f.candidateCalls++
+	f.candidateRepoID = repoID
+	f.candidateLabels = append(f.candidateLabels, label)
+	if label != "Function" {
+		return nil, nil
+	}
+	if offset >= len(f.rows) {
+		return nil, nil
+	}
+	end := offset + limit
+	if end > len(f.rows) {
+		end = len(f.rows)
+	}
+	return f.rows[offset:end], nil
+}
+
+func (f *batchingDeadCodeContentStore) GetEntityContent(ctx context.Context, entityID string) (*EntityContent, error) {
+	*f.singleCalls++
+	return f.fakeDeadCodeContentStore.GetEntityContent(ctx, entityID)
+}
+
+func (f *batchingDeadCodeContentStore) GetEntityContents(
+	_ context.Context,
+	entityIDs []string,
+) (map[string]*EntityContent, error) {
+	*f.batchCalls++
+	*f.batchIDs = append((*f.batchIDs)[:0], entityIDs...)
+	entities := make(map[string]*EntityContent, len(entityIDs))
+	for _, entityID := range entityIDs {
+		entity, ok := f.entities[entityID]
+		if !ok {
+			continue
+		}
+		cloned := entity
+		entities[entityID] = &cloned
+	}
+	return entities, nil
 }

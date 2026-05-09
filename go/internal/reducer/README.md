@@ -163,6 +163,11 @@ inline constructor receiver. `code_call_materialization_arity.go` converts
 `argument_count` and `parameter_count` metadata into `name#arity` candidates
 before broad name matching, so overloaded methods such as `basicAuth(String)`
 and `basicAuth(String, String)` do not collapse into one reachability result.
+When Java parser rows also carry `argument_types` and `parameter_types`,
+the reducer adds type-signature candidates such as
+`configureBootJarTask(BootJar,TaskProvider)` before falling back to broader
+names. That lets class-literal typed Gradle lambdas resolve overloaded callback
+methods without treating every same-name overload as reached.
 Parser rows with `call_kind=java.method_reference` resolve method-reference
 syntax such as `this::configureTask` to same-class methods and materialize as
 `REFERENCES`, because the source proves reachability through a functional
