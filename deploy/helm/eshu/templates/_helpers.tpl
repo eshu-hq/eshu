@@ -48,6 +48,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-workflow-coordinator" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "eshu.confluenceCollectorFullname" -}}
+{{- printf "%s-confluence-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "eshu.apiMetricsServiceName" -}}
 {{- printf "%s-api-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -66,6 +70,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "eshu.workflowCoordinatorMetricsServiceName" -}}
 {{- printf "%s-workflow-coordinator-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.confluenceCollectorMetricsServiceName" -}}
+{{- printf "%s-confluence-collector-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "eshu.apiSelectorLabels" -}}
@@ -91,6 +99,11 @@ app.kubernetes.io/component: resolution-engine
 {{- define "eshu.workflowCoordinatorSelectorLabels" -}}
 {{- include "eshu.selectorLabels" . }}
 app.kubernetes.io/component: workflow-coordinator
+{{- end -}}
+
+{{- define "eshu.confluenceCollectorSelectorLabels" -}}
+{{- include "eshu.selectorLabels" . }}
+app.kubernetes.io/component: confluence-collector
 {{- end -}}
 
 {{- define "eshu.serviceAccountName" -}}
@@ -163,6 +176,49 @@ app.kubernetes.io/component: workflow-coordinator
   value: {{ .Values.observability.prometheus.host | quote }}
 - name: ESHU_PROMETHEUS_METRICS_PORT
   value: {{ .Values.observability.prometheus.port | quote }}
+{{- end }}
+{{- end -}}
+
+{{- define "eshu.renderConfluenceCollectorEnv" -}}
+- name: ESHU_CONFLUENCE_BASE_URL
+  value: {{ .Values.confluenceCollector.baseUrl | quote }}
+{{- with .Values.confluenceCollector.spaceId }}
+- name: ESHU_CONFLUENCE_SPACE_ID
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.confluenceCollector.spaceKey }}
+- name: ESHU_CONFLUENCE_SPACE_KEY
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.confluenceCollector.rootPageId }}
+- name: ESHU_CONFLUENCE_ROOT_PAGE_ID
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.confluenceCollector.pageLimit }}
+- name: ESHU_CONFLUENCE_PAGE_LIMIT
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.confluenceCollector.pollInterval }}
+- name: ESHU_CONFLUENCE_POLL_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- if .Values.confluenceCollector.credentials.bearerTokenKey }}
+- name: ESHU_CONFLUENCE_BEARER_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.confluenceCollector.credentials.secretName }}
+      key: {{ .Values.confluenceCollector.credentials.bearerTokenKey }}
+{{- else }}
+- name: ESHU_CONFLUENCE_EMAIL
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.confluenceCollector.credentials.secretName }}
+      key: {{ .Values.confluenceCollector.credentials.emailKey }}
+- name: ESHU_CONFLUENCE_API_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.confluenceCollector.credentials.secretName }}
+      key: {{ .Values.confluenceCollector.credentials.apiTokenKey }}
 {{- end }}
 {{- end -}}
 

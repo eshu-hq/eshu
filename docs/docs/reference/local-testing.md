@@ -29,6 +29,65 @@ export ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:15432/eshu
 For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 `neo4j` instead.
 
+## Confluence Collector Smoke
+
+Use this when testing the Confluence collector against a real Atlassian site.
+The collector is read-only against Confluence and writes documentation facts to
+the local Postgres content store.
+
+Load your local Jira/Confluence credential file, then normalize the env names
+the collector expects:
+
+```bash
+set -a
+source ~/.jira_api_credentials.conf
+set +a
+
+export ESHU_CONFLUENCE_BASE_URL="${CONFLUENCE_BASE_URL:-https://example.atlassian.net/wiki}"
+export ESHU_CONFLUENCE_EMAIL="${JIRA_EMAIL:?set JIRA_EMAIL}"
+export ESHU_CONFLUENCE_API_TOKEN="${JIRA_API_TOKEN:?set JIRA_API_TOKEN}"
+export ESHU_CONFLUENCE_SPACE_KEY="${ESHU_CONFLUENCE_SPACE_KEY:-DEV}"
+export ESHU_CONFLUENCE_PAGE_LIMIT="${ESHU_CONFLUENCE_PAGE_LIMIT:-25}"
+export ESHU_CONFLUENCE_POLL_INTERVAL="${ESHU_CONFLUENCE_POLL_INTERVAL:-5m}"
+```
+
+Resolve the space key to the numeric space ID used by the Confluence API:
+
+```bash
+export ESHU_CONFLUENCE_SPACE_ID="$(
+  curl -fsS \
+    -u "${ESHU_CONFLUENCE_EMAIL}:${ESHU_CONFLUENCE_API_TOKEN}" \
+    "${ESHU_CONFLUENCE_BASE_URL}/api/v2/spaces?keys=${ESHU_CONFLUENCE_SPACE_KEY}&limit=1" |
+    jq -r '.results[0].id'
+)"
+
+test -n "$ESHU_CONFLUENCE_SPACE_ID"
+test "$ESHU_CONFLUENCE_SPACE_ID" != "null"
+```
+
+Start Postgres, apply the data-plane schema, then run the collector:
+
+```bash
+docker compose up -d postgres
+
+cd go
+go run ./cmd/bootstrap-data-plane
+go run ./cmd/collector-confluence
+```
+
+In another shell, check the status endpoint and stored facts:
+
+```bash
+curl -fsS http://127.0.0.1:8080/readyz
+
+docker compose exec -T postgres \
+  psql postgresql://eshu:change-me@localhost:5432/eshu \
+  -c "select fact_kind, count(*) from fact_records where source_system = 'confluence' group by fact_kind order by fact_kind;"
+```
+
+Stop the collector with Ctrl-C after the first successful sync unless you are
+testing repeated polling.
+
 ## Discovery Advisory Playbook
 
 Use this loop when a repository is slow, unexpectedly large, or timeout-heavy.

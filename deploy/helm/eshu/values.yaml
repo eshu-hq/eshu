@@ -73,8 +73,6 @@ api:
       memory: 8Gi
 
 mcpServer:
-  # When enabled without exposure.ingress.backend=mcp or exposure.gateway.backend=mcp,
-  # the MCP runtime stays cluster-internal only.
   enabled: true
   replicas: 1
   revisionHistoryLimit: 3
@@ -152,11 +150,39 @@ workflowCoordinator:
       cpu: 2000m
       memory: 8Gi
 
+confluenceCollector:
+  enabled: false
+  replicas: 1
+  revisionHistoryLimit: 3
+  baseUrl: ""
+  spaceId: ""
+  spaceKey: ""
+  rootPageId: ""
+  pageLimit: ""
+  pollInterval: 5m
+  credentials:
+    secretName: ""
+    emailKey: email
+    apiTokenKey: api-token
+    bearerTokenKey: ""
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
 exposure:
   ingress:
     enabled: false
-    # Each ingress block routes to exactly one backend: api or mcp.
-    # Use an overlay-owned additional Ingress if you need both public API and MCP hostnames.
     backend: api
     className: ""
     annotations: {}
@@ -164,8 +190,6 @@ exposure:
     tls: []
   gateway:
     enabled: false
-    # Each gateway block routes to exactly one backend: api or mcp.
-    # Use an overlay-owned additional HTTPRoute if you need both public API and MCP hostnames.
     backend: api
     hostnames: []
     parentRefs: []
@@ -245,29 +269,18 @@ observability:
 neo4j:
   uri: bolt://neo4j:7687
   auth:
-    # Set secretName to "" for NornicDB no-auth deployments. The chart still
-    # renders literal Bolt client credentials because Eshu requires non-empty
-    # username/password fields before it opens the shared Bolt driver.
     secretName: eshu-neo4j
     username: neo4j
     password: change-me
     usernameKey: username
     passwordKey: password
 
-# NornicDB graph backend deployment — disabled by default; enable per overlay.
-# When enabling, also set:
-#   neo4j.uri: bolt://<release>-eshu-nornicdb:{{ nornicdb.ports.bolt }}
-#   neo4j.auth.secretName: ""   # Use literal Bolt client credentials above.
 nornicdb:
   enabled: false
   image:
     repository: timothyswt/nornicdb-amd64-cpu
-    # Pin to a specific tag in your overlay — "latest" is non-reproducible
     tag: latest
     pullPolicy: IfNotPresent
-  # HTTP and Bolt listen ports — must match NORNICDB_HTTP_PORT / NORNICDB_BOLT_PORT
-  # and are used for containerPorts, probes, and the Service. Change both here and
-  # in env if you need non-default ports.
   ports:
     http: 7474
     bolt: 7687

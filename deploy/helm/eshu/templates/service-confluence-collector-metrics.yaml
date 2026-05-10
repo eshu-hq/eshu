@@ -1,0 +1,22 @@
+{{- if and .Values.confluenceCollector.enabled .Values.observability.prometheus.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eshu.confluenceCollectorMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: confluence-collector
+  annotations:
+    {{- with .Values.service.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "eshu.confluenceCollectorSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ .Values.observability.prometheus.port }}
+      targetPort: metrics
+      protocol: TCP
+{{- end }}

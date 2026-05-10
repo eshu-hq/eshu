@@ -16,3 +16,20 @@
 {{- if and .Values.workflowCoordinator.enabled .Values.workflowCoordinator.claimsEnabled -}}
 {{- fail "workflowCoordinator.claimsEnabled must remain false in this chart; use the documented Compose proof path for active claim validation" -}}
 {{- end -}}
+{{- if .Values.confluenceCollector.enabled -}}
+{{- if not .Values.confluenceCollector.baseUrl -}}
+{{- fail "confluenceCollector.baseUrl is required when confluenceCollector.enabled=true" -}}
+{{- end -}}
+{{- if and (not .Values.confluenceCollector.spaceId) (not .Values.confluenceCollector.rootPageId) -}}
+{{- fail "confluenceCollector requires exactly one of confluenceCollector.spaceId or confluenceCollector.rootPageId" -}}
+{{- end -}}
+{{- if and .Values.confluenceCollector.spaceId .Values.confluenceCollector.rootPageId -}}
+{{- fail "confluenceCollector requires exactly one of confluenceCollector.spaceId or confluenceCollector.rootPageId, not both" -}}
+{{- end -}}
+{{- if not .Values.confluenceCollector.credentials.secretName -}}
+{{- fail "confluenceCollector.credentials.secretName is required when confluenceCollector.enabled=true" -}}
+{{- end -}}
+{{- if and (not .Values.confluenceCollector.credentials.bearerTokenKey) (or (not .Values.confluenceCollector.credentials.emailKey) (not .Values.confluenceCollector.credentials.apiTokenKey)) -}}
+{{- fail "confluenceCollector credentials require bearerTokenKey or both emailKey and apiTokenKey" -}}
+{{- end -}}
+{{- end -}}

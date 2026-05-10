@@ -1,7 +1,8 @@
 # Eshu Helm Chart
 
 This chart deploys Eshu as separate API, MCP, ingester,
-workflow-coordinator, and resolution-engine workloads with:
+workflow-coordinator, resolution-engine, and optional documentation collector
+workloads with:
 
 - External Bolt-compatible graph backend and Postgres connectivity
 - NornicDB as the default graph adapter through the Bolt-compatible graph
@@ -13,7 +14,8 @@ workflow-coordinator, and resolution-engine workloads with:
 - A stateful repository ingester `StatefulSet` for repo sync and indexing
 - An optional workflow-coordinator `Deployment` for dark-mode control-plane validation
 - A stateless Resolution Engine `Deployment` for facts queue projection
-- Optional Prometheus scrape endpoints and `ServiceMonitor` resources for API, MCP, ingester, workflow-coordinator, and resolution-engine
+- An optional Confluence collector `Deployment` that stores documentation sections in Postgres
+- Optional Prometheus scrape endpoints and `ServiceMonitor` resources for API, MCP, ingester, workflow-coordinator, resolution-engine, and Confluence collector
 - Flexible service exposure (ClusterIP, LoadBalancer, Ingress, Gateway API)
 - Hardened defaults such as public API docs disabled unless explicitly re-enabled
 
@@ -71,6 +73,13 @@ resolutionEngine:
   connectionTuning:
     neo4j:
       maxConnectionPoolSize: "150"
+
+confluenceCollector:
+  enabled: true
+  baseUrl: https://example.atlassian.net/wiki
+  spaceId: "123456789"
+  credentials:
+    secretName: confluence-collector-credentials
 
 repoSync:
   source:
