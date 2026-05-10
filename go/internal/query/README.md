@@ -145,6 +145,8 @@ panics if the capability string is not in `capabilityMatrix`.
   (`code.go:11`)
 - `ContentHandler` — file and entity content reads (`content_handler.go:11`)
 - `InfraHandler` — infrastructure resource and relationship routes (`infra.go:12`)
+  including Terraform backend, import, moved, removed, check, and lockfile
+  provider entity labels when they have been projected
 - `IaCHandler` — IaC quality dead-code routes (`iac.go:22`)
 - `ImpactHandler` — blast radius, change surface, deployment trace, dependency
   paths (`impact.go:11`)

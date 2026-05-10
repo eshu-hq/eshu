@@ -30,7 +30,7 @@
 - **Module index not constraint** — `schema.go:57` uses `CREATE INDEX` for
   `Module` nodes. Do not convert it to a uniqueness constraint.
 - **NornicDB composite constraint suppression** — `nornicDBSchemaConstraint`
-  at `schema.go:464` drops composite `IS UNIQUE` constraints. The NornicDB
+  at `schema.go:480` drops composite `IS UNIQUE` constraints. The NornicDB
   dialect uses `uid` uniqueness constraints for the same labels instead.
 - **No import cycles** — `CypherStatement` and `CypherExecutor` are defined
   here, not imported from `storage/cypher`. Do not add an import of

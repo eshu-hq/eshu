@@ -36,7 +36,11 @@ func Parse(
 	}
 
 	payload := hclBasePayload(path, isDependency)
-	if strings.EqualFold(filepath.Base(path), "terragrunt.hcl") {
+	if isTerraformLockFile(path) {
+		for _, row := range parseTerraformLockProviders(body, source, path) {
+			shared.AppendBucket(payload, "terraform_lock_providers", row)
+		}
+	} else if strings.EqualFold(filepath.Base(path), "terragrunt.hcl") {
 		shared.AppendBucket(payload, "terragrunt_configs", parseTerragruntConfig(body, source, path))
 		for _, row := range parseTerragruntModuleSources(body, source, path) {
 			shared.AppendBucket(payload, "terraform_modules", row)
@@ -66,6 +70,11 @@ func Parse(
 	shared.SortNamedBucket(payload, "terraform_providers")
 	shared.SortNamedBucket(payload, "terraform_locals")
 	shared.SortNamedBucket(payload, "terraform_backends")
+	shared.SortNamedBucket(payload, "terraform_imports")
+	shared.SortNamedBucket(payload, "terraform_moved_blocks")
+	shared.SortNamedBucket(payload, "terraform_removed_blocks")
+	shared.SortNamedBucket(payload, "terraform_checks")
+	shared.SortNamedBucket(payload, "terraform_lock_providers")
 	shared.SortNamedBucket(payload, "terragrunt_configs")
 	shared.SortNamedBucket(payload, "terragrunt_dependencies")
 	shared.SortNamedBucket(payload, "terragrunt_locals")
@@ -87,6 +96,11 @@ func hclBasePayload(path string, isDependency bool) map[string]any {
 	payload["terraform_providers"] = []map[string]any{}
 	payload["terraform_locals"] = []map[string]any{}
 	payload["terraform_backends"] = []map[string]any{}
+	payload["terraform_imports"] = []map[string]any{}
+	payload["terraform_moved_blocks"] = []map[string]any{}
+	payload["terraform_removed_blocks"] = []map[string]any{}
+	payload["terraform_checks"] = []map[string]any{}
+	payload["terraform_lock_providers"] = []map[string]any{}
 	payload["terragrunt_configs"] = []map[string]any{}
 	payload["terragrunt_dependencies"] = []map[string]any{}
 	payload["terragrunt_locals"] = []map[string]any{}
@@ -223,6 +237,17 @@ func parseTerraformBlocks(payload map[string]any, body *hclsyntax.Body, source [
 				"path":                      path,
 				"lang":                      "hcl",
 			})
+		case "import":
+			shared.AppendBucket(payload, "terraform_imports", parseTerraformImportBlock(block, source, path))
+		case "moved":
+			shared.AppendBucket(payload, "terraform_moved_blocks", parseTerraformMovedBlock(block, source, path))
+		case "removed":
+			shared.AppendBucket(payload, "terraform_removed_blocks", parseTerraformRemovedBlock(block, source, path))
+		case "check":
+			if len(block.Labels) == 0 {
+				continue
+			}
+			shared.AppendBucket(payload, "terraform_checks", parseTerraformCheckBlock(block, path))
 		}
 	}
 }

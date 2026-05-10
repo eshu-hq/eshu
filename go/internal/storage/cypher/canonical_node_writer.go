@@ -301,17 +301,23 @@ var canonicalNodeRetractInfraEntityLabels = map[string]struct{}{
 }
 
 var canonicalNodeRetractTerraformEntityLabels = map[string]struct{}{
-	"TerraformResource":    {},
-	"TerraformModule":      {},
-	"TerraformVariable":    {},
-	"TerraformOutput":      {},
-	"TerraformDataSource":  {},
-	"TerraformProvider":    {},
-	"TerraformLocal":       {},
-	"TerragruntConfig":     {},
-	"TerragruntDependency": {},
-	"TerragruntInput":      {},
-	"TerragruntLocal":      {},
+	"TerraformResource":     {},
+	"TerraformModule":       {},
+	"TerraformVariable":     {},
+	"TerraformOutput":       {},
+	"TerraformDataSource":   {},
+	"TerraformProvider":     {},
+	"TerraformLocal":        {},
+	"TerraformBackend":      {},
+	"TerraformImport":       {},
+	"TerraformMovedBlock":   {},
+	"TerraformRemovedBlock": {},
+	"TerraformCheck":        {},
+	"TerraformLockProvider": {},
+	"TerragruntConfig":      {},
+	"TerragruntDependency":  {},
+	"TerragruntInput":       {},
+	"TerragruntLocal":       {},
 }
 
 var canonicalNodeRetractCloudFormationEntityLabels = map[string]struct{}{

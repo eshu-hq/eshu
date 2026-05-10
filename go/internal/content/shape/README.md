@@ -74,6 +74,10 @@ around the `Materialize` call.
 - `contentEntityBuckets` order is fixed. Reordering the bucket list changes the
   persisted row sequence and produces diff churn in existing content-store rows.
   Add new buckets at the end.
+- Terraform buckets cover authored configuration and parser evidence such as
+  backends, imports, moved blocks, removed blocks, checks, and lockfile
+  providers. Keep those labels in step with collector snapshot mapping and
+  projector label mapping.
 - `entityLabelForBucket` rewrites `Module` rows whose parser metadata carries
   `module_kind == "protocol_implementation"` to the `ProtocolImplementation`
   label. This handles Elixir `defimpl` blocks.
