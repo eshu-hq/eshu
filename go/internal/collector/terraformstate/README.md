@@ -49,13 +49,15 @@ AWS SDK wiring belong to integration slices outside the reader stack.
 - Raw state bytes are only allowed in the source reader and parser window.
 - Full S3 URLs and local paths are not emitted in facts; parser facts use a
   locator hash in payload and source references.
-- Local state is never inferred from Git content. It must be configured as an
-  exact operator-approved source.
+- Local state is never opened directly from Git content. Git discovery may
+  record repo-local candidates, but local state must be configured or approved
+  before this package opens it as an exact source.
 - S3 reads are exact object reads. Prefix-only keys are rejected.
 - Graph-backed discovery waits for Git generation readiness before reading
   Terraform backend facts.
-- Dynamic backend expressions, workspace-prefixed S3 backends, non-S3 backends,
-  and local paths from Git facts are not discovery candidates.
+- Dynamic backend expressions, workspace-prefixed S3 backends, and non-S3
+  backends are not ingestion candidates. Local paths from Git facts are
+  advisory candidates only until operator policy approves them.
 - S3 write capability is rejected at source construction.
 - Redaction key material is mandatory before parsing.
 - Unknown provider-schema scalar attributes are redacted. Unknown composite

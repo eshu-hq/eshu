@@ -104,5 +104,6 @@ The main trace spans are `tfstate.source.open`, `tfstate.parser.stream`, and
 ]
 ```
 
-The runtime opens only exact sources from config or Git-observed backend facts.
-It does not scan buckets, infer local state files, or write Terraform state.
+The runtime opens only exact sources from config, Git-observed backend facts,
+or approved repo-local state candidates. It does not scan buckets, open
+unapproved local state files, or write Terraform state.

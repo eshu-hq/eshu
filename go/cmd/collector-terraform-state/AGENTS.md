@@ -25,7 +25,8 @@
 ## Anti-patterns
 
 - Running Terraform-state collection inside `workflow-coordinator`.
-- Guessing local `.tfstate` files from Git content.
+- Guessing local `.tfstate` files from Git content, or opening repo-local
+  candidates that have not been approved by policy or operator configuration.
 - Opening S3 prefixes, workspaces, or non-exact object keys.
 - Swallowing claim errors or retrying fenced mutations locally.
 - Printing raw state locators or secret material in startup errors.
