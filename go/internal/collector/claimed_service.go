@@ -158,7 +158,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	if err := validateClaimedGeneration(item, collected); err != nil {
 		stopHeartbeat()
 		if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", err)); failErr != nil {
-			return fmt.Errorf("terminal-fail mismatched git claim: %w", failErr)
+			return fmt.Errorf("terminal-fail mismatched %s claim: %w", s.claimedKindLabel(), failErr)
 		}
 		return err
 	}
@@ -278,6 +278,18 @@ func validateClaimedGeneration(item workflow.WorkItem, collected CollectedGenera
 	}
 	if collected.Scope.SourceSystem != item.SourceSystem {
 		return fmt.Errorf("claimed source_system %q produced source_system %q", item.SourceSystem, collected.Scope.SourceSystem)
+	}
+	if collected.Scope.CollectorKind != item.CollectorKind {
+		return fmt.Errorf("claimed collector_kind %q produced collector_kind %q", item.CollectorKind, collected.Scope.CollectorKind)
+	}
+	if item.CollectorKind == scope.CollectorTerraformState {
+		if err := collected.Generation.ValidateForScope(collected.Scope); err != nil {
+			return fmt.Errorf("validate claimed terraform state generation: %w", err)
+		}
+		if strings.TrimSpace(collected.Generation.FreshnessHint) == "" {
+			return fmt.Errorf("claimed terraform state generation freshness hint must not be blank")
+		}
+		return nil
 	}
 	if collected.Generation.GenerationID != item.GenerationID {
 		return fmt.Errorf("claimed generation_id %q produced generation_id %q", item.GenerationID, collected.Generation.GenerationID)

@@ -149,6 +149,17 @@ func (s ClaimedSource) collectCandidate(
 	if err := candidate.Validate(); err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
+	candidateScope, err := scopeForCandidate(candidate, candidate.State)
+	if err != nil {
+		return collector.CollectedGeneration{}, false, err
+	}
+	candidateID, err := terraformstate.CandidatePlanningID(candidate)
+	if err != nil {
+		return collector.CollectedGeneration{}, false, err
+	}
+	if !claimMatchesCandidate(item, candidateScope, candidateID) {
+		return collector.CollectedGeneration{}, false, nil
+	}
 	stateSource, err := s.SourceFactory.OpenSource(ctx, candidate)
 	if err != nil {
 		return collector.CollectedGeneration{}, false, sourceFailure("build", candidate.State, err)
@@ -160,6 +171,9 @@ func (s ClaimedSource) collectCandidate(
 	if err := sourceKey.Validate(); err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
+	if err := ensureSourceIdentity(candidate.State, sourceKey); err != nil {
+		return collector.CollectedGeneration{}, false, err
+	}
 
 	identity, observedAt, err := s.readIdentity(ctx, stateSource)
 	if err != nil {
@@ -169,7 +183,7 @@ func (s ClaimedSource) collectCandidate(
 	if err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
-	if !claimMatches(item, scopeValue, generationValue) {
+	if !claimMatchesCollected(item, scopeValue, generationValue, candidateID) {
 		return collector.CollectedGeneration{}, false, nil
 	}
 
@@ -254,16 +268,7 @@ func generationForCandidate(
 	identity terraformstate.SnapshotIdentity,
 	observedAt time.Time,
 ) (scope.IngestionScope, scope.ScopeGeneration, error) {
-	metadata := map[string]string{}
-	if repoID := strings.TrimSpace(candidate.RepoID); repoID != "" {
-		metadata["repo_id"] = repoID
-	}
-	scopeValue, err := scope.NewTerraformStateSnapshotScope(
-		strings.TrimSpace(candidate.RepoID),
-		string(sourceKey.BackendKind),
-		sourceKey.Locator,
-		metadata,
-	)
+	scopeValue, err := scopeForCandidate(candidate, sourceKey)
 	if err != nil {
 		return scope.IngestionScope{}, scope.ScopeGeneration{}, err
 	}
@@ -279,10 +284,57 @@ func generationForCandidate(
 	return scopeValue, generationValue, nil
 }
 
-func claimMatches(item workflow.WorkItem, scopeValue scope.IngestionScope, generationValue scope.ScopeGeneration) bool {
-	return item.ScopeID == scopeValue.ScopeID &&
-		item.GenerationID == generationValue.GenerationID &&
-		item.SourceRunID == generationValue.GenerationID
+func scopeForCandidate(
+	candidate terraformstate.DiscoveryCandidate,
+	sourceKey terraformstate.StateKey,
+) (scope.IngestionScope, error) {
+	metadata := map[string]string{}
+	if repoID := strings.TrimSpace(candidate.RepoID); repoID != "" {
+		metadata["repo_id"] = repoID
+	}
+	return scope.NewTerraformStateSnapshotScope(
+		strings.TrimSpace(candidate.RepoID),
+		string(sourceKey.BackendKind),
+		sourceKey.Locator,
+		metadata,
+	)
+}
+
+func ensureSourceIdentity(expected terraformstate.StateKey, actual terraformstate.StateKey) error {
+	if expected == actual {
+		return nil
+	}
+	return fmt.Errorf("terraform state source identity mismatch for %s candidate", expected.BackendKind)
+}
+
+func claimMatchesCandidate(item workflow.WorkItem, scopeValue scope.IngestionScope, candidateID string) bool {
+	if item.ScopeID != scopeValue.ScopeID {
+		return false
+	}
+	if !usesCandidatePlanningID(item) {
+		return true
+	}
+	return item.GenerationID == candidateID && item.SourceRunID == candidateID
+}
+
+func claimMatchesCollected(
+	item workflow.WorkItem,
+	scopeValue scope.IngestionScope,
+	generationValue scope.ScopeGeneration,
+	candidateID string,
+) bool {
+	if item.ScopeID != scopeValue.ScopeID {
+		return false
+	}
+	if usesCandidatePlanningID(item) {
+		return item.GenerationID == candidateID && item.SourceRunID == candidateID
+	}
+	return item.GenerationID == generationValue.GenerationID && item.SourceRunID == generationValue.GenerationID
+}
+
+func usesCandidatePlanningID(item workflow.WorkItem) bool {
+	return terraformstate.IsCandidatePlanningID(item.GenerationID) ||
+		terraformstate.IsCandidatePlanningID(item.SourceRunID)
 }
 
 func (s ClaimedSource) now() time.Time {
