@@ -161,6 +161,7 @@ func (p *stateParser) emitResourceInstance(resource resourceContext, instance in
 		"attributes": attributes,
 	}
 	p.recordModuleObservation(resource.Module)
+	p.recordProviderBinding(address, resource.Provider)
 	p.facts = append(p.facts, p.envelope(facts.TerraformStateResourceFactKind, "resource:"+address, payload, address))
 	p.resourceFacts++
 	return nil

@@ -37,6 +37,7 @@ func TestParserStreamingPathDoesNotCallJSONUnmarshal(t *testing.T) {
 		"modules.go",
 		"outputs.go",
 		"parser.go",
+		"providers.go",
 		"resources.go",
 		"snapshot_identity.go",
 		"warnings.go",

@@ -50,14 +50,15 @@ func Parse(ctx context.Context, reader io.Reader, options ParseOptions) (ParseRe
 }
 
 type stateParser struct {
-	decoder       *json.Decoder
-	options       ParseOptions
-	snapshot      snapshotMetadata
-	facts         []facts.Envelope
-	warnings      []warningPayload
-	modules       map[string]moduleObservation
-	resourceFacts int64
-	redactions    map[string]int64
+	decoder          *json.Decoder
+	options          ParseOptions
+	snapshot         snapshotMetadata
+	facts            []facts.Envelope
+	warnings         []warningPayload
+	modules          map[string]moduleObservation
+	providerBindings map[string]providerBinding
+	resourceFacts    int64
+	redactions       map[string]int64
 }
 
 func (p *stateParser) parse() error {
@@ -94,6 +95,7 @@ func (p *stateParser) parse() error {
 
 	p.emitSnapshot()
 	p.emitModules()
+	p.emitProviderBindings()
 	p.emitWarnings()
 	return nil
 }
