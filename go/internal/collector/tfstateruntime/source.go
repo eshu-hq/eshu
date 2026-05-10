@@ -209,6 +209,20 @@ func (s ClaimedSource) collectCandidate(
 			}
 			return collector.CollectedGeneration{Unchanged: true}, true, nil
 		}
+		if errors.Is(err, terraformstate.ErrStateTooLarge) {
+			s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "state_too_large")
+			collected, warningErr := s.stateTooLargeWarningGeneration(
+				candidate,
+				candidateScope,
+				candidateID,
+				sourceKey,
+				item.CurrentFencingToken,
+			)
+			if warningErr != nil {
+				return collector.CollectedGeneration{}, false, warningErr
+			}
+			return collected, true, nil
+		}
 		s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "error")
 		return collector.CollectedGeneration{}, false, err
 	}
