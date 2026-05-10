@@ -55,6 +55,7 @@ type stateParser struct {
 	snapshot      snapshotMetadata
 	facts         []facts.Envelope
 	warnings      []warningPayload
+	modules       map[string]moduleObservation
 	resourceFacts int64
 	redactions    map[string]int64
 }
@@ -92,6 +93,7 @@ func (p *stateParser) parse() error {
 	}
 
 	p.emitSnapshot()
+	p.emitModules()
 	p.emitWarnings()
 	return nil
 }

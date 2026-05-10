@@ -34,6 +34,7 @@ func TestParserStreamingPathDoesNotCallJSONUnmarshal(t *testing.T) {
 	for _, fileName := range []string{
 		"attributes.go",
 		"json_token.go",
+		"modules.go",
 		"outputs.go",
 		"parser.go",
 		"resources.go",
