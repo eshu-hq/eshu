@@ -143,6 +143,7 @@ func (p *stateParser) readInstance(resource resourceContext, instanceIndex int) 
 		return fmt.Errorf("close terraform state resource instance: %w", err)
 	}
 	address := resourceAddress(resource, instance, instanceIndex)
+	p.emitTagObservations(address, attributes)
 	return p.emitResourceInstance(resource, instance, instanceIndex, p.classifyAttributes(address, attributes))
 }
 

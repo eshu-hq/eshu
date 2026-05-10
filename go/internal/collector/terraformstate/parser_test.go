@@ -89,7 +89,7 @@ func TestParserStreamsTerraformStateIntoRedactedFacts(t *testing.T) {
 		facts.TerraformStateSnapshotFactKind,
 		facts.TerraformStateOutputFactKind,
 		facts.TerraformStateResourceFactKind,
-		facts.TerraformStateWarningFactKind,
+		facts.TerraformStateTagObservationFactKind,
 	)
 	assertNoRawSecret(t, result.Facts, "super-secret")
 	assertNoRawSecret(t, result.Facts, "plain-db-password")

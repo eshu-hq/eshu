@@ -40,6 +40,7 @@ func TestParserStreamingPathDoesNotCallJSONUnmarshal(t *testing.T) {
 		"providers.go",
 		"resources.go",
 		"snapshot_identity.go",
+		"tags.go",
 		"warnings.go",
 	} {
 		assertNoJSONUnmarshalCall(t, filepath.Join(packageDir, fileName))

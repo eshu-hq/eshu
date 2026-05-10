@@ -11,6 +11,8 @@ type attributeValue struct {
 	Key    string
 	Value  any
 	Scalar bool
+	TagMap bool
+	Tags   []tagValue
 }
 
 func readAttributeValues(decoder *json.Decoder) ([]attributeValue, error) {
@@ -27,11 +29,20 @@ func readAttributeValues(decoder *json.Decoder) ([]attributeValue, error) {
 		if !ok {
 			return nil, fmt.Errorf("terraform state resource attribute key must be a string")
 		}
-		value, scalar, err := readScalarOrSkip(decoder)
-		if err != nil {
-			return nil, fmt.Errorf("decode terraform state resource attribute %q: %w", key, err)
+		switch key {
+		case "tags", "tags_all":
+			tags, err := readTagValues(decoder, key)
+			if err != nil {
+				return nil, err
+			}
+			attributes = append(attributes, attributeValue{Key: key, TagMap: true, Tags: tags})
+		default:
+			value, scalar, err := readScalarOrSkip(decoder)
+			if err != nil {
+				return nil, fmt.Errorf("decode terraform state resource attribute %q: %w", key, err)
+			}
+			attributes = append(attributes, attributeValue{Key: key, Value: value, Scalar: scalar})
 		}
-		attributes = append(attributes, attributeValue{Key: key, Value: value, Scalar: scalar})
 	}
 	if _, err := decoder.Token(); err != nil {
 		return nil, fmt.Errorf("close terraform state resource attributes: %w", err)
@@ -42,6 +53,9 @@ func readAttributeValues(decoder *json.Decoder) ([]attributeValue, error) {
 func (p *stateParser) classifyAttributes(address string, input []attributeValue) map[string]any {
 	attributes := make(map[string]any, len(input))
 	for _, attribute := range input {
+		if attribute.TagMap {
+			continue
+		}
 		p.classifyAttribute(attributes, address, attribute)
 	}
 	return attributes
