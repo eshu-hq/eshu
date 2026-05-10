@@ -13,6 +13,20 @@ type warningPayload struct {
 	Source      string
 }
 
+func (p *stateParser) addSourceWarnings(warnings []SourceWarning) {
+	for _, warning := range warnings {
+		payload := warningPayload{
+			WarningKind: strings.TrimSpace(warning.WarningKind),
+			Reason:      strings.TrimSpace(warning.Reason),
+			Source:      strings.TrimSpace(warning.Source),
+		}
+		if payload.WarningKind == "" || payload.Reason == "" || payload.Source == "" {
+			continue
+		}
+		p.warnings = append(p.warnings, payload)
+	}
+}
+
 func (p *stateParser) recordRedaction(reason string) {
 	reason = strings.TrimSpace(reason)
 	if reason == "" {

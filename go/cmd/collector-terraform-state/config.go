@@ -27,17 +27,57 @@ type runtimeConfig struct {
 	RedactionKey         redact.Key
 	SourceMaxBytes       int64
 	AWSRoleARN           string
+	AWSCredentials       awsCredentialConfig
+	AWSTargetScopes      []awsTargetScopeConfig
 	AWSDynamoDBLockTable string
 }
 
 type terraformStateRuntimeConfiguration struct {
-	AWS terraformStateRuntimeAWSConfiguration `json:"aws"`
+	AWS          terraformStateRuntimeAWSConfiguration `json:"aws"`
+	TargetScopes []terraformStateRuntimeTargetScope    `json:"target_scopes"`
 }
 
 type terraformStateRuntimeAWSConfiguration struct {
 	RoleARN                 string `json:"role_arn"`
+	ExternalID              string `json:"external_id"`
 	DynamoDBTable           string `json:"dynamodb_table"`
 	LegacyDynamoDBLockTable string `json:"dynamodb_lock_table"`
+}
+
+type terraformStateRuntimeTargetScope struct {
+	TargetScopeID      string   `json:"target_scope_id"`
+	Provider           string   `json:"provider"`
+	DeploymentMode     string   `json:"deployment_mode"`
+	CredentialMode     string   `json:"credential_mode"`
+	RoleARN            string   `json:"role_arn"`
+	ExternalID         string   `json:"external_id"`
+	AllowedRegions     []string `json:"allowed_regions"`
+	AllowedBackends    []string `json:"allowed_backends"`
+	RedactionPolicyRef string   `json:"redaction_policy_ref"`
+}
+
+type awsCredentialMode string
+
+const (
+	awsCredentialModeDefault               awsCredentialMode = "default"
+	awsCredentialModeCentralAssumeRole     awsCredentialMode = "central_assume_role"
+	awsCredentialModeLocalWorkloadIdentity awsCredentialMode = "local_workload_identity"
+)
+
+type awsCredentialConfig struct {
+	Mode       awsCredentialMode
+	RoleARN    string
+	ExternalID string
+}
+
+type awsTargetScopeConfig struct {
+	TargetScopeID      string
+	Provider           string
+	DeploymentMode     string
+	Credentials        awsCredentialConfig
+	AllowedRegions     []string
+	AllowedBackends    []string
+	RedactionPolicyRef string
 }
 
 func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
@@ -93,7 +133,7 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 	if sourceMaxBytes < 0 {
 		return runtimeConfig{}, fmt.Errorf("ESHU_TFSTATE_SOURCE_MAX_BYTES must not be negative")
 	}
-	awsRoleARN, err := parseAWSRoleARN(instance.Configuration)
+	awsCredentials, awsTargetScopes, err := parseAWSCredentialConfig(instance.Configuration)
 	if err != nil {
 		return runtimeConfig{}, err
 	}
@@ -110,7 +150,9 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 		HeartbeatInterval:    heartbeatInterval,
 		RedactionKey:         redactionKey,
 		SourceMaxBytes:       sourceMaxBytes,
-		AWSRoleARN:           awsRoleARN,
+		AWSRoleARN:           awsCredentials.RoleARN,
+		AWSCredentials:       awsCredentials,
+		AWSTargetScopes:      awsTargetScopes,
 		AWSDynamoDBLockTable: awsDynamoDBLockTable,
 	}, nil
 }
@@ -178,12 +220,62 @@ func loadRedactionKey(getenv func(string) string) (redact.Key, error) {
 	return key, nil
 }
 
-func parseAWSRoleARN(raw string) (string, error) {
+func parseAWSCredentialConfig(raw string) (awsCredentialConfig, []awsTargetScopeConfig, error) {
 	var config terraformStateRuntimeConfiguration
 	if err := json.Unmarshal([]byte(normalizeJSON(raw)), &config); err != nil {
-		return "", fmt.Errorf("terraform_state runtime configuration: %w", err)
+		return awsCredentialConfig{}, nil, fmt.Errorf("terraform_state runtime configuration: %w", err)
 	}
-	return strings.TrimSpace(config.AWS.RoleARN), nil
+	targetScopes := make([]awsTargetScopeConfig, 0, len(config.TargetScopes))
+	for _, scope := range config.TargetScopes {
+		targetScopes = append(targetScopes, awsTargetScopeConfig{
+			TargetScopeID:  strings.TrimSpace(scope.TargetScopeID),
+			Provider:       strings.ToLower(strings.TrimSpace(scope.Provider)),
+			DeploymentMode: strings.ToLower(strings.TrimSpace(scope.DeploymentMode)),
+			Credentials: awsCredentialConfig{
+				Mode:       awsCredentialMode(strings.ToLower(strings.TrimSpace(scope.CredentialMode))),
+				RoleARN:    strings.TrimSpace(scope.RoleARN),
+				ExternalID: strings.TrimSpace(scope.ExternalID),
+			},
+			AllowedRegions:     trimmedStrings(scope.AllowedRegions),
+			AllowedBackends:    lowerTrimmedStrings(scope.AllowedBackends),
+			RedactionPolicyRef: strings.TrimSpace(scope.RedactionPolicyRef),
+		})
+	}
+	if len(targetScopes) == 1 {
+		return targetScopes[0].Credentials, targetScopes, nil
+	}
+	if len(targetScopes) > 1 {
+		credentials, err := sharedTargetScopeCredentials(targetScopes)
+		if err != nil {
+			return awsCredentialConfig{}, nil, err
+		}
+		return credentials, targetScopes, nil
+	}
+	return legacyAWSCredentialConfig(config.AWS), targetScopes, nil
+}
+
+func sharedTargetScopeCredentials(targetScopes []awsTargetScopeConfig) (awsCredentialConfig, error) {
+	credentials := targetScopes[0].Credentials
+	for _, targetScope := range targetScopes[1:] {
+		if targetScope.Credentials != credentials {
+			return awsCredentialConfig{}, fmt.Errorf(
+				"terraform_state runtime target_scopes require identical AWS credentials until candidates carry target_scope_id",
+			)
+		}
+	}
+	return credentials, nil
+}
+
+func legacyAWSCredentialConfig(config terraformStateRuntimeAWSConfiguration) awsCredentialConfig {
+	roleARN := strings.TrimSpace(config.RoleARN)
+	if roleARN == "" {
+		return awsCredentialConfig{Mode: awsCredentialModeDefault}
+	}
+	return awsCredentialConfig{
+		Mode:       awsCredentialModeCentralAssumeRole,
+		RoleARN:    roleARN,
+		ExternalID: strings.TrimSpace(config.ExternalID),
+	}
 }
 
 func parseAWSDynamoDBLockTable(raw string) (string, error) {
@@ -251,6 +343,22 @@ func normalizeJSON(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return "{}"
+	}
+	return trimmed
+}
+
+func trimmedStrings(values []string) []string {
+	trimmed := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed = append(trimmed, strings.TrimSpace(value))
+	}
+	return trimmed
+}
+
+func lowerTrimmedStrings(values []string) []string {
+	trimmed := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed = append(trimmed, strings.ToLower(strings.TrimSpace(value)))
 	}
 	return trimmed
 }

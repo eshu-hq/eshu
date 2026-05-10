@@ -24,17 +24,19 @@ type dynamoDBGetItemAPI interface {
 }
 
 type awsDynamoDBLockMetadataClient struct {
-	roleARN string
-	mu      sync.Mutex
-	clients map[string]dynamoDBGetItemAPI
-	now     func() time.Time
+	roleARN    string
+	externalID string
+	mu         sync.Mutex
+	clients    map[string]dynamoDBGetItemAPI
+	now        func() time.Time
 }
 
-func newAWSDynamoDBLockMetadataClient(roleARN string) terraformstate.LockMetadataClient {
+func newAWSDynamoDBLockMetadataClient(credentials awsCredentialConfig) terraformstate.LockMetadataClient {
 	return &awsDynamoDBLockMetadataClient{
-		roleARN: strings.TrimSpace(roleARN),
-		clients: make(map[string]dynamoDBGetItemAPI),
-		now:     time.Now,
+		roleARN:    strings.TrimSpace(credentials.RoleARN),
+		externalID: strings.TrimSpace(credentials.ExternalID),
+		clients:    make(map[string]dynamoDBGetItemAPI),
+		now:        time.Now,
 	}
 }
 
@@ -84,7 +86,11 @@ func (c *awsDynamoDBLockMetadataClient) clientForRegion(ctx context.Context, reg
 	}
 	if c.roleARN != "" {
 		stsClient := sts.NewFromConfig(config)
-		config.Credentials = awsv2.NewCredentialsCache(stscreds.NewAssumeRoleProvider(stsClient, c.roleARN))
+		config.Credentials = awsv2.NewCredentialsCache(stscreds.NewAssumeRoleProvider(
+			stsClient,
+			c.roleARN,
+			assumeRoleOptions(c.externalID),
+		))
 	}
 	client := dynamodb.NewFromConfig(config)
 	c.clients[region] = client

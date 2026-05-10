@@ -42,6 +42,47 @@ func TestParseDiscoveryConfigMapsCollectorJSON(t *testing.T) {
 	}
 }
 
+func TestParseDiscoveryConfigMapsLocalStateCandidatePolicy(t *testing.T) {
+	t.Parallel()
+
+	config, err := ParseDiscoveryConfig(`{
+		"discovery": {
+			"graph": true,
+			"local_repos": ["platform-infra"],
+			"local_state_candidates": {
+				"mode": "approved_candidates",
+				"approved": [{
+					"repo_id": "platform-infra",
+					"path": "env/prod/terraform.tfstate"
+				}],
+				"ignored": [{
+					"repo_id": "platform-infra",
+					"path": "scratch/terraform.tfstate"
+				}]
+			}
+		}
+	}`)
+	if err != nil {
+		t.Fatalf("ParseDiscoveryConfig() error = %v, want nil", err)
+	}
+
+	if got, want := config.LocalStateCandidates.Mode, LocalStateCandidateModeApproved; got != want {
+		t.Fatalf("LocalStateCandidates.Mode = %q, want %q", got, want)
+	}
+	if got, want := len(config.LocalStateCandidates.Approved), 1; got != want {
+		t.Fatalf("len(LocalStateCandidates.Approved) = %d, want %d", got, want)
+	}
+	if got, want := config.LocalStateCandidates.Approved[0].RepoID, "platform-infra"; got != want {
+		t.Fatalf("Approved[0].RepoID = %q, want %q", got, want)
+	}
+	if got, want := config.LocalStateCandidates.Approved[0].RelativePath, "env/prod/terraform.tfstate"; got != want {
+		t.Fatalf("Approved[0].RelativePath = %q, want %q", got, want)
+	}
+	if got, want := config.LocalStateCandidates.Ignored[0].RelativePath, "scratch/terraform.tfstate"; got != want {
+		t.Fatalf("Ignored[0].RelativePath = %q, want %q", got, want)
+	}
+}
+
 func TestDiscoveryCarriesDurablePriorETagToSeedCandidate(t *testing.T) {
 	t.Parallel()
 

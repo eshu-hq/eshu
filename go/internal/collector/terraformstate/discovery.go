@@ -21,13 +21,17 @@ const (
 	DiscoveryCandidateSourceSeed DiscoveryCandidateSource = "seed"
 	// DiscoveryCandidateSourceGraph identifies Git-observed Terraform backend evidence.
 	DiscoveryCandidateSourceGraph DiscoveryCandidateSource = "graph"
+	// DiscoveryCandidateSourceGitLocalFile identifies an approved repo-local
+	// state file candidate discovered by the Git collector.
+	DiscoveryCandidateSourceGitLocalFile DiscoveryCandidateSource = "git_local_file"
 )
 
 // DiscoveryConfig controls Terraform state candidate discovery.
 type DiscoveryConfig struct {
-	Graph      bool
-	Seeds      []DiscoverySeed
-	LocalRepos []string
+	Graph                bool
+	Seeds                []DiscoverySeed
+	LocalRepos           []string
+	LocalStateCandidates LocalStateCandidatePolicy
 }
 
 // DiscoverySeed is one exact operator-approved state locator.
@@ -50,15 +54,19 @@ type DiscoveryCandidate struct {
 	State             StateKey
 	Source            DiscoveryCandidateSource
 	RepoID            string
+	RelativePath      string
 	Region            string
 	DynamoDBTable     string
 	PreviousETag      string
 	PriorGenerationID string
+	StateInVCS        bool
 }
 
 // DiscoveryQuery scopes graph-backed Terraform backend fact reads.
 type DiscoveryQuery struct {
-	RepoIDs []string
+	RepoIDs                     []string
+	IncludeLocalStateCandidates bool
+	ApprovedLocalCandidates     []LocalStateCandidateRef
 }
 
 // GitReadinessChecker reports whether Git evidence for a repo is committed.
@@ -172,13 +180,20 @@ func (r DiscoveryResolver) Resolve(ctx context.Context) ([]DiscoveryCandidate, e
 	if r.BackendFacts == nil {
 		return nil, fmt.Errorf("terraform state graph discovery requires backend fact reader")
 	}
-	graphCandidates, err := r.BackendFacts.TerraformStateCandidates(ctx, DiscoveryQuery{RepoIDs: repoIDs})
+	graphCandidates, err := r.BackendFacts.TerraformStateCandidates(ctx, DiscoveryQuery{
+		RepoIDs:                     repoIDs,
+		IncludeLocalStateCandidates: r.Config.LocalStateCandidates.approvedMode(),
+		ApprovedLocalCandidates:     normalizedLocalCandidateRefs(r.Config.LocalStateCandidates.Approved),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("read terraform backend facts: %w", err)
 	}
 	for index, candidate := range graphCandidates {
 		if candidate.Source == "" {
 			candidate.Source = DiscoveryCandidateSourceGraph
+		}
+		if r.skipLocalStateCandidate(&candidate) {
+			continue
 		}
 		if err := candidate.Validate(); err != nil {
 			return nil, fmt.Errorf("terraform state graph candidate %d: %w", index, err)
@@ -189,6 +204,27 @@ func (r DiscoveryResolver) Resolve(ctx context.Context) ([]DiscoveryCandidate, e
 		candidates = appendUniqueCandidate(candidates, seen, counts, candidate)
 	}
 	return r.finishResolve(ctx, counts, candidates)
+}
+
+func (r DiscoveryResolver) skipLocalStateCandidate(candidate *DiscoveryCandidate) bool {
+	if candidate.Source != DiscoveryCandidateSourceGitLocalFile {
+		return false
+	}
+	if !r.Config.LocalStateCandidates.approvedMode() {
+		return true
+	}
+	ref := LocalStateCandidateRef{RepoID: candidate.RepoID, RelativePath: candidate.RelativePath}.normalized()
+	if ref.RepoID == "" || ref.RelativePath == "" {
+		return true
+	}
+	if localCandidateRefsContain(r.Config.LocalStateCandidates.Ignored, ref) {
+		return true
+	}
+	if !localCandidateRefsContain(r.Config.LocalStateCandidates.Approved, ref) {
+		return true
+	}
+	candidate.StateInVCS = true
+	return false
 }
 
 func (r DiscoveryResolver) finishResolve(
@@ -235,6 +271,7 @@ func (r DiscoveryResolver) recordCandidates(ctx context.Context, counts map[Disc
 	for _, source := range []DiscoveryCandidateSource{
 		DiscoveryCandidateSourceSeed,
 		DiscoveryCandidateSourceGraph,
+		DiscoveryCandidateSourceGitLocalFile,
 	} {
 		if count := counts[source]; count > 0 {
 			r.Metrics.RecordCandidates(ctx, source, count)
@@ -274,12 +311,21 @@ func (c DiscoveryCandidate) Validate() error {
 		return err
 	}
 	switch c.Source {
-	case DiscoveryCandidateSourceSeed, DiscoveryCandidateSourceGraph:
+	case DiscoveryCandidateSourceSeed, DiscoveryCandidateSourceGraph, DiscoveryCandidateSourceGitLocalFile:
 	default:
 		return fmt.Errorf("unsupported terraform state discovery source %q", c.Source)
 	}
 	if c.Source == DiscoveryCandidateSourceGraph && c.State.BackendKind == BackendLocal {
 		return fmt.Errorf("local state candidates require an explicit operator seed")
+	}
+	if c.Source == DiscoveryCandidateSourceGitLocalFile {
+		if c.State.BackendKind != BackendLocal {
+			return fmt.Errorf("git local file candidates must use local backend kind")
+		}
+		ref := (LocalStateCandidateRef{RepoID: c.RepoID, RelativePath: c.RelativePath}).normalized()
+		if ref.RepoID == "" || ref.RelativePath == "" {
+			return fmt.Errorf("git local file candidates require repo_id and relative_path")
+		}
 	}
 	if strings.TrimSpace(c.DynamoDBTable) != c.DynamoDBTable {
 		return fmt.Errorf("terraform state dynamodb table must not have surrounding whitespace")

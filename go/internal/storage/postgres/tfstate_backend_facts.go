@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
@@ -26,6 +27,30 @@ WHERE fact.fact_kind = 'file'
   AND fact.payload->>'repo_id' = ANY($1::text[])
   AND jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
 ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
+`
+
+const listTerraformStateLocalCandidateFactsQuery = `
+SELECT
+    candidate.payload->>'repo_id' AS repo_id,
+    candidate.payload->>'relative_path' AS relative_path,
+    COALESCE(repository.payload->>'local_path', repository.source_uri, '') AS source_uri
+FROM fact_records AS candidate
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = candidate.scope_id
+ AND scope.active_generation_id = candidate.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = candidate.scope_id
+ AND generation.generation_id = candidate.generation_id
+JOIN fact_records AS repository
+  ON repository.scope_id = candidate.scope_id
+ AND repository.generation_id = candidate.generation_id
+ AND repository.fact_kind = 'repository'
+ AND repository.source_system = 'git'
+WHERE candidate.fact_kind = 'terraform_state_candidate'
+  AND candidate.source_system = 'git'
+  AND generation.status = 'active'
+  AND candidate.payload->>'repo_id' = ANY($1::text[])
+ORDER BY repo_id ASC, relative_path ASC, candidate.observed_at ASC, candidate.fact_id ASC
 `
 
 const terraformStateGitReadinessQuery = `
@@ -210,7 +235,109 @@ func (r TerraformStateBackendFactReader) TerraformStateCandidates(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list terraform state backend facts: %w", err)
 	}
+	localCandidates, err := r.localStateCandidates(ctx, query, seen)
+	if err != nil {
+		return nil, err
+	}
+	candidates = append(candidates, localCandidates...)
 	return candidates, nil
+}
+
+func (r TerraformStateBackendFactReader) localStateCandidates(
+	ctx context.Context,
+	query terraformstate.DiscoveryQuery,
+	seen map[string]struct{},
+) ([]terraformstate.DiscoveryCandidate, error) {
+	if !query.IncludeLocalStateCandidates || len(query.ApprovedLocalCandidates) == 0 {
+		return nil, nil
+	}
+	approved := approvedLocalStateCandidateSet(query.ApprovedLocalCandidates)
+	if len(approved) == 0 {
+		return nil, nil
+	}
+	rows, err := r.DB.QueryContext(ctx, listTerraformStateLocalCandidateFactsQuery, cleanFactKinds(query.RepoIDs))
+	if err != nil {
+		return nil, fmt.Errorf("list terraform state local candidate facts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var candidates []terraformstate.DiscoveryCandidate
+	for rows.Next() {
+		candidate, ok, scanErr := scanTerraformStateLocalCandidate(rows, approved)
+		if scanErr != nil {
+			return nil, fmt.Errorf("list terraform state local candidate facts: %w", scanErr)
+		}
+		if !ok {
+			continue
+		}
+		key := candidate.State.Locator + "\x00" + candidate.State.VersionID
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		candidates = append(candidates, candidate)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list terraform state local candidate facts: %w", err)
+	}
+	return candidates, nil
+}
+
+func approvedLocalStateCandidateSet(refs []terraformstate.LocalStateCandidateRef) map[localCandidateKey]struct{} {
+	approved := map[localCandidateKey]struct{}{}
+	for _, ref := range refs {
+		key := localCandidateKey{
+			repoID:       strings.TrimSpace(ref.RepoID),
+			relativePath: cleanFactRelativePath(ref.RelativePath),
+		}
+		if key.repoID == "" || !isSafeFactRelativePath(key.relativePath) {
+			continue
+		}
+		approved[key] = struct{}{}
+	}
+	return approved
+}
+
+type localCandidateKey struct {
+	repoID       string
+	relativePath string
+}
+
+func scanTerraformStateLocalCandidate(
+	rows Rows,
+	approved map[localCandidateKey]struct{},
+) (terraformstate.DiscoveryCandidate, bool, error) {
+	var repoID string
+	var relativePath string
+	var repoRoot string
+	if err := rows.Scan(&repoID, &relativePath, &repoRoot); err != nil {
+		return terraformstate.DiscoveryCandidate{}, false, err
+	}
+	key := localCandidateKey{
+		repoID:       strings.TrimSpace(repoID),
+		relativePath: cleanFactRelativePath(relativePath),
+	}
+	if !isSafeFactRelativePath(key.relativePath) {
+		return terraformstate.DiscoveryCandidate{}, false, nil
+	}
+	if _, ok := approved[key]; !ok {
+		return terraformstate.DiscoveryCandidate{}, false, nil
+	}
+	repoRoot = strings.TrimSpace(repoRoot)
+	if repoRoot == "" {
+		return terraformstate.DiscoveryCandidate{}, false, nil
+	}
+	absolutePath := filepath.Clean(filepath.Join(repoRoot, filepath.FromSlash(key.relativePath)))
+	return terraformstate.DiscoveryCandidate{
+		State: terraformstate.StateKey{
+			BackendKind: terraformstate.BackendLocal,
+			Locator:     absolutePath,
+		},
+		Source:       terraformstate.DiscoveryCandidateSourceGitLocalFile,
+		RepoID:       key.repoID,
+		RelativePath: key.relativePath,
+		StateInVCS:   true,
+	}, true, nil
 }
 
 func scanTerraformBackendFactCandidates(rows Rows) ([]terraformstate.DiscoveryCandidate, error) {
@@ -314,4 +441,25 @@ func stringValue(values map[string]any, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func cleanFactRelativePath(path string) string {
+	path = strings.TrimSpace(strings.ReplaceAll(path, "\\", "/"))
+	for strings.Contains(path, "//") {
+		path = strings.ReplaceAll(path, "//", "/")
+	}
+	path = strings.TrimPrefix(path, "./")
+	return strings.Trim(path, "/")
+}
+
+func isSafeFactRelativePath(path string) bool {
+	if path == "" || filepath.IsAbs(path) {
+		return false
+	}
+	for _, segment := range strings.Split(filepath.ToSlash(path), "/") {
+		if segment == ".." {
+			return false
+		}
+	}
+	return true
 }

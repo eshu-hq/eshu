@@ -439,13 +439,15 @@ type stubBackendFactReader struct {
 	calls      int
 	candidates []DiscoveryCandidate
 	err        error
+	lastQuery  DiscoveryQuery
 }
 
 func (s *stubBackendFactReader) TerraformStateCandidates(
-	context.Context,
-	DiscoveryQuery,
+	_ context.Context,
+	query DiscoveryQuery,
 ) ([]DiscoveryCandidate, error) {
 	s.calls++
+	s.lastQuery = query
 	if s.err != nil {
 		return nil, s.err
 	}

@@ -39,6 +39,7 @@ func Parse(ctx context.Context, reader io.Reader, options ParseOptions) (ParseRe
 		options:    options,
 		redactions: map[string]int64{},
 	}
+	parser.addSourceWarnings(options.SourceWarnings)
 	if err := parser.parse(); err != nil {
 		return ParseResult{}, err
 	}

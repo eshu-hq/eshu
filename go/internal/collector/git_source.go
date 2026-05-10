@@ -58,6 +58,9 @@ type RepositorySnapshot struct {
 	FileData        []map[string]any        `json:"file_data"`
 	ContentFiles    []ContentFileSnapshot   `json:"content_files"`
 	ContentEntities []ContentEntitySnapshot `json:"content_entities"`
+	// TerraformStateCandidates carries metadata-only repo-local state-file
+	// candidates. Raw .tfstate bytes never enter repository snapshots.
+	TerraformStateCandidates []TerraformStateCandidate `json:"terraform_state_candidates,omitempty"`
 	// DiscoveryAdvisory summarizes noisy repo discovery and materialization
 	// shapes for focused operator tuning.
 	DiscoveryAdvisory *DiscoveryAdvisoryReport `json:"discovery_advisory,omitempty"`

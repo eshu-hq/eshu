@@ -18,15 +18,17 @@ import (
 )
 
 type awsS3ObjectClient struct {
-	roleARN string
-	mu      sync.Mutex
-	clients map[string]*s3.Client
+	roleARN    string
+	externalID string
+	mu         sync.Mutex
+	clients    map[string]*s3.Client
 }
 
-func newAWSS3ObjectClient(roleARN string) terraformstate.S3ObjectClient {
+func newAWSS3ObjectClient(credentials awsCredentialConfig) terraformstate.S3ObjectClient {
 	return &awsS3ObjectClient{
-		roleARN: strings.TrimSpace(roleARN),
-		clients: make(map[string]*s3.Client),
+		roleARN:    strings.TrimSpace(credentials.RoleARN),
+		externalID: strings.TrimSpace(credentials.ExternalID),
+		clients:    make(map[string]*s3.Client),
 	}
 }
 
@@ -98,11 +100,23 @@ func (c *awsS3ObjectClient) clientForRegion(ctx context.Context, region string) 
 	}
 	if c.roleARN != "" {
 		stsClient := sts.NewFromConfig(config)
-		config.Credentials = awsv2.NewCredentialsCache(stscreds.NewAssumeRoleProvider(stsClient, c.roleARN))
+		config.Credentials = awsv2.NewCredentialsCache(stscreds.NewAssumeRoleProvider(
+			stsClient,
+			c.roleARN,
+			assumeRoleOptions(c.externalID),
+		))
 	}
 	client := s3.NewFromConfig(config)
 	c.clients[region] = client
 	return client, nil
+}
+
+func assumeRoleOptions(externalID string) func(*stscreds.AssumeRoleOptions) {
+	return func(options *stscreds.AssumeRoleOptions) {
+		if trimmed := strings.TrimSpace(externalID); trimmed != "" {
+			options.ExternalID = awsv2.String(trimmed)
+		}
+	}
 }
 
 func safeS3GetObjectError(err error) error {

@@ -46,7 +46,11 @@ the runtime uses host and process identity.
 
 S3 reads use the default AWS credential chain unless the collector instance
 configuration includes `aws.role_arn`, in which case the runtime assumes that
-role before issuing read-only `GetObject` requests.
+role before issuing read-only `GetObject` requests. New deployments should use
+`target_scopes` instead. A central AWS scope uses `central_assume_role` with an
+optional `external_id`; an account-local scope uses the default workload
+identity in that account. The legacy `aws.role_arn` field still works, but it
+cannot be mixed with `target_scopes`.
 
 For S3 backends that use Terraform's DynamoDB lock table, set
 `dynamodb_table` on the exact S3 seed or let graph discovery read the literal
@@ -57,6 +61,14 @@ backend-specific values win.
 Graph-backed discovery is repo-scoped in this slice. When `discovery.graph` is
 `true`, include at least one `discovery.local_repos` entry so the resolver knows
 which committed Git backend facts it is allowed to read.
+
+The Git collector records repo-local `.tfstate` files as safe
+`terraform_state_candidate` metadata. That does not make them readable by the
+Terraform-state runtime. Local candidates stay discover-only unless the
+instance config sets `discovery.local_state_candidates.mode` to
+`approved_candidates` and lists the exact `repo_id` plus repo-relative `path`.
+Approved Git-local state emits a `terraform_state_warning` with
+`warning_kind=state_in_vcs`.
 
 ## Operator Signals
 
@@ -83,15 +95,34 @@ The main trace spans are `tfstate.source.open`, `tfstate.parser.stream`, and
     "claims_enabled": true,
     "display_name": "Terraform State Prod",
     "configuration": {
-      "aws": {
-        "role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-read"
-      },
+      "target_scopes": [
+        {
+          "target_scope_id": "aws-prod",
+          "provider": "aws",
+          "deployment_mode": "central",
+          "credential_mode": "central_assume_role",
+          "role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-read",
+          "external_id": "external-123",
+          "allowed_regions": ["us-east-1"],
+          "allowed_backends": ["s3", "local"]
+        }
+      ],
       "discovery": {
         "graph": true,
         "local_repos": ["platform-infra"],
+        "local_state_candidates": {
+          "mode": "approved_candidates",
+          "approved": [
+            {
+              "repo_id": "platform-infra",
+              "path": "env/prod/terraform.tfstate"
+            }
+          ]
+        },
         "seeds": [
           {
             "kind": "s3",
+            "target_scope_id": "aws-prod",
             "bucket": "company-terraform-state",
             "key": "prod/app/terraform.tfstate",
             "region": "us-east-1",
@@ -104,8 +135,6 @@ The main trace spans are `tfstate.source.open`, `tfstate.parser.stream`, and
 ]
 ```
 
-The runtime currently opens only exact sources from config or Git-observed
-backend facts. Repo-local candidate approval is the target path tracked by
-#140; until that implementation is present, local state must be configured as
-an explicit absolute source. The runtime does not scan buckets, open guessed
-local state files, or write Terraform state.
+The runtime opens only exact sources from config, Git-observed backend facts, or
+approved Git-local candidate metadata. It does not scan buckets, read
+unapproved local state, or write Terraform state.

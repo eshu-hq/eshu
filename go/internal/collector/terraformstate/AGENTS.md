@@ -17,9 +17,9 @@
 
 - Raw Terraform state bytes stay inside source readers and parser-local JSON
   decoder windows.
-- Local state sources must be exact operator-approved absolute files. In the
-  current implementation that means explicit local sources only; repo-local
-  candidate approval is the target design tracked by #140.
+- Local state sources must be exact operator-approved absolute files or
+  approved Git-local candidates resolved from safe metadata. Do not treat
+  discovered `.tfstate` metadata as permission to read the file.
 - S3 state sources must name an exact bucket/key. Prefix-only keys are rejected.
 - S3 source construction must reject write-capable configuration.
 - Facts must not include full S3 URLs or local paths. Use locator hashes in
@@ -44,5 +44,4 @@
 - Persisting raw state bytes or full source locators in facts, logs, spans,
   metrics, admin status, or content storage.
 - Adding graph, reducer, query, or storage imports to this package.
-- Treating local `.tfstate` as normal Git content, or opening repo-local state
-  before the #140 approval path exists.
+- Treating local `.tfstate` as normal Git content or persisting its raw bytes.

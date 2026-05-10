@@ -57,6 +57,7 @@ source-native `content` and `content_format` fields for updater diffing.
 Terraform state fact kinds also use schema version `1.0.0` for the first
 collector contract:
 
+- `terraform_state_candidate`
 - `terraform_state_snapshot`
 - `terraform_state_resource`
 - `terraform_state_output`
@@ -68,6 +69,10 @@ collector contract:
 Use `TerraformStateFactKinds` when callers need the full accepted set, and
 `TerraformStateSchemaVersion` when building envelopes. That keeps reader code
 from copying string literals.
+
+`terraform_state_candidate` is emitted by the Git collector, not by the
+Terraform-state reader. It is metadata-only evidence for repo-local `.tfstate`
+files and must not contain raw state content or an absolute local path.
 
 See `doc.go` for the full godoc contract.
 
