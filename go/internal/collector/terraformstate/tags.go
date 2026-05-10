@@ -55,17 +55,22 @@ func readTagValues(decoder *json.Decoder, tagSource string) ([]tagValue, bool, e
 	return tags, true, nil
 }
 
-func (p *stateParser) emitTagObservations(resourceAddress string, attributes []attributeValue) {
+func (p *stateParser) emitTagObservations(resourceAddress string, attributes []attributeValue) error {
 	for _, attribute := range attributes {
+		if err := p.checkContext(); err != nil {
+			return err
+		}
 		if !attribute.TagMap {
 			continue
 		}
 		if attribute.InvalidTagMap {
-			p.warnings = append(p.warnings, warningPayload{
+			if err := p.emitWarning(warningPayload{
 				WarningKind: "tag_map_dropped",
 				Reason:      nonObjectTagMapReason,
 				Source:      "resources." + resourceAddress + ".attributes." + attribute.Key,
-			})
+			}); err != nil {
+				return err
+			}
 			continue
 		}
 		tags := append([]tagValue(nil), attribute.Tags...)
@@ -73,21 +78,29 @@ func (p *stateParser) emitTagObservations(resourceAddress string, attributes []a
 			return tagKeyHash(tags[i].Key) < tagKeyHash(tags[j].Key)
 		})
 		for _, tag := range tags {
-			p.emitTagObservation(resourceAddress, attribute.Key, tag)
+			if err := p.checkContext(); err != nil {
+				return err
+			}
+			if err := p.emitTagObservation(resourceAddress, attribute.Key, tag); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
-func (p *stateParser) emitTagObservation(resourceAddress string, tagSource string, tag tagValue) {
+func (p *stateParser) emitTagObservation(resourceAddress string, tagSource string, tag tagValue) error {
 	tagHash := tagKeyHash(tag.Key)
 	safeSource := "resources." + resourceAddress + ".attributes." + tagSource + ".key:" + tagHash
 	if !tag.Scalar {
-		p.warnings = append(p.warnings, warningPayload{
+		if err := p.emitWarning(warningPayload{
 			WarningKind: "tag_value_dropped",
 			Reason:      nonScalarTagValueReason,
 			Source:      safeSource + ".value",
-		})
-		return
+		}); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	classificationSource := "resources." + resourceAddress + ".attributes." + tagSource + "." + tag.Key
@@ -100,7 +113,7 @@ func (p *stateParser) emitTagObservation(resourceAddress string, tagSource strin
 	p.addTagValue(payload, tag.Value, classificationSource+".value", safeSource+".value")
 
 	stableKey := "tag_observation:" + resourceAddress + ":" + tagSource + ":" + tagHash
-	p.facts = append(p.facts, p.envelope(facts.TerraformStateTagObservationFactKind, stableKey, payload, stableKey))
+	return p.emitBodyFact(p.envelope(facts.TerraformStateTagObservationFactKind, stableKey, payload, stableKey))
 }
 
 func (p *stateParser) addTagKey(payload map[string]any, tagKey string, classificationSource string, safeSource string) {

@@ -353,9 +353,11 @@ func (s *stubClaimedSource) NextClaimed(context.Context, workflow.WorkItem) (Col
 }
 
 type stubClaimedCommitter struct {
-	claimedCalls      int
-	lastClaimMutation workflow.ClaimMutation
-	claimedCommit     func(context.Context, workflow.ClaimMutation, scope.IngestionScope, scope.ScopeGeneration, <-chan facts.Envelope) error
+	claimedCalls                 int
+	claimedStreamErrorCalls      int
+	lastClaimMutation            workflow.ClaimMutation
+	claimedCommit                func(context.Context, workflow.ClaimMutation, scope.IngestionScope, scope.ScopeGeneration, <-chan facts.Envelope) error
+	claimedCommitWithStreamError func(context.Context, workflow.ClaimMutation, scope.IngestionScope, scope.ScopeGeneration, <-chan facts.Envelope, func() error) error
 }
 
 func (s *stubClaimedCommitter) CommitScopeGeneration(
@@ -380,6 +382,27 @@ func (s *stubClaimedCommitter) CommitClaimedScopeGeneration(
 		return s.claimedCommit(ctx, mutation, scopeValue, generation, factStream)
 	}
 	for range factStream {
+	}
+	return nil
+}
+
+func (s *stubClaimedCommitter) CommitClaimedScopeGenerationWithStreamError(
+	ctx context.Context,
+	mutation workflow.ClaimMutation,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	factStream <-chan facts.Envelope,
+	factStreamErr func() error,
+) error {
+	s.claimedStreamErrorCalls++
+	s.lastClaimMutation = mutation
+	if s.claimedCommitWithStreamError != nil {
+		return s.claimedCommitWithStreamError(ctx, mutation, scopeValue, generation, factStream, factStreamErr)
+	}
+	for range factStream {
+	}
+	if factStreamErr != nil {
+		return factStreamErr()
 	}
 	return nil
 }

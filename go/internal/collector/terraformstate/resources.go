@@ -25,6 +25,9 @@ func (p *stateParser) readResources() error {
 		return err
 	}
 	for index := 0; p.decoder.More(); index++ {
+		if err := p.checkContext(); err != nil {
+			return err
+		}
 		if err := p.readResource(index); err != nil {
 			return err
 		}
@@ -42,6 +45,9 @@ func (p *stateParser) readResource(resourceIndex int) error {
 		return err
 	}
 	for p.decoder.More() {
+		if err := p.checkContext(); err != nil {
+			return err
+		}
 		token, err := p.decoder.Token()
 		if err != nil {
 			return fmt.Errorf("read terraform state resource %d key: %w", resourceIndex, err)
@@ -89,6 +95,9 @@ func (p *stateParser) readInstances(resource resourceContext) error {
 	}
 	count := 0
 	for ; p.decoder.More(); count++ {
+		if err := p.checkContext(); err != nil {
+			return err
+		}
 		if err := p.readInstance(resource, count); err != nil {
 			return err
 		}
@@ -109,6 +118,9 @@ func (p *stateParser) readInstance(resource resourceContext, instanceIndex int) 
 		return err
 	}
 	for p.decoder.More() {
+		if err := p.checkContext(); err != nil {
+			return err
+		}
 		token, err := p.decoder.Token()
 		if err != nil {
 			return fmt.Errorf("read terraform state resource instance key: %w", err)
@@ -143,8 +155,14 @@ func (p *stateParser) readInstance(resource resourceContext, instanceIndex int) 
 		return fmt.Errorf("close terraform state resource instance: %w", err)
 	}
 	address := resourceAddress(resource, instance, instanceIndex)
-	p.emitTagObservations(address, attributes)
-	return p.emitResourceInstance(resource, instance, instanceIndex, p.classifyAttributes(address, attributes), p.correlationAnchors(address, attributes))
+	if err := p.emitTagObservations(address, attributes); err != nil {
+		return err
+	}
+	classifiedAttributes, err := p.classifyAttributes(address, attributes)
+	if err != nil {
+		return err
+	}
+	return p.emitResourceInstance(resource, instance, instanceIndex, classifiedAttributes, p.correlationAnchors(address, attributes))
 }
 
 func (p *stateParser) emitResourceInstance(resource resourceContext, instance instanceContext, instanceIndex int, attributes map[string]any, anchors []any) error {
@@ -164,9 +182,15 @@ func (p *stateParser) emitResourceInstance(resource resourceContext, instance in
 	if len(anchors) > 0 {
 		payload["correlation_anchors"] = anchors
 	}
-	p.recordModuleObservation(resource.Module)
-	p.recordProviderBinding(address, resource.Provider)
-	p.facts = append(p.facts, p.envelope(facts.TerraformStateResourceFactKind, "resource:"+address, payload, address))
+	if err := p.emitModuleObservation(resource.Module, address); err != nil {
+		return err
+	}
+	if err := p.emitProviderBinding(address, resource.Provider); err != nil {
+		return err
+	}
+	if err := p.emitBodyFact(p.envelope(facts.TerraformStateResourceFactKind, "resource:"+address, payload, address)); err != nil {
+		return err
+	}
 	p.resourceFacts++
 	return nil
 }

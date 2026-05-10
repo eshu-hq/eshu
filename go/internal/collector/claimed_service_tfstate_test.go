@@ -2,10 +2,13 @@ package collector
 
 import (
 	"context"
+	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -77,6 +80,134 @@ func TestClaimedServiceCompletesUnchangedTerraformStateClaimWithoutCommit(t *tes
 	}
 	if got, want := committer.claimedCalls, 0; got != want {
 		t.Fatalf("claimed commit calls = %d, want %d", got, want)
+	}
+}
+
+func TestClaimedServiceFailsTerraformStateCommitWhenFactStreamReportsError(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 11, 5, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	item.CollectorKind = scope.CollectorTerraformState
+	item.SourceSystem = string(scope.CollectorTerraformState)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+	}
+	replayErr := errors.New("terraform state fact stream replay failed")
+	collectedScope := scope.IngestionScope{
+		ScopeID:       item.ScopeID,
+		SourceSystem:  string(scope.CollectorTerraformState),
+		ScopeKind:     scope.KindStateSnapshot,
+		CollectorKind: scope.CollectorTerraformState,
+		PartitionKey:  "terraform_state:s3:locator-hash",
+	}
+	collectedGeneration := testGeneration(now)
+	collectedGeneration.FreshnessHint = "lineage=lineage-123 serial=17"
+	collected := FactsFromSlice(collectedScope, collectedGeneration, testFacts(now))
+	collected.FactStreamErr = func() error { return replayErr }
+	committer := &stubClaimedCommitter{
+		claimedCommitWithStreamError: func(
+			_ context.Context,
+			_ workflow.ClaimMutation,
+			_ scope.IngestionScope,
+			_ scope.ScopeGeneration,
+			factStream <-chan facts.Envelope,
+			factStreamErr func() error,
+		) error {
+			for range factStream {
+			}
+			return factStreamErr()
+		},
+	}
+	service := testClaimedService(now, claim, scope.CollectorTerraformState, store, &stubClaimedSource{
+		collected: collected,
+		ok:        true,
+	}, committer)
+
+	err := service.Run(context.Background())
+	if !errors.Is(err, replayErr) {
+		t.Fatalf("Run() error = %v, want %v", err, replayErr)
+	}
+	if got, want := store.completeCalls, 0; got != want {
+		t.Fatalf("complete calls = %d, want %d", got, want)
+	}
+	if got, want := store.retryableFailCalls, 1; got != want {
+		t.Fatalf("retryable fail calls = %d, want %d", got, want)
+	}
+	if got, want := committer.claimedStreamErrorCalls, 1; got != want {
+		t.Fatalf("stream-error commit calls = %d, want %d", got, want)
+	}
+}
+
+func TestClaimedServiceDrainsTerraformStateStreamOnValidationFailure(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 11, 7, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	item.CollectorKind = scope.CollectorTerraformState
+	item.SourceSystem = string(scope.CollectorTerraformState)
+	item.ScopeID = "state_snapshot:s3:locator-hash"
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+	}
+	factStream, streamDrained := blockingFactStream(600, now)
+	streamErrCalled := make(chan struct{})
+	collected := CollectedGeneration{
+		Scope: scope.IngestionScope{
+			ScopeID:       "wrong-scope",
+			SourceSystem:  string(scope.CollectorTerraformState),
+			ScopeKind:     scope.KindStateSnapshot,
+			CollectorKind: scope.CollectorTerraformState,
+			PartitionKey:  "terraform_state:s3:locator-hash",
+		},
+		Generation: scope.ScopeGeneration{
+			GenerationID:  "terraform_state:state_snapshot:s3:locator-hash:lineage-123:serial:17",
+			ScopeID:       "wrong-scope",
+			ObservedAt:    now,
+			IngestedAt:    now,
+			Status:        scope.GenerationStatusPending,
+			TriggerKind:   scope.TriggerKindSnapshot,
+			FreshnessHint: "lineage=lineage-123 serial=17",
+		},
+		Facts: factStream,
+		FactStreamErr: func() error {
+			close(streamErrCalled)
+			return nil
+		},
+	}
+	service := testClaimedService(now, claim, scope.CollectorTerraformState, store, &stubClaimedSource{
+		collected: collected,
+		ok:        true,
+	}, &stubClaimedCommitter{})
+
+	err := service.Run(context.Background())
+	if err == nil {
+		t.Fatal("Run() error = nil, want validation error")
+	}
+	if got := err.Error(); !strings.Contains(got, "claimed scope_id") {
+		t.Fatalf("Run() error = %q, want claimed scope_id mismatch", got)
+	}
+	select {
+	case <-streamDrained:
+	case <-time.After(time.Second):
+		t.Fatal("fact stream producer blocked; validation failure did not drain facts")
+	}
+	select {
+	case <-streamErrCalled:
+	case <-time.After(time.Second):
+		t.Fatal("FactStreamErr was not called after validation failure cleanup")
+	}
+	if got, want := store.terminalFailCalls, 1; got != want {
+		t.Fatalf("terminal fail calls = %d, want %d", got, want)
+	}
+	if got, want := store.completeCalls, 0; got != want {
+		t.Fatalf("complete calls = %d, want %d", got, want)
 	}
 }
 
@@ -203,6 +334,27 @@ func claimedHistogramCount(t *testing.T, rm metricdata.ResourceMetrics, metricNa
 	}
 	t.Fatalf("metric %s not found", metricName)
 	return 0
+}
+
+func blockingFactStream(count int, observedAt time.Time) (<-chan facts.Envelope, <-chan struct{}) {
+	ch := make(chan facts.Envelope, 500)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer close(ch)
+		for i := 0; i < count; i++ {
+			ch <- facts.Envelope{
+				FactID:        "fact-blocking-stream-" + strconv.Itoa(i),
+				ScopeID:       "wrong-scope",
+				GenerationID:  "generation-blocking-stream",
+				FactKind:      facts.TerraformStateResourceFactKind,
+				StableFactKey: "resource:blocking-stream-" + strconv.Itoa(i),
+				ObservedAt:    observedAt,
+				Payload:       map[string]any{"index": float64(i)},
+			}
+		}
+	}()
+	return ch, done
 }
 
 func claimedHistogramHasAttr(

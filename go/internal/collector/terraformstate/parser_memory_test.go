@@ -22,6 +22,7 @@ const (
 	largeStateRegressionBytes       = 32 << 20
 	largeStateProofBytes            = 100 << 20
 	maxIgnoredPayloadPeakHeapGrowth = 24 << 20
+	maxStreamResourcePeakHeapGrowth = 48 << 20
 	maxResourceParserPeakHeapGrowth = 96 << 20
 )
 
@@ -47,6 +48,22 @@ func TestParserStreamingPathDoesNotCallJSONUnmarshal(t *testing.T) {
 		"warnings.go",
 	} {
 		assertNoJSONUnmarshalCall(t, filepath.Join(packageDir, fileName))
+	}
+}
+
+func TestParserStateDoesNotRetainDelayedFactFamilies(t *testing.T) {
+	t.Parallel()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+	packageDir := filepath.Dir(currentFile)
+	parsed := parseGoFile(t, filepath.Join(packageDir, "parser.go"))
+	for _, fieldName := range []string{"warnings", "modules", "providerBindings"} {
+		if stateParserHasField(parsed, fieldName) {
+			t.Fatalf("stateParser retains delayed fact family field %q", fieldName)
+		}
 	}
 }
 
@@ -103,6 +120,44 @@ func TestParserLargeStateStreamsResourceInstances(t *testing.T) {
 	}
 }
 
+func TestParseStreamLargeStateDoesNotRetainResourceFacts(t *testing.T) {
+	const resourceInstances = 20_000
+
+	options := parseFixtureOptions(t)
+	var count int
+	var resourceFacts int64
+	peakHeapGrowth := measurePeakHeapGrowth(t, func() {
+		result, err := terraformstate.ParseStream(
+			context.Background(),
+			largeResourceInstancesStateReader(resourceInstances),
+			options,
+			terraformstate.FactSinkFunc(func(_ context.Context, envelope facts.Envelope) error {
+				count++
+				if envelope.FactKind == facts.TerraformStateResourceFactKind {
+					resourceFacts++
+				}
+				return nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("ParseStream() error = %v, want nil", err)
+		}
+		if got := result.ResourceFacts; got != resourceInstances {
+			t.Fatalf("ResourceFacts = %d, want %d", got, resourceInstances)
+		}
+	})
+
+	if got, want := count, resourceInstances+1; got != want {
+		t.Fatalf("ParseStream() emitted %d facts, want %d", got, want)
+	}
+	if got := resourceFacts; got != resourceInstances {
+		t.Fatalf("streamed resource facts = %d, want %d", got, resourceInstances)
+	}
+	if peakHeapGrowth > maxStreamResourcePeakHeapGrowth {
+		t.Fatalf("ParseStream() peak heap growth = %d bytes, want at most %d", peakHeapGrowth, maxStreamResourcePeakHeapGrowth)
+	}
+}
+
 func TestParserLargeState100MiBStreamingProof(t *testing.T) {
 	if os.Getenv("ESHU_TFSTATE_100MIB_PROOF") != "true" {
 		t.Skip("set ESHU_TFSTATE_100MIB_PROOF=true to run the 100 MiB parser proof")
@@ -128,14 +183,38 @@ func TestParserLargeState100MiBStreamingProof(t *testing.T) {
 	}
 }
 
+func TestParseStreamLargeState100MiBStreamingProof(t *testing.T) {
+	if os.Getenv("ESHU_TFSTATE_100MIB_PROOF") != "true" {
+		t.Skip("set ESHU_TFSTATE_100MIB_PROOF=true to run the 100 MiB parser proof")
+	}
+
+	var count int
+	peakHeapGrowth := measurePeakHeapGrowth(t, func() {
+		_, err := terraformstate.ParseStream(
+			context.Background(),
+			largeIgnoredPayloadStateReader(largeStateProofBytes),
+			parseFixtureOptions(t),
+			terraformstate.FactSinkFunc(func(context.Context, facts.Envelope) error {
+				count++
+				return nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("ParseStream() error = %v, want nil", err)
+		}
+	})
+	if got := count; got != 1 {
+		t.Fatalf("ParseStream() emitted %d facts, want 1", got)
+	}
+	if peakHeapGrowth > maxIgnoredPayloadPeakHeapGrowth {
+		t.Fatalf("ParseStream() peak heap growth = %d bytes, want at most %d", peakHeapGrowth, maxIgnoredPayloadPeakHeapGrowth)
+	}
+}
+
 func assertNoJSONUnmarshalCall(t *testing.T, path string) {
 	t.Helper()
 
-	fileSet := token.NewFileSet()
-	parsed, err := goparser.ParseFile(fileSet, path, nil, 0)
-	if err != nil {
-		t.Fatalf("ParseFile(%q) error = %v, want nil", path, err)
-	}
+	fileSet, parsed := parseGoFileWithSet(t, path)
 	jsonAliases := map[string]bool{}
 	for _, imported := range parsed.Imports {
 		if strings.Trim(imported.Path.Value, `"`) != "encoding/json" {
@@ -163,6 +242,50 @@ func assertNoJSONUnmarshalCall(t *testing.T, path string) {
 		}
 		return true
 	})
+}
+
+func parseGoFile(t *testing.T, path string) *ast.File {
+	t.Helper()
+	_, parsed := parseGoFileWithSet(t, path)
+	return parsed
+}
+
+func parseGoFileWithSet(t *testing.T, path string) (*token.FileSet, *ast.File) {
+	t.Helper()
+
+	fileSet := token.NewFileSet()
+	parsed, err := goparser.ParseFile(fileSet, path, nil, 0)
+	if err != nil {
+		t.Fatalf("ParseFile(%q) error = %v, want nil", path, err)
+	}
+	return fileSet, parsed
+}
+
+func stateParserHasField(parsed *ast.File, fieldName string) bool {
+	for _, declaration := range parsed.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		for _, spec := range general.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok || typeSpec.Name.Name != "stateParser" {
+				continue
+			}
+			structType, ok := typeSpec.Type.(*ast.StructType)
+			if !ok {
+				return false
+			}
+			for _, field := range structType.Fields.List {
+				for _, name := range field.Names {
+					if name.Name == fieldName {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 func measurePeakHeapGrowth(t *testing.T, run func()) uint64 {

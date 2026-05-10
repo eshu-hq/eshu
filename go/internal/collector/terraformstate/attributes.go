@@ -51,18 +51,20 @@ func readAttributeValues(decoder *json.Decoder) ([]attributeValue, error) {
 	return attributes, nil
 }
 
-func (p *stateParser) classifyAttributes(address string, input []attributeValue) map[string]any {
+func (p *stateParser) classifyAttributes(address string, input []attributeValue) (map[string]any, error) {
 	attributes := make(map[string]any, len(input))
 	for _, attribute := range input {
 		if attribute.TagMap {
 			continue
 		}
-		p.classifyAttribute(attributes, address, attribute)
+		if err := p.classifyAttribute(attributes, address, attribute); err != nil {
+			return nil, err
+		}
 	}
-	return attributes
+	return attributes, nil
 }
 
-func (p *stateParser) classifyAttribute(attributes map[string]any, address string, attribute attributeValue) {
+func (p *stateParser) classifyAttribute(attributes map[string]any, address string, attribute attributeValue) error {
 	source := "resources." + address + ".attributes." + attribute.Key
 	kind := redact.FieldComposite
 	if attribute.Scalar {
@@ -78,10 +80,13 @@ func (p *stateParser) classifyAttribute(attributes map[string]any, address strin
 		p.recordRedaction(decision.Reason)
 	case redact.ActionDrop:
 		p.recordRedaction(decision.Reason)
-		p.warnings = append(p.warnings, warningPayload{
+		if err := p.emitWarning(warningPayload{
 			WarningKind: "attribute_dropped",
 			Reason:      decision.Reason,
 			Source:      decision.Source,
-		})
+		}); err != nil {
+			return err
+		}
 	}
+	return nil
 }

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -233,6 +234,17 @@ func drainFacts(factStream <-chan facts.Envelope) {
 	}
 }
 
+func drainFactsAndCheckStream(
+	factStream <-chan facts.Envelope,
+	factStreamErr func() error,
+) error {
+	drainFacts(factStream)
+	if factStreamErr == nil {
+		return nil
+	}
+	return factStreamErr()
+}
+
 // CommitScopeGeneration persists one scope generation worth of facts and
 // enqueues one projector work item for the same durable boundary. Facts
 // arrive through a channel and are committed in batched multi-row INSERTs
@@ -243,7 +255,7 @@ func (s IngestionStore) CommitScopeGeneration(
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
 ) error {
-	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream)
+	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, nil)
 }
 
 // CommitClaimedScopeGeneration persists one claimed generation only while the
@@ -261,7 +273,7 @@ func (s IngestionStore) CommitClaimedScopeGeneration(
 		drainFacts(factStream)
 		return err
 	}
-	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream)
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, nil)
 }
 
 func (s IngestionStore) commitScopeGeneration(
@@ -271,18 +283,22 @@ func (s IngestionStore) commitScopeGeneration(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
+	factStreamErr func() error,
 ) error {
 	if err := validateGenerationInput(scopeValue, generation); err != nil {
-		drainFacts(factStream)
-		return err
+		return errors.Join(err, drainFactsAndCheckStream(factStream, factStreamErr))
 	}
 	skip, err := s.shouldSkipUnchangedGeneration(ctx, scopeValue.ScopeID, generation.FreshnessHint)
 	if err != nil {
-		drainFacts(factStream)
-		return fmt.Errorf("check active generation freshness: %w", err)
+		return errors.Join(
+			fmt.Errorf("check active generation freshness: %w", err),
+			drainFactsAndCheckStream(factStream, factStreamErr),
+		)
 	}
 	if skip {
-		drainFacts(factStream)
+		if err := drainFactsAndCheckStream(factStream, factStreamErr); err != nil {
+			return fmt.Errorf("read fact stream: %w", err)
+		}
 		telemetry.RecordSkippedRefresh()
 		log.Printf(
 			"%s=true %s=%q %s=%q %s=%q %s=%q %s=%q",
@@ -301,23 +317,27 @@ func (s IngestionStore) commitScopeGeneration(
 		return nil
 	}
 	if s.beginner == nil {
-		drainFacts(factStream)
-		return fmt.Errorf("transaction beginner is required")
+		return errors.Join(
+			fmt.Errorf("transaction beginner is required"),
+			drainFactsAndCheckStream(factStream, factStreamErr),
+		)
 	}
 
 	stageStart := time.Now()
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
-		drainFacts(factStream)
-		return fmt.Errorf("begin ingestion transaction: %w", err)
+		return errors.Join(
+			fmt.Errorf("begin ingestion transaction: %w", err),
+			drainFactsAndCheckStream(factStream, factStreamErr),
+		)
 	}
 	s.logCommitStage(ctx, scopeValue, generation, "begin_transaction", stageStart)
 
 	committed := false
 	defer func() {
 		if !committed {
-			drainFacts(factStream)
 			_ = tx.Rollback()
+			drainFacts(factStream)
 		}
 	}()
 
@@ -388,6 +408,11 @@ func (s IngestionStore) commitScopeGeneration(
 	)
 	if err != nil {
 		return err
+	}
+	if factStreamErr != nil {
+		if err := factStreamErr(); err != nil {
+			return fmt.Errorf("read fact stream: %w", err)
+		}
 	}
 	s.logCommitStage(
 		ctx,

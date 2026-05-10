@@ -91,9 +91,37 @@ type SourceWarning struct {
 	Source      string
 }
 
+// FactSink receives redacted Terraform-state fact envelopes produced by
+// ParseStream. Implementations must not retain facts unless they intentionally
+// want collection semantics.
+type FactSink interface {
+	Emit(context.Context, facts.Envelope) error
+}
+
+// FactSinkFunc adapts a function into a FactSink.
+type FactSinkFunc func(context.Context, facts.Envelope) error
+
+// Emit implements FactSink.
+func (f FactSinkFunc) Emit(ctx context.Context, envelope facts.Envelope) error {
+	if f == nil {
+		return fmt.Errorf("terraform state fact sink func must not be nil")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return f(ctx, envelope)
+}
+
 // ParseResult is the redacted fact output from one Terraform state parse.
 type ParseResult struct {
 	Facts             []facts.Envelope
+	ResourceFacts     int64
+	RedactionsApplied map[string]int64
+}
+
+// ParseStreamResult is the bounded operational summary from one streaming
+// Terraform state parse.
+type ParseStreamResult struct {
 	ResourceFacts     int64
 	RedactionsApplied map[string]int64
 }
