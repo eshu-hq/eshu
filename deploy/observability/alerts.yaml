@@ -355,3 +355,84 @@ groups:
                - Add more reducer replicas (effective for parallel domains)
                - Increase shared projection partition count for better parallelism
                - Optimize domain handlers for batch operations instead of single-item processing
+
+  - name: eshu.tfstate
+    interval: 30s
+    rules:
+      - alert: EshuTfstateClaimBacklog
+        expr: histogram_quantile(0.95, rate(eshu_dp_tfstate_claim_wait_seconds_bucket[10m])) > 300
+        for: 10m
+        labels:
+          severity: warning
+          service: collector-terraform-state
+          component: collector
+        annotations:
+          summary: "Terraform-state claim wait P95 above 5 minutes"
+          description: "P95 claim wait is {{ $value | humanizeDuration }}. Work is sitting in the workflow queue before a tfstate worker picks it up."
+          runbook: |
+            1. Confirm at least one `terraform_state` collector instance has `enabled: true` and `claims_enabled: true` in ESHU_COLLECTOR_INSTANCES_JSON.
+            2. Check replica count and pod health for `collector-terraform-state`.
+            3. Inspect `/admin/status` for stalled claims: `curl -s http://collector-terraform-state:8080/admin/status?format=json | jq '.collector_instances[] | select(.collector_kind=="terraform_state")'`.
+            4. Look for failed claims via `eshu_dp_tfstate_snapshots_observed_total{result!="ok"}` and structured logs with `failure_class`.
+            5. Operator runbook: `docs/docs/services/collector-terraform-state.md`.
+
+      - alert: EshuTfstateParseLatencyHigh
+        expr: histogram_quantile(0.99, rate(eshu_dp_tfstate_parse_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: collector-terraform-state
+          component: parser
+        annotations:
+          summary: "Terraform-state parse duration P99 above 5 seconds"
+          description: "Streaming parse P99 is {{ $value | humanizeDuration }}. A state object is unusually large or the host is starved."
+          runbook: |
+            1. Cross-check `eshu_dp_tfstate_snapshot_bytes` P95 — is the input genuinely larger than usual?
+            2. Inspect the `tfstate.parser.stream` span attributes in Jaeger to find which scope is slow.
+            3. Verify host CPU / memory pressure on the collector pod.
+            4. If parse durations are tied to a single state, check `terraform_state_warning` facts for `state_too_large` and consider raising `ESHU_TFSTATE_SOURCE_MAX_BYTES` if the size is legitimate.
+            5. Operator runbook: `docs/docs/services/collector-terraform-state.md`.
+
+      - alert: EshuTfstateS3ConditionalGetUnused
+        expr: |
+          (
+            rate(eshu_dp_tfstate_snapshots_observed_total{backend_kind="s3"}[30m]) > 0
+          )
+          unless ignoring(backend_kind, result)
+          (
+            rate(eshu_dp_tfstate_s3_conditional_get_not_modified_total[30m]) > 0
+          )
+        for: 30m
+        labels:
+          severity: info
+          service: collector-terraform-state
+          component: collector
+        annotations:
+          summary: "Terraform-state S3 conditional GETs never short-circuit"
+          description: "S3 snapshots are being observed but no conditional `If-None-Match` reads have returned not-modified for 30 minutes. Every claim is reading the full object."
+          runbook: |
+            1. Confirm prior-ETag records are being persisted — discovery should populate `PriorSnapshotMetadataReader` after a successful read.
+            2. Run a fresh discovery pass and check the next claim picks up the stored ETag.
+            3. If buckets genuinely change every cycle, this alert can be silenced for that scope; otherwise treat it as a cache-miss regression.
+            4. Operator runbook: `docs/docs/services/collector-terraform-state.md`.
+
+      - alert: EshuTfstateUnknownProviderSchemaSurge
+        expr: |
+          (
+            rate(eshu_dp_tfstate_redactions_applied_total{reason="unknown_provider_schema"}[15m])
+            >
+            5 * avg_over_time(rate(eshu_dp_tfstate_redactions_applied_total{reason="unknown_provider_schema"}[15m])[6h:15m])
+          ) and (rate(eshu_dp_tfstate_redactions_applied_total{reason="unknown_provider_schema"}[15m]) > 0.1)
+        for: 15m
+        labels:
+          severity: warning
+          service: collector-terraform-state
+          component: redaction
+        annotations:
+          summary: "Terraform-state unknown-schema redaction rate spiked 5x baseline"
+          description: "`unknown_provider_schema` redactions are running well above their 6-hour baseline. A new provider or attribute shape likely landed and the parser is falling through to conservative redaction."
+          runbook: |
+            1. Inspect recent `terraform_state_warning` facts for provider/resource names with `warning_kind=unknown_schema` or similar.
+            2. Compare against the AWS/GCP/Azure provider schema package; add the new shape to the typed schema once the contract is understood.
+            3. Until the schema is added, the conservative path is the correct default — do not disable redaction.
+            4. Operator runbook: `docs/docs/services/collector-terraform-state.md`.
