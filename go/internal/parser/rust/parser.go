@@ -35,6 +35,7 @@ func Parse(
 	payload["traits"] = []map[string]any{}
 	payload["type_aliases"] = []map[string]any{}
 	root := tree.RootNode()
+	benchmarkFunctionNames := rustBenchmarkFunctionNames(root, source)
 
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -43,7 +44,7 @@ func Parse(
 		case "impl_item":
 			appendRustImplBlock(payload, node, source)
 		case "function_item", "function_signature_item":
-			appendRustFunction(payload, path, node, source, options)
+			appendRustFunction(payload, path, node, source, options, benchmarkFunctionNames)
 		case "struct_item", "enum_item", "union_item":
 			appendRustClass(payload, node, source)
 		case "trait_item":
@@ -106,6 +107,7 @@ func appendRustClass(payload map[string]any, node *tree_sitter.Node, source []by
 	if visibility := rustVisibility(signature); visibility != "" {
 		item["visibility"] = visibility
 	}
+	rustApplyPublicAPIRootMetadata(item)
 	rustApplyAttributeMetadata(item, rustLeadingAttributes(node, source))
 	rustApplyGenericMetadata(item, rustGenericParametersAfterName(signature, name))
 	shared.AppendBucket(payload, "classes", item)
@@ -127,6 +129,7 @@ func appendRustTrait(payload map[string]any, node *tree_sitter.Node, source []by
 	if visibility := rustVisibility(signature); visibility != "" {
 		item["visibility"] = visibility
 	}
+	rustApplyPublicAPIRootMetadata(item)
 	rustApplyAttributeMetadata(item, rustLeadingAttributes(node, source))
 	rustApplyGenericMetadata(item, rustGenericParametersAfterName(signature, name))
 	shared.AppendBucket(payload, "traits", item)
@@ -181,6 +184,7 @@ func appendRustFunction(
 	node *tree_sitter.Node,
 	source []byte,
 	options shared.Options,
+	benchmarkFunctionNames map[string]struct{},
 ) {
 	nameNode := firstNamedDescendant(node, "identifier")
 	name := shared.NodeText(nameNode, source)
@@ -211,9 +215,17 @@ func appendRustFunction(
 		item["decorators"] = attributes
 	}
 	rustApplyAttributeMetadata(item, attributes)
-	if rootKinds := rustDeadCodeRootKinds(path, name, attributes); len(rootKinds) > 0 {
-		item["dead_code_root_kinds"] = rootKinds
+	rootKinds := rustDeadCodeRootKinds(path, name, attributes)
+	if _, ok := benchmarkFunctionNames[name]; ok {
+		rootKinds = appendUniqueString(rootKinds, "rust.benchmark_function")
 	}
+	if rustHasBenchmarkAttribute(attributes) {
+		rootKinds = appendUniqueString(rootKinds, "rust.benchmark_function")
+	}
+	if item["visibility"] == "pub" {
+		rootKinds = appendUniqueString(rootKinds, "rust.public_api_item")
+	}
+	rustApplyRootKinds(item, rootKinds)
 	if lifetimeParameters := rustFunctionLifetimeParameters(signature, name); len(lifetimeParameters) > 0 {
 		item["lifetime_parameters"] = lifetimeParameters
 	}
@@ -250,6 +262,7 @@ func appendRustTypeAlias(payload map[string]any, node *tree_sitter.Node, source 
 	if visibility := rustVisibility(raw); visibility != "" {
 		item["visibility"] = visibility
 	}
+	rustApplyPublicAPIRootMetadata(item)
 	rustApplyAttributeMetadata(item, rustLeadingAttributes(node, source))
 	rustApplyGenericMetadata(item, rustGenericParametersAfterName(raw, name))
 	if options.IndexSource {
@@ -312,12 +325,16 @@ func appendRustModule(payload map[string]any, node *tree_sitter.Node, source []b
 
 	rawFull := shared.NodeText(node, source)
 	raw := rustSignatureHeader(rawFull)
+	moduleKind := rustModuleKind(rawFull)
 	item := map[string]any{
 		"name":        name,
 		"line_number": shared.NodeLine(nameNode),
 		"end_line":    shared.NodeEndLine(node),
-		"module_kind": rustModuleKind(rawFull),
+		"module_kind": moduleKind,
 		"lang":        "rust",
+	}
+	if candidates := rustModuleDeclaredPathCandidates(name, moduleKind); len(candidates) > 0 {
+		item["declared_path_candidates"] = candidates
 	}
 	if visibility := rustVisibility(raw); visibility != "" {
 		item["visibility"] = visibility
@@ -335,13 +352,15 @@ func appendRustImportMetadata(payload map[string]any, node *tree_sitter.Node, so
 		return
 	}
 
-	importText := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(raw, "use "), ";"))
+	visibility := rustVisibility(raw)
+	importText := rustStripVisibility(raw, visibility)
+	importText = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(importText, "use "), ";"))
 	if importText == "" {
 		return
 	}
 
 	for _, entry := range rustImportEntries(importText) {
-		shared.AppendBucket(payload, "imports", map[string]any{
+		item := map[string]any{
 			"name":             entry.name,
 			"source":           entry.name,
 			"alias":            entry.alias,
@@ -349,7 +368,11 @@ func appendRustImportMetadata(payload map[string]any, node *tree_sitter.Node, so
 			"import_type":      entry.importType,
 			"line_number":      shared.NodeLine(node),
 			"lang":             "rust",
-		})
+		}
+		if visibility != "" {
+			item["visibility"] = visibility
+		}
+		shared.AppendBucket(payload, "imports", item)
 	}
 }
 

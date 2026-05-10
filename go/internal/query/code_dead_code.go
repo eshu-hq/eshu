@@ -327,6 +327,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsRustRoot(result, entity, stats) {
 		return true
 	}
+	if deadCodeIsRustCargoAuxiliaryTarget(result, entity) {
+		return true
+	}
 	if deadCodeIsJavaScriptFrameworkRoot(result, entity, stats) {
 		return true
 	}

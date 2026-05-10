@@ -431,6 +431,14 @@ func assertRustBoolField(t *testing.T, item map[string]any, field string, want b
 	}
 }
 
+func assertRustNoField(t *testing.T, item map[string]any, field string) {
+	t.Helper()
+
+	if got, ok := item[field]; ok {
+		t.Fatalf("item[%q] = %#v, want absent in %#v", field, got, item)
+	}
+}
+
 func assertRustImport(t *testing.T, payload map[string]any, name string, alias string, importType string) {
 	t.Helper()
 

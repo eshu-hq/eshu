@@ -12,6 +12,7 @@ import (
 var (
 	rustMacroRulesPattern  = regexp.MustCompile(`\bmacro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)`)
 	rustWhereClausePattern = regexp.MustCompile(`(?s)\s+where\s+`)
+	rustIdentifierPattern  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 )
 
 func firstNamedDescendant(node *tree_sitter.Node, kinds ...string) *tree_sitter.Node {
@@ -223,6 +224,108 @@ func rustDeadCodeRootKinds(path string, name string, attributes []string) []stri
 		}
 	}
 	return rootKinds
+}
+
+// rustBenchmarkFunctionNames collects benchmark targets declared by file-local macros.
+func rustBenchmarkFunctionNames(root *tree_sitter.Node, source []byte) map[string]struct{} {
+	names := make(map[string]struct{})
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+		if node.Kind() != "macro_invocation" {
+			return
+		}
+		for _, name := range rustCriterionGroupBenchmarkNames(shared.NodeText(node, source)) {
+			names[name] = struct{}{}
+		}
+	})
+	return names
+}
+
+// rustCriterionGroupBenchmarkNames extracts direct identifier targets from criterion_group!.
+func rustCriterionGroupBenchmarkNames(text string) []string {
+	trimmed := strings.TrimSpace(text)
+	if !strings.HasPrefix(trimmed, "criterion_group!") {
+		return nil
+	}
+	body, ok := rustMacroBody(strings.TrimPrefix(trimmed, "criterion_group!"))
+	if !ok {
+		return nil
+	}
+	if targets := rustCriterionTargetsSegment(body); targets != "" {
+		return rustIdentifierList(targets)
+	}
+	parts := rustSplitTopLevel(body, ',')
+	if len(parts) <= 1 {
+		return nil
+	}
+	names := make([]string, 0, len(parts)-1)
+	for _, part := range parts[1:] {
+		name := rustIdentifierOnly(part)
+		if name != "" {
+			names = appendUniqueString(names, name)
+		}
+	}
+	return names
+}
+
+// rustMacroBody trims the outer delimiter from a Rust macro invocation body.
+func rustMacroBody(text string) (string, bool) {
+	trimmed := strings.TrimSpace(text)
+	trimmed = strings.TrimSpace(strings.TrimSuffix(trimmed, ";"))
+	if trimmed == "" {
+		return "", false
+	}
+	open := trimmed[0]
+	var close byte
+	switch open {
+	case '(':
+		close = ')'
+	case '{':
+		close = '}'
+	default:
+		return "", false
+	}
+	if len(trimmed) < 2 || trimmed[len(trimmed)-1] != close {
+		return "", false
+	}
+	return strings.TrimSpace(trimmed[1 : len(trimmed)-1]), true
+}
+
+// rustCriterionTargetsSegment returns the named-form targets list when present.
+func rustCriterionTargetsSegment(body string) string {
+	idx := strings.Index(body, "targets")
+	if idx < 0 {
+		return ""
+	}
+	remainder := strings.TrimSpace(body[idx+len("targets"):])
+	if !strings.HasPrefix(remainder, "=") {
+		return ""
+	}
+	remainder = strings.TrimSpace(strings.TrimPrefix(remainder, "="))
+	if end := strings.Index(remainder, ";"); end >= 0 {
+		remainder = remainder[:end]
+	}
+	return strings.TrimSpace(remainder)
+}
+
+// rustIdentifierList keeps only simple same-file function names from a comma list.
+func rustIdentifierList(text string) []string {
+	names := make([]string, 0)
+	for _, part := range rustSplitTopLevel(text, ',') {
+		name := rustIdentifierOnly(part)
+		if name != "" {
+			names = appendUniqueString(names, name)
+		}
+	}
+	return names
+}
+
+// rustIdentifierOnly rejects paths, calls, and expressions to keep root evidence local.
+func rustIdentifierOnly(text string) string {
+	trimmed := strings.TrimSpace(strings.TrimSuffix(text, ","))
+	if rustIdentifierPattern.MatchString(trimmed) {
+		return trimmed
+	}
+	return ""
 }
 
 func rustMainFunctionRootPath(path string, attributes []string) bool {

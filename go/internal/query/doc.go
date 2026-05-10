@@ -21,7 +21,9 @@
 // public Gradle DSL, same-class method-reference target, Spring component and
 // callback, lifecycle, JUnit, Jenkins, Stapler, serialization hook, bounded
 // reflection, ServiceLoader, and Spring auto-configuration roots, plus Rust
-// Cargo entrypoint, build-script, unit-test, and Tokio runtime/test roots. The
+// Cargo entrypoint, build-script, unit-test, Tokio runtime/test, public API,
+// and benchmark roots. Rust Cargo auxiliary target files under benches/ and
+// examples/ are treated like non-production roots for cleanup analysis. The
 // analysis notes and modeled-root list use the same Java root family so callers
 // see why those entities were suppressed. The analysis payload names modeled
 // root kinds, includes Go function-literal reachable calls in the modeled Go

@@ -38,6 +38,24 @@ func TestHandleDeadCodeExcludesRustRootKindsFromMetadata(t *testing.T) {
 						"dead_code_root_kinds": []any{"rust.tokio_test"},
 					},
 					{
+						"entity_id": "rust-public-api-item", "name": "parse_config", "labels": []any{"Function"},
+						"file_path": "src/lib.rs", "repo_id": "repo-1", "repo_name": "runtime", "language": "rust",
+						"dead_code_root_kinds": []any{"rust.public_api_item"},
+					},
+					{
+						"entity_id": "rust-benchmark-function", "name": "bench_parser", "labels": []any{"Function"},
+						"file_path": "benches/parser.rs", "repo_id": "repo-1", "repo_name": "runtime", "language": "rust",
+						"dead_code_root_kinds": []any{"rust.benchmark_function"},
+					},
+					{
+						"entity_id": "rust-benchmark-helper", "name": "helper_method", "labels": []any{"Function"},
+						"file_path": "benches/copy.rs", "repo_id": "repo-1", "repo_name": "runtime", "language": "rust",
+					},
+					{
+						"entity_id": "rust-example-helper", "name": "example_helper", "labels": []any{"Function"},
+						"file_path": "examples/demo.rs", "repo_id": "repo-1", "repo_name": "runtime", "language": "rust",
+					},
+					{
 						"entity_id": "rust-helper", "name": "helper", "labels": []any{"Function"},
 						"file_path": "src/lib.rs", "repo_id": "repo-1", "repo_name": "runtime", "language": "rust",
 					},
@@ -83,14 +101,21 @@ func TestHandleDeadCodeExcludesRustRootKindsFromMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("analysis type = %T, want map[string]any", resp["analysis"])
 	}
-	if got, want := analysis["framework_roots_from_parser_metadata"], float64(4); got != want {
+	if got, want := analysis["framework_roots_from_parser_metadata"], float64(6); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
 	}
 	roots, ok := analysis["modeled_framework_roots"].([]any)
 	if !ok {
 		t.Fatalf("analysis[modeled_framework_roots] type = %T, want []any", analysis["modeled_framework_roots"])
 	}
-	for _, rootKind := range []string{"rust.main_function", "rust.test_function", "rust.tokio_main", "rust.tokio_test"} {
+	for _, rootKind := range []string{
+		"rust.main_function",
+		"rust.test_function",
+		"rust.tokio_main",
+		"rust.tokio_test",
+		"rust.public_api_item",
+		"rust.benchmark_function",
+	} {
 		if !queryTestStringSliceContains(roots, rootKind) {
 			t.Fatalf("analysis[modeled_framework_roots] missing %q in %#v", rootKind, roots)
 		}

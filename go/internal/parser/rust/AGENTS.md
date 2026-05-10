@@ -35,9 +35,13 @@
   same-line `where` clauses are evidence for future bounds modeling, not part
   of `target`.
 - Keep dead-code root metadata conservative. `rust.main_function`,
-  `rust.test_function`, `rust.tokio_main`, and `rust.tokio_test` require direct
-  function-name, Cargo path, immediately preceding attribute, or same-line
-  attribute evidence.
+  `rust.test_function`, `rust.tokio_main`, `rust.tokio_test`,
+  `rust.public_api_item`, and `rust.benchmark_function` require direct
+  function-name, exact `pub`, Cargo path, file-local Criterion macro target, or
+  immediately preceding / same-line attribute evidence.
+- Keep module declaration path metadata file-local. `declared_path_candidates`
+  names candidate files relative to the current file directory and must not
+  resolve macro-expanded modules or probe the filesystem.
 
 ## Anti-Patterns
 

@@ -10,6 +10,8 @@ var rustDeadCodeMetadataRootKinds = []string{
 	"rust.test_function",
 	"rust.tokio_main",
 	"rust.tokio_test",
+	"rust.public_api_item",
+	"rust.benchmark_function",
 }
 
 func deadCodeIsRustRoot(result map[string]any, entity *EntityContent, stats *deadCodePolicyStats) bool {
@@ -27,4 +29,15 @@ func deadCodeIsRustRoot(result map[string]any, entity *EntityContent, stats *dea
 		}
 	}
 	return false
+}
+
+func deadCodeIsRustCargoAuxiliaryTarget(result map[string]any, entity *EntityContent) bool {
+	if strings.ToLower(deadCodeEntityLanguage(result, entity)) != "rust" {
+		return false
+	}
+	path := strings.ToLower(deadCodeEntityPath(result, entity))
+	return strings.HasPrefix(path, "benches/") ||
+		strings.Contains(path, "/benches/") ||
+		strings.HasPrefix(path, "examples/") ||
+		strings.Contains(path, "/examples/")
 }

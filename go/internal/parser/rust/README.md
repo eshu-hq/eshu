@@ -45,17 +45,25 @@ Functions carry async, unsafe, visibility, attribute, and selected
 Cargo-shaped entrypoint paths such as `src/main.rs`, `build.rs`, `src/bin`, and
 `examples`; a `#[tokio::main]` attribute is direct root evidence. `#[test]` and
 `#[tokio::test]` are test roots, whether the attribute is on its own line or
-directly before `fn` on the same line. Const and static items are emitted
-through the `variables` bucket with `variable_kind`, `type` items through
-`type_aliases`, and `macro_rules!` definitions through `macros`.
+directly before `fn` on the same line. Exact `pub` visibility marks functions,
+classes, traits, and type aliases with `rust.public_api_item`; scoped
+visibility such as `pub(crate)` does not. Criterion-style `criterion_group!`
+targets and direct `#[bench]` / `#[divan::bench]`-style attributes mark
+file-local benchmark functions with `rust.benchmark_function`; target extraction
+accepts identifier targets and leaves generated or expression-based targets
+unclaimed. Const and static items are emitted through the `variables` bucket
+with `variable_kind`, `type` items through `type_aliases`, and `macro_rules!`
+definitions through `macros`.
 
 Direct `#[derive(...)]` attributes emit `derives`; conditional derives inside
 `cfg_attr` stay raw in `decorators` and `attribute_paths`. Direct item
 attributes may be multiline or share the item line; field-level and enum-variant
-attributes must not leak onto the parent type. Macro-expanded modules/imports,
-full `where` bound semantics, associated type constraints, and higher-ranked
-trait bounds are not modeled yet. Add package-local tests before widening any
-of those claims.
+attributes must not leak onto the parent type. Module declaration rows include
+`declared_path_candidates` such as `api.rs` and `api/mod.rs`, relative to the
+current file directory; inline module rows do not. Macro-expanded
+modules/imports, full `where` bound semantics, associated type constraints, and
+higher-ranked trait bounds are not modeled yet. Add package-local tests before
+widening any of those claims.
 
 ## Related Docs
 

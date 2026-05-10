@@ -38,6 +38,39 @@ func rustApplyAttributeMetadata(item map[string]any, attributes []string) {
 	}
 }
 
+// rustApplyRootKinds merges conservative root evidence without reordering prior facts.
+func rustApplyRootKinds(item map[string]any, rootKinds []string) {
+	if len(rootKinds) == 0 {
+		return
+	}
+	existing, _ := item["dead_code_root_kinds"].([]string)
+	for _, rootKind := range rootKinds {
+		existing = appendUniqueString(existing, rootKind)
+	}
+	if len(existing) > 0 {
+		item["dead_code_root_kinds"] = existing
+	}
+}
+
+// rustApplyPublicAPIRootMetadata treats exact pub visibility as public API evidence.
+func rustApplyPublicAPIRootMetadata(item map[string]any) {
+	if item["visibility"] != "pub" {
+		return
+	}
+	rustApplyRootKinds(item, []string{"rust.public_api_item"})
+}
+
+// rustHasBenchmarkAttribute accepts direct benchmark attributes and crate-qualified variants.
+func rustHasBenchmarkAttribute(attributes []string) bool {
+	for _, attribute := range attributes {
+		attrPath := rustAttributePath(attribute)
+		if attrPath == "bench" || strings.HasSuffix(attrPath, "::bench") {
+			return true
+		}
+	}
+	return false
+}
+
 func rustApplyGenericMetadata(item map[string]any, segment string) {
 	metadata := rustParseGenericMetadata(segment)
 	if len(metadata.lifetimes) > 0 {
@@ -234,6 +267,27 @@ func rustModuleKind(raw string) string {
 		return "inline"
 	}
 	return "declaration"
+}
+
+// rustModuleDeclaredPathCandidates reports Rust's file-directory-relative mod lookup paths.
+func rustModuleDeclaredPathCandidates(name string, moduleKind string) []string {
+	if moduleKind != "declaration" {
+		return nil
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil
+	}
+	return []string{name + ".rs", name + "/mod.rs"}
+}
+
+// rustStripVisibility removes a parsed visibility prefix before import expansion.
+func rustStripVisibility(text string, visibility string) string {
+	trimmed := rustStripLeadingAttributeText(strings.TrimSpace(text))
+	if visibility == "" {
+		return trimmed
+	}
+	return strings.TrimSpace(strings.TrimPrefix(trimmed, visibility))
 }
 
 func rustStripLeadingAttributeText(text string) string {

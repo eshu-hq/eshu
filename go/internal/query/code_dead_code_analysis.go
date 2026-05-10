@@ -121,6 +121,8 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 			"rust.test_function",
 			"rust.tokio_main",
 			"rust.tokio_test",
+			"rust.public_api_item",
+			"rust.benchmark_function",
 			"typescript.interface_method_implementation",
 			"typescript.module_contract_export",
 			"typescript.static_registry_member",
@@ -131,6 +133,7 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 			"python.package_init_export",
 			"python.public_api_member",
 			"python.public_api_base",
+			"rust.public_api_item",
 		},
 		"modeled_go_semantic_roots": []string{
 			"go.dependency_injection_callback",
