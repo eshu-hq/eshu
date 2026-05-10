@@ -15,8 +15,9 @@
 - Do not persist, log, or put raw Terraform state bytes in errors, facts, spans,
   metrics, or docs.
 - Only exact candidates from `terraformstate.DiscoveryResolver` may be opened.
-- Do not open local `.tfstate` files from repository content unless discovery
-  recorded the candidate and operator policy approved it.
+- Current local state reads must come from explicit absolute operator sources.
+  Repo-local candidate approval is tracked by #140 and must not be treated as
+  available until that path lands.
 - Keep AWS SDK types out of this package. Use `terraformstate.S3ObjectClient`
   and put SDK adapters in command or integration wiring.
 - A claimed item must match scope ID, generation ID, and source run ID before a
