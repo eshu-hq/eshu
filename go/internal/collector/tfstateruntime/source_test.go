@@ -119,6 +119,97 @@ func TestClaimedSourceParsesResolvedCandidateMatchingClaim(t *testing.T) {
 	t.Fatalf("facts did not include %s: %#v", facts.TerraformStateResourceFactKind, envelopes)
 }
 
+func TestClaimedSourceEmitsStateInVCSWarningForGitLocalCandidate(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 9, 21, 2, 0, 0, time.UTC)
+	stateKey := terraformstate.StateKey{
+		BackendKind: terraformstate.BackendLocal,
+		Locator:     "/repos/platform-infra/env/prod/terraform.tfstate",
+	}
+	scopeValue, err := scope.NewTerraformStateSnapshotScope(
+		"platform-infra",
+		string(stateKey.BackendKind),
+		stateKey.Locator,
+		map[string]string{"repo_id": "platform-infra"},
+	)
+	if err != nil {
+		t.Fatalf("NewTerraformStateSnapshotScope() error = %v, want nil", err)
+	}
+	generation, err := scope.NewTerraformStateSnapshotGeneration(scopeValue.ScopeID, 17, "lineage-123", observedAt)
+	if err != nil {
+		t.Fatalf("NewTerraformStateSnapshotGeneration() error = %v, want nil", err)
+	}
+	key, err := redact.NewKey([]byte("runtime-redaction-key"))
+	if err != nil {
+		t.Fatalf("NewKey() error = %v, want nil", err)
+	}
+	source := tfstateruntime.ClaimedSource{
+		Resolver: terraformstate.DiscoveryResolver{
+			Config: terraformstate.DiscoveryConfig{
+				Graph:      true,
+				LocalRepos: []string{"platform-infra"},
+				LocalStateCandidates: terraformstate.LocalStateCandidatePolicy{
+					Mode: terraformstate.LocalStateCandidateModeApproved,
+					Approved: []terraformstate.LocalStateCandidateRef{{
+						RepoID:       "platform-infra",
+						RelativePath: "env/prod/terraform.tfstate",
+					}},
+				},
+			},
+			GitReadiness: &readyGitGeneration{},
+			BackendFacts: &singleCandidateReader{candidate: terraformstate.DiscoveryCandidate{
+				State:        stateKey,
+				Source:       terraformstate.DiscoveryCandidateSourceGitLocalFile,
+				RepoID:       "platform-infra",
+				RelativePath: "env/prod/terraform.tfstate",
+			}},
+		},
+		SourceFactory: &fakeFactory{
+			source: &fakeStateSource{
+				key:        stateKey,
+				state:      `{"serial":17,"lineage":"lineage-123","resources":[]}`,
+				observedAt: observedAt,
+			},
+		},
+		RedactionKey: key,
+		Clock:        func() time.Time { return observedAt },
+	}
+	item := workflow.WorkItem{
+		WorkItemID:          "tfstate-work-local",
+		RunID:               "run-1",
+		CollectorKind:       scope.CollectorTerraformState,
+		CollectorInstanceID: "collector-tfstate-primary",
+		SourceSystem:        string(scope.CollectorTerraformState),
+		ScopeID:             scopeValue.ScopeID,
+		AcceptanceUnitID:    "platform-infra",
+		SourceRunID:         generation.GenerationID,
+		GenerationID:        generation.GenerationID,
+		Status:              workflow.WorkItemStatusClaimed,
+		AttemptCount:        1,
+		CurrentFencingToken: 42,
+		CreatedAt:           observedAt,
+		UpdatedAt:           observedAt,
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+
+	warning := factByKind(t, drainRuntimeFacts(t, collected.Facts), facts.TerraformStateWarningFactKind)
+	if got, want := warning.Payload["warning_kind"], "state_in_vcs"; got != want {
+		t.Fatalf("warning_kind = %#v, want %#v", got, want)
+	}
+	if strings.Contains(warning.SourceRef.SourceURI, stateKey.Locator) ||
+		strings.Contains(warning.SourceRef.SourceRecordID, stateKey.Locator) {
+		t.Fatalf("warning source ref leaked local path: %#v", warning.SourceRef)
+	}
+}
+
 func TestClaimedSourceReturnsNoGenerationWhenClaimDoesNotMatchResolvedCandidate(t *testing.T) {
 	t.Parallel()
 
@@ -299,6 +390,23 @@ func (f *failingFactory) OpenSource(context.Context, terraformstate.DiscoveryCan
 	return nil, f.err
 }
 
+type readyGitGeneration struct{}
+
+func (readyGitGeneration) GitGenerationCommitted(context.Context, string) (bool, error) {
+	return true, nil
+}
+
+type singleCandidateReader struct {
+	candidate terraformstate.DiscoveryCandidate
+}
+
+func (r *singleCandidateReader) TerraformStateCandidates(
+	context.Context,
+	terraformstate.DiscoveryQuery,
+) ([]terraformstate.DiscoveryCandidate, error) {
+	return []terraformstate.DiscoveryCandidate{r.candidate}, nil
+}
+
 type fakeStateSource struct {
 	key        terraformstate.StateKey
 	state      string
@@ -329,6 +437,17 @@ func drainRuntimeFacts(t *testing.T, factStream <-chan facts.Envelope) []facts.E
 		envelopes = append(envelopes, envelope)
 	}
 	return envelopes
+}
+
+func factByKind(t *testing.T, envelopes []facts.Envelope, kind string) facts.Envelope {
+	t.Helper()
+	for _, envelope := range envelopes {
+		if envelope.FactKind == kind {
+			return envelope
+		}
+	}
+	t.Fatalf("missing fact kind %q in %#v", kind, envelopes)
+	return facts.Envelope{}
 }
 
 func writeRuntimeStateFile(t *testing.T, content string) string {

@@ -35,6 +35,10 @@ flowchart LR
 - `SourceFactoryFunc` adapts a function to `SourceFactory`.
 - `DefaultSourceFactory` opens local files directly and S3 objects through a
   caller-supplied read-only `terraformstate.S3ObjectClient`.
+- Approved Git-local state candidates are still exact local candidates by the
+  time this package sees them. The resolver has already checked the
+  repo-relative approval policy and the runtime emits a `state_in_vcs` warning
+  when one is parsed.
 
 ## Telemetry
 
@@ -63,7 +67,8 @@ metric labels.
 - Claim fencing comes from `workflow.WorkItem.CurrentFencingToken` and is passed
   into every emitted Terraform-state fact.
 - S3 access stays behind the existing consumer-side `S3ObjectClient` interface;
-  SDK-specific adapters belong outside this package.
+  SDK-specific adapters and target-scope credential selection belong outside
+  this package.
 
 ## Related Docs
 

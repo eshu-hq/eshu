@@ -110,6 +110,12 @@ redact sensitive values before it emits any of these facts.
 | `terraform_state_tag_observation` | One tag key/value observation split out for correlation indexing. |
 | `terraform_state_warning` | One non-fatal warning such as `state_in_vcs`, `lineage_rotation`, or `serial_regression`. |
 
+`terraform_state_candidate` is the exception to the `collector_kind:
+"terraform_state"` rule above. The Git collector emits it as safe metadata for
+repo-local `.tfstate` files. Its payload carries the repo ID, repo-relative
+path, path hash, size, backend kind, candidate source, and warning flags. It
+must not carry raw state content or an absolute local path.
+
 ## Compatibility rules
 
 `schema_version` uses [semantic versioning](https://semver.org/). Runtime

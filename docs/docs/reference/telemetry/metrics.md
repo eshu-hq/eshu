@@ -143,7 +143,7 @@ collector/projector/reducer path.
 ### `eshu_dp_tfstate_discovery_candidates_total`
 
 - Type: Counter
-- Labels: `source` (`seed` or `graph`)
+- Labels: `source` (`seed`, `graph`, or `git_local_file`)
 - Meaning: Terraform-state discovery candidates accepted by the resolver before
   any state source is opened.
 - Use it for: Confirming whether tfstate collection is bootstrapping from

@@ -49,9 +49,9 @@ func buildClaimedService(
 			Metrics:        discoveryMetrics,
 		},
 		SourceFactory: tfstateruntime.DefaultSourceFactory{
-			S3Client:                newAWSS3ObjectClient(config.AWSRoleARN),
+			S3Client:                newAWSS3ObjectClient(config.AWSCredentials),
 			S3FallbackLockTableName: config.AWSDynamoDBLockTable,
-			S3LockMetadataClient:    newAWSDynamoDBLockMetadataClient(config.AWSRoleARN),
+			S3LockMetadataClient:    newAWSDynamoDBLockMetadataClient(config.AWSCredentials),
 			MaxBytes:                config.SourceMaxBytes,
 		},
 		RedactionKey: config.RedactionKey,

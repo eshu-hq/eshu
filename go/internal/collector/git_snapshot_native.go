@@ -131,6 +131,9 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	if err != nil {
 		return RepositorySnapshot{}, err
 	}
+	var tfstateCandidates []TerraformStateCandidate
+	fileSet.Files, tfstateCandidates = extractTerraformStateCandidates(repoPath, fileSet.Files)
+	logTerraformStateCandidateDiscovery(ctx, s, repoPath, len(tfstateCandidates))
 	s.logDiscoveryStats(ctx, repoPath, discoveryStats)
 	s.logSnapshotStageTiming(ctx, repoPath, "discovery", discoveryStartedAt,
 		slog.Int("file_count", len(fileSet.Files)),
@@ -139,13 +142,14 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	s.recordDiscoveryMetrics(ctx, discoveryStats)
 
 	snapshot := RepositorySnapshot{
-		RepoPath:        repoPath,
-		RemoteURL:       repository.RemoteURL,
-		FileCount:       len(fileSet.Files),
-		ImportsMap:      map[string][]string{},
-		FileData:        []map[string]any{},
-		ContentFiles:    []ContentFileSnapshot{},
-		ContentEntities: []ContentEntitySnapshot{},
+		RepoPath:                 repoPath,
+		RemoteURL:                repository.RemoteURL,
+		FileCount:                len(fileSet.Files),
+		ImportsMap:               map[string][]string{},
+		FileData:                 []map[string]any{},
+		ContentFiles:             []ContentFileSnapshot{},
+		ContentEntities:          []ContentEntitySnapshot{},
+		TerraformStateCandidates: tfstateCandidates,
 	}
 	commitSHA := gitCommitSHA(ctx, repoPath)
 	if len(fileSet.Files) == 0 {
@@ -543,6 +547,9 @@ func resolveNativeSnapshotFileSet(
 	stats, fileSets, err := discovery.ResolveRepositoryFileSetsWithStats(
 		repoPath,
 		func(path string) bool {
+			if isTerraformStateCandidateName(filepath.Base(path)) {
+				return true
+			}
 			_, ok := registry.LookupByPath(path)
 			return ok
 		},
@@ -795,8 +802,10 @@ func resolveNativeSnapshotFileSetForTargets(
 				repoPath,
 			)
 		}
-		if _, ok := registry.LookupByPath(absoluteTarget); !ok {
-			continue
+		if !isTerraformStateCandidateName(filepath.Base(absoluteTarget)) {
+			if _, ok := registry.LookupByPath(absoluteTarget); !ok {
+				continue
+			}
 		}
 		files = append(files, absoluteTarget)
 	}

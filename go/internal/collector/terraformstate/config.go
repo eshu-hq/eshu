@@ -11,9 +11,21 @@ type collectorConfiguration struct {
 }
 
 type discoveryConfiguration struct {
-	Graph      bool         `json:"graph"`
-	Seeds      []seedConfig `json:"seeds"`
-	LocalRepos []string     `json:"local_repos"`
+	Graph                bool                             `json:"graph"`
+	Seeds                []seedConfig                     `json:"seeds"`
+	LocalRepos           []string                         `json:"local_repos"`
+	LocalStateCandidates localStateCandidatesPolicyConfig `json:"local_state_candidates"`
+}
+
+type localStateCandidatesPolicyConfig struct {
+	Mode     string                      `json:"mode"`
+	Approved []localStateCandidateConfig `json:"approved"`
+	Ignored  []localStateCandidateConfig `json:"ignored"`
+}
+
+type localStateCandidateConfig struct {
+	RepoID string `json:"repo_id"`
+	Path   string `json:"path"`
 }
 
 type seedConfig struct {
@@ -39,6 +51,11 @@ func ParseDiscoveryConfig(raw string) (DiscoveryConfig, error) {
 		Graph:      parsed.Discovery.Graph,
 		LocalRepos: normalizedRepoIDs(parsed.Discovery.LocalRepos),
 		Seeds:      make([]DiscoverySeed, 0, len(parsed.Discovery.Seeds)),
+		LocalStateCandidates: LocalStateCandidatePolicy{
+			Mode:     localStateCandidateMode(parsed.Discovery.LocalStateCandidates.Mode),
+			Approved: localStateCandidateRefs(parsed.Discovery.LocalStateCandidates.Approved),
+			Ignored:  localStateCandidateRefs(parsed.Discovery.LocalStateCandidates.Ignored),
+		},
 	}
 	for _, seed := range parsed.Discovery.Seeds {
 		config.Seeds = append(config.Seeds, DiscoverySeed{
@@ -53,6 +70,29 @@ func ParseDiscoveryConfig(raw string) (DiscoveryConfig, error) {
 		})
 	}
 	return config, nil
+}
+
+func localStateCandidateMode(value string) LocalStateCandidateMode {
+	mode := LocalStateCandidateMode(strings.ToLower(strings.TrimSpace(value)))
+	if mode == "" {
+		return LocalStateCandidateModeDiscoverOnly
+	}
+	return mode
+}
+
+func localStateCandidateRefs(configs []localStateCandidateConfig) []LocalStateCandidateRef {
+	refs := make([]LocalStateCandidateRef, 0, len(configs))
+	for _, config := range configs {
+		ref := (LocalStateCandidateRef{
+			RepoID:       config.RepoID,
+			RelativePath: config.Path,
+		}).normalized()
+		if ref.RepoID == "" || ref.RelativePath == "" {
+			continue
+		}
+		refs = append(refs, ref)
+	}
+	return refs
 }
 
 func seedDynamoDBTable(seed seedConfig) string {

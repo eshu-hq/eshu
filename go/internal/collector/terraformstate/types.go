@@ -80,6 +80,15 @@ type ParseOptions struct {
 	RedactionKey   redact.Key
 	RedactionRules redact.RuleSet
 	FencingToken   int64
+	SourceWarnings []SourceWarning
+}
+
+// SourceWarning is source-level evidence that should be emitted with the parse
+// result without exposing raw Terraform state bytes or locators.
+type SourceWarning struct {
+	WarningKind string
+	Reason      string
+	Source      string
 }
 
 // ParseResult is the redacted fact output from one Terraform state parse.

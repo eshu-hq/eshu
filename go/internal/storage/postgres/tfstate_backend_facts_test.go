@@ -151,6 +151,71 @@ func TestTerraformStateBackendFactReaderDoesNotCarryDynamicDynamoDBTable(t *test
 	}
 }
 
+func TestTerraformStateBackendFactReaderReturnsApprovedGitLocalCandidates(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{},
+			{rows: [][]any{{
+				"platform-infra",
+				"env/prod/terraform.tfstate",
+				"/repos/platform-infra",
+			}}},
+		},
+	}
+	reader := TerraformStateBackendFactReader{DB: db}
+
+	candidates, err := reader.TerraformStateCandidates(
+		context.Background(),
+		terraformstate.DiscoveryQuery{
+			RepoIDs:                     []string{"platform-infra"},
+			IncludeLocalStateCandidates: true,
+			ApprovedLocalCandidates: []terraformstate.LocalStateCandidateRef{{
+				RepoID:       "platform-infra",
+				RelativePath: "env/prod/terraform.tfstate",
+			}},
+		},
+	)
+	if err != nil {
+		t.Fatalf("TerraformStateCandidates() error = %v, want nil", err)
+	}
+
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(candidates) = %d, want %d", got, want)
+	}
+	candidate := candidates[0]
+	if got, want := candidate.Source, terraformstate.DiscoveryCandidateSourceGitLocalFile; got != want {
+		t.Fatalf("Source = %q, want %q", got, want)
+	}
+	if got, want := candidate.State.BackendKind, terraformstate.BackendLocal; got != want {
+		t.Fatalf("BackendKind = %q, want %q", got, want)
+	}
+	if got, want := candidate.State.Locator, "/repos/platform-infra/env/prod/terraform.tfstate"; got != want {
+		t.Fatalf("Locator = %q, want %q", got, want)
+	}
+	if got, want := candidate.RelativePath, "env/prod/terraform.tfstate"; got != want {
+		t.Fatalf("RelativePath = %q, want %q", got, want)
+	}
+	if !candidate.StateInVCS {
+		t.Fatal("StateInVCS = false, want true")
+	}
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	query := db.queries[1].query
+	for _, want := range []string{
+		"terraform_state_candidate",
+		"repository",
+		"relative_path",
+		"source_uri",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("local candidate query missing %q: %s", want, query)
+		}
+	}
+}
+
 func TestTerraformStatePriorSnapshotReaderReturnsETagByLocatorHash(t *testing.T) {
 	t.Parallel()
 

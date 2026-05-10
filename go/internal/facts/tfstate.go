@@ -3,6 +3,9 @@ package facts
 import "slices"
 
 const (
+	// TerraformStateCandidateFactKind identifies one repo-local Terraform state
+	// file candidate observed by the Git collector without raw state content.
+	TerraformStateCandidateFactKind = "terraform_state_candidate"
 	// TerraformStateSnapshotFactKind identifies a Terraform state snapshot fact.
 	TerraformStateSnapshotFactKind = "terraform_state_snapshot"
 	// TerraformStateResourceFactKind identifies one resource instance observed
@@ -21,6 +24,8 @@ const (
 	// TerraformStateWarningFactKind identifies a non-fatal Terraform state warning.
 	TerraformStateWarningFactKind = "terraform_state_warning"
 
+	// TerraformStateCandidateSchemaVersion is the first candidate fact schema.
+	TerraformStateCandidateSchemaVersion = "1.0.0"
 	// TerraformStateSnapshotSchemaVersion is the first snapshot fact schema.
 	TerraformStateSnapshotSchemaVersion = "1.0.0"
 	// TerraformStateResourceSchemaVersion is the first resource fact schema.
@@ -40,6 +45,7 @@ const (
 )
 
 var terraformStateFactKinds = []string{
+	TerraformStateCandidateFactKind,
 	TerraformStateSnapshotFactKind,
 	TerraformStateResourceFactKind,
 	TerraformStateOutputFactKind,
@@ -50,6 +56,7 @@ var terraformStateFactKinds = []string{
 }
 
 var terraformStateSchemaVersions = map[string]string{
+	TerraformStateCandidateFactKind:       TerraformStateCandidateSchemaVersion,
 	TerraformStateSnapshotFactKind:        TerraformStateSnapshotSchemaVersion,
 	TerraformStateResourceFactKind:        TerraformStateResourceSchemaVersion,
 	TerraformStateOutputFactKind:          TerraformStateOutputSchemaVersion,

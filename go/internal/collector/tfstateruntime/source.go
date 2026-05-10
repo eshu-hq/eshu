@@ -220,7 +220,7 @@ func (s ClaimedSource) collectCandidate(
 		return collector.CollectedGeneration{}, false, nil
 	}
 
-	result, _, err := s.parseCandidate(ctx, stateSource, scopeValue, generationValue, sourceKey, item.CurrentFencingToken)
+	result, _, err := s.parseCandidate(ctx, stateSource, candidate, scopeValue, generationValue, sourceKey, item.CurrentFencingToken)
 	if err != nil {
 		s.recordSnapshotObserved(ctx, sourceKey.BackendKind, "error")
 		return collector.CollectedGeneration{}, false, err
@@ -251,6 +251,7 @@ func (s ClaimedSource) readIdentity(
 func (s ClaimedSource) parseCandidate(
 	ctx context.Context,
 	stateSource terraformstate.StateSource,
+	candidate terraformstate.DiscoveryCandidate,
 	scopeValue scope.IngestionScope,
 	generationValue scope.ScopeGeneration,
 	sourceKey terraformstate.StateKey,
@@ -277,6 +278,7 @@ func (s ClaimedSource) parseCandidate(
 		RedactionKey:   s.RedactionKey,
 		RedactionRules: s.RedactionRules,
 		FencingToken:   fencingToken,
+		SourceWarnings: sourceWarningsForCandidate(candidate),
 	})
 	s.recordParseDuration(ctx, sourceKey.BackendKind, time.Since(start))
 	if err != nil {
@@ -284,6 +286,17 @@ func (s ClaimedSource) parseCandidate(
 	}
 	s.recordSnapshotBytes(ctx, sourceKey.BackendKind, metadata.Size)
 	return result, metadata, nil
+}
+
+func sourceWarningsForCandidate(candidate terraformstate.DiscoveryCandidate) []terraformstate.SourceWarning {
+	if !candidate.StateInVCS {
+		return nil
+	}
+	return []terraformstate.SourceWarning{{
+		WarningKind: "state_in_vcs",
+		Reason:      "terraform state file was discovered in git and explicitly approved for ingestion",
+		Source:      string(candidate.Source),
+	}}
 }
 
 func (s ClaimedSource) openSource(

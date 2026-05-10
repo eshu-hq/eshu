@@ -9,6 +9,7 @@ func TestTerraformStateFactKindsAreCompleteAndOrdered(t *testing.T) {
 	t.Parallel()
 
 	want := []string{
+		TerraformStateCandidateFactKind,
 		TerraformStateSnapshotFactKind,
 		TerraformStateResourceFactKind,
 		TerraformStateOutputFactKind,
@@ -37,10 +38,11 @@ func TestTerraformStateFactKindsReturnsDefensiveCopy(t *testing.T) {
 	t.Parallel()
 
 	kinds := TerraformStateFactKinds()
+	firstKind := kinds[0]
 	kinds[0] = "mutated"
 
-	if got := TerraformStateFactKinds()[0]; got != TerraformStateSnapshotFactKind {
-		t.Fatalf("TerraformStateFactKinds()[0] = %q, want %q", got, TerraformStateSnapshotFactKind)
+	if got := TerraformStateFactKinds()[0]; got != firstKind {
+		t.Fatalf("TerraformStateFactKinds()[0] = %q, want %q", got, firstKind)
 	}
 }
 
