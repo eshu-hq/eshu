@@ -54,6 +54,11 @@ Current runtime shape:
 The shared runtime metrics families are documented in
 [Telemetry Metrics](telemetry/metrics.md).
 
+When AWS tag normalization is enabled, `/admin/status` also reports the tag
+taxonomy learning-loop summary described in [Tag Taxonomy](tag-taxonomy.md):
+canonical-key coverage, unknown tag keys, applied aliases, disabled aliases,
+and missing expected tags after source readiness.
+
 Unsupported verbs return `405 Method Not Allowed` with an `Allow` header
 listing the methods supported by that endpoint. For GET/HEAD-only endpoints
 (`/healthz`, `/readyz`, `/admin/status`), the header is `Allow: GET, HEAD`.
@@ -103,6 +108,13 @@ The JSON response follows the shared status report shape from
 - `stages`
 - `domains`
 - `queue_blockages`
+- `tag_taxonomy`
+
+`tag_taxonomy` appears when AWS tag normalization is enabled. It includes the
+first-party and override alias packs in use, canonical-key coverage, unknown
+tag keys, applied aliases, disabled aliases, and missing expected tags after
+source readiness. The tag taxonomy contract lives in
+[Tag Taxonomy](tag-taxonomy.md).
 
 Queue entries include both a duration string and seconds value:
 
