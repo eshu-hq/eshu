@@ -48,6 +48,10 @@ S3 reads use the default AWS credential chain unless the collector instance
 configuration includes `aws.role_arn`, in which case the runtime assumes that
 role before issuing read-only `GetObject` requests.
 
+Graph-backed discovery is repo-scoped in this slice. When `discovery.graph` is
+`true`, include at least one `discovery.local_repos` entry so the resolver knows
+which committed Git backend facts it is allowed to read.
+
 ## Example Instance
 
 ```json

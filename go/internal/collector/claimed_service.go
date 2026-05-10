@@ -97,6 +97,9 @@ func (s ClaimedService) validate() error {
 	if s.Committer == nil {
 		return errors.New("collector committer is required")
 	}
+	if _, ok := s.Committer.(ClaimedCommitter); !ok {
+		return errors.New("claim-aware collector committer must implement ClaimedCommitter")
+	}
 	if strings.TrimSpace(string(s.CollectorKind)) == "" {
 		return errors.New("collector kind is required")
 	}
@@ -188,7 +191,7 @@ func (s ClaimedService) commitCollected(
 			collected.Facts,
 		)
 	}
-	return s.Committer.CommitScopeGeneration(ctx, collected.Scope, collected.Generation, collected.Facts)
+	return errors.New("claim-aware collector committer must implement ClaimedCommitter")
 }
 
 func (s ClaimedService) claimMutation(item workflow.WorkItem, claim workflow.Claim) workflow.ClaimMutation {
