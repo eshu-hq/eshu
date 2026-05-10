@@ -9,7 +9,10 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-var rustMacroRulesPattern = regexp.MustCompile(`\bmacro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)`)
+var (
+	rustMacroRulesPattern  = regexp.MustCompile(`\bmacro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)`)
+	rustWhereClausePattern = regexp.MustCompile(`(?s)\s+where\s+`)
+)
 
 func firstNamedDescendant(node *tree_sitter.Node, kinds ...string) *tree_sitter.Node {
 	var result *tree_sitter.Node
@@ -115,6 +118,10 @@ func rustReturnLifetime(signature string) string {
 	return lifetimes[0]
 }
 
+func rustTrimWhereClause(text string) string {
+	return strings.TrimSpace(rustWhereClausePattern.Split(text, 2)[0])
+}
+
 func rustSignatureHeader(text string) string {
 	signature := strings.TrimSpace(text)
 	if idx := strings.Index(signature, "{"); idx >= 0 {
@@ -186,7 +193,7 @@ func rustContainsWord(text string, word string) bool {
 }
 
 func rustVisibility(signature string) string {
-	trimmed := strings.TrimSpace(signature)
+	trimmed := rustStripLeadingAttributeText(strings.TrimSpace(signature))
 	if strings.HasPrefix(trimmed, "pub(") {
 		end := strings.Index(trimmed, ")")
 		if end > len("pub(") {
@@ -237,28 +244,45 @@ func rustLeadingAttributes(node *tree_sitter.Node, source []byte) []string {
 	if node == nil {
 		return nil
 	}
-	start := node.StartPosition()
-	line := int(start.Row)
-	lines := strings.Split(string(source), "\n")
-	if line > len(lines) {
-		line = len(lines)
+	if attributes := rustDirectAttributes(node, source); len(attributes) > 0 {
+		return attributes
 	}
-
+	startByte := int(node.StartByte())
+	if startByte < 0 {
+		return nil
+	}
+	if startByte > len(source) {
+		startByte = len(source)
+	}
+	lines := strings.Split(string(source[:startByte]), "\n")
 	attributes := make([]string, 0, 2)
-	if line < len(lines) {
-		if currentLineAttrs := rustLineAttributes(lines[line], int(start.Column)); len(currentLineAttrs) > 0 {
-			attributes = append(attributes, currentLineAttrs...)
-		}
+	idx := len(lines) - 1
+	if idx >= 0 && strings.TrimSpace(lines[idx]) == "" {
+		idx--
 	}
-	for idx := line - 1; idx >= 0; idx-- {
+	for idx >= 0 {
 		trimmed := strings.TrimSpace(lines[idx])
 		if trimmed == "" {
 			break
 		}
-		if !strings.HasPrefix(trimmed, "#[") {
+		start := idx
+		for start >= 0 && !strings.HasPrefix(strings.TrimSpace(lines[start]), "#[") {
+			if strings.TrimSpace(lines[start]) == "" {
+				break
+			}
+			start--
+		}
+		if start < 0 || !strings.HasPrefix(strings.TrimSpace(lines[start]), "#[") {
 			break
 		}
-		attributes = append([]string{trimmed}, attributes...)
+		attribute := strings.TrimSpace(strings.Join(lines[start:idx+1], "\n"))
+		if rustAttributeEnd(attribute) < 0 {
+			break
+		}
+		for _, value := range rustLeadingAttributeTexts(attribute) {
+			attributes = appendUniqueString(attributes, value)
+		}
+		idx = start - 1
 	}
 	if len(attributes) == 0 {
 		return nil
@@ -266,22 +290,34 @@ func rustLeadingAttributes(node *tree_sitter.Node, source []byte) []string {
 	return attributes
 }
 
-func rustLineAttributes(line string, beforeColumn int) []string {
-	if beforeColumn < 0 {
-		return nil
-	}
-	if beforeColumn > len(line) {
-		beforeColumn = len(line)
-	}
-	remaining := strings.TrimSpace(line[:beforeColumn])
+func rustLeadingAttributeTexts(text string) []string {
+	remaining := strings.TrimSpace(text)
 	attributes := make([]string, 0, 1)
 	for strings.HasPrefix(remaining, "#[") {
-		end := strings.Index(remaining, "]")
+		end := rustAttributeEnd(remaining)
 		if end < 0 {
 			break
 		}
 		attributes = append(attributes, strings.TrimSpace(remaining[:end+1]))
 		remaining = strings.TrimSpace(remaining[end+1:])
+	}
+	return attributes
+}
+
+func rustDirectAttributes(node *tree_sitter.Node, source []byte) []string {
+	attributes := make([]string, 0, 2)
+	for i := uint(0); i < node.NamedChildCount(); i++ {
+		child := node.NamedChild(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() != "attribute_item" && child.Kind() != "inner_attribute_item" {
+			continue
+		}
+		attribute := strings.TrimSpace(shared.NodeText(child, source))
+		if attribute != "" {
+			attributes = appendUniqueString(attributes, attribute)
+		}
 	}
 	return attributes
 }

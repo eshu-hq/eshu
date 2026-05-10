@@ -59,7 +59,8 @@ fn helper<'a>(input: &'a str) -> &'a str {
 	assertRustBucketName(t, payload, "classes", "Status")
 	assertRustBucketName(t, payload, "traits", "Render")
 
-	assertRustImport(t, payload, "std::{fmt::Display, collections::HashMap}", "", "use")
+	assertRustImport(t, payload, "std::fmt::Display", "Display", "use")
+	assertRustImport(t, payload, "std::collections::HashMap", "HashMap", "use")
 	assertRustImport(t, payload, "crate::domain::Thing", "DomainThing", "alias")
 
 	renderImpl := assertRustBucketName(t, payload, "impl_blocks", "Holder")
@@ -108,6 +109,7 @@ func TestPreScanCapturesRustSymbols(t *testing.T) {
 
 	path := writeRustSource(t, "symbols.rs", `struct Widget;
 trait Drawable {}
+mod net;
 impl Widget {
     fn draw(&self) {}
 }
@@ -119,7 +121,7 @@ impl Widget {
 		t.Fatalf("PreScan() error = %v, want nil", err)
 	}
 
-	want := []string{"draw", "Widget", "Drawable", "Widget"}
+	want := []string{"draw", "Widget", "Drawable", "Widget", "net"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("PreScan() = %#v, want %#v", got, want)
 	}
@@ -217,7 +219,7 @@ func TestParseDoesNotMarkLibraryMainFunctionAsRoot(t *testing.T) {
 func TestParseCapturesSameLineRustAttributes(t *testing.T) {
 	t.Parallel()
 
-	path := writeRustSource(t, "src/lib.rs", `#[test] fn inline_smoke() {}
+	path := writeRustSource(t, "src/lib.rs", `#[cfg_attr(test, allow(dead_code))] #[test] fn inline_smoke() {}
 `)
 	parser := newRustParser(t)
 
@@ -227,8 +229,98 @@ func TestParseCapturesSameLineRustAttributes(t *testing.T) {
 	}
 
 	smoke := assertRustBucketName(t, payload, "functions", "inline_smoke")
+	assertRustStringSliceContains(t, smoke, "decorators", "#[cfg_attr(test, allow(dead_code))]")
 	assertRustStringSliceContains(t, smoke, "decorators", "#[test]")
 	assertRustStringSliceContains(t, smoke, "dead_code_root_kinds", "rust.test_function")
+}
+
+func TestParseCapturesRustModuleAndImportMaturityPatterns(t *testing.T) {
+	t.Parallel()
+
+	path := writeRustSource(t, "src/lib.rs", `use crate::{self, config::Config as RuntimeConfig, prelude::*, service::{Client, Server}};
+use tokio_stream::{self as stream, StreamExt};
+
+pub mod api;
+pub(crate) mod worker {
+    pub fn run() {}
+}
+`)
+	parser := newRustParser(t)
+
+	payload, err := Parse(path, false, shared.Options{}, parser)
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	assertRustImport(t, payload, "crate", "", "self")
+	assertRustImport(t, payload, "crate::config::Config", "RuntimeConfig", "alias")
+	assertRustImport(t, payload, "crate::prelude::*", "", "glob")
+	assertRustImport(t, payload, "crate::service::Client", "Client", "use")
+	assertRustImport(t, payload, "crate::service::Server", "Server", "use")
+	assertRustImport(t, payload, "tokio_stream", "stream", "alias")
+	assertRustImport(t, payload, "tokio_stream::StreamExt", "StreamExt", "use")
+
+	api := assertRustBucketName(t, payload, "modules", "api")
+	assertRustStringField(t, api, "module_kind", "declaration")
+	assertRustStringField(t, api, "visibility", "pub")
+
+	worker := assertRustBucketName(t, payload, "modules", "worker")
+	assertRustStringField(t, worker, "module_kind", "inline")
+	assertRustStringField(t, worker, "visibility", "pub(crate)")
+}
+
+func TestParseCapturesRustAttributesAndGenericParameters(t *testing.T) {
+	t.Parallel()
+
+	path := writeRustSource(t, "src/lib.rs", `#[derive(Debug, Clone)]
+#[cfg_attr(test, derive(Default))]
+pub struct Holder<'a, T, const N: usize> {
+    value: &'a T,
+}
+
+#[derive(thiserror::Error)]
+pub enum AppError<T> {
+    Missing(T),
+}
+
+#[async_trait::async_trait]
+pub trait Render<'a, T> {
+    fn render<E>(&self, input: &'a T) -> Result<T, E>;
+}
+
+type Cache<'a, T> = &'a [T];
+`)
+	parser := newRustParser(t)
+
+	payload, err := Parse(path, false, shared.Options{}, parser)
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	holder := assertRustBucketName(t, payload, "classes", "Holder")
+	assertRustStringField(t, holder, "visibility", "pub")
+	assertRustStringSliceField(t, holder, "lifetime_parameters", []string{"a"})
+	assertRustStringSliceField(t, holder, "type_parameters", []string{"T"})
+	assertRustStringSliceField(t, holder, "const_parameters", []string{"N"})
+	assertRustStringSliceContains(t, holder, "decorators", "#[derive(Debug, Clone)]")
+	assertRustStringSliceContains(t, holder, "attribute_paths", "cfg_attr")
+	assertRustStringSliceField(t, holder, "derives", []string{"Debug", "Clone"})
+
+	appError := assertRustBucketName(t, payload, "classes", "AppError")
+	assertRustStringSliceField(t, appError, "type_parameters", []string{"T"})
+	assertRustStringSliceContains(t, appError, "derives", "thiserror::Error")
+
+	render := assertRustBucketName(t, payload, "traits", "Render")
+	assertRustStringSliceField(t, render, "lifetime_parameters", []string{"a"})
+	assertRustStringSliceField(t, render, "type_parameters", []string{"T"})
+	assertRustStringSliceContains(t, render, "attribute_paths", "async_trait::async_trait")
+
+	renderFn := assertRustBucketName(t, payload, "functions", "render")
+	assertRustStringSliceField(t, renderFn, "type_parameters", []string{"E"})
+
+	cache := assertRustBucketName(t, payload, "type_aliases", "Cache")
+	assertRustStringSliceField(t, cache, "lifetime_parameters", []string{"a"})
+	assertRustStringSliceField(t, cache, "type_parameters", []string{"T"})
 }
 
 func newRustParser(t *testing.T) *tree_sitter.Parser {
