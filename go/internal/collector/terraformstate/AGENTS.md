@@ -26,6 +26,9 @@
 - Redaction key material is mandatory before parsing.
 - Unknown provider-schema scalar attributes are redacted. Unknown composites are
   dropped and represented by warning facts.
+- `tags` and `tags_all` are emitted as correlation evidence, but scalar tag
+  keys and values still follow the unknown provider-schema rule and are
+  redacted by default. Non-scalar tag values are dropped with warning facts.
 
 ## Common changes and how to scope them
 

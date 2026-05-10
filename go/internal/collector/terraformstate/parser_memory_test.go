@@ -32,10 +32,17 @@ func TestParserStreamingPathDoesNotCallJSONUnmarshal(t *testing.T) {
 	}
 	packageDir := filepath.Dir(currentFile)
 	for _, fileName := range []string{
+		"anchors.go",
 		"attributes.go",
 		"json_token.go",
+		"modules.go",
+		"outputs.go",
 		"parser.go",
+		"providers.go",
+		"resources.go",
 		"snapshot_identity.go",
+		"tags.go",
+		"warnings.go",
 	} {
 		assertNoJSONUnmarshalCall(t, filepath.Join(packageDir, fileName))
 	}

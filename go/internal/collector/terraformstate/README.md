@@ -60,6 +60,10 @@ AWS SDK wiring belong to integration slices outside the reader stack.
 - Redaction key material is mandatory before parsing.
 - Unknown provider-schema scalar attributes are redacted. Unknown composite
   attributes are dropped and represented by warning facts.
+- `tags` and `tags_all` are emitted as `terraform_state_tag_observation`
+  facts for correlation indexing, but scalar tag keys and values still follow
+  the unknown provider-schema rule and are redacted by default. Non-scalar tag
+  values are dropped and represented by warning facts.
 - DynamoDB lock metadata is read-only and observational. The reader records the
   digest and a lock ID hash, but consistency decisions still come from the
   opened state body and durable generation metadata.
