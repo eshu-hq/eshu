@@ -78,6 +78,33 @@ func TestParserProviderBindingFactKeysAreStableAcrossResourceOrder(t *testing.T)
 	}
 }
 
+func TestParserDeduplicatesTerraformStateProviderBindingFacts(t *testing.T) {
+	t.Parallel()
+
+	state := `{"serial":17,"lineage":"lineage-123","resources":[
+		{
+			"mode":"managed",
+			"type":"aws_instance",
+			"name":"web",
+			"provider":"provider[\"registry.terraform.io/hashicorp/aws\"]",
+			"instances":[{"attributes":{"id":"i-1"}}]
+		},
+		{
+			"mode":"managed",
+			"type":"aws_instance",
+			"name":"web",
+			"provider":"provider[\"registry.terraform.io/hashicorp/aws\"]",
+			"instances":[{"attributes":{"id":"i-1"}}]
+		}
+	]}`
+
+	result := parseFixtureFacts(t, state)
+	bindings := factsByKind(result, facts.TerraformStateProviderBindingFactKind)
+	if got, want := len(bindings), 1; got != want {
+		t.Fatalf("provider binding fact count = %d, want %d: %#v", got, want, bindings)
+	}
+}
+
 func factByPayloadValue(t *testing.T, envelopes []facts.Envelope, key string, value any) facts.Envelope {
 	t.Helper()
 

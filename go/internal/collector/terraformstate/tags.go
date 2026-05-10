@@ -10,6 +10,7 @@ import (
 )
 
 const nonScalarTagValueReason = "non_scalar_tag_value"
+const nonObjectTagMapReason = "non_object_tag_map"
 
 type tagValue struct {
 	Key    string
@@ -17,35 +18,54 @@ type tagValue struct {
 	Scalar bool
 }
 
-func readTagValues(decoder *json.Decoder, tagSource string) ([]tagValue, error) {
-	if err := readOpeningDelim(decoder, '{', "terraform state resource "+tagSource); err != nil {
-		return nil, err
+func readTagValues(decoder *json.Decoder, tagSource string) ([]tagValue, bool, error) {
+	token, err := decoder.Token()
+	if err != nil {
+		return nil, false, fmt.Errorf("read terraform state resource %s: %w", tagSource, err)
+	}
+	delim, ok := token.(json.Delim)
+	if !ok {
+		return nil, false, nil
+	}
+	if delim != '{' {
+		if err := skipNested(decoder, delim); err != nil {
+			return nil, false, fmt.Errorf("skip malformed terraform state resource %s: %w", tagSource, err)
+		}
+		return nil, false, nil
 	}
 	tags := []tagValue{}
 	for decoder.More() {
 		token, err := decoder.Token()
 		if err != nil {
-			return nil, fmt.Errorf("read terraform state %s key: %w", tagSource, err)
+			return nil, false, fmt.Errorf("read terraform state %s key: %w", tagSource, err)
 		}
 		key, ok := token.(string)
 		if !ok {
-			return nil, fmt.Errorf("terraform state %s key must be a string", tagSource)
+			return nil, false, fmt.Errorf("terraform state %s key must be a string", tagSource)
 		}
 		value, scalar, err := readScalarOrSkip(decoder)
 		if err != nil {
-			return nil, fmt.Errorf("decode terraform state %s value %q: %w", tagSource, key, err)
+			return nil, false, fmt.Errorf("decode terraform state %s value %q: %w", tagSource, key, err)
 		}
 		tags = append(tags, tagValue{Key: key, Value: value, Scalar: scalar})
 	}
 	if _, err := decoder.Token(); err != nil {
-		return nil, fmt.Errorf("close terraform state resource %s: %w", tagSource, err)
+		return nil, false, fmt.Errorf("close terraform state resource %s: %w", tagSource, err)
 	}
-	return tags, nil
+	return tags, true, nil
 }
 
 func (p *stateParser) emitTagObservations(resourceAddress string, attributes []attributeValue) {
 	for _, attribute := range attributes {
 		if !attribute.TagMap {
+			continue
+		}
+		if attribute.InvalidTagMap {
+			p.warnings = append(p.warnings, warningPayload{
+				WarningKind: "tag_map_dropped",
+				Reason:      nonObjectTagMapReason,
+				Source:      "resources." + resourceAddress + ".attributes." + attribute.Key,
+			})
 			continue
 		}
 		tags := append([]tagValue(nil), attribute.Tags...)

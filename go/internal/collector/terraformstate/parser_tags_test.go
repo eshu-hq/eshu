@@ -52,6 +52,46 @@ func TestParserEmitsTerraformStateTagObservationFacts(t *testing.T) {
 	assertNoRawSecret(t, result, "password")
 }
 
+func TestParserWarnsAndContinuesForMalformedTagMaps(t *testing.T) {
+	t.Parallel()
+
+	state := `{"serial":17,"lineage":"lineage-123","resources":[{
+		"mode":"managed",
+		"type":"aws_instance",
+		"name":"web",
+		"instances":[{
+			"attributes":{
+				"id":"i-1",
+				"tags":null,
+				"tags_all":["unexpected"]
+			}
+		}]
+	}]}`
+
+	result := parseFixtureFacts(t, state)
+
+	requireFactKinds(t, result, facts.TerraformStateResourceFactKind, facts.TerraformStateWarningFactKind)
+	if tags := factsByKind(result, facts.TerraformStateTagObservationFactKind); len(tags) != 0 {
+		t.Fatalf("tag observation facts = %#v, want none for malformed tag maps", tags)
+	}
+	warnings := factsByKind(result, facts.TerraformStateWarningFactKind)
+	if got, want := len(warnings), 2; got != want {
+		t.Fatalf("warning count = %d, want %d: %#v", got, want, warnings)
+	}
+	for _, source := range []string{
+		"resources.aws_instance.web.attributes.tags",
+		"resources.aws_instance.web.attributes.tags_all",
+	} {
+		warning := factByPayloadValue(t, warnings, "source", source)
+		if got, want := warning.Payload["warning_kind"], "tag_map_dropped"; got != want {
+			t.Fatalf("warning_kind = %#v, want %q", got, want)
+		}
+		if got, want := warning.Payload["reason"], "non_object_tag_map"; got != want {
+			t.Fatalf("reason = %#v, want %q", got, want)
+		}
+	}
+}
+
 func assertTagFieldRedacted(t *testing.T, tag facts.Envelope, field string) {
 	t.Helper()
 

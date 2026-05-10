@@ -8,11 +8,12 @@ import (
 )
 
 type attributeValue struct {
-	Key    string
-	Value  any
-	Scalar bool
-	TagMap bool
-	Tags   []tagValue
+	Key           string
+	Value         any
+	Scalar        bool
+	TagMap        bool
+	Tags          []tagValue
+	InvalidTagMap bool
 }
 
 func readAttributeValues(decoder *json.Decoder) ([]attributeValue, error) {
@@ -31,11 +32,11 @@ func readAttributeValues(decoder *json.Decoder) ([]attributeValue, error) {
 		}
 		switch key {
 		case "tags", "tags_all":
-			tags, err := readTagValues(decoder, key)
+			tags, valid, err := readTagValues(decoder, key)
 			if err != nil {
 				return nil, err
 			}
-			attributes = append(attributes, attributeValue{Key: key, TagMap: true, Tags: tags})
+			attributes = append(attributes, attributeValue{Key: key, TagMap: true, Tags: tags, InvalidTagMap: !valid})
 		default:
 			value, scalar, err := readScalarOrSkip(decoder)
 			if err != nil {

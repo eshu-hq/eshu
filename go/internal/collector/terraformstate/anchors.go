@@ -40,7 +40,7 @@ func (p *stateParser) correlationAnchors(resourceAddress string, attributes []at
 
 func (p *stateParser) redactsAnchor(resourceAddress string, attributeKey string) bool {
 	source := "resources." + resourceAddress + ".attributes." + attributeKey
-	decision := p.options.RedactionRules.Classify(source, redact.SchemaKnown, redact.FieldScalar)
+	decision := p.options.RedactionRules.Classify(source, redact.SchemaUnknown, redact.FieldScalar)
 	return decision.Action != redact.ActionPreserve
 }
 
