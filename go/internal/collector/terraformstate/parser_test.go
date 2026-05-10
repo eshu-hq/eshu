@@ -338,7 +338,7 @@ func parseFixtureFacts(t *testing.T, state string) []facts.Envelope {
 	return result.Facts
 }
 
-func parseFixtureOptions(t *testing.T) terraformstate.ParseOptions {
+func parseFixtureOptions(t testing.TB) terraformstate.ParseOptions {
 	t.Helper()
 
 	key, err := redact.NewKey([]byte("test-redaction-key"))
