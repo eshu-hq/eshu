@@ -72,6 +72,26 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 			t.Fatalf("maturity[%s] = %#v, want %#v", language, got, want)
 		}
 	}
+
+	blockers, ok := analysis["dead_code_language_exactness_blockers"].(map[string]any)
+	if !ok {
+		t.Fatalf("analysis[dead_code_language_exactness_blockers] type = %T, want map[string]any", analysis["dead_code_language_exactness_blockers"])
+	}
+	rustBlockers, ok := blockers["rust"].([]any)
+	if !ok {
+		t.Fatalf("blockers[rust] type = %T, want []any", blockers["rust"])
+	}
+	for _, want := range []string{
+		"macro_expansion_unavailable",
+		"cfg_unresolved",
+		"cargo_feature_resolution_unavailable",
+		"semantic_module_resolution_unavailable",
+		"trait_dispatch_unresolved",
+	} {
+		if !queryTestStringSliceContains(rustBlockers, want) {
+			t.Fatalf("blockers[rust] missing %q in %#v", want, rustBlockers)
+		}
+	}
 }
 
 func TestDeadCodeLanguageMaturityCoversParserSourceLanguages(t *testing.T) {

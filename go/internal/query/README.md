@@ -93,7 +93,10 @@ Rust now shares the derived dead-code maturity tier with Go and Java while
 exact Rust cleanup remains gated on broader semantic resolution. Rust
 `benches/` and `examples/` files are treated as Cargo auxiliary targets rather
 than production cleanup candidates; the same root kinds appear in
-`modeled_framework_roots` so callers can explain the suppression.
+`modeled_framework_roots` so callers can explain the suppression. The analysis
+payload also exposes `dead_code_language_exactness_blockers`, with Rust blockers
+for unresolved macro expansion, cfg/Cargo feature selection, semantic module
+resolution, and trait dispatch.
 Dead-code candidate paging uses `DeadCodeCandidateRows` in
 `content_reader_dead_code_candidates.go:13` when the content read model is
 available, avoiding graph-wide ordered scans on large repositories. Candidate

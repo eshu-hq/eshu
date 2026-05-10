@@ -33,6 +33,7 @@ pub enum State {
 
 	holder := assertRustBucketName(t, payload, "classes", "Holder")
 	assertRustStringSliceField(t, holder, "conditional_derives", []string{"Serialize", "Deserialize"})
+	assertRustStringSliceContains(t, holder, "exactness_blockers", "cfg_unresolved")
 
 	value := assertRustBucketName(t, payload, "annotations", "Holder.value")
 	assertRustStringField(t, value, "owner", "Holder")
@@ -43,6 +44,7 @@ pub enum State {
 	assertRustStringField(t, hidden, "owner", "Holder")
 	assertRustStringField(t, hidden, "target_kind", "field")
 	assertRustStringSliceField(t, hidden, "attribute_paths", []string{"cfg_attr"})
+	assertRustStringSliceContains(t, hidden, "exactness_blockers", "cfg_unresolved")
 
 	ready := assertRustBucketName(t, payload, "annotations", "State.Ready")
 	assertRustStringField(t, ready, "owner", "State")
@@ -53,6 +55,7 @@ pub enum State {
 	assertRustStringField(t, legacy, "owner", "State")
 	assertRustStringField(t, legacy, "target_kind", "enum_variant")
 	assertRustStringSliceField(t, legacy, "attribute_paths", []string{"cfg_attr"})
+	assertRustStringSliceContains(t, legacy, "exactness_blockers", "cfg_unresolved")
 }
 
 func TestParseCapturesRustWhereClauseSemantics(t *testing.T) {
@@ -127,14 +130,18 @@ cfg_if::cfg_if! {
 	unixModule := assertRustBucketName(t, payload, "modules", "unix")
 	assertRustStringField(t, unixModule, "module_origin", "macro_invocation")
 	assertRustStringSliceField(t, unixModule, "declared_path_candidates", []string{"unix.rs", "unix/mod.rs"})
+	assertRustStringSliceContains(t, unixModule, "exactness_blockers", "macro_expansion_unavailable")
 
 	fallbackModule := assertRustBucketName(t, payload, "modules", "fallback")
 	assertRustStringField(t, fallbackModule, "module_origin", "macro_invocation")
+	assertRustStringSliceContains(t, fallbackModule, "exactness_blockers", "macro_expansion_unavailable")
 
 	unixImport := assertRustBucketName(t, payload, "imports", "crate::os::UnixHandle")
 	assertRustStringField(t, unixImport, "import_origin", "macro_invocation")
+	assertRustStringSliceContains(t, unixImport, "exactness_blockers", "macro_expansion_unavailable")
 
 	fallbackImport := assertRustBucketName(t, payload, "imports", "crate::os::FallbackHandle")
 	assertRustStringField(t, fallbackImport, "alias", "Handle")
 	assertRustStringField(t, fallbackImport, "import_origin", "macro_invocation")
+	assertRustStringSliceContains(t, fallbackImport, "exactness_blockers", "macro_expansion_unavailable")
 }

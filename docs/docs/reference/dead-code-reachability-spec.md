@@ -141,6 +141,8 @@ Any dead-code result should be able to report:
   text was unavailable
 - how many framework roots came from parser metadata versus legacy query-time
   source fallback
+- named exactness blockers for parser-supported languages that are modeled but
+  still non-exact
 - whether IaC reachability was modeled by this analysis
 
 That explanation must be returned in structured form, not just text prose.
@@ -161,6 +163,11 @@ The initial maturity states are:
   answer is cleanup-safe
 - future `ambiguous_only`: language scopes where Eshu can identify uncertainty
   but cannot return actionable unused symbols
+
+Rust currently reports `derived` with named exactness blockers for unresolved
+macro expansion, cfg and Cargo feature selection, semantic module resolution,
+and trait dispatch. Those blockers must be cleared or scoped out before Rust
+can return exact cleanup-safe dead-code truth.
 
 The current `code_quality.dead_code` capability is code-call oriented. It must
 not classify Terraform, Helm, Kustomize, Kubernetes, ArgoCD, or other IaC

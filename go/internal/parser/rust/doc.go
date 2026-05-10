@@ -12,12 +12,13 @@
 // visibility, and benchmark roots require file-local Criterion identifier
 // targets or direct benchmark attributes; generated or expression-based
 // benchmark targets remain raw macro evidence. Module declaration path
-// candidates stay relative to the current file
-// directory instead of probing the filesystem, except explicit path attributes,
-// which replace the candidate list with the declared path. Item attributes may
-// be multiline or share the item line, while nested field and enum-variant
-// attributes stay on owned annotation rows. Impl targets keep the receiver type
-// and trim any trailing where clause.
+// candidates stay relative to the current file directory instead of probing the
+// filesystem, except explicit path attributes, which replace the candidate list
+// with the declared path. Item attributes may be multiline or share the item
+// line, while nested field and enum-variant attributes stay on owned annotation
+// rows. Cfg-gated items and macro-origin module/import rows name exactness
+// blockers so dead-code callers can explain why Rust remains derived. Impl
+// targets keep the receiver type and trim any trailing where clause.
 // PreScan derives repository symbol names from the same payload path so parent
 // parser pre-scan and full parse agree. The package preserves raw attributes
 // and generic clauses as evidence without inferring reachability from arbitrary

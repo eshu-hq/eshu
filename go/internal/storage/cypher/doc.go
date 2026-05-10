@@ -29,6 +29,7 @@
 // expensive on local graph backends; missing nested files use a guarded MERGE
 // through their parent Directory, while repository-root files use a
 // Repository-contained path that does not require a synthetic root Directory.
-// High-volume analysis metadata such as dead_code_root_kinds stays in the
-// content store unless a graph query owns a proven need for that property.
+// High-volume analysis metadata such as dead_code_root_kinds and
+// exactness_blockers stays in the content store unless a graph query owns a
+// proven need for that property.
 package cypher

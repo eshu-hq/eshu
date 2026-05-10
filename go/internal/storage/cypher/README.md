@@ -59,8 +59,9 @@ edge. Repository-root files use a separate Repository-contained statement shape
 so package entrypoint files can materialize without inventing a root
 `Directory`. This avoids NornicDB's expensive `DETACH DELETE` cost for current
 directories or files. Entity property filtering also keeps high-volume analysis
-metadata such as `dead_code_root_kinds` out of canonical graph rows; the
-dead-code API merges that evidence from the content store by entity ID.
+metadata such as `dead_code_root_kinds` and `exactness_blockers` out of
+canonical graph rows; the dead-code API merges that evidence from the content
+store by entity ID.
 
 Terraform-state rows are written as `TerraformResource`, `TerraformModule`, and
 `TerraformOutput` nodes keyed by `uid`. The rows keep lineage, serial, provider

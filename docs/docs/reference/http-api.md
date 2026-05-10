@@ -594,8 +594,10 @@ response is intentionally `derived`, not `exact`, until the broader framework,
 public-API, reflection, and user-configured root registry from the
 reachability spec is implemented. The response body now also includes an
 `analysis` object that reports the root categories currently modeled, the
-specific Go framework-root signatures currently recognized, and whether
-tests/generated code were excluded. `analysis.roots_skipped_missing_source`
+specific Go framework-root signatures currently recognized, the per-language
+dead-code maturity table, named exactness blockers for non-exact languages such
+as Rust, and whether tests/generated code were excluded.
+`analysis.roots_skipped_missing_source`
 counts Go candidates where the framework-root checks could not run because the
 content store did not have source cached. `analysis.framework_roots_from_parser_metadata`
 and `analysis.framework_roots_from_source_fallback` show whether the excluded

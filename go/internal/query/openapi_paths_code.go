@@ -315,6 +315,11 @@ const openAPIPathsCode = `
                         "generated_code_excluded": {"type": "boolean"},
                         "user_overrides_applied": {"type": "boolean"},
                         "dead_code_language_maturity": {"type": "object", "additionalProperties": {"type": "string"}},
+                        "dead_code_language_exactness_blockers": {
+                          "type": "object",
+                          "description": "Named blockers that prevent exact cleanup-safe dead-code truth for a language.",
+                          "additionalProperties": {"type": "array", "items": {"type": "string"}}
+                        },
                         "modeled_entrypoints": {"type": "array", "items": {"type": "string"}},
                         "modeled_public_api": {"type": "array", "items": {"type": "string"}},
                         "notes": {"type": "array", "items": {"type": "string"}}

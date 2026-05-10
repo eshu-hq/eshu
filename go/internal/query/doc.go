@@ -27,7 +27,9 @@
 // dead-code maturity tier with Go and Java while exact Rust cleanup remains
 // gated on broader semantic resolution. Rust Cargo auxiliary target files under
 // benches/ and examples/ are treated like non-production roots for cleanup
-// analysis. The
+// analysis. Rust exactness blockers are reported in the analysis payload for
+// unresolved macro expansion, cfg and Cargo feature selection, semantic module
+// resolution, and trait dispatch. The
 // analysis notes and modeled-root list use the same Java root family so callers
 // see why those entities were suppressed. The analysis payload names modeled
 // root kinds, includes Go function-literal reachable calls in the modeled Go

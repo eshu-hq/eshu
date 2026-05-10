@@ -69,6 +69,9 @@ parent type. Module declaration rows include `declared_path_candidates` such as
 mark `module_path_source=path_attribute`. Literal `mod ...;` and `use ...;`
 declarations inside macro invocation bodies are modeled with
 `module_origin=macro_invocation` or `import_origin=macro_invocation`.
+Items gated by `cfg` or `cfg_attr` carry `exactness_blockers=cfg_unresolved`;
+macro-origin module and import rows carry
+`exactness_blockers=macro_expansion_unavailable`.
 
 Arbitrary macro expansion and filesystem-backed module resolution are still not
 modeled. Add package-local tests before widening either claim.
