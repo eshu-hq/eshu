@@ -106,6 +106,7 @@ nav:
     - Documentation Updater Actuator Contract: reference/documentation-updater-actuator-contract.md
     - Component Package Manager: reference/component-package-manager.md
     - Runtime Admin API: reference/runtime-admin-api.md
+    - Tag Taxonomy: reference/tag-taxonomy.md
     - Legacy Entry Pages:
       - Prerequisites: getting-started/prerequisites.md
       - Installation: getting-started/installation.md
