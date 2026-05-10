@@ -204,7 +204,7 @@ func (s ClaimedSource) collectCandidate(
 		if errors.Is(err, terraformstate.ErrStateNotModified) {
 			s.recordS3NotModified(ctx, candidate.State.BackendKind)
 			s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "not_modified")
-			if usesCandidatePlanningID(item) {
+			if strings.TrimSpace(candidate.PriorGenerationID) == "" && usesCandidatePlanningID(item) {
 				return collector.CollectedGeneration{}, false, nil
 			}
 			return collector.CollectedGeneration{Unchanged: true}, true, nil

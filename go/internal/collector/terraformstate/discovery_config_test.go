@@ -60,7 +60,10 @@ func TestDiscoveryCarriesDurablePriorETagToSeedCandidate(t *testing.T) {
 		},
 		PriorSnapshots: fakePriorSnapshotReader{
 			metadata: map[StateKey]PriorSnapshotMetadata{
-				stateKey: {ETag: `"etag-123"`},
+				stateKey: {
+					ETag:         `"etag-123"`,
+					GenerationID: "terraform_state:state_snapshot:s3:locator-hash:lineage-123:serial:17",
+				},
 			},
 		},
 	}
@@ -71,6 +74,9 @@ func TestDiscoveryCarriesDurablePriorETagToSeedCandidate(t *testing.T) {
 	}
 	if got, want := candidates[0].PreviousETag, `"etag-123"`; got != want {
 		t.Fatalf("PreviousETag = %q, want durable ETag %q", got, want)
+	}
+	if got, want := candidates[0].PriorGenerationID, "terraform_state:state_snapshot:s3:locator-hash:lineage-123:serial:17"; got != want {
+		t.Fatalf("PriorGenerationID = %q, want durable generation ID %q", got, want)
 	}
 }
 

@@ -47,12 +47,13 @@ type DiscoverySeed struct {
 
 // DiscoveryCandidate is one exact Terraform state object to inspect later.
 type DiscoveryCandidate struct {
-	State         StateKey
-	Source        DiscoveryCandidateSource
-	RepoID        string
-	Region        string
-	DynamoDBTable string
-	PreviousETag  string
+	State             StateKey
+	Source            DiscoveryCandidateSource
+	RepoID            string
+	Region            string
+	DynamoDBTable     string
+	PreviousETag      string
+	PriorGenerationID string
 }
 
 // DiscoveryQuery scopes graph-backed Terraform backend fact reads.
@@ -79,7 +80,8 @@ type PriorSnapshotMetadataReader interface {
 // PriorSnapshotMetadata carries freshness metadata safe to reuse for a later
 // exact state read.
 type PriorSnapshotMetadata struct {
-	ETag string
+	ETag         string
+	GenerationID string
 }
 
 // DiscoveryMetrics records resolved Terraform state discovery candidate counts.
@@ -221,6 +223,7 @@ func (r DiscoveryResolver) withPriorSnapshotMetadata(
 	for index := range candidates {
 		prior := metadata[candidates[index].State]
 		candidates[index].PreviousETag = prior.ETag
+		candidates[index].PriorGenerationID = prior.GenerationID
 	}
 	return candidates, nil
 }

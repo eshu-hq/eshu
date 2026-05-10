@@ -164,6 +164,7 @@ func TestTerraformStatePriorSnapshotReaderReturnsETagByLocatorHash(t *testing.T)
 			rows: [][]any{{
 				locatorHash,
 				`"etag-123"`,
+				"terraform_state:state_snapshot:s3:locator-hash:lineage-123:serial:17",
 			}},
 		}},
 	}
@@ -178,6 +179,9 @@ func TestTerraformStatePriorSnapshotReaderReturnsETagByLocatorHash(t *testing.T)
 	}
 	if got, want := metadata[stateKey].ETag, `"etag-123"`; got != want {
 		t.Fatalf("ETag = %q, want %q", got, want)
+	}
+	if got, want := metadata[stateKey].GenerationID, "terraform_state:state_snapshot:s3:locator-hash:lineage-123:serial:17"; got != want {
+		t.Fatalf("GenerationID = %q, want %q", got, want)
 	}
 	if got, want := len(db.queries), 1; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)

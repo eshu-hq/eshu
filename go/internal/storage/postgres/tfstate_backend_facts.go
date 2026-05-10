@@ -53,7 +53,8 @@ SELECT EXISTS (
 const listTerraformStatePriorSnapshotMetadataQuery = `
 SELECT
     fact.payload->>'locator_hash' AS locator_hash,
-    fact.payload->>'etag' AS etag
+    fact.payload->>'etag' AS etag,
+    generation.generation_id
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -152,7 +153,8 @@ func (r TerraformStatePriorSnapshotReader) TerraformStatePriorSnapshotMetadata(
 	for rows.Next() {
 		var locatorHash string
 		var etag string
-		if err := rows.Scan(&locatorHash, &etag); err != nil {
+		var generationID string
+		if err := rows.Scan(&locatorHash, &etag, &generationID); err != nil {
 			return nil, fmt.Errorf("list terraform state prior snapshot metadata: %w", err)
 		}
 		state, ok := byHash[locatorHash]
@@ -162,7 +164,7 @@ func (r TerraformStatePriorSnapshotReader) TerraformStatePriorSnapshotMetadata(
 		if _, seen := metadata[state]; seen {
 			continue
 		}
-		metadata[state] = terraformstate.PriorSnapshotMetadata{ETag: etag}
+		metadata[state] = terraformstate.PriorSnapshotMetadata{ETag: etag, GenerationID: generationID}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list terraform state prior snapshot metadata: %w", err)
