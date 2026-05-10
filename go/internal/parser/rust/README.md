@@ -3,8 +3,8 @@
 ## Purpose
 
 This package owns Rust-specific tree-sitter payload extraction for functions,
-types, traits, impl blocks, imports, macro invocations, calls, and lifetime
-metadata.
+types, traits, impl blocks, imports, macro definitions and invocations, calls,
+constants, statics, type aliases, root metadata, and lifetime metadata.
 
 ## Ownership Boundary
 
@@ -32,7 +32,14 @@ remain owned by the parent engine.
 
 Brace imports are preserved as one raw `use` row instead of being expanded per
 symbol. Lifetime names are structured when they appear in signatures and impl
-headers, but generic type parameters, attributes and derives, module items,
-consts, statics, type aliases, and unsafe or async semantics are not emitted as
-separate metadata yet. Add package-local tests before widening any of those
-claims.
+headers. Functions now carry async, unsafe, visibility, and selected
+`dead_code_root_kinds` metadata. Bare `fn main` roots are limited to Cargo-shaped
+entrypoint paths such as `main.rs`, `build.rs`, `src/bin`, and `examples`; a
+`#[tokio::main]` attribute is direct root evidence. `#[test]` and
+`#[tokio::test]` are test roots. Const and static items are emitted through the
+`variables` bucket with `variable_kind`, `type` items through `type_aliases`, and
+`macro_rules!` definitions through `macros`.
+
+Generic type parameters, derives, module items, attribute macros beyond the
+root cases above, and expanded brace-import symbols are not emitted as separate
+metadata yet. Add package-local tests before widening any of those claims.

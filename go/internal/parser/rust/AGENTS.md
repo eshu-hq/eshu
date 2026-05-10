@@ -21,9 +21,12 @@
 - Keep registry dispatch and runtime parser lookup in the parent parser package.
 - Keep shared cross-language primitives in internal/parser/shared.
 - Preserve current limits in README.md when adding coverage. Brace imports,
-  generic type parameters, attributes, modules, consts, statics, type aliases,
-  and unsafe or async semantics are not structured metadata unless a test and
+  generic type parameters, derives, modules, and attribute macros beyond the
+  documented Rust root cases are not structured metadata unless a test and
   downstream contract prove the new claim.
+- Keep dead-code root metadata conservative. `rust.main_function`,
+  `rust.test_function`, `rust.tokio_main`, and `rust.tokio_test` require direct
+  function-name or immediately preceding attribute evidence.
 
 ## Anti-Patterns
 

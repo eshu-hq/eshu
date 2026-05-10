@@ -1,11 +1,15 @@
 package rust
 
 import (
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
+
+var rustMacroRulesPattern = regexp.MustCompile(`\bmacro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)`)
 
 func firstNamedDescendant(node *tree_sitter.Node, kinds ...string) *tree_sitter.Node {
 	var result *tree_sitter.Node
@@ -161,4 +165,133 @@ func rustCallFullName(node *tree_sitter.Node, source []byte) string {
 		return strings.TrimSpace(shared.NodeText(nameNode, source))
 	}
 	return ""
+}
+
+func rustFunctionPrefix(signature string, name string) string {
+	marker := "fn " + name
+	idx := strings.Index(signature, marker)
+	if idx < 0 {
+		return ""
+	}
+	return strings.TrimSpace(signature[:idx])
+}
+
+func rustContainsWord(text string, word string) bool {
+	for _, field := range strings.Fields(text) {
+		if field == word {
+			return true
+		}
+	}
+	return false
+}
+
+func rustVisibility(signature string) string {
+	trimmed := strings.TrimSpace(signature)
+	if strings.HasPrefix(trimmed, "pub(") {
+		end := strings.Index(trimmed, ")")
+		if end > len("pub(") {
+			return trimmed[:end+1]
+		}
+	}
+	if trimmed == "pub" || strings.HasPrefix(trimmed, "pub ") {
+		return "pub"
+	}
+	return ""
+}
+
+func rustDeadCodeRootKinds(path string, name string, node *tree_sitter.Node, source []byte) []string {
+	rootKinds := make([]string, 0, 3)
+	attributes := rustLeadingAttributes(node, source)
+	if name == "main" && rustMainFunctionRootPath(path, attributes) {
+		rootKinds = appendUniqueString(rootKinds, "rust.main_function")
+	}
+	for _, attribute := range attributes {
+		path := rustAttributePath(attribute)
+		switch path {
+		case "test":
+			rootKinds = appendUniqueString(rootKinds, "rust.test_function")
+		case "tokio::main":
+			rootKinds = appendUniqueString(rootKinds, "rust.tokio_main")
+		case "tokio::test":
+			rootKinds = appendUniqueString(rootKinds, "rust.tokio_test")
+		}
+	}
+	return rootKinds
+}
+
+func rustMainFunctionRootPath(path string, attributes []string) bool {
+	for _, attribute := range attributes {
+		if rustAttributePath(attribute) == "tokio::main" {
+			return true
+		}
+	}
+	cleanPath := filepath.ToSlash(filepath.Clean(path))
+	switch filepath.Base(cleanPath) {
+	case "build.rs", "main.rs":
+		return true
+	}
+	return strings.Contains(cleanPath, "/src/bin/") || strings.Contains(cleanPath, "/examples/")
+}
+
+func rustLeadingAttributes(node *tree_sitter.Node, source []byte) []string {
+	if node == nil {
+		return nil
+	}
+	line := int(node.StartPosition().Row)
+	if line == 0 {
+		return nil
+	}
+	lines := strings.Split(string(source), "\n")
+	if line > len(lines) {
+		line = len(lines)
+	}
+
+	attributes := make([]string, 0, 2)
+	for idx := line - 1; idx >= 0; idx-- {
+		trimmed := strings.TrimSpace(lines[idx])
+		if trimmed == "" {
+			break
+		}
+		if !strings.HasPrefix(trimmed, "#[") {
+			break
+		}
+		attributes = append([]string{trimmed}, attributes...)
+	}
+	if len(attributes) == 0 {
+		return nil
+	}
+	return attributes
+}
+
+func rustAttributePath(attribute string) string {
+	trimmed := strings.TrimSpace(attribute)
+	trimmed = strings.TrimPrefix(trimmed, "#[")
+	trimmed = strings.TrimSuffix(trimmed, "]")
+	trimmed = strings.TrimSpace(trimmed)
+	if idx := strings.Index(trimmed, "("); idx >= 0 {
+		trimmed = trimmed[:idx]
+	}
+	return strings.TrimSpace(trimmed)
+}
+
+func appendUniqueString(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
+}
+
+func rustMacroDefinitionName(node *tree_sitter.Node, source []byte) string {
+	if nameNode := firstNamedDescendant(node, "identifier"); nameNode != nil {
+		if name := strings.TrimSpace(shared.NodeText(nameNode, source)); name != "" {
+			return name
+		}
+	}
+	matches := rustMacroRulesPattern.FindStringSubmatch(shared.NodeText(node, source))
+	if len(matches) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(matches[1])
 }

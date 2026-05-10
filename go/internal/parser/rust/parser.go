@@ -30,15 +30,19 @@ func Parse(
 
 	payload := shared.BasePayload(path, "rust", isDependency)
 	payload["impl_blocks"] = []map[string]any{}
+	payload["macros"] = []map[string]any{}
 	payload["traits"] = []map[string]any{}
+	payload["type_aliases"] = []map[string]any{}
 	root := tree.RootNode()
 
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
+		case "const_item", "static_item":
+			appendRustVariable(payload, node, source, options)
 		case "impl_item":
 			appendRustImplBlock(payload, node, source)
 		case "function_item", "function_signature_item":
-			appendRustFunction(payload, node, source, options)
+			appendRustFunction(payload, path, node, source, options)
 		case "struct_item", "enum_item", "union_item":
 			appendRustClass(payload, node, source)
 		case "trait_item":
@@ -47,12 +51,27 @@ func Parse(
 			appendRustImportMetadata(payload, node, source)
 		case "call_expression":
 			appendRustCall(payload, node, source)
+		case "macro_definition":
+			appendRustMacroDefinition(payload, node, source, options)
 		case "macro_invocation":
 			appendRustCall(payload, node, source)
+		case "type_item":
+			appendRustTypeAlias(payload, node, source, options)
 		}
 	})
 
-	sortSystemsPayload(payload, "functions", "classes", "traits", "imports", "function_calls", "impl_blocks")
+	sortSystemsPayload(
+		payload,
+		"functions",
+		"classes",
+		"traits",
+		"variables",
+		"type_aliases",
+		"macros",
+		"imports",
+		"function_calls",
+		"impl_blocks",
+	)
 	payload["framework_semantics"] = map[string]any{"frameworks": []string{}}
 
 	return payload, nil
@@ -64,7 +83,7 @@ func PreScan(path string, parser *tree_sitter.Parser) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return shared.CollectBucketNames(payload, "functions", "classes", "traits", "impl_blocks"), nil
+	return shared.CollectBucketNames(payload, "functions", "classes", "traits", "type_aliases", "macros", "impl_blocks"), nil
 }
 
 func appendRustClass(payload map[string]any, node *tree_sitter.Node, source []byte) {
@@ -138,7 +157,13 @@ func appendRustImplBlock(payload map[string]any, node *tree_sitter.Node, source 
 	shared.AppendBucket(payload, "impl_blocks", item)
 }
 
-func appendRustFunction(payload map[string]any, node *tree_sitter.Node, source []byte, options shared.Options) {
+func appendRustFunction(
+	payload map[string]any,
+	path string,
+	node *tree_sitter.Node,
+	source []byte,
+	options shared.Options,
+) {
 	nameNode := firstNamedDescendant(node, "identifier")
 	name := shared.NodeText(nameNode, source)
 	if strings.TrimSpace(name) == "" {
@@ -153,6 +178,22 @@ func appendRustFunction(payload map[string]any, node *tree_sitter.Node, source [
 		"lang":        "rust",
 	}
 	signature := rustSignatureHeader(shared.NodeText(node, source))
+	if visibility := rustVisibility(signature); visibility != "" {
+		item["visibility"] = visibility
+	}
+	prefix := rustFunctionPrefix(signature, name)
+	if rustContainsWord(prefix, "async") {
+		item["async"] = true
+	}
+	if rustContainsWord(prefix, "unsafe") {
+		item["unsafe"] = true
+	}
+	if attributes := rustLeadingAttributes(node, source); len(attributes) > 0 {
+		item["decorators"] = attributes
+	}
+	if rootKinds := rustDeadCodeRootKinds(path, name, node, source); len(rootKinds) > 0 {
+		item["dead_code_root_kinds"] = rootKinds
+	}
 	if lifetimeParameters := rustFunctionLifetimeParameters(signature, name); len(lifetimeParameters) > 0 {
 		item["lifetime_parameters"] = lifetimeParameters
 	}
@@ -169,6 +210,72 @@ func appendRustFunction(payload map[string]any, node *tree_sitter.Node, source [
 		item["source"] = shared.NodeText(node, source)
 	}
 	shared.AppendBucket(payload, "functions", item)
+}
+
+func appendRustTypeAlias(payload map[string]any, node *tree_sitter.Node, source []byte, options shared.Options) {
+	nameNode := firstNamedDescendant(node, "type_identifier")
+	name := strings.TrimSpace(shared.NodeText(nameNode, source))
+	if name == "" {
+		return
+	}
+
+	item := map[string]any{
+		"name":        name,
+		"line_number": shared.NodeLine(nameNode),
+		"end_line":    shared.NodeEndLine(node),
+		"lang":        "rust",
+	}
+	raw := rustSignatureHeader(shared.NodeText(node, source))
+	if visibility := rustVisibility(raw); visibility != "" {
+		item["visibility"] = visibility
+	}
+	if options.IndexSource {
+		item["source"] = shared.NodeText(node, source)
+	}
+	shared.AppendBucket(payload, "type_aliases", item)
+}
+
+func appendRustVariable(payload map[string]any, node *tree_sitter.Node, source []byte, options shared.Options) {
+	nameNode := firstNamedDescendant(node, "identifier")
+	name := strings.TrimSpace(shared.NodeText(nameNode, source))
+	if name == "" {
+		return
+	}
+
+	variableKind := strings.TrimSuffix(node.Kind(), "_item")
+	item := map[string]any{
+		"name":          name,
+		"line_number":   shared.NodeLine(nameNode),
+		"end_line":      shared.NodeEndLine(node),
+		"variable_kind": variableKind,
+		"lang":          "rust",
+	}
+	raw := rustSignatureHeader(shared.NodeText(node, source))
+	if visibility := rustVisibility(raw); visibility != "" {
+		item["visibility"] = visibility
+	}
+	if options.IndexSource {
+		item["source"] = shared.NodeText(node, source)
+	}
+	shared.AppendBucket(payload, "variables", item)
+}
+
+func appendRustMacroDefinition(payload map[string]any, node *tree_sitter.Node, source []byte, options shared.Options) {
+	name := rustMacroDefinitionName(node, source)
+	if name == "" {
+		return
+	}
+
+	item := map[string]any{
+		"name":        name,
+		"line_number": shared.NodeLine(node),
+		"end_line":    shared.NodeEndLine(node),
+		"lang":        "rust",
+	}
+	if options.IndexSource {
+		item["source"] = shared.NodeText(node, source)
+	}
+	shared.AppendBucket(payload, "macros", item)
 }
 
 func appendRustImportMetadata(payload map[string]any, node *tree_sitter.Node, source []byte) {
