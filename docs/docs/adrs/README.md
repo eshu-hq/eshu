@@ -63,5 +63,9 @@ The ADRs that need active planning next are:
 7. Dead-code exactness by language family, starting with the Eshu dogfood Go
    false positives.
 8. IaC re-platforming planner and unmanaged-resource evidence workflows.
+9. Kubernetes live collector implementation after Terraform state and AWS
+   collector evidence are stable.
+10. OCI registry collector implementation for digest-anchored image and
+    supply-chain evidence.
 9. Tag taxonomy implementation in the reducer-owned normalizer and admin
    status payload.
