@@ -48,6 +48,7 @@ still needs an owner.
 | `2026-05-07-dead-code-root-model-and-language-reachability.md` | Proposed | Freeze the Eshu dogfood false positives, add language-scoped maturity metadata, materialize root reachability, and promote exactness only after per-language gates pass. |
 | `2026-05-04-neo4j-parity-optimization-plan.md` | Accepted | Records the schema-first Neo4j proof, the shared writer cleanup, and the resulting support posture. |
 | `2026-05-09-iac-replatforming-planner.md` | Proposed | Define the read-only IaC management-status and re-platforming planner capability on top of Git, Terraform state, and cloud scanner evidence. |
+| `2026-05-10-tag-taxonomy-correlation-dsl-addendum.md` | Accepted | Freezes tag alias packs, overrides, source precedence, negative evidence, and the `aws_tag_distribution` admin learning loop. |
 
 ## Discussion Shortlist
 
@@ -62,3 +63,5 @@ The ADRs that need active planning next are:
 7. Dead-code exactness by language family, starting with the Eshu dogfood Go
    false positives.
 8. IaC re-platforming planner and unmanaged-resource evidence workflows.
+9. Tag taxonomy implementation in the reducer-owned normalizer and admin
+   status payload.
