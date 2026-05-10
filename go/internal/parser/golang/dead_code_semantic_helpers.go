@@ -60,6 +60,7 @@ func goCollectFunctionValuesFromExpression(
 	functionNames map[string]struct{},
 	methodKeys map[string]struct{},
 	variableTypes map[string]string,
+	localNameBindings []goLocalNameBinding,
 	functionRootKinds map[string][]string,
 ) {
 	if node == nil {
@@ -68,9 +69,13 @@ func goCollectFunctionValuesFromExpression(
 	switch node.Kind() {
 	case "call_expression":
 		return
+	case "func_literal":
+		goCollectFunctionLiteralReachableCalls(node, source, functionNames, localNameBindings, functionRootKinds)
+		return
 	case "identifier":
-		name := strings.ToLower(strings.TrimSpace(nodeText(node, source)))
-		if _, ok := functionNames[name]; ok {
+		rawName := strings.TrimSpace(nodeText(node, source))
+		name := strings.ToLower(rawName)
+		if _, ok := functionNames[name]; ok && !goNameIsLocallyBound(rawName, nodeLine(node), localNameBindings) {
 			functionRootKinds[name] = appendUniqueImportAlias(functionRootKinds[name], "go.function_value_reference")
 		}
 		return
@@ -92,8 +97,32 @@ func goCollectFunctionValuesFromExpression(
 	cursor := node.Walk()
 	defer cursor.Close()
 	for _, child := range node.NamedChildren(cursor) {
-		goCollectFunctionValuesFromExpression(&child, source, functionNames, methodKeys, variableTypes, functionRootKinds)
+		goCollectFunctionValuesFromExpression(&child, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
 	}
+}
+
+func goCollectFunctionLiteralReachableCalls(
+	node *tree_sitter.Node,
+	source []byte,
+	functionNames map[string]struct{},
+	localNameBindings []goLocalNameBinding,
+	functionRootKinds map[string][]string,
+) {
+	walkNamed(node, func(child *tree_sitter.Node) {
+		if child.Kind() != "call_expression" {
+			return
+		}
+		functionNode := child.ChildByFieldName("function")
+		if functionNode == nil || functionNode.Kind() != "identifier" {
+			return
+		}
+		rawName := strings.TrimSpace(nodeText(functionNode, source))
+		name := strings.ToLower(rawName)
+		if _, ok := functionNames[name]; !ok || goNameIsLocallyBound(rawName, nodeLine(functionNode), localNameBindings) {
+			return
+		}
+		functionRootKinds[name] = appendUniqueImportAlias(functionRootKinds[name], "go.function_literal_reachable_call")
+	})
 }
 
 func goReferencedLocalInterfaces(

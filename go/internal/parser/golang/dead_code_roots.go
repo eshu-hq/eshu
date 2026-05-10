@@ -19,6 +19,7 @@ func goDeadCodeEvidence(
 	source []byte,
 	importAliases map[string][]string,
 	importedParamMethods GoImportedInterfaceParamMethods,
+	localNameBindings []goLocalNameBinding,
 ) goDeadCodeEvidenceSet {
 	evidence := goDeadCodeEvidenceSet{
 		functionRootKinds:  goRegisteredDeadCodeRootKinds(root, source, importAliases),
@@ -29,6 +30,7 @@ func goDeadCodeEvidence(
 		root,
 		source,
 		importedParamMethods,
+		localNameBindings,
 		evidence.functionRootKinds,
 		evidence.interfaceRootKinds,
 		evidence.structRootKinds,

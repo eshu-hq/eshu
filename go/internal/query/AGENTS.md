@@ -31,7 +31,7 @@
 
 - **`BuildTruthEnvelope` panics on unknown capability** — every capability string
   passed to `BuildTruthEnvelope` must exist in `capabilityMatrix`
-  (`contract.go:384`). Add the capability to the map before the handler is
+  (`contract.go:412`). Add the capability to the map before the handler is
   callable.
 
 - **Port boundary** — no handler calls `neo4jdriver.DriverWithContext` or

@@ -20,6 +20,7 @@ func goCollectSemanticDeadCodeRoots(
 	root *tree_sitter.Node,
 	source []byte,
 	importedParamMethods GoImportedInterfaceParamMethods,
+	localNameBindings []goLocalNameBinding,
 	functionRootKinds map[string][]string,
 	interfaceRootKinds map[string][]string,
 	structRootKinds map[string][]string,
@@ -84,9 +85,9 @@ func goCollectSemanticDeadCodeRoots(
 					interfaceConcreteTypes[interfaceName] = appendUniqueImportAlias(interfaceConcreteTypes[interfaceName], concreteType)
 				}
 			}
-			goCollectFunctionValuesFromExpression(valueNode, source, functionNames, methodKeys, variableTypes, functionRootKinds)
+			goCollectFunctionValuesFromExpression(valueNode, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
 		case "short_var_declaration", "assignment_statement":
-			goCollectFunctionValuesFromExpression(node.ChildByFieldName("right"), source, functionNames, methodKeys, variableTypes, functionRootKinds)
+			goCollectFunctionValuesFromExpression(node.ChildByFieldName("right"), source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
 		case "composite_literal":
 			if concreteType := goConcreteTypeFromTypeNode(node.ChildByFieldName("type"), source, structTypes); concreteType != "" {
 				structRootKinds[concreteType] = appendUniqueImportAlias(structRootKinds[concreteType], "go.type_reference")
@@ -98,7 +99,7 @@ func goCollectSemanticDeadCodeRoots(
 					interfaceConcreteTypes[interfaceName] = appendUniqueImportAlias(interfaceConcreteTypes[interfaceName], concreteType)
 				}
 			}
-			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, variableTypes, functionRootKinds)
+			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
 			goMarkCompositeLiteralInterfaceFields(
 				node,
 				source,

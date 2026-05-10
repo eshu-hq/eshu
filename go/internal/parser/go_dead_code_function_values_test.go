@@ -63,6 +63,56 @@ func wire() {
 	}
 }
 
+func TestDefaultEngineParsePathGoEmitsFunctionLiteralInitializerCallRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "function_literal_initializer.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package roots
+
+type rewriter func(string) string
+
+var registry = []rewriter{
+	func(value string) string {
+		value = normalize(value)
+		return rename(value)
+	},
+	func(shadowed func()) string {
+		shadowed()
+		return "shadowed"
+	},
+}
+
+func normalize(value string) string { return value }
+func rename(value string) string { return value }
+func shadowed() {}
+func unused() {}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "normalize"), "dead_code_root_kinds", "go.function_literal_reachable_call")
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "rename"), "dead_code_root_kinds", "go.function_literal_reachable_call")
+	if _, ok := assertFunctionByName(t, got, "shadowed")["dead_code_root_kinds"]; ok {
+		t.Fatalf("shadowed dead_code_root_kinds present, want absent for locally shadowed literal call")
+	}
+	if _, ok := assertFunctionByName(t, got, "unused")["dead_code_root_kinds"]; ok {
+		t.Fatalf("unused dead_code_root_kinds present, want absent for unreferenced function")
+	}
+}
+
 func TestDefaultEngineParsePathGoEmitsFunctionValueReferenceCalls(t *testing.T) {
 	t.Parallel()
 

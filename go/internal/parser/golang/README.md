@@ -65,9 +65,12 @@ scope; typed parameters use the function body. A shadowed variable in an inner
 block must not change calls that happen after that block.
 
 Function-value reference rows are emitted only for identifiers in value
-positions that are not locally bound at that source line. This keeps callback
-wiring visible across files while avoiding references for local variables that
-happen to share a package-level function name.
+positions that are not locally bound at that source line. Package-level
+function literals also mark same-file helper calls as
+`go.function_literal_reachable_call` when the callee name is not shadowed inside
+the literal. This keeps callback wiring visible across files while avoiding
+references for local variables that happen to share a package-level function
+name.
 
 Cyclomatic complexity counts Go control-flow branches once. The helper layer
 counts a `for range` statement through the enclosing `for_statement`, not again
@@ -75,9 +78,9 @@ through its `range_clause`; this preserves the parent parser fixture contract.
 
 Dead-code evidence is conservative. Handler signatures, Cobra run signatures,
 controller-runtime reconciler signatures, registration calls, function-value
-references, interface implementations, and dependency-injection callbacks add
-`dead_code_root_kinds` only when the local syntax or same-package pre-scan
-evidence proves the root.
+references, function-literal reachable calls, interface implementations, and
+dependency-injection callbacks add `dead_code_root_kinds` only when the local
+syntax or same-package pre-scan evidence proves the root.
 
 `ImportedInterfaceParamMethods` is file-local by design. The parent `Engine`
 groups those rows by package directory before passing them back through

@@ -23,6 +23,7 @@
 // reflection, ServiceLoader, and Spring auto-configuration roots. The analysis
 // notes and modeled-root list use the same Java root family so callers see why
 // those entities were suppressed. The analysis payload names modeled root kinds,
+// includes Go function-literal reachable calls in the modeled Go root list,
 // reports reflection support, and counts parser-metadata suppressions so callers
 // can explain why an entity was not returned as a cleanup candidate. Unsupported
 // language metadata and test fixtures are suppressed from default cleanup

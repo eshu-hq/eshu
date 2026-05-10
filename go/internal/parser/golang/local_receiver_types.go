@@ -49,7 +49,7 @@ func goLocalNameBindings(root *tree_sitter.Node, source []byte) []goLocalNameBin
 	bindings := make([]goLocalNameBinding, 0)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
-		case "function_declaration", "method_declaration":
+		case "function_declaration", "method_declaration", "func_literal":
 			bindings = append(bindings, goLocalNameBindingsFromParameters(node, source)...)
 		case "short_var_declaration":
 			bindings = append(bindings, goLocalNameBindingsFromNames(node, goIdentifierNodes(node.ChildByFieldName("left"), source), source)...)

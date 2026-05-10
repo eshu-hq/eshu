@@ -36,7 +36,7 @@ func Parse(
 	constructorReturns := goConstructorReturnTypes(root, source)
 	localNameBindings := goLocalNameBindings(root, source)
 	localReceiverBindings := goLocalReceiverBindings(root, source, constructorReturns)
-	deadCodeEvidence := goDeadCodeEvidence(root, source, importAliases, options.GoImportedInterfaceParamMethods)
+	deadCodeEvidence := goDeadCodeEvidence(root, source, importAliases, options.GoImportedInterfaceParamMethods, localNameBindings)
 	scope := options.NormalizedVariableScope()
 
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
