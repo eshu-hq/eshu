@@ -47,6 +47,130 @@ AWS remains the first concrete backend, but target scope, credential ownership,
 and candidate approval must be provider-neutral so GCS, Azure Blob, Terraform
 Cloud, and later cloud scanners can reuse the same control-plane shape.
 
+## Security Review (2026-05-10)
+
+**Scope:** Closes the `needs-security-review` gate for issue #46 (tfstate
+reader stack). Covers the merged reader/parser primitives (PRs #84, #147,
+#148, #150), the redaction-before-emission path, the local and S3 source
+seams, the DynamoDB lock-metadata reader, and the no-plaintext persistence
+regression. New tfstate code merged after this review must either fall under
+the same mitigations or be added to this section.
+
+### Threat Model
+
+The Terraform state collector reads source-of-truth secrets material (real
+ARNs, resource identifiers, sensitive output values, occasionally raw
+credentials authors stored as Terraform outputs) and must never let any of
+that material reach the Eshu persistence boundary in plaintext. The collector
+also holds cloud read credentials and therefore inherits the cloud-collector
+threat surface (compromise, blast radius, write attempts).
+
+The mitigations below name the file (and where useful, the symbol) that
+enforces each one. Cites are intentionally symbol-level rather than line-level
+so they survive minor refactors.
+
+### Risks
+
+- **Plaintext persistence of secrets.** Mitigated by parser-side redaction
+  applied **before** any Eshu persistence boundary. The streaming parser
+  routes every scalar through the `go/internal/redact` policy
+  (`go/internal/collector/terraformstate/{parser.go,outputs.go,resources.go,
+  tags.go,attributes.go}`); operator-policy redaction is applied even to
+  outputs whose Terraform `sensitive` flag is `false` — the gap PR #150 closed
+  via `outputs.go` (`Classify` call against `redact.SchemaKnown`). The
+  end-to-end regression in
+  `go/internal/storage/postgres/tfstate_no_plaintext_persistence_test.go`
+  (function `TestTerraformStateClaimedCommitDoesNotPersistPlaintextSecrets`,
+  helper `assertExecArgsDoNotContain`) drives a real claim through the
+  `tfstateruntime.ClaimedSource` and inspects every SQL argument bound to
+  `fact_records` and related persistence calls for the plaintext needles
+  the fixture state contained.
+- **Raw state bytes leaking via the content store.** Mitigated by the
+  collector wiring in `go/cmd/collector-terraform-state/service.go` —
+  `buildClaimedService` does not pass a content-store writer into the
+  tfstate fact path. Only redacted facts and warning records cross the
+  persistence boundary. The parser is streaming
+  (`terraformstate.ParseStream` + `FactSink` in `parser.go`), so even the
+  in-process working set does not accumulate the full payload.
+- **Locator / path disclosure.** Mitigated by locator hashing. Full S3
+  URLs, bucket names, keys, version IDs, and absolute local paths are
+  hashed before they enter fact payloads or source refs — see
+  `LocatorHash` in `go/internal/collector/terraformstate/identity.go` and
+  its callers in `parser.go` and `candidate_identity.go`. Warning facts
+  share the same locator-hash discipline through `warning_fact.go`.
+- **Unbounded reads / OOM via giant state.** Mitigated by a read-time size
+  ceiling enforced inside the stream, not just at metadata precheck.
+  `ErrStateTooLarge` is declared in `source_local.go` and returned from both
+  local and S3 readers (`source_local.go:71`, `source_s3.go:153`); the
+  `sizeEnforcingReadCloser` in `source_limit.go` enforces the ceiling at
+  read time. The runtime translates
+  the error into a `terraform_state_warning` fact with
+  `warning_kind=state_too_large` and completes the claim cleanly — no
+  retry storm. The default ceiling is 512 MB and is operator-tunable via
+  `ESHU_TFSTATE_SOURCE_MAX_BYTES`.
+- **Broad S3 / DynamoDB blast radius.** Mitigated by exact-locator reads
+  with no prefix scanning. `source_s3.go` validates bucket and key
+  literally, propagates `IfNoneMatch`, and rejects any write-shaped client
+  configuration. The S3 adapter at `go/cmd/collector-terraform-state/aws_s3.go`
+  exposes only `GetObject`. The DynamoDB adapter at
+  `go/cmd/collector-terraform-state/aws_dynamodb.go` is read-only `GetItem`.
+  Local source reads (`source_local.go`) reject any path that is not an
+  operator-approved regular file (`validateRegularLocalStatePath`); symlinks
+  and non-regular files are refused at open time.
+- **Local-state ambient discovery.** Mitigated by explicit operator
+  approval. The Git collector flags repo-local `*.tfstate` files as
+  advisory `terraform_state_candidate` metadata, but the runtime opens one
+  only when `discovery.local_state_candidates.mode` is `approved_candidates`
+  and the exact `repo_id` plus repo-relative `path` are listed. Every
+  approved local read also emits a `terraform_state_warning` with
+  `warning_kind=state_in_vcs` so operators can drive those repos off
+  in-tree state. `.eshuignore` excludes `*.tfstate` from normal Git
+  collection by default.
+- **Provider-schema drift.** Mitigated by fail-closed conservative
+  redaction. Unknown scalar attributes are redacted with reason
+  `unknown_provider_schema` (constant `ReasonUnknownProviderSchema` in
+  `go/internal/redact/policy.go`); unknown composite attributes are
+  dropped to warning facts rather than persisted as raw values. The
+  `eshu_dp_tfstate_redactions_applied_total{reason}` counter and the
+  `EshuTfstateUnknownProviderSchemaSurge` alert in
+  `deploy/observability/alerts.yaml` let operators see when a new provider
+  shape has landed.
+- **Stale / poisoned conditional reads.** Mitigated by ETag-driven
+  conditional GETs. `source_s3.go` carries the prior ETag in
+  `IfNoneMatch`; an S3 not-modified response increments
+  `eshu_dp_tfstate_s3_conditional_get_not_modified_total` and skips the
+  read. A mismatched ETag forces a full re-read and a new redacted parse.
+- **Credential compromise / cross-account abuse.** Mitigated by target-scope
+  routing in
+  `go/cmd/collector-terraform-state/target_scope_source_factory.go`.
+  Candidates are routed to the configured scope by explicit
+  `target_scope_id` or by `allowed_backends` + `allowed_regions` match;
+  ambiguous matches fail before the object is opened. Central scopes
+  require `central_assume_role` with an optional `external_id`;
+  account-local scopes use workload identity in that account. The runtime
+  refuses to mix the legacy `aws.role_arn` field with `target_scopes`.
+
+### Out of Scope
+
+- The 100 MB peak-memory fixture benchmark mentioned in the original issue
+  is no longer required for closure: PR #148 moved the runtime to the
+  token-level streaming path (`ParseStream` + `FactSink`), so working-set
+  memory is bounded by the largest scalar plus the emitted fact batch, not
+  the full state payload. If a formal benchmark gate is wanted later, file
+  a follow-up issue.
+- Broad in-Git `.tfstate` parsing is intentionally **not** in scope here;
+  candidate discovery is tracked separately in #140 and gated by the
+  `approved_candidates` policy above.
+
+### Sign-off
+
+| Role | Reviewer | Date |
+|------|----------|------|
+| Platform Engineering | _to be filled at merge_ | 2026-05-10 |
+| Security | _to be filled at merge_ | 2026-05-10 |
+
+Sign-off removes the `needs-security-review` label on issue #46.
+
 ## Status Review (2026-05-03)
 
 **Current disposition:** Design accepted; runtime not implemented.

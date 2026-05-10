@@ -144,6 +144,7 @@ nav:
       - Bootstrap-Index: services/bootstrap-index.md
       - Ingester: services/ingester.md
       - Resolution Engine: services/resolution-engine.md
+      - Terraform State Collector: services/collector-terraform-state.md
     - Source Layout: reference/source-layout.md
     - Languages:
       - Feature Matrix: languages/feature-matrix.md
