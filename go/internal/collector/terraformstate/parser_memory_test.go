@@ -168,6 +168,7 @@ func measurePeakHeapGrowth(t *testing.T, run func()) uint64 {
 	var maxHeap uint64
 	atomic.StoreUint64(&maxHeap, before.HeapAlloc)
 	done := make(chan struct{})
+	defer close(done)
 	go func() {
 		ticker := time.NewTicker(time.Millisecond)
 		defer ticker.Stop()
@@ -182,7 +183,6 @@ func measurePeakHeapGrowth(t *testing.T, run func()) uint64 {
 	}()
 	run()
 	recordHeapSample(&maxHeap)
-	close(done)
 	peak := atomic.LoadUint64(&maxHeap)
 	if peak <= before.HeapAlloc {
 		return 0
