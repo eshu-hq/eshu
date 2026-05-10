@@ -192,18 +192,25 @@ pub unsafe fn from_raw(raw: *const ()) -> Arc<ThreadWaker> {
 func TestParseDoesNotMarkLibraryMainFunctionAsRoot(t *testing.T) {
 	t.Parallel()
 
-	path := writeRustSource(t, "src/lib.rs", `fn main() {}
+	for _, pathName := range []string{"src/lib.rs", "fixtures/main.rs"} {
+		pathName := pathName
+		t.Run(pathName, func(t *testing.T) {
+			t.Parallel()
+
+			path := writeRustSource(t, pathName, `fn main() {}
 `)
-	parser := newRustParser(t)
+			parser := newRustParser(t)
 
-	payload, err := Parse(path, false, shared.Options{}, parser)
-	if err != nil {
-		t.Fatalf("Parse() error = %v, want nil", err)
-	}
+			payload, err := Parse(path, false, shared.Options{}, parser)
+			if err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
 
-	mainFn := assertRustBucketName(t, payload, "functions", "main")
-	if _, ok := mainFn["dead_code_root_kinds"]; ok {
-		t.Fatalf("library main dead_code_root_kinds = %#v, want absent", mainFn["dead_code_root_kinds"])
+			mainFn := assertRustBucketName(t, payload, "functions", "main")
+			if _, ok := mainFn["dead_code_root_kinds"]; ok {
+				t.Fatalf("library main dead_code_root_kinds = %#v, want absent", mainFn["dead_code_root_kinds"])
+			}
+		})
 	}
 }
 

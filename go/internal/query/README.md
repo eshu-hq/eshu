@@ -83,7 +83,9 @@ extension and symbol roots, Jenkins initializer/data-bound setter methods, and
 Stapler web methods. Java serialization hooks are suppressed from cleanup
 candidates when their signatures match JVM runtime contracts, and the analysis
 metadata now reports bounded Java reflection plus ServiceLoader and Spring
-auto-configuration references as modeled reachability evidence.
+auto-configuration references as modeled reachability evidence. Rust roots from
+parser metadata cover Cargo entrypoints, build scripts, unit tests, and Tokio
+runtime/test functions without promoting every helper named `main`.
 Dead-code candidate paging uses `DeadCodeCandidateRows` in
 `content_reader_dead_code_candidates.go:13` when the content read model is
 available, avoiding graph-wide ordered scans on large repositories. Candidate

@@ -226,11 +226,12 @@ func rustMainFunctionRootPath(path string, attributes []string) bool {
 		}
 	}
 	cleanPath := filepath.ToSlash(filepath.Clean(path))
-	switch filepath.Base(cleanPath) {
-	case "build.rs", "main.rs":
+	if cleanPath == "build.rs" || strings.HasSuffix(cleanPath, "/build.rs") {
 		return true
 	}
-	return strings.Contains(cleanPath, "/src/bin/") || strings.Contains(cleanPath, "/examples/")
+	return strings.HasSuffix(cleanPath, "/src/main.rs") ||
+		strings.Contains(cleanPath, "/src/bin/") ||
+		strings.Contains(cleanPath, "/examples/")
 }
 
 func rustLeadingAttributes(node *tree_sitter.Node, source []byte) []string {

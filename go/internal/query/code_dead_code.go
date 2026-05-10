@@ -324,6 +324,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsJavaRoot(result, entity, stats) {
 		return true
 	}
+	if deadCodeIsRustRoot(result, entity, stats) {
+		return true
+	}
 	if deadCodeIsJavaScriptFrameworkRoot(result, entity, stats) {
 		return true
 	}

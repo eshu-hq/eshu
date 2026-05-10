@@ -34,8 +34,8 @@ Brace imports are preserved as one raw `use` row instead of being expanded per
 symbol. Lifetime names are structured when they appear in signatures and impl
 headers. Functions now carry async, unsafe, visibility, and selected
 `dead_code_root_kinds` metadata. Bare `fn main` roots are limited to Cargo-shaped
-entrypoint paths such as `main.rs`, `build.rs`, `src/bin`, and `examples`; a
-`#[tokio::main]` attribute is direct root evidence. `#[test]` and
+entrypoint paths such as `src/main.rs`, `build.rs`, `src/bin`, and `examples`;
+a `#[tokio::main]` attribute is direct root evidence. `#[test]` and
 `#[tokio::test]` are test roots. Const and static items are emitted through the
 `variables` bucket with `variable_kind`, `type` items through `type_aliases`, and
 `macro_rules!` definitions through `macros`.

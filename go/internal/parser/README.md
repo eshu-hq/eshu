@@ -384,8 +384,9 @@ errors are surfaced in `collector snapshot stage completed` logs with
   configuration-property classes, Spring request/bean/event/scheduled methods,
   Java lifecycle callbacks, JUnit test and lifecycle methods, Jenkins extension
   and symbol classes, Jenkins initializer/data-bound setter methods, and Stapler
-  web methods. Rust dead-code roots cover directly declared `main` functions,
-  `#[test]`, `#[tokio::test]`, and `#[tokio::main]` functions. Java call
+  web methods. Rust dead-code roots cover Cargo-shaped `main` functions,
+  `build.rs` build scripts, `#[test]`, `#[tokio::test]`, and `#[tokio::main]`
+  functions. Java call
   metadata also preserves local receiver types from
   parameters, variables, fields, inline constructor receivers, typed method
   references such as `processor::process`, unqualified same-class calls, and
