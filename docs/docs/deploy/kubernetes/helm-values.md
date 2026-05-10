@@ -17,6 +17,11 @@ The chart lives at `deploy/helm/eshu`.
 | `workflowCoordinator.deploymentMode` | `dark` | Keep coordinator claim ownership dark. The chart rejects active mode in this branch. |
 | `workflowCoordinator.claimsEnabled` | `false` | Keep workflow claims off in Helm. Use Compose for active proof runs. |
 | `workflowCoordinator.collectorInstances` | `[]` | Declarative collector instances for dark reconciliation only. |
+| `confluenceCollector.enabled` | `false` | Deploy the Confluence documentation collector. |
+| `confluenceCollector.baseUrl` | empty | Atlassian wiki base URL, for example `https://example.atlassian.net/wiki`. |
+| `confluenceCollector.spaceId` | empty | Confluence space ID to crawl. Set this or `rootPageId`, not both. |
+| `confluenceCollector.rootPageId` | empty | Root page ID for a bounded crawl. Set this or `spaceId`, not both. |
+| `confluenceCollector.credentials.secretName` | empty | Secret containing Confluence auth material. |
 | `contentStore.dsn` | empty | Postgres DSN. |
 | `neo4j.uri` | `bolt://neo4j:7687` | Bolt URI for NornicDB or Neo4j. |
 | `neo4j.auth.secretName` | `eshu-neo4j` | Secret for Bolt auth. Set to empty only for bundled NornicDB no-auth installs. |
@@ -30,6 +35,40 @@ supports Postgres pool settings and Bolt driver settings per workload.
 The workflow coordinator chart is deliberately dark-only right now. Do not use
 Helm values to promote coordinator-owned claims before the fenced claim,
 fairness, Git collector, and remote full-corpus proof gates pass.
+
+## Confluence collector
+
+The Confluence collector is off by default. When enabled, it stores
+documentation sections in the configured Postgres content store and keeps the
+runtime read-only against Confluence.
+
+Use email/API-token credentials:
+
+```yaml
+confluenceCollector:
+  enabled: true
+  baseUrl: https://example.atlassian.net/wiki
+  spaceId: "123456789"
+  credentials:
+    secretName: confluence-collector-credentials
+    emailKey: email
+    apiTokenKey: api-token
+```
+
+Or use a bearer token:
+
+```yaml
+confluenceCollector:
+  enabled: true
+  baseUrl: https://example.atlassian.net/wiki
+  rootPageId: "987654321"
+  credentials:
+    secretName: confluence-collector-credentials
+    bearerTokenKey: token
+```
+
+The chart rejects installs where the collector is enabled without a base URL,
+credential Secret, or exactly one crawl scope.
 
 ## Repository sync
 

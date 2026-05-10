@@ -162,6 +162,36 @@
         "resources": { "type": "object" }
       }
     },
+    "confluenceCollector": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "baseUrl": { "type": "string" },
+        "spaceId": { "type": "string" },
+        "spaceKey": { "type": "string" },
+        "rootPageId": { "type": "string" },
+        "pageLimit": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "string" }
+          ]
+        },
+        "pollInterval": { "type": "string" },
+        "credentials": {
+          "type": "object",
+          "properties": {
+            "secretName": { "type": "string" },
+            "emailKey": { "type": "string" },
+            "apiTokenKey": { "type": "string" },
+            "bearerTokenKey": { "type": "string" }
+          }
+        },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      }
+    },
     "api": {
       "type": "object",
       "properties": {
