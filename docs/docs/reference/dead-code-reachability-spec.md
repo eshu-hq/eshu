@@ -141,6 +141,8 @@ Any dead-code result should be able to report:
   text was unavailable
 - how many framework roots came from parser metadata versus legacy query-time
   source fallback
+- named exactness blockers for parser-supported languages that are modeled but
+  still non-exact
 - whether IaC reachability was modeled by this analysis
 
 That explanation must be returned in structured form, not just text prose.
@@ -161,6 +163,11 @@ The initial maturity states are:
   answer is cleanup-safe
 - future `ambiguous_only`: language scopes where Eshu can identify uncertainty
   but cannot return actionable unused symbols
+
+Rust currently reports `derived` with named exactness blockers for unresolved
+macro expansion, cfg and Cargo feature selection, semantic module resolution,
+and trait dispatch. Those blockers must be cleared or scoped out before Rust
+can return exact cleanup-safe dead-code truth.
 
 The current `code_quality.dead_code` capability is code-call oriented. It must
 not classify Terraform, Helm, Kustomize, Kubernetes, ArgoCD, or other IaC
@@ -259,17 +266,19 @@ Current branch status:
   and literal reflection evidence now materializes as `REFERENCES` edges; Go
   query-time source heuristics remain as a fallback while broader registry
   coverage lands; Rust Cargo entrypoints, tests, Tokio runtime/test functions,
-  exact `pub` public API items, Criterion benchmark functions, Cargo
-  auxiliary-target exclusions, conditional derive evidence, nested annotations,
-  structured where-clause evidence, path-attribute modules, and literal macro
-  body module/import declarations are modeled as parser-backed derived evidence
+  exact `pub` public API items, Criterion benchmark functions, direct trait impl
+  methods, Cargo auxiliary-target exclusions, conditional derive evidence,
+  nested annotations, structured where-clause evidence, path-attribute modules,
+  direct file module-resolution status, and literal macro body module/import
+  declarations are modeled as parser-backed derived evidence
 - broader Go router, webhook, worker, reflection, and build-tag roots plus
   broader Python worker, dynamic-dispatch, and non-export-declared public API
   roots plus broader
   JavaScript/TypeScript worker, static module graph, and dynamic-dispatch roots
   plus broader Java dynamic dispatch, dependency injection, and string-built
-  reflection plus arbitrary Rust macro expansion and filesystem-backed semantic
-  module resolution remain open, so dead-code truth stays `derived`
+  reflection plus arbitrary Rust macro expansion, cfg/Cargo feature solving,
+  cross-crate semantic module resolution, and broad trait dispatch remain open,
+  so dead-code truth stays `derived`
 
 Initial MVP is explicitly limited to those families. Other parser-supported
 languages and frameworks should return `derived_candidate_only`, `derived`, or

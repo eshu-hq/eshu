@@ -23,6 +23,9 @@ func deadCodeResultClassification(result map[string]any, entity *EntityContent) 
 	if !deadCodeLanguageSupported(language) {
 		return deadCodeClassificationUnsupportedLanguage
 	}
+	if deadCodeResultHasExactnessBlockers(result, entity) {
+		return deadCodeClassificationAmbiguous
+	}
 	maturity := deadCodeLanguageMaturity[language]
 	switch maturity {
 	case deadCodeMaturityDerived:
@@ -32,6 +35,15 @@ func deadCodeResultClassification(result map[string]any, entity *EntityContent) 
 	default:
 		return deadCodeClassificationAmbiguous
 	}
+}
+
+func deadCodeResultHasExactnessBlockers(result map[string]any, entity *EntityContent) bool {
+	if metadata, ok := result["metadata"].(map[string]any); ok {
+		if len(StringSliceVal(metadata, "exactness_blockers")) > 0 {
+			return true
+		}
+	}
+	return entity != nil && len(StringSliceVal(entity.Metadata, "exactness_blockers")) > 0
 }
 
 func deadCodeLanguageSupported(language string) bool {

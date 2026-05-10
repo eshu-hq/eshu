@@ -168,6 +168,9 @@ func TestCanonicalNodeWriterKeepsDeadCodeRootKindsOutOfGraphHotPath(t *testing.T
 					"go.interface_method_implementation",
 					"go.function_value_reference",
 				},
+				"exactness_blockers": []string{
+					"macro_expansion_unavailable",
+				},
 				"method_kind": "method",
 			},
 		},
@@ -177,6 +180,9 @@ func TestCanonicalNodeWriterKeepsDeadCodeRootKindsOutOfGraphHotPath(t *testing.T
 
 	if _, ok := props["dead_code_root_kinds"]; ok {
 		t.Fatalf("dead_code_root_kinds graph property present, want content-store-only metadata")
+	}
+	if _, ok := props["exactness_blockers"]; ok {
+		t.Fatalf("exactness_blockers graph property present, want content-store-only metadata")
 	}
 	if got, want := props["method_kind"], "method"; got != want {
 		t.Fatalf("method_kind = %#v, want %#v", got, want)

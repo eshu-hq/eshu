@@ -47,6 +47,7 @@ func appendRustMacroModules(payload map[string]any, node *tree_sitter.Node, body
 			"module_origin": "macro_invocation",
 			"lang":          "rust",
 		}
+		rustApplyExactnessBlockers(item, []string{"macro_expansion_unavailable"})
 		if candidates := rustModuleDeclaredPathCandidates(name, "declaration"); len(candidates) > 0 {
 			item["declared_path_candidates"] = candidates
 		}
@@ -74,6 +75,7 @@ func appendRustMacroImports(payload map[string]any, node *tree_sitter.Node, body
 				"line_number":      shared.NodeLine(node),
 				"lang":             "rust",
 			}
+			rustApplyExactnessBlockers(item, []string{"macro_expansion_unavailable"})
 			if visibility != "" {
 				item["visibility"] = visibility
 			}

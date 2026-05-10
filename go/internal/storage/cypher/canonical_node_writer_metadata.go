@@ -22,6 +22,7 @@ var canonicalEntityMetadataReservedProperties = map[string]struct{}{
 	// merges them from the content store by entity ID, so keeping them off the
 	// canonical graph avoids list-property writes on the hot entity path.
 	"dead_code_root_kinds": {},
+	"exactness_blockers":   {},
 }
 
 func canonicalEntityMetadataProperties(row map[string]any) map[string]any {

@@ -29,6 +29,10 @@ trait Render<'a> {
     fn render(&self, input: &'a str) -> &'a str;
 }
 
+unsafe trait Paint {
+    fn paint(&self);
+}
+
 impl<'a> Render<'a> for Holder<'a> where Holder<'a>: Display {
     fn render(&self, input: &'a str) -> &'a str {
         println!("{}", input);
@@ -36,6 +40,10 @@ impl<'a> Render<'a> for Holder<'a> where Holder<'a>: Display {
         helper(input);
         Holder::new(input)
     }
+}
+
+unsafe impl<'a> Paint for Holder<'a> {
+    fn paint(&self) {}
 }
 
 impl<'a> Holder<'a> {
@@ -83,14 +91,28 @@ fn helper<'a>(input: &'a str) -> &'a str {
 		"impl_context": "Holder",
 	})
 	assertRustStringField(t, render, "impl_context", "Holder")
+	assertRustStringField(t, render, "impl_kind", "trait_impl")
+	assertRustStringField(t, render, "trait_context", "Render")
+	assertRustStringSliceContains(t, render, "dead_code_root_kinds", "rust.trait_impl_method")
 	assertRustStringSliceField(t, render, "signature_lifetimes", []string{"a"})
 	assertRustStringField(t, render, "return_lifetime", "a")
 	if render["source"] == "" {
 		t.Fatalf("functions[render][source] = %#v, want indexed source", render["source"])
 	}
 
+	paint := assertRustBucketFields(t, payload, "functions", map[string]string{
+		"name":         "paint",
+		"impl_context": "Holder",
+	})
+	assertRustStringField(t, paint, "impl_context", "Holder")
+	assertRustStringField(t, paint, "impl_kind", "trait_impl")
+	assertRustStringField(t, paint, "trait_context", "Paint")
+	assertRustStringSliceContains(t, paint, "dead_code_root_kinds", "rust.trait_impl_method")
+
 	newFunction := assertRustBucketName(t, payload, "functions", "new")
 	assertRustStringField(t, newFunction, "impl_context", "Holder")
+	assertRustStringField(t, newFunction, "impl_kind", "inherent_impl")
+	assertRustNoField(t, newFunction, "trait_context")
 	assertRustStringSliceField(t, newFunction, "signature_lifetimes", []string{"a"})
 
 	helper := assertRustBucketName(t, payload, "functions", "helper")

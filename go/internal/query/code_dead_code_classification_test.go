@@ -82,6 +82,66 @@ func TestHandleDeadCodeResultClassificationPreservesDerivedTruth(t *testing.T) {
 	}
 }
 
+func TestHandleDeadCodeClassifiesExactnessBlockedCandidatesAsAmbiguous(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+				return []map[string]any{
+					{
+						"entity_id": "rust-cfg-helper", "name": "platform_helper", "labels": []any{"Function"},
+						"file_path": "src/platform.rs", "repo_id": "repo-1", "repo_name": "runtime", "language": "rust",
+					},
+				}, nil
+			},
+		},
+		Content: fakeDeadCodeContentStore{
+			entities: map[string]EntityContent{
+				"rust-cfg-helper": {
+					EntityID:     "rust-cfg-helper",
+					RelativePath: "src/platform.rs",
+					EntityType:   "Function",
+					EntityName:   "platform_helper",
+					Language:     "rust",
+					SourceCache:  "fn platform_helper() {}",
+					Metadata: map[string]any{
+						"exactness_blockers": []any{"cfg_unresolved"},
+					},
+				},
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code",
+		bytes.NewBufferString(`{"repo_id":"repo-1"}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	results := resp["results"].([]any)
+	if got, want := len(results), 1; got != want {
+		t.Fatalf("len(results) = %d, want %d", got, want)
+	}
+	result := results[0].(map[string]any)
+	if got, want := result["classification"], "ambiguous"; got != want {
+		t.Fatalf("result[classification] = %#v, want %#v", got, want)
+	}
+}
+
 func TestHandleDeadCodeClassificationKeepsDefaultExclusionsSuppressed(t *testing.T) {
 	t.Parallel()
 

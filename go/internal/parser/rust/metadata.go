@@ -27,6 +27,9 @@ func rustApplyAttributeMetadata(item map[string]any, attributes []string) {
 		if attrPath != "" {
 			paths = appendUniqueString(paths, attrPath)
 		}
+		if attrPath == "cfg" || attrPath == "cfg_attr" {
+			rustApplyExactnessBlockers(item, []string{"cfg_unresolved"})
+		}
 		for _, derive := range rustDeriveNames(attribute) {
 			derives = appendUniqueString(derives, derive)
 		}
@@ -42,6 +45,21 @@ func rustApplyAttributeMetadata(item map[string]any, attributes []string) {
 	}
 	if len(conditionalDerives) > 0 {
 		item["conditional_derives"] = conditionalDerives
+	}
+}
+
+// rustApplyExactnessBlockers names valid Rust constructs that keep exact
+// cleanup-safe dead-code truth unavailable until a downstream model resolves them.
+func rustApplyExactnessBlockers(item map[string]any, blockers []string) {
+	if len(blockers) == 0 {
+		return
+	}
+	existing, _ := item["exactness_blockers"].([]string)
+	for _, blocker := range blockers {
+		existing = appendUniqueString(existing, blocker)
+	}
+	if len(existing) > 0 {
+		item["exactness_blockers"] = existing
 	}
 }
 

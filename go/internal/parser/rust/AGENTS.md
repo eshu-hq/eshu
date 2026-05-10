@@ -44,6 +44,10 @@
   `#[path = "..."]` attributes, which replace the candidates with that declared
   path. Literal macro-body `mod` and `use` declarations may be modeled, but
   parser code must not run macro expansion or probe the filesystem.
+- Keep exactness blocker metadata honest. `cfg` and `cfg_attr` item attributes
+  name `cfg_unresolved`, and macro-origin module/import rows name
+  `macro_expansion_unavailable`; do not clear those blockers without a
+  downstream resolver and tests.
 
 ## Anti-Patterns
 

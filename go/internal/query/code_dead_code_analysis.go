@@ -43,6 +43,8 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 		"iac_reachability_mode":                  "not_modeled_by_code_dead_code",
 		"iac_deadness_capability":                "iac_usage.reachability",
 		"dead_code_language_maturity":            deadCodeLanguageMaturityReport(),
+		"dead_code_language_exactness_blockers":  deadCodeLanguageExactnessBlockerReport(),
+		"dead_code_observed_exactness_blockers":  deadCodeObservedExactnessBlockerReport(results),
 		"modeled_entrypoints":                    []string{"go.main", "go.init", "python.__main__", "java.main_method"},
 		"modeled_framework_roots": []string{
 			"go.cobra_run_registration",
@@ -122,6 +124,7 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 			"rust.tokio_main",
 			"rust.tokio_test",
 			"rust.public_api_item",
+			"rust.trait_impl_method",
 			"rust.benchmark_function",
 			"typescript.interface_method_implementation",
 			"typescript.module_contract_export",
