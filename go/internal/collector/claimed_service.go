@@ -155,6 +155,16 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		}
 		return nil
 	}
+	if collected.Unchanged {
+		stopHeartbeat()
+		if err := drainHeartbeatError(heartbeatErr); err != nil {
+			return err
+		}
+		if err := s.ControlStore.CompleteClaim(ctx, mutation); err != nil {
+			return fmt.Errorf("complete unchanged claimed %s work item: %w", s.claimedKindLabel(), err)
+		}
+		return nil
+	}
 	if err := validateClaimedGeneration(item, collected); err != nil {
 		stopHeartbeat()
 		if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", err)); failErr != nil {

@@ -67,12 +67,13 @@ func (f DefaultSourceFactory) OpenSource(
 			return nil, err
 		}
 		stateSource, err := terraformstate.NewS3StateSource(terraformstate.S3SourceConfig{
-			Bucket:    bucket,
-			Key:       key,
-			Region:    candidate.Region,
-			VersionID: candidate.State.VersionID,
-			MaxBytes:  f.MaxBytes,
-			Client:    f.S3Client,
+			Bucket:       bucket,
+			Key:          key,
+			Region:       candidate.Region,
+			VersionID:    candidate.State.VersionID,
+			PreviousETag: candidate.PreviousETag,
+			MaxBytes:     f.MaxBytes,
+			Client:       f.S3Client,
 		})
 		if err != nil {
 			return nil, sourceFailure("build", candidate.State, err)
@@ -177,6 +178,12 @@ func (s ClaimedSource) collectCandidate(
 
 	identity, observedAt, err := s.readIdentity(ctx, stateSource)
 	if err != nil {
+		if errors.Is(err, terraformstate.ErrStateNotModified) {
+			// Current workflow items may still be candidate-planning claims with
+			// no prior real generation metadata. Without a body to prove serial
+			// and lineage, complete the claim without committing new facts.
+			return collector.CollectedGeneration{Unchanged: true}, true, nil
+		}
 		return collector.CollectedGeneration{}, false, err
 	}
 	scopeValue, generationValue, err := generationForCandidate(candidate, sourceKey, identity, observedAt)

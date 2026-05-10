@@ -39,14 +39,18 @@ type DiscoverySeed struct {
 	Key       string
 	Region    string
 	VersionID string
+	// PreviousETag is durable freshness metadata from a previous S3 read. It is
+	// intentionally not populated from collector configuration JSON.
+	PreviousETag string
 }
 
 // DiscoveryCandidate is one exact Terraform state object to inspect later.
 type DiscoveryCandidate struct {
-	State  StateKey
-	Source DiscoveryCandidateSource
-	RepoID string
-	Region string
+	State        StateKey
+	Source       DiscoveryCandidateSource
+	RepoID       string
+	Region       string
+	PreviousETag string
 }
 
 // DiscoveryQuery scopes graph-backed Terraform backend fact reads.
@@ -334,9 +338,10 @@ func candidateFromSeed(seed DiscoverySeed) (DiscoveryCandidate, error) {
 				Locator:     "s3://" + bucket + "/" + key,
 				VersionID:   strings.TrimSpace(seed.VersionID),
 			},
-			Source: DiscoveryCandidateSourceSeed,
-			RepoID: strings.TrimSpace(seed.RepoID),
-			Region: region,
+			Source:       DiscoveryCandidateSourceSeed,
+			RepoID:       strings.TrimSpace(seed.RepoID),
+			Region:       region,
+			PreviousETag: seed.PreviousETag,
 		}, nil
 	default:
 		return DiscoveryCandidate{}, fmt.Errorf("kind %q is unsupported", kind)

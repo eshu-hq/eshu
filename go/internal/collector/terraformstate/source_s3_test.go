@@ -57,6 +57,43 @@ func TestS3StateSourceOpensExactObjectWithConditionalETag(t *testing.T) {
 	}
 }
 
+func TestS3StateSourceKeepsETagsOpaque(t *testing.T) {
+	t.Parallel()
+
+	priorETag := " \t\"etag-123\"\t "
+	responseETag := " \t\"etag-456\"\t "
+	client := &recordingS3Client{
+		output: terraformstate.S3GetObjectOutput{
+			Body: io.NopCloser(strings.NewReader(`{"serial":17}`)),
+			Size: 13,
+			ETag: responseETag,
+		},
+	}
+	source, err := terraformstate.NewS3StateSource(terraformstate.S3SourceConfig{
+		Bucket:       "tfstate-prod",
+		Key:          "services/api/terraform.tfstate",
+		Region:       "us-east-1",
+		PreviousETag: priorETag,
+		Client:       client,
+	})
+	if err != nil {
+		t.Fatalf("NewS3StateSource() error = %v, want nil", err)
+	}
+
+	reader, metadata, err := source.Open(context.Background())
+	if err != nil {
+		t.Fatalf("Open() error = %v, want nil", err)
+	}
+	defer closeReader(t, reader)
+
+	if got := client.input.IfNoneMatch; got != priorETag {
+		t.Fatalf("IfNoneMatch = %q, want opaque prior ETag %q", got, priorETag)
+	}
+	if got := metadata.ETag; got != responseETag {
+		t.Fatalf("metadata.ETag = %q, want opaque response ETag %q", got, responseETag)
+	}
+}
+
 func TestS3StateSourceRejectsUnsafeOrInexactConfig(t *testing.T) {
 	t.Parallel()
 
@@ -115,6 +152,31 @@ func TestS3StateSourceReportsNotModified(t *testing.T) {
 	_, _, err = source.Open(context.Background())
 	if !errors.Is(err, terraformstate.ErrStateNotModified) {
 		t.Fatalf("Open() error = %v, want ErrStateNotModified", err)
+	}
+}
+
+func TestS3StateSourceRedactsBucketAndKeyFromClientError(t *testing.T) {
+	t.Parallel()
+
+	rawErr := errors.New("GET bucket tfstate-prod key services/api/terraform.tfstate failed")
+	source, err := terraformstate.NewS3StateSource(terraformstate.S3SourceConfig{
+		Bucket: "tfstate-prod",
+		Key:    "services/api/terraform.tfstate",
+		Region: "us-east-1",
+		Client: &recordingS3Client{err: rawErr},
+	})
+	if err != nil {
+		t.Fatalf("NewS3StateSource() error = %v, want nil", err)
+	}
+
+	_, _, err = source.Open(context.Background())
+	if !errors.Is(err, rawErr) {
+		t.Fatalf("Open() error = %v, want wrapped raw error", err)
+	}
+	for _, leaked := range []string{"tfstate-prod", "services/api/terraform.tfstate"} {
+		if strings.Contains(err.Error(), leaked) {
+			t.Fatalf("Open() error = %q, must not leak %q", err.Error(), leaked)
+		}
 	}
 }
 

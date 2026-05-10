@@ -90,7 +90,7 @@ func NewS3StateSource(config S3SourceConfig) (*S3StateSource, error) {
 		key:          key,
 		region:       region,
 		versionID:    strings.TrimSpace(config.VersionID),
-		previousETag: strings.TrimSpace(config.PreviousETag),
+		previousETag: config.PreviousETag,
 		maxBytes:     maxBytes,
 		client:       config.Client,
 	}, nil
@@ -125,7 +125,10 @@ func (s *S3StateSource) Open(ctx context.Context) (io.ReadCloser, SourceMetadata
 		IfNoneMatch: s.previousETag,
 	})
 	if err != nil {
-		return nil, SourceMetadata{}, err
+		if errors.Is(err, ErrStateNotModified) {
+			return nil, SourceMetadata{}, err
+		}
+		return nil, SourceMetadata{}, s.safeError(err)
 	}
 	if output.Body == nil {
 		return nil, SourceMetadata{}, fmt.Errorf("s3 state response body must not be nil")
@@ -138,7 +141,34 @@ func (s *S3StateSource) Open(ctx context.Context) (io.ReadCloser, SourceMetadata
 	return newSizeEnforcingReadCloser(output.Body, s.maxBytes), SourceMetadata{
 		ObservedAt:   time.Now().UTC(),
 		Size:         output.Size,
-		ETag:         strings.TrimSpace(output.ETag),
+		ETag:         output.ETag,
 		LastModified: output.LastModified.UTC(),
 	}, nil
+}
+
+func (s *S3StateSource) safeError(err error) error {
+	message := err.Error()
+	for _, value := range []string{
+		s.bucket,
+		s.key,
+		"s3://" + s.bucket + "/" + s.key,
+	} {
+		if strings.TrimSpace(value) != "" {
+			message = strings.ReplaceAll(message, value, "<redacted>")
+		}
+	}
+	return s3SourceError{message: message, cause: err}
+}
+
+type s3SourceError struct {
+	message string
+	cause   error
+}
+
+func (e s3SourceError) Error() string {
+	return e.message
+}
+
+func (e s3SourceError) Unwrap() error {
+	return e.cause
 }
