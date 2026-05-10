@@ -408,6 +408,7 @@ func rustImplDetails(node *tree_sitter.Node, source []byte) rustImplBlockDetails
 	if idx := strings.Index(header, "{"); idx >= 0 {
 		header = header[:idx]
 	}
+	header = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(header), "unsafe "))
 	header = strings.TrimSpace(strings.TrimPrefix(header, "impl"))
 	details := rustImplBlockDetails{
 		header:             header,

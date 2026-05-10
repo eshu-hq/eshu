@@ -10,11 +10,14 @@ func TestDefaultEngineParsePathRustAnnotatesResolvedModules(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	libPath := filepath.Join(repoRoot, "src", "lib.rs")
+	writeTestFile(t, filepath.Join(filepath.Dir(repoRoot), "outside.rs"), "pub fn outside() {}\n")
 	writeTestFile(t, filepath.Join(repoRoot, "src", "api.rs"), "pub fn handle() {}\n")
 	writeTestFile(t, filepath.Join(repoRoot, "src", "platform", "unix.rs"), "pub fn open() {}\n")
 	writeTestFile(t, libPath, `mod api;
 #[path = "platform/unix.rs"]
 mod os;
+#[path = "../../outside.rs"]
+mod outside;
 mod missing;
 cfg_if::cfg_if! {
     if #[cfg(unix)] {
@@ -40,6 +43,12 @@ cfg_if::cfg_if! {
 	osModule := findNamedBucketItem(t, got, "modules", "os")
 	assertStringFieldValue(t, osModule, "resolved_path", "src/platform/unix.rs")
 	assertStringFieldValue(t, osModule, "module_resolution_status", "resolved")
+
+	outside := findNamedBucketItem(t, got, "modules", "outside")
+	assertStringFieldValue(t, outside, "module_resolution_status", "unresolved")
+	if _, ok := outside["resolved_path"]; ok {
+		t.Fatalf("outside[resolved_path] = %#v, want absent for outside-repo path", outside["resolved_path"])
+	}
 
 	missing := findNamedBucketItem(t, got, "modules", "missing")
 	assertStringFieldValue(t, missing, "module_resolution_status", "unresolved")

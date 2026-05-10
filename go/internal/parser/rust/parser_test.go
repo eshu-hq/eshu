@@ -29,6 +29,10 @@ trait Render<'a> {
     fn render(&self, input: &'a str) -> &'a str;
 }
 
+unsafe trait Paint {
+    fn paint(&self);
+}
+
 impl<'a> Render<'a> for Holder<'a> where Holder<'a>: Display {
     fn render(&self, input: &'a str) -> &'a str {
         println!("{}", input);
@@ -36,6 +40,10 @@ impl<'a> Render<'a> for Holder<'a> where Holder<'a>: Display {
         helper(input);
         Holder::new(input)
     }
+}
+
+unsafe impl<'a> Paint for Holder<'a> {
+    fn paint(&self) {}
 }
 
 impl<'a> Holder<'a> {
@@ -91,6 +99,15 @@ fn helper<'a>(input: &'a str) -> &'a str {
 	if render["source"] == "" {
 		t.Fatalf("functions[render][source] = %#v, want indexed source", render["source"])
 	}
+
+	paint := assertRustBucketFields(t, payload, "functions", map[string]string{
+		"name":         "paint",
+		"impl_context": "Holder",
+	})
+	assertRustStringField(t, paint, "impl_context", "Holder")
+	assertRustStringField(t, paint, "impl_kind", "trait_impl")
+	assertRustStringField(t, paint, "trait_context", "Paint")
+	assertRustStringSliceContains(t, paint, "dead_code_root_kinds", "rust.trait_impl_method")
 
 	newFunction := assertRustBucketName(t, payload, "functions", "new")
 	assertRustStringField(t, newFunction, "impl_context", "Holder")

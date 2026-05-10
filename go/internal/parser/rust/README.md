@@ -53,7 +53,8 @@ Cargo-shaped entrypoint paths such as `src/main.rs`, `build.rs`, `src/bin`, and
 directly before `fn` on the same line. Exact `pub` visibility marks functions,
 classes, traits, and type aliases with `rust.public_api_item`; scoped
 visibility such as `pub(crate)` does not. Methods inside `impl Trait for Type`
-blocks carry `impl_kind=trait_impl`, `trait_context`, and
+or `unsafe impl Trait for Type` blocks carry `impl_kind=trait_impl`,
+`trait_context`, and
 `rust.trait_impl_method` root evidence so cleanup analysis does not delete
 runtime-dispatched trait methods by local inbound-edge shape alone.
 Criterion-style `criterion_group!` targets and direct `#[bench]` /
@@ -85,9 +86,10 @@ dynamic or unsupported TOML instead of guessing. `ResolveModuleRowFileCandidates
 does not probe the filesystem; it returns Rust's candidate paths for direct
 module declarations, honors explicit `#[path = "..."]` rows, and leaves
 macro-origin rows blocked. The parent parser engine uses that helper during
-ParsePath to annotate module rows with `resolved_path_candidates`,
-`resolved_path`, and `module_resolution_status` when the current repo root is
-available.
+ParsePath to annotate module rows with repo-bounded
+`resolved_path_candidates`, `resolved_path`, and `module_resolution_status`
+when the current repo root is available. Existing files outside the repo root do
+not become resolved module evidence.
 
 Arbitrary macro expansion, Cargo feature selection, cfg evaluation, workspace
 feature solving, and cross-crate semantic module resolution are still not

@@ -51,7 +51,8 @@
 // Rust, C#, Scala, Elixir, Swift, Dart, Ruby, Perl, Haskell, SQL, and
 // HCL/Terraform parse and pre-scan behavior behind thin parent wrappers. The
 // Rust wrapper additionally annotates direct module declarations with bounded
-// repo-relative resolution status when ParsePath has a repo root. The parent
+// repo-relative resolution status when ParsePath has a repo root, and it does
+// not promote outside-repo files to resolved module evidence. The parent
 // bridge converts Options and payload helpers into shared parser helper
 // contracts instead of making child packages import the parent dispatcher.
 // Parser changes must preserve fact truth: when a parser emits a new

@@ -12,10 +12,10 @@
 // main do not become roots by name alone. Public API roots require exact pub
 // visibility, and benchmark roots require file-local Criterion identifier
 // targets or direct benchmark attributes; generated or expression-based
-// benchmark targets remain raw macro evidence. Trait implementation methods
-// carry rust.trait_impl_method root evidence with their trait context so
-// dead-code callers can keep runtime-dispatched trait surfaces conservative.
-// Module declaration path
+// benchmark targets remain raw macro evidence. Trait implementation methods,
+// including unsafe impl blocks, carry rust.trait_impl_method root evidence with
+// their trait context so dead-code callers can keep runtime-dispatched trait
+// surfaces conservative. Module declaration path
 // candidates stay relative to the current file directory instead of probing the
 // filesystem, except explicit path attributes, which replace the candidate list
 // with the declared path; ResolveModuleRowFileCandidates exposes the same
@@ -23,8 +23,10 @@
 // scans package names, workspace members, feature names, default feature
 // members, and target cfg dependency sections for later cfg resolution work,
 // while ignoring dynamic TOML instead of guessing. The parent parser engine may
-// probe module candidates and attach bounded module_resolution_status metadata
-// when parsing a concrete repo path. Item attributes may be
+// probe repo-bounded module candidates and attach bounded
+// module_resolution_status metadata when parsing a concrete repo path. Existing
+// files outside the repo root are not treated as resolved modules. Item
+// attributes may be
 // multiline or share the item line, while nested field and enum-variant
 // attributes stay on owned annotation rows. Cfg-gated items and macro-origin
 // module/import rows name exactness blockers so dead-code callers can explain

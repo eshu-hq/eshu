@@ -389,7 +389,8 @@ errors are surfaced in `collector snapshot stage completed` logs with
   functions, exact `pub` items, benchmark functions, and methods inside direct
   trait impl blocks. Rust module rows also carry bounded
   `module_resolution_status` metadata when `Engine.ParsePath` can probe direct
-  current-file candidates inside the repo root. Java call
+  current-file candidates inside the repo root; existing files outside that
+  root are not reported as resolved modules. Java call
   metadata also preserves local receiver types from
   parameters, variables, fields, inline constructor receivers, typed method
   references such as `processor::process`, unqualified same-class calls, and

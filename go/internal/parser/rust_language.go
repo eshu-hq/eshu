@@ -59,8 +59,9 @@ func enrichRustModuleResolution(payload map[string]any, repoRoot string, current
 		if len(resolution.CandidatePaths) == 0 {
 			continue
 		}
-		module["resolved_path_candidates"] = rustRepoRelativePaths(repoRoot, resolution.CandidatePaths)
-		resolvedPath := rustFirstExistingPath(resolution.CandidatePaths)
+		boundedPaths := rustRepoBoundedPaths(repoRoot, resolution.CandidatePaths)
+		module["resolved_path_candidates"] = rustRepoRelativePaths(repoRoot, boundedPaths)
+		resolvedPath := rustFirstExistingPath(boundedPaths)
 		if resolvedPath == "" {
 			module["module_resolution_status"] = "unresolved"
 			continue
@@ -70,6 +71,17 @@ func enrichRustModuleResolution(payload map[string]any, repoRoot string, current
 		}
 		module["module_resolution_status"] = "resolved"
 	}
+}
+
+// rustRepoBoundedPaths keeps only candidates under the repo root.
+func rustRepoBoundedPaths(repoRoot string, paths []string) []string {
+	values := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if rel := rustRepoRelativePath(repoRoot, path); rel != "" {
+			values = append(values, path)
+		}
+	}
+	return values
 }
 
 // rustFirstExistingPath returns the first candidate present on disk.
