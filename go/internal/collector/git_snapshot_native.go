@@ -180,7 +180,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Int("import_symbol_count", len(importsMap)),
 		slog.Int("pre_scan_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
 	)
-	goPackageTargets, err := engine.PreScanGoPackageImportedInterfaceParamMethods(repoPath, fileSet.Files)
+	goPackageTargets, err := engine.PreScanGoPackageSemanticRoots(repoPath, fileSet.Files)
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan go package interface params for %q: %w", repoPath, err)
 	}

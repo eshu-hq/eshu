@@ -138,8 +138,17 @@ the language adapter returns,
 `iac_relevant` on the payload. The final payload also carries `repo_path`.
 
 Go embedded SQL extraction now lives in the Go helper subpackage, while the
-parent parser keeps the `embedded_sql_queries` payload contract. Go composite
-literals also emit `function_calls` rows with
+parent parser keeps the `embedded_sql_queries` payload contract. The Go helper
+also emits direct-method-call roots, imported-package direct-method-call roots,
+package-level generic constraint roots, package-level chained receiver roots
+from local interface methods that return imported types, and qualified
+same-repo package interface roots when parser pre-scan proves that a concrete
+value escapes through an imported package function parameter. Generic receiver
+type names are normalized to their base type before payload emission so methods
+declared on receivers such as `Map[K, V]` can meet call evidence for `Map`
+instances.
+Go composite literals also emit
+`function_calls` rows with
 `call_kind=go.composite_literal_type_reference`. Those rows are parser metadata
 for dead-code root evidence. The reducer materializes them as deduplicated
 REFERENCES edges, not canonical CALLS edges, so sibling files in one Go
@@ -164,11 +173,17 @@ parsing receives lineage through a parent-supplied callback.
 `Engine.PreScanRepositoryPathsWithWorkers` runs a pre-scan pass that extracts
 import names, package-level interface references, type references, and
 referenced symbol names from each file. Results are merged across workers and
-sorted by input order to produce a deterministic import map. The pre-scan is a
-lighter parse used to build cross-file import context before the full parse
-pass. Java pre-scan includes records alongside classes, interfaces, annotations,
-enums, methods, and constructors so record helper methods participate in the
-same downstream name map as class methods.
+sorted by input order to produce a deterministic import map. The Go semantic
+pre-scan also reads `go.mod` when present, qualifies exported local-package
+interface-parameter contracts by import path, routes imported receiver method
+calls back to the package that defines those methods, combines package-local
+generic constraint interfaces with package method declarations, and combines
+local interface return signatures with chained calls in sibling files. The
+pre-scan is a lighter parse used to build cross-file import context before the
+full parse pass. Java
+pre-scan includes records alongside classes, interfaces, annotations, enums,
+methods, and constructors so record helper methods participate in the same
+downstream name map as class methods.
 
 Python `.ipynb` files use the Python helper subpackage to extract executable
 code cells, then the parent parser writes that source view to a temporary
@@ -219,6 +234,8 @@ JavaScript, Rust, Java, C, C++).
 - `Engine.PreScanPaths(paths)` — import-map contract for collector prescan
 - `Engine.PreScanRepositoryPaths(repoRoot, paths)` — repo-bounded prescan
 - `Engine.PreScanRepositoryPathsWithWorkers(repoRoot, paths, workers)` — concurrent prescan
+- `Engine.PreScanGoPackageSemanticRoots(repoRoot, paths)` — Go package semantic
+  root contract for collector parser options
 - `Registry` — immutable parser catalog
 - `NewRegistry(definitions)` — builds an immutable registry; panics in
   `DefaultRegistry()` if the built-in definitions are invalid
@@ -365,9 +382,10 @@ errors are surfaced in `collector snapshot stage completed` logs with
   downstream fact contracts.
 - `dead_code_root_kinds` is conservative evidence, not a cleanup verdict.
   Go roots currently cover entrypoints, selected framework registrations,
-  function-valued parameters, local interface references, concrete methods
-  that flow into local or imported interface-typed seams, and struct types
-  referenced by composite literals. JavaScript-family roots cover Node package
+  function-valued parameters, local interface references, imported receiver
+  method calls, concrete methods that flow into local or imported
+  interface-typed seams, and struct types referenced by composite literals.
+  JavaScript-family roots cover Node package
   entrypoints, package `bin` targets, package public exports from the nearest
   owning package manifest, exported functions under Hapi-style handler
   directories, Hapi plugin `register` methods, Hapi exported route arrays with

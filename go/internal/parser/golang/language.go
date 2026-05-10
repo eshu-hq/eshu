@@ -36,7 +36,15 @@ func Parse(
 	constructorReturns := goConstructorReturnTypes(root, source)
 	localNameBindings := goLocalNameBindings(root, source)
 	localReceiverBindings := goLocalReceiverBindings(root, source, constructorReturns)
-	deadCodeEvidence := goDeadCodeEvidence(root, source, importAliases, options.GoImportedInterfaceParamMethods, localNameBindings)
+	deadCodeEvidence := goDeadCodeEvidence(
+		root,
+		source,
+		importAliases,
+		options.GoImportedInterfaceParamMethods,
+		options.GoDirectMethodCallRoots,
+		options.GoPackageImportPath,
+		localNameBindings,
+	)
 	scope := options.NormalizedVariableScope()
 
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
@@ -454,11 +462,5 @@ func goReceiverContext(node *tree_sitter.Node, source []byte) string {
 		return ""
 	}
 
-	value := strings.TrimSpace(nodeText(typeNode, source))
-	value = strings.TrimSpace(strings.TrimPrefix(value, "*"))
-	value = strings.Trim(value, "[]")
-	if index := strings.LastIndex(value, "."); index >= 0 {
-		value = value[index+1:]
-	}
-	return strings.TrimSpace(value)
+	return goNormalizeTypeName(nodeText(typeNode, source))
 }

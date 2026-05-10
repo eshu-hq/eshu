@@ -132,8 +132,13 @@ func deadCodeRootKindsFromMetadata(metadata map[string]any) []string {
 
 var deadCodeGoSemanticRootKinds = map[string]struct{}{
 	"go.dependency_injection_callback":   {},
+	"go.direct_method_call":              {},
+	"go.fmt_stringer_method":             {},
 	"go.function_literal_reachable_call": {},
 	"go.function_value_reference":        {},
+	"go.generic_constraint_method":       {},
+	"go.imported_direct_method_call":     {},
+	"go.imported_fmt_stringer_method":    {},
 	"go.interface_implementation_type":   {},
 	"go.interface_method_implementation": {},
 	"go.interface_type_reference":        {},

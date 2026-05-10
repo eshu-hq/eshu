@@ -83,7 +83,9 @@ per repository:
    `.eshu/discovery.json`, `.eshu/vendor-roots.json`, `.gitignore`, and
    `.eshuignore` applied before parsing.
 2. **Pre-scan** — `engine.PreScanRepositoryPathsWithWorkers` builds the import
-   map concurrently.
+   map concurrently, then `engine.PreScanGoPackageSemanticRoots` builds package
+   interface escapes, imported receiver method roots, chained receiver roots,
+   generic constraint roots, and package import paths for parser options.
 3. **Parse** — `buildParsedRepositoryFiles` parses each file through the
    `parser.Engine` worker pool; each parsed file becomes a `map[string]any`
    entry in `snapshot.FileData` and may carry semantic metadata such as

@@ -35,9 +35,11 @@
 // classify as ambiguous instead of cleanup-ready unused. The
 // analysis notes and modeled-root list use the same Java root family so callers
 // see why those entities were suppressed. The analysis payload names modeled
-// root kinds, includes Go function-literal reachable calls in the modeled Go
-// root list, reports reflection support, and counts parser-metadata suppressions
-// so callers can explain why an entity was not returned as a cleanup candidate.
+// root kinds, includes Go same-package and imported-package direct method
+// calls, generic constraint methods, fmt Stringer methods, plus
+// function-literal reachable calls in the modeled Go root list, reports
+// reflection support, and counts parser-metadata suppressions so callers can
+// explain why an entity was not returned as a cleanup candidate.
 // The modeled-root list names the Rust root kinds the policy suppresses.
 // Unsupported language metadata and test fixtures are suppressed from default
 // cleanup candidates. The dead-code scan keeps raw candidate reads

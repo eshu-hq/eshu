@@ -28,10 +28,24 @@ The godoc contract is in `doc.go`.
 - `PreScan` returns deterministic Go symbol names for import-map pre-scans.
 - `ImportedInterfaceParamMethods` extracts imported-interface parameter
   contracts from one file for same-package dead-code evidence.
+- `ExportedInterfaceParamMethods` extracts exported same-repo package functions
+  whose parameters accept local interfaces, so callers in other packages can
+  preserve concrete methods that escape through those interfaces. It emits the
+  package interface method set instead of an unbounded exported-method fallback.
+- `ImportedDirectMethodCallRoots` extracts qualified method roots for calls made
+  through imported package receiver types, so the parent pre-scan can mark the
+  defining package's methods as reachable.
+- `ImportedDirectMethodCallRootsWithInterfaceReturns` extracts the same roots
+  when package-level interface return metadata is needed to resolve a chained
+  receiver call in another file.
+- `LocalInterfaceImportedMethodReturns`, `LocalInterfaceMethods`,
+  `GenericConstraintInterfaceNames`, and `MethodDeclarationKeys` expose the
+  file-local rows that the parent package pre-scan combines into package-level
+  Go semantic roots.
 - `EmbeddedSQLQueries` returns typed SQL table evidence from recognized Go
   database call sites.
-- `EmbeddedSQLQuery`, `Options`, and `GoImportedInterfaceParamMethods` carry the
-  typed contracts used by those functions.
+- `EmbeddedSQLQuery`, `Options`, `GoImportedInterfaceParamMethods`, and
+  `GoDirectMethodCallRoots` carry the typed contracts used by those functions.
 
 ## Dependencies
 
@@ -55,10 +69,16 @@ returning.
 
 Function and method rows may carry `return_type` when tree-sitter exposes a
 single named, pointer, selector, generic, or qualified result type. The value is
-normalized to the terminal type name, so a pointer to an imported selector keeps
-only the type name. Reducer code-call materialization uses that evidence for Go
-method chains only when call metadata proves the chain receiver type with
+normalized to the terminal type name, so pointers, slices, arrays, imported
+selectors, and generic instantiations keep only the element or terminal type
+name. Reducer code-call materialization uses that evidence for Go method chains
+only when call metadata proves the chain receiver type with
 `chain_receiver_obj_type` and `chain_receiver_method`.
+
+Method receiver class context is normalized to the base receiver type before
+payload emission. A receiver such as Map[K, V], *Set[T], or
+pkg.Graph[T] is emitted as Map, Set, or Graph, so reducer call
+materialization does not need to match every generic instantiation spelling.
 
 Import rows may carry `alias` for explicit Go package aliases. Blank and dot
 imports stay out of alias metadata because they do not provide a package
@@ -70,6 +90,11 @@ scope; typed parameters on declarations, methods, and function literals use the
 function body. Range variables over locally known map values inherit the map
 value type for calls such as `controllerDesc.BuildController`. A shadowed
 variable in an inner block must not change calls that happen after that block.
+Direct method root evidence uses the call site's scoped receiver type. If the
+receiver type is unknown, the parser does not fall back to a same-method-name
+match. Bounded field selector calls such as `s.config.serverAnnouncement` can
+root the target method only when the enclosing receiver and struct field type
+prove the receiver type.
 
 Function-value reference rows are emitted only for identifiers in value
 positions that are not locally bound at that source line. That includes call
@@ -86,14 +111,30 @@ counts a `for range` statement through the enclosing `for_statement`, not again
 through its `range_clause`; this preserves the parent parser fixture contract.
 
 Dead-code evidence is conservative. Handler signatures, Cobra run signatures,
-controller-runtime reconciler signatures, registration calls, function-value
-references, function-literal reachable calls, interface implementations, and
-dependency-injection callbacks add `dead_code_root_kinds` only when the local
-syntax or same-package pre-scan evidence proves the root.
+controller-runtime reconciler signatures, registration calls, direct method
+calls, imported receiver method calls, function-value references,
+function-literal reachable calls, interface implementations, generic constraint
+methods, fmt Stringer methods, and dependency-injection callbacks add
+`dead_code_root_kinds` only when local syntax, same-package pre-scan evidence,
+or a qualified same-repo package contract proves the root.
 
 `ImportedInterfaceParamMethods` is file-local by design. The parent `Engine`
 groups those rows by package directory before passing them back through
-`Options`.
+`Options`. `ExportedInterfaceParamMethods` is also file-local; the parent
+`Engine` qualifies its rows with the module import path from `go.mod` so
+selector calls such as `bolt.NewWithDatabaseManager(...)` do not collide with
+same-named functions in other packages. `ImportedDirectMethodCallRoots` follows
+the same split: the Go package emits only qualified call evidence from one file,
+and the parent engine decides which package directory receives that root. The
+same pre-scan path also carries imported fmt Stringer roots when a formatted
+value has a qualified same-repo receiver type; writer and format-string
+arguments are not treated as formatted values.
+
+Generic constraint and chained receiver evidence is package-level by design.
+The Go package emits file-local interface definitions, constraint identifiers,
+method declaration keys, and local interface imported return signatures. The
+parent parser combines those rows by package directory before routing roots to
+the defining package.
 
 Embedded SQL evidence only records recognized database/sql and sqlx call sites
 where a string literal contains an obvious table reference. Line numbers refer

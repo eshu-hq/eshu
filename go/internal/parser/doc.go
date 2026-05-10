@@ -5,6 +5,7 @@
 // and relationship extraction helpers, import alias, resolved-source, and
 // constructor receiver metadata, dead-code root metadata for functions, types,
 // and package entrypoint files, package-level interface/type reference pre-scans,
+// Go package semantic root pre-scans through PreScanGoPackageSemanticRoots,
 // nearest-package JavaScript roots extracted through the JavaScript helper
 // subpackage, Python route/task/CLI and AWS Lambda root metadata, Python method
 // class context, constructor calls, class receiver
@@ -45,7 +46,11 @@
 // YAML document extraction through the YAML helper subpackage,
 // CloudFormation/SAM template extraction through the CloudFormation helper
 // subpackage, returned function-value references, static re-export metadata,
-// composite-literal type references, and SCIP support for index-derived facts.
+// Go direct method-call roots, Go imported-package direct method-call roots,
+// Go same-repo imported package interface roots, composite-literal type
+// references, package-level generic constraint roots, package-level chained
+// receiver roots from local interface methods that return imported types, and
+// SCIP support for index-derived facts.
 // dbt SQL lineage extraction through the dbt SQL helper subpackage. Language
 // child packages also own Go, Java, Python, JavaScript/TypeScript/TSX, C, C++,
 // Rust, C#, Scala, Elixir, Swift, Dart, Ruby, Perl, Haskell, SQL, and

@@ -78,7 +78,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFiles(
 	engine *parser.Engine,
 	commitSHA string,
 	isDependency bool,
-	goPackageTargets parser.GoPackageImportedInterfaceParamMethods,
+	goPackageTargets parser.GoPackageSemanticRoots,
 ) ([]shape.File, []map[string]any, error) {
 	if shapeFiles, parsedFiles, used, err := s.trySCIPSnapshot(
 		ctx,
@@ -107,7 +107,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 	engine *parser.Engine,
 	commitSHA string,
 	isDependency bool,
-	goPackageTargets parser.GoPackageImportedInterfaceParamMethods,
+	goPackageTargets parser.GoPackageSemanticRoots,
 ) ([]shape.File, []map[string]any, error) {
 	shapeFiles := make([]shape.File, 0, len(fileSet.Files))
 	parsedFiles := make([]map[string]any, 0, len(fileSet.Files))
@@ -187,7 +187,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 	engine *parser.Engine,
 	commitSHA string,
 	isDependency bool,
-	goPackageTargets parser.GoPackageImportedInterfaceParamMethods,
+	goPackageTargets parser.GoPackageSemanticRoots,
 ) ([]shape.File, []map[string]any, error) {
 	fileCount := len(fileSet.Files)
 	if fileCount == 0 {
@@ -325,7 +325,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 	engine *parser.Engine,
 	commitSHA string,
 	isDependency bool,
-	goPackageTargets parser.GoPackageImportedInterfaceParamMethods,
+	goPackageTargets parser.GoPackageSemanticRoots,
 ) ([]shape.File, []map[string]any, bool, error) {
 	config := s.scipConfig()
 	if !config.Enabled {

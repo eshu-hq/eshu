@@ -8,12 +8,15 @@ import (
 
 func snapshotParserOptions(
 	filePath string,
-	goPackageTargets parser.GoPackageImportedInterfaceParamMethods,
+	goPackageTargets parser.GoPackageSemanticRoots,
 ) parser.Options {
+	goOptions := goPackageTargets[filepath.Dir(filePath)]
 	return parser.Options{
 		IndexSource:                     true,
 		VariableScope:                   snapshotParserVariableScope(filePath),
-		GoImportedInterfaceParamMethods: goPackageTargets[filepath.Dir(filePath)],
+		GoImportedInterfaceParamMethods: goOptions.ImportedInterfaceParamMethods,
+		GoDirectMethodCallRoots:         goOptions.DirectMethodCallRoots,
+		GoPackageImportPath:             goOptions.ImportPath,
 	}
 }
 
