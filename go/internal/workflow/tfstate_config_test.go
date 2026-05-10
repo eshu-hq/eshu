@@ -171,6 +171,145 @@ func TestValidateTerraformStateCollectorConfigurationRejectsAmbiguousS3SeedTarge
 	}
 }
 
+func TestValidateTerraformStateCollectorConfigurationAcceptsApprovedLocalCandidateTargetScope(t *testing.T) {
+	t.Parallel()
+
+	err := ValidateTerraformStateCollectorConfiguration(`{
+		"target_scopes": [
+			{
+				"target_scope_id": "aws-prod",
+				"provider": "aws",
+				"deployment_mode": "central",
+				"credential_mode": "central_assume_role",
+				"role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-reader",
+				"allowed_backends": ["local"]
+			}
+		],
+		"discovery": {
+			"graph": true,
+			"local_repos": ["platform-infra"],
+			"local_state_candidates": {
+				"mode": "approved_candidates",
+				"approved": [
+					{
+						"repo_id": "platform-infra",
+						"path": "env/prod/terraform.tfstate",
+						"target_scope_id": "aws-prod"
+					}
+				]
+			}
+		}
+	}`)
+	if err != nil {
+		t.Fatalf("ValidateTerraformStateCollectorConfiguration() error = %v, want nil", err)
+	}
+}
+
+func TestValidateTerraformStateCollectorConfigurationRejectsUnknownLocalCandidateTargetScope(t *testing.T) {
+	t.Parallel()
+
+	err := ValidateTerraformStateCollectorConfiguration(`{
+		"target_scopes": [
+			{
+				"target_scope_id": "aws-prod",
+				"provider": "aws",
+				"deployment_mode": "central",
+				"credential_mode": "central_assume_role",
+				"role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-reader",
+				"allowed_backends": ["local"]
+			}
+		],
+		"discovery": {
+			"graph": true,
+			"local_repos": ["platform-infra"],
+			"local_state_candidates": {
+				"mode": "approved_candidates",
+				"approved": [
+					{
+						"repo_id": "platform-infra",
+						"path": "env/prod/terraform.tfstate",
+						"target_scope_id": "aws-dev"
+					}
+				]
+			}
+		}
+	}`)
+	if err == nil {
+		t.Fatal("ValidateTerraformStateCollectorConfiguration() error = nil, want unknown target_scope_id rejection")
+	}
+}
+
+func TestValidateTerraformStateCollectorConfigurationRejectsSeedTargetScopeWithoutTargetScopes(t *testing.T) {
+	t.Parallel()
+
+	err := ValidateTerraformStateCollectorConfiguration(`{
+		"aws": {
+			"role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-reader"
+		},
+		"discovery": {
+			"seeds": [
+				{
+					"kind": "s3",
+					"target_scope_id": "aws-prod",
+					"bucket": "app-tfstate-prod",
+					"key": "services/api/terraform.tfstate",
+					"region": "us-east-1"
+				}
+			]
+		}
+	}`)
+	if err == nil {
+		t.Fatal("ValidateTerraformStateCollectorConfiguration() error = nil, want target_scope_id without target_scopes rejection")
+	}
+}
+
+func TestValidateTerraformStateCollectorConfigurationRejectsConflictingLocalCandidateTargetScopes(t *testing.T) {
+	t.Parallel()
+
+	err := ValidateTerraformStateCollectorConfiguration(`{
+		"target_scopes": [
+			{
+				"target_scope_id": "aws-prod-a",
+				"provider": "aws",
+				"deployment_mode": "central",
+				"credential_mode": "central_assume_role",
+				"role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-reader-a",
+				"allowed_backends": ["local"]
+			},
+			{
+				"target_scope_id": "aws-prod-b",
+				"provider": "aws",
+				"deployment_mode": "central",
+				"credential_mode": "central_assume_role",
+				"role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-reader-b",
+				"allowed_backends": ["local"]
+			}
+		],
+		"discovery": {
+			"graph": true,
+			"local_repos": ["platform-infra"],
+			"local_state_candidates": {
+				"mode": "approved_candidates",
+				"approved": [
+					{
+						"repo_id": "platform-infra",
+						"path": "./env/prod/terraform.tfstate",
+						"target_scope_id": "aws-prod-a"
+					},
+					{
+						"repo_id": "platform-infra",
+						"path": "env/prod/terraform.tfstate",
+						"target_scope_id": "aws-prod-b"
+					}
+				]
+			}
+		}
+	}`)
+	if err == nil {
+		t.Fatal("ValidateTerraformStateCollectorConfiguration() error = nil, want conflicting approved target_scope_id rejection")
+	}
+}
+
 func TestValidateTerraformStateCollectorConfigurationRejectsNonCanonicalTargetScopeFields(t *testing.T) {
 	t.Parallel()
 

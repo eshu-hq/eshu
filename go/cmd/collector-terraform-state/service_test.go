@@ -68,18 +68,21 @@ func TestBuildClaimedServiceWiresTerraformStateRuntime(t *testing.T) {
 	if source.RedactionKey.IsZero() {
 		t.Fatal("Source redaction key is zero, want configured key")
 	}
-	factory, ok := source.SourceFactory.(tfstateruntime.DefaultSourceFactory)
+	factory, ok := source.SourceFactory.(*targetScopeSourceFactory)
 	if !ok {
-		t.Fatalf("SourceFactory type = %T, want tfstateruntime.DefaultSourceFactory", source.SourceFactory)
+		t.Fatalf("SourceFactory type = %T, want *targetScopeSourceFactory", source.SourceFactory)
 	}
-	if factory.S3Client == nil {
-		t.Fatal("SourceFactory S3Client = nil, want read-only AWS adapter")
+	if got, want := factory.config.DefaultCredentials.Mode, awsCredentialModeDefault; got != want {
+		t.Fatalf("DefaultCredentials.Mode = %q, want %q", got, want)
 	}
-	if factory.S3FallbackLockTableName != "" {
-		t.Fatalf("S3FallbackLockTableName = %q, want blank without configured fallback", factory.S3FallbackLockTableName)
+	if factory.s3Client(legacyAWSCredentialCacheKey, factory.config.DefaultCredentials) == nil {
+		t.Fatal("source factory S3 client = nil, want read-only AWS adapter")
 	}
-	if factory.S3LockMetadataClient == nil {
-		t.Fatal("SourceFactory S3LockMetadataClient = nil, want adapter available for candidate lock tables")
+	if factory.config.S3FallbackLockTableName != "" {
+		t.Fatalf("S3FallbackLockTableName = %q, want blank without configured fallback", factory.config.S3FallbackLockTableName)
+	}
+	if factory.lockMetadataClient(legacyAWSCredentialCacheKey, factory.config.DefaultCredentials) == nil {
+		t.Fatal("source factory lock metadata client = nil, want adapter available for candidate lock tables")
 	}
 	firstClaimID := service.ClaimIDFunc()
 	secondClaimID := service.ClaimIDFunc()
@@ -137,14 +140,14 @@ func TestBuildClaimedServiceWiresDynamoDBLockMetadataRuntime(t *testing.T) {
 	if !ok {
 		t.Fatalf("Source type = %T, want tfstateruntime.ClaimedSource", service.Source)
 	}
-	factory, ok := source.SourceFactory.(tfstateruntime.DefaultSourceFactory)
+	factory, ok := source.SourceFactory.(*targetScopeSourceFactory)
 	if !ok {
-		t.Fatalf("SourceFactory type = %T, want tfstateruntime.DefaultSourceFactory", source.SourceFactory)
+		t.Fatalf("SourceFactory type = %T, want *targetScopeSourceFactory", source.SourceFactory)
 	}
-	if got, want := factory.S3FallbackLockTableName, "tfstate-locks"; got != want {
+	if got, want := factory.config.S3FallbackLockTableName, "tfstate-locks"; got != want {
 		t.Fatalf("S3FallbackLockTableName = %q, want %q", got, want)
 	}
-	if factory.S3LockMetadataClient == nil {
+	if factory.lockMetadataClient(legacyAWSCredentialCacheKey, factory.config.DefaultCredentials) == nil {
 		t.Fatal("S3LockMetadataClient = nil, want read-only DynamoDB adapter")
 	}
 }

@@ -283,8 +283,8 @@ func (r TerraformStateBackendFactReader) localStateCandidates(
 	return candidates, nil
 }
 
-func approvedLocalStateCandidateSet(refs []terraformstate.LocalStateCandidateRef) map[localCandidateKey]struct{} {
-	approved := map[localCandidateKey]struct{}{}
+func approvedLocalStateCandidateSet(refs []terraformstate.LocalStateCandidateRef) map[localCandidateKey]string {
+	approved := map[localCandidateKey]string{}
 	for _, ref := range refs {
 		key := localCandidateKey{
 			repoID:       strings.TrimSpace(ref.RepoID),
@@ -293,7 +293,7 @@ func approvedLocalStateCandidateSet(refs []terraformstate.LocalStateCandidateRef
 		if key.repoID == "" || !isSafeFactRelativePath(key.relativePath) {
 			continue
 		}
-		approved[key] = struct{}{}
+		approved[key] = strings.TrimSpace(ref.TargetScopeID)
 	}
 	return approved
 }
@@ -305,7 +305,7 @@ type localCandidateKey struct {
 
 func scanTerraformStateLocalCandidate(
 	rows Rows,
-	approved map[localCandidateKey]struct{},
+	approved map[localCandidateKey]string,
 ) (terraformstate.DiscoveryCandidate, bool, error) {
 	var repoID string
 	var relativePath string
@@ -320,7 +320,8 @@ func scanTerraformStateLocalCandidate(
 	if !isSafeFactRelativePath(key.relativePath) {
 		return terraformstate.DiscoveryCandidate{}, false, nil
 	}
-	if _, ok := approved[key]; !ok {
+	targetScopeID, ok := approved[key]
+	if !ok {
 		return terraformstate.DiscoveryCandidate{}, false, nil
 	}
 	repoRoot = strings.TrimSpace(repoRoot)
@@ -333,10 +334,11 @@ func scanTerraformStateLocalCandidate(
 			BackendKind: terraformstate.BackendLocal,
 			Locator:     absolutePath,
 		},
-		Source:       terraformstate.DiscoveryCandidateSourceGitLocalFile,
-		RepoID:       key.repoID,
-		RelativePath: key.relativePath,
-		StateInVCS:   true,
+		Source:        terraformstate.DiscoveryCandidateSourceGitLocalFile,
+		TargetScopeID: strings.TrimSpace(targetScopeID),
+		RepoID:        key.repoID,
+		RelativePath:  key.relativePath,
+		StateInVCS:    true,
 	}, true, nil
 }
 

@@ -27,8 +27,9 @@ type terraformStateLocalCandidatePolicyConfig struct {
 }
 
 type terraformStateLocalCandidateConfig struct {
-	RepoID string `json:"repo_id"`
-	Path   string `json:"path"`
+	RepoID        string `json:"repo_id"`
+	Path          string `json:"path"`
+	TargetScopeID string `json:"target_scope_id"`
 }
 
 type terraformStateSeedConfig struct {
@@ -85,7 +86,7 @@ func ValidateTerraformStateCollectorConfiguration(raw string) error {
 			return fmt.Errorf("terraform_state discovery local_repos %d must not be blank", index)
 		}
 	}
-	if err := validateTerraformStateLocalCandidates(cfg.Discovery.LocalStateCandidates); err != nil {
+	if err := validateTerraformStateLocalCandidates(cfg.Discovery.LocalStateCandidates, targetScopes); err != nil {
 		return err
 	}
 
@@ -136,7 +137,10 @@ func ValidateTerraformStateCollectorConfiguration(raw string) error {
 	return nil
 }
 
-func validateTerraformStateLocalCandidates(config terraformStateLocalCandidatePolicyConfig) error {
+func validateTerraformStateLocalCandidates(
+	config terraformStateLocalCandidatePolicyConfig,
+	targetScopes map[string]terraformStateTargetScopeConfig,
+) error {
 	mode := strings.TrimSpace(config.Mode)
 	switch mode {
 	case "", "discover_only", "approved_candidates":
@@ -149,13 +153,19 @@ func validateTerraformStateLocalCandidates(config terraformStateLocalCandidatePo
 	if mode == "approved_candidates" && len(config.Approved) == 0 {
 		return fmt.Errorf("terraform_state discovery local_state_candidates approved_candidates mode requires at least one approved path")
 	}
+	approvedScopes := map[terraformStateLocalCandidateKey]string{}
 	for index, candidate := range config.Approved {
-		if err := validateTerraformStateLocalCandidateRef("approved", index, candidate); err != nil {
+		if err := validateTerraformStateLocalCandidateRef("approved", index, candidate, targetScopes); err != nil {
 			return err
 		}
+		key := terraformStateLocalCandidateRefKey(candidate)
+		if previousScope, ok := approvedScopes[key]; ok && previousScope != strings.TrimSpace(candidate.TargetScopeID) {
+			return fmt.Errorf("terraform_state discovery local_state_candidates approved %d duplicates repo_id/path with conflicting target_scope_id", index)
+		}
+		approvedScopes[key] = strings.TrimSpace(candidate.TargetScopeID)
 	}
 	for index, candidate := range config.Ignored {
-		if err := validateTerraformStateLocalCandidateRef("ignored", index, candidate); err != nil {
+		if err := validateTerraformStateLocalCandidateRef("ignored", index, candidate, targetScopes); err != nil {
 			return err
 		}
 	}
@@ -166,6 +176,7 @@ func validateTerraformStateLocalCandidateRef(
 	field string,
 	index int,
 	candidate terraformStateLocalCandidateConfig,
+	targetScopes map[string]terraformStateTargetScopeConfig,
 ) error {
 	repoID := strings.TrimSpace(candidate.RepoID)
 	if repoID == "" {
@@ -184,7 +195,39 @@ func validateTerraformStateLocalCandidateRef(
 	if filepath.IsAbs(path) || hasParentPathSegment(path) {
 		return fmt.Errorf("terraform_state discovery local_state_candidates %s %d path must be repo-relative", field, index)
 	}
+	scopeID := strings.TrimSpace(candidate.TargetScopeID)
+	if scopeID != candidate.TargetScopeID {
+		return fmt.Errorf("terraform_state discovery local_state_candidates %s %d target_scope_id must not have surrounding whitespace", field, index)
+	}
+	if scopeID == "" {
+		return nil
+	}
+	scope, ok := targetScopes[scopeID]
+	if !ok {
+		return fmt.Errorf("terraform_state discovery local_state_candidates %s %d target_scope_id %q is unknown", field, index, scopeID)
+	}
+	if len(scope.AllowedBackends) > 0 && !stringSliceContains(scope.AllowedBackends, "local") {
+		return fmt.Errorf("terraform_state discovery local_state_candidates %s %d backend local is outside allowed_backends for target_scope_id %q", field, index, scopeID)
+	}
 	return nil
+}
+
+type terraformStateLocalCandidateKey struct {
+	repoID string
+	path   string
+}
+
+func terraformStateLocalCandidateRefKey(candidate terraformStateLocalCandidateConfig) terraformStateLocalCandidateKey {
+	path := strings.TrimSpace(strings.ReplaceAll(candidate.Path, "\\", "/"))
+	for strings.Contains(path, "//") {
+		path = strings.ReplaceAll(path, "//", "/")
+	}
+	path = strings.TrimPrefix(path, "./")
+	path = strings.Trim(path, "/")
+	return terraformStateLocalCandidateKey{
+		repoID: strings.TrimSpace(candidate.RepoID),
+		path:   path,
+	}
 }
 
 func hasParentPathSegment(path string) bool {
@@ -298,12 +341,12 @@ func validateSeedTargetScope(
 	seed terraformStateSeedConfig,
 	targetScopes map[string]terraformStateTargetScopeConfig,
 ) error {
-	if len(targetScopes) == 0 {
-		return nil
-	}
 	scope, err := targetScopeForSeed(index, seed, targetScopes)
 	if err != nil {
 		return err
+	}
+	if scope.TargetScopeID == "" {
+		return nil
 	}
 	if len(scope.AllowedBackends) > 0 && !stringSliceContains(scope.AllowedBackends, backend) {
 		return fmt.Errorf("terraform_state discovery seed %d backend %q is outside allowed_backends for target_scope_id %q", index, backend, scope.TargetScopeID)
@@ -322,6 +365,12 @@ func targetScopeForSeed(
 	seedScopeID := strings.TrimSpace(seed.TargetScopeID)
 	if seedScopeID != seed.TargetScopeID {
 		return terraformStateTargetScopeConfig{}, fmt.Errorf("terraform_state discovery seed %d target_scope_id must not have surrounding whitespace", index)
+	}
+	if len(targetScopes) == 0 {
+		if seedScopeID != "" {
+			return terraformStateTargetScopeConfig{}, fmt.Errorf("terraform_state discovery seed %d target_scope_id %q is unknown", index, seedScopeID)
+		}
+		return terraformStateTargetScopeConfig{}, nil
 	}
 	if seedScopeID != "" {
 		scope, ok := targetScopes[seedScopeID]

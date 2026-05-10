@@ -24,12 +24,14 @@ type localStateCandidatesPolicyConfig struct {
 }
 
 type localStateCandidateConfig struct {
-	RepoID string `json:"repo_id"`
-	Path   string `json:"path"`
+	RepoID        string `json:"repo_id"`
+	Path          string `json:"path"`
+	TargetScopeID string `json:"target_scope_id"`
 }
 
 type seedConfig struct {
 	Kind                    string `json:"kind"`
+	TargetScopeID           string `json:"target_scope_id"`
 	Path                    string `json:"path"`
 	RepoID                  string `json:"repo_id"`
 	Bucket                  string `json:"bucket"`
@@ -60,6 +62,7 @@ func ParseDiscoveryConfig(raw string) (DiscoveryConfig, error) {
 	for _, seed := range parsed.Discovery.Seeds {
 		config.Seeds = append(config.Seeds, DiscoverySeed{
 			Kind:          BackendKind(strings.ToLower(strings.TrimSpace(seed.Kind))),
+			TargetScopeID: strings.TrimSpace(seed.TargetScopeID),
 			Path:          strings.TrimSpace(seed.Path),
 			RepoID:        strings.TrimSpace(seed.RepoID),
 			Bucket:        strings.TrimSpace(seed.Bucket),
@@ -84,8 +87,9 @@ func localStateCandidateRefs(configs []localStateCandidateConfig) []LocalStateCa
 	refs := make([]LocalStateCandidateRef, 0, len(configs))
 	for _, config := range configs {
 		ref := (LocalStateCandidateRef{
-			RepoID:       config.RepoID,
-			RelativePath: config.Path,
+			RepoID:        config.RepoID,
+			RelativePath:  config.Path,
+			TargetScopeID: config.TargetScopeID,
 		}).normalized()
 		if ref.RepoID == "" || ref.RelativePath == "" {
 			continue

@@ -133,10 +133,10 @@ func TestLoadRuntimeConfigParsesAccountLocalTargetScope(t *testing.T) {
 	}
 }
 
-func TestLoadRuntimeConfigRejectsDivergentTargetScopeCredentials(t *testing.T) {
+func TestLoadRuntimeConfigAcceptsDivergentTargetScopeCredentials(t *testing.T) {
 	t.Parallel()
 
-	_, err := loadRuntimeConfig(func(key string) string {
+	config, err := loadRuntimeConfig(func(key string) string {
 		values := map[string]string{
 			"ESHU_COLLECTOR_INSTANCES_JSON": `[
 				{
@@ -188,8 +188,17 @@ func TestLoadRuntimeConfigRejectsDivergentTargetScopeCredentials(t *testing.T) {
 		return values[key]
 	})
 
-	if err == nil {
-		t.Fatal("loadRuntimeConfig() error = nil, want non-nil")
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
+	}
+	if got, want := len(config.AWSTargetScopes), 2; got != want {
+		t.Fatalf("len(AWSTargetScopes) = %d, want %d", got, want)
+	}
+	if got, want := config.AWSTargetScopes[0].Credentials.RoleARN, "arn:aws:iam::123456789012:role/eshu-tfstate-reader-a"; got != want {
+		t.Fatalf("scope A role ARN = %q, want %q", got, want)
+	}
+	if got, want := config.AWSTargetScopes[1].Credentials.RoleARN, "arn:aws:iam::123456789012:role/eshu-tfstate-reader-b"; got != want {
+		t.Fatalf("scope B role ARN = %q, want %q", got, want)
 	}
 }
 

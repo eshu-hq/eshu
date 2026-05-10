@@ -32,6 +32,9 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   upstream Git repository fact is tied to an active committed generation.
 - `ParseDiscoveryConfig` maps collector-instance JSON into the typed discovery
   config used by the resolver.
+- Discovery candidates carry `target_scope_id` when config or approval policy
+  supplies one. The reader stack treats it as routing metadata; source opening
+  code decides which cloud credentials to use.
 - `NewDiscoveryMetrics` registers the candidate counter used during discovery.
 - `Parse` turns one state stream into redacted Terraform-state facts.
 - Parser results include bounded operational stats for resource facts and
@@ -56,7 +59,8 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   locator hash in payload and source references.
 - Repo-local state discovered by Git is discover-only by default. The
   Terraform-state collector opens it only when `local_state_candidates.mode` is
-  `approved_candidates` and the config names an exact repo-relative path.
+  `approved_candidates` and the config names an exact repo-relative path. An
+  approval may include `target_scope_id`, but a local read does not require one.
 - Exact local seeds still require operator-approved absolute paths.
 - S3 reads are exact object reads. Prefix-only keys are rejected.
 - Graph-backed discovery waits for Git generation readiness before reading

@@ -49,8 +49,11 @@ configuration includes `aws.role_arn`, in which case the runtime assumes that
 role before issuing read-only `GetObject` requests. New deployments should use
 `target_scopes` instead. A central AWS scope uses `central_assume_role` with an
 optional `external_id`; an account-local scope uses the default workload
-identity in that account. The legacy `aws.role_arn` field still works, but it
-cannot be mixed with `target_scopes`.
+identity in that account. The runtime can route different state candidates to
+different target-scope credentials. Explicit seeds carry `target_scope_id`;
+graph-discovered S3 candidates are routed by the configured backend and region
+allowlists, and ambiguous matches fail before the object is opened. The legacy
+`aws.role_arn` field still works, but it cannot be mixed with `target_scopes`.
 
 For S3 backends that use Terraform's DynamoDB lock table, set
 `dynamodb_table` on the exact S3 seed or let graph discovery read the literal
@@ -67,8 +70,11 @@ The Git collector records repo-local `.tfstate` files as safe
 Terraform-state runtime. Local candidates stay discover-only unless the
 instance config sets `discovery.local_state_candidates.mode` to
 `approved_candidates` and lists the exact `repo_id` plus repo-relative `path`.
-Approved Git-local state emits a `terraform_state_warning` with
-`warning_kind=state_in_vcs`.
+An approved entry may also include `target_scope_id` when the operator wants
+that local state tied to a target scope for policy and routing context. If it
+does not, the runtime treats the local file as a local read and does not require
+AWS credential routing. Approved Git-local state emits a
+`terraform_state_warning` with `warning_kind=state_in_vcs`.
 
 ## Operator Signals
 
@@ -115,7 +121,8 @@ The main trace spans are `tfstate.source.open`, `tfstate.parser.stream`, and
           "approved": [
             {
               "repo_id": "platform-infra",
-              "path": "env/prod/terraform.tfstate"
+              "path": "env/prod/terraform.tfstate",
+              "target_scope_id": "aws-prod"
             }
           ]
         },
