@@ -204,38 +204,97 @@ func canonicalGraphPhaseStates(generationID string, inputFacts []facts.Envelope)
 	rows := make([]reducer.GraphProjectionPhaseState, 0)
 
 	for _, fact := range inputFacts {
-		if fact.FactKind != "repository" {
-			continue
+		switch fact.FactKind {
+		case "repository":
+			rows = appendCanonicalRepositoryGraphPhase(rows, seen, generationID, fact)
+		case facts.TerraformStateResourceFactKind:
+			rows = appendTerraformStateGraphPhase(
+				rows,
+				seen,
+				generationID,
+				fact,
+				reducer.GraphProjectionKeyspaceTerraformResourceUID,
+			)
+		case facts.TerraformStateModuleFactKind:
+			rows = appendTerraformStateGraphPhase(
+				rows,
+				seen,
+				generationID,
+				fact,
+				reducer.GraphProjectionKeyspaceTerraformModuleUID,
+			)
 		}
-
-		repoID, _ := payloadString(fact.Payload, "repo_id")
-		if repoID == "" {
-			repoID, _ = payloadString(fact.Payload, "graph_id")
-		}
-		sourceRunID, _ := payloadString(fact.Payload, "source_run_id")
-		if strings.TrimSpace(fact.ScopeID) == "" || repoID == "" || sourceRunID == "" || strings.TrimSpace(generationID) == "" {
-			continue
-		}
-
-		composite := strings.Join([]string{fact.ScopeID, repoID, sourceRunID, generationID}, "|")
-		if _, ok := seen[composite]; ok {
-			continue
-		}
-		seen[composite] = struct{}{}
-		rows = append(rows, reducer.GraphProjectionPhaseState{
-			Key: reducer.GraphProjectionPhaseKey{
-				ScopeID:          fact.ScopeID,
-				AcceptanceUnitID: repoID,
-				SourceRunID:      sourceRunID,
-				GenerationID:     generationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-			},
-			Phase:       reducer.GraphProjectionPhaseCanonicalNodesCommitted,
-			CommittedAt: fact.ObservedAt,
-			UpdatedAt:   fact.ObservedAt,
-		})
 	}
 
+	return rows
+}
+
+func appendCanonicalRepositoryGraphPhase(
+	rows []reducer.GraphProjectionPhaseState,
+	seen map[string]struct{},
+	generationID string,
+	fact facts.Envelope,
+) []reducer.GraphProjectionPhaseState {
+	repoID, _ := payloadString(fact.Payload, "repo_id")
+	if repoID == "" {
+		repoID, _ = payloadString(fact.Payload, "graph_id")
+	}
+	sourceRunID, _ := payloadString(fact.Payload, "source_run_id")
+	if strings.TrimSpace(fact.ScopeID) == "" || repoID == "" || sourceRunID == "" || strings.TrimSpace(generationID) == "" {
+		return rows
+	}
+
+	return appendCanonicalGraphPhase(rows, seen, reducer.GraphProjectionPhaseKey{
+		ScopeID:          fact.ScopeID,
+		AcceptanceUnitID: repoID,
+		SourceRunID:      sourceRunID,
+		GenerationID:     generationID,
+		Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+	}, fact.ObservedAt)
+}
+
+func appendTerraformStateGraphPhase(
+	rows []reducer.GraphProjectionPhaseState,
+	seen map[string]struct{},
+	generationID string,
+	fact facts.Envelope,
+	keyspace reducer.GraphProjectionKeyspace,
+) []reducer.GraphProjectionPhaseState {
+	if strings.TrimSpace(fact.ScopeID) == "" || strings.TrimSpace(generationID) == "" {
+		return rows
+	}
+	return appendCanonicalGraphPhase(rows, seen, reducer.GraphProjectionPhaseKey{
+		ScopeID:          fact.ScopeID,
+		AcceptanceUnitID: fact.ScopeID,
+		SourceRunID:      generationID,
+		GenerationID:     generationID,
+		Keyspace:         keyspace,
+	}, fact.ObservedAt)
+}
+
+func appendCanonicalGraphPhase(
+	rows []reducer.GraphProjectionPhaseState,
+	seen map[string]struct{},
+	key reducer.GraphProjectionPhaseKey,
+	observedAt time.Time,
+) []reducer.GraphProjectionPhaseState {
+	composite := strings.Join([]string{
+		key.ScopeID,
+		key.AcceptanceUnitID,
+		key.SourceRunID,
+		key.GenerationID,
+		string(key.Keyspace),
+	}, "|")
+	if _, ok := seen[composite]; ok {
+		return rows
+	}
+	seen[composite] = struct{}{}
+	rows = append(rows, reducer.GraphProjectionPhaseState{
+		Key:         key,
+		Phase:       reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+		CommittedAt: observedAt,
+		UpdatedAt:   observedAt,
+	})
 	return rows
 }
 
@@ -288,6 +347,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 	for i := range inputFacts {
 		fact := inputFacts[i].Clone()
 		if err := validateFactBoundary(scopeValue, generation, fact); err != nil {
+			return projection{}, err
+		}
+		if err := validateTerraformStateSchemaVersion(fact); err != nil {
 			return projection{}, err
 		}
 

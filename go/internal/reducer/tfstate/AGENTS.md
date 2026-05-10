@@ -15,9 +15,10 @@ Read it before touching any file in this directory.
 
 ## Invariants (cite file:line)
 
-- **Scaffold only** — `doc.go:1–7` is explicit: no live projection logic
-  lives here. Do not add Terraform state parsing or materialization to this
-  package.
+- **Contract only** — `doc.go:1–9` is explicit: this package names the
+  reducer-facing Terraform-state contract. Runtime projection lives in
+  `internal/projector`; collector parsing lives in
+  `internal/collector/terraformstate`.
 - **Two Phase 1 checkpoints** — `contract.go:27–40`; both
   `terraform_resource_uid` and `terraform_module_uid` target
   `canonical_nodes_committed`. These are Phase 1 publications; any domain
@@ -30,7 +31,7 @@ Read it before touching any file in this directory.
 
 ## Common changes
 
-### Add a new component to the scaffold
+### Add a new component to the contract
 
 1. Append to `defaultRuntimeContract.Components` in `contract.go`.
 2. Update the README component list in the same PR.
@@ -45,14 +46,15 @@ Read it before touching any file in this directory.
 
 ## Failure modes
 
-- **Scaffold diverging from ADR**: if `Validate` passes on an outdated
+- **Contract diverging from ADR**: if `Validate` passes on an outdated
   contract, downstream wiring misses required checkpoints silently. Treat
   failing `Validate` in tests as a hard stop.
 
 ## Anti-patterns
 
-- Do not add live projection code to this package. Create a separate handler
-  registered with `internal/reducer.NewDefaultRegistry`.
+- Do not add live projection code to this package. Source-local Terraform-state
+  node projection belongs in `internal/projector`; cross-source correlation
+  belongs in a reducer handler registered with `internal/reducer.NewDefaultRegistry`.
 - Do not export types that reference concrete graph backend types.
 
 ## What NOT to change without an ADR

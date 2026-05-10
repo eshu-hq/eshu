@@ -7,20 +7,23 @@ package projector
 // repository projection. Built from the same facts that produce content store
 // writes. Written to Neo4j in strict phase order by CanonicalNodeWriter.
 type CanonicalMaterialization struct {
-	ScopeID         string
-	GenerationID    string
-	RepoID          string
-	RepoPath        string // repository path used as Directory chain root
-	FirstGeneration bool   // true when the scope has no prior active generation
-	Repository      *RepositoryRow
-	Directories     []DirectoryRow
-	Files           []FileRow
-	Entities        []EntityRow
-	Modules         []ModuleRow
-	Imports         []ImportRow
-	Parameters      []ParameterRow
-	ClassMembers    []ClassMemberRow
-	NestedFuncs     []NestedFunctionRow
+	ScopeID                 string
+	GenerationID            string
+	RepoID                  string
+	RepoPath                string // repository path used as Directory chain root
+	FirstGeneration         bool   // true when the scope has no prior active generation
+	Repository              *RepositoryRow
+	Directories             []DirectoryRow
+	Files                   []FileRow
+	Entities                []EntityRow
+	Modules                 []ModuleRow
+	Imports                 []ImportRow
+	Parameters              []ParameterRow
+	ClassMembers            []ClassMemberRow
+	NestedFuncs             []NestedFunctionRow
+	TerraformStateResources []TerraformStateResourceRow
+	TerraformStateModules   []TerraformStateModuleRow
+	TerraformStateOutputs   []TerraformStateOutputRow
 }
 
 // IsEmpty reports whether the materialization carries no projectable data.
@@ -28,7 +31,10 @@ func (m CanonicalMaterialization) IsEmpty() bool {
 	return m.Repository == nil &&
 		len(m.Directories) == 0 &&
 		len(m.Files) == 0 &&
-		len(m.Entities) == 0
+		len(m.Entities) == 0 &&
+		len(m.TerraformStateResources) == 0 &&
+		len(m.TerraformStateModules) == 0 &&
+		len(m.TerraformStateOutputs) == 0
 }
 
 // RepositoryRow carries the canonical properties for a Repository node.

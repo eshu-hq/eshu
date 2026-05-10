@@ -227,6 +227,7 @@ func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization
 		{name: "entities", statements: w.buildEntityStatements(mat)},
 		{name: "entity_retract", statements: w.buildEntityRetractStatements(mat)},
 		{name: "entity_containment", statements: w.buildEntityContainmentStatements(mat)},
+		{name: canonicalPhaseTerraformState, statements: w.buildTerraformStateStatements(mat)},
 		{name: "modules", statements: w.buildModuleStatements(mat)},
 		{name: "structural_edges", statements: w.buildStructuralEdgeStatements(mat)},
 	}

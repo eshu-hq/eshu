@@ -200,6 +200,8 @@ func TestSchemaStatementsContainsUIDConstraints(t *testing.T) {
 		"CREATE CONSTRAINT protocol_implementation_uid_unique IF NOT EXISTS FOR (n:ProtocolImplementation) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT k8s_resource_uid_unique IF NOT EXISTS FOR (n:K8sResource) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT terraform_resource_uid_unique IF NOT EXISTS FOR (n:TerraformResource) REQUIRE n.uid IS UNIQUE",
+		"CREATE CONSTRAINT terraform_module_uid_unique IF NOT EXISTS FOR (n:TerraformModule) REQUIRE n.uid IS UNIQUE",
+		"CREATE CONSTRAINT terraform_output_uid_unique IF NOT EXISTS FOR (n:TerraformOutput) REQUIRE n.uid IS UNIQUE",
 	}
 	for _, want := range expected {
 		assertContainsStatement(t, stmts, want)

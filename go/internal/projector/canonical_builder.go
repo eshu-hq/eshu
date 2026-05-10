@@ -64,6 +64,7 @@ func buildCanonicalMaterialization(
 	// (module_name, imported_module, param_name, etc.) and merges any
 	// additionally discovered modules into the set above.
 	extractRelationships(inputFacts, &mat)
+	extractTerraformStateRows(&mat, inputFacts)
 
 	return mat
 }
