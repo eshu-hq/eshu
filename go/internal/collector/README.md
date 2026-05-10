@@ -91,7 +91,9 @@ per repository:
    variable scope close to query needs: Java uses module-level variables so
    method locals do not flood canonical graph projection, while dynamic
    languages that rely on local-variable evidence still parse with
-   `VariableScope=all`.
+   `VariableScope=all`. Terraform parser buckets are mapped explicitly into
+   content entities, including backends, imports, moved blocks, removed blocks,
+   checks, and lockfile providers.
 4. **Materialize** — `shape.Materialize` turns parsed files into
    `ContentFileMeta` records and `ContentEntitySnapshot` rows. Body strings are
    released after materialization; `streamFacts` re-reads them from disk at emit

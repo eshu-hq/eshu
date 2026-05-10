@@ -4,9 +4,9 @@
 
 This package owns Terraform and Terragrunt HCL parsing for the parser engine.
 It reads HCL source, extracts Terraform blocks, resources, variables, outputs,
-modules, providers, data sources, locals, Terragrunt configs, dependencies,
-inputs, and local config asset paths, then returns the legacy parser payload
-shape.
+modules, providers, data sources, locals, backends, imports, moved blocks,
+removed blocks, checks, lockfile providers, Terragrunt configs, dependencies,
+inputs, and local config asset paths, then returns the parser payload shape.
 
 ## Ownership boundary
 
@@ -36,8 +36,9 @@ the parent parser engine through `eshu_dp_file_parse_duration_seconds`.
 
 ## Gotchas / invariants
 
-`terragrunt.hcl` is treated as Terragrunt; other HCL files use the Terraform
-block path.
+`terragrunt.hcl` is treated as Terragrunt. `.terraform.lock.hcl` is treated as
+a provider lockfile, so its `provider` blocks produce `terraform_lock_providers`
+instead of `terraform_providers`. Other HCL files use the Terraform block path.
 
 Terragrunt local config asset extraction is intentionally bounded to static
 string, join, lookup, file, templatefile, and local interpolation shapes already

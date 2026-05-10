@@ -21,12 +21,14 @@
 // concrete labels in the Cypher anchor so stale-node and stale-edge cleanup
 // remains selective on supported graph backends. Stale File-to-entity CONTAINS
 // cleanup is owned by entity retraction, not a separate per-file relationship
-// filter. Repository writes clear current identity nodes in a dedicated cleanup
-// phase before their MERGE phase. Directory and File nodes update in place
-// because replacing them with DETACH DELETE is too expensive on local graph
-// backends; missing nested files use a guarded MERGE through their parent
-// Directory, while repository-root files use a Repository-contained path that
-// does not require a synthetic root Directory. High-volume analysis metadata
-// such as dead_code_root_kinds stays in the content store unless a graph query
-// owns a proven need for that property.
+// filter. Terraform evidence labels, including backend, import, moved, removed,
+// check, and lockfile-provider nodes, stay in the same label-anchored cleanup
+// path as other canonical entities. Repository writes clear current identity
+// nodes in a dedicated cleanup phase before their MERGE phase. Directory and
+// File nodes update in place because replacing them with DETACH DELETE is too
+// expensive on local graph backends; missing nested files use a guarded MERGE
+// through their parent Directory, while repository-root files use a
+// Repository-contained path that does not require a synthetic root Directory.
+// High-volume analysis metadata such as dead_code_root_kinds stays in the
+// content store unless a graph query owns a proven need for that property.
 package cypher

@@ -30,6 +30,13 @@ func attributeValue(attribute *hclsyntax.Attribute, source []byte) string {
 	return expressionText(attribute.Expr, source)
 }
 
+func attributeSourceText(attribute *hclsyntax.Attribute, source []byte) string {
+	if attribute == nil {
+		return ""
+	}
+	return strings.TrimSpace(sourceRange(source, attribute.Expr.Range()))
+}
+
 func objectAttributeMap(attribute *hclsyntax.Attribute, source []byte) map[string]string {
 	if attribute == nil {
 		return nil

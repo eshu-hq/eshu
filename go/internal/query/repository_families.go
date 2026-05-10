@@ -51,7 +51,9 @@ func infraFamilyForEntityType(entityType string) string {
 	case "CrossplaneXRD", "CrossplaneComposition", "CrossplaneClaim":
 		return "crossplane"
 	case "TerraformModule", "TerraformResource", "TerraformVariable", "TerraformOutput",
-		"TerraformDataSource", "TerraformProvider", "TerraformLocal", "TerraformBlock":
+		"TerraformDataSource", "TerraformProvider", "TerraformLocal", "TerraformBackend",
+		"TerraformImport", "TerraformMovedBlock", "TerraformRemovedBlock", "TerraformCheck",
+		"TerraformLockProvider", "TerraformBlock":
 		return "terraform"
 	case "TerragruntConfig", "TerragruntDependency", "TerragruntLocal", "TerragruntInput":
 		return "terragrunt"

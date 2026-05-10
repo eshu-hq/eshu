@@ -14,10 +14,12 @@
 // watch mode does not reindex on ignored generated output. Native snapshots
 // choose parser variable scope from the source language so high-cardinality
 // local variables do not enter graph projection unless a language needs them
-// for query truth. Native and SCIP snapshots preserve parser-emitted dead-code
-// root metadata in content entity facts; query-time classification decides how
-// that evidence is presented. Service.AfterBatchDrained fires only after at
-// least one committed generation and a drained source batch, so callers can
-// hook reducer or status work to a real collection boundary instead of an idle
-// poll.
+// for query truth. Snapshot entity mapping carries parser buckets, including
+// Terraform import/refactor/check and lockfile-provider evidence, into content
+// facts before projector or query policy decides how to present them. Native
+// and SCIP snapshots preserve parser-emitted dead-code root metadata in content
+// entity facts; query-time classification decides how that evidence is
+// presented. Service.AfterBatchDrained fires only after at least one committed
+// generation and a drained source batch, so callers can hook reducer or status
+// work to a real collection boundary instead of an idle poll.
 package collector

@@ -94,6 +94,26 @@ func buildEntitySemanticSummary(entity map[string]any) string {
 			return ""
 		}
 		return fmt.Sprintf("%s %s uses module source %s.", label, name, source)
+	case "TerraformImport":
+		to, _ := metadata["to"].(string)
+		id, _ := metadata["id"].(string)
+		if to == "" || id == "" {
+			return ""
+		}
+		return fmt.Sprintf("%s %s imports %s.", label, name, to)
+	case "TerraformMovedBlock":
+		from, _ := metadata["from"].(string)
+		to, _ := metadata["to"].(string)
+		if from == "" || to == "" {
+			return ""
+		}
+		return fmt.Sprintf("%s %s moves %s to %s.", label, name, from, to)
+	case "TerraformRemovedBlock":
+		from, _ := metadata["from"].(string)
+		if from == "" {
+			return ""
+		}
+		return fmt.Sprintf("%s %s removes %s.", label, name, from)
 	case "TerragruntConfig":
 		terraformSource, _ := metadata["terraform_source"].(string)
 		includes := metadataStringSlice(metadata, "includes")

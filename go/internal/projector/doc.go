@@ -10,4 +10,7 @@
 // fail when its heartbeat returns ErrWorkSuperseded, which means a newer
 // same-scope generation replaced stale local polling work. Projector code does
 // not make cross-source admission decisions; those belong to internal/reducer.
+// EntityTypeLabel keeps parser/content entity labels, including Terraform
+// backend/import/refactor/check and lockfile-provider labels, aligned with graph
+// schema support.
 package projector

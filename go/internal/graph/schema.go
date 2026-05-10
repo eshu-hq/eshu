@@ -81,6 +81,12 @@ var schemaConstraints = []string{
 	"CREATE CONSTRAINT tf_datasource_unique IF NOT EXISTS FOR (ds:TerraformDataSource) REQUIRE (ds.name, ds.path, ds.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT tf_provider_unique IF NOT EXISTS FOR (p:TerraformProvider) REQUIRE (p.name, p.path, p.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT tf_local_unique IF NOT EXISTS FOR (l:TerraformLocal) REQUIRE (l.name, l.path, l.line_number) IS UNIQUE",
+	"CREATE CONSTRAINT tf_backend_unique IF NOT EXISTS FOR (b:TerraformBackend) REQUIRE (b.name, b.path, b.line_number) IS UNIQUE",
+	"CREATE CONSTRAINT tf_import_unique IF NOT EXISTS FOR (i:TerraformImport) REQUIRE (i.name, i.path, i.line_number) IS UNIQUE",
+	"CREATE CONSTRAINT tf_moved_unique IF NOT EXISTS FOR (m:TerraformMovedBlock) REQUIRE (m.name, m.path, m.line_number) IS UNIQUE",
+	"CREATE CONSTRAINT tf_removed_unique IF NOT EXISTS FOR (r:TerraformRemovedBlock) REQUIRE (r.name, r.path, r.line_number) IS UNIQUE",
+	"CREATE CONSTRAINT tf_check_unique IF NOT EXISTS FOR (c:TerraformCheck) REQUIRE (c.name, c.path, c.line_number) IS UNIQUE",
+	"CREATE CONSTRAINT tf_lock_provider_unique IF NOT EXISTS FOR (p:TerraformLockProvider) REQUIRE (p.name, p.path, p.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT tg_config_unique IF NOT EXISTS FOR (tg:TerragruntConfig) REQUIRE tg.path IS UNIQUE",
 	"CREATE CONSTRAINT tg_dependency_unique IF NOT EXISTS FOR (td:TerragruntDependency) REQUIRE (td.name, td.path, td.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT tg_input_unique IF NOT EXISTS FOR (ti:TerragruntInput) REQUIRE (ti.name, ti.path, ti.line_number) IS UNIQUE",
@@ -156,10 +162,16 @@ var uidConstraintLabels = []string{
 	"SqlView",
 	"Struct",
 	"TerraformDataSource",
+	"TerraformBackend",
+	"TerraformCheck",
+	"TerraformImport",
+	"TerraformLockProvider",
 	"TerraformLocal",
 	"TerraformModule",
+	"TerraformMovedBlock",
 	"TerraformOutput",
 	"TerraformProvider",
+	"TerraformRemovedBlock",
 	"TerraformResource",
 	"TerraformVariable",
 	"TerragruntConfig",
@@ -237,6 +249,8 @@ var schemaFulltextIndexes = []fulltextIndex{
 			"'CrossplaneClaim', 'KustomizeOverlay', 'HelmChart', 'HelmValues', " +
 			"'TerraformVariable', 'TerraformOutput', 'TerraformModule', " +
 			"'TerraformDataSource', 'TerraformProvider', 'TerraformLocal', " +
+			"'TerraformBackend', 'TerraformImport', 'TerraformMovedBlock', " +
+			"'TerraformRemovedBlock', 'TerraformCheck', 'TerraformLockProvider', " +
 			"'TerragruntConfig', 'CloudFormationResource', " +
 			"'CloudFormationParameter', 'CloudFormationOutput'], " +
 			"['name', 'kind', 'resource_type'])",
@@ -246,6 +260,8 @@ var schemaFulltextIndexes = []fulltextIndex{
 			"CrossplaneClaim|KustomizeOverlay|HelmChart|HelmValues|" +
 			"TerraformVariable|TerraformOutput|TerraformModule|" +
 			"TerraformDataSource|TerraformProvider|TerraformLocal|" +
+			"TerraformBackend|TerraformImport|TerraformMovedBlock|" +
+			"TerraformRemovedBlock|TerraformCheck|TerraformLockProvider|" +
 			"TerragruntConfig|CloudFormationResource|" +
 			"CloudFormationParameter|CloudFormationOutput) " +
 			"ON EACH [n.name, n.kind, n.resource_type]",

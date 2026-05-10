@@ -209,6 +209,9 @@ backend-specific adapters.
 - `Module` and `Parameter` entity types are excluded from the generic
   `EntityRow` extraction path because they use different MERGE keys in the graph
   schema; they get their own extraction phases (`canonical_builder.go:227`).
+- Terraform entity labels from the content store include backends, imports,
+  moved blocks, removed blocks, checks, and lockfile providers. `EntityTypeLabel`
+  must know each label before canonical graph writes can project it.
 - File paths in `EntityRow.FilePath` and `FileRow.Path` are repo-qualified
   (`repoPath/relative_path`) to prevent cross-repository MERGE collisions in the
   graph (`canonical_builder.go:112`).

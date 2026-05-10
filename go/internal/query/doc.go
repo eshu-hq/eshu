@@ -36,6 +36,9 @@
 // result limits, and reports display truncation separately from bounded raw
 // candidate pages and rows so callers can tell whether the result list was
 // clipped or the graph scan cap was reached.
+// Infrastructure reads expose Terraform backend, import, moved, removed, check,
+// and lockfile-provider evidence as first-class entity types once parser and
+// projector support exists.
 // local_authoritative and local_full_stack both answer graph-backed platform
 // impact queries, while local_lightweight returns structured unsupported errors
 // for those routes.

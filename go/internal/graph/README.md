@@ -149,7 +149,7 @@ or span instruments are registered here; backend executors own those.
   name uniqueness constraint causes `ConstraintValidationFailed` when multiple
   repositories share module names like `consts` or `index`.
 - `NornicDB` composite `IS UNIQUE` constraints are silently dropped
-  (`schema.go:467`) because NornicDB's parser rejects the multi-property form.
+  (`schema.go:480`) because NornicDB's parser rejects the multi-property form.
   Canonical writes use separate `uid` uniqueness constraints for those labels
   instead.
 - `DeleteFileFromGraph` runs two sequential `ExecuteCypher` calls
@@ -161,6 +161,9 @@ or span instruments are registered here; backend executors own those.
 - The schema contract is the checked-in Go-owned truth for node labels,
   constraints, performance indexes, and full-text indexes. Changes here must
   update the active ADR chunk status row.
+- Terraform schema labels include resource/config entities plus backend,
+  import, moved, removed, check, and lockfile-provider evidence. Keep that list
+  aligned with `internal/content/shape` and `internal/storage/cypher`.
 
 ## Related docs
 

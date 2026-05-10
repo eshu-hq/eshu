@@ -68,6 +68,9 @@ func queryRepoInfrastructureFromGraph(ctx context.Context, reader GraphQuery, pa
 		MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(infra)
 		WHERE infra:K8sResource OR infra:TerraformResource OR infra:TerraformModule
 		      OR infra:TerraformDataSource
+		      OR infra:TerraformBackend OR infra:TerraformImport
+		      OR infra:TerraformMovedBlock OR infra:TerraformRemovedBlock
+		      OR infra:TerraformCheck OR infra:TerraformLockProvider
 		      OR infra:TerragruntConfig OR infra:TerragruntDependency
 		      OR infra:ArgoCDApplication OR infra:ArgoCDApplicationSet
 		      OR infra:HelmChart OR infra:HelmValues
@@ -156,7 +159,9 @@ func repositoryInfrastructureEntryFromContent(entity EntityContent) (map[string]
 		}
 	case "ArgoCDApplication", "ArgoCDApplicationSet", "KustomizeOverlay", "HelmChart",
 		"HelmValues", "CrossplaneXRD", "CrossplaneComposition", "CrossplaneClaim",
-		"CloudFormationResource", "K8sResource", "TerraformResource", "TerraformDataSource":
+		"CloudFormationResource", "K8sResource", "TerraformResource", "TerraformDataSource",
+		"TerraformBackend", "TerraformImport", "TerraformMovedBlock", "TerraformRemovedBlock",
+		"TerraformCheck", "TerraformLockProvider":
 		if source, ok := metadataNonEmptyString(entity.Metadata, "source"); ok {
 			entry["source"] = source
 		}
@@ -175,6 +180,8 @@ func repositoryInfrastructureEntryFromContent(entity EntityContent) (map[string]
 func isRepositoryInfrastructureType(entityType string) bool {
 	switch entityType {
 	case "K8sResource", "TerraformResource", "TerraformModule", "TerraformDataSource",
+		"TerraformBackend", "TerraformImport", "TerraformMovedBlock", "TerraformRemovedBlock",
+		"TerraformCheck", "TerraformLockProvider",
 		"TerragruntConfig", "TerragruntDependency",
 		"ArgoCDApplication", "ArgoCDApplicationSet",
 		"HelmChart", "HelmValues", "KustomizeOverlay",

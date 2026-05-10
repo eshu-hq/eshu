@@ -262,6 +262,10 @@ adapter seam.
   giant `uid IN` exclusion filters. Current nodes have already been stamped with
   the new `generation_id`, so stale cleanup can use generation-only deletion
   while keeping each graph lookup bounded to one schema label.
+- Terraform backend, import, moved, removed, check, and lockfile-provider
+  labels are part of the projectable Terraform cleanup set. New Terraform
+  parser buckets need an explicit entry there before stale-node cleanup can
+  retract old facts.
 - Stale File-to-entity `CONTAINS` edges are removed when stale entity nodes are
   retracted. Do not add a separate per-file relationship refresh unless a future
   ADR changes the canonical entity lifecycle; that shape is easier to make slow
