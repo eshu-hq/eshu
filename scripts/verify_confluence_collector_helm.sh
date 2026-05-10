@@ -65,6 +65,10 @@ required_patterns=(
   "name: ESHU_POSTGRES_DSN"
   "port: metrics"
   "kind: ServiceMonitor"
+  "initialDelaySeconds: 30"
+  "periodSeconds: 30"
+  "initialDelaySeconds: 10"
+  "periodSeconds: 15"
 )
 
 for pattern in "${required_patterns[@]}"; do
@@ -79,3 +83,12 @@ if rg -q "ESHU_CONFLUENCE_ROOT_PAGE_ID" "${enabled_render}"; then
   exit 1
 fi
 
+if rg -q -U "app.kubernetes.io/component: confluence-collector\\n  annotations:\\nspec:" "${enabled_render}"; then
+  echo "metrics service rendered an empty annotations map" >&2
+  exit 1
+fi
+
+if rg -q -U "app.kubernetes.io/component: confluence-collector\\n      annotations:\\n    spec:" "${enabled_render}"; then
+  echo "collector pod template rendered an empty annotations map" >&2
+  exit 1
+fi
