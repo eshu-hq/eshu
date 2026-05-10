@@ -37,7 +37,7 @@ func (d DesiredCollectorInstance) Validate() error {
 		return err
 	}
 	if d.CollectorKind == scope.CollectorTerraformState {
-		if err := validateTerraformStateCollectorConfiguration(d.Configuration); err != nil {
+		if err := ValidateTerraformStateCollectorConfiguration(d.Configuration); err != nil {
 			return err
 		}
 	}

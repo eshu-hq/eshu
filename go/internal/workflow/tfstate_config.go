@@ -30,7 +30,9 @@ type terraformStateAWSConfiguration struct {
 	RoleARN string `json:"role_arn"`
 }
 
-func validateTerraformStateCollectorConfiguration(raw string) error {
+// ValidateTerraformStateCollectorConfiguration checks the shared
+// Terraform-state collector configuration contract.
+func ValidateTerraformStateCollectorConfiguration(raw string) error {
 	var cfg terraformStateCollectorConfiguration
 	if err := json.Unmarshal([]byte(normalizeJSONDocument(raw)), &cfg); err != nil {
 		return fmt.Errorf("terraform_state configuration: %w", err)
