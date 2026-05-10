@@ -1,0 +1,207 @@
+package hcl
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestResolveTerragruntRemoteStateFromSelf(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	selfPath := filepath.Join(root, "terragrunt.hcl")
+	if err := os.WriteFile(selfPath, []byte(`remote_state {
+  backend = "s3"
+  config = {
+    bucket = "self-bucket"
+    key    = "self.tfstate"
+    region = "us-east-1"
+  }
+}
+`), 0o644); err != nil {
+		t.Fatalf("write self error = %v", err)
+	}
+
+	resolved, warnings := resolveTerragruntRemoteState(selfPath)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %#v, want none", warnings)
+	}
+	if resolved == nil {
+		t.Fatal("resolved = nil, want non-nil")
+	}
+	if got, want := resolved.row["backend_kind"], "s3"; got != want {
+		t.Fatalf("backend_kind = %#v, want %#v", got, want)
+	}
+	if got, want := resolved.resolvedFrom, "self"; got != want {
+		t.Fatalf("resolvedFrom = %#v, want %#v", got, want)
+	}
+}
+
+func TestResolveTerragruntRemoteStateWalksParentInclude(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	parentDir := filepath.Join(root, "live")
+	childDir := filepath.Join(parentDir, "prod", "api")
+	if err := os.MkdirAll(childDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll error = %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(parentDir, "terragrunt.hcl"), []byte(`remote_state {
+  backend = "s3"
+  config = {
+    bucket = "parent-bucket"
+    key    = "parent.tfstate"
+    region = "us-east-1"
+  }
+}
+`), 0o644); err != nil {
+		t.Fatalf("write parent error = %v", err)
+	}
+
+	childPath := filepath.Join(childDir, "terragrunt.hcl")
+	if err := os.WriteFile(childPath, []byte(`include "root" {
+  path = find_in_parent_folders("terragrunt.hcl")
+}
+`), 0o644); err != nil {
+		t.Fatalf("write child error = %v", err)
+	}
+
+	resolved, warnings := resolveTerragruntRemoteState(childPath)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %#v, want none", warnings)
+	}
+	if resolved == nil {
+		t.Fatal("resolved = nil, want non-nil")
+	}
+	if got, want := resolved.row["bucket"], "parent-bucket"; got != want {
+		t.Fatalf("bucket = %#v, want %#v", got, want)
+	}
+	if got, want := resolved.resolvedFrom, "include_chain"; got != want {
+		t.Fatalf("resolvedFrom = %#v, want %#v", got, want)
+	}
+}
+
+func TestResolveTerragruntRemoteStateAbsoluteIncludePath(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	parentPath := filepath.Join(root, "shared.hcl")
+	if err := os.WriteFile(parentPath, []byte(`remote_state {
+  backend = "s3"
+  config = {
+    bucket = "abs-bucket"
+    key    = "abs.tfstate"
+    region = "us-east-1"
+  }
+}
+`), 0o644); err != nil {
+		t.Fatalf("write shared error = %v", err)
+	}
+
+	childPath := filepath.Join(root, "terragrunt.hcl")
+	body := "include \"root\" {\n  path = \"" + parentPath + "\"\n}\n"
+	if err := os.WriteFile(childPath, []byte(body), 0o644); err != nil {
+		t.Fatalf("write child error = %v", err)
+	}
+
+	resolved, warnings := resolveTerragruntRemoteState(childPath)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %#v, want none", warnings)
+	}
+	if resolved == nil {
+		t.Fatal("resolved = nil, want non-nil")
+	}
+	if got, want := resolved.row["bucket"], "abs-bucket"; got != want {
+		t.Fatalf("bucket = %#v, want %#v", got, want)
+	}
+}
+
+func TestResolveTerragruntRemoteStateMissingParentNoCrash(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	childPath := filepath.Join(root, "terragrunt.hcl")
+	if err := os.WriteFile(childPath, []byte(`include "root" {
+  path = find_in_parent_folders("does-not-exist.hcl")
+}
+`), 0o644); err != nil {
+		t.Fatalf("write child error = %v", err)
+	}
+
+	resolved, warnings := resolveTerragruntRemoteState(childPath)
+	if resolved != nil {
+		t.Fatalf("resolved = %#v, want nil for missing parent", resolved)
+	}
+	// Missing parent is not an error worth a warning row; absence is signal enough.
+	_ = warnings
+}
+
+func TestResolveTerragruntRemoteStateDepthLimit(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const depth = 20
+	leafDir := root
+	for i := 0; i < depth; i++ {
+		leafDir = filepath.Join(leafDir, "level")
+	}
+	if err := os.MkdirAll(leafDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll error = %v", err)
+	}
+
+	// Each level except the leaf includes its parent folder's terragrunt.hcl.
+	curr := leafDir
+	for i := 0; i < depth; i++ {
+		body := `include "p" {
+  path = find_in_parent_folders("terragrunt.hcl")
+}
+`
+		if err := os.WriteFile(filepath.Join(curr, "terragrunt.hcl"), []byte(body), 0o644); err != nil {
+			t.Fatalf("write level error = %v", err)
+		}
+		curr = filepath.Dir(curr)
+	}
+
+	leafPath := filepath.Join(leafDir, "terragrunt.hcl")
+	resolved, warnings := resolveTerragruntRemoteState(leafPath)
+	if resolved != nil {
+		t.Fatalf("resolved = %#v, want nil for too-deep chain", resolved)
+	}
+	if !containsWarningKind(warnings, "terragrunt_include_depth_exceeded") {
+		t.Fatalf("warnings = %#v, want one with terragrunt_include_depth_exceeded", warnings)
+	}
+}
+
+func TestResolveTerragruntRemoteStateCycleDetected(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	a := filepath.Join(root, "a.hcl")
+	b := filepath.Join(root, "b.hcl")
+	if err := os.WriteFile(a, []byte("include \"x\" {\n  path = \""+b+"\"\n}\n"), 0o644); err != nil {
+		t.Fatalf("write a error = %v", err)
+	}
+	if err := os.WriteFile(b, []byte("include \"x\" {\n  path = \""+a+"\"\n}\n"), 0o644); err != nil {
+		t.Fatalf("write b error = %v", err)
+	}
+
+	resolved, warnings := resolveTerragruntRemoteState(a)
+	if resolved != nil {
+		t.Fatalf("resolved = %#v, want nil for cycle", resolved)
+	}
+	if !containsWarningKind(warnings, "terragrunt_include_cycle") {
+		t.Fatalf("warnings = %#v, want one with terragrunt_include_cycle", warnings)
+	}
+}
+
+func containsWarningKind(warnings []terragruntIncludeWarning, kind string) bool {
+	for _, w := range warnings {
+		if strings.EqualFold(w.kind, kind) {
+			return true
+		}
+	}
+	return false
+}
