@@ -3,6 +3,7 @@ package workflow
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -18,12 +19,13 @@ type terraformStateDiscoveryConfiguration struct {
 }
 
 type terraformStateSeedConfig struct {
-	Kind   string `json:"kind"`
-	Path   string `json:"path"`
-	RepoID string `json:"repo_id"`
-	Bucket string `json:"bucket"`
-	Key    string `json:"key"`
-	Region string `json:"region"`
+	Kind      string `json:"kind"`
+	Path      string `json:"path"`
+	RepoID    string `json:"repo_id"`
+	Bucket    string `json:"bucket"`
+	Key       string `json:"key"`
+	Region    string `json:"region"`
+	VersionID string `json:"version_id"`
 }
 
 type terraformStateAWSConfiguration struct {
@@ -54,10 +56,20 @@ func ValidateTerraformStateCollectorConfiguration(raw string) error {
 	usesS3 := false
 	for index, seed := range cfg.Discovery.Seeds {
 		kind := strings.ToLower(strings.TrimSpace(seed.Kind))
+		if strings.TrimSpace(seed.VersionID) != seed.VersionID {
+			return fmt.Errorf("terraform_state discovery seed %d version_id must not have surrounding whitespace", index)
+		}
 		switch kind {
 		case "local":
-			if strings.TrimSpace(seed.Path) == "" {
+			path := strings.TrimSpace(seed.Path)
+			if path == "" {
 				return fmt.Errorf("terraform_state discovery seed %d local path must not be blank", index)
+			}
+			if !filepath.IsAbs(path) {
+				return fmt.Errorf("terraform_state discovery seed %d local path must be absolute", index)
+			}
+			if seed.VersionID != "" {
+				return fmt.Errorf("terraform_state discovery seed %d local version_id is unsupported", index)
 			}
 		case "s3":
 			usesS3 = true

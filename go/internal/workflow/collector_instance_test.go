@@ -96,6 +96,74 @@ func TestDesiredCollectorInstanceValidateAcceptsTerraformStateS3SeedWithRole(t *
 	}
 }
 
+func TestDesiredCollectorInstanceValidateRejectsTerraformStateLocalSeedRelativePath(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "collector-tfstate-primary",
+		CollectorKind: scope.CollectorTerraformState,
+		Mode:          CollectorModeScheduled,
+		Configuration: `{
+			"discovery": {
+				"seeds": [{
+					"kind": "local",
+					"path": "relative/terraform.tfstate"
+				}]
+			}
+		}`,
+	}
+
+	if err := instance.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
+	}
+}
+
+func TestDesiredCollectorInstanceValidateRejectsTerraformStateSeedVersionWhitespace(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "collector-tfstate-primary",
+		CollectorKind: scope.CollectorTerraformState,
+		Mode:          CollectorModeScheduled,
+		Configuration: `{
+			"discovery": {
+				"seeds": [{
+					"kind": "local",
+					"path": "/workspace/terraform.tfstate",
+					"version_id": " version-1 "
+				}]
+			}
+		}`,
+	}
+
+	if err := instance.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
+	}
+}
+
+func TestDesiredCollectorInstanceValidateRejectsTerraformStateLocalSeedVersion(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "collector-tfstate-primary",
+		CollectorKind: scope.CollectorTerraformState,
+		Mode:          CollectorModeScheduled,
+		Configuration: `{
+			"discovery": {
+				"seeds": [{
+					"kind": "local",
+					"path": "/workspace/terraform.tfstate",
+					"version_id": "version-1"
+				}]
+			}
+		}`,
+	}
+
+	if err := instance.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
+	}
+}
+
 func TestDesiredCollectorInstanceValidateRejectsTerraformStateMissingDiscovery(t *testing.T) {
 	t.Parallel()
 
