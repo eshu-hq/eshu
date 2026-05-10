@@ -166,8 +166,8 @@ so they survive minor refactors.
 
 | Role | Reviewer | Date |
 |------|----------|------|
-| Platform Engineering | _to be filled at merge_ | 2026-05-10 |
-| Security | _to be filled at merge_ | 2026-05-10 |
+| Platform Engineering | Allen Sanabria | 2026-05-10 |
+| Security | Allen Sanabria | 2026-05-10 |
 
 Sign-off removes the `needs-security-review` label on issue #46.
 
