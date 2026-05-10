@@ -61,10 +61,10 @@ for Go method chains.
 
 Receiver inference is lexical, not whole-function. Constructor-assigned
 variables use the nearest block, loop, switch case, or if statement as their
-scope; typed parameters use the function body. Range variables over locally
-known map values inherit the map value type for calls such as
-`controllerDesc.BuildController`. A shadowed variable in an inner block must not
-change calls that happen after that block.
+scope; typed parameters on declarations, methods, and function literals use the
+function body. Range variables over locally known map values inherit the map
+value type for calls such as `controllerDesc.BuildController`. A shadowed
+variable in an inner block must not change calls that happen after that block.
 
 Function-value reference rows are emitted only for identifiers in value
 positions that are not locally bound at that source line. That includes call

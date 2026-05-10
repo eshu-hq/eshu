@@ -282,6 +282,69 @@ func runControllers(controllerDescriptors map[string]*ControllerDescriptor) {
 	assertCodeCallRow(t, rows, "content-entity:run-controllers", "content-entity:requires-special-handling")
 }
 
+func TestExtractCodeCallRowsResolvesGoFuncLiteralParameterReceiver(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	callerPath := filepath.Join(repoRoot, "controllers.go")
+	if err := os.WriteFile(callerPath, []byte(`package main
+
+type ControllerDescriptor struct{}
+
+func (d *ControllerDescriptor) BuildController() {}
+
+func runControllers() {
+	buildController := func(controllerDesc *ControllerDescriptor) error {
+		controllerDesc.BuildController()
+		return nil
+	}
+	_ = buildController
+}
+`), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v, want nil", callerPath, err)
+	}
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	payload, err := engine.ParsePath(repoRoot, callerPath, false, parser.Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%q) error = %v, want nil", callerPath, err)
+	}
+	for _, function := range payload["functions"].([]map[string]any) {
+		name, _ := function["name"].(string)
+		classContext, _ := function["class_context"].(string)
+		switch {
+		case name == "runControllers":
+			function["uid"] = "content-entity:run-controllers"
+		case name == "BuildController" && classContext == "ControllerDescriptor":
+			function["uid"] = "content-entity:build-controller"
+		}
+	}
+
+	envelopes := []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload: map[string]any{
+				"repo_id": "repo-go",
+			},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":          "repo-go",
+				"relative_path":    "controllers.go",
+				"parsed_file_data": payload,
+			},
+		},
+	}
+
+	_, rows := ExtractCodeCallRows(envelopes)
+	assertCodeCallRow(t, rows, "content-entity:run-controllers", "content-entity:build-controller")
+}
+
 func TestExtractCodeCallRowsResolvesGoImportedTypedReceiver(t *testing.T) {
 	t.Parallel()
 
