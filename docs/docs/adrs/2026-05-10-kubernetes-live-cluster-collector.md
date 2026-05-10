@@ -12,7 +12,7 @@
 - `2026-05-09-optional-component-boundary.md`
 - `docs/docs/guides/collector-authoring.md`
 - `docs/docs/languages/kubernetes.md`
-- Issue: `#14`
+- Issue: #14
 
 ---
 
@@ -85,7 +85,7 @@ clusters.
 Work item identity:
 
 ```text
-(collector_instance_id, cluster_id, group, version, resource, namespace_scope)
+(collector_instance_id, cluster_id, api_group, version, resource, namespace_scope)
 ```
 
 Generation:
@@ -227,14 +227,14 @@ Required status fields:
 - watch reconnect and relist counts
 - freshness lag by cluster and GVR
 
-Required metrics:
+Metrics use the prefix `eshu_dp_kubernetes_`:
 
-- `eshu_dp_kubernetes_api_calls_total{operation,result}`
-- `eshu_dp_kubernetes_list_duration_seconds{resource_scope}`
-- `eshu_dp_kubernetes_watch_reconnects_total{reason}`
-- `eshu_dp_kubernetes_facts_emitted_total{fact_kind}`
-- `eshu_dp_kubernetes_forbidden_resources_total{resource_scope}`
-- `eshu_dp_kubernetes_freshness_lag_seconds{resource_scope}`
+- `api_calls_total{operation,result}`
+- `list_duration_seconds{resource_scope}`
+- `watch_reconnects_total{reason}`
+- `facts_emitted_total{fact_kind}`
+- `forbidden_resources_total{resource_scope}`
+- `freshness_lag_seconds{resource_scope}`
 
 Metric labels must not include namespace names, object names, image names, or
 private registry paths.
@@ -328,4 +328,3 @@ aware reducer contract exists.
   https://kubernetes.io/docs/concepts/security/rbac-good-practices/
 - `client-go`:
   https://github.com/kubernetes/client-go
-
