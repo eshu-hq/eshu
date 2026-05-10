@@ -21,7 +21,7 @@ var deadCodeLanguageMaturity = map[string]string{
 	"php":        deadCodeMaturityDerivedCandidate,
 	"python":     deadCodeMaturityDerived,
 	"ruby":       deadCodeMaturityDerivedCandidate,
-	"rust":       deadCodeMaturityDerivedCandidate,
+	"rust":       deadCodeMaturityDerived,
 	"scala":      deadCodeMaturityDerivedCandidate,
 	"swift":      deadCodeMaturityDerivedCandidate,
 	"tsx":        deadCodeMaturityDerived,

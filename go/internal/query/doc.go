@@ -20,15 +20,23 @@
 // Gradle plugin apply, task action/property, task setter, task-interface method,
 // public Gradle DSL, same-class method-reference target, Spring component and
 // callback, lifecycle, JUnit, Jenkins, Stapler, serialization hook, bounded
-// reflection, ServiceLoader, and Spring auto-configuration roots. The analysis
-// notes and modeled-root list use the same Java root family so callers see why
-// those entities were suppressed. The analysis payload names modeled root kinds,
-// includes Go function-literal reachable calls in the modeled Go root list,
-// reports reflection support, and counts parser-metadata suppressions so callers
-// can explain why an entity was not returned as a cleanup candidate. Unsupported
-// language metadata and test fixtures are suppressed from default cleanup
-// candidates. The dead-code scan
-// keeps raw candidate reads label-scoped and repo-anchored, prefers
+// reflection, ServiceLoader, and Spring auto-configuration roots, plus Rust
+// Cargo entrypoint, build-script, unit-test, Tokio runtime/test, public API,
+// benchmark, path-attribute module, macro-declaration, conditional-derive,
+// nested-annotation, and where-clause evidence. Rust now shares the derived
+// dead-code maturity tier with Go and Java while exact Rust cleanup remains
+// gated on broader semantic resolution. Rust Cargo auxiliary target files under
+// benches/ and examples/ are treated like non-production roots for cleanup
+// analysis. The
+// analysis notes and modeled-root list use the same Java root family so callers
+// see why those entities were suppressed. The analysis payload names modeled
+// root kinds, includes Go function-literal reachable calls in the modeled Go
+// root list, reports reflection support, and counts parser-metadata suppressions
+// so callers can explain why an entity was not returned as a cleanup candidate.
+// The modeled-root list names the Rust root kinds the policy suppresses.
+// Unsupported language metadata and test fixtures are suppressed from default
+// cleanup candidates. The dead-code scan keeps raw candidate reads
+// label-scoped and repo-anchored, prefers
 // content-model candidate paging before graph fallback, applies content-backed
 // policy checks before relational code-call and inheritance incoming-edge
 // lookups, hydrates candidate metadata through batch GetEntityContents reads,

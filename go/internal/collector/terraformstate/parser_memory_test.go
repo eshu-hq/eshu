@@ -19,8 +19,10 @@ import (
 )
 
 const (
-	largeStateRegressionBytes = 2 << 20
-	largeStateProofBytes      = 100 << 20
+	largeStateRegressionBytes       = 32 << 20
+	largeStateProofBytes            = 100 << 20
+	maxIgnoredPayloadPeakHeapGrowth = 24 << 20
+	maxResourceParserPeakHeapGrowth = 96 << 20
 )
 
 func TestParserStreamingPathDoesNotCallJSONUnmarshal(t *testing.T) {
@@ -67,9 +69,8 @@ func TestParserLargeStateStreamsIgnoredTopLevelPayload(t *testing.T) {
 	if got := len(result.Facts); got != 1 {
 		t.Fatalf("Parse() emitted %d facts, want 1", got)
 	}
-	const maxPeakHeapGrowthBytes = 12 << 20
-	if peakHeapGrowth > maxPeakHeapGrowthBytes {
-		t.Fatalf("Parse() peak heap growth = %d bytes, want at most %d", peakHeapGrowth, maxPeakHeapGrowthBytes)
+	if peakHeapGrowth > maxIgnoredPayloadPeakHeapGrowth {
+		t.Fatalf("Parse() peak heap growth = %d bytes, want at most %d", peakHeapGrowth, maxIgnoredPayloadPeakHeapGrowth)
 	}
 }
 
@@ -97,9 +98,8 @@ func TestParserLargeStateStreamsResourceInstances(t *testing.T) {
 	if got, want := len(result.Facts), resourceInstances+1; got != want {
 		t.Fatalf("Parse() emitted %d facts, want %d", got, want)
 	}
-	const maxPeakHeapGrowthBytes = 96 << 20
-	if peakHeapGrowth > maxPeakHeapGrowthBytes {
-		t.Fatalf("Parse() peak heap growth = %d bytes, want at most %d", peakHeapGrowth, maxPeakHeapGrowthBytes)
+	if peakHeapGrowth > maxResourceParserPeakHeapGrowth {
+		t.Fatalf("Parse() peak heap growth = %d bytes, want at most %d", peakHeapGrowth, maxResourceParserPeakHeapGrowth)
 	}
 }
 
@@ -123,9 +123,8 @@ func TestParserLargeState100MiBStreamingProof(t *testing.T) {
 	if got := len(result.Facts); got != 1 {
 		t.Fatalf("Parse() emitted %d facts, want 1", got)
 	}
-	const maxPeakHeapGrowthBytes = 24 << 20
-	if peakHeapGrowth > maxPeakHeapGrowthBytes {
-		t.Fatalf("Parse() peak heap growth = %d bytes, want at most %d", peakHeapGrowth, maxPeakHeapGrowthBytes)
+	if peakHeapGrowth > maxIgnoredPayloadPeakHeapGrowth {
+		t.Fatalf("Parse() peak heap growth = %d bytes, want at most %d", peakHeapGrowth, maxIgnoredPayloadPeakHeapGrowth)
 	}
 }
 

@@ -96,6 +96,37 @@ If those conditions are not met, Eshu must either:
 
 It must not pretend a partial root model is authoritative.
 
+## Mandatory Language Contract
+
+Every parser-supported source language has the same exactness contract:
+
+- if the language can define code, Eshu must model those definitions for the
+  candidate kinds it reports
+- if the language can reference, call, import, inherit, implement, decorate,
+  annotate, export, register, or otherwise make code reachable, Eshu must model
+  that syntax or semantic path before claiming exact dead-code truth
+- if the language has standard package, module, workspace, build, feature, or
+  target-selection rules, Eshu must resolve them or return a named exactness
+  blocker
+- if the language has runtime or toolchain expansion that can create reachable
+  symbols, such as macros, annotation processors, code generation, plugin
+  registries, reflection, metaprogramming, or framework auto-discovery, Eshu
+  must model the expansion or return a named exactness blocker
+- if a construct is valid in the language and can affect dead-code reachability,
+  it cannot be silently ignored in an exact result
+
+This contract applies per language. A response may return `exact` only for the
+repo or query scope whose observed evidence satisfies that language contract.
+When a scope contains valid but unsupported language behavior, the response must
+return `derived`, `derived_candidate_only`, `ambiguous_only`, or an unsupported
+exactness state with explicit blocker names such as `macro_expansion_unavailable`,
+`cfg_unresolved`, `dynamic_import_unresolved`, or `reflection_unresolved`.
+
+Parser support is therefore the floor, not the finish line. The parser and
+dead-code dogfood tickets for each language must track the full language
+surface that can affect reachability, not only the constructs currently visible
+in fixtures.
+
 ## Required Output Metadata
 
 Any dead-code result should be able to report:
@@ -119,8 +150,8 @@ can still be `derived_candidate_only` for dead-code cleanup until it has a
 dead-code fixture suite, root model, reachability proof, and API/MCP evidence.
 The initial maturity states are:
 
-- `derived`: current Go, Python, JavaScript, TypeScript, and TSX candidate
-  scans with partial root modeling
+- `derived`: current Go, Python, Java, JavaScript, TypeScript, TSX, and Rust
+  candidate scans with partial root modeling
 - `derived_candidate_only`: parser-supported source languages where Eshu can
   return graph-backed candidates but has not implemented enough language roots
   and fixtures for cleanup-safe answers
@@ -227,13 +258,18 @@ Current branch status:
   roots are also emitted as parser-backed `dead_code_root_kinds`; Java metadata
   and literal reflection evidence now materializes as `REFERENCES` edges; Go
   query-time source heuristics remain as a fallback while broader registry
-  coverage lands
+  coverage lands; Rust Cargo entrypoints, tests, Tokio runtime/test functions,
+  exact `pub` public API items, Criterion benchmark functions, Cargo
+  auxiliary-target exclusions, conditional derive evidence, nested annotations,
+  structured where-clause evidence, path-attribute modules, and literal macro
+  body module/import declarations are modeled as parser-backed derived evidence
 - broader Go router, webhook, worker, reflection, and build-tag roots plus
   broader Python worker, dynamic-dispatch, and non-export-declared public API
   roots plus broader
   JavaScript/TypeScript worker, static module graph, and dynamic-dispatch roots
   plus broader Java dynamic dispatch, dependency injection, and string-built
-  reflection remain open, so dead-code truth stays `derived`
+  reflection plus arbitrary Rust macro expansion and filesystem-backed semantic
+  module resolution remain open, so dead-code truth stays `derived`
 
 Initial MVP is explicitly limited to those families. Other parser-supported
 languages and frameworks should return `derived_candidate_only`, `derived`, or
@@ -264,6 +300,8 @@ Every language fixture should include:
   values, interfaces, traits, dynamic imports, or generated registries
 - a generated-code or test-owned exclusion
 - an ambiguous dynamic case that keeps truth non-exact
+- every valid language construct that can affect dead-code reachability, or an
+  explicit exactness blocker proving why that construct prevents exact output
 
 Fixture intent must be asserted at three layers when the language supports
 them: parser evidence, graph/query classification, and API/MCP/local proof.

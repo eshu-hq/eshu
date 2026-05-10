@@ -173,12 +173,25 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 		"javascript.hapi_plugin_register",
 		"javascript.hapi_route_config_handler",
 		"javascript.hapi_proxy_callback",
+		"rust.main_function",
+		"rust.test_function",
+		"rust.tokio_main",
+		"rust.tokio_test",
+		"rust.public_api_item",
+		"rust.benchmark_function",
 		"typescript.interface_method_implementation",
 		"typescript.module_contract_export",
 		"typescript.static_registry_member",
 	}
 	if !reflect.DeepEqual(modeledFrameworkRoots, wantModeledFrameworkRoots) {
 		t.Fatalf("analysis[modeled_framework_roots] = %#v, want %#v", modeledFrameworkRoots, wantModeledFrameworkRoots)
+	}
+	modeledPublicAPI, ok := analysis["modeled_public_api"].([]any)
+	if !ok {
+		t.Fatalf("analysis[modeled_public_api] type = %T, want []any", analysis["modeled_public_api"])
+	}
+	if !queryTestStringSliceContains(modeledPublicAPI, "rust.public_api_item") {
+		t.Fatalf("analysis[modeled_public_api] missing rust.public_api_item in %#v", modeledPublicAPI)
 	}
 	if got, want := analysis["framework_roots_from_parser_metadata"], float64(0); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
