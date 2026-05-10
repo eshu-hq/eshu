@@ -49,6 +49,7 @@ still needs an owner.
 | `2026-05-04-neo4j-parity-optimization-plan.md` | Accepted | Records the schema-first Neo4j proof, the shared writer cleanup, and the resulting support posture. |
 | `2026-05-09-iac-replatforming-planner.md` | Proposed | Define the read-only IaC management-status and re-platforming planner capability on top of Git, Terraform state, and cloud scanner evidence. |
 | `2026-05-10-kubernetes-live-cluster-collector.md` | Proposed | Designs a read-only Kubernetes API collector for live cluster facts, scope/generation identity, snapshot/watch collection, RBAC, and reducer-owned correlation. |
+| `2026-05-10-oci-container-registry-collector.md` | Proposed | Designs an OCI-first registry collector for digest identity, tag observations, manifests, image indexes, referrers, and reducer-owned image correlation. |
 
 ## Discussion Shortlist
 
@@ -65,3 +66,5 @@ The ADRs that need active planning next are:
 8. IaC re-platforming planner and unmanaged-resource evidence workflows.
 9. Kubernetes live collector implementation after Terraform state and AWS
    collector evidence are stable.
+10. OCI registry collector implementation for digest-anchored image and
+    supply-chain evidence.
