@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cypher Query Rigor"
+  short_description: "Performance-safe Cypher query and write guidance"
+  default_prompt: "Use $cypher-query-rigor to design performant Cypher reads, writes, and indexes for this graph-backed change."

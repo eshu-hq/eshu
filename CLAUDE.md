@@ -28,6 +28,8 @@ fixture corpora used to validate parser behavior.
 - MUST NEVER add AI attribution to commits, PRs, or docs.
 - MUST NEVER push to `main` or `master`.
 - MUST ALWAYS create git worktrees before executing plans or PRDs.
+- MUST use the same branch/worktree name across repositories when one workflow
+  touches multiple repos, so related changes can be audited together.
 - MUST follow the Google Python Style Guide for any Python fixtures or tools.
 - MUST follow Effective Go and the official Go style guide for all Go code.
 - MUST use strict mode and proper typing for TypeScript; no `any` without an
@@ -49,6 +51,11 @@ Every technical decision follows this order:
 Do not optimize a behavior you have not proven correct. Do not make a system
 more reliable by hiding wrong results, swallowing failures, or inventing silent
 fallbacks.
+
+Performance is a product contract, not a cleanup task. Contributors MUST NOT
+introduce unmeasured performance regressions. New features MUST be designed for
+repo-scale inputs from the start, with bounded work, observable stages, and a
+clear path to faster execution after correctness is proven.
 
 ## Read These First
 
@@ -73,7 +80,7 @@ If a change affects NornicDB knobs or compatibility, also read:
 ## Skill Routing
 
 For Eshu runtime diagnostics, reducer throughput, graph backend performance,
-queue behavior, remote proof runs, and ADR evidence updates, start with the
+queue behavior, local/CI proof runs, and ADR evidence updates, start with the
 `eshu-diagnostic-rigor` skill.
 
 Add specialized skills only when the change touches that surface:
@@ -86,6 +93,8 @@ Add specialized skills only when the change touches that surface:
   truth.
 - `eshu-mcp-call-rigor` for MCP/API tool calls, new MCP tool contracts, local
   MCP diagnostics, or any graph-backed query that could become unbounded.
+- `eshu-release` for open-source release, versioning, image, Helm chart, and
+  GitHub Release work.
 - `skill-creator` for creating or updating skills.
 
 ## Golden Rules
@@ -100,14 +109,24 @@ sync -> discover -> parse -> emit facts -> enqueue work -> reducer -> graph/cont
 
 For non-trivial changes, map:
 
+- entry point or orchestrator
 - where data enters
 - how it is transformed
 - where it is persisted
 - who consumes it
+- what runs before and after it
+- required data dependencies
+- re-trigger or requeue path for downstream consumers
 - transaction boundaries
 - async boundaries and retries
 - ownership boundaries
 - invariants assumed by each step
+
+Before editing a handler, reducer domain, collector stage, storage adapter, or
+runtime worker, read the owning entrypoint or orchestrator first (`cmd/*`,
+bootstrap flow, reducer/workflow runner, or collector snapshot path). Editing a
+leaf without understanding who calls it and who consumes its output is not
+acceptable.
 
 If the flow is unclear, research first. If intent or active architecture is
 still unclear after local research, ask.
@@ -118,6 +137,8 @@ Every change needs evidence appropriate to its risk:
 
 - bug fixes need a failing regression test first
 - performance work needs before/after benchmarks or runtime measurements
+- runtime or ingestion changes need small, medium, and large repository timing
+  evidence when they can affect end-to-end indexing cost
 - queue/concurrency work needs contention, retry, idempotency, and ordering
   proof
 - graph truth work needs fixture intent, graph truth, and API/query truth
@@ -144,7 +165,14 @@ Required debugging shape:
 
 Small diffs are welcome only when they fix the right design.
 
-### 4. Edge Cases Are Mandatory
+### 4. Research External Contracts Before Editing
+
+When work touches an SDK, framework, API, database, queue, distributed system,
+transaction model, or concurrency guarantee, read the official documentation
+before proposing or implementing the change. Local repo docs still come first,
+but intuition about external contracts is not enough.
+
+### 5. Edge Cases Are Mandatory
 
 Before implementing any bug fix or design change, account for:
 
@@ -162,7 +190,7 @@ Before implementing any bug fix or design change, account for:
 For correlation or materialization changes, include one positive case, one
 negative case, and one ambiguous case before claiming the design is understood.
 
-### 5. Preserve Service Boundaries
+### 6. Preserve Service Boundaries
 
 Do not collapse ownership boundaries casually.
 
@@ -187,7 +215,7 @@ Handlers depend on ports such as `GraphQuery` and `GraphWrite`, not concrete
 backend implementations. Backend dialect differences belong only in documented
 narrow seams.
 
-### 6. Observability Is Part Of The Feature
+### 7. Observability Is Part Of The Feature
 
 Every runtime-affecting code change must include telemetry operators can use at
 3 AM.
@@ -203,7 +231,7 @@ Ask:
 If metrics, traces, logs, and status surfaces cannot answer those questions,
 the design is incomplete.
 
-### 7. Compatibility Without Hidden Branches
+### 8. Compatibility Without Hidden Branches
 
 Eshu supports `ESHU_GRAPH_BACKEND={neo4j,nornicdb}` behind graph ports.
 
@@ -319,6 +347,23 @@ Performance work must show measurable value:
 4. Capture after-data with the same measurement.
 5. Document material trade-offs, including memory, queue depth, and failure
    behavior.
+
+Any runtime, parser, collector, reducer, graph, storage, or query change that
+can affect indexing throughput MUST preserve or improve measured end-to-end
+time for comparable inputs. If a brand-new capability costs more, document the
+cost, why it is necessary for correctness, and how the design keeps the work
+bounded as repositories grow.
+
+Keep a size-aware performance trail for dogfooding and regression review:
+
+- small repo: fast sanity proof and correctness checks
+- medium repo: realistic mixed-language or mixed-deployment proof
+- large repo: stress proof for graph writes, queue behavior, parser cost, and
+  query surfaces
+
+Record repository size signals, wall time, terminal queue state, indexed file
+count, fact count, stage timings, backend, and commit id whenever a run is used
+as performance evidence.
 
 Do not lower graph-write timeouts, global batch sizes, or worker counts because
 one repository is noisy. First use `eshu index --discovery-report` and consider a
@@ -502,8 +547,10 @@ chunk boundaries must include:
    file:line, common changes scoped by file, failure modes mapped to
    metric/log/span, package-specific anti-patterns, and what NOT to change
    without an ADR. Three audiences, three files, no duplication. The
-   `eshu-folder-doc-keeper` skill (in `.agents/skills/`, symlinked into
-   `.claude/skills/` and `.codex/skills/`) defines the writing standards.
+   project skills live in `.agents/skills/` and are symlinked into
+   `.claude/skills/` and `.codex/skills/` so Claude Code and Codex use the same
+   repository-owned instructions. The `eshu-folder-doc-keeper` skill defines the
+   writing standards.
    The PostToolUse hooks at `.claude/hooks/eshu-doc-staleness.sh` (Claude
    Code) and `.codex/hooks/eshu-doc-staleness.sh` (Codex) flag drift in
    `.eshu-doc-state/stale.jsonl`. The slop gate at
@@ -553,8 +600,8 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
 ## Doc-keeper Workflow
 
 Every Go package directory in `go/` carries three files: `doc.go`,
-`README.md`, and `AGENTS.md`. The `eshu-folder-doc-keeper` skill (in
-`.agents/skills/`, symlinked into `.claude/skills/` and `.codex/skills/`)
+`README.md`, and `AGENTS.md`. Project skills live in `.agents/skills/` and are
+symlinked into `.claude/skills/` and `.codex/skills/`; `eshu-folder-doc-keeper`
 defines the writing standards. A PostToolUse hook for Claude Code
 (`.claude/hooks/eshu-doc-staleness.sh`, matcher `Edit|MultiEdit|Write`)
 and one for Codex (`.codex/hooks/eshu-doc-staleness.sh`, matcher
@@ -612,17 +659,6 @@ Container directories without Go source (`go/`, `go/cmd/`, `go/internal/`,
 `README.md` only — they are not Go packages, so `doc.go` would not compile
 and the LLM-assistant `AGENTS.md` is not useful where there is no code to
 edit.
-
-## Git Auth Switching
-
-Switch GitHub auth before any `git push` or `gh pr create`:
-
-| Repo path | Auth user | Command |
-| --- | --- | --- |
-| `~/personal-repos/*` | `linuxdynasty` | `gh auth switch --user linuxdynasty` |
-| `~/repos/*` | configured work account | `gh auth switch --user <work-account>` |
-
-When working across both paths in one workflow, switch at each repo boundary.
 
 ## Remote Build Hygiene
 
