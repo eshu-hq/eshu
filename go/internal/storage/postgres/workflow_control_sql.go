@@ -13,11 +13,9 @@ INSERT INTO workflow_runs (
 ) VALUES ($1, $2, $3, $4::jsonb, NULLIF($5, ''), $6, $7, NULLIF($8, '')::timestamptz)
 ON CONFLICT (run_id) DO UPDATE
 SET trigger_kind = EXCLUDED.trigger_kind,
-    status = EXCLUDED.status,
     requested_scope_set = EXCLUDED.requested_scope_set,
     requested_collector = EXCLUDED.requested_collector,
-    updated_at = EXCLUDED.updated_at,
-    finished_at = EXCLUDED.finished_at
+    updated_at = EXCLUDED.updated_at
 `
 
 const enqueueWorkflowWorkItemsPrefix = `
@@ -48,7 +46,7 @@ INSERT INTO workflow_work_items (
 ) VALUES `
 
 const enqueueWorkflowWorkItemsSuffix = `
-ON CONFLICT (work_item_id) DO NOTHING
+ON CONFLICT DO NOTHING
 `
 
 // TODO(phase-2-fairness): This selector is intentionally FIFO within one

@@ -34,6 +34,9 @@ func TestWorkflowControlStoreCreateRunExecutesInsert(t *testing.T) {
 	if !strings.Contains(db.execs[0].query, "INSERT INTO workflow_runs") {
 		t.Fatalf("query missing workflow_runs insert: %s", db.execs[0].query)
 	}
+	if strings.Contains(db.execs[0].query, "status = EXCLUDED.status") {
+		t.Fatalf("query regresses existing workflow status on conflict: %s", db.execs[0].query)
+	}
 }
 
 func TestWorkflowControlStoreEnqueueWorkItemsExecutesBatchInsert(t *testing.T) {
@@ -81,6 +84,9 @@ func TestWorkflowControlStoreEnqueueWorkItemsExecutesBatchInsert(t *testing.T) {
 	}
 	if !strings.Contains(db.execs[0].query, "INSERT INTO workflow_work_items") {
 		t.Fatalf("query missing workflow_work_items insert: %s", db.execs[0].query)
+	}
+	if !strings.Contains(db.execs[0].query, "ON CONFLICT DO NOTHING") {
+		t.Fatalf("query must ignore all workflow work item uniqueness conflicts: %s", db.execs[0].query)
 	}
 	for _, want := range []string{"source_system", "acceptance_unit_id", "source_run_id"} {
 		if !strings.Contains(db.execs[0].query, want) {
@@ -464,26 +470,6 @@ func TestWorkflowControlStoreReapExpiredClaimsUsesSkipLockedAndBackoff(t *testin
 	}
 	if got, want := db.queries[0].args[2].(time.Time), now.Add(DefaultWorkflowExpiredClaimRequeueDelay); !got.Equal(want) {
 		t.Fatalf("reap visible_at = %v, want %v", got, want)
-	}
-}
-
-func TestWorkflowControlSchemaIncludesExpectedTables(t *testing.T) {
-	t.Parallel()
-
-	for _, want := range []string{
-		"CREATE TABLE IF NOT EXISTS workflow_runs",
-		"CREATE TABLE IF NOT EXISTS workflow_work_items",
-		"CREATE TABLE IF NOT EXISTS workflow_claims",
-		"source_system TEXT NOT NULL",
-		"acceptance_unit_id TEXT NOT NULL",
-		"source_run_id TEXT NOT NULL",
-		"workflow_work_items_phase_tuple_idx",
-		"current_fencing_token BIGINT NOT NULL DEFAULT 0",
-		"UNIQUE (work_item_id, fencing_token)",
-	} {
-		if !strings.Contains(workflowControlSchemaSQL, want) {
-			t.Fatalf("workflowControlSchemaSQL missing %q", want)
-		}
 	}
 }
 

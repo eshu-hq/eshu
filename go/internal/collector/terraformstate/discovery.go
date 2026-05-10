@@ -251,10 +251,17 @@ func validateExactCandidateState(state StateKey) error {
 	if locator != state.Locator {
 		return fmt.Errorf("terraform state source locator must not have surrounding whitespace")
 	}
+	versionID := strings.TrimSpace(state.VersionID)
+	if versionID != state.VersionID {
+		return fmt.Errorf("terraform state source version_id must not have surrounding whitespace")
+	}
 	switch state.BackendKind {
 	case BackendLocal:
 		if !strings.HasPrefix(locator, "/") {
 			return fmt.Errorf("local state locator must be absolute")
+		}
+		if versionID != "" {
+			return fmt.Errorf("local state version_id is unsupported")
 		}
 	case BackendS3:
 		rest, ok := strings.CutPrefix(locator, "s3://")
@@ -290,11 +297,17 @@ func candidateFromSeed(seed DiscoverySeed) (DiscoveryCandidate, error) {
 		if !strings.HasPrefix(path, "/") {
 			return DiscoveryCandidate{}, fmt.Errorf("local path must be absolute")
 		}
+		versionID := strings.TrimSpace(seed.VersionID)
+		if versionID != seed.VersionID {
+			return DiscoveryCandidate{}, fmt.Errorf("local version_id must not have surrounding whitespace")
+		}
+		if versionID != "" {
+			return DiscoveryCandidate{}, fmt.Errorf("local version_id is unsupported")
+		}
 		return DiscoveryCandidate{
 			State: StateKey{
 				BackendKind: BackendLocal,
 				Locator:     path,
-				VersionID:   strings.TrimSpace(seed.VersionID),
 			},
 			Source: DiscoveryCandidateSourceSeed,
 			RepoID: strings.TrimSpace(seed.RepoID),

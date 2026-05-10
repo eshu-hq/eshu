@@ -52,6 +52,15 @@ CREATE INDEX IF NOT EXISTS workflow_work_items_lease_idx
     WHERE lease_expires_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS workflow_work_items_run_idx
     ON workflow_work_items (run_id, status, updated_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS workflow_work_items_tfstate_candidate_nonterminal_idx
+    ON workflow_work_items (
+        collector_instance_id,
+        scope_id,
+        generation_id
+    )
+    WHERE collector_kind = 'terraform_state'
+      AND generation_id LIKE 'terraform_state_candidate:%'
+      AND status IN ('pending', 'claimed', 'failed_retryable', 'expired');
 
 ALTER TABLE workflow_work_items
     ADD COLUMN IF NOT EXISTS source_system TEXT DEFAULT '';

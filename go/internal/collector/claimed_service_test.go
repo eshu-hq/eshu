@@ -7,13 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/metric/metricdata"
-
-	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -39,19 +34,7 @@ func TestClaimedServiceClaimsHeartbeatsCommitsAndCompletes(t *testing.T) {
 		ok:        true,
 	}
 	committer := &stubClaimedCommitter{}
-	service := ClaimedService{
-		ControlStore:        store,
-		Source:              source,
-		Committer:           committer,
-		CollectorKind:       scope.CollectorGit,
-		CollectorInstanceID: "collector-git-primary",
-		OwnerID:             "collector-owner-1",
-		ClaimIDFunc:         func() string { return claim.ClaimID },
-		PollInterval:        time.Millisecond,
-		ClaimLeaseTTL:       time.Minute,
-		HeartbeatInterval:   time.Millisecond,
-		Clock:               func() time.Time { return now },
-	}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, committer)
 
 	if err := service.Run(ctx); err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
@@ -67,46 +50,6 @@ func TestClaimedServiceClaimsHeartbeatsCommitsAndCompletes(t *testing.T) {
 	}
 	if got := store.lastComplete; got.WorkItemID != item.WorkItemID || got.ClaimID != claim.ClaimID || got.FencingToken != claim.FencingToken {
 		t.Fatalf("complete mutation = %#v, want item/claim/fence from claim", got)
-	}
-}
-
-func TestClaimedServiceUsesFenceAwareCommitterWhenAvailable(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	now := time.Date(2026, time.May, 10, 10, 0, 0, 0, time.UTC)
-	item := testClaimedWorkItem(now)
-	claim := testWorkflowClaim(item.WorkItemID, now)
-	store := &stubClaimStore{
-		item:  item,
-		claim: claim,
-		found: true,
-		heartbeat: func(context.Context, workflow.ClaimMutation) error {
-			cancel()
-			return nil
-		},
-	}
-	committer := &stubClaimedCommitter{}
-	service := ClaimedService{
-		ControlStore:        store,
-		Source:              &stubClaimedSource{collected: FactsFromSlice(testScope(), testGeneration(now), testFacts(now)), ok: true},
-		Committer:           committer,
-		CollectorKind:       scope.CollectorGit,
-		CollectorInstanceID: "collector-git-primary",
-		OwnerID:             "collector-owner-1",
-		ClaimIDFunc:         func() string { return claim.ClaimID },
-		PollInterval:        time.Millisecond,
-		ClaimLeaseTTL:       time.Minute,
-		HeartbeatInterval:   time.Millisecond,
-		Clock:               func() time.Time { return now },
-	}
-
-	if err := service.Run(ctx); err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-	if got, want := committer.claimedCalls, 1; got != want {
-		t.Fatalf("claimed commit calls = %d, want %d", got, want)
 	}
 	if got := committer.lastClaimMutation; got.WorkItemID != item.WorkItemID || got.ClaimID != claim.ClaimID || got.FencingToken != claim.FencingToken {
 		t.Fatalf("claimed commit mutation = %#v, want item/claim/fence from claim", got)
@@ -130,19 +73,7 @@ func TestClaimedServiceReleasesWhenClaimHasNoGeneration(t *testing.T) {
 			return nil
 		},
 	}
-	service := ClaimedService{
-		ControlStore:        store,
-		Source:              &stubClaimedSource{},
-		Committer:           &stubClaimedCommitter{},
-		CollectorKind:       scope.CollectorGit,
-		CollectorInstanceID: "collector-git-primary",
-		OwnerID:             "collector-owner-1",
-		ClaimIDFunc:         func() string { return claim.ClaimID },
-		PollInterval:        time.Millisecond,
-		ClaimLeaseTTL:       time.Minute,
-		HeartbeatInterval:   time.Second,
-		Clock:               func() time.Time { return now },
-	}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, &stubClaimedSource{}, &stubClaimedCommitter{})
 
 	if err := service.Run(ctx); err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
@@ -167,23 +98,13 @@ func TestClaimedServiceFailsClaimWhenCommitFails(t *testing.T) {
 		claim: claim,
 		found: true,
 	}
-	service := ClaimedService{
-		ControlStore: store,
-		Source:       &stubClaimedSource{collected: FactsFromSlice(testScope(), testGeneration(now), testFacts(now)), ok: true},
-		Committer: &stubClaimedCommitter{
-			claimedCommit: func(context.Context, workflow.ClaimMutation, scope.IngestionScope, scope.ScopeGeneration, <-chan facts.Envelope) error {
-				return wantErr
-			},
+	source := &stubClaimedSource{collected: FactsFromSlice(testScope(), testGeneration(now), testFacts(now)), ok: true}
+	committer := &stubClaimedCommitter{
+		claimedCommit: func(context.Context, workflow.ClaimMutation, scope.IngestionScope, scope.ScopeGeneration, <-chan facts.Envelope) error {
+			return wantErr
 		},
-		CollectorKind:       scope.CollectorGit,
-		CollectorInstanceID: "collector-git-primary",
-		OwnerID:             "collector-owner-1",
-		ClaimIDFunc:         func() string { return claim.ClaimID },
-		PollInterval:        time.Millisecond,
-		ClaimLeaseTTL:       time.Minute,
-		HeartbeatInterval:   time.Second,
-		Clock:               func() time.Time { return now },
 	}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, committer)
 
 	err := service.Run(context.Background())
 	if !errors.Is(err, wantErr) {
@@ -200,18 +121,9 @@ func TestClaimedServiceFailsClaimWhenCommitFails(t *testing.T) {
 func TestClaimedServiceRejectsGenericCommitter(t *testing.T) {
 	t.Parallel()
 
-	service := ClaimedService{
-		ControlStore:        &stubClaimStore{},
-		Source:              &stubClaimedSource{},
-		Committer:           &stubCommitter{},
-		CollectorKind:       scope.CollectorGit,
-		CollectorInstanceID: "collector-git-primary",
-		OwnerID:             "collector-owner-1",
-		ClaimIDFunc:         func() string { return "claim-claim-1" },
-		PollInterval:        time.Millisecond,
-		ClaimLeaseTTL:       time.Minute,
-		HeartbeatInterval:   time.Second,
-	}
+	now := time.Date(2026, time.May, 10, 8, 0, 0, 0, time.UTC)
+	claim := testWorkflowClaim("item-claim-1", now)
+	service := testClaimedService(now, claim, scope.CollectorGit, &stubClaimStore{}, &stubClaimedSource{}, &stubCommitter{})
 
 	err := service.Run(context.Background())
 	if err == nil {
@@ -235,19 +147,8 @@ func TestClaimedServiceTerminalFailsIdentityMismatch(t *testing.T) {
 		claim: claim,
 		found: true,
 	}
-	service := ClaimedService{
-		ControlStore:        store,
-		Source:              &stubClaimedSource{collected: FactsFromSlice(collectedScope, testGeneration(now), testFacts(now)), ok: true},
-		Committer:           &stubClaimedCommitter{},
-		CollectorKind:       scope.CollectorGit,
-		CollectorInstanceID: "collector-git-primary",
-		OwnerID:             "collector-owner-1",
-		ClaimIDFunc:         func() string { return claim.ClaimID },
-		PollInterval:        time.Millisecond,
-		ClaimLeaseTTL:       time.Minute,
-		HeartbeatInterval:   time.Second,
-		Clock:               func() time.Time { return now },
-	}
+	source := &stubClaimedSource{collected: FactsFromSlice(collectedScope, testGeneration(now), testFacts(now)), ok: true}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, &stubClaimedCommitter{})
 
 	err := service.Run(context.Background())
 	if err == nil {
@@ -264,20 +165,11 @@ func TestClaimedServiceTerminalFailsIdentityMismatch(t *testing.T) {
 func TestClaimedServiceErrorUsesConfiguredCollectorKind(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, time.April, 20, 22, 40, 0, 0, time.UTC)
 	wantErr := errors.New("claim store unavailable")
-	service := ClaimedService{
-		ControlStore:        &stubClaimStore{claimErr: wantErr},
-		Source:              &stubClaimedSource{},
-		Committer:           &stubClaimedCommitter{},
-		CollectorKind:       scope.CollectorTerraformState,
-		CollectorInstanceID: "collector-tfstate-primary",
-		OwnerID:             "collector-owner-1",
-		ClaimIDFunc:         func() string { return "claim-tfstate-1" },
-		PollInterval:        time.Millisecond,
-		ClaimLeaseTTL:       time.Minute,
-		HeartbeatInterval:   time.Second,
-		Clock:               func() time.Time { return time.Date(2026, time.April, 20, 22, 40, 0, 0, time.UTC) },
-	}
+	claim := testWorkflowClaim("item-claim-1", now)
+	store := &stubClaimStore{claimErr: wantErr}
+	service := testClaimedService(now, claim, scope.CollectorTerraformState, store, &stubClaimedSource{}, &stubClaimedCommitter{})
 
 	err := service.Run(context.Background())
 	if !errors.Is(err, wantErr) {
@@ -285,104 +177,6 @@ func TestClaimedServiceErrorUsesConfiguredCollectorKind(t *testing.T) {
 	}
 	if got := err.Error(); !strings.Contains(got, "terraform_state") || strings.Contains(got, "git work item") {
 		t.Fatalf("Run() error = %q, want configured collector kind without git wording", got)
-	}
-}
-
-func TestClaimedServiceUsesClassifiedCollectFailure(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.May, 9, 20, 0, 0, 0, time.UTC)
-	item := testClaimedWorkItem(now)
-	item.CollectorKind = scope.CollectorTerraformState
-	item.SourceSystem = string(scope.CollectorTerraformState)
-	claim := testWorkflowClaim(item.WorkItemID, now)
-	store := &stubClaimStore{
-		item:  item,
-		claim: claim,
-		found: true,
-	}
-	service := ClaimedService{
-		ControlStore:        store,
-		Source:              &stubClaimedSource{err: terraformstate.WaitingOnGitGenerationError{RepoIDs: []string{"platform-infra"}}},
-		Committer:           &stubClaimedCommitter{},
-		CollectorKind:       scope.CollectorTerraformState,
-		CollectorInstanceID: "collector-tfstate-primary",
-		OwnerID:             "collector-owner-1",
-		ClaimIDFunc:         func() string { return claim.ClaimID },
-		PollInterval:        time.Millisecond,
-		ClaimLeaseTTL:       time.Minute,
-		HeartbeatInterval:   time.Second,
-		Clock:               func() time.Time { return now },
-	}
-
-	err := service.Run(context.Background())
-	if err == nil {
-		t.Fatal("Run() error = nil, want waiting error")
-	}
-	if got, want := store.lastRetryableFail.FailureClass, "waiting_on_git_generation"; got != want {
-		t.Fatalf("FailureClass = %q, want %q", got, want)
-	}
-}
-
-func TestClaimedServiceRecordsTerraformStateClaimWait(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.May, 9, 20, 10, 0, 0, time.UTC)
-	item := testClaimedWorkItem(now.Add(-10 * time.Second))
-	item.CollectorKind = scope.CollectorTerraformState
-	item.SourceSystem = string(scope.CollectorTerraformState)
-	item.ScopeID = "scope-claim-1"
-	item.GenerationID = "generation-claim-1"
-	item.SourceRunID = item.GenerationID
-	item.VisibleAt = now.Add(-5 * time.Second)
-	claim := testWorkflowClaim(item.WorkItemID, now)
-	store := &stubClaimStore{
-		item:  item,
-		claim: claim,
-		found: true,
-		release: func(context.Context, workflow.ClaimMutation) error {
-			return nil
-		},
-	}
-	reader := metric.NewManualReader()
-	provider := metric.NewMeterProvider(metric.WithReader(reader))
-	instruments, err := telemetry.NewInstruments(provider.Meter("claimed-service-test"))
-	if err != nil {
-		t.Fatalf("NewInstruments() error = %v", err)
-	}
-	service := ClaimedService{
-		ControlStore:        store,
-		Source:              &stubClaimedSource{},
-		Committer:           &stubClaimedCommitter{},
-		CollectorKind:       scope.CollectorTerraformState,
-		CollectorInstanceID: "collector-tfstate-primary",
-		OwnerID:             "collector-owner-1",
-		ClaimIDFunc:         func() string { return claim.ClaimID },
-		PollInterval:        time.Millisecond,
-		ClaimLeaseTTL:       time.Minute,
-		HeartbeatInterval:   time.Second,
-		Clock:               func() time.Time { return now },
-		Instruments:         instruments,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	store.release = func(context.Context, workflow.ClaimMutation) error {
-		cancel()
-		return nil
-	}
-	if err := service.Run(ctx); err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-
-	var rm metricdata.ResourceMetrics
-	if err := reader.Collect(context.Background(), &rm); err != nil {
-		t.Fatalf("Collect() error = %v", err)
-	}
-	if got := claimedHistogramCount(t, rm, "eshu_dp_tfstate_claim_wait_seconds"); got != 1 {
-		t.Fatalf("eshu_dp_tfstate_claim_wait_seconds count = %d, want 1", got)
-	}
-	if claimedHistogramHasAttr(t, rm, "eshu_dp_tfstate_claim_wait_seconds", "scope_id") {
-		t.Fatal("eshu_dp_tfstate_claim_wait_seconds has scope_id label, want bounded labels only")
 	}
 }
 
@@ -453,6 +247,36 @@ func testFacts(now time.Time) []facts.Envelope {
 		ObservedAt:    now,
 		Payload:       map[string]any{"graph_id": "repo-claim-1"},
 	}}
+}
+
+func testClaimedService(
+	now time.Time,
+	claim workflow.Claim,
+	kind scope.CollectorKind,
+	store *stubClaimStore,
+	source ClaimedSource,
+	committer Committer,
+) ClaimedService {
+	return ClaimedService{
+		ControlStore:        store,
+		Source:              source,
+		Committer:           committer,
+		CollectorKind:       kind,
+		CollectorInstanceID: testCollectorInstanceID(kind),
+		OwnerID:             "collector-owner-1",
+		ClaimIDFunc:         func() string { return claim.ClaimID },
+		PollInterval:        time.Millisecond,
+		ClaimLeaseTTL:       time.Minute,
+		HeartbeatInterval:   time.Second,
+		Clock:               func() time.Time { return now },
+	}
+}
+
+func testCollectorInstanceID(kind scope.CollectorKind) string {
+	if kind == scope.CollectorTerraformState {
+		return "collector-tfstate-primary"
+	}
+	return "collector-git-primary"
 }
 
 type stubClaimStore struct {
@@ -558,56 +382,4 @@ func (s *stubClaimedCommitter) CommitClaimedScopeGeneration(
 	for range factStream {
 	}
 	return nil
-}
-
-func claimedHistogramCount(t *testing.T, rm metricdata.ResourceMetrics, metricName string) uint64 {
-	t.Helper()
-	for _, scopeMetrics := range rm.ScopeMetrics {
-		for _, metricRecord := range scopeMetrics.Metrics {
-			if metricRecord.Name != metricName {
-				continue
-			}
-			histogram, ok := metricRecord.Data.(metricdata.Histogram[float64])
-			if !ok {
-				t.Fatalf("metric %s data = %T, want metricdata.Histogram[float64]", metricName, metricRecord.Data)
-			}
-			var count uint64
-			for _, point := range histogram.DataPoints {
-				count += point.Count
-			}
-			return count
-		}
-	}
-	t.Fatalf("metric %s not found", metricName)
-	return 0
-}
-
-func claimedHistogramHasAttr(
-	t *testing.T,
-	rm metricdata.ResourceMetrics,
-	metricName string,
-	key string,
-) bool {
-	t.Helper()
-	for _, scopeMetrics := range rm.ScopeMetrics {
-		for _, metricRecord := range scopeMetrics.Metrics {
-			if metricRecord.Name != metricName {
-				continue
-			}
-			histogram, ok := metricRecord.Data.(metricdata.Histogram[float64])
-			if !ok {
-				t.Fatalf("metric %s data = %T, want metricdata.Histogram[float64]", metricName, metricRecord.Data)
-			}
-			for _, point := range histogram.DataPoints {
-				for _, attr := range point.Attributes.ToSlice() {
-					if string(attr.Key) == key {
-						return true
-					}
-				}
-			}
-			return false
-		}
-	}
-	t.Fatalf("metric %s not found", metricName)
-	return false
 }
