@@ -35,6 +35,9 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.IaCReachabilityRows, "IaCReachabilityRows counter should be registered")
 	assert.NotNil(t, inst.TerraformStateSnapshotsObserved, "TerraformStateSnapshotsObserved counter should be registered")
 	assert.NotNil(t, inst.TerraformStateResourcesEmitted, "TerraformStateResourcesEmitted counter should be registered")
+	assert.NotNil(t, inst.TerraformStateOutputsEmitted, "TerraformStateOutputsEmitted counter should be registered")
+	assert.NotNil(t, inst.TerraformStateModulesEmitted, "TerraformStateModulesEmitted counter should be registered")
+	assert.NotNil(t, inst.TerraformStateWarningsEmitted, "TerraformStateWarningsEmitted counter should be registered")
 	assert.NotNil(t, inst.TerraformStateRedactionsApplied, "TerraformStateRedactionsApplied counter should be registered")
 	assert.NotNil(t, inst.TerraformStateS3ConditionalGetNotModified, "TerraformStateS3ConditionalGetNotModified counter should be registered")
 
@@ -156,6 +159,16 @@ func TestAttrHelpers(t *testing.T) {
 			name:     "AttrReason",
 			attrFunc: func(v string) string { return string(AttrReason(v).Key) },
 			wantKey:  MetricDimensionReason,
+		},
+		{
+			name:     "AttrSafeLocatorHash",
+			attrFunc: func(v string) string { return string(AttrSafeLocatorHash(v).Key) },
+			wantKey:  MetricDimensionSafeLocatorHash,
+		},
+		{
+			name:     "AttrWarningKind",
+			attrFunc: func(v string) string { return string(AttrWarningKind(v).Key) },
+			wantKey:  MetricDimensionWarningKind,
 		},
 	}
 
