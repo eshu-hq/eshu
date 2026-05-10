@@ -72,7 +72,11 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 		return runtimeConfig{}, err
 	}
 	if heartbeatInterval >= claimLeaseTTL {
-		return runtimeConfig{}, fmt.Errorf("ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL must be less than claim lease TTL")
+		return runtimeConfig{}, fmt.Errorf(
+			"terraform state collector heartbeat interval must be less than claim lease TTL (%s or %s)",
+			"ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL",
+			"ESHU_TFSTATE_COLLECTOR_HEARTBEAT",
+		)
 	}
 
 	redactionKey, err := loadRedactionKey(getenv)

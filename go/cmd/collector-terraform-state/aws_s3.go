@@ -68,9 +68,16 @@ func (c *awsS3ObjectClient) GetObject(
 	return terraformstate.S3GetObjectOutput{
 		Body:         output.Body,
 		Size:         size,
-		ETag:         strings.Trim(awsv2.ToString(output.ETag), "\""),
+		ETag:         s3OutputETag(output),
 		LastModified: lastModified,
 	}, nil
+}
+
+func s3OutputETag(output *s3.GetObjectOutput) string {
+	if output == nil {
+		return ""
+	}
+	return awsv2.ToString(output.ETag)
 }
 
 func (c *awsS3ObjectClient) clientForRegion(ctx context.Context, region string) (*s3.Client, error) {
@@ -107,6 +114,9 @@ func safeS3GetObjectError(err error) error {
 	}
 	var apiErr smithy.APIError
 	if errors.As(err, &apiErr) {
+		if strings.EqualFold(apiErr.ErrorCode(), "NotModified") {
+			return terraformstate.ErrStateNotModified
+		}
 		return fmt.Errorf("aws s3 api error code=%s fault=%s", apiErr.ErrorCode(), apiErr.ErrorFault())
 	}
 	return fmt.Errorf("aws s3 request failed")

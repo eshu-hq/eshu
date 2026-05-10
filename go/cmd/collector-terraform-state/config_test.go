@@ -109,6 +109,31 @@ func TestLoadRuntimeConfigRejectsMissingRedactionKey(t *testing.T) {
 	}
 }
 
+func TestLoadRuntimeConfigHeartbeatAliasLeaseErrorNamesBothVariables(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadRuntimeConfig(func(key string) string {
+		values := map[string]string{
+			"ESHU_COLLECTOR_INSTANCES_JSON":          singleTerraformStateInstanceJSON(),
+			"ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL": "30s",
+			"ESHU_TFSTATE_COLLECTOR_HEARTBEAT":       "30s",
+			"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+		}
+		return values[key]
+	})
+	if err == nil {
+		t.Fatal("loadRuntimeConfig() error = nil, want non-nil")
+	}
+	for _, want := range []string{
+		"ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL",
+		"ESHU_TFSTATE_COLLECTOR_HEARTBEAT",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("loadRuntimeConfig() error = %q, want %q", err.Error(), want)
+		}
+	}
+}
+
 func TestLoadRuntimeConfigRequiresUnambiguousTerraformStateInstance(t *testing.T) {
 	t.Parallel()
 
