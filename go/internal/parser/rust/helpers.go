@@ -368,6 +368,9 @@ func rustLeadingAttributes(node *tree_sitter.Node, source []byte) []string {
 		if trimmed == "" {
 			break
 		}
+		if !strings.HasPrefix(trimmed, "#[") && rustLineEndsItem(trimmed) {
+			break
+		}
 		start := idx
 		for start >= 0 && !strings.HasPrefix(strings.TrimSpace(lines[start]), "#[") {
 			if strings.TrimSpace(lines[start]) == "" {
@@ -391,6 +394,11 @@ func rustLeadingAttributes(node *tree_sitter.Node, source []byte) []string {
 		return nil
 	}
 	return attributes
+}
+
+func rustLineEndsItem(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasSuffix(trimmed, ";") || strings.HasSuffix(trimmed, "}")
 }
 
 func rustLeadingAttributeTexts(text string) []string {

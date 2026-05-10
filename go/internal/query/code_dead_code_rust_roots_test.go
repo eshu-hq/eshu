@@ -43,6 +43,11 @@ func TestHandleDeadCodeExcludesRustRootKindsFromMetadata(t *testing.T) {
 						"dead_code_root_kinds": []any{"rust.public_api_item"},
 					},
 					{
+						"entity_id": "rust-trait-impl-method", "name": "fmt", "labels": []any{"Function"},
+						"file_path": "src/lib.rs", "repo_id": "repo-1", "repo_name": "runtime", "language": "rust",
+						"dead_code_root_kinds": []any{"rust.trait_impl_method"},
+					},
+					{
 						"entity_id": "rust-benchmark-function", "name": "bench_parser", "labels": []any{"Function"},
 						"file_path": "benches/parser.rs", "repo_id": "repo-1", "repo_name": "runtime", "language": "rust",
 						"dead_code_root_kinds": []any{"rust.benchmark_function"},
@@ -101,7 +106,7 @@ func TestHandleDeadCodeExcludesRustRootKindsFromMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("analysis type = %T, want map[string]any", resp["analysis"])
 	}
-	if got, want := analysis["framework_roots_from_parser_metadata"], float64(6); got != want {
+	if got, want := analysis["framework_roots_from_parser_metadata"], float64(7); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
 	}
 	roots, ok := analysis["modeled_framework_roots"].([]any)
@@ -114,6 +119,7 @@ func TestHandleDeadCodeExcludesRustRootKindsFromMetadata(t *testing.T) {
 		"rust.tokio_main",
 		"rust.tokio_test",
 		"rust.public_api_item",
+		"rust.trait_impl_method",
 		"rust.benchmark_function",
 	} {
 		if !queryTestStringSliceContains(roots, rootKind) {

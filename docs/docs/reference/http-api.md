@@ -597,7 +597,8 @@ reachability spec is implemented. The response body now also includes an
 specific Go framework-root signatures currently recognized, the per-language
 dead-code maturity table, named exactness blockers for non-exact languages such
 as Rust, observed exactness blockers carried by returned candidates, and whether
-tests/generated code were excluded.
+tests/generated code were excluded. Returned candidates with observed exactness
+blockers classify as `ambiguous`, not cleanup-ready `unused`.
 `analysis.roots_skipped_missing_source`
 counts Go candidates where the framework-root checks could not run because the
 content store did not have source cached. `analysis.framework_roots_from_parser_metadata`

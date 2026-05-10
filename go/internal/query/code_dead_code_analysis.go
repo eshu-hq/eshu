@@ -124,6 +124,7 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 			"rust.tokio_main",
 			"rust.tokio_test",
 			"rust.public_api_item",
+			"rust.trait_impl_method",
 			"rust.benchmark_function",
 			"typescript.interface_method_implementation",
 			"typescript.module_contract_export",

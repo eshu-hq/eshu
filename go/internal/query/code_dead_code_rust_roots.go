@@ -11,6 +11,7 @@ var rustDeadCodeMetadataRootKinds = []string{
 	"rust.tokio_main",
 	"rust.tokio_test",
 	"rust.public_api_item",
+	"rust.trait_impl_method",
 	"rust.benchmark_function",
 }
 

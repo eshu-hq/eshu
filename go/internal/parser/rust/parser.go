@@ -147,46 +147,30 @@ func appendRustTrait(payload map[string]any, node *tree_sitter.Node, source []by
 }
 
 func appendRustImplBlock(payload map[string]any, node *tree_sitter.Node, source []byte) {
-	header := strings.TrimSpace(shared.NodeText(node, source))
-	if idx := strings.Index(header, "{"); idx >= 0 {
-		header = header[:idx]
+	details := rustImplDetails(node, source)
+	if details.target == "" {
+		return
 	}
-	header = strings.TrimSpace(strings.TrimPrefix(header, "impl"))
-	lifetimeParameters := rustLeadingLifetimeParameters(header)
-	leadingGenerics := rustLeadingGenericSegment(header)
-	signatureLifetimes := rustLifetimeNames(header)
-	header = strings.TrimSpace(rustStripTypeParameters(header))
-
-	kind := "inherent_impl"
-	traitName := ""
-	targetName := header
-
-	if idx := strings.Index(header, " for "); idx >= 0 {
-		kind = "trait_impl"
-		traitName = strings.TrimSpace(header[:idx])
-		targetName = strings.TrimSpace(header[idx+len(" for "):])
-	}
-	targetName = rustTrimWhereClause(targetName)
 
 	item := map[string]any{
-		"name":        rustBaseTypeName(targetName),
-		"target":      targetName,
+		"name":        rustBaseTypeName(details.target),
+		"target":      details.target,
 		"line_number": shared.NodeLine(node),
 		"end_line":    shared.NodeEndLine(node),
-		"kind":        kind,
+		"kind":        details.kind,
 		"lang":        "rust",
 	}
-	if traitName != "" {
-		item["trait"] = rustBaseTypeName(traitName)
+	if details.trait != "" {
+		item["trait"] = rustBaseTypeName(details.trait)
 	}
-	if len(lifetimeParameters) > 0 {
-		item["lifetime_parameters"] = lifetimeParameters
+	if len(details.lifetimeParameters) > 0 {
+		item["lifetime_parameters"] = details.lifetimeParameters
 	}
-	rustApplyGenericMetadata(item, leadingGenerics)
-	if len(signatureLifetimes) > 0 {
-		item["signature_lifetimes"] = signatureLifetimes
+	rustApplyGenericMetadata(item, details.leadingGenerics)
+	if len(details.signatureLifetimes) > 0 {
+		item["signature_lifetimes"] = details.signatureLifetimes
 	}
-	rustApplyWhereMetadata(item, header)
+	rustApplyWhereMetadata(item, details.header)
 	shared.AppendBucket(payload, "impl_blocks", item)
 }
 
@@ -249,8 +233,13 @@ func appendRustFunction(
 		item["return_lifetime"] = returnLifetime
 	}
 	rustApplyWhereMetadata(item, signature)
-	if implContext := rustImplContext(node, source); implContext != "" {
-		item["impl_context"] = implContext
+	if implDetails := rustNearestImplDetails(node, source); implDetails.target != "" {
+		item["impl_context"] = rustBaseTypeName(implDetails.target)
+		item["impl_kind"] = implDetails.kind
+		if implDetails.trait != "" {
+			item["trait_context"] = rustBaseTypeName(implDetails.trait)
+			rustApplyRootKinds(item, []string{"rust.trait_impl_method"})
+		}
 	}
 	if options.IndexSource {
 		item["source"] = shared.NodeText(node, source)
@@ -394,28 +383,50 @@ func appendRustImportMetadata(payload map[string]any, node *tree_sitter.Node, so
 	}
 }
 
-func rustImplContext(node *tree_sitter.Node, source []byte) string {
+type rustImplBlockDetails struct {
+	header             string
+	kind               string
+	trait              string
+	target             string
+	lifetimeParameters []string
+	leadingGenerics    string
+	signatureLifetimes []string
+}
+
+func rustNearestImplDetails(node *tree_sitter.Node, source []byte) rustImplBlockDetails {
 	for current := node.Parent(); current != nil; current = current.Parent() {
 		if current.Kind() != "impl_item" {
 			continue
 		}
-		typeNode := current.ChildByFieldName("type")
-		implContext := shared.NodeText(typeNode, source)
-		implContext = strings.TrimSpace(implContext)
-		if implContext == "" {
-			return ""
-		}
-		implContext = strings.TrimSuffix(implContext, ";")
-		implContext = strings.TrimSpace(implContext)
-		if idx := strings.LastIndex(implContext, "::"); idx >= 0 {
-			implContext = implContext[idx+2:]
-		}
-		if idx := strings.Index(implContext, "<"); idx >= 0 {
-			implContext = implContext[:idx]
-		}
-		return strings.TrimSpace(implContext)
+		return rustImplDetails(current, source)
 	}
-	return ""
+	return rustImplBlockDetails{}
+}
+
+func rustImplDetails(node *tree_sitter.Node, source []byte) rustImplBlockDetails {
+	header := strings.TrimSpace(shared.NodeText(node, source))
+	if idx := strings.Index(header, "{"); idx >= 0 {
+		header = header[:idx]
+	}
+	header = strings.TrimSpace(strings.TrimPrefix(header, "impl"))
+	details := rustImplBlockDetails{
+		header:             header,
+		kind:               "inherent_impl",
+		lifetimeParameters: rustLeadingLifetimeParameters(header),
+		leadingGenerics:    rustLeadingGenericSegment(header),
+		signatureLifetimes: rustLifetimeNames(header),
+	}
+
+	header = strings.TrimSpace(rustStripTypeParameters(header))
+	details.header = header
+	details.target = header
+	if idx := strings.Index(header, " for "); idx >= 0 {
+		details.kind = "trait_impl"
+		details.trait = strings.TrimSpace(header[:idx])
+		details.target = strings.TrimSpace(header[idx+len(" for "):])
+	}
+	details.target = rustTrimWhereClause(details.target)
+	return details
 }
 
 func rustStripTypeParameters(text string) string {

@@ -45,20 +45,23 @@ Where predicates are still preserved separately as parser evidence, with
 associated-type constraints and higher-ranked trait-bound predicates broken out
 when the syntax is direct.
 
-Functions carry async, unsafe, visibility, attribute, and selected
+Functions carry async, unsafe, visibility, attribute, impl-context, and selected
 `dead_code_root_kinds` metadata. Bare `fn main` roots are limited to
 Cargo-shaped entrypoint paths such as `src/main.rs`, `build.rs`, `src/bin`, and
 `examples`; a `#[tokio::main]` attribute is direct root evidence. `#[test]` and
 `#[tokio::test]` are test roots, whether the attribute is on its own line or
 directly before `fn` on the same line. Exact `pub` visibility marks functions,
 classes, traits, and type aliases with `rust.public_api_item`; scoped
-visibility such as `pub(crate)` does not. Criterion-style `criterion_group!`
-targets and direct `#[bench]` / `#[divan::bench]`-style attributes mark
-file-local benchmark functions with `rust.benchmark_function`; target extraction
-accepts identifier targets and leaves generated or expression-based targets
-unclaimed. Const and static items are emitted through the `variables` bucket
-with `variable_kind`, `type` items through `type_aliases`, and `macro_rules!`
-definitions through `macros`.
+visibility such as `pub(crate)` does not. Methods inside `impl Trait for Type`
+blocks carry `impl_kind=trait_impl`, `trait_context`, and
+`rust.trait_impl_method` root evidence so cleanup analysis does not delete
+runtime-dispatched trait methods by local inbound-edge shape alone.
+Criterion-style `criterion_group!` targets and direct `#[bench]` /
+`#[divan::bench]`-style attributes mark file-local benchmark functions with
+`rust.benchmark_function`; target extraction accepts identifier targets and
+leaves generated or expression-based targets unclaimed. Const and static items
+are emitted through the `variables` bucket with `variable_kind`, `type` items
+through `type_aliases`, and `macro_rules!` definitions through `macros`.
 
 Direct `#[derive(...)]` attributes emit `derives`; conditional derives inside
 `cfg_attr` emit `conditional_derives` so consumers do not mistake them for
@@ -81,11 +84,14 @@ names, default feature members, and target cfg dependency sections. It ignores
 dynamic or unsupported TOML instead of guessing. `ResolveModuleRowFileCandidates`
 does not probe the filesystem; it returns Rust's candidate paths for direct
 module declarations, honors explicit `#[path = "..."]` rows, and leaves
-macro-origin rows blocked.
+macro-origin rows blocked. The parent parser engine uses that helper during
+ParsePath to annotate module rows with `resolved_path_candidates`,
+`resolved_path`, and `module_resolution_status` when the current repo root is
+available.
 
-Arbitrary macro expansion, Cargo feature selection, cfg evaluation, and
-filesystem-backed module resolution are still not modeled. Add package-local
-tests before widening either claim.
+Arbitrary macro expansion, Cargo feature selection, cfg evaluation, workspace
+feature solving, and cross-crate semantic module resolution are still not
+modeled. Add package-local tests before widening either claim.
 
 ## Related Docs
 

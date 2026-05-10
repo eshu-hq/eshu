@@ -83,6 +83,9 @@ fn helper<'a>(input: &'a str) -> &'a str {
 		"impl_context": "Holder",
 	})
 	assertRustStringField(t, render, "impl_context", "Holder")
+	assertRustStringField(t, render, "impl_kind", "trait_impl")
+	assertRustStringField(t, render, "trait_context", "Render")
+	assertRustStringSliceContains(t, render, "dead_code_root_kinds", "rust.trait_impl_method")
 	assertRustStringSliceField(t, render, "signature_lifetimes", []string{"a"})
 	assertRustStringField(t, render, "return_lifetime", "a")
 	if render["source"] == "" {
@@ -91,6 +94,8 @@ fn helper<'a>(input: &'a str) -> &'a str {
 
 	newFunction := assertRustBucketName(t, payload, "functions", "new")
 	assertRustStringField(t, newFunction, "impl_context", "Holder")
+	assertRustStringField(t, newFunction, "impl_kind", "inherent_impl")
+	assertRustNoField(t, newFunction, "trait_context")
 	assertRustStringSliceField(t, newFunction, "signature_lifetimes", []string{"a"})
 
 	helper := assertRustBucketName(t, payload, "functions", "helper")

@@ -308,7 +308,7 @@ func (e *Engine) parseDefinition(
 	case "ruby":
 		return e.parseRuby(resolvedPath, isDependency, options)
 	case "rust":
-		return e.parseRust(resolvedPath, isDependency, options)
+		return e.parseRust(repoRoot, resolvedPath, isDependency, options)
 	case "go":
 		return e.parseGo(resolvedPath, isDependency, options)
 	case "hcl":
