@@ -39,7 +39,22 @@ func TestDesiredCollectorInstanceValidateRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestDesiredCollectorInstanceValidateAcceptsTerraformStateGraphDiscovery(t *testing.T) {
+func TestDesiredCollectorInstanceValidateAcceptsTerraformStateGraphDiscoveryWithRepoScope(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "collector-tfstate-primary",
+		CollectorKind: scope.CollectorTerraformState,
+		Mode:          CollectorModeScheduled,
+		Configuration: `{"discovery":{"graph":true,"local_repos":["platform-infra"]}}`,
+	}
+
+	if err := instance.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
+func TestDesiredCollectorInstanceValidateRejectsTerraformStateGraphDiscoveryWithoutRepoScope(t *testing.T) {
 	t.Parallel()
 
 	instance := DesiredCollectorInstance{
@@ -49,8 +64,8 @@ func TestDesiredCollectorInstanceValidateAcceptsTerraformStateGraphDiscovery(t *
 		Configuration: `{"discovery":{"graph":true}}`,
 	}
 
-	if err := instance.Validate(); err != nil {
-		t.Fatalf("Validate() error = %v, want nil", err)
+	if err := instance.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
 	}
 }
 

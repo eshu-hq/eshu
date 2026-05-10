@@ -93,7 +93,8 @@ Use this gate when validating the current runtime and collector wiring.
 ```bash
 cd go
 go test ./internal/parser ./internal/collector/discovery ./internal/content/shape \
-  ./internal/collector ./cmd/collector-git ./cmd/ingester ./cmd/bootstrap-index \
+  ./internal/collector ./cmd/collector-git ./cmd/collector-terraform-state \
+  ./cmd/ingester ./cmd/bootstrap-index \
   ./internal/runtime ./internal/app ./internal/telemetry \
   ./internal/storage/cypher ./internal/storage/neo4j ./internal/storage/postgres \
   ./internal/projector ./internal/reducer ./cmd/reducer -count=1

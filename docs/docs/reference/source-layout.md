@@ -46,6 +46,7 @@ The service boundary is explicit in `go/cmd/`:
 - `eshu/`: top-level CLI
 - `bootstrap-index/`: one-shot indexing seed
 - `collector-git/`: local collector verification runtime
+- `collector-terraform-state/`: claim-driven Terraform-state collector runtime
 - `ingester/`: deployed ingestion runtime
 - `projector/`: local projector verification runtime
 - `reducer/`: deployed reduction and repair runtime

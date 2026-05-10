@@ -78,6 +78,7 @@ eshu-workflow-coordinator --version
 eshu-projector --version
 eshu-collector-git --version
 eshu-collector-confluence --version
+eshu-collector-terraform-state --version
 eshu-admin-status --version
 ```
 

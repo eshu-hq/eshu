@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 const listRepositoryCatalogQuery = `
@@ -242,6 +243,35 @@ func (s IngestionStore) CommitScopeGeneration(
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
 ) error {
+	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream)
+}
+
+// CommitClaimedScopeGeneration persists one claimed generation only while the
+// workflow claim fence is still current. The claim row is locked in the same
+// transaction as fact persistence so stale workers cannot write after another
+// owner reclaims the item.
+func (s IngestionStore) CommitClaimedScopeGeneration(
+	ctx context.Context,
+	mutation workflow.ClaimMutation,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	factStream <-chan facts.Envelope,
+) error {
+	if err := validateClaimMutation(mutation); err != nil {
+		drainFacts(factStream)
+		return err
+	}
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream)
+}
+
+func (s IngestionStore) commitScopeGeneration(
+	ctx context.Context,
+	mutation workflow.ClaimMutation,
+	requireClaimFence bool,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	factStream <-chan facts.Envelope,
+) error {
 	if err := validateGenerationInput(scopeValue, generation); err != nil {
 		drainFacts(factStream)
 		return err
@@ -290,6 +320,14 @@ func (s IngestionStore) CommitScopeGeneration(
 			_ = tx.Rollback()
 		}
 	}()
+
+	if requireClaimFence {
+		mutation.ObservedAt = s.now()
+		controlStore := NewWorkflowControlStore(tx)
+		if err := controlStore.HeartbeatClaim(ctx, mutation); err != nil {
+			return fmt.Errorf("verify active workflow claim before ingestion commit: %w", err)
+		}
+	}
 
 	stageStart = time.Now()
 	if err := upsertIngestionScope(ctx, tx, scopeValue, generation); err != nil {

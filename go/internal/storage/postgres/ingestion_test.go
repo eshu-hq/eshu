@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T) {
@@ -211,6 +212,70 @@ func TestListLatestRelationshipFactRecordsQueryQualifiesFactColumns(t *testing.T
 	}
 	if !strings.Contains(listLatestRelationshipFactRecordsQuery, "\n    fact.generation_id,\n") {
 		t.Fatalf("listLatestRelationshipFactRecordsQuery must qualify fact.generation_id:\n%s", listLatestRelationshipFactRecordsQuery)
+	}
+}
+
+func TestIngestionStoreCommitClaimedScopeGenerationFencesClaimInTransaction(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 10, 30, 0, 0, time.UTC)
+	db := &fakeTransactionalDB{tx: &fakeTx{}}
+	store := NewIngestionStore(db)
+	store.Now = func() time.Time { return now }
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:       "scope-claimed",
+		SourceSystem:  "terraform_state",
+		ScopeKind:     scope.KindStateSnapshot,
+		CollectorKind: scope.CollectorTerraformState,
+		PartitionKey:  "tfstate:claimed",
+	}
+	generation := scope.ScopeGeneration{
+		GenerationID: "generation-claimed",
+		ScopeID:      "scope-claimed",
+		ObservedAt:   now,
+		IngestedAt:   now,
+		Status:       scope.GenerationStatusPending,
+		TriggerKind:  scope.TriggerKindSnapshot,
+	}
+	mutation := workflow.ClaimMutation{
+		WorkItemID:    "work-item-claimed",
+		ClaimID:       "claim-claimed",
+		FencingToken:  7,
+		OwnerID:       "collector-owner",
+		ObservedAt:    now,
+		LeaseDuration: time.Minute,
+	}
+
+	err := store.CommitClaimedScopeGeneration(
+		context.Background(),
+		mutation,
+		scopeValue,
+		generation,
+		testFactChannel([]facts.Envelope{{
+			FactID:        "fact-claimed",
+			ScopeID:       scopeValue.ScopeID,
+			GenerationID:  generation.GenerationID,
+			FactKind:      "terraform_state_snapshot",
+			StableFactKey: "snapshot:claimed",
+			ObservedAt:    now,
+			Payload:       map[string]any{"serial": float64(1)},
+		}}),
+	)
+	if err != nil {
+		t.Fatalf("CommitClaimedScopeGeneration() error = %v, want nil", err)
+	}
+	if got, want := db.beginCalls, 1; got != want {
+		t.Fatalf("begin call count = %d, want %d", got, want)
+	}
+	if got, want := len(db.tx.execs), 5; got != want {
+		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+	if got := db.tx.execs[0].query; !strings.Contains(got, "WITH candidate AS") || !strings.Contains(got, "workflow_claims") || !strings.Contains(got, "status = 'active'") {
+		t.Fatalf("first exec query = %q, want active claim fence mutation", got)
+	}
+	if !db.tx.committed {
+		t.Fatal("transaction committed = false, want true")
 	}
 }
 

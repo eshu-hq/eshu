@@ -38,7 +38,7 @@ func TestClaimedServiceClaimsHeartbeatsCommitsAndCompletes(t *testing.T) {
 		collected: FactsFromSlice(testScope(), testGeneration(now), testFacts(now)),
 		ok:        true,
 	}
-	committer := &stubCommitter{}
+	committer := &stubClaimedCommitter{}
 	service := ClaimedService{
 		ControlStore:        store,
 		Source:              source,
@@ -62,11 +62,54 @@ func TestClaimedServiceClaimsHeartbeatsCommitsAndCompletes(t *testing.T) {
 	if got, want := store.completeCalls, 1; got != want {
 		t.Fatalf("complete calls = %d, want %d", got, want)
 	}
-	if got, want := committer.calls, 1; got != want {
-		t.Fatalf("commit calls = %d, want %d", got, want)
+	if got, want := committer.claimedCalls, 1; got != want {
+		t.Fatalf("claimed commit calls = %d, want %d", got, want)
 	}
 	if got := store.lastComplete; got.WorkItemID != item.WorkItemID || got.ClaimID != claim.ClaimID || got.FencingToken != claim.FencingToken {
 		t.Fatalf("complete mutation = %#v, want item/claim/fence from claim", got)
+	}
+}
+
+func TestClaimedServiceUsesFenceAwareCommitterWhenAvailable(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.May, 10, 10, 0, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		heartbeat: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
+	}
+	committer := &stubClaimedCommitter{}
+	service := ClaimedService{
+		ControlStore:        store,
+		Source:              &stubClaimedSource{collected: FactsFromSlice(testScope(), testGeneration(now), testFacts(now)), ok: true},
+		Committer:           committer,
+		CollectorKind:       scope.CollectorGit,
+		CollectorInstanceID: "collector-git-primary",
+		OwnerID:             "collector-owner-1",
+		ClaimIDFunc:         func() string { return claim.ClaimID },
+		PollInterval:        time.Millisecond,
+		ClaimLeaseTTL:       time.Minute,
+		HeartbeatInterval:   time.Millisecond,
+		Clock:               func() time.Time { return now },
+	}
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got, want := committer.claimedCalls, 1; got != want {
+		t.Fatalf("claimed commit calls = %d, want %d", got, want)
+	}
+	if got := committer.lastClaimMutation; got.WorkItemID != item.WorkItemID || got.ClaimID != claim.ClaimID || got.FencingToken != claim.FencingToken {
+		t.Fatalf("claimed commit mutation = %#v, want item/claim/fence from claim", got)
 	}
 }
 
@@ -90,7 +133,7 @@ func TestClaimedServiceReleasesWhenClaimHasNoGeneration(t *testing.T) {
 	service := ClaimedService{
 		ControlStore:        store,
 		Source:              &stubClaimedSource{},
-		Committer:           &stubCommitter{},
+		Committer:           &stubClaimedCommitter{},
 		CollectorKind:       scope.CollectorGit,
 		CollectorInstanceID: "collector-git-primary",
 		OwnerID:             "collector-owner-1",
@@ -127,8 +170,8 @@ func TestClaimedServiceFailsClaimWhenCommitFails(t *testing.T) {
 	service := ClaimedService{
 		ControlStore: store,
 		Source:       &stubClaimedSource{collected: FactsFromSlice(testScope(), testGeneration(now), testFacts(now)), ok: true},
-		Committer: &stubCommitter{
-			commit: func(context.Context, scope.IngestionScope, scope.ScopeGeneration, <-chan facts.Envelope) error {
+		Committer: &stubClaimedCommitter{
+			claimedCommit: func(context.Context, workflow.ClaimMutation, scope.IngestionScope, scope.ScopeGeneration, <-chan facts.Envelope) error {
 				return wantErr
 			},
 		},
@@ -154,6 +197,31 @@ func TestClaimedServiceFailsClaimWhenCommitFails(t *testing.T) {
 	}
 }
 
+func TestClaimedServiceRejectsGenericCommitter(t *testing.T) {
+	t.Parallel()
+
+	service := ClaimedService{
+		ControlStore:        &stubClaimStore{},
+		Source:              &stubClaimedSource{},
+		Committer:           &stubCommitter{},
+		CollectorKind:       scope.CollectorGit,
+		CollectorInstanceID: "collector-git-primary",
+		OwnerID:             "collector-owner-1",
+		ClaimIDFunc:         func() string { return "claim-claim-1" },
+		PollInterval:        time.Millisecond,
+		ClaimLeaseTTL:       time.Minute,
+		HeartbeatInterval:   time.Second,
+	}
+
+	err := service.Run(context.Background())
+	if err == nil {
+		t.Fatal("Run() error = nil, want non-nil")
+	}
+	if got, want := err.Error(), "claim-aware collector committer must implement ClaimedCommitter"; got != want {
+		t.Fatalf("Run() error = %q, want %q", got, want)
+	}
+}
+
 func TestClaimedServiceTerminalFailsIdentityMismatch(t *testing.T) {
 	t.Parallel()
 
@@ -170,7 +238,7 @@ func TestClaimedServiceTerminalFailsIdentityMismatch(t *testing.T) {
 	service := ClaimedService{
 		ControlStore:        store,
 		Source:              &stubClaimedSource{collected: FactsFromSlice(collectedScope, testGeneration(now), testFacts(now)), ok: true},
-		Committer:           &stubCommitter{},
+		Committer:           &stubClaimedCommitter{},
 		CollectorKind:       scope.CollectorGit,
 		CollectorInstanceID: "collector-git-primary",
 		OwnerID:             "collector-owner-1",
@@ -200,7 +268,7 @@ func TestClaimedServiceErrorUsesConfiguredCollectorKind(t *testing.T) {
 	service := ClaimedService{
 		ControlStore:        &stubClaimStore{claimErr: wantErr},
 		Source:              &stubClaimedSource{},
-		Committer:           &stubCommitter{},
+		Committer:           &stubClaimedCommitter{},
 		CollectorKind:       scope.CollectorTerraformState,
 		CollectorInstanceID: "collector-tfstate-primary",
 		OwnerID:             "collector-owner-1",
@@ -236,7 +304,7 @@ func TestClaimedServiceUsesClassifiedCollectFailure(t *testing.T) {
 	service := ClaimedService{
 		ControlStore:        store,
 		Source:              &stubClaimedSource{err: terraformstate.WaitingOnGitGenerationError{RepoIDs: []string{"platform-infra"}}},
-		Committer:           &stubCommitter{},
+		Committer:           &stubClaimedCommitter{},
 		CollectorKind:       scope.CollectorTerraformState,
 		CollectorInstanceID: "collector-tfstate-primary",
 		OwnerID:             "collector-owner-1",
@@ -285,7 +353,7 @@ func TestClaimedServiceRecordsTerraformStateClaimWait(t *testing.T) {
 	service := ClaimedService{
 		ControlStore:        store,
 		Source:              &stubClaimedSource{},
-		Committer:           &stubCommitter{},
+		Committer:           &stubClaimedCommitter{},
 		CollectorKind:       scope.CollectorTerraformState,
 		CollectorInstanceID: "collector-tfstate-primary",
 		OwnerID:             "collector-owner-1",
@@ -458,6 +526,38 @@ type stubClaimedSource struct {
 
 func (s *stubClaimedSource) NextClaimed(context.Context, workflow.WorkItem) (CollectedGeneration, bool, error) {
 	return s.collected, s.ok, s.err
+}
+
+type stubClaimedCommitter struct {
+	claimedCalls      int
+	lastClaimMutation workflow.ClaimMutation
+	claimedCommit     func(context.Context, workflow.ClaimMutation, scope.IngestionScope, scope.ScopeGeneration, <-chan facts.Envelope) error
+}
+
+func (s *stubClaimedCommitter) CommitScopeGeneration(
+	context.Context,
+	scope.IngestionScope,
+	scope.ScopeGeneration,
+	<-chan facts.Envelope,
+) error {
+	return errors.New("generic commit should not be used")
+}
+
+func (s *stubClaimedCommitter) CommitClaimedScopeGeneration(
+	ctx context.Context,
+	mutation workflow.ClaimMutation,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	factStream <-chan facts.Envelope,
+) error {
+	s.claimedCalls++
+	s.lastClaimMutation = mutation
+	if s.claimedCommit != nil {
+		return s.claimedCommit(ctx, mutation, scopeValue, generation, factStream)
+	}
+	for range factStream {
+	}
+	return nil
 }
 
 func claimedHistogramCount(t *testing.T, rm metricdata.ResourceMetrics, metricName string) uint64 {

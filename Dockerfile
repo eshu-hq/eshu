@@ -26,6 +26,7 @@ RUN cd go && LDFLAGS="-s -w -extldflags '-static' -X github.com/eshu-hq/eshu/go/
     && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-projector ./cmd/projector \
     && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-git ./cmd/collector-git \
     && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-confluence ./cmd/collector-confluence \
+    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-terraform-state ./cmd/collector-terraform-state \
     && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-data-plane ./cmd/bootstrap-data-plane \
     && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status
 

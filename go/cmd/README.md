@@ -23,6 +23,7 @@ from the repository root when you need that exact binary set on `PATH`.
 | `eshu-bootstrap-data-plane` | `bootstrap-data-plane/` | One-shot data-plane setup |
 | `eshu-collector-git` | `collector-git/` | Local git-collector helper |
 | `eshu-collector-confluence` | `collector-confluence/` | Long-running Confluence documentation collector |
+| `eshu-collector-terraform-state` | `collector-terraform-state/` | Long-running Terraform-state collector |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |
 | `eshu-workflow-coordinator` | `workflow-coordinator/` | Long-running workflow coordinator |
 
@@ -36,10 +37,11 @@ flowchart LR
   reducer --> graph[(graph backend)]
   bootstrap[bootstrap-index] -.one-shot.-> ingester
   bootstrap -.one-shot.-> reducer
+  workflow[workflow-coordinator] --> postgres
+  tfstate[collector-terraform-state] --> postgres
   api[api] --> graph
   api --> postgres
   mcp[mcp-server] --> api
-  workflow[workflow-coordinator] --> postgres
 ```
 
 For the full lifecycle of any one binary, open its `README.md` and

@@ -191,7 +191,7 @@ advisory report.
 | `ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL` | workflow default | workflow coordinator | Collector claim heartbeat interval. | Keep below claim TTL; lower for faster liveness signal. |
 | `ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_LIMIT` | workflow default | workflow coordinator | Max expired claims reaped per cycle. | Raise only if expired-claim backlog grows. |
 | `ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_REQUEUE_DELAY` | workflow default | workflow coordinator | Delay before requeueing expired work. | Tune to avoid immediate flapping after collector loss. |
-| `ESHU_COLLECTOR_INSTANCES_JSON` | unset | workflow coordinator | Desired collector instance list. | Set from deployment config, not ad hoc shell sessions. |
+| `ESHU_COLLECTOR_INSTANCES_JSON` | unset | workflow coordinator, collector-terraform-state | Desired collector instance list. | Set from deployment config, not ad hoc shell sessions. Terraform-state runtimes select their enabled claim-capable instance from this list. |
 
 Active coordinator mode is intentionally guarded. The process rejects
 `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE=active` unless
@@ -199,6 +199,18 @@ Active coordinator mode is intentionally guarded. The process rejects
 collector instance has `claims_enabled: true`. The Helm chart still permits
 dark mode only; use the Compose profile for active proof runs until the remote
 full-corpus validation is complete.
+
+## Terraform State Collector
+
+| Variable | Default | Read By | Purpose | Tune When |
+| --- | --- | --- | --- | --- |
+| `ESHU_TFSTATE_REDACTION_KEY` | unset | collector-terraform-state | Deployment-scoped secret material for deterministic redaction markers. | Required before the runtime can parse Terraform state. Rotate as a secret; do not use it as a tuning knob. |
+| `ESHU_TFSTATE_COLLECTOR_INSTANCE_ID` | required when more than one enabled Terraform-state instance exists | collector-terraform-state | Selects the claim-capable `terraform_state` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. | Set whenever multiple Terraform-state collectors are deployed. |
+| `ESHU_TFSTATE_COLLECTOR_OWNER_ID` | host/process-derived | collector-terraform-state | Owner label written into workflow claim rows. | Set to a stable pod or worker name when debugging claim ownership. |
+| `ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL` | `1s` | collector-terraform-state | Delay between empty claim polls. | Raise to reduce idle DB polling; lower only when claim pickup latency matters. |
+| `ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-terraform-state | Lease TTL used when claiming and refreshing work. | Raise only if valid state reads or commits approach the current lease. |
+| `ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-terraform-state | Heartbeat interval for active workflow claims. | Keep below claim TTL. Lower for faster stale-worker detection. |
+| `ESHU_TFSTATE_SOURCE_MAX_BYTES` | reader default | collector-terraform-state | Max bytes read from one local or S3 state source. | Lower to fail fast on unexpectedly large state; raise only after confirming the state object is legitimate. |
 
 ## Telemetry, Memory, And Compose
 

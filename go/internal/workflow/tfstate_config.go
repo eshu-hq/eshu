@@ -39,6 +39,9 @@ func validateTerraformStateCollectorConfiguration(raw string) error {
 	if !cfg.Discovery.Graph && len(cfg.Discovery.Seeds) == 0 && len(cfg.Discovery.LocalRepos) == 0 {
 		return fmt.Errorf("terraform_state configuration discovery must enable graph, seeds, or local_repos")
 	}
+	if cfg.Discovery.Graph && len(cfg.Discovery.LocalRepos) == 0 {
+		return fmt.Errorf("terraform_state configuration discovery.graph requires at least one local_repos entry")
+	}
 
 	for index, repoID := range cfg.Discovery.LocalRepos {
 		if strings.TrimSpace(repoID) == "" {

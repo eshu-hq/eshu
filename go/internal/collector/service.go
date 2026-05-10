@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // Source yields one collected scope generation at a time for durable commit.
@@ -54,6 +55,18 @@ func FactsFromSlice(
 type Committer interface {
 	CommitScopeGeneration(
 		context.Context,
+		scope.IngestionScope,
+		scope.ScopeGeneration,
+		<-chan facts.Envelope,
+	) error
+}
+
+// ClaimedCommitter can verify workflow claim fencing in the same durable
+// transaction that persists facts for a claimed collector item.
+type ClaimedCommitter interface {
+	CommitClaimedScopeGeneration(
+		context.Context,
+		workflow.ClaimMutation,
 		scope.IngestionScope,
 		scope.ScopeGeneration,
 		<-chan facts.Envelope,
