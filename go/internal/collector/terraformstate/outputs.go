@@ -113,7 +113,11 @@ func (p *stateParser) emitOutput(name string, output outputPayload) error {
 			return err
 		}
 	}
-	return p.emitBodyFact(p.envelope(facts.TerraformStateOutputFactKind, "output:"+name, payload, name))
+	if err := p.emitBodyFact(p.envelope(facts.TerraformStateOutputFactKind, "output:"+name, payload, name)); err != nil {
+		return err
+	}
+	p.outputFacts++
+	return nil
 }
 
 func (p *stateParser) addNonSensitiveOutputValue(

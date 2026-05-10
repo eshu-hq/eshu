@@ -32,6 +32,9 @@ func Parse(ctx context.Context, reader io.Reader, options ParseOptions) (ParseRe
 	return ParseResult{
 		Facts:             allFacts.Facts(),
 		ResourceFacts:     parser.resourceFacts,
+		OutputFacts:       parser.outputFacts,
+		ModuleFacts:       parser.moduleFacts,
+		WarningsByKind:    parser.warningsByKind,
 		RedactionsApplied: parser.redactions,
 	}, nil
 }
@@ -64,6 +67,9 @@ func ParseStream(
 	}
 	return ParseStreamResult{
 		ResourceFacts:     parser.resourceFacts,
+		OutputFacts:       parser.outputFacts,
+		ModuleFacts:       parser.moduleFacts,
+		WarningsByKind:    parser.warningsByKind,
 		RedactionsApplied: parser.redactions,
 	}, nil
 }
@@ -87,11 +93,12 @@ func parseState(ctx context.Context, reader io.Reader, options ParseOptions, bod
 	decoder := json.NewDecoder(reader)
 	decoder.UseNumber()
 	parser := stateParser{
-		ctx:        ctx,
-		decoder:    decoder,
-		options:    options,
-		bodyFacts:  bodyFacts,
-		redactions: map[string]int64{},
+		ctx:            ctx,
+		decoder:        decoder,
+		options:        options,
+		bodyFacts:      bodyFacts,
+		warningsByKind: map[string]int64{},
+		redactions:     map[string]int64{},
 	}
 	if err := parser.addSourceWarnings(options.SourceWarnings); err != nil {
 		return stateParser{}, err
@@ -118,13 +125,16 @@ func emitParsedFacts(
 }
 
 type stateParser struct {
-	ctx           context.Context
-	decoder       *json.Decoder
-	options       ParseOptions
-	snapshot      snapshotMetadata
-	bodyFacts     FactSink
-	resourceFacts int64
-	redactions    map[string]int64
+	ctx            context.Context
+	decoder        *json.Decoder
+	options        ParseOptions
+	snapshot       snapshotMetadata
+	bodyFacts      FactSink
+	resourceFacts  int64
+	outputFacts    int64
+	moduleFacts    int64
+	warningsByKind map[string]int64
+	redactions     map[string]int64
 }
 
 func (p *stateParser) parse() error {

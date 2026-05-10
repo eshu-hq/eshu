@@ -116,13 +116,21 @@ func (f FactSinkFunc) Emit(ctx context.Context, envelope facts.Envelope) error {
 type ParseResult struct {
 	Facts             []facts.Envelope
 	ResourceFacts     int64
+	OutputFacts       int64
+	ModuleFacts       int64
+	WarningsByKind    map[string]int64
 	RedactionsApplied map[string]int64
 }
 
 // ParseStreamResult is the bounded operational summary from one streaming
-// Terraform state parse.
+// Terraform state parse. WarningsByKind groups emitted warning_fact counts by
+// warning_kind so callers can record one telemetry counter per kind without
+// rescanning the streamed facts.
 type ParseStreamResult struct {
 	ResourceFacts     int64
+	OutputFacts       int64
+	ModuleFacts       int64
+	WarningsByKind    map[string]int64
 	RedactionsApplied map[string]int64
 }
 
