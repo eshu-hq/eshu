@@ -29,6 +29,8 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"backend_kind",
 		"result",
 		"reason",
+		"safe_locator_hash",
+		"warning_kind",
 	}
 
 	got := MetricDimensionKeys()
