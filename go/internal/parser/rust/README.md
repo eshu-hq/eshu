@@ -5,7 +5,8 @@
 This package owns Rust-specific tree-sitter payload extraction for functions,
 types, modules, traits, impl blocks, imports, macro definitions and invocations,
 calls, constants, statics, type aliases, root metadata, attributes, derives, and
-generic parameter metadata.
+generic parameter metadata, conditional derive evidence, nested field and enum
+variant attributes, and structured where-clause evidence.
 
 ## Ownership Boundary
 
@@ -37,8 +38,10 @@ inline modules emit `modules` rows with `module_kind`. Lifetime names are
 structured when they appear in signatures and impl headers; type and const
 generic parameter names are emitted as conservative name lists without merging
 `where` bounds. Impl block `target` metadata stops before a multiline or
-same-line `where` clause so downstream consumers get the syntactic receiver,
-not its bound list.
+same-line `where` clause so downstream consumers get the syntactic receiver.
+Where predicates are still preserved separately as parser evidence, with
+associated-type constraints and higher-ranked trait-bound predicates broken out
+when the syntax is direct.
 
 Functions carry async, unsafe, visibility, attribute, and selected
 `dead_code_root_kinds` metadata. Bare `fn main` roots are limited to
@@ -56,14 +59,19 @@ with `variable_kind`, `type` items through `type_aliases`, and `macro_rules!`
 definitions through `macros`.
 
 Direct `#[derive(...)]` attributes emit `derives`; conditional derives inside
-`cfg_attr` stay raw in `decorators` and `attribute_paths`. Direct item
-attributes may be multiline or share the item line; field-level and enum-variant
-attributes must not leak onto the parent type. Module declaration rows include
-`declared_path_candidates` such as `api.rs` and `api/mod.rs`, relative to the
-current file directory; inline module rows do not. Macro-expanded
-modules/imports, full `where` bound semantics, associated type constraints, and
-higher-ranked trait bounds are not modeled yet. Add package-local tests before
-widening any of those claims.
+`cfg_attr` emit `conditional_derives` so consumers do not mistake them for
+unconditional type behavior. Direct item attributes may be multiline or share
+the item line. Field-level and enum-variant attributes emit `annotations` rows
+with `owner`, `target`, and `target_kind` metadata instead of leaking onto the
+parent type. Module declaration rows include `declared_path_candidates` such as
+`api.rs` and `api/mod.rs`, relative to the current file directory; explicit
+`#[path = "..."]` attributes replace those candidates with the declared path and
+mark `module_path_source=path_attribute`. Literal `mod ...;` and `use ...;`
+declarations inside macro invocation bodies are modeled with
+`module_origin=macro_invocation` or `import_origin=macro_invocation`.
+
+Arbitrary macro expansion and filesystem-backed module resolution are still not
+modeled. Add package-local tests before widening either claim.
 
 ## Related Docs
 

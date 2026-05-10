@@ -21,6 +21,7 @@ func rustApplyAttributeMetadata(item map[string]any, attributes []string) {
 	item["decorators"] = attributes
 	paths := make([]string, 0, len(attributes))
 	derives := make([]string, 0)
+	conditionalDerives := make([]string, 0)
 	for _, attribute := range attributes {
 		attrPath := rustAttributePath(attribute)
 		if attrPath != "" {
@@ -29,12 +30,18 @@ func rustApplyAttributeMetadata(item map[string]any, attributes []string) {
 		for _, derive := range rustDeriveNames(attribute) {
 			derives = appendUniqueString(derives, derive)
 		}
+		for _, derive := range rustConditionalDeriveNames(attribute) {
+			conditionalDerives = appendUniqueString(conditionalDerives, derive)
+		}
 	}
 	if len(paths) > 0 {
 		item["attribute_paths"] = paths
 	}
 	if len(derives) > 0 {
 		item["derives"] = derives
+	}
+	if len(conditionalDerives) > 0 {
+		item["conditional_derives"] = conditionalDerives
 	}
 }
 
@@ -174,6 +181,28 @@ func rustDeriveNames(attribute string) []string {
 	for _, part := range rustSplitTopLevel(attribute[open+1:close], ',') {
 		if name := strings.TrimSpace(part); name != "" {
 			names = append(names, name)
+		}
+	}
+	return names
+}
+
+func rustConditionalDeriveNames(attribute string) []string {
+	if rustAttributePath(attribute) != "cfg_attr" {
+		return nil
+	}
+	open := strings.Index(attribute, "(")
+	close := strings.LastIndex(attribute, ")")
+	if open < 0 || close <= open {
+		return nil
+	}
+	names := make([]string, 0)
+	for _, part := range rustSplitTopLevel(attribute[open+1:close], ',') {
+		part = strings.TrimSpace(part)
+		if !strings.HasPrefix(part, "derive") {
+			continue
+		}
+		for _, derive := range rustDeriveNames("#[" + part + "]") {
+			names = appendUniqueString(names, derive)
 		}
 	}
 	return names

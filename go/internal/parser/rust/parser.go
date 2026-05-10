@@ -32,6 +32,7 @@ func Parse(
 	payload["impl_blocks"] = []map[string]any{}
 	payload["macros"] = []map[string]any{}
 	payload["modules"] = []map[string]any{}
+	payload["annotations"] = []map[string]any{}
 	payload["traits"] = []map[string]any{}
 	payload["type_aliases"] = []map[string]any{}
 	root := tree.RootNode()
@@ -56,11 +57,18 @@ func Parse(
 		case "macro_definition":
 			appendRustMacroDefinition(payload, node, source, options)
 		case "macro_invocation":
+			appendRustMacroDeclarations(payload, node, source)
 			appendRustCall(payload, node, source)
 		case "mod_item":
 			appendRustModule(payload, node, source, options)
 		case "type_item":
 			appendRustTypeAlias(payload, node, source, options)
+		case "field_declaration":
+			appendRustNestedAttribute(payload, node, source, "field")
+		case "enum_variant":
+			appendRustNestedAttribute(payload, node, source, "enum_variant")
+		case "attribute_item":
+			appendRustNestedAttributeFromAttribute(payload, node, source)
 		}
 	})
 
@@ -73,6 +81,7 @@ func Parse(
 		"type_aliases",
 		"macros",
 		"modules",
+		"annotations",
 		"imports",
 		"function_calls",
 		"impl_blocks",
@@ -110,6 +119,7 @@ func appendRustClass(payload map[string]any, node *tree_sitter.Node, source []by
 	rustApplyPublicAPIRootMetadata(item)
 	rustApplyAttributeMetadata(item, rustLeadingAttributes(node, source))
 	rustApplyGenericMetadata(item, rustGenericParametersAfterName(signature, name))
+	rustApplyWhereMetadata(item, signature)
 	shared.AppendBucket(payload, "classes", item)
 }
 
@@ -132,6 +142,7 @@ func appendRustTrait(payload map[string]any, node *tree_sitter.Node, source []by
 	rustApplyPublicAPIRootMetadata(item)
 	rustApplyAttributeMetadata(item, rustLeadingAttributes(node, source))
 	rustApplyGenericMetadata(item, rustGenericParametersAfterName(signature, name))
+	rustApplyWhereMetadata(item, signature)
 	shared.AppendBucket(payload, "traits", item)
 }
 
@@ -175,6 +186,7 @@ func appendRustImplBlock(payload map[string]any, node *tree_sitter.Node, source 
 	if len(signatureLifetimes) > 0 {
 		item["signature_lifetimes"] = signatureLifetimes
 	}
+	rustApplyWhereMetadata(item, header)
 	shared.AppendBucket(payload, "impl_blocks", item)
 }
 
@@ -236,6 +248,7 @@ func appendRustFunction(
 	if returnLifetime := rustReturnLifetime(signature); returnLifetime != "" {
 		item["return_lifetime"] = returnLifetime
 	}
+	rustApplyWhereMetadata(item, signature)
 	if implContext := rustImplContext(node, source); implContext != "" {
 		item["impl_context"] = implContext
 	}
@@ -265,6 +278,7 @@ func appendRustTypeAlias(payload map[string]any, node *tree_sitter.Node, source 
 	rustApplyPublicAPIRootMetadata(item)
 	rustApplyAttributeMetadata(item, rustLeadingAttributes(node, source))
 	rustApplyGenericMetadata(item, rustGenericParametersAfterName(raw, name))
+	rustApplyWhereMetadata(item, raw)
 	if options.IndexSource {
 		item["source"] = shared.NodeText(node, source)
 	}
@@ -326,6 +340,7 @@ func appendRustModule(payload map[string]any, node *tree_sitter.Node, source []b
 	rawFull := shared.NodeText(node, source)
 	raw := rustSignatureHeader(rawFull)
 	moduleKind := rustModuleKind(rawFull)
+	attributes := rustLeadingAttributes(node, source)
 	item := map[string]any{
 		"name":        name,
 		"line_number": shared.NodeLine(nameNode),
@@ -333,13 +348,16 @@ func appendRustModule(payload map[string]any, node *tree_sitter.Node, source []b
 		"module_kind": moduleKind,
 		"lang":        "rust",
 	}
-	if candidates := rustModuleDeclaredPathCandidates(name, moduleKind); len(candidates) > 0 {
+	if candidate := rustPathAttributeCandidate(attributes); candidate != "" {
+		item["declared_path_candidates"] = []string{candidate}
+		item["module_path_source"] = "path_attribute"
+	} else if candidates := rustModuleDeclaredPathCandidates(name, moduleKind); len(candidates) > 0 {
 		item["declared_path_candidates"] = candidates
 	}
 	if visibility := rustVisibility(raw); visibility != "" {
 		item["visibility"] = visibility
 	}
-	rustApplyAttributeMetadata(item, rustLeadingAttributes(node, source))
+	rustApplyAttributeMetadata(item, attributes)
 	if options.IndexSource {
 		item["source"] = shared.NodeText(node, source)
 	}

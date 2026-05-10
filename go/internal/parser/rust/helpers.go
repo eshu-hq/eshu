@@ -433,6 +433,9 @@ func rustAttributePath(attribute string) string {
 	if idx := strings.Index(trimmed, "("); idx >= 0 {
 		trimmed = trimmed[:idx]
 	}
+	if idx := strings.Index(trimmed, "="); idx >= 0 {
+		trimmed = trimmed[:idx]
+	}
 	return strings.TrimSpace(trimmed)
 }
 
