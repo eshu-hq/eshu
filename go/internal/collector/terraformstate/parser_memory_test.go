@@ -32,6 +32,7 @@ func TestParserStreamingPathDoesNotCallJSONUnmarshal(t *testing.T) {
 	}
 	packageDir := filepath.Dir(currentFile)
 	for _, fileName := range []string{
+		"anchors.go",
 		"attributes.go",
 		"json_token.go",
 		"modules.go",

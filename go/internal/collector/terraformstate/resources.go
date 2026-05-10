@@ -78,7 +78,7 @@ func (p *stateParser) readResource(resourceIndex int) error {
 		return fmt.Errorf("close terraform state resource %d: %w", resourceIndex, err)
 	}
 	if !sawInstances {
-		return p.emitResourceInstance(resource, instanceContext{}, 0, map[string]any{})
+		return p.emitResourceInstance(resource, instanceContext{}, 0, map[string]any{}, nil)
 	}
 	return nil
 }
@@ -97,7 +97,7 @@ func (p *stateParser) readInstances(resource resourceContext) error {
 		return fmt.Errorf("close terraform state resource instances: %w", err)
 	}
 	if count == 0 {
-		return p.emitResourceInstance(resource, instanceContext{}, 0, map[string]any{})
+		return p.emitResourceInstance(resource, instanceContext{}, 0, map[string]any{}, nil)
 	}
 	return nil
 }
@@ -144,10 +144,10 @@ func (p *stateParser) readInstance(resource resourceContext, instanceIndex int) 
 	}
 	address := resourceAddress(resource, instance, instanceIndex)
 	p.emitTagObservations(address, attributes)
-	return p.emitResourceInstance(resource, instance, instanceIndex, p.classifyAttributes(address, attributes))
+	return p.emitResourceInstance(resource, instance, instanceIndex, p.classifyAttributes(address, attributes), p.correlationAnchors(address, attributes))
 }
 
-func (p *stateParser) emitResourceInstance(resource resourceContext, instance instanceContext, instanceIndex int, attributes map[string]any) error {
+func (p *stateParser) emitResourceInstance(resource resourceContext, instance instanceContext, instanceIndex int, attributes map[string]any, anchors []any) error {
 	if err := validateResourceIdentity(resource); err != nil {
 		return err
 	}
@@ -160,6 +160,9 @@ func (p *stateParser) emitResourceInstance(resource resourceContext, instance in
 		"module":     strings.TrimSpace(resource.Module),
 		"provider":   strings.TrimSpace(resource.Provider),
 		"attributes": attributes,
+	}
+	if len(anchors) > 0 {
+		payload["correlation_anchors"] = anchors
 	}
 	p.recordModuleObservation(resource.Module)
 	p.recordProviderBinding(address, resource.Provider)
