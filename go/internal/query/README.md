@@ -66,7 +66,9 @@ Code dead-code queries add an analysis pass over graph rows so parser-provided
 candidate classifications are visible in the response body. Unsupported
 languages such as JSON package-script metadata are suppressed from cleanup
 results before classification. The analysis block also names modeled framework
-roots such as JavaScript package exports, Hapi-style handler exports, Next.js
+roots and Go semantic roots such as function-value references and
+function-literal reachable calls. It also reports JavaScript package exports,
+Hapi-style handler exports, Next.js
 exports, Express/Koa/Fastify/NestJS callbacks, Node migration exports,
 TypeScript module-contract exports, and TypeScript interface implementation
 methods. It also suppresses parser-proven Python FastAPI, Flask, Celery,
@@ -114,7 +116,7 @@ The response is written with `WriteSuccess` when the caller sends
 `Accept: application/eshu.envelope+json`; this wraps the payload in a
 `ResponseEnvelope` containing `data`, `truth` (`TruthEnvelope`), and `error`
 fields. Without that header, `WriteJSON` emits the legacy payload directly.
-`BuildTruthEnvelope` (`contract.go:383`) constructs the `TruthEnvelope`; it
+`BuildTruthEnvelope` (`contract.go:411`) constructs the `TruthEnvelope`; it
 panics if the capability string is not in `capabilityMatrix`.
 
 ## Exported surface
@@ -174,7 +176,7 @@ panics if the capability string is not in `capabilityMatrix`.
   helpers (`handler.go`)
 - `AuthMiddleware` — bearer-token middleware used by `cmd/api` (`auth.go:30`)
 - `BuildTruthEnvelope` — builds a `TruthEnvelope` from profile, capability, and
-  basis; panics on unknown capability (`contract.go:383`)
+  basis; panics on unknown capability (`contract.go:412`)
 - `ParseQueryProfile`, `NormalizeQueryProfile`, `ParseGraphBackend` — input
   validation helpers (`contract.go`)
 
@@ -253,14 +255,15 @@ wired in `cmd/api/wiring.go`, not here.
   `truth.profiles.required` in the response envelope for the minimum profile,
   then verify the ESHU_QUERY_PROFILE env var in the running API.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
-  a capability string not in `capabilityMatrix` (`contract.go:384`). Add missing
+  a capability string not in `capabilityMatrix` (`contract.go:412`). Add missing
   capability IDs to `capabilityMatrix` before shipping new handlers.
 - `code_quality.dead_code` is a derived query unless the language maturity row
   says otherwise. Handler changes must preserve `classification`,
   `dead_code_language_maturity`, and `analysis` fields so MCP and CLI callers
   can distinguish actionable unused symbols from excluded or ambiguous ones.
   Go root-kind evidence covers function roots and type roots, including
-  `go.type_reference` and `go.interface_implementation_type`. JavaScript-family
+  `go.function_literal_reachable_call`, `go.type_reference`, and
+  `go.interface_implementation_type`. JavaScript-family
   analysis must list Node package, CommonJS default export, CommonJS mixin,
   Next.js, Node migration, Hapi-style, TypeScript module-contract, and
   TypeScript interface implementation roots, plus Java main, constructor,
@@ -304,7 +307,7 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 ## Gotchas / invariants
 
 - `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
-  (`contract.go:384`). All capability strings used in handlers must be registered
+  (`contract.go:412`). All capability strings used in handlers must be registered
   in that map before the handler can be called safely.
 - The unexported `capabilityUnsupported` returns true when `maxTruthLevel` returns
   `nil` for the current profile; a nil max-truth means the capability is

@@ -319,6 +319,83 @@ func TestResolveRepositoryFileSetsWithStatsReportsPerNameSkipCounts(t *testing.T
 	}
 }
 
+func TestResolveRepositoryFileSetsPreservesPlainTerraformSourceDirectories(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	mustMkdirGit(t, repo)
+	mustWriteFile(t, filepath.Join(repo, ".terraform", "providers", "main.tf"), "")
+	mustWriteFile(t, filepath.Join(repo, "internal", "terraform", "context_walk.go"), "package terraform\n")
+	mustWriteFile(t, filepath.Join(repo, "internal", "actions", "actions.go"), "package actions\n")
+
+	stats, fileSets, err := ResolveRepositoryFileSetsWithStats(
+		repo,
+		func(path string) bool { return filepath.Ext(path) == ".go" || filepath.Ext(path) == ".tf" },
+		Options{
+			IgnoredDirs:    []string{".git", ".terraform"},
+			HonorGitignore: false,
+		},
+	)
+	if err != nil {
+		t.Fatalf("ResolveRepositoryFileSetsWithStats() error = %v", err)
+	}
+
+	if got := stats.DirsSkippedByName[".terraform"]; got != 1 {
+		t.Fatalf("DirsSkippedByName[.terraform] = %d, want 1", got)
+	}
+	if repoFileSetsContainSuffix(fileSets, ".terraform/providers/main.tf") {
+		t.Fatalf("fileSets unexpectedly kept .terraform cache; fileSets=%v", fileSets)
+	}
+	for _, wantSuffix := range []string{
+		"internal/actions/actions.go",
+		"internal/terraform/context_walk.go",
+	} {
+		if !repoFileSetsContainSuffix(fileSets, wantSuffix) {
+			t.Fatalf("fileSets missing %q; fileSets=%v", wantSuffix, fileSets)
+		}
+	}
+}
+
+func TestResolveRepositoryFileSetsHonorsAnchoredGitignoreWithoutPruningNestedTerraformPackage(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	mustMkdirGit(t, repo)
+	mustWriteFile(t, filepath.Join(repo, ".gitignore"), "/terraform\n")
+	mustWriteFile(t, filepath.Join(repo, "terraform"), "compiled binary")
+	mustWriteFile(t, filepath.Join(repo, "internal", "terraform", "context_walk.go"), "package terraform\n")
+	mustWriteFile(t, filepath.Join(repo, "internal", "actions", "actions.go"), "package actions\n")
+
+	stats, fileSets, err := ResolveRepositoryFileSetsWithStats(
+		repo,
+		func(path string) bool { return filepath.Ext(path) == ".go" || filepath.Base(path) == "terraform" },
+		Options{
+			IgnoredDirs:    []string{".git"},
+			HonorGitignore: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("ResolveRepositoryFileSetsWithStats() error = %v", err)
+	}
+
+	if got := stats.FilesSkippedGitignore; got != 1 {
+		t.Fatalf("FilesSkippedGitignore = %d, want 1; fileSets=%v", got, fileSets)
+	}
+	if repoFileSetsContainSuffix(fileSets, "terraform") {
+		t.Fatalf("fileSets unexpectedly kept root /terraform ignore target; fileSets=%v", fileSets)
+	}
+	for _, wantSuffix := range []string{
+		"internal/actions/actions.go",
+		"internal/terraform/context_walk.go",
+	} {
+		if !repoFileSetsContainSuffix(fileSets, wantSuffix) {
+			t.Fatalf("fileSets missing %q; fileSets=%v", wantSuffix, fileSets)
+		}
+	}
+}
+
 func TestResolveRepositoryFileSetsPrunesUserPathGlobsWithPreservedSubtree(t *testing.T) {
 	t.Parallel()
 

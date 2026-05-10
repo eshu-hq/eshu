@@ -57,8 +57,10 @@ without a `.git` ancestor are grouped under the scan root.
 
 Per repo, files are sorted with `sort.Strings`, then optionally filtered by
 `.gitignore` rules (`HonorGitignore=true`) and `.eshuignore` rules
-(`HonorEshuIgnore=true`). The filtered sorted slice is placed in
-`RepoFileSet.Files`.
+(`HonorEshuIgnore=true`). Root-anchored gitignore patterns are matched only
+against repo-root-relative paths, so `/terraform` drops a root binary or file
+named `terraform` without pruning `internal/terraform` source packages. The
+filtered sorted slice is placed in `RepoFileSet.Files`.
 
 ## Exported surface
 
@@ -106,6 +108,9 @@ report built from `DiscoveryStats` is available via
 - Gitignore handling is intentionally conservative: when a `.gitignore` rule is
   ambiguous, discovery includes the file. Downstream parsers reject what they
   cannot handle.
+- Root-anchored gitignore rules stay rooted at the discovered `RepoRoot`.
+  Do not treat `/name` as a suffix match, or large Go repos can lose nested
+  packages such as `internal/terraform`.
 - `.eshuignore` filtering is applied after `.gitignore` filtering when both are
   enabled.
 - Repo-local overrides live in `.eshu/discovery.json` and `.eshu/vendor-roots.json`
@@ -136,6 +141,9 @@ report built from `DiscoveryStats` is available via
 - If `SupportedFileMatcher` is `nil`, `ResolveRepositoryFileSetsWithStats`
   returns an error immediately. This is a programmer error, not an operational
   condition.
+- The built-in `IgnoredDirs` cache skip for `.terraform` is a directory-name
+  rule, not a substring rule. It should skip Terraform provider caches while
+  preserving normal source directories with the same name.
 
 ## Related docs
 

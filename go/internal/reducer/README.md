@@ -126,8 +126,9 @@ publication fails; the repairer retries exact rows durably.
 
 `ExtractCodeCallRows` turns parser `function_calls` and SCIP call facts into
 canonical `CALLS` edges. Native parser calls resolve in this order: same-file
-symbols, Go same-directory symbols, repository-unique symbols, then imported
-cross-file symbols when the prescan import map proves the target file. For
+symbols, Go package-qualified import targets, Go method-return chains, Go
+same-directory symbols, repository-unique symbols, then imported cross-file
+symbols when the prescan import map proves the target file. For
 JavaScript-family files, import resolution also honors parser-proven namespace
 aliases, CommonJS property requires such as `require("./x").handler`, CommonJS
 `module.exports` self-aliases, tsconfig `baseUrl` `resolved_source` metadata,
@@ -154,7 +155,15 @@ exact endpoint label and `uid` instead of a broad label family. The Go
 same-directory step applies to functions and type entities from `structs` and
 `interfaces`; command packages commonly reuse local helper names such as
 `wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name resolution must
-stay ambiguous in that case.
+stay ambiguous in that case. Go package-qualified resolution maps parser import
+metadata such as `github.com/hashicorp/terraform/internal/actions` to matching
+repository directories before resolving calls like `actions.NewActions()`, and
+honors explicit Go import aliases through parser `alias` metadata. Go
+method-return chain resolution uses parser-provided `return_type`,
+`chain_receiver_obj_type`, and `chain_receiver_method` metadata, so
+`ctx.Actions().GetActionInstance()` can reach `Actions.GetActionInstance`
+only after the parser proves that `ctx` has a receiver type whose `Actions`
+method returns `Actions`.
 
 For Java, parser-provided `inferred_obj_type` metadata lets receiver-qualified
 calls such as `factory.basicAuth(...)` resolve to methods on the parsed
@@ -391,6 +400,10 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   resolution wins first. Go then allows a same-directory match before the
   repository-unique fallback; if another package has the same bare name, do
   not create a repo-wide edge.
+- **Go package and return-chain evidence must stay bounded** — imported
+  package calls resolve only through parser import rows and repository
+  directory matches. Method-return chains resolve only when one method name has
+  one return type inside the same repository.
 - **JavaScript-family top-level calls need file-root evidence** — only
   package entrypoint, package bin, and package export files can use the
   repo-scoped `File.uid` caller for top-level calls. Do not promote arbitrary

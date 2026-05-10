@@ -156,12 +156,14 @@ func (p gitignorePattern) matches(rel string) bool {
 		return pathPrefixMatches(rel, p.raw)
 	}
 
+	if p.anchored {
+		ok, _ := path.Match(p.raw, rel)
+		return ok
+	}
+
 	if strings.Contains(p.raw, "/") {
 		if ok, _ := path.Match(p.raw, rel); ok {
 			return true
-		}
-		if p.anchored {
-			return false
 		}
 		for _, candidate := range suffixCandidates(rel) {
 			if ok, _ := path.Match(p.raw, candidate); ok {

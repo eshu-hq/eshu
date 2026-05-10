@@ -33,7 +33,10 @@ func Parse(
 	payload["embedded_sql_queries"] = embeddedSQLQueryPayloads(string(source))
 	root := tree.RootNode()
 	importAliases := goImportAliasIndex(root, source)
-	deadCodeEvidence := goDeadCodeEvidence(root, source, importAliases, options.GoImportedInterfaceParamMethods)
+	constructorReturns := goConstructorReturnTypes(root, source)
+	localNameBindings := goLocalNameBindings(root, source)
+	localReceiverBindings := goLocalReceiverBindings(root, source, constructorReturns)
+	deadCodeEvidence := goDeadCodeEvidence(root, source, importAliases, options.GoImportedInterfaceParamMethods, localNameBindings)
 	scope := options.NormalizedVariableScope()
 
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
@@ -57,6 +60,9 @@ func Parse(
 			}
 			if classContext := goReceiverContext(node, source); classContext != "" {
 				item["class_context"] = classContext
+			}
+			if returnType := goTypeNameFromNode(node.ChildByFieldName("result"), source); returnType != "" {
+				item["return_type"] = returnType
 			}
 			if rootKinds := goDeadCodeRootKinds(node, source, importAliases, deadCodeEvidence.functionRootKinds); len(rootKinds) > 0 {
 				item["dead_code_root_kinds"] = rootKinds
@@ -102,11 +108,17 @@ func Parse(
 			if strings.TrimSpace(name) == "" {
 				return
 			}
-			shared.AppendBucket(payload, "imports", map[string]any{
+			item := map[string]any{
 				"name":        name,
 				"line_number": nodeLine(pathNode),
 				"lang":        "go",
-			})
+			}
+			if aliasNode := node.ChildByFieldName("name"); aliasNode != nil {
+				if alias := strings.TrimSpace(nodeText(aliasNode, source)); alias != "" && alias != "." && alias != "_" {
+					item["alias"] = alias
+				}
+			}
+			shared.AppendBucket(payload, "imports", item)
 		case "call_expression":
 			functionNode := node.ChildByFieldName("function")
 			name := goCallName(functionNode, source)
@@ -119,7 +131,7 @@ func Parse(
 				"line_number": nodeLine(node),
 				"lang":        "go",
 			}
-			goAnnotateCallMetadata(item, node, functionNode, source, importAliases)
+			goAnnotateCallMetadata(item, node, functionNode, source, importAliases, localReceiverBindings)
 			shared.AppendBucket(payload, "function_calls", item)
 		case "composite_literal":
 			name := goCompositeLiteralTypeName(node.ChildByFieldName("type"), source)
@@ -149,6 +161,9 @@ func Parse(
 			}
 		}
 	})
+	for _, item := range goFunctionValueReferenceCalls(root, source, localNameBindings) {
+		shared.AppendBucket(payload, "function_calls", item)
+	}
 
 	shared.SortNamedBucket(payload, "functions")
 	shared.SortNamedBucket(payload, "structs")
@@ -223,14 +238,21 @@ func goAnnotateCallMetadata(
 	functionNode *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
+	localReceiverBindings []goLocalReceiverBinding,
 ) {
 	receiverIdentifier, receiverIsImportAlias := goCallReceiverIdentifier(functionNode, source, importAliases)
 	if receiverIdentifier == "" {
+		goAnnotateCallChainMetadata(item, callNode, functionNode, source, localReceiverBindings)
 		return
 	}
 
 	item["receiver_identifier"] = receiverIdentifier
 	item["receiver_is_import_alias"] = receiverIsImportAlias
+	if !receiverIsImportAlias {
+		if receiverType := goInferredReceiverType(receiverIdentifier, nodeLine(callNode), localReceiverBindings); receiverType != "" {
+			item["inferred_obj_type"] = receiverType
+		}
+	}
 
 	enclosingReceiverName, enclosingClassContext := goEnclosingMethodReceiver(callNode, source)
 	if receiverIsImportAlias || enclosingReceiverName == "" || enclosingClassContext == "" {

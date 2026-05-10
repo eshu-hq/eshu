@@ -130,6 +130,7 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 		},
 		"modeled_go_semantic_roots": []string{
 			"go.dependency_injection_callback",
+			"go.function_literal_reachable_call",
 			"go.function_value_reference",
 			"go.interface_implementation_type",
 			"go.interface_method_implementation",
@@ -140,7 +141,7 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 		"notes": []string{
 			"dead-code remains derived until broader framework, public-API, and reflection root models land",
 			"go CLI registrations/signatures, stdlib HTTP registrations/signatures, controller-runtime reconcile signatures, Python FastAPI/Flask/Celery/Click/Typer decorator roots, Python AWS Lambda handler roots, Python dataclass/property roots, Java main/constructor/override/Ant task setter/Gradle plugin and DSL roots, and JavaScript/TypeScript Next.js, Express, Koa, Fastify, NestJS, Node, Hapi, migration, interface, module-contract, and static-registry roots are modeled as derived roots",
-			"go function-value references, dependency-injection callbacks, type references, interface type references, interface implementation types, interface method implementations, and method values are honored when parser or reducer metadata marks them explicitly",
+			"go function-value references, function-literal reachable calls, dependency-injection callbacks, type references, interface type references, interface implementation types, interface method implementations, and method values are honored when parser or reducer metadata marks them explicitly",
 			"analysis reports whether a modeled framework root came from parser metadata or the legacy source fallback path",
 			"go framework-root signature checks require entity source; missing source leaves those roots unevaluated",
 			"go exported symbols outside cmd/, internal/, and vendor/ are treated as public API roots by default; Python public API roots are bounded to __all__ and package __init__.py reexports",

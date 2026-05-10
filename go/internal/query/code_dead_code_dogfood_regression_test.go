@@ -20,6 +20,7 @@ func TestDeadCodeDogfoodSuppressesGoSemanticRoots(t *testing.T) {
 		deadCodeDogfoodRow("apply-schema", "applySchema", "Function", "go/cmd/bootstrap-index/main.go"),
 		deadCodeDogfoodRow("open-bootstrap-db", "openBootstrapDB", "Function", "go/cmd/bootstrap-index/main.go"),
 		deadCodeDogfoodRow("open-bootstrap-graph", "openBootstrapGraph", "Function", "go/cmd/bootstrap-index/main.go"),
+		deadCodeDogfoodRow("kubernetes-rewrite-metric", "renameMetric", "Function", "cluster/images/etcd-version-monitor/etcd-version-monitor.go"),
 		deadCodeDogfoodRow("neo4j-deps", "neo4jDeps", "Struct", "go/cmd/bootstrap-data-plane/main.go"),
 		deadCodeDogfoodRow("neo4j-schema-executor", "neo4jSchemaExecutor", "Struct", "go/cmd/bootstrap-data-plane/main.go"),
 		deadCodeDogfoodRow("bootstrap-canonical-writer-config", "bootstrapCanonicalWriterConfig", "Struct", "go/cmd/bootstrap-index/canonical_writer_config.go"),
@@ -97,6 +98,16 @@ func TestDeadCodeDogfoodSuppressesGoSemanticRoots(t *testing.T) {
 			Language:     "go",
 			Metadata: map[string]any{
 				"dead_code_root_kinds": []string{"go.dependency_injection_callback"},
+			},
+		},
+		"kubernetes-rewrite-metric": {
+			EntityID:     "kubernetes-rewrite-metric",
+			RelativePath: "cluster/images/etcd-version-monitor/etcd-version-monitor.go",
+			EntityType:   "Function",
+			EntityName:   "renameMetric",
+			Language:     "go",
+			Metadata: map[string]any{
+				"dead_code_root_kinds": []string{"go.function_literal_reachable_call"},
 			},
 		},
 		"truly-dead": {
@@ -186,8 +197,11 @@ func TestDeadCodeDogfoodSuppressesGoSemanticRoots(t *testing.T) {
 	}
 
 	analysis := data["analysis"].(map[string]any)
-	if got, want := analysis["go_semantic_roots_from_parser_metadata"], float64(13); got != want {
+	if got, want := analysis["go_semantic_roots_from_parser_metadata"], float64(14); got != want {
 		t.Fatalf("analysis[go_semantic_roots_from_parser_metadata] = %#v, want %#v", got, want)
+	}
+	if !deadCodeDogfoodAnalysisListContains(analysis, "modeled_go_semantic_roots", "go.function_literal_reachable_call") {
+		t.Fatalf("analysis[modeled_go_semantic_roots] missing go.function_literal_reachable_call: %#v", analysis["modeled_go_semantic_roots"])
 	}
 }
 
@@ -264,6 +278,19 @@ func deadCodeDogfoodRow(entityID string, name string, label string, filePath str
 		"start_line": int64(1),
 		"end_line":   int64(1),
 	}
+}
+
+func deadCodeDogfoodAnalysisListContains(analysis map[string]any, key string, want string) bool {
+	values, ok := analysis[key].([]any)
+	if !ok {
+		return false
+	}
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func deadCodeDogfoodContent(

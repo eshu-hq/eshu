@@ -17,6 +17,7 @@ type codeEntityIndex struct {
 	uniqueNameByRepo    map[string]map[string]string
 	uniqueNameByRepoDir map[string]map[string]map[string]string
 	constructorByPath   map[string]map[string]string
+	goMethodReturnTypes map[string]map[string]string
 	entityFileByID      map[string]string
 	entityTypeByID      map[string]string
 }
@@ -37,12 +38,14 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 		uniqueNameByRepo:    make(map[string]map[string]string),
 		uniqueNameByRepoDir: make(map[string]map[string]map[string]string),
 		constructorByPath:   make(map[string]map[string]string),
+		goMethodReturnTypes: make(map[string]map[string]string),
 		entityFileByID:      make(map[string]string),
 		entityTypeByID:      make(map[string]string),
 	}
 	nameCandidates := make(map[string]map[string]map[string]struct{})
 	repoNameCandidates := make(map[string]map[string]map[string]struct{})
 	repoDirNameCandidates := make(map[string]map[string]map[string]map[string]struct{})
+	goMethodReturnTypeCandidates := make(map[string]map[string]map[string]struct{})
 
 	for _, env := range envelopes {
 		if env.FactKind != "file" {
@@ -110,6 +113,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 						addCodeCallRepoDirNameCandidate(repoDirNameCandidates, repositoryID, preferredPath, candidateName, entityID)
 					}
 				}
+				addGoMethodReturnTypeCandidate(goMethodReturnTypeCandidates, repositoryID, item)
 			}
 		}
 		for _, bucket := range []string{"classes", "structs", "interfaces", "type_aliases"} {
@@ -201,16 +205,16 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 		}
 	}
 	for repositoryID, dirs := range repoDirNameCandidates {
-		index.uniqueNameByRepoDir[repositoryID] = make(map[string]map[string]string, len(dirs))
-		for dir, names := range dirs {
-			index.uniqueNameByRepoDir[repositoryID][dir] = make(map[string]string, len(names))
-			for name, entityIDs := range names {
-				if len(entityIDs) != 1 {
-					continue
-				}
-				for entityID := range entityIDs {
-					index.uniqueNameByRepoDir[repositoryID][dir][name] = entityID
-				}
+		index.uniqueNameByRepoDir[repositoryID] = uniqueCodeCallNamesByDirectory(dirs)
+	}
+	for repositoryID, methods := range goMethodReturnTypeCandidates {
+		index.goMethodReturnTypes[repositoryID] = make(map[string]string, len(methods))
+		for methodName, returnTypes := range methods {
+			if len(returnTypes) != 1 {
+				continue
+			}
+			for returnType := range returnTypes {
+				index.goMethodReturnTypes[repositoryID][methodName] = returnType
 			}
 		}
 	}
@@ -225,7 +229,7 @@ func addCodeCallRepoDirNameCandidate(
 	entityID string,
 ) {
 	dir := codeCallDirectoryKey(filePath)
-	if repositoryID == "" || dir == "" || name == "" || entityID == "" {
+	if repositoryID == "" || name == "" || entityID == "" {
 		return
 	}
 	if _, ok := candidates[repositoryID]; !ok {
@@ -242,8 +246,11 @@ func addCodeCallRepoDirNameCandidate(
 
 func codeCallDirectoryKey(filePath string) string {
 	normalized := normalizeCodeCallPath(filePath)
-	if normalized == "" || normalized == "." || !strings.Contains(normalized, "/") {
+	if normalized == "" || normalized == "." {
 		return ""
+	}
+	if !strings.Contains(normalized, "/") {
+		return "."
 	}
 	return normalizeCodeCallPath(filepath.Dir(normalized))
 }

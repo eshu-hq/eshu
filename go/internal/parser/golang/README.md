@@ -11,8 +11,8 @@ evidence flow into later parse calls.
 
 This package is responsible for Go tree-sitter parsing, Go payload assembly,
 Go dead-code root evidence, import alias tracking, receiver and call metadata,
-composite-literal type references, package interface pre-scan rows, and
-embedded SQL extraction.
+function and method return-type metadata, composite-literal type references,
+package interface pre-scan rows, and embedded SQL extraction.
 
 The parent parser package still owns registry lookup, path normalization,
 content metadata inference, runtime parser allocation, and the compatibility
@@ -53,15 +53,43 @@ Payload bucket ordering is part of the fact-input contract. `Parse` sorts
 functions, structs, interfaces, variables, imports, and function calls before
 returning.
 
+Function and method rows may carry `return_type` when tree-sitter exposes a
+single named, pointer, selector, generic, or qualified result type. The value is
+normalized to the terminal type name, so a pointer to an imported selector keeps
+only the type name. Reducer code-call materialization uses that evidence for Go
+method chains only when call metadata proves the chain receiver type with
+`chain_receiver_obj_type` and `chain_receiver_method`.
+
+Import rows may carry `alias` for explicit Go package aliases. Blank and dot
+imports stay out of alias metadata because they do not provide a package
+qualifier for call materialization.
+
+Receiver inference is lexical, not whole-function. Constructor-assigned
+variables use the nearest block, loop, switch case, or if statement as their
+scope; typed parameters on declarations, methods, and function literals use the
+function body. Range variables over locally known map values inherit the map
+value type for calls such as `controllerDesc.BuildController`. A shadowed
+variable in an inner block must not change calls that happen after that block.
+
+Function-value reference rows are emitted only for identifiers in value
+positions that are not locally bound at that source line. That includes call
+arguments such as builder callbacks, composite literal fields, and returned
+method values such as `runFuncSlice(rx).Run`. Package-level function literals
+passed directly as callback arguments, and function literals stored in composite
+literal registries, also mark same-file helper calls as
+`go.function_literal_reachable_call` when the callee name is not shadowed inside
+the literal. Local closures that are merely assigned do not create root evidence
+until a later, bounded flow proves they escape.
+
 Cyclomatic complexity counts Go control-flow branches once. The helper layer
 counts a `for range` statement through the enclosing `for_statement`, not again
 through its `range_clause`; this preserves the parent parser fixture contract.
 
 Dead-code evidence is conservative. Handler signatures, Cobra run signatures,
 controller-runtime reconciler signatures, registration calls, function-value
-references, interface implementations, and dependency-injection callbacks add
-`dead_code_root_kinds` only when the local syntax or same-package pre-scan
-evidence proves the root.
+references, function-literal reachable calls, interface implementations, and
+dependency-injection callbacks add `dead_code_root_kinds` only when the local
+syntax or same-package pre-scan evidence proves the root.
 
 `ImportedInterfaceParamMethods` is file-local by design. The parent `Engine`
 groups those rows by package directory before passing them back through
