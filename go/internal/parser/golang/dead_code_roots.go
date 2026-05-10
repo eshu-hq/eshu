@@ -19,6 +19,8 @@ func goDeadCodeEvidence(
 	source []byte,
 	importAliases map[string][]string,
 	importedParamMethods GoImportedInterfaceParamMethods,
+	directMethodCallRoots GoDirectMethodCallRoots,
+	packageImportPath string,
 	localNameBindings []goLocalNameBinding,
 ) goDeadCodeEvidenceSet {
 	evidence := goDeadCodeEvidenceSet{
@@ -26,9 +28,11 @@ func goDeadCodeEvidence(
 		interfaceRootKinds: make(map[string][]string),
 		structRootKinds:    make(map[string][]string),
 	}
+	goMergePackageDirectMethodRoots(root, source, directMethodCallRoots, packageImportPath, evidence.functionRootKinds)
 	goCollectSemanticDeadCodeRoots(
 		root,
 		source,
+		importAliases,
 		importedParamMethods,
 		localNameBindings,
 		evidence.functionRootKinds,
@@ -36,6 +40,34 @@ func goDeadCodeEvidence(
 		evidence.structRootKinds,
 	)
 	return evidence
+}
+
+func goMergePackageDirectMethodRoots(
+	root *tree_sitter.Node,
+	source []byte,
+	directMethodCallRoots GoDirectMethodCallRoots,
+	packageImportPath string,
+	functionRootKinds map[string][]string,
+) {
+	importPath := strings.ToLower(strings.TrimSpace(packageImportPath))
+	if importPath == "" || len(directMethodCallRoots) == 0 {
+		return
+	}
+	walkNamed(root, func(node *tree_sitter.Node) {
+		if node.Kind() != "method_declaration" {
+			return
+		}
+		receiver := strings.ToLower(goReceiverContext(node, source))
+		name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+		if receiver == "" || name == "" {
+			return
+		}
+		qualifiedKey := importPath + "." + receiver + "." + name
+		for _, kind := range directMethodCallRoots[qualifiedKey] {
+			localKey := receiver + "." + name
+			functionRootKinds[localKey] = appendUniqueImportAlias(functionRootKinds[localKey], kind)
+		}
+	})
 }
 
 func goImportAliasIndex(root *tree_sitter.Node, source []byte) map[string][]string {

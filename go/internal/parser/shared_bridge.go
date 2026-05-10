@@ -7,6 +7,8 @@ func sharedOptions(options Options) shared.Options {
 		IndexSource:                     options.IndexSource,
 		VariableScope:                   options.VariableScope,
 		GoImportedInterfaceParamMethods: shared.GoImportedInterfaceParamMethods(options.GoImportedInterfaceParamMethods),
+		GoDirectMethodCallRoots:         shared.GoDirectMethodCallRoots(options.GoDirectMethodCallRoots),
+		GoPackageImportPath:             options.GoPackageImportPath,
 	}
 }
 

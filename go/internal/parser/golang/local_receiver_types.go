@@ -316,11 +316,31 @@ func goTypeNameFromNode(node *tree_sitter.Node, source []byte) string {
 
 func goNormalizeTypeName(value string) string {
 	value = strings.TrimSpace(value)
-	value = strings.TrimSpace(strings.TrimPrefix(value, "*"))
-	value = strings.Trim(value, "[]")
+	for {
+		trimmed := strings.TrimSpace(strings.TrimPrefix(value, "*"))
+		switch {
+		case strings.HasPrefix(trimmed, "[]"):
+			value = strings.TrimSpace(trimmed[2:])
+		case strings.HasPrefix(trimmed, "["):
+			closeIndex := strings.Index(trimmed, "]")
+			if closeIndex <= 0 {
+				value = trimmed
+				goto done
+			}
+			value = strings.TrimSpace(trimmed[closeIndex+1:])
+		default:
+			value = trimmed
+			goto done
+		}
+	}
+done:
 	if index := strings.LastIndex(value, "."); index >= 0 {
 		value = value[index+1:]
 	}
+	if index := strings.Index(value, "["); index > 0 {
+		value = value[:index]
+	}
+	value = strings.Trim(value, "[]")
 	return strings.TrimSpace(value)
 }
 

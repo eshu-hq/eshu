@@ -7,9 +7,10 @@ import (
 )
 
 type goInterfaceTarget struct {
-	localInterface  string
-	imported        bool
-	importedMethods []string
+	localInterface       string
+	imported             bool
+	importedMethods      []string
+	allowExportedMethods bool
 }
 
 func (target goInterfaceTarget) modeled() bool {
@@ -19,6 +20,7 @@ func (target goInterfaceTarget) modeled() bool {
 func goCollectSemanticDeadCodeRoots(
 	root *tree_sitter.Node,
 	source []byte,
+	importAliases map[string][]string,
 	importedParamMethods GoImportedInterfaceParamMethods,
 	localNameBindings []goLocalNameBinding,
 	functionRootKinds map[string][]string,
@@ -33,6 +35,7 @@ func goCollectSemanticDeadCodeRoots(
 	functionTypeNames := make(map[string]struct{})
 	methodKeys := make(map[string]struct{})
 	methodNamesByReceiver := make(map[string][]string)
+	exportedMethodNamesByReceiver := make(map[string][]string)
 	structTypes := make(map[string]struct{})
 	interfaceMethods := make(map[string][]string)
 
@@ -49,6 +52,9 @@ func goCollectSemanticDeadCodeRoots(
 			if name != "" && receiver != "" {
 				methodKeys[receiver+"."+name] = struct{}{}
 				methodNamesByReceiver[receiver] = appendUniqueImportAlias(methodNamesByReceiver[receiver], name)
+				if goIdentifierIsExported(nodeText(node.ChildByFieldName("name"), source)) {
+					exportedMethodNamesByReceiver[receiver] = appendUniqueImportAlias(exportedMethodNamesByReceiver[receiver], name)
+				}
 			}
 		case "type_spec":
 			name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
@@ -67,8 +73,9 @@ func goCollectSemanticDeadCodeRoots(
 		}
 	})
 
-	variableTypes := goKnownLocalVariableTypes(root, source, structTypes)
+	constructorReturns := goConstructorReturnTypes(root, source)
 	interfaceConcreteTypes := make(map[string][]string)
+	structFieldTypes := goStructFieldConcreteTypes(root, source, structTypes)
 	structFieldTargets := goStructFieldInterfaceTargets(root, source, interfaceMethods)
 	functionParamTargets := goFunctionParamInterfaceTargets(root, source, interfaceMethods)
 	goMergeImportedInterfaceParamTargets(functionParamTargets, importedParamMethods)
@@ -77,6 +84,7 @@ func goCollectSemanticDeadCodeRoots(
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "var_spec":
+			scopedVariableTypes := goKnownLocalVariableTypesForNode(root, node, source, structTypes, constructorReturns)
 			typeNode := node.ChildByFieldName("type")
 			valueNode := node.ChildByFieldName("value")
 			for _, interfaceName := range goReferencedLocalInterfaces(typeNode, source, interfaceMethods) {
@@ -85,10 +93,12 @@ func goCollectSemanticDeadCodeRoots(
 					interfaceConcreteTypes[interfaceName] = appendUniqueImportAlias(interfaceConcreteTypes[interfaceName], concreteType)
 				}
 			}
-			goCollectFunctionValuesFromExpression(valueNode, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
+			goCollectFunctionValuesFromExpression(valueNode, source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds)
 		case "short_var_declaration", "assignment_statement":
-			goCollectFunctionValuesFromExpression(node.ChildByFieldName("right"), source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
+			scopedVariableTypes := goKnownLocalVariableTypesForNode(root, node, source, structTypes, constructorReturns)
+			goCollectFunctionValuesFromExpression(node.ChildByFieldName("right"), source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds)
 		case "composite_literal":
+			scopedVariableTypes := goKnownLocalVariableTypesForNode(root, node, source, structTypes, constructorReturns)
 			if concreteType := goConcreteTypeFromTypeNode(node.ChildByFieldName("type"), source, structTypes); concreteType != "" {
 				structRootKinds[concreteType] = appendUniqueImportAlias(structRootKinds[concreteType], "go.type_reference")
 			}
@@ -99,7 +109,7 @@ func goCollectSemanticDeadCodeRoots(
 					interfaceConcreteTypes[interfaceName] = appendUniqueImportAlias(interfaceConcreteTypes[interfaceName], concreteType)
 				}
 			}
-			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
+			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds)
 			goMarkCompositeLiteralInterfaceFields(
 				node,
 				source,
@@ -108,6 +118,7 @@ func goCollectSemanticDeadCodeRoots(
 				interfaceMethods,
 				interfaceConcreteTypes,
 				methodNamesByReceiver,
+				exportedMethodNamesByReceiver,
 				functionRootKinds,
 				structRootKinds,
 			)
@@ -128,19 +139,24 @@ func goCollectSemanticDeadCodeRoots(
 				interfaceRootKinds,
 				interfaceConcreteTypes,
 				methodNamesByReceiver,
+				exportedMethodNamesByReceiver,
 				functionRootKinds,
 				structRootKinds,
 			)
 		case "return_statement":
-			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
+			scopedVariableTypes := goKnownLocalVariableTypesForNode(root, node, source, structTypes, constructorReturns)
+			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds)
 		case "call_expression":
-			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
+			scopedVariableTypes := goKnownLocalVariableTypesForNode(root, node, source, structTypes, constructorReturns)
+			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds)
+			goCollectDirectMethodCallRoot(node, source, methodKeys, scopedVariableTypes, structFieldTypes, functionRootKinds)
+			goCollectFmtStringerRoot(node, source, importAliases, methodKeys, scopedVariableTypes, structTypes, functionRootKinds)
 			goCollectDependencyInjectionCallbacksFromCall(
 				node,
 				source,
 				functionNames,
 				methodKeys,
-				variableTypes,
+				scopedVariableTypes,
 				functionCallbackParams,
 				functionRootKinds,
 			)
@@ -148,17 +164,20 @@ func goCollectSemanticDeadCodeRoots(
 				node,
 				source,
 				structTypes,
-				variableTypes,
+				scopedVariableTypes,
 				functionParamTargets,
+				importAliases,
 				interfaceMethods,
 				interfaceConcreteTypes,
 				methodNamesByReceiver,
+				exportedMethodNamesByReceiver,
 				functionRootKinds,
 				structRootKinds,
 			)
 		}
 	})
 
+	goMarkGenericConstraintInterfaceRoots(root, source, interfaceMethods, methodKeys, functionRootKinds, interfaceRootKinds, structRootKinds)
 	for interfaceName, concreteTypes := range interfaceConcreteTypes {
 		for _, methodName := range interfaceMethods[interfaceName] {
 			for _, concreteType := range concreteTypes {
@@ -170,6 +189,51 @@ func goCollectSemanticDeadCodeRoots(
 			}
 		}
 	}
+}
+
+func goMarkGenericConstraintInterfaceRoots(
+	root *tree_sitter.Node,
+	source []byte,
+	interfaceMethods map[string][]string,
+	methodKeys map[string]struct{},
+	functionRootKinds map[string][]string,
+	interfaceRootKinds map[string][]string,
+	structRootKinds map[string][]string,
+) {
+	if len(interfaceMethods) == 0 {
+		return
+	}
+	walkNamed(root, func(node *tree_sitter.Node) {
+		if node.Kind() != "type_parameter_declaration" {
+			return
+		}
+		text := strings.ToLower(nodeText(node, source))
+		for interfaceName, methodNames := range interfaceMethods {
+			if !goTypeParameterMentionsConstraint(text, interfaceName) {
+				continue
+			}
+			interfaceRootKinds[interfaceName] = appendUniqueImportAlias(interfaceRootKinds[interfaceName], "go.interface_type_reference")
+			for _, methodName := range methodNames {
+				for methodKey := range methodKeys {
+					receiver, candidate, ok := strings.Cut(methodKey, ".")
+					if !ok || candidate != methodName {
+						continue
+					}
+					functionRootKinds[methodKey] = appendUniqueImportAlias(functionRootKinds[methodKey], "go.generic_constraint_method")
+					structRootKinds[receiver] = appendUniqueImportAlias(structRootKinds[receiver], "go.interface_implementation_type")
+				}
+			}
+		}
+	})
+}
+
+func goTypeParameterMentionsConstraint(text string, interfaceName string) bool {
+	for _, field := range goTypeParameterConstraintCandidates(text) {
+		if field == interfaceName {
+			return true
+		}
+	}
+	return false
 }
 
 func goCollectDependencyInjectionCallbacksFromCall(

@@ -20,40 +20,6 @@ func goInterfaceMethodNames(node *tree_sitter.Node, source []byte) []string {
 	return names
 }
 
-func goKnownLocalVariableTypes(
-	root *tree_sitter.Node,
-	source []byte,
-	structTypes map[string]struct{},
-) map[string]string {
-	variableTypes := make(map[string]string)
-	walkNamed(root, func(node *tree_sitter.Node) {
-		switch node.Kind() {
-		case "short_var_declaration", "assignment_statement":
-			leftNames := goIdentifierNames(node.ChildByFieldName("left"), source)
-			concreteType := goConcreteTypeFromExpression(goUnwrapSingleExpression(node.ChildByFieldName("right")), source, structTypes)
-			if concreteType == "" {
-				return
-			}
-			for _, name := range leftNames {
-				variableTypes[name] = concreteType
-			}
-		case "var_spec":
-			names := goIdentifierNames(node.ChildByFieldName("name"), source)
-			concreteType := goConcreteTypeFromExpression(node.ChildByFieldName("value"), source, structTypes)
-			if concreteType == "" {
-				concreteType = goConcreteTypeFromTypeNode(node.ChildByFieldName("type"), source, structTypes)
-			}
-			if concreteType == "" {
-				return
-			}
-			for _, name := range names {
-				variableTypes[name] = concreteType
-			}
-		}
-	})
-	return variableTypes
-}
-
 func goCollectFunctionValuesFromExpression(
 	node *tree_sitter.Node,
 	source []byte,
@@ -282,7 +248,8 @@ func goInterfaceTargetFromTypeNode(
 	}
 	text := strings.TrimSpace(nodeText(node, source))
 	if strings.Contains(text, ".") {
-		return goInterfaceTarget{imported: true, importedMethods: goKnownImportedInterfaceMethods(text)}
+		methods := goKnownImportedInterfaceMethods(text)
+		return goInterfaceTarget{imported: true, importedMethods: methods, allowExportedMethods: len(methods) == 0}
 	}
 	return goInterfaceTarget{}
 }
@@ -411,6 +378,9 @@ func goMergeImportedInterfaceParamTargets(
 			}
 			existing.imported = true
 			existing.importedMethods = appendUniqueMethods(existing.importedMethods, methods)
+			if len(methods) == 0 {
+				existing.allowExportedMethods = true
+			}
 			targets[functionName][index] = existing
 		}
 	}

@@ -66,8 +66,10 @@ Code dead-code queries add an analysis pass over graph rows so parser-provided
 candidate classifications are visible in the response body. Unsupported
 languages such as JSON package-script metadata are suppressed from cleanup
 results before classification. The analysis block also names modeled framework
-roots and Go semantic roots such as function-value references and
-function-literal reachable calls. It also reports JavaScript package exports,
+roots and Go semantic roots such as same-package direct method calls, imported
+receiver method calls, generic constraint methods, fmt Stringer methods,
+function-value references, and function-literal reachable calls. It also
+reports JavaScript package exports,
 Hapi-style handler exports, Next.js
 exports, Express/Koa/Fastify/NestJS callbacks, Node migration exports,
 TypeScript module-contract exports, and TypeScript interface implementation
@@ -282,8 +284,13 @@ wired in `cmd/api/wiring.go`, not here.
   `dead_code_language_maturity`, and `analysis` fields so MCP and CLI callers
   can distinguish actionable unused symbols from excluded or ambiguous ones.
   Go root-kind evidence covers function roots and type roots, including
-  `go.function_literal_reachable_call`, `go.type_reference`, and
-  `go.interface_implementation_type`. JavaScript-family
+  `go.dependency_injection_callback`, `go.direct_method_call`,
+  `go.fmt_stringer_method`, `go.function_literal_reachable_call`,
+  `go.function_value_reference`, `go.generic_constraint_method`,
+  `go.imported_direct_method_call`, `go.imported_fmt_stringer_method`,
+  `go.interface_implementation_type`, `go.interface_method_implementation`,
+  `go.interface_type_reference`, `go.method_value_reference`, and
+  `go.type_reference`. JavaScript-family
   analysis must list Node package, CommonJS default export, CommonJS mixin,
   Next.js, Node migration, Hapi-style, TypeScript module-contract, and
   TypeScript interface implementation roots, plus Java main, constructor,
