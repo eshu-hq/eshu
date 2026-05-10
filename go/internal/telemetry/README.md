@@ -95,6 +95,10 @@ gauge when a shared-acceptance observer is available.
 | `DeferredBackfillEvidence` | `eshu_dp_deferred_backfill_evidence_total` |
 | `DeploymentMappingReopened` | `eshu_dp_deployment_mapping_reopened_total` |
 | `IaCReachabilityRows` | `eshu_dp_iac_reachability_rows_total` |
+| `TerraformStateSnapshotsObserved` | `eshu_dp_tfstate_snapshots_observed_total` |
+| `TerraformStateResourcesEmitted` | `eshu_dp_tfstate_resources_emitted_total` |
+| `TerraformStateRedactionsApplied` | `eshu_dp_tfstate_redactions_applied_total` |
+| `TerraformStateS3ConditionalGetNotModified` | `eshu_dp_tfstate_s3_conditional_get_not_modified_total` |
 | `CrossRepoEvidenceLoaded` | `eshu_dp_cross_repo_evidence_loaded_total` |
 | `CrossRepoEdgesResolved` | `eshu_dp_cross_repo_edges_resolved_total` |
 
@@ -104,6 +108,8 @@ gauge when a shared-acceptance observer is available.
 | --- | --- | --- |
 | `CollectorObserveDuration` | `eshu_dp_collector_observe_duration_seconds` | 0.01–60 s |
 | `TerraformStateClaimWaitDuration` | `eshu_dp_tfstate_claim_wait_seconds` | 0–3600 s |
+| `TerraformStateSnapshotBytes` | `eshu_dp_tfstate_snapshot_bytes` | 1 KiB–100 MiB |
+| `TerraformStateParseDuration` | `eshu_dp_tfstate_parse_duration_seconds` | 0.001–10 s |
 | `ScopeAssignDuration` | `eshu_dp_scope_assign_duration_seconds` | default |
 | `FactEmitDuration` | `eshu_dp_fact_emit_duration_seconds` | default |
 | `ProjectorRunDuration` | `eshu_dp_projector_run_duration_seconds` | 0.1–120 s |

@@ -39,24 +39,30 @@ type AcceptanceObserver interface {
 // Python eshu_ metrics.
 type Instruments struct {
 	// Counters track cumulative totals
-	FactsEmitted                  metric.Int64Counter
-	FactsCommitted                metric.Int64Counter
-	ProjectionsCompleted          metric.Int64Counter
-	ReducerIntentsEnqueued        metric.Int64Counter
-	ReducerExecutions             metric.Int64Counter
-	CanonicalWrites               metric.Int64Counter
-	SharedProjectionCycles        metric.Int64Counter
-	SharedAcceptanceUpserts       metric.Int64Counter
-	SharedAcceptanceLookupErrors  metric.Int64Counter
-	SharedProjectionStaleIntents  metric.Int64Counter
-	DocumentationEntityMentions   metric.Int64Counter
-	DocumentationClaimCandidates  metric.Int64Counter
-	DocumentationClaimsSuppressed metric.Int64Counter
-	DocumentationDriftFindings    metric.Int64Counter
+	FactsEmitted                              metric.Int64Counter
+	FactsCommitted                            metric.Int64Counter
+	ProjectionsCompleted                      metric.Int64Counter
+	ReducerIntentsEnqueued                    metric.Int64Counter
+	ReducerExecutions                         metric.Int64Counter
+	CanonicalWrites                           metric.Int64Counter
+	SharedProjectionCycles                    metric.Int64Counter
+	SharedAcceptanceUpserts                   metric.Int64Counter
+	SharedAcceptanceLookupErrors              metric.Int64Counter
+	SharedProjectionStaleIntents              metric.Int64Counter
+	DocumentationEntityMentions               metric.Int64Counter
+	DocumentationClaimCandidates              metric.Int64Counter
+	DocumentationClaimsSuppressed             metric.Int64Counter
+	DocumentationDriftFindings                metric.Int64Counter
+	TerraformStateSnapshotsObserved           metric.Int64Counter
+	TerraformStateResourcesEmitted            metric.Int64Counter
+	TerraformStateRedactionsApplied           metric.Int64Counter
+	TerraformStateS3ConditionalGetNotModified metric.Int64Counter
 
 	// Histograms track distributions
 	CollectorObserveDuration             metric.Float64Histogram
 	TerraformStateClaimWaitDuration      metric.Float64Histogram
+	TerraformStateSnapshotBytes          metric.Int64Histogram
+	TerraformStateParseDuration          metric.Float64Histogram
 	ScopeAssignDuration                  metric.Float64Histogram
 	FactEmitDuration                     metric.Float64Histogram
 	ProjectorRunDuration                 metric.Float64Histogram
@@ -271,6 +277,38 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register DocumentationDriftFindings counter: %w", err)
 	}
 
+	inst.TerraformStateSnapshotsObserved, err = meter.Int64Counter(
+		"eshu_dp_tfstate_snapshots_observed_total",
+		metric.WithDescription("Total Terraform state snapshot observations by backend kind and result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TerraformStateSnapshotsObserved counter: %w", err)
+	}
+
+	inst.TerraformStateResourcesEmitted, err = meter.Int64Counter(
+		"eshu_dp_tfstate_resources_emitted_total",
+		metric.WithDescription("Total Terraform state resource facts emitted"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TerraformStateResourcesEmitted counter: %w", err)
+	}
+
+	inst.TerraformStateRedactionsApplied, err = meter.Int64Counter(
+		"eshu_dp_tfstate_redactions_applied_total",
+		metric.WithDescription("Total Terraform state value redactions by reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TerraformStateRedactionsApplied counter: %w", err)
+	}
+
+	inst.TerraformStateS3ConditionalGetNotModified, err = meter.Int64Counter(
+		"eshu_dp_tfstate_s3_conditional_get_not_modified_total",
+		metric.WithDescription("Total Terraform state S3 conditional reads that returned not modified"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TerraformStateS3ConditionalGetNotModified counter: %w", err)
+	}
+
 	// Register histograms with explicit bucket boundaries where specified
 	collectorBuckets := []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
 	inst.CollectorObserveDuration, err = meter.Float64Histogram(
@@ -292,6 +330,28 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register TerraformStateClaimWaitDuration histogram: %w", err)
+	}
+
+	tfstateSnapshotByteBuckets := []float64{1024, 10240, 102400, 1048576, 10485760, 52428800, 104857600}
+	inst.TerraformStateSnapshotBytes, err = meter.Int64Histogram(
+		"eshu_dp_tfstate_snapshot_bytes",
+		metric.WithDescription("Terraform state snapshot source size in bytes"),
+		metric.WithUnit("By"),
+		metric.WithExplicitBucketBoundaries(tfstateSnapshotByteBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TerraformStateSnapshotBytes histogram: %w", err)
+	}
+
+	tfstateParseBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
+	inst.TerraformStateParseDuration, err = meter.Float64Histogram(
+		"eshu_dp_tfstate_parse_duration_seconds",
+		metric.WithDescription("Terraform state parser stream duration"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(tfstateParseBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TerraformStateParseDuration histogram: %w", err)
 	}
 
 	inst.ScopeAssignDuration, err = meter.Float64Histogram(
@@ -967,6 +1027,11 @@ func AttrScopeKind(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionScopeKind, v)
 }
 
+// AttrSource returns a source attribute for metric recording.
+func AttrSource(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionSource, v)
+}
+
 // AttrSourceSystem returns a source_system attribute for metric recording.
 func AttrSourceSystem(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionSourceSystem, v)
@@ -1035,6 +1100,21 @@ func AttrWritePhase(v string) attribute.KeyValue {
 // AttrOutcome returns an outcome attribute for metric recording.
 func AttrOutcome(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOutcome, v)
+}
+
+// AttrBackendKind returns a backend_kind attribute for metric recording.
+func AttrBackendKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionBackendKind, v)
+}
+
+// AttrResult returns a result attribute for metric recording.
+func AttrResult(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionResult, v)
+}
+
+// AttrReason returns a reason attribute for metric recording.
+func AttrReason(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionReason, v)
 }
 
 // RecordGOMEMLIMIT registers and records the applied GOMEMLIMIT as a gauge.

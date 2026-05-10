@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 type otelDiscoveryMetrics struct {
@@ -32,5 +33,5 @@ func (m otelDiscoveryMetrics) RecordCandidates(ctx context.Context, source Disco
 	if count <= 0 {
 		return
 	}
-	m.candidates.Add(ctx, int64(count), metric.WithAttributes(attribute.String("source", string(source))))
+	m.candidates.Add(ctx, int64(count), metric.WithAttributes(telemetry.AttrSource(string(source))))
 }

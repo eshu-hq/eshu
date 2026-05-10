@@ -114,6 +114,7 @@ type ClaimedSource struct {
 	RedactionRules redact.RuleSet
 	Clock          func() time.Time
 	Tracer         trace.Tracer
+	Instruments    *telemetry.Instruments
 }
 
 // NextClaimed implements collector.ClaimedSource for Terraform state work.
@@ -184,6 +185,7 @@ func (s ClaimedSource) collectCandidate(
 	}
 	stateSource, err := s.SourceFactory.OpenSource(ctx, candidate)
 	if err != nil {
+		s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "error")
 		return collector.CollectedGeneration{}, false, sourceFailure("build", candidate.State, err)
 	}
 	if stateSource == nil {
@@ -203,8 +205,11 @@ func (s ClaimedSource) collectCandidate(
 			// Current workflow items may still be candidate-planning claims with
 			// no prior real generation metadata. Without a body to prove serial
 			// and lineage, complete the claim without committing new facts.
+			s.recordS3NotModified(ctx, candidate.State.BackendKind)
+			s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "not_modified")
 			return collector.CollectedGeneration{Unchanged: true}, true, nil
 		}
+		s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "error")
 		return collector.CollectedGeneration{}, false, err
 	}
 	scopeValue, generationValue, err := generationForCandidate(candidate, sourceKey, identity, observedAt)
@@ -217,8 +222,12 @@ func (s ClaimedSource) collectCandidate(
 
 	result, _, err := s.parseCandidate(ctx, stateSource, scopeValue, generationValue, sourceKey, item.CurrentFencingToken)
 	if err != nil {
+		s.recordSnapshotObserved(ctx, sourceKey.BackendKind, "error")
 		return collector.CollectedGeneration{}, false, err
 	}
+	s.recordSnapshotObserved(ctx, sourceKey.BackendKind, "parsed")
+	s.recordResourceFacts(ctx, sourceKey.BackendKind, result.ResourceFacts)
+	s.recordRedactions(ctx, result.RedactionsApplied)
 	return collector.FactsFromSlice(scopeValue, generationValue, result.Facts), true, nil
 }
 
@@ -258,6 +267,7 @@ func (s ClaimedSource) parseCandidate(
 		ctx, span = s.Tracer.Start(ctx, telemetry.SpanTerraformStateParserStream)
 		defer span.End()
 	}
+	start := time.Now()
 	result, err := terraformstate.Parse(ctx, reader, terraformstate.ParseOptions{
 		Scope:          scopeValue,
 		Generation:     generationValue,
@@ -268,9 +278,11 @@ func (s ClaimedSource) parseCandidate(
 		RedactionRules: s.RedactionRules,
 		FencingToken:   fencingToken,
 	})
+	s.recordParseDuration(ctx, sourceKey.BackendKind, time.Since(start))
 	if err != nil {
 		return terraformstate.ParseResult{}, terraformstate.SourceMetadata{}, fmt.Errorf("parse terraform state: %w", err)
 	}
+	s.recordSnapshotBytes(ctx, sourceKey.BackendKind, metadata.Size)
 	return result, metadata, nil
 }
 

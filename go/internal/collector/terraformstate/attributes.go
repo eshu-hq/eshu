@@ -60,7 +60,9 @@ func (p *stateParser) classifyAttribute(attributes map[string]any, address strin
 		attributes[attribute.Key] = attribute.Value
 	case redact.ActionRedact:
 		attributes[attribute.Key] = redactionMap(redact.Scalar(attribute.Value, decision.Reason, decision.Source, p.options.RedactionKey))
+		p.recordRedaction(decision.Reason)
 	case redact.ActionDrop:
+		p.recordRedaction(decision.Reason)
 		p.warnings = append(p.warnings, warningPayload{
 			WarningKind: "attribute_dropped",
 			Reason:      decision.Reason,

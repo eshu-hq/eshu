@@ -192,6 +192,11 @@ func (s ClaimedService) commitCollected(
 	mutation workflow.ClaimMutation,
 	collected CollectedGeneration,
 ) error {
+	if s.Tracer != nil && s.CollectorKind == scope.CollectorTerraformState {
+		var span trace.Span
+		ctx, span = s.Tracer.Start(ctx, telemetry.SpanTerraformStateFactEmitBatch)
+		defer span.End()
+	}
 	if committer, ok := s.Committer.(ClaimedCommitter); ok {
 		return committer.CommitClaimedScopeGeneration(
 			ctx,

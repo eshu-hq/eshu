@@ -33,6 +33,10 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.DocumentationClaimsSuppressed, "DocumentationClaimsSuppressed counter should be registered")
 	assert.NotNil(t, inst.DocumentationDriftFindings, "DocumentationDriftFindings counter should be registered")
 	assert.NotNil(t, inst.IaCReachabilityRows, "IaCReachabilityRows counter should be registered")
+	assert.NotNil(t, inst.TerraformStateSnapshotsObserved, "TerraformStateSnapshotsObserved counter should be registered")
+	assert.NotNil(t, inst.TerraformStateResourcesEmitted, "TerraformStateResourcesEmitted counter should be registered")
+	assert.NotNil(t, inst.TerraformStateRedactionsApplied, "TerraformStateRedactionsApplied counter should be registered")
+	assert.NotNil(t, inst.TerraformStateS3ConditionalGetNotModified, "TerraformStateS3ConditionalGetNotModified counter should be registered")
 
 	// Verify all histogram fields are non-nil
 	assert.NotNil(t, inst.CollectorObserveDuration, "CollectorObserveDuration histogram should be registered")
@@ -60,6 +64,8 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.SharedProjectionStepDuration, "SharedProjectionStepDuration histogram should be registered")
 	assert.NotNil(t, inst.DocumentationDriftGenerationDuration, "DocumentationDriftGenerationDuration histogram should be registered")
 	assert.NotNil(t, inst.IaCReachabilityMaterializationDuration, "IaCReachabilityMaterializationDuration histogram should be registered")
+	assert.NotNil(t, inst.TerraformStateSnapshotBytes, "TerraformStateSnapshotBytes histogram should be registered")
+	assert.NotNil(t, inst.TerraformStateParseDuration, "TerraformStateParseDuration histogram should be registered")
 }
 
 func TestNewInstrumentsNilMeterError(t *testing.T) {
@@ -85,6 +91,11 @@ func TestAttrHelpers(t *testing.T) {
 			name:     "AttrScopeKind",
 			attrFunc: func(v string) string { return string(AttrScopeKind(v).Key) },
 			wantKey:  MetricDimensionScopeKind,
+		},
+		{
+			name:     "AttrSource",
+			attrFunc: func(v string) string { return string(AttrSource(v).Key) },
+			wantKey:  MetricDimensionSource,
 		},
 		{
 			name:     "AttrSourceSystem",
@@ -130,6 +141,21 @@ func TestAttrHelpers(t *testing.T) {
 			name:     "AttrOutcome",
 			attrFunc: func(v string) string { return string(AttrOutcome(v).Key) },
 			wantKey:  MetricDimensionOutcome,
+		},
+		{
+			name:     "AttrBackendKind",
+			attrFunc: func(v string) string { return string(AttrBackendKind(v).Key) },
+			wantKey:  MetricDimensionBackendKind,
+		},
+		{
+			name:     "AttrResult",
+			attrFunc: func(v string) string { return string(AttrResult(v).Key) },
+			wantKey:  MetricDimensionResult,
+		},
+		{
+			name:     "AttrReason",
+			attrFunc: func(v string) string { return string(AttrReason(v).Key) },
+			wantKey:  MetricDimensionReason,
 		},
 	}
 

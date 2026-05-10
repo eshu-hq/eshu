@@ -48,9 +48,28 @@ S3 reads use the default AWS credential chain unless the collector instance
 configuration includes `aws.role_arn`, in which case the runtime assumes that
 role before issuing read-only `GetObject` requests.
 
+For S3 backends that use Terraform's DynamoDB lock table, set
+`dynamodb_table` on the exact S3 seed or let graph discovery read the literal
+`dynamodb_table` from the committed backend block. A top-level
+`aws.dynamodb_table` is accepted as a fallback for older seed config, but
+backend-specific values win.
+
 Graph-backed discovery is repo-scoped in this slice. When `discovery.graph` is
 `true`, include at least one `discovery.local_repos` entry so the resolver knows
 which committed Git backend facts it is allowed to read.
+
+## Operator Signals
+
+Use `eshu_dp_tfstate_claim_wait_seconds` to see whether work is backing up
+before the collector starts a claim. Once a claim starts, the runtime emits
+Terraform-state source, parse, resource, redaction, and S3 not-modified metrics
+with bounded labels only. Do not log or trace raw state locators, bucket names,
+keys, local paths, or work item IDs. Use backend kind, result, claim/run
+correlation, and the locator hash emitted in Terraform-state facts when you
+need to investigate a specific source.
+
+The main trace spans are `tfstate.source.open`, `tfstate.parser.stream`, and
+`tfstate.fact.emit_batch`.
 
 ## Example Instance
 
@@ -75,7 +94,8 @@ which committed Git backend facts it is allowed to read.
             "kind": "s3",
             "bucket": "company-terraform-state",
             "key": "prod/app/terraform.tfstate",
-            "region": "us-east-1"
+            "region": "us-east-1",
+            "dynamodb_table": "company-terraform-locks"
           }
         ]
       }

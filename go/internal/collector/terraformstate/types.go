@@ -84,7 +84,9 @@ type ParseOptions struct {
 
 // ParseResult is the redacted fact output from one Terraform state parse.
 type ParseResult struct {
-	Facts []facts.Envelope
+	Facts             []facts.Envelope
+	ResourceFacts     int64
+	RedactionsApplied map[string]int64
 }
 
 // Validate checks the parse context before durable fact envelopes are emitted.

@@ -12,7 +12,9 @@ pressure.
 - Data-plane metrics come from the Go telemetry instruments used by collector,
   projector, reducer, shared follow-up, and storage paths.
 - High-cardinality identifiers such as `repo_id`, `run_id`, `scope_id`, and
-  `work_item_id` belong in traces and logs, not in metric labels.
+  `work_item_id` do not belong in metric labels. For Terraform-state sources,
+  raw bucket names, object keys, local paths, and full locators should not go in
+  traces or logs either; use bounded correlation fields and locator hashes.
 
 ## Runtime Health And Backlog
 
@@ -155,6 +157,24 @@ collector/projector/reducer path.
   it.
 - Use it for: Checking whether Terraform-state work is backing up before
   collection begins without creating per-scope metric series.
+
+### `eshu_dp_tfstate_snapshots_observed_total`
+### `eshu_dp_tfstate_snapshot_bytes`
+### `eshu_dp_tfstate_parse_duration_seconds`
+### `eshu_dp_tfstate_resources_emitted_total`
+### `eshu_dp_tfstate_redactions_applied_total`
+### `eshu_dp_tfstate_s3_conditional_get_not_modified_total`
+
+- Type: Counters and histograms
+- Labels: `backend_kind`, `result`, or `reason` depending on the metric.
+  These labels are bounded. They do not include state locators, bucket names,
+  local paths, work item IDs, or repository names.
+- Meaning: Terraform-state source observations, parser cost, emitted resource
+  fact volume, redaction/drop volume by policy reason, and S3 conditional-read
+  no-op outcomes.
+- Use them for: Separating "no new state" from real collector failure, spotting
+  large or slow state files, and checking whether a new provider schema gap is
+  causing more values to be redacted or dropped.
 
 ### `eshu_dp_projector_run_duration_seconds`
 ### `eshu_dp_projector_stage_duration_seconds`

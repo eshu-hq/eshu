@@ -11,6 +11,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 	want := []string{
 		"scope_id",
 		"scope_kind",
+		"source",
 		"source_system",
 		"generation_id",
 		"collector_kind",
@@ -25,6 +26,9 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"edge_type",
 		"write_phase",
 		"outcome",
+		"backend_kind",
+		"result",
+		"reason",
 	}
 
 	got := MetricDimensionKeys()

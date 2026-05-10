@@ -55,6 +55,7 @@ func buildClaimedService(
 		},
 		RedactionKey: config.RedactionKey,
 		Tracer:       tracer,
+		Instruments:  instruments,
 	}
 
 	return collector.ClaimedService{
