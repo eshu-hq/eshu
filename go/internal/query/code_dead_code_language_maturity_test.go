@@ -65,7 +65,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		"java":       "derived",
 		"typescript": "derived",
 		"tsx":        "derived",
-		"rust":       "derived_candidate_only",
+		"rust":       "derived",
 		"ruby":       "derived_candidate_only",
 	} {
 		if got := maturity[language]; got != want {

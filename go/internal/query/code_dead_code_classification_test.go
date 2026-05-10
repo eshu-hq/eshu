@@ -77,7 +77,7 @@ func TestHandleDeadCodeResultClassificationPreservesDerivedTruth(t *testing.T) {
 	if got, want := got["go-helper"], "unused"; got != want {
 		t.Fatalf("go-helper classification = %#v, want %#v", got, want)
 	}
-	if got, want := got["rust-helper"], "derived_candidate_only"; got != want {
+	if got, want := got["rust-helper"], "unused"; got != want {
 		t.Fatalf("rust-helper classification = %#v, want %#v", got, want)
 	}
 }

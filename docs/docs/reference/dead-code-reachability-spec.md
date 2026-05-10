@@ -119,8 +119,8 @@ can still be `derived_candidate_only` for dead-code cleanup until it has a
 dead-code fixture suite, root model, reachability proof, and API/MCP evidence.
 The initial maturity states are:
 
-- `derived`: current Go, Python, JavaScript, TypeScript, and TSX candidate
-  scans with partial root modeling
+- `derived`: current Go, Python, Java, JavaScript, TypeScript, TSX, and Rust
+  candidate scans with partial root modeling
 - `derived_candidate_only`: parser-supported source languages where Eshu can
   return graph-backed candidates but has not implemented enough language roots
   and fixtures for cleanup-safe answers
@@ -227,13 +227,18 @@ Current branch status:
   roots are also emitted as parser-backed `dead_code_root_kinds`; Java metadata
   and literal reflection evidence now materializes as `REFERENCES` edges; Go
   query-time source heuristics remain as a fallback while broader registry
-  coverage lands
+  coverage lands; Rust Cargo entrypoints, tests, Tokio runtime/test functions,
+  exact `pub` public API items, Criterion benchmark functions, Cargo
+  auxiliary-target exclusions, conditional derive evidence, nested annotations,
+  structured where-clause evidence, path-attribute modules, and literal macro
+  body module/import declarations are modeled as parser-backed derived evidence
 - broader Go router, webhook, worker, reflection, and build-tag roots plus
   broader Python worker, dynamic-dispatch, and non-export-declared public API
   roots plus broader
   JavaScript/TypeScript worker, static module graph, and dynamic-dispatch roots
   plus broader Java dynamic dispatch, dependency injection, and string-built
-  reflection remain open, so dead-code truth stays `derived`
+  reflection plus arbitrary Rust macro expansion and filesystem-backed semantic
+  module resolution remain open, so dead-code truth stays `derived`
 
 Initial MVP is explicitly limited to those families. Other parser-supported
 languages and frameworks should return `derived_candidate_only`, `derived`, or

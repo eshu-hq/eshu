@@ -86,10 +86,14 @@ metadata now reports bounded Java reflection plus ServiceLoader and Spring
 auto-configuration references as modeled reachability evidence. Rust roots from
 parser metadata cover Cargo entrypoints, build scripts, unit tests, Tokio
 runtime/test functions, exact `pub` public API items, and benchmark functions
-registered through parser evidence. Rust `benches/` and `examples/` files are
-treated as Cargo auxiliary targets rather than production cleanup candidates;
-the same root kinds appear in `modeled_framework_roots` so callers can explain
-the suppression.
+registered through parser evidence. Rust parser evidence also includes
+path-attribute modules, literal macro-body module/import declarations,
+conditional derives, nested annotations, and structured where-clause metadata.
+Rust now shares the derived dead-code maturity tier with Go and Java while
+exact Rust cleanup remains gated on broader semantic resolution. Rust
+`benches/` and `examples/` files are treated as Cargo auxiliary targets rather
+than production cleanup candidates; the same root kinds appear in
+`modeled_framework_roots` so callers can explain the suppression.
 Dead-code candidate paging uses `DeadCodeCandidateRows` in
 `content_reader_dead_code_candidates.go:13` when the content read model is
 available, avoiding graph-wide ordered scans on large repositories. Candidate
@@ -277,7 +281,10 @@ wired in `cmd/api/wiring.go`, not here.
   TypeScript interface implementation roots, plus Java main, constructor,
   override, Ant `Task` setter, Gradle plugin `apply`, task action/property, and
   public Gradle DSL roots when query policy suppresses those candidates; the
-  analysis notes name the same Java root family.
+  analysis notes name the same Java root family. Rust parser-backed root and
+  syntax-evidence rows must stay aligned with the `deadCodeLanguageMaturity`
+  table because Rust derived classification depends on that maturity row and
+  the root suppression policy.
   The handler scans raw graph candidates in bounded label-scoped pages before
   policy exclusions, then checks completed reducer code-call intent rows for
   incoming edges on the remaining candidates and uses a 2,500-row scan window
