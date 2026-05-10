@@ -122,18 +122,18 @@ In-store migration policy:
 - Incompatible schema changes require explicit migration or reindex paths.
 - Silent in-place reinterpretation of stored facts is NOT allowed.
 
-## Plugin manifest
+## Component package manifest
 
-Every OCI-packaged plugin ships with a manifest declaring:
+Every component package ships with a manifest declaring:
 
 | Field | Purpose |
 | --- | --- |
-| `plugin_id` | Unique plugin identity, used by allowlist and revocation. |
-| `publisher_identity` | Publisher key / org identity. |
-| `version` | Plugin semver. |
-| `compatible_core_range` | Range of Eshu core versions this plugin targets. |
-| `emitted_fact_kinds` | List of fact kinds + supported `schema_version` set per kind. |
-| `consumer_contract` | Downstream reducer or query consumer contract the plugin expects. |
+| `metadata.id` | Unique component identity, used by allowlist and revocation. |
+| `metadata.publisher` | Publisher key / org identity. |
+| `metadata.version` | Component semver. |
+| `spec.compatibleCore` | Range of Eshu core versions this component targets. |
+| `spec.emittedFacts` | List of fact kinds + supported `schema_version` set per kind. |
+| `spec.consumerContracts` | Downstream reducer or query consumer contract the component expects. |
 
 Plugins introducing a new fact kind MUST also declare the consumer contract
 expected to process it. Unknown fact kinds are never presented as active
@@ -142,18 +142,29 @@ platform truth.
 ### Example manifest
 
 ```yaml
-plugin_id: com.example.cloud-snapshot
-publisher_identity: example-corp
-version: 1.4.0
-compatible_core_range: ">=2.1.0 <3.0.0"
-emitted_fact_kinds:
-  - kind: com.example.cloud-snapshot.resource
-    schema_versions: ["1.2.0"]
-  - kind: com.example.cloud-snapshot.relationship
-    schema_versions: ["1.0.0"]
-consumer_contract:
-  reducer: multi-source-reducer
-  phases: ["resource_correlation"]
+apiVersion: eshu.dev/v1alpha1
+kind: ComponentPackage
+metadata:
+  id: com.example.cloud-snapshot
+  name: Cloud snapshot collector
+  publisher: example-corp
+  version: 1.4.0
+spec:
+  compatibleCore: ">=2.1.0 <3.0.0"
+  componentType: collector
+  collectorKinds:
+    - cloud_snapshot
+  artifacts:
+    - platform: linux/amd64
+      image: ghcr.io/example/cloud-snapshot@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  emittedFacts:
+    - kind: com.example.cloud-snapshot.resource
+      schemaVersions: ["1.2.0"]
+    - kind: com.example.cloud-snapshot.relationship
+      schemaVersions: ["1.0.0"]
+  consumerContracts:
+    reducer:
+      phases: ["resource_correlation"]
 ```
 
 ## Trust model

@@ -122,6 +122,7 @@ not part of the supported Go CLI contract anymore:
 - `eshu ecosystem status`
 
 Use the Go admin/status flows or the supported indexing commands instead.
+Use `eshu component` for optional collector and runtime component packages.
 
 ## Use this when you are unsure
 

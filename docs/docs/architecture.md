@@ -333,6 +333,14 @@ Collectors observe source truth and emit **versioned facts**. They do not
 write canonical graph truth directly — that stays owned by the reducer and
 graph-write layer.
 
+Eshu now separates component package state from runtime activation. A component
+can be inspected, verified, and installed without being enabled. Enabling a
+component records a named activation; claim-capable execution still goes
+through the workflow coordinator and collector-instance control plane. This
+keeps local Eshu Git-first while allowing operators to opt into collectors such
+as AWS, Kubernetes, registries, SBOMs, or vulnerability intelligence only when
+they need them.
+
 The target distribution is OCI-packaged plugins so contributors can add new
 collector families without patching the core runtime. The plugin seam has
 three contracts:
@@ -352,6 +360,8 @@ three contracts:
 
 One consolidated user-facing reference lives at
 [Fact Envelope Reference](reference/fact-envelope-reference.md).
+The local package-manager flow is documented in
+[Component Package Manager](reference/component-package-manager.md).
 
 Note: a separate workflow coordinator contract governs multi-collector
 claiming, fencing, and convergence (tfstate + future collector kinds). Details

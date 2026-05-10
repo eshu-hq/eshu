@@ -124,6 +124,10 @@ muscle memory gets a directed error instead of a silent behavior change:
 Deletion, cleanup, and recovery are owned by the Go admin/runtime surfaces
 rather than ad hoc local CLI mutations.
 
+Optional runtime components use `eshu component`, not `eshu add-package`.
+Component packages install collectors and related runtime extensions; they do
+not index source-language dependency packages.
+
 ---
 
 ## Related docs
