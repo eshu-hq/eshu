@@ -42,14 +42,14 @@ consume these types as their input or storage shape.
   mentions, non-authoritative claim candidates, owner references, ACL
   summaries, and evidence references.
 
-Documentation fact kinds use schema version `1.0.0`:
+Documentation fact kinds use these schema versions:
 
-- `documentation_source`
-- `documentation_document`
-- `documentation_section`
-- `documentation_link`
-- `documentation_entity_mention`
-- `documentation_claim_candidate`
+- `documentation_source` — `1.0.0`
+- `documentation_document` — `1.0.0`
+- `documentation_section` — `1.1.0`
+- `documentation_link` — `1.0.0`
+- `documentation_entity_mention` — `1.0.0`
+- `documentation_claim_candidate` — `1.0.0`
 
 Terraform state fact kinds also use schema version `1.0.0` for the first
 collector contract:
@@ -97,6 +97,10 @@ and processing lives in `internal/projector` and `internal/storage/postgres`.
 - Documentation ACL and owner fields are source-reported context. They help
   explain provenance and visibility, but they do not become authorization
   policy inside the facts package.
+- Documentation section payloads can carry source-native body content for
+  downstream diff generation. Callers must treat that content as sensitive
+  source data: persist it only through the fact store and never add it to logs,
+  metrics, or stable-ID identity maps.
 - `StableID` panics if `json.Marshal` fails on the identity map. Callers must
   not pass identity maps containing non-serializable values.
 - `IsTombstone` is set by the collector to signal deletion. Projectors and

@@ -12,6 +12,9 @@ This binary owns process wiring only: Confluence config loading, read-only HTTP
 client construction, `collector.Service` setup, Postgres ingestion, telemetry,
 and the hosted status surface. It does not own documentation fact schema,
 Confluence write behavior, or downstream documentation update workflows.
+Section facts store the source-native Confluence storage body in Postgres for
+later diff generation, but the collector still never calls Confluence mutation
+APIs.
 
 ## Entry Points
 
@@ -46,7 +49,8 @@ The binary uses the shared hosted runtime with `/healthz`, `/readyz`,
 `/metrics`, and `/admin/status`. The Confluence source logs each completed
 sync with `scope_id`, `page_count`, `failure_count`, and `freshness_hint`.
 Shared collector metrics carry `collector_kind=documentation` and
-`source_system=confluence`.
+`source_system=confluence`. Logs and metrics must not include page titles,
+stored body content, or body excerpts.
 
 ## Invariants
 

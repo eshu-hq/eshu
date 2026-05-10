@@ -141,6 +141,40 @@ func TestDocumentationSectionStableIDIgnoresMutableHeading(t *testing.T) {
 	}
 }
 
+func TestDocumentationSectionStableIDIgnoresPersistedContent(t *testing.T) {
+	t.Parallel()
+
+	first := DocumentationSectionStableID(DocumentationSectionPayload{
+		DocumentID:    "doc:confluence:12345",
+		RevisionID:    "17",
+		SectionID:     "body",
+		SectionAnchor: "body",
+		OrdinalPath:   []int{1},
+		TextHash:      "sha256:section-text",
+		ExcerptHash:   "sha256:bounded-excerpt",
+		Content:       "<p>old body</p>",
+		ContentFormat: "storage",
+	})
+	second := DocumentationSectionStableID(DocumentationSectionPayload{
+		DocumentID:    "doc:confluence:12345",
+		RevisionID:    "17",
+		SectionID:     "body",
+		SectionAnchor: "body",
+		OrdinalPath:   []int{1},
+		TextHash:      "sha256:section-text",
+		ExcerptHash:   "sha256:bounded-excerpt",
+		Content:       "<p>new body with same normalized hashes</p>",
+		ContentFormat: "storage",
+	})
+
+	if first == "" {
+		t.Fatal("DocumentationSectionStableID returned empty ID")
+	}
+	if first != second {
+		t.Fatalf("stable ID changed after persisted content edit: first=%q second=%q", first, second)
+	}
+}
+
 func TestDocumentationLinkStableIDUsesDurableIdentity(t *testing.T) {
 	t.Parallel()
 

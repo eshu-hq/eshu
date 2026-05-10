@@ -190,7 +190,15 @@ func (s *Source) factEnvelopes(
 		sections := sectionsForPage(page)
 		links := linksForPage(page, sections)
 		for _, section := range sections {
-			sectionEnvelope, err := envelope(scopeValue, generationValue, facts.DocumentationSectionFactKind, facts.DocumentationSectionStableID(section), section, documentPayload.CanonicalURI, page.ID)
+			sectionEnvelope, err := envelope(
+				scopeValue,
+				generationValue,
+				facts.DocumentationSectionFactKind,
+				facts.DocumentationSectionStableID(section),
+				sectionPayloadMap(section),
+				documentPayload.CanonicalURI,
+				page.ID,
+			)
 			if err != nil {
 				return nil, err
 			}
@@ -323,7 +331,7 @@ func envelope(scopeValue scope.IngestionScope, generationValue scope.ScopeGenera
 		GenerationID:     generationValue.GenerationID,
 		FactKind:         kind,
 		StableFactKey:    key,
-		SchemaVersion:    facts.DocumentationFactSchemaVersion,
+		SchemaVersion:    schemaVersionForFactKind(kind),
 		CollectorKind:    string(scope.CollectorDocumentation),
 		SourceConfidence: facts.SourceConfidenceObserved,
 		ObservedAt:       generationValue.ObservedAt,
@@ -340,6 +348,9 @@ func envelope(scopeValue scope.IngestionScope, generationValue scope.ScopeGenera
 }
 
 func payloadToMap(payload any) (map[string]any, error) {
+	if payloadMap, ok := payload.(map[string]any); ok {
+		return payloadMap, nil
+	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
@@ -349,6 +360,13 @@ func payloadToMap(payload any) (map[string]any, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+func schemaVersionForFactKind(kind string) string {
+	if kind == facts.DocumentationSectionFactKind {
+		return facts.DocumentationSectionFactSchemaVersion
+	}
+	return facts.DocumentationFactSchemaVersion
 }
 
 func latestCurrentPages(pages []Page) []Page {

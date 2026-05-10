@@ -84,8 +84,8 @@ func TestSourceSyncsSpacePagesIntoDocumentationFacts(t *testing.T) {
 		t.Fatalf("duplicate-title pages produced same stable key %q", documents[0].StableFactKey)
 	}
 	for _, envelope := range envelopes {
-		if envelope.SchemaVersion != facts.DocumentationFactSchemaVersion {
-			t.Fatalf("fact %q SchemaVersion = %q, want %q", envelope.FactKind, envelope.SchemaVersion, facts.DocumentationFactSchemaVersion)
+		if got, want := envelope.SchemaVersion, schemaVersionForFactKind(envelope.FactKind); got != want {
+			t.Fatalf("fact %q SchemaVersion = %q, want %q", envelope.FactKind, got, want)
 		}
 		if envelope.CollectorKind != string(scope.CollectorDocumentation) {
 			t.Fatalf("fact %q CollectorKind = %q, want documentation", envelope.FactKind, envelope.CollectorKind)

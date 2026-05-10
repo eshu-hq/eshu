@@ -63,13 +63,15 @@ not invent their own envelope shape.
 ## Core documentation fact families
 
 Documentation collectors use the shared envelope and emit source-neutral
-payloads with `schema_version: "1.0.0"`. The first core fact kinds are:
+payloads. Most core documentation facts use `schema_version: "1.0.0"`;
+`documentation_section` uses `schema_version: "1.1.0"` because section payloads
+can carry source-native body content for updater diff generation.
 
 | Fact kind | Purpose |
 | --- | --- |
 | `documentation_source` | A documentation source such as a Confluence space, Git Markdown repository, Notion workspace, or Backstage docs source. |
 | `documentation_document` | One document revision with source ID, document ID, external ID, revision ID, URI, labels, owners, ACL summary, and content hash. |
-| `documentation_section` | One bounded section within a document revision, including section identity, ordinal path, excerpt hash, and source refs. |
+| `documentation_section` | One bounded section within a document revision, including section identity, ordinal path, source-native content, content format, excerpt hash, and source refs. |
 | `documentation_link` | One outbound or internal link observed in a document section. |
 | `documentation_entity_mention` | One possible mention of an Eshu entity with exact, ambiguous, or unmatched resolution state. |
 | `documentation_claim_candidate` | One conservative, non-authoritative claim candidate found in documentation text. |
@@ -86,6 +88,11 @@ could view a document while the full page restrictions were not collected. In
 that case the payload should mark the ACL summary as partial, and evidence
 packet APIs must fail closed unless the packet carries an explicit
 `viewer_can_read_source=true` permission decision.
+
+Documentation section payloads may store source-native body content in
+Postgres. Confluence uses its storage-body format. Collectors and runtimes must
+not emit that content through logs or metrics, and read surfaces must apply the
+same evidence permission checks before exposing stored body content.
 
 ## Core Terraform State Fact Families
 
