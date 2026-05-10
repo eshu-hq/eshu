@@ -84,7 +84,9 @@ func (p *stateParser) emitTagObservation(resourceAddress string, tagSource strin
 }
 
 func (p *stateParser) addTagKey(payload map[string]any, tagKey string, classificationSource string, safeSource string) {
-	decision := p.options.RedactionRules.Classify(classificationSource, redact.SchemaKnown, redact.FieldScalar)
+	// Tags are correlation evidence, but their state values still come from
+	// provider attributes. Keep them fail-closed unless schema coverage exists.
+	decision := p.options.RedactionRules.Classify(classificationSource, redact.SchemaUnknown, redact.FieldScalar)
 	if decision.Action == redact.ActionRedact {
 		payload["tag_key"] = redactionMap(redact.Scalar(tagKey, decision.Reason, safeSource, p.options.RedactionKey))
 		p.recordRedaction(decision.Reason)
@@ -94,7 +96,9 @@ func (p *stateParser) addTagKey(payload map[string]any, tagKey string, classific
 }
 
 func (p *stateParser) addTagValue(payload map[string]any, tagValue any, classificationSource string, safeSource string) {
-	decision := p.options.RedactionRules.Classify(classificationSource, redact.SchemaKnown, redact.FieldScalar)
+	// Tags are correlation evidence, but their state values still come from
+	// provider attributes. Keep them fail-closed unless schema coverage exists.
+	decision := p.options.RedactionRules.Classify(classificationSource, redact.SchemaUnknown, redact.FieldScalar)
 	if decision.Action == redact.ActionRedact {
 		payload["tag_value"] = redactionMap(redact.Scalar(tagValue, decision.Reason, safeSource, p.options.RedactionKey))
 		p.recordRedaction(decision.Reason)
