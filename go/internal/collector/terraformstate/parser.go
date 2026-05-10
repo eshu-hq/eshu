@@ -395,6 +395,9 @@ func (p *stateParser) emitSnapshot() {
 		"locator_hash":      locatorHash(p.options.Source),
 		"source_size_bytes": p.options.Metadata.Size,
 	}
+	if strings.TrimSpace(p.options.Metadata.ETag) != "" {
+		payload["etag"] = p.options.Metadata.ETag
+	}
 	p.facts = append([]facts.Envelope{
 		p.envelope(facts.TerraformStateSnapshotFactKind, "snapshot", payload, locatorHash(p.options.Source)),
 	}, p.facts...)

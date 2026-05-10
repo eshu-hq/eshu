@@ -202,11 +202,11 @@ func (s ClaimedSource) collectCandidate(
 	identity, observedAt, err := s.readIdentity(ctx, stateSource)
 	if err != nil {
 		if errors.Is(err, terraformstate.ErrStateNotModified) {
-			// Current workflow items may still be candidate-planning claims with
-			// no prior real generation metadata. Without a body to prove serial
-			// and lineage, complete the claim without committing new facts.
 			s.recordS3NotModified(ctx, candidate.State.BackendKind)
 			s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "not_modified")
+			if usesCandidatePlanningID(item) {
+				return collector.CollectedGeneration{}, false, nil
+			}
 			return collector.CollectedGeneration{Unchanged: true}, true, nil
 		}
 		s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "error")

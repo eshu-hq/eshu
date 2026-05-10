@@ -139,7 +139,7 @@ func TestDefaultSourceFactoryUsesFallbackDynamoDBLockTableOnlyWhenCandidateOmits
 	}
 }
 
-func TestClaimedSourceMarksS3NotModifiedClaimUnchangedWhenPriorGenerationUnavailable(t *testing.T) {
+func TestClaimedSourceReleasesS3NotModifiedClaimWhenPriorGenerationUnavailable(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.May, 10, 10, 0, 0, 0, time.UTC)
@@ -201,11 +201,11 @@ func TestClaimedSourceMarksS3NotModifiedClaimUnchangedWhenPriorGenerationUnavail
 	if err != nil {
 		t.Fatalf("NextClaimed() error = %v, want nil not-modified workflow outcome", err)
 	}
-	if !ok {
-		t.Fatal("NextClaimed() ok = false, want true unchanged outcome")
+	if ok {
+		t.Fatal("NextClaimed() ok = true, want released claim until prior generation is known")
 	}
-	if !collected.Unchanged {
-		t.Fatal("CollectedGeneration.Unchanged = false, want true")
+	if collected.Unchanged {
+		t.Fatal("CollectedGeneration.Unchanged = true, want no completed generation without prior identity")
 	}
 	if got, want := stateSource.opens, 1; got != want {
 		t.Fatalf("source opens = %d, want %d", got, want)

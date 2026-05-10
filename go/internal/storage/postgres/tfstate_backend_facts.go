@@ -50,9 +50,33 @@ SELECT EXISTS (
 )
 `
 
+const listTerraformStatePriorSnapshotMetadataQuery = `
+SELECT
+    fact.payload->>'locator_hash' AS locator_hash,
+    fact.payload->>'etag' AS etag
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE fact.fact_kind = 'terraform_state_snapshot'
+  AND generation.status = 'active'
+  AND fact.payload->>'locator_hash' = ANY($1::text[])
+  AND COALESCE(fact.payload->>'etag', '') <> ''
+ORDER BY fact.observed_at DESC, fact.fact_id DESC
+`
+
 // TerraformStateBackendFactReader reads Git-observed Terraform backend facts
 // from active repository generations.
 type TerraformStateBackendFactReader struct {
+	DB Queryer
+}
+
+// TerraformStatePriorSnapshotReader reads durable Terraform-state freshness
+// metadata from active snapshot facts.
+type TerraformStatePriorSnapshotReader struct {
 	DB Queryer
 }
 
@@ -91,6 +115,59 @@ func (c TerraformStateGitReadinessChecker) GitGenerationCommitted(
 		return false, fmt.Errorf("check terraform state git readiness: %w", err)
 	}
 	return ready, nil
+}
+
+// TerraformStatePriorSnapshotMetadata implements terraformstate.PriorSnapshotMetadataReader.
+func (r TerraformStatePriorSnapshotReader) TerraformStatePriorSnapshotMetadata(
+	ctx context.Context,
+	states []terraformstate.StateKey,
+) (map[terraformstate.StateKey]terraformstate.PriorSnapshotMetadata, error) {
+	if r.DB == nil {
+		return nil, fmt.Errorf("terraform state prior snapshot database is required")
+	}
+	byHash := map[string]terraformstate.StateKey{}
+	hashes := make([]string, 0, len(states))
+	for _, state := range states {
+		if state.BackendKind != terraformstate.BackendS3 {
+			continue
+		}
+		hash := terraformstate.LocatorHash(state)
+		if _, ok := byHash[hash]; ok {
+			continue
+		}
+		byHash[hash] = state
+		hashes = append(hashes, hash)
+	}
+	if len(hashes) == 0 {
+		return map[terraformstate.StateKey]terraformstate.PriorSnapshotMetadata{}, nil
+	}
+
+	rows, err := r.DB.QueryContext(ctx, listTerraformStatePriorSnapshotMetadataQuery, hashes)
+	if err != nil {
+		return nil, fmt.Errorf("list terraform state prior snapshot metadata: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	metadata := map[terraformstate.StateKey]terraformstate.PriorSnapshotMetadata{}
+	for rows.Next() {
+		var locatorHash string
+		var etag string
+		if err := rows.Scan(&locatorHash, &etag); err != nil {
+			return nil, fmt.Errorf("list terraform state prior snapshot metadata: %w", err)
+		}
+		state, ok := byHash[locatorHash]
+		if !ok {
+			continue
+		}
+		if _, seen := metadata[state]; seen {
+			continue
+		}
+		metadata[state] = terraformstate.PriorSnapshotMetadata{ETag: etag}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list terraform state prior snapshot metadata: %w", err)
+	}
+	return metadata, nil
 }
 
 // TerraformStateCandidates implements terraformstate.BackendFactReader.

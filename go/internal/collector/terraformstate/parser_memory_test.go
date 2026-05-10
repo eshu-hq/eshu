@@ -66,6 +66,36 @@ func TestParserLargeStateStreamsIgnoredTopLevelPayload(t *testing.T) {
 	}
 }
 
+func TestParserLargeStateStreamsResourceInstances(t *testing.T) {
+	const resourceInstances = 10_000
+
+	options := parseFixtureOptions(t)
+	var result terraformstate.ParseResult
+	peakHeapGrowth := measurePeakHeapGrowth(t, func() {
+		var err error
+		result, err = terraformstate.Parse(
+			context.Background(),
+			largeResourceInstancesStateReader(resourceInstances),
+			options,
+		)
+		if err != nil {
+			t.Fatalf("Parse() error = %v, want nil", err)
+		}
+	})
+
+	requireFactKinds(t, result.Facts, facts.TerraformStateSnapshotFactKind, facts.TerraformStateResourceFactKind)
+	if got := result.ResourceFacts; got != resourceInstances {
+		t.Fatalf("ResourceFacts = %d, want %d", got, resourceInstances)
+	}
+	if got, want := len(result.Facts), resourceInstances+1; got != want {
+		t.Fatalf("Parse() emitted %d facts, want %d", got, want)
+	}
+	const maxPeakHeapGrowthBytes = 96 << 20
+	if peakHeapGrowth > maxPeakHeapGrowthBytes {
+		t.Fatalf("Parse() peak heap growth = %d bytes, want at most %d", peakHeapGrowth, maxPeakHeapGrowthBytes)
+	}
+}
+
 func TestParserLargeState100MiBStreamingProof(t *testing.T) {
 	if os.Getenv("ESHU_TFSTATE_100MIB_PROOF") != "true" {
 		t.Skip("set ESHU_TFSTATE_100MIB_PROOF=true to run the 100 MiB parser proof")
@@ -184,6 +214,16 @@ func largeIgnoredPayloadStateReader(payloadBytes int64) io.Reader {
 	)
 }
 
+func largeResourceInstancesStateReader(instanceCount int) io.Reader {
+	const prefix = `{"serial":17,"lineage":"lineage-123","resources":[{"mode":"managed","type":"aws_instance","name":"web","instances":[`
+	const suffix = `]}]}`
+	return io.MultiReader(
+		strings.NewReader(prefix),
+		newRepeatedCountJSONArrayReader(`{"attributes":{"id":"i-1234567890","instance_type":"t3.micro","private_ip":"10.0.0.10"}}`, instanceCount),
+		strings.NewReader(suffix),
+	)
+}
+
 type repeatedJSONArrayReader struct {
 	element   string
 	target    int64
@@ -191,6 +231,44 @@ type repeatedJSONArrayReader struct {
 	needComma bool
 	offset    int
 	current   string
+}
+
+type repeatedCountJSONArrayReader struct {
+	element   string
+	count     int
+	written   int
+	needComma bool
+	offset    int
+	current   string
+}
+
+func newRepeatedCountJSONArrayReader(element string, count int) *repeatedCountJSONArrayReader {
+	return &repeatedCountJSONArrayReader{element: element, count: count}
+}
+
+func (r *repeatedCountJSONArrayReader) Read(target []byte) (int, error) {
+	if len(target) == 0 {
+		return 0, nil
+	}
+	if r.current == "" {
+		if r.written >= r.count {
+			return 0, io.EOF
+		}
+		if r.needComma {
+			r.current = "," + r.element
+		} else {
+			r.current = r.element
+			r.needComma = true
+		}
+		r.offset = 0
+		r.written++
+	}
+	n := copy(target, r.current[r.offset:])
+	r.offset += n
+	if r.offset == len(r.current) {
+		r.current = ""
+	}
+	return n, nil
 }
 
 func newRepeatedJSONArrayReader(element string, targetBytes int64) *repeatedJSONArrayReader {

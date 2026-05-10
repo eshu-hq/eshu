@@ -151,6 +151,51 @@ func TestTerraformStateBackendFactReaderDoesNotCarryDynamicDynamoDBTable(t *test
 	}
 }
 
+func TestTerraformStatePriorSnapshotReaderReturnsETagByLocatorHash(t *testing.T) {
+	t.Parallel()
+
+	stateKey := terraformstate.StateKey{
+		BackendKind: terraformstate.BackendS3,
+		Locator:     "s3://app-tfstate-prod/services/api/terraform.tfstate",
+	}
+	locatorHash := terraformstate.LocatorHash(stateKey)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{
+			rows: [][]any{{
+				locatorHash,
+				`"etag-123"`,
+			}},
+		}},
+	}
+	reader := TerraformStatePriorSnapshotReader{DB: db}
+
+	metadata, err := reader.TerraformStatePriorSnapshotMetadata(
+		context.Background(),
+		[]terraformstate.StateKey{stateKey},
+	)
+	if err != nil {
+		t.Fatalf("TerraformStatePriorSnapshotMetadata() error = %v, want nil", err)
+	}
+	if got, want := metadata[stateKey].ETag, `"etag-123"`; got != want {
+		t.Fatalf("ETag = %q, want %q", got, want)
+	}
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	query := db.queries[0].query
+	for _, want := range []string{
+		"terraform_state_snapshot",
+		"locator_hash",
+		"active_generation_id",
+		"generation.status = 'active'",
+		"etag",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("query missing %q: %s", want, query)
+		}
+	}
+}
+
 func TestTerraformStateBackendFactReaderPropagatesQueryErrors(t *testing.T) {
 	t.Parallel()
 
