@@ -48,8 +48,9 @@ ready, the worker waits `PollInterval` (default 1 s) and retries.
 Once a claim is held, the worker loads all fact envelopes for that scope
 generation via `FactStore.LoadFacts`, then hands them to `Runtime.Project`. The
 `Runtime` builds a `CanonicalMaterialization` (repository, directory, file,
-entity, module, import, parameter, class member, and nested-function rows) and a
-content materialization in a single pass via `buildProjection`. It writes
+entity, module, import, parameter, class member, nested-function, and
+Terraform-state rows) and a content materialization in a single pass via
+`buildProjection`. It writes
 canonical nodes through `CanonicalWriter.Write`, publishes a
 `graph_projection_phase_state` row via the `PhasePublisher` so reducer-owned
 edge domains can gate on `canonical_nodes_committed`, writes content store rows,
@@ -81,9 +82,9 @@ high-cardinality repositories running at once.
 - `ReducerIntentWriter` — interface for enqueuing `ReducerIntent` rows to the
   reducer queue
 - `CanonicalMaterialization` — full set of canonical node writes for one
-  repository generation: `RepositoryRow`, `DirectoryRow`, `FileRow`,
-  `EntityRow`, `ModuleRow`, `ImportRow`, `ParameterRow`, `ClassMemberRow`,
-  `NestedFunctionRow`
+  scope generation: `RepositoryRow`, `DirectoryRow`, `FileRow`, `EntityRow`,
+  `ModuleRow`, `ImportRow`, `ParameterRow`, `ClassMemberRow`,
+  `NestedFunctionRow`, and Terraform-state resource/module/output rows
 - `ScopeGenerationWork` — one claimed queue item; carries `scope.IngestionScope`
   and `scope.ScopeGeneration`
 - `Result` — output of one projection pass; includes `content.Result` and
@@ -133,8 +134,10 @@ See `doc.go` for the full godoc contract.
 - `internal/telemetry` — span, metric, and log helpers
 
 Graph writes route through `internal/storage/cypher.CanonicalNodeWriter` via the
-`CanonicalWriter` interface. The projector never calls a Neo4j or NornicDB driver
-directly.
+`CanonicalWriter` interface. Terraform-state facts are projected as
+`TerraformResource`, `TerraformModule`, and `TerraformOutput` nodes with
+lineage, serial, provider, tag hash, and correlation-anchor evidence kept as
+properties. The projector never calls a Neo4j or NornicDB driver directly.
 
 ## Telemetry
 

@@ -1,8 +1,10 @@
 // Package tfstate records the reducer contract for Terraform state-derived
 // canonical projection.
 //
-// The package is currently a scaffold: it names the projector components and
-// readiness checkpoints that future Terraform state collector and reducer work
-// must honor. RuntimeContractTemplate returns defensive copies for tests and
-// ADR fixtures. No live projection logic lives here yet.
+// This package owns the named Terraform-state reducer contract only:
+// component names and readiness checkpoints used by ADR fixtures and downstream
+// planning. Live source-local graph projection is implemented in
+// internal/projector, because that service already owns committed facts to
+// canonical graph nodes. RuntimeContractTemplate returns defensive copies so
+// tests and ADR fixtures cannot mutate the shared contract.
 package tfstate

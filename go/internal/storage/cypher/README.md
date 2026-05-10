@@ -42,7 +42,7 @@ an `Executor`.
 
 `CanonicalNodeWriter.Write` executes all canonical writes in named phases:
 `retract`, `repository_cleanup`, `repository`, `directories`, `files`,
-`entities`, `entity_retract`, `entity_containment`, `modules`, and
+`entities`, `entity_retract`, `entity_containment`, `terraform_state`, `modules`, and
 `structural_edges`. When the executor
 implements `GroupExecutor`, all phases are sent in a single atomic transaction.
 When it implements
@@ -61,6 +61,12 @@ so package entrypoint files can materialize without inventing a root
 directories or files. Entity property filtering also keeps high-volume analysis
 metadata such as `dead_code_root_kinds` out of canonical graph rows; the
 dead-code API merges that evidence from the content store by entity ID.
+
+Terraform-state rows are written as `TerraformResource`, `TerraformModule`, and
+`TerraformOutput` nodes keyed by `uid`. The rows keep lineage, serial, provider
+binding, tag-key hashes, and hashed correlation anchors on the node without
+creating cloud-resource joins. Those joins are reducer work after the
+Terraform-state readiness checkpoints exist.
 
 `EdgeWriter.WriteEdges` maps a `reducer.Domain` to a batched UNWIND Cypher
 template and dispatches rows in batches of `BatchSize` (default

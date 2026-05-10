@@ -1,35 +1,37 @@
 # internal/reducer/tfstate
 
-`reducer/tfstate` records the accepted scaffold for the Terraform
-state-derived canonical reducer family. The package names the projector
-components and the readiness checkpoints that future implementations must
-publish. No live projection logic exists here yet.
+`reducer/tfstate` records the accepted reducer-facing contract for Terraform
+state-derived canonical projection. The package names the projector components
+and readiness checkpoints that downstream work depends on. Live source-local
+projection now belongs to `internal/projector`, where committed facts are
+turned into canonical graph nodes.
 
 ## Where this fits in the pipeline
 
 ```mermaid
 flowchart LR
   TFStateCollector["Terraform state\ncollector (future)"] --> FactStore["Postgres\nfact store"]
-  FactStore --> ReducerQ["Reducer queue"]
-  ReducerQ --> TFStateReducer["reducer/tfstate\n(scaffold — not yet wired)"]
-  TFStateReducer --> PhaseRows["terraform_resource_uid\nterraform_module_uid\ncanonical_nodes_committed"]
+  FactStore --> ProjectorQ["Projector queue"]
+  ProjectorQ --> Projector["internal/projector\nTerraform-state canonical rows"]
+  Projector --> PhaseRows["terraform_resource_uid\nterraform_module_uid\ncanonical_nodes_committed"]
   PhaseRows --> DownstreamEdges["DSL evaluator\nedge domains"]
 ```
 
 ## Purpose
 
-Pin the `RuntimeContract` (component list and readiness checkpoints) for
+Pin the `RuntimeContract` component list and readiness checkpoints for
 Terraform state canonical projection so ADRs, test fixtures, and future
-reducer wiring share one source of truth. The exported helpers return
-defensive copies, and `RuntimeContract.Validate` rejects blank scaffold
-metadata before fixtures accept it.
+reducer work share one source of truth. The exported helpers return defensive
+copies, and `RuntimeContract.Validate` rejects blank contract metadata before
+fixtures accept it.
 
 ## Ownership boundary
 
-- Owns: the Terraform state scaffold contract (`RuntimeContract`,
+- Owns: the Terraform state reducer-facing contract (`RuntimeContract`,
   `PublishedCheckpoint`) and its `Validate` shape.
-- Does not own: live Terraform state collection, materialization, or graph
-  writes. None of those exist in this package today.
+- Does not own: live Terraform state collection or graph writes. Source-local
+  graph writes live in `internal/projector`; collector parsing lives in
+  `internal/collector/terraformstate`.
 
 ## Exported surface
 
@@ -57,13 +59,13 @@ The accepted scaffold:
 
 ## Telemetry
 
-None. Scaffold types only; runtime telemetry will be defined when the
-projector family is implemented.
+None. Runtime telemetry for Terraform-state graph writes follows the projector
+canonical-write stage.
 
 ## Gotchas / invariants
 
-- This is a scaffold. It does not produce facts, does not enqueue work, and
-  does not publish phase rows at runtime.
+- This package does not produce facts, enqueue work, or publish phase rows at
+  runtime. It records the contract that runtime code must satisfy.
 - Both accepted checkpoints are Phase 1 (`canonical_nodes_committed`)
   publications. Downstream domains that consume `resolved_relationships`
   derived from Terraform state canonical rows still require the post-Phase-3

@@ -9,7 +9,8 @@
 3. `go/internal/projector/runtime.go` — `Runtime.Project`; the four write
    stages and their ordering
 4. `go/internal/projector/canonical.go` and `canonical_builder.go` — the
-   `CanonicalMaterialization` shape and how it is built from facts
+   `CanonicalMaterialization` shape and how it is built from facts. Read
+   `tfstate_canonical.go` when touching Terraform-state projection.
 5. `go/internal/telemetry/instruments.go` and `contract.go` — metric and span
    names before adding new telemetry
 
@@ -28,6 +29,10 @@
 - **Repo-qualified paths** — `FileRow.Path` and `EntityRow.FilePath` are set to
   `repoPath/relative_path` to avoid cross-repo MERGE collisions. Enforced in
   `extractFiles` and `extractEntities` via `qualifyPath`.
+- **Terraform-state facts stay source-local** — `tfstate_canonical.go` projects
+  committed Terraform-state facts into canonical resource/module/output rows
+  without cloud joins. Cross-source AWS matching belongs in reducer domains
+  after the Terraform-state readiness checkpoints publish.
 - **Directory sort order** — `buildDirectoryChain` sorts by `Depth` ascending so
   parent directories exist before children during graph writes
   (`canonical_builder.go:191`).

@@ -92,6 +92,9 @@ func (r Runtime) writeCanonicalProjection(
 		"entity_count", len(mat.Entities),
 		"module_count", len(mat.Modules),
 		"import_count", len(mat.Imports),
+		"terraform_state_resource_count", len(mat.TerraformStateResources),
+		"terraform_state_module_count", len(mat.TerraformStateModules),
+		"terraform_state_output_count", len(mat.TerraformStateOutputs),
 	)
 
 	return nil
