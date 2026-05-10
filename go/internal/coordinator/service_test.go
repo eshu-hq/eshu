@@ -16,9 +16,13 @@ type fakeStore struct {
 	observed             []time.Time
 	desired              [][]workflow.DesiredCollectorInstance
 	instances            []workflow.CollectorInstance
+	createdRuns          []workflow.Run
+	enqueuedItems        []workflow.WorkItem
 	reapedClaims         []workflow.Claim
 	reconcileErr         error
 	listErr              error
+	createRunErr         error
+	enqueueErr           error
 	reapErr              error
 	runReconcileErr      error
 	reapCalls            int
@@ -37,6 +41,22 @@ func (f *fakeStore) ListCollectorInstances(context.Context) ([]workflow.Collecto
 		return nil, f.listErr
 	}
 	return append([]workflow.CollectorInstance(nil), f.instances...), nil
+}
+
+func (f *fakeStore) CreateRun(_ context.Context, run workflow.Run) error {
+	if f.createRunErr != nil {
+		return f.createRunErr
+	}
+	f.createdRuns = append(f.createdRuns, run)
+	return nil
+}
+
+func (f *fakeStore) EnqueueWorkItems(_ context.Context, items []workflow.WorkItem) error {
+	if f.enqueueErr != nil {
+		return f.enqueueErr
+	}
+	f.enqueuedItems = append(f.enqueuedItems, items...)
+	return nil
 }
 
 func (f *fakeStore) ReapExpiredClaims(_ context.Context, observedAt time.Time, limit int, requeueDelay time.Duration) ([]workflow.Claim, error) {

@@ -46,7 +46,10 @@ Types in this package flow through four phases of the workflow control plane:
    `ControlStore.EnqueueWorkItems` with a slice of `WorkItem` rows. Each
    `WorkItem` carries identity (`WorkItemID`, `RunID`, `CollectorKind`,
    `CollectorInstanceID`), a `FairnessKey` for cross-instance routing, and a
-   `WorkItemStatus` lifecycle value.
+   `WorkItemStatus` lifecycle value. Terraform-state work is planned before the
+   state file is opened, so its initial `GenerationID` and `SourceRunID` use a
+   candidate planning ID. The collector replaces that planning identity with the
+   real state generation after reading the state serial and lineage.
 
 3. **Claim lifecycle** — collector actors call `ControlStore.ClaimNextEligible`
    with a `ClaimSelector` to acquire a `WorkItem` and `Claim`. They advance the

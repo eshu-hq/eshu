@@ -66,8 +66,12 @@ func run(parent context.Context) error {
 
 	store := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: db})
 	serviceRunner := coordinator.Service{
-		Config:  cfg,
-		Store:   store,
+		Config: cfg,
+		Store:  store,
+		TerraformStatePlanner: coordinator.TerraformStateWorkPlanner{
+			GitReadiness: postgres.TerraformStateGitReadinessChecker{DB: postgres.SQLQueryer{DB: db}},
+			BackendFacts: postgres.TerraformStateBackendFactReader{DB: postgres.SQLQueryer{DB: db}},
+		},
 		Metrics: metrics,
 		Logger:  logger,
 	}
