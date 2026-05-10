@@ -6,6 +6,8 @@ import "fmt"
 // relationship that truthfully describes the edge.
 func codeCallRelationshipType(edge map[string]any) string {
 	switch anyToString(edge["call_kind"]) {
+	case "go.function_value_reference":
+		return "REFERENCES"
 	case "go.composite_literal_type_reference":
 		return "REFERENCES"
 	case "javascript.hapi_route_handler_reference":

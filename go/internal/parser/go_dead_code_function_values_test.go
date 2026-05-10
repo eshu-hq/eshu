@@ -63,6 +63,51 @@ func wire() {
 	}
 }
 
+func TestDefaultEngineParsePathGoEmitsFunctionValueReferenceCalls(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "function_values.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package roots
+
+type CLI struct {
+	HelpFunc func()
+}
+
+func helpFunc() {}
+func directCall() {}
+
+func wire() {
+	cli := CLI{HelpFunc: helpFunc}
+	directCall()
+	_ = cli
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	call := assertBucketItemByFieldValue(t, got, "function_calls", "name", "helpFunc")
+	assertStringFieldValue(t, call, "call_kind", "go.function_value_reference")
+	if bucketHasFieldValues(got, "function_calls", map[string]string{
+		"name":      "directCall",
+		"call_kind": "go.function_value_reference",
+	}) {
+		t.Fatalf("directCall emitted as a function value reference, want ordinary direct calls only")
+	}
+}
+
 func TestDefaultEngineParsePathGoEmitsMethodValueRootKinds(t *testing.T) {
 	t.Parallel()
 
@@ -104,4 +149,25 @@ func wire() {
 	if _, ok := assertFunctionByName(t, got, "unusedMethod")["dead_code_root_kinds"]; ok {
 		t.Fatalf("unusedMethod dead_code_root_kinds present, want absent for unreferenced method")
 	}
+}
+
+func bucketHasFieldValues(payload map[string]any, bucket string, fields map[string]string) bool {
+	items, ok := payload[bucket].([]map[string]any)
+	if !ok {
+		return false
+	}
+	for _, item := range items {
+		matches := true
+		for field, want := range fields {
+			value, _ := item[field].(string)
+			if value != want {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			return matches
+		}
+	}
+	return false
 }

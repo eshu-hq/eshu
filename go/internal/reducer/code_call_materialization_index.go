@@ -225,7 +225,7 @@ func addCodeCallRepoDirNameCandidate(
 	entityID string,
 ) {
 	dir := codeCallDirectoryKey(filePath)
-	if repositoryID == "" || dir == "" || name == "" || entityID == "" {
+	if repositoryID == "" || name == "" || entityID == "" {
 		return
 	}
 	if _, ok := candidates[repositoryID]; !ok {
@@ -242,8 +242,11 @@ func addCodeCallRepoDirNameCandidate(
 
 func codeCallDirectoryKey(filePath string) string {
 	normalized := normalizeCodeCallPath(filePath)
-	if normalized == "" || normalized == "." || !strings.Contains(normalized, "/") {
+	if normalized == "" || normalized == "." {
 		return ""
+	}
+	if !strings.Contains(normalized, "/") {
+		return "."
 	}
 	return normalizeCodeCallPath(filepath.Dir(normalized))
 }

@@ -151,6 +151,9 @@ func Parse(
 			}
 		}
 	})
+	for _, item := range goFunctionValueReferenceCalls(root, source) {
+		shared.AppendBucket(payload, "function_calls", item)
+	}
 
 	shared.SortNamedBucket(payload, "functions")
 	shared.SortNamedBucket(payload, "structs")
