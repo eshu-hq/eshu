@@ -28,6 +28,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		Stages                []StageSummary             `json:"stages"`
 		Domains               []domainBacklogJSON        `json:"domains"`
 		QueueBlockages        []queueBlockageJSON        `json:"queue_blockages"`
+		TerraformState        *terraformStateJSON        `json:"terraform_state,omitempty"`
 	}{
 		Version:               buildinfo.AppVersion(),
 		AsOf:                  report.AsOf.UTC().Format(time.RFC3339),
@@ -45,6 +46,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		Stages:                slices.Clone(report.StageSummaries),
 		Domains:               domainBacklogsJSON(report.DomainBacklogs),
 		QueueBlockages:        queueBlockagesJSON(report.QueueBlockages),
+		TerraformState:        terraformStateReportJSON(report.TerraformState),
 	}
 
 	return json.MarshalIndent(payload, "", "  ")
