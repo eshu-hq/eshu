@@ -1,7 +1,7 @@
 # Plugin Trust Model
 
-This document defines the minimum trust requirements for OCI-packaged collector
-plugins.
+This document defines the minimum trust requirements for optional Eshu
+components and OCI-packaged collector plugins.
 
 ## Goals
 
@@ -26,6 +26,10 @@ Before a plugin is activated, Eshu must verify:
   - only explicitly approved plugin identities may load
 - `strict`
   - allowlist plus signature/provenance verification required
+
+Installing a component is not the same as activating it. A component may be
+verified and installed in the local registry while still having no enabled
+collector instance. Claim-capable execution is a separate operator decision.
 
 ## Required Metadata
 
@@ -60,7 +64,6 @@ not silent key replacement.
 - guaranteeing safety of arbitrary plugin code beyond the stated trust checks
 - automatic approval of new publishers
 
-Stretch requirement:
-
-- build provenance or equivalent supply-chain attestation should be supported
-  where practical
+The first local component-manager slice supports disabled and allowlist checks.
+Strict mode fails closed until Sigstore/Cosign or equivalent provenance
+verification is wired in.

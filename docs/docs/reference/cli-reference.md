@@ -217,6 +217,7 @@ See [Local Data Root Spec](local-data-root-spec.md) and
 | `eshu delete --all` | Compatibility stub. Prints deletion guidance and exits non-zero. | No |
 | `eshu list` | List indexed repositories. | Yes |
 | `eshu add-package` | Compatibility stub. Prints package-indexing guidance and exits non-zero. | No |
+| `eshu component *` | Inspect, verify, install, list, enable, disable, and uninstall optional Eshu components. | No |
 | `eshu watch [path]` | Watch a local path and keep the graph updated. In local-host mode it now prints a live progress panel for indexing and projection instead of a fake percentage bar. | No |
 | `eshu unwatch <path>` | Compatibility stub. Prints watcher-lifecycle guidance and exits non-zero. | No |
 | `eshu watching` | Compatibility stub. Prints watcher-lifecycle guidance and exits non-zero. | No |
