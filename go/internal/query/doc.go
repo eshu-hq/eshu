@@ -29,7 +29,8 @@
 // benches/ and examples/ are treated like non-production roots for cleanup
 // analysis. Rust exactness blockers are reported in the analysis payload for
 // unresolved macro expansion, cfg and Cargo feature selection, semantic module
-// resolution, and trait dispatch. The
+// resolution, and trait dispatch, with observed blocker reporting for returned
+// candidates that carry parser metadata. The
 // analysis notes and modeled-root list use the same Java root family so callers
 // see why those entities were suppressed. The analysis payload names modeled
 // root kinds, includes Go function-literal reachable calls in the modeled Go

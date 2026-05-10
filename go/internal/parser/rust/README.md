@@ -17,8 +17,10 @@ method signatures.
 
 ## Exported Surface
 
-The package exposes `Parse` for full payload extraction and `PreScan` for
-dependency symbol discovery. `doc.go` carries the godoc contract for callers.
+The package exposes `Parse` for full payload extraction, `PreScan` for
+dependency symbol discovery, and `ResolveModuleRowFileCandidates` with
+`ModuleResolution` for filesystem candidate calculation from parser-emitted
+module rows. `doc.go` carries the godoc contract for callers.
 
 ## Dependencies
 
@@ -73,8 +75,17 @@ Items gated by `cfg` or `cfg_attr` carry `exactness_blockers=cfg_unresolved`;
 macro-origin module and import rows carry
 `exactness_blockers=macro_expansion_unavailable`.
 
-Arbitrary macro expansion and filesystem-backed module resolution are still not
-modeled. Add package-local tests before widening either claim.
+`parseCargoCfgManifest` is an intentionally bounded Cargo.toml scanner for the
+signals future cfg resolution needs: package name, workspace members, feature
+names, default feature members, and target cfg dependency sections. It ignores
+dynamic or unsupported TOML instead of guessing. `ResolveModuleRowFileCandidates`
+does not probe the filesystem; it returns Rust's candidate paths for direct
+module declarations, honors explicit `#[path = "..."]` rows, and leaves
+macro-origin rows blocked.
+
+Arbitrary macro expansion, Cargo feature selection, cfg evaluation, and
+filesystem-backed module resolution are still not modeled. Add package-local
+tests before widening either claim.
 
 ## Related Docs
 

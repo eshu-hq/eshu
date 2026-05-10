@@ -14,13 +14,18 @@
 // benchmark targets remain raw macro evidence. Module declaration path
 // candidates stay relative to the current file directory instead of probing the
 // filesystem, except explicit path attributes, which replace the candidate list
-// with the declared path. Item attributes may be multiline or share the item
-// line, while nested field and enum-variant attributes stay on owned annotation
-// rows. Cfg-gated items and macro-origin module/import rows name exactness
-// blockers so dead-code callers can explain why Rust remains derived. Impl
-// targets keep the receiver type and trim any trailing where clause.
-// PreScan derives repository symbol names from the same payload path so parent
-// parser pre-scan and full parse agree. The package preserves raw attributes
-// and generic clauses as evidence without inferring reachability from arbitrary
-// macro expansion, derives, or conditional attributes.
+// with the declared path; ResolveModuleRowFileCandidates exposes the same
+// candidate calculation without filesystem probing. A bounded Cargo.toml helper
+// scans package names, workspace members, feature names, default feature
+// members, and target cfg dependency sections for later cfg resolution work,
+// while ignoring dynamic TOML instead of guessing. Item attributes may be
+// multiline or share the item line, while nested field and enum-variant
+// attributes stay on owned annotation rows. Cfg-gated items and macro-origin
+// module/import rows name exactness blockers so dead-code callers can explain
+// why Rust remains derived. Impl targets keep the receiver type and trim any
+// trailing where clause. PreScan derives repository symbol names from the same
+// payload path so parent parser pre-scan and full parse agree. The package
+// preserves raw attributes and generic clauses as evidence without inferring
+// reachability from arbitrary macro expansion, derives, conditional attributes,
+// Cargo feature selection, or cfg evaluation.
 package rust

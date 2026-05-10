@@ -44,6 +44,7 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 		"iac_deadness_capability":                "iac_usage.reachability",
 		"dead_code_language_maturity":            deadCodeLanguageMaturityReport(),
 		"dead_code_language_exactness_blockers":  deadCodeLanguageExactnessBlockerReport(),
+		"dead_code_observed_exactness_blockers":  deadCodeObservedExactnessBlockerReport(results),
 		"modeled_entrypoints":                    []string{"go.main", "go.init", "python.__main__", "java.main_method"},
 		"modeled_framework_roots": []string{
 			"go.cobra_run_registration",

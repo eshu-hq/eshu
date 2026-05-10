@@ -94,6 +94,121 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 	}
 }
 
+func TestHandleDeadCodeReportsObservedRustExactnessBlockersFromContentMetadata(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+				return []map[string]any{
+					{
+						"entity_id": "rust-helper", "name": "helper", "labels": []any{"Function"},
+						"file_path": "src/lib.rs", "repo_id": "repo-1", "repo_name": "runtime", "language": "rust",
+					},
+					{
+						"entity_id": "rust-worker", "name": "worker", "labels": []any{"Function"},
+						"file_path": "src/worker.rs", "repo_id": "repo-1", "repo_name": "runtime", "language": "Rust",
+					},
+				}, nil
+			},
+		},
+		Content: fakeDeadCodeContentStore{
+			entities: map[string]EntityContent{
+				"rust-helper": {
+					EntityID:     "rust-helper",
+					RepoID:       "repo-1",
+					RelativePath: "src/lib.rs",
+					EntityType:   "Function",
+					EntityName:   "helper",
+					Language:     "rust",
+					SourceCache:  "fn helper() {}",
+					Metadata: map[string]any{
+						"exactness_blockers": []any{
+							"trait_dispatch_unresolved",
+							"cfg_unresolved",
+							"trait_dispatch_unresolved",
+						},
+					},
+				},
+				"rust-worker": {
+					EntityID:     "rust-worker",
+					RepoID:       "repo-1",
+					RelativePath: "src/worker.rs",
+					EntityType:   "Function",
+					EntityName:   "worker",
+					Language:     "Rust",
+					SourceCache:  "fn worker() {}",
+					Metadata: map[string]any{
+						"exactness_blockers": []string{"macro_expansion_unavailable"},
+					},
+				},
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code",
+		bytes.NewBufferString(`{"repo_id":"repo-1","limit":10}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	truth := resp["truth"].(map[string]any)
+	if got, want := truth["level"], "derived"; got != want {
+		t.Fatalf("truth[level] = %#v, want %#v", got, want)
+	}
+	data := resp["data"].(map[string]any)
+	analysis := data["analysis"].(map[string]any)
+	observed, ok := analysis["dead_code_observed_exactness_blockers"].(map[string]any)
+	if !ok {
+		t.Fatalf("analysis[dead_code_observed_exactness_blockers] type = %T, want map[string]any", analysis["dead_code_observed_exactness_blockers"])
+	}
+	assertQueryTestStringSliceEqual(t, observed["rust"], []string{
+		"cfg_unresolved",
+		"macro_expansion_unavailable",
+		"trait_dispatch_unresolved",
+	})
+}
+
+func TestBuildDeadCodeAnalysisReportsObservedRustExactnessBlockersFromGraphMetadata(t *testing.T) {
+	t.Parallel()
+
+	analysis := buildDeadCodeAnalysis([]map[string]any{
+		{
+			"entity_id": "rust-helper",
+			"language":  "rust",
+			"metadata": map[string]any{
+				"exactness_blockers": []any{
+					"trait_dispatch_unresolved",
+					"cfg_unresolved",
+					"cfg_unresolved",
+				},
+			},
+		},
+	}, nil, deadCodePolicyStats{})
+
+	observed, ok := analysis["dead_code_observed_exactness_blockers"].(map[string][]string)
+	if !ok {
+		t.Fatalf("analysis[dead_code_observed_exactness_blockers] type = %T, want map[string][]string", analysis["dead_code_observed_exactness_blockers"])
+	}
+	if got, want := observed["rust"], []string{"cfg_unresolved", "trait_dispatch_unresolved"}; !equalStringSlices(got, want) {
+		t.Fatalf("observed[rust] = %#v, want %#v", got, want)
+	}
+}
+
 func TestDeadCodeLanguageMaturityCoversParserSourceLanguages(t *testing.T) {
 	t.Parallel()
 
@@ -133,4 +248,21 @@ var deadCodeSourceParserKeys = map[string]bool{
 	"swift":      true,
 	"tsx":        true,
 	"typescript": true,
+}
+
+func assertQueryTestStringSliceEqual(t *testing.T, got any, want []string) {
+	t.Helper()
+
+	gotSlice, ok := got.([]any)
+	if !ok {
+		t.Fatalf("string slice type = %T, want []any", got)
+	}
+	if len(gotSlice) != len(want) {
+		t.Fatalf("string slice = %#v, want %#v", gotSlice, want)
+	}
+	for i, wantValue := range want {
+		if gotValue, ok := gotSlice[i].(string); !ok || gotValue != wantValue {
+			t.Fatalf("string slice = %#v, want %#v", gotSlice, want)
+		}
+	}
 }

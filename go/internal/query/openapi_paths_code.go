@@ -320,6 +320,11 @@ const openAPIPathsCode = `
                           "description": "Named blockers that prevent exact cleanup-safe dead-code truth for a language.",
                           "additionalProperties": {"type": "array", "items": {"type": "string"}}
                         },
+                        "dead_code_observed_exactness_blockers": {
+                          "type": "object",
+                          "description": "Named exactness blockers observed on returned candidates, grouped by language.",
+                          "additionalProperties": {"type": "array", "items": {"type": "string"}}
+                        },
                         "modeled_entrypoints": {"type": "array", "items": {"type": "string"}},
                         "modeled_public_api": {"type": "array", "items": {"type": "string"}},
                         "notes": {"type": "array", "items": {"type": "string"}}

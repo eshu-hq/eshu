@@ -1,5 +1,10 @@
 package query
 
+import (
+	"slices"
+	"strings"
+)
+
 const (
 	deadCodeMaturityDerived          = "derived"
 	deadCodeMaturityDerivedCandidate = "derived_candidate_only"
@@ -54,6 +59,38 @@ func deadCodeLanguageExactnessBlockerReport() map[string][]string {
 	report := make(map[string][]string, len(deadCodeLanguageExactnessBlockers))
 	for language, blockers := range deadCodeLanguageExactnessBlockers {
 		report[language] = append([]string(nil), blockers...)
+	}
+	return report
+}
+
+func deadCodeObservedExactnessBlockerReport(results []map[string]any) map[string][]string {
+	observed := make(map[string]map[string]struct{})
+	for _, result := range results {
+		language := strings.ToLower(strings.TrimSpace(StringVal(result, "language")))
+		if language == "" {
+			continue
+		}
+		metadata, _ := result["metadata"].(map[string]any)
+		for _, blocker := range StringSliceVal(metadata, "exactness_blockers") {
+			blocker = strings.TrimSpace(blocker)
+			if blocker == "" {
+				continue
+			}
+			if observed[language] == nil {
+				observed[language] = make(map[string]struct{})
+			}
+			observed[language][blocker] = struct{}{}
+		}
+	}
+
+	report := make(map[string][]string, len(observed))
+	for language, blockers := range observed {
+		values := make([]string, 0, len(blockers))
+		for blocker := range blockers {
+			values = append(values, blocker)
+		}
+		slices.Sort(values)
+		report[language] = values
 	}
 	return report
 }
