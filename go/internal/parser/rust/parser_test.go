@@ -214,6 +214,23 @@ func TestParseDoesNotMarkLibraryMainFunctionAsRoot(t *testing.T) {
 	}
 }
 
+func TestParseCapturesSameLineRustAttributes(t *testing.T) {
+	t.Parallel()
+
+	path := writeRustSource(t, "src/lib.rs", `#[test] fn inline_smoke() {}
+`)
+	parser := newRustParser(t)
+
+	payload, err := Parse(path, false, shared.Options{}, parser)
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	smoke := assertRustBucketName(t, payload, "functions", "inline_smoke")
+	assertRustStringSliceContains(t, smoke, "decorators", "#[test]")
+	assertRustStringSliceContains(t, smoke, "dead_code_root_kinds", "rust.test_function")
+}
+
 func newRustParser(t *testing.T) *tree_sitter.Parser {
 	t.Helper()
 

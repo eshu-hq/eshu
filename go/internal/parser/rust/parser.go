@@ -188,10 +188,11 @@ func appendRustFunction(
 	if rustContainsWord(prefix, "unsafe") {
 		item["unsafe"] = true
 	}
-	if attributes := rustLeadingAttributes(node, source); len(attributes) > 0 {
+	attributes := rustLeadingAttributes(node, source)
+	if len(attributes) > 0 {
 		item["decorators"] = attributes
 	}
-	if rootKinds := rustDeadCodeRootKinds(path, name, node, source); len(rootKinds) > 0 {
+	if rootKinds := rustDeadCodeRootKinds(path, name, attributes); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
 	if lifetimeParameters := rustFunctionLifetimeParameters(signature, name); len(lifetimeParameters) > 0 {

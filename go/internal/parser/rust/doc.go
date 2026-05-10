@@ -6,7 +6,8 @@
 // selected dead-code root evidence, and lifetime evidence. Bare Rust main
 // roots require a Cargo entrypoint path such as src/main.rs, src/bin, examples,
 // or build.rs, or direct runtime macro evidence, so library functions named
-// main do not become roots by name alone.
+// main do not become roots by name alone. Attributes may sit on the line before
+// a function or directly before the function on the same line.
 // PreScan derives repository symbol names from the same payload path so parent
 // parser pre-scan and full parse agree. The package intentionally preserves
 // some Rust syntax, such as brace imports, as raw evidence until a downstream

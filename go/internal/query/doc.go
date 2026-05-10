@@ -27,6 +27,7 @@
 // root kinds, includes Go function-literal reachable calls in the modeled Go
 // root list, reports reflection support, and counts parser-metadata suppressions
 // so callers can explain why an entity was not returned as a cleanup candidate.
+// The modeled-root list names the Rust root kinds the policy suppresses.
 // Unsupported language metadata and test fixtures are suppressed from default
 // cleanup candidates. The dead-code scan keeps raw candidate reads
 // label-scoped and repo-anchored, prefers

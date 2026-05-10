@@ -78,4 +78,30 @@ func TestHandleDeadCodeExcludesRustRootKindsFromMetadata(t *testing.T) {
 	if got, want := result["entity_id"], "rust-helper"; got != want {
 		t.Fatalf("results[0][entity_id] = %#v, want %#v", got, want)
 	}
+
+	analysis, ok := resp["analysis"].(map[string]any)
+	if !ok {
+		t.Fatalf("analysis type = %T, want map[string]any", resp["analysis"])
+	}
+	if got, want := analysis["framework_roots_from_parser_metadata"], float64(4); got != want {
+		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
+	}
+	roots, ok := analysis["modeled_framework_roots"].([]any)
+	if !ok {
+		t.Fatalf("analysis[modeled_framework_roots] type = %T, want []any", analysis["modeled_framework_roots"])
+	}
+	for _, rootKind := range []string{"rust.main_function", "rust.test_function", "rust.tokio_main", "rust.tokio_test"} {
+		if !queryTestStringSliceContains(roots, rootKind) {
+			t.Fatalf("analysis[modeled_framework_roots] missing %q in %#v", rootKind, roots)
+		}
+	}
+}
+
+func queryTestStringSliceContains(values []any, want string) bool {
+	for _, value := range values {
+		if got, ok := value.(string); ok && got == want {
+			return true
+		}
+	}
+	return false
 }

@@ -199,15 +199,14 @@ func rustVisibility(signature string) string {
 	return ""
 }
 
-func rustDeadCodeRootKinds(path string, name string, node *tree_sitter.Node, source []byte) []string {
+func rustDeadCodeRootKinds(path string, name string, attributes []string) []string {
 	rootKinds := make([]string, 0, 3)
-	attributes := rustLeadingAttributes(node, source)
 	if name == "main" && rustMainFunctionRootPath(path, attributes) {
 		rootKinds = appendUniqueString(rootKinds, "rust.main_function")
 	}
 	for _, attribute := range attributes {
-		path := rustAttributePath(attribute)
-		switch path {
+		attrPath := rustAttributePath(attribute)
+		switch attrPath {
 		case "test":
 			rootKinds = appendUniqueString(rootKinds, "rust.test_function")
 		case "tokio::main":
@@ -238,16 +237,19 @@ func rustLeadingAttributes(node *tree_sitter.Node, source []byte) []string {
 	if node == nil {
 		return nil
 	}
-	line := int(node.StartPosition().Row)
-	if line == 0 {
-		return nil
-	}
+	start := node.StartPosition()
+	line := int(start.Row)
 	lines := strings.Split(string(source), "\n")
 	if line > len(lines) {
 		line = len(lines)
 	}
 
 	attributes := make([]string, 0, 2)
+	if line < len(lines) {
+		if currentLineAttrs := rustLineAttributes(lines[line], int(start.Column)); len(currentLineAttrs) > 0 {
+			attributes = append(attributes, currentLineAttrs...)
+		}
+	}
 	for idx := line - 1; idx >= 0; idx-- {
 		trimmed := strings.TrimSpace(lines[idx])
 		if trimmed == "" {
@@ -260,6 +262,26 @@ func rustLeadingAttributes(node *tree_sitter.Node, source []byte) []string {
 	}
 	if len(attributes) == 0 {
 		return nil
+	}
+	return attributes
+}
+
+func rustLineAttributes(line string, beforeColumn int) []string {
+	if beforeColumn < 0 {
+		return nil
+	}
+	if beforeColumn > len(line) {
+		beforeColumn = len(line)
+	}
+	remaining := strings.TrimSpace(line[:beforeColumn])
+	attributes := make([]string, 0, 1)
+	for strings.HasPrefix(remaining, "#[") {
+		end := strings.Index(remaining, "]")
+		if end < 0 {
+			break
+		}
+		attributes = append(attributes, strings.TrimSpace(remaining[:end+1]))
+		remaining = strings.TrimSpace(remaining[end+1:])
 	}
 	return attributes
 }

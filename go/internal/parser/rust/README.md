@@ -36,9 +36,10 @@ headers. Functions now carry async, unsafe, visibility, and selected
 `dead_code_root_kinds` metadata. Bare `fn main` roots are limited to Cargo-shaped
 entrypoint paths such as `src/main.rs`, `build.rs`, `src/bin`, and `examples`;
 a `#[tokio::main]` attribute is direct root evidence. `#[test]` and
-`#[tokio::test]` are test roots. Const and static items are emitted through the
-`variables` bucket with `variable_kind`, `type` items through `type_aliases`, and
-`macro_rules!` definitions through `macros`.
+`#[tokio::test]` are test roots, whether the attribute is on its own line or
+directly before `fn` on the same line. Const and static items are emitted
+through the `variables` bucket with `variable_kind`, `type` items through
+`type_aliases`, and `macro_rules!` definitions through `macros`.
 
 Generic type parameters, derives, module items, attribute macros beyond the
 root cases above, and expanded brace-import symbols are not emitted as separate
