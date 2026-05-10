@@ -6,7 +6,9 @@ This package owns Terraform and Terragrunt HCL parsing for the parser engine.
 It reads HCL source, extracts Terraform blocks, resources, variables, outputs,
 modules, providers, data sources, locals, backends, imports, moved blocks,
 removed blocks, checks, lockfile providers, Terragrunt configs, dependencies,
-inputs, and local config asset paths, then returns the parser payload shape.
+inputs, local config asset paths, and Terragrunt `remote_state` blocks
+(including blocks inherited via the include chain), then returns the parser
+payload shape.
 
 ## Ownership boundary
 

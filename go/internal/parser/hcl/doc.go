@@ -8,4 +8,10 @@
 // configuration rows. The package owns HCL syntax parsing and local Terragrunt
 // helper-expression extraction, while registry dispatch and parse timing remain
 // in the parent parser package.
+//
+// Terragrunt parsing also extracts remote_state blocks into the
+// terragrunt_remote_states bucket and follows local include chains
+// (find_in_parent_folders, read_terragrunt_config, literal include paths) up
+// to a bounded depth so a child terragrunt.hcl that inherits its remote_state
+// from a parent file is recorded with the parent's backend evidence.
 package hcl

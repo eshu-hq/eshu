@@ -78,6 +78,10 @@ fall back to defaults rather than failing; malformed values fail fast.
   gauges against the `eshu_dp_workflow_coordinator_` prefix.
 - `ReconcileObservation`, `ReapObservation`, `RunReconciliationObservation` —
   value types passed to `Metrics` recording methods.
+- `TerraformStateWorkPlanner` — plans Terraform-state collection runs from
+  resolved discovery candidates. `BackendFacts` returns both Terraform backend
+  block candidates and Terragrunt remote_state candidates resolved into their
+  underlying backend kind, so the planner stays on one scheduler shape.
 
 ## Dependencies
 

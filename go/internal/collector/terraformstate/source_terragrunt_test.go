@@ -8,16 +8,16 @@ func TestTerragruntRemoteStateCandidateS3Backend(t *testing.T) {
 	t.Parallel()
 
 	row := map[string]any{
-		"backend_kind":             "s3",
-		"bucket":                   "app-tfstate-prod",
-		"bucket_is_literal":        true,
-		"key":                      "services/api/terraform.tfstate",
-		"key_is_literal":           true,
-		"region":                   "us-east-1",
-		"region_is_literal":        true,
-		"dynamodb_table":           "tfstate-locks-api",
+		"backend_kind":              "s3",
+		"bucket":                    "app-tfstate-prod",
+		"bucket_is_literal":         true,
+		"key":                       "services/api/terraform.tfstate",
+		"key_is_literal":            true,
+		"region":                    "us-east-1",
+		"region_is_literal":         true,
+		"dynamodb_table":            "tfstate-locks-api",
 		"dynamodb_table_is_literal": true,
-		"resolved_from":            "self",
+		"resolved_from":             "self",
 	}
 
 	candidate, ok := TerragruntRemoteStateCandidate("platform-infra", row)
@@ -51,10 +51,10 @@ func TestTerragruntRemoteStateCandidateLocalBackend(t *testing.T) {
 	t.Parallel()
 
 	row := map[string]any{
-		"backend_kind":     "local",
-		"path":             "/repos/platform-infra/env/prod/terraform.tfstate",
-		"path_is_literal":  true,
-		"resolved_from":    "self",
+		"backend_kind":    "local",
+		"path":            "/repos/platform-infra/env/prod/terraform.tfstate",
+		"path_is_literal": true,
+		"resolved_from":   "self",
 	}
 
 	candidate, ok := TerragruntRemoteStateCandidate("platform-infra", row)
