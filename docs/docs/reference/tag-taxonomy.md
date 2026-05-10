@@ -51,7 +51,7 @@ tagTaxonomy:
           live: production
 ```
 
-Precedence is account override, then collector-instance override, then
+Precedence is account override, then runtime-instance override, then
 first-party pack. Overrides can add aliases, disable aliases, or normalize
 values. They cannot rename canonical keys or mutate raw facts.
 
@@ -126,7 +126,7 @@ JSON responses expose the summary under `tag_taxonomy`:
       {"canonical_key": "environment", "alias": "env", "source": "first-party/aws-core"}
     ],
     "disabled_aliases": [
-      {"canonical_key": "owner", "alias": "business_unit", "source": "collector-instance"}
+      {"canonical_key": "owner", "alias": "business_unit", "source": "runtime-instance"}
     ],
     "missing_expected_tags": [
       {"canonical_key": "owner", "resource_type": "lambda_function", "count": 9}

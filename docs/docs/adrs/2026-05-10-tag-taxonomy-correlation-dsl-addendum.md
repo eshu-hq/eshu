@@ -80,7 +80,7 @@ tagTaxonomy:
 Override precedence is:
 
 1. Account override.
-2. Collector-instance override.
+2. Runtime-instance override.
 3. First-party alias pack.
 
 Overrides may add aliases, disable aliases, or normalize values for a
@@ -178,7 +178,7 @@ The admin surface must show:
       {"canonical_key": "environment", "alias": "env", "source": "first-party/aws-core"}
     ],
     "disabled_aliases": [
-      {"canonical_key": "owner", "alias": "business_unit", "source": "collector-instance"}
+      {"canonical_key": "owner", "alias": "business_unit", "source": "runtime-instance"}
     ],
     "missing_expected_tags": [
       {"canonical_key": "owner", "resource_type": "lambda_function", "count": 9}

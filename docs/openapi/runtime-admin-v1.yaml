@@ -411,6 +411,28 @@ components:
           type: string
         oldest_age_seconds:
           type: number
+    TagTaxonomySummary:
+      type: object
+      additionalProperties: false
+      properties:
+        alias_packs:
+          type: array
+          items: { type: string }
+        coverage:
+          type: array
+          items: { type: object, additionalProperties: true }
+        unknown_tag_keys:
+          type: array
+          items: { type: object, additionalProperties: true }
+        applied_aliases:
+          type: array
+          items: { type: object, additionalProperties: true }
+        disabled_aliases:
+          type: array
+          items: { type: object, additionalProperties: true }
+        missing_expected_tags:
+          type: array
+          items: { type: object, additionalProperties: true }
     StatusReport:
       type: object
       additionalProperties: false
@@ -472,3 +494,5 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/QueueBlockage"
+        tag_taxonomy:
+          $ref: "#/components/schemas/TagTaxonomySummary"
