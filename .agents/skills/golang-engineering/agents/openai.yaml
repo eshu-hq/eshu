@@ -1,0 +1,4 @@
+interface:
+  display_name: "Golang Engineering"
+  short_description: "Senior Go engineering workflow"
+  default_prompt: "Use $golang-engineering to implement or review a Go change with tests first."

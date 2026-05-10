@@ -11,7 +11,7 @@ a call shape that is bounded, scoped, and diagnosable.
 
 ## Call Contract
 
-Every list or search tool should have:
+Every list or search tool MUST have:
 
 - canonical scope such as `repo_id`, `workload_id`, `service_id`,
   `environment`, or an explicit `scope`
@@ -22,7 +22,7 @@ Every list or search tool should have:
 - structured envelope metadata: `truth.level`, `truth.profile`,
   `truth.freshness.state`, and `error`
 
-Prefer summary/count/handle calls before payload-heavy drilldowns. Do not fetch
+Prefer summary/count/handle calls before payload-heavy drilldowns. MUST NOT fetch
 large source bodies, relationship expansions, or whole-graph result sets until a
 cheap first call proves they are needed.
 
