@@ -92,10 +92,16 @@ func redactionMap(value redact.Value) map[string]any {
 }
 
 func sourceURI(source StateKey) string {
-	return fmt.Sprintf("terraform_state:%s:%s", source.BackendKind, locatorHash(source))
+	return fmt.Sprintf("terraform_state:%s:%s", source.BackendKind, LocatorHash(source))
+}
+
+// LocatorHash returns the durable hash used to correlate exact state locators
+// without exposing bucket names, object keys, or local paths.
+func LocatorHash(source StateKey) string {
+	sum := sha256.Sum256([]byte(string(source.BackendKind) + "\x00" + source.Locator + "\x00" + source.VersionID))
+	return hex.EncodeToString(sum[:])
 }
 
 func locatorHash(source StateKey) string {
-	sum := sha256.Sum256([]byte(string(source.BackendKind) + "\x00" + source.Locator + "\x00" + source.VersionID))
-	return hex.EncodeToString(sum[:])
+	return LocatorHash(source)
 }

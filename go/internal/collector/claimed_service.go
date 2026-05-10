@@ -155,6 +155,16 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		}
 		return nil
 	}
+	if collected.Unchanged {
+		stopHeartbeat()
+		if err := drainHeartbeatError(heartbeatErr); err != nil {
+			return err
+		}
+		if err := s.ControlStore.CompleteClaim(ctx, mutation); err != nil {
+			return fmt.Errorf("complete unchanged claimed %s work item: %w", s.claimedKindLabel(), err)
+		}
+		return nil
+	}
 	if err := validateClaimedGeneration(item, collected); err != nil {
 		stopHeartbeat()
 		if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", err)); failErr != nil {
@@ -182,6 +192,11 @@ func (s ClaimedService) commitCollected(
 	mutation workflow.ClaimMutation,
 	collected CollectedGeneration,
 ) error {
+	if s.Tracer != nil && s.CollectorKind == scope.CollectorTerraformState {
+		var span trace.Span
+		ctx, span = s.Tracer.Start(ctx, telemetry.SpanTerraformStateFactEmitBatch)
+		defer span.End()
+	}
 	if committer, ok := s.Committer.(ClaimedCommitter); ok {
 		return committer.CommitClaimedScopeGeneration(
 			ctx,

@@ -19,14 +19,15 @@ const (
 )
 
 type runtimeConfig struct {
-	Instance          workflow.DesiredCollectorInstance
-	OwnerID           string
-	PollInterval      time.Duration
-	ClaimLeaseTTL     time.Duration
-	HeartbeatInterval time.Duration
-	RedactionKey      redact.Key
-	SourceMaxBytes    int64
-	AWSRoleARN        string
+	Instance             workflow.DesiredCollectorInstance
+	OwnerID              string
+	PollInterval         time.Duration
+	ClaimLeaseTTL        time.Duration
+	HeartbeatInterval    time.Duration
+	RedactionKey         redact.Key
+	SourceMaxBytes       int64
+	AWSRoleARN           string
+	AWSDynamoDBLockTable string
 }
 
 type terraformStateRuntimeConfiguration struct {
@@ -34,7 +35,9 @@ type terraformStateRuntimeConfiguration struct {
 }
 
 type terraformStateRuntimeAWSConfiguration struct {
-	RoleARN string `json:"role_arn"`
+	RoleARN                 string `json:"role_arn"`
+	DynamoDBTable           string `json:"dynamodb_table"`
+	LegacyDynamoDBLockTable string `json:"dynamodb_lock_table"`
 }
 
 func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
@@ -94,16 +97,21 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 	if err != nil {
 		return runtimeConfig{}, err
 	}
+	awsDynamoDBLockTable, err := parseAWSDynamoDBLockTable(instance.Configuration)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
 
 	return runtimeConfig{
-		Instance:          instance,
-		OwnerID:           ownerID(getenv),
-		PollInterval:      pollInterval,
-		ClaimLeaseTTL:     claimLeaseTTL,
-		HeartbeatInterval: heartbeatInterval,
-		RedactionKey:      redactionKey,
-		SourceMaxBytes:    sourceMaxBytes,
-		AWSRoleARN:        awsRoleARN,
+		Instance:             instance,
+		OwnerID:              ownerID(getenv),
+		PollInterval:         pollInterval,
+		ClaimLeaseTTL:        claimLeaseTTL,
+		HeartbeatInterval:    heartbeatInterval,
+		RedactionKey:         redactionKey,
+		SourceMaxBytes:       sourceMaxBytes,
+		AWSRoleARN:           awsRoleARN,
+		AWSDynamoDBLockTable: awsDynamoDBLockTable,
 	}, nil
 }
 
@@ -176,6 +184,17 @@ func parseAWSRoleARN(raw string) (string, error) {
 		return "", fmt.Errorf("terraform_state runtime configuration: %w", err)
 	}
 	return strings.TrimSpace(config.AWS.RoleARN), nil
+}
+
+func parseAWSDynamoDBLockTable(raw string) (string, error) {
+	var config terraformStateRuntimeConfiguration
+	if err := json.Unmarshal([]byte(normalizeJSON(raw)), &config); err != nil {
+		return "", fmt.Errorf("terraform_state runtime configuration: %w", err)
+	}
+	if table := strings.TrimSpace(config.AWS.DynamoDBTable); table != "" {
+		return table, nil
+	}
+	return strings.TrimSpace(config.AWS.LegacyDynamoDBLockTable), nil
 }
 
 func ownerID(getenv func(string) string) string {

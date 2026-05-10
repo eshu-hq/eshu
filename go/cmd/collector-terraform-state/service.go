@@ -41,18 +41,22 @@ func buildClaimedService(
 
 	source := tfstateruntime.ClaimedSource{
 		Resolver: terraformstate.DiscoveryResolver{
-			Config:       discoveryConfig,
-			GitReadiness: postgres.TerraformStateGitReadinessChecker{DB: database},
-			BackendFacts: postgres.TerraformStateBackendFactReader{DB: database},
-			Tracer:       tracer,
-			Metrics:      discoveryMetrics,
+			Config:         discoveryConfig,
+			GitReadiness:   postgres.TerraformStateGitReadinessChecker{DB: database},
+			BackendFacts:   postgres.TerraformStateBackendFactReader{DB: database},
+			PriorSnapshots: postgres.TerraformStatePriorSnapshotReader{DB: database},
+			Tracer:         tracer,
+			Metrics:        discoveryMetrics,
 		},
 		SourceFactory: tfstateruntime.DefaultSourceFactory{
-			S3Client: newAWSS3ObjectClient(config.AWSRoleARN),
-			MaxBytes: config.SourceMaxBytes,
+			S3Client:                newAWSS3ObjectClient(config.AWSRoleARN),
+			S3FallbackLockTableName: config.AWSDynamoDBLockTable,
+			S3LockMetadataClient:    newAWSDynamoDBLockMetadataClient(config.AWSRoleARN),
+			MaxBytes:                config.SourceMaxBytes,
 		},
 		RedactionKey: config.RedactionKey,
 		Tracer:       tracer,
+		Instruments:  instruments,
 	}
 
 	return collector.ClaimedService{

@@ -51,6 +51,9 @@ Documentation fact kinds use these schema versions:
 - `documentation_entity_mention` — `1.0.0`
 - `documentation_claim_candidate` — `1.0.0`
 
+`documentation_section` uses schema version `1.1.0` and may include
+source-native `content` and `content_format` fields for updater diffing.
+
 Terraform state fact kinds also use schema version `1.0.0` for the first
 collector contract:
 

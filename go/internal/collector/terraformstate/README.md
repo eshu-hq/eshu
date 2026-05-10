@@ -29,6 +29,9 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   config used by the resolver.
 - `NewDiscoveryMetrics` registers the candidate counter used during discovery.
 - `Parse` turns one state stream into redacted Terraform-state facts.
+- Parser results include bounded operational stats for resource facts and
+  redactions by reason. Runtime code records those as metrics; raw values and
+  source locators stay out of labels.
 - `ReadSnapshotIdentity` streams only the top-level serial and lineage fields so
   runtime code can build the claimed generation identity without retaining raw
   state bytes.
@@ -57,9 +60,6 @@ AWS SDK wiring belong to integration slices outside the reader stack.
 - Redaction key material is mandatory before parsing.
 - Unknown provider-schema scalar attributes are redacted. Unknown composite
   attributes are dropped and represented by warning facts.
-
-## Next Slices
-
-- DynamoDB lock metadata read-only adapter.
-- Bounded parser memory fixture for large state files.
-- Source open, parser stream, and fact batch emission telemetry.
+- DynamoDB lock metadata is read-only and observational. The reader records the
+  digest and a lock ID hash, but consistency decisions still come from the
+  opened state body and durable generation metadata.

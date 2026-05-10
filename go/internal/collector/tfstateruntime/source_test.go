@@ -303,6 +303,7 @@ type fakeStateSource struct {
 	key        terraformstate.StateKey
 	state      string
 	observedAt time.Time
+	openErr    error
 	opens      int
 }
 
@@ -312,6 +313,9 @@ func (s *fakeStateSource) Identity() terraformstate.StateKey {
 
 func (s *fakeStateSource) Open(context.Context) (io.ReadCloser, terraformstate.SourceMetadata, error) {
 	s.opens++
+	if s.openErr != nil {
+		return nil, terraformstate.SourceMetadata{}, s.openErr
+	}
 	return io.NopCloser(strings.NewReader(s.state)), terraformstate.SourceMetadata{
 		ObservedAt: s.observedAt,
 		Size:       int64(len(s.state)),

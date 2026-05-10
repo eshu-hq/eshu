@@ -34,17 +34,40 @@ type StateKey struct {
 }
 
 // SourceMetadata describes the opened source stream without carrying raw bytes.
+// Lock metadata is observational evidence only; freshness and consistency
+// decisions must be based on the opened state body and durable generation data.
 type SourceMetadata struct {
-	ObservedAt   time.Time
-	Size         int64
-	ETag         string
-	LastModified time.Time
+	ObservedAt     time.Time
+	Size           int64
+	ETag           string
+	LastModified   time.Time
+	LockDigest     string
+	LockIDHash     string
+	LockObservedAt time.Time
 }
 
 // StateSource opens raw Terraform state as a bounded stream.
 type StateSource interface {
 	Identity() StateKey
 	Open(ctx context.Context) (io.ReadCloser, SourceMetadata, error)
+}
+
+// LockMetadataClient is the consumer-side read-only lock metadata interface.
+type LockMetadataClient interface {
+	ReadLockMetadata(ctx context.Context, input LockMetadataInput) (LockMetadataOutput, error)
+}
+
+// LockMetadataInput identifies one Terraform state lock metadata row to read.
+type LockMetadataInput struct {
+	TableName string
+	LockID    string
+	Region    string
+}
+
+// LockMetadataOutput carries only safe lock metadata derived from a read.
+type LockMetadataOutput struct {
+	Digest     string
+	ObservedAt time.Time
 }
 
 // ParseOptions carries the durable envelope and redaction context for parsing.
@@ -61,7 +84,9 @@ type ParseOptions struct {
 
 // ParseResult is the redacted fact output from one Terraform state parse.
 type ParseResult struct {
-	Facts []facts.Envelope
+	Facts             []facts.Envelope
+	ResourceFacts     int64
+	RedactionsApplied map[string]int64
 }
 
 // Validate checks the parse context before durable fact envelopes are emitted.

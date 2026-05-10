@@ -29,6 +29,9 @@ type CollectedGeneration struct {
 	Generation scope.ScopeGeneration
 	Facts      <-chan facts.Envelope
 	FactCount  int // estimated total for telemetry (may be approximate)
+	// Unchanged means a claimed source proved the work item has no new facts to
+	// commit, but the durable claim should still be completed.
+	Unchanged bool
 	// DiscoveryAdvisory is optional focused-run tuning evidence for the
 	// collected repository. It is not persisted with facts.
 	DiscoveryAdvisory *DiscoveryAdvisoryReport

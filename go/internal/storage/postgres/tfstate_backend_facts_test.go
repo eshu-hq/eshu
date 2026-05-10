@@ -23,7 +23,9 @@ func TestTerraformStateBackendFactReaderReturnsS3Candidates(t *testing.T) {
 					"key":"services/api/terraform.tfstate",
 					"key_is_literal":true,
 					"region":"us-east-1",
-					"region_is_literal":true
+					"region_is_literal":true,
+					"dynamodb_table":"tfstate-locks-api",
+					"dynamodb_table_is_literal":true
 				}]`),
 			}},
 		}},
@@ -56,6 +58,9 @@ func TestTerraformStateBackendFactReaderReturnsS3Candidates(t *testing.T) {
 	}
 	if got, want := candidate.Region, "us-east-1"; got != want {
 		t.Fatalf("candidate.Region = %q, want %q", got, want)
+	}
+	if got, want := candidate.DynamoDBTable, "tfstate-locks-api"; got != want {
+		t.Fatalf("candidate.DynamoDBTable = %q, want %q", got, want)
 	}
 
 	if got, want := len(db.queries), 1; got != want {
@@ -105,6 +110,93 @@ func TestTerraformStateBackendFactReaderSkipsNonExactCandidates(t *testing.T) {
 	}
 	if len(candidates) != 0 {
 		t.Fatalf("candidates = %#v, want none for non-exact backend facts", candidates)
+	}
+}
+
+func TestTerraformStateBackendFactReaderDoesNotCarryDynamicDynamoDBTable(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{
+			rows: [][]any{{
+				"repo-infra",
+				[]byte(`[{
+					"backend_kind":"s3",
+					"bucket":"app-tfstate-prod",
+					"bucket_is_literal":true,
+					"key":"services/api/terraform.tfstate",
+					"key_is_literal":true,
+					"region":"us-east-1",
+					"region_is_literal":true,
+					"dynamodb_table":"var.lock_table",
+					"dynamodb_table_is_literal":false
+				}]`),
+			}},
+		}},
+	}
+	reader := TerraformStateBackendFactReader{DB: db}
+
+	candidates, err := reader.TerraformStateCandidates(
+		context.Background(),
+		terraformstate.DiscoveryQuery{RepoIDs: []string{"repo-infra"}},
+	)
+	if err != nil {
+		t.Fatalf("TerraformStateCandidates() error = %v, want nil", err)
+	}
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(candidates) = %d, want %d", got, want)
+	}
+	if got := candidates[0].DynamoDBTable; got != "" {
+		t.Fatalf("DynamoDBTable = %q, want blank for dynamic table expression", got)
+	}
+}
+
+func TestTerraformStatePriorSnapshotReaderReturnsETagByLocatorHash(t *testing.T) {
+	t.Parallel()
+
+	stateKey := terraformstate.StateKey{
+		BackendKind: terraformstate.BackendS3,
+		Locator:     "s3://app-tfstate-prod/services/api/terraform.tfstate",
+	}
+	locatorHash := terraformstate.LocatorHash(stateKey)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{
+			rows: [][]any{{
+				locatorHash,
+				`"etag-123"`,
+				"terraform_state:state_snapshot:s3:locator-hash:lineage-123:serial:17",
+			}},
+		}},
+	}
+	reader := TerraformStatePriorSnapshotReader{DB: db}
+
+	metadata, err := reader.TerraformStatePriorSnapshotMetadata(
+		context.Background(),
+		[]terraformstate.StateKey{stateKey},
+	)
+	if err != nil {
+		t.Fatalf("TerraformStatePriorSnapshotMetadata() error = %v, want nil", err)
+	}
+	if got, want := metadata[stateKey].ETag, `"etag-123"`; got != want {
+		t.Fatalf("ETag = %q, want %q", got, want)
+	}
+	if got, want := metadata[stateKey].GenerationID, "terraform_state:state_snapshot:s3:locator-hash:lineage-123:serial:17"; got != want {
+		t.Fatalf("GenerationID = %q, want %q", got, want)
+	}
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	query := db.queries[0].query
+	for _, want := range []string{
+		"terraform_state_snapshot",
+		"locator_hash",
+		"active_generation_id",
+		"generation.status = 'active'",
+		"etag",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("query missing %q: %s", want, query)
+		}
 	}
 }
 

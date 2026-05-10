@@ -39,8 +39,10 @@ func (f SourceFactoryFunc) OpenSource(
 // DefaultSourceFactory opens the built-in local and S3 Terraform state source
 // types. S3 still depends on a caller-supplied read-only object client.
 type DefaultSourceFactory struct {
-	S3Client terraformstate.S3ObjectClient
-	MaxBytes int64
+	S3Client                terraformstate.S3ObjectClient
+	S3FallbackLockTableName string
+	S3LockMetadataClient    terraformstate.LockMetadataClient
+	MaxBytes                int64
 }
 
 // OpenSource implements SourceFactory.
@@ -66,13 +68,18 @@ func (f DefaultSourceFactory) OpenSource(
 		if err != nil {
 			return nil, err
 		}
+		lockTableName, lockID, lockClient := f.s3LockConfig(candidate, bucket, key)
 		stateSource, err := terraformstate.NewS3StateSource(terraformstate.S3SourceConfig{
-			Bucket:    bucket,
-			Key:       key,
-			Region:    candidate.Region,
-			VersionID: candidate.State.VersionID,
-			MaxBytes:  f.MaxBytes,
-			Client:    f.S3Client,
+			Bucket:        bucket,
+			Key:           key,
+			Region:        candidate.Region,
+			VersionID:     candidate.State.VersionID,
+			PreviousETag:  candidate.PreviousETag,
+			MaxBytes:      f.MaxBytes,
+			Client:        f.S3Client,
+			LockTableName: lockTableName,
+			LockID:        lockID,
+			LockClient:    lockClient,
 		})
 		if err != nil {
 			return nil, sourceFailure("build", candidate.State, err)
@@ -81,6 +88,21 @@ func (f DefaultSourceFactory) OpenSource(
 	default:
 		return nil, fmt.Errorf("unsupported terraform state backend kind %q", candidate.State.BackendKind)
 	}
+}
+
+func (f DefaultSourceFactory) s3LockConfig(
+	candidate terraformstate.DiscoveryCandidate,
+	bucket string,
+	key string,
+) (string, string, terraformstate.LockMetadataClient) {
+	tableName := strings.TrimSpace(candidate.DynamoDBTable)
+	if tableName == "" {
+		tableName = strings.TrimSpace(f.S3FallbackLockTableName)
+	}
+	if tableName == "" {
+		return "", "", nil
+	}
+	return tableName, bucket + "/" + key + "-md5", f.S3LockMetadataClient
 }
 
 // ClaimedSource resolves exact Terraform-state candidates and returns the one
@@ -92,6 +114,7 @@ type ClaimedSource struct {
 	RedactionRules redact.RuleSet
 	Clock          func() time.Time
 	Tracer         trace.Tracer
+	Instruments    *telemetry.Instruments
 }
 
 // NextClaimed implements collector.ClaimedSource for Terraform state work.
@@ -162,6 +185,7 @@ func (s ClaimedSource) collectCandidate(
 	}
 	stateSource, err := s.SourceFactory.OpenSource(ctx, candidate)
 	if err != nil {
+		s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "error")
 		return collector.CollectedGeneration{}, false, sourceFailure("build", candidate.State, err)
 	}
 	if stateSource == nil {
@@ -177,6 +201,15 @@ func (s ClaimedSource) collectCandidate(
 
 	identity, observedAt, err := s.readIdentity(ctx, stateSource)
 	if err != nil {
+		if errors.Is(err, terraformstate.ErrStateNotModified) {
+			s.recordS3NotModified(ctx, candidate.State.BackendKind)
+			s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "not_modified")
+			if strings.TrimSpace(candidate.PriorGenerationID) == "" && usesCandidatePlanningID(item) {
+				return collector.CollectedGeneration{}, false, nil
+			}
+			return collector.CollectedGeneration{Unchanged: true}, true, nil
+		}
+		s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "error")
 		return collector.CollectedGeneration{}, false, err
 	}
 	scopeValue, generationValue, err := generationForCandidate(candidate, sourceKey, identity, observedAt)
@@ -189,8 +222,12 @@ func (s ClaimedSource) collectCandidate(
 
 	result, _, err := s.parseCandidate(ctx, stateSource, scopeValue, generationValue, sourceKey, item.CurrentFencingToken)
 	if err != nil {
+		s.recordSnapshotObserved(ctx, sourceKey.BackendKind, "error")
 		return collector.CollectedGeneration{}, false, err
 	}
+	s.recordSnapshotObserved(ctx, sourceKey.BackendKind, "parsed")
+	s.recordResourceFacts(ctx, sourceKey.BackendKind, result.ResourceFacts)
+	s.recordRedactions(ctx, result.RedactionsApplied)
 	return collector.FactsFromSlice(scopeValue, generationValue, result.Facts), true, nil
 }
 
@@ -230,6 +267,7 @@ func (s ClaimedSource) parseCandidate(
 		ctx, span = s.Tracer.Start(ctx, telemetry.SpanTerraformStateParserStream)
 		defer span.End()
 	}
+	start := time.Now()
 	result, err := terraformstate.Parse(ctx, reader, terraformstate.ParseOptions{
 		Scope:          scopeValue,
 		Generation:     generationValue,
@@ -240,9 +278,11 @@ func (s ClaimedSource) parseCandidate(
 		RedactionRules: s.RedactionRules,
 		FencingToken:   fencingToken,
 	})
+	s.recordParseDuration(ctx, sourceKey.BackendKind, time.Since(start))
 	if err != nil {
 		return terraformstate.ParseResult{}, terraformstate.SourceMetadata{}, fmt.Errorf("parse terraform state: %w", err)
 	}
+	s.recordSnapshotBytes(ctx, sourceKey.BackendKind, metadata.Size)
 	return result, metadata, nil
 }
 

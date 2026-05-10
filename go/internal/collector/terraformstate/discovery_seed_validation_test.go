@@ -32,3 +32,22 @@ func TestDiscoveryCandidateValidateRejectsLocalVersionID(t *testing.T) {
 		t.Fatal("Validate() error = nil, want non-nil")
 	}
 }
+
+func TestCandidateFromSeedCarriesPriorETagMetadata(t *testing.T) {
+	t.Parallel()
+
+	candidate, err := candidateFromSeed(DiscoverySeed{
+		Kind:         BackendS3,
+		Bucket:       "tfstate-prod",
+		Key:          "services/api/terraform.tfstate",
+		Region:       "us-east-1",
+		PreviousETag: " \t\"etag-123\"\t ",
+	})
+	if err != nil {
+		t.Fatalf("candidateFromSeed() error = %v, want nil", err)
+	}
+
+	if got, want := candidate.PreviousETag, " \t\"etag-123\"\t "; got != want {
+		t.Fatalf("PreviousETag = %q, want opaque ETag %q", got, want)
+	}
+}

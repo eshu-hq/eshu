@@ -28,6 +28,7 @@ const (
 const (
 	MetricDimensionScopeID       = "scope_id"
 	MetricDimensionScopeKind     = "scope_kind"
+	MetricDimensionSource        = "source"
 	MetricDimensionSourceSystem  = "source_system"
 	MetricDimensionGenerationID  = "generation_id"
 	MetricDimensionCollectorKind = "collector_kind"
@@ -42,6 +43,9 @@ const (
 	MetricDimensionEdgeType      = "edge_type"
 	MetricDimensionWritePhase    = "write_phase"
 	MetricDimensionOutcome       = "outcome"
+	MetricDimensionBackendKind   = "backend_kind"
+	MetricDimensionResult        = "result"
+	MetricDimensionReason        = "reason"
 )
 
 // Span names define the stable data-plane tracing contract.
@@ -108,6 +112,7 @@ const (
 var metricDimensionKeys = []string{
 	MetricDimensionScopeID,
 	MetricDimensionScopeKind,
+	MetricDimensionSource,
 	MetricDimensionSourceSystem,
 	MetricDimensionGenerationID,
 	MetricDimensionCollectorKind,
@@ -122,6 +127,9 @@ var metricDimensionKeys = []string{
 	MetricDimensionEdgeType,
 	MetricDimensionWritePhase,
 	MetricDimensionOutcome,
+	MetricDimensionBackendKind,
+	MetricDimensionResult,
+	MetricDimensionReason,
 }
 
 var spanNames = []string{

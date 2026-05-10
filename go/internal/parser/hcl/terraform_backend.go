@@ -9,6 +9,7 @@ import (
 
 var discoverySafeBackendAttributes = map[string]struct{}{
 	"bucket":               {},
+	"dynamodb_table":       {},
 	"key":                  {},
 	"region":               {},
 	"workspace_key_prefix": {},

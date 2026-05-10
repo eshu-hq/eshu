@@ -32,7 +32,8 @@ func TestLoadRuntimeConfigSelectsTerraformStateInstance(t *testing.T) {
 					"display_name": "Terraform State Prod",
 					"configuration": {
 						"aws": {
-							"role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-read"
+							"role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-read",
+							"dynamodb_table": "tfstate-locks"
 						},
 						"discovery": {
 							"seeds": [
@@ -89,6 +90,45 @@ func TestLoadRuntimeConfigSelectsTerraformStateInstance(t *testing.T) {
 	}
 	if got, want := config.AWSRoleARN, "arn:aws:iam::123456789012:role/eshu-tfstate-read"; got != want {
 		t.Fatalf("AWSRoleARN = %q, want %q", got, want)
+	}
+	if got, want := config.AWSDynamoDBLockTable, "tfstate-locks"; got != want {
+		t.Fatalf("AWSDynamoDBLockTable = %q, want %q", got, want)
+	}
+}
+
+func TestLoadRuntimeConfigAcceptsLegacyDynamoDBLockTableName(t *testing.T) {
+	t.Parallel()
+
+	config, err := loadRuntimeConfig(func(key string) string {
+		values := map[string]string{
+			"ESHU_COLLECTOR_INSTANCES_JSON": `[
+				{
+					"instance_id": "terraform-state-prod",
+					"collector_kind": "terraform_state",
+					"mode": "continuous",
+					"enabled": true,
+					"claims_enabled": true,
+					"configuration": {
+						"aws": {
+							"dynamodb_lock_table": "legacy-tfstate-locks"
+						},
+						"discovery": {
+							"seeds": [
+								{"kind": "local", "path": "/tmp/prod.tfstate"}
+							]
+						}
+					}
+				}
+			]`,
+			"ESHU_TFSTATE_REDACTION_KEY": "test-redaction-key",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
+	}
+	if got, want := config.AWSDynamoDBLockTable, "legacy-tfstate-locks"; got != want {
+		t.Fatalf("AWSDynamoDBLockTable = %q, want %q", got, want)
 	}
 }
 

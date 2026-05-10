@@ -36,6 +36,23 @@ flowchart LR
 - `DefaultSourceFactory` opens local files directly and S3 objects through a
   caller-supplied read-only `terraformstate.S3ObjectClient`.
 
+## Telemetry
+
+`ClaimedSource` records Terraform-state reader metrics when instruments are
+provided:
+
+- snapshot observations by backend and result
+- source size after the final successful parse
+- streaming parse duration
+- resource fact count by backend
+- redactions and safe drops by policy reason
+- S3 conditional-read not-modified outcomes
+
+The runtime also uses the Terraform-state span family from
+`go/internal/telemetry`: source open, parser stream, and fact batch handoff. Do
+not add raw source locators, bucket names, local paths, or work item IDs as
+metric labels.
+
 ## Invariants
 
 - Raw state bytes stay inside `terraformstate.StateSource` readers and parser

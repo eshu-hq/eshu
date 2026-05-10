@@ -207,6 +207,25 @@ func TestParserSkipsLargeIgnoredTopLevelFields(t *testing.T) {
 	requireFactKinds(t, result, facts.TerraformStateSnapshotFactKind)
 }
 
+func TestParserPersistsOpaqueSnapshotETag(t *testing.T) {
+	t.Parallel()
+
+	options := parseFixtureOptions(t)
+	options.Metadata = terraformstate.SourceMetadata{ETag: `"opaque-etag"`}
+	result, err := terraformstate.Parse(
+		context.Background(),
+		strings.NewReader(`{"serial":17,"lineage":"lineage-123","resources":[]}`),
+		options,
+	)
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	snapshot := factByKind(t, result.Facts, facts.TerraformStateSnapshotFactKind)
+	if got, want := snapshot.Payload["etag"], `"opaque-etag"`; got != want {
+		t.Fatalf("snapshot etag = %q, want %q", got, want)
+	}
+}
+
 func TestParserRejectsTrailingBytes(t *testing.T) {
 	t.Parallel()
 
@@ -338,7 +357,7 @@ func parseFixtureFacts(t *testing.T, state string) []facts.Envelope {
 	return result.Facts
 }
 
-func parseFixtureOptions(t *testing.T) terraformstate.ParseOptions {
+func parseFixtureOptions(t testing.TB) terraformstate.ParseOptions {
 	t.Helper()
 
 	key, err := redact.NewKey([]byte("test-redaction-key"))

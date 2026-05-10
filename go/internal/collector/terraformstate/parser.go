@@ -57,21 +57,28 @@ func Parse(ctx context.Context, reader io.Reader, options ParseOptions) (ParseRe
 	decoder := json.NewDecoder(reader)
 	decoder.UseNumber()
 	parser := stateParser{
-		decoder: decoder,
-		options: options,
+		decoder:    decoder,
+		options:    options,
+		redactions: map[string]int64{},
 	}
 	if err := parser.parse(); err != nil {
 		return ParseResult{}, err
 	}
-	return ParseResult{Facts: parser.facts}, nil
+	return ParseResult{
+		Facts:             parser.facts,
+		ResourceFacts:     parser.resourceFacts,
+		RedactionsApplied: parser.redactions,
+	}, nil
 }
 
 type stateParser struct {
-	decoder  *json.Decoder
-	options  ParseOptions
-	snapshot snapshotMetadata
-	facts    []facts.Envelope
-	warnings []warningPayload
+	decoder       *json.Decoder
+	options       ParseOptions
+	snapshot      snapshotMetadata
+	facts         []facts.Envelope
+	warnings      []warningPayload
+	resourceFacts int64
+	redactions    map[string]int64
 }
 
 func (p *stateParser) parse() error {
@@ -202,9 +209,12 @@ func (p *stateParser) emitOutput(name string, output outputPayload) {
 	source := "outputs." + name
 	if output.Sensitive {
 		if output.HasScalar {
-			payload["value"] = redactionMap(redact.Scalar(output.Value, "sensitive_output", source, p.options.RedactionKey))
+			reason := "sensitive_output"
+			payload["value"] = redactionMap(redact.Scalar(output.Value, reason, source, p.options.RedactionKey))
+			p.recordRedaction(reason)
 		} else if output.HasValue {
 			payload["value_shape"] = "composite"
+			p.recordRedaction("sensitive_composite_output")
 			p.warnings = append(p.warnings, warningPayload{
 				WarningKind: "output_value_dropped",
 				Reason:      "sensitive_composite_output",
@@ -360,7 +370,19 @@ func (p *stateParser) emitResourceInstance(resource resourceContext, instance in
 		"attributes": attributes,
 	}
 	p.facts = append(p.facts, p.envelope(facts.TerraformStateResourceFactKind, "resource:"+address, payload, address))
+	p.resourceFacts++
 	return nil
+}
+
+func (p *stateParser) recordRedaction(reason string) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "unknown"
+	}
+	if p.redactions == nil {
+		p.redactions = map[string]int64{}
+	}
+	p.redactions[reason]++
 }
 
 func (p *stateParser) emitSnapshot() {
@@ -372,6 +394,9 @@ func (p *stateParser) emitSnapshot() {
 		"backend_kind":      string(p.options.Source.BackendKind),
 		"locator_hash":      locatorHash(p.options.Source),
 		"source_size_bytes": p.options.Metadata.Size,
+	}
+	if strings.TrimSpace(p.options.Metadata.ETag) != "" {
+		payload["etag"] = p.options.Metadata.ETag
 	}
 	p.facts = append([]facts.Envelope{
 		p.envelope(facts.TerraformStateSnapshotFactKind, "snapshot", payload, locatorHash(p.options.Source)),

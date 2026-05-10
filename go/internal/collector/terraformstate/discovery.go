@@ -32,21 +32,28 @@ type DiscoveryConfig struct {
 
 // DiscoverySeed is one exact operator-approved state locator.
 type DiscoverySeed struct {
-	Kind      BackendKind
-	Path      string
-	RepoID    string
-	Bucket    string
-	Key       string
-	Region    string
-	VersionID string
+	Kind          BackendKind
+	Path          string
+	RepoID        string
+	Bucket        string
+	Key           string
+	Region        string
+	VersionID     string
+	DynamoDBTable string
+	// PreviousETag is durable freshness metadata from a previous S3 read. It is
+	// intentionally not populated from collector configuration JSON.
+	PreviousETag string
 }
 
 // DiscoveryCandidate is one exact Terraform state object to inspect later.
 type DiscoveryCandidate struct {
-	State  StateKey
-	Source DiscoveryCandidateSource
-	RepoID string
-	Region string
+	State             StateKey
+	Source            DiscoveryCandidateSource
+	RepoID            string
+	Region            string
+	DynamoDBTable     string
+	PreviousETag      string
+	PriorGenerationID string
 }
 
 // DiscoveryQuery scopes graph-backed Terraform backend fact reads.
@@ -64,6 +71,19 @@ type BackendFactReader interface {
 	TerraformStateCandidates(context.Context, DiscoveryQuery) ([]DiscoveryCandidate, error)
 }
 
+// PriorSnapshotMetadataReader reads durable freshness metadata from already
+// committed Terraform-state snapshot facts.
+type PriorSnapshotMetadataReader interface {
+	TerraformStatePriorSnapshotMetadata(context.Context, []StateKey) (map[StateKey]PriorSnapshotMetadata, error)
+}
+
+// PriorSnapshotMetadata carries freshness metadata safe to reuse for a later
+// exact state read.
+type PriorSnapshotMetadata struct {
+	ETag         string
+	GenerationID string
+}
+
 // DiscoveryMetrics records resolved Terraform state discovery candidate counts.
 type DiscoveryMetrics interface {
 	RecordCandidates(context.Context, DiscoveryCandidateSource, int)
@@ -72,11 +92,12 @@ type DiscoveryMetrics interface {
 // DiscoveryResolver resolves exact Terraform state candidates without opening
 // any raw state source.
 type DiscoveryResolver struct {
-	Config       DiscoveryConfig
-	GitReadiness GitReadinessChecker
-	BackendFacts BackendFactReader
-	Tracer       trace.Tracer
-	Metrics      DiscoveryMetrics
+	Config         DiscoveryConfig
+	GitReadiness   GitReadinessChecker
+	BackendFacts   BackendFactReader
+	PriorSnapshots PriorSnapshotMetadataReader
+	Tracer         trace.Tracer
+	Metrics        DiscoveryMetrics
 }
 
 // WaitingOnGitGenerationError means graph discovery is blocked on Git evidence.
@@ -136,18 +157,15 @@ func (r DiscoveryResolver) Resolve(ctx context.Context) ([]DiscoveryCandidate, e
 	}
 
 	if !r.Config.Graph {
-		r.recordCandidates(ctx, counts)
-		return candidates, nil
+		return r.finishResolve(ctx, counts, candidates)
 	}
 	repoIDs := normalizedRepoIDs(r.Config.LocalRepos)
 	if len(repoIDs) == 0 {
-		r.recordCandidates(ctx, counts)
-		return candidates, nil
+		return r.finishResolve(ctx, counts, candidates)
 	}
 	if err := r.requireGitReady(ctx, repoIDs); err != nil {
 		if IsWaitingOnGitGeneration(err) && len(candidates) > 0 {
-			r.recordCandidates(ctx, counts)
-			return candidates, nil
+			return r.finishResolve(ctx, counts, candidates)
 		}
 		return nil, err
 	}
@@ -170,7 +188,43 @@ func (r DiscoveryResolver) Resolve(ctx context.Context) ([]DiscoveryCandidate, e
 		}
 		candidates = appendUniqueCandidate(candidates, seen, counts, candidate)
 	}
+	return r.finishResolve(ctx, counts, candidates)
+}
+
+func (r DiscoveryResolver) finishResolve(
+	ctx context.Context,
+	counts map[DiscoveryCandidateSource]int,
+	candidates []DiscoveryCandidate,
+) ([]DiscoveryCandidate, error) {
+	var err error
+	candidates, err = r.withPriorSnapshotMetadata(ctx, candidates)
+	if err != nil {
+		return nil, err
+	}
 	r.recordCandidates(ctx, counts)
+	return candidates, nil
+}
+
+func (r DiscoveryResolver) withPriorSnapshotMetadata(
+	ctx context.Context,
+	candidates []DiscoveryCandidate,
+) ([]DiscoveryCandidate, error) {
+	if r.PriorSnapshots == nil || len(candidates) == 0 {
+		return candidates, nil
+	}
+	states := make([]StateKey, 0, len(candidates))
+	for _, candidate := range candidates {
+		states = append(states, candidate.State)
+	}
+	metadata, err := r.PriorSnapshots.TerraformStatePriorSnapshotMetadata(ctx, states)
+	if err != nil {
+		return nil, fmt.Errorf("read terraform state prior snapshot metadata: %w", err)
+	}
+	for index := range candidates {
+		prior := metadata[candidates[index].State]
+		candidates[index].PreviousETag = prior.ETag
+		candidates[index].PriorGenerationID = prior.GenerationID
+	}
 	return candidates, nil
 }
 
@@ -226,6 +280,12 @@ func (c DiscoveryCandidate) Validate() error {
 	}
 	if c.Source == DiscoveryCandidateSourceGraph && c.State.BackendKind == BackendLocal {
 		return fmt.Errorf("local state candidates require an explicit operator seed")
+	}
+	if strings.TrimSpace(c.DynamoDBTable) != c.DynamoDBTable {
+		return fmt.Errorf("terraform state dynamodb table must not have surrounding whitespace")
+	}
+	if c.DynamoDBTable != "" && c.State.BackendKind != BackendS3 {
+		return fmt.Errorf("terraform state dynamodb table is only supported for s3 candidates")
 	}
 	return nil
 }
@@ -334,9 +394,11 @@ func candidateFromSeed(seed DiscoverySeed) (DiscoveryCandidate, error) {
 				Locator:     "s3://" + bucket + "/" + key,
 				VersionID:   strings.TrimSpace(seed.VersionID),
 			},
-			Source: DiscoveryCandidateSourceSeed,
-			RepoID: strings.TrimSpace(seed.RepoID),
-			Region: region,
+			Source:        DiscoveryCandidateSourceSeed,
+			RepoID:        strings.TrimSpace(seed.RepoID),
+			Region:        region,
+			DynamoDBTable: strings.TrimSpace(seed.DynamoDBTable),
+			PreviousETag:  seed.PreviousETag,
 		}, nil
 	default:
 		return DiscoveryCandidate{}, fmt.Errorf("kind %q is unsupported", kind)

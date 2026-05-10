@@ -40,6 +40,46 @@ func TestClaimedServiceUsesClassifiedCollectFailure(t *testing.T) {
 	}
 }
 
+func TestClaimedServiceCompletesUnchangedTerraformStateClaimWithoutCommit(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.May, 10, 11, 0, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	item.CollectorKind = scope.CollectorTerraformState
+	item.SourceSystem = string(scope.CollectorTerraformState)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+	}
+	store.heartbeat = func(context.Context, workflow.ClaimMutation) error {
+		cancel()
+		return nil
+	}
+	source := &stubClaimedSource{
+		collected: CollectedGeneration{Unchanged: true},
+		ok:        true,
+	}
+	committer := &stubClaimedCommitter{}
+	service := testClaimedService(now, claim, scope.CollectorTerraformState, store, source, committer)
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got, want := store.completeCalls, 1; got != want {
+		t.Fatalf("complete calls = %d, want %d", got, want)
+	}
+	if got, want := store.releaseCalls, 0; got != want {
+		t.Fatalf("release calls = %d, want %d", got, want)
+	}
+	if got, want := committer.claimedCalls, 0; got != want {
+		t.Fatalf("claimed commit calls = %d, want %d", got, want)
+	}
+}
+
 func TestClaimedGenerationAllowsTerraformStateCandidateGenerationIDs(t *testing.T) {
 	t.Parallel()
 

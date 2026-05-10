@@ -392,36 +392,6 @@ func TestDiscoveryRecordsCandidateMetricsBySource(t *testing.T) {
 	}
 }
 
-func TestParseDiscoveryConfigMapsCollectorJSON(t *testing.T) {
-	t.Parallel()
-
-	config, err := ParseDiscoveryConfig(`{
-		"discovery": {
-			"graph": true,
-			"local_repos": ["platform-infra"],
-			"seeds": [{
-				"kind": "s3",
-				"bucket": "app-tfstate-prod",
-				"key": "services/api/terraform.tfstate",
-				"region": "us-east-1",
-				"repo_id": "platform-infra"
-			}]
-		}
-	}`)
-	if err != nil {
-		t.Fatalf("ParseDiscoveryConfig() error = %v, want nil", err)
-	}
-	if !config.Graph {
-		t.Fatal("Graph = false, want true")
-	}
-	if got, want := config.LocalRepos, []string{"platform-infra"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("LocalRepos = %#v, want %#v", got, want)
-	}
-	if got, want := config.Seeds[0].Kind, BackendS3; got != want {
-		t.Fatalf("Seeds[0].Kind = %q, want %q", got, want)
-	}
-}
-
 func TestNewDiscoveryMetricsPublishesCandidateCounter(t *testing.T) {
 	t.Parallel()
 

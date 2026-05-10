@@ -38,6 +38,12 @@ The stable span families are:
 - `query.documentation_packet_freshness`
 - `query.dead_iac`
 - `query.infra_resource_search`
+- `tfstate.collector.claim.process`
+- `tfstate.discovery.resolve`
+- `tfstate.source.open`
+- `tfstate.parser.stream`
+- `tfstate.fact.emit_batch`
+- `tfstate.coordinator.complete`
 - `postgres.exec`
 - `postgres.query`
 - `neo4j.execute`
@@ -98,6 +104,22 @@ Legacy span families such as `eshu.http.*`, `eshu.mcp.*`, `eshu.query.*`,
 
 The read path is intentionally narrower than the write path. It traces storage
 cost, not a synthetic transport-layer span family.
+
+### Terraform-state path
+
+- `tfstate.collector.claim.process` wraps one claimed Terraform-state work item
+- `tfstate.discovery.resolve` covers exact candidate resolution from seeds and
+  committed Git backend facts
+- `tfstate.source.open` covers local file or read-only S3 source opens
+- `tfstate.parser.stream` covers the streaming state parser
+- `tfstate.fact.emit_batch` covers the handoff from parsed facts into the
+  claimed generation returned to the shared collector service
+
+Use these spans with the Terraform-state metrics when a state claim is slow.
+Metric labels stay bounded, and traces must stay safe too: use backend kind,
+result, claim/run correlation, and locator hashes from Terraform-state facts.
+Do not put raw bucket names, object keys, local paths, or full state locators in
+span attributes.
 
 ## Key Attributes
 

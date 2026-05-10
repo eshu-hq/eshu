@@ -62,6 +62,11 @@ Core documentation facts use these fact kinds and schema versions:
 - `documentation_entity_mention` — `1.0.0`
 - `documentation_claim_candidate` — `1.0.0`
 
+`documentation_section` uses schema version `1.1.0` so Confluence sections can
+carry source-native `content` and `content_format` for updater diffing. Those
+fields are source evidence and must be handled with the same access-control and
+privacy care as source excerpts.
+
 Core Terraform state facts use these fact kinds at schema version `1.0.0`:
 
 - `terraform_state_snapshot`
