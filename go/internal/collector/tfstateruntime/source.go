@@ -39,8 +39,10 @@ func (f SourceFactoryFunc) OpenSource(
 // DefaultSourceFactory opens the built-in local and S3 Terraform state source
 // types. S3 still depends on a caller-supplied read-only object client.
 type DefaultSourceFactory struct {
-	S3Client terraformstate.S3ObjectClient
-	MaxBytes int64
+	S3Client                terraformstate.S3ObjectClient
+	S3FallbackLockTableName string
+	S3LockMetadataClient    terraformstate.LockMetadataClient
+	MaxBytes                int64
 }
 
 // OpenSource implements SourceFactory.
@@ -66,14 +68,18 @@ func (f DefaultSourceFactory) OpenSource(
 		if err != nil {
 			return nil, err
 		}
+		lockTableName, lockID, lockClient := f.s3LockConfig(candidate, bucket, key)
 		stateSource, err := terraformstate.NewS3StateSource(terraformstate.S3SourceConfig{
-			Bucket:       bucket,
-			Key:          key,
-			Region:       candidate.Region,
-			VersionID:    candidate.State.VersionID,
-			PreviousETag: candidate.PreviousETag,
-			MaxBytes:     f.MaxBytes,
-			Client:       f.S3Client,
+			Bucket:        bucket,
+			Key:           key,
+			Region:        candidate.Region,
+			VersionID:     candidate.State.VersionID,
+			PreviousETag:  candidate.PreviousETag,
+			MaxBytes:      f.MaxBytes,
+			Client:        f.S3Client,
+			LockTableName: lockTableName,
+			LockID:        lockID,
+			LockClient:    lockClient,
 		})
 		if err != nil {
 			return nil, sourceFailure("build", candidate.State, err)
@@ -82,6 +88,21 @@ func (f DefaultSourceFactory) OpenSource(
 	default:
 		return nil, fmt.Errorf("unsupported terraform state backend kind %q", candidate.State.BackendKind)
 	}
+}
+
+func (f DefaultSourceFactory) s3LockConfig(
+	candidate terraformstate.DiscoveryCandidate,
+	bucket string,
+	key string,
+) (string, string, terraformstate.LockMetadataClient) {
+	tableName := strings.TrimSpace(candidate.DynamoDBTable)
+	if tableName == "" {
+		tableName = strings.TrimSpace(f.S3FallbackLockTableName)
+	}
+	if tableName == "" {
+		return "", "", nil
+	}
+	return tableName, bucket + "/" + key + "-md5", f.S3LockMetadataClient
 }
 
 // ClaimedSource resolves exact Terraform-state candidates and returns the one

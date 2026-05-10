@@ -23,7 +23,9 @@ func TestTerraformStateBackendFactReaderReturnsS3Candidates(t *testing.T) {
 					"key":"services/api/terraform.tfstate",
 					"key_is_literal":true,
 					"region":"us-east-1",
-					"region_is_literal":true
+					"region_is_literal":true,
+					"dynamodb_table":"tfstate-locks-api",
+					"dynamodb_table_is_literal":true
 				}]`),
 			}},
 		}},
@@ -56,6 +58,9 @@ func TestTerraformStateBackendFactReaderReturnsS3Candidates(t *testing.T) {
 	}
 	if got, want := candidate.Region, "us-east-1"; got != want {
 		t.Fatalf("candidate.Region = %q, want %q", got, want)
+	}
+	if got, want := candidate.DynamoDBTable, "tfstate-locks-api"; got != want {
+		t.Fatalf("candidate.DynamoDBTable = %q, want %q", got, want)
 	}
 
 	if got, want := len(db.queries), 1; got != want {
@@ -105,6 +110,44 @@ func TestTerraformStateBackendFactReaderSkipsNonExactCandidates(t *testing.T) {
 	}
 	if len(candidates) != 0 {
 		t.Fatalf("candidates = %#v, want none for non-exact backend facts", candidates)
+	}
+}
+
+func TestTerraformStateBackendFactReaderDoesNotCarryDynamicDynamoDBTable(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{
+			rows: [][]any{{
+				"repo-infra",
+				[]byte(`[{
+					"backend_kind":"s3",
+					"bucket":"app-tfstate-prod",
+					"bucket_is_literal":true,
+					"key":"services/api/terraform.tfstate",
+					"key_is_literal":true,
+					"region":"us-east-1",
+					"region_is_literal":true,
+					"dynamodb_table":"var.lock_table",
+					"dynamodb_table_is_literal":false
+				}]`),
+			}},
+		}},
+	}
+	reader := TerraformStateBackendFactReader{DB: db}
+
+	candidates, err := reader.TerraformStateCandidates(
+		context.Background(),
+		terraformstate.DiscoveryQuery{RepoIDs: []string{"repo-infra"}},
+	)
+	if err != nil {
+		t.Fatalf("TerraformStateCandidates() error = %v, want nil", err)
+	}
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(candidates) = %d, want %d", got, want)
+	}
+	if got := candidates[0].DynamoDBTable; got != "" {
+		t.Fatalf("DynamoDBTable = %q, want blank for dynamic table expression", got)
 	}
 }
 

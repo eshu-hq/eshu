@@ -32,13 +32,14 @@ type DiscoveryConfig struct {
 
 // DiscoverySeed is one exact operator-approved state locator.
 type DiscoverySeed struct {
-	Kind      BackendKind
-	Path      string
-	RepoID    string
-	Bucket    string
-	Key       string
-	Region    string
-	VersionID string
+	Kind          BackendKind
+	Path          string
+	RepoID        string
+	Bucket        string
+	Key           string
+	Region        string
+	VersionID     string
+	DynamoDBTable string
 	// PreviousETag is durable freshness metadata from a previous S3 read. It is
 	// intentionally not populated from collector configuration JSON.
 	PreviousETag string
@@ -46,11 +47,12 @@ type DiscoverySeed struct {
 
 // DiscoveryCandidate is one exact Terraform state object to inspect later.
 type DiscoveryCandidate struct {
-	State        StateKey
-	Source       DiscoveryCandidateSource
-	RepoID       string
-	Region       string
-	PreviousETag string
+	State         StateKey
+	Source        DiscoveryCandidateSource
+	RepoID        string
+	Region        string
+	DynamoDBTable string
+	PreviousETag  string
 }
 
 // DiscoveryQuery scopes graph-backed Terraform backend fact reads.
@@ -231,6 +233,12 @@ func (c DiscoveryCandidate) Validate() error {
 	if c.Source == DiscoveryCandidateSourceGraph && c.State.BackendKind == BackendLocal {
 		return fmt.Errorf("local state candidates require an explicit operator seed")
 	}
+	if strings.TrimSpace(c.DynamoDBTable) != c.DynamoDBTable {
+		return fmt.Errorf("terraform state dynamodb table must not have surrounding whitespace")
+	}
+	if c.DynamoDBTable != "" && c.State.BackendKind != BackendS3 {
+		return fmt.Errorf("terraform state dynamodb table is only supported for s3 candidates")
+	}
 	return nil
 }
 
@@ -338,10 +346,11 @@ func candidateFromSeed(seed DiscoverySeed) (DiscoveryCandidate, error) {
 				Locator:     "s3://" + bucket + "/" + key,
 				VersionID:   strings.TrimSpace(seed.VersionID),
 			},
-			Source:       DiscoveryCandidateSourceSeed,
-			RepoID:       strings.TrimSpace(seed.RepoID),
-			Region:       region,
-			PreviousETag: seed.PreviousETag,
+			Source:        DiscoveryCandidateSourceSeed,
+			RepoID:        strings.TrimSpace(seed.RepoID),
+			Region:        region,
+			DynamoDBTable: strings.TrimSpace(seed.DynamoDBTable),
+			PreviousETag:  seed.PreviousETag,
 		}, nil
 	default:
 		return DiscoveryCandidate{}, fmt.Errorf("kind %q is unsupported", kind)

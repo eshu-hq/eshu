@@ -75,6 +75,12 @@ func TestBuildClaimedServiceWiresTerraformStateRuntime(t *testing.T) {
 	if factory.S3Client == nil {
 		t.Fatal("SourceFactory S3Client = nil, want read-only AWS adapter")
 	}
+	if factory.S3FallbackLockTableName != "" {
+		t.Fatalf("S3FallbackLockTableName = %q, want blank without configured fallback", factory.S3FallbackLockTableName)
+	}
+	if factory.S3LockMetadataClient == nil {
+		t.Fatal("SourceFactory S3LockMetadataClient = nil, want adapter available for candidate lock tables")
+	}
 	firstClaimID := service.ClaimIDFunc()
 	secondClaimID := service.ClaimIDFunc()
 	if firstClaimID == "" || secondClaimID == "" {
@@ -82,6 +88,64 @@ func TestBuildClaimedServiceWiresTerraformStateRuntime(t *testing.T) {
 	}
 	if firstClaimID == secondClaimID {
 		t.Fatal("ClaimIDFunc returned duplicate claim ids")
+	}
+}
+
+func TestBuildClaimedServiceWiresDynamoDBLockMetadataRuntime(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildClaimedService(
+		postgres.SQLDB{},
+		func(key string) string {
+			values := map[string]string{
+				"ESHU_COLLECTOR_INSTANCES_JSON": `[
+					{
+						"instance_id": "terraform-state-prod",
+						"collector_kind": "terraform_state",
+						"mode": "continuous",
+						"enabled": true,
+						"claims_enabled": true,
+						"configuration": {
+							"aws": {
+								"dynamodb_table": "tfstate-locks"
+							},
+							"discovery": {
+								"seeds": [
+									{"kind": "local", "path": "/tmp/prod.tfstate"}
+								]
+							}
+						}
+					}
+				]`,
+				"ESHU_TFSTATE_COLLECTOR_OWNER_ID":        "worker-a",
+				"ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL": "30s",
+				"ESHU_TFSTATE_COLLECTOR_HEARTBEAT":       "10s",
+				"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+			}
+			return values[key]
+		},
+		noop.NewTracerProvider().Tracer("test"),
+		nil,
+		nil,
+		slog.Default(),
+	)
+	if err != nil {
+		t.Fatalf("buildClaimedService() error = %v, want nil", err)
+	}
+
+	source, ok := service.Source.(tfstateruntime.ClaimedSource)
+	if !ok {
+		t.Fatalf("Source type = %T, want tfstateruntime.ClaimedSource", service.Source)
+	}
+	factory, ok := source.SourceFactory.(tfstateruntime.DefaultSourceFactory)
+	if !ok {
+		t.Fatalf("SourceFactory type = %T, want tfstateruntime.DefaultSourceFactory", source.SourceFactory)
+	}
+	if got, want := factory.S3FallbackLockTableName, "tfstate-locks"; got != want {
+		t.Fatalf("S3FallbackLockTableName = %q, want %q", got, want)
+	}
+	if factory.S3LockMetadataClient == nil {
+		t.Fatal("S3LockMetadataClient = nil, want read-only DynamoDB adapter")
 	}
 }
 

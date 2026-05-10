@@ -47,6 +47,37 @@ resource "aws_iam_user" "writer" {
 	}
 }
 
+func TestTerraformParseS3BackendDynamoDBTableMetadata(t *testing.T) {
+	t.Parallel()
+
+	filePath := writeHCLTestFile(t, "backend.tf", `terraform {
+  backend "s3" {
+    bucket         = "app-tfstate-prod"
+    key            = "services/api/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "tfstate-locks-api"
+  }
+}
+`)
+
+	got, err := Parse(filePath, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	backends := bucketForTest(t, got, "terraform_backends")
+	if got, want := len(backends), 1; got != want {
+		t.Fatalf("len(terraform_backends) = %d, want %d", got, want)
+	}
+	backend := backends[0]
+	if got, want := backend["dynamodb_table"], "tfstate-locks-api"; got != want {
+		t.Fatalf("dynamodb_table = %#v, want %#v", got, want)
+	}
+	if got, want := backend["dynamodb_table_is_literal"], true; got != want {
+		t.Fatalf("dynamodb_table_is_literal = %#v, want %#v", got, want)
+	}
+}
+
 func TestTerragruntParseHelperPaths(t *testing.T) {
 	t.Parallel()
 

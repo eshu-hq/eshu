@@ -170,6 +170,7 @@ func terraformBackendCandidate(
 	bucket := strings.TrimSpace(stringValue(backend, "bucket"))
 	key := strings.TrimSpace(stringValue(backend, "key"))
 	region := strings.TrimSpace(stringValue(backend, "region"))
+	dynamoDBTable := exactOptionalBackendAttribute(backend, "dynamodb_table")
 	if !isExactBackendAttribute(backend, "bucket", bucket) ||
 		!isExactBackendAttribute(backend, "key", key) ||
 		!isExactBackendAttribute(backend, "region", region) {
@@ -184,10 +185,19 @@ func terraformBackendCandidate(
 			BackendKind: terraformstate.BackendS3,
 			Locator:     "s3://" + bucket + "/" + key,
 		},
-		Source: terraformstate.DiscoveryCandidateSourceGraph,
-		RepoID: strings.TrimSpace(repoID),
-		Region: region,
+		Source:        terraformstate.DiscoveryCandidateSourceGraph,
+		RepoID:        strings.TrimSpace(repoID),
+		Region:        region,
+		DynamoDBTable: dynamoDBTable,
 	}, true
+}
+
+func exactOptionalBackendAttribute(values map[string]any, name string) string {
+	value := strings.TrimSpace(stringValue(values, name))
+	if value == "" || !isExactBackendAttribute(values, name, value) {
+		return ""
+	}
+	return value
 }
 
 func isExactBackendAttribute(values map[string]any, name string, value string) bool {

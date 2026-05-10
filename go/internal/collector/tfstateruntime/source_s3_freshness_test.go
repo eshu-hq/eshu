@@ -48,6 +48,97 @@ func TestDefaultSourceFactoryCarriesPriorETagIntoExactS3Read(t *testing.T) {
 	}
 }
 
+func TestDefaultSourceFactoryCarriesDynamoDBLockMetadataConfigIntoExactS3Read(t *testing.T) {
+	t.Parallel()
+
+	s3Client := &recordingRuntimeS3Client{
+		output: terraformstate.S3GetObjectOutput{
+			Body: io.NopCloser(strings.NewReader(`{"serial":17}`)),
+			Size: 13,
+		},
+	}
+	lockClient := &recordingRuntimeLockMetadataClient{
+		output: terraformstate.LockMetadataOutput{Digest: "digest-123"},
+	}
+	factory := tfstateruntime.DefaultSourceFactory{
+		S3Client:                s3Client,
+		S3FallbackLockTableName: "tfstate-locks-fallback",
+		S3LockMetadataClient:    lockClient,
+	}
+	stateSource, err := factory.OpenSource(context.Background(), terraformstate.DiscoveryCandidate{
+		State: terraformstate.StateKey{
+			BackendKind: terraformstate.BackendS3,
+			Locator:     "s3://tfstate-prod/services/api/terraform.tfstate",
+		},
+		Source:        terraformstate.DiscoveryCandidateSourceSeed,
+		Region:        "us-east-1",
+		DynamoDBTable: "tfstate-locks-api",
+	})
+	if err != nil {
+		t.Fatalf("OpenSource() error = %v, want nil", err)
+	}
+
+	reader, metadata, err := stateSource.Open(context.Background())
+	if err != nil {
+		t.Fatalf("Open() error = %v, want nil", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	if got, want := lockClient.input.TableName, "tfstate-locks-api"; got != want {
+		t.Fatalf("lock input TableName = %q, want %q", got, want)
+	}
+	if got, want := lockClient.input.LockID, "tfstate-prod/services/api/terraform.tfstate-md5"; got != want {
+		t.Fatalf("lock input LockID = %q, want %q", got, want)
+	}
+	if got, want := lockClient.input.Region, "us-east-1"; got != want {
+		t.Fatalf("lock input Region = %q, want %q", got, want)
+	}
+	if got, want := metadata.LockDigest, "digest-123"; got != want {
+		t.Fatalf("metadata.LockDigest = %q, want %q", got, want)
+	}
+}
+
+func TestDefaultSourceFactoryUsesFallbackDynamoDBLockTableOnlyWhenCandidateOmitsIt(t *testing.T) {
+	t.Parallel()
+
+	s3Client := &recordingRuntimeS3Client{
+		output: terraformstate.S3GetObjectOutput{
+			Body: io.NopCloser(strings.NewReader(`{"serial":17}`)),
+			Size: 13,
+		},
+	}
+	lockClient := &recordingRuntimeLockMetadataClient{
+		output: terraformstate.LockMetadataOutput{Digest: "digest-123"},
+	}
+	factory := tfstateruntime.DefaultSourceFactory{
+		S3Client:                s3Client,
+		S3FallbackLockTableName: "tfstate-locks-fallback",
+		S3LockMetadataClient:    lockClient,
+	}
+
+	stateSource, err := factory.OpenSource(context.Background(), terraformstate.DiscoveryCandidate{
+		State: terraformstate.StateKey{
+			BackendKind: terraformstate.BackendS3,
+			Locator:     "s3://tfstate-prod/services/api/terraform.tfstate",
+		},
+		Source: terraformstate.DiscoveryCandidateSourceSeed,
+		Region: "us-east-1",
+	})
+	if err != nil {
+		t.Fatalf("OpenSource() error = %v, want nil", err)
+	}
+
+	reader, _, err := stateSource.Open(context.Background())
+	if err != nil {
+		t.Fatalf("Open() error = %v, want nil", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	if got, want := lockClient.input.TableName, "tfstate-locks-fallback"; got != want {
+		t.Fatalf("lock input TableName = %q, want fallback %q", got, want)
+	}
+}
+
 func TestClaimedSourceMarksS3NotModifiedClaimUnchangedWhenPriorGenerationUnavailable(t *testing.T) {
 	t.Parallel()
 
@@ -137,6 +228,26 @@ func (c *recordingRuntimeS3Client) GetObject(
 	c.input = input
 	if c.err != nil {
 		return terraformstate.S3GetObjectOutput{}, c.err
+	}
+	return c.output, nil
+}
+
+type recordingRuntimeLockMetadataClient struct {
+	input  terraformstate.LockMetadataInput
+	output terraformstate.LockMetadataOutput
+	err    error
+}
+
+func (c *recordingRuntimeLockMetadataClient) ReadLockMetadata(
+	ctx context.Context,
+	input terraformstate.LockMetadataInput,
+) (terraformstate.LockMetadataOutput, error) {
+	if err := ctx.Err(); err != nil {
+		return terraformstate.LockMetadataOutput{}, err
+	}
+	c.input = input
+	if c.err != nil {
+		return terraformstate.LockMetadataOutput{}, c.err
 	}
 	return c.output, nil
 }
