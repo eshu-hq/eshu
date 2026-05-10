@@ -44,9 +44,9 @@ Each PR should be reviewed independently and merged before starting the next. Us
 
 ---
 
-## PR 1: Terraform-State Scheduler and Work Items
+## PR 1: Candidate-Scoped Claims, Scheduler, and Work Items
 
-**Goal:** Make the workflow coordinator create exact Terraform-state workflow runs and work items so `collector-terraform-state` has production work to claim.
+**Goal:** Make the workflow coordinator create exact Terraform-state workflow runs and work items so `collector-terraform-state` has production work to claim, without requiring the coordinator to know Terraform state `serial` or `lineage` before the state object is opened.
 
 **Primary issue:** Follow-up under #45 and parent #50.
 
@@ -55,11 +55,65 @@ Each PR should be reviewed independently and merged before starting the next. Us
 - Modify: `go/internal/coordinator/config.go`
 - Create: `go/internal/coordinator/tfstate_scheduler.go`
 - Create: `go/internal/coordinator/tfstate_scheduler_test.go`
+- Modify: `go/internal/collector/claimed_service.go`
+- Modify: `go/internal/collector/claimed_service_test.go`
+- Modify: `go/internal/collector/tfstateruntime/source.go`
+- Modify: `go/internal/collector/tfstateruntime/source_test.go`
 - Modify: `go/internal/storage/postgres/workflow_control.go`
 - Modify: `go/cmd/workflow-coordinator/main.go`
 - Modify: `go/internal/workflow/README.md`
 
-### Task 1.1: Add a Scheduler Boundary
+### Task 1.1: Add Candidate-Scoped Terraform-State Claim Matching
+
+**Why first:** The coordinator can discover exact state candidates, but it cannot know the real Terraform `serial` or `lineage` without opening the state object. The runtime currently rejects a claimed item unless `GenerationID` and `SourceRunID` already equal the real state generation. That makes scheduler-created candidate work impossible. Fix the claim contract before adding the scheduler.
+
+**Step 1: Write the failing test**
+
+Add a test in `go/internal/collector/tfstateruntime/source_test.go` proving candidate-scoped work can be collected:
+
+- Work item `ScopeID` matches the candidate source scope.
+- Work item `GenerationID` and `SourceRunID` are candidate-planning IDs, not the real state generation.
+- The opened state contains serial `17` and lineage `lineage-123`.
+- `ClaimedSource.NextClaimed` returns `ok=true` and a collected generation built from serial `17` and lineage `lineage-123`.
+
+Add a test in `go/internal/collector/claimed_service_test.go` proving `validateClaimedGeneration` allows Terraform-state collected generations to differ from candidate-planning `GenerationID` and `SourceRunID`, while keeping strict equality for Git.
+
+**Step 2: Run the failing test**
+
+Run:
+
+```bash
+cd go
+go test ./internal/collector/tfstateruntime ./internal/collector -run 'TerraformState.*Candidate|Claimed.*TerraformState' -count=1
+```
+
+Expected: fail because the runtime and claimed service still require generation/source-run equality.
+
+**Step 3: Implement candidate-scoped matching**
+
+- In `tfstateruntime`, match claimed work to resolved candidates by candidate scope, not by real serial/lineage generation.
+- In `collector.ClaimedService`, keep strict generation/source-run validation for Git and other collectors.
+- For `terraform_state`, validate:
+  - collected scope ID matches item scope ID
+  - source system matches
+  - collected generation validates for the collected scope
+  - generation freshness hint is non-blank
+- Do not weaken claim fencing. The commit still uses the current workflow claim mutation.
+
+**Step 4: Verify**
+
+```bash
+go test ./internal/collector/tfstateruntime ./internal/collector -run 'TerraformState.*Candidate|Claimed.*TerraformState' -count=1
+```
+
+**Step 5: Commit**
+
+```bash
+git add go/internal/collector/tfstateruntime go/internal/collector/claimed_service.go go/internal/collector/claimed_service_test.go
+git commit -m "feat(tfstate): allow candidate-scoped claimed work"
+```
+
+### Task 1.2: Add a Scheduler Boundary
 
 **Step 1: Write the failing test**
 
@@ -75,8 +129,10 @@ The test should:
   - `CollectorInstanceID` from config
   - `SourceSystem=terraform_state`
   - `ScopeID` from `scope.NewTerraformStateSnapshotScope`
-  - `SourceRunID` and `GenerationID` from `scope.NewTerraformStateSnapshotGeneration`
+  - candidate-planning `GenerationID` and `SourceRunID` values that do not pretend to know Terraform serial/lineage
   - no raw S3 locator in failure messages or status fields
+
+Also add a compatibility test that sends the planned work item into `tfstateruntime.ClaimedSource` with a fake source containing serial `17` and lineage `lineage-123`; it must collect successfully.
 
 **Step 2: Run the failing test**
 
@@ -84,7 +140,7 @@ Run:
 
 ```bash
 cd go
-go test ./internal/coordinator -run TestServiceSchedulesTerraformStateSeedWorkItems -count=1
+go test ./internal/coordinator ./internal/collector/tfstateruntime -run 'TestServiceSchedulesTerraformStateSeedWorkItems|CandidateScoped' -count=1
 ```
 
 Expected: fail because no scheduler exists.
@@ -106,7 +162,7 @@ Keep it storage-neutral. The concrete planner can use `terraformstate.DiscoveryR
 Run:
 
 ```bash
-go test ./internal/coordinator -run TestServiceSchedulesTerraformStateSeedWorkItems -count=1
+go test ./internal/coordinator ./internal/collector/tfstateruntime -run 'TestServiceSchedulesTerraformStateSeedWorkItems|CandidateScoped' -count=1
 ```
 
 **Step 5: Commit**
@@ -116,7 +172,7 @@ git add go/internal/coordinator/tfstate_scheduler.go go/internal/coordinator/tfs
 git commit -m "feat(tfstate): plan workflow work items"
 ```
 
-### Task 1.2: Wire Scheduler into Active Coordinator Reconcile
+### Task 1.3: Wire Scheduler into Active Coordinator Reconcile
 
 **Step 1: Write failing tests**
 
@@ -414,6 +470,6 @@ git diff --check
 
 ## First Task to Start
 
-Start with **PR 1, Task 1.1: Add a Scheduler Boundary**.
+Start with **PR 1, Task 1.1: Add Candidate-Scoped Terraform-State Claim Matching**.
 
-Reason: without durable work-item creation, the collector runtime can be correct and still do nothing in production. Fact enrichment, reducer projection, and correlation all depend on having actual Terraform-state work flowing through claims.
+Reason: without candidate-scoped matching, the coordinator would have to invent Terraform `serial` and `lineage` before opening state. That creates work items the runtime will release forever. Fix that contract first, then add durable work-item creation.
