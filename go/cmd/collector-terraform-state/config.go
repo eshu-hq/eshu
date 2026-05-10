@@ -245,25 +245,9 @@ func parseAWSCredentialConfig(raw string) (awsCredentialConfig, []awsTargetScope
 		return targetScopes[0].Credentials, targetScopes, nil
 	}
 	if len(targetScopes) > 1 {
-		credentials, err := sharedTargetScopeCredentials(targetScopes)
-		if err != nil {
-			return awsCredentialConfig{}, nil, err
-		}
-		return credentials, targetScopes, nil
+		return awsCredentialConfig{Mode: awsCredentialModeDefault}, targetScopes, nil
 	}
 	return legacyAWSCredentialConfig(config.AWS), targetScopes, nil
-}
-
-func sharedTargetScopeCredentials(targetScopes []awsTargetScopeConfig) (awsCredentialConfig, error) {
-	credentials := targetScopes[0].Credentials
-	for _, targetScope := range targetScopes[1:] {
-		if targetScope.Credentials != credentials {
-			return awsCredentialConfig{}, fmt.Errorf(
-				"terraform_state runtime target_scopes require identical AWS credentials until candidates carry target_scope_id",
-			)
-		}
-	}
-	return credentials, nil
 }
 
 func legacyAWSCredentialConfig(config terraformStateRuntimeAWSConfiguration) awsCredentialConfig {

@@ -37,6 +37,7 @@ type DiscoveryConfig struct {
 // DiscoverySeed is one exact operator-approved state locator.
 type DiscoverySeed struct {
 	Kind          BackendKind
+	TargetScopeID string
 	Path          string
 	RepoID        string
 	Bucket        string
@@ -53,6 +54,7 @@ type DiscoverySeed struct {
 type DiscoveryCandidate struct {
 	State             StateKey
 	Source            DiscoveryCandidateSource
+	TargetScopeID     string
 	RepoID            string
 	RelativePath      string
 	Region            string
@@ -220,9 +222,11 @@ func (r DiscoveryResolver) skipLocalStateCandidate(candidate *DiscoveryCandidate
 	if localCandidateRefsContain(r.Config.LocalStateCandidates.Ignored, ref) {
 		return true
 	}
-	if !localCandidateRefsContain(r.Config.LocalStateCandidates.Approved, ref) {
+	approved, ok := localCandidateRefForCandidate(r.Config.LocalStateCandidates.Approved, ref)
+	if !ok {
 		return true
 	}
+	candidate.TargetScopeID = approved.TargetScopeID
 	candidate.StateInVCS = true
 	return false
 }
@@ -314,6 +318,9 @@ func (c DiscoveryCandidate) Validate() error {
 	case DiscoveryCandidateSourceSeed, DiscoveryCandidateSourceGraph, DiscoveryCandidateSourceGitLocalFile:
 	default:
 		return fmt.Errorf("unsupported terraform state discovery source %q", c.Source)
+	}
+	if strings.TrimSpace(c.TargetScopeID) != c.TargetScopeID {
+		return fmt.Errorf("terraform state target_scope_id must not have surrounding whitespace")
 	}
 	if c.Source == DiscoveryCandidateSourceGraph && c.State.BackendKind == BackendLocal {
 		return fmt.Errorf("local state candidates require an explicit operator seed")
@@ -415,8 +422,9 @@ func candidateFromSeed(seed DiscoverySeed) (DiscoveryCandidate, error) {
 				BackendKind: BackendLocal,
 				Locator:     path,
 			},
-			Source: DiscoveryCandidateSourceSeed,
-			RepoID: strings.TrimSpace(seed.RepoID),
+			Source:        DiscoveryCandidateSourceSeed,
+			TargetScopeID: strings.TrimSpace(seed.TargetScopeID),
+			RepoID:        strings.TrimSpace(seed.RepoID),
 		}, nil
 	case BackendS3:
 		bucket := strings.TrimSpace(seed.Bucket)
@@ -441,6 +449,7 @@ func candidateFromSeed(seed DiscoverySeed) (DiscoveryCandidate, error) {
 				VersionID:   strings.TrimSpace(seed.VersionID),
 			},
 			Source:        DiscoveryCandidateSourceSeed,
+			TargetScopeID: strings.TrimSpace(seed.TargetScopeID),
 			RepoID:        strings.TrimSpace(seed.RepoID),
 			Region:        region,
 			DynamoDBTable: strings.TrimSpace(seed.DynamoDBTable),

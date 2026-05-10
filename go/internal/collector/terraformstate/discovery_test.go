@@ -21,11 +21,12 @@ func TestDiscoveryResolvesExplicitSeedsWhenGraphCold(t *testing.T) {
 					RepoID: "platform-infra",
 				},
 				{
-					Kind:   BackendS3,
-					Bucket: "app-tfstate-prod",
-					Key:    "services/api/terraform.tfstate",
-					Region: "us-east-1",
-					RepoID: "platform-infra",
+					Kind:          BackendS3,
+					TargetScopeID: "aws-prod",
+					Bucket:        "app-tfstate-prod",
+					Key:           "services/api/terraform.tfstate",
+					Region:        "us-east-1",
+					RepoID:        "platform-infra",
 				},
 			},
 		},
@@ -47,6 +48,9 @@ func TestDiscoveryResolvesExplicitSeedsWhenGraphCold(t *testing.T) {
 	}
 	if got, want := candidates[1].State.Locator, "s3://app-tfstate-prod/services/api/terraform.tfstate"; got != want {
 		t.Fatalf("candidates[1].State.Locator = %q, want %q", got, want)
+	}
+	if got, want := candidates[1].TargetScopeID, "aws-prod"; got != want {
+		t.Fatalf("candidates[1].TargetScopeID = %q, want %q", got, want)
 	}
 }
 
@@ -323,6 +327,49 @@ func TestDiscoveryRejectsTerragruntGraphCandidateUntilResolved(t *testing.T) {
 
 	if _, err := resolver.Resolve(context.Background()); err == nil {
 		t.Fatal("Resolve() error = nil, want unresolved terragrunt rejection")
+	}
+}
+
+func TestDiscoveryPropagatesApprovedGitLocalCandidateTargetScope(t *testing.T) {
+	t.Parallel()
+
+	facts := &stubBackendFactReader{
+		candidates: []DiscoveryCandidate{{
+			State: StateKey{
+				BackendKind: BackendLocal,
+				Locator:     "/repos/platform-infra/env/prod/terraform.tfstate",
+			},
+			Source:       DiscoveryCandidateSourceGitLocalFile,
+			RepoID:       "platform-infra",
+			RelativePath: "env/prod/terraform.tfstate",
+		}},
+	}
+	resolver := DiscoveryResolver{
+		Config: DiscoveryConfig{
+			Graph:      true,
+			LocalRepos: []string{"platform-infra"},
+			LocalStateCandidates: LocalStateCandidatePolicy{
+				Mode: LocalStateCandidateModeApproved,
+				Approved: []LocalStateCandidateRef{{
+					RepoID:        "platform-infra",
+					RelativePath:  "env/prod/terraform.tfstate",
+					TargetScopeID: "aws-prod",
+				}},
+			},
+		},
+		GitReadiness: &stubGitReadiness{ready: map[string]bool{"platform-infra": true}},
+		BackendFacts: facts,
+	}
+
+	candidates, err := resolver.Resolve(context.Background())
+	if err != nil {
+		t.Fatalf("Resolve() error = %v, want nil", err)
+	}
+	if got, want := facts.lastQuery.ApprovedLocalCandidates[0].TargetScopeID, "aws-prod"; got != want {
+		t.Fatalf("query approved TargetScopeID = %q, want %q", got, want)
+	}
+	if got, want := candidates[0].TargetScopeID, "aws-prod"; got != want {
+		t.Fatalf("candidate TargetScopeID = %q, want %q", got, want)
 	}
 }
 

@@ -172,8 +172,9 @@ func TestTerraformStateBackendFactReaderReturnsApprovedGitLocalCandidates(t *tes
 			RepoIDs:                     []string{"platform-infra"},
 			IncludeLocalStateCandidates: true,
 			ApprovedLocalCandidates: []terraformstate.LocalStateCandidateRef{{
-				RepoID:       "platform-infra",
-				RelativePath: "env/prod/terraform.tfstate",
+				RepoID:        "platform-infra",
+				RelativePath:  "env/prod/terraform.tfstate",
+				TargetScopeID: "aws-prod",
 			}},
 		},
 	)
@@ -196,6 +197,9 @@ func TestTerraformStateBackendFactReaderReturnsApprovedGitLocalCandidates(t *tes
 	}
 	if got, want := candidate.RelativePath, "env/prod/terraform.tfstate"; got != want {
 		t.Fatalf("RelativePath = %q, want %q", got, want)
+	}
+	if got, want := candidate.TargetScopeID, "aws-prod"; got != want {
+		t.Fatalf("TargetScopeID = %q, want %q", got, want)
 	}
 	if !candidate.StateInVCS {
 		t.Fatal("StateInVCS = false, want true")
