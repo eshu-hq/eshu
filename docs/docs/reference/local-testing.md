@@ -254,6 +254,30 @@ go test ./internal/terraformschema ./internal/relationships ./internal/storage/p
 The canonical packaged schemas live under
 `go/internal/terraformschema/schemas/*.json.gz`.
 
+## Terraform-State Parser Memory Gate
+
+Use these checks when touching the Terraform-state parser or any code on the
+`ParseStream` path. The streaming guarantee is enforced on every CI build by
+`TestParseStream_PeakMemoryGate`; the benchmark and the 100 MiB proof are
+for trend tracking and periodic large-scale validation.
+
+```bash
+# Hard gate. Runs on every CI build; fails on streaming regressions.
+cd go
+go test ./internal/collector/terraformstate -count=1 -run TestParseStream_PeakMemoryGate
+
+# Trend-tracking benchmark across 1k, 10k, and 20k-resource fixtures.
+cd go
+go test -bench=BenchmarkParseStream_LargeState -benchmem -run=^$ \
+    ./internal/collector/terraformstate
+
+# 100 MiB env-gated proof for periodic large-scale validation.
+cd go
+ESHU_TFSTATE_100MIB_PROOF=true \
+    go test ./internal/collector/terraformstate -count=1 \
+    -run TestParseStreamLargeState100MiBStreamingProof -timeout 300s
+```
+
 ## Runtime Tree Hygiene
 
 The deployable runtime tree is Go-only. Use this check when confirming that
