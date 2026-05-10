@@ -651,6 +651,7 @@ type fakeTx struct {
 	queryResponses []queueFakeRows
 	committed      bool
 	rolledBack     bool
+	rollbackHook   func()
 }
 
 func (f *fakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
@@ -687,6 +688,9 @@ func (f *fakeTx) Commit() error {
 }
 
 func (f *fakeTx) Rollback() error {
+	if f.rollbackHook != nil {
+		f.rollbackHook()
+	}
 	f.rolledBack = true
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,6 +117,36 @@ func TestServiceRunPropagatesDurableCommitErrors(t *testing.T) {
 	err := service.Run(context.Background())
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Run() error = %v, want wrapped %v", err, wantErr)
+	}
+}
+
+func TestServiceRunPreservesFactStreamErrorWhenCommitterIsNotStreamAware(t *testing.T) {
+	t.Parallel()
+
+	scopeValue, generationValue, envelopes := testCollectedGeneration()
+	streamErr := errors.New("fact replay failed")
+	collected := FactsFromSlice(scopeValue, generationValue, envelopes)
+	collected.FactStreamErr = func() error {
+		return streamErr
+	}
+
+	service := Service{
+		Source: &stubSource{
+			collected: []CollectedGeneration{collected},
+		},
+		Committer:    &stubCommitter{},
+		PollInterval: time.Millisecond,
+	}
+
+	err := service.Run(context.Background())
+	if err == nil {
+		t.Fatal("Run() error = nil, want stream-aware committer error")
+	}
+	if !errors.Is(err, streamErr) {
+		t.Fatalf("Run() error = %v, want wrapped %v", err, streamErr)
+	}
+	if !strings.Contains(err.Error(), "collector committer must support fact stream errors") {
+		t.Fatalf("Run() error = %q, want committer support context", err)
 	}
 }
 

@@ -89,6 +89,7 @@ func extractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.
 
 	snapshot := terraformStateSnapshot(envelopes)
 	tagHashesByResource := terraformStateTagHashesByResource(envelopes)
+	moduleRows := []TerraformStateModuleRow{}
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case facts.TerraformStateResourceFactKind:
@@ -102,7 +103,7 @@ func extractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.
 			}
 		case facts.TerraformStateModuleFactKind:
 			if row, ok := terraformStateModuleRow(mat.ScopeID, snapshot, envelope); ok {
-				mat.TerraformStateModules = append(mat.TerraformStateModules, row)
+				moduleRows = append(moduleRows, row)
 			}
 		case facts.TerraformStateOutputFactKind:
 			if row, ok := terraformStateOutputRow(mat.ScopeID, snapshot, envelope); ok {
@@ -110,6 +111,7 @@ func extractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.
 			}
 		}
 	}
+	mat.TerraformStateModules = append(mat.TerraformStateModules, aggregateTerraformStateModuleRows(moduleRows)...)
 }
 
 func validateTerraformStateSchemaVersion(envelope facts.Envelope) error {
@@ -222,6 +224,38 @@ func terraformStateModuleRow(
 		CollectorKind:    envelope.CollectorKind,
 		ObservedAt:       envelope.ObservedAt,
 	}, true
+}
+
+func aggregateTerraformStateModuleRows(rows []TerraformStateModuleRow) []TerraformStateModuleRow {
+	if len(rows) == 0 {
+		return nil
+	}
+	byModule := make(map[string]TerraformStateModuleRow, len(rows))
+	for _, row := range rows {
+		existing, ok := byModule[row.ModuleAddress]
+		if !ok {
+			byModule[row.ModuleAddress] = row
+			continue
+		}
+		existing.ResourceCount += row.ResourceCount
+		if row.ObservedAt.After(existing.ObservedAt) {
+			existing.SourceFactID = row.SourceFactID
+			existing.StableFactKey = row.StableFactKey
+			existing.SourceRecordID = row.SourceRecordID
+			existing.ObservedAt = row.ObservedAt
+		}
+		byModule[row.ModuleAddress] = existing
+	}
+	moduleAddresses := make([]string, 0, len(byModule))
+	for moduleAddress := range byModule {
+		moduleAddresses = append(moduleAddresses, moduleAddress)
+	}
+	sort.Strings(moduleAddresses)
+	aggregated := make([]TerraformStateModuleRow, 0, len(moduleAddresses))
+	for _, moduleAddress := range moduleAddresses {
+		aggregated = append(aggregated, byModule[moduleAddress])
+	}
+	return aggregated
 }
 
 func terraformStateOutputRow(

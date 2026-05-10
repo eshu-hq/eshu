@@ -1,7 +1,6 @@
 package terraformstate
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -17,55 +16,36 @@ type providerBinding struct {
 	ProviderAlias         string
 }
 
-func (p *stateParser) recordProviderBinding(resourceAddress string, providerAddress string) {
+func (p *stateParser) emitProviderBinding(resourceAddress string, providerAddress string) error {
 	resourceAddress = strings.TrimSpace(resourceAddress)
 	providerAddress = strings.TrimSpace(providerAddress)
 	if resourceAddress == "" || providerAddress == "" {
-		return
-	}
-	if p.providerBindings == nil {
-		p.providerBindings = map[string]providerBinding{}
+		return nil
 	}
 	binding := parseProviderBinding(resourceAddress, providerAddress)
-	p.providerBindings[providerBindingKey(binding)] = binding
-}
-
-func (p *stateParser) emitProviderBindings() {
-	if len(p.providerBindings) == 0 {
-		return
+	providerHash := providerAddressHash(binding.ProviderAddress)
+	payload := map[string]any{
+		"resource_address": binding.ResourceAddress,
+		"provider_address": binding.ProviderAddress,
 	}
-	keys := make([]string, 0, len(p.providerBindings))
-	for key := range p.providerBindings {
-		keys = append(keys, key)
+	if binding.ProviderSourceAddress != "" {
+		payload["provider_source_address"] = binding.ProviderSourceAddress
 	}
-	sort.Strings(keys)
-
-	for _, key := range keys {
-		binding := p.providerBindings[key]
-		providerHash := providerAddressHash(binding.ProviderAddress)
-		payload := map[string]any{
-			"resource_address": binding.ResourceAddress,
-			"provider_address": binding.ProviderAddress,
-		}
-		if binding.ProviderSourceAddress != "" {
-			payload["provider_source_address"] = binding.ProviderSourceAddress
-		}
-		if binding.ProviderHostname != "" {
-			payload["provider_hostname"] = binding.ProviderHostname
-		}
-		if binding.ProviderNamespace != "" {
-			payload["provider_namespace"] = binding.ProviderNamespace
-		}
-		if binding.ProviderType != "" {
-			payload["provider_type"] = binding.ProviderType
-		}
-		if binding.ProviderAlias != "" {
-			payload["provider_alias"] = binding.ProviderAlias
-		}
-		stableKey := "provider_binding:" + binding.ResourceAddress + ":" + providerHash
-		sourceRecordID := binding.ResourceAddress + ":provider:" + providerHash
-		p.facts = append(p.facts, p.envelope(facts.TerraformStateProviderBindingFactKind, stableKey, payload, sourceRecordID))
+	if binding.ProviderHostname != "" {
+		payload["provider_hostname"] = binding.ProviderHostname
 	}
+	if binding.ProviderNamespace != "" {
+		payload["provider_namespace"] = binding.ProviderNamespace
+	}
+	if binding.ProviderType != "" {
+		payload["provider_type"] = binding.ProviderType
+	}
+	if binding.ProviderAlias != "" {
+		payload["provider_alias"] = binding.ProviderAlias
+	}
+	stableKey := "provider_binding:" + binding.ResourceAddress + ":" + providerHash
+	sourceRecordID := binding.ResourceAddress + ":provider:" + providerHash
+	return p.emitBodyFact(p.envelope(facts.TerraformStateProviderBindingFactKind, stableKey, payload, sourceRecordID))
 }
 
 func parseProviderBinding(resourceAddress string, providerAddress string) providerBinding {
@@ -102,10 +82,6 @@ func parseProviderConfigAddress(providerAddress string) (string, string) {
 		alias = strings.TrimSpace(strings.TrimPrefix(suffix, "."))
 	}
 	return sourceAddress, alias
-}
-
-func providerBindingKey(binding providerBinding) string {
-	return binding.ResourceAddress + "\x00" + binding.ProviderAddress
 }
 
 func providerAddressHash(providerAddress string) string {

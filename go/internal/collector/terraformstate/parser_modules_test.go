@@ -21,15 +21,15 @@ func TestParserEmitsTerraformStateModuleFacts(t *testing.T) {
 
 	requireFactKinds(t, result, facts.TerraformStateModuleFactKind)
 	modules := factsByKind(result, facts.TerraformStateModuleFactKind)
-	if got, want := len(modules), 2; got != want {
+	if got, want := len(modules), 3; got != want {
 		t.Fatalf("module fact count = %d, want %d: %#v", got, want, modules)
 	}
 
-	api := factByStableKey(t, modules, "terraform_state_module:module:module.api")
+	api := factByStableKey(t, modules, "terraform_state_module:module:module.api:resource:module.api.aws_instance.web")
 	if got, want := api.Payload["module_address"], "module.api"; got != want {
 		t.Fatalf("api module_address = %#v, want %q", got, want)
 	}
-	if got, want := api.Payload["resource_count"], int64(2); got != want {
+	if got, want := api.Payload["resource_count"], int64(1); got != want {
 		t.Fatalf("api resource_count = %#v, want %d", got, want)
 	}
 	if got, want := api.SchemaVersion, facts.TerraformStateModuleSchemaVersion; got != want {
@@ -40,7 +40,7 @@ func TestParserEmitsTerraformStateModuleFacts(t *testing.T) {
 		t.Fatalf("module source ref leaked raw locator: %#v", api.SourceRef)
 	}
 
-	worker := factByStableKey(t, modules, "terraform_state_module:module:module.worker")
+	worker := factByStableKey(t, modules, "terraform_state_module:module:module.worker:resource:module.worker.aws_instance.worker")
 	if got, want := worker.Payload["resource_count"], int64(1); got != want {
 		t.Fatalf("worker resource_count = %#v, want %d", got, want)
 	}

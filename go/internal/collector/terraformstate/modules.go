@@ -1,45 +1,21 @@
 package terraformstate
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-type moduleObservation struct {
-	ResourceCount int64
-}
-
-func (p *stateParser) recordModuleObservation(moduleAddress string) {
+func (p *stateParser) emitModuleObservation(moduleAddress string, resourceAddress string) error {
 	moduleAddress = strings.TrimSpace(moduleAddress)
 	if moduleAddress == "" {
-		return
+		return nil
 	}
-	if p.modules == nil {
-		p.modules = map[string]moduleObservation{}
+	payload := map[string]any{
+		"module_address": moduleAddress,
+		"resource_count": int64(1),
 	}
-	observation := p.modules[moduleAddress]
-	observation.ResourceCount++
-	p.modules[moduleAddress] = observation
-}
-
-func (p *stateParser) emitModules() {
-	if len(p.modules) == 0 {
-		return
-	}
-	moduleAddresses := make([]string, 0, len(p.modules))
-	for moduleAddress := range p.modules {
-		moduleAddresses = append(moduleAddresses, moduleAddress)
-	}
-	sort.Strings(moduleAddresses)
-
-	for _, moduleAddress := range moduleAddresses {
-		observation := p.modules[moduleAddress]
-		payload := map[string]any{
-			"module_address": moduleAddress,
-			"resource_count": observation.ResourceCount,
-		}
-		p.facts = append(p.facts, p.envelope(facts.TerraformStateModuleFactKind, "module:"+moduleAddress, payload, moduleAddress))
-	}
+	stableKey := "module:" + moduleAddress + ":resource:" + resourceAddress
+	sourceRecordID := moduleAddress + ":resource:" + resourceAddress
+	return p.emitBodyFact(p.envelope(facts.TerraformStateModuleFactKind, stableKey, payload, sourceRecordID))
 }

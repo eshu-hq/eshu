@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -234,7 +235,7 @@ func (s ClaimedSource) collectCandidate(
 		return collector.CollectedGeneration{}, false, nil
 	}
 
-	result, _, err := s.parseCandidate(ctx, stateSource, candidate, scopeValue, generationValue, sourceKey, item.CurrentFencingToken)
+	result, _, factStream, factStreamErr, factCount, err := s.parseCandidate(ctx, stateSource, candidate, scopeValue, generationValue, sourceKey, item.CurrentFencingToken)
 	if err != nil {
 		s.recordSnapshotObserved(ctx, sourceKey.BackendKind, "error")
 		return collector.CollectedGeneration{}, false, err
@@ -242,7 +243,13 @@ func (s ClaimedSource) collectCandidate(
 	s.recordSnapshotObserved(ctx, sourceKey.BackendKind, "parsed")
 	s.recordResourceFacts(ctx, sourceKey.BackendKind, result.ResourceFacts)
 	s.recordRedactions(ctx, result.RedactionsApplied)
-	return collector.FactsFromSlice(scopeValue, generationValue, result.Facts), true, nil
+	return collector.CollectedGeneration{
+		Scope:         scopeValue,
+		Generation:    generationValue,
+		Facts:         factStream,
+		FactStreamErr: factStreamErr,
+		FactCount:     factCount,
+	}, true, nil
 }
 
 func (s ClaimedSource) readIdentity(
@@ -270,12 +277,16 @@ func (s ClaimedSource) parseCandidate(
 	generationValue scope.ScopeGeneration,
 	sourceKey terraformstate.StateKey,
 	fencingToken int64,
-) (terraformstate.ParseResult, terraformstate.SourceMetadata, error) {
+) (terraformstate.ParseStreamResult, terraformstate.SourceMetadata, <-chan facts.Envelope, func() error, int, error) {
 	reader, metadata, err := s.openSource(ctx, stateSource)
 	if err != nil {
-		return terraformstate.ParseResult{}, terraformstate.SourceMetadata{}, err
+		return terraformstate.ParseStreamResult{}, terraformstate.SourceMetadata{}, nil, nil, 0, err
 	}
 	defer closeReader(reader)
+	factSpool, err := newFactSpool()
+	if err != nil {
+		return terraformstate.ParseStreamResult{}, terraformstate.SourceMetadata{}, nil, nil, 0, err
+	}
 
 	if s.Tracer != nil {
 		var span trace.Span
@@ -283,7 +294,7 @@ func (s ClaimedSource) parseCandidate(
 		defer span.End()
 	}
 	start := time.Now()
-	result, err := terraformstate.Parse(ctx, reader, terraformstate.ParseOptions{
+	result, err := terraformstate.ParseStream(ctx, reader, terraformstate.ParseOptions{
 		Scope:          scopeValue,
 		Generation:     generationValue,
 		Source:         sourceKey,
@@ -293,13 +304,15 @@ func (s ClaimedSource) parseCandidate(
 		RedactionRules: s.RedactionRules,
 		FencingToken:   fencingToken,
 		SourceWarnings: sourceWarningsForCandidate(candidate),
-	})
+	}, factSpool)
 	s.recordParseDuration(ctx, sourceKey.BackendKind, time.Since(start))
 	if err != nil {
-		return terraformstate.ParseResult{}, terraformstate.SourceMetadata{}, fmt.Errorf("parse terraform state: %w", err)
+		factSpool.Close()
+		return terraformstate.ParseStreamResult{}, terraformstate.SourceMetadata{}, nil, nil, 0, fmt.Errorf("parse terraform state: %w", err)
 	}
 	s.recordSnapshotBytes(ctx, sourceKey.BackendKind, metadata.Size)
-	return result, metadata, nil
+	factStream, factStreamErr := factSpool.Stream(ctx)
+	return result, metadata, factStream, factStreamErr, factSpool.count, nil
 }
 
 func sourceWarningsForCandidate(candidate terraformstate.DiscoveryCandidate) []terraformstate.SourceWarning {

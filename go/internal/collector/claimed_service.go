@@ -167,6 +167,9 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	}
 	if err := validateClaimedGeneration(item, collected); err != nil {
 		stopHeartbeat()
+		if cleanupErr := cleanupCollectedFactStream(collected); cleanupErr != nil {
+			err = errors.Join(err, cleanupErr)
+		}
 		if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", err)); failErr != nil {
 			return fmt.Errorf("terminal-fail mismatched %s claim: %w", s.claimedKindLabel(), failErr)
 		}
@@ -198,6 +201,23 @@ func (s ClaimedService) commitCollected(
 		defer span.End()
 	}
 	if committer, ok := s.Committer.(ClaimedCommitter); ok {
+		if collected.FactStreamErr != nil {
+			streamCommitter, ok := s.Committer.(StreamErrorClaimedCommitter)
+			if !ok {
+				if err := cleanupCollectedFactStream(collected); err != nil {
+					return err
+				}
+				return errors.New("claim-aware collector committer must support fact stream errors")
+			}
+			return streamCommitter.CommitClaimedScopeGenerationWithStreamError(
+				ctx,
+				mutation,
+				collected.Scope,
+				collected.Generation,
+				collected.Facts,
+				collected.FactStreamErr,
+			)
+		}
 		return committer.CommitClaimedScopeGeneration(
 			ctx,
 			mutation,
@@ -207,6 +227,17 @@ func (s ClaimedService) commitCollected(
 		)
 	}
 	return errors.New("claim-aware collector committer must implement ClaimedCommitter")
+}
+
+func cleanupCollectedFactStream(collected CollectedGeneration) error {
+	drainFactStream(collected.Facts)
+	if collected.FactStreamErr == nil {
+		return nil
+	}
+	if err := collected.FactStreamErr(); err != nil {
+		return fmt.Errorf("read fact stream: %w", err)
+	}
+	return nil
 }
 
 func (s ClaimedService) claimMutation(item workflow.WorkItem, claim workflow.Claim) workflow.ClaimMutation {

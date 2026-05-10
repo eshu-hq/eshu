@@ -19,6 +19,9 @@ func (p *stateParser) readOutputs() error {
 		return err
 	}
 	for p.decoder.More() {
+		if err := p.checkContext(); err != nil {
+			return err
+		}
 		token, err := p.decoder.Token()
 		if err != nil {
 			return fmt.Errorf("read terraform state output name: %w", err)
@@ -31,7 +34,9 @@ func (p *stateParser) readOutputs() error {
 		if err != nil {
 			return err
 		}
-		p.emitOutput(name, output)
+		if err := p.emitOutput(name, output); err != nil {
+			return err
+		}
 	}
 	if _, err := p.decoder.Token(); err != nil {
 		return fmt.Errorf("close terraform state outputs: %w", err)
@@ -45,6 +50,9 @@ func (p *stateParser) readOutput(name string) (outputPayload, error) {
 		return outputPayload{}, err
 	}
 	for p.decoder.More() {
+		if err := p.checkContext(); err != nil {
+			return outputPayload{}, err
+		}
 		token, err := p.decoder.Token()
 		if err != nil {
 			return outputPayload{}, fmt.Errorf("read terraform state output %q key: %w", name, err)
@@ -78,7 +86,7 @@ func (p *stateParser) readOutput(name string) (outputPayload, error) {
 	return output, nil
 }
 
-func (p *stateParser) emitOutput(name string, output outputPayload) {
+func (p *stateParser) emitOutput(name string, output outputPayload) error {
 	payload := map[string]any{
 		"name":      name,
 		"sensitive": output.Sensitive,
@@ -92,16 +100,18 @@ func (p *stateParser) emitOutput(name string, output outputPayload) {
 		} else if output.HasValue {
 			payload["value_shape"] = "composite"
 			p.recordRedaction("sensitive_composite_output")
-			p.warnings = append(p.warnings, warningPayload{
+			if err := p.emitWarning(warningPayload{
 				WarningKind: "output_value_dropped",
 				Reason:      "sensitive_composite_output",
 				Source:      source,
-			})
+			}); err != nil {
+				return err
+			}
 		}
 	} else if output.HasScalar {
 		payload["value"] = output.Value
 	} else if output.HasValue {
 		payload["value_shape"] = "composite"
 	}
-	p.facts = append(p.facts, p.envelope(facts.TerraformStateOutputFactKind, "output:"+name, payload, name))
+	return p.emitBodyFact(p.envelope(facts.TerraformStateOutputFactKind, "output:"+name, payload, name))
 }

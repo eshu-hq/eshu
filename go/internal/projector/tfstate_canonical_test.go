@@ -75,6 +75,53 @@ func TestBuildCanonicalMaterializationExtractsTerraformStateRows(t *testing.T) {
 	}
 }
 
+func TestBuildCanonicalMaterializationAggregatesTerraformStateModuleObservations(t *testing.T) {
+	t.Parallel()
+
+	sc := terraformStateScope()
+	gen := terraformStateGeneration()
+	input := terraformStateFacts()
+	observedAt := gen.ObservedAt.Add(time.Second)
+	input = append(input, facts.Envelope{
+		FactID:           "tf-module-2",
+		ScopeID:          "tf-scope-1",
+		GenerationID:     "tf-generation-1",
+		FactKind:         facts.TerraformStateModuleFactKind,
+		StableFactKey:    "terraform_state_module:module:module.app:resource:module.app.aws_security_group.web",
+		SchemaVersion:    facts.TerraformStateModuleSchemaVersion,
+		CollectorKind:    string(scope.CollectorTerraformState),
+		SourceConfidence: facts.SourceConfidenceObserved,
+		ObservedAt:       observedAt,
+		Payload: map[string]any{
+			"module_address": "module.app",
+			"resource_count": int64(1),
+		},
+		SourceRef: facts.Ref{
+			SourceSystem:   string(scope.CollectorTerraformState),
+			ScopeID:        "tf-scope-1",
+			GenerationID:   "tf-generation-1",
+			FactKey:        "terraform_state_module:module:module.app:resource:module.app.aws_security_group.web",
+			SourceRecordID: "module.app:resource:module.app.aws_security_group.web",
+		},
+	})
+
+	result := buildCanonicalMaterialization(sc, gen, input)
+
+	if got, want := len(result.TerraformStateModules), 1; got != want {
+		t.Fatalf("len(TerraformStateModules) = %d, want %d", got, want)
+	}
+	module := result.TerraformStateModules[0]
+	if got, want := module.ModuleAddress, "module.app"; got != want {
+		t.Fatalf("ModuleAddress = %q, want %q", got, want)
+	}
+	if got, want := module.ResourceCount, int64(2); got != want {
+		t.Fatalf("ResourceCount = %d, want %d", got, want)
+	}
+	if got, want := module.SourceFactID, "tf-module-2"; got != want {
+		t.Fatalf("SourceFactID = %q, want %q", got, want)
+	}
+}
+
 func TestRuntimeProjectRejectsUnknownTerraformStateSchemaVersion(t *testing.T) {
 	t.Parallel()
 

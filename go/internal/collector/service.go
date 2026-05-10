@@ -29,6 +29,10 @@ type CollectedGeneration struct {
 	Generation scope.ScopeGeneration
 	Facts      <-chan facts.Envelope
 	FactCount  int // estimated total for telemetry (may be approximate)
+	// FactStreamErr reports asynchronous fact stream failures after Facts has
+	// closed. Committers that receive this callback must check it before
+	// committing durable state.
+	FactStreamErr func() error
 	// Unchanged means a claimed source proved the work item has no new facts to
 	// commit, but the durable claim should still be completed.
 	Unchanged bool
@@ -64,6 +68,18 @@ type Committer interface {
 	) error
 }
 
+// StreamErrorCommitter persists generations and can fail the same transaction
+// if a producer reports a fact stream error after closing the fact channel.
+type StreamErrorCommitter interface {
+	CommitScopeGenerationWithStreamError(
+		context.Context,
+		scope.IngestionScope,
+		scope.ScopeGeneration,
+		<-chan facts.Envelope,
+		func() error,
+	) error
+}
+
 // ClaimedCommitter can verify workflow claim fencing in the same durable
 // transaction that persists facts for a claimed collector item.
 type ClaimedCommitter interface {
@@ -73,6 +89,20 @@ type ClaimedCommitter interface {
 		scope.IngestionScope,
 		scope.ScopeGeneration,
 		<-chan facts.Envelope,
+	) error
+}
+
+// StreamErrorClaimedCommitter persists claimed generations and can fail the
+// same transaction if a producer reports a fact stream error after closing the
+// fact channel.
+type StreamErrorClaimedCommitter interface {
+	CommitClaimedScopeGenerationWithStreamError(
+		context.Context,
+		workflow.ClaimMutation,
+		scope.IngestionScope,
+		scope.ScopeGeneration,
+		<-chan facts.Envelope,
+		func() error,
 	) error
 }
 
@@ -142,12 +172,31 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 
 	factCount := int64(collected.FactCount)
 
-	err := s.Committer.CommitScopeGeneration(
-		ctx,
-		collected.Scope,
-		collected.Generation,
-		collected.Facts,
-	)
+	var err error
+	if collected.FactStreamErr != nil {
+		streamCommitter, ok := s.Committer.(StreamErrorCommitter)
+		if !ok {
+			err = errors.New("collector committer must support fact stream errors")
+			if streamErr := cleanupCollectedFactStream(collected); streamErr != nil {
+				err = errors.Join(err, streamErr)
+			}
+		} else {
+			err = streamCommitter.CommitScopeGenerationWithStreamError(
+				ctx,
+				collected.Scope,
+				collected.Generation,
+				collected.Facts,
+				collected.FactStreamErr,
+			)
+		}
+	} else {
+		err = s.Committer.CommitScopeGeneration(
+			ctx,
+			collected.Scope,
+			collected.Generation,
+			collected.Facts,
+		)
+	}
 
 	duration := time.Since(start).Seconds()
 
@@ -192,6 +241,14 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 		return fmt.Errorf("commit scope generation: %w", err)
 	}
 	return nil
+}
+
+func drainFactStream(factStream <-chan facts.Envelope) {
+	if factStream == nil {
+		return
+	}
+	for range factStream {
+	}
 }
 
 func waitForNextPoll(ctx context.Context, pollInterval time.Duration) error {
