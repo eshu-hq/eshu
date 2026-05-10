@@ -108,10 +108,42 @@ func (p *stateParser) emitOutput(name string, output outputPayload) error {
 				return err
 			}
 		}
-	} else if output.HasScalar {
-		payload["value"] = output.Value
 	} else if output.HasValue {
-		payload["value_shape"] = "composite"
+		if err := p.addNonSensitiveOutputValue(payload, source, output); err != nil {
+			return err
+		}
 	}
 	return p.emitBodyFact(p.envelope(facts.TerraformStateOutputFactKind, "output:"+name, payload, name))
+}
+
+func (p *stateParser) addNonSensitiveOutputValue(
+	payload map[string]any,
+	source string,
+	output outputPayload,
+) error {
+	kind := redact.FieldComposite
+	if output.HasScalar {
+		kind = redact.FieldScalar
+	}
+	decision := p.options.RedactionRules.Classify(source, redact.SchemaKnown, kind)
+	switch decision.Action {
+	case redact.ActionPreserve:
+		if output.HasScalar {
+			payload["value"] = output.Value
+		} else {
+			payload["value_shape"] = "composite"
+		}
+	case redact.ActionRedact:
+		payload["value"] = redactionMap(redact.Scalar(output.Value, decision.Reason, decision.Source, p.options.RedactionKey))
+		p.recordRedaction(decision.Reason)
+	case redact.ActionDrop:
+		payload["value_shape"] = "composite"
+		p.recordRedaction(decision.Reason)
+		return p.emitWarning(warningPayload{
+			WarningKind: "output_value_dropped",
+			Reason:      decision.Reason,
+			Source:      decision.Source,
+		})
+	}
+	return nil
 }
