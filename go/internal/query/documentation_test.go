@@ -314,7 +314,10 @@ func TestContentReaderDocumentationFindingsFiltersAndBuildsPacketURL(t *testing.
 		"source_id": "doc-source:confluence:platform",
 		"document_id": "doc:confluence:123",
 		"section_id": "body",
-		"summary": "payment-service deployment source drifted"
+		"summary": "payment-service deployment source drifted",
+		"permissions": {
+			"viewer_can_read_source": true
+		}
 	}`)
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		{
@@ -382,6 +385,9 @@ func TestContentReaderDocumentationEvidencePacketFreshness(t *testing.T) {
 	packet := []byte(`{
 		"packet_id": "doc-packet:service-deployment:1",
 		"packet_version": "2",
+		"permissions": {
+			"viewer_can_read_source": true
+		},
 		"states": {
 			"freshness_state": "stale"
 		}

@@ -2,6 +2,29 @@ package confluence
 
 import "testing"
 
+func TestDocumentPayloadMarksACLAsPartialWhenRestrictionsAreNotCollected(t *testing.T) {
+	t.Parallel()
+
+	payload := documentPayload(
+		"doc-source:confluence:example:100",
+		"https://example.atlassian.net/wiki",
+		confluencePage("123", "Payment Service Deployment", 17, "<p>body</p>"),
+	)
+
+	if payload.ACLSummary == nil {
+		t.Fatal("ACLSummary = nil, want partial ACL summary")
+	}
+	if got, want := payload.ACLSummary.Visibility, "credential_viewable"; got != want {
+		t.Fatalf("Visibility = %q, want %q", got, want)
+	}
+	if !payload.ACLSummary.IsPartial {
+		t.Fatal("IsPartial = false, want true because page restrictions were not collected")
+	}
+	if got, want := payload.ACLSummary.PartialReason, "confluence_page_restrictions_not_collected"; got != want {
+		t.Fatalf("PartialReason = %q, want %q", got, want)
+	}
+}
+
 func TestExtractLinksReadsConfluenceStorageLinks(t *testing.T) {
 	t.Parallel()
 

@@ -267,6 +267,13 @@ Eshu must:
 - redact or deny evidence that the caller cannot view
 - include redaction state in the packet
 - avoid exposing destination write tokens
+- treat missing or unknown evidence visibility as denied
+
+Documentation evidence packets must include an explicit permission decision.
+If `permissions.viewer_can_read_source` is absent or false, Eshu must not return
+the packet body or any bounded excerpt. If a source reports only partial ACL
+metadata, the packet producer must either prove the caller can read the source
+or mark the packet denied.
 
 The updater must:
 
@@ -274,6 +281,11 @@ The updater must:
 - keep destination credentials outside Eshu
 - honor review-required policy for protected writer modes
 - record who approved or published a change
+
+Confluence is currently collected through read-only credentials. The collector
+records source and document ACL summaries as partial when page restrictions are
+not fetched from the source API. That metadata is evidence for security review;
+it is not a write permission grant.
 
 ## Updater Policy Requirements
 

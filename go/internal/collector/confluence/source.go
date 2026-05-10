@@ -163,6 +163,11 @@ func (s *Source) factEnvelopes(
 		BaseURI:      s.Config.BaseURL,
 		SourceType:   sourceType(s.Config),
 		Labels:       nonEmptyStrings(firstNonEmpty(spaceValue.Key, s.Config.SpaceKey)),
+		ACLSummary: &facts.DocumentationACLSummary{
+			Visibility:    "credential_viewable",
+			IsPartial:     true,
+			PartialReason: "confluence_source_restrictions_not_collected",
+		},
 		SourceMetadata: map[string]string{
 			"page_count":    strconv.Itoa(len(pages)),
 			"failure_count": strconv.Itoa(failureCount),

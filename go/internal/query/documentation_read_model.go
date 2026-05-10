@@ -198,7 +198,8 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 	clauses := []string{
 		"fact_kind = '" + facts.DocumentationFindingFactKind + "'",
 		"is_tombstone = FALSE",
-		"(payload->'permissions'->>'viewer_can_read_source' IS DISTINCT FROM 'false')",
+		"(payload->'permissions'->>'viewer_can_read_source') = 'true'",
+		"LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'",
 		"LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'",
 	}
 	addPayloadFilter := func(field string, value string) {
@@ -260,10 +261,7 @@ func ensureEvidencePacketURL(finding map[string]any) {
 }
 
 func documentationPayloadDenied(payload map[string]any) bool {
-	if canRead, ok := nestedBoolValue(payload, "permissions", "viewer_can_read_source"); ok && !canRead {
-		return true
-	}
-	return strings.EqualFold(nestedString(payload, "states", "permission_decision"), "denied")
+	return !documentationVisibilityDecision(payload).allowed
 }
 
 func documentationPermissionReason(packet map[string]any) string {
@@ -273,7 +271,32 @@ func documentationPermissionReason(packet map[string]any) string {
 	if reason := nestedString(packet, "states", "permission_reason"); reason != "" {
 		return reason
 	}
+	if reason := documentationVisibilityDecision(packet).reason; reason != "" {
+		return reason
+	}
 	return "caller cannot view documentation evidence"
+}
+
+type documentationVisibility struct {
+	allowed bool
+	reason  string
+}
+
+func documentationVisibilityDecision(payload map[string]any) documentationVisibility {
+	if strings.EqualFold(nestedString(payload, "states", "permission_decision"), "denied") {
+		return documentationVisibility{reason: "caller cannot view documentation evidence"}
+	}
+	if evaluated, ok := nestedBoolValue(payload, "permissions", "source_acl_evaluated"); ok && !evaluated {
+		return documentationVisibility{reason: "documentation source ACL was not evaluated"}
+	}
+	canRead, ok := nestedBoolValue(payload, "permissions", "viewer_can_read_source")
+	if !ok {
+		return documentationVisibility{reason: "documentation evidence visibility is unknown"}
+	}
+	if !canRead {
+		return documentationVisibility{reason: "caller cannot view documentation evidence"}
+	}
+	return documentationVisibility{allowed: true}
 }
 
 func stringFromMap(values map[string]any, key string) string {

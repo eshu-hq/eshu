@@ -126,11 +126,13 @@ func TestBootstrapDefinitionsIncludeDocumentationFactIndexes(t *testing.T) {
 		t.Fatal("fact_records definition missing")
 	}
 	for _, want := range []string{
-		"fact_records_documentation_findings_idx",
+		"fact_records_documentation_findings_visible_idx",
 		"fact_records_documentation_packets_finding_idx",
 		"fact_records_documentation_packets_packet_idx",
 		"WHERE fact_kind = 'documentation_finding'",
 		"WHERE fact_kind = 'documentation_evidence_packet'",
+		"(payload->'permissions'->>'viewer_can_read_source') = 'true'",
+		"LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'",
 		"LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'",
 		"payload->>'finding_id'",
 		"(payload->>'packet_id')",
@@ -139,7 +141,7 @@ func TestBootstrapDefinitionsIncludeDocumentationFactIndexes(t *testing.T) {
 			t.Fatalf("fact_records SQL missing %q", want)
 		}
 	}
-	start := strings.Index(facts.SQL, "CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_idx")
+	start := strings.Index(facts.SQL, "CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_visible_idx")
 	if start < 0 {
 		t.Fatal("documentation findings index missing")
 	}
