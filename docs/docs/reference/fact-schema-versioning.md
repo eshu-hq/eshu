@@ -53,14 +53,14 @@ something, not that the claim is operationally true.
 
 Two plugins must not emit the same unowned fact kind.
 
-Core documentation facts use these fact kinds at schema version `1.0.0`:
+Core documentation facts use these fact kinds and schema versions:
 
-- `documentation_source`
-- `documentation_document`
-- `documentation_section`
-- `documentation_link`
-- `documentation_entity_mention`
-- `documentation_claim_candidate`
+- `documentation_source` — `1.0.0`
+- `documentation_document` — `1.0.0`
+- `documentation_section` — `1.1.0`
+- `documentation_link` — `1.0.0`
+- `documentation_entity_mention` — `1.0.0`
+- `documentation_claim_candidate` — `1.0.0`
 
 Core Terraform state facts use these fact kinds at schema version `1.0.0`:
 

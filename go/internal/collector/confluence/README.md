@@ -71,10 +71,14 @@ Each generation emits:
   hints
 
 Document facts preserve canonical URI, revision ID, labels, owner references,
-ACL summary, content hash, source metadata, and document freshness. Confluence
-source and document ACL summaries are marked `credential_viewable` and partial
-when page restrictions are not collected; downstream evidence packet producers
-must still prove `viewer_can_read_source=true` before exposing excerpts.
+ACL summary, content hash, source metadata, and document freshness. Section
+facts persist the source-native Confluence storage body in Postgres as
+`content` with `content_format=storage`, so downstream documentation updater
+services can build diffs without asking the collector to write back to
+Confluence. Confluence source and document ACL summaries are marked
+`credential_viewable` and partial when page restrictions are not collected;
+downstream evidence packet producers must still prove
+`viewer_can_read_source=true` before exposing excerpts or body content.
 
 The optional truth extraction seam is deterministic and read-only. The
 Confluence collector does not infer claims from broad prose and does not load an
@@ -86,7 +90,7 @@ already gathered them from Eshu.
 - HTTP access is `GET` only and maps 403/404 responses to
   `ErrPermissionDenied`.
 - Sync logs and metrics report counts, status, and scope identifiers only. Page
-  titles and body excerpts are not emitted as telemetry fields.
+  titles, body content, and excerpts are not emitted as telemetry fields.
 - Pagination follows Confluence `_links.next` values without duplicating the
   configured context path, so Atlassian Cloud base URLs that include `/wiki`
   work with both `/api/v2/...` and `/wiki/api/v2/...` next links.

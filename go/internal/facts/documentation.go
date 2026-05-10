@@ -18,8 +18,13 @@ const (
 	// DocumentationEvidencePacketFactKind identifies one immutable documentation evidence packet.
 	DocumentationEvidencePacketFactKind = "documentation_evidence_packet"
 
-	// DocumentationFactSchemaVersion is the first documentation fact schema.
+	// DocumentationFactSchemaVersion is the first documentation fact schema for
+	// documentation fact kinds that have not introduced kind-specific schema
+	// versions.
 	DocumentationFactSchemaVersion = "1.0.0"
+	// DocumentationSectionFactSchemaVersion is the documentation section schema
+	// version that adds source-native content fields for updater diffing.
+	DocumentationSectionFactSchemaVersion = "1.1.0"
 )
 
 const (
@@ -106,6 +111,8 @@ type DocumentationSectionPayload struct {
 	SectionAnchor    string            `json:"section_anchor,omitempty"`
 	HeadingText      string            `json:"heading_text,omitempty"`
 	OrdinalPath      []int             `json:"ordinal_path,omitempty"`
+	Content          string            `json:"content,omitempty"`
+	ContentFormat    string            `json:"content_format,omitempty"`
 	TextHash         string            `json:"text_hash,omitempty"`
 	ExcerptHash      string            `json:"excerpt_hash,omitempty"`
 	SourceStartRef   string            `json:"source_start_ref,omitempty"`
