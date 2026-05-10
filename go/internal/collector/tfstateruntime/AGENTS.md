@@ -37,5 +37,5 @@
 - Returning a generation for a claimed item that does not match the derived
   state snapshot identity.
 - Opening prefix-based S3 keys, workspace directories, guessed local files, or
-  unapproved repo-local state candidates.
+  repo-local state candidates before the #140 approval path exists.
 - Adding storage, graph, reducer, or query dependencies to this package.

@@ -205,10 +205,10 @@ it.
   and Java call inference do not need every method-local declaration as a
   canonical `Variable` node. Keep JS/TS/Python local-variable coverage intact
   unless their query contracts change.
-- Terraform-state ingestion is explicit-source or approved-candidate only in
-  the reader stack. The Git collector may record repo-local `.tfstate`
-  candidates as advisory metadata, but it must not route raw state through Git
-  content persistence or parse state as normal repository content.
+- Terraform-state ingestion currently uses explicit sources and Git-observed
+  backend facts. The #140 target design adds repo-local `.tfstate` candidates
+  as advisory metadata, but those candidates must not route raw state through
+  Git content persistence or parse state as normal repository content.
 - Terraform-state claim processing records `eshu_dp_tfstate_claim_wait_seconds`
   and uses `tfstate.collector.claim.process` around the claimed work boundary.
 - `AfterBatchDrained` is a batch boundary hook, not a timer callback. Use it for
