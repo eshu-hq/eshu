@@ -96,6 +96,37 @@ If those conditions are not met, Eshu must either:
 
 It must not pretend a partial root model is authoritative.
 
+## Mandatory Language Contract
+
+Every parser-supported source language has the same exactness contract:
+
+- if the language can define code, Eshu must model those definitions for the
+  candidate kinds it reports
+- if the language can reference, call, import, inherit, implement, decorate,
+  annotate, export, register, or otherwise make code reachable, Eshu must model
+  that syntax or semantic path before claiming exact dead-code truth
+- if the language has standard package, module, workspace, build, feature, or
+  target-selection rules, Eshu must resolve them or return a named exactness
+  blocker
+- if the language has runtime or toolchain expansion that can create reachable
+  symbols, such as macros, annotation processors, code generation, plugin
+  registries, reflection, metaprogramming, or framework auto-discovery, Eshu
+  must model the expansion or return a named exactness blocker
+- if a construct is valid in the language and can affect dead-code reachability,
+  it cannot be silently ignored in an exact result
+
+This contract applies per language. A response may return `exact` only for the
+repo or query scope whose observed evidence satisfies that language contract.
+When a scope contains valid but unsupported language behavior, the response must
+return `derived`, `derived_candidate_only`, `ambiguous_only`, or an unsupported
+exactness state with explicit blocker names such as `macro_expansion_unavailable`,
+`cfg_unresolved`, `dynamic_import_unresolved`, or `reflection_unresolved`.
+
+Parser support is therefore the floor, not the finish line. The parser and
+dead-code dogfood tickets for each language must track the full language
+surface that can affect reachability, not only the constructs currently visible
+in fixtures.
+
 ## Required Output Metadata
 
 Any dead-code result should be able to report:
@@ -269,6 +300,8 @@ Every language fixture should include:
   values, interfaces, traits, dynamic imports, or generated registries
 - a generated-code or test-owned exclusion
 - an ambiguous dynamic case that keeps truth non-exact
+- every valid language construct that can affect dead-code reachability, or an
+  explicit exactness blocker proving why that construct prevents exact output
 
 Fixture intent must be asserted at three layers when the language supports
 them: parser evidence, graph/query classification, and API/MCP/local proof.

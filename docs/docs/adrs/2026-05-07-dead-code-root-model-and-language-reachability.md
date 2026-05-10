@@ -158,6 +158,20 @@ For a language to be called exact for dead-code, it must have:
 - API/MCP/CLI tests that prove the truth label and limitations metadata
 - backend conformance proof for both NornicDB and Neo4j query shapes
 
+The exactness contract is mandatory for each parser-supported source language,
+not optional per dogfood slice. If a language supports a syntax or semantic
+path that can define, reference, export, register, decorate, annotate, import,
+inherit, implement, dispatch to, or otherwise make code reachable, Eshu must
+model that path before returning an exact dead-code result. If Eshu cannot
+model it yet, the response must stay non-exact and name the blocker. Valid
+language behavior cannot be silently ignored in an exact result.
+
+The language contract is static, but the exact result is scope-specific. A
+language adapter may support exactness only when the indexed repo or query
+scope has the required evidence and no unresolved blockers such as unresolved
+macros, dynamic imports, build tags, target features, annotation processors,
+reflection, metaprogramming, or framework auto-discovery.
+
 Until a language meets those gates, Eshu may still return candidate findings,
 but the response must remain non-exact and must include which language/root
 categories were not modeled. Parser-supported languages without dedicated
@@ -308,6 +322,8 @@ fixture should include:
   dynamic dispatch case where the language supports it
 - one generated or test-owned exclusion
 - one ambiguous dynamic case that forces non-exact truth
+- every valid language construct that can affect reachability, or an explicit
+  exactness blocker for constructs Eshu cannot model yet
 
 The fixture output must be asserted through the same product surfaces users
 touch: parser/unit tests for emitted evidence, graph/query tests for
