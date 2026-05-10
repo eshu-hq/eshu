@@ -11,8 +11,8 @@ evidence flow into later parse calls.
 
 This package is responsible for Go tree-sitter parsing, Go payload assembly,
 Go dead-code root evidence, import alias tracking, receiver and call metadata,
-composite-literal type references, package interface pre-scan rows, and
-embedded SQL extraction.
+function and method return-type metadata, composite-literal type references,
+package interface pre-scan rows, and embedded SQL extraction.
 
 The parent parser package still owns registry lookup, path normalization,
 content metadata inference, runtime parser allocation, and the compatibility
@@ -52,6 +52,12 @@ observation remain owned by the parent engine and collector runtime path.
 Payload bucket ordering is part of the fact-input contract. `Parse` sorts
 functions, structs, interfaces, variables, imports, and function calls before
 returning.
+
+Function and method rows may carry `return_type` when tree-sitter exposes a
+single named, pointer, selector, generic, or qualified result type. The value is
+normalized to the terminal type name, so a pointer to an imported selector keeps
+only the type name. Reducer code-call materialization uses that bounded evidence
+for Go method chains.
 
 Cyclomatic complexity counts Go control-flow branches once. The helper layer
 counts a `for range` statement through the enclosing `for_statement`, not again

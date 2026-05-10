@@ -114,6 +114,14 @@ func resolveGenericCallee(
 		return entityID, codeCallPreferredPath(rawPath, relativePath)
 	}
 
+	if language == "go" {
+		if entityID := resolveGoPackageQualifiedCalleeEntityID(index, repositoryID, fileData, call); entityID != "" {
+			return entityID, index.entityFileByID[entityID]
+		}
+		if entityID := resolveGoMethodReturnChainCalleeEntityID(index, repositoryID, call); entityID != "" {
+			return entityID, index.entityFileByID[entityID]
+		}
+	}
 	if language == "go" && !codeCallHasQualifiedScope(call, language) {
 		if entityID := resolveGoSameDirectoryCalleeEntityID(index, repositoryID, rawPath, relativePath, call, language); entityID != "" {
 			return entityID, index.entityFileByID[entityID]

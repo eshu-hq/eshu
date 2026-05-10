@@ -136,3 +136,109 @@ func addDemoTestCases(harness *HTTPHarness) {
 	assertStringFieldValue(t, call, "receiver_identifier", "harness")
 	assertStringFieldValue(t, call, "inferred_obj_type", "HTTPHarness")
 }
+
+func TestDefaultEngineParsePathGoRecordsFunctionReturnType(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "eval.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package main
+
+type EvalContext struct{}
+type Actions struct{}
+
+func (ctx *EvalContext) Actions() *Actions {
+	return &Actions{}
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	function := assertFunctionByNameAndClass(t, got, "Actions", "EvalContext")
+	assertStringFieldValue(t, function, "return_type", "Actions")
+}
+
+func TestDefaultEngineParsePathGoRecordsMethodReturnChainCallName(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "eval.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package main
+
+type EvalContext struct{}
+type Actions struct{}
+
+func (ctx *EvalContext) Actions() *Actions {
+	return &Actions{}
+}
+
+func (a *Actions) GetActionInstance() {}
+
+func execute(ctx *EvalContext) {
+	ctx.Actions().GetActionInstance()
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	call := assertBucketItemByFieldValue(t, got, "function_calls", "name", "GetActionInstance")
+	assertStringFieldValue(t, call, "full_name", "ctx.Actions().GetActionInstance")
+}
+
+func TestDefaultEngineParsePathGoNormalizesQualifiedReturnTypes(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "eval.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package main
+
+import "example.com/project/internal/actions"
+
+type BuiltinEvalContext struct{}
+
+func (ctx *BuiltinEvalContext) Actions() *actions.Actions {
+	return actions.NewActions()
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	function := assertFunctionByNameAndClass(t, got, "Actions", "BuiltinEvalContext")
+	assertStringFieldValue(t, function, "return_type", "Actions")
+}

@@ -60,6 +60,9 @@ func Parse(
 			if classContext := goReceiverContext(node, source); classContext != "" {
 				item["class_context"] = classContext
 			}
+			if returnType := goTypeNameFromNode(node.ChildByFieldName("result"), source); returnType != "" {
+				item["return_type"] = returnType
+			}
 			if rootKinds := goDeadCodeRootKinds(node, source, importAliases, deadCodeEvidence.functionRootKinds); len(rootKinds) > 0 {
 				item["dead_code_root_kinds"] = rootKinds
 			}
