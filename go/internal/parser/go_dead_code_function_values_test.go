@@ -108,6 +108,47 @@ func wire() {
 	}
 }
 
+func TestDefaultEngineParsePathGoSkipsShadowedFunctionValueReferences(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "function_values.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package roots
+
+func helper() {}
+func callback() {}
+
+func wire(helper func()) {
+	local := 1
+	callback := 2
+	_ = []any{helper, local, callback}
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	for _, name := range []string{"helper", "local", "callback"} {
+		if bucketHasFieldValues(got, "function_calls", map[string]string{
+			"name":      name,
+			"call_kind": "go.function_value_reference",
+		}) {
+			t.Fatalf("%s emitted as a function value reference, want shadowed or non-function identifiers skipped", name)
+		}
+	}
+}
+
 func TestDefaultEngineParsePathGoEmitsMethodValueRootKinds(t *testing.T) {
 	t.Parallel()
 

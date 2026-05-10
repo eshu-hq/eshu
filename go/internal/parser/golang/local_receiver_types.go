@@ -15,6 +15,15 @@ type goLocalReceiverBinding struct {
 	scopeEnd   int
 }
 
+type goLocalNameBinding struct {
+	variable   string
+	line       int
+	scopeStart int
+	scopeEnd   int
+}
+
+// goConstructorReturnTypes records same-file constructor return types used for
+// bounded local receiver inference.
 func goConstructorReturnTypes(root *tree_sitter.Node, source []byte) map[string]string {
 	returns := make(map[string]string)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
@@ -34,6 +43,84 @@ func goConstructorReturnTypes(root *tree_sitter.Node, source []byte) map[string]
 	return returns
 }
 
+// goLocalNameBindings records local names that can shadow package-level
+// function-value references.
+func goLocalNameBindings(root *tree_sitter.Node, source []byte) []goLocalNameBinding {
+	bindings := make([]goLocalNameBinding, 0)
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "function_declaration", "method_declaration":
+			bindings = append(bindings, goLocalNameBindingsFromParameters(node, source)...)
+		case "short_var_declaration":
+			bindings = append(bindings, goLocalNameBindingsFromNames(node, goIdentifierNodes(node.ChildByFieldName("left"), source), source)...)
+		case "var_spec":
+			bindings = append(bindings, goLocalNameBindingsFromNames(node, goIdentifierNodes(node.ChildByFieldName("name"), source), source)...)
+		}
+	})
+	return bindings
+}
+
+// goLocalNameBindingsFromParameters scopes parameter names to the function
+// body, matching Go's lexical visibility for parameters.
+func goLocalNameBindingsFromParameters(node *tree_sitter.Node, source []byte) []goLocalNameBinding {
+	body := node.ChildByFieldName("body")
+	if body == nil {
+		return nil
+	}
+	parameters := node.ChildByFieldName("parameters")
+	if parameters == nil {
+		return nil
+	}
+	bindings := make([]goLocalNameBinding, 0)
+	walkDirectNamed(parameters, func(child *tree_sitter.Node) {
+		if child.Kind() != "parameter_declaration" {
+			return
+		}
+		for _, nameNode := range goIdentifierNodes(child.ChildByFieldName("name"), source) {
+			variable := strings.TrimSpace(nodeText(nameNode, source))
+			if variable == "" {
+				continue
+			}
+			bindings = append(bindings, goLocalNameBinding{
+				variable:   variable,
+				line:       nodeLine(node),
+				scopeStart: nodeLine(body),
+				scopeEnd:   nodeEndLine(body),
+			})
+		}
+	})
+	return bindings
+}
+
+// goLocalNameBindingsFromNames scopes local declarations to their nearest
+// lexical block or statement.
+func goLocalNameBindingsFromNames(
+	node *tree_sitter.Node,
+	nameNodes []*tree_sitter.Node,
+	source []byte,
+) []goLocalNameBinding {
+	scope := goNearestLexicalScope(node)
+	if scope == nil {
+		return nil
+	}
+	bindings := make([]goLocalNameBinding, 0, len(nameNodes))
+	for _, nameNode := range nameNodes {
+		variable := strings.TrimSpace(nodeText(nameNode, source))
+		if variable == "" {
+			continue
+		}
+		bindings = append(bindings, goLocalNameBinding{
+			variable:   variable,
+			line:       nodeLine(node),
+			scopeStart: nodeLine(scope),
+			scopeEnd:   nodeEndLine(scope),
+		})
+	}
+	return bindings
+}
+
+// goLocalReceiverBindings records local receiver type evidence from parameters
+// and constructor-return assignments.
 func goLocalReceiverBindings(
 	root *tree_sitter.Node,
 	source []byte,
@@ -150,7 +237,7 @@ func goNewLocalReceiverBinding(
 	typeName string,
 	source []byte,
 ) goLocalReceiverBinding {
-	scope := goEnclosingFunctionScope(node)
+	scope := goNearestLexicalScope(node)
 	if scope == nil {
 		return goLocalReceiverBinding{}
 	}
@@ -279,4 +366,16 @@ func goEnclosingFunctionScope(node *tree_sitter.Node) *tree_sitter.Node {
 		}
 	}
 	return nil
+}
+
+// goNearestLexicalScope returns the smallest syntax scope that can bound a
+// local declaration without making inner-block bindings visible outside.
+func goNearestLexicalScope(node *tree_sitter.Node) *tree_sitter.Node {
+	for current := node; current != nil; current = current.Parent() {
+		switch current.Kind() {
+		case "block", "if_statement", "for_statement", "communication_case", "expression_case", "default_case":
+			return current
+		}
+	}
+	return goEnclosingFunctionScope(node)
 }

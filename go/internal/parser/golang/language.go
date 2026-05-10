@@ -34,6 +34,7 @@ func Parse(
 	root := tree.RootNode()
 	importAliases := goImportAliasIndex(root, source)
 	constructorReturns := goConstructorReturnTypes(root, source)
+	localNameBindings := goLocalNameBindings(root, source)
 	localReceiverBindings := goLocalReceiverBindings(root, source, constructorReturns)
 	deadCodeEvidence := goDeadCodeEvidence(root, source, importAliases, options.GoImportedInterfaceParamMethods)
 	scope := options.NormalizedVariableScope()
@@ -154,7 +155,7 @@ func Parse(
 			}
 		}
 	})
-	for _, item := range goFunctionValueReferenceCalls(root, source) {
+	for _, item := range goFunctionValueReferenceCalls(root, source, localNameBindings) {
 		shared.AppendBucket(payload, "function_calls", item)
 	}
 

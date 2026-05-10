@@ -137,6 +137,66 @@ func addDemoTestCases(harness *HTTPHarness) {
 	assertStringFieldValue(t, call, "inferred_obj_type", "HTTPHarness")
 }
 
+func TestDefaultEngineParsePathGoKeepsConstructorReceiverBindingsBlockScoped(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "eval.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package main
+
+type HTTPHarness struct{}
+type OtherHarness struct{}
+
+func NewHTTPHarness() *HTTPHarness {
+	return &HTTPHarness{}
+}
+
+func (h *HTTPHarness) AddTestCases() {}
+func (h *OtherHarness) AddTestCases() {}
+
+func addDemoTestCases(harness *OtherHarness, enabled bool) {
+	if enabled {
+		harness := NewHTTPHarness()
+		harness.AddTestCases()
+	}
+	harness.AddTestCases()
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	var innerCall, outerCall map[string]any
+	for _, call := range bucketItems(t, got, "function_calls") {
+		if fullName, _ := call["full_name"].(string); fullName != "harness.AddTestCases" {
+			continue
+		}
+		line := intFieldValue(t, call, "line_number")
+		switch line {
+		case 16:
+			innerCall = call
+		case 18:
+			outerCall = call
+		}
+	}
+	if innerCall == nil || outerCall == nil {
+		t.Fatalf("missing expected harness.AddTestCases calls; calls=%#v", got["function_calls"])
+	}
+	assertStringFieldValue(t, innerCall, "inferred_obj_type", "HTTPHarness")
+	assertStringFieldValue(t, outerCall, "inferred_obj_type", "OtherHarness")
+}
+
 func TestDefaultEngineParsePathGoRecordsFunctionReturnType(t *testing.T) {
 	t.Parallel()
 
@@ -241,4 +301,30 @@ func (ctx *BuiltinEvalContext) Actions() *actions.Actions {
 
 	function := assertFunctionByNameAndClass(t, got, "Actions", "BuiltinEvalContext")
 	assertStringFieldValue(t, function, "return_type", "Actions")
+}
+
+func bucketItems(t *testing.T, payload map[string]any, bucket string) []map[string]any {
+	t.Helper()
+
+	items, ok := payload[bucket].([]map[string]any)
+	if !ok {
+		t.Fatalf("%s = %T, want []map[string]any", bucket, payload[bucket])
+	}
+	return items
+}
+
+func intFieldValue(t *testing.T, item map[string]any, field string) int {
+	t.Helper()
+
+	switch value := item[field].(type) {
+	case int:
+		return value
+	case int64:
+		return int(value)
+	case float64:
+		return int(value)
+	default:
+		t.Fatalf("%s = %T, want numeric value", field, item[field])
+		return 0
+	}
 }

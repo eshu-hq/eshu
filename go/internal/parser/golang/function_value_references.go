@@ -10,6 +10,7 @@ import (
 func goFunctionValueReferenceCalls(
 	root *tree_sitter.Node,
 	source []byte,
+	localNameBindings []goLocalNameBinding,
 ) []map[string]any {
 	if root == nil {
 		return nil
@@ -22,6 +23,9 @@ func goFunctionValueReferenceCalls(
 		}
 		name := strings.TrimSpace(nodeText(node, source))
 		if name == "" || name == "_" {
+			return
+		}
+		if goNameIsLocallyBound(name, nodeLine(node), localNameBindings) {
 			return
 		}
 		calls = append(calls, map[string]any{
@@ -74,6 +78,25 @@ func goNodeMatchesField(parent *tree_sitter.Node, child *tree_sitter.Node, field
 		if goSameNodeRange(current, parent) {
 			break
 		}
+	}
+	return false
+}
+
+// goNameIsLocallyBound reports whether name is shadowed at line by a local
+// binding in the same lexical scope.
+func goNameIsLocallyBound(name string, line int, bindings []goLocalNameBinding) bool {
+	name = strings.TrimSpace(name)
+	if name == "" || line <= 0 {
+		return false
+	}
+	for _, binding := range bindings {
+		if binding.variable != name ||
+			binding.line > line ||
+			line < binding.scopeStart ||
+			line > binding.scopeEnd {
+			continue
+		}
+		return true
 	}
 	return false
 }

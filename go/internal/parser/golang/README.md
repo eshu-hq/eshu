@@ -59,6 +59,16 @@ normalized to the terminal type name, so a pointer to an imported selector keeps
 only the type name. Reducer code-call materialization uses that bounded evidence
 for Go method chains.
 
+Receiver inference is lexical, not whole-function. Constructor-assigned
+variables use the nearest block, loop, switch case, or if statement as their
+scope; typed parameters use the function body. A shadowed variable in an inner
+block must not change calls that happen after that block.
+
+Function-value reference rows are emitted only for identifiers in value
+positions that are not locally bound at that source line. This keeps callback
+wiring visible across files while avoiding references for local variables that
+happen to share a package-level function name.
+
 Cyclomatic complexity counts Go control-flow branches once. The helper layer
 counts a `for range` statement through the enclosing `for_statement`, not again
 through its `range_clause`; this preserves the parent parser fixture contract.
