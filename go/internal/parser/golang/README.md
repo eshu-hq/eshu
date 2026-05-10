@@ -56,8 +56,13 @@ returning.
 Function and method rows may carry `return_type` when tree-sitter exposes a
 single named, pointer, selector, generic, or qualified result type. The value is
 normalized to the terminal type name, so a pointer to an imported selector keeps
-only the type name. Reducer code-call materialization uses that bounded evidence
-for Go method chains.
+only the type name. Reducer code-call materialization uses that evidence for Go
+method chains only when call metadata proves the chain receiver type with
+`chain_receiver_obj_type` and `chain_receiver_method`.
+
+Import rows may carry `alias` for explicit Go package aliases. Blank and dot
+imports stay out of alias metadata because they do not provide a package
+qualifier for call materialization.
 
 Receiver inference is lexical, not whole-function. Constructor-assigned
 variables use the nearest block, loop, switch case, or if statement as their
@@ -70,10 +75,11 @@ Function-value reference rows are emitted only for identifiers in value
 positions that are not locally bound at that source line. That includes call
 arguments such as builder callbacks, composite literal fields, and returned
 method values such as `runFuncSlice(rx).Run`. Package-level function literals
-also mark same-file helper calls as `go.function_literal_reachable_call` when
-the callee name is not shadowed inside the literal. This keeps callback wiring
-visible across files while avoiding references for local variables that happen
-to share a package-level function name.
+passed directly as callback arguments, and function literals stored in composite
+literal registries, also mark same-file helper calls as
+`go.function_literal_reachable_call` when the callee name is not shadowed inside
+the literal. Local closures that are merely assigned do not create root evidence
+until a later, bounded flow proves they escape.
 
 Cyclomatic complexity counts Go control-flow branches once. The helper layer
 counts a `for range` statement through the enclosing `for_statement`, not again

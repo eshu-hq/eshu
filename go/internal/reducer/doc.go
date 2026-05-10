@@ -7,9 +7,10 @@
 // CommonJS property require, module.exports self-alias, imported JavaScript
 // namespace calls before same-file trailing-name fallback, function receiver,
 // constructor, re-export, dynamic import, returned function-value, Go
-// package-qualified imports and method-return chains, TypeScript type-reference,
-// Java local receiver, method-reference, literal reflection, ServiceLoader
-// provider, Spring auto-configuration, overload arity, and typed
+// package-qualified imports including explicit Go aliases, method-return chains
+// with parser-proven receiver types, TypeScript type-reference, Java local
+// receiver, method-reference, literal reflection, ServiceLoader provider,
+// Spring auto-configuration, overload arity, and typed
 // argument/parameter signatures including helper-call return types, Java
 // enhanced-for receiver evidence, and Java enclosing-class and explicit
 // outer-this field receiver contexts, Python constructor, self receiver, class

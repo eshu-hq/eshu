@@ -31,10 +31,13 @@ func TestExtractCodeCallRowsResolvesGoMethodReturnReceiverChain(t *testing.T) {
 					},
 					"function_calls": []any{
 						map[string]any{
-							"name":        "GetActionInstance",
-							"full_name":   "ctx.Actions().GetActionInstance",
-							"line_number": 40,
-							"lang":        "go",
+							"name":                      "GetActionInstance",
+							"full_name":                 "ctx.Actions().GetActionInstance",
+							"line_number":               40,
+							"lang":                      "go",
+							"chain_receiver_identifier": "ctx",
+							"chain_receiver_method":     "Actions",
+							"chain_receiver_obj_type":   "BuiltinEvalContext",
 						},
 					},
 				},
@@ -111,6 +114,84 @@ func TestExtractCodeCallRowsResolvesGoMethodReturnReceiverChain(t *testing.T) {
 	assertCodeCallRow(t, rows, "content-entity:execute", "content-entity:get-action-instance")
 }
 
+func TestExtractCodeCallRowsSkipsGoMethodReturnChainWithoutReceiverTypeProof(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload: map[string]any{
+				"repo_id": "repo-go",
+			},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-go",
+				"relative_path": "internal/terraform/node.go",
+				"parsed_file_data": map[string]any{
+					"path": "internal/terraform/node.go",
+					"functions": []any{
+						map[string]any{"name": "Execute", "line_number": 20, "end_line": 70, "uid": "content-entity:execute"},
+					},
+					"function_calls": []any{
+						map[string]any{
+							"name":        "GetActionInstance",
+							"full_name":   "external.Actions().GetActionInstance",
+							"line_number": 40,
+							"lang":        "go",
+						},
+					},
+				},
+			},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-go",
+				"relative_path": "internal/terraform/eval_context_builtin.go",
+				"parsed_file_data": map[string]any{
+					"path": "internal/terraform/eval_context_builtin.go",
+					"functions": []any{
+						map[string]any{
+							"name":          "Actions",
+							"class_context": "BuiltinEvalContext",
+							"return_type":   "Actions",
+							"line_number":   665,
+							"end_line":      667,
+							"uid":           "content-entity:builtin-actions",
+						},
+					},
+				},
+			},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-go",
+				"relative_path": "internal/actions/actions.go",
+				"parsed_file_data": map[string]any{
+					"path": "internal/actions/actions.go",
+					"functions": []any{
+						map[string]any{
+							"name":          "GetActionInstance",
+							"class_context": "Actions",
+							"line_number":   49,
+							"end_line":      60,
+							"uid":           "content-entity:get-action-instance",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, rows := ExtractCodeCallRows(envelopes)
+	if len(rows) != 0 {
+		t.Fatalf("rows = %#v, want no unproven method-return chain edge", rows)
+	}
+}
+
 func TestExtractCodeCallRowsResolvesGoPackageQualifiedConstructor(t *testing.T) {
 	t.Parallel()
 
@@ -125,10 +206,10 @@ func TestExtractCodeCallRowsResolvesGoPackageQualifiedConstructor(t *testing.T) 
 	}
 	if err := os.WriteFile(callerPath, []byte(`package terraform
 
-import "github.com/hashicorp/terraform/internal/actions"
+import acts "github.com/hashicorp/terraform/internal/actions"
 
 func configureContext() {
-	_ = actions.NewActions()
+	_ = acts.NewActions()
 }
 `), 0o600); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v, want nil", callerPath, err)

@@ -34,8 +34,8 @@ func resolveGoPackageQualifiedCalleeEntityID(
 }
 
 // resolveGoMethodReturnChainCalleeEntityID links chains such as
-// ctx.Actions().GetActionInstance when one same-repo Actions method return type
-// proves the receiver type.
+// ctx.Actions().GetActionInstance when parser metadata proves the chain receiver
+// type and one same-repo method return type exists for that receiver.
 func resolveGoMethodReturnChainCalleeEntityID(
 	index codeEntityIndex,
 	repositoryID string,
@@ -46,15 +46,16 @@ func resolveGoMethodReturnChainCalleeEntityID(
 	if repositoryID == "" || fullName == "" || name == "" || !strings.Contains(fullName, "().") {
 		return ""
 	}
-	receiverMethod := goReceiverMethodNameFromCallChain(fullName, name)
-	if receiverMethod == "" {
+	receiverType := strings.TrimSpace(anyToString(call["chain_receiver_obj_type"]))
+	receiverMethod := strings.TrimSpace(anyToString(call["chain_receiver_method"]))
+	if receiverType == "" || receiverMethod == "" {
 		return ""
 	}
-	receiverType := index.goMethodReturnTypes[repositoryID][receiverMethod]
-	if receiverType == "" {
+	returnType := index.goMethodReturnTypes[repositoryID][receiverType+"."+receiverMethod]
+	if returnType == "" {
 		return ""
 	}
-	if entityID := index.uniqueNameByRepo[repositoryID][receiverType+"."+name]; entityID != "" {
+	if entityID := index.uniqueNameByRepo[repositoryID][returnType+"."+name]; entityID != "" {
 		return entityID
 	}
 	return ""
@@ -69,17 +70,19 @@ func addGoMethodReturnTypeCandidate(
 ) {
 	repositoryID = strings.TrimSpace(repositoryID)
 	name := strings.TrimSpace(anyToString(item["name"]))
+	receiverType := strings.TrimSpace(anyToString(item["class_context"]))
 	returnType := strings.TrimSpace(anyToString(item["return_type"]))
-	if repositoryID == "" || name == "" || returnType == "" {
+	if repositoryID == "" || name == "" || receiverType == "" || returnType == "" {
 		return
 	}
 	if _, ok := candidates[repositoryID]; !ok {
 		candidates[repositoryID] = make(map[string]map[string]struct{})
 	}
-	if _, ok := candidates[repositoryID][name]; !ok {
-		candidates[repositoryID][name] = make(map[string]struct{})
+	key := receiverType + "." + name
+	if _, ok := candidates[repositoryID][key]; !ok {
+		candidates[repositoryID][key] = make(map[string]struct{})
 	}
-	candidates[repositoryID][name][returnType] = struct{}{}
+	candidates[repositoryID][key][returnType] = struct{}{}
 }
 
 // uniqueCodeCallNamesByDirectory keeps only directory-local names with exactly
@@ -117,24 +120,6 @@ func goPackageQualifier(fullName string, terminalName string) (string, bool) {
 		return "", false
 	}
 	return qualifier, true
-}
-
-func goReceiverMethodNameFromCallChain(fullName string, terminalName string) string {
-	trimmed := strings.TrimSpace(fullName)
-	suffix := "." + strings.TrimSpace(terminalName)
-	if suffix == "." || !strings.HasSuffix(trimmed, suffix) {
-		return ""
-	}
-	receiverChain := strings.TrimSuffix(trimmed, suffix)
-	if !strings.HasSuffix(receiverChain, "()") {
-		return ""
-	}
-	receiverChain = strings.TrimSuffix(receiverChain, "()")
-	index := strings.LastIndex(receiverChain, ".")
-	if index < 0 || index == len(receiverChain)-1 {
-		return receiverChain
-	}
-	return receiverChain[index+1:]
 }
 
 func goImportSource(entry map[string]any) string {

@@ -69,11 +69,17 @@ func goCollectFunctionValuesFromExpression(
 	switch node.Kind() {
 	case "call_expression":
 		for _, arg := range goCallArgumentNodes(node) {
+			if arg.Kind() == "func_literal" {
+				goCollectFunctionLiteralReachableCalls(arg, source, functionNames, localNameBindings, functionRootKinds)
+				continue
+			}
 			goCollectFunctionValuesFromExpression(arg, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
 		}
 		return
 	case "func_literal":
-		goCollectFunctionLiteralReachableCalls(node, source, functionNames, localNameBindings, functionRootKinds)
+		if goFunctionLiteralIsCompositeElement(node) {
+			goCollectFunctionLiteralReachableCalls(node, source, functionNames, localNameBindings, functionRootKinds)
+		}
 		return
 	case "identifier":
 		rawName := strings.TrimSpace(nodeText(node, source))

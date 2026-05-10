@@ -7,36 +7,54 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func goLocalMapValueTypes(root *tree_sitter.Node, source []byte) map[string]string {
-	valueTypes := make(map[string]string)
+type goLocalMapValueTypeBinding struct {
+	variable   string
+	typeName   string
+	line       int
+	scopeStart int
+	scopeEnd   int
+}
+
+// goLocalMapValueTypes records lexical map value types so range receiver
+// inference follows Go block shadowing instead of package-wide variable names.
+func goLocalMapValueTypes(root *tree_sitter.Node, source []byte) []goLocalMapValueTypeBinding {
+	bindings := make([]goLocalMapValueTypeBinding, 0)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration", "method_declaration":
-			goRecordParameterMapValueTypes(valueTypes, node.ChildByFieldName("parameters"), source)
+			bindings = append(bindings, goParameterMapValueTypes(node, source)...)
 		case "func_literal":
-			goRecordParameterMapValueTypes(valueTypes, node.ChildByFieldName("parameters"), source)
+			bindings = append(bindings, goParameterMapValueTypes(node, source)...)
 		case "short_var_declaration", "assignment_statement":
 			leftNames := goIdentifierNodes(node.ChildByFieldName("left"), source)
 			values := goExpressionNodes(node.ChildByFieldName("right"))
-			goRecordAssignedMapValueTypes(valueTypes, leftNames, values, source)
+			bindings = append(bindings, goAssignedMapValueTypes(node, leftNames, values, source)...)
 		case "var_spec":
 			nameNodes := goIdentifierNodes(node.ChildByFieldName("name"), source)
 			if typeName := goMapValueTypeNameFromNode(node.ChildByFieldName("type"), source); typeName != "" {
 				for _, nameNode := range nameNodes {
-					name := strings.TrimSpace(nodeText(nameNode, source))
-					if name != "" {
-						valueTypes[name] = typeName
+					if binding := goNewMapValueTypeBinding(node, nameNode, typeName, source); binding.variable != "" {
+						bindings = append(bindings, binding)
 					}
 				}
 				return
 			}
-			goRecordAssignedMapValueTypes(valueTypes, nameNodes, goExpressionNodes(node.ChildByFieldName("value")), source)
+			bindings = append(bindings, goAssignedMapValueTypes(node, nameNodes, goExpressionNodes(node.ChildByFieldName("value")), source)...)
 		}
 	})
-	return valueTypes
+	return bindings
 }
 
-func goRecordParameterMapValueTypes(target map[string]string, parameters *tree_sitter.Node, source []byte) {
+func goParameterMapValueTypes(node *tree_sitter.Node, source []byte) []goLocalMapValueTypeBinding {
+	body := node.ChildByFieldName("body")
+	if body == nil {
+		return nil
+	}
+	parameters := node.ChildByFieldName("parameters")
+	if parameters == nil {
+		return nil
+	}
+	bindings := make([]goLocalMapValueTypeBinding, 0)
 	walkDirectNamed(parameters, func(param *tree_sitter.Node) {
 		if param.Kind() != "parameter_declaration" {
 			return
@@ -48,41 +66,68 @@ func goRecordParameterMapValueTypes(target map[string]string, parameters *tree_s
 		for _, nameNode := range goIdentifierNodes(param.ChildByFieldName("name"), source) {
 			name := strings.TrimSpace(nodeText(nameNode, source))
 			if name != "" {
-				target[name] = typeName
+				bindings = append(bindings, goLocalMapValueTypeBinding{
+					variable:   name,
+					typeName:   typeName,
+					line:       nodeLine(node),
+					scopeStart: nodeLine(body),
+					scopeEnd:   nodeEndLine(body),
+				})
 			}
 		}
 	})
+	return bindings
 }
 
-func goRecordAssignedMapValueTypes(
-	target map[string]string,
+func goAssignedMapValueTypes(
+	node *tree_sitter.Node,
 	nameNodes []*tree_sitter.Node,
 	valueNodes []*tree_sitter.Node,
 	source []byte,
-) {
+) []goLocalMapValueTypeBinding {
 	if len(nameNodes) == 0 || len(valueNodes) == 0 {
-		return
+		return nil
 	}
 	count := len(nameNodes)
 	if len(valueNodes) < count {
 		count = len(valueNodes)
 	}
+	bindings := make([]goLocalMapValueTypeBinding, 0, count)
 	for i := 0; i < count; i++ {
 		typeName := goMapValueTypeNameFromExpression(valueNodes[i], source)
 		if typeName == "" {
 			continue
 		}
-		name := strings.TrimSpace(nodeText(nameNodes[i], source))
-		if name != "" {
-			target[name] = typeName
+		if binding := goNewMapValueTypeBinding(node, nameNodes[i], typeName, source); binding.variable != "" {
+			bindings = append(bindings, binding)
 		}
+	}
+	return bindings
+}
+
+func goNewMapValueTypeBinding(
+	node *tree_sitter.Node,
+	nameNode *tree_sitter.Node,
+	typeName string,
+	source []byte,
+) goLocalMapValueTypeBinding {
+	scope := goNearestLexicalScope(node)
+	if scope == nil {
+		return goLocalMapValueTypeBinding{}
+	}
+	return goLocalMapValueTypeBinding{
+		variable:   strings.TrimSpace(nodeText(nameNode, source)),
+		typeName:   typeName,
+		line:       nodeLine(node),
+		scopeStart: nodeLine(scope),
+		scopeEnd:   nodeEndLine(scope),
 	}
 }
 
 func goLocalReceiverBindingsFromRangeClause(
 	node *tree_sitter.Node,
 	source []byte,
-	mapValueTypes map[string]string,
+	mapValueTypes []goLocalMapValueTypeBinding,
 ) []goLocalReceiverBinding {
 	rangeNode := node
 	if node.Kind() == "for_statement" {
@@ -98,13 +143,13 @@ func goLocalReceiverBindingsFromRangeClause(
 		if rightName == "" {
 			return nil
 		}
-		valueType := mapValueTypes[rightName]
+		valueType := goMapValueTypeForName(rightName, nodeLine(rangeNode), mapValueTypes)
 		if valueType == "" || valueName == "" {
 			return nil
 		}
 		return goRangeValueReceiverBinding(node, rangeNode, valueName, valueType)
 	}
-	valueType := mapValueTypes[strings.TrimSpace(nodeText(right, source))]
+	valueType := goMapValueTypeForName(strings.TrimSpace(nodeText(right, source)), nodeLine(rangeNode), mapValueTypes)
 	if valueType == "" {
 		return nil
 	}
@@ -118,6 +163,36 @@ func goLocalReceiverBindingsFromRangeClause(
 		return nil
 	}
 	return goRangeValueReceiverBinding(node, rangeNode, valueName, valueType)
+}
+
+func goMapValueTypeForName(
+	variable string,
+	rangeLine int,
+	bindings []goLocalMapValueTypeBinding,
+) string {
+	variable = strings.TrimSpace(variable)
+	if variable == "" || rangeLine <= 0 {
+		return ""
+	}
+	var best goLocalMapValueTypeBinding
+	for _, binding := range bindings {
+		if binding.variable != variable ||
+			binding.line > rangeLine ||
+			rangeLine < binding.scopeStart ||
+			rangeLine > binding.scopeEnd {
+			continue
+		}
+		if best.typeName == "" ||
+			binding.line > best.line ||
+			spanWidthForGoMapBinding(binding) < spanWidthForGoMapBinding(best) {
+			best = binding
+		}
+	}
+	return best.typeName
+}
+
+func spanWidthForGoMapBinding(binding goLocalMapValueTypeBinding) int {
+	return binding.scopeEnd - binding.scopeStart
 }
 
 func goRangeValueReceiverBinding(

@@ -157,12 +157,13 @@ same-directory step applies to functions and type entities from `structs` and
 `wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name resolution must
 stay ambiguous in that case. Go package-qualified resolution maps parser import
 metadata such as `github.com/hashicorp/terraform/internal/actions` to matching
-repository directories before resolving calls like `actions.NewActions()`.
-Go method-return chain resolution uses parser-provided `return_type` metadata
-from uniquely named methods in the same repository, so
+repository directories before resolving calls like `actions.NewActions()`, and
+honors explicit Go import aliases through parser `alias` metadata. Go
+method-return chain resolution uses parser-provided `return_type`,
+`chain_receiver_obj_type`, and `chain_receiver_method` metadata, so
 `ctx.Actions().GetActionInstance()` can reach `Actions.GetActionInstance`
-without making same-named methods in other repositories part of the candidate
-set.
+only after the parser proves that `ctx` has a receiver type whose `Actions`
+method returns `Actions`.
 
 For Java, parser-provided `inferred_obj_type` metadata lets receiver-qualified
 calls such as `factory.basicAuth(...)` resolve to methods on the parsed

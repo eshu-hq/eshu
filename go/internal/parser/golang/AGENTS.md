@@ -4,18 +4,20 @@
 
 1. `README.md` - package boundary, exported surface, and invariants
 2. `doc.go` - godoc contract for the Go adapter package
-3. `language.go` - `Parse`, `PreScan`, payload assembly, call metadata, and
-   receiver handling
+3. `language.go` and `call_chain_metadata.go` - `Parse`, `PreScan`, payload
+   assembly, call metadata, receiver handling, and chained receiver proof
 4. `dead_code_roots.go` - signature roots, import aliases, and root-kind
    helpers
 5. `dead_code_registrations.go` - net/http and Cobra registration evidence
 6. `dead_code_semantic_roots.go` - top-level semantic root collection
 7. `dead_code_semantic_helpers.go` and `dead_code_semantic_flows.go` -
    interface, callback, field, and argument flow helpers
-8. `package_interface_prescan.go` - imported-interface parameter extraction
-9. `embedded_sql.go` - SQL literal extraction and line-number accounting
-10. `helpers.go` and `types.go` - local helper and shared contract aliases
-11. Parent tests in `go/internal/parser/go*_test.go` before changing emitted
+8. `function_literal_reachability.go` - callback and registry literal root
+   boundaries
+9. `package_interface_prescan.go` - imported-interface parameter extraction
+10. `embedded_sql.go` - SQL literal extraction and line-number accounting
+11. `helpers.go` and `types.go` - local helper and shared contract aliases
+12. Parent tests in `go/internal/parser/go*_test.go` before changing emitted
     payload shape
 
 ## Invariants this package enforces
@@ -52,6 +54,9 @@
 - Missing Go functions, structs, interfaces, imports, variables, or calls
   usually means `language.go` skipped a tree-sitter node kind or changed bucket
   names. Compare the focused parent `go*_test.go` fixture output.
+- False Go CALLS edges for package-qualified or chained calls usually mean
+  import alias metadata, `chain_receiver_obj_type`, or
+  `chain_receiver_method` drifted from reducer expectations.
 - Missing interface implementation roots usually means
   `ImportedInterfaceParamMethods` was not passed back through `Options`, or a
   type-flow helper lost local concrete-type evidence.

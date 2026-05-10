@@ -108,11 +108,17 @@ func Parse(
 			if strings.TrimSpace(name) == "" {
 				return
 			}
-			shared.AppendBucket(payload, "imports", map[string]any{
+			item := map[string]any{
 				"name":        name,
 				"line_number": nodeLine(pathNode),
 				"lang":        "go",
-			})
+			}
+			if aliasNode := node.ChildByFieldName("name"); aliasNode != nil {
+				if alias := strings.TrimSpace(nodeText(aliasNode, source)); alias != "" && alias != "." && alias != "_" {
+					item["alias"] = alias
+				}
+			}
+			shared.AppendBucket(payload, "imports", item)
 		case "call_expression":
 			functionNode := node.ChildByFieldName("function")
 			name := goCallName(functionNode, source)
@@ -236,6 +242,7 @@ func goAnnotateCallMetadata(
 ) {
 	receiverIdentifier, receiverIsImportAlias := goCallReceiverIdentifier(functionNode, source, importAliases)
 	if receiverIdentifier == "" {
+		goAnnotateCallChainMetadata(item, callNode, functionNode, source, localReceiverBindings)
 		return
 	}
 
