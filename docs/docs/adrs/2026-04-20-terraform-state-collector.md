@@ -16,6 +16,37 @@
 
 ---
 
+## Status Review (2026-05-10)
+
+**Current disposition:** Design accepted; runtime partially implemented; discovery
+and deployment model amended.
+
+The Terraform-state runtime now exists in this repo. The implementation has
+landed exact local and S3 source readers, streaming parse/redaction primitives,
+Terraform-state fact identity, graph-backed S3 backend discovery from Git
+evidence, claimed runtime wiring, S3 conditional reads, and DynamoDB lock
+metadata reads.
+
+This review amends the original discovery posture. Eshu should use the Git
+collector's repository index as a discovery surface for repo-local
+`terraform.tfstate` candidates when such files exist, but it must not treat
+those files as normal Git content and must not persist raw state bytes. Local
+state candidates are advisory until approved by operator policy or collector
+configuration. Approved candidates are then opened by the Terraform-state
+collector and pass through the same streaming redaction path as explicit local
+sources.
+
+The deployment model is also amended. Terraform-state and future cloud
+collectors must support both:
+
+1. a central collector deployment that assumes account-scoped read roles, and
+2. account-local or provider-local collector deployments for organizations that
+   prefer narrower blast radius or cannot grant broad cross-account trust.
+
+AWS remains the first concrete backend, but target scope, credential ownership,
+and candidate approval must be provider-neutral so GCS, Azure Blob, Terraform
+Cloud, and later cloud scanners can reuse the same control-plane shape.
+
 ## Status Review (2026-05-03)
 
 **Current disposition:** Design accepted; runtime not implemented.
@@ -85,6 +116,12 @@ revisit them:
 7. Streaming and size-discipline rules for large state files.
 8. The correlation anchors state contributes to the DSL.
 9. The phased rollout plan.
+10. The difference between state discovery, state candidate approval, and state
+    ingestion.
+11. The credential and deployment model for central and account-local
+    collectors.
+12. The provider-neutral target-scope contract shared with future cloud
+    scanners.
 
 ---
 
@@ -177,10 +214,10 @@ type StateMetadata struct {
 
 Implementations at launch:
 
-- `localStateSource` — reads the state payload from the Postgres content
-  store first, falling back to on-disk workspace only when the collector
-  runtime mandates it. Matches the `content store is authoritative` project
-  rule.
+- `localStateSource` — reads an exact operator-approved local file. The Git
+  collector may discover candidate paths, but raw `.tfstate` must not flow
+  through normal Git content persistence. Approved local candidates are handed
+  to this source reader and parsed through the Terraform-state redaction path.
 - `s3StateSource` — uses AWS SDK v2 `s3.GetObject` with `If-None-Match`
   against the previously observed ETag. Optional DynamoDB `GetItem` against
   the lock table reads `LockID` and `Digest` for metadata only. The
@@ -191,27 +228,69 @@ Implementations at launch:
   `localStateSource` or `s3StateSource`. Terragrunt does not get its own
   reader; it gets a resolver.
 
-### Discovery: Graph First, Declarative Fallback, Explicit Override
+### Discovery: Find Candidates First, Ingest Approved Sources
 
 The collector must answer "which state objects should I read?" before any
-backend traffic.
+backend traffic. The answer has two stages:
+
+1. **Discovery** records possible state locations and why Eshu believes they
+   matter.
+2. **Ingestion** opens an approved exact source and emits redacted facts.
+
+This distinction matters because Terraform state is high-risk source material.
+Eshu should discover state aggressively enough to be useful as the central
+evidence map, but raw state must only cross the Terraform-state collector's
+reader and parser boundary.
 
 Discovery is layered:
 
-1. **Explicit overrides** in collector instance configuration win when
-   present. Operators may pin a state source when the graph is cold, when a
-   state lives outside any scanned repository, or when testing.
-2. **Graph-backed discovery** is the normal path. The collector queries the
-   Eshu Postgres content store for Terraform `backend` and Terragrunt
-   `remote_state` facts emitted by the Git collector, producing a bounded
-   set of candidate state sources.
-3. **Declarative seed** is a bounded operator fallback for the first-ever
-   run where no Git generation has completed yet. It is intended to be
-   removed from configuration once the graph is warm.
+1. **Explicit sources** in collector instance configuration win when present.
+   Operators may pin a state source when the graph is cold, when a state lives
+   outside any scanned repository, or when testing.
+2. **Git-observed backend facts** are the normal path for remote state. The
+   collector queries Postgres for Terraform `backend` and Terragrunt
+   `remote_state` facts emitted by the Git collector, producing exact backend
+   candidates such as an S3 bucket/key/region tuple.
+3. **Git-indexed repo-local state candidates** are advisory. If the Git
+   collector has already indexed a repository file set and sees
+   `terraform.tfstate` or `*.tfstate`, Eshu may record a candidate row with
+   repo, path hash, observed generation, and warning metadata. It must not
+   persist the raw state as normal file content, parse it in the Git collector,
+   or emit Terraform-state facts until the candidate is approved by policy or
+   collector configuration.
+4. **Declarative seeds** remain a bounded bootstrap fallback for the first run
+   where no Git generation has completed yet.
 
-The collector must never crawl S3 buckets, list prefixes speculatively, or
-probe unknown accounts. Every state object read must trace back to either an
-operator-declared source or a Git-collector-observed backend fact.
+The collector must never crawl S3 buckets, list unknown prefixes, or probe
+unknown accounts. Every state object read must trace back to an explicit
+operator source, a Git-observed backend fact, or an approved repo-local
+candidate created by a prior Git discovery run.
+
+Candidate records should carry enough information for operators and MCP tools
+to make a decision without exposing state contents:
+
+- candidate ID
+- source type (`explicit`, `git_backend`, `git_local_file`,
+  `terragrunt_remote_state`)
+- backend kind (`local`, `s3`, later `gcs`, `azurerm`, `terraform_cloud`)
+- repo or target scope
+- locator hash and safe display label
+- discovery generation
+- approval status (`discovered`, `approved`, `ignored`, `ingested`,
+  `failed`)
+- warning flags such as `state_in_vcs`, `unsupported_backend`,
+  `dynamic_backend`, or `workspace_expansion_required`
+
+Default ingestion mode should be conservative:
+
+- `discover_only`: record candidates and warnings; open nothing.
+- `explicit_sources`: open only configured exact sources.
+- `approved_candidates`: open exact candidates approved by policy or operator
+  action.
+
+A future `auto_ingest_git_candidates` mode may exist for tightly controlled
+environments, but it must be off by default and guarded by redaction policy,
+size ceiling, path allowlists, and security review.
 
 ### Coordinator Run Dependencies
 
@@ -341,6 +420,14 @@ Mandatory redaction rules:
 5. **Logs and spans must never carry redacted values, raw attribute values,
    or output values.** Telemetry carries hashes, sizes, and counts only.
 
+Redaction policy must be configurable without weakening the defaults. The
+collector ships with a baseline sensitive-key list and provider-schema rules,
+then lets operators add field names, path patterns, provider attributes, and
+resource-type rules that should always redact or drop. User-supplied rules are
+additive unless an explicit security review approves a narrower override. If a
+rule conflict cannot be resolved safely, the collector redacts or drops the
+value and emits a warning fact.
+
 ### Streaming And Size Discipline
 
 State files can exceed 100 MB for monolith workspaces. Treat size as a
@@ -409,7 +496,7 @@ The collector is a long-running service:
 - package: `go/cmd/collector-terraform-state/`
 - internal: `go/internal/collector/terraformstate/`
 - Kubernetes: `Deployment` (not `StatefulSet` — no workspace PVC needed;
-  state is read from content store or S3)
+  state is read from exact approved sources such as local files or S3 objects)
 - replicas: `>= 1`, horizontally scalable under the coordinator claim model
 
 ### Package Layout
@@ -423,7 +510,7 @@ go/
     collector/
       terraformstate/
         source.go            # StateSource interface
-        source_local.go      # content-store-backed local reader
+        source_local.go      # exact approved local reader
         source_s3.go         # S3 + DynamoDB (read-only) reader
         source_terragrunt.go # resolver shim
         discovery.go         # graph-backed + override-backed discovery
@@ -473,6 +560,57 @@ collectors:
 Multiple instances allowed when states live across accounts or backends with
 incompatible credentials.
 
+### Deployment And Credential Model
+
+The Terraform-state collector must support two deployment patterns.
+
+**Central collector with cross-account roles.** One deployment runs in the Eshu
+control-plane account or cluster. Each target account exposes a read-only role
+that the collector can assume for a bounded target scope. The collector assumes
+the target role per claim or per short-lived credential cache window, records
+the target account and role ARN as source metadata, and drops credentials when
+the claim is released.
+
+**Account-local or provider-local collectors.** A customer may deploy the
+collector inside each account, project, subscription, or cluster. This reduces
+cross-account trust and keeps the blast radius local. The same claim and fact
+contracts still apply; only credential acquisition changes.
+
+The control plane should model this as a provider-neutral target scope instead
+of an AWS-only shape:
+
+| Field | Purpose |
+| --- | --- |
+| `provider` | `aws`, later `gcp`, `azure`, `terraform_cloud` |
+| `target_scope_id` | Stable Eshu ID for the account, project, subscription, org, or workspace |
+| `credential_mode` | `central_assume_role`, `local_workload_identity`, `static_external` only if explicitly approved |
+| `allowed_backends` | State backends this collector may open |
+| `allowed_regions` / `locations` | Regions or locations in scope |
+| `source_allowlist` | Exact bucket/key/path/workspace patterns allowed for ingestion |
+| `redaction_policy_ref` | Versioned redaction policy used by this target |
+
+AWS launch behavior:
+
+- In Kubernetes on EKS, the pod should use either an IRSA service-account role
+  annotation (`eks.amazonaws.com/role-arn`) or EKS Pod Identity. That role may
+  read same-account state directly or call `sts:AssumeRole` into target
+  accounts.
+- Target roles must be read-only. For S3 state, grant `s3:GetObject` for the
+  configured key and `s3:GetObjectVersion` when versioned reads are enabled.
+  `s3:ListBucket` is optional and must be scoped to known prefixes; it is not a
+  discovery mechanism.
+- If the state object uses SSE-KMS, the target role needs `kms:Decrypt` for the
+  relevant key. It does not need KMS write permissions.
+- DynamoDB lock metadata is read-only. Grant `dynamodb:GetItem` and
+  `dynamodb:DescribeTable` on configured tables when lock metadata is enabled.
+  Do not grant `PutItem`, `UpdateItem`, or `DeleteItem`.
+- Cross-account trusts should require an external ID or an equivalent customer
+  tenant guard where applicable.
+
+This model intentionally mirrors the AWS cloud scanner ADR. Terraform-state
+collection and cloud scanning both need scoped target inventory, short-lived
+credentials, auditable role assumptions, and least-privilege read policies.
+
 ### Control Flow
 
 1. Coordinator issues a claim for a `(tfstate instance, scope batch)` unit
@@ -495,16 +633,24 @@ incompatible credentials.
 
 ### S3 Read-Only Posture
 
-IAM policy for the state collector's assume-role target must grant only:
+IAM policy for the state collector's assume-role target must grant only the
+read actions required by the enabled source path:
 
-- `s3:GetObject`, `s3:GetObjectVersion`
-- `s3:ListBucket` (scoped to the specific keys or key prefixes configured)
-- `dynamodb:GetItem`, `dynamodb:Query` on configured lock tables
+- `s3:GetObject` on configured state objects
+- `s3:GetObjectVersion` when the collector is allowed to read a specific S3
+  version
+- `s3:ListBucket` only when needed for a known workspace or prefix check, and
+  always scoped to configured prefixes
+- `dynamodb:DescribeTable`, `dynamodb:GetItem`, and optionally
+  `dynamodb:Query` on configured lock tables
+- `kms:Decrypt` when the state object is encrypted with a customer-managed KMS
+  key
 
 It must not grant:
 
 - any `s3:PutObject`, `s3:DeleteObject`, or bucket-level write
 - any `dynamodb:PutItem`, `dynamodb:UpdateItem`, `dynamodb:DeleteItem`
+- any `kms:Encrypt`, `kms:GenerateDataKey`, or KMS administration action
 - any `LockTable` or transaction APIs on the lock table
 
 The collector code must also carry a runtime guard that rejects backend
@@ -513,11 +659,16 @@ IAM policy is the primary control.
 
 ### Local State Caveat
 
-Local state committed to a repository is a security anti-pattern. The
-collector still reads it (operators need visibility), but emits a
-`terraform_state_warning` with `warning_kind = state_in_vcs` and the repo +
-path. This becomes a visible signal to operators rather than silently ingested
-plaintext-on-disk.
+Local state committed to a repository is a security anti-pattern. Eshu should
+still surface it because the evidence is important, but discovery and ingestion
+are separate:
+
+- the Git collector may record a repo-local state candidate and warning
+- the Terraform-state collector may open it only after explicit approval or
+  policy approval
+- any approved local state emits a `terraform_state_warning` with
+  `warning_kind = state_in_vcs`
+- the raw file is never stored as normal Git content
 
 Local state discovered outside a scanned repository (for example, a path
 mounted into the collector container) is rejected unless explicitly listed as
@@ -539,8 +690,9 @@ After this collector lands, the following must hold:
    Redaction is enforced in the parser path, not as a post-hoc filter.
 5. No state-level fact is emitted before the parser confirms a non-regressing
    `(lineage_uuid, serial)` pair.
-6. Discovery may not read a state object that was not produced by either an
-   explicit seed or a Git-collector-observed backend fact.
+6. Ingestion may not read a state object that was not produced by an explicit
+   source, a Git-collector-observed backend fact, or an approved repo-local
+   state candidate.
 7. The collector does not compute drift. Drift lives in the reducer.
 8. Collector runs are gated on upstream Git generation readiness for the
    corresponding scope when graph-backed discovery is in use.
@@ -613,6 +765,7 @@ Admin status should expose, per instance:
 - add operator documentation for the collector instance config contract
 - confirm the coordinator's run-dependency model covers `tfstate after git`
   scope gating
+- add target-scope and credential documentation shared with the AWS scanner
 
 ### Phase 2: Local + S3 Reader, Streaming Parser, Redaction
 
@@ -620,6 +773,7 @@ Admin status should expose, per instance:
   `s3StateSource`
 - implement streaming parser + redaction
 - emit `terraform_state_snapshot` and `terraform_state_resource` facts
+- add additive user redaction policy support
 - integrate with coordinator claim loop under dark-run mode
 - unit + fixture tests for:
   - serial monotonicity
@@ -627,6 +781,13 @@ Admin status should expose, per instance:
   - redaction of known-sensitive keys
   - unknown-provider-schema conservative redaction
   - size-ceiling enforcement
+
+### Phase 2b: Candidate Approval And Safe Discovery Expansion
+
+- persist repo-local `.tfstate` discovery candidates without raw file content
+- add candidate approval states and operator visibility
+- wire approved repo-local candidates into exact local source reads
+- keep `auto_ingest_git_candidates` disabled until security review approves it
 
 ### Phase 3: Terragrunt Resolution And Output/Module/Tag Facts
 
@@ -744,6 +905,22 @@ DSL ADR follow-up and the AWS scanner ADR's ARN emission contract.
 - `go/internal/correlation/rules/terraform_state/`
 - `go/internal/correlation/rules/terraform_config_state_drift/`
 - `go/internal/correlation/rules/state_to_cloud_arn/`
+
+---
+
+## References
+
+- HashiCorp Terraform S3 backend: state path, workspaces, locking, and IAM
+  permission expectations:
+  <https://developer.hashicorp.com/terraform/language/backend/s3>
+- AWS STS `AssumeRole` API, used for central collector cross-account access:
+  <https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html>
+- Amazon S3 IAM action reference for `GetObject` and versioned object reads:
+  <https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-with-s3-policy-actions.html>
+- Amazon EKS IRSA service-account role binding:
+  <https://docs.aws.amazon.com/eks/latest/userguide/associate-service-account-role.html>
+- Amazon EKS Pod Identity service-account role association:
+  <https://docs.aws.amazon.com/eks/latest/userguide/pod-id-association.html>
 
 ---
 

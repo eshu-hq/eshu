@@ -16,6 +16,22 @@
 
 ---
 
+## Status Review (2026-05-10)
+
+**Current disposition:** Design accepted; deployment model amended.
+
+The original ADR chose a single central `collector-aws-cloud` deployment with
+STS `AssumeRole` per claim. That remains the default for teams that can grant a
+central Eshu control plane scoped cross-account read roles.
+
+The design now also supports account-local collector deployments. Some
+customers will prefer, or require, one collector per AWS account, organization
+unit, or regulated boundary. The scanner must therefore share the same
+provider-neutral target-scope and credential model as the Terraform-state
+collector: central assume-role and local workload identity are both valid
+deployment modes, and the coordinator/fact contracts must not depend on which
+one was chosen.
+
 ## Status Review (2026-05-03)
 
 **Current disposition:** Design accepted; runtime not implemented.
@@ -69,13 +85,13 @@ This ADR inherits and does not revisit:
 ### What This ADR Decides
 
 1. The scanner framework choice: roll own against AWS SDK for Go v2.
-2. Deployment topology: single service, worker pool, STS `AssumeRole` per
-   claim.
+2. Deployment topology: central deployment by default, account-local
+   deployment when customer boundaries require it.
 3. Claim granularity and its relationship to AWS throttling boundaries.
 4. Launch resource coverage and deferred coverage.
 5. Rate discipline, concurrency bounds, and retry posture.
-6. Credential model: IRSA plus cross-account assume-role chain. No static
-   keys.
+6. Credential model: workload identity plus scoped target credentials. No
+   static keys.
 7. Scope and generation identity for cloud observations.
 8. Fact shapes and the tag-raw-emission contract.
 9. Phased rollout, including which correlation DSL work depends on the
@@ -85,7 +101,7 @@ This ADR inherits and does not revisit:
 
 ## Problem Statement
 
-The platform must decide how a single runtime can observe AWS cloud state
+The platform must decide how AWS scanner runtimes can observe cloud state
 across many accounts and many regions:
 
 - safely under throttling limits
@@ -132,10 +148,13 @@ Rolling our own has real costs: schema maintenance per service, throttling
 discipline, pagination logic, and cross-service dependency ordering. The
 alternative is worse: misaligned ownership, loss of invariants, or both.
 
-### Topology: Single Deployment, Worker Pool, STS AssumeRole Per Claim
+### Topology: Central Default, Account-Local Supported
 
-The AWS scanner runs as a **single** `collector-aws-cloud` deployment, not
-one deployment per account.
+The AWS scanner supports two deployment modes.
+
+The default mode is a central `collector-aws-cloud` deployment. It runs in the
+Eshu control-plane account or cluster and assumes target-account read roles per
+claim.
 
 Inside that deployment:
 
@@ -146,12 +165,20 @@ Inside that deployment:
   lease expiry, and discards them on release
 - no static access keys are loaded into the pod at any time
 
+The second supported mode is account-local deployment. A customer may run a
+collector in each account or organization boundary and let that workload use a
+local role. The coordinator still assigns claims and the collector still emits
+the same AWS facts. Only credential acquisition changes.
+
 This is explicitly not:
 
-- one deployment per account (ops burden, chart duplication, violates the
-  "one pane of glass" coordinator contract)
-- one pod per account (same as above)
 - long-lived cached cross-account credentials (blast radius)
+- one fact schema per deployment mode
+- a reason to bypass coordinator claims, fencing, or rate limits
+
+Central deployment is operationally simpler. Account-local deployment narrows
+blast radius and may fit customer trust boundaries better. Eshu must support
+both without forking the scanner architecture.
 
 ### Claim Granularity Matches Throttling Boundaries
 
@@ -388,7 +415,9 @@ Cloud scanner redaction and state collector redaction share the same library
 - internal: `go/internal/collector/awscloud/`
 - Kubernetes: `Deployment`, horizontally scalable under the coordinator
   claim model
-- one deployment total, regardless of account count
+- deployment count follows the target-scope credential model: one central
+  deployment by default, or one account-local deployment per boundary when
+  that is the safer customer choice
 
 ### Package Layout
 
@@ -754,10 +783,11 @@ metadata.
 ## Recommendation
 
 The platform should build a first-party AWS scanner against AWS SDK for Go
-v2, deployed as a single runtime with a worker pool claiming
-`(account, region, service_kind)` tuples through the workflow coordinator,
-using STS AssumeRole per claim with mandatory external IDs, shipping the
-container vertical slice at launch, and emitting raw tags for the
+v2, with a worker pool claiming `(account, region, service_kind)` tuples
+through the workflow coordinator. It should default to central STS
+`AssumeRole` per claim with mandatory external IDs, while also supporting
+account-local workload identity for stricter customer boundaries. It should
+ship the container vertical slice at launch and emit raw tags for the
 correlation DSL to normalize.
 
 This runtime is the prerequisite for turning Terraform state and code intent

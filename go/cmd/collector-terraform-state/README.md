@@ -104,5 +104,8 @@ The main trace spans are `tfstate.source.open`, `tfstate.parser.stream`, and
 ]
 ```
 
-The runtime opens only exact sources from config or Git-observed backend facts.
-It does not scan buckets, infer local state files, or write Terraform state.
+The runtime currently opens only exact sources from config or Git-observed
+backend facts. Repo-local candidate approval is the target path tracked by
+#140; until that implementation is present, local state must be configured as
+an explicit absolute source. The runtime does not scan buckets, open guessed
+local state files, or write Terraform state.

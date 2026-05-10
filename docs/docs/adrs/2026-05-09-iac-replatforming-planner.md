@@ -42,6 +42,21 @@ The planner gives Eshu a concrete re-platforming role: make the current estate
 explainable before a platform team starts moving resources into a different
 management model.
 
+## Dependency Update (2026-05-10)
+
+The Terraform-state collector ADR now separates discovery from ingestion. That
+matters for this planner because repo-local `.tfstate` files can become useful
+evidence without letting raw state flow through normal Git content storage.
+The planner should consume only approved, redacted Terraform-state facts and
+candidate metadata. It should not read raw state or treat an unapproved
+candidate as proof of ownership.
+
+The planner also depends on the shared target-scope and credential model used
+by Terraform-state and AWS cloud scanner collectors. Re-platforming findings
+should always say which account, region, role, backend, and evidence generation
+produced the classification. Without that provenance, an LLM can draft code,
+but the platform cannot explain why the draft is safe.
+
 ## Definitions
 
 For this ADR, re-platforming means moving existing workloads and infrastructure

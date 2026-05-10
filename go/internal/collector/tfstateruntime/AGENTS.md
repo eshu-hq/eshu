@@ -15,7 +15,9 @@
 - Do not persist, log, or put raw Terraform state bytes in errors, facts, spans,
   metrics, or docs.
 - Only exact candidates from `terraformstate.DiscoveryResolver` may be opened.
-- Do not infer local `.tfstate` files from repository content.
+- Current local state reads must come from explicit absolute operator sources.
+  Repo-local candidate approval is tracked by #140 and must not be treated as
+  available until that path lands.
 - Keep AWS SDK types out of this package. Use `terraformstate.S3ObjectClient`
   and put SDK adapters in command or integration wiring.
 - A claimed item must match scope ID, generation ID, and source run ID before a
@@ -35,5 +37,6 @@
 - Reading an entire state payload into memory just to derive serial and lineage.
 - Returning a generation for a claimed item that does not match the derived
   state snapshot identity.
-- Opening prefix-based S3 keys, workspace directories, or guessed local files.
+- Opening prefix-based S3 keys, workspace directories, guessed local files, or
+  repo-local state candidates before the #140 approval path exists.
 - Adding storage, graph, reducer, or query dependencies to this package.
