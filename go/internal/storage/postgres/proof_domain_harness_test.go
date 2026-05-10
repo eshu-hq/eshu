@@ -208,6 +208,11 @@ func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...a
 		return newProofRows(nil), nil
 	case strings.Contains(query, "COALESCE(failure_details, '') AS failure_details"):
 		return newProofRows(nil), nil
+	case isTerraformStateAdminQuery(query):
+		// tfstate admin status queries are best-effort observability data and
+		// not exercised by the proof harness; return empty rows so the wider
+		// status snapshot can still resolve.
+		return newProofRows(nil), nil
 	case strings.Contains(query, "FROM fact_records"):
 		if len(args) != 2 {
 			return nil, fmt.Errorf("list facts args = %d, want 2", len(args))

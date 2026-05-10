@@ -172,7 +172,16 @@ func isWorkflowCoordinatorStatusQuery(query string) bool {
 		strings.Contains(query, "FROM workflow_runs") ||
 		strings.Contains(query, "FROM workflow_work_items") ||
 		strings.Contains(query, "FROM workflow_run_completeness") ||
-		strings.Contains(query, "FROM workflow_claims")
+		strings.Contains(query, "FROM workflow_claims") ||
+		isTerraformStateAdminQuery(query)
+}
+
+// isTerraformStateAdminQuery flags the optional tfstate admin status queries
+// so existing fake queryers in this package can return empty rows for runtimes
+// whose fixtures do not exercise tfstate evidence.
+func isTerraformStateAdminQuery(query string) bool {
+	return strings.Contains(query, "FROM ranked_generations") ||
+		strings.Contains(query, "FROM warning_rows")
 }
 
 type queueFakeRows struct {

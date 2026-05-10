@@ -94,20 +94,31 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
+	terraformStateEvidence, err := readTerraformStateAdminEvidence(
+		ctx,
+		s.queryer,
+		statuspkg.MaxTerraformStateRecentWarnings,
+		asOf.UTC(),
+	)
+	if err != nil {
+		return statuspkg.RawSnapshot{}, err
+	}
 
 	return statuspkg.RawSnapshot{
-		AsOf:                  asOf.UTC(),
-		ScopeCounts:           scopeCounts,
-		ScopeActivity:         scopeActivity,
-		GenerationCounts:      generationCounts,
-		GenerationHistory:     generationHistory,
-		GenerationTransitions: generationTransitions,
-		StageCounts:           stageCounts,
-		DomainBacklogs:        domainBacklogs,
-		QueueBlockages:        queueBlockages,
-		Queue:                 queueSnapshot,
-		LatestQueueFailure:    latestQueueFailure,
-		Coordinator:           coordinatorSnapshot,
+		AsOf:                         asOf.UTC(),
+		ScopeCounts:                  scopeCounts,
+		ScopeActivity:                scopeActivity,
+		GenerationCounts:             generationCounts,
+		GenerationHistory:            generationHistory,
+		GenerationTransitions:        generationTransitions,
+		StageCounts:                  stageCounts,
+		DomainBacklogs:               domainBacklogs,
+		QueueBlockages:               queueBlockages,
+		Queue:                        queueSnapshot,
+		LatestQueueFailure:           latestQueueFailure,
+		Coordinator:                  coordinatorSnapshot,
+		TerraformStateLastSerials:    terraformStateEvidence.LastSerials,
+		TerraformStateRecentWarnings: terraformStateEvidence.RecentWarnings,
 	}, nil
 }
 
