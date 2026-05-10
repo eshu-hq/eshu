@@ -113,6 +113,48 @@ func unused() {}
 	}
 }
 
+func TestDefaultEngineParsePathGoEmitsCallArgumentFunctionValueRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "call_arguments.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package roots
+
+import "example.com/project/builder"
+
+func cloudInitializer() {}
+func calledHelper() {}
+func unused() {}
+
+func main() {
+	builder.NewCommand(cloudInitializer)
+	builder.NewCommand(calledHelper())
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "cloudInitializer"), "dead_code_root_kinds", "go.function_value_reference")
+	if _, ok := assertFunctionByName(t, got, "calledHelper")["dead_code_root_kinds"]; ok {
+		t.Fatalf("calledHelper dead_code_root_kinds present, want absent for ordinary call argument result")
+	}
+	if _, ok := assertFunctionByName(t, got, "unused")["dead_code_root_kinds"]; ok {
+		t.Fatalf("unused dead_code_root_kinds present, want absent for unreferenced function")
+	}
+}
+
 func TestDefaultEngineParsePathGoEmitsFunctionValueReferenceCalls(t *testing.T) {
 	t.Parallel()
 
@@ -199,6 +241,50 @@ func wire(helper func()) {
 	}
 }
 
+func TestDefaultEngineParsePathGoEmitsMethodValueCallArgumentRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "method_argument.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package roots
+
+type ControllerInitFuncConstructor struct {
+	Constructor func()
+}
+
+type nodeIPAMController struct{}
+
+func (nodeIPAMController) StartNodeIpamControllerWrapper() {}
+func (nodeIPAMController) unusedMethod() {}
+
+func main() {
+	nodeIpamController := nodeIPAMController{}
+	_ = ControllerInitFuncConstructor{
+		Constructor: nodeIpamController.StartNodeIpamControllerWrapper,
+	}
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "StartNodeIpamControllerWrapper", "nodeIPAMController"), "dead_code_root_kinds", "go.method_value_reference")
+	if _, ok := assertFunctionByNameAndClass(t, got, "unusedMethod", "nodeIPAMController")["dead_code_root_kinds"]; ok {
+		t.Fatalf("unusedMethod dead_code_root_kinds present, want absent for unreferenced method")
+	}
+}
+
 func TestDefaultEngineParsePathGoEmitsMethodValueRootKinds(t *testing.T) {
 	t.Parallel()
 
@@ -239,6 +325,44 @@ func wire() {
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "compositeMethod"), "dead_code_root_kinds", "go.method_value_reference")
 	if _, ok := assertFunctionByName(t, got, "unusedMethod")["dead_code_root_kinds"]; ok {
 		t.Fatalf("unusedMethod dead_code_root_kinds present, want absent for unreferenced method")
+	}
+}
+
+func TestDefaultEngineParsePathGoEmitsConvertedMethodValueRootKinds(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "converted_method_values.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package roots
+
+type runFunc func()
+type runFuncSlice []runFunc
+
+func (rx runFuncSlice) Run() {}
+func (rx runFuncSlice) unusedMethod() {}
+
+func join(rx []runFunc) runFunc {
+	return runFuncSlice(rx).Run
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Run", "runFuncSlice"), "dead_code_root_kinds", "go.method_value_reference")
+	if _, ok := assertFunctionByNameAndClass(t, got, "unusedMethod", "runFuncSlice")["dead_code_root_kinds"]; ok {
+		t.Fatalf("unusedMethod dead_code_root_kinds present, want absent for unreferenced converted method value")
 	}
 }
 

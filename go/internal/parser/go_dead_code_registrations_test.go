@@ -86,9 +86,13 @@ func wire() {
 	}
 
 	functionItem := assertFunctionByName(t, got, "maybeHTTP")
-	if _, ok := functionItem["dead_code_root_kinds"]; ok {
-		t.Fatalf("dead_code_root_kinds = %#v, want absent for unknown HandleFunc receiver", functionItem["dead_code_root_kinds"])
-	}
+	assertParserStringSliceContains(t, functionItem, "dead_code_root_kinds", "go.function_value_reference")
+	assertParserStringSliceNotContains(
+		t,
+		functionItem,
+		"dead_code_root_kinds",
+		"go.net_http_handler_registration",
+	)
 }
 
 func assertParserStringSliceContains(t *testing.T, item map[string]any, field string, want string) {
@@ -104,4 +108,18 @@ func assertParserStringSliceContains(t *testing.T, item map[string]any, field st
 		}
 	}
 	t.Fatalf("%s = %#v, want to contain %#v", field, got, want)
+}
+
+func assertParserStringSliceNotContains(t *testing.T, item map[string]any, field string, want string) {
+	t.Helper()
+
+	got, ok := item[field].([]string)
+	if !ok {
+		return
+	}
+	for _, value := range got {
+		if value == want {
+			t.Fatalf("%s = %#v, want not to contain %#v", field, got, want)
+		}
+	}
 }

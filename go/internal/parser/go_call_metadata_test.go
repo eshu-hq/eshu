@@ -197,6 +197,51 @@ func addDemoTestCases(harness *OtherHarness, enabled bool) {
 	assertStringFieldValue(t, outerCall, "inferred_obj_type", "OtherHarness")
 }
 
+func TestDefaultEngineParsePathGoInfersRangeReceiverFromMapValueType(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "descriptors.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package main
+
+type ControllerDescriptor struct{}
+
+func (d *ControllerDescriptor) BuildController() {}
+func (d *ControllerDescriptor) RequiresSpecialHandling() bool { return false }
+
+func runControllers(controllerDescriptors map[string]*ControllerDescriptor) {
+	for _, controllerDesc := range controllerDescriptors {
+		controllerDesc.BuildController()
+		if controllerDesc.RequiresSpecialHandling() {
+			continue
+		}
+	}
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	buildCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "controllerDesc.BuildController")
+	assertStringFieldValue(t, buildCall, "receiver_identifier", "controllerDesc")
+	assertStringFieldValue(t, buildCall, "inferred_obj_type", "ControllerDescriptor")
+
+	specialCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "controllerDesc.RequiresSpecialHandling")
+	assertStringFieldValue(t, specialCall, "receiver_identifier", "controllerDesc")
+	assertStringFieldValue(t, specialCall, "inferred_obj_type", "ControllerDescriptor")
+}
+
 func TestDefaultEngineParsePathGoRecordsFunctionReturnType(t *testing.T) {
 	t.Parallel()
 

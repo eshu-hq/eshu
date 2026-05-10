@@ -68,6 +68,9 @@ func goCollectFunctionValuesFromExpression(
 	}
 	switch node.Kind() {
 	case "call_expression":
+		for _, arg := range goCallArgumentNodes(node) {
+			goCollectFunctionValuesFromExpression(arg, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
+		}
 		return
 	case "func_literal":
 		goCollectFunctionLiteralReachableCalls(node, source, functionNames, localNameBindings, functionRootKinds)
@@ -85,6 +88,12 @@ func goCollectFunctionValuesFromExpression(
 			return
 		}
 		receiverType := variableTypes[strings.ToLower(base)]
+		if receiverType == "" {
+			receiverType = goSelectorConversionReceiverType(node, source)
+		}
+		if receiverType == "" {
+			receiverType = goReceiverTypeFromConversionText(base)
+		}
 		key := receiverType + "." + strings.ToLower(field)
 		if receiverType != "" {
 			if _, ok := methodKeys[key]; ok {
@@ -98,6 +107,43 @@ func goCollectFunctionValuesFromExpression(
 	defer cursor.Close()
 	for _, child := range node.NamedChildren(cursor) {
 		goCollectFunctionValuesFromExpression(&child, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
+	}
+}
+
+func goReceiverTypeFromConversionText(base string) string {
+	trimmed := strings.TrimSpace(base)
+	if trimmed == "" || !strings.HasSuffix(trimmed, ")") {
+		return ""
+	}
+	index := strings.Index(trimmed, "(")
+	if index <= 0 {
+		return ""
+	}
+	return strings.ToLower(goNormalizeTypeName(trimmed[:index]))
+}
+
+func goSelectorConversionReceiverType(node *tree_sitter.Node, source []byte) string {
+	operand := node.ChildByFieldName("operand")
+	if operand == nil {
+		cursor := node.Walk()
+		defer cursor.Close()
+		children := node.NamedChildren(cursor)
+		if len(children) > 0 {
+			operand = &children[0]
+		}
+	}
+	if operand == nil || operand.Kind() != "call_expression" {
+		return ""
+	}
+	functionNode := operand.ChildByFieldName("function")
+	if functionNode == nil {
+		return ""
+	}
+	switch functionNode.Kind() {
+	case "identifier", "type_identifier":
+		return strings.ToLower(goNormalizeTypeName(nodeText(functionNode, source)))
+	default:
+		return ""
 	}
 }
 

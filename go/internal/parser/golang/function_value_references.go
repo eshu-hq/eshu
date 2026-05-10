@@ -47,6 +47,8 @@ func goFunctionValueReferenceContext(node *tree_sitter.Node) bool {
 	switch parent.Kind() {
 	case "call_expression":
 		return false
+	case "argument_list":
+		return true
 	case "selector_expression", "qualified_type", "field_declaration", "parameter_declaration":
 		return false
 	case "short_var_declaration", "assignment_statement", "var_spec":

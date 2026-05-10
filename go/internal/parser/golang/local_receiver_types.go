@@ -127,6 +127,7 @@ func goLocalReceiverBindings(
 	constructorReturns map[string]string,
 ) []goLocalReceiverBinding {
 	bindings := make([]goLocalReceiverBinding, 0)
+	mapValueTypes := goLocalMapValueTypes(root, source)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration", "method_declaration":
@@ -135,6 +136,8 @@ func goLocalReceiverBindings(
 			bindings = append(bindings, goLocalReceiverBindingsFromAssignment(node, source, constructorReturns)...)
 		case "var_spec":
 			bindings = append(bindings, goLocalReceiverBindingsFromVarSpec(node, source, constructorReturns)...)
+		case "range_clause", "for_statement":
+			bindings = append(bindings, goLocalReceiverBindingsFromRangeClause(node, source, mapValueTypes)...)
 		}
 	})
 	return bindings

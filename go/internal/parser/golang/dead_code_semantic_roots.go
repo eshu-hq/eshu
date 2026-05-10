@@ -131,7 +131,10 @@ func goCollectSemanticDeadCodeRoots(
 				functionRootKinds,
 				structRootKinds,
 			)
+		case "return_statement":
+			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
 		case "call_expression":
+			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
 			goCollectDependencyInjectionCallbacksFromCall(
 				node,
 				source,

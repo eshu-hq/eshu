@@ -61,16 +61,19 @@ for Go method chains.
 
 Receiver inference is lexical, not whole-function. Constructor-assigned
 variables use the nearest block, loop, switch case, or if statement as their
-scope; typed parameters use the function body. A shadowed variable in an inner
-block must not change calls that happen after that block.
+scope; typed parameters use the function body. Range variables over locally
+known map values inherit the map value type for calls such as
+`controllerDesc.BuildController`. A shadowed variable in an inner block must not
+change calls that happen after that block.
 
 Function-value reference rows are emitted only for identifiers in value
-positions that are not locally bound at that source line. Package-level
-function literals also mark same-file helper calls as
-`go.function_literal_reachable_call` when the callee name is not shadowed inside
-the literal. This keeps callback wiring visible across files while avoiding
-references for local variables that happen to share a package-level function
-name.
+positions that are not locally bound at that source line. That includes call
+arguments such as builder callbacks, composite literal fields, and returned
+method values such as `runFuncSlice(rx).Run`. Package-level function literals
+also mark same-file helper calls as `go.function_literal_reachable_call` when
+the callee name is not shadowed inside the literal. This keeps callback wiring
+visible across files while avoiding references for local variables that happen
+to share a package-level function name.
 
 Cyclomatic complexity counts Go control-flow branches once. The helper layer
 counts a `for range` statement through the enclosing `for_statement`, not again
