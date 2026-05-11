@@ -198,7 +198,7 @@ func TestHandleDeadCodeTypeScriptAndTSXRootsRemainDerivedMaturity(t *testing.T) 
 	}
 }
 
-func TestHandleDeadCodeSuppressesTypeScriptPublicAPIRootsFromMetadata(t *testing.T) {
+func TestHandleDeadCodeSuppressesTypeScriptPublicAPIRootsAndReportsMetadata(t *testing.T) {
 	t.Parallel()
 
 	handler := &CodeHandler{

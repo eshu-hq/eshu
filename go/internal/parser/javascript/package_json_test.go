@@ -52,6 +52,23 @@ func TestPackagePublicSourcePathsMapExportsAndTypesToSource(t *testing.T) {
 	}
 }
 
+func TestPackagePublicSourcePathsMapDeclarationTypesToSource(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writePackageJSONTestFile(t, filepath.Join(repoRoot, "package.json"), `{
+  "types": "lib/index.d.ts"
+}`)
+	indexPath := filepath.Join(repoRoot, "src", "index.ts")
+	writePackageJSONTestFile(t, indexPath, `export function main() {}`)
+
+	got := PackagePublicSourcePaths(repoRoot, indexPath)
+	want := cleanPath(indexPath)
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("PackagePublicSourcePaths() = %#v, want [%q]", got, want)
+	}
+}
+
 func assertStringSliceContains(t *testing.T, values []string, want string) {
 	t.Helper()
 

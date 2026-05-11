@@ -59,7 +59,9 @@ index files with the same extension order.
 
 Package helpers use the closest package.json between the source file and
 repoRoot. Workspace root manifests must not claim files owned by a nested
-package manifest.
+package manifest. A `types` target ending in `.d.ts` is treated as a declaration
+artifact path, so `lib/index.d.ts` can map back to authored sources such as
+`src/index.ts` when generated declaration files are not checked in.
 
 Dead-code roots are evidence rows, not guesses. Package entrypoints, CommonJS
 exports, methods on CommonJS default-exported classes, Hapi handlers, Next.js
