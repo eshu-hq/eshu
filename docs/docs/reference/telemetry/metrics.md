@@ -199,12 +199,12 @@ collector/projector/reducer path.
   removed_from_config}`. Resource addresses, attribute paths, and module
   paths never appear as label values — they go in structured logs and
   span attributes.
-- Meaning: Rule-match volume and admitted drift volume from the
-  correlation engine. `eshu_dp_correlation_rule_matches_total`
-  advances once per admitted candidate, with the `rule` label set to
-  the admission-producing rule (the engine does not currently surface
-  per-rule match counts, so this is the honest contract until that
-  changes). `eshu_dp_correlation_drift_detected_total` advances per
+- Meaning: Match-phase activity volume and admitted drift volume from the
+  correlation engine. `eshu_dp_correlation_rule_matches_total` advances
+  by `Result.MatchCounts[ruleName]` for each `RuleKindMatch` rule per
+  admitted candidate, so its `rule` label always names a match-phase
+  rule (e.g. `match-config-against-state` for the drift pack).
+  `eshu_dp_correlation_drift_detected_total` advances per
   admitted drift candidate, with `drift_kind` set by the classifier in
   `go/internal/correlation/drift/tfconfigstate`.
 - Use them for: Detecting Terraform config-vs-state drift volume per

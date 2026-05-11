@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -101,7 +102,7 @@ func (h TerraformConfigStateDriftHandler) Handle(
 	backendKind, locatorHash, err := parseDriftIntentScope(intent)
 	if err != nil {
 		// Structural mismatch on the intent shape itself — operator-actionable.
-		h.logRejection(intent, DriftRejection{
+		h.logRejection(ctx, intent, DriftRejection{
 			FailureClass: "scope_not_state_snapshot",
 			Reason:       err.Error(),
 		})
@@ -113,7 +114,7 @@ func (h TerraformConfigStateDriftHandler) Handle(
 	}
 
 	if h.Resolver == nil {
-		h.logRejection(intent, DriftRejection{
+		h.logRejection(ctx, intent, DriftRejection{
 			FailureClass: "resolver_unavailable",
 			Reason:       "no tfstatebackend resolver wired",
 		})
@@ -126,7 +127,7 @@ func (h TerraformConfigStateDriftHandler) Handle(
 
 	anchor, resolveErr := h.Resolver.ResolveConfigCommitForBackend(ctx, backendKind, locatorHash)
 	if errors.Is(resolveErr, tfstatebackend.ErrNoConfigRepoOwnsBackend) {
-		h.logRejection(intent, DriftRejection{
+		h.logRejection(ctx, intent, DriftRejection{
 			FailureClass: "no_config_repo_owns_backend",
 			Reason:       resolveErr.Error(),
 		})
@@ -137,7 +138,7 @@ func (h TerraformConfigStateDriftHandler) Handle(
 		}, nil
 	}
 	if errors.Is(resolveErr, tfstatebackend.ErrAmbiguousBackendOwner) {
-		h.logRejection(intent, DriftRejection{
+		h.logRejection(ctx, intent, DriftRejection{
 			FailureClass: "ambiguous_backend_owner",
 			Reason:       resolveErr.Error(),
 		})
@@ -152,7 +153,7 @@ func (h TerraformConfigStateDriftHandler) Handle(
 	}
 
 	if h.EvidenceLoader == nil {
-		h.logRejection(intent, DriftRejection{
+		h.logRejection(ctx, intent, DriftRejection{
 			FailureClass: "evidence_loader_unavailable",
 			Reason:       "no drift evidence loader wired",
 		})
@@ -231,19 +232,28 @@ func (h TerraformConfigStateDriftHandler) emitTelemetry(
 		driftKind := readDriftKindAtom(result.Candidate)
 		address := result.Candidate.CorrelationKey
 
-		// Emit ONE rule-match increment per admitted candidate, labeled with
-		// the admission-producing rule. engine.Evaluate does not currently
-		// expose per-rule match counts (it sorts and counts, but match-bookkeeping
-		// is collapsed in Result.MatchCounts as bounded counts, not as "this
-		// rule matched these atoms"). Until the engine surfaces a per-rule
-		// fan-out, emitting one increment per admission keeps the contract
-		// honest: rate(eshu_dp_correlation_rule_matches_total[5m]) by (rule)
-		// reflects admission throughput per rule, not duplicated 5x.
+		// Emit rule-match counter increments using the engine's
+		// Result.MatchCounts. The engine populates this map for RuleKindMatch
+		// rules only (correlation/engine/engine.go:50-56), keyed by rule name
+		// with boundedMatchCount(MaxMatches, len(Evidence)). Iteration order
+		// is sorted by rule name for deterministic test capture; counter
+		// addition is commutative, so order does not affect end values.
 		if h.Instruments != nil && h.Instruments.CorrelationRuleMatches != nil {
-			h.Instruments.CorrelationRuleMatches.Add(ctx, 1, metric.WithAttributes(
-				attribute.String(telemetry.MetricDimensionPack, pack.Name),
-				attribute.String(telemetry.MetricDimensionRule, rules.TerraformConfigStateDriftRuleAdmitDriftEvidence),
-			))
+			matchRuleNames := make([]string, 0, len(result.MatchCounts))
+			for ruleName := range result.MatchCounts {
+				matchRuleNames = append(matchRuleNames, ruleName)
+			}
+			sort.Strings(matchRuleNames)
+			for _, ruleName := range matchRuleNames {
+				count := result.MatchCounts[ruleName]
+				if count <= 0 {
+					continue
+				}
+				h.Instruments.CorrelationRuleMatches.Add(ctx, int64(count), metric.WithAttributes(
+					attribute.String(telemetry.MetricDimensionPack, pack.Name),
+					attribute.String(telemetry.MetricDimensionRule, ruleName),
+				))
+			}
 		}
 
 		// Emit one drift_detected increment per admitted candidate with
@@ -280,11 +290,16 @@ func readDriftKindAtom(candidate model.Candidate) string {
 	return ""
 }
 
-func (h TerraformConfigStateDriftHandler) logRejection(intent Intent, rejection DriftRejection) {
+// logRejection emits the operator-actionable warning for non-fatal drift
+// rejections. The request ctx is threaded through so the rejection is
+// attributable to the reducer run that produced it (trace/span correlation,
+// cancellation, structured-log handlers that read ctx values). Passing
+// context.Background() here would orphan the log from any active span.
+func (h TerraformConfigStateDriftHandler) logRejection(ctx context.Context, intent Intent, rejection DriftRejection) {
 	if h.Logger == nil {
 		return
 	}
-	h.Logger.LogAttrs(context.Background(), slog.LevelWarn, "drift candidate rejected",
+	h.Logger.LogAttrs(ctx, slog.LevelWarn, "drift candidate rejected",
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),

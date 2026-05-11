@@ -81,11 +81,21 @@ emits `eshu_dp_correlation_rule_matches_total{pack, rule}` and
 `eshu_dp_correlation_drift_detected_total{pack, rule, drift_kind}` per the
 design doc §7.
 
-The `rule` label on both counters is always the admission-producing rule
-(`admit-drift-evidence`). The engine does not surface per-rule match
-counts today, so emission is one increment per admission rather than one
-per (admission × rule). Operators reading these counters see admission
-throughput per pack and per drift kind, not rule fan-out within the pack.
+The two counters carry distinct semantics:
+
+- `eshu_dp_correlation_rule_matches_total` uses
+  `engine.Result.MatchCounts` to label by the match-phase rule
+  (`match-config-against-state` for the drift pack). It advances per
+  admitted candidate by the match-count value.
+- `eshu_dp_correlation_drift_detected_total` is always labeled with
+  the admission-producing rule (`admit-drift-evidence`) and the
+  classified `drift_kind`. It advances once per admitted candidate.
+
+The pair lets operators relate match-phase activity (which rule did the
+engine actually use to gate the candidate?) to admit-phase outcome
+volume (how many admissions per drift kind?). Both counters keep
+high-cardinality values (resource addresses, attribute paths, module
+paths) out of label space — those live in `slog` log keys instead.
 
 ## Operational notes
 

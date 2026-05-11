@@ -224,13 +224,12 @@ func TestDriftHandlerSingleOwnerEmitsCountersForAllFiveDriftKinds(t *testing.T) 
 		t.Fatalf("drift_detected = %d, want 5 (one per drift kind)", got)
 	}
 
-	// Each admitted candidate emits exactly one rule-match increment with
-	// the admission-producing rule as the `rule` label. Five admitted
-	// candidates produce five increments, not 25: the engine does not
-	// surface per-rule match counts, so the contract is "one increment per
-	// admission" rather than "one increment per (admission * rule)".
+	// Rule-match counter advances by Result.MatchCounts[ruleName] for each
+	// RuleKindMatch rule per admitted candidate. The drift pack has exactly
+	// one match rule (match-config-against-state) with MaxMatches=1, so each
+	// admitted candidate contributes 1 increment: 5 admissions = 5.
 	if got := counterTotal(rm, "eshu_dp_correlation_rule_matches_total"); got != 5 {
-		t.Fatalf("rule_matches = %d, want 5 (one increment per admitted candidate)", got)
+		t.Fatalf("rule_matches = %d, want 5 (one per (match-rule, admitted candidate))", got)
 	}
 
 	assertCounterLabelKeys(t, rm,

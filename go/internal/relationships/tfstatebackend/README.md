@@ -15,7 +15,7 @@ flowchart LR
     S[state_snapshot scope facts] -->|backend_kind, locator_hash| R[ResolveConfigCommitForBackend]
     C[terraform_backends parser facts] -->|emit| R
     R --> A[CommitAnchor]
-    A --> D[tfconfigstatedrift handler]
+    A --> D[TerraformConfigStateDriftHandler]
 ```
 
 ## Exported surface

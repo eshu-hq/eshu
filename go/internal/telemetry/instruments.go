@@ -61,25 +61,27 @@ type Instruments struct {
 	TerraformStateRedactionsApplied           metric.Int64Counter
 	TerraformStateS3ConditionalGetNotModified metric.Int64Counter
 	// CorrelationRuleMatches counts rule-match outcomes recorded by
-	// engine.Evaluate, labeled by pack and rule. Used by the drift pack
-	// (terraform_config_state_drift) in v1; available for any future
-	// pack that needs match-frequency observability.
-	//
-	// Until engine.Evaluate exposes per-rule match counts, the drift handler
-	// emits exactly one increment per admitted candidate with the
-	// admission-producing rule as the `rule` label
-	// (TerraformConfigStateDriftRuleAdmitDriftEvidence). Operators reading
-	// rate(eshu_dp_correlation_rule_matches_total[5m]) by (rule) see
-	// admission throughput per rule, not fan-out across all rules in the pack.
+	// engine.Evaluate.Results[i].MatchCounts, labeled by pack and rule.
+	// The engine populates MatchCounts for RuleKindMatch rules only
+	// (correlation/engine/engine.go:50-56), keyed by rule name with
+	// boundedMatchCount(MaxMatches, len(Evidence)). Handlers emit one
+	// counter Add(count) per (rule, admitted candidate) pair, so
+	// rate(eshu_dp_correlation_rule_matches_total[5m]) by (rule)
+	// reflects match-phase activity per rule, not admission throughput.
+	// Used by the drift pack (terraform_config_state_drift) in v1;
+	// available for any future pack that needs match-frequency observability.
 	CorrelationRuleMatches metric.Int64Counter
 	// CorrelationDriftDetected counts admitted drift candidates emitted by
 	// the terraform_config_state_drift correlation pack, labeled by
 	// pack, rule, and drift_kind (added_in_state, added_in_config,
 	// attribute_drift, removed_from_state, removed_from_config).
 	//
-	// The `rule` label is always the admission-producing rule by design;
-	// the drift pack's other rules (extract_key, match, derive, explain) are
-	// pre-admission bookkeeping stages that do not gate emission.
+	// The `rule` label here is always the admission-producing rule
+	// (TerraformConfigStateDriftRuleAdmitDriftEvidence) by design; the drift
+	// pack's match/derive/explain rules are pre-admission and post-admission
+	// bookkeeping stages that do not gate emission. The pairing of the two
+	// counters lets operators relate match-phase activity (CorrelationRuleMatches)
+	// to admit-phase outcome volume (this counter) per pack.
 	CorrelationDriftDetected metric.Int64Counter
 
 	// Histograms track distributions
