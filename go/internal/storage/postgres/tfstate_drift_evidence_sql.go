@@ -4,10 +4,9 @@ package postgres
 // Hoisted into a sibling file to keep the loader implementation under the
 // CLAUDE.md 500-line cap; behavior and call sites are unchanged.
 //
-// Edit the loader's per-query loader helper in tfstate_drift_evidence.go in
-// lockstep with the constant it consumes — the rationale in each constant's
-// comment block is the source of truth for what the helper is allowed to
-// assume about the result shape.
+// Edit each query helper in tfstate_drift_evidence.go in lockstep with the
+// constant it consumes — the rationale in each constant's comment block is
+// the source of truth for what the helper may assume about the result shape.
 
 // listConfigResourcesForCommitQuery returns the terraform_resources arrays
 // emitted by the parser for one (scope_id, generation_id) — i.e. one sealed
