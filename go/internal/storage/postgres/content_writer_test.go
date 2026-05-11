@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -434,10 +435,22 @@ func TestContentWriterUsesCustomEntityBatchSize(t *testing.T) {
 	if got, want := len(db.execs), 3; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
-	for i, wantGroups := range []int{200, 200, 50} {
-		valueGroups := strings.Count(db.execs[i].query, "($")
-		if valueGroups != wantGroups {
-			t.Fatalf("batch %d: value groups = %d, want %d", i, valueGroups, wantGroups)
+	// Entity batches now fan out to runConcurrentBatches; the absolute order
+	// of value-group counts in db.execs is not deterministic. Assert the
+	// sorted multiset of batch sizes instead so the test still gates batch
+	// sizing without baking in the prior serial-order implementation detail.
+	got := make([]int, len(db.execs))
+	for i, exec := range db.execs {
+		got[i] = strings.Count(exec.query, "($")
+	}
+	sort.Ints(got)
+	want := []int{50, 200, 200}
+	if len(got) != len(want) {
+		t.Fatalf("batch size set = %v, want %v", got, want)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Fatalf("batch size set = %v, want %v", got, want)
 		}
 	}
 }

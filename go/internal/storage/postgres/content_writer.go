@@ -416,7 +416,14 @@ func contentBatchCount(rowCount, batchSize int) int {
 	return (rowCount + batchSize - 1) / batchSize
 }
 
-// upsertContentFileBatches persists file records using batched multi-row INSERT statements.
+// upsertContentFileBatches persists file records using batched multi-row
+// INSERT statements. File batches stay serial: each batch deletes
+// content_reference rows for its paths immediately before the file INSERT,
+// and the existing exec-order test (TestContentWriterBatchesLargeFileSet)
+// asserts the strict [delete, insert] interleaving per batch. The serial
+// loop costs little at repo scale (Kubernetes had ~40 file batches), so
+// the parallel-batch optimization is reserved for the entity path where
+// the K8s gate miss actually lives.
 func (w ContentWriter) upsertContentFileBatches(ctx context.Context, rows []preparedFileRow, indexedAt time.Time) error {
 	for i := 0; i < len(rows); i += contentFileBatchSize {
 		end := i + contentFileBatchSize
@@ -482,19 +489,20 @@ func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []prepa
 	return nil
 }
 
-// upsertContentEntityBatches persists entity records using batched multi-row INSERT statements.
+// upsertContentEntityBatches persists entity records using batched multi-row
+// INSERT statements. Batches are dispatched to a bounded worker pool so a
+// repo-scale projection (e.g. 463k Kubernetes content_entity rows produced
+// 1,544 batches of 300 rows; serial wall ~9.3 min before #161 follow-up)
+// is not serialized behind a single Postgres connection. Each batch is one
+// INSERT ... ON CONFLICT and entity_id is unique per
+// repo_id+path+kind+identifier within a Materialization, so concurrent
+// batches do not contend on the same row. See runConcurrentBatches in
+// content_writer_batch.go for the worker-count and safety contract.
 func (w ContentWriter) upsertContentEntityBatches(ctx context.Context, rows []preparedEntityRow, indexedAt time.Time) error {
 	batchSize := w.effectiveEntityBatchSize()
-	for i := 0; i < len(rows); i += batchSize {
-		end := i + batchSize
-		if end > len(rows) {
-			end = len(rows)
-		}
-		if err := w.upsertContentEntityBatch(ctx, rows[i:end], indexedAt); err != nil {
-			return err
-		}
-	}
-	return nil
+	return runConcurrentBatches(ctx, len(rows), batchSize, contentWriterBatchConcurrency(), func(c context.Context, start, end int) error {
+		return w.upsertContentEntityBatch(c, rows[start:end], indexedAt)
+	})
 }
 
 // upsertContentEntityBatch inserts one batch of entity records using a multi-row INSERT query.

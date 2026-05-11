@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -109,6 +110,12 @@ func TestBootstrapWorkItemSchemaIncludesPayloadAndLeaseOwner(t *testing.T) {
 }
 
 type fakeExecQueryer struct {
+	// mu guards every slice in this struct so the fake is safe to use from
+	// concurrent ExecContext callers. The ContentWriter's parallel-batch
+	// path (content_writer_batch.go) issues concurrent ExecContext calls per
+	// upsert batch; the prior unguarded slice appends were racy under -race
+	// and produced flaky ordering in tests that index db.execs.
+	mu             sync.Mutex
 	execs          []fakeExecCall
 	execErrors     []error
 	execResults    []sql.Result
@@ -131,6 +138,8 @@ func (f *fakeExecQueryer) ExecContext(
 	query string,
 	args ...any,
 ) (sql.Result, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.execs = append(f.execs, fakeExecCall{query: query, args: args})
 	if len(f.execErrors) > 0 {
 		err := f.execErrors[0]
@@ -150,6 +159,8 @@ func (f *fakeExecQueryer) QueryContext(
 	query string,
 	args ...any,
 ) (Rows, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.queries = append(f.queries, fakeQueryCall{query: query, args: args})
 	if len(f.queryResponses) == 0 {
 		if isWorkflowCoordinatorStatusQuery(query) {

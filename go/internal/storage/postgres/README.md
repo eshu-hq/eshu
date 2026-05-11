@@ -180,7 +180,14 @@ mutation is rejected because the current owner no longer holds the lease.
 - `ContentStore` / `NewContentStore` — `GetFileContent`, `GetEntityContent`,
   `SearchFileContent`, `SearchEntityContent`; `FileContentRow`, `EntityContentRow`
 - `ContentWriter` / `NewContentWriter` — writes `content_files` and
-  `content_entities`
+  `content_entities`. Entity-batch upserts fan out through
+  `runConcurrentBatches` in `content_writer_batch.go`; the per-file batch
+  loop stays serial because each file batch is preceded by a per-batch
+  `delete_content_references` whose interleaving the existing tests gate.
+  Concurrency defaults to `runtime.NumCPU()` clamped to `[1, 8]` and is
+  capped at `16`, tunable via `ESHU_CONTENT_WRITER_BATCH_CONCURRENCY`. The
+  cap protects the embedded Postgres pool (default 30 connections set in
+  `internal/runtime/data_stores.go`) from over-subscription.
 
 **Phase state**
 
