@@ -2,11 +2,14 @@ package reducer
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -203,8 +206,8 @@ func TestDefaultDomainDefinitionsMatchImplementedRuntimeCatalog(t *testing.T) {
 	t.Parallel()
 
 	got := DefaultDomainDefinitions()
-	if len(got) != 9 {
-		t.Fatalf("len(DefaultDomainDefinitions()) = %d, want 9", len(got))
+	if len(got) != 8 {
+		t.Fatalf("len(DefaultDomainDefinitions()) = %d, want 8", len(got))
 	}
 	if got[0].Domain != DomainWorkloadIdentity {
 		t.Fatalf("DefaultDomainDefinitions()[0].Domain = %q, want %q", got[0].Domain, DomainWorkloadIdentity)
@@ -361,6 +364,56 @@ func TestNewDefaultRegistryWiresCrossRepoReadinessDependencies(t *testing.T) {
 	if handler.CrossRepoResolver.ReadinessPrefetch == nil {
 		t.Fatal("ReadinessPrefetch = nil, want non-nil")
 	}
+}
+
+func TestImplementedDefaultDomainDefinitionsOmitsConfigStateDriftWithoutAdapters(t *testing.T) {
+	t.Parallel()
+
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{})
+	for _, def := range definitions {
+		if def.Domain == DomainConfigStateDrift {
+			t.Fatalf("config_state_drift registered without adapters; want omitted to avoid silent intent drops")
+		}
+	}
+}
+
+func TestImplementedDefaultDomainDefinitionsIncludesConfigStateDriftWhenAdaptersPresent(t *testing.T) {
+	t.Parallel()
+
+	resolver := tfstatebackend.NewResolver(nil)
+	loader := stubDriftEvidenceLoader{}
+	logger := slog.New(slog.DiscardHandler)
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
+		TerraformBackendResolver: resolver,
+		DriftEvidenceLoader:      loader,
+		DriftLogger:              logger,
+	})
+	found := false
+	for _, def := range definitions {
+		if def.Domain == DomainConfigStateDrift {
+			found = true
+			if _, ok := def.Handler.(TerraformConfigStateDriftHandler); !ok {
+				t.Fatalf("config_state_drift handler type = %T, want TerraformConfigStateDriftHandler", def.Handler)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("config_state_drift not registered after wiring resolver+loader+logger")
+	}
+}
+
+// stubDriftEvidenceLoader is a no-op DriftEvidenceLoader used only to satisfy
+// the non-nil gate in implementedDefaultDomainDefinitions.
+type stubDriftEvidenceLoader struct{}
+
+// LoadDriftEvidence returns an empty slice; the gating test only checks that
+// the loader is wired, not its behavior.
+func (stubDriftEvidenceLoader) LoadDriftEvidence(
+	_ context.Context,
+	_ string,
+	_ tfstatebackend.CommitAnchor,
+) ([]tfconfigstate.AddressedRow, error) {
+	return nil, nil
 }
 
 func TestNewDefaultRegistryRegistersDeployableUnitCorrelationAdditively(t *testing.T) {

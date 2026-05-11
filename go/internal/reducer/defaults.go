@@ -196,15 +196,20 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				EdgeWriter:           handlers.InheritanceEdgeWriter,
 				PriorGenerationCheck: handlers.PriorGenerationCheck,
 			}
-		case DomainConfigStateDrift:
-			def.Handler = TerraformConfigStateDriftHandler{
-				Resolver:       handlers.TerraformBackendResolver,
-				EvidenceLoader: handlers.DriftEvidenceLoader,
-				Instruments:    handlers.Instruments,
-				Logger:         handlers.DriftLogger,
-			}
 		}
 		definitions = append(definitions, def)
+	}
+	if handlers.TerraformBackendResolver != nil &&
+		handlers.DriftEvidenceLoader != nil &&
+		handlers.DriftLogger != nil {
+		drift := configStateDriftDomainDefinition()
+		drift.Handler = TerraformConfigStateDriftHandler{
+			Resolver:       handlers.TerraformBackendResolver,
+			EvidenceLoader: handlers.DriftEvidenceLoader,
+			Instruments:    handlers.Instruments,
+			Logger:         handlers.DriftLogger,
+		}
+		definitions = append(definitions, drift)
 	}
 	if handlers.DeployableUnitCorrelationHandler != nil {
 		definitions = append(definitions, DomainDefinition{

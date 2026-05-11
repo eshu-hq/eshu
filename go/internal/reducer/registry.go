@@ -11,14 +11,34 @@ import (
 )
 
 // OwnershipShape records whether a reducer domain owns cross-source and
-// cross-scope reconciliation.
+// cross-scope reconciliation and how it produces canonical truth. A valid
+// reducer domain MUST be cross-source, cross-scope, and produce canonical
+// truth via at least one of two surfaces: a graph write (CanonicalWrite) or a
+// metric counter + structured log emission (CounterEmit). CounterEmit was
+// added in chunk #43 to admit the terraform_config_state_drift domain, whose
+// v1 truth surface is bounded counter emission rather than canonical graph
+// nodes (graph projection of drift nodes lands in a follow-up chunk per the
+// design doc §10).
 type OwnershipShape struct {
 	CrossSource    bool
 	CrossScope     bool
 	CanonicalWrite bool
+	// CounterEmit marks a domain whose canonical truth contract is satisfied
+	// by emitting bounded metric counters and structured logs rather than
+	// writing canonical graph nodes. At least one of CanonicalWrite or
+	// CounterEmit MUST be true; both may be true for domains that emit
+	// counters alongside graph writes.
+	CounterEmit bool
 }
 
 // Validate checks that the ownership shape matches the reducer boundary.
+//
+// The invariant: a valid reducer domain is cross-source, cross-scope, and
+// produces canonical truth via at least one of CanonicalWrite or CounterEmit.
+// Prior to chunk #43 the rule required CanonicalWrite specifically; it was
+// relaxed to accept CounterEmit so domains whose v1 truth surface is bounded
+// metric emission can register without setting CanonicalWrite to a value the
+// handler does not honor.
 func (o OwnershipShape) Validate() error {
 	if !o.CrossSource {
 		return errors.New("reducers must be cross-source")
@@ -26,8 +46,8 @@ func (o OwnershipShape) Validate() error {
 	if !o.CrossScope {
 		return errors.New("reducers must be cross-scope")
 	}
-	if !o.CanonicalWrite {
-		return errors.New("reducers must target canonical shared truth")
+	if !o.CanonicalWrite && !o.CounterEmit {
+		return errors.New("reducers must declare CanonicalWrite or CounterEmit")
 	}
 
 	return nil
@@ -258,27 +278,35 @@ func DefaultDomainDefinitions() []DomainDefinition {
 				},
 			},
 		},
-		{
-			Domain:  DomainConfigStateDrift,
-			Summary: "correlate Terraform config (parsed HCL) against state snapshots to detect five drift kinds",
-			// CanonicalWrite is set to true to satisfy
-			// OwnershipShape.Validate; the v1 drift handler does not write
-			// canonical graph nodes (counters and structured logs are the v1
-			// surface per design doc §10). The "canonical record" the handler
-			// produces is the bounded emission of
-			// eshu_dp_correlation_drift_detected_total + structured logs.
-			// Graph projection of drift nodes lands in a follow-up chunk.
-			Ownership: OwnershipShape{
-				CrossSource:    true,
-				CrossScope:     true,
-				CanonicalWrite: true,
-			},
-			TruthContract: truth.Contract{
-				CanonicalKind: "config_state_drift",
-				SourceLayers: []truth.Layer{
-					truth.LayerSourceDeclaration,
-					truth.LayerObservedResource,
-				},
+	}
+}
+
+// configStateDriftDomainDefinition returns the additive DomainDefinition for
+// terraform_config_state_drift. The drift domain is intentionally NOT part of
+// DefaultDomainDefinitions because its handler requires three adapters
+// (TerraformBackendResolver, DriftEvidenceLoader, DriftLogger) that the
+// production reducer binary wires explicitly. Registering the domain without
+// those adapters silently drops every intent — the additive pattern keeps the
+// catalog honest about what the runtime can actually serve. See defaults.go
+// (implementedDefaultDomainDefinitions) for the wiring gate.
+func configStateDriftDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainConfigStateDrift,
+		Summary: "correlate Terraform config (parsed HCL) against state snapshots to detect five drift kinds",
+		// CounterEmit declares the v1 truth surface: bounded metric
+		// counters + structured logs. Graph projection follows per
+		// design doc §10.
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: false,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "config_state_drift",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
 			},
 		},
 	}

@@ -236,10 +236,12 @@ func TestNewDefaultRegistryRegistersImplementedDomainsOnly(t *testing.T) {
 	if ok {
 		t.Fatalf("Definition(governance) ok = true, want false with %+v", governanceDefinition)
 	}
+	// DomainConfigStateDrift is intentionally absent: this test does not
+	// wire TerraformBackendResolver/DriftEvidenceLoader/DriftLogger, so the
+	// additive append in implementedDefaultDomainDefinitions does not add it.
 	if got, want := registry.SortedDomains(), []Domain{
 		DomainCloudAssetResolution,
 		DomainCodeCallMaterialization,
-		DomainConfigStateDrift,
 		DomainDeploymentMapping,
 		DomainInheritanceMaterialization,
 		DomainSemanticEntityMaterialization,
