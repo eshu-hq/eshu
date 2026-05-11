@@ -117,8 +117,19 @@ so a naive implementation that re-walks the full tree per query becomes
 O(call_sites × tree_size) per file. `goParentLookup` builds the child-to-parent
 map once per parse; `goVariableTypeIndex` and `goImportedVariableTypeIndex`
 build per-scope binding lists lazily on first use and answer position-filtered
-queries in pure Go map and slice work. Do not re-introduce per-call full-tree
-walks in `dead_code_semantic_roots.go` or `package_interface_prescan.go`.
+queries in pure Go map and slice work. The scope walkers stop at nested
+function_declaration / method_declaration / func_literal subtrees so a
+binding declared inside an inner closure does not leak into the outer
+function's binding table. Do not re-introduce per-call full-tree walks in
+`dead_code_semantic_roots.go` or `package_interface_prescan.go`.
+
+Before the amortization landed (#161), `engine.PreScanGoPackageSemanticRoots`
+saturated CPU for 80+ minutes on Terraform's 1927-file checkout without
+emitting any fact_records. After: the same checkout's snapshot pipeline
+(discovery + per-language pre_scan + parse + materialize) completes in ~20s
+and produces 100,016 fact_records. The proof tests in
+`go/internal/parser/go_terraform_dogfood_test.go` gate per-file parse cost
+and the package-prescan path against TF_DOGFOOD_REPO.
 
 Dead-code evidence is conservative. Handler signatures, Cobra run signatures,
 controller-runtime reconciler signatures, registration calls, direct method

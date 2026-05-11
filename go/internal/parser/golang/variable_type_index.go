@@ -30,12 +30,34 @@ type goVariableTypeIndex struct {
 	lookup             *goParentLookup
 }
 
+// goScopedBindingKind tags one of the variable-binding shapes the index
+// replays for a call site. Using an explicit tag plus an inlined node value
+// avoids one heap-allocated closure per binding (the prior shape) and keeps
+// the binding self-contained, so the stored slice never depends on a pointer
+// into a stack frame that has since returned.
+type goScopedBindingKind uint8
+
+const (
+	// goScopedBindingFuncParams replays the scope function's parameter list
+	// via goRecordLocalParameterTypes. Visited once when the scope node
+	// itself is the function_declaration / method_declaration / func_literal.
+	goScopedBindingFuncParams goScopedBindingKind = iota + 1
+	// goScopedBindingVarSpec replays one var_spec via goRecordLocalVarSpecTypes.
+	goScopedBindingVarSpec
+	// goScopedBindingAssignment replays one short_var_declaration or
+	// assignment_statement via goRecordLocalAssignmentTypes.
+	goScopedBindingAssignment
+)
+
 // goScopedBinding is one variable declaration inside a function scope. The
 // startByte field orders bindings by source position so a query can stop
-// scanning once it passes the call site.
+// scanning once it passes the call site. decl stores the declaration node by
+// value: callers replay it via a stable pointer (&decl) that is independent
+// of the walk that produced it.
 type goScopedBinding struct {
 	startByte uint
-	apply     func(target map[string]string)
+	kind      goScopedBindingKind
+	decl      tree_sitter.Node
 }
 
 // goBuildVariableTypeIndex computes the package-level variable types eagerly
@@ -75,52 +97,54 @@ func (idx *goVariableTypeIndex) ForNode(root *tree_sitter.Node, node *tree_sitte
 	}
 	bindings := idx.bindingsForScope(scope)
 	target := node.StartByte()
-	for _, binding := range bindings {
-		if binding.startByte > target {
+	for i := range bindings {
+		if bindings[i].startByte > target {
 			break
 		}
-		binding.apply(result)
+		decl := bindings[i].decl
+		switch bindings[i].kind {
+		case goScopedBindingFuncParams:
+			goRecordLocalParameterTypes(&decl, idx.source, idx.structTypes, result)
+		case goScopedBindingVarSpec:
+			goRecordLocalVarSpecTypes(&decl, idx.source, idx.structTypes, idx.constructorReturns, result)
+		case goScopedBindingAssignment:
+			goRecordLocalAssignmentTypes(&decl, idx.source, idx.structTypes, idx.constructorReturns, result)
+		}
 	}
 	return result
 }
 
 // bindingsForScope builds the per-scope binding list on first access and
-// caches it. Each entry captures the declaration node's startByte plus a
-// closure that mutates the running variableTypes map the same way the old
-// per-call walk did.
+// caches it. The walker stops at nested function_declaration / method_declaration
+// / func_literal subtrees so a `var x = ...` inside an inner closure does not
+// leak into the outer function's binding table (Go lexical scoping).
 func (idx *goVariableTypeIndex) bindingsForScope(scope *tree_sitter.Node) []goScopedBinding {
 	if cached, ok := idx.scopeBindings[scope.Id()]; ok {
 		return cached
 	}
 	bindings := make([]goScopedBinding, 0, 8)
-	walkNamed(scope, func(child *tree_sitter.Node) {
+	walkScopeBindings(scope, func(child *tree_sitter.Node) {
 		switch child.Kind() {
 		case "function_declaration", "method_declaration", "func_literal":
 			if child.StartByte() != scope.StartByte() {
 				return
 			}
-			decl := child
 			bindings = append(bindings, goScopedBinding{
 				startByte: child.StartByte(),
-				apply: func(target map[string]string) {
-					goRecordLocalParameterTypes(decl, idx.source, idx.structTypes, target)
-				},
+				kind:      goScopedBindingFuncParams,
+				decl:      *child,
 			})
 		case "var_spec":
-			decl := child
 			bindings = append(bindings, goScopedBinding{
 				startByte: child.StartByte(),
-				apply: func(target map[string]string) {
-					goRecordLocalVarSpecTypes(decl, idx.source, idx.structTypes, idx.constructorReturns, target)
-				},
+				kind:      goScopedBindingVarSpec,
+				decl:      *child,
 			})
 		case "short_var_declaration", "assignment_statement":
-			decl := child
 			bindings = append(bindings, goScopedBinding{
 				startByte: child.StartByte(),
-				apply: func(target map[string]string) {
-					goRecordLocalAssignmentTypes(decl, idx.source, idx.structTypes, idx.constructorReturns, target)
-				},
+				kind:      goScopedBindingAssignment,
+				decl:      *child,
 			})
 		}
 	})

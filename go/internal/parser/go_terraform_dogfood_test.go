@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// TestGoTerraformDogfoodParseProof times engine.ParsePath against a
+// TestGoTerraformDogfoodParse times engine.ParsePath against a
 // representative small/medium/large Go file from a real Terraform checkout.
 // The test is the proof gate for #161: it isolates per-file cost so we can
 // confirm the rebuilt parser path (after the goCollectSemanticDeadCodeRoots
@@ -21,12 +21,12 @@ import (
 // Skipped unless TF_DOGFOOD_REPO is set, e.g.:
 //
 //	TF_DOGFOOD_REPO=/Users/asanabria/os-repos/terraform \
-//	  go test ./internal/parser -run TestGoTerraformDogfoodParseProof -v -count=1
+//	  go test ./internal/parser -run TestGoTerraformDogfoodParse -v -count=1
 //
 // A CPU profile of the largest file lands under the test's TempDir as
 // terraform-large.cpu.pprof; the test logs the absolute path so callers can
 // drive `go tool pprof` on it directly.
-func TestGoTerraformDogfoodParseProof(t *testing.T) {
+func TestGoTerraformDogfoodParse(t *testing.T) {
 	repoRoot := strings.TrimSpace(os.Getenv("TF_DOGFOOD_REPO"))
 	if repoRoot == "" {
 		t.Skip("TF_DOGFOOD_REPO not set")
@@ -176,14 +176,14 @@ func countLines(data []byte) int {
 	return count
 }
 
-// TestGoTerraformDogfoodPackageSemanticRootsProof times the Go-specific
+// TestGoTerraformDogfoodPackageSemanticRoots times the Go-specific
 // per-package semantic roots prescan (engine.PreScanGoPackageSemanticRoots)
 // against a Terraform .go subset. This is the SECOND prescan stage the
 // collector runs after the per-language prescan; an O(call_expressions ×
 // tree_size) full-tree walk inside ImportedDirectMethodCallRoots saturated
 // CPU on Terraform without emitting any facts (#161 follow-up). Skipped
 // unless TF_DOGFOOD_REPO is set.
-func TestGoTerraformDogfoodPackageSemanticRootsProof(t *testing.T) {
+func TestGoTerraformDogfoodPackageSemanticRoots(t *testing.T) {
 	repoRoot := strings.TrimSpace(os.Getenv("TF_DOGFOOD_REPO"))
 	if repoRoot == "" {
 		t.Skip("TF_DOGFOOD_REPO not set")

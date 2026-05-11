@@ -21,29 +21,29 @@ type goParentLookup struct {
 
 // goBuildParentLookup records every child->parent edge in one tree-sitter
 // pass, so subsequent ancestor walks consult a Go map rather than re-entering
-// cgo via ts_node_parent.
+// cgo via ts_node_parent. The DFS is iterative with an explicit slice stack
+// so very deep trees (large generated files, deeply chained selectors) cannot
+// blow the goroutine stack.
 func goBuildParentLookup(root *tree_sitter.Node) *goParentLookup {
 	lookup := &goParentLookup{parents: make(map[uintptr]*tree_sitter.Node)}
 	if root == nil {
 		return lookup
 	}
-	lookup.indexChildren(root)
-	return lookup
-}
-
-func (l *goParentLookup) indexChildren(node *tree_sitter.Node) {
-	if node == nil {
-		return
-	}
-	count := node.ChildCount()
-	for i := range count {
-		child := node.Child(i)
-		if child == nil {
-			continue
+	stack := []*tree_sitter.Node{root}
+	for len(stack) > 0 {
+		node := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		count := node.ChildCount()
+		for i := range count {
+			child := node.Child(i)
+			if child == nil {
+				continue
+			}
+			lookup.parents[child.Id()] = node
+			stack = append(stack, child)
 		}
-		l.parents[child.Id()] = node
-		l.indexChildren(child)
 	}
+	return lookup
 }
 
 // Parent returns the recorded parent of node, or nil if node is the tree

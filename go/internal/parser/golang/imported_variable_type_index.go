@@ -32,13 +32,35 @@ type goImportedVariableTypeIndex struct {
 	lookup        *goParentLookup
 }
 
+// goImportedScopedBindingKind tags one of the imported-variable binding shapes
+// the index replays for a call site. Using an explicit tag plus an inlined
+// node value (rather than one heap-allocated closure per binding) keeps the
+// binding self-contained so the stored slice never depends on a pointer into
+// a stack frame that has since returned.
+type goImportedScopedBindingKind uint8
+
+const (
+	// goImportedScopedBindingParam replays one parameter_declaration via
+	// goRecordImportedParameterTypes.
+	goImportedScopedBindingParam goImportedScopedBindingKind = iota + 1
+	// goImportedScopedBindingVarSpec replays one var_spec via
+	// goRecordImportedVarSpecTypes.
+	goImportedScopedBindingVarSpec
+	// goImportedScopedBindingAssignment replays one short_var_declaration or
+	// assignment_statement via goRecordImportedAssignmentTypes.
+	goImportedScopedBindingAssignment
+)
+
 // goImportedScopedBinding captures one imported-variable declaration inside a
 // function scope. The startByte field orders bindings by source position so a
 // query can stop scanning once it passes the call site, preserving the
 // "definition must precede use" filter the prior per-call walk enforced.
+// decl stores the declaration node by value so the binding remains valid
+// independently of the walk that produced it.
 type goImportedScopedBinding struct {
 	startByte uint
-	apply     func(target map[string]string)
+	kind      goImportedScopedBindingKind
+	decl      tree_sitter.Node
 }
 
 // goBuildImportedVariableTypeIndex returns an index built around the file's
@@ -77,55 +99,55 @@ func (idx *goImportedVariableTypeIndex) ForCall(call *tree_sitter.Node) map[stri
 	}
 	bindings := idx.bindingsForScope(scope)
 	target := call.StartByte()
-	for _, binding := range bindings {
-		if binding.startByte > target {
+	for i := range bindings {
+		if bindings[i].startByte > target {
 			break
 		}
-		binding.apply(result)
+		decl := bindings[i].decl
+		switch bindings[i].kind {
+		case goImportedScopedBindingParam:
+			goRecordImportedParameterTypes(&decl, idx.source, idx.importAliases, result)
+		case goImportedScopedBindingVarSpec:
+			goRecordImportedVarSpecTypes(&decl, idx.source, idx.importAliases, result)
+		case goImportedScopedBindingAssignment:
+			// Pass the declaration's own startByte as maxStartByte so
+			// goRecordImportedAssignmentTypes' internal guard always admits
+			// this node. The "startByte > target" early-break above already
+			// enforces the "must precede call" rule.
+			goRecordImportedAssignmentTypes(&decl, idx.source, idx.importAliases, result, nil, bindings[i].startByte)
+		}
 	}
 	return result
 }
 
 // bindingsForScope builds the per-scope binding list on first access and
-// caches it. Each entry pairs the declaration node's startByte with a closure
-// that records its imported-type binding into the running variableTypes map
-// using the same helpers the prior per-call walk invoked, so ForCall remains
-// behaviorally identical to goKnownImportedVariableTypesForCall.
+// caches it. The walker stops at nested function_declaration / method_declaration
+// / func_literal subtrees so an imported-variable binding declared inside an
+// inner closure does not leak into the outer function's binding table.
 func (idx *goImportedVariableTypeIndex) bindingsForScope(scope *tree_sitter.Node) []goImportedScopedBinding {
 	if cached, ok := idx.scopeBindings[scope.Id()]; ok {
 		return cached
 	}
 	bindings := make([]goImportedScopedBinding, 0, 8)
-	walkNamed(scope, func(child *tree_sitter.Node) {
+	walkScopeBindings(scope, func(child *tree_sitter.Node) {
 		switch child.Kind() {
 		case "parameter_declaration":
-			decl := child
 			bindings = append(bindings, goImportedScopedBinding{
 				startByte: child.StartByte(),
-				apply: func(target map[string]string) {
-					goRecordImportedParameterTypes(decl, idx.source, idx.importAliases, target)
-				},
+				kind:      goImportedScopedBindingParam,
+				decl:      *child,
 			})
 		case "var_spec":
-			decl := child
 			bindings = append(bindings, goImportedScopedBinding{
 				startByte: child.StartByte(),
-				apply: func(target map[string]string) {
-					goRecordImportedVarSpecTypes(decl, idx.source, idx.importAliases, target)
-				},
+				kind:      goImportedScopedBindingVarSpec,
+				decl:      *child,
 			})
 		case "short_var_declaration", "assignment_statement":
-			decl := child
-			declStart := child.StartByte()
 			bindings = append(bindings, goImportedScopedBinding{
-				startByte: declStart,
-				apply: func(target map[string]string) {
-					// Pass the declaration's own startByte as maxStartByte so
-					// goRecordImportedAssignmentTypes's internal guard always
-					// admits this node. The outer "binding.startByte > target"
-					// loop already enforces the "must precede call" rule.
-					goRecordImportedAssignmentTypes(decl, idx.source, idx.importAliases, target, nil, declStart)
-				},
+				startByte: child.StartByte(),
+				kind:      goImportedScopedBindingAssignment,
+				decl:      *child,
 			})
 		}
 	})
