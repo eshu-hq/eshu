@@ -222,6 +222,9 @@ func (s ClaimedSource) collectCandidate(
 			if warningErr != nil {
 				return collector.CollectedGeneration{}, false, warningErr
 			}
+			s.recordWarningFacts(ctx, sourceKey.BackendKind, candidateScope.Metadata["locator_hash"], map[string]int64{
+				"state_too_large": 1,
+			})
 			return collected, true, nil
 		}
 		s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "error")
@@ -241,7 +244,11 @@ func (s ClaimedSource) collectCandidate(
 		return collector.CollectedGeneration{}, false, err
 	}
 	s.recordSnapshotObserved(ctx, sourceKey.BackendKind, "parsed")
+	safeLocatorHash := scopeValue.Metadata["locator_hash"]
 	s.recordResourceFacts(ctx, sourceKey.BackendKind, result.ResourceFacts)
+	s.recordOutputFacts(ctx, sourceKey.BackendKind, safeLocatorHash, result.OutputFacts)
+	s.recordModuleFacts(ctx, sourceKey.BackendKind, safeLocatorHash, result.ModuleFacts)
+	s.recordWarningFacts(ctx, sourceKey.BackendKind, safeLocatorHash, result.WarningsByKind)
 	s.recordRedactions(ctx, result.RedactionsApplied)
 	return collector.CollectedGeneration{
 		Scope:         scopeValue,

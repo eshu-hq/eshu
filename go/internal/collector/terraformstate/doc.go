@@ -1,8 +1,11 @@
 // Package terraformstate reads Terraform state snapshots into redacted facts.
 //
 // The package keeps raw Terraform state inside source readers and parser-local
-// windows only. Callers receive typed fact envelopes and redaction evidence, not
-// raw state bytes or unredacted attribute values.
+// windows only. Callers receive typed fact envelopes and redaction evidence,
+// not raw state bytes or unredacted attribute values. ParseResult and
+// ParseStreamResult also surface OutputFacts, ModuleFacts, and a WarningsByKind
+// breakdown so the runtime can record per-locator emission counters without
+// rescanning the streamed envelopes.
 //
 // Terragrunt remote_state blocks are resolved into DiscoveryCandidate rows by
 // TerragruntRemoteStateCandidate. The resolver always emits the underlying

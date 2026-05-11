@@ -96,6 +96,14 @@ type RawSnapshot struct {
 	Queue                 QueueSnapshot
 	LatestQueueFailure    *QueueFailureSnapshot
 	Coordinator           *CoordinatorSnapshot
+	// TerraformStateLastSerials carries the most recent observed serial per
+	// active state_snapshot scope, keyed by safe_locator_hash. Empty when the
+	// reader does not surface tfstate evidence.
+	TerraformStateLastSerials []TerraformStateLocatorSerial
+	// TerraformStateRecentWarnings carries up to MaxTerraformStateRecentWarnings
+	// warning_fact rows per safe_locator_hash so operators can see recent
+	// warnings without scanning the fact stream.
+	TerraformStateRecentWarnings []TerraformStateLocatorWarning
 }
 
 // Reader loads the raw status snapshot from an underlying storage backend.
@@ -144,6 +152,20 @@ type Report struct {
 	QueueBlockages        []QueueBlockage
 	LatestQueueFailure    *QueueFailureSnapshot
 	Coordinator           *CoordinatorSnapshot
+	// TerraformState carries the operator-facing tfstate admin status section
+	// derived from RawSnapshot.TerraformStateLastSerials and
+	// RawSnapshot.TerraformStateRecentWarnings. Empty when the reader did not
+	// surface tfstate evidence.
+	TerraformState TerraformStateReport
+}
+
+// TerraformStateReport projects the per-locator serial and recent warning
+// evidence into a stable shape for the admin status surface. The Postgres
+// query bounds raw inputs; this projection only sorts and groups them.
+type TerraformStateReport struct {
+	LastSerials    []TerraformStateLocatorSerial
+	RecentWarnings []TerraformStateLocatorWarning
+	WarningsByKind map[string]map[string][]TerraformStateLocatorWarning
 }
 
 // DefaultOptions returns the baseline operator heuristics for this first live
@@ -212,6 +234,11 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		QueueBlockages:        cloneQueueBlockages(raw.QueueBlockages),
 		LatestQueueFailure:    cloneQueueFailure(raw.LatestQueueFailure),
 		Coordinator:           cloneCoordinatorSnapshot(raw.Coordinator),
+		TerraformState: TerraformStateReport{
+			LastSerials:    SortTerraformStateSerials(raw.TerraformStateLastSerials),
+			RecentWarnings: SortTerraformStateWarnings(raw.TerraformStateRecentWarnings),
+			WarningsByKind: GroupTerraformStateWarningsByKind(raw.TerraformStateRecentWarnings),
+		},
 	}
 }
 

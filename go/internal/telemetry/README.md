@@ -97,6 +97,9 @@ gauge when a shared-acceptance observer is available.
 | `IaCReachabilityRows` | `eshu_dp_iac_reachability_rows_total` |
 | `TerraformStateSnapshotsObserved` | `eshu_dp_tfstate_snapshots_observed_total` |
 | `TerraformStateResourcesEmitted` | `eshu_dp_tfstate_resources_emitted_total` |
+| `TerraformStateOutputsEmitted` | `eshu_dp_tfstate_outputs_emitted_total` |
+| `TerraformStateModulesEmitted` | `eshu_dp_tfstate_modules_emitted_total` |
+| `TerraformStateWarningsEmitted` | `eshu_dp_tfstate_warnings_emitted_total` |
 | `TerraformStateRedactionsApplied` | `eshu_dp_tfstate_redactions_applied_total` |
 | `TerraformStateS3ConditionalGetNotModified` | `eshu_dp_tfstate_s3_conditional_get_not_modified_total` |
 | `CrossRepoEvidenceLoaded` | `eshu_dp_cross_repo_evidence_loaded_total` |

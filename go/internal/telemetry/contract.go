@@ -46,6 +46,14 @@ const (
 	MetricDimensionBackendKind   = "backend_kind"
 	MetricDimensionResult        = "result"
 	MetricDimensionReason        = "reason"
+	// MetricDimensionSafeLocatorHash labels Terraform-state metrics with the
+	// scope-level safe locator hash so operators can group counters per state
+	// without exposing bucket names, S3 keys, or local paths.
+	MetricDimensionSafeLocatorHash = "safe_locator_hash"
+	// MetricDimensionWarningKind labels Terraform-state warning metrics with
+	// the warning category (state_in_vcs, state_too_large, output_value_dropped,
+	// etc.) emitted by the streaming parser.
+	MetricDimensionWarningKind = "warning_kind"
 )
 
 // Span names define the stable data-plane tracing contract.
@@ -130,6 +138,8 @@ var metricDimensionKeys = []string{
 	MetricDimensionBackendKind,
 	MetricDimensionResult,
 	MetricDimensionReason,
+	MetricDimensionSafeLocatorHash,
+	MetricDimensionWarningKind,
 }
 
 var spanNames = []string{

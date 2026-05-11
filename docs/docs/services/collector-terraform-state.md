@@ -183,6 +183,9 @@ label and bucket schema.
 | `eshu_dp_tfstate_snapshots_observed_total` | counter | `backend_kind`, `result` | Are we observing snapshots, and which fail? |
 | `eshu_dp_tfstate_snapshot_bytes` | histogram | `backend_kind` | How big is each state we read? |
 | `eshu_dp_tfstate_resources_emitted_total` | counter | `backend_kind` | Are resources reaching the fact boundary? |
+| `eshu_dp_tfstate_outputs_emitted_total` | counter | `backend_kind`, `safe_locator_hash` | Are outputs reaching the fact boundary, and from which state? |
+| `eshu_dp_tfstate_modules_emitted_total` | counter | `backend_kind`, `safe_locator_hash` | Are module observations reaching the fact boundary? |
+| `eshu_dp_tfstate_warnings_emitted_total` | counter | `backend_kind`, `safe_locator_hash`, `warning_kind` | Which warnings are firing per state, and how often? |
 | `eshu_dp_tfstate_redactions_applied_total` | counter | `reason` | What kind of secrets are we redacting, and how often? |
 | `eshu_dp_tfstate_s3_conditional_get_not_modified_total` | counter | — | Is conditional-GET short-circuiting unchanged reads? |
 | `eshu_dp_tfstate_parse_duration_seconds` | histogram | `backend_kind` | Is the parser slowing down? |
@@ -214,14 +217,50 @@ The runtime mounts the shared admin surface from `go/internal/runtime/admin.go`:
 
 Terraform-state instances surface in the generic `CollectorInstanceSummary`
 inside `CoordinatorSnapshot.CollectorInstances` — see
-`go/internal/status/coordinator.go:12-23`. No tfstate-specific status code
-exists; the generic queue, claim, and completeness fields already reflect
-the runtime. To filter the JSON response:
+`go/internal/status/coordinator.go:12-23`. The generic queue, claim, and
+completeness fields already reflect the runtime. To filter the JSON response:
 
 ```bash
 curl -s http://localhost:8080/admin/status?format=json \
   | jq '.collector_instances[] | select(.collector_kind=="terraform_state")'
 ```
+
+The status response also carries a tfstate-specific section keyed by safe
+locator hash so operators can confirm which state snapshots are advancing
+and which are emitting recent warnings without scanning the full fact
+stream:
+
+```json
+{
+  "terraform_state": {
+    "last_serials": [
+      {
+        "safe_locator_hash": "abc123",
+        "backend_kind": "s3",
+        "lineage": "lineage-1",
+        "serial": 5,
+        "generation_id": "terraform_state:state_snapshot:s3:abc123:lineage-1:serial:5",
+        "observed_at": "2026-05-03T10:00:00Z"
+      }
+    ],
+    "recent_warnings": [
+      {
+        "safe_locator_hash": "abc123",
+        "warning_kind": "state_in_vcs",
+        "reason": "approved_local",
+        "source": "git_local_file"
+      }
+    ],
+    "warnings_by_kind": {
+      "abc123": {"state_in_vcs": [{"warning_kind": "state_in_vcs"}]}
+    }
+  }
+}
+```
+
+The warnings list is bounded by `MaxTerraformStateRecentWarnings` (50 rows
+per locator) — see `go/internal/status/tfstate.go`. Postgres is the source
+of truth; admin status does not maintain an in-process ring buffer.
 
 ## Troubleshooting
 

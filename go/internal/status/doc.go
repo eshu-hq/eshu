@@ -9,5 +9,8 @@
 // reference and runtime admin docs. The health projection treats reducer-owned
 // shared projection backlog and active shared-projection leases as unfinished
 // graph-visible work, so code graph and dead-code queries do not look ready
-// while accepted edges are still being written.
+// while accepted edges are still being written. The TerraformStateReport
+// section, surfaced under Report.TerraformState, exposes per-locator state
+// serial advance and recent warning_fact rows grouped by warning_kind so
+// operators can confirm tfstate liveness without scanning the fact stream.
 package status

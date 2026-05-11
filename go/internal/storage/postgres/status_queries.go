@@ -122,6 +122,84 @@ GROUP BY domain
 HAVING SUM(outstanding_count) + SUM(in_flight_count) + SUM(retrying_count) + SUM(dead_letter_count) + SUM(failed_count) > 0
 ORDER BY outstanding_count DESC, oldest_outstanding_age_seconds DESC, domain ASC
 `
+	// terraformStateLastSerialQuery returns the latest observed serial per
+	// state_snapshot scope. Lineage and serial are extracted from the
+	// generation_id pattern terraform_state:{scope_id}:{lineage}:serial:{serial}
+	// produced by scope.NewTerraformStateSnapshotGeneration. The query bounds
+	// itself to active or pending generations and prefers the most recent
+	// ingested_at so superseded generations are not picked when the active one
+	// is rolling forward. Result is bounded by the total number of state
+	// snapshot scopes (one row per scope).
+	terraformStateLastSerialQuery = `
+WITH ranked_generations AS (
+    SELECT
+        scope.scope_id AS scope_id,
+        COALESCE(scope.payload->>'locator_hash', '') AS locator_hash,
+        COALESCE(scope.payload->>'backend_kind', '') AS backend_kind,
+        generation.generation_id AS generation_id,
+        generation.ingested_at AS ingested_at,
+        generation.observed_at AS observed_at,
+        substring(generation.generation_id from 'terraform_state:[^:]+:[^:]+:[^:]+:([^:]+):serial:[0-9]+$') AS lineage_uuid,
+        substring(generation.generation_id from 'serial:([0-9]+)$') AS serial_text,
+        ROW_NUMBER() OVER (
+            PARTITION BY scope.scope_id
+            ORDER BY generation.ingested_at DESC, generation.generation_id DESC
+        ) AS rank
+    FROM ingestion_scopes AS scope
+    JOIN scope_generations AS generation
+        ON generation.scope_id = scope.scope_id
+    WHERE scope.scope_kind = 'state_snapshot'
+      AND scope.collector_kind = 'terraform_state'
+      AND generation.status IN ('active', 'pending', 'superseded')
+      AND generation.generation_id LIKE 'terraform_state:%:serial:%'
+)
+SELECT
+    locator_hash,
+    backend_kind,
+    COALESCE(lineage_uuid, ''),
+    COALESCE(serial_text, '0'),
+    generation_id,
+    observed_at
+FROM ranked_generations
+WHERE rank = 1
+  AND locator_hash <> ''
+ORDER BY locator_hash ASC
+`
+
+	// terraformStateRecentWarningsQuery returns the N most recent warning_fact
+	// rows per safe_locator_hash. The N bound is enforced via window-function
+	// ranking so the result size is hard-capped regardless of how many warning
+	// facts a single state has accumulated. Source-system filtering ensures we
+	// look only at terraform_state collector facts.
+	terraformStateRecentWarningsQuery = `
+WITH warning_rows AS (
+    SELECT
+        COALESCE(scope.payload->>'locator_hash', '') AS locator_hash,
+        COALESCE(scope.payload->>'backend_kind', '') AS backend_kind,
+        COALESCE(fact.payload->>'warning_kind', '') AS warning_kind,
+        COALESCE(fact.payload->>'reason', '') AS reason,
+        COALESCE(fact.payload->>'source', '') AS source,
+        fact.generation_id AS generation_id,
+        fact.observed_at AS observed_at,
+        ROW_NUMBER() OVER (
+            PARTITION BY COALESCE(scope.payload->>'locator_hash', '')
+            ORDER BY fact.observed_at DESC, fact.fact_id DESC
+        ) AS rank
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+        ON scope.scope_id = fact.scope_id
+    WHERE fact.fact_kind = 'terraform_state_warning'
+      AND scope.scope_kind = 'state_snapshot'
+      AND scope.collector_kind = 'terraform_state'
+)
+SELECT locator_hash, backend_kind, warning_kind, reason, source, generation_id, observed_at
+FROM warning_rows
+WHERE rank <= $1
+  AND locator_hash <> ''
+  AND warning_kind <> ''
+ORDER BY locator_hash ASC, warning_kind ASC, observed_at DESC
+`
+
 	queueSnapshotQuery = `
 SELECT COUNT(*) AS total_count,
        COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding_count,

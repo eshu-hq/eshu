@@ -45,9 +45,10 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   code decides which cloud credentials to use.
 - `NewDiscoveryMetrics` registers the candidate counter used during discovery.
 - `Parse` turns one state stream into redacted Terraform-state facts.
-- Parser results include bounded operational stats for resource facts and
-  redactions by reason. Runtime code records those as metrics; raw values and
-  source locators stay out of labels.
+- Parser results include bounded operational stats for resource facts,
+  output facts, module facts, and a warnings-by-kind breakdown alongside
+  redactions by reason. Runtime code records those as metrics; raw values
+  and source locators stay out of labels.
 - `ReadSnapshotIdentity` streams only the top-level serial and lineage fields so
   runtime code can build the claimed generation identity without retaining raw
   state bytes.

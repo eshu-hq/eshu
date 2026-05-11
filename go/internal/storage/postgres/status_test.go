@@ -176,8 +176,8 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	if len(queryer.queries) != 13 {
-		t.Fatalf("QueryContext() call count = %d, want 13", len(queryer.queries))
+	if len(queryer.queries) != 15 {
+		t.Fatalf("QueryContext() call count = %d, want 15", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",

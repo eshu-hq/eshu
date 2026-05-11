@@ -17,5 +17,9 @@ func (p *stateParser) emitModuleObservation(moduleAddress string, resourceAddres
 	}
 	stableKey := "module:" + moduleAddress + ":resource:" + resourceAddress
 	sourceRecordID := moduleAddress + ":resource:" + resourceAddress
-	return p.emitBodyFact(p.envelope(facts.TerraformStateModuleFactKind, stableKey, payload, sourceRecordID))
+	if err := p.emitBodyFact(p.envelope(facts.TerraformStateModuleFactKind, stableKey, payload, sourceRecordID)); err != nil {
+		return err
+	}
+	p.moduleFacts++
+	return nil
 }

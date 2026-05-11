@@ -50,5 +50,12 @@ func (p *stateParser) emitWarning(warning warningPayload) error {
 		"source":       warning.Source,
 	}
 	key := "warning:" + warning.WarningKind + ":" + warning.Source + ":" + warning.Reason
-	return p.emitBodyFact(p.envelope(facts.TerraformStateWarningFactKind, key, payload, warning.Source))
+	if err := p.emitBodyFact(p.envelope(facts.TerraformStateWarningFactKind, key, payload, warning.Source)); err != nil {
+		return err
+	}
+	if p.warningsByKind == nil {
+		p.warningsByKind = map[string]int64{}
+	}
+	p.warningsByKind[warning.WarningKind]++
+	return nil
 }

@@ -55,6 +55,9 @@ type Instruments struct {
 	DocumentationDriftFindings                metric.Int64Counter
 	TerraformStateSnapshotsObserved           metric.Int64Counter
 	TerraformStateResourcesEmitted            metric.Int64Counter
+	TerraformStateOutputsEmitted              metric.Int64Counter
+	TerraformStateModulesEmitted              metric.Int64Counter
+	TerraformStateWarningsEmitted             metric.Int64Counter
 	TerraformStateRedactionsApplied           metric.Int64Counter
 	TerraformStateS3ConditionalGetNotModified metric.Int64Counter
 
@@ -291,6 +294,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register TerraformStateResourcesEmitted counter: %w", err)
+	}
+
+	inst.TerraformStateOutputsEmitted, err = meter.Int64Counter(
+		"eshu_dp_tfstate_outputs_emitted_total",
+		metric.WithDescription("Total Terraform state output facts emitted, labeled by safe locator hash"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TerraformStateOutputsEmitted counter: %w", err)
+	}
+
+	inst.TerraformStateModulesEmitted, err = meter.Int64Counter(
+		"eshu_dp_tfstate_modules_emitted_total",
+		metric.WithDescription("Total Terraform state module observation facts emitted, labeled by safe locator hash"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TerraformStateModulesEmitted counter: %w", err)
+	}
+
+	inst.TerraformStateWarningsEmitted, err = meter.Int64Counter(
+		"eshu_dp_tfstate_warnings_emitted_total",
+		metric.WithDescription("Total Terraform state warning facts emitted, labeled by warning kind and safe locator hash"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TerraformStateWarningsEmitted counter: %w", err)
 	}
 
 	inst.TerraformStateRedactionsApplied, err = meter.Int64Counter(
@@ -1115,6 +1142,18 @@ func AttrResult(v string) attribute.KeyValue {
 // AttrReason returns a reason attribute for metric recording.
 func AttrReason(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionReason, v)
+}
+
+// AttrSafeLocatorHash returns a safe_locator_hash attribute for Terraform-state
+// metrics. The value is the scope-level hash; raw locators must never be used.
+func AttrSafeLocatorHash(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionSafeLocatorHash, v)
+}
+
+// AttrWarningKind returns a warning_kind attribute for Terraform-state warning
+// metrics.
+func AttrWarningKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionWarningKind, v)
 }
 
 // RecordGOMEMLIMIT registers and records the applied GOMEMLIMIT as a gauge.
