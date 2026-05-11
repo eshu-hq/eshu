@@ -13,7 +13,10 @@ import (
 
 // newEnqueueInstruments builds a real telemetry.Instruments backed by an
 // sdkmetric ManualReader so tests can assert counter advances without
-// touching the global meter provider.
+// touching the global meter provider. Mirrors the same idiom in
+// go/internal/reducer/terraform_config_state_drift_test.go; the helpers
+// are duplicated locally because test helpers cannot cross package
+// boundaries.
 func newEnqueueInstruments(t *testing.T) (*telemetry.Instruments, sdkmetric.Reader) {
 	t.Helper()
 	reader := sdkmetric.NewManualReader()
