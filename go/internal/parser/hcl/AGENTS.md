@@ -8,10 +8,11 @@
 4. `helpers.go` - Terragrunt helper-path regex extraction
 5. `expression_helpers.go` - bounded Terragrunt expression resolution
 6. `values.go` - HCL expression and object value formatting helpers
-7. `lexical_helpers.go` - comment, delimiter, and repository-relative path helpers
-8. `../hcl_terraform_test.go` - Terraform behavior coverage through the parent engine
-9. `../hcl_terragrunt_test.go` - Terragrunt payload and helper-path coverage
-10. `../hcl_terragrunt_join_additional_test.go` - additional Terragrunt expression coverage
+7. `terraform_resource_attributes.go` - cty-value evaluation for drift attribute extraction
+8. `lexical_helpers.go` - comment, delimiter, and repository-relative path helpers
+9. `../hcl_terraform_test.go` - Terraform behavior coverage through the parent engine
+10. `../hcl_terragrunt_test.go` - Terragrunt payload and helper-path coverage
+11. `../hcl_terragrunt_join_additional_test.go` - additional Terragrunt expression coverage
 
 ## Invariants this package enforces
 
@@ -55,6 +56,10 @@
   evidence were runtime truth.
 - Adding repository-specific Terragrunt conventions without fixture evidence.
 - Returning partial payloads on HCL parse errors.
+- Reading raw source bytes to extract attribute values for drift comparison.
+  Heredocs and escaped-quote strings produce wrong values when read as bytes;
+  use `literalAttributeValue` which calls `hclsyntax.Expression.Value(nil)`
+  instead (`terraform_resource_attributes.go`).
 
 ## What NOT to change without an ADR
 

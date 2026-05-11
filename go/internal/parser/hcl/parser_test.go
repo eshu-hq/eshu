@@ -289,3 +289,39 @@ func TestTerraformParseResourceAttributesAbsentWhenEmpty(t *testing.T) {
 		t.Fatalf("unknown_attributes key present on resource with no attributes")
 	}
 }
+
+func TestTerraformParseResourceAttributesHeredocAndEscapes(t *testing.T) {
+	t.Parallel()
+
+	filePath := writeHCLTestFile(t, "main.tf", `resource "aws_iam_role" "svc" {
+  assume_role_policy = <<-EOT
+  {"Version":"2012-10-17"}
+  EOT
+
+  name = "svc\"quoted"
+}
+`)
+
+	got, err := Parse(filePath, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	row := namedItemForTest(t, bucketForTest(t, got, "terraform_resources"), "aws_iam_role.svc")
+	attrs, ok := row["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("attributes type = %T, want map[string]any", row["attributes"])
+	}
+	// <<-EOT heredoc: HCL evaluates to the unindented body with a trailing
+	// newline. The state side stores the actual JSON content, which also
+	// ends with a newline when the heredoc is the source. The byte-level
+	// literalSourceText implementation would have returned "<<-EOT\n  ...\n  EOT",
+	// which never matches.
+	if got, want := attrs["assume_role_policy"], "{\"Version\":\"2012-10-17\"}\n"; got != want {
+		t.Fatalf("attributes[assume_role_policy] = %q, want %q", got, want)
+	}
+	// Escaped quote: HCL evaluates `"svc\"quoted"` to `svc"quoted`. The old
+	// byte-level reader would have returned `svc\"quoted` (backslash preserved).
+	if got, want := attrs["name"], `svc"quoted`; got != want {
+		t.Fatalf("attributes[name] = %q, want %q (escape must be resolved, not preserved)", got, want)
+	}
+}

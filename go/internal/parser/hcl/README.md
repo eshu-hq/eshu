@@ -57,6 +57,16 @@ Terragrunt `remote_state` rows store the parser-side source file path under
 `source_path`, kept distinct from the local backend's `path` attribute so
 neither value silently overwrites the other (`terragrunt_remote_state.go:54`).
 
+Terraform resource attribute extraction (`terraform_resource_attributes.go`)
+uses cty-value evaluation via `hclsyntax.Expression.Value(nil)` rather than
+byte-level source reads to produce the `known_attributes` and
+`unknown_attributes` fields. This correctly handles heredoc strings (which
+evaluate to the unindented body content) and escaped-quote strings (which
+evaluate to the unescaped character). The encoding must stay in lockstep with
+the state-side flattener in `tfstate_drift_evidence_state_row.go` — see
+`literalAttributeValue` and `ctyValueToDriftString` in
+`terraform_resource_attributes.go`.
+
 Payload buckets must stay deterministic. Rows are sorted before `Parse`
 returns so ingestion retries and repair runs converge on the same facts.
 

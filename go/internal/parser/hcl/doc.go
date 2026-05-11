@@ -5,9 +5,15 @@
 // contract, and returns deterministic rows sorted by name. Terraform parsing
 // covers authored configuration blocks, modern import/refactor/check blocks,
 // and provider lock files without mixing lockfile providers into provider
-// configuration rows. The package owns HCL syntax parsing and local Terragrunt
-// helper-expression extraction, while registry dispatch and parse timing remain
-// in the parent parser package.
+// configuration rows. The package owns HCL syntax parsing, local Terragrunt
+// helper-expression extraction, and per-resource attribute extraction for
+// drift comparison. Registry dispatch and parse timing remain in the parent
+// parser package.
+//
+// Resource attribute extraction uses cty-value evaluation via
+// hclsyntax.Expression.Value so that heredoc strings and escaped-quote strings
+// produce the same canonical values the state-side flattener stores, rather
+// than raw source bytes that would never match.
 //
 // Terragrunt parsing also extracts remote_state blocks into the
 // terragrunt_remote_states bucket and follows local include chains
