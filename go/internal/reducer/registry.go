@@ -258,5 +258,28 @@ func DefaultDomainDefinitions() []DomainDefinition {
 				},
 			},
 		},
+		{
+			Domain:  DomainConfigStateDrift,
+			Summary: "correlate Terraform config (parsed HCL) against state snapshots to detect five drift kinds",
+			// CanonicalWrite is set to true to satisfy
+			// OwnershipShape.Validate; the v1 drift handler does not write
+			// canonical graph nodes (counters and structured logs are the v1
+			// surface per design doc §10). The "canonical record" the handler
+			// produces is the bounded emission of
+			// eshu_dp_correlation_drift_detected_total + structured logs.
+			// Graph projection of drift nodes lands in a follow-up chunk.
+			Ownership: OwnershipShape{
+				CrossSource:    true,
+				CrossScope:     true,
+				CanonicalWrite: true,
+			},
+			TruthContract: truth.Contract{
+				CanonicalKind: "config_state_drift",
+				SourceLayers: []truth.Layer{
+					truth.LayerSourceDeclaration,
+					truth.LayerObservedResource,
+				},
+			},
+		},
 	}
 }

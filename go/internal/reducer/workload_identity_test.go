@@ -239,6 +239,7 @@ func TestNewDefaultRegistryRegistersImplementedDomainsOnly(t *testing.T) {
 	if got, want := registry.SortedDomains(), []Domain{
 		DomainCloudAssetResolution,
 		DomainCodeCallMaterialization,
+		DomainConfigStateDrift,
 		DomainDeploymentMapping,
 		DomainInheritanceMaterialization,
 		DomainSemanticEntityMaterialization,

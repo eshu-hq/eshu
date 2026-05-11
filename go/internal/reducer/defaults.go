@@ -1,8 +1,11 @@
 package reducer
 
 import (
+	"log/slog"
+
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -77,6 +80,14 @@ type DefaultHandlers struct {
 	// Tracer and Instruments for cross-repo resolution telemetry.
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
+
+	// Terraform config-vs-state drift adapters (chunk #43). Optional; nil
+	// values cause the DomainConfigStateDrift handler to short-circuit with
+	// success and emit a structured log only — drift detection requires the
+	// resolver and the evidence loader to be wired.
+	TerraformBackendResolver *tfstatebackend.Resolver
+	DriftEvidenceLoader      DriftEvidenceLoader
+	DriftLogger              *slog.Logger
 }
 
 // NewDefaultRegistry constructs the canonical reducer catalog for the default
@@ -184,6 +195,13 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				FactLoader:           handlers.FactLoader,
 				EdgeWriter:           handlers.InheritanceEdgeWriter,
 				PriorGenerationCheck: handlers.PriorGenerationCheck,
+			}
+		case DomainConfigStateDrift:
+			def.Handler = TerraformConfigStateDriftHandler{
+				Resolver:       handlers.TerraformBackendResolver,
+				EvidenceLoader: handlers.DriftEvidenceLoader,
+				Instruments:    handlers.Instruments,
+				Logger:         handlers.DriftLogger,
 			}
 		}
 		definitions = append(definitions, def)
