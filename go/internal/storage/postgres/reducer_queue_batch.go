@@ -153,7 +153,7 @@ FROM claimed
 // ClaimBatch claims up to limit reducer work items in a single Postgres
 // round-trip using FOR UPDATE SKIP LOCKED. Implements reducer.BatchWorkSource.
 func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducer.Intent, error) {
-	if err := q.validate(); err != nil {
+	if err := q.validateClaim(); err != nil {
 		return nil, err
 	}
 	if limit <= 0 {
@@ -196,7 +196,7 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducer.Inte
 // AckBatch acknowledges multiple claimed reducer work items in a single
 // round-trip. Implements reducer.BatchWorkSink.
 func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ []reducer.Result) error {
-	if err := q.validate(); err != nil {
+	if err := q.validateClaim(); err != nil {
 		return err
 	}
 	if len(intents) == 0 {
@@ -244,7 +244,7 @@ WHERE work_item_id IN (%s)
 // FailBatch marks multiple claimed reducer work items as failed in a single
 // round-trip. Each intent is failed with its corresponding error.
 func (q ReducerQueue) FailBatch(ctx context.Context, intents []reducer.Intent, causes []error) error {
-	if err := q.validate(); err != nil {
+	if err := q.validateClaim(); err != nil {
 		return err
 	}
 	if len(intents) == 0 {

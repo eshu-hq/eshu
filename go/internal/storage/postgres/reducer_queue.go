@@ -243,7 +243,7 @@ func (q ReducerQueue) Enqueue(
 	ctx context.Context,
 	intents []projector.ReducerIntent,
 ) (projector.IntentResult, error) {
-	if err := q.validate(); err != nil {
+	if err := q.validateEnqueue(); err != nil {
 		return projector.IntentResult{}, err
 	}
 
@@ -331,7 +331,7 @@ func (q ReducerQueue) enqueueReducerBatch(
 
 // Claim implements reducer.WorkSource over fact_work_items.
 func (q ReducerQueue) Claim(ctx context.Context) (reducer.Intent, bool, error) {
-	if err := q.validate(); err != nil {
+	if err := q.validateClaim(); err != nil {
 		return reducer.Intent{}, false, err
 	}
 
@@ -372,7 +372,7 @@ func (q ReducerQueue) Claim(ctx context.Context) (reducer.Intent, bool, error) {
 
 // Heartbeat extends the claim on one reducer work item owned by this queue.
 func (q ReducerQueue) Heartbeat(ctx context.Context, intent reducer.Intent) error {
-	if err := q.validate(); err != nil {
+	if err := q.validateClaim(); err != nil {
 		return err
 	}
 
@@ -400,7 +400,7 @@ func (q ReducerQueue) Heartbeat(ctx context.Context, intent reducer.Intent) erro
 
 // Ack marks one claimed reducer work item as succeeded.
 func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, _ reducer.Result) error {
-	if err := q.validate(); err != nil {
+	if err := q.validateClaim(); err != nil {
 		return err
 	}
 
@@ -414,7 +414,7 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, _ reducer.
 
 // Fail marks one claimed reducer work item as failed.
 func (q ReducerQueue) Fail(ctx context.Context, intent reducer.Intent, cause error) error {
-	if err := q.validate(); err != nil {
+	if err := q.validateClaim(); err != nil {
 		return err
 	}
 	if cause == nil {
@@ -428,22 +428,51 @@ func (q ReducerQueue) Fail(ctx context.Context, intent reducer.Intent, cause err
 	return nil
 }
 
-func (q ReducerQueue) validate() error {
+// validateEnqueue checks the inputs Enqueue needs to insert a reducer
+// fact_work_items row. The enqueue SQL writes NULL for lease_owner and
+// claim_until (see enqueueReducerBatchPrefix and the VALUES tuple in
+// enqueueReducerBatch), so LeaseOwner and LeaseDuration are not part of the
+// enqueue contract. Splitting the check off from validateClaim removes the
+// historical smell at drift_enqueue.go where producers had to fabricate
+// placeholder lease values just to construct a struct used for enqueue only.
+//
+// Error strings include the side marker "for enqueue" so wrapped errors and
+// stack traces remain self-locating without requiring new structured-log
+// keys or metric dimensions.
+func (q ReducerQueue) validateEnqueue() error {
 	if q.db == nil {
-		return errors.New("reducer queue database is required")
-	}
-	if q.LeaseOwner == "" {
-		return errors.New("reducer queue lease owner is required")
-	}
-	if q.LeaseDuration <= 0 {
-		return errors.New("reducer queue lease duration must be positive")
+		return errors.New("reducer queue database is required for enqueue")
 	}
 	if q.ClaimDomain != "" {
 		if err := q.ClaimDomain.Validate(); err != nil {
 			return err
 		}
 	}
+	return nil
+}
 
+// validateClaim checks the inputs Claim, Heartbeat, Ack, and Fail need to
+// fence reducer work by lease owner. LeaseOwner identifies the worker on the
+// fact_work_items UPDATE statements (claim_until = $1, lease_owner = $3 in
+// claimReducerWorkQuery; lease_owner = $3 in ackReducerWorkQuery and the
+// heartbeat/fail variants). LeaseDuration sets claim_until on claim and
+// renews it on heartbeat.
+//
+// validateClaim composes validateEnqueue so the shared db != nil and
+// ClaimDomain.Validate() checks stay in one place.
+//
+// Error strings include the side marker "for claim/ack/heartbeat/fail" so
+// wrapped errors remain self-locating.
+func (q ReducerQueue) validateClaim() error {
+	if err := q.validateEnqueue(); err != nil {
+		return err
+	}
+	if q.LeaseOwner == "" {
+		return errors.New("reducer queue lease owner is required for claim/ack/heartbeat/fail")
+	}
+	if q.LeaseDuration <= 0 {
+		return errors.New("reducer queue lease duration must be positive for claim/ack/heartbeat/fail")
+	}
 	return nil
 }
 

@@ -134,7 +134,12 @@ func (q ReducerQueue) ReplayWorkloadMaterialization(
 	generationID string,
 	entityKey string,
 ) (bool, error) {
-	if err := q.validate(); err != nil {
+	// Replay is enqueue-only: it opportunistically reopens a succeeded row via
+	// ReopenSucceeded (which runs its own validateDB) and otherwise enqueues a
+	// fresh intent through enqueueReducerBatch. No lease fields are read on
+	// this path, so use the enqueue-side check rather than demanding
+	// LeaseOwner/LeaseDuration the call does not need.
+	if err := q.validateEnqueue(); err != nil {
 		return false, err
 	}
 	if strings.TrimSpace(entityKey) == "" {

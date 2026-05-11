@@ -155,6 +155,44 @@ func TestEnqueueConfigStateDriftIntentsNoOpWhenNoScopes(t *testing.T) {
 	}
 }
 
+// TestEnqueueConfigStateDriftIntentsConstructsQueueWithoutLease guards
+// against re-introducing a placeholder LeaseOwner/LeaseDuration on the
+// enqueue-only drift path. Per issue #170 and the validate() split, the
+// reducer queue's enqueue side accepts a zero-valued lease; the inserted
+// fact_work_items row writes NULL for lease_owner/claim_until anyway. If a
+// future change rewires drift_enqueue.go to call NewReducerQueue with a
+// fabricated lease again, the SQL would carry the bogus owner string in its
+// args and this assertion catches it.
+func TestEnqueueConfigStateDriftIntentsConstructsQueueWithoutLease(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				{"state_snapshot:s3:hash-1", "gen-state-1"},
+			}},
+		},
+	}
+	store := NewIngestionStore(db)
+
+	if err := store.EnqueueConfigStateDriftIntents(context.Background(), nil, nil); err != nil {
+		t.Fatalf("EnqueueConfigStateDriftIntents() error = %v, want nil", err)
+	}
+
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("exec count = %d, want %d (single INSERT batch)", got, want)
+	}
+
+	// The enqueue SQL itself writes NULL for lease_owner / claim_until via
+	// the VALUES tuple literal (see reducer_queue.go:307); no bind arg
+	// should carry the historical "bootstrap-index" lease-owner placeholder.
+	for i, arg := range db.execs[0].args {
+		if s, ok := arg.(string); ok && s == "bootstrap-index" {
+			t.Fatalf("INSERT args[%d] = %q — drift path must not stamp a placeholder lease owner", i, s)
+		}
+	}
+}
+
 func TestEnqueueConfigStateDriftIntentsRequiresDatabase(t *testing.T) {
 	t.Parallel()
 

@@ -126,6 +126,16 @@
   `internal/reducer`; extend the `domain = $2` filter handling in
   `ReducerQueue.Claim`; add tests for claim, ack, and retry paths.
 
+- **Add a new enqueue-only call site for `ReducerQueue`** → construct the
+  struct directly (`ReducerQueue{db: s.db}`) without `LeaseOwner` or
+  `LeaseDuration`. Both fields remain NULL on insert per
+  `enqueueReducerBatchPrefix`; the enqueue SQL never reads them. The
+  internal `validateEnqueue` runs without lease fields and `validateClaim`
+  extends it with the lease-owner fence used by `Claim`, `Heartbeat`,
+  `Ack`, and `Fail`. Do not invent a parallel ReducerQueueEnqueuer port —
+  `projector.ReducerIntentWriter` already provides the narrower
+  consumer-side interface (`internal/projector/runtime.go`).
+
 - **Add a new fact kind or column** → update `upsertFactBatch` column list and
   `columnsPerFactRow`; update `scanFactEnvelope`; update the schema DDL; add a
   migration if the column is non-nullable without a default.

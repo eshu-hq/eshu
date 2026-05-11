@@ -342,7 +342,7 @@ mutation is rejected because the current owner no longer holds the lease.
     `PreviouslyDeclaredInConfig=false` and surface as `added_in_state`. The
     walk is bounded by `listPriorConfigAddressesQuery`'s `LIMIT` so cost
     stays proportional to depth.
-- `IngestionStore.EnqueueConfigStateDriftIntents` (`drift_enqueue.go:55`) —
+- `IngestionStore.EnqueueConfigStateDriftIntents` (`drift_enqueue.go:61`) —
   Phase 3.5 trigger that enqueues one `config_state_drift` reducer intent per
   active `state_snapshot:*` scope after bootstrap Phase 3 finishes. It records
   `eshu_dp_correlation_drift_intents_enqueued_total` with the number of intents

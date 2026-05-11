@@ -606,6 +606,161 @@ func TestReducerQueueCountInFlightByDomainRejectsUnknownDomain(t *testing.T) {
 	}
 }
 
+// TestReducerQueueValidateEnqueueAcceptsZeroLeaseFields is the load-bearing
+// regression test for issue #170. It proves the enqueue path no longer demands
+// LeaseOwner/LeaseDuration placeholder values. Before the validate() split,
+// callers like IngestionStore.EnqueueConfigStateDriftIntents had to fabricate
+// lease values just to pass the single combined validate() check, even though
+// the SQL writes NULL for lease_owner/claim_until on insert. After the split,
+// validateEnqueue() omits the lease-side checks; only validateClaim() needs
+// them.
+func TestReducerQueueValidateEnqueueAcceptsZeroLeaseFields(t *testing.T) {
+	t.Parallel()
+
+	recorder := &reducerRecordingDB{}
+	queue := ReducerQueue{db: recorder}
+
+	// No-op enqueue with empty intents still runs validateEnqueue().
+	if _, err := queue.Enqueue(context.Background(), nil); err != nil {
+		t.Fatalf("Enqueue(nil) error = %v, want nil (zero lease fields should be allowed on enqueue)", err)
+	}
+
+	// Real enqueue with intents — validateEnqueue() must pass without
+	// LeaseOwner / LeaseDuration set.
+	intents := []projector.ReducerIntent{{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		Domain:       reducer.DomainConfigStateDrift,
+		EntityKey:    "entity-1",
+		Reason:       "regression test",
+		SourceSystem: "test",
+	}}
+	if _, err := queue.Enqueue(context.Background(), intents); err != nil {
+		t.Fatalf("Enqueue(intents) error = %v, want nil (zero lease fields should be allowed on enqueue)", err)
+	}
+	if recorder.execCount != 1 {
+		t.Fatalf("expected one INSERT exec, got %d", recorder.execCount)
+	}
+}
+
+// TestReducerQueueValidateEnqueueRequiresDB confirms validateEnqueue() still
+// rejects a queue with no database handle and that the error string names the
+// enqueue side so stack traces and wrapped errors are self-locating.
+func TestReducerQueueValidateEnqueueRequiresDB(t *testing.T) {
+	t.Parallel()
+
+	var queue ReducerQueue
+	intents := []projector.ReducerIntent{{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		Domain:       reducer.DomainConfigStateDrift,
+		EntityKey:    "entity-1",
+	}}
+
+	_, err := queue.Enqueue(context.Background(), intents)
+	if err == nil {
+		t.Fatal("Enqueue() error = nil, want validation error for nil db")
+	}
+	if !strings.Contains(err.Error(), "database is required") {
+		t.Fatalf("error = %q, want substring %q", err.Error(), "database is required")
+	}
+	if !strings.Contains(err.Error(), "for enqueue") {
+		t.Fatalf("error = %q, want enqueue-side marker %q", err.Error(), "for enqueue")
+	}
+}
+
+// TestReducerQueueValidateClaimRequiresLeaseOwner confirms validateClaim()
+// rejects a queue missing LeaseOwner with a claim-side error marker.
+func TestReducerQueueValidateClaimRequiresLeaseOwner(t *testing.T) {
+	t.Parallel()
+
+	queue := ReducerQueue{
+		db:            &fakeExecQueryer{},
+		LeaseDuration: time.Minute,
+	}
+
+	_, _, err := queue.Claim(context.Background())
+	if err == nil {
+		t.Fatal("Claim() error = nil, want validation error for missing lease owner")
+	}
+	if !strings.Contains(err.Error(), "lease owner") {
+		t.Fatalf("error = %q, want substring %q", err.Error(), "lease owner")
+	}
+	if !strings.Contains(err.Error(), "for claim/ack/heartbeat/fail") {
+		t.Fatalf("error = %q, want claim-side marker %q", err.Error(), "for claim/ack/heartbeat/fail")
+	}
+}
+
+// TestReducerQueueValidateClaimRequiresPositiveLeaseDuration confirms
+// validateClaim() rejects a non-positive LeaseDuration on the heartbeat path.
+// Heartbeat is the most lease-sensitive consumer because it renews
+// claim_until from now+LeaseDuration.
+func TestReducerQueueValidateClaimRequiresPositiveLeaseDuration(t *testing.T) {
+	t.Parallel()
+
+	queue := ReducerQueue{
+		db:         &fakeExecQueryer{},
+		LeaseOwner: "test-owner",
+	}
+
+	err := queue.Heartbeat(context.Background(), reducer.Intent{IntentID: "work-1"})
+	if err == nil {
+		t.Fatal("Heartbeat() error = nil, want validation error for zero lease duration")
+	}
+	if !strings.Contains(err.Error(), "lease duration") {
+		t.Fatalf("error = %q, want substring %q", err.Error(), "lease duration")
+	}
+	if !strings.Contains(err.Error(), "for claim/ack/heartbeat/fail") {
+		t.Fatalf("error = %q, want claim-side marker %q", err.Error(), "for claim/ack/heartbeat/fail")
+	}
+}
+
+// TestReducerQueueValidateEnqueueRejectsInvalidClaimDomain proves the shared
+// ClaimDomain.Validate() check lives in validateEnqueue() so both enqueue and
+// claim sides reject an unknown ClaimDomain.
+func TestReducerQueueValidateEnqueueRejectsInvalidClaimDomain(t *testing.T) {
+	t.Parallel()
+
+	queue := ReducerQueue{
+		db:          &fakeExecQueryer{},
+		ClaimDomain: reducer.Domain("not_a_domain"),
+	}
+
+	_, err := queue.Enqueue(context.Background(), []projector.ReducerIntent{{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		Domain:       reducer.DomainConfigStateDrift,
+		EntityKey:    "entity-1",
+	}})
+	if err == nil {
+		t.Fatal("Enqueue() error = nil, want unknown-domain validation error")
+	}
+	if !strings.Contains(err.Error(), "unknown reducer domain") {
+		t.Fatalf("error = %q, want unknown-domain message", err.Error())
+	}
+}
+
+// TestReducerQueueValidateClaimAlsoRejectsInvalidClaimDomain proves
+// validateClaim() inherits validateEnqueue()'s ClaimDomain check.
+func TestReducerQueueValidateClaimAlsoRejectsInvalidClaimDomain(t *testing.T) {
+	t.Parallel()
+
+	queue := ReducerQueue{
+		db:            &fakeExecQueryer{},
+		LeaseOwner:    "test-owner",
+		LeaseDuration: time.Minute,
+		ClaimDomain:   reducer.Domain("not_a_domain"),
+	}
+
+	_, _, err := queue.Claim(context.Background())
+	if err == nil {
+		t.Fatal("Claim() error = nil, want unknown-domain validation error")
+	}
+	if !strings.Contains(err.Error(), "unknown reducer domain") {
+		t.Fatalf("error = %q, want unknown-domain message", err.Error())
+	}
+}
+
 // reducerRecordingDB records ExecContext calls for verification.
 type reducerRecordingDB struct {
 	execCount int
