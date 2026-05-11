@@ -140,6 +140,20 @@ func run(
 	}
 	logger.Info("starting bootstrap-index")
 
+	pprofSrv, err := runtimecfg.NewPprofServer(getenv)
+	if err != nil {
+		return fmt.Errorf("pprof server: %w", err)
+	}
+	if pprofSrv != nil {
+		if err := pprofSrv.Start(ctx); err != nil {
+			return fmt.Errorf("pprof server start: %w", err)
+		}
+		logger.Info("pprof server listening", "addr", pprofSrv.Addr())
+		defer func() {
+			_ = pprofSrv.Stop(context.Background())
+		}()
+	}
+
 	db, err := openDBFn(ctx, getenv)
 	if err != nil {
 		return err

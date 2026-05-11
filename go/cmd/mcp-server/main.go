@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -44,6 +45,22 @@ func main() {
 			logger.Error("telemetry shutdown failed", telemetry.EventAttr("runtime.shutdown.failed"), "error", err)
 		}
 	}()
+
+	pprofSrv, err := runtimecfg.NewPprofServer(os.Getenv)
+	if err != nil {
+		logger.Error("pprof server failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
+		os.Exit(1)
+	}
+	if pprofSrv != nil {
+		if err := pprofSrv.Start(ctx); err != nil {
+			logger.Error("pprof server start failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
+			os.Exit(1)
+		}
+		logger.Info("pprof server listening", telemetry.EventAttr("runtime.server.listening"), "addr", pprofSrv.Addr())
+		defer func() {
+			_ = pprofSrv.Stop(context.Background())
+		}()
+	}
 
 	transport := strings.ToLower(strings.TrimSpace(os.Getenv("ESHU_MCP_TRANSPORT")))
 	if transport == "" {

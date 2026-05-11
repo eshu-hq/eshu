@@ -143,6 +143,12 @@ Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
 | `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | Enable NornicDB semantic grouped writes for conformance testing |
 | `ESHU_NORNICDB_SEMANTIC_ENTITY_LABEL_BATCH_SIZES` | Override label batch sizes for NornicDB semantic entity writes |
 
+### Profiling
+
+| Variable | Purpose |
+| --- | --- |
+| `ESHU_PPROF_ADDR` | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; unset disables; port-only inputs (`:6060`) bind to `127.0.0.1` |
+
 ## Exported surface
 
 `buildReducerService` (unexported) returns a `reducer.Service` value. The

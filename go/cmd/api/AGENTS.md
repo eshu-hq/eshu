@@ -29,7 +29,7 @@
   token is configured (`wiring.go:105`).
 - **Graceful shutdown bounded at 5 s** — the shutdown goroutine calls
   `Shutdown` on the server with a 5-second context; requests not completed within
-  that window are interrupted (`main.go:68`).
+  that window are interrupted (`main.go:93`).
 - **Compile-time port conformance** — `wiring.go:23` asserts that `Neo4jReader`
   satisfies `GraphQuery` and `ContentReader` satisfies `ContentStore`; removing
   these assertions will silently break port conformance.
@@ -45,8 +45,8 @@
   follow the same struct-and-`Mount` pattern; missing a step leaves routes
   unreachable or undocumented.
 
-- **Change the listen address or timeouts** → edit `main.go:47` for
-  `ESHU_API_ADDR` and `main.go:57` for the `http.Server` timeout fields. Timeouts
+- **Change the listen address or timeouts** → edit `main.go:74` for
+  `ESHU_API_ADDR` and `main.go:83` for the `http.Server` timeout fields. Timeouts
   are hard-coded constants; there are no env vars for them. Why: timeout values
   are deployment-level knobs that should be changed deliberately, not silently
   picked up from environment.
@@ -85,7 +85,7 @@
 - Symptom: requests interrupted mid-stream during redeploy → likely cause: the
   5-second graceful `Shutdown` window was exceeded → consider a query-side timeout
   on long graph traversals before extending the server shutdown window
-  (`main.go:68`).
+  (`main.go:93`).
 
 ## Anti-patterns specific to this package
 

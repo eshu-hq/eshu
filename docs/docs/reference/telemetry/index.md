@@ -73,6 +73,11 @@ flowchart LR
 - Use `eshu index --discovery-report <file>` when you need path-level noisy-repo
   evidence. Discovery advisory reports may include repository paths and top
   files/directories, so they deliberately stay out of metric labels.
+- Use `ESHU_PPROF_ADDR` to attach `net/http/pprof` to a runtime binary when
+  metrics, traces, and logs have already named the stage but the cost shape
+  inside that stage is unclear. See
+  [local-testing.md → Process Profiling](../local-testing.md#process-profiling)
+  for usage and the safety contract.
 
 ## Incremental Refresh And Reconciliation Signals
 

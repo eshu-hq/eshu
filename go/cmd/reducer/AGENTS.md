@@ -19,18 +19,18 @@ before touching any file in this directory.
 ## Invariants (cite file:line)
 
 - **Graph backend selection fails at startup for invalid values** —
-  `main.go:147` calls `runtimecfg.LoadGraphBackend`; when the value is not
+  `main.go:162` calls `runtimecfg.LoadGraphBackend`; when the value is not
   `GraphBackendNornicDB` or the Neo4j equivalent, the error propagates to
   `os.Exit(1)`.
 - **Projector drain gate is NornicDB + local-authoritative only** —
   `config.go:135–148` `loadReducerProjectorDrainGate` returns `true` only
   when the backend is `GraphBackendNornicDB` AND the query profile is
   `local-authoritative`.
-- **Heartbeat renews at `LeaseDuration / 2`** — `main.go:307`
+- **Heartbeat renews at `LeaseDuration / 2`** — `main.go:322`
   `HeartbeatInterval: workQueue.LeaseDuration / 2`; do not set
   `ESHU_REDUCER_RETRY_DELAY` shorter than the lease TTL or claims will churn.
 - **Prior-config depth defaults to 10; invalid input WARNs and falls back** —
-  `PriorConfigDepth` is set from `parsePriorConfigDepth` at `main.go:280`.
+  `PriorConfigDepth` is set from `parsePriorConfigDepth` at `main.go:294`.
   Invalid input (non-integer, negative) returns `0` and emits a WARN log via
   `slog` with `failure_class="env_parse"`. Empty input and explicit `"0"` both
   return `0` silently — they are documented sentinels for "use default", not
@@ -40,7 +40,7 @@ before touching any file in this directory.
 - **NornicDB batch claim size is `workers` (1:1)** — `config.go:75`
   returns `workers` when `GraphBackendNornicDB` is active;
   Neo4j default is `workers × 4` capped at 64.
-- **NornicDB grouped writes are not promoted** — `main.go:143–153` logs a
+- **NornicDB grouped writes are not promoted** — `main.go:158–168` logs a
   warning when `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true`; this is
   conformance-testing only, not a production default.
 - **Semantic-entity claim limit defaults to 1 on NornicDB** —
@@ -60,7 +60,7 @@ before touching any file in this directory.
 
 - `PriorConfigDepth` on the loader is set via `parsePriorConfigDepth`
   (`config.go:270`) from the `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` env var
-  (`main.go:280`). The package default lives in
+  (`main.go:294`). The package default lives in
   `go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go` as
   `defaultPriorConfigDepth` (10). When changing the default, update both the
   constant and the README configuration table.

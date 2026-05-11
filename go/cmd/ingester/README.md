@@ -108,6 +108,7 @@ telemetry, Postgres, or graph setup begins.
 | SCIP_INDEXER | false | Enable external SCIP indexers |
 | SCIP_LANGUAGES | python,typescript,go,rust,java | Languages eligible for SCIP indexing |
 | ESHU_PROJECTOR_RETRY_ONCE_SCOPE_GENERATION | — | Fault-injection: scope generation ID for one-shot retry |
+| ESHU_PPROF_ADDR | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
 Per-label NornicDB tuning knobs (ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES,
 ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS, and the file/function/struct

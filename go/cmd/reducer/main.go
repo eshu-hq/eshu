@@ -63,6 +63,20 @@ func run(parent context.Context) error {
 
 	logger.Info("starting reducer")
 
+	pprofSrv, err := runtimecfg.NewPprofServer(os.Getenv)
+	if err != nil {
+		return fmt.Errorf("pprof server: %w", err)
+	}
+	if pprofSrv != nil {
+		if err := pprofSrv.Start(parent); err != nil {
+			return fmt.Errorf("pprof server start: %w", err)
+		}
+		logger.Info("pprof server listening", "addr", pprofSrv.Addr())
+		defer func() {
+			_ = pprofSrv.Stop(context.Background())
+		}()
+	}
+
 	db, err := runtimecfg.OpenPostgres(parent, os.Getenv)
 	if err != nil {
 		return err

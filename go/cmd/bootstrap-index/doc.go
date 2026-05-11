@@ -17,4 +17,8 @@
 // steady-state projection keep the same write contract. The binary exits when
 // the queue drains; it is not a steady-state runtime and does not mount the
 // shared `/healthz`, `/readyz`, or `/admin/status` admin surface.
+//
+// When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in
+// net/http/pprof endpoint via runtime.NewPprofServer, bound to 127.0.0.1
+// for port-only inputs so the default does not reach beyond the local host.
 package main

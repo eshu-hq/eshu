@@ -48,6 +48,14 @@
   empty, the function returns `(nil, nil)`. Every caller of this function must
   check for a nil `*HTTPServer` before calling Start.
 
+- **`NewPprofServer` may return nil and defaults to loopback** — when
+  `ESHU_PPROF_ADDR` is unset or whitespace-only, the function returns
+  `(nil, nil)` and the binary runs without a profiler endpoint. When a
+  port-only value is supplied (e.g. `:6060`), the bind host is forced to
+  `127.0.0.1` (`pprof.go:14`) so a default cannot expose pprof on a
+  routable interface. Explicit hosts including `0.0.0.0` are preserved
+  for the operator's chosen exposure. Invalid addresses fail at startup.
+
 ## Common changes and how to scope them
 
 - **Add a new env var to `Config`** → add the field to `Config` in `config.go`,
@@ -76,6 +84,14 @@
   `OpenNeo4jDriver` if it uses Bolt; add a test in `data_stores_test.go`;
   update the NornicDB ADR and the embedded-local-backends ADR. Do not add
   `if backend == ...` branches outside documented narrow seams.
+
+- **Expose pprof from another binary** → call `NewPprofServer(os.Getenv)`
+  after telemetry/logger setup and before the main blocking work in that
+  binary's `main`/`run`; check for a nil return, then `Start(ctx)`, log the
+  bound address, and `defer Stop(context.Background())`. The five existing
+  binaries (`go/cmd/{api,mcp-server,ingester,reducer,bootstrap-index}`)
+  follow this pattern; copy from there. Do not add new env vars; reuse
+  `ESHU_PPROF_ADDR` so operators have one knob.
 
 - **Expose a new recovery admin route** → add a method to `RecoveryHandler` in
   `recovery_handler.go`; register the route in `RecoveryHandler.Mount`; add

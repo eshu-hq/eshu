@@ -22,4 +22,8 @@
 // local-authoritative NornicDB profile also wires a reducer graph-drain gate for
 // code-call projection so graph write lanes do not compete unnecessarily.
 // SIGINT and SIGTERM trigger clean shutdown through the hosted runtime drain.
+//
+// When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in
+// net/http/pprof endpoint via runtime.NewPprofServer, bound to 127.0.0.1
+// for port-only inputs so the default does not reach beyond the local host.
 package main
