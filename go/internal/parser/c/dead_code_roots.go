@@ -23,6 +23,15 @@ var cHeaderPrototypePattern = regexp.MustCompile(
 	`(?m)(?:^|;)\s*(?:[A-Za-z_]\w*|const|static|extern|inline|\s|\*)+\s+([A-Za-z_]\w*)\s*\([^;{}]*\)\s*;`,
 )
 
+var cFunctionPointerTypedefPattern = regexp.MustCompile(
+	`(?s)\btypedef\b[^;]*\(\s*\*\s*([A-Za-z_]\w*)\s*\)\s*\([^;]*\)\s*;`,
+)
+
+type cRepoRootBounds struct {
+	abs      string
+	resolved string
+}
+
 // AnnotatePublicHeaderRoots marks C functions declared by local headers that
 // the same source file includes. It intentionally avoids repo-wide header scans
 // and transitive include resolution so parser cost stays bounded per file.
@@ -49,6 +58,7 @@ func annotateCDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, sour
 	if len(functions) == 0 {
 		return
 	}
+	functionPointerTypedefs := cFunctionPointerTypedefNames(string(source))
 
 	if mainFunctions, ok := functions["main"]; ok {
 		for _, mainFunction := range mainFunctions {
@@ -62,7 +72,7 @@ func annotateCDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, sour
 			annotateCSignalHandlerRoot(functions, node, source)
 			annotateCCallbackArgumentRoot(functions, node, source)
 		case "declaration":
-			annotateCFunctionPointerTargetRoot(functions, node, source)
+			annotateCFunctionPointerTargetRoot(functions, functionPointerTypedefs, node, source)
 		}
 	})
 }
@@ -83,6 +93,10 @@ func cFunctionItemsByName(payload map[string]any) map[string][]map[string]any {
 
 func cIncludedLocalHeaderPaths(payload map[string]any, repoRoot string, sourcePath string) []string {
 	imports, _ := payload["imports"].([]map[string]any)
+	rootBounds, ok := cRepoRootBoundsFor(repoRoot)
+	if !ok {
+		return nil
+	}
 	sourceDir := filepath.Dir(sourcePath)
 	seen := make(map[string]struct{}, len(imports))
 	paths := make([]string, 0, len(imports))
@@ -95,21 +109,121 @@ func cIncludedLocalHeaderPaths(payload map[string]any, repoRoot string, sourcePa
 			continue
 		}
 		candidates := []string{filepath.Clean(filepath.Join(sourceDir, name))}
-		if strings.TrimSpace(repoRoot) != "" {
-			candidates = append(candidates, filepath.Clean(filepath.Join(repoRoot, name)))
-		}
+		candidates = append(candidates, filepath.Clean(filepath.Join(rootBounds.abs, name)))
 		for _, candidate := range candidates {
-			if _, ok := seen[candidate]; ok {
+			headerPath, ok := cExistingHeaderWithinRepo(candidate, rootBounds)
+			if !ok {
 				continue
 			}
-			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-				seen[candidate] = struct{}{}
-				paths = append(paths, candidate)
+			if _, ok := seen[headerPath]; ok {
 				break
 			}
+			seen[headerPath] = struct{}{}
+			paths = append(paths, headerPath)
+			break
 		}
 	}
 	return paths
+}
+
+func cRepoRootBoundsFor(repoRoot string) (cRepoRootBounds, bool) {
+	trimmed := strings.TrimSpace(repoRoot)
+	if trimmed == "" {
+		return cRepoRootBounds{}, false
+	}
+	absRoot, err := filepath.Abs(trimmed)
+	if err != nil {
+		return cRepoRootBounds{}, false
+	}
+	absRoot = filepath.Clean(absRoot)
+	resolvedRoot := absRoot
+	if resolved, err := filepath.EvalSymlinks(absRoot); err == nil {
+		resolvedRoot = filepath.Clean(resolved)
+	}
+	return cRepoRootBounds{abs: absRoot, resolved: resolvedRoot}, true
+}
+
+func cExistingHeaderWithinRepo(candidate string, rootBounds cRepoRootBounds) (string, bool) {
+	absCandidate, err := filepath.Abs(candidate)
+	if err != nil {
+		return "", false
+	}
+	absCandidate = filepath.Clean(absCandidate)
+	if !cPathWithinRoot(absCandidate, rootBounds.abs) {
+		return "", false
+	}
+	info, err := os.Stat(absCandidate)
+	if err != nil || info.IsDir() {
+		return "", false
+	}
+	resolvedCandidate := absCandidate
+	if resolved, err := filepath.EvalSymlinks(absCandidate); err == nil {
+		resolvedCandidate = filepath.Clean(resolved)
+		if !cPathWithinRoot(resolvedCandidate, rootBounds.resolved) {
+			return "", false
+		}
+	}
+	return resolvedCandidate, true
+}
+
+func cPathWithinRoot(path string, root string) bool {
+	if path == root {
+		return true
+	}
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	if relative == "." {
+		return true
+	}
+	if strings.HasPrefix(relative, ".."+string(filepath.Separator)) || relative == ".." {
+		return false
+	}
+	return !filepath.IsAbs(relative)
+}
+
+func cFunctionPointerTypedefNames(source string) map[string]struct{} {
+	matches := cFunctionPointerTypedefPattern.FindAllStringSubmatch(source, -1)
+	names := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		if len(match) != 2 {
+			continue
+		}
+		name := strings.TrimSpace(match[1])
+		if name != "" {
+			names[name] = struct{}{}
+		}
+	}
+	return names
+}
+
+func cDeclarationHasFunctionPointerTarget(left string, functionPointerTypedefs map[string]struct{}) bool {
+	left = strings.TrimSpace(left)
+	if strings.Contains(left, "(*") {
+		return true
+	}
+	fields := strings.FieldsFunc(left, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_'
+	})
+	for _, field := range fields {
+		if _, ok := functionPointerTypedefs[field]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func cDirectFunctionPointerInitializerTarget(text string) string {
+	initializer := strings.TrimSpace(text[strings.LastIndex(text, "=")+1:])
+	initializer = strings.TrimSuffix(initializer, ";")
+	initializer = strings.TrimSpace(initializer)
+	initializer = strings.TrimPrefix(initializer, "&")
+	initializer = strings.TrimSpace(initializer)
+	if !cIdentifierLike(initializer) {
+		return ""
+	}
+	return initializer
 }
 
 func cStringVal(item map[string]any, key string) string {
@@ -184,17 +298,20 @@ func annotateCCallbackArgumentRoot(
 
 func annotateCFunctionPointerTargetRoot(
 	functions map[string][]map[string]any,
+	functionPointerTypedefs map[string]struct{},
 	node *tree_sitter.Node,
 	source []byte,
 ) {
 	text := strings.TrimSpace(shared.NodeText(node, source))
-	if !strings.Contains(text, "(*") || !strings.Contains(text, "=") {
+	if !strings.Contains(text, "=") {
 		return
 	}
-	target := strings.TrimSpace(text[strings.LastIndex(text, "=")+1:])
-	target = strings.TrimSuffix(target, ";")
-	target = strings.TrimSpace(target)
-	if !cIdentifierLike(target) {
+	left := text[:strings.LastIndex(text, "=")]
+	if !cDeclarationHasFunctionPointerTarget(left, functionPointerTypedefs) {
+		return
+	}
+	target := cDirectFunctionPointerInitializerTarget(text)
+	if target == "" {
 		return
 	}
 	for _, function := range functions[target] {

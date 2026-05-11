@@ -13,7 +13,8 @@ engine. It owns C syntax walking and payload assembly, while the parent package
 keeps registry dispatch, runtime parser construction, and compatibility method
 signatures. Header public API roots are bounded to local headers directly
 included by the parsed C source; this package does not scan every repository
-header or resolve transitive include graphs.
+header or resolve transitive include graphs. Header reads are also bounded to
+the caller-supplied repository root after path cleanup and symlink resolution.
 
 ## Exported Surface
 
@@ -22,6 +23,8 @@ symbol discovery, and AnnotatePublicHeaderRoots for the parent parser wrapper to
 mark functions declared by directly included local headers. The unexported
 `annotateCDeadCodeRoots` pass adds suppressive root metadata for C entrypoints,
 callbacks, signal handlers, and direct function-pointer initializer targets.
+Direct function-pointer initializer roots include bare and address-of targets
+for explicit pointer declarations and local typedef pointer aliases.
 
 ## Dependencies
 
@@ -40,9 +43,9 @@ C dead-code roots are parser metadata, not exact reachability proof. The package
 marks `main`, signal-handler arguments, callback argument targets, direct
 function-pointer initializer targets, and functions declared by directly
 included local headers. `static` header prototypes do not become public API
-roots. Macro expansion, conditional compilation, transitive include graphs,
-dynamic symbol lookup, and broad callback registries remain query-reported
-exactness blockers.
+roots, and include traversal outside the repository root is ignored. Macro
+expansion, conditional compilation, transitive include graphs, dynamic symbol
+lookup, and broad callback registries remain query-reported exactness blockers.
 
 ## Related Docs
 

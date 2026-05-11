@@ -8,7 +8,9 @@
 // handler behavior, OpenAPI fragments, and docs/docs/reference/http-api.md
 // must agree whenever public routes or response shapes change. Response
 // envelopes, truth metadata, capability gates, and code-quality classifications
-// are stable wire contracts. Dead-code responses preserve language maturity,
+// are stable wire contracts. The dead-code OpenAPI fragment names modeled
+// language roots and keeps the language filter examples aligned with C and SQL
+// query behavior. Dead-code responses preserve language maturity,
 // modeled framework-root lists, and root-kind evidence for functions and types
 // so callers can separate cleanup candidates from modeled roots; TypeScript
 // public API export, public API re-export, public type-reference, interface

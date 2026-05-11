@@ -99,6 +99,45 @@ static int static_header_helper(void) {
 	}
 }
 
+func TestDefaultEngineParsePathCDoesNotReadHeadersOutsideRepoRoot(t *testing.T) {
+	t.Parallel()
+
+	parentRoot := t.TempDir()
+	repoRoot := filepath.Join(parentRoot, "repo")
+	sourcePath := filepath.Join(repoRoot, "src", "api.c")
+	outsideHeaderPath := filepath.Join(parentRoot, "outside.h")
+	writeTestFile(
+		t,
+		outsideHeaderPath,
+		`int outside_header_api(void);
+`,
+	)
+	writeTestFile(
+		t,
+		sourcePath,
+		`#include "../../outside.h"
+
+int outside_header_api(void) {
+    return 1;
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	if outside := assertFunctionByName(t, got, "outside_header_api"); outside["dead_code_root_kinds"] != nil {
+		t.Fatalf("outside_header_api dead_code_root_kinds = %#v, want nil", outside["dead_code_root_kinds"])
+	}
+}
+
 func TestDefaultEngineParsePathCMarksCallbackArgumentTargets(t *testing.T) {
 	t.Parallel()
 
@@ -136,6 +175,58 @@ void setup(void) {
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "local_handler"), "dead_code_root_kinds", "c.callback_argument_target")
 	if unused := assertFunctionByName(t, got, "unused_handler"); unused["dead_code_root_kinds"] != nil {
 		t.Fatalf("unused_handler dead_code_root_kinds = %#v, want nil", unused["dead_code_root_kinds"])
+	}
+}
+
+func TestDefaultEngineParsePathCMarksFunctionPointerInitializerVariants(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "function_pointers.c")
+	writeTestFile(
+		t,
+		sourcePath,
+		`typedef int (*Handler)(void);
+
+int bare_direct_target(void) {
+    return 1;
+}
+
+int address_direct_target(void) {
+    return 2;
+}
+
+int typedef_target(void) {
+    return 3;
+}
+
+int unused_target(void) {
+    return 4;
+}
+
+void setup(void) {
+    int (*direct_handler)(void) = bare_direct_target;
+    int (*address_handler)(void) = &address_direct_target;
+    Handler typedef_handler = &typedef_target;
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "bare_direct_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "address_direct_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "typedef_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	if unused := assertFunctionByName(t, got, "unused_target"); unused["dead_code_root_kinds"] != nil {
+		t.Fatalf("unused_target dead_code_root_kinds = %#v, want nil", unused["dead_code_root_kinds"])
 	}
 }
 

@@ -250,7 +250,7 @@ const openAPIPathsCode = `
       "post": {
         "tags": ["code"],
         "summary": "Find dead code",
-        "description": "Finds graph-backed dead-code candidates, applies the current default entrypoint/test/generated exclusions plus Go public-package exported-symbol roots, and classifies returned candidates without changing the derived truth envelope.",
+        "description": "Finds graph-backed dead-code candidates, applies the current default entrypoint/test/generated exclusions plus modeled language roots such as Go public-package exports and C parser-backed roots, and classifies returned candidates without changing the derived truth envelope.",
         "operationId": "findDeadCode",
         "requestBody": {
           "required": true,
@@ -260,7 +260,7 @@ const openAPIPathsCode = `
                 "type": "object",
                 "properties": {
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)"},
-                  "language": {"type": "string", "description": "Optional parser language filter. Use this when validating one language family, for example sql."},
+                  "language": {"type": "string", "description": "Optional parser language filter. Use this when validating one language family, for example c or sql."},
                   "limit": {"type": "integer", "description": "Maximum dead-code candidates to return (default 100, max 500).", "default": 100},
                   "exclude_decorated_with": {
                     "type": "array",

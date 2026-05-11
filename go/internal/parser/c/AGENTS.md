@@ -16,6 +16,8 @@
 - Parse and PreScan must preserve the parent engine payload shape.
 - Dead-code public header roots stay bounded to directly included local headers.
   Do not add repo-wide header scans to the per-file parse path.
+- Header path cleanup and symlink resolution must keep public-header reads
+  inside the caller-supplied repository root.
 - Function pointer and callback roots are conservative metadata roots; they do
   not claim exact C reachability while macro expansion, conditional compilation,
   include graphs, and dynamic symbol lookup remain unresolved.
