@@ -67,7 +67,7 @@ Guidance for LLM assistants editing this package.
   reducer handler joins on `(backend_kind, locator_hash)` first and only
   passes through addresses that the join surfaced as disagreement
   candidates.
-- Do NOT add a backend selection branch (no `ESHU_GRAPH_BACKEND`
+- Do NOT add a backend selection branch (no graph-backend env var
   conditional). Drift correlation is backend-neutral.
 
 ## What NOT to change without an ADR

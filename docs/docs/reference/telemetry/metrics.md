@@ -184,6 +184,31 @@ collector/projector/reducer path.
 - Meaning: Source-local projector latency and completion volume.
 - Use them for: Separating projector latency from reducer latency.
 
+### `eshu_dp_correlation_rule_matches_total`
+### `eshu_dp_correlation_drift_detected_total`
+
+- Type: Counters
+- Labels:
+  `eshu_dp_correlation_rule_matches_total` carries `pack` and `rule`.
+  `eshu_dp_correlation_drift_detected_total` carries `pack`, `rule`, and
+  `drift_kind`.
+  All three label values are bounded: `pack` is a frozen string from the
+  rule-pack registry, `rule` is one of the rule names declared by that
+  pack, `drift_kind` is the closed enum
+  `{added_in_state, added_in_config, attribute_drift, removed_from_state,
+  removed_from_config}`. Resource addresses, attribute paths, and module
+  paths never appear as label values — they go in structured logs and
+  span attributes.
+- Meaning: Rule-match volume and admitted drift volume from the
+  correlation engine. The first counter advances per rule per admitted
+  candidate (`engine.Evaluate` ordering); the second advances per
+  admitted drift candidate, with `drift_kind` set by the classifier in
+  `go/internal/correlation/drift/tfconfigstate`.
+- Use them for: Detecting Terraform config-vs-state drift volume per
+  drift kind, alerting on `attribute_drift` spikes that imply manual
+  cloud edits, and confirming that the rule pack is being exercised
+  after state-snapshot scope generations roll forward.
+
 ### `eshu_dp_documentation_entity_mentions_extracted_total`
 ### `eshu_dp_documentation_claim_candidates_extracted_total`
 ### `eshu_dp_documentation_claim_candidates_suppressed_total`

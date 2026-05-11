@@ -148,14 +148,7 @@ func (r *Resolver) ResolveConfigCommitForBackend(
 		return cmp.Compare(a.CommitID, b.CommitID)
 	})
 	winner := sorted[0]
-	return CommitAnchor{
-		RepoID:           winner.RepoID,
-		ScopeID:          winner.ScopeID,
-		CommitID:         winner.CommitID,
-		CommitObservedAt: winner.CommitObservedAt,
-		BackendKind:      winner.BackendKind,
-		LocatorHash:      winner.LocatorHash,
-	}, nil
+	return CommitAnchor(winner), nil
 }
 
 // ResolveConfigCommitForBackend is preserved as a package-level convenience

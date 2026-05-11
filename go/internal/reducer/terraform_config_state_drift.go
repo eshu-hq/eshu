@@ -72,11 +72,6 @@ type TerraformConfigStateDriftHandler struct {
 	Logger *slog.Logger
 }
 
-// errHandlerNotImplemented is retained for backward compatibility; it is no
-// longer returned by Handle. New callers that want a "no-op" handler should
-// wire a TerraformConfigStateDriftHandler with nil EvidenceLoader.
-var errHandlerNotImplemented = errors.New("terraform_config_state_drift handler not implemented")
-
 // Handle executes the drift pipeline for one reducer intent. The handler:
 //
 //  1. Rejects intents that target a different domain.
