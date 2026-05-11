@@ -64,9 +64,10 @@ type PostgresDriftEvidenceLoader struct {
 	// log line is the operator-visible signal. Optional; nil drops logs.
 	Logger *slog.Logger
 	// PriorConfigDepth bounds the prior-generation walk that activates
-	// removed_from_config (added in Task 3 of this plan). Zero means "use
-	// the package default". Set from ESHU_DRIFT_PRIOR_CONFIG_DEPTH at
-	// construction time (cmd/reducer/main.go). Tests set this field directly.
+	// removed_from_config (see tfstate_drift_evidence_prior_config.go).
+	// Zero means "use the package default". Set from
+	// ESHU_DRIFT_PRIOR_CONFIG_DEPTH at construction time
+	// (cmd/reducer/main.go). Tests set this field directly.
 	PriorConfigDepth int
 }
 
