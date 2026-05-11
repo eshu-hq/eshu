@@ -16,6 +16,20 @@ type nornicDBPhaseGroupExecutor struct {
 	fileMaxStatements        int
 	entityMaxStatements      int
 	entityLabelMaxStatements map[string]int
+	// entityPhaseConcurrency caps how many canonical entity-phase grouped
+	// chunks may run in parallel against the inner GroupExecutor. The
+	// runtime default is `runtime.NumCPU()` clamped to
+	// `nornicDBEntityPhaseConcurrencyCap`, so most callers route through
+	// the streaming dispatcher in wiring_nornicdb_phase_group_streaming.go.
+	// A value of zero or one is an explicit serial override: it pins
+	// ExecutePhaseGroup to the legacy per-flush executeEntityPhaseGroup
+	// path so callers that need deterministic chunk ordering (or that are
+	// debugging a streaming-specific regression) can opt out. Cross-chunk
+	// safety inside an entity label rests on disjoint entity_id MERGE keys
+	// plus the file_path MATCH-only contract; see
+	// executeGroupedChunksConcurrentlyObserved for the full safety
+	// argument.
+	entityPhaseConcurrency int
 }
 
 func (e nornicDBPhaseGroupExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
@@ -34,6 +48,9 @@ func (e nornicDBPhaseGroupExecutor) ExecutePhaseGroup(ctx context.Context, stmts
 			return e.executeSequentialRetractPhase(ctx, stmts)
 		}
 		if statementPhaseUsesEntityLabelStats(statementPhase(stmts)) {
+			if e.entityPhaseConcurrency > 1 {
+				return e.executeEntityPhaseGroupStreaming(ctx, ge, stmts)
+			}
 			return e.executeEntityPhaseGroup(ctx, ge, stmts)
 		}
 		return e.executeGroupedChunks(ctx, ge, stmts, e.phaseGroupStatementLimit(stmts))
@@ -80,11 +97,12 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 		if len(grouped) == 0 {
 			return nil
 		}
-		err := e.executeGroupedChunksObserved(
+		err := e.executeGroupedChunksConcurrentlyObserved(
 			ctx,
 			ge,
 			grouped,
 			e.phaseGroupStatementLimit(grouped),
+			e.entityPhaseConcurrency,
 			func(chunk []sourcecypher.Statement, chunkDuration time.Duration) {
 				label := entityStatementLabel(chunk[0])
 				stats := ensureEntityPhaseLabelStats(labelStats, phase, label, chunk[0])
@@ -159,7 +177,7 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 		if groupedLabel == "" {
 			groupedLabel = stmtLabel
 		}
-		if len(grouped) >= e.phaseGroupStatementLimit(grouped) {
+		if len(grouped) >= e.entityFlushTrigger(grouped) {
 			if err := flushGrouped(); err != nil {
 				return err
 			}

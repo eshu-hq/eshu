@@ -23,6 +23,7 @@ func TestCanonicalExecutorForGraphBackendWrapsNornicDBWithTimeout(t *testing.T) 
 		defaultNornicDBFilePhaseStatements,
 		defaultNornicDBEntityPhaseStatements,
 		nil,
+		0,
 		nil,
 		nil,
 	)

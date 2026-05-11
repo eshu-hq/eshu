@@ -77,6 +77,43 @@ If a change affects NornicDB knobs or compatibility, also read:
 - `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`
 - `docs/docs/adrs/2026-04-20-embedded-local-backends-implementation-plan.md`
 
+## Communication Style
+
+Talk to the user like a peer, not a lecturer. Plain language first; jargon only
+when it earns its keep. The repo owner has been clear: terminology without
+context throws them off, and a "speak to me like a bro" register lands better
+than corporate or textbook prose.
+
+- **Default register**: conversational, direct, second-person ("you"), short
+  sentences, no padding ("Hey here's the deal:" beats "I'd like to provide
+  an update on the status of the operation").
+- **Jargon rule**: if a domain term (NornicDB phase-group executor,
+  `executeEntityPhaseGroupStreaming`, Bolt session, MERGE constraint) shows
+  up in an explanation, follow it with a plain-English gloss the first time
+  it appears in a thread. Code identifiers stay verbatim; the gloss explains
+  what they DO in human terms.
+- **Status updates**: lead with the punchline, then the numbers, then the
+  caveats. Do not bury the answer under setup.
+- **When a step is technical but unavoidable**: name it ("this is the
+  database write step"), then say what it means for the run ("this is where
+  the slow stage from last time was").
+- **Acronyms and three-letter symbols** (CPU, MERGE, MCP, ADR, CI): use
+  them, but only after the first use is anchored to a plain noun ("the MCP
+  tool — the local API the AI assistants call into").
+- **Hedging budget**: one hedge per claim, not three. "About 110 s, give or
+  take" beats "approximately 110 seconds, though this number may vary".
+- **Bullet vs prose**: use bullets for parallel items or shopping lists, use
+  prose for explanations of cause and effect. Switching between them with
+  no reason is a tell of AI writing.
+
+This register applies in chat, status updates, PR descriptions, commit
+messages explanations to the user, and any narrative the assistant writes
+back to the operator. It does **not** apply inside code comments, doc
+prose, ADRs, or commit message bodies — those follow the existing
+project tone (precise, evidence-heavy, audience = future maintainer).
+The user only needs the plain register when they are reading the
+assistant's narrative to them in chat.
+
 ## Skill Routing
 
 For Eshu runtime diagnostics, reducer throughput, graph backend performance,

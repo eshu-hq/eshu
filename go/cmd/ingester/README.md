@@ -102,6 +102,7 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT | true | Fold entity containment into row-scoped entity upserts; set false only for fallback comparisons |
 | ESHU_NORNICDB_PHASE_GROUP_STATEMENTS | 500 | NornicDB phase group statement cap |
 | ESHU_NORNICDB_ENTITY_BATCH_SIZE | 100 | Entity upsert row cap |
+| ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY | NumCPU clamped to 16 | Parallel chunk dispatch for canonical entity phases. Clamped to 16. Set to 1 to keep serial dispatch. |
 | ESHU_QUERY_PROFILE | — | local_lightweight or local_authoritative |
 | ESHU_DISABLE_NEO4J | — | Force local-lightweight writer when true |
 | SCIP_INDEXER | false | Enable external SCIP indexers |
@@ -198,6 +199,19 @@ The ingester inherits collector and projector telemetry. Key signals:
   ESHU_QUERY_PROFILE=local_authoritative and ESHU_GRAPH_BACKEND=nornicdb. The
   local-authoritative owner also injects that value for normal `eshu graph
   start` runs (`wiring.go:287-292`).
+- The NornicDB canonical entity phases dispatch grouped chunks across the
+  worker pool sized by ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY. When the
+  configured concurrency is greater than one the dispatch uses
+  `executeEntityPhaseGroupStreaming` in
+  `wiring_nornicdb_phase_group_streaming.go`: the pool stays open for one
+  entity-phase call and pulls chunks from a long-lived channel as the
+  producer buffers them, so the slowest chunk in one batch no longer stalls
+  workers that have already finished their share. Within an entity label the
+  chunks MERGE on disjoint entity_id keys so parallel commit is safe;
+  retracts, singletons, and label transitions still synchronize the in-flight
+  pool before sequencing dependent work. When concurrency is at most one the
+  executor falls back to `executeEntityPhaseGroup` (the prior per-flush wave
+  path) so callers without an opt-in see no behavior change.
 
 ## Related docs
 
