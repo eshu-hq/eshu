@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -159,7 +160,7 @@ func recordDriftEnqueueCounter(ctx context.Context, instruments *telemetry.Instr
 		ctx,
 		int64(count),
 		metric.WithAttributes(
-			attribute.String(telemetry.MetricDimensionPack, "terraform_config_state_drift"),
+			attribute.String(telemetry.MetricDimensionPack, rules.TerraformConfigStateDriftPackName),
 			telemetry.AttrSource(driftIntentSourceSystem),
 		),
 	)

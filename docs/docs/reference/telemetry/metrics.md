@@ -229,13 +229,12 @@ collector/projector/reducer path.
   - Flat enqueue + dropping admission → classifier or loader regression.
   - Dropping enqueue + dropping admission → bootstrap trigger or upstream
     fact-set regression.
-  - Dashboard example:
-    `rate(eshu_dp_correlation_drift_intents_enqueued_total[1h]) - on(pack) rate(eshu_dp_correlation_drift_detected_total[1h])`
+  - Dashboard example (sum to a single series per `pack` before subtracting,
+    so the admission counter's additional `rule` and `drift_kind` labels
+    don't trigger many-to-one vector matching):
+    `sum by(pack) (rate(eshu_dp_correlation_drift_intents_enqueued_total[1h])) - sum by(pack) (rate(eshu_dp_correlation_drift_detected_total[1h]))`
     surfaces the gap between trigger emission rate and admission rate per
-    pack. Both counters carry the `pack` label, so `on(pack)` aligns them;
-    the admission counter also carries `rule` and `drift_kind`, which the
-    query intentionally ignores so the gap is summed across all admitted
-    drift kinds.
+    pack, aggregated across all admitted drift kinds.
 
 ### `eshu_dp_documentation_entity_mentions_extracted_total`
 ### `eshu_dp_documentation_claim_candidates_extracted_total`

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -26,6 +27,40 @@ func newEnqueueInstruments(t *testing.T) (*telemetry.Instruments, sdkmetric.Read
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
 	return inst, reader
+}
+
+// assertCounterPresentWithLabels fails the test unless the named Int64
+// counter has at least one data point in `rm` AND that data point carries
+// every expected label key=value pair. Distinguishes "series exists with
+// value 0" from "series was never emitted" — counterTotal cannot, since it
+// returns 0 in both cases.
+func assertCounterPresentWithLabels(t *testing.T, rm metricdata.ResourceMetrics, name string, want map[string]string) {
+	t.Helper()
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != name {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				continue
+			}
+			for _, dp := range sum.DataPoints {
+				match := true
+				for wantKey, wantVal := range want {
+					gotVal, ok := dp.Attributes.Value(attribute.Key(wantKey))
+					if !ok || gotVal.AsString() != wantVal {
+						match = false
+						break
+					}
+				}
+				if match {
+					return
+				}
+			}
+		}
+	}
+	t.Fatalf("counter %q absent or missing labels %v in collected metrics", name, want)
 }
 
 // counterTotal sums every Int64 counter data point for the named metric in
@@ -176,9 +211,16 @@ func TestEnqueueConfigStateDriftIntentsCounterEmitsZeroWhenNoScopes(t *testing.T
 	}
 	// Zero scopes means the counter advances by 0, but the series MUST exist
 	// so dashboards can distinguish "Phase 3.5 ran and produced zero work"
-	// from "Phase 3.5 did not run." Asserting the series is registered via
-	// counterTotal returning a defined zero (not a missing-series panic).
-	if got, want := counterTotal(rm, "eshu_dp_correlation_drift_intents_enqueued_total"), int64(0); got != want {
+	// from "Phase 3.5 did not run." counterTotal alone returns 0 for both
+	// "series exists with value 0" and "series missing entirely," so it
+	// cannot prove series registration on its own — assert presence and
+	// labels via assertCounterPresentWithLabels below.
+	metricName := "eshu_dp_correlation_drift_intents_enqueued_total"
+	if got, want := counterTotal(rm, metricName), int64(0); got != want {
 		t.Fatalf("enqueue counter = %d, want %d (no-op trigger)", got, want)
 	}
+	assertCounterPresentWithLabels(t, rm, metricName, map[string]string{
+		"pack":   "terraform_config_state_drift",
+		"source": "bootstrap_index",
+	})
 }
