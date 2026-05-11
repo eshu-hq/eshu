@@ -10,6 +10,7 @@ import (
 
 type deadCodeRequest struct {
 	RepoID               string   `json:"repo_id"`
+	Language             string   `json:"language"`
 	Limit                int      `json:"limit"`
 	ExcludeDecoratedWith []string `json:"exclude_decorated_with"`
 }
@@ -24,7 +25,7 @@ const (
 	deadCodeCandidateScanMaxPages    = 10
 )
 
-var deadCodeCandidateLabels = []string{"Function", "Class", "Struct", "Interface"}
+var deadCodeCandidateLabels = []string{"Function", "Class", "Struct", "Interface", "SqlFunction"}
 
 // handleDeadCode finds graph-backed dead-code candidates and then applies the
 // current default reachability policy before returning a derived result.
@@ -54,6 +55,7 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 	if req.Limit > deadCodeMaxLimit {
 		req.Limit = deadCodeMaxLimit
 	}
+	req.Language = normalizeDeadCodeLanguage(req.Language)
 	if !h.applyRepositorySelector(w, r, &req.RepoID) {
 		return
 	}
@@ -67,6 +69,7 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"repo_id":                  req.RepoID,
+		"language":                 req.Language,
 		"limit":                    req.Limit,
 		"truncated":                truncated,
 		"display_truncated":        scan.DisplayTruncated,
@@ -80,10 +83,10 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 }
 
 func buildDeadCodeGraphCypher(hasRepoID bool, _ GraphBackend) string {
-	return buildDeadCodeGraphCypherForLabel(hasRepoID, "Function")
+	return buildDeadCodeGraphCypherForLabel(hasRepoID, "Function", "")
 }
 
-func buildDeadCodeGraphCypherForLabel(hasRepoID bool, label string) string {
+func buildDeadCodeGraphCypherForLabel(hasRepoID bool, label string, language string) string {
 	if !isDeadCodeCandidateLabel(label) {
 		label = "Function"
 	}
@@ -94,6 +97,11 @@ func buildDeadCodeGraphCypherForLabel(hasRepoID bool, label string) string {
 		cypher = `
 			MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e:` + label + `)
 		`
+	}
+	if strings.TrimSpace(language) != "" {
+		cypher += `
+		WHERE toLower(coalesce(e.language, f.language, '')) = $language
+	`
 	}
 	cypher += `
 		RETURN coalesce(e.uid, e.id) as entity_id, e.name as name, labels(e) as labels,
@@ -115,7 +123,7 @@ func buildDeadCodeIncomingProbeCypher(label string) string {
 		label = "Function"
 	}
 	return `
-		MATCH (e:` + label + ` {uid: $entity_id})<-[:CALLS|IMPORTS|REFERENCES|INHERITS]-(source)
+		MATCH (e:` + label + ` {uid: $entity_id})<-[:CALLS|IMPORTS|REFERENCES|INHERITS|EXECUTES]-(source)
 		RETURN coalesce(e.uid, e.id) as incoming_entity_id
 		LIMIT 1
 	`
@@ -151,10 +159,13 @@ func deadCodeCandidateScanLimit(displayLimit int) int {
 	return deadCodeCandidateQueryLimit(displayLimit) * deadCodeCandidateScanMaxPages
 }
 
-func deadCodeGraphParams(repoID string, limit int, skip int) map[string]any {
+func deadCodeGraphParams(repoID string, language string, limit int, skip int) map[string]any {
 	params := map[string]any{"limit": limit, "skip": skip}
 	if strings.TrimSpace(repoID) != "" {
 		params["repo_id"] = strings.TrimSpace(repoID)
+	}
+	if strings.TrimSpace(language) != "" {
+		params["language"] = strings.ToLower(strings.TrimSpace(language))
 	}
 	return params
 }
@@ -359,7 +370,7 @@ func deadCodeIsCandidateEntity(result map[string]any, entity *EntityContent) boo
 
 func deadCodeIsCandidateEntityType(entityType string) bool {
 	switch strings.TrimSpace(entityType) {
-	case "Function", "Class", "Struct", "Interface":
+	case "Function", "Class", "Struct", "Interface", "SqlFunction":
 		return true
 	default:
 		return false

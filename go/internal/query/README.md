@@ -65,7 +65,10 @@ Code dead-code queries add an analysis pass over graph rows so parser-provided
 `dead_code_root_kinds`, language maturity, test/generated exclusions, and
 candidate classifications are visible in the response body. Unsupported
 languages such as JSON package-script metadata are suppressed from cleanup
-results before classification. The analysis block also names modeled framework
+results before classification. Requests may include a `language` filter; SQL
+uses that filter to scan `SqlFunction` candidates directly so mixed
+application repositories cannot fill the page with earlier function labels
+before SQL routine evidence is evaluated. The analysis block also names modeled framework
 roots and Go semantic roots such as same-package direct method calls, imported
 receiver method calls, generic constraint methods, fmt Stringer methods,
 function-value references, and function-literal reachable calls. It also
@@ -100,17 +103,25 @@ than production cleanup candidates; the same root kinds appear in
 `modeled_framework_roots` so callers can explain the suppression. The analysis
 payload also exposes `dead_code_language_exactness_blockers`, with Rust blockers
 for unresolved macro expansion, cfg/Cargo feature selection, semantic module
-resolution, and trait dispatch. Returned candidates can also populate
+resolution, and trait dispatch, plus SQL blockers for dynamic SQL,
+dialect-specific routine resolution, and migration-order resolution. SQL
+`SqlFunction` routines participate in the derived candidate scan, and the query
+policy uses an exact graph incoming probe so reducer-written `EXECUTES` edges
+protect trigger-bound routines. Returned candidates can also populate
 `dead_code_observed_exactness_blockers` so callers can distinguish language-wide
 blockers from blockers actually present in the page they received. Candidates
 that carry observed exactness blockers classify as `ambiguous` rather than
 cleanup-ready `unused`.
 Dead-code candidate paging uses `DeadCodeCandidateRows` in
 `content_reader_dead_code_candidates.go:13` when the content read model is
-available, avoiding graph-wide ordered scans on large repositories. Candidate
+available, pushing the optional language predicate into the Postgres query so
+mixed repositories do not fill the bounded page with another language before
+policy checks run. Candidate
 hydration then uses `GetEntityContents` in `content_reader_entity.go:49` so
 large repo scans merge parser metadata in one bounded content-store read per
 candidate page instead of one Postgres round trip per graph row.
+The scanner de-duplicates entity IDs across candidate labels before hydration,
+so multi-label graph rows do not inflate result counts or content-store reads.
 Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
 payload names modeled root kinds in `modeled_framework_roots`, reports whether
@@ -120,7 +131,9 @@ suppressed. The graph query keeps the
 candidate read label-scoped and repo-anchored, then applies content-backed
 policy checks before checking completed reducer code-call and inheritance intent
 rows for incoming edges. Exact one-entity graph probes remain a fallback for
-content stores without that relational read model. Small display limits use a bounded
+content stores without that relational read model and for SQL routine
+reachability, whose reducer-owned `EXECUTES` edges are graph-written rather
+than stored as completed shared-projection intent rows. Small display limits use a bounded
 2,500-row scan window, so a narrow MCP request does not become incomplete just
 because most raw candidates are later suppressed. The response separates
 display truncation from bounded raw candidate-scan truncation so callers know
@@ -303,10 +316,11 @@ wired in `cmd/api/wiring.go`, not here.
   `deadCodeLanguageMaturity` table because Rust derived classification depends
   on that maturity row, the root suppression policy, and ambiguous
   classification for exactness-blocked candidates.
-  The handler scans raw graph candidates in bounded label-scoped pages before
-  policy exclusions, then checks completed reducer code-call intent rows for
-  incoming edges on the remaining candidates and uses a 2,500-row scan window
-  for small result limits. It reports
+  The handler scans raw content-model or graph candidates in bounded
+  label-scoped pages before policy exclusions, pushes any requested language
+  filter into the candidate query, then checks completed reducer code-call
+  intent rows for incoming edges on the remaining candidates and uses a
+  2,500-row scan window for small result limits. It reports
   `candidate_scan_pages` plus `candidate_scan_rows`.
   `display_truncated` and `candidate_scan_truncated` must stay separate so
   performance bounds do not blur result-list pagination with raw scan coverage.

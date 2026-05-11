@@ -33,7 +33,10 @@
 // unresolved macro expansion, cfg and Cargo feature selection, semantic module
 // resolution, and trait dispatch, with observed blocker reporting for returned
 // candidates that carry parser metadata, and candidates with observed blockers
-// classify as ambiguous instead of cleanup-ready unused. The
+// classify as ambiguous instead of cleanup-ready unused. SQL SqlFunction
+// routines are scanned as derived candidates, SQL dynamic/routine/migration
+// blockers are reported, and exact graph incoming probes let reducer-written
+// SQL EXECUTES edges protect trigger-bound routines. The
 // analysis notes and modeled-root list use the same Java root family so callers
 // see why those entities were suppressed. The analysis payload names modeled
 // root kinds, includes Go same-package and imported-package direct method
@@ -44,14 +47,17 @@
 // The modeled-root list names the Rust root kinds the policy suppresses.
 // Unsupported language metadata and test fixtures are suppressed from default
 // cleanup candidates. The dead-code scan keeps raw candidate reads
-// label-scoped and repo-anchored, prefers
-// content-model candidate paging before graph fallback, applies content-backed
-// policy checks before relational code-call and inheritance incoming-edge
-// lookups, hydrates candidate metadata through batch GetEntityContents reads,
-// keeps exact graph probes as a fallback, keeps a bounded scan window for small
-// result limits, and reports display truncation separately from bounded raw
-// candidate pages and rows so callers can tell whether the result list was
-// clipped or the graph scan cap was reached.
+// label-scoped and repo-anchored, de-duplicates entity IDs across scanned
+// candidate labels, prefers content-model candidate paging before graph
+// fallback, pushes any language filter into the candidate query, applies
+// content-backed policy checks before relational code-call and inheritance
+// incoming-edge lookups, hydrates candidate metadata through batch
+// GetEntityContents reads, supports a language filter so one language family
+// can be validated without earlier candidate labels filling the page, keeps
+// exact graph probes as a fallback for SQL routine reachability, keeps a
+// bounded scan window for small result limits, and reports display truncation
+// separately from bounded raw candidate pages and rows so callers can tell
+// whether the result list was clipped or the candidate scan cap was reached.
 // Infrastructure reads expose Terraform backend, import, moved, removed, check,
 // and lockfile-provider evidence as first-class entity types once parser and
 // projector support exists.

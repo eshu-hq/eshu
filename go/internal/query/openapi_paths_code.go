@@ -260,6 +260,7 @@ const openAPIPathsCode = `
                 "type": "object",
                 "properties": {
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)"},
+                  "language": {"type": "string", "description": "Optional parser language filter. Use this when validating one language family, for example sql."},
                   "limit": {"type": "integer", "description": "Maximum dead-code candidates to return (default 100, max 500).", "default": 100},
                   "exclude_decorated_with": {
                     "type": "array",
@@ -280,13 +281,14 @@ const openAPIPathsCode = `
                   "type": "object",
                   "properties": {
                     "repo_id": {"type": "string"},
+                    "language": {"type": "string"},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean", "description": "True when either displayed results were clipped to limit or the bounded paged raw candidate scan reached its scan cap."},
                     "display_truncated": {"type": "boolean", "description": "True when filtered display results exceeded limit and were clipped."},
-                    "candidate_scan_truncated": {"type": "boolean", "description": "True when the paged raw graph candidate scan reached candidate_scan_limit before exhausting graph candidates."},
-                    "candidate_scan_limit": {"type": "integer", "description": "Maximum raw graph rows the bounded dead-code scan may inspect before policy exclusions."},
-                    "candidate_scan_pages": {"type": "integer", "description": "Number of raw graph pages read before returning results."},
-                    "candidate_scan_rows": {"type": "integer", "description": "Number of raw graph candidate rows inspected before policy exclusions."},
+                    "candidate_scan_truncated": {"type": "boolean", "description": "True when the paged raw candidate scan reached candidate_scan_limit before exhausting candidates."},
+                    "candidate_scan_limit": {"type": "integer", "description": "Maximum raw candidate rows the bounded dead-code scan may inspect before policy exclusions."},
+                    "candidate_scan_pages": {"type": "integer", "description": "Number of raw candidate pages read before returning results."},
+                    "candidate_scan_rows": {"type": "integer", "description": "Number of raw candidate rows inspected before policy exclusions."},
                     "results": {
                       "type": "array",
                       "items": {

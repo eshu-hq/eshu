@@ -66,6 +66,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		"typescript": "derived",
 		"tsx":        "derived",
 		"rust":       "derived",
+		"sql":        "derived",
 		"ruby":       "derived_candidate_only",
 	} {
 		if got := maturity[language]; got != want {
@@ -90,6 +91,19 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 	} {
 		if !queryTestStringSliceContains(rustBlockers, want) {
 			t.Fatalf("blockers[rust] missing %q in %#v", want, rustBlockers)
+		}
+	}
+	sqlBlockers, ok := blockers["sql"].([]any)
+	if !ok {
+		t.Fatalf("blockers[sql] type = %T, want []any", blockers["sql"])
+	}
+	for _, want := range []string{
+		"dynamic_sql_unresolved",
+		"dialect_specific_routine_resolution_unavailable",
+		"migration_order_resolution_unavailable",
+	} {
+		if !queryTestStringSliceContains(sqlBlockers, want) {
+			t.Fatalf("blockers[sql] missing %q in %#v", want, sqlBlockers)
 		}
 	}
 }
@@ -245,6 +259,7 @@ var deadCodeSourceParserKeys = map[string]bool{
 	"ruby":       true,
 	"rust":       true,
 	"scala":      true,
+	"sql":        true,
 	"swift":      true,
 	"tsx":        true,
 	"typescript": true,

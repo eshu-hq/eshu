@@ -36,7 +36,7 @@ func TestBuildDeadCodeIncomingProbeCypherUsesExactEntityLookup(t *testing.T) {
 
 	cypher := buildDeadCodeIncomingProbeCypher("Function")
 	for _, want := range []string{
-		"MATCH (e:Function {uid: $entity_id})<-[:CALLS|IMPORTS|REFERENCES|INHERITS]-(source)",
+		"MATCH (e:Function {uid: $entity_id})<-[:CALLS|IMPORTS|REFERENCES|INHERITS|EXECUTES]-(source)",
 		"RETURN coalesce(e.uid, e.id) as incoming_entity_id",
 		"LIMIT 1",
 	} {

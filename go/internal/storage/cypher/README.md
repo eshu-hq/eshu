@@ -79,6 +79,11 @@ evidence as `USES_METACLASS`. When reducer rows include
 `caller_entity_type` and `callee_entity_type`, code-call and code-reference
 writes use the exact endpoint label plus `uid`; incomplete legacy rows still
 use the label-family fallback.
+`DomainSQLRelationships` writes SQL table, column, view, function, index, and
+trigger evidence with label-scoped endpoints. Trigger rows can emit both
+`TRIGGERS` to a `SqlTable` and `EXECUTES` to a `SqlFunction`; the latter is
+part of dead-code reachability for stored routines and must stay in the
+relationship retraction set.
 
 The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
@@ -264,6 +269,11 @@ adapter seam.
   Java, Go, Python, and TypeScript rows on NornicDB's bounded label-plus-`uid`
   lookup path instead of the broader label-family fallback. Unknown or missing
   labels still fall back to the older query shape for legacy rows.
+- SQL relationship endpoint labels are also whitelist values. `EdgeWriter`
+  routes `SqlTrigger` to `SqlTable` with `TRIGGERS`, `SqlTrigger` to
+  `SqlFunction` with `EXECUTES`, and `SqlFunction` / `SqlView` to `SqlTable`
+  with table-reference edges. Keep `EXECUTES` in both write and retract paths,
+  or trigger-bound stored routines can look unreachable to dead-code queries.
 - Canonical stale entity retractions run after current entity upserts and are
   emitted per projectable label, not as broad label-family `MATCH (n)` scans or
   giant `uid IN` exclusion filters. Current nodes have already been stamped with

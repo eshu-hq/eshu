@@ -320,6 +320,17 @@ func TestHandleDeadCodeCandidateQueryRestrictsCodeEntityLabelsBeforeLimit(t *tes
 	}
 }
 
+func TestHandleDeadCodeCandidateLabelsIncludeSQLRoutines(t *testing.T) {
+	t.Parallel()
+
+	if !isDeadCodeCandidateLabel("SqlFunction") {
+		t.Fatal("SqlFunction is not a dead-code candidate label")
+	}
+	if entityType, ok := deadCodeCandidateEntityType("SqlFunction"); !ok || entityType != "SqlFunction" {
+		t.Fatalf("deadCodeCandidateEntityType(SqlFunction) = %q, %v; want SqlFunction, true", entityType, ok)
+	}
+}
+
 func TestHandleDeadCodeCandidateQueryAnchorsRepoScopedReads(t *testing.T) {
 	t.Parallel()
 

@@ -30,10 +30,17 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Framework pack status: `unsupported`
 - Framework packs: -
 - Query surfacing: `supported`
+- Dead-code maturity: `derived`
 - Real-repo validation: `supported (bounded)`
 - End-to-end indexing: `supported (bounded)`
 - Notes:
   - SQL support runs end to end through the current parser, migration extraction, embedded SQL link hints, and the JSON-backed dbt and data-intelligence families.
+- The `code_quality.dead_code` route now scans `SqlFunction` routines as
+  derived cleanup candidates. Trigger routines are protected when parsed
+  trigger metadata materializes as trigger-to-function `EXECUTES` edges.
+- SQL remains non-exact for dead-code cleanup while dynamic SQL,
+  dialect-specific routine resolution, and migration-order resolution are
+  unresolved.
 - The remaining dbt lineage limits
   (unresolved references, truly opaque templated expressions, complex macros,
   and some derived expressions) are bounded non-goals for the documented SQL
@@ -95,6 +102,9 @@ The SQL and analytics runtime is implemented end to end in the current platform.
 
 
 ## Known Limitations
+- SQL routine dead-code is `derived`, not exact. Dynamic SQL, dialect-specific
+  routine resolution, and migration-order-dependent reachability remain named
+  exactness blockers.
 - Dialect-specific procedural SQL beyond the common Postgres-style
   dollar-quoted function and procedure bodies proven above remains a bounded
   non-goal.

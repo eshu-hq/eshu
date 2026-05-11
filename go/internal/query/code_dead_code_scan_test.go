@@ -33,6 +33,9 @@ func TestHandleDeadCodeFiltersIncomingEdgesWithContentReadModel(t *testing.T) {
 		GraphBackend: GraphBackendNornicDB,
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if !strings.Contains(cypher, "e:Function") {
+					return nil, nil
+				}
 				candidateCalls++
 				if strings.Contains(cypher, "NOT EXISTS") || strings.Contains(cypher, "NOT ()-[:") {
 					t.Fatalf("candidate query should not include incoming-edge anti-join:\n%s", cypher)
@@ -235,6 +238,29 @@ func TestHandleDeadCodeBatchesCandidateContentHydration(t *testing.T) {
 	}
 }
 
+func TestFilterDuplicateDeadCodeRowsKeepsFirstEntityIDAcrossLabels(t *testing.T) {
+	t.Parallel()
+
+	seen := make(map[string]struct{})
+	firstPage := filterDuplicateDeadCodeRows([]map[string]any{
+		deadCodeScanRow("routine-1", "refresh"),
+	}, seen)
+	secondPage := filterDuplicateDeadCodeRows([]map[string]any{
+		deadCodeScanRow("routine-1", "refresh"),
+		deadCodeScanRow("routine-2", "archive"),
+	}, seen)
+
+	if got, want := len(firstPage), 1; got != want {
+		t.Fatalf("len(firstPage) = %d, want %d", got, want)
+	}
+	if got, want := len(secondPage), 1; got != want {
+		t.Fatalf("len(secondPage) = %d, want %d", got, want)
+	}
+	if got, want := StringVal(secondPage[0], "entity_id"), "routine-2"; got != want {
+		t.Fatalf("secondPage[0].entity_id = %q, want %q", got, want)
+	}
+}
+
 func TestHandleDeadCodeContinuesCandidateScanAfterPolicyExclusions(t *testing.T) {
 	t.Parallel()
 
@@ -256,6 +282,9 @@ func TestHandleDeadCodeContinuesCandidateScanAfterPolicyExclusions(t *testing.T)
 		Profile: ProfileLocalAuthoritative,
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if !strings.Contains(cypher, "e:Function") {
+					return nil, nil
+				}
 				if !strings.Contains(cypher, "SKIP $skip") {
 					t.Fatalf("cypher = %q, want bounded page offset", cypher)
 				}
@@ -338,11 +367,93 @@ func TestHandleDeadCodeContinuesCandidateScanAfterPolicyExclusions(t *testing.T)
 	if got, want := resp["candidate_scan_truncated"], false; got != want {
 		t.Fatalf("resp[candidate_scan_truncated] = %#v, want %#v", got, want)
 	}
-	if got, want := resp["candidate_scan_pages"], float64(5); got != want {
+	if got, want := resp["candidate_scan_pages"], float64(len(deadCodeCandidateLabels)+1); got != want {
 		t.Fatalf("resp[candidate_scan_pages] = %#v, want %#v", got, want)
 	}
 	if got, want := resp["candidate_scan_rows"], float64(pageLimit+1); got != want {
 		t.Fatalf("resp[candidate_scan_rows] = %#v, want %#v", got, want)
+	}
+}
+
+func TestHandleDeadCodeLanguageFilterPushesPredicateIntoCandidateScan(t *testing.T) {
+	t.Parallel()
+
+	var languageParams []any
+	handler := &CodeHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if !strings.Contains(cypher, "toLower(coalesce(e.language, f.language, '')) = $language") {
+					t.Fatalf("candidate cypher missing language predicate:\n%s", cypher)
+				}
+				languageParams = append(languageParams, params["language"])
+				if strings.Contains(cypher, "e:SqlFunction") {
+					t.Fatalf("go language scan should not query SQL routines:\n%s", cypher)
+				}
+				return nil, nil
+			},
+		},
+		Content: fakeDeadCodeContentStore{},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code",
+		bytes.NewBufferString(`{"repo_id":"repo-1","language":"go","limit":10}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	for _, got := range languageParams {
+		if got != "go" {
+			t.Fatalf("language param = %#v, want go", got)
+		}
+	}
+	if got, want := len(languageParams), 1; got != want {
+		t.Fatalf("language param count = %d, want %d", got, want)
+	}
+}
+
+func TestHandleDeadCodeContentCandidateScanReceivesLanguagePredicate(t *testing.T) {
+	t.Parallel()
+
+	content := &contentCandidateDeadCodeStore{
+		fakeDeadCodeContentStore: fakeDeadCodeContentStore{},
+	}
+	handler := &CodeHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				t.Fatalf("dead-code candidate scan should use content read model: cypher=%s params=%#v", cypher, params)
+				return nil, nil
+			},
+		},
+		Content: content,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code",
+		bytes.NewBufferString(`{"repo_id":"repo-1","language":"go","limit":10}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if got, want := content.candidateLabels, []string{"Function", "Class", "Struct", "Interface"}; !equalStringSlices(got, want) {
+		t.Fatalf("candidate labels = %#v, want %#v", got, want)
+	}
+	if got, want := content.candidateLanguages, []string{"go", "go", "go", "go"}; !equalStringSlices(got, want) {
+		t.Fatalf("candidate languages = %#v, want %#v", got, want)
 	}
 }
 
@@ -367,22 +478,34 @@ type batchingDeadCodeContentStore struct {
 
 type contentCandidateDeadCodeStore struct {
 	fakeDeadCodeContentStore
-	rows            []map[string]any
-	candidateCalls  int
-	candidateRepoID string
-	candidateLabels []string
+	rows               []map[string]any
+	candidateCalls     int
+	candidateRepoID    string
+	candidateLabels    []string
+	candidateLanguages []string
 }
 
 func (f *contentCandidateDeadCodeStore) DeadCodeCandidateRows(
 	_ context.Context,
 	repoID string,
 	label string,
+	language string,
 	limit int,
 	offset int,
 ) ([]map[string]any, error) {
 	f.candidateCalls++
 	f.candidateRepoID = repoID
 	f.candidateLabels = append(f.candidateLabels, label)
+	f.candidateLanguages = append(f.candidateLanguages, language)
+	if language != "" {
+		filtered := f.rows[:0]
+		for _, row := range f.rows {
+			if strings.EqualFold(StringVal(row, "language"), language) {
+				filtered = append(filtered, row)
+			}
+		}
+		f.rows = filtered
+	}
 	if label != "Function" {
 		return nil, nil
 	}

@@ -22,6 +22,11 @@ WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+const retractSQLTriggerExecutesEdgesCypher = `MATCH (source:SqlTrigger)-[rel:EXECUTES]->()
+WHERE source.repo_id IN $repo_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
 var sqlRelationshipEntityLabels = map[string]struct{}{
 	"SqlColumn":   {},
 	"SqlFunction": {},
@@ -63,6 +68,8 @@ func buildSQLRelationshipRowMap(
 		return batchCanonicalSQLHasColumnUpsertCypher, rowMap, true
 	case "TRIGGERS":
 		return batchCanonicalSQLTriggersUpsertCypher, rowMap, true
+	case "EXECUTES":
+		return batchCanonicalSQLExecutesUpsertCypher, rowMap, true
 	default:
 		return "", nil, false
 	}
@@ -100,6 +107,13 @@ func labelScopedSQLRelationshipCypher(
 			"TRIGGERS",
 			"SQL entity metadata resolved a trigger edge",
 		), true
+	case "EXECUTES":
+		return buildLabelScopedSQLRelationshipCypher(
+			sourceLabel,
+			targetLabel,
+			"EXECUTES",
+			"SQL trigger metadata resolved a routine execution edge",
+		), true
 	default:
 		return "", false
 	}
@@ -128,6 +142,7 @@ func BuildRetractSQLRelationshipEdgeStatements(repoIDs []string, evidenceSource 
 		retractSQLFunctionReferencesTableEdgesCypher,
 		retractSQLTableHasColumnEdgesCypher,
 		retractSQLTriggerEdgesCypher,
+		retractSQLTriggerExecutesEdgesCypher,
 	}
 	stmts := make([]Statement, 0, len(cyphers))
 	for _, cypher := range cyphers {

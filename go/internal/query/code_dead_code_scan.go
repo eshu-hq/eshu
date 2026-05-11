@@ -21,20 +21,22 @@ func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadCodeRe
 		Results:            make([]map[string]any, 0, req.Limit+1),
 		CandidateScanLimit: deadCodeCandidateScanLimit(req.Limit),
 	}
+	seenEntityIDs := make(map[string]struct{}, req.Limit+1)
 
-	for _, label := range deadCodeCandidateLabels {
+	for _, label := range deadCodeCandidateLabelsForLanguage(req.Language) {
 		for offset := 0; offset < scan.CandidateScanLimit; offset += pageLimit {
 			limit := pageLimit
 			if remaining := scan.CandidateScanLimit - offset; remaining < limit {
 				limit = remaining
 			}
-			rows, err := h.deadCodeCandidateRows(ctx, req.RepoID, label, limit, offset)
+			rows, err := h.deadCodeCandidateRows(ctx, req.RepoID, label, req.Language, limit, offset)
 			if err != nil {
 				return scan, err
 			}
 			scan.CandidateScanPages++
-			scan.CandidateScanRows += len(rows)
 			candidateRowCount := len(rows)
+			scan.CandidateScanRows += candidateRowCount
+			rows = filterDuplicateDeadCodeRows(rows, seenEntityIDs)
 			results, contentByID, err := h.buildDeadCodeResults(ctx, rows)
 			if err != nil {
 				return scan, err
@@ -67,18 +69,60 @@ func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadCodeRe
 	return scan, nil
 }
 
+func deadCodeCandidateLabelsForLanguage(language string) []string {
+	if language == "sql" {
+		return []string{"SqlFunction"}
+	}
+	if language != "" {
+		labels := make([]string, 0, len(deadCodeCandidateLabels)-1)
+		for _, label := range deadCodeCandidateLabels {
+			if label == "SqlFunction" {
+				continue
+			}
+			labels = append(labels, label)
+		}
+		return labels
+	}
+	return deadCodeCandidateLabels
+}
+
+func normalizeDeadCodeLanguage(language string) string {
+	return strings.ToLower(strings.TrimSpace(language))
+}
+
+func filterDuplicateDeadCodeRows(rows []map[string]any, seenEntityIDs map[string]struct{}) []map[string]any {
+	if len(rows) == 0 {
+		return rows
+	}
+	filtered := rows[:0]
+	for _, row := range rows {
+		entityID := strings.TrimSpace(StringVal(row, "entity_id"))
+		if entityID == "" {
+			filtered = append(filtered, row)
+			continue
+		}
+		if _, ok := seenEntityIDs[entityID]; ok {
+			continue
+		}
+		seenEntityIDs[entityID] = struct{}{}
+		filtered = append(filtered, row)
+	}
+	return filtered
+}
+
 func (h *CodeHandler) deadCodeCandidateRows(
 	ctx context.Context,
 	repoID string,
 	label string,
+	language string,
 	limit int,
 	offset int,
 ) ([]map[string]any, error) {
 	if content, ok := h.Content.(deadCodeCandidateContentStore); ok {
-		return content.DeadCodeCandidateRows(ctx, repoID, label, limit, offset)
+		return content.DeadCodeCandidateRows(ctx, repoID, label, language, limit, offset)
 	}
-	cypher := buildDeadCodeGraphCypherForLabel(repoID != "", label)
-	return h.Neo4j.Run(ctx, cypher, deadCodeGraphParams(repoID, limit, offset))
+	cypher := buildDeadCodeGraphCypherForLabel(repoID != "", label, language)
+	return h.Neo4j.Run(ctx, cypher, deadCodeGraphParams(repoID, language, limit, offset))
 }
 
 func (h *CodeHandler) filterDeadCodeResultsWithoutIncomingEdges(
@@ -94,7 +138,23 @@ func (h *CodeHandler) filterDeadCodeResultsWithoutIncomingEdges(
 		return nil, err
 	}
 	if incoming != nil {
-		return filterDeadCodeResultsByIncomingSet(results, incoming), nil
+		filtered := results[:0]
+		for _, result := range results {
+			if incoming[StringVal(result, "entity_id")] {
+				continue
+			}
+			if deadCodeResultNeedsGraphIncomingProbe(result, label) {
+				hasIncoming, err := h.deadCodeResultHasIncomingEdge(ctx, result, label)
+				if err != nil {
+					return nil, err
+				}
+				if hasIncoming {
+					continue
+				}
+			}
+			filtered = append(filtered, result)
+		}
+		return filtered, nil
 	}
 
 	filtered := results[:0]
@@ -109,6 +169,13 @@ func (h *CodeHandler) filterDeadCodeResultsWithoutIncomingEdges(
 		filtered = append(filtered, result)
 	}
 	return filtered, nil
+}
+
+func deadCodeResultNeedsGraphIncomingProbe(result map[string]any, label string) bool {
+	if label == "SqlFunction" {
+		return true
+	}
+	return primaryEntityLabel(result) == "SqlFunction"
 }
 
 func (h *CodeHandler) deadCodeIncomingEntityIDs(
@@ -147,18 +214,7 @@ type deadCodeIncomingContentStore interface {
 }
 
 type deadCodeCandidateContentStore interface {
-	DeadCodeCandidateRows(ctx context.Context, repoID string, label string, limit int, offset int) ([]map[string]any, error)
-}
-
-func filterDeadCodeResultsByIncomingSet(results []map[string]any, incoming map[string]bool) []map[string]any {
-	filtered := results[:0]
-	for _, result := range results {
-		if incoming[StringVal(result, "entity_id")] {
-			continue
-		}
-		filtered = append(filtered, result)
-	}
-	return filtered
+	DeadCodeCandidateRows(ctx context.Context, repoID string, label string, language string, limit int, offset int) ([]map[string]any, error)
 }
 
 func (h *CodeHandler) deadCodeResultHasIncomingEdge(

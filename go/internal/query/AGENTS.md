@@ -50,6 +50,25 @@
   change that adds a field or changes a route must update the matching fragment
   in the same PR, or the live spec diverges from actual behavior.
 
+- **Dead-code scans de-duplicate entity IDs across candidate labels** —
+  `scanDeadCodeCandidates` applies `filterDuplicateDeadCodeRows`
+  (`code_dead_code_scan.go:107`) before hydration. Keep this when adding a
+  candidate label such as SQL functions, or multi-label graph rows can inflate
+  results, content reads, and candidate row counts.
+
+- **Use the dead-code `language` filter for language maturity proof** —
+  `deadCodeCandidateLabelsForLanguage` narrows SQL scans to `SqlFunction`
+  (`code_dead_code_scan.go:72`) so mixed repositories cannot fill the page
+  before SQL routine evidence is evaluated. Keep this path when adding or
+  dogfooding a language-specific dead-code slice.
+
+- **SQL routine reachability uses graph `EXECUTES` probes** —
+  `filterDeadCodeResultsWithoutIncomingEdges` falls through to an exact graph
+  probe for `SqlFunction` candidates (`code_dead_code_scan.go:187`) because
+  SQL relationship materialization graph-writes `EXECUTES` edges directly
+  instead of storing completed shared-projection intent rows. Removing that
+  fallback can report trigger-bound SQL routines as cleanup candidates.
+
 - **`Neo4jReader` opens one session per query** — `Run` and `RunSingle` open and
   close a session within the call. Do not hold or share sessions across handler
   calls (`neo4j.go:50`).

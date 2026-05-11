@@ -42,6 +42,11 @@ before touching any file in this directory.
   `code_calls` gates on `canonical_nodes_committed`;
   `sql_relationships` and `inheritance_edges` gate on
   `semantic_nodes_committed`.
+- **SQL trigger functions materialize as `EXECUTES` edges** —
+  `ExtractSQLRelationshipRows` reads `function_name` from `SqlTrigger`
+  metadata and writes trigger-to-`SqlFunction` `EXECUTES` rows
+  (`sql_relationship_materialization.go:347`). Code dead-code uses those rows
+  as incoming reachability for stored routines.
 - **All canonical graph writes go through `internal/storage/cypher`** — no
   handler may call a Neo4j or NornicDB driver directly.
 

@@ -7,10 +7,11 @@
 // span names must be registered in contract.go before use, including
 // documentation extraction counters, Terraform-state collector spans, and
 // the safe_locator_hash and warning_kind dimensions used by the tfstate
-// output, module, and warning emission counters. The reducer drift handler
-// uses SpanReducerDriftEvidenceLoad to bracket the three-query join the
-// PostgresDriftEvidenceLoader performs per config_state_drift intent. Callers must reuse
-// existing log keys before adding new ones. High-cardinality values such
-// as file paths and fact identifiers belong in spans or logs, never in
+// output, module, warning emission, correlation drift-match, drift-admission,
+// and drift-intent enqueue counters. The reducer drift handler uses
+// SpanReducerDriftEvidenceLoad to bracket the three-query join the
+// PostgresDriftEvidenceLoader performs per config_state_drift intent. Callers
+// must reuse existing log keys before adding new ones. High-cardinality values
+// such as file paths and fact identifiers belong in spans or logs, never in
 // metric labels, so dashboards and alerts stay bounded.
 package telemetry

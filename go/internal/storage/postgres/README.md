@@ -307,7 +307,7 @@ mutation is rejected because the current owner no longer holds the lease.
 
 **Terraform drift adapters** (implement reducer drift ports for chunk #163)
 
-- `PostgresTerraformBackendQuery` (`tfstate_backend_canonical.go:48`) — answers
+- `PostgresTerraformBackendQuery` (`tfstate_backend_canonical.go:68`) — answers
   `tfstatebackend.TerraformBackendQuery` from durable parser facts; recomputes
   each row's locator hash with `terraformstate.LocatorHash`.
 - `PostgresDriftEvidenceLoader` (`tfstate_drift_evidence.go:51`) — builds the
@@ -317,7 +317,10 @@ mutation is rejected because the current owner no longer holds the lease.
   empty parser buckets are not decoded.
 - `IngestionStore.EnqueueConfigStateDriftIntents` (`drift_enqueue.go:55`) —
   Phase 3.5 trigger that enqueues one `config_state_drift` reducer intent per
-  active `state_snapshot:*` scope after bootstrap Phase 3 finishes.
+  active `state_snapshot:*` scope after bootstrap Phase 3 finishes. It records
+  `eshu_dp_correlation_drift_intents_enqueued_total` with the number of intents
+  attempted so operators can compare queue trigger volume with downstream drift
+  admission volume.
 
 ## Dependencies
 

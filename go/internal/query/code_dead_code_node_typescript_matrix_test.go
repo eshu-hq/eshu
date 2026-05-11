@@ -55,6 +55,9 @@ func TestHandleDeadCodeNodeTypeScriptFixtureMatrix(t *testing.T) {
 		Profile: ProfileLocalAuthoritative,
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if !strings.Contains(cypher, "e:Function") {
+					return nil, nil
+				}
 				if !strings.Contains(cypher, "SKIP $skip") || !strings.Contains(cypher, "LIMIT $limit") {
 					t.Fatalf("cypher = %q, want bounded candidate scan", cypher)
 				}

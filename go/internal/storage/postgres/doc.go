@@ -39,7 +39,9 @@
 // prior generation (skipping the prior lookup when current serial is zero).
 // IngestionStore.EnqueueConfigStateDriftIntents is the bootstrap Phase 3.5
 // trigger that enqueues one config_state_drift reducer intent per active
-// state_snapshot:* scope.
+// state_snapshot:* scope and records
+// eshu_dp_correlation_drift_intents_enqueued_total for enqueue-volume
+// diagnostics.
 //
 // PreviouslyDeclaredInConfig is intentionally left false in v1: proving an
 // address was once declared in config requires walking prior repo
