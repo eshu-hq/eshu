@@ -82,9 +82,11 @@ func nornicDBDefaultEntityPhaseConcurrency() int {
 //
 // When workers <= 1 or the chunk count is <= 1, the function delegates to
 // executeGroupedChunksObserved so single-chunk and serial-by-config callers
-// do not pay a goroutine setup tax. The first worker error cancels the
-// shared context so in-flight peers stop dispatching, and the wrapper
-// reports the canceled error rather than masking a partial run.
+// do not pay a goroutine setup tax. The first worker error is buffered to
+// errCh and cancels the shared context so in-flight peers stop dispatching;
+// the wrapper drains errCh and returns that wrapped worker error in
+// preference to ctx.Err(), so callers see the original ExecuteGroup failure
+// class rather than the cancellation that propagated from it.
 func (e nornicDBPhaseGroupExecutor) executeGroupedChunksConcurrentlyObserved(
 	ctx context.Context,
 	ge sourcecypher.GroupExecutor,

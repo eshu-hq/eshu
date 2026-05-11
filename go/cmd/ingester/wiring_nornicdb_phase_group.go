@@ -17,12 +17,18 @@ type nornicDBPhaseGroupExecutor struct {
 	entityMaxStatements      int
 	entityLabelMaxStatements map[string]int
 	// entityPhaseConcurrency caps how many canonical entity-phase grouped
-	// chunks may run in parallel against the inner GroupExecutor. A value
-	// of zero or one keeps the existing serial chunk loop so callers without
-	// an opt-in see no behavior change. Cross-chunk safety inside an entity
-	// label rests on disjoint entity_id MERGE keys plus the file_path
-	// MATCH-only contract; see executeGroupedChunksConcurrentlyObserved for
-	// the full safety argument.
+	// chunks may run in parallel against the inner GroupExecutor. The
+	// runtime default is `runtime.NumCPU()` clamped to
+	// `nornicDBEntityPhaseConcurrencyCap`, so most callers route through
+	// the streaming dispatcher in wiring_nornicdb_phase_group_streaming.go.
+	// A value of zero or one is an explicit serial override: it pins
+	// ExecutePhaseGroup to the legacy per-flush executeEntityPhaseGroup
+	// path so callers that need deterministic chunk ordering (or that are
+	// debugging a streaming-specific regression) can opt out. Cross-chunk
+	// safety inside an entity label rests on disjoint entity_id MERGE keys
+	// plus the file_path MATCH-only contract; see
+	// executeGroupedChunksConcurrentlyObserved for the full safety
+	// argument.
 	entityPhaseConcurrency int
 }
 
