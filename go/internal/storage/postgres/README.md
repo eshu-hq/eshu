@@ -280,7 +280,7 @@ mutation is rejected because the current owner no longer holds the lease.
 - `PostgresTerraformBackendQuery` (`tfstate_backend_canonical.go:48`) — answers
   `tfstatebackend.TerraformBackendQuery` from durable parser facts; recomputes
   each row's locator hash with `terraformstate.LocatorHash`.
-- `PostgresDriftEvidenceLoader` (`tfstate_drift_evidence.go:36`) — builds the
+- `PostgresDriftEvidenceLoader` (`tfstate_drift_evidence.go:51`) — builds the
   per-address `tfconfigstate.AddressedRow` slice from config + state + prior
   generation facts; skips the prior lookup when current serial is zero.
 - `IngestionStore.EnqueueConfigStateDriftIntents` (`drift_enqueue.go:55`) —

@@ -49,7 +49,9 @@ flowchart TB
 5. `buildReducerService` — loads all config, wires `DefaultHandlers`
    (including the Terraform config-vs-state drift adapters
    `TerraformBackendResolver`, `DriftEvidenceLoader`, and `DriftLogger`
-   activated for chunk #163),
+   activated for chunk #163; the evidence loader carries the runtime
+   `Tracer` and `Logger` so its three-query join opens
+   `SpanReducerDriftEvidenceLoad` and surfaces decode-failure WARN logs),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
    the `postgres.NewReducerQueue`.

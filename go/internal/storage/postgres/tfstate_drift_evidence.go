@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
+
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // PostgresDriftEvidenceLoader builds the per-address join the drift handler
@@ -33,8 +37,29 @@ import (
 // fire in production from this loader — the dispatcher returns "" because the
 // config-side Attributes map is always empty. See the package AGENTS.md for
 // the follow-up tracking item.
+//
+// removed_from_config detection is also dormant in v1: the loader cannot
+// cheaply prove that a state-only address was once declared in a prior
+// config snapshot (requires walking prior repo generations for the joined
+// repo). Per the design, the safer fallback is to leave
+// ResourceRow.PreviouslyDeclaredInConfig false; the classifier then emits
+// added_in_state for every state-only address, including genuine
+// removed_from_config cases. Operators still see the drift via
+// added_in_state; misclassification of operator-imported resources as
+// removed_from_config is avoided. A follow-up parser+loader pass will
+// activate removed_from_config without changing the classifier.
 type PostgresDriftEvidenceLoader struct {
 	DB Queryer
+	// Tracer wraps LoadDriftEvidence in a single span so operators can
+	// answer "is the loader slow because of the config query, the state
+	// query, or the prior-state query?" — the InstrumentedDB child spans
+	// appear under it. Optional; nil disables span emission.
+	Tracer trace.Tracer
+	// Logger receives WARN logs when a payload row fails to decode. A
+	// decode failure indicates real corruption or a payload schema break
+	// upstream; the loader skips the row to keep the join bounded, but the
+	// log line is the operator-visible signal. Optional; nil drops logs.
+	Logger *slog.Logger
 }
 
 // listConfigResourcesForCommitQuery returns the terraform_resources arrays
@@ -139,6 +164,12 @@ func (l PostgresDriftEvidenceLoader) LoadDriftEvidence(
 	configGenerationID := strings.TrimSpace(anchor.CommitID)
 	if configScopeID == "" || configGenerationID == "" {
 		return nil, fmt.Errorf("commit anchor must carry scope and commit id")
+	}
+
+	if l.Tracer != nil {
+		var span trace.Span
+		ctx, span = l.Tracer.Start(ctx, telemetry.SpanReducerDriftEvidenceLoad)
+		defer span.End()
 	}
 
 	configByAddress, err := l.loadConfigByAddress(ctx, configScopeID, configGenerationID)
@@ -291,6 +322,7 @@ func (l PostgresDriftEvidenceLoader) loadStateResources(
 		}
 		row, ok := stateRowFromCollectorPayload(address, payload, lineageRotation)
 		if !ok {
+			l.logDecodeFailure(ctx, scopeID, generationID, address)
 			continue
 		}
 		out[row.Address] = row
@@ -322,6 +354,23 @@ func configRowFromParserEntry(entry map[string]any) (*tfconfigstate.ResourceRow,
 	}, true
 }
 
+// logDecodeFailure surfaces a corrupt state-resource payload as an
+// operator-actionable WARN log. A decode failure indicates real corruption
+// or a payload schema break in the collector pipeline upstream; the loader
+// skips the row to keep the join bounded, but the row is real drift evidence
+// that has gone dark. Without the log, the corruption is invisible.
+func (l PostgresDriftEvidenceLoader) logDecodeFailure(ctx context.Context, scopeID, generationID, address string) {
+	if l.Logger == nil {
+		return
+	}
+	l.Logger.LogAttrs(ctx, slog.LevelWarn, "drift evidence loader skipped state resource",
+		slog.String(telemetry.LogKeyScopeID, scopeID),
+		slog.String(telemetry.LogKeyGenerationID, generationID),
+		slog.String("state.address", address),
+		slog.String(telemetry.LogKeyFailureClass, "state_resource_payload_decode"),
+	)
+}
+
 // stateRowFromCollectorPayload decodes one terraform_state_resource fact
 // payload into a ResourceRow. The collector emits classified attributes as a
 // map[string]any (resources.go:173-181); we flatten the top-level keys into a
@@ -330,16 +379,20 @@ func configRowFromParserEntry(entry map[string]any) (*tfconfigstate.ResourceRow,
 // dropped — the allowlist is path-keyed, but until the config side carries
 // attributes there is no value to compare against, so the lossy flattening
 // does not change runtime behavior.
+//
+// Returns (nil, false) when the address is blank or the payload fails to
+// decode. The caller surfaces decode failures via logDecodeFailure;
+// successful decodes with an empty address are a parser invariant violation
+// and intentionally silent (they cannot become drift candidates).
 func stateRowFromCollectorPayload(address string, payload []byte, lineageRotation bool) (*tfconfigstate.ResourceRow, bool) {
 	address = strings.TrimSpace(address)
 	if address == "" {
 		return nil, false
 	}
 	var decoded struct {
-		Address      string                 `json:"address"`
-		Type         string                 `json:"type"`
-		Attributes   map[string]any         `json:"attributes"`
-		ExtraIgnored map[string]any         `json:"-"`
+		Address    string         `json:"address"`
+		Type       string         `json:"type"`
+		Attributes map[string]any `json:"attributes"`
 	}
 	if len(payload) > 0 {
 		if err := json.Unmarshal(payload, &decoded); err != nil {
@@ -367,12 +420,16 @@ func stateRowFromCollectorPayload(address string, payload []byte, lineageRotatio
 // prior signal) pass through; classify.go returns the empty string for them
 // and tfconfigstate.BuildCandidates drops them before they reach the engine.
 //
-// PreviouslyDeclaredInConfig is the conservative v1 signal documented in the
-// plan: set true on a state-only address when the prior generation also has
-// the address. The classifier uses this to distinguish removed_from_config
-// from added_in_state. When the proxy is wrong (an operator-imported
-// resource that also existed in prior state without ever being declared) the
-// classifier falls back to added_in_state — still operator-actionable.
+// PreviouslyDeclaredInConfig is intentionally LEFT FALSE in v1. The classifier
+// uses that flag to distinguish removed_from_config from added_in_state for
+// state-only addresses. Setting it from prior-state existence (the available
+// proxy) would misclassify operator-imported resources — which exist in
+// state across many generations without ever being declared in config — as
+// removed_from_config. The safer fallback is to let the classifier emit
+// added_in_state for every state-only address; removed_from_config remains
+// dormant until a future loader pass can walk prior-config-snapshot evidence
+// to prove the address was once declared. Operators still see the drift,
+// just under a more conservative label.
 func mergeDriftRows(
 	config, state, prior map[string]*tfconfigstate.ResourceRow,
 ) []tfconfigstate.AddressedRow {
@@ -394,9 +451,6 @@ func mergeDriftRows(
 		cfg := config[address]
 		st := state[address]
 		pr := prior[address]
-		if st != nil && cfg == nil && pr != nil {
-			st.PreviouslyDeclaredInConfig = true
-		}
 		resourceType := ""
 		switch {
 		case cfg != nil:

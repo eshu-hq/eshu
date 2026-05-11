@@ -95,14 +95,13 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 		return fmt.Errorf("enqueue config_state_drift intents: %w", err)
 	}
 
-	if instruments != nil {
-		// Reuse the deployment-mapping reopened counter is wrong — drift has
-		// no dedicated counter yet. The two correlation counters
-		// (CorrelationRuleMatches, CorrelationDriftDetected) emit per
-		// admission downstream. The enqueue volume surfaces only in the log
-		// line below until a dedicated bootstrap-stage counter is added.
-		_ = instruments
-	}
+	// No dedicated drift-enqueue counter yet; the two correlation counters
+	// (CorrelationRuleMatches and CorrelationDriftDetected) advance per
+	// admission downstream once the reducer claims the work. Enqueue
+	// volume surfaces in the log line below; add an eshu_dp_* counter here
+	// if dashboards need to alert on enqueue regressions independently of
+	// admission volume.
+	_ = instruments
 	log.Printf("config_state_drift_intents_enqueued count=%d duration_s=%.2f",
 		len(intents), time.Since(start).Seconds())
 

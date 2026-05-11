@@ -273,7 +273,11 @@ func buildReducerService(
 		TerraformBackendResolver: tfstatebackend.NewResolver(
 			postgres.PostgresTerraformBackendQuery{DB: database},
 		),
-		DriftEvidenceLoader: postgres.PostgresDriftEvidenceLoader{DB: database},
+		DriftEvidenceLoader: postgres.PostgresDriftEvidenceLoader{
+			DB:     database,
+			Tracer: tracer,
+			Logger: logger,
+		},
 		DriftLogger:         logger,
 	})
 	if err != nil {

@@ -265,6 +265,62 @@ func TestPostgresDriftEvidenceLoaderLineageRotationFlagged(t *testing.T) {
 	}
 }
 
+func TestPostgresDriftEvidenceLoaderStateOnlyWithPriorLeavesFlagFalse(t *testing.T) {
+	t.Parallel()
+
+	// State has an address that the prior generation also had (e.g. a
+	// resource that was operator-imported into state and persists across
+	// generations). v1 deliberately leaves PreviouslyDeclaredInConfig=false
+	// so the classifier emits added_in_state — the safer fallback for cases
+	// where we cannot cheaply prove the address was once in config.
+	// Setting the flag from prior-state existence (the previous behavior)
+	// would misclassify operator-imported resources as removed_from_config.
+	anchor := tfstatebackend.CommitAnchor{
+		RepoID:      "repo-a",
+		ScopeID:     "repository:repo-a",
+		CommitID:    "gen-a1",
+		BackendKind: "s3",
+		LocatorHash: "hash-xyz",
+	}
+	stateScopeID := "state_snapshot:s3:hash-xyz"
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			// config-side: empty.
+			{rows: [][]any{}},
+			// current snapshot: serial=5.
+			{rows: [][]any{fixtureSnapshotRow("lineage-1", 5, "gen-state-current")}},
+			// current state-resource: address present in state but not config.
+			{rows: [][]any{fixtureStateResourceRow(
+				"aws_iam_role.imported",
+				fixtureStatePayload("aws_iam_role.imported", "aws_iam_role", "imported", `{}`),
+			)}},
+			// prior snapshot: same lineage, serial=4.
+			{rows: [][]any{fixtureSnapshotRow("lineage-1", 4, "gen-state-prior")}},
+			// prior state-resource: same address (persisted across generations).
+			{rows: [][]any{fixtureStateResourceRow(
+				"aws_iam_role.imported",
+				fixtureStatePayload("aws_iam_role.imported", "aws_iam_role", "imported", `{}`),
+			)}},
+		},
+	}
+	loader := PostgresDriftEvidenceLoader{DB: db}
+
+	rows, err := loader.LoadDriftEvidence(context.Background(), stateScopeID, anchor)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	if rows[0].State == nil {
+		t.Fatalf("row.State = nil, want non-nil")
+	}
+	if rows[0].State.PreviouslyDeclaredInConfig {
+		t.Fatalf("row.State.PreviouslyDeclaredInConfig = true, want false (v1 conservative fallback; see mergeDriftRows comment)")
+	}
+}
+
 func TestPostgresDriftEvidenceLoaderNoSnapshotReturnsEmpty(t *testing.T) {
 	t.Parallel()
 

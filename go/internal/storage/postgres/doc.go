@@ -40,4 +40,9 @@
 // IngestionStore.EnqueueConfigStateDriftIntents is the bootstrap Phase 3.5
 // trigger that enqueues one config_state_drift reducer intent per active
 // state_snapshot:* scope.
+//
+// PreviouslyDeclaredInConfig is intentionally left false in v1: proving an
+// address was once declared in config requires walking prior repo
+// generations, which is deferred. The classifier then emits added_in_state
+// for every state-only address, which is the conservative fallback.
 package postgres
