@@ -75,5 +75,7 @@
 // projector support exists.
 // local_authoritative and local_full_stack both answer graph-backed platform
 // impact queries, while local_lightweight returns structured unsupported errors
-// for those routes.
+// for those routes. Repository coverage reads content-store counts first and
+// reports graph parity only when the graph coverage fallback actually ran, so
+// large repositories can answer coverage without an unbounded graph count.
 package query
