@@ -7,39 +7,6 @@
 # and extract-log-line operations the verifier composes. Split out so the
 # main script stays under the 500-line repo limit.
 
-# Wait for a one-shot compose service to exit cleanly. The shared helper at
-# scripts/lib/compose_verification_runtime_common.sh hardcodes the service
-# name to `bootstrap-index`; this version takes the service as an argument
-# so we can also wait for db-migrate.
-#
-# Args:
-#   $1 service_name
-#   $2 timeout_seconds
-eshu_compose_wait_for_named_exit() {
-	local service="$1" timeout_seconds="$2"
-	local deadline=$((SECONDS + timeout_seconds))
-	while ((SECONDS < deadline)); do
-		local container_id state exit_code
-		container_id="$("${COMPOSE_CMD[@]}" ps -a -q "$service")"
-		if [[ -z "$container_id" ]]; then
-			sleep 2
-			continue
-		fi
-		state="$(docker inspect --format='{{.State.Status}}' "$container_id" 2>/dev/null || true)"
-		if [[ "$state" == "exited" ]]; then
-			exit_code="$(docker inspect --format='{{.State.ExitCode}}' "$container_id" 2>/dev/null || true)"
-			if [[ "$exit_code" != "0" ]]; then
-				echo "$service exited with code $exit_code" >&2
-				return 1
-			fi
-			return 0
-		fi
-		sleep 2
-	done
-	echo "Timed out waiting for $service to exit" >&2
-	return 1
-}
-
 # Apply the drift proof seed against the compose Postgres container.
 # Expects globals: COMPOSE_CMD, ESHU_POSTGRES_PASSWORD.
 tfstate_drift_seed_db() {

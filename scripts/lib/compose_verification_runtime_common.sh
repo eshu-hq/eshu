@@ -20,6 +20,39 @@ eshu_compose_wait_for_http() {
 	return 1
 }
 
+# Wait for a one-shot compose service to exit cleanly. Generic version of
+# eshu_compose_wait_for_bootstrap_exit: takes the service name as an argument
+# so verifiers can wait on any one-shot service (db-migrate, bootstrap-index,
+# future seeders, etc.) without re-defining the loop.
+#
+# Args:
+#   $1 service_name
+#   $2 timeout_seconds
+eshu_compose_wait_for_named_exit() {
+	local service="$1" timeout_seconds="$2"
+	local deadline=$((SECONDS + timeout_seconds))
+	while ((SECONDS < deadline)); do
+		local container_id state exit_code
+		container_id="$("${COMPOSE_CMD[@]}" ps -a -q "$service")"
+		if [[ -z "$container_id" ]]; then
+			sleep 2
+			continue
+		fi
+		state="$(docker inspect --format='{{.State.Status}}' "$container_id" 2>/dev/null || true)"
+		if [[ "$state" == "exited" ]]; then
+			exit_code="$(docker inspect --format='{{.State.ExitCode}}' "$container_id" 2>/dev/null || true)"
+			if [[ "$exit_code" != "0" ]]; then
+				echo "$service exited with code $exit_code" >&2
+				return 1
+			fi
+			return 0
+		fi
+		sleep 2
+	done
+	echo "Timed out waiting for $service to exit" >&2
+	return 1
+}
+
 eshu_compose_wait_for_bootstrap_exit() {
 	local timeout_seconds="$1"
 	local deadline=$((SECONDS + timeout_seconds))
