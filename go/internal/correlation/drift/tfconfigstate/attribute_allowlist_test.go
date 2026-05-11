@@ -67,3 +67,34 @@ func TestAllowlistForReturnsCopy(t *testing.T) {
 		t.Fatal("AllowlistFor returned a shared slice; mutation leaked across calls")
 	}
 }
+
+func TestAttributeAllowlistCoversV1Surface(t *testing.T) {
+	t.Parallel()
+
+	expectations := map[string][]string{
+		"aws_s3_bucket": {
+			"acl",
+			"versioning.enabled",
+			"server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm",
+		},
+		"aws_instance":                   {"instance_type", "ami"},
+		"aws_lambda_function":            {"runtime", "handler", "memory_size", "timeout"},
+		"aws_db_instance":                {"engine", "engine_version", "instance_class"},
+		"aws_iam_role":                   {"assume_role_policy"},
+		"aws_iam_policy":                 {"policy"},
+		"aws_iam_role_policy_attachment": {"policy_arn"},
+	}
+
+	for resourceType, want := range expectations {
+		got := AllowlistFor(resourceType)
+		gotSet := make(map[string]struct{}, len(got))
+		for _, a := range got {
+			gotSet[a] = struct{}{}
+		}
+		for _, attr := range want {
+			if _, ok := gotSet[attr]; !ok {
+				t.Errorf("AllowlistFor(%q) missing %q; have %v", resourceType, attr, got)
+			}
+		}
+	}
+}
