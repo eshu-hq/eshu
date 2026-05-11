@@ -16,14 +16,18 @@ Guidance for LLM assistants editing this package.
 
 ## Invariants
 
-- `ResolveConfigCommitForBackend` MUST return at most one
+- `Resolver.ResolveConfigCommitForBackend` MUST return at most one
   `CommitAnchor`. Multi-owner conflicts return
   `ErrAmbiguousBackendOwner`; missing owners return
-  `ErrNoConfigRepoOwnsBackend` (`resolver.go:36, 43`).
+  `ErrNoConfigRepoOwnsBackend` (`resolver.go:80, 87`).
 - "Latest" selection is deterministic: highest `CommitObservedAt`,
-  tie-broken by `CommitID` lexicographic ascending. Never randomize.
+  tie-broken by `CommitID` lexicographic ascending. Never randomize
+  (`resolver.go:142`).
 - The resolver is read-only. It does not mutate canonical rows, queue
   state, or facts.
+- A nil `TerraformBackendQuery` is a permitted "no owner" mode that
+  always returns `ErrNoConfigRepoOwnsBackend` (`resolver.go:118`).
+  Callers wire a real implementation when the storage adapter is ready.
 
 ## Common changes scoped by file
 

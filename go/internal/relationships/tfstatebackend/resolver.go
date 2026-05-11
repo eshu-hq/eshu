@@ -1,8 +1,11 @@
 package tfstatebackend
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -27,6 +30,51 @@ type CommitAnchor struct {
 	LocatorHash string
 }
 
+// TerraformBackendRow is one sealed config-side row from a
+// TerraformBackendQuery implementation. The shape mirrors the
+// projector.TerraformBackend canonical row plus the owning repo/scope/commit
+// metadata the resolver needs to anchor the join.
+type TerraformBackendRow struct {
+	RepoID           string
+	ScopeID          string
+	CommitID         string
+	CommitObservedAt time.Time
+	BackendKind      string
+	LocatorHash      string
+}
+
+// TerraformBackendQuery is the narrow port the resolver depends on. The port
+// returns every sealed TerraformBackend row whose (backend_kind, locator_hash)
+// matches the input; the resolver groups, sorts, and selects. Keeping this
+// interface in the resolver package avoids pulling the storage adapter into
+// the relationships layer.
+type TerraformBackendQuery interface {
+	// ListTerraformBackendsByLocator returns the sealed config-side
+	// TerraformBackend rows for the composite key. Implementations MUST NOT
+	// pre-filter to a single owner — the resolver must observe ambiguity to
+	// emit ErrAmbiguousBackendOwner.
+	ListTerraformBackendsByLocator(
+		ctx context.Context, backendKind string, locatorHash string,
+	) ([]TerraformBackendRow, error)
+}
+
+// Resolver carries the canonical-row query port and exposes
+// ResolveConfigCommitForBackend. Construct with NewResolver; a nil port is
+// permitted and causes every resolve call to return
+// ErrNoConfigRepoOwnsBackend (matches the Phase 0 stub contract for callers
+// that have not yet wired the query backend).
+type Resolver struct {
+	query TerraformBackendQuery
+}
+
+// NewResolver constructs a Resolver around the supplied query port. A nil
+// query yields a "no owner" resolver that always returns
+// ErrNoConfigRepoOwnsBackend — useful for ingester and runtime paths that do
+// not have the canonical-row reader wired yet.
+func NewResolver(query TerraformBackendQuery) *Resolver {
+	return &Resolver{query: query}
+}
+
 // ErrNoConfigRepoOwnsBackend means no sealed config snapshot has emitted a
 // terraform_backends parser fact for the requested composite key. The drift
 // handler MUST NOT classify drift in this case; the state may be operator
@@ -40,16 +88,87 @@ var ErrNoConfigRepoOwnsBackend = errors.New("no config repo owns this backend")
 var ErrAmbiguousBackendOwner = errors.New("ambiguous backend owner")
 
 // ResolveConfigCommitForBackend selects the latest sealed config snapshot
-// whose terraform_backends parser fact matches the input composite key. The
-// stub returns ErrNoConfigRepoOwnsBackend; Phase 1 (Agent A) implements the
-// canonical-row query against the projector's TerraformBackend table.
+// whose terraform_backends parser fact matches the input composite key.
+// Inputs must be non-blank. The resolver returns:
+//
+//   - ErrNoConfigRepoOwnsBackend when zero rows match (state is operator-owned
+//     or the parser fact has not yet been ingested).
+//   - ErrAmbiguousBackendOwner when two or more distinct RepoIDs claim the
+//     composite key (single-owner-per-backend is the v1 policy).
+//   - A populated CommitAnchor selected by max(CommitObservedAt) with
+//     lexicographic-ascending CommitID tie-break.
+//
+// The "latest" rule is deterministic and ADR-able: no last-write-wins
+// randomness.
+func (r *Resolver) ResolveConfigCommitForBackend(
+	ctx context.Context,
+	backendKind string,
+	locatorHash string,
+) (CommitAnchor, error) {
+	backendKind = strings.TrimSpace(backendKind)
+	if backendKind == "" {
+		return CommitAnchor{}, errors.New("backend kind must not be blank")
+	}
+	locatorHash = strings.TrimSpace(locatorHash)
+	if locatorHash == "" {
+		return CommitAnchor{}, errors.New("locator hash must not be blank")
+	}
+	if r == nil || r.query == nil {
+		return CommitAnchor{}, ErrNoConfigRepoOwnsBackend
+	}
+
+	rows, err := r.query.ListTerraformBackendsByLocator(ctx, backendKind, locatorHash)
+	if err != nil {
+		return CommitAnchor{}, err
+	}
+	if len(rows) == 0 {
+		return CommitAnchor{}, ErrNoConfigRepoOwnsBackend
+	}
+
+	// Group by RepoID; if more than one distinct repo owns the composite
+	// key, return the ambiguous error rather than picking a winner.
+	repoIDs := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		repoIDs[row.RepoID] = struct{}{}
+	}
+	if len(repoIDs) > 1 {
+		return CommitAnchor{}, ErrAmbiguousBackendOwner
+	}
+
+	// Single-owner: pick the latest sealed snapshot.
+	sorted := slices.Clone(rows)
+	slices.SortFunc(sorted, func(a, b TerraformBackendRow) int {
+		if !a.CommitObservedAt.Equal(b.CommitObservedAt) {
+			// Descending by observed_at: newer first.
+			if a.CommitObservedAt.After(b.CommitObservedAt) {
+				return -1
+			}
+			return 1
+		}
+		return cmp.Compare(a.CommitID, b.CommitID)
+	})
+	winner := sorted[0]
+	return CommitAnchor{
+		RepoID:           winner.RepoID,
+		ScopeID:          winner.ScopeID,
+		CommitID:         winner.CommitID,
+		CommitObservedAt: winner.CommitObservedAt,
+		BackendKind:      winner.BackendKind,
+		LocatorHash:      winner.LocatorHash,
+	}, nil
+}
+
+// ResolveConfigCommitForBackend is preserved as a package-level convenience
+// for callers that want the Phase 0 "no owner" stub semantics without
+// constructing a Resolver. Phase 1 callers should use NewResolver and the
+// Resolver.ResolveConfigCommitForBackend method instead so they can inject a
+// real TerraformBackendQuery.
+//
+// Deprecated: use NewResolver(query).ResolveConfigCommitForBackend instead.
 func ResolveConfigCommitForBackend(
 	ctx context.Context,
 	backendKind string,
 	locatorHash string,
 ) (CommitAnchor, error) {
-	_ = ctx
-	_ = backendKind
-	_ = locatorHash
-	return CommitAnchor{}, ErrNoConfigRepoOwnsBackend
+	return (&Resolver{}).ResolveConfigCommitForBackend(ctx, backendKind, locatorHash)
 }
