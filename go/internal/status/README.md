@@ -75,6 +75,14 @@ See `doc.go` for the godoc contract. Key types and functions:
   instances, run and work-item status counts, completeness counts, active and
   overdue claims
 - `CollectorInstanceSummary` — one configured collector runtime instance
+- `TerraformStateLocatorSerial` — most recent observed serial per
+  Terraform-state scope, keyed by safe locator hash so the report never carries
+  raw bucket names, S3 keys, or local paths
+- `TerraformStateLocatorWarning` — recent `terraform_state_warning` fact row,
+  bounded per locator by `MaxTerraformStateRecentWarnings`
+- `TerraformStateReport` — operator-facing tfstate section attached to
+  `Report.TerraformState`; carries sorted serial rows, recent warnings, and
+  warnings grouped by safe locator hash and warning kind
 
 ### Projection functions
 

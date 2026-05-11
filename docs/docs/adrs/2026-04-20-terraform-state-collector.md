@@ -965,7 +965,13 @@ issue #153.
 - emit `terraform_state_output`, `terraform_state_module`,
   `terraform_state_provider_binding`, `terraform_state_tag_observation`,
   `terraform_state_warning`
-- admin status surface complete
+- admin status surface complete (issue #44): admin status now exposes
+  `last_serials` per safe locator hash and `recent_warnings` grouped by
+  `warning_kind`, and the parser emits
+  `eshu_dp_tfstate_outputs_emitted_total`,
+  `eshu_dp_tfstate_modules_emitted_total`, and
+  `eshu_dp_tfstate_warnings_emitted_total{warning_kind}` so dashboards can
+  watch per-locator emission rates without exposing raw locators
 
 ### Phase 4: Reducer / DSL Integration
 

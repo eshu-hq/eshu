@@ -49,6 +49,9 @@ provided:
 - source size after the final successful parse
 - streaming parse duration
 - resource fact count by backend
+- output and module fact counts per `safe_locator_hash` and backend
+- warning fact counts per `safe_locator_hash`, backend, and `warning_kind`
+  (including the bypass `state_too_large` path)
 - redactions and safe drops by policy reason
 - S3 conditional-read not-modified outcomes
 

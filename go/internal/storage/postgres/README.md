@@ -214,7 +214,12 @@ mutation is rejected because the current owner no longer holds the lease.
   stay visible even after the last pending intent is claimed, so `/admin/status`
   does not report healthy while reducer-owned shared projection work is still
   becoming graph-visible and does not report stalled while a reducer lease is
-  actively moving that domain.
+  actively moving that domain. The same store also runs the bounded
+  `terraformStateLastSerialQuery` and `terraformStateRecentWarningsQuery` from
+  `tfstate_status.go` so the admin status response carries one row per
+  Terraform-state safe locator hash plus up to
+  `MaxTerraformStateRecentWarnings` recent warning facts grouped by
+  `warning_kind`.
 
 **Decision store**
 

@@ -436,3 +436,19 @@ groups:
             2. Compare against the AWS/GCP/Azure provider schema package; add the new shape to the typed schema once the contract is understood.
             3. Until the schema is added, the conservative path is the correct default — do not disable redaction.
             4. Operator runbook: `docs/docs/services/collector-terraform-state.md`.
+
+      - alert: EshuTfstateWarningEmissionSustained
+        expr: sum by (warning_kind) (rate(eshu_dp_tfstate_warnings_emitted_total[15m])) > 0.05
+        for: 30m
+        labels:
+          severity: warning
+          service: collector-terraform-state
+          component: parser
+        annotations:
+          summary: "Terraform-state warning emission sustained above baseline"
+          description: "`warning_kind={{ $labels.warning_kind }}` warnings have been emitting at {{ $value | humanize }} ops for 30 minutes. A real state issue is present or a discovery rule has drifted."
+          runbook: |
+            1. Check `/admin/status?format=json` and look at `terraform_state.warnings_by_kind` for the affected `safe_locator_hash`.
+            2. Read the underlying `terraform_state_warning` facts via the query API to see the `reason` and `source` fields.
+            3. If `warning_kind=state_too_large`, raise `ESHU_TFSTATE_SOURCE_MAX_BYTES` only when the size is legitimate.
+            4. Operator runbook: `docs/docs/services/collector-terraform-state.md`.
