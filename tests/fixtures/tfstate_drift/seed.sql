@@ -25,6 +25,8 @@
 --     hash=33f0f3a35fa8bf42780910e64cc72a8977797dac9eecbbc50a623687bc79be38
 --   bucket=eshu-drift-d/prod/terraform.tfstate
 --     hash=6ef42db5dda508cb600e123a97ef2e128947bd582afac01e2e64a19dddf7ce4e
+--   bucket=eshu-drift-e/prod/terraform.tfstate
+--     hash=22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123
 -- ============================================================================
 --
 -- Scenarios and drift kinds (issue #166 in-scope set only):
@@ -38,16 +40,19 @@
 --                                      and the handler logs a WARN rejection
 --                                      with failure_class="ambiguous_backend_owner".
 --                                      No drift counter increment.)
+--   bucket E → attribute_drift          (both sides declare aws_s3_bucket.logs;
+--                                       config SSE algorithm AES256, state aws:kms.
+--                                       Exercises the deepest nested allowlist
+--                                       path end-to-end.)
 --
--- attribute_drift and removed_from_config are dormant in v1 (parser does not
--- emit per-attribute values; loader leaves PreviouslyDeclaredInConfig=false).
--- Tracked separately by issues #167 and #168.
+-- removed_from_config is dormant in v1 (loader leaves
+-- PreviouslyDeclaredInConfig=false). Tracked separately by issue #168.
 
 BEGIN;
 
 -- ----------------------------------------------------------------------------
 -- 1. ingestion_scopes: one repo_snapshot scope per config-side repo
---    plus one state_snapshot scope per backend (A, B, C, D).
+--    plus one state_snapshot scope per backend (A, B, C, D, E).
 -- ----------------------------------------------------------------------------
 
 INSERT INTO ingestion_scopes (
@@ -473,6 +478,154 @@ INSERT INTO fact_records (
     -- Scenario D (ambiguous) does not need any state resources — the handler
     -- bails out at the resolver step before reaching the evidence loader.
 
+ON CONFLICT (fact_id) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Bucket E: attribute_drift — aws_s3_bucket.logs present on both sides;
+-- config SSE algorithm is AES256, state SSE algorithm is aws:kms. The acl
+-- value matches on both sides (private) to confirm only the differing key
+-- fires. The state payload uses the nested singleton-array shape so that
+-- flattenStateAttributes exercises the deepest singleton-array unwrap.
+-- ----------------------------------------------------------------------------
+
+-- 1. ingestion_scopes: one repo_snapshot + one state_snapshot for bucket E.
+INSERT INTO ingestion_scopes (
+    scope_id, scope_kind, source_system, source_key, collector_kind,
+    partition_key, observed_at, ingested_at, status, active_generation_id
+) VALUES
+    ('repo_snapshot:drift-tfstate-attribute-drift',
+     'repo_snapshot', 'git', 'drift-tfstate-attribute-drift', 'git',
+     'drift-tfstate-attribute-drift',
+     '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
+     'active', 'gen:repo:drift-tfstate-attribute-drift'),
+
+    ('state_snapshot:s3:22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123',
+     'state_snapshot', 'terraform_state', 'aws-s3:eshu-drift-e',
+     'terraform_state', 'aws-s3:eshu-drift-e',
+     '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
+     'active', 'gen:state:attribute-drift')
+ON CONFLICT (scope_id) DO NOTHING;
+
+-- 2. scope_generations: one active generation per scope.
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, freshness_hint, observed_at,
+    ingested_at, status, activated_at
+) VALUES
+    ('gen:repo:drift-tfstate-attribute-drift',
+     'repo_snapshot:drift-tfstate-attribute-drift',
+     'commit', NULL,
+     '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
+     'active', '2026-05-11T00:00:01Z'),
+
+    ('gen:state:attribute-drift',
+     'state_snapshot:s3:22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123',
+     'state_snapshot', 'lineage=lineage-E;serial=1',
+     '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
+     'active', '2026-05-11T00:00:01Z')
+ON CONFLICT (generation_id) DO NOTHING;
+
+-- 3. fact_records — config-side file fact carrying terraform_backends and
+--    terraform_resources. The resources entry carries a flat dot-path
+--    attributes map matching the parser's HCL attribute encoder output.
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    schema_version, collector_kind, source_system, source_fact_key,
+    observed_at, ingested_at, payload
+) VALUES (
+    'fact:drift-attribute-drift:main.tf',
+    'repo_snapshot:drift-tfstate-attribute-drift',
+    'gen:repo:drift-tfstate-attribute-drift',
+    'file', 'drift-tfstate-attribute-drift:main.tf',
+    '1.0.0', 'git', 'git', 'drift-tfstate-attribute-drift:main.tf',
+    '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
+    jsonb_build_object(
+        'repo_id', 'drift-tfstate-attribute-drift',
+        'relative_path', 'main.tf',
+        'parsed_file_data', jsonb_build_object(
+            'terraform_backends', jsonb_build_array(jsonb_build_object(
+                'backend_kind', 's3',
+                'bucket', 'eshu-drift-e',
+                'bucket_is_literal', true,
+                'key', 'prod/terraform.tfstate',
+                'key_is_literal', true,
+                'region', 'us-east-1',
+                'region_is_literal', true
+            )),
+            'terraform_resources', jsonb_build_array(jsonb_build_object(
+                'resource_type', 'aws_s3_bucket',
+                'resource_name', 'logs',
+                'name', 'logs',
+                'path', 'main.tf',
+                'lang', 'hcl',
+                'line_number', 1,
+                'attributes', jsonb_build_object(
+                    'acl', 'private',
+                    'server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm', 'AES256'
+                )
+            ))
+        )
+    )
+)
+ON CONFLICT (fact_id) DO NOTHING;
+
+-- 4. fact_records — state-side terraform_state_snapshot fact.
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    schema_version, collector_kind, source_system, source_fact_key,
+    observed_at, ingested_at, payload
+) VALUES (
+    'fact:snapshot:attribute-drift',
+    'state_snapshot:s3:22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123',
+    'gen:state:attribute-drift',
+    'terraform_state_snapshot', 'snapshot:22eafc85',
+    '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:22eafc85',
+    '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
+    jsonb_build_object(
+        'lineage', 'lineage-E',
+        'serial', 1,
+        'backend_kind', 's3',
+        'locator_hash', '22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123'
+    )
+)
+ON CONFLICT (fact_id) DO NOTHING;
+
+-- 5. fact_records — state-side terraform_state_resource fact. The attributes
+--    use the nested singleton-array shape the collector emits so that
+--    flattenStateAttributes exercises the deep SSE unwrap. The acl value
+--    matches the config side (private) — only the SSE path drifts.
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    schema_version, collector_kind, source_system, source_fact_key,
+    observed_at, ingested_at, payload
+) VALUES (
+    'fact:resource:attribute-drift:logs',
+    'state_snapshot:s3:22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123',
+    'gen:state:attribute-drift',
+    'terraform_state_resource', 'resource:attribute-drift:logs',
+    '1.0.0', 'terraform_state', 'terraform_state', 'resource:attribute-drift:logs',
+    '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
+    jsonb_build_object(
+        'address', 'aws_s3_bucket.logs',
+        'type', 'aws_s3_bucket',
+        'name', 'logs',
+        'attributes', jsonb_build_object(
+            'acl', 'private',
+            'server_side_encryption_configuration', jsonb_build_array(
+                jsonb_build_object(
+                    'rule', jsonb_build_array(
+                        jsonb_build_object(
+                            'apply_server_side_encryption_by_default', jsonb_build_array(
+                                jsonb_build_object(
+                                    'sse_algorithm', 'aws:kms'
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+    )
+)
 ON CONFLICT (fact_id) DO NOTHING;
 
 COMMIT;

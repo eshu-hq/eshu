@@ -314,7 +314,22 @@ mutation is rejected because the current owner no longer holds the lease.
   per-address `tfconfigstate.AddressedRow` slice from config + state + prior
   generation facts; skips the prior lookup when current serial is zero. The
   config and backend queries gate on `jsonb_array_length > 0` so files with
-  empty parser buckets are not decoded.
+  empty parser buckets are not decoded. Row construction is split across two
+  sibling files:
+  - `configRowFromParserEntry` (`tfstate_drift_evidence_config_row.go:22`) —
+    maps one HCL-parser `terraform_resources` JSON entry to a
+    `tfconfigstate.ResourceRow`; copies the flat dot-path `attributes` map and
+    decodes `unknown_attributes` as `ResourceRow.UnknownAttributes`.
+  - `stateRowFromCollectorPayload` (`tfstate_drift_evidence_state_row.go:21`)
+    — decodes the collector's `terraform_state_resource` payload and calls
+    `flattenStateAttributes` (same file, line 71) to produce a flat dot-path
+    `map[string]string`. Singleton repeated blocks (e.g. `versioning`,
+    `server_side_encryption_configuration`) arrive as `[]any` of length 1
+    whose element is `map[string]any`; the flattener unwraps the array and
+    recurses into the object so paths align with the parser's dot-path form.
+    The dot-path encoding MUST stay byte-identical to `ctyValueToDriftString`
+    in `go/internal/parser/hcl/terraform_resource_attributes.go` so the
+    classifier's value-equality check fires deterministically.
 - `IngestionStore.EnqueueConfigStateDriftIntents` (`drift_enqueue.go:55`) —
   Phase 3.5 trigger that enqueues one `config_state_drift` reducer intent per
   active `state_snapshot:*` scope after bootstrap Phase 3 finishes. It records

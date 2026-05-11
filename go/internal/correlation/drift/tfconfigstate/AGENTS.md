@@ -26,7 +26,12 @@ Guidance for LLM assistants editing this package.
   (`candidate.go:13`).
 - Computed/unknown config-side attributes (`ResourceRow.UnknownAttributes`)
   never raise `attribute_drift` against a concrete state value
-  (`classify.go:155`).
+  (`classify.go:155`). `attribute_drift` is active end-to-end as of #167:
+  the HCL parser now emits flat dot-path `attributes` and `unknown_attributes`
+  maps; `configRowFromParserEntry` bridges them into `ResourceRow`
+  (`go/internal/storage/postgres/tfstate_drift_evidence_config_row.go:22`).
+  The state side uses `flattenStateAttributes` with the same dot-path rules
+  (`go/internal/storage/postgres/tfstate_drift_evidence_state_row.go:71`).
 - `LineageRotation` on a prior row short-circuits the dispatcher
   (`classify.go:73`).
 - High-cardinality values (addresses, attribute paths, module paths)

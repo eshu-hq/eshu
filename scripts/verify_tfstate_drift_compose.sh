@@ -46,7 +46,7 @@ SEED_PATH="$REPO_ROOT/tests/fixtures/tfstate_drift/seed.sql"
 # tests/fixtures/tfstate_drift/expected/*.json files are human-readable
 # documentation of the expected counter deltas and log fields per scenario;
 # the verifier asserts them inline below rather than parsing the JSON. If
-# this script grows past four scenarios, consider threading expected via
+# this script grows past five scenarios, consider threading expected via
 # jq so the JSON becomes the single source of truth.
 
 TMP_DIR="$(mktemp -d)"
@@ -70,6 +70,7 @@ LABEL_PACK='pack="terraform_config_state_drift"'
 LABEL_ADDED_IN_STATE="drift_kind=\"added_in_state\""
 LABEL_ADDED_IN_CONFIG="drift_kind=\"added_in_config\""
 LABEL_REMOVED_FROM_STATE="drift_kind=\"removed_from_state\""
+LABEL_ATTRIBUTE_DRIFT="drift_kind=\"attribute_drift\""
 
 # -- preflight ---------------------------------------------------------------
 
@@ -202,7 +203,7 @@ echo "==> Rerunning bootstrap-index (Phase 3.5) against the seeded scopes"
 		exit 1
 	}
 
-echo "==> Confirming Phase 3.5 enqueued the four seeded state_snapshot scopes"
+echo "==> Confirming Phase 3.5 enqueued the five seeded state_snapshot scopes"
 grep -E 'config_state_drift_intents_enqueued count=[0-9]+' "$PHASE_35_LOG_FILE" \
 	| tail -n 1 \
 	| tee -a "$PHASE_35_LOG_FILE.summary"
@@ -211,8 +212,8 @@ phase35_count="$(
 	| tail -n 1 \
 	| sed -E 's/.*count=([0-9]+).*/\1/'
 )"
-if [[ -z "$phase35_count" || "$phase35_count" -lt 4 ]]; then
-	echo "Phase 3.5 enqueued count=${phase35_count:-<missing>}, expected >=4" >&2
+if [[ -z "$phase35_count" || "$phase35_count" -lt 5 ]]; then
+	echo "Phase 3.5 enqueued count=${phase35_count:-<missing>}, expected >=5" >&2
 	tail -n 40 "$PHASE_35_LOG_FILE" >&2
 	exit 1
 fi
@@ -234,7 +235,7 @@ tfstate_drift_extract_drift_logs "$DRIFT_LOGS_FILE"
 # -- assertions --------------------------------------------------------------
 
 echo "==> Asserting per-kind counter deltas"
-for kind in added_in_state added_in_config removed_from_state; do
+for kind in added_in_state added_in_config removed_from_state attribute_drift; do
 	# Match on three required label substrings rather than a single
 	# label-order-dependent regex: the metric name, the pack (so a future
 	# correlation pack emitting the same drift_kind cannot satisfy the
@@ -289,14 +290,14 @@ tfstate_drift_assert_log_line "$DRIFT_LOGS_FILE" \
 	'ambiguous-owner WARN with failure_class=ambiguous_backend_owner'
 
 echo "==> Asserting each admitted drift kind appears in the structured log"
-for kind in added_in_state added_in_config removed_from_state; do
+for kind in added_in_state added_in_config removed_from_state attribute_drift; do
 	tfstate_drift_assert_log_line "$DRIFT_LOGS_FILE" \
 		"\"drift.kind\":\"$kind\"" \
 		"drift candidate admitted log for drift_kind=$kind"
 done
 
 echo "==> Asserting drift admission carries high-cardinality address field"
-for address in aws_s3_bucket.unmanaged aws_s3_bucket.declared aws_s3_bucket.was_there; do
+for address in aws_s3_bucket.unmanaged aws_s3_bucket.declared aws_s3_bucket.was_there aws_s3_bucket.logs; do
 	tfstate_drift_assert_log_line "$DRIFT_LOGS_FILE" \
 		"\"drift.address\":\"$address\"" \
 		"drift.address=$address in admitted-candidate log"

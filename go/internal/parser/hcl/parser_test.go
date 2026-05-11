@@ -3,6 +3,8 @@ package hcl
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -147,4 +149,179 @@ func namedItemForTest(t *testing.T, rows []map[string]any, name string) map[stri
 	}
 	t.Fatalf("missing row named %q in %#v", name, rows)
 	return nil
+}
+
+func TestTerraformParseResourceAttributesTopLevel(t *testing.T) {
+	t.Parallel()
+
+	filePath := writeHCLTestFile(t, "main.tf", `resource "aws_instance" "web" {
+  instance_type = "t3.micro"
+  ami           = "ami-0abcdef0"
+  tags          = local.common_tags
+  user_data     = templatefile("${path.module}/user_data.tmpl", {})
+  depends_on    = [aws_iam_role.web]
+  count         = 2
+}
+`)
+
+	got, err := Parse(filePath, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	resources := bucketForTest(t, got, "terraform_resources")
+	row := namedItemForTest(t, resources, "aws_instance.web")
+
+	attrs, ok := row["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("attributes type = %T, want map[string]any", row["attributes"])
+	}
+	if got, want := attrs["instance_type"], "t3.micro"; got != want {
+		t.Fatalf("attributes[instance_type] = %#v, want %#v", got, want)
+	}
+	if got, want := attrs["ami"], "ami-0abcdef0"; got != want {
+		t.Fatalf("attributes[ami] = %#v, want %#v", got, want)
+	}
+	for _, suppressed := range []string{"tags", "user_data", "count", "depends_on"} {
+		if _, present := attrs[suppressed]; present {
+			t.Fatalf("attributes[%s] present; want absent", suppressed)
+		}
+	}
+	unknown, ok := row["unknown_attributes"].([]string)
+	if !ok {
+		t.Fatalf("unknown_attributes type = %T, want []string", row["unknown_attributes"])
+	}
+	// The implementation sorts unknown_attributes; assert exact equality so an
+	// extra unexpected entry cannot silently pass.
+	if want := []string{"tags", "user_data"}; !reflect.DeepEqual(unknown, want) {
+		t.Fatalf("unknown_attributes = %#v, want %#v", unknown, want)
+	}
+	if got, want := row["count"], "2"; got != want {
+		t.Fatalf("count = %#v, want %#v", got, want)
+	}
+}
+
+func TestTerraformParseResourceAttributesNestedBlocks(t *testing.T) {
+	t.Parallel()
+
+	filePath := writeHCLTestFile(t, "main.tf", `resource "aws_s3_bucket" "logs" {
+  acl = "private"
+
+  versioning {
+    enabled = true
+  }
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = local.common_tags
+}
+`)
+
+	got, err := Parse(filePath, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	resources := bucketForTest(t, got, "terraform_resources")
+	row := namedItemForTest(t, resources, "aws_s3_bucket.logs")
+	attrs, ok := row["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("attributes type = %T, want map[string]any", row["attributes"])
+	}
+
+	cases := map[string]string{
+		"acl": "private",
+		"versioning.enabled": "true",
+		"server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm": "AES256",
+	}
+	for path, want := range cases {
+		if got := attrs[path]; got != want {
+			t.Fatalf("attributes[%q] = %#v, want %#v", path, got, want)
+		}
+	}
+	// lifecycle is reserved — must NOT appear.
+	for key := range attrs {
+		if strings.HasPrefix(key, "lifecycle.") || key == "lifecycle" {
+			t.Fatalf("attributes contains reserved lifecycle key %q", key)
+		}
+	}
+	// tags is unknown (local.*).
+	unknown, _ := row["unknown_attributes"].([]string)
+	foundTags := false
+	for _, u := range unknown {
+		if u == "tags" {
+			foundTags = true
+		}
+	}
+	if !foundTags {
+		t.Fatalf("unknown_attributes = %#v, want to contain %q", unknown, "tags")
+	}
+	if got, want := len(unknown), 1; got != want {
+		t.Fatalf("len(unknown_attributes) = %d, want %d (only %q should be unknown — reserved blocks must not leak)", got, want, "tags")
+	}
+}
+
+func TestTerraformParseResourceAttributesAbsentWhenEmpty(t *testing.T) {
+	t.Parallel()
+
+	filePath := writeHCLTestFile(t, "main.tf", `resource "aws_s3_bucket" "empty" {
+}
+`)
+	got, err := Parse(filePath, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	row := namedItemForTest(t, bucketForTest(t, got, "terraform_resources"), "aws_s3_bucket.empty")
+	if _, present := row["attributes"]; present {
+		t.Fatalf("attributes key present on resource with no attributes")
+	}
+	if _, present := row["unknown_attributes"]; present {
+		t.Fatalf("unknown_attributes key present on resource with no attributes")
+	}
+}
+
+func TestTerraformParseResourceAttributesHeredocAndEscapes(t *testing.T) {
+	t.Parallel()
+
+	filePath := writeHCLTestFile(t, "main.tf", `resource "aws_iam_role" "svc" {
+  assume_role_policy = <<-EOT
+  {"Version":"2012-10-17"}
+  EOT
+
+  name = "svc\"quoted"
+}
+`)
+
+	got, err := Parse(filePath, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	row := namedItemForTest(t, bucketForTest(t, got, "terraform_resources"), "aws_iam_role.svc")
+	attrs, ok := row["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("attributes type = %T, want map[string]any", row["attributes"])
+	}
+	// <<-EOT heredoc: HCL evaluates to the unindented body with a trailing
+	// newline. The state side stores the actual JSON content, which also
+	// ends with a newline when the heredoc is the source. The byte-level
+	// literalSourceText implementation would have returned "<<-EOT\n  ...\n  EOT",
+	// which never matches.
+	if got, want := attrs["assume_role_policy"], "{\"Version\":\"2012-10-17\"}\n"; got != want {
+		t.Fatalf("attributes[assume_role_policy] = %q, want %q", got, want)
+	}
+	// Escaped quote: HCL evaluates `"svc\"quoted"` to `svc"quoted`. The old
+	// byte-level reader would have returned `svc\"quoted` (backslash preserved).
+	if got, want := attrs["name"], `svc"quoted`; got != want {
+		t.Fatalf("attributes[name] = %q, want %q (escape must be resolved, not preserved)", got, want)
+	}
 }

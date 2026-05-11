@@ -372,3 +372,62 @@ var _ interface {
 		anchor tfstatebackend.CommitAnchor,
 	) ([]tfconfigstate.AddressedRow, error)
 } = PostgresDriftEvidenceLoader{}
+
+func TestStateRowFlattenSingletonArrayUnwrap(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"address": "aws_s3_bucket.logs",
+		"type": "aws_s3_bucket",
+		"attributes": {
+			"acl": "private",
+			"versioning": [{"enabled": false}],
+			"server_side_encryption_configuration": [
+				{"rule": [{"apply_server_side_encryption_by_default": [{"sse_algorithm": "aws:kms"}]}]}
+			],
+			"tags": {"env": "prod"}
+		}
+	}`)
+
+	row, ok := stateRowFromCollectorPayload("aws_s3_bucket.logs", payload, false)
+	if !ok {
+		t.Fatal("stateRowFromCollectorPayload() ok = false, want true")
+	}
+	cases := map[string]string{
+		"acl":                "private",
+		"versioning.enabled": "false",
+		"server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm": "aws:kms",
+		"tags.env":           "prod",
+	}
+	for path, want := range cases {
+		got, has := row.Attributes[path]
+		if !has {
+			t.Fatalf("row.Attributes missing %q (have %v)", path, row.Attributes)
+		}
+		if got != want {
+			t.Fatalf("row.Attributes[%q] = %q, want %q", path, got, want)
+		}
+	}
+}
+
+func TestStateRowFlattenMultiElementArrayTakesFirst(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"address": "aws_s3_bucket.logs",
+		"type": "aws_s3_bucket",
+		"attributes": {
+			"lifecycle_rule": [
+				{"id": "first"},
+				{"id": "second"}
+			]
+		}
+	}`)
+	row, ok := stateRowFromCollectorPayload("aws_s3_bucket.logs", payload, false)
+	if !ok {
+		t.Fatal("ok = false")
+	}
+	if got, want := row.Attributes["lifecycle_rule.id"], "first"; got != want {
+		t.Fatalf("row.Attributes[lifecycle_rule.id] = %q, want %q (first-wins)", got, want)
+	}
+}

@@ -30,13 +30,16 @@ import (
 // non-drifted candidates. Trading the union for a pre-filter would duplicate
 // classify.go's dispatch order — not worth the bug surface for v1.
 //
-// Attribute drift requires both sides to carry per-attribute values.
-// The state collector emits attributes (resources.go:173-181); the HCL parser
-// does NOT emit attributes on terraform_resources rows today
-// (parser.go:130-154). Until the parser is enhanced, attribute_drift cannot
-// fire in production from this loader — the dispatcher returns "" because the
-// config-side Attributes map is always empty. See the package AGENTS.md for
-// the follow-up tracking item.
+// Attribute drift is active end-to-end as of PR #167. The HCL parser
+// recursively walks resource blocks and emits a flat dot-path attributes
+// map plus an unknown_attributes list (parser/hcl/terraform_resource_attributes.go).
+// configRowFromParserEntry (tfstate_drift_evidence_config_row.go) decodes
+// both into ResourceRow.Attributes and ResourceRow.UnknownAttributes.
+// flattenStateAttributes (tfstate_drift_evidence_state_row.go) produces the
+// matching dot-path keys from Terraform-state's nested-array-wrapped repeated
+// blocks via singleton-array unwrap. The two sides must stay byte-identical
+// in their leaf-value encoding — see the coerceJSONString doc comment for the
+// per-type contract and the float64 scientific-notation hazard.
 //
 // removed_from_config detection is also dormant in v1: the loader cannot
 // cheaply prove that a state-only address was once declared in a prior
@@ -263,35 +266,6 @@ func (l PostgresDriftEvidenceLoader) loadStateResources(
 	return out, nil
 }
 
-// configRowFromParserEntry maps one parsed_file_data.terraform_resources
-// entry to a ResourceRow. The parser
-// (go/internal/parser/hcl/parser.go:130-154) emits only resource_type,
-// resource_name, count, and for_each metadata per row — no module-path
-// field. The canonical address built here is therefore the root-module
-// form `<type>.<name>`.
-//
-// Module-nested state addresses (e.g. `module.vpc.aws_instance.web`) will
-// not match a config-side row built by this function because the parser
-// sees only the calling repo's `module {}` block, not the callee module's
-// resources. That scope mismatch is a known v1 limitation: addresses
-// inside called modules surface as added_in_state (state has them, no
-// config-side row) until the parser walks nested modules or the loader
-// joins module-call metadata. Returns (nil, false) on blank type or name
-// so genuinely invalid rows do not become drift candidates; per-attribute
-// values are reserved for a forward-compat attribute extractor.
-func configRowFromParserEntry(entry map[string]any) (*tfconfigstate.ResourceRow, bool) {
-	resourceType := strings.TrimSpace(coerceJSONString(entry["resource_type"]))
-	resourceName := strings.TrimSpace(coerceJSONString(entry["resource_name"]))
-	if resourceType == "" || resourceName == "" {
-		return nil, false
-	}
-	address := resourceType + "." + resourceName
-	return &tfconfigstate.ResourceRow{
-		Address:      address,
-		ResourceType: resourceType,
-	}, true
-}
-
 // logDecodeFailure surfaces a corrupt state-resource payload as an
 // operator-actionable WARN log. A decode failure indicates real corruption
 // or a payload schema break in the collector pipeline upstream; the loader
@@ -316,49 +290,6 @@ func (l PostgresDriftEvidenceLoader) logDecodeFailure(ctx context.Context, scope
 		slog.String("state.address", address),
 		slog.String(telemetry.LogKeyFailureClass, "state_resource_payload_decode"),
 	)
-}
-
-// stateRowFromCollectorPayload decodes one terraform_state_resource fact
-// payload into a ResourceRow. The collector emits classified attributes as a
-// map[string]any (resources.go:173-181); we flatten the top-level keys into a
-// map[string]string so the classifier's attribute-drift dispatch can compare
-// them against allowlisted attribute paths. Nested structure is intentionally
-// dropped — the allowlist is path-keyed, but until the config side carries
-// attributes there is no value to compare against, so the lossy flattening
-// does not change runtime behavior.
-//
-// Returns (nil, false) when the address is blank or the payload fails to
-// decode. The caller surfaces decode failures via logDecodeFailure;
-// successful decodes with an empty address are a parser invariant violation
-// and intentionally silent (they cannot become drift candidates).
-func stateRowFromCollectorPayload(address string, payload []byte, lineageRotation bool) (*tfconfigstate.ResourceRow, bool) {
-	address = strings.TrimSpace(address)
-	if address == "" {
-		return nil, false
-	}
-	var decoded struct {
-		Address    string         `json:"address"`
-		Type       string         `json:"type"`
-		Attributes map[string]any `json:"attributes"`
-	}
-	if len(payload) > 0 {
-		if err := json.Unmarshal(payload, &decoded); err != nil {
-			return nil, false
-		}
-	}
-	row := &tfconfigstate.ResourceRow{
-		Address:         address,
-		ResourceType:    strings.TrimSpace(decoded.Type),
-		LineageRotation: lineageRotation,
-	}
-	if len(decoded.Attributes) > 0 {
-		flat := make(map[string]string, len(decoded.Attributes))
-		for key, value := range decoded.Attributes {
-			flat[key] = coerceJSONString(value)
-		}
-		row.Attributes = flat
-	}
-	return row, true
 }
 
 // mergeDriftRows unions the address keyspaces of config, state, and prior and
@@ -433,12 +364,36 @@ func decodeJSONArray(raw []byte, label string) ([]map[string]any, error) {
 	return entries, nil
 }
 
-// coerceJSONString coerces a JSON value into a flat string. Numeric, bool,
-// and null values produce their fmt.Sprint form so the classifier's
-// attribute-drift comparison stays type-stable across config and state
-// sources. Nested structures collapse to fmt.Sprint output, which is lossy
-// for nested attribute drift; this matches the v1 contract (the attribute
-// allowlist is path-keyed and operates on top-level keys only).
+// coerceJSONString formats one leaf JSON value into the canonical drift-
+// comparison string. flattenStateAttributes owns recursion into nested maps
+// and singleton-array-wrapped repeated blocks (see
+// tfstate_drift_evidence_state_row.go); coerceJSONString operates on the
+// leaves it produces and must stay byte-identical to the parser-side
+// ctyValueToDriftString output
+// (go/internal/parser/hcl/terraform_resource_attributes.go) so the classifier's
+// value-equality check at
+// go/internal/correlation/drift/tfconfigstate/classify.go:171 fires
+// deterministically across both sides.
+//
+// Encoding contract per leaf type:
+//   - nil          → ""
+//   - string       → identity
+//   - bool         → "true" / "false" (NEVER "cty.True" or other Go-formatted forms)
+//   - default      → fmt.Sprint(value)
+//
+// The default branch covers numeric leaves decoded from JSON as float64.
+// fmt.Sprint(float64) renders integers as their decimal form for values below
+// ~1e6 but switches to scientific notation ("1e+06", "1e+07", …) at or above
+// 1e6. The parser side encodes integers with strconv.FormatInt, which is
+// always decimal. The encodings diverge above the 1e6 threshold.
+//
+// Safe for all v1 allowlist numeric attributes (aws_lambda_function.memory_size
+// up to 10240, aws_lambda_function.timeout up to 900, aws_db_instance numeric
+// versions). Any new numeric allowlist entry whose real-world values could
+// reach 1e6 (e.g. aws_cloudwatch_log_group.retention_in_days at multi-year
+// retention, large disk sizes in bytes) needs a regression test AND a
+// coordinated change here — switching the default branch to a numeric-aware
+// formatter that produces decimal output.
 func coerceJSONString(value any) string {
 	switch v := value.(type) {
 	case nil:

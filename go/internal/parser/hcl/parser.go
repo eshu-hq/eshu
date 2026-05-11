@@ -151,6 +151,14 @@ func parseTerraformBlocks(payload map[string]any, body *hclsyntax.Body, source [
 					row["for_each"] = forEach
 				}
 			}
+			if known, unknown := extractResourceAttributes(block); len(known) > 0 || len(unknown) > 0 {
+				if len(known) > 0 {
+					row["attributes"] = known
+				}
+				if len(unknown) > 0 {
+					row["unknown_attributes"] = unknown
+				}
+			}
 			shared.AppendBucket(payload, "terraform_resources", row)
 		case "variable":
 			if len(block.Labels) == 0 {
