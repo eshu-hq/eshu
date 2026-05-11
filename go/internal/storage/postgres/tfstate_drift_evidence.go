@@ -69,10 +69,21 @@ type PostgresDriftEvidenceLoader struct {
 //
 // The HCL parser's base payload (parser.go:103) always emits an empty
 // terraform_resources array for every parsed file, so jsonb_typeof alone
-// does NOT prune the scan. jsonb_array_length > 0 is the load-bearing
+// does NOT prune the scan. The array-length filter is the load-bearing
 // predicate: it restricts the row set to .tf files that actually contain
 // at least one `resource "<type>" "<name>" {}` block. Without it the loader
 // scans every parsed file in the repo snapshot per drift intent.
+//
+// The array-length call is wrapped in a CASE so it is only evaluated when
+// jsonb_typeof reports 'array'. Postgres does NOT guarantee short-circuit
+// evaluation of AND predicates — the planner may evaluate
+// jsonb_array_length before the type guard, raising
+// "cannot get array length of a scalar" (SQLSTATE 22023) on rows whose
+// terraform_resources value is jsonb null or another scalar. CASE branches
+// are guaranteed not to evaluate unless their condition matches, so the
+// wrapper makes the predicate safe regardless of payload shape upstream.
+// Regression test:
+// TestPostgresDriftEvidenceLoaderSurvivesNullTerraformResourcesPath.
 const listConfigResourcesForCommitQuery = `
 SELECT
     fact.payload->'parsed_file_data'->'terraform_resources' AS terraform_resources
@@ -82,7 +93,11 @@ WHERE fact.scope_id = $1
   AND fact.fact_kind = 'file'
   AND fact.source_system = 'git'
   AND jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_resources') = 'array'
-  AND jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_resources') > 0
+  AND CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_resources') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_resources')
+        ELSE 0
+      END > 0
 ORDER BY fact.fact_id ASC
 `
 
