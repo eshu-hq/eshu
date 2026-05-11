@@ -390,13 +390,15 @@ errors are surfaced in `collector snapshot stage completed` logs with
   owning package manifest, exported functions under Hapi-style handler
   directories, Hapi plugin `register` methods, Hapi exported route arrays with
   direct, `config`, or `options` handlers, Next.js app and route exports,
-  Node migration `up`/`down` exports, TypeScript module-contract exports, and
-  TypeScript public methods on classes that declare `implements` when bounded
-  local evidence proves the root. TypeScript public surface roots also cover
+  Node migration `up`/`down` exports, methods on CommonJS default-exported
+  classes, TypeScript module-contract exports, and TypeScript public methods on
+  classes that declare `implements` when bounded local evidence proves the root.
+  TypeScript public surface roots also cover
   package `exports` or `types` targets that statically re-export same-repo
-  declarations through one barrel hop, including declaration-only `*.d.ts`
-  barrels and `tsconfig.json` `paths` aliases that resolve to local files. Java
-  dead-code roots cover `main`, constructors, `@Override`, JavaBean-style
+  declarations through bounded multi-hop barrels, including declaration-only
+  `*.d.ts` barrels and `tsconfig.json` `paths` aliases that resolve to local
+  files. Java dead-code roots cover `main`, constructors, `@Override`,
+  JavaBean-style
   public Ant `Task` setters, Gradle plugin `apply` methods, Gradle task
   actions and properties, public Gradle DSL methods, Spring component and
   configuration-property classes, Spring request/bean/event/scheduled methods,

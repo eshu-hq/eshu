@@ -95,6 +95,25 @@ func javaScriptCommonJSModuleExportAliases(root *tree_sitter.Node, source []byte
 	return aliases
 }
 
+func javaScriptMethodInsideCommonJSDefaultExport(node *tree_sitter.Node, source []byte) bool {
+	if node == nil || node.Kind() != "method_definition" {
+		return false
+	}
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		if current.Kind() == "program" {
+			return false
+		}
+		if current.Kind() != "assignment_expression" {
+			continue
+		}
+		leftNode := current.ChildByFieldName("left")
+		if strings.TrimSpace(nodeText(leftNode, source)) == "module.exports" {
+			return true
+		}
+	}
+	return false
+}
+
 func rewriteJavaScriptCommonJSModuleExportAliasFullName(fullName string, aliases map[string]struct{}) string {
 	fullName = strings.TrimSpace(fullName)
 	if fullName == "" || len(aliases) == 0 {

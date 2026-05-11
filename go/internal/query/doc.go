@@ -11,9 +11,10 @@
 // are stable wire contracts. Dead-code responses preserve language maturity,
 // modeled framework-root lists, and root-kind evidence for functions and types
 // so callers can separate cleanup candidates from modeled roots; TypeScript
-// interface implementation, module-contract, and static-registry roots are
-// reported alongside JavaScript-family package, CommonJS mixin, Next.js,
-// Express, Koa, Fastify, NestJS, migration, and framework roots, plus Python
+// public API export, public API re-export, public type-reference, interface
+// implementation, module-contract, and static-registry roots are reported
+// alongside JavaScript-family package, CommonJS mixin, Next.js, Express, Koa,
+// Fastify, NestJS, migration, and framework roots, plus Python
 // route, worker, CLI, AWS Lambda handler, dataclass, post-init, property,
 // dunder protocol, __all__, package __init__.py, public API base, and public
 // API member roots, plus Java main, constructor, override, Ant Task setter,

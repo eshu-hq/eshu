@@ -271,7 +271,7 @@ func TSConfigSourceCandidates(basePath string) []string {
 	}
 
 	appendCandidate(basePath)
-	extensions := []string{".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts"}
+	extensions := []string{".js", ".jsx", ".ts", ".tsx", ".d.ts", ".mjs", ".cjs", ".mts", ".cts"}
 	if filepath.Ext(basePath) == "" {
 		for _, ext := range extensions {
 			appendCandidate(basePath + ext)

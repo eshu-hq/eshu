@@ -72,8 +72,9 @@ function-value references, and function-literal reachable calls. It also
 reports JavaScript package exports,
 Hapi-style handler exports, Next.js
 exports, Express/Koa/Fastify/NestJS callbacks, Node migration exports,
-TypeScript module-contract exports, and TypeScript interface implementation
-methods. It also suppresses parser-proven Python FastAPI, Flask, Celery,
+TypeScript public API exports, public API re-exports, public type-reference
+roots, module-contract exports, and TypeScript interface implementation methods.
+It also suppresses parser-proven Python FastAPI, Flask, Celery,
 Click, Typer, AWS Lambda handler, dataclass, post-init, property, dunder
 protocol, `__all__`, package `__init__.py`, public API base, and public API
 member roots, Python `if __name__ == "__main__"` script-main guards, and
@@ -292,11 +293,12 @@ wired in `cmd/api/wiring.go`, not here.
   `go.interface_type_reference`, `go.method_value_reference`, and
   `go.type_reference`. JavaScript-family
   analysis must list Node package, CommonJS default export, CommonJS mixin,
-  Next.js, Node migration, Hapi-style, TypeScript module-contract, and
-  TypeScript interface implementation roots, plus Java main, constructor,
-  override, Ant `Task` setter, Gradle plugin `apply`, task action/property, and
-  public Gradle DSL roots when query policy suppresses those candidates; the
-  analysis notes name the same Java root family. Rust parser-backed root,
+  Next.js, Node migration, Hapi-style, TypeScript public API, TypeScript
+  module-contract, and TypeScript interface implementation roots, plus Java
+  main, constructor, override, Ant `Task` setter, Gradle plugin `apply`, task
+  action/property, and public Gradle DSL roots when query policy suppresses
+  those candidates; the analysis notes name the same Java root family. Rust
+  parser-backed root,
   syntax-evidence, and observed-blocker rows must stay aligned with the
   `deadCodeLanguageMaturity` table because Rust derived classification depends
   on that maturity row, the root suppression policy, and ambiguous

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -20,6 +21,13 @@ type javaScriptTypeScriptSurfaceReexport struct {
 	exportedName string
 	originalName string
 	source       string
+}
+
+type javaScriptTypeScriptSurfaceWalkItem struct {
+	path  string
+	names map[string]struct{}
+	star  bool
+	depth int
 }
 
 var (
@@ -52,24 +60,9 @@ func javaScriptTypeScriptSurfaceRootKinds(
 			}
 			continue
 		}
-		for _, reexport := range javaScriptTypeScriptStaticReexportsFromFile(publicPath) {
-			for _, targetPath := range javaScriptTypeScriptReexportSourceCandidates(repoRoot, publicPath, reexport.source) {
-				if !sameJavaScriptPath(targetPath, path) {
-					continue
-				}
-				if reexport.exportedName == "*" {
-					for name := range exportedNames {
-						publicNames[name] = struct{}{}
-						rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPIReexportRoot)
-					}
-					continue
-				}
-				name := strings.TrimSpace(reexport.originalName)
-				if _, ok := exportedNames[name]; ok {
-					publicNames[name] = struct{}{}
-					rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPIReexportRoot)
-				}
-			}
+		for name := range javaScriptTypeScriptPublicReexportNames(repoRoot, publicPath, path, exportedNames) {
+			publicNames[name] = struct{}{}
+			rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPIReexportRoot)
 		}
 	}
 
@@ -80,6 +73,121 @@ func javaScriptTypeScriptSurfaceRootKinds(
 		rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptStaticRegistryMemberRoot)
 	}
 	return rootKinds
+}
+
+func javaScriptTypeScriptPublicReexportNames(
+	repoRoot string,
+	publicPath string,
+	targetPath string,
+	exportedNames map[string]struct{},
+) map[string]struct{} {
+	const maxReexportDepth = 8
+	publicNames := make(map[string]struct{})
+	queue := []javaScriptTypeScriptSurfaceWalkItem{{path: publicPath, star: true}}
+	visited := make(map[string]struct{})
+	for len(queue) > 0 {
+		item := queue[0]
+		queue = queue[1:]
+		if item.depth >= maxReexportDepth {
+			continue
+		}
+		visitKey := javaScriptTypeScriptSurfaceWalkKey(item)
+		if _, ok := visited[visitKey]; ok {
+			continue
+		}
+		visited[visitKey] = struct{}{}
+
+		for _, reexport := range javaScriptTypeScriptStaticReexportsFromFile(item.path) {
+			nextNames, nextStar, ok := javaScriptTypeScriptPropagateReexport(item, reexport)
+			if !ok {
+				continue
+			}
+			for _, candidatePath := range javaScriptTypeScriptReexportSourceCandidates(repoRoot, item.path, reexport.source) {
+				if sameJavaScriptPath(candidatePath, targetPath) {
+					javaScriptTypeScriptMarkPublicNames(publicNames, exportedNames, nextNames, nextStar)
+					continue
+				}
+				queue = append(queue, javaScriptTypeScriptSurfaceWalkItem{
+					path:  candidatePath,
+					names: nextNames,
+					star:  nextStar,
+					depth: item.depth + 1,
+				})
+			}
+		}
+	}
+	return publicNames
+}
+
+func javaScriptTypeScriptPropagateReexport(
+	item javaScriptTypeScriptSurfaceWalkItem,
+	reexport javaScriptTypeScriptSurfaceReexport,
+) (map[string]struct{}, bool, bool) {
+	if item.star {
+		if reexport.exportedName == "*" {
+			return nil, true, true
+		}
+		name := strings.TrimSpace(reexport.originalName)
+		if name == "" {
+			return nil, false, false
+		}
+		return map[string]struct{}{name: {}}, false, true
+	}
+	if len(item.names) == 0 {
+		return nil, false, false
+	}
+	if reexport.exportedName == "*" {
+		return cloneJavaScriptTypeScriptSurfaceNames(item.names), false, true
+	}
+	exportedName := strings.TrimSpace(reexport.exportedName)
+	if _, ok := item.names[exportedName]; !ok {
+		return nil, false, false
+	}
+	originalName := strings.TrimSpace(reexport.originalName)
+	if originalName == "" {
+		return nil, false, false
+	}
+	return map[string]struct{}{originalName: {}}, false, true
+}
+
+func javaScriptTypeScriptMarkPublicNames(
+	publicNames map[string]struct{},
+	exportedNames map[string]struct{},
+	nextNames map[string]struct{},
+	nextStar bool,
+) {
+	if nextStar {
+		for name := range exportedNames {
+			publicNames[name] = struct{}{}
+		}
+		return
+	}
+	for name := range nextNames {
+		if _, ok := exportedNames[name]; ok {
+			publicNames[name] = struct{}{}
+		}
+	}
+}
+
+func javaScriptTypeScriptSurfaceWalkKey(item javaScriptTypeScriptSurfaceWalkItem) string {
+	path := cleanJavaScriptPath(item.path)
+	if item.star {
+		return path + "|*"
+	}
+	names := make([]string, 0, len(item.names))
+	for name := range item.names {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return path + "|" + strings.Join(names, ",")
+}
+
+func cloneJavaScriptTypeScriptSurfaceNames(names map[string]struct{}) map[string]struct{} {
+	clone := make(map[string]struct{}, len(names))
+	for name := range names {
+		clone[name] = struct{}{}
+	}
+	return clone
 }
 
 func javaScriptIsTypeScriptInterfaceImplementationMethod(node *tree_sitter.Node, name string, source []byte) bool {

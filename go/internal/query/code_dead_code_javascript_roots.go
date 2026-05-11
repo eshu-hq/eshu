@@ -23,6 +23,10 @@ func deadCodeIsJavaScriptFrameworkRoot(result map[string]any, entity *EntityCont
 		stats.ParserMetadataFrameworkRoots++
 		return true
 	}
+	if deadCodeHasTypeScriptPublicAPIRoot(rootKinds) {
+		stats.ParserMetadataFrameworkRoots++
+		return true
+	}
 	if primaryEntityLabel(result) != "Function" {
 		return false
 	}
@@ -54,4 +58,10 @@ func deadCodeIsJavaScriptFrameworkRoot(result map[string]any, entity *EntityCont
 		return true
 	}
 	return false
+}
+
+func deadCodeHasTypeScriptPublicAPIRoot(rootKinds []string) bool {
+	return slices.Contains(rootKinds, "typescript.public_api_export") ||
+		slices.Contains(rootKinds, "typescript.public_api_reexport") ||
+		slices.Contains(rootKinds, "typescript.public_api_type_reference")
 }
