@@ -23,8 +23,16 @@ var cHeaderPrototypePattern = regexp.MustCompile(
 	`(?m)(?:^|;)\s*(?:[A-Za-z_]\w*|const|static|extern|inline|\s|\*)+\s+([A-Za-z_]\w*)\s*\([^;{}]*\)\s*;`,
 )
 
+var cBlockCommentPattern = regexp.MustCompile(`(?s)/\*.*?\*/`)
+
+var cLineCommentPattern = regexp.MustCompile(`(?m)//.*$`)
+
 var cFunctionPointerTypedefPattern = regexp.MustCompile(
 	`(?s)\btypedef\b[^;]*\(\s*\*\s*([A-Za-z_]\w*)\s*\)\s*\([^;]*\)\s*;`,
+)
+
+var cDirectInitializerTargetPattern = regexp.MustCompile(
+	`=\s*&?\s*([A-Za-z_]\w*)\s*(?:[,;]|$)`,
 )
 
 type cRepoRootBounds struct {
@@ -214,16 +222,25 @@ func cDeclarationHasFunctionPointerTarget(left string, functionPointerTypedefs m
 	return false
 }
 
-func cDirectFunctionPointerInitializerTarget(text string) string {
-	initializer := strings.TrimSpace(text[strings.LastIndex(text, "=")+1:])
-	initializer = strings.TrimSuffix(initializer, ";")
-	initializer = strings.TrimSpace(initializer)
-	initializer = strings.TrimPrefix(initializer, "&")
-	initializer = strings.TrimSpace(initializer)
-	if !cIdentifierLike(initializer) {
-		return ""
+func cDirectFunctionPointerInitializerTargets(text string) []string {
+	matches := cDirectInitializerTargetPattern.FindAllStringSubmatch(text, -1)
+	targets := make([]string, 0, len(matches))
+	seen := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		if len(match) != 2 {
+			continue
+		}
+		target := strings.TrimSpace(match[1])
+		if target == "" || !cIdentifierLike(target) {
+			continue
+		}
+		if _, ok := seen[target]; ok {
+			continue
+		}
+		seen[target] = struct{}{}
+		targets = append(targets, target)
 	}
-	return initializer
+	return targets
 }
 
 func cStringVal(item map[string]any, key string) string {
@@ -232,7 +249,7 @@ func cStringVal(item map[string]any, key string) string {
 }
 
 func cHeaderPrototypeNames(source string) []string {
-	matches := cHeaderPrototypePattern.FindAllStringSubmatch(source, -1)
+	matches := cHeaderPrototypePattern.FindAllStringSubmatch(cStripCComments(source), -1)
 	names := make([]string, 0, len(matches))
 	seen := make(map[string]struct{}, len(matches))
 	for _, match := range matches {
@@ -253,6 +270,11 @@ func cHeaderPrototypeNames(source string) []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+func cStripCComments(source string) string {
+	source = cBlockCommentPattern.ReplaceAllString(source, "")
+	return cLineCommentPattern.ReplaceAllString(source, "")
 }
 
 func cHeaderPrototypeHasStaticStorage(prototype string) bool {
@@ -310,12 +332,10 @@ func annotateCFunctionPointerTargetRoot(
 	if !cDeclarationHasFunctionPointerTarget(left, functionPointerTypedefs) {
 		return
 	}
-	target := cDirectFunctionPointerInitializerTarget(text)
-	if target == "" {
-		return
-	}
-	for _, function := range functions[target] {
-		appendCDeadCodeRootKind(function, cFunctionPointerTargetRoot)
+	for _, target := range cDirectFunctionPointerInitializerTargets(text) {
+		for _, function := range functions[target] {
+			appendCDeadCodeRootKind(function, cFunctionPointerTargetRoot)
+		}
 	}
 }
 
@@ -328,15 +348,28 @@ func cCallArguments(node *tree_sitter.Node, source []byte) []string {
 	cursor := argumentsNode.Walk()
 	defer cursor.Close()
 	for _, child := range argumentsNode.NamedChildren(cursor) {
-		if child.Kind() != "identifier" {
+		value := cDirectIdentifierExpression(shared.NodeText(&child, source))
+		if value == "" {
 			continue
 		}
-		value := strings.TrimSpace(shared.NodeText(&child, source))
-		if value != "" {
-			arguments = append(arguments, value)
-		}
+		arguments = append(arguments, value)
 	}
 	return arguments
+}
+
+func cDirectIdentifierExpression(expression string) string {
+	value := strings.TrimSpace(expression)
+	value = strings.TrimPrefix(value, "&")
+	value = strings.TrimSpace(value)
+	for strings.HasPrefix(value, "(") && strings.HasSuffix(value, ")") {
+		value = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(value, "("), ")"))
+		value = strings.TrimPrefix(value, "&")
+		value = strings.TrimSpace(value)
+	}
+	if !cIdentifierLike(value) {
+		return ""
+	}
+	return value
 }
 
 func appendCDeadCodeRootKind(item map[string]any, rootKind string) {

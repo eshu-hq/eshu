@@ -23,8 +23,10 @@ symbol discovery, and AnnotatePublicHeaderRoots for the parent parser wrapper to
 mark functions declared by directly included local headers. The unexported
 `annotateCDeadCodeRoots` pass adds suppressive root metadata for C entrypoints,
 callbacks, signal handlers, and direct function-pointer initializer targets.
-Direct function-pointer initializer roots include bare and address-of targets
-for explicit pointer declarations and local typedef pointer aliases.
+Callback roots accept bare and address-of callback arguments. Direct
+function-pointer initializer roots include bare and address-of targets for
+explicit pointer declarations, multiple initializer declarations, and local
+typedef pointer aliases.
 
 ## Dependencies
 
@@ -43,9 +45,10 @@ C dead-code roots are parser metadata, not exact reachability proof. The package
 marks `main`, signal-handler arguments, callback argument targets, direct
 function-pointer initializer targets, and functions declared by directly
 included local headers. `static` header prototypes do not become public API
-roots, and include traversal outside the repository root is ignored. Macro
-expansion, conditional compilation, transitive include graphs, dynamic symbol
-lookup, and broad callback registries remain query-reported exactness blockers.
+roots, commented-out prototype text is ignored, and include traversal outside
+the repository root is ignored. Macro expansion, conditional compilation,
+transitive include graphs, dynamic symbol lookup, and broad callback registries
+remain query-reported exactness blockers.
 
 ## Related Docs
 

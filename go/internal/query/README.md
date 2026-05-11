@@ -133,11 +133,13 @@ Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
 payload names modeled root kinds in `modeled_framework_roots`, reports whether
 reflection evidence is modeled, and counts how many suppressions came from
-parser metadata. That lets MCP and CLI callers explain why a candidate was
-suppressed. Candidate reads remain label-scoped and are repo-anchored when the
-request supplies a repository id, then content-backed policy checks run before
-completed reducer code-call and inheritance intent rows are checked for incoming
-edges. Content-backed incoming-edge checks group candidates by repository before
+parser metadata. C root suppressions are tested through both graph-shaped rows
+and content-store metadata so the policy matches the normal hydrated read path.
+That lets MCP and CLI callers explain why a candidate was suppressed. Candidate
+reads remain label-scoped and are repo-anchored when the request supplies a
+repository id, then content-backed policy checks run before completed reducer
+code-call and inheritance intent rows are checked for incoming edges.
+Content-backed incoming-edge checks group candidates by repository before
 calling the relational read model so repo-optional scans do not ask one
 repository for another repository's entity ids. Exact one-entity graph probes
 are avoided: `deadCodeResultsWithGraphIncomingEdges` in

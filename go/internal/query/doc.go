@@ -66,7 +66,9 @@
 // fallback for SQL routine reachability, keeps a bounded scan window for small
 // result limits, and reports display truncation separately from bounded raw
 // candidate pages and rows so callers can tell whether the result list was
-// clipped or the candidate scan cap was reached.
+// clipped or the candidate scan cap was reached. C root suppressions are
+// honored from content-store metadata after hydration, which matches the normal
+// parser metadata path used by indexed repositories.
 // Infrastructure reads expose Terraform backend, import, moved, removed, check,
 // and lockfile-provider evidence as first-class entity types once parser and
 // projector support exists.
