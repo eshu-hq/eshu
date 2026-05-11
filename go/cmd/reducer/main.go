@@ -274,9 +274,10 @@ func buildReducerService(
 			postgres.PostgresTerraformBackendQuery{DB: database},
 		),
 		DriftEvidenceLoader: postgres.PostgresDriftEvidenceLoader{
-			DB:     database,
-			Tracer: tracer,
-			Logger: logger,
+			DB:               database,
+			Tracer:           tracer,
+			Logger:           logger,
+			PriorConfigDepth: parsePriorConfigDepth(getenv(driftPriorConfigDepthEnv), logger),
 		},
 		DriftLogger:         logger,
 	})
