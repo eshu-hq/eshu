@@ -174,12 +174,16 @@ tfstate_drift_counter_value() {
 	echo "$line" | awk '{print $NF}'
 }
 
-# Extract resolution-engine log lines that mention drift, dump them to $2.
-# Slog JSON output: caller filters with jq or grep.
+# Extract resolution-engine log lines specific to the drift handler, dump
+# them to $2. Slog JSON output; the filter matches only the two drift
+# handler message bodies plus the ambiguous-owner rejection class, so
+# unrelated reducer errors (e.g. semantic_entity_materialization Neo4j
+# constraint violations from bootstrap-index processing the ecosystem
+# fixture corpus) do not pollute the proof artifact.
 tfstate_drift_extract_drift_logs() {
 	local output_file="$1"
 	"${COMPOSE_CMD[@]}" logs --no-color resolution-engine 2>/dev/null \
-		| grep -E '"drift candidate (admitted|rejected)"|drift\.(pack|kind|address)|failure_class' \
+		| grep -E '"drift candidate (admitted|rejected)"|"failure_class":"ambiguous_backend_owner"' \
 		> "$output_file" \
 		|| true
 }
