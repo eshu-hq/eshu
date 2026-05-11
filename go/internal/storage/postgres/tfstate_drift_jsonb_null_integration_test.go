@@ -48,41 +48,58 @@ func openDriftJSONBNullDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// driftJSONBNullSeed installs the minimum schema plus one scope, one
-// generation, one parser fact carrying terraform_backends as jsonb null
-// (the row that triggered SQLSTATE 22023 under the original predicate
-// order), and one parser fact carrying a real backend array. The test
-// then exercises the SUT and asserts the bug-fixed query both succeeds
-// and returns only the well-formed row.
+// driftJSONBNullScopePrefix is the unique fact_id and scope_id prefix the
+// test writes; every row the test inserts is scoped under this prefix so
+// teardown can DELETE by prefix instead of TRUNCATEing the whole table.
+// Running these tests against an unintended DSN (someone's dev compose,
+// a shared staging DB) is therefore safe: at worst it leaks a handful of
+// rows under the unique prefix, which the next run will reclaim.
+const driftJSONBNullScopePrefix = "jsonb-null-repro"
+
+// driftJSONBNullSeed installs one scope and one generation under the
+// driftJSONBNullScopePrefix, then returns the canonical IDs the test
+// uses for its fact inserts. The test then exercises the SUT and asserts
+// the bug-fixed query both succeeds and returns only the well-formed row.
+//
+// Assumes the DSN points to a database that has already had
+// eshu-bootstrap-data-plane (db-migrate in compose) applied. The
+// workflow_control_integration_test in the same package follows the same
+// convention; running these tests against an un-migrated DB would fail
+// at the first INSERT, which is the desired loud failure for a
+// misconfigured environment.
 func driftJSONBNullSeed(t *testing.T, db *sql.DB) (string, string, time.Time) {
 	t.Helper()
 	ctx := context.Background()
 
-	// Assumes the DSN points to a database that has already had
-	// eshu-bootstrap-data-plane (db-migrate in compose) applied. The
-	// workflow_control_integration_test in the same package follows the
-	// same convention; running these tests against an un-migrated DB
-	// would fail at the first INSERT, which is the desired loud failure
-	// for a misconfigured environment.
-
-	scopeID := "repo_snapshot:jsonb-null-repro"
-	generationID := "gen:jsonb-null-repro"
+	scopeID := "repo_snapshot:" + driftJSONBNullScopePrefix
+	generationID := "gen:" + driftJSONBNullScopePrefix
 	observedAt := time.Date(2026, time.May, 11, 14, 30, 0, 0, time.UTC)
 
-	if _, err := db.ExecContext(ctx, `
-TRUNCATE fact_records, scope_generations, ingestion_scopes RESTART IDENTITY CASCADE
-`); err != nil {
-		t.Fatalf("TRUNCATE error = %v, want nil", err)
+	// Tear down any state a previous failed run may have left behind.
+	// Scoped to the test's own prefix; never TRUNCATEs shared tables.
+	// ON DELETE CASCADE on scope_generations -> ingestion_scopes and
+	// fact_records -> scope_generations means deleting the scope cascades
+	// to every row this test owns.
+	if _, err := db.ExecContext(ctx, `DELETE FROM ingestion_scopes WHERE scope_id = $1`, scopeID); err != nil {
+		t.Fatalf("delete prior scope error = %v, want nil", err)
 	}
+
+	t.Cleanup(func() {
+		// Best-effort cleanup so the next run starts clean even when this
+		// test panics. Same DELETE WHERE scope_id so we never touch rows
+		// the test does not own.
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM ingestion_scopes WHERE scope_id = $1`, scopeID)
+	})
 
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO ingestion_scopes
     (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key,
      observed_at, ingested_at, status, active_generation_id)
-VALUES ($1, 'repo_snapshot', 'git', 'jsonb-null-repro', 'git', 'jsonb-null-repro',
+VALUES ($1, 'repo_snapshot', 'git', $4, 'git', $4,
         $2, $2, 'active', $3)
 ON CONFLICT (scope_id) DO NOTHING
-`, scopeID, observedAt, generationID); err != nil {
+`, scopeID, observedAt, generationID, driftJSONBNullScopePrefix); err != nil {
 		t.Fatalf("insert ingestion_scopes error = %v, want nil", err)
 	}
 
