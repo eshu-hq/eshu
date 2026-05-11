@@ -133,7 +133,7 @@ LIMIT 1
 // terraform_resources entries. The loader decodes each row and unions the
 // canonical addresses into a set.
 //
-//nolint:unused // wired in tfstate_drift_evidence_prior_config.go (Task 3)
+//nolint:unused // consumed by loadPriorConfigAddresses; wired into LoadDriftEvidence (Task 4)
 const listPriorConfigAddressesQuery = `
 WITH prior_generations AS (
     SELECT generation_id
