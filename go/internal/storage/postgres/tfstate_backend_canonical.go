@@ -28,15 +28,17 @@ import (
 // Terraform repo, often zero. Without it the adapter decodes every HCL file
 // fact across every active repo.
 //
-// The array-length call is wrapped in a CASE expression so it is only
-// evaluated when jsonb_typeof reports 'array'. Postgres does NOT guarantee
-// short-circuit evaluation of AND predicates in a WHERE clause — the planner
-// may evaluate jsonb_array_length before the type guard, raising
-// "cannot get array length of a scalar" (SQLSTATE 22023) on rows where the
-// path is jsonb null or another scalar. CASE branch evaluation IS guaranteed
-// not to evaluate non-matching arms (PostgreSQL docs: "expressions in a CASE
-// expression are not evaluated unless required"), so the wrapper makes the
-// predicate safe regardless of payload shape upstream. Regression test:
+// The CASE expression provides both the type guard and the length filter
+// in one predicate. Postgres does NOT guarantee short-circuit evaluation
+// of AND predicates — the planner can evaluate jsonb_array_length before
+// any standalone jsonb_typeof guard, raising "cannot get array length of
+// a scalar" (SQLSTATE 22023) on rows whose path value is jsonb null or
+// any other scalar. CASE branch evaluation IS guaranteed not to evaluate
+// non-matching arms (PostgreSQL docs: "expressions in a CASE expression
+// are not evaluated unless required"), so the CASE alone safely emits 0
+// for non-array values and the real length for arrays. Adding a separate
+// `jsonb_typeof = 'array'` predicate next to this CASE would be redundant
+// and would re-evaluate the type check per row. Regression test:
 // TestPostgresTerraformBackendQuerySurvivesNullTerraformBackendsPath.
 const listTerraformBackendCanonicalRowsQuery = `
 SELECT
@@ -55,7 +57,6 @@ JOIN scope_generations AS generation
 WHERE fact.fact_kind = 'file'
   AND fact.source_system = 'git'
   AND generation.status = 'active'
-  AND jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
   AND CASE
         WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
         THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_backends')

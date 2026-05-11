@@ -74,15 +74,17 @@ type PostgresDriftEvidenceLoader struct {
 // at least one `resource "<type>" "<name>" {}` block. Without it the loader
 // scans every parsed file in the repo snapshot per drift intent.
 //
-// The array-length call is wrapped in a CASE so it is only evaluated when
-// jsonb_typeof reports 'array'. Postgres does NOT guarantee short-circuit
-// evaluation of AND predicates — the planner may evaluate
-// jsonb_array_length before the type guard, raising
-// "cannot get array length of a scalar" (SQLSTATE 22023) on rows whose
-// terraform_resources value is jsonb null or another scalar. CASE branches
-// are guaranteed not to evaluate unless their condition matches, so the
-// wrapper makes the predicate safe regardless of payload shape upstream.
-// Regression test:
+// The CASE expression provides both the type guard and the length filter
+// in one predicate. Postgres does NOT guarantee short-circuit evaluation
+// of AND predicates — the planner can evaluate jsonb_array_length before
+// any standalone jsonb_typeof guard, raising "cannot get array length of
+// a scalar" (SQLSTATE 22023) on rows whose terraform_resources value is
+// jsonb null or any other scalar. CASE branches are guaranteed not to
+// evaluate unless their condition matches (PostgreSQL docs), so the CASE
+// alone safely emits 0 for non-array values and the real length for
+// arrays. Adding a separate `jsonb_typeof = 'array'` predicate next to
+// this CASE would be redundant and would re-evaluate the type check per
+// row. Regression test:
 // TestPostgresDriftEvidenceLoaderSurvivesNullTerraformResourcesPath.
 const listConfigResourcesForCommitQuery = `
 SELECT
@@ -92,7 +94,6 @@ WHERE fact.scope_id = $1
   AND fact.generation_id = $2
   AND fact.fact_kind = 'file'
   AND fact.source_system = 'git'
-  AND jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_resources') = 'array'
   AND CASE
         WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_resources') = 'array'
         THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_resources')
