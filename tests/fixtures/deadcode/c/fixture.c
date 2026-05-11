@@ -1,5 +1,6 @@
 #include <signal.h>
 #include <stdio.h>
+#include "fixture.h"
 
 int unused_cleanup_candidate(void) {
     return 42;

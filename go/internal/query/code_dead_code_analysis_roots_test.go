@@ -122,6 +122,11 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 		"python.dunder_method",
 		"python.public_api_member",
 		"python.public_api_base",
+		"c.main_function",
+		"c.public_header_api",
+		"c.signal_handler",
+		"c.callback_argument_target",
+		"c.function_pointer_target",
 		"java.constructor",
 		"java.override_method",
 		"java.ant_task_setter",
@@ -193,6 +198,9 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	}
 	if !queryTestStringSliceContains(modeledPublicAPI, "rust.public_api_item") {
 		t.Fatalf("analysis[modeled_public_api] missing rust.public_api_item in %#v", modeledPublicAPI)
+	}
+	if !queryTestStringSliceContains(modeledPublicAPI, "c.public_header_api") {
+		t.Fatalf("analysis[modeled_public_api] missing c.public_header_api in %#v", modeledPublicAPI)
 	}
 	if got, want := analysis["framework_roots_from_parser_metadata"], float64(0); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)

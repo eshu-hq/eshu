@@ -65,7 +65,9 @@ Express/Koa/Fastify/NestJS callback root, Node migration export, TypeScript
 module-contract export, TypeScript public method on a class that declares
 `implements`, or TypeScript package public API surface proven through a
 nearest-package `exports` or `types` target and bounded static re-export
-barrels.
+barrels. C adapters mark `main`, functions declared by directly included local
+headers, signal-handler arguments, callback argument targets, and direct
+function-pointer initializer targets without scanning every repository header.
 Java adapters mark `main` methods, constructors, `@Override` methods, public
 Ant `Task` setters, Gradle plugin `apply` methods, Gradle task actions and
 properties, Gradle task setters and task-interface methods, public Gradle DSL

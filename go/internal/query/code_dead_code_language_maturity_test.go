@@ -59,6 +59,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 	}
 
 	for language, want := range map[string]string{
+		"c":          "derived",
 		"go":         "derived",
 		"python":     "derived",
 		"javascript": "derived",
@@ -105,6 +106,51 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		if !queryTestStringSliceContains(sqlBlockers, want) {
 			t.Fatalf("blockers[sql] missing %q in %#v", want, sqlBlockers)
 		}
+	}
+	cBlockers, ok := blockers["c"].([]any)
+	if !ok {
+		t.Fatalf("blockers[c] type = %T, want []any", blockers["c"])
+	}
+	for _, want := range []string{
+		"preprocessor_macro_expansion_unavailable",
+		"conditional_compilation_unresolved",
+		"build_target_resolution_unavailable",
+		"include_graph_resolution_unavailable",
+		"public_header_surface_unresolved",
+		"function_pointer_dispatch_unresolved",
+		"callback_registration_unresolved",
+		"dynamic_symbol_lookup_unresolved",
+		"external_linkage_resolution_unavailable",
+	} {
+		if !queryTestStringSliceContains(cBlockers, want) {
+			t.Fatalf("blockers[c] missing %q in %#v", want, cBlockers)
+		}
+	}
+}
+
+func TestBuildDeadCodeAnalysisReportsObservedCExactnessBlockersFromGraphMetadata(t *testing.T) {
+	t.Parallel()
+
+	analysis := buildDeadCodeAnalysis([]map[string]any{
+		{
+			"entity_id": "c-dynamic-helper",
+			"language":  "c",
+			"metadata": map[string]any{
+				"exactness_blockers": []any{
+					"dynamic_symbol_lookup_unresolved",
+					"function_pointer_dispatch_unresolved",
+					"dynamic_symbol_lookup_unresolved",
+				},
+			},
+		},
+	}, nil, deadCodePolicyStats{})
+
+	observed, ok := analysis["dead_code_observed_exactness_blockers"].(map[string][]string)
+	if !ok {
+		t.Fatalf("analysis[dead_code_observed_exactness_blockers] type = %T, want map[string][]string", analysis["dead_code_observed_exactness_blockers"])
+	}
+	if got, want := observed["c"], []string{"dynamic_symbol_lookup_unresolved", "function_pointer_dispatch_unresolved"}; !equalStringSlices(got, want) {
+		t.Fatalf("observed[c] = %#v, want %#v", got, want)
 	}
 }
 

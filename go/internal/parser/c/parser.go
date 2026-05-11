@@ -69,6 +69,7 @@ func Parse(
 		}
 	})
 	appendCTypedefAliasesFromSource(payload, string(source), "c")
+	annotateCDeadCodeRoots(payload, root, source)
 
 	sortSystemsPayload(
 		payload,

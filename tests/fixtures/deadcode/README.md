@@ -38,7 +38,7 @@ Each language fixture must include:
 
 | Language | Fixture status | Initial maturity | Required focus |
 | --- | --- | --- | --- |
-| C | planned | `derived_candidate_only` | entrypoints, exported headers, function pointers |
+| C | active | `derived` | transitive include graphs, build-target conditionals, broader callback registries |
 | C# | planned | `derived_candidate_only` | public types, interface methods, attributes, ASP.NET roots |
 | C++ | planned | `derived_candidate_only` | entrypoints, exported headers, virtual dispatch, function pointers |
 | Dart | planned | `derived_candidate_only` | public libraries, Flutter callbacks, constructors |

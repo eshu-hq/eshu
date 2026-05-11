@@ -11,7 +11,7 @@ const (
 )
 
 var deadCodeLanguageMaturity = map[string]string{
-	"c":          deadCodeMaturityDerivedCandidate,
+	"c":          deadCodeMaturityDerived,
 	"c_sharp":    deadCodeMaturityDerivedCandidate,
 	"cpp":        deadCodeMaturityDerivedCandidate,
 	"dart":       deadCodeMaturityDerivedCandidate,
@@ -35,6 +35,17 @@ var deadCodeLanguageMaturity = map[string]string{
 }
 
 var deadCodeLanguageExactnessBlockers = map[string][]string{
+	"c": {
+		"preprocessor_macro_expansion_unavailable",
+		"conditional_compilation_unresolved",
+		"build_target_resolution_unavailable",
+		"include_graph_resolution_unavailable",
+		"public_header_surface_unresolved",
+		"function_pointer_dispatch_unresolved",
+		"callback_registration_unresolved",
+		"dynamic_symbol_lookup_unresolved",
+		"external_linkage_resolution_unavailable",
+	},
 	"rust": {
 		"macro_expansion_unavailable",
 		"cfg_unresolved",

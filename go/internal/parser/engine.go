@@ -276,7 +276,7 @@ func (e *Engine) parseDefinition(
 ) (map[string]any, error) {
 	switch definition.Language {
 	case "c":
-		return e.parseC(resolvedPath, isDependency, options)
+		return e.parseC(repoRoot, resolvedPath, isDependency, options)
 	case "c_sharp":
 		return e.parseCSharp(resolvedPath, isDependency, options)
 	case "cpp":

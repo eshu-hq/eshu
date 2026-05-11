@@ -25,15 +25,20 @@
 // Cargo entrypoint, build-script, unit-test, Tokio runtime/test, public API,
 // benchmark, trait-implementation method, path-attribute module, direct module
 // resolution, macro-declaration, conditional-derive, nested-annotation, and
-// where-clause evidence. Rust now shares the derived dead-code maturity tier
-// with Go and Java while exact Rust cleanup remains gated on broader semantic
-// resolution. Rust Cargo auxiliary target files under benches/ and examples/
+// where-clause evidence, plus C main, directly included public-header,
+// signal-handler, callback-argument, and function-pointer roots. C and Rust now
+// share the derived dead-code maturity tier with Go and Java while exact cleanup
+// remains gated on broader semantic resolution. Rust Cargo auxiliary target
+// files under benches/ and examples/
 // are treated like non-production roots for cleanup analysis. Rust exactness
 // blockers are reported in the analysis payload for
 // unresolved macro expansion, cfg and Cargo feature selection, semantic module
 // resolution, and trait dispatch, with observed blocker reporting for returned
-// candidates that carry parser metadata, and candidates with observed blockers
-// classify as ambiguous instead of cleanup-ready unused. SQL SqlFunction
+// candidates that carry parser metadata. C exactness blockers for macro
+// expansion, conditional compilation, build target selection, include graphs,
+// callback registration, dynamic symbol lookup, and external linkage are
+// reported the same way, and candidates with observed blockers classify as
+// ambiguous instead of cleanup-ready unused. SQL SqlFunction
 // routines are scanned as derived candidates, SQL dynamic/routine/migration
 // blockers are reported, and batched exact graph incoming probes let
 // reducer-written SQL EXECUTES edges protect trigger-bound routines. The

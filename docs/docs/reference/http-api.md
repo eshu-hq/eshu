@@ -578,14 +578,14 @@ Example dead-code workflow:
 ```json
 {
   "repo_id": "payments",
-  "language": "go",
+  "language": "c",
   "limit": 200,
   "exclude_decorated_with": ["@route", "@app.route"]
 }
 ```
 
 `repo_id` is optional. `language` is optional; pass it when validating one
-parser language family such as `sql`, `go`, `python`, `java`, `javascript`,
+parser language family such as `c`, `sql`, `go`, `python`, `java`, `javascript`,
 `typescript`, `tsx`, or `rust`. For SQL, the language filter narrows the
 candidate scan to `SqlFunction` routines so mixed repositories with many
 application functions do not starve SQL routine evidence. When `repo_id` is
@@ -600,11 +600,16 @@ response is intentionally `derived`, not `exact`, until the broader framework,
 public-API, reflection, and user-configured root registry from the
 reachability spec is implemented. The response body now also includes an
 `analysis` object that reports the root categories currently modeled, the
-specific Go framework-root signatures currently recognized, the per-language
+specific framework-root signatures currently recognized, the per-language
 dead-code maturity table, named exactness blockers for non-exact languages such
-as Rust, observed exactness blockers carried by returned candidates, and whether
-tests/generated code were excluded. Returned candidates with observed exactness
-blockers classify as `ambiguous`, not cleanup-ready `unused`.
+as C and Rust, observed exactness blockers carried by returned candidates, and
+whether tests/generated code were excluded. Returned candidates with observed
+exactness blockers classify as `ambiguous`, not cleanup-ready `unused`. C
+dead-code results are `derived`: parser metadata suppresses `main`, directly
+included public-header declarations, signal handlers, callback arguments, and
+direct function-pointer initializer targets, while macro expansion, conditional
+compilation, transitive include graphs, and dynamic symbol lookup remain named
+exactness blockers.
 `analysis.roots_skipped_missing_source`
 counts Go candidates where the framework-root checks could not run because the
 content store did not have source cached. `analysis.framework_roots_from_parser_metadata`

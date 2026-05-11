@@ -80,7 +80,9 @@ roots, module-contract exports, and TypeScript interface implementation methods.
 It also suppresses parser-proven Python FastAPI, Flask, Celery,
 Click, Typer, AWS Lambda handler, dataclass, post-init, property, dunder
 protocol, `__all__`, package `__init__.py`, public API base, and public API
-member roots, Python `if __name__ == "__main__"` script-main guards, and
+member roots, Python `if __name__ == "__main__"` script-main guards, C `main`,
+directly included public-header declarations, signal handlers, callback
+argument targets, and direct function-pointer initializer targets, and
 Java `main`, constructor, `@Override`, Ant `Task` setter, Gradle plugin
 `apply`, task action/property, task setter, task-interface method, public Gradle
 DSL, same-class method-reference target roots, Spring component and callback
@@ -103,7 +105,9 @@ than production cleanup candidates; the same root kinds appear in
 `modeled_framework_roots` so callers can explain the suppression. The analysis
 payload also exposes `dead_code_language_exactness_blockers`, with Rust blockers
 for unresolved macro expansion, cfg/Cargo feature selection, semantic module
-resolution, and trait dispatch, plus SQL blockers for dynamic SQL,
+resolution, and trait dispatch, C blockers for macro expansion, conditional
+compilation, build targets, include graphs, callback registration, dynamic
+symbol lookup, and external linkage, plus SQL blockers for dynamic SQL,
 dialect-specific routine resolution, and migration-order resolution. SQL
 `SqlFunction` routines participate in the derived candidate scan, and the query
 policy uses a batched exact graph incoming probe so reducer-written `EXECUTES`
