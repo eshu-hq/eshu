@@ -8,7 +8,9 @@
 // handler behavior, OpenAPI fragments, and docs/docs/reference/http-api.md
 // must agree whenever public routes or response shapes change. Response
 // envelopes, truth metadata, capability gates, and code-quality classifications
-// are stable wire contracts. Dead-code responses preserve language maturity,
+// are stable wire contracts. The dead-code OpenAPI fragment names modeled
+// language roots and keeps the language filter examples aligned with C and SQL
+// query behavior. Dead-code responses preserve language maturity,
 // modeled framework-root lists, and root-kind evidence for functions and types
 // so callers can separate cleanup candidates from modeled roots; TypeScript
 // public API export, public API re-export, public type-reference, interface
@@ -25,15 +27,21 @@
 // Cargo entrypoint, build-script, unit-test, Tokio runtime/test, public API,
 // benchmark, trait-implementation method, path-attribute module, direct module
 // resolution, macro-declaration, conditional-derive, nested-annotation, and
-// where-clause evidence. Rust now shares the derived dead-code maturity tier
-// with Go and Java while exact Rust cleanup remains gated on broader semantic
-// resolution. Rust Cargo auxiliary target files under benches/ and examples/
+// where-clause evidence, plus C c.main_function, c.public_header_api,
+// c.signal_handler, c.callback_argument_target, and c.function_pointer_target
+// roots. C and Rust now share the derived dead-code maturity tier with Go and
+// Java while exact cleanup remains gated on broader semantic resolution. Rust
+// Cargo auxiliary target
+// files under benches/ and examples/
 // are treated like non-production roots for cleanup analysis. Rust exactness
 // blockers are reported in the analysis payload for
 // unresolved macro expansion, cfg and Cargo feature selection, semantic module
 // resolution, and trait dispatch, with observed blocker reporting for returned
-// candidates that carry parser metadata, and candidates with observed blockers
-// classify as ambiguous instead of cleanup-ready unused. SQL SqlFunction
+// candidates that carry parser metadata. C exactness blockers for macro
+// expansion, conditional compilation, build target selection, include graphs,
+// callback registration, dynamic symbol lookup, and external linkage are
+// reported the same way, and candidates with observed blockers classify as
+// ambiguous instead of cleanup-ready unused. SQL SqlFunction
 // routines are scanned as derived candidates, SQL dynamic/routine/migration
 // blockers are reported, and batched exact graph incoming probes let
 // reducer-written SQL EXECUTES edges protect trigger-bound routines. The
@@ -59,7 +67,9 @@
 // fallback for SQL routine reachability, keeps a bounded scan window for small
 // result limits, and reports display truncation separately from bounded raw
 // candidate pages and rows so callers can tell whether the result list was
-// clipped or the candidate scan cap was reached.
+// clipped or the candidate scan cap was reached. C root suppressions are
+// honored from content-store metadata after hydration, which matches the normal
+// parser metadata path used by indexed repositories.
 // Infrastructure reads expose Terraform backend, import, moved, removed, check,
 // and lockfile-provider evidence as first-class entity types once parser and
 // projector support exists.

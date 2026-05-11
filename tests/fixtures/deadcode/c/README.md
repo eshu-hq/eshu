@@ -1,6 +1,10 @@
 # C Dead-Code Fixture Intent
 
-Maturity: `derived_candidate_only`.
+Maturity: `derived`.
+
+The public API case is declared in `fixture.h` and included by `fixture.c` so
+the parser can prove the root without treating every non-static function as
+public.
 
 Expected symbols:
 

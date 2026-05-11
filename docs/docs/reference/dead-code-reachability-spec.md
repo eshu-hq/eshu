@@ -154,8 +154,8 @@ can still be `derived_candidate_only` for dead-code cleanup until it has a
 dead-code fixture suite, root model, reachability proof, and API/MCP evidence.
 The initial maturity states are:
 
-- `derived`: current Go, Python, Java, JavaScript, TypeScript, TSX, Rust, and
-  SQL candidate scans with partial root modeling
+- `derived`: current C, Go, Python, Java, JavaScript, TypeScript, TSX, Rust,
+  and SQL candidate scans with partial root modeling
 - `derived_candidate_only`: parser-supported source languages where Eshu can
   return graph-backed candidates but has not implemented enough language roots
   and fixtures for cleanup-safe answers
@@ -177,6 +177,13 @@ protected when reducer materialization creates trigger-to-function `EXECUTES`
 edges from parsed `sql_relationships`. SQL remains non-exact until dynamic SQL,
 dialect-specific routine resolution, and migration-order resolution are modeled
 or scoped out.
+
+C currently reports `derived` with parser-backed roots for `main`, functions
+declared by directly included local headers, signal handlers, callback
+arguments, and direct function-pointer initializer targets. It remains non-exact
+until macro expansion, conditional compilation, build-target selection,
+transitive include graphs, broader callback registration, dynamic symbol lookup,
+and external-linkage resolution are modeled or scoped out.
 
 The current `code_quality.dead_code` capability is code-call oriented. It must
 not classify Terraform, Helm, Kustomize, Kubernetes, ArgoCD, or other IaC
@@ -259,6 +266,9 @@ Current branch status:
 - TypeScript public methods on classes that declare `implements` are modeled as
   interface implementation method roots; private and protected class helpers
   remain candidates unless another root or incoming edge reaches them
+- C main functions, directly included public-header declarations, signal
+  handlers, callback arguments, and direct function-pointer initializer targets
+  are modeled as parser-backed roots
 - Java main methods, constructors, overrides, Spring/JUnit/Jenkins/Stapler
   callbacks, Gradle plugin/task surfaces, serialization and Externalizable
   hook signatures, bounded literal reflection, ServiceLoader providers, Spring
@@ -274,7 +284,9 @@ Current branch status:
   roots are also emitted as parser-backed `dead_code_root_kinds`; Java metadata
   and literal reflection evidence now materializes as `REFERENCES` edges; Go
   query-time source heuristics remain as a fallback while broader registry
-  coverage lands; Rust Cargo entrypoints, tests, Tokio runtime/test functions,
+  coverage lands; C parser roots cover bounded entrypoint, header, and callback
+  evidence without scanning every repository header; Rust Cargo entrypoints,
+  tests, Tokio runtime/test functions,
   exact `pub` public API items, Criterion benchmark functions, direct trait impl
   methods, Cargo auxiliary-target exclusions, conditional derive evidence,
   nested annotations, structured where-clause evidence, path-attribute modules,
@@ -288,9 +300,11 @@ Current branch status:
   roots plus broader
   JavaScript/TypeScript worker, static module graph, and dynamic-dispatch roots
   plus broader Java dynamic dispatch, dependency injection, and string-built
-  reflection plus arbitrary Rust macro expansion, cfg/Cargo feature solving,
-  cross-crate semantic module resolution, broad trait dispatch, dynamic SQL,
-  dialect-specific routine resolution, and SQL migration-order resolution
+  reflection plus C macro expansion, conditional compilation, transitive include
+  graphs, dynamic symbol lookup, and broader callback registries plus arbitrary
+  Rust macro expansion, cfg/Cargo feature solving, cross-crate semantic module
+  resolution, broad trait dispatch, dynamic SQL, dialect-specific routine
+  resolution, and SQL migration-order resolution
   remain open, so dead-code truth stays `derived`
 
 Initial MVP is explicitly limited to those families. Other parser-supported

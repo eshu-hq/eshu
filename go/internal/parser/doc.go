@@ -26,7 +26,10 @@
 // JavaBean-style public Ant Task setter roots, Gradle plugin apply roots,
 // Gradle task action/property roots, Gradle task setter and task-interface
 // roots, public Gradle DSL method roots, and same-class method-reference target
-// roots. Java roots also include Spring component/configuration-property
+// roots. C roots include main functions, directly included public-header
+// declarations, signal handlers, callback argument targets, and direct
+// function-pointer initializer targets. Java roots also include Spring
+// component/configuration-property
 // classes, Spring request/bean/event/scheduled methods, Java lifecycle
 // callbacks, JUnit test and lifecycle methods, Jenkins extension/symbol/
 // initializer/data-bound setter methods, Stapler web methods, and serialization
