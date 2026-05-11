@@ -203,6 +203,7 @@ to tune high-cardinality entity volume from measured label summaries.
 | `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | canonical entity rows | Limits rows inside normal entity upsert statements before label-specific caps apply. |
 | `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | `Function=15,K8sResource=1,Struct=50,Variable=100` | canonical entity rows | Overrides row caps for specific canonical labels, for example `Function=15,Variable=100`. |
 | `ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS` | `Function=5,K8sResource=1,Struct=15,Variable=5` | canonical entity grouping | Overrides grouped-statement caps for specific canonical labels. |
+| `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU` clamped to `4` | canonical `entities` and `entity_containment` phases | Number of grouped chunks that can run in parallel through the NornicDB phase-group executor for entity phases. Canonical entity MERGE keys are disjoint per label so chunks are safe to dispatch concurrently. Set to `1` to keep the prior serial loop. Values are clamped to `16` to bound peak Bolt session demand. |
 
 Two knobs often look similar but are different:
 
@@ -222,6 +223,16 @@ Variable statement can carry up to `100` rows, and a grouped execution can
 carry roughly `500` Variable rows. Increasing the grouped-statement cap to `25`
 would push that pressure toward `2,500` rows per grouped execution, even though
 the row-batch knob still says `Variable=100`.
+
+`ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` is a different axis. Where the
+batch and grouped-statement knobs control how much data goes into one Bolt
+transaction, this knob controls how many such transactions run in parallel
+for the entity phases. Peak Bolt session demand for the entity path is
+approximately `ESHU_PROJECTOR_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`,
+so leave the env unset for the default cap of `4` (matching the postgres
+`ContentWriter` ladder) unless a measured run shows the canonical entity
+phase as the wall-clock bottleneck and NornicDB has headroom for more
+concurrent commits.
 
 Use the timeout summary and `nornicdb entity label summary` logs to decide
 which dimension failed.

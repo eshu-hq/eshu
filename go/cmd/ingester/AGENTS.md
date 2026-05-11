@@ -103,6 +103,16 @@
   conformance** — this flag is gated on the fixed rollback binary and a full
   conformance pass. Using it prematurely can produce partial writes.
 
+- **Raising ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY without measuring NornicDB
+  commit headroom** — the parallel chunk dispatcher in
+  `wiring_nornicdb_phase_group_concurrent.go` is bounded to 16 for a reason:
+  each worker holds one Bolt session against NornicDB while a grouped chunk
+  runs, so peak Bolt session demand is
+  `ESHU_PROJECTOR_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`.
+  Raise the knob only after a focused run names the canonical entities
+  phase as the wall-clock bottleneck and NornicDB structured logs show
+  no contention on parallel commits.
+
 ## What NOT to change without an ADR
 
 - `AfterBatchDrained` call order (`BackfillAllRelationshipEvidence` before

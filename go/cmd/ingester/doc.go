@@ -13,7 +13,11 @@
 // configured; NornicDB phase grouping keeps canonical retractions outside
 // matching upsert groups, directory/file writes stay in separate bounded
 // phases, and entity containment is batched into row-scoped entity upserts
-// unless explicitly disabled for fallback comparison. It is the only
+// unless explicitly disabled for fallback comparison. The NornicDB
+// canonical entity phases additionally dispatch grouped chunks across a
+// bounded worker pool sized by ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY;
+// chunks inside one entity label MERGE on disjoint entity_id keys so the
+// parallel path is safe. It is the only
 // long-running runtime that mounts the
 // workspace PVC in Kubernetes, runs as
 // a StatefulSet, and shuts down cleanly on SIGINT or SIGTERM.
