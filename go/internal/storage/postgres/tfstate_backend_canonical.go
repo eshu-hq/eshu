@@ -22,11 +22,24 @@ import (
 //
 // The HCL parser's base payload (parser.go:110) always emits an empty
 // terraform_backends array for every parsed file, so jsonb_typeof alone does
-// NOT prune the scan. jsonb_array_length > 0 is the load-bearing predicate:
+// NOT prune the scan. The array-length filter is the load-bearing predicate:
 // it restricts the row set to files that actually contain a
 // `terraform { backend "<kind>" {} }` block — typically one or two files per
-// Terraform repo, often zero. Without this filter the adapter decodes every
-// HCL file fact across every active repo.
+// Terraform repo, often zero. Without it the adapter decodes every HCL file
+// fact across every active repo.
+//
+// The CASE expression provides both the type guard and the length filter
+// in one predicate. Postgres does NOT guarantee short-circuit evaluation
+// of AND predicates — the planner can evaluate jsonb_array_length before
+// any standalone jsonb_typeof guard, raising "cannot get array length of
+// a scalar" (SQLSTATE 22023) on rows whose path value is jsonb null or
+// any other scalar. CASE branch evaluation IS guaranteed not to evaluate
+// non-matching arms (PostgreSQL docs: "expressions in a CASE expression
+// are not evaluated unless required"), so the CASE alone safely emits 0
+// for non-array values and the real length for arrays. Adding a separate
+// `jsonb_typeof = 'array'` predicate next to this CASE would be redundant
+// and would re-evaluate the type check per row. Regression test:
+// TestPostgresTerraformBackendQuerySurvivesNullTerraformBackendsPath.
 const listTerraformBackendCanonicalRowsQuery = `
 SELECT
     fact.payload->>'repo_id'                                  AS repo_id,
@@ -44,8 +57,11 @@ JOIN scope_generations AS generation
 WHERE fact.fact_kind = 'file'
   AND fact.source_system = 'git'
   AND generation.status = 'active'
-  AND jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
-  AND jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_backends') > 0
+  AND CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_backends')
+        ELSE 0
+      END > 0
 ORDER BY fact.payload->>'repo_id' ASC, fact.observed_at ASC, fact.fact_id ASC
 `
 

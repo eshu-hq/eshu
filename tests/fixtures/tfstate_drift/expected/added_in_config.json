@@ -1,0 +1,19 @@
+{
+  "scenario": "added_in_config",
+  "scope_id": "state_snapshot:s3:ac3219927f950b4a0a57e415168765f0c49fccaa862b32e0906cacc29548eb66",
+  "expected_counter_deltas": {
+    "eshu_dp_correlation_rule_matches_total{pack=\"terraform_config_state_drift\"}": "+1 or more (engine emits per RuleKindMatch rule)",
+    "eshu_dp_correlation_drift_detected_total{pack=\"terraform_config_state_drift\",drift_kind=\"added_in_config\"}": "+1"
+  },
+  "expected_log": {
+    "level": "INFO",
+    "msg": "drift candidate admitted",
+    "fields": {
+      "domain": "config_state_drift",
+      "scope_id": "state_snapshot:s3:ac3219927f950b4a0a57e415168765f0c49fccaa862b32e0906cacc29548eb66",
+      "drift.pack": "terraform_config_state_drift",
+      "drift.kind": "added_in_config",
+      "drift.address": "aws_s3_bucket.declared"
+    }
+  }
+}
