@@ -289,49 +289,6 @@ func (l PostgresDriftEvidenceLoader) logDecodeFailure(ctx context.Context, scope
 	)
 }
 
-// stateRowFromCollectorPayload decodes one terraform_state_resource fact
-// payload into a ResourceRow. The collector emits classified attributes as a
-// map[string]any (resources.go:173-181); we flatten the top-level keys into a
-// map[string]string so the classifier's attribute-drift dispatch can compare
-// them against allowlisted attribute paths. Nested structure is intentionally
-// dropped — the allowlist is path-keyed, but until the config side carries
-// attributes there is no value to compare against, so the lossy flattening
-// does not change runtime behavior.
-//
-// Returns (nil, false) when the address is blank or the payload fails to
-// decode. The caller surfaces decode failures via logDecodeFailure;
-// successful decodes with an empty address are a parser invariant violation
-// and intentionally silent (they cannot become drift candidates).
-func stateRowFromCollectorPayload(address string, payload []byte, lineageRotation bool) (*tfconfigstate.ResourceRow, bool) {
-	address = strings.TrimSpace(address)
-	if address == "" {
-		return nil, false
-	}
-	var decoded struct {
-		Address    string         `json:"address"`
-		Type       string         `json:"type"`
-		Attributes map[string]any `json:"attributes"`
-	}
-	if len(payload) > 0 {
-		if err := json.Unmarshal(payload, &decoded); err != nil {
-			return nil, false
-		}
-	}
-	row := &tfconfigstate.ResourceRow{
-		Address:         address,
-		ResourceType:    strings.TrimSpace(decoded.Type),
-		LineageRotation: lineageRotation,
-	}
-	if len(decoded.Attributes) > 0 {
-		flat := make(map[string]string, len(decoded.Attributes))
-		for key, value := range decoded.Attributes {
-			flat[key] = coerceJSONString(value)
-		}
-		row.Attributes = flat
-	}
-	return row, true
-}
-
 // mergeDriftRows unions the address keyspaces of config, state, and prior and
 // emits one AddressedRow per address that appears in any source. Aligned
 // addresses (config and state both present with identical Attributes, no
@@ -404,12 +361,36 @@ func decodeJSONArray(raw []byte, label string) ([]map[string]any, error) {
 	return entries, nil
 }
 
-// coerceJSONString coerces a JSON value into a flat string. Numeric, bool,
-// and null values produce their fmt.Sprint form so the classifier's
-// attribute-drift comparison stays type-stable across config and state
-// sources. Nested structures collapse to fmt.Sprint output, which is lossy
-// for nested attribute drift; this matches the v1 contract (the attribute
-// allowlist is path-keyed and operates on top-level keys only).
+// coerceJSONString formats one leaf JSON value into the canonical drift-
+// comparison string. flattenStateAttributes owns recursion into nested maps
+// and singleton-array-wrapped repeated blocks (see
+// tfstate_drift_evidence_state_row.go); coerceJSONString operates on the
+// leaves it produces and must stay byte-identical to the parser-side
+// ctyValueToDriftString output
+// (go/internal/parser/hcl/terraform_resource_attributes.go) so the classifier's
+// value-equality check at
+// go/internal/correlation/drift/tfconfigstate/classify.go:171 fires
+// deterministically across both sides.
+//
+// Encoding contract per leaf type:
+//   - nil          → ""
+//   - string       → identity
+//   - bool         → "true" / "false" (NEVER "cty.True" or other Go-formatted forms)
+//   - default      → fmt.Sprint(value)
+//
+// The default branch covers numeric leaves decoded from JSON as float64.
+// fmt.Sprint(float64) renders integers as their decimal form for values below
+// ~1e6 but switches to scientific notation ("1e+06", "1e+07", …) at or above
+// 1e6. The parser side encodes integers with strconv.FormatInt, which is
+// always decimal. The encodings diverge above the 1e6 threshold.
+//
+// Safe for all v1 allowlist numeric attributes (aws_lambda_function.memory_size
+// up to 10240, aws_lambda_function.timeout up to 900, aws_db_instance numeric
+// versions). Any new numeric allowlist entry whose real-world values could
+// reach 1e6 (e.g. aws_cloudwatch_log_group.retention_in_days at multi-year
+// retention, large disk sizes in bytes) needs a regression test AND a
+// coordinated change here — switching the default branch to a numeric-aware
+// formatter that produces decimal output.
 func coerceJSONString(value any) string {
 	switch v := value.(type) {
 	case nil:
