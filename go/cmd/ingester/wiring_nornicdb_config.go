@@ -128,6 +128,7 @@ func canonicalExecutorForGraphBackend(
 	nornicDBFilePhaseStatements int,
 	nornicDBEntityPhaseStatements int,
 	nornicDBEntityLabelPhaseStatements map[string]int,
+	nornicDBEntityPhaseConcurrency int,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) sourcecypher.Executor {
@@ -155,6 +156,7 @@ func canonicalExecutorForGraphBackend(
 			fileMaxStatements:        nornicDBFilePhaseStatements,
 			entityMaxStatements:      nornicDBEntityPhaseStatements,
 			entityLabelMaxStatements: nornicDBEntityLabelPhaseStatements,
+			entityPhaseConcurrency:   nornicDBEntityPhaseConcurrency,
 		}
 	}
 	return instrumented

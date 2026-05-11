@@ -16,6 +16,14 @@ type nornicDBPhaseGroupExecutor struct {
 	fileMaxStatements        int
 	entityMaxStatements      int
 	entityLabelMaxStatements map[string]int
+	// entityPhaseConcurrency caps how many canonical entity-phase grouped
+	// chunks may run in parallel against the inner GroupExecutor. A value
+	// of zero or one keeps the existing serial chunk loop so callers without
+	// an opt-in see no behavior change. Cross-chunk safety inside an entity
+	// label rests on disjoint entity_id MERGE keys plus the file_path
+	// MATCH-only contract; see executeGroupedChunksConcurrentlyObserved for
+	// the full safety argument.
+	entityPhaseConcurrency int
 }
 
 func (e nornicDBPhaseGroupExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
@@ -80,11 +88,12 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 		if len(grouped) == 0 {
 			return nil
 		}
-		err := e.executeGroupedChunksObserved(
+		err := e.executeGroupedChunksConcurrentlyObserved(
 			ctx,
 			ge,
 			grouped,
 			e.phaseGroupStatementLimit(grouped),
+			e.entityPhaseConcurrency,
 			func(chunk []sourcecypher.Statement, chunkDuration time.Duration) {
 				label := entityStatementLabel(chunk[0])
 				stats := ensureEntityPhaseLabelStats(labelStats, phase, label, chunk[0])
@@ -159,7 +168,7 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 		if groupedLabel == "" {
 			groupedLabel = stmtLabel
 		}
-		if len(grouped) >= e.phaseGroupStatementLimit(grouped) {
+		if len(grouped) >= e.entityFlushTrigger(grouped) {
 			if err := flushGrouped(); err != nil {
 				return err
 			}

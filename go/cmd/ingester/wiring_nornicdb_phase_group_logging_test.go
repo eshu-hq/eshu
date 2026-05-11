@@ -293,6 +293,7 @@ func TestCanonicalExecutorForGraphBackendAllowsNornicDBGroupedWhenConformanceEna
 		defaultNornicDBFilePhaseStatements,
 		defaultNornicDBEntityPhaseStatements,
 		nil,
+		0,
 		nil,
 		nil,
 	)
@@ -323,6 +324,7 @@ func TestCanonicalExecutorForGraphBackendNornicDBGroupedFullStackReachesRawExecu
 		defaultNornicDBFilePhaseStatements,
 		defaultNornicDBEntityPhaseStatements,
 		nil,
+		0,
 		nil,
 		nil,
 	)
@@ -356,6 +358,7 @@ func TestCanonicalExecutorForGraphBackendNornicDBDefaultFullStackUsesPhaseGroups
 		defaultNornicDBFilePhaseStatements,
 		defaultNornicDBEntityPhaseStatements,
 		nil,
+		0,
 		nil,
 		nil,
 	)
@@ -389,6 +392,7 @@ func TestNornicDBBatchedEntityContainmentFullStackUsesCrossFileBatchedEntityRows
 		defaultNornicDBFilePhaseStatements,
 		defaultNornicDBEntityPhaseStatements,
 		nil,
+		0,
 		nil,
 		nil,
 	)

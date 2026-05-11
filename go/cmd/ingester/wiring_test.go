@@ -425,6 +425,7 @@ func TestCanonicalExecutorForGraphBackendKeepsNeo4jGrouped(t *testing.T) {
 		defaultNornicDBFilePhaseStatements,
 		defaultNornicDBEntityPhaseStatements,
 		nil,
+		0,
 		nil,
 		nil,
 	)
@@ -446,6 +447,7 @@ func TestCanonicalExecutorForGraphBackendUsesNornicDBPhaseGroupsByDefault(t *tes
 		defaultNornicDBFilePhaseStatements,
 		defaultNornicDBEntityPhaseStatements,
 		nil,
+		0,
 		nil,
 		nil,
 	)

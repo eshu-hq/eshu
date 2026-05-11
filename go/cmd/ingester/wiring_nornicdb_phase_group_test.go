@@ -23,6 +23,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredNornicDBPhaseGroupStateme
 		defaultNornicDBFilePhaseStatements,
 		defaultNornicDBEntityPhaseStatements,
 		nil,
+		0,
 		nil,
 		nil,
 	)
@@ -48,6 +49,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredNornicDBFilePhaseStatemen
 		3,
 		defaultNornicDBEntityPhaseStatements,
 		nil,
+		0,
 		nil,
 		nil,
 	)
@@ -73,6 +75,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredNornicDBEntityPhaseStatem
 		defaultNornicDBFilePhaseStatements,
 		17,
 		nil,
+		0,
 		nil,
 		nil,
 	)
