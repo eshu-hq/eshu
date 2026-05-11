@@ -40,6 +40,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.TerraformStateWarningsEmitted, "TerraformStateWarningsEmitted counter should be registered")
 	assert.NotNil(t, inst.TerraformStateRedactionsApplied, "TerraformStateRedactionsApplied counter should be registered")
 	assert.NotNil(t, inst.TerraformStateS3ConditionalGetNotModified, "TerraformStateS3ConditionalGetNotModified counter should be registered")
+	assert.NotNil(t, inst.CorrelationDriftIntentsEnqueued, "CorrelationDriftIntentsEnqueued counter should be registered")
 
 	// Verify all histogram fields are non-nil
 	assert.NotNil(t, inst.CollectorObserveDuration, "CollectorObserveDuration histogram should be registered")
