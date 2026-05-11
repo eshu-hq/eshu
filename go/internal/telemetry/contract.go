@@ -78,12 +78,13 @@ const (
 	SpanReducerIntentEnqueue = "reducer_intent.enqueue"
 	SpanReducerRun           = "reducer.run"
 	SpanReducerBatchClaim    = "reducer.batch_claim"
-	// SpanReducerDriftEvidenceLoad covers the three-query join the
-	// PostgresDriftEvidenceLoader performs for one config_state_drift intent
-	// (config-side parser facts, current state-snapshot resources, optional
-	// prior-generation resources). Use it to answer "is the loader slow
-	// because of the config query, the state query, or the prior-state
-	// query?" — child spans of the InstrumentedDB queries appear under it.
+	// SpanReducerDriftEvidenceLoad wraps the PostgresDriftEvidenceLoader call
+	// for one config_state_drift intent. Children spans on the InstrumentedDB
+	// surface each component query (config-side terraform_resources, active
+	// state-snapshot lookup, current and optional prior state-resources, and
+	// the prior-config-addresses walk that activates removed_from_config).
+	// Operators reading a trace can tell which of those is slow without
+	// instrumenting each call site individually.
 	SpanReducerDriftEvidenceLoad = "reducer.drift_evidence_load"
 	SpanCanonicalWrite       = "canonical.write"
 	SpanCanonicalProjection  = "canonical.projection"

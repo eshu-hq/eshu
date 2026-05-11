@@ -10,16 +10,12 @@ import (
 // — most operators apply many times per day; ten generations cover roughly a
 // trading-day window in production. Override per-deployment via
 // ESHU_DRIFT_PRIOR_CONFIG_DEPTH.
-//
-//nolint:unused // wired into LoadDriftEvidence in tfstate_drift_evidence.go (Task 4)
 const defaultPriorConfigDepth = 10
 
 // effectivePriorConfigDepth returns the configured depth or the package
 // default when the field is zero. The split keeps tests that construct the
 // loader inline ergonomic — they specify the depth they want or rely on the
 // default behavior with no init step.
-//
-//nolint:unused // wired into LoadDriftEvidence in tfstate_drift_evidence.go (Task 4)
 func (l PostgresDriftEvidenceLoader) effectivePriorConfigDepth() int {
 	if l.PriorConfigDepth <= 0 {
 		return defaultPriorConfigDepth
@@ -46,8 +42,6 @@ func (l PostgresDriftEvidenceLoader) effectivePriorConfigDepth() int {
 //
 // Returns a DB error to the caller; the reducer handler's retry path covers
 // transient failures.
-//
-//nolint:unused // wired into LoadDriftEvidence in tfstate_drift_evidence.go (Task 4)
 func (l PostgresDriftEvidenceLoader) loadPriorConfigAddresses(
 	ctx context.Context,
 	scopeID string,
