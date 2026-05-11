@@ -52,41 +52,6 @@ tfstate_drift_seed_db() {
 		psql -U eshu -d eshu -v ON_ERROR_STOP=1 -q -f - <"$seed_path"
 }
 
-# Wait until bootstrap-index has rerun and emitted the
-# config_state_drift_intents_enqueued line for the seeded scopes. Polls
-# bootstrap-index logs because compose's "exited zero" state can race with
-# log flushing.
-#
-# Args:
-#   $1 expected_count — minimum non-zero count to consider the trigger fired
-#                       (we seed four state_snapshot scopes, so 4)
-#   $2 timeout_seconds
-tfstate_drift_wait_for_phase_35() {
-	local expected_count="$1" timeout_seconds="$2"
-	local deadline=$((SECONDS + timeout_seconds))
-	local log_line=""
-	while ((SECONDS < deadline)); do
-		log_line="$(
-			"${COMPOSE_CMD[@]}" logs --no-color bootstrap-index 2>/dev/null \
-				| grep -E 'config_state_drift_intents_enqueued count=[0-9]+' \
-				| tail -n 1 \
-				|| true
-		)"
-		if [[ -n "$log_line" ]]; then
-			local count
-			count="$(echo "$log_line" | sed -E 's/.*count=([0-9]+).*/\1/')"
-			if [[ -n "$count" && "$count" -ge "$expected_count" ]]; then
-				echo "$log_line"
-				return 0
-			fi
-		fi
-		sleep 2
-	done
-	echo "Timed out waiting for Phase 3.5 (config_state_drift_intents_enqueued count>=$expected_count)" >&2
-	echo "Last bootstrap-index log line matching the trigger: ${log_line:-<none>}" >&2
-	return 1
-}
-
 # Wait for the reducer queue to drain every config_state_drift intent. Uses
 # psql against fact_work_items (the table name behind NewReducerQueue) since
 # /admin/status does not expose per-domain counts today.
@@ -159,6 +124,15 @@ tfstate_drift_scrape_counters() {
 # series is not present (counters that have not fired yet) so callers can
 # treat absence as zero.
 #
+# The Prometheus text exposition format emits one cumulative value per
+# unique label set, so for a counter with a fixed label set (the case
+# today: one series per drift_kind) `tail -n 1` picks the single
+# cumulative reading. If the exporter ever fans the counter out across
+# multiple scope_name or service_name variants for the same drift_kind,
+# this helper picks one arbitrary line and the delta math becomes
+# ambiguous. If that day comes, sum across matching lines with `awk`
+# instead of `tail -n 1`.
+#
 # Args:
 #   $1 metrics_file
 #   $2 series_match_regex (e.g. 'eshu_dp_correlation_drift_detected_total\{[^}]*drift_kind="added_in_state"[^}]*\}')
@@ -175,15 +149,19 @@ tfstate_drift_counter_value() {
 }
 
 # Extract resolution-engine log lines specific to the drift handler, dump
-# them to $2. Slog JSON output; the filter matches only the two drift
-# handler message bodies plus the ambiguous-owner rejection class, so
-# unrelated reducer errors (e.g. semantic_entity_materialization Neo4j
-# constraint violations from bootstrap-index processing the ecosystem
-# fixture corpus) do not pollute the proof artifact.
+# them to $2. Slog JSON output; the filter matches the two message bodies
+# the handler emits (`drift candidate admitted` for admissions and
+# `drift candidate rejected` for every non-fatal rejection class —
+# scope_not_state_snapshot, resolver_unavailable, no_config_repo_owns_backend,
+# ambiguous_backend_owner, evidence_loader_unavailable). Unrelated reducer
+# errors (e.g. semantic_entity_materialization Neo4j constraint violations
+# from bootstrap-index processing the ecosystem fixture corpus) do not
+# share these message bodies, so the filter keeps the proof artifact
+# focused on the drift handler's emissions.
 tfstate_drift_extract_drift_logs() {
 	local output_file="$1"
 	"${COMPOSE_CMD[@]}" logs --no-color resolution-engine 2>/dev/null \
-		| grep -E '"drift candidate (admitted|rejected)"|"failure_class":"ambiguous_backend_owner"' \
+		| grep -E '"drift candidate (admitted|rejected)"' \
 		> "$output_file" \
 		|| true
 }

@@ -43,7 +43,11 @@ source "$RUNTIME_LIB"
 source "$DRIFT_LIB"
 
 SEED_PATH="$REPO_ROOT/tests/fixtures/tfstate_drift/seed.sql"
-EXPECTED_DIR="$REPO_ROOT/tests/fixtures/tfstate_drift/expected"
+# tests/fixtures/tfstate_drift/expected/*.json files are human-readable
+# documentation of the expected counter deltas and log fields per scenario;
+# the verifier asserts them inline below rather than parsing the JSON. If
+# this script grows past four scenarios, consider threading expected via
+# jq so the JSON becomes the single source of truth.
 
 TMP_DIR="$(mktemp -d)"
 METRICS_BEFORE_FILE="$TMP_DIR/metrics-before.txt"

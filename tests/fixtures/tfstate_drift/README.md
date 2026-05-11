@@ -10,10 +10,10 @@ in production actually fire end-to-end against a real Postgres + reducer.
 | File | Purpose |
 | --- | --- |
 | `seed.sql` | Idempotent SQL that writes the four scenarios into `ingestion_scopes`, `scope_generations`, and `fact_records`. |
-| `expected/added_in_state.json` | Expected counter delta and structured log line for scenario A. |
-| `expected/added_in_config.json` | Same for scenario B. |
-| `expected/removed_from_state.json` | Same for scenario C. |
-| `expected/ambiguous_owner.json` | Expected counter delta (zero) and rejection log for the ambiguous-owner path. |
+| `expected/added_in_state.json` | Human-readable documentation of the expected counter delta and structured log line for scenario A. The verifier asserts these inline today; the JSON exists for review and future scenarios. |
+| `expected/added_in_config.json` | Same shape for scenario B. |
+| `expected/removed_from_state.json` | Same shape for scenario C. |
+| `expected/ambiguous_owner.json` | Documents the expected zero counter delta and the rejection log for the ambiguous-owner path. |
 
 ## How the corpus drives the drift handler
 
@@ -84,7 +84,7 @@ If `LocatorHash` is ever renamed or its construction changes, the seed's hashes 
 
 ## Running the proof matrix
 
-The seed is consumed by `scripts/verify_tfstate_drift_compose.sh`. That script brings the compose stack up, applies the seed, restarts bootstrap-index so Phase 3.5 picks up the seeded `state_snapshot:*` scopes, waits for the reducer to drain the queued drift intents, scrapes counters from `localhost:${ESHU_RESOLUTION_ENGINE_METRICS_PORT}/metrics`, compares structured-log lines against `expected/*.json`, and writes a proof artifact to `docs/superpowers/proofs/<date>-tfstate-drift-compose.md` when invoked with `ESHU_TFSTATE_DRIFT_PROOF_OUT` set.
+The seed is consumed by `scripts/verify_tfstate_drift_compose.sh`. That script brings the compose stack up, applies the seed, reruns bootstrap-index so Phase 3.5 picks up the seeded `state_snapshot:*` scopes, waits for the reducer to drain the queued drift intents, scrapes counters from `localhost:${ESHU_RESOLUTION_ENGINE_METRICS_PORT}/metrics`, asserts the per-kind counter deltas and structured-log shape inline, and writes a proof artifact to `docs/superpowers/proofs/<date>-tfstate-drift-compose.md` when invoked with `ESHU_TFSTATE_DRIFT_PROOF_OUT` set. The `expected/*.json` files in this directory are reviewer-facing documentation of what the inline assertions check; they are not parsed by the verifier today.
 
 ## Why this corpus does NOT exercise `collector-terraform-state`
 
