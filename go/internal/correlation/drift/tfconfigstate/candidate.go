@@ -1,8 +1,9 @@
 package tfconfigstate
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
@@ -98,10 +99,9 @@ func BuildCandidates(
 	// Deterministic input order: sort by address so candidate IDs are stable
 	// across reducer reruns. The engine sorts results by CorrelationKey,
 	// but ordering inputs gives us stable Candidate.ID assignment too.
-	rows := make([]AddressedRow, len(addressed))
-	copy(rows, addressed)
-	sort.Slice(rows, func(i, j int) bool {
-		return rows[i].Address < rows[j].Address
+	rows := slices.Clone(addressed)
+	slices.SortFunc(rows, func(a, b AddressedRow) int {
+		return cmp.Compare(a.Address, b.Address)
 	})
 
 	out := make([]model.Candidate, 0, len(rows))

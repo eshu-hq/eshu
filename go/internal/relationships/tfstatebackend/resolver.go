@@ -157,6 +157,11 @@ func (r *Resolver) ResolveConfigCommitForBackend(
 // Resolver.ResolveConfigCommitForBackend method instead so they can inject a
 // real TerraformBackendQuery.
 //
+// TODO(#43-followup): delete this shim once the adapter-wiring follow-up
+// chunk lands. The shim exists only to preserve the Phase 0 signature; it
+// always returns ErrNoConfigRepoOwnsBackend, which is unhelpful for any
+// caller that does not migrate to NewResolver.
+//
 // Deprecated: use NewResolver(query).ResolveConfigCommitForBackend instead.
 func ResolveConfigCommitForBackend(
 	ctx context.Context,

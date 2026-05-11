@@ -65,7 +65,10 @@ Phase 1: the resolver groups, sorts, and selects from the rows returned
 by an injected `TerraformBackendQuery`. The query implementation is the
 caller's responsibility — the resolver does not own a backend adapter.
 Phase 0's free-function `ResolveConfigCommitForBackend` is retained as a
-deprecated stub that always returns `ErrNoConfigRepoOwnsBackend`.
+deprecated stub that always returns `ErrNoConfigRepoOwnsBackend`; the
+shim is scheduled for removal in the follow-up adapter-wiring chunk and
+carries a `TODO(#43-followup):` comment in `resolver.go` documenting
+that lifecycle.
 
 The real `TerraformBackendQuery` implementation against the canonical
 graph or `projector.TerraformBackend` rows lives outside this package

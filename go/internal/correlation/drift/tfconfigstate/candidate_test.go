@@ -104,31 +104,103 @@ func TestBuildCandidatesAttachesAddressAndDriftKindAtoms(t *testing.T) {
 	}
 }
 
-func TestBuildCandidatesAdmitsThroughEngine(t *testing.T) {
+func TestBuildCandidatesAdmitsThroughEngineAcrossAllDriftKinds(t *testing.T) {
 	t.Parallel()
 
-	rows := []AddressedRow{
+	allowlisted := AllowlistFor("aws_s3_bucket")[0]
+
+	// One AddressedRow per drift kind. The engine.Evaluate path is the only
+	// production exerciser of cross-scope Candidate.Validate; this sweep
+	// guards against accidental regressions in the admission shape when a
+	// new drift kind is added or the cross-scope evidence pattern changes.
+	cases := []struct {
+		name string
+		row  AddressedRow
+		want DriftKind
+	}{
 		{
-			Address:      "aws_iam_role.svc",
-			ResourceType: "aws_iam_role",
-			Config:       &ResourceRow{Address: "aws_iam_role.svc", ResourceType: "aws_iam_role"},
+			name: "added_in_state",
+			row: AddressedRow{
+				Address:      "aws_s3_bucket.logs",
+				ResourceType: "aws_s3_bucket",
+				State:        &ResourceRow{Address: "aws_s3_bucket.logs", ResourceType: "aws_s3_bucket"},
+			},
+			want: DriftKindAddedInState,
+		},
+		{
+			name: "added_in_config",
+			row: AddressedRow{
+				Address:      "aws_iam_role.svc",
+				ResourceType: "aws_iam_role",
+				Config:       &ResourceRow{Address: "aws_iam_role.svc", ResourceType: "aws_iam_role"},
+			},
+			want: DriftKindAddedInConfig,
+		},
+		{
+			name: "attribute_drift",
+			row: AddressedRow{
+				Address:      "aws_s3_bucket.app",
+				ResourceType: "aws_s3_bucket",
+				Config: &ResourceRow{
+					Address: "aws_s3_bucket.app", ResourceType: "aws_s3_bucket",
+					Attributes: map[string]string{allowlisted: "true"},
+				},
+				State: &ResourceRow{
+					Address: "aws_s3_bucket.app", ResourceType: "aws_s3_bucket",
+					Attributes: map[string]string{allowlisted: "false"},
+				},
+			},
+			want: DriftKindAttributeDrift,
+		},
+		{
+			name: "removed_from_state",
+			row: AddressedRow{
+				Address:      "aws_lambda_function.worker",
+				ResourceType: "aws_lambda_function",
+				Config:       &ResourceRow{Address: "aws_lambda_function.worker", ResourceType: "aws_lambda_function"},
+				Prior:        &ResourceRow{Address: "aws_lambda_function.worker", ResourceType: "aws_lambda_function"},
+			},
+			want: DriftKindRemovedFromState,
+		},
+		{
+			name: "removed_from_config",
+			row: AddressedRow{
+				Address:      "aws_iam_role.legacy",
+				ResourceType: "aws_iam_role",
+				State: &ResourceRow{
+					Address: "aws_iam_role.legacy", ResourceType: "aws_iam_role",
+					PreviouslyDeclaredInConfig: true,
+				},
+			},
+			want: DriftKindRemovedFromConfig,
 		},
 	}
-	candidates := BuildCandidates(rows, sampleAnchor(), "state_snapshot:s3:hash-1")
+
 	pack := rules.TerraformConfigStateDriftRulePack()
-	eval, err := engine.Evaluate(pack, candidates)
-	if err != nil {
-		t.Fatalf("engine.Evaluate() error = %v", err)
-	}
-	if len(eval.Results) != 1 {
-		t.Fatalf("engine.Evaluate() results = %d, want 1", len(eval.Results))
-	}
-	if eval.Results[0].Candidate.State != model.CandidateStateAdmitted {
-		t.Fatalf(
-			"candidate state = %q, want %q",
-			eval.Results[0].Candidate.State,
-			model.CandidateStateAdmitted,
-		)
+	for _, tc := range cases {
+		t.Run(string(tc.want), func(t *testing.T) {
+			t.Parallel()
+			candidates := BuildCandidates([]AddressedRow{tc.row}, sampleAnchor(), "state_snapshot:s3:hash-1")
+			if len(candidates) != 1 {
+				t.Fatalf("BuildCandidates() = %d, want 1 for drift kind %q (case %q)",
+					len(candidates), tc.want, tc.name)
+			}
+			eval, err := engine.Evaluate(pack, candidates)
+			if err != nil {
+				t.Fatalf("engine.Evaluate() error = %v", err)
+			}
+			if len(eval.Results) != 1 {
+				t.Fatalf("engine.Evaluate() results = %d, want 1", len(eval.Results))
+			}
+			if eval.Results[0].Candidate.State != model.CandidateStateAdmitted {
+				t.Fatalf(
+					"candidate state for drift kind %q = %q, want %q",
+					tc.want,
+					eval.Results[0].Candidate.State,
+					model.CandidateStateAdmitted,
+				)
+			}
+		})
 	}
 }
 
