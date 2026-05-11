@@ -27,10 +27,11 @@
 // Cargo entrypoint, build-script, unit-test, Tokio runtime/test, public API,
 // benchmark, trait-implementation method, path-attribute module, direct module
 // resolution, macro-declaration, conditional-derive, nested-annotation, and
-// where-clause evidence, plus C main, directly included public-header,
-// signal-handler, callback-argument, and function-pointer roots. C and Rust now
-// share the derived dead-code maturity tier with Go and Java while exact cleanup
-// remains gated on broader semantic resolution. Rust Cargo auxiliary target
+// where-clause evidence, plus C c.main_function, c.public_header_api,
+// c.signal_handler, c.callback_argument_target, and c.function_pointer_target
+// roots. C and Rust now share the derived dead-code maturity tier with Go and
+// Java while exact cleanup remains gated on broader semantic resolution. Rust
+// Cargo auxiliary target
 // files under benches/ and examples/
 // are treated like non-production roots for cleanup analysis. Rust exactness
 // blockers are reported in the analysis payload for

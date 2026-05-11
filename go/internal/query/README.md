@@ -80,10 +80,10 @@ roots, module-contract exports, and TypeScript interface implementation methods.
 It also suppresses parser-proven Python FastAPI, Flask, Celery,
 Click, Typer, AWS Lambda handler, dataclass, post-init, property, dunder
 protocol, `__all__`, package `__init__.py`, public API base, and public API
-member roots, Python `if __name__ == "__main__"` script-main guards, C `main`,
-directly included public-header declarations, signal handlers, callback
-argument targets, and direct function-pointer initializer targets, and
-Java `main`, constructor, `@Override`, Ant `Task` setter, Gradle plugin
+member roots, Python `if __name__ == "__main__"` script-main guards, C
+`c.main_function`, `c.public_header_api`, `c.signal_handler`,
+`c.callback_argument_target`, and `c.function_pointer_target` roots, and Java
+`main`, constructor, `@Override`, Ant `Task` setter, Gradle plugin
 `apply`, task action/property, task setter, task-interface method, public Gradle
 DSL, same-class method-reference target roots, Spring component and callback
 roots, Java lifecycle callbacks, JUnit test/lifecycle methods, Jenkins
@@ -326,8 +326,8 @@ wired in `cmd/api/wiring.go`, not here.
   module-contract, and TypeScript interface implementation roots, plus Java
   main, constructor, override, Ant `Task` setter, Gradle plugin `apply`, task
   action/property, and public Gradle DSL roots when query policy suppresses
-  those candidates; the analysis notes name the same Java root family. Rust
-  parser-backed root,
+  those candidates; the analysis notes name the same Java and C root families.
+  Rust parser-backed root,
   syntax-evidence, and observed-blocker rows must stay aligned with the
   `deadCodeLanguageMaturity` table because Rust derived classification depends
   on that maturity row, the root suppression policy, and ambiguous

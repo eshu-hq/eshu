@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -211,4 +212,22 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if got, want := analysis["roots_skipped_missing_source"], float64(0); got != want {
 		t.Fatalf("analysis[roots_skipped_missing_source] = %#v, want %#v", got, want)
 	}
+	notes, ok := analysis["notes"].([]any)
+	if !ok {
+		t.Fatalf("analysis[notes] type = %T, want []any", analysis["notes"])
+	}
+	for _, want := range []string{"c.public_header_api", "c.callback_argument_target"} {
+		if !queryTestNotesContain(notes, want) {
+			t.Fatalf("analysis[notes] missing %q in %#v", want, notes)
+		}
+	}
+}
+
+func queryTestNotesContain(notes []any, want string) bool {
+	for _, note := range notes {
+		if got, ok := note.(string); ok && strings.Contains(got, want) {
+			return true
+		}
+	}
+	return false
 }
