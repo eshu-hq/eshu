@@ -14,137 +14,28 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/content"
 )
 
-const (
-	contentFileBatchSize    = 500
-	columnsPerContentFile   = 11
-	contentEntityBatchSize  = 300 // 16 columns × 300 = 4800 params, under 65535
-	columnsPerContentEntity = 16
-)
-
-const upsertContentFileQuery = `
-INSERT INTO content_files (
-    repo_id, relative_path, commit_sha, content, content_hash,
-    line_count, language, artifact_type, template_dialect,
-    iac_relevant, indexed_at
-) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-)
-ON CONFLICT (repo_id, relative_path) DO UPDATE
-SET commit_sha = EXCLUDED.commit_sha,
-    content = EXCLUDED.content,
-    content_hash = EXCLUDED.content_hash,
-    line_count = EXCLUDED.line_count,
-    language = EXCLUDED.language,
-    artifact_type = EXCLUDED.artifact_type,
-    template_dialect = EXCLUDED.template_dialect,
-    iac_relevant = EXCLUDED.iac_relevant,
-    indexed_at = EXCLUDED.indexed_at
-`
-
-const upsertContentFileBatchPrefix = `INSERT INTO content_files (
-    repo_id, relative_path, commit_sha, content, content_hash,
-    line_count, language, artifact_type, template_dialect,
-    iac_relevant, indexed_at
-) VALUES `
-
-const upsertContentFileBatchSuffix = `
-ON CONFLICT (repo_id, relative_path) DO UPDATE
-SET commit_sha = EXCLUDED.commit_sha,
-    content = EXCLUDED.content,
-    content_hash = EXCLUDED.content_hash,
-    line_count = EXCLUDED.line_count,
-    language = EXCLUDED.language,
-    artifact_type = EXCLUDED.artifact_type,
-    template_dialect = EXCLUDED.template_dialect,
-    iac_relevant = EXCLUDED.iac_relevant,
-    indexed_at = EXCLUDED.indexed_at
-`
-
-const deleteContentFileQuery = `
-DELETE FROM content_files
-WHERE repo_id = $1
-  AND relative_path = $2
-`
-
-const deleteContentEntityQuery = `
-DELETE FROM content_entities
-WHERE repo_id = $1
-  AND relative_path = $2
-`
-
-const upsertContentEntityQuery = `
-INSERT INTO content_entities (
-    entity_id, repo_id, relative_path, entity_type, entity_name,
-    start_line, end_line, start_byte, end_byte, language,
-    artifact_type, template_dialect, iac_relevant,
-    source_cache, metadata, indexed_at
-) VALUES (
-    $1, $2, $3, $4, $5,
-    $6, $7, $8, $9, $10,
-    $11, $12, $13,
-    $14, $15::jsonb, $16
-)
-ON CONFLICT (entity_id) DO UPDATE
-SET repo_id = EXCLUDED.repo_id,
-    relative_path = EXCLUDED.relative_path,
-    entity_type = EXCLUDED.entity_type,
-    entity_name = EXCLUDED.entity_name,
-    start_line = EXCLUDED.start_line,
-    end_line = EXCLUDED.end_line,
-    start_byte = EXCLUDED.start_byte,
-    end_byte = EXCLUDED.end_byte,
-    language = EXCLUDED.language,
-    artifact_type = EXCLUDED.artifact_type,
-    template_dialect = EXCLUDED.template_dialect,
-    iac_relevant = EXCLUDED.iac_relevant,
-    source_cache = EXCLUDED.source_cache,
-    metadata = EXCLUDED.metadata,
-    indexed_at = EXCLUDED.indexed_at
-`
-
-const upsertContentEntityBatchPrefix = `INSERT INTO content_entities (
-    entity_id, repo_id, relative_path, entity_type, entity_name,
-    start_line, end_line, start_byte, end_byte, language,
-    artifact_type, template_dialect, iac_relevant,
-    source_cache, metadata, indexed_at
-) VALUES `
-
-const upsertContentEntityBatchSuffix = `
-ON CONFLICT (entity_id) DO UPDATE
-SET repo_id = EXCLUDED.repo_id,
-    relative_path = EXCLUDED.relative_path,
-    entity_type = EXCLUDED.entity_type,
-    entity_name = EXCLUDED.entity_name,
-    start_line = EXCLUDED.start_line,
-    end_line = EXCLUDED.end_line,
-    start_byte = EXCLUDED.start_byte,
-    end_byte = EXCLUDED.end_byte,
-    language = EXCLUDED.language,
-    artifact_type = EXCLUDED.artifact_type,
-    template_dialect = EXCLUDED.template_dialect,
-    iac_relevant = EXCLUDED.iac_relevant,
-    source_cache = EXCLUDED.source_cache,
-    metadata = EXCLUDED.metadata,
-    indexed_at = EXCLUDED.indexed_at
-`
-
-const deleteContentEntityByIDQuery = `
-DELETE FROM content_entities
-WHERE repo_id = $1
-  AND entity_id = $2
-`
+// Content writer SQL constants and column counts live in
+// content_writer_sql.go so this file stays focused on the ContentWriter
+// behavior (struct, setters, Write, batch helpers).
 
 // ContentWriter persists repo-local content rows into the canonical content store.
 type ContentWriter struct {
-	db              ExecQueryer
-	entityBatchSize int
-	Now             func() time.Time
-	Logger          *slog.Logger
+	db               ExecQueryer
+	entityBatchSize  int
+	batchConcurrency int
+	Now              func() time.Time
+	Logger           *slog.Logger
 }
 
 // NewContentWriter constructs a Postgres-backed canonical content writer.
+// Batch concurrency is resolved once here so a long-running ingester does not
+// pick up live env changes mid-run; callers that want to override pass
+// WithBatchConcurrency after construction.
 func NewContentWriter(db ExecQueryer) ContentWriter {
-	return ContentWriter{db: db}
+	return ContentWriter{
+		db:               db,
+		batchConcurrency: contentWriterBatchConcurrencyFromEnv(),
+	}
 }
 
 // WithLogger returns a copy that emits per-stage write timings to logger.
@@ -159,6 +50,30 @@ func (w ContentWriter) WithEntityBatchSize(size int) ContentWriter {
 		w.entityBatchSize = size
 	}
 	return w
+}
+
+// WithBatchConcurrency returns a copy that runs content-entity upsert batches
+// with the given worker fan-out. Zero or negative falls back to the
+// env/runtime default resolved at construction time. The package-level cap
+// in contentWriterBatchConcurrencyCap applies regardless of the value passed.
+func (w ContentWriter) WithBatchConcurrency(workers int) ContentWriter {
+	if workers > 0 {
+		if workers > contentWriterBatchConcurrencyCap {
+			workers = contentWriterBatchConcurrencyCap
+		}
+		w.batchConcurrency = workers
+	}
+	return w
+}
+
+// effectiveBatchConcurrency returns the worker count to use for content-entity
+// upsert fan-out, falling back to the env/runtime default if no value was set
+// at construction.
+func (w ContentWriter) effectiveBatchConcurrency() int {
+	if w.batchConcurrency > 0 {
+		return w.batchConcurrency
+	}
+	return contentWriterDefaultBatchConcurrency()
 }
 
 // preparedFileRow holds prepared file record values for batched insertion.
@@ -353,6 +268,17 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 			metadataJSON:    metadataJSON,
 		})
 	}
+	// Deduplicate by entity_id before fan-out. content_entities has
+	// entity_id as its PRIMARY KEY (see upsertContentEntityQuery's
+	// ON CONFLICT (entity_id) clause in content_writer_sql.go), so
+	// duplicate entity_id rows in entityUpserts would either trip
+	// SQLSTATE 21000 inside one batch ("ON CONFLICT DO UPDATE command
+	// cannot affect row a second time") or produce race-determined
+	// last-writer-wins across parallel batches. Mirror deduplicateEnvelopes
+	// (facts.go) by keeping the last occurrence so callers see the same
+	// "later in input wins" outcome the prior serial path achieved via
+	// row-level lock contention.
+	entityUpserts = deduplicateEntityRows(entityUpserts)
 	w.logStage(ctx, cloned, "prepare_entities", entityPrepareStart,
 		"row_count", len(entityUpserts),
 		"deleted_count", result.DeletedCount,
@@ -366,6 +292,7 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 	w.logStage(ctx, cloned, "upsert_entities", entityUpsertStart,
 		"row_count", len(entityUpserts),
 		"batch_count", contentBatchCount(len(entityUpserts), w.effectiveEntityBatchSize()),
+		"batch_concurrency", w.effectiveBatchConcurrency(),
 	)
 
 	return result, nil
@@ -416,136 +343,9 @@ func contentBatchCount(rowCount, batchSize int) int {
 	return (rowCount + batchSize - 1) / batchSize
 }
 
-// upsertContentFileBatches persists file records using batched multi-row INSERT statements.
-func (w ContentWriter) upsertContentFileBatches(ctx context.Context, rows []preparedFileRow, indexedAt time.Time) error {
-	for i := 0; i < len(rows); i += contentFileBatchSize {
-		end := i + contentFileBatchSize
-		if end > len(rows) {
-			end = len(rows)
-		}
-		if err := w.upsertContentFileBatch(ctx, rows[i:end], indexedAt); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// upsertContentFileBatch inserts one batch of file records using a multi-row INSERT query.
-func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []preparedFileRow, indexedAt time.Time) error {
-	if len(batch) == 0 {
-		return nil
-	}
-
-	if err := w.deleteContentReferenceBatch(ctx, batch); err != nil {
-		return err
-	}
-
-	args := make([]any, 0, len(batch)*columnsPerContentFile)
-	var values strings.Builder
-
-	for i, row := range batch {
-		if i > 0 {
-			values.WriteString(", ")
-		}
-		offset := i * columnsPerContentFile
-		fmt.Fprintf(&values,
-			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
-			offset+1, offset+2, offset+3, offset+4, offset+5,
-			offset+6, offset+7, offset+8, offset+9, offset+10, offset+11,
-		)
-
-		args = append(args,
-			row.repoID,
-			row.path,
-			row.commitSHA,
-			row.body,
-			row.contentHash,
-			row.lineCount,
-			row.language,
-			row.artifactType,
-			row.templateDialect,
-			row.iacRelevant,
-			indexedAt,
-		)
-	}
-
-	query := upsertContentFileBatchPrefix + values.String() + upsertContentFileBatchSuffix
-
-	if _, err := w.db.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("upsert content_files batch (%d files): %w", len(batch), err)
-	}
-
-	if err := w.upsertContentReferenceBatch(ctx, batch, indexedAt); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// upsertContentEntityBatches persists entity records using batched multi-row INSERT statements.
-func (w ContentWriter) upsertContentEntityBatches(ctx context.Context, rows []preparedEntityRow, indexedAt time.Time) error {
-	batchSize := w.effectiveEntityBatchSize()
-	for i := 0; i < len(rows); i += batchSize {
-		end := i + batchSize
-		if end > len(rows) {
-			end = len(rows)
-		}
-		if err := w.upsertContentEntityBatch(ctx, rows[i:end], indexedAt); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// upsertContentEntityBatch inserts one batch of entity records using a multi-row INSERT query.
-func (w ContentWriter) upsertContentEntityBatch(ctx context.Context, batch []preparedEntityRow, indexedAt time.Time) error {
-	if len(batch) == 0 {
-		return nil
-	}
-
-	args := make([]any, 0, len(batch)*columnsPerContentEntity)
-	var values strings.Builder
-
-	for i, row := range batch {
-		if i > 0 {
-			values.WriteString(", ")
-		}
-		offset := i * columnsPerContentEntity
-		fmt.Fprintf(&values,
-			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d::jsonb, $%d)",
-			offset+1, offset+2, offset+3, offset+4, offset+5,
-			offset+6, offset+7, offset+8, offset+9, offset+10,
-			offset+11, offset+12, offset+13, offset+14, offset+15, offset+16,
-		)
-
-		args = append(args,
-			row.entityID,
-			row.repoID,
-			row.path,
-			row.entityType,
-			row.entityName,
-			row.startLine,
-			row.endLine,
-			row.startByte,
-			row.endByte,
-			row.language,
-			row.artifactType,
-			row.templateDialect,
-			row.iacRelevant,
-			row.sourceCache,
-			row.metadataJSON,
-			indexedAt,
-		)
-	}
-
-	query := upsertContentEntityBatchPrefix + values.String() + upsertContentEntityBatchSuffix
-
-	if _, err := w.db.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("upsert content_entities batch (%d entities): %w", len(batch), err)
-	}
-
-	return nil
-}
+// upsertContentFileBatches and upsertContentEntityBatches live in
+// content_writer_upserts.go so this file stays focused on the
+// ContentWriter type, Write, and small helpers.
 
 func fileContentHash(record content.Record) (string, error) {
 	if strings.TrimSpace(record.Digest) != "" {
