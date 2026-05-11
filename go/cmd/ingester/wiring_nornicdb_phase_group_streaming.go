@@ -120,6 +120,22 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroupStreaming(
 		workerWG.Wait()
 	}
 
+	// preferPoolError returns a buffered worker error from errCh in preference
+	// to a producer-side cancellation error. When a worker fails, raiseErr
+	// puts the wrapped failure in errCh and cancels poolCtx; subsequent
+	// pushChunk calls see ctx.Done() and return poolCtx.Err() ("context
+	// canceled"), which would otherwise mask the real failure. The producer
+	// calls this helper before returning so callers see the original
+	// ExecuteGroup error class.
+	preferPoolError := func(producerErr error) error {
+		select {
+		case err := <-errCh:
+			return err
+		default:
+		}
+		return producerErr
+	}
+
 	pushChunk := func(chunk []sourcecypher.Statement, label string) error {
 		inFlight.Add(1)
 		select {
@@ -181,11 +197,11 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroupStreaming(
 		if stmt.Operation == sourcecypher.OperationCanonicalRetract {
 			if err := flushGrouped(); err != nil {
 				closePool()
-				return err
+				return preferPoolError(err)
 			}
 			if err := drainInFlight(); err != nil {
 				closePool()
-				return err
+				return preferPoolError(err)
 			}
 			statementStart := time.Now()
 			statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
@@ -201,11 +217,11 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroupStreaming(
 		if statementPhaseGroupMode(stmt) == sourcecypher.PhaseGroupModeExecuteOnly {
 			if err := flushGrouped(); err != nil {
 				closePool()
-				return err
+				return preferPoolError(err)
 			}
 			if err := drainInFlight(); err != nil {
 				closePool()
-				return err
+				return preferPoolError(err)
 			}
 			statementStart := time.Now()
 			statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
@@ -236,11 +252,11 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroupStreaming(
 			completedLabel := groupedLabel
 			if err := flushGrouped(); err != nil {
 				closePool()
-				return err
+				return preferPoolError(err)
 			}
 			if err := drainInFlight(); err != nil {
 				closePool()
-				return err
+				return preferPoolError(err)
 			}
 			observerMu.Lock()
 			stats := labelStats[completedLabel]
@@ -262,14 +278,14 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroupStreaming(
 			grouped = grouped[:0]
 			if err := pushChunk(chunk, label); err != nil {
 				closePool()
-				return err
+				return preferPoolError(err)
 			}
 		}
 	}
 
 	if err := flushGrouped(); err != nil {
 		closePool()
-		return err
+		return preferPoolError(err)
 	}
 	closePool()
 
