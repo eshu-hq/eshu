@@ -184,10 +184,24 @@ mutation is rejected because the current owner no longer holds the lease.
   `runConcurrentBatches` in `content_writer_batch.go`; the per-file batch
   loop stays serial because each file batch is preceded by a per-batch
   `delete_content_references` whose interleaving the existing tests gate.
-  Concurrency defaults to `runtime.NumCPU()` clamped to `[1, 8]` and is
-  capped at `16`, tunable via `ESHU_CONTENT_WRITER_BATCH_CONCURRENCY`. The
-  cap protects the embedded Postgres pool (default 30 connections set in
-  `internal/runtime/data_stores.go`) from over-subscription.
+  Auto-default concurrency is `runtime.NumCPU()` clamped to
+  `contentWriterBatchConcurrencyAutoCap` (4); operators can opt up to
+  `contentWriterBatchConcurrencyCap` (8) via
+  `ESHU_CONTENT_WRITER_BATCH_CONCURRENCY`. The env value is resolved once in
+  `NewContentWriter`, so a long-running ingester does not pick up live env
+  changes mid-run; explicit overrides flow through
+  `WithBatchConcurrency(int)`. The `upsert_entities` `logStage` line carries
+  a `batch_concurrency` attribute so operators reading the log can
+  reconcile the new wall-clock value with the per-batch
+  `eshu_dp_postgres_query_duration_seconds` metric.
+  
+  Pool budgeting: peak Postgres demand is `ESHU_PROJECTOR_WORKERS *
+  ESHU_CONTENT_WRITER_BATCH_CONCURRENCY` plus connections held by
+  collector, status reads, and heartbeats; the auto cap of 4 keeps the
+  product under the 30-connection default pool
+  (`internal/runtime/data_stores.go`) for the common case where
+  `ESHU_PROJECTOR_WORKERS = NumCPU`. Operators raising the env knob must
+  also raise the Postgres pool ceiling.
 
 **Phase state**
 

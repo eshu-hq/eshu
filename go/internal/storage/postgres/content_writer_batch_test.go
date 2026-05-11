@@ -161,25 +161,58 @@ func TestRunConcurrentBatchesSerialFastPath(t *testing.T) {
 }
 
 // TestContentWriterBatchConcurrencyEnvOverride verifies the env var clamps
-// at the cap and falls back to NumCPU-derived default when unset or invalid.
-// This is the only knob operators have to tune the new path against a
-// constrained Postgres pool, so its parsing must stay strict.
+// at the cap and that NewContentWriter resolves the override once at
+// construction time so a long-running ingester cannot pick up live env
+// changes mid-run. The env path also stays strict on malformed input
+// because misconfiguring the only knob operators have should fall back to
+// the auto default rather than silently disable parallelism or saturate
+// the connection pool.
 func TestContentWriterBatchConcurrencyEnvOverride(t *testing.T) {
 	// Cannot run in parallel: mutates process-wide env.
 	t.Setenv(contentWriterBatchConcurrencyEnv, "4")
-	if got := contentWriterBatchConcurrency(); got != 4 {
+	if got := contentWriterBatchConcurrencyFromEnv(); got != 4 {
 		t.Fatalf("env=4 produced %d, want 4", got)
 	}
 	t.Setenv(contentWriterBatchConcurrencyEnv, "999")
-	if got := contentWriterBatchConcurrency(); got != contentWriterBatchConcurrencyCap {
+	if got := contentWriterBatchConcurrencyFromEnv(); got != contentWriterBatchConcurrencyCap {
 		t.Fatalf("env=999 produced %d, want cap %d", got, contentWriterBatchConcurrencyCap)
 	}
 	t.Setenv(contentWriterBatchConcurrencyEnv, "-1")
-	if got := contentWriterBatchConcurrency(); got < 1 || got > contentWriterBatchConcurrencyAutoCap {
-		t.Fatalf("env=-1 produced %d, want auto default [1,%d]", got, contentWriterBatchConcurrencyAutoCap)
+	if got := contentWriterBatchConcurrencyFromEnv(); got != 0 {
+		t.Fatalf("env=-1 produced %d, want 0 (caller falls back to default)", got)
 	}
 	t.Setenv(contentWriterBatchConcurrencyEnv, "garbage")
-	if got := contentWriterBatchConcurrency(); got < 1 || got > contentWriterBatchConcurrencyAutoCap {
-		t.Fatalf("env=garbage produced %d, want auto default [1,%d]", got, contentWriterBatchConcurrencyAutoCap)
+	if got := contentWriterBatchConcurrencyFromEnv(); got != 0 {
+		t.Fatalf("env=garbage produced %d, want 0 (caller falls back to default)", got)
+	}
+	// effectiveBatchConcurrency on a writer with no override should equal
+	// the auto default (NumCPU clamped) so callers that take the default
+	// path get bounded fan-out without an explicit env var.
+	t.Setenv(contentWriterBatchConcurrencyEnv, "")
+	writer := NewContentWriter(nil)
+	got := writer.effectiveBatchConcurrency()
+	if got < 1 || got > contentWriterBatchConcurrencyAutoCap {
+		t.Fatalf("auto-default = %d, want in [1,%d]", got, contentWriterBatchConcurrencyAutoCap)
+	}
+}
+
+// TestContentWriterBatchConcurrencyWithBatchConcurrency confirms that
+// WithBatchConcurrency overrides the env/runtime default and is clamped to
+// contentWriterBatchConcurrencyCap. The override is per-instance so two
+// writers in the same process can carry different concurrency settings.
+func TestContentWriterBatchConcurrencyWithBatchConcurrency(t *testing.T) {
+	t.Parallel()
+	base := NewContentWriter(nil)
+	tuned := base.WithBatchConcurrency(3)
+	if got := tuned.effectiveBatchConcurrency(); got != 3 {
+		t.Fatalf("WithBatchConcurrency(3) -> %d, want 3", got)
+	}
+	clamped := base.WithBatchConcurrency(999)
+	if got := clamped.effectiveBatchConcurrency(); got != contentWriterBatchConcurrencyCap {
+		t.Fatalf("WithBatchConcurrency(999) -> %d, want cap %d", got, contentWriterBatchConcurrencyCap)
+	}
+	ignored := base.WithBatchConcurrency(0)
+	if got := ignored.effectiveBatchConcurrency(); got < 1 || got > contentWriterBatchConcurrencyAutoCap {
+		t.Fatalf("WithBatchConcurrency(0) -> %d, want auto default", got)
 	}
 }

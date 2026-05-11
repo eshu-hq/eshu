@@ -136,15 +136,22 @@ WHERE repo_id = $1
 
 // ContentWriter persists repo-local content rows into the canonical content store.
 type ContentWriter struct {
-	db              ExecQueryer
-	entityBatchSize int
-	Now             func() time.Time
-	Logger          *slog.Logger
+	db               ExecQueryer
+	entityBatchSize  int
+	batchConcurrency int
+	Now              func() time.Time
+	Logger           *slog.Logger
 }
 
 // NewContentWriter constructs a Postgres-backed canonical content writer.
+// Batch concurrency is resolved once here so a long-running ingester does not
+// pick up live env changes mid-run; callers that want to override pass
+// WithBatchConcurrency after construction.
 func NewContentWriter(db ExecQueryer) ContentWriter {
-	return ContentWriter{db: db}
+	return ContentWriter{
+		db:               db,
+		batchConcurrency: contentWriterBatchConcurrencyFromEnv(),
+	}
 }
 
 // WithLogger returns a copy that emits per-stage write timings to logger.
@@ -159,6 +166,30 @@ func (w ContentWriter) WithEntityBatchSize(size int) ContentWriter {
 		w.entityBatchSize = size
 	}
 	return w
+}
+
+// WithBatchConcurrency returns a copy that runs content-entity upsert batches
+// with the given worker fan-out. Zero or negative falls back to the
+// env/runtime default resolved at construction time. The package-level cap
+// in contentWriterBatchConcurrencyCap applies regardless of the value passed.
+func (w ContentWriter) WithBatchConcurrency(workers int) ContentWriter {
+	if workers > 0 {
+		if workers > contentWriterBatchConcurrencyCap {
+			workers = contentWriterBatchConcurrencyCap
+		}
+		w.batchConcurrency = workers
+	}
+	return w
+}
+
+// effectiveBatchConcurrency returns the worker count to use for content-entity
+// upsert fan-out, falling back to the env/runtime default if no value was set
+// at construction.
+func (w ContentWriter) effectiveBatchConcurrency() int {
+	if w.batchConcurrency > 0 {
+		return w.batchConcurrency
+	}
+	return contentWriterDefaultBatchConcurrency()
 }
 
 // preparedFileRow holds prepared file record values for batched insertion.
@@ -366,6 +397,7 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 	w.logStage(ctx, cloned, "upsert_entities", entityUpsertStart,
 		"row_count", len(entityUpserts),
 		"batch_count", contentBatchCount(len(entityUpserts), w.effectiveEntityBatchSize()),
+		"batch_concurrency", w.effectiveBatchConcurrency(),
 	)
 
 	return result, nil
@@ -500,7 +532,7 @@ func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []prepa
 // content_writer_batch.go for the worker-count and safety contract.
 func (w ContentWriter) upsertContentEntityBatches(ctx context.Context, rows []preparedEntityRow, indexedAt time.Time) error {
 	batchSize := w.effectiveEntityBatchSize()
-	return runConcurrentBatches(ctx, len(rows), batchSize, contentWriterBatchConcurrency(), func(c context.Context, start, end int) error {
+	return runConcurrentBatches(ctx, len(rows), batchSize, w.effectiveBatchConcurrency(), func(c context.Context, start, end int) error {
 		return w.upsertContentEntityBatch(c, rows[start:end], indexedAt)
 	})
 }

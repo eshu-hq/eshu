@@ -152,6 +152,21 @@
 - **Do not skip `WorkflowControlStore` lease fencing**. Always check the
   returned error from claim mutations; silently ignoring `ErrWorkflowClaimRejected`
   causes split-brain workflow state.
+- **Do not raise `contentWriterBatchConcurrencyAutoCap` or
+  `contentWriterBatchConcurrencyCap` without re-running the pool-budget
+  math** (`content_writer_batch.go`). Peak Postgres connection demand is
+  `ESHU_PROJECTOR_WORKERS * batch_concurrency`; the auto cap is set
+  against the 30-conn default pool from `internal/runtime/data_stores.go`.
+  Raising one without raising the other can starve collector, status, and
+  heartbeat paths.
+- **Do not re-introduce per-call `os.Getenv` reads in `ContentWriter`.**
+  The env override is resolved once in `NewContentWriter`; per-call reads
+  let a long-running ingester pick up live env changes the operator never
+  expected to be hot-reloaded.
+- **Do not assert positional `db.execs[i]` order on the entity-batch
+  path.** Entity batches fan out through `runConcurrentBatches` and
+  arrive in non-deterministic order. Assert on the sorted multiset of
+  batch sizes or on the per-batch query shape instead.
 
 ## What NOT to change without an ADR
 

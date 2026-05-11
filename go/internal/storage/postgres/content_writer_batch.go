@@ -10,39 +10,54 @@ import (
 )
 
 const (
-	// contentWriterBatchConcurrencyEnv controls parallel-batch fan-out for
-	// content writer upserts. Defaults to runtime.NumCPU() clamped to
-	// [1, 8] when unset or invalid. Tunable up to contentWriterBatchConcurrencyCap.
+	// contentWriterBatchConcurrencyEnv tunes parallel-batch fan-out for
+	// content writer entity upserts. The env value is clamped at
+	// contentWriterBatchConcurrencyCap. When unset, ContentWriter falls back
+	// to the runtime default in contentWriterDefaultBatchConcurrency.
 	contentWriterBatchConcurrencyEnv = "ESHU_CONTENT_WRITER_BATCH_CONCURRENCY"
 	// contentWriterBatchConcurrencyCap protects the embedded Postgres
-	// connection pool from over-subscription. Pool default is
-	// defaultPostgresMaxOpenConns=30 (data_stores.go), and other ingester
-	// goroutines also draw from it, so we cap content-batch fan-out well
-	// below that.
-	contentWriterBatchConcurrencyCap = 16
-	// contentWriterBatchConcurrencyAutoCap clamps the CPU-derived default so
-	// a 32-core host does not silently saturate the pool when env is unset.
-	contentWriterBatchConcurrencyAutoCap = 8
+	// connection pool from over-subscription. The pool default is
+	// defaultPostgresMaxOpenConns=30 (data_stores.go); peak demand is
+	// ESHU_PROJECTOR_WORKERS * this value, plus connections held by
+	// collector, status reads, and heartbeats. The cap is deliberately
+	// modest so an operator that explicitly opts up to 8 does not starve
+	// other ingester paths even at ESHU_PROJECTOR_WORKERS = NumCPU.
+	contentWriterBatchConcurrencyCap = 8
+	// contentWriterBatchConcurrencyAutoCap clamps the CPU-derived default
+	// so a 32-core host does not silently saturate the pool when env is
+	// unset. Default math: ESHU_PROJECTOR_WORKERS (typically NumCPU) * this
+	// value stays comfortably under the 30-conn pool for the common case.
+	contentWriterBatchConcurrencyAutoCap = 4
 )
 
-// contentWriterBatchConcurrency returns the worker count for parallel
-// content-batch upserts. The K8s dogfood run showed the source_local
-// projector spending ~9.3 min serially upserting 463k content_entity rows
-// through 1,544 batches of 300 rows each; ~360 ms per batch dominated the
-// projector wall. Each batch is one Postgres INSERT ... ON CONFLICT call,
-// and INSERTs from one scope's projection do not conflict on the same
-// content_entity row (entity_id is unique per repo_id+path+kind+identifier),
-// so the batches are safely independent and can run on parallel connections.
-func contentWriterBatchConcurrency() int {
+// contentWriterBatchConcurrencyFromEnv parses the env override at
+// construction time. Returns 0 when the env is unset or malformed so the
+// caller can fall back to contentWriterDefaultBatchConcurrency.
+func contentWriterBatchConcurrencyFromEnv() int {
 	raw := strings.TrimSpace(os.Getenv(contentWriterBatchConcurrencyEnv))
-	if raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
-			if n > contentWriterBatchConcurrencyCap {
-				return contentWriterBatchConcurrencyCap
-			}
-			return n
-		}
+	if raw == "" {
+		return 0
 	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	if n > contentWriterBatchConcurrencyCap {
+		return contentWriterBatchConcurrencyCap
+	}
+	return n
+}
+
+// contentWriterDefaultBatchConcurrency returns the worker count for parallel
+// content-batch upserts when no explicit override is provided. The K8s
+// dogfood run showed the source_local projector spending ~9.3 min serially
+// upserting 463k content_entity rows through 1,544 batches of 300 rows each;
+// ~360 ms per batch dominated the projector wall. Each batch is one Postgres
+// INSERT ... ON CONFLICT call, and INSERTs from one scope's projection do
+// not conflict on the same content_entity row (entity_id is unique per
+// repo_id+path+kind+identifier), so the batches are safely independent and
+// can run on parallel connections.
+func contentWriterDefaultBatchConcurrency() int {
 	n := runtime.NumCPU()
 	if n > contentWriterBatchConcurrencyAutoCap {
 		n = contentWriterBatchConcurrencyAutoCap
@@ -95,7 +110,7 @@ func runConcurrentBatches(
 
 	type chunk struct{ start, end int }
 	jobs := make(chan chunk)
-	errCh := make(chan error, workers)
+	errCh := make(chan error, 1)
 	var wg sync.WaitGroup
 
 	for w := 0; w < workers; w++ {
