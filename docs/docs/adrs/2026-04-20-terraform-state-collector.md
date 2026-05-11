@@ -863,6 +863,52 @@ Admin status should expose, per instance:
 - outstanding discovery candidates
 - recent warnings summarized by `warning_kind`
 
+### Performance Gates
+
+The streaming-parse memory guarantee for `ParseStream` is enforced by three
+tests and tracked by one benchmark:
+
+- `TestParseStream_PeakMemoryGate` in
+  `go/internal/collector/terraformstate/parser_memory_test.go` is the named
+  CI gate. It fails the build if `ParseStream` peak heap growth exceeds
+  48 MB on a 20k-resource synthetic state and also asserts that resource
+  facts are streamed through the `FactSink` rather than retained in the
+  parser. Runs on every build.
+- `TestParseStreamLargeStateDoesNotRetainProviderBindingsOrWarnings` in
+  `parser_stream_memory_test.go` asserts the same ceiling against a richer
+  fixture that exercises provider bindings and warnings.
+- `TestParseStreamLargeState100MiBStreamingProof` in `parser_memory_test.go`
+  is env-gated by `ESHU_TFSTATE_100MIB_PROOF=true`; it runs the streaming
+  assertion against a 100 MB synthetic state for periodic large-scale
+  validation.
+- `BenchmarkParseStream_LargeState` in `parser_bench_test.go` reports
+  allocations and throughput across 1k, 10k, and 20k-resource fixtures for
+  trend tracking. A future refactor that re-introduces full-payload
+  buffering will surface here as a sharp jump in `B/op` or `allocs/op`
+  even when peak heap stays below the hard-gate ceiling.
+
+Reproduction:
+
+```bash
+cd go && go test ./internal/collector/terraformstate -count=1 \
+    -run TestParseStream_PeakMemoryGate
+cd go && go test -bench=BenchmarkParseStream_LargeState -benchmem -run=^$ \
+    ./internal/collector/terraformstate
+```
+
+For a periodic large-scale check, the 100 MB ParseStream proof is
+env-gated:
+
+```bash
+cd go && ESHU_TFSTATE_100MIB_PROOF=true \
+    go test ./internal/collector/terraformstate -count=1 \
+    -run TestParseStreamLargeState100MiBStreamingProof -timeout 300s
+```
+
+This gate closes the deferred 100 MB peak-memory acceptance criterion from
+issue #46 (see Security Review 2026-05-10 Out of Scope) and is tracked in
+issue #153.
+
 ---
 
 ## Explicit Non-Goals
