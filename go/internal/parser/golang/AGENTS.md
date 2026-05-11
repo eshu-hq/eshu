@@ -15,9 +15,15 @@
 8. `function_literal_reachability.go` - callback and registry literal root
    boundaries
 9. `package_interface_prescan.go` - imported-interface parameter extraction
-10. `embedded_sql.go` - SQL literal extraction and line-number accounting
-11. `helpers.go` and `types.go` - local helper and shared contract aliases
-12. Parent tests in `go/internal/parser/go*_test.go` before changing emitted
+10. `parent_lookup.go` - per-file child-to-parent index used by every helper
+    that walks ancestors; required to keep ancestor traversal amortized O(1)
+11. `variable_type_index.go` and `imported_variable_type_index.go` -
+    per-file, per-scope variable-type lookup indices that replace the
+    per-call full-tree walks the dead-code and package-prescan helpers used
+    to do
+12. `embedded_sql.go` - SQL literal extraction and line-number accounting
+13. `helpers.go` and `types.go` - local helper and shared contract aliases
+14. Parent tests in `go/internal/parser/go*_test.go` before changing emitted
     payload shape
 
 ## Invariants this package enforces
@@ -79,6 +85,10 @@
   live code without bounded evidence.
 - Adding telemetry from this package; parse timing belongs to the runtime path
   that invokes the adapter.
+- Re-adding per-call full-tree walks for variable-type or ancestor lookups in
+  `dead_code_semantic_roots.go`, `package_interface_prescan.go`, or any other
+  helper. Use `goBuildParentLookup`, `goBuildVariableTypeIndex`, or
+  `goBuildImportedVariableTypeIndex` so per-file cost stays linear.
 
 ## What NOT to change without an ADR
 

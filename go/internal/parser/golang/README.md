@@ -110,6 +110,16 @@ Cyclomatic complexity counts Go control-flow branches once. The helper layer
 counts a `for range` statement through the enclosing `for_statement`, not again
 through its `range_clause`; this preserves the parent parser fixture contract.
 
+Per-file amortization is required for variable-type lookups. The helpers that
+collect dead-code roots and imported-method-call roots query variable types
+once per call_expression, var_spec, composite_literal, and return_statement —
+so a naive implementation that re-walks the full tree per query becomes
+O(call_sites × tree_size) per file. `goParentLookup` builds the child-to-parent
+map once per parse; `goVariableTypeIndex` and `goImportedVariableTypeIndex`
+build per-scope binding lists lazily on first use and answer position-filtered
+queries in pure Go map and slice work. Do not re-introduce per-call full-tree
+walks in `dead_code_semantic_roots.go` or `package_interface_prescan.go`.
+
 Dead-code evidence is conservative. Handler signatures, Cobra run signatures,
 controller-runtime reconciler signatures, registration calls, direct method
 calls, imported receiver method calls, function-value references,

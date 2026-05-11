@@ -110,14 +110,21 @@ func ImportedDirectMethodCallRoots(
 	defer tree.Close()
 
 	root := tree.RootNode()
+	lookup := goBuildParentLookup(root)
 	importAliases := goImportAliasIndex(root, source)
 	interfaceMethodReturns := goLocalInterfaceImportedMethodReturns(root, source, importAliases)
+	// Build the imported-variable-type index once per file so per-call lookups
+	// inside this walk are O(package_vars + scope_bindings_before_call), not
+	// O(tree_size). The prior pattern called goKnownImportedVariableTypesForCall
+	// per call_expression, and that helper internally re-walked the entire
+	// file's tree — quadratic behavior that hung the Terraform ingest (#161).
+	variableTypeIndex := goBuildImportedVariableTypeIndex(root, source, importAliases, lookup)
 	roots := make(shared.GoDirectMethodCallRoots)
 	walkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "call_expression" {
 			return
 		}
-		variableTypes := goKnownImportedVariableTypesForCall(root, node, source, importAliases)
+		variableTypes := variableTypeIndex.ForCall(node)
 		key := goImportedDirectMethodCallKey(node, source, importAliases, variableTypes, interfaceMethodReturns)
 		if key != "" {
 			roots[key] = appendUniqueImportAlias(roots[key], "go.imported_direct_method_call")
@@ -142,13 +149,18 @@ func ImportedDirectMethodCallRootsWithInterfaceReturns(
 	}
 	defer closeTree()
 
+	lookup := goBuildParentLookup(root)
 	importAliases := goImportAliasIndex(root, source)
+	// See goBuildImportedVariableTypeIndex doc-comment in
+	// imported_variable_type_index.go. The interface-returns variant shares
+	// the same call_expression hot path and therefore the same fix (#161).
+	variableTypeIndex := goBuildImportedVariableTypeIndex(root, source, importAliases, lookup)
 	roots := make(shared.GoDirectMethodCallRoots)
 	walkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "call_expression" {
 			return
 		}
-		variableTypes := goKnownImportedVariableTypesForCall(root, node, source, importAliases)
+		variableTypes := variableTypeIndex.ForCall(node)
 		key := goImportedDirectMethodCallKey(node, source, importAliases, variableTypes, interfaceMethodReturns)
 		if key != "" {
 			roots[key] = appendUniqueImportAlias(roots[key], "go.imported_direct_method_call")
