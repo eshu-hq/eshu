@@ -87,29 +87,57 @@ tfstate_drift_wait_for_phase_35() {
 	return 1
 }
 
-# Wait for the reducer queue to drain every config_state_drift intent (status
-# is no longer pending or in-flight). Uses psql instead of /admin/status
-# because the API does not expose per-domain counts today; psql is the
-# minimum surface area required for the proof.
+# Wait for the reducer queue to drain every config_state_drift intent. Uses
+# psql against fact_work_items (the table name behind NewReducerQueue) since
+# /admin/status does not expose per-domain counts today.
+#
+# Returns 0 when every drift intent reaches `succeeded`. Returns 1 with a
+# concrete failure summary when one or more intents land in `failed` or
+# `dead_letter` — those are terminal states that will never drain on their
+# own, so polling further is wasted time and the proof has clearly failed.
 tfstate_drift_wait_for_reducer_drain() {
 	local timeout_seconds="$1"
 	local deadline=$((SECONDS + timeout_seconds))
-	local depth=""
+	local active dead_letter failed
 	while ((SECONDS < deadline)); do
-		depth="$(
+		active="$(
 			"${COMPOSE_CMD[@]}" exec -T -e PGPASSWORD="${ESHU_POSTGRES_PASSWORD:-change-me}" postgres \
 				psql -U eshu -d eshu -t -A -c \
-				"SELECT count(*) FROM reducer_queue WHERE domain='config_state_drift' AND status IN ('pending','claimed','in_flight','retrying');" \
+				"SELECT count(*) FROM fact_work_items WHERE domain='config_state_drift' AND status IN ('pending','claimed','in_flight','retrying');" \
 				2>/dev/null \
 				| tr -d '[:space:]' \
 				|| true
 		)"
-		if [[ "$depth" == "0" ]]; then
+		dead_letter="$(
+			"${COMPOSE_CMD[@]}" exec -T -e PGPASSWORD="${ESHU_POSTGRES_PASSWORD:-change-me}" postgres \
+				psql -U eshu -d eshu -t -A -c \
+				"SELECT count(*) FROM fact_work_items WHERE domain='config_state_drift' AND status='dead_letter';" \
+				2>/dev/null \
+				| tr -d '[:space:]' \
+				|| true
+		)"
+		failed="$(
+			"${COMPOSE_CMD[@]}" exec -T -e PGPASSWORD="${ESHU_POSTGRES_PASSWORD:-change-me}" postgres \
+				psql -U eshu -d eshu -t -A -c \
+				"SELECT count(*) FROM fact_work_items WHERE domain='config_state_drift' AND status='failed';" \
+				2>/dev/null \
+				| tr -d '[:space:]' \
+				|| true
+		)"
+		if [[ -n "$dead_letter" && "$dead_letter" -gt 0 ]] || [[ -n "$failed" && "$failed" -gt 0 ]]; then
+			echo "drift intents reached terminal failure state: dead_letter=$dead_letter failed=$failed" >&2
+			"${COMPOSE_CMD[@]}" exec -T -e PGPASSWORD="${ESHU_POSTGRES_PASSWORD:-change-me}" postgres \
+				psql -U eshu -d eshu -c \
+				"SELECT scope_id, status, failure_reason FROM fact_work_items WHERE domain='config_state_drift' AND status IN ('dead_letter','failed') ORDER BY status, scope_id;" \
+				>&2 || true
+			return 1
+		fi
+		if [[ "$active" == "0" ]]; then
 			return 0
 		fi
 		sleep 2
 	done
-	echo "Timed out waiting for reducer_queue to drain config_state_drift intents (current depth=$depth)" >&2
+	echo "Timed out waiting for fact_work_items to drain config_state_drift intents (active=$active dead_letter=$dead_letter failed=$failed)" >&2
 	return 1
 }
 
