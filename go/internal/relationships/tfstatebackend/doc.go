@@ -11,8 +11,9 @@
 // Candidate. This package resolves the (backend_kind, locator_hash)
 // composite key to the latest sealed config snapshot that emitted a matching
 // terraform_backends parser fact via a narrow TerraformBackendQuery port; the
-// reducer handler injects the implementation that talks to the canonical
-// projector rows.
+// production implementation lives in
+// go/internal/storage/postgres/tfstate_backend_canonical.go and is injected
+// by cmd/reducer/main.go into DefaultHandlers.TerraformBackendResolver.
 //
 // V1 single-owner policy: at most one config repo may claim a given
 // (backend_kind, locator_hash). Ambiguous ownership returns a typed error and

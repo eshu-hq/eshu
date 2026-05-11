@@ -46,7 +46,10 @@ flowchart TB
 4. `openReducerNeo4jAdapters` — opens graph-backend driver; backend is
    chosen by ESHU_GRAPH_BACKEND (default `nornicdb`). Invalid values fail
    at startup.
-5. `buildReducerService` — loads all config, wires `DefaultHandlers`,
+5. `buildReducerService` — loads all config, wires `DefaultHandlers`
+   (including the Terraform config-vs-state drift adapters
+   `TerraformBackendResolver`, `DriftEvidenceLoader`, and `DriftLogger`
+   activated for chunk #163),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
    the `postgres.NewReducerQueue`.

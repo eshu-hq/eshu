@@ -150,27 +150,3 @@ func (r *Resolver) ResolveConfigCommitForBackend(
 	winner := sorted[0]
 	return CommitAnchor(winner), nil
 }
-
-// ResolveConfigCommitForBackend is preserved as a package-level convenience
-// for callers that want the Phase 0 "no owner" stub semantics without
-// constructing a Resolver. Phase 1 callers should use NewResolver and the
-// Resolver.ResolveConfigCommitForBackend method instead so they can inject a
-// real TerraformBackendQuery.
-//
-// Behavior: the shim delegates to a zero-state Resolver, so it inherits the
-// method's input validation: blank backendKind or blank locatorHash returns
-// the corresponding validation error. For any non-blank inputs the shim
-// returns ErrNoConfigRepoOwnsBackend because the zero-state Resolver has no
-// query backend wired.
-//
-// TODO(#43-followup): delete this shim once the adapter-wiring follow-up
-// chunk lands and all callers migrate to NewResolver.
-//
-// Deprecated: use NewResolver(query).ResolveConfigCommitForBackend instead.
-func ResolveConfigCommitForBackend(
-	ctx context.Context,
-	backendKind string,
-	locatorHash string,
-) (CommitAnchor, error) {
-	return (&Resolver{}).ResolveConfigCommitForBackend(ctx, backendKind, locatorHash)
-}

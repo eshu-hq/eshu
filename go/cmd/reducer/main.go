@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -266,6 +267,14 @@ func buildReducerService(
 		PriorGenerationCheck:               postgres.NewPriorGenerationCheck(database),
 		Tracer:                             tracer,
 		Instruments:                        instruments,
+		// Terraform config-vs-state drift adapters (issue #163). All three
+		// must be non-nil for the reducer registry to register
+		// DomainConfigStateDrift (see internal/reducer/defaults.go:202-213).
+		TerraformBackendResolver: tfstatebackend.NewResolver(
+			postgres.PostgresTerraformBackendQuery{DB: database},
+		),
+		DriftEvidenceLoader: postgres.PostgresDriftEvidenceLoader{DB: database},
+		DriftLogger:         logger,
 	})
 	if err != nil {
 		return reducer.Service{}, err
