@@ -144,6 +144,15 @@ duplicate-instrument error from the OTEL SDK.
   bypasses the bridge and those metrics will not appear on the Eshu `/metrics`
   endpoint.
 
+- **Dropping `WithResourceAsConstantLabels` from the Prometheus exporter**
+  — `provider.go` keys the allow-keys filter to `service.name` and
+  `service.namespace` so both reach Prometheus as labels on every
+  `eshu_dp_*` metric. Removing or narrowing that filter turns the
+  `$service` and `$namespace` Grafana template variables back into empty
+  dropdowns and silently empties every panel that filters by them. The
+  regression gate lives in `provider_resource_labels_test.go` (test
+  TestPrometheusExposesServiceLabelsOnMetrics).
+
 ## What NOT to change without discussion
 
 - The `eshu_dp_` prefix — a rename requires coordinating with all dashboards,

@@ -20,6 +20,13 @@ Eshu exposes four operator views:
 Go data-plane metrics use the `eshu_dp_` prefix. Runtime status gauges use the
 `eshu_runtime_` prefix.
 
+Every metric Eshu emits carries `service_name` and `service_namespace`
+labels derived from the OTEL resource attributes. Filter dashboards and
+alerts on those labels rather than `instance` or `job`. The runtime defaults
+to `service_namespace="eshu"` and sets `service_name` per binary
+(`collector-git`, `collector-terraform-state`, `eshu-ingester`,
+`eshu-reducer`, and so on).
+
 Docker Compose exposes Prometheus-format metrics on the runtime ports listed in
 [Health Checks](health-checks.md). Add `docker-compose.telemetry.yml` when you
 want a local OpenTelemetry collector and Jaeger at `http://localhost:16686` for
