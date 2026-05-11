@@ -149,7 +149,7 @@ func appendJavaFunction(
 	if parameterTypes := javaParameterTypes(node, source); len(parameterTypes) > 0 {
 		item["parameter_types"] = parameterTypes
 	}
-	if classContext := nearestNamedAncestor(node, source, "class_declaration", "interface_declaration", "record_declaration"); classContext != "" {
+	if classContext := javaNearestTypeContext(node, source); classContext != "" {
 		item["class_context"] = classContext
 	}
 	if rootKinds := javaDeadCodeRootKinds(node, source, name, methodReferences); len(rootKinds) > 0 {

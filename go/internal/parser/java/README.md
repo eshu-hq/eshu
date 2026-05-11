@@ -51,8 +51,10 @@ references become `function_calls` rows. Dynamic strings remain absent so graph
 reachability does not claim evidence the source did not prove.
 
 Method-reference target roots stay bounded to source evidence. A `this`
-receiver, typed receiver variable, or same-file declared type receiver can mark
-the matching method as a dead-code root; unknown receiver names are ignored.
+receiver, typed receiver variable, or unambiguous same-file declared type
+receiver can mark the matching method as a dead-code root across class,
+interface, enum, and record contexts; unknown or duplicate simple receiver
+names are ignored.
 
 Metadata extraction accepts repository-relative or absolute paths and
 normalizes separators before matching metadata locations. Invalid or duplicate
