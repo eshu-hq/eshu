@@ -206,6 +206,9 @@ func javaScriptDeadCodeRootKinds(
 	if javaScriptIsCommonJSMixinExport(node, name, source) {
 		rootKinds = appendUniqueString(rootKinds, "javascript.commonjs_mixin_export")
 	}
+	if javaScriptMethodInsideCommonJSDefaultExport(node, source) {
+		rootKinds = appendUniqueString(rootKinds, "javascript.commonjs_default_export")
+	}
 	if javaScriptIsHapiPluginRegister(node, name, source, evidence.hapiPluginFile) {
 		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_plugin_register")
 	}

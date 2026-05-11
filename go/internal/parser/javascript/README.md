@@ -54,18 +54,26 @@ Resolution is repository-bounded. Absolute `baseUrl` values, absolute path
 targets, and candidates outside the repository root return no result.
 
 TSConfigSourceCandidates returns candidates in a stable order: the base path,
-then supported JavaScript/TypeScript extensions, then index files with the same
-extension order.
+then supported JavaScript/TypeScript declaration and runtime extensions, then
+index files with the same extension order.
 
 Package helpers use the closest package.json between the source file and
 repoRoot. Workspace root manifests must not claim files owned by a nested
-package manifest.
+package manifest. A `types` target ending in `.d.ts` is treated as a declaration
+artifact path, so `lib/index.d.ts` can map back to authored sources such as
+`src/index.ts` when generated declaration files are not checked in.
 
 Dead-code roots are evidence rows, not guesses. Package entrypoints, CommonJS
-exports, Hapi handlers, Next.js route exports, framework callbacks,
-TypeScript interface implementation methods, module-contract exports, and
-public API re-exports must remain grounded in syntax or bounded repository
-files.
+exports, methods on CommonJS default-exported classes, Hapi handlers, Next.js
+route exports, framework callbacks, TypeScript interface implementation
+methods, module-contract exports, and public API re-exports must remain
+grounded in syntax or bounded repository files. CommonJS default-export class
+method roots apply only to the exported class expression, not helper classes
+nested inside another exported expression. Declaration public-surface walking
+follows repo-bounded static re-export barrels with a small cycle-safe depth cap
+so package `types` surfaces such as
+`index.d.ts -> types/index.d.ts -> plugin.d.ts` stay rooted without whole-repo
+inference.
 
 ## Related docs
 

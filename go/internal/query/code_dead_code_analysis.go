@@ -137,6 +137,9 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 			"python.public_api_member",
 			"python.public_api_base",
 			"rust.public_api_item",
+			"typescript.public_api_export",
+			"typescript.public_api_reexport",
+			"typescript.public_api_type_reference",
 		},
 		"modeled_go_semantic_roots": []string{
 			"go.dependency_injection_callback",

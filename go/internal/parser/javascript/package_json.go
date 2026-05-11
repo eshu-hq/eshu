@@ -248,7 +248,10 @@ func packageSourceCandidates(target string) []string {
 		candidates = appendUniqueString(candidates, "src/"+withoutBuildDir)
 	}
 	withoutExtension := strings.TrimSuffix(withoutBuildDir, filepath.Ext(withoutBuildDir))
-	for _, extension := range []string{".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"} {
+	if strings.HasSuffix(withoutBuildDir, ".d.ts") {
+		withoutExtension = strings.TrimSuffix(withoutBuildDir, ".d.ts")
+	}
+	for _, extension := range []string{".ts", ".tsx", ".d.ts", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"} {
 		candidates = appendUniqueString(candidates, withoutExtension+extension)
 		if !strings.HasPrefix(withoutExtension, "src/") {
 			candidates = appendUniqueString(candidates, "src/"+withoutExtension+extension)

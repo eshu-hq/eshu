@@ -95,6 +95,53 @@ func javaScriptCommonJSModuleExportAliases(root *tree_sitter.Node, source []byte
 	return aliases
 }
 
+func javaScriptMethodInsideCommonJSDefaultExport(node *tree_sitter.Node, source []byte) bool {
+	if node == nil || node.Kind() != "method_definition" {
+		return false
+	}
+	classNode := javaScriptNearestClassNode(node)
+	if classNode == nil {
+		return false
+	}
+	for current := classNode.Parent(); current != nil; current = current.Parent() {
+		if current.Kind() == "program" {
+			return false
+		}
+		if current.Kind() != "assignment_expression" {
+			continue
+		}
+		leftNode := current.ChildByFieldName("left")
+		rightNode := current.ChildByFieldName("right")
+		if strings.TrimSpace(nodeText(leftNode, source)) == "module.exports" &&
+			javaScriptAssignmentRightChainContains(rightNode, classNode) {
+			return true
+		}
+	}
+	return false
+}
+
+func javaScriptNearestClassNode(node *tree_sitter.Node) *tree_sitter.Node {
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		switch current.Kind() {
+		case "class", "class_declaration", "abstract_class_declaration":
+			return current
+		case "program":
+			return nil
+		}
+	}
+	return nil
+}
+
+func javaScriptAssignmentRightChainContains(valueNode *tree_sitter.Node, target *tree_sitter.Node) bool {
+	if javaScriptNodeSameRange(valueNode, target) {
+		return true
+	}
+	if valueNode == nil || valueNode.Kind() != "assignment_expression" {
+		return false
+	}
+	return javaScriptAssignmentRightChainContains(valueNode.ChildByFieldName("right"), target)
+}
+
 func rewriteJavaScriptCommonJSModuleExportAliasFullName(fullName string, aliases map[string]struct{}) string {
 	fullName = strings.TrimSpace(fullName)
 	if fullName == "" || len(aliases) == 0 {

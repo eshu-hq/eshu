@@ -275,6 +275,87 @@ func TestDefaultEngineParsePathTSXDeadCodeRootsReuseJavaScriptFamilyPolicy(t *te
 	}
 }
 
+func TestDefaultEngineParsePathJavaScriptMarksCommonJSDefaultExportClassMethods(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "core.js")
+	writeTestFile(
+		t,
+		filePath,
+		`'use strict';
+
+const internals = {};
+
+exports = module.exports = internals.Core = class {
+    registerServer(server) {
+        this.instances.add(server);
+    }
+
+    start() {
+        return true;
+    }
+};
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "registerServer"),
+		"dead_code_root_kinds",
+		[]string{"javascript.commonjs_default_export"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "start"),
+		"dead_code_root_kinds",
+		[]string{"javascript.commonjs_default_export"},
+	)
+}
+
+func TestDefaultEngineParsePathJavaScriptDoesNotRootNestedCommonJSDefaultExportClassMethods(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "factory.js")
+	writeTestFile(
+		t,
+		filePath,
+		`'use strict';
+
+module.exports = factory(class Internal {
+    cleanup() {
+        return true;
+    }
+});
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	if cleanup := assertFunctionByName(t, got, "cleanup"); cleanup["dead_code_root_kinds"] != nil {
+		t.Fatalf("cleanup dead_code_root_kinds = %#v, want nil", cleanup["dead_code_root_kinds"])
+	}
+}
+
 func TestDefaultEngineParsePathNextJSAppRouterComponentRoots(t *testing.T) {
 	t.Parallel()
 

@@ -99,6 +99,85 @@ export interface InternalConfig {
 	}
 }
 
+func TestDefaultEngineParsePathTypeScriptMarksMultiHopDeclarationBarrelSurface(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(repoRoot, "package.json"), `{
+  "name": "@example/hapi-shape",
+  "types": "./lib/index.d.ts"
+}
+`)
+	writeTestFile(t, filepath.Join(repoRoot, "lib", "index.d.ts"), `export * from "./types";
+`)
+	writeTestFile(t, filepath.Join(repoRoot, "lib", "types", "index.d.ts"), `export * from "./plugin";
+export * from "./route";
+`)
+	pluginPath := filepath.Join(repoRoot, "lib", "types", "plugin.d.ts")
+	writeTestFile(t, pluginPath, `export interface PluginRegistered {
+  name: string;
+}
+
+interface InternalPluginState {
+  loaded: boolean;
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	got, err := engine.ParsePath(repoRoot, pluginPath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(
+		t,
+		assertBucketItemByName(t, got, "interfaces", "PluginRegistered"),
+		"dead_code_root_kinds",
+		"typescript.public_api_reexport",
+	)
+	if _, ok := assertBucketItemByName(t, got, "interfaces", "InternalPluginState")["dead_code_root_kinds"]; ok {
+		t.Fatalf("InternalPluginState dead_code_root_kinds present, want absent outside exported declaration surface")
+	}
+}
+
+func TestDefaultEngineParsePathTypeScriptDoesNotFollowDeclarationBarrelsOutsideRepo(t *testing.T) {
+	t.Parallel()
+
+	parentDir := t.TempDir()
+	repoRoot := filepath.Join(parentDir, "repo")
+	outsideRoot := filepath.Join(parentDir, "outside")
+	writeTestFile(t, filepath.Join(repoRoot, "package.json"), `{
+  "name": "@example/escape",
+  "types": "./lib/index.d.ts"
+}
+`)
+	writeTestFile(t, filepath.Join(repoRoot, "lib", "index.d.ts"), `export * from "../../outside/barrel";
+`)
+	writeTestFile(t, filepath.Join(outsideRoot, "barrel.d.ts"), `export * from "../repo/lib/private";
+`)
+	privatePath := filepath.Join(repoRoot, "lib", "private.d.ts")
+	writeTestFile(t, privatePath, `export interface InternalOnly {
+  value: string;
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	got, err := engine.ParsePath(repoRoot, privatePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	if item := assertBucketItemByName(t, got, "interfaces", "InternalOnly"); item["dead_code_root_kinds"] != nil {
+		t.Fatalf("InternalOnly dead_code_root_kinds = %#v, want nil for outside-repo barrel", item["dead_code_root_kinds"])
+	}
+}
+
 func TestDefaultEngineParsePathTypeScriptMarksPackageBarrelTSConfigPathReExportSurface(t *testing.T) {
 	t.Parallel()
 

@@ -197,3 +197,97 @@ func TestHandleDeadCodeTypeScriptAndTSXRootsRemainDerivedMaturity(t *testing.T) 
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
 	}
 }
+
+func TestHandleDeadCodeSuppressesTypeScriptPublicAPIRootsAndReportsMetadata(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+				return []map[string]any{
+					{
+						"entity_id": "ts-reexport", "name": "createClient", "labels": []any{"Function"},
+						"file_path": "src/client.ts", "repo_id": "repo-1", "repo_name": "client-lib", "language": "typescript",
+					},
+					{
+						"entity_id": "ts-type-reference", "name": "ClientOptions", "labels": []any{"Interface"},
+						"file_path": "src/client.ts", "repo_id": "repo-1", "repo_name": "client-lib", "language": "typescript",
+					},
+					{
+						"entity_id": "ts-unused", "name": "normalizeOptions", "labels": []any{"Function"},
+						"file_path": "src/client.ts", "repo_id": "repo-1", "repo_name": "client-lib", "language": "typescript",
+					},
+				}, nil
+			},
+		},
+		Content: fakeDeadCodeContentStore{
+			entities: map[string]EntityContent{
+				"ts-reexport": {
+					EntityID: "ts-reexport", RelativePath: "src/client.ts", EntityType: "Function",
+					EntityName: "createClient", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"typescript.public_api_reexport"}},
+				},
+				"ts-type-reference": {
+					EntityID: "ts-type-reference", RelativePath: "src/client.ts", EntityType: "Interface",
+					EntityName: "ClientOptions", Language: "typescript",
+					Metadata: map[string]any{"dead_code_root_kinds": []string{"typescript.public_api_type_reference"}},
+				},
+				"ts-unused": {
+					EntityID: "ts-unused", RelativePath: "src/client.ts", EntityType: "Function",
+					EntityName: "normalizeOptions", Language: "typescript",
+				},
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code",
+		bytes.NewBufferString(`{"repo_id":"repo-1"}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	results, ok := resp["results"].([]any)
+	if !ok {
+		t.Fatalf("results type = %T, want []any", resp["results"])
+	}
+	if got, want := len(results), 1; got != want {
+		t.Fatalf("len(results) = %d, want %d", got, want)
+	}
+	only, ok := results[0].(map[string]any)
+	if !ok {
+		t.Fatalf("results[0] type = %T, want map[string]any", results[0])
+	}
+	if got, want := only["entity_id"], "ts-unused"; got != want {
+		t.Fatalf("results[0][entity_id] = %#v, want %#v", got, want)
+	}
+
+	analysis, ok := resp["analysis"].(map[string]any)
+	if !ok {
+		t.Fatalf("analysis type = %T, want map[string]any", resp["analysis"])
+	}
+	modeledPublicAPI, ok := analysis["modeled_public_api"].([]any)
+	if !ok {
+		t.Fatalf("analysis[modeled_public_api] type = %T, want []any", analysis["modeled_public_api"])
+	}
+	for _, want := range []string{"typescript.public_api_reexport", "typescript.public_api_type_reference"} {
+		if !queryTestStringSliceContains(modeledPublicAPI, want) {
+			t.Fatalf("analysis[modeled_public_api] missing %s in %#v", want, modeledPublicAPI)
+		}
+	}
+	if got, want := analysis["framework_roots_from_parser_metadata"], float64(2); got != want {
+		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
+	}
+}
