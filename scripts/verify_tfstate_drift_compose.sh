@@ -90,7 +90,9 @@ require_compose() {
 eshu_require_tool docker
 eshu_require_tool curl
 eshu_require_tool jq
-eshu_require_tool psql 2>/dev/null || true
+# nc is used by the port picker below; fail fast at preflight rather than
+# during the first pick_port call with a less-actionable error.
+eshu_require_tool nc
 require_compose
 
 # -- port assignment ---------------------------------------------------------
@@ -233,14 +235,21 @@ tfstate_drift_extract_drift_logs "$DRIFT_LOGS_FILE"
 
 echo "==> Asserting per-kind counter deltas"
 for kind in added_in_state added_in_config removed_from_state; do
-	pattern_label="drift_kind=\"$kind\""
+	# Match on three required label substrings rather than a single
+	# label-order-dependent regex: the metric name, the pack (so a future
+	# correlation pack emitting the same drift_kind cannot satisfy the
+	# assertion by accident), and the drift_kind itself.
 	value_after="$(
 		tfstate_drift_counter_value "$METRICS_AFTER_FILE" \
-			"eshu_dp_correlation_drift_detected_total\\{[^}]*${pattern_label}[^}]*\\}"
+			'^eshu_dp_correlation_drift_detected_total\{' \
+			"$LABEL_PACK" \
+			"drift_kind=\"$kind\""
 	)"
 	value_before="$(
 		tfstate_drift_counter_value "$METRICS_BEFORE_FILE" \
-			"eshu_dp_correlation_drift_detected_total\\{[^}]*${pattern_label}[^}]*\\}"
+			'^eshu_dp_correlation_drift_detected_total\{' \
+			"$LABEL_PACK" \
+			"drift_kind=\"$kind\""
 	)"
 	delta=$((value_after - value_before))
 	echo "  drift_kind=$kind before=$value_before after=$value_after delta=$delta"
@@ -252,13 +261,24 @@ for kind in added_in_state added_in_config removed_from_state; do
 	fi
 done
 
-echo "==> Asserting rule_matches counter advanced"
+echo "==> Asserting rule_matches counter delta for the drift pack"
+# Asserts a positive delta rather than a non-zero absolute value: any other
+# pack's counter activity (or pre-existing series in the registry) cannot
+# mask a missing drift increment.
+value_before="$(
+	tfstate_drift_counter_value "$METRICS_BEFORE_FILE" \
+		'^eshu_dp_correlation_rule_matches_total\{' \
+		"$LABEL_PACK"
+)"
 value_after="$(
 	tfstate_drift_counter_value "$METRICS_AFTER_FILE" \
-		"eshu_dp_correlation_rule_matches_total\\{[^}]*${LABEL_PACK}[^}]*\\}"
+		'^eshu_dp_correlation_rule_matches_total\{' \
+		"$LABEL_PACK"
 )"
-if [[ "$value_after" == "0" ]]; then
-	echo "rule_matches counter did not advance for ${LABEL_PACK}" >&2
+rule_matches_delta=$((value_after - value_before))
+echo "  rule_matches $LABEL_PACK before=$value_before after=$value_after delta=$rule_matches_delta"
+if [[ "$rule_matches_delta" -lt 1 ]]; then
+	echo "rule_matches delta for $LABEL_PACK was $rule_matches_delta, expected >=1" >&2
 	cat "$METRICS_AFTER_FILE" >&2
 	exit 1
 fi

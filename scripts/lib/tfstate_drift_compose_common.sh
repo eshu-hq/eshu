@@ -120,32 +120,45 @@ tfstate_drift_scrape_counters() {
 		> "$output_file"
 }
 
-# Read a counter value from the scraped metrics text. Returns 0 when the
-# series is not present (counters that have not fired yet) so callers can
-# treat absence as zero.
+# Read a counter value from the scraped metrics text. Returns 0 when no
+# line in the metrics file matches every filter (counters that have not
+# fired yet) so callers can treat absence as zero.
 #
 # The Prometheus text exposition format emits one cumulative value per
-# unique label set, so for a counter with a fixed label set (the case
-# today: one series per drift_kind) `tail -n 1` picks the single
-# cumulative reading. If the exporter ever fans the counter out across
-# multiple scope_name or service_name variants for the same drift_kind,
-# this helper picks one arbitrary line and the delta math becomes
-# ambiguous. If that day comes, sum across matching lines with `awk`
-# instead of `tail -n 1`.
+# unique label set. For a counter with a fixed label set (the case today:
+# one series per drift_kind) `tail -n 1` picks the single cumulative
+# reading. If the exporter ever fans the counter out across multiple
+# scope_name or service_name variants for the same drift_kind, this
+# helper picks one arbitrary line and the delta math becomes ambiguous;
+# remediate by summing across matching lines with `awk` instead.
 #
 # Args:
 #   $1 metrics_file
-#   $2 series_match_regex (e.g. 'eshu_dp_correlation_drift_detected_total\{[^}]*drift_kind="added_in_state"[^}]*\}')
+#   $2..$N one or more grep -E patterns; the line must match ALL of them.
+#          Pass each label as a separate pattern so callers do not have
+#          to assume any particular alphabetical order from the exporter
+#          (e.g. pass both `pack="terraform_config_state_drift"` and
+#          `drift_kind="added_in_state"` instead of trying to encode both
+#          in a single brittle regex).
 tfstate_drift_counter_value() {
-	local metrics_file="$1" pattern="$2"
-	local line
-	line="$(grep -E "$pattern" "$metrics_file" | tail -n 1 || true)"
-	if [[ -z "$line" ]]; then
+	local metrics_file="$1"
+	shift
+	if [[ ! -f "$metrics_file" ]]; then
 		echo "0"
 		return 0
 	fi
+	local lines
+	lines="$(cat "$metrics_file")"
+	local pattern
+	for pattern in "$@"; do
+		lines="$(echo "$lines" | grep -E -- "$pattern" || true)"
+		if [[ -z "$lines" ]]; then
+			echo "0"
+			return 0
+		fi
+	done
 	# Prometheus text-format value is the last whitespace-delimited token.
-	echo "$line" | awk '{print $NF}'
+	echo "$lines" | tail -n 1 | awk '{print $NF}'
 }
 
 # Extract resolution-engine log lines specific to the drift handler, dump
