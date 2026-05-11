@@ -212,6 +212,30 @@ collector/projector/reducer path.
   cloud edits, and confirming that the rule pack is being exercised
   after state-snapshot scope generations roll forward.
 
+### `eshu_dp_correlation_drift_intents_enqueued_total`
+
+- Type: Counter
+- Labels: `pack` (frozen string from the rule-pack registry, e.g.
+  `terraform_config_state_drift`), `source` (currently always
+  `bootstrap_index`; reserved for a future ingester delta-trigger).
+- Meaning: Count of `config_state_drift` reducer intents the bootstrap-index
+  Phase 3.5 trigger emitted per run. Advances by the number of active
+  `state_snapshot:*` scopes at trigger time; advances by 0 when there are
+  no active state-snapshot scopes, which is itself the useful signal "the
+  trigger ran and produced zero work."
+- Use it for: Decoupling drift enqueue health from drift admission health.
+  Paired with `eshu_dp_correlation_drift_detected_total`, the two counters
+  let operators attribute a drop:
+  - Flat enqueue + dropping admission → classifier or loader regression.
+  - Dropping enqueue + dropping admission → bootstrap trigger or upstream
+    fact-set regression.
+  - Dashboard example (sum to a single series per `pack` before subtracting,
+    so the admission counter's additional `rule` and `drift_kind` labels
+    don't trigger many-to-one vector matching):
+    `sum by(pack) (rate(eshu_dp_correlation_drift_intents_enqueued_total[1h])) - sum by(pack) (rate(eshu_dp_correlation_drift_detected_total[1h]))`
+    surfaces the gap between trigger emission rate and admission rate per
+    pack, aggregated across all admitted drift kinds.
+
 ### `eshu_dp_documentation_entity_mentions_extracted_total`
 ### `eshu_dp_documentation_claim_candidates_extracted_total`
 ### `eshu_dp_documentation_claim_candidates_suppressed_total`
