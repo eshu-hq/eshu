@@ -81,3 +81,69 @@ def main():
 	classReference := assertBucketItemByFieldValue(t, got, "function_calls", "call_kind", "python.class_reference")
 	assertStringFieldValue(t, classReference, "name", "S3Event")
 }
+
+func TestDefaultEngineParsePathPythonEmitsProtocolAndCachedPropertyRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "protocols.py")
+	writeTestFile(
+		t,
+		filePath,
+		`import functools
+
+def __getattr__(name):
+    raise AttributeError(name)
+
+def patch_missing():
+    def __reduce__(*_args):
+        return "missing"
+
+    type(missing).__reduce__ = __reduce__
+
+class PublicKey:
+    @functools.cached_property
+    def fingerprint(self):
+        return "fingerprint"
+
+    @property  # type: ignore[misc]
+    def public_key(self):
+        return "key"
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "__getattr__"),
+		"dead_code_root_kinds",
+		[]string{"python.dunder_method"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "__reduce__"),
+		"dead_code_root_kinds",
+		[]string{"python.dunder_method"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "fingerprint"),
+		"dead_code_root_kinds",
+		[]string{"python.property_decorator"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "public_key"),
+		"dead_code_root_kinds",
+		[]string{"python.property_decorator"},
+	)
+}

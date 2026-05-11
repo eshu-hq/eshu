@@ -193,6 +193,46 @@ if __name__ == "__main__":
 	}
 }
 
+func TestDefaultEngineParsePathPythonEmitsReversedScriptMainGuardRoot(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "script.py")
+	writeTestFile(
+		t,
+		filePath,
+		`def main():
+    return 0
+
+def helper():
+    return 1
+
+if ("__main__" == __name__):
+    main()
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "main"),
+		"dead_code_root_kinds",
+		[]string{"python.script_main_guard"},
+	)
+	if helper := assertFunctionByName(t, got, "helper"); helper["dead_code_root_kinds"] != nil {
+		t.Fatalf("helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
+	}
+}
+
 func TestDefaultEngineParsePathPythonEmitsSAMHandlerDeadCodeRootKind(t *testing.T) {
 	t.Parallel()
 

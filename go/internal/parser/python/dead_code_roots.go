@@ -7,7 +7,9 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-var pythonMainGuardCallRe = regexp.MustCompile(`(?m)\b([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
+var pythonMainGuardHeaderRe = regexp.MustCompile(
+	`^\s*if\s*\(?\s*(?:__name__\s*==\s*["']__main__["']|["']__main__["']\s*==\s*__name__)\s*\)?\s*:`,
+)
 
 var pythonFastAPIRouteDecoratorKinds = map[string]struct{}{
 	".get(":     {},
@@ -22,7 +24,7 @@ var pythonFastAPIRouteDecoratorKinds = map[string]struct{}{
 func pythonDeadCodeRootKinds(decorators []string) []string {
 	rootKinds := make([]string, 0, 2)
 	for _, decorator := range decorators {
-		normalized := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(decorator)), ""))
+		normalized := pythonNormalizeDecorator(decorator)
 		if normalized == "" {
 			continue
 		}
@@ -49,7 +51,7 @@ func pythonDeadCodeRootKinds(decorators []string) []string {
 func pythonClassDeadCodeRootKinds(decorators []string) []string {
 	rootKinds := make([]string, 0, 1)
 	for _, decorator := range decorators {
-		normalized := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(decorator)), ""))
+		normalized := pythonNormalizeDecorator(decorator)
 		if pythonIsDataclassDecorator(normalized) {
 			rootKinds = appendUniqueString(rootKinds, "python.dataclass_model")
 		}
@@ -74,22 +76,41 @@ func pythonDataclassClassNames(root *tree_sitter.Node, source []byte) map[string
 	return names
 }
 
-func pythonScriptMainGuardRoots(source []byte) map[string]bool {
-	text := string(source)
-	guardIndex := strings.Index(text, `if __name__ == "__main__":`)
-	if guardIndex < 0 {
-		guardIndex = strings.Index(text, `if __name__ == '__main__':`)
-	}
-	if guardIndex < 0 {
+func pythonScriptMainGuardRoots(root *tree_sitter.Node, source []byte) map[string]bool {
+	roots := make(map[string]bool)
+	walkNamed(root, func(node *tree_sitter.Node) {
+		if node.Kind() != "if_statement" || !pythonIsScriptMainGuard(node, source) {
+			return
+		}
+		walkNamed(node, func(child *tree_sitter.Node) {
+			if child.Kind() != "call" {
+				return
+			}
+			name := pythonCallName(child.ChildByFieldName("function"), source)
+			if name != "" {
+				roots[name] = true
+			}
+		})
+	})
+	if len(roots) == 0 {
 		return nil
 	}
-	roots := make(map[string]bool)
-	for _, match := range pythonMainGuardCallRe.FindAllStringSubmatch(text[guardIndex:], -1) {
-		if len(match) == 2 && match[1] != "if" {
-			roots[match[1]] = true
-		}
-	}
 	return roots
+}
+
+func pythonIsScriptMainGuard(node *tree_sitter.Node, source []byte) bool {
+	text := strings.TrimSpace(nodeText(node, source))
+	header, _, ok := strings.Cut(text, "\n")
+	if !ok {
+		header = text
+	}
+	return pythonMainGuardHeaderRe.MatchString(header)
+}
+
+func pythonNormalizeDecorator(decorator string) string {
+	normalized := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(decorator)), ""))
+	normalized, _, _ = strings.Cut(normalized, "#")
+	return normalized
 }
 
 func pythonIsFastAPIRouteDecorator(normalized string) bool {
@@ -137,7 +158,14 @@ func pythonIsTyperCallbackDecorator(normalized string) bool {
 }
 
 func pythonIsPropertyDecorator(normalized string) bool {
-	return normalized == "@property"
+	if normalized == "@property" ||
+		normalized == "@cached_property" ||
+		normalized == "@functools.cached_property" {
+		return true
+	}
+	return strings.HasPrefix(normalized, "@cached_property(") ||
+		strings.HasPrefix(normalized, "@functools.cached_property(") ||
+		strings.HasSuffix(normalized, ".cached_property")
 }
 
 func pythonIsDataclassDecorator(normalized string) bool {

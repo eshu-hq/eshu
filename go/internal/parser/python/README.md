@@ -58,6 +58,16 @@ Lambda handler detection scans template.yaml, template.yml, serverless.yaml, and
 serverless.yml from the source directory up to the repository root. It only
 marks handlers when the runtime is Python.
 
+Script-main guard detection walks parsed if statements and accepts both
+`__name__ == "__main__"` and `"__main__" == __name__` forms. Only calls inside
+the guard statement become `python.script_main_guard` roots.
+
+Property root detection covers `@property`, `@cached_property`, and
+`@functools.cached_property`, including decorators with inline type-checker
+comments. Dunder protocol roots are not limited to class methods because module
+`__getattr__` hooks and nested runtime-assigned protocol functions are called by
+Python or library dispatch rather than direct source calls.
+
 The adapter keeps module-scope variables by default. Set the shared
 VariableScope option to all when a caller needs local assignment payloads too.
 

@@ -54,7 +54,7 @@ func Parse(
 	scope := options.NormalizedVariableScope()
 	lambdaHandlers := pythonLambdaHandlerRoots(repoRoot, path)
 	dataclassClasses := pythonDataclassClassNames(root, source)
-	scriptMainRoots := pythonScriptMainGuardRoots(source)
+	scriptMainRoots := pythonScriptMainGuardRoots(root, source)
 	publicAPIRootKinds := pythonPublicAPIRootKinds(repoRoot, path, root, source)
 	if docstring := pythonDocstring(root, source); docstring != "" {
 		moduleName := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
@@ -136,7 +136,7 @@ func Parse(
 			if name == "__post_init__" && dataclassClasses[classContext] {
 				rootKinds = appendUniqueString(rootKinds, "python.dataclass_post_init")
 			}
-			if classContext != "" && pythonIsDunderMethod(name) {
+			if pythonIsDunderMethod(name) {
 				rootKinds = appendUniqueString(rootKinds, "python.dunder_method")
 			}
 			if classContext != "" && pythonPublicAPIClassMember(publicAPIRootKinds[classContext], name) {
