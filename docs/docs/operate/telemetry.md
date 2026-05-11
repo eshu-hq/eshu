@@ -21,10 +21,14 @@ Go data-plane metrics use the `eshu_dp_` prefix. Runtime status gauges use the
 `eshu_runtime_` prefix.
 
 Every metric Eshu emits carries `service_name` and `service_namespace`
-labels derived from the OTEL resource attributes. Filter dashboards and
-alerts on those labels rather than `instance` or `job`. The runtime defaults
-to `service_namespace="eshu"` and sets `service_name` per binary
-(`collector-git`, `collector-terraform-state`, `eshu-ingester`,
+labels. Data-plane metrics (`eshu_dp_*`) get them from the OTEL resource
+attributes via the Prometheus exporter's resource-to-label conversion;
+runtime status metrics (`eshu_runtime_*`) get them from the runtime
+serializer, which renders the labels directly from the runtime's
+service name and the shared default namespace. Filter dashboards and
+alerts on those labels rather than `instance` or `job`. The runtime
+defaults to `service_namespace="eshu"` and sets `service_name` per
+binary (`collector-git`, `collector-terraform-state`, `eshu-ingester`,
 `eshu-reducer`, and so on).
 
 Docker Compose exposes Prometheus-format metrics on the runtime ports listed in

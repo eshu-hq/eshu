@@ -17,10 +17,16 @@ import (
 // gauge.
 //
 // Background: every dashboard under docs/dashboards/ defines `service` and
-// `namespace` template variables that query
-// label_values(eshu_dp_*, service_name) and label_values(eshu_dp_*, service_namespace).
-// Before issue #154 landed, the OTEL Prometheus exporter was constructed
-// without WithResourceAsConstantLabels, so those labels existed only on
+// `namespace` template variables that query against a concrete data-plane
+// metric, e.g.
+//
+//	label_values(eshu_dp_facts_emitted_total, service_name)
+//	label_values(eshu_dp_facts_emitted_total, service_namespace)
+//
+// (see docs/dashboards/ingester.json; reducer.json, tfstate.json, and the
+// others follow the same shape with their own metric name). Before issue
+// #154 landed, the OTEL Prometheus exporter was constructed without
+// WithResourceAsConstantLabels, so those labels existed only on
 // target_info. Both Grafana dropdowns were silently empty and every panel
 // that filtered by {service_name=~"$service"} or
 // {service_namespace=~"$namespace"} returned no data.

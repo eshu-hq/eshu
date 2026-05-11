@@ -124,14 +124,16 @@ func createMeterProvider(ctx context.Context, res *resource.Resource, hasOTLP bo
 	// WithResourceAsConstantLabels propagates the named OTEL resource
 	// attributes onto every emitted metric as Prometheus labels. Without
 	// this option the exporter leaves resource metadata on the separate
-	// target_info gauge only, which means a Grafana query like
-	// `label_values(eshu_dp_*, service_name)` returns empty. Every Eshu
-	// dashboard under docs/dashboards/ relies on service_name and
-	// service_namespace being available as direct labels for filtering;
-	// see issue #154 for the audit that revealed the gap. The allow-keys
-	// filter is intentionally narrow so we do not accidentally leak
-	// every resource attribute (host, process, sdk version, etc.) into
-	// the metric label set.
+	// target_info gauge only, which means a Grafana template variable
+	// scoped to a data-plane metric (e.g.
+	// label_values(eshu_dp_facts_emitted_total, service_name) in
+	// docs/dashboards/ingester.json) returns empty. Every Eshu dashboard
+	// under docs/dashboards/ relies on service_name and service_namespace
+	// being available as direct labels for filtering; see issue #154 for
+	// the audit that revealed the gap. The allow-keys filter is
+	// intentionally narrow so we do not accidentally leak every resource
+	// attribute (host, process, sdk version, etc.) into the metric
+	// label set.
 	registry := prometheus.NewRegistry()
 	promExporter, err := otelprom.New(
 		otelprom.WithRegisterer(registry),
