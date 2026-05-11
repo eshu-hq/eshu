@@ -18,9 +18,15 @@ import (
 // (backend_kind, locator_hash) pair.
 //
 // The SQL deliberately does NOT filter by repo_id; the resolver call site does
-// not know the owning repo yet — discovering it is the whole point. The
-// jsonb_typeof check skips file facts that have no terraform_backends bucket
-// (the vast majority), keeping the scan bounded to actual Terraform repos.
+// not know the owning repo yet — discovering it is the whole point.
+//
+// The HCL parser's base payload (parser.go:110) always emits an empty
+// terraform_backends array for every parsed file, so jsonb_typeof alone does
+// NOT prune the scan. jsonb_array_length > 0 is the load-bearing predicate:
+// it restricts the row set to files that actually contain a
+// `terraform { backend "<kind>" {} }` block — typically one or two files per
+// Terraform repo, often zero. Without this filter the adapter decodes every
+// HCL file fact across every active repo.
 const listTerraformBackendCanonicalRowsQuery = `
 SELECT
     fact.payload->>'repo_id'                                  AS repo_id,
@@ -39,6 +45,7 @@ WHERE fact.fact_kind = 'file'
   AND fact.source_system = 'git'
   AND generation.status = 'active'
   AND jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
+  AND jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_backends') > 0
 ORDER BY fact.payload->>'repo_id' ASC, fact.observed_at ASC, fact.fact_id ASC
 `
 

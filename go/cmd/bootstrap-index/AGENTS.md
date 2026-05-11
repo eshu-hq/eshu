@@ -21,7 +21,8 @@ touching any file in `go/cmd/bootstrap-index/`.
 
 ## Phase-ordering invariant
 
-The five phases in `runPipelined` (`main.go:213`) must execute in order:
+The six pipeline steps in `runPipelined` (`main.go:213`) must execute in
+order:
 
 1. `drainCollector` + `drainProjectorPipelined` run concurrently.
    `BackfillAllRelationshipEvidence` is called after `drainCollector` returns,

@@ -282,7 +282,9 @@ mutation is rejected because the current owner no longer holds the lease.
   each row's locator hash with `terraformstate.LocatorHash`.
 - `PostgresDriftEvidenceLoader` (`tfstate_drift_evidence.go:51`) — builds the
   per-address `tfconfigstate.AddressedRow` slice from config + state + prior
-  generation facts; skips the prior lookup when current serial is zero.
+  generation facts; skips the prior lookup when current serial is zero. The
+  config and backend queries gate on `jsonb_array_length > 0` so files with
+  empty parser buckets are not decoded.
 - `IngestionStore.EnqueueConfigStateDriftIntents` (`drift_enqueue.go:55`) —
   Phase 3.5 trigger that enqueues one `config_state_drift` reducer intent per
   active `state_snapshot:*` scope after bootstrap Phase 3 finishes.

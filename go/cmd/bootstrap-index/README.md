@@ -29,9 +29,13 @@ sync -> discover -> parse -> emit facts -> enqueue projector work
 `eshu-bootstrap-index` owns steps 1–7. After it exits, `eshu-reducer` drains the
 reducer intents that were enqueued during source-local projection.
 
-## Internal flow — the four phases
+## Internal flow — the pipeline phases
 
-The orchestrator in `runPipelined` (`main.go:213`) drives four phases.
+The orchestrator in `runPipelined` (`main.go:213`) drives six sequential
+steps: collection + projection (Phase 1), relationship-evidence backfill
+(Phase 2), IaC reachability materialization, deployment-mapping reopen
+(Phase 3), drift-intent enqueue (Phase 3.5), and the final shutdown
+path.
 
 ```mermaid
 flowchart TD

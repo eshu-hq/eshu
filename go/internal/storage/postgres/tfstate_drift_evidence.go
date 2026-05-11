@@ -64,9 +64,15 @@ type PostgresDriftEvidenceLoader struct {
 
 // listConfigResourcesForCommitQuery returns the terraform_resources arrays
 // emitted by the parser for one (scope_id, generation_id) — i.e. one sealed
-// commit anchor — restricted to git-source file facts that actually carry the
-// bucket. The jsonb_typeof predicate keeps the query bounded to .tf-like
-// inputs even though the parser emits empty arrays in its base payload.
+// commit anchor — restricted to git-source file facts that actually contain
+// resource blocks.
+//
+// The HCL parser's base payload (parser.go:103) always emits an empty
+// terraform_resources array for every parsed file, so jsonb_typeof alone
+// does NOT prune the scan. jsonb_array_length > 0 is the load-bearing
+// predicate: it restricts the row set to .tf files that actually contain
+// at least one `resource "<type>" "<name>" {}` block. Without it the loader
+// scans every parsed file in the repo snapshot per drift intent.
 const listConfigResourcesForCommitQuery = `
 SELECT
     fact.payload->'parsed_file_data'->'terraform_resources' AS terraform_resources
@@ -76,6 +82,7 @@ WHERE fact.scope_id = $1
   AND fact.fact_kind = 'file'
   AND fact.source_system = 'git'
   AND jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_resources') = 'array'
+  AND jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_resources') > 0
 ORDER BY fact.fact_id ASC
 `
 
@@ -84,6 +91,14 @@ ORDER BY fact.fact_id ASC
 // generation_id (used to fetch the matching state-resource rows). The scope
 // must have at most one active snapshot at any time; the LIMIT 1 protects
 // against stray duplicates without hiding a real bug.
+//
+// The ORDER BY is deterministic: newest observed_at first, lexicographic
+// fact_id tie-break. Without it, two snapshot facts sharing the active
+// generation (e.g. a transient duplicate during recovery or an upstream
+// re-emit) could yield different lineage/serial pairs on successive calls,
+// silently shifting which prior generation the loader looks up next. Stable
+// ordering is the only correctness gate the loader has against duplicate
+// rows it cannot reject upstream.
 const activeStateSnapshotMetadataQuery = `
 SELECT
     fact.payload->>'lineage'                AS lineage,
@@ -95,6 +110,7 @@ JOIN ingestion_scopes AS scope
  AND scope.active_generation_id = fact.generation_id
 WHERE fact.scope_id = $1
   AND fact.fact_kind = 'terraform_state_snapshot'
+ORDER BY fact.observed_at DESC, fact.fact_id DESC
 LIMIT 1
 `
 
@@ -333,12 +349,22 @@ func (l PostgresDriftEvidenceLoader) loadStateResources(
 	return out, nil
 }
 
-// configRowFromParserEntry maps one parsed_file_data.terraform_resources entry
-// to a ResourceRow. The parser emits resource_type + resource_name plus an
-// optional module path; the canonical address is rebuilt here so the join key
-// matches the state-side address shape. Module-nested resources are skipped:
-// the parser sees the calling repo's module call, not the callee's resources,
-// so the join would never match anyway.
+// configRowFromParserEntry maps one parsed_file_data.terraform_resources
+// entry to a ResourceRow. The parser
+// (go/internal/parser/hcl/parser.go:130-154) emits only resource_type,
+// resource_name, count, and for_each metadata per row — no module-path
+// field. The canonical address built here is therefore the root-module
+// form `<type>.<name>`.
+//
+// Module-nested state addresses (e.g. `module.vpc.aws_instance.web`) will
+// not match a config-side row built by this function because the parser
+// sees only the calling repo's `module {}` block, not the callee module's
+// resources. That scope mismatch is a known v1 limitation: addresses
+// inside called modules surface as added_in_state (state has them, no
+// config-side row) until the parser walks nested modules or the loader
+// joins module-call metadata. Returns (nil, false) on blank type or name
+// so genuinely invalid rows do not become drift candidates; per-attribute
+// values are reserved for a forward-compat attribute extractor.
 func configRowFromParserEntry(entry map[string]any) (*tfconfigstate.ResourceRow, bool) {
 	resourceType := strings.TrimSpace(coerceJSONString(entry["resource_type"]))
 	resourceName := strings.TrimSpace(coerceJSONString(entry["resource_name"]))
@@ -346,8 +372,6 @@ func configRowFromParserEntry(entry map[string]any) (*tfconfigstate.ResourceRow,
 		return nil, false
 	}
 	address := resourceType + "." + resourceName
-	// The parser does not emit per-attribute values today; reserve the
-	// Attributes map for forward-compat when an attribute extractor lands.
 	return &tfconfigstate.ResourceRow{
 		Address:      address,
 		ResourceType: resourceType,
@@ -359,6 +383,15 @@ func configRowFromParserEntry(entry map[string]any) (*tfconfigstate.ResourceRow,
 // or a payload schema break in the collector pipeline upstream; the loader
 // skips the row to keep the join bounded, but the row is real drift evidence
 // that has gone dark. Without the log, the corruption is invisible.
+//
+// The loader deliberately continues past a decode failure rather than
+// propagating it: drift detection is best-effort observability over
+// committed facts, not a transactional invariant. One corrupt payload in a
+// scope of thousands must not disable drift classification for every other
+// address; the structured log gives operators the signal to remediate the
+// corrupt fact while the rest of the join still runs. Reducer handlers that
+// own transactional truth (e.g. canonical materialization) propagate
+// upstream errors instead — drift does not, by design.
 func (l PostgresDriftEvidenceLoader) logDecodeFailure(ctx context.Context, scopeID, generationID, address string) {
 	if l.Logger == nil {
 		return

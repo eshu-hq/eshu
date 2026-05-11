@@ -44,5 +44,7 @@
 // PreviouslyDeclaredInConfig is intentionally left false in v1: proving an
 // address was once declared in config requires walking prior repo
 // generations, which is deferred. The classifier then emits added_in_state
-// for every state-only address, which is the conservative fallback.
+// for every state-only address, which is the conservative fallback. The
+// drift queries gate on jsonb_array_length > 0 so files whose parser
+// buckets are empty (the base-payload default) are not scanned.
 package postgres
