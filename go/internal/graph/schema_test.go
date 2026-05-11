@@ -89,9 +89,10 @@ func TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes(t *testing.T) 
 		// for MERGE performance on Neo4j (schema.go:113-119). NornicDB silently
 		// drops composite constraints in nornicDBSchemaConstraint, leaving MERGE
 		// on those labels without a backing index. Without a single-property
-		// index, source-local projection (writer.go MERGE on SourceLocalRecord)
-		// and the canonical HAS_PARAMETER edge (canonical_node_cypher.go MERGE
-		// on Parameter) fall through to a full label scan that the schema.go
+		// index, source-local projection (go/internal/storage/cypher/writer.go
+		// MERGE on SourceLocalRecord) and the canonical HAS_PARAMETER edge
+		// (go/internal/storage/cypher/canonical_node_cypher.go MERGE on
+		// Parameter) fall through to a full label scan that the schema.go
 		// comment calls out as "O(n²)".
 		"CREATE INDEX nornicdb_source_local_record_scope_lookup IF NOT EXISTS FOR (n:SourceLocalRecord) ON (n.scope_id)",
 		"CREATE INDEX nornicdb_parameter_path_lookup IF NOT EXISTS FOR (n:Parameter) ON (n.path)",
