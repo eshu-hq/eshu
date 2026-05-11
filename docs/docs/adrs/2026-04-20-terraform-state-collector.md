@@ -1060,6 +1060,18 @@ issue #153.
 
 **Scope:** resolver shim and expanded fact coverage.
 
+**Status:** Terragrunt `remote_state` resolver landed
+(`go/internal/parser/hcl/terragrunt_remote_state.go`,
+`go/internal/parser/hcl/include_chain.go`,
+`go/internal/collector/terraformstate/source_terragrunt.go`,
+`go/internal/storage/postgres/tfstate_backend_facts.go`). The parser extracts
+Terragrunt `remote_state` blocks, walks `include`,
+`find_in_parent_folders`, and `read_terragrunt_config` chains with bounded
+depth and cycle detection, and the resolver translates each row into a
+`DiscoveryCandidate` carrying the underlying backend kind. Discovery never
+sees `BackendTerragrunt`; the indirection is config-time only.
+Output/module/tag warning counters and admin status remain pending.
+
 **Likely files:**
 
 - `go/internal/collector/terraformstate/source_terragrunt.go`

@@ -22,6 +22,12 @@ type TerraformStatePlanRequest struct {
 
 // TerraformStateWorkPlanner plans workflow rows for exact Terraform-state
 // candidates without opening the state source.
+//
+// BackendFacts returns candidates from both Terraform backend blocks and
+// Terragrunt remote_state blocks. The Terragrunt indirection is resolved by
+// the storage adapter into the underlying s3 or local backend kind, so this
+// planner never observes BackendTerragrunt and does not need a separate
+// scheduler shape to fan out Terragrunt sources.
 type TerraformStateWorkPlanner struct {
 	GitReadiness terraformstate.GitReadinessChecker
 	BackendFacts terraformstate.BackendFactReader

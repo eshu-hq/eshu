@@ -7,4 +7,10 @@
 // loaded from ESHU_WORKFLOW_COORDINATOR_* environment variables; deployment
 // mode is "dark" or "active" and active mode requires claims enabled with at
 // least one claim-capable collector instance.
+//
+// TerraformStateWorkPlanner plans Terraform-state collection runs from the
+// resolved discovery candidates. The planner consumes BackendFacts which now
+// returns both Terraform backend block candidates and Terragrunt remote_state
+// candidates resolved into their underlying backend kind, so no separate
+// scheduler shape is needed for Terragrunt sources.
 package coordinator

@@ -13,8 +13,8 @@ func TestTerraformStateBackendFactReaderReturnsS3Candidates(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{{
-			rows: [][]any{{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{
 				"repo-infra",
 				[]byte(`[{
 					"backend_kind":"s3",
@@ -27,8 +27,9 @@ func TestTerraformStateBackendFactReaderReturnsS3Candidates(t *testing.T) {
 					"dynamodb_table":"tfstate-locks-api",
 					"dynamodb_table_is_literal":true
 				}]`),
-			}},
-		}},
+			}}},
+			{},
+		},
 	}
 	reader := TerraformStateBackendFactReader{DB: db}
 
@@ -63,7 +64,7 @@ func TestTerraformStateBackendFactReaderReturnsS3Candidates(t *testing.T) {
 		t.Fatalf("candidate.DynamoDBTable = %q, want %q", got, want)
 	}
 
-	if got, want := len(db.queries), 1; got != want {
+	if got, want := len(db.queries), 2; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
 	query := db.queries[0].query
@@ -81,14 +82,17 @@ func TestTerraformStateBackendFactReaderReturnsS3Candidates(t *testing.T) {
 	if strings.Contains(query, "latest_generations") {
 		t.Fatalf("query contains latest generation fallback: %s", query)
 	}
+	if !strings.Contains(db.queries[1].query, "terragrunt_remote_states") {
+		t.Fatalf("expected second query to read terragrunt_remote_states, got: %s", db.queries[1].query)
+	}
 }
 
 func TestTerraformStateBackendFactReaderSkipsNonExactCandidates(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{{
-			rows: [][]any{{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{
 				"repo-infra",
 				[]byte(`[
 					{"backend_kind":"local","path":"terraform.tfstate"},
@@ -96,8 +100,9 @@ func TestTerraformStateBackendFactReaderSkipsNonExactCandidates(t *testing.T) {
 					{"backend_kind":"s3","bucket":"app-tfstate-prod","key":"services/api/terraform.tfstate"},
 					{"backend_kind":"s3","bucket":"app-tfstate-prod","bucket_is_literal":true,"key":"services/api/terraform.tfstate","key_is_literal":false,"region":"us-east-1","region_is_literal":true}
 				]`),
-			}},
-		}},
+			}}},
+			{},
+		},
 	}
 	reader := TerraformStateBackendFactReader{DB: db}
 
@@ -117,8 +122,8 @@ func TestTerraformStateBackendFactReaderDoesNotCarryDynamicDynamoDBTable(t *test
 	t.Parallel()
 
 	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{{
-			rows: [][]any{{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{
 				"repo-infra",
 				[]byte(`[{
 					"backend_kind":"s3",
@@ -131,8 +136,9 @@ func TestTerraformStateBackendFactReaderDoesNotCarryDynamicDynamoDBTable(t *test
 					"dynamodb_table":"var.lock_table",
 					"dynamodb_table_is_literal":false
 				}]`),
-			}},
-		}},
+			}}},
+			{},
+		},
 	}
 	reader := TerraformStateBackendFactReader{DB: db}
 
@@ -156,6 +162,7 @@ func TestTerraformStateBackendFactReaderReturnsApprovedGitLocalCandidates(t *tes
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{},
 			{},
 			{rows: [][]any{{
 				"platform-infra",
@@ -204,10 +211,10 @@ func TestTerraformStateBackendFactReaderReturnsApprovedGitLocalCandidates(t *tes
 	if !candidate.StateInVCS {
 		t.Fatal("StateInVCS = false, want true")
 	}
-	if got, want := len(db.queries), 2; got != want {
+	if got, want := len(db.queries), 3; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	query := db.queries[1].query
+	query := db.queries[2].query
 	for _, want := range []string{
 		"terraform_state_candidate",
 		"repository",
@@ -266,6 +273,107 @@ func TestTerraformStatePriorSnapshotReaderReturnsETagByLocatorHash(t *testing.T)
 		if !strings.Contains(query, want) {
 			t.Fatalf("query missing %q: %s", want, query)
 		}
+	}
+}
+
+func TestTerraformStateBackendFactReaderReturnsTerragruntRemoteStateCandidates(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{},
+			{rows: [][]any{{
+				"platform-infra",
+				"/repos/platform-infra",
+				[]byte(`[{
+					"backend_kind":"s3",
+					"bucket":"app-tfstate-prod",
+					"bucket_is_literal":true,
+					"key":"services/api/terraform.tfstate",
+					"key_is_literal":true,
+					"region":"us-east-1",
+					"region_is_literal":true,
+					"resolved_from":"include_chain"
+				}]`),
+			}}},
+		},
+	}
+	reader := TerraformStateBackendFactReader{DB: db}
+
+	candidates, err := reader.TerraformStateCandidates(
+		context.Background(),
+		terraformstate.DiscoveryQuery{RepoIDs: []string{"platform-infra"}},
+	)
+	if err != nil {
+		t.Fatalf("TerraformStateCandidates() error = %v, want nil", err)
+	}
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(candidates) = %d, want %d", got, want)
+	}
+	candidate := candidates[0]
+	if got, want := candidate.State.BackendKind, terraformstate.BackendS3; got != want {
+		t.Fatalf("BackendKind = %q, want %q (must NEVER be terragrunt)", got, want)
+	}
+	if got, want := candidate.State.Locator, "s3://app-tfstate-prod/services/api/terraform.tfstate"; got != want {
+		t.Fatalf("Locator = %q, want %q", got, want)
+	}
+	if got, want := candidate.RepoID, "platform-infra"; got != want {
+		t.Fatalf("RepoID = %q, want %q", got, want)
+	}
+}
+
+// TestTerraformStateBackendFactReaderResolvesLocalTerragruntCandidateRepoRelative
+// guards Fix #4 from the Copilot review: a local-backend Terragrunt row whose
+// path lives inside the repository checkout should yield a candidate with a
+// repo-relative RelativePath (not the basename), and a row whose path
+// escapes the checkout should produce no candidate.
+func TestTerraformStateBackendFactReaderResolvesLocalTerragruntCandidateRepoRelative(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{},
+			{rows: [][]any{{
+				"platform-infra",
+				"/repos/platform-infra",
+				[]byte(`[
+					{
+						"backend_kind":"local",
+						"path":"/repos/platform-infra/env/prod/terraform.tfstate",
+						"path_is_literal":true,
+						"resolved_from":"self"
+					},
+					{
+						"backend_kind":"local",
+						"path":"/var/lib/state/elsewhere.tfstate",
+						"path_is_literal":true,
+						"resolved_from":"self"
+					}
+				]`),
+			}}},
+		},
+	}
+	reader := TerraformStateBackendFactReader{DB: db}
+
+	candidates, err := reader.TerraformStateCandidates(
+		context.Background(),
+		terraformstate.DiscoveryQuery{RepoIDs: []string{"platform-infra"}},
+	)
+	if err != nil {
+		t.Fatalf("TerraformStateCandidates() error = %v, want nil", err)
+	}
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(candidates) = %d, want %d (out-of-repo path must be rejected)", got, want)
+	}
+	candidate := candidates[0]
+	if got, want := candidate.State.BackendKind, terraformstate.BackendLocal; got != want {
+		t.Fatalf("BackendKind = %q, want %q", got, want)
+	}
+	if got, want := candidate.RelativePath, "env/prod/terraform.tfstate"; got != want {
+		t.Fatalf("RelativePath = %q, want %q (repo-relative)", got, want)
+	}
+	if got, want := candidate.State.Locator, "/repos/platform-infra/env/prod/terraform.tfstate"; got != want {
+		t.Fatalf("Locator = %q, want %q", got, want)
 	}
 }
 

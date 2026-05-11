@@ -54,6 +54,16 @@ func Parse(
 		for _, row := range parseTerragruntInputs(body, source, path) {
 			shared.AppendBucket(payload, "terragrunt_inputs", row)
 		}
+		for _, row := range parseTerragruntRemoteStates(body, source, path) {
+			shared.AppendBucket(payload, "terragrunt_remote_states", row)
+		}
+		includeRows, includeWarnings := resolveTerragruntRemoteStateFromIncludes(body, path)
+		for _, row := range includeRows {
+			shared.AppendBucket(payload, "terragrunt_remote_states", row)
+		}
+		for _, row := range includeWarnings {
+			shared.AppendBucket(payload, "terragrunt_include_warnings", row)
+		}
 	} else {
 		parseTerraformBlocks(payload, body, source, path)
 		for _, row := range parseTerraformBackends(body, source, path) {
@@ -79,6 +89,8 @@ func Parse(
 	shared.SortNamedBucket(payload, "terragrunt_dependencies")
 	shared.SortNamedBucket(payload, "terragrunt_locals")
 	shared.SortNamedBucket(payload, "terragrunt_inputs")
+	shared.SortNamedBucket(payload, "terragrunt_remote_states")
+	shared.SortNamedBucket(payload, "terragrunt_include_warnings")
 	if options.IndexSource {
 		payload["source"] = string(source)
 	}
@@ -105,6 +117,7 @@ func hclBasePayload(path string, isDependency bool) map[string]any {
 	payload["terragrunt_dependencies"] = []map[string]any{}
 	payload["terragrunt_locals"] = []map[string]any{}
 	payload["terragrunt_inputs"] = []map[string]any{}
+	payload["terragrunt_remote_states"] = []map[string]any{}
 	return payload
 }
 

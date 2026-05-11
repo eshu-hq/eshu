@@ -29,6 +29,31 @@ WHERE fact.fact_kind = 'file'
 ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
 `
 
+const listTerragruntRemoteStateFactsQuery = `
+SELECT
+    fact.payload->>'repo_id' AS repo_id,
+    COALESCE(repository.payload->>'local_path', '') AS repo_local_path,
+    fact.payload->'parsed_file_data'->'terragrunt_remote_states' AS terragrunt_remote_states
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+LEFT JOIN fact_records AS repository
+  ON repository.scope_id = fact.scope_id
+ AND repository.generation_id = fact.generation_id
+ AND repository.fact_kind = 'repository'
+ AND repository.source_system = 'git'
+WHERE fact.fact_kind = 'file'
+  AND fact.source_system = 'git'
+  AND generation.status = 'active'
+  AND fact.payload->>'repo_id' = ANY($1::text[])
+  AND jsonb_typeof(fact.payload->'parsed_file_data'->'terragrunt_remote_states') = 'array'
+ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
+`
+
 const listTerraformStateLocalCandidateFactsQuery = `
 SELECT
     candidate.payload->>'repo_id' AS repo_id,
@@ -235,11 +260,87 @@ func (r TerraformStateBackendFactReader) TerraformStateCandidates(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list terraform state backend facts: %w", err)
 	}
+	terragruntCandidates, err := r.terragruntRemoteStateCandidates(ctx, repoIDs, seen)
+	if err != nil {
+		return nil, err
+	}
+	candidates = append(candidates, terragruntCandidates...)
 	localCandidates, err := r.localStateCandidates(ctx, query, seen)
 	if err != nil {
 		return nil, err
 	}
 	candidates = append(candidates, localCandidates...)
+	return candidates, nil
+}
+
+// terragruntRemoteStateCandidates queries the parsed Terragrunt remote_state
+// rows for the requested repos and translates each row into a
+// DiscoveryCandidate with the underlying backend kind. Rows that fail the
+// resolver's literal-attribute checks are silently skipped; callers do not
+// learn about ambiguous Terragrunt configs from this path because the same
+// rows will surface as warning facts elsewhere in the parser pipeline.
+func (r TerraformStateBackendFactReader) terragruntRemoteStateCandidates(
+	ctx context.Context,
+	repoIDs []string,
+	seen map[string]struct{},
+) ([]terraformstate.DiscoveryCandidate, error) {
+	if len(repoIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := r.DB.QueryContext(ctx, listTerragruntRemoteStateFactsQuery, repoIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list terragrunt remote_state facts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var candidates []terraformstate.DiscoveryCandidate
+	for rows.Next() {
+		rowCandidates, scanErr := scanTerragruntRemoteStateCandidates(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("list terragrunt remote_state facts: %w", scanErr)
+		}
+		for _, candidate := range rowCandidates {
+			key := candidate.State.Locator + "\x00" + candidate.State.VersionID
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			candidates = append(candidates, candidate)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list terragrunt remote_state facts: %w", err)
+	}
+	return candidates, nil
+}
+
+// scanTerragruntRemoteStateCandidates decodes one row of remote_state payloads
+// and converts each entry through the typed resolver. The query joins the
+// repository fact's local_path so the resolver can compute repo-relative
+// paths for local-backend candidates; rows from a generation that lacks a
+// repository fact arrive with an empty repoLocalPath, which the resolver
+// rejects for local backends but tolerates for S3 backends.
+func scanTerragruntRemoteStateCandidates(rows Rows) ([]terraformstate.DiscoveryCandidate, error) {
+	var repoID string
+	var repoLocalPath string
+	var rawRemoteStates []byte
+	if err := rows.Scan(&repoID, &repoLocalPath, &rawRemoteStates); err != nil {
+		return nil, err
+	}
+
+	var entries []map[string]any
+	if err := json.Unmarshal(rawRemoteStates, &entries); err != nil {
+		return nil, fmt.Errorf("decode terragrunt_remote_states for repo %q: %w", repoID, err)
+	}
+
+	candidates := make([]terraformstate.DiscoveryCandidate, 0, len(entries))
+	for _, entry := range entries {
+		candidate, ok := terraformstate.TerragruntRemoteStateCandidate(repoID, repoLocalPath, entry)
+		if !ok {
+			continue
+		}
+		candidates = append(candidates, candidate)
+	}
 	return candidates, nil
 }
 
