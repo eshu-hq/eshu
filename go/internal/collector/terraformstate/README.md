@@ -28,7 +28,10 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   Terragrunt `remote_state` blocks, including blocks resolved through nested
   `include` chains. `TerragruntRemoteStateCandidate` translates each row
   into a `DiscoveryCandidate` carrying the underlying backend kind (`s3` or
-  `local`); discovery never observes `BackendTerragrunt`.
+  `local`); discovery never observes `BackendTerragrunt`. Local-backend
+  rows require the repository fact's `local_path` so the resolver can
+  compute a repo-relative `RelativePath` and reject backend paths that
+  resolve outside the repo checkout (`source_terragrunt.go:97`).
 - The Git collector may emit `terraform_state_candidate` facts for repo-local
   `.tfstate` files. Those facts are metadata only: repo ID, repo-relative path,
   path hash, size, and warning flags. They do not include raw state bytes or

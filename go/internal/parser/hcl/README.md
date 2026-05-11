@@ -46,6 +46,17 @@ Terragrunt local config asset extraction is intentionally bounded to static
 string, join, lookup, file, templatefile, and local interpolation shapes already
 covered by HCL-focused parser tests.
 
+Terragrunt include-chain walking is bounded by depth, cycle detection, a
+regular-file check (`include_chain.go:96` rejects symlinks, devices, FIFOs),
+and a per-file size cap (`terragruntIncludeMaxFileBytes` at
+`include_chain.go:25`, 1 MiB). Each rejection emits a row in the
+`terragrunt_include_warnings` payload bucket so downstream consumers can
+observe walker failures rather than infer them from missing rows.
+
+Terragrunt `remote_state` rows store the parser-side source file path under
+`source_path`, kept distinct from the local backend's `path` attribute so
+neither value silently overwrites the other (`terragrunt_remote_state.go:54`).
+
 Payload buckets must stay deterministic. Rows are sorted before `Parse`
 returns so ingestion retries and repair runs converge on the same facts.
 
