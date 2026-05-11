@@ -13,9 +13,10 @@ import (
 const defaultPriorConfigDepth = 10
 
 // effectivePriorConfigDepth returns the configured depth or the package
-// default when the field is zero. The split keeps tests that construct the
-// loader inline ergonomic — they specify the depth they want or rely on the
-// default behavior with no init step.
+// default when the field is non-positive (zero or negative). The
+// permissive guard keeps tests ergonomic (zero-value field gets default
+// behavior with no init step) and matches the upstream contract where
+// parsePriorConfigDepth maps invalid env input to 0.
 func (l PostgresDriftEvidenceLoader) effectivePriorConfigDepth() int {
 	if l.PriorConfigDepth <= 0 {
 		return defaultPriorConfigDepth

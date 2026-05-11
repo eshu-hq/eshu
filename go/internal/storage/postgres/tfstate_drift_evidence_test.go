@@ -87,8 +87,8 @@ func TestPostgresDriftEvidenceLoaderConfigOnlyAddress(t *testing.T) {
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 0, "gen-state-current")}},
 			// 3. current state-resource rows: none.
 			{rows: [][]any{}},
-			// 4. NEW: prior-config walk — returns no rows for this test's scenario.
-			{rows: [][]any{}},
+			// No prior-config walk: state is empty, so hasStateOnlyAddress returns
+			// false and the DB round-trip is skipped.
 		},
 	}
 	loader := PostgresDriftEvidenceLoader{DB: db}
@@ -117,9 +117,10 @@ func TestPostgresDriftEvidenceLoaderConfigOnlyAddress(t *testing.T) {
 		t.Fatalf("row.Prior = %#v, want nil", row.Prior)
 	}
 
-	// Serial=0 short-circuits prior-state lookup; prior-config walk still runs.
-	// Total: config + snapshot + state-resources + prior-config = 4 queries.
-	if got, want := len(db.queries), 4; got != want {
+	// Serial=0 short-circuits prior-state lookup. State is empty so
+	// hasStateOnlyAddress returns false and prior-config walk is skipped too.
+	// Total: config + snapshot + state-resources = 3 queries.
+	if got, want := len(db.queries), 3; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
 }
@@ -200,8 +201,8 @@ func TestPostgresDriftEvidenceLoaderPriorGenerationFetched(t *testing.T) {
 				"aws_lambda_function.worker",
 				fixtureStatePayload("aws_lambda_function.worker", "aws_lambda_function", "worker", `{}`),
 			)}},
-			// 6. NEW: prior-config walk — returns no rows for this test's scenario.
-			{rows: [][]any{}},
+			// No prior-config walk: current state is empty, so hasStateOnlyAddress
+			// returns false and the DB round-trip is skipped.
 		},
 	}
 	loader := PostgresDriftEvidenceLoader{DB: db}
@@ -221,8 +222,9 @@ func TestPostgresDriftEvidenceLoaderPriorGenerationFetched(t *testing.T) {
 		t.Fatalf("row.Prior.LineageRotation = true, want false (same lineage)")
 	}
 
-	// Six queries total: config + snapshot + current-state + prior-snapshot + prior-state + prior-config.
-	if got, want := len(db.queries), 6; got != want {
+	// Five queries total: config + snapshot + current-state + prior-snapshot + prior-state.
+	// Prior-config walk is skipped because current state is empty (no state-only addresses).
+	if got, want := len(db.queries), 5; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
 }
@@ -253,8 +255,8 @@ func TestPostgresDriftEvidenceLoaderLineageRotationFlagged(t *testing.T) {
 				"aws_lambda_function.worker",
 				fixtureStatePayload("aws_lambda_function.worker", "aws_lambda_function", "worker", `{}`),
 			)}},
-			// 6. NEW: prior-config walk — returns no rows for this test's scenario.
-			{rows: [][]any{}},
+			// No prior-config walk: current state is empty, so hasStateOnlyAddress
+			// returns false and the DB round-trip is skipped.
 		},
 	}
 	loader := PostgresDriftEvidenceLoader{DB: db}

@@ -67,9 +67,11 @@ type PostgresDriftEvidenceLoader struct {
 	Logger *slog.Logger
 	// PriorConfigDepth bounds the prior-generation walk that activates
 	// removed_from_config (see tfstate_drift_evidence_prior_config.go).
-	// Zero means "use the package default". Set from
-	// ESHU_DRIFT_PRIOR_CONFIG_DEPTH at construction time
-	// (cmd/reducer/main.go). Tests set this field directly.
+	// Non-positive values (zero or negative) mean "use the package default"
+	// (defaultPriorConfigDepth = 10). Set from ESHU_DRIFT_PRIOR_CONFIG_DEPTH
+	// at construction time (cmd/reducer/main.go); parsePriorConfigDepth maps
+	// invalid env input to 0, which the loader then resolves to the default.
+	// Tests set this field directly.
 	PriorConfigDepth int
 }
 
@@ -147,9 +149,12 @@ func (l PostgresDriftEvidenceLoader) LoadDriftEvidence(
 		}
 	}
 
-	priorConfigAddresses, err := l.loadPriorConfigAddresses(ctx, configScopeID, configGenerationID)
-	if err != nil {
-		return nil, err
+	var priorConfigAddresses map[string]struct{}
+	if hasStateOnlyAddress(configByAddress, stateByAddress) {
+		priorConfigAddresses, err = l.loadPriorConfigAddresses(ctx, configScopeID, configGenerationID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	merged := mergeDriftRows(configByAddress, stateByAddress, priorByAddress, priorConfigAddresses)
@@ -339,6 +344,24 @@ func (l PostgresDriftEvidenceLoader) logPriorConfigWalk(
 		slog.Int(telemetry.LogKeyDriftStateOnlyAddresses, stateOnly),
 		slog.Int(telemetry.LogKeyDriftAddressesPromoted, promoted),
 	)
+}
+
+// hasStateOnlyAddress reports whether the join has at least one address present
+// in state but absent from config. The prior-config walk can only promote
+// state-only addresses to PreviouslyDeclaredInConfig=true; when no such
+// address exists, the walk's DB round-trip and per-intent log are wasted work.
+// Short-circuiting here keeps the loader's hot path cheap on the common case
+// where every state resource also appears in config (aligned snapshots, no
+// removed_from_config candidates).
+func hasStateOnlyAddress(
+	config, state map[string]*tfconfigstate.ResourceRow,
+) bool {
+	for address := range state {
+		if _, inConfig := config[address]; !inConfig {
+			return true
+		}
+	}
+	return false
 }
 
 // mergeDriftRows unions the address keyspaces of config, state, and prior and
