@@ -1,0 +1,24 @@
+{
+  "scenario": "bucket-E attribute_drift (nested SSE)",
+  "config": {
+    "resource_type": "aws_s3_bucket",
+    "resource_name": "logs",
+    "attributes": {
+      "acl": "private",
+      "server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm": "AES256"
+    }
+  },
+  "state": {
+    "resource_type": "aws_s3_bucket",
+    "attributes": {
+      "acl": "private",
+      "server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm": "aws:kms"
+    }
+  },
+  "expected_counter_label_set": {
+    "pack": "terraform_config_state_drift",
+    "drift_kind": "attribute_drift"
+  },
+  "expected_counter_delta": 1,
+  "expected_log_keys": ["drift.kind", "drift.address", "drift.pack"]
+}
