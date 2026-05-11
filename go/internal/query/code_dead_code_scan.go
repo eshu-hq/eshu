@@ -138,37 +138,47 @@ func (h *CodeHandler) filterDeadCodeResultsWithoutIncomingEdges(
 		return nil, err
 	}
 	if incoming != nil {
+		graphIncoming, err := h.deadCodeResultsWithGraphIncomingEdges(
+			ctx,
+			deadCodeResultsNeedingGraphIncomingProbe(results, label),
+			label,
+		)
+		if err != nil {
+			return nil, err
+		}
 		filtered := results[:0]
 		for _, result := range results {
-			if incoming[StringVal(result, "entity_id")] {
+			entityID := StringVal(result, "entity_id")
+			if incoming[entityID] || graphIncoming[entityID] {
 				continue
-			}
-			if deadCodeResultNeedsGraphIncomingProbe(result, label) {
-				hasIncoming, err := h.deadCodeResultHasIncomingEdge(ctx, result, label)
-				if err != nil {
-					return nil, err
-				}
-				if hasIncoming {
-					continue
-				}
 			}
 			filtered = append(filtered, result)
 		}
 		return filtered, nil
 	}
 
+	graphIncoming, err := h.deadCodeResultsWithGraphIncomingEdges(ctx, results, label)
+	if err != nil {
+		return nil, err
+	}
 	filtered := results[:0]
 	for _, result := range results {
-		hasIncoming, err := h.deadCodeResultHasIncomingEdge(ctx, result, label)
-		if err != nil {
-			return nil, err
-		}
-		if hasIncoming {
+		if graphIncoming[StringVal(result, "entity_id")] {
 			continue
 		}
 		filtered = append(filtered, result)
 	}
 	return filtered, nil
+}
+
+func deadCodeResultsNeedingGraphIncomingProbe(results []map[string]any, label string) []map[string]any {
+	probeResults := make([]map[string]any, 0)
+	for _, result := range results {
+		if deadCodeResultNeedsGraphIncomingProbe(result, label) {
+			probeResults = append(probeResults, result)
+		}
+	}
+	return probeResults
 }
 
 func deadCodeResultNeedsGraphIncomingProbe(result map[string]any, label string) bool {
@@ -186,27 +196,37 @@ func (h *CodeHandler) deadCodeIncomingEntityIDs(
 	if !ok {
 		return nil, nil
 	}
-	entityIDs := make([]string, 0, len(results))
-	var repoID string
+	entityIDsByRepo := make(map[string][]string)
 	seen := make(map[string]struct{}, len(results))
 	for _, result := range results {
-		if repoID == "" {
-			repoID = StringVal(result, "repo_id")
-		}
+		repoID := strings.TrimSpace(StringVal(result, "repo_id"))
 		entityID := strings.TrimSpace(StringVal(result, "entity_id"))
-		if entityID == "" {
+		if repoID == "" || entityID == "" {
 			continue
 		}
-		if _, ok := seen[entityID]; ok {
+		seenKey := repoID + "\x00" + entityID
+		if _, ok := seen[seenKey]; ok {
 			continue
 		}
-		seen[entityID] = struct{}{}
-		entityIDs = append(entityIDs, entityID)
+		seen[seenKey] = struct{}{}
+		entityIDsByRepo[repoID] = append(entityIDsByRepo[repoID], entityID)
 	}
-	if repoID == "" || len(entityIDs) == 0 {
+	if len(entityIDsByRepo) == 0 {
 		return nil, nil
 	}
-	return content.DeadCodeIncomingEntityIDs(ctx, repoID, entityIDs)
+	incoming := make(map[string]bool)
+	for repoID, entityIDs := range entityIDsByRepo {
+		repoIncoming, err := content.DeadCodeIncomingEntityIDs(ctx, repoID, entityIDs)
+		if err != nil {
+			return nil, err
+		}
+		for entityID, hasIncoming := range repoIncoming {
+			if hasIncoming {
+				incoming[entityID] = true
+			}
+		}
+	}
+	return incoming, nil
 }
 
 type deadCodeIncomingContentStore interface {
@@ -217,22 +237,46 @@ type deadCodeCandidateContentStore interface {
 	DeadCodeCandidateRows(ctx context.Context, repoID string, label string, language string, limit int, offset int) ([]map[string]any, error)
 }
 
-func (h *CodeHandler) deadCodeResultHasIncomingEdge(
+func (h *CodeHandler) deadCodeResultsWithGraphIncomingEdges(
 	ctx context.Context,
-	result map[string]any,
+	results []map[string]any,
 	label string,
-) (bool, error) {
-	entityID := StringVal(result, "entity_id")
-	if entityID == "" {
-		return false, nil
+) (map[string]bool, error) {
+	entityIDs := deadCodeResultEntityIDs(results)
+	incoming := make(map[string]bool)
+	if len(entityIDs) == 0 {
+		return incoming, nil
 	}
-	rows, err := h.Neo4j.Run(ctx, buildDeadCodeIncomingProbeCypher(label), map[string]any{
-		"entity_id": entityID,
+	rows, err := h.Neo4j.Run(ctx, buildDeadCodeIncomingBatchProbeCypher(label), map[string]any{
+		"entity_ids": entityIDs,
 	})
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return len(rows) > 0, nil
+	for _, row := range rows {
+		entityID := strings.TrimSpace(StringVal(row, "incoming_entity_id"))
+		if entityID != "" {
+			incoming[entityID] = true
+		}
+	}
+	return incoming, nil
+}
+
+func deadCodeResultEntityIDs(results []map[string]any) []string {
+	entityIDs := make([]string, 0, len(results))
+	seen := make(map[string]struct{}, len(results))
+	for _, result := range results {
+		entityID := strings.TrimSpace(StringVal(result, "entity_id"))
+		if entityID == "" {
+			continue
+		}
+		if _, ok := seen[entityID]; ok {
+			continue
+		}
+		seen[entityID] = struct{}{}
+		entityIDs = append(entityIDs, entityID)
+	}
+	return entityIDs
 }
 
 func addDeadCodePolicyStats(total *deadCodePolicyStats, next deadCodePolicyStats) {

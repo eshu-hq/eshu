@@ -320,3 +320,31 @@ func TestContentReaderDeadCodeCandidateRowsReturnsSQLFunctions(t *testing.T) {
 		t.Fatalf("metadata[sql_dialect] = %#v, want %#v", got, want)
 	}
 }
+
+func TestContentReaderDeadCodeCandidateRowsAllowsRepositoryOptionalScan(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		{
+			columns: contentReaderDeadCodeCandidateColumns(),
+			rows: [][]driver.Value{
+				{
+					"sql-refresh", "public.refresh_users", "SqlFunction", "repo-2", "db/functions.sql",
+					"sql", int64(3), int64(12), []byte(`{}`),
+				},
+			},
+		},
+	})
+
+	reader := NewContentReader(db)
+	rows, err := reader.DeadCodeCandidateRows(context.Background(), "", "SqlFunction", "sql", 10, 0)
+	if err != nil {
+		t.Fatalf("DeadCodeCandidateRows() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	if got, want := rows[0]["repo_id"], "repo-2"; got != want {
+		t.Fatalf("row[repo_id] = %#v, want %#v", got, want)
+	}
+}

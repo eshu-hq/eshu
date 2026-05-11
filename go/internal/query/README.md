@@ -106,8 +106,9 @@ for unresolved macro expansion, cfg/Cargo feature selection, semantic module
 resolution, and trait dispatch, plus SQL blockers for dynamic SQL,
 dialect-specific routine resolution, and migration-order resolution. SQL
 `SqlFunction` routines participate in the derived candidate scan, and the query
-policy uses an exact graph incoming probe so reducer-written `EXECUTES` edges
-protect trigger-bound routines. Returned candidates can also populate
+policy uses a batched exact graph incoming probe so reducer-written `EXECUTES`
+edges protect trigger-bound routines without one graph round trip per routine.
+Returned candidates can also populate
 `dead_code_observed_exactness_blockers` so callers can distinguish language-wide
 blockers from blockers actually present in the page they received. Candidates
 that carry observed exactness blockers classify as `ambiguous` rather than
@@ -116,7 +117,9 @@ Dead-code candidate paging uses `DeadCodeCandidateRows` in
 `content_reader_dead_code_candidates.go:13` when the content read model is
 available, pushing the optional language predicate into the Postgres query so
 mixed repositories do not fill the bounded page with another language before
-policy checks run. Candidate
+policy checks run. When `repo_id` is omitted, the same content-model scan stays
+bounded and deterministic by ordering across repository, relative path, entity
+name, and entity id instead of returning an empty page. Candidate
 hydration then uses `GetEntityContents` in `content_reader_entity.go:49` so
 large repo scans merge parser metadata in one bounded content-store read per
 candidate page instead of one Postgres round trip per graph row.
@@ -127,10 +130,14 @@ exported object registry holds the same-file function value. The analysis
 payload names modeled root kinds in `modeled_framework_roots`, reports whether
 reflection evidence is modeled, and counts how many suppressions came from
 parser metadata. That lets MCP and CLI callers explain why a candidate was
-suppressed. The graph query keeps the
-candidate read label-scoped and repo-anchored, then applies content-backed
-policy checks before checking completed reducer code-call and inheritance intent
-rows for incoming edges. Exact one-entity graph probes remain a fallback for
+suppressed. Candidate reads remain label-scoped and are repo-anchored when the
+request supplies a repository id, then content-backed policy checks run before
+completed reducer code-call and inheritance intent rows are checked for incoming
+edges. Content-backed incoming-edge checks group candidates by repository before
+calling the relational read model so repo-optional scans do not ask one
+repository for another repository's entity ids. Exact one-entity graph probes
+are avoided: `deadCodeResultsWithGraphIncomingEdges` in
+`code_dead_code_scan.go:258` batches candidate ids into one graph read for
 content stores without that relational read model and for SQL routine
 reachability, whose reducer-owned `EXECUTES` edges are graph-written rather
 than stored as completed shared-projection intent rows. Small display limits use a bounded

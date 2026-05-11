@@ -21,7 +21,7 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 ) ([]map[string]any, error) {
 	repoID = strings.TrimSpace(repoID)
 	language = strings.ToLower(strings.TrimSpace(language))
-	if cr == nil || cr.db == nil || repoID == "" {
+	if cr == nil || cr.db == nil {
 		return nil, nil
 	}
 	entityType, ok := deadCodeCandidateEntityType(label)
@@ -48,10 +48,10 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 		SELECT entity_id, entity_name, entity_type, repo_id, relative_path,
 		       coalesce(language, ''), start_line, end_line, metadata
 		FROM content_entities
-		WHERE repo_id = $1
+		WHERE ($1 = '' OR repo_id = $1)
 		  AND entity_type = $2
 		  AND ($3 = '' OR lower(coalesce(language, '')) = $3)
-		ORDER BY relative_path, entity_name, entity_id
+		ORDER BY repo_id, relative_path, entity_name, entity_id
 		LIMIT $4 OFFSET $5
 	`, repoID, entityType, language, limit, offset)
 	if err != nil {

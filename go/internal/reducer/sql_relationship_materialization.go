@@ -262,12 +262,13 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 		}
 
 		repoSet[repoID] = struct{}{}
-		entityByName[entityName] = append(entityByName[entityName], sqlRelationshipEntity{
+		entity := sqlRelationshipEntity{
 			entityID:     entityID,
 			entityType:   entityType,
 			repoID:       repoID,
 			relativePath: relativePath,
-		})
+		}
+		addSQLRelationshipEntityIndex(entityByName, entityName, entity)
 	}
 
 	if len(repoSet) == 0 {
@@ -405,49 +406,6 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 	})
 
 	return repoIDs, rows
-}
-
-func resolveSQLRelationshipTarget(
-	entityByName map[string][]sqlRelationshipEntity,
-	name string,
-	entityType string,
-	repoID string,
-	relativePath string,
-) (sqlRelationshipEntity, bool) {
-	candidates := entityByName[name]
-	if len(candidates) == 0 {
-		return sqlRelationshipEntity{}, false
-	}
-
-	matching := make([]sqlRelationshipEntity, 0, len(candidates))
-	for _, candidate := range candidates {
-		if candidate.repoID == repoID && candidate.entityType == entityType {
-			matching = append(matching, candidate)
-		}
-	}
-	if len(matching) == 0 {
-		return sqlRelationshipEntity{}, false
-	}
-
-	if relativePath != "" {
-		sameFile := make([]sqlRelationshipEntity, 0, len(matching))
-		for _, candidate := range matching {
-			if candidate.relativePath == relativePath {
-				sameFile = append(sameFile, candidate)
-			}
-		}
-		if len(sameFile) == 1 {
-			return sameFile[0], true
-		}
-		if len(sameFile) > 1 {
-			return sqlRelationshipEntity{}, false
-		}
-	}
-
-	if len(matching) == 1 {
-		return matching[0], true
-	}
-	return sqlRelationshipEntity{}, false
 }
 
 // sqlMetadataString extracts a string value from SQL entity metadata.

@@ -320,6 +320,48 @@ func TestExtractSQLRelationshipRowsFromTriggerExecutingFunction(t *testing.T) {
 	}
 }
 
+func TestExtractSQLRelationshipRowsResolvesUnqualifiedTriggerFunction(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			FactKind: "content_entity",
+			Payload: map[string]any{
+				"repo_id":       "repo-123",
+				"entity_id":     "content-entity:e_fn1",
+				"entity_type":   "SqlFunction",
+				"entity_name":   "public.touch_updated_at",
+				"relative_path": "db/functions.sql",
+			},
+		},
+		{
+			FactKind: "content_entity",
+			Payload: map[string]any{
+				"repo_id":       "repo-123",
+				"entity_id":     "content-entity:e_trig1",
+				"entity_type":   "SqlTrigger",
+				"entity_name":   "users_touch",
+				"relative_path": "db/functions.sql",
+				"entity_metadata": map[string]any{
+					"function_name":   "touch_updated_at",
+					"sql_entity_type": "SqlTrigger",
+				},
+			},
+		},
+	}
+
+	_, rows := ExtractSQLRelationshipRows(envelopes)
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1", len(rows))
+	}
+	if got, want := rows[0]["target_entity_id"], "content-entity:e_fn1"; got != want {
+		t.Fatalf("target_entity_id = %v, want %v", got, want)
+	}
+	if got, want := rows[0]["relationship_type"], "EXECUTES"; got != want {
+		t.Fatalf("relationship_type = %v, want %v", got, want)
+	}
+}
+
 func TestExtractSQLRelationshipRowsPrefersSameFileSQLFunction(t *testing.T) {
 	t.Parallel()
 

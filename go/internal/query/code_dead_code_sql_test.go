@@ -114,8 +114,8 @@ func TestHandleDeadCodeSuppressesSQLFunctionsReachedByGraphExecutesEdge(t *testi
 				if !strings.Contains(cypher, "EXECUTES") {
 					t.Fatalf("incoming cypher missing EXECUTES:\n%s", cypher)
 				}
-				if got, want := params["entity_id"], "sql-refresh"; got != want {
-					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
+				if got, want := params["entity_ids"], []string{"sql-refresh"}; !equalStringSlices(got.([]string), want) {
+					t.Fatalf("params[entity_ids] = %#v, want %#v", got, want)
 				}
 				return []map[string]any{{"incoming_entity_id": "sql-refresh"}}, nil
 			},
@@ -291,7 +291,7 @@ func TestHandleDeadCodeSuppressesContentSQLFunctionsReachedByGraphExecutesEdge(t
 				if !strings.Contains(cypher, "EXECUTES") {
 					t.Fatalf("incoming cypher missing EXECUTES:\n%s", cypher)
 				}
-				if params["entity_id"] == "sql-refresh" {
+				if stringSliceContains(params["entity_ids"].([]string), "sql-refresh") {
 					return []map[string]any{{"incoming_entity_id": "sql-refresh"}}, nil
 				}
 				return nil, nil

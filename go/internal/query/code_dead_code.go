@@ -118,14 +118,14 @@ func buildDeadCodeGraphCypherForLabel(hasRepoID bool, label string, language str
 	return cypher
 }
 
-func buildDeadCodeIncomingProbeCypher(label string) string {
+func buildDeadCodeIncomingBatchProbeCypher(label string) string {
 	if !isDeadCodeCandidateLabel(label) {
 		label = "Function"
 	}
 	return `
-		MATCH (e:` + label + ` {uid: $entity_id})<-[:CALLS|IMPORTS|REFERENCES|INHERITS|EXECUTES]-(source)
-		RETURN coalesce(e.uid, e.id) as incoming_entity_id
-		LIMIT 1
+		UNWIND $entity_ids AS entity_id
+		MATCH (e:` + label + ` {uid: entity_id})<-[:CALLS|IMPORTS|REFERENCES|INHERITS|EXECUTES]-(source)
+		RETURN DISTINCT coalesce(e.uid, e.id) as incoming_entity_id
 	`
 }
 

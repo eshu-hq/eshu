@@ -63,11 +63,14 @@
   dogfooding a language-specific dead-code slice.
 
 - **SQL routine reachability uses graph `EXECUTES` probes** —
-  `filterDeadCodeResultsWithoutIncomingEdges` falls through to an exact graph
-  probe for `SqlFunction` candidates (`code_dead_code_scan.go:187`) because
-  SQL relationship materialization graph-writes `EXECUTES` edges directly
-  instead of storing completed shared-projection intent rows. Removing that
-  fallback can report trigger-bound SQL routines as cleanup candidates.
+  `CodeHandler.filterDeadCodeResultsWithoutIncomingEdges` falls through to
+  `deadCodeResultsWithGraphIncomingEdges` for `SqlFunction` candidates
+  (`code_dead_code_scan.go:128`, `code_dead_code_scan.go:240`) because SQL
+  relationship materialization graph-writes `EXECUTES` edges directly instead
+  of storing completed shared-projection intent rows. Keep the probe batched;
+  reverting to one graph call per SQL routine can make large dead-code pages
+  too expensive, while removing the fallback can report trigger-bound SQL
+  routines as cleanup candidates.
 
 - **`Neo4jReader` opens one session per query** — `Run` and `RunSingle` open and
   close a session within the call. Do not hold or share sessions across handler

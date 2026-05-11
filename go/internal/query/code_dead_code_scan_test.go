@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -457,6 +458,81 @@ func TestHandleDeadCodeContentCandidateScanReceivesLanguagePredicate(t *testing.
 	}
 }
 
+func TestDeadCodeIncomingEntityIDsGroupsContentLookupsByRepository(t *testing.T) {
+	t.Parallel()
+
+	store := &repoGroupedIncomingStore{
+		incomingByRepo: map[string]map[string]bool{
+			"repo-1": {"live-go": true},
+			"repo-2": {"live-rust": true},
+		},
+	}
+	handler := &CodeHandler{Content: store}
+
+	incoming, err := handler.deadCodeIncomingEntityIDs(context.Background(), []map[string]any{
+		{"entity_id": "live-go", "repo_id": "repo-1"},
+		{"entity_id": "dead-go", "repo_id": "repo-1"},
+		{"entity_id": "live-rust", "repo_id": "repo-2"},
+	})
+	if err != nil {
+		t.Fatalf("deadCodeIncomingEntityIDs() error = %v, want nil", err)
+	}
+	if !incoming["live-go"] || !incoming["live-rust"] {
+		t.Fatalf("incoming = %#v, want live-go and live-rust", incoming)
+	}
+	if incoming["dead-go"] {
+		t.Fatalf("incoming[dead-go] = true, want false")
+	}
+	if got, want := store.calls, map[string][]string{
+		"repo-1": {"dead-go", "live-go"},
+		"repo-2": {"live-rust"},
+	}; !equalStringSliceMaps(got, want) {
+		t.Fatalf("calls = %#v, want %#v", got, want)
+	}
+}
+
+func TestFilterDeadCodeResultsBatchesSQLGraphIncomingProbes(t *testing.T) {
+	t.Parallel()
+
+	var incomingCalls int
+	handler := &CodeHandler{
+		Neo4j: fakeGraphReader{
+			runIncoming: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				incomingCalls++
+				if !strings.Contains(cypher, "UNWIND $entity_ids AS entity_id") {
+					t.Fatalf("incoming cypher missing batched entity id unwind:\n%s", cypher)
+				}
+				ids, ok := params["entity_ids"].([]string)
+				if !ok {
+					t.Fatalf("params[entity_ids] type = %T, want []string", params["entity_ids"])
+				}
+				if got, want := ids, []string{"sql-live", "sql-dead"}; !equalStringSlices(got, want) {
+					t.Fatalf("params[entity_ids] = %#v, want %#v", got, want)
+				}
+				return []map[string]any{{"incoming_entity_id": "sql-live"}}, nil
+			},
+		},
+		Content: fakeDeadCodeContentStore{},
+	}
+
+	results, err := handler.filterDeadCodeResultsWithoutIncomingEdges(context.Background(), []map[string]any{
+		{"entity_id": "sql-live", "labels": []any{"SqlFunction"}, "repo_id": "repo-1"},
+		{"entity_id": "sql-dead", "labels": []any{"SqlFunction"}, "repo_id": "repo-1"},
+	}, "SqlFunction")
+	if err != nil {
+		t.Fatalf("filterDeadCodeResultsWithoutIncomingEdges() error = %v, want nil", err)
+	}
+	if got, want := incomingCalls, 1; got != want {
+		t.Fatalf("incoming graph calls = %d, want %d", got, want)
+	}
+	if got, want := len(results), 1; got != want {
+		t.Fatalf("len(results) = %d, want %d results=%#v", got, want, results)
+	}
+	if got, want := StringVal(results[0], "entity_id"), "sql-dead"; got != want {
+		t.Fatalf("results[0].entity_id = %q, want %q", got, want)
+	}
+}
+
 func equalIntSlices(got, want []int) bool {
 	if len(got) != len(want) {
 		return false
@@ -467,6 +543,27 @@ func equalIntSlices(got, want []int) bool {
 		}
 	}
 	return true
+}
+
+func equalStringSliceMaps(got, want map[string][]string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for key, wantValues := range want {
+		if !equalStringSlices(got[key], wantValues) {
+			return false
+		}
+	}
+	return true
+}
+
+func stringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 type batchingDeadCodeContentStore struct {
@@ -483,6 +580,32 @@ type contentCandidateDeadCodeStore struct {
 	candidateRepoID    string
 	candidateLabels    []string
 	candidateLanguages []string
+}
+
+type repoGroupedIncomingStore struct {
+	fakePortContentStore
+	incomingByRepo map[string]map[string]bool
+	calls          map[string][]string
+}
+
+func (s *repoGroupedIncomingStore) DeadCodeIncomingEntityIDs(
+	_ context.Context,
+	repoID string,
+	entityIDs []string,
+) (map[string]bool, error) {
+	if s.calls == nil {
+		s.calls = make(map[string][]string)
+	}
+	ids := append([]string(nil), entityIDs...)
+	sort.Strings(ids)
+	s.calls[repoID] = append(s.calls[repoID], ids...)
+	incoming := make(map[string]bool)
+	for _, entityID := range entityIDs {
+		if s.incomingByRepo[repoID][entityID] {
+			incoming[entityID] = true
+		}
+	}
+	return incoming, nil
 }
 
 func (f *contentCandidateDeadCodeStore) DeadCodeCandidateRows(
