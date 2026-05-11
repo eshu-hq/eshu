@@ -285,6 +285,49 @@ public class BootZipCopyAction {
 	}
 }
 
+func TestDefaultEngineParsePathJavaMarksDeclaredTypeMethodReferenceTargets(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src/main/java/example/ProcessorPipeline.java")
+	writeTestFile(t, filePath, `package example;
+
+import java.util.stream.Stream;
+
+public class ProcessorPipeline {
+    void run(Stream<Processor> processors) {
+        processors.forEach(Processor::process);
+        processors.forEach(MissingProcessor::process);
+    }
+}
+
+final class Processor {
+    void process() {
+    }
+
+    void helper() {
+    }
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	processCall := assertJavaFunctionCallByNameAndKind(t, got, "process", "java.method_reference")
+	assertStringFieldValue(t, processCall, "full_name", "Processor.process")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "process", "Processor"), "dead_code_root_kinds", "java.method_reference_target")
+	if _, ok := assertFunctionByNameAndClass(t, got, "helper", "Processor")["dead_code_root_kinds"]; ok {
+		t.Fatalf("helper dead_code_root_kinds present, want absent")
+	}
+}
+
 func assertJavaFunctionCallByNameAndKind(t *testing.T, payload map[string]any, name string, kind string) map[string]any {
 	t.Helper()
 

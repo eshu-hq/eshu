@@ -16,6 +16,7 @@ func buildJavaMethodReferenceIndex(
 	inference *javaCallInferenceIndex,
 ) *javaMethodReferenceIndex {
 	index := &javaMethodReferenceIndex{namesByClass: map[string]map[string]struct{}{}}
+	declaredTypes := javaDeclaredTypeNames(root, source)
 	walkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "method_reference" {
 			return
@@ -31,6 +32,9 @@ func buildJavaMethodReferenceIndex(
 		}
 		if receiver != "this" {
 			receiverType := javaVisibleNameType(node, receiver, source, inference)
+			if receiverType == "" && declaredTypes[receiver] {
+				receiverType = receiver
+			}
 			if receiverType == "" {
 				return
 			}
@@ -42,6 +46,20 @@ func buildJavaMethodReferenceIndex(
 		index.namesByClass[classContext][name] = struct{}{}
 	})
 	return index
+}
+
+func javaDeclaredTypeNames(root *tree_sitter.Node, source []byte) map[string]bool {
+	names := map[string]bool{}
+	walkNamed(root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "class_declaration", "record_declaration", "interface_declaration", "enum_declaration":
+			name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+			if name != "" {
+				names[name] = true
+			}
+		}
+	})
+	return names
 }
 
 func (i *javaMethodReferenceIndex) hasTarget(classContext string, name string) bool {
