@@ -28,6 +28,7 @@ var deadCodeLanguageMaturity = map[string]string{
 	"ruby":       deadCodeMaturityDerivedCandidate,
 	"rust":       deadCodeMaturityDerived,
 	"scala":      deadCodeMaturityDerivedCandidate,
+	"sql":        deadCodeMaturityDerived,
 	"swift":      deadCodeMaturityDerivedCandidate,
 	"tsx":        deadCodeMaturityDerived,
 	"typescript": deadCodeMaturityDerived,
@@ -40,6 +41,11 @@ var deadCodeLanguageExactnessBlockers = map[string][]string{
 		"cargo_feature_resolution_unavailable",
 		"semantic_module_resolution_unavailable",
 		"trait_dispatch_unresolved",
+	},
+	"sql": {
+		"dynamic_sql_unresolved",
+		"dialect_specific_routine_resolution_unavailable",
+		"migration_order_resolution_unavailable",
 	},
 }
 

@@ -58,6 +58,8 @@ Every dead-code analysis must classify roots into one or more of these groups:
   - protobuf/OpenAPI generated clients where configured
 - SQL and stored-program roots
   - SQL routines explicitly invoked from application code or runtime wiring
+  - SQL trigger routines reached through parser-proven trigger-to-function
+    `EXECUTES` edges
 - reflection and dynamic-dispatch roots
   - explicit allowlisted reflection or registry patterns
 - library public API roots
@@ -152,8 +154,8 @@ can still be `derived_candidate_only` for dead-code cleanup until it has a
 dead-code fixture suite, root model, reachability proof, and API/MCP evidence.
 The initial maturity states are:
 
-- `derived`: current Go, Python, Java, JavaScript, TypeScript, TSX, and Rust
-  candidate scans with partial root modeling
+- `derived`: current Go, Python, Java, JavaScript, TypeScript, TSX, Rust, and
+  SQL candidate scans with partial root modeling
 - `derived_candidate_only`: parser-supported source languages where Eshu can
   return graph-backed candidates but has not implemented enough language roots
   and fixtures for cleanup-safe answers
@@ -168,6 +170,13 @@ Rust currently reports `derived` with named exactness blockers for unresolved
 macro expansion, cfg and Cargo feature selection, semantic module resolution,
 and trait dispatch. Those blockers must be cleared or scoped out before Rust
 can return exact cleanup-safe dead-code truth.
+
+SQL currently reports `derived` for stored routine cleanup. `SqlFunction`
+candidates participate in `code_quality.dead_code`, and trigger routines are
+protected when reducer materialization creates trigger-to-function `EXECUTES`
+edges from parsed `sql_relationships`. SQL remains non-exact until dynamic SQL,
+dialect-specific routine resolution, and migration-order resolution are modeled
+or scoped out.
 
 The current `code_quality.dead_code` capability is code-call oriented. It must
 not classify Terraform, Helm, Kustomize, Kubernetes, ArgoCD, or other IaC
@@ -270,15 +279,19 @@ Current branch status:
   methods, Cargo auxiliary-target exclusions, conditional derive evidence,
   nested annotations, structured where-clause evidence, path-attribute modules,
   direct file module-resolution status, and literal macro body module/import
-  declarations are modeled as parser-backed derived evidence
+  declarations are modeled as parser-backed derived evidence; SQL
+  `SqlFunction` routines are scanned as derived candidates, and parser-proven
+  trigger-to-function `EXECUTES` edges protect trigger-invoked routines from
+  cleanup results
 - broader Go router, webhook, worker, reflection, and build-tag roots plus
   broader Python worker, dynamic-dispatch, and non-export-declared public API
   roots plus broader
   JavaScript/TypeScript worker, static module graph, and dynamic-dispatch roots
   plus broader Java dynamic dispatch, dependency injection, and string-built
   reflection plus arbitrary Rust macro expansion, cfg/Cargo feature solving,
-  cross-crate semantic module resolution, and broad trait dispatch remain open,
-  so dead-code truth stays `derived`
+  cross-crate semantic module resolution, broad trait dispatch, dynamic SQL,
+  dialect-specific routine resolution, and SQL migration-order resolution
+  remain open, so dead-code truth stays `derived`
 
 Initial MVP is explicitly limited to those families. Other parser-supported
 languages and frameworks should return `derived_candidate_only`, `derived`, or

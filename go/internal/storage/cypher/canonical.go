@@ -250,6 +250,14 @@ SET rel.confidence = 0.95,
     rel.reason = 'SQL entity metadata resolved a trigger edge',
     rel.evidence_source = row.evidence_source`
 
+const batchCanonicalSQLExecutesUpsertCypher = `UNWIND $rows AS row
+MATCH (source:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.source_entity_id})
+MATCH (target:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.target_entity_id})
+MERGE (source)-[rel:EXECUTES]->(target)
+SET rel.confidence = 0.95,
+    rel.reason = 'SQL trigger metadata resolved a routine execution edge',
+    rel.evidence_source = row.evidence_source`
+
 // --- Retraction Cypher ---
 
 const retractInheritanceEdgesCypher = `MATCH (child)-[rel:INHERITS|OVERRIDES|ALIASES]->()
@@ -257,7 +265,7 @@ WHERE child.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSQLRelationshipEdgesCypher = `MATCH (source)-[rel:REFERENCES_TABLE|HAS_COLUMN|TRIGGERS]->()
+const retractSQLRelationshipEdgesCypher = `MATCH (source)-[rel:REFERENCES_TABLE|HAS_COLUMN|TRIGGERS|EXECUTES]->()
 WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`

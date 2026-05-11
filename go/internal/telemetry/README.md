@@ -104,6 +104,9 @@ gauge when a shared-acceptance observer is available.
 | `TerraformStateS3ConditionalGetNotModified` | `eshu_dp_tfstate_s3_conditional_get_not_modified_total` |
 | `CrossRepoEvidenceLoaded` | `eshu_dp_cross_repo_evidence_loaded_total` |
 | `CrossRepoEdgesResolved` | `eshu_dp_cross_repo_edges_resolved_total` |
+| `CorrelationRuleMatches` | `eshu_dp_correlation_rule_matches_total` |
+| `CorrelationDriftDetected` | `eshu_dp_correlation_drift_detected_total` |
+| `CorrelationDriftIntentsEnqueued` | `eshu_dp_correlation_drift_intents_enqueued_total` |
 
 #### Histograms (Float64 unless noted)
 

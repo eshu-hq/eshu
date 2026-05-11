@@ -26,7 +26,7 @@ func TestEdgeWriterRetractEdgesSQLRelationshipUsesLabelScopedGroup(t *testing.T)
 		t.Fatalf("ExecuteGroup calls = %d, want %d", got, want)
 	}
 	stmts := executor.groupCalls[0]
-	if got, want := len(stmts), 4; got != want {
+	if got, want := len(stmts), 5; got != want {
 		t.Fatalf("group statement count = %d, want %d", got, want)
 	}
 
@@ -34,8 +34,9 @@ func TestEdgeWriterRetractEdgesSQLRelationshipUsesLabelScopedGroup(t *testing.T)
 	assertSQLRetractStatement(t, stmts[1], "SqlFunction", "REFERENCES_TABLE")
 	assertSQLRetractStatement(t, stmts[2], "SqlTable", "HAS_COLUMN")
 	assertSQLRetractStatement(t, stmts[3], "SqlTrigger", "TRIGGERS")
+	assertSQLRetractStatement(t, stmts[4], "SqlTrigger", "EXECUTES")
 	for _, stmt := range stmts {
-		if strings.Contains(stmt.Cypher, "REFERENCES_TABLE|HAS_COLUMN|TRIGGERS") {
+		if strings.Contains(stmt.Cypher, "REFERENCES_TABLE|HAS_COLUMN|TRIGGERS|EXECUTES") {
 			t.Fatalf("cypher uses broad relationship alternation: %s", stmt.Cypher)
 		}
 	}
@@ -45,7 +46,7 @@ func TestBuildRetractSQLRelationshipEdgeStatementsUsesSharedParameters(t *testin
 	t.Parallel()
 
 	stmts := BuildRetractSQLRelationshipEdgeStatements([]string{"repo-a", "repo-b"}, "reducer/sql-relationships")
-	if got, want := len(stmts), 4; got != want {
+	if got, want := len(stmts), 5; got != want {
 		t.Fatalf("statement count = %d, want %d", got, want)
 	}
 

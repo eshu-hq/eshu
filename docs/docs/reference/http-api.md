@@ -578,12 +578,18 @@ Example dead-code workflow:
 ```json
 {
   "repo_id": "payments",
+  "language": "go",
   "limit": 200,
   "exclude_decorated_with": ["@route", "@app.route"]
 }
 ```
 
-`repo_id` is optional. When omitted, the Go API returns the first page of
+`repo_id` is optional. `language` is optional; pass it when validating one
+parser language family such as `sql`, `go`, `python`, `java`, `javascript`,
+`typescript`, `tsx`, or `rust`. For SQL, the language filter narrows the
+candidate scan to `SqlFunction` routines so mixed repositories with many
+application functions do not starve SQL routine evidence. When `repo_id` is
+omitted, the Go API returns the first page of
 dead-code candidates across indexed repositories, applies the current default
 Go entrypoint/test/generated exclusions plus direct Go Cobra, stdlib HTTP, and
 controller-runtime framework-root signatures and Go exported public-package

@@ -227,6 +227,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipDispatchesRelationshipTypes(t *testi
 	}{
 		{name: "has column", relationshipType: "HAS_COLUMN", expectedEdge: "HAS_COLUMN"},
 		{name: "triggers", relationshipType: "TRIGGERS", expectedEdge: "TRIGGERS"},
+		{name: "executes", relationshipType: "EXECUTES", expectedEdge: "EXECUTES"},
 	}
 
 	for _, tt := range tests {

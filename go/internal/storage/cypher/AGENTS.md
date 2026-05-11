@@ -69,6 +69,12 @@
   UNWIND Cypher template against both Neo4j and NornicDB if both backends are
   active.
 
+- **Change SQL relationship writes** → update `edge_writer_sql.go`,
+  `canonical.go`, and the SQL retraction tests together. `EXECUTES` is a
+  reachability edge from `SqlTrigger` to `SqlFunction`; removing it from either
+  the write path or `BuildRetractSQLRelationshipEdgeStatements` can make
+  trigger-bound stored routines appear dead.
+
 - **Add a new executor wrapper** → implement `Executor`; optionally implement
   `GroupExecutor` and/or `PhaseGroupExecutor`; add unit tests. Wire in `cmd/`
   only, not here.

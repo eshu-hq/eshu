@@ -16,6 +16,12 @@
 // outer-this field receiver contexts, Python constructor, self receiver, class
 // receiver, inherited classmethod, and local receiver evidence, static
 // JavaScript registry dispatch, and package-file-root evidence.
+// SQL relationship materialization emits trigger-to-table TRIGGERS edges and
+// trigger-to-function EXECUTES edges from parser-proven SqlTrigger metadata so
+// trigger-bound SqlFunction routines remain reachable in code dead-code
+// analysis. SQL name helpers index exact names and unqualified trailing
+// aliases, target resolution prefers same-file entities, and ambiguous
+// cross-file names are skipped rather than manufacturing reachability.
 // Code-call rows carry endpoint IDs plus the endpoint entity labels needed by
 // the graph writer to keep canonical CALLS and REFERENCES writes selective, and
 // the reducer drives repair flows for domains that depend on later phases of the

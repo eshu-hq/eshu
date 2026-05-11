@@ -24,8 +24,16 @@ var sqlRelationshipContentEntityTypes = []string{
 	"SqlIndex",
 }
 
+type sqlRelationshipEntity struct {
+	entityID     string
+	entityType   string
+	repoID       string
+	relativePath string
+}
+
 // SQLRelationshipMaterializationHandler reduces one SQL relationship follow-up
-// into canonical SQL edge writes (REFERENCES_TABLE, HAS_COLUMN, TRIGGERS).
+// into canonical SQL edge writes (REFERENCES_TABLE, HAS_COLUMN, TRIGGERS,
+// EXECUTES).
 type SQLRelationshipMaterializationHandler struct {
 	FactLoader           FactLoader
 	EdgeWriter           SharedProjectionEdgeWriter
@@ -227,21 +235,14 @@ func isSQLEntityType(entityType string) bool {
 
 // ExtractSQLRelationshipRows builds canonical SQL relationship edge rows from
 // content_entity fact envelopes. It builds an entity index from SQL entities,
-// then derives edges from entity metadata (source_tables, table_name).
+// then derives edges from entity metadata (source_tables, table_name,
+// function_name).
 func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
 	if len(envelopes) == 0 {
 		return nil, nil
 	}
-
-	// Pass 1: collect repository IDs and build entity index by qualified name.
-	type sqlEntity struct {
-		entityID   string
-		entityType string
-		repoID     string
-	}
-
 	repoSet := make(map[string]struct{})
-	entityByName := make(map[string]sqlEntity)
+	entityByName := make(map[string][]sqlRelationshipEntity)
 
 	for _, env := range envelopes {
 		if env.FactKind != "content_entity" {
@@ -251,6 +252,7 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 		entityType := semanticPayloadString(env.Payload, "entity_type")
 		entityID := semanticPayloadString(env.Payload, "entity_id")
 		entityName := semanticPayloadString(env.Payload, "entity_name")
+		relativePath := semanticPayloadString(env.Payload, "relative_path")
 
 		if repoID == "" || entityID == "" || entityName == "" {
 			continue
@@ -260,11 +262,13 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 		}
 
 		repoSet[repoID] = struct{}{}
-		entityByName[entityName] = sqlEntity{
-			entityID:   entityID,
-			entityType: entityType,
-			repoID:     repoID,
+		entity := sqlRelationshipEntity{
+			entityID:     entityID,
+			entityType:   entityType,
+			repoID:       repoID,
+			relativePath: relativePath,
 		}
+		addSQLRelationshipEntityIndex(entityByName, entityName, entity)
 	}
 
 	if len(repoSet) == 0 {
@@ -288,6 +292,7 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 		repoID := semanticPayloadString(env.Payload, "repo_id")
 		entityType := semanticPayloadString(env.Payload, "entity_type")
 		entityID := semanticPayloadString(env.Payload, "entity_id")
+		relativePath := semanticPayloadString(env.Payload, "relative_path")
 
 		if repoID == "" || entityID == "" || !isSQLEntityType(entityType) {
 			continue
@@ -300,8 +305,8 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 			// source_tables metadata -> REFERENCES_TABLE edges
 			sourceTables := sqlMetadataStringSlice(metadata, "source_tables")
 			for _, tableName := range sourceTables {
-				target, ok := entityByName[tableName]
-				if !ok || target.entityType != "SqlTable" {
+				target, ok := resolveSQLRelationshipTarget(entityByName, tableName, "SqlTable", repoID, relativePath)
+				if !ok {
 					continue
 				}
 				edgeKey := entityID + "->REFERENCES_TABLE->" + target.entityID
@@ -322,14 +327,34 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 		case "SqlTrigger":
 			// table_name metadata -> TRIGGERS edge
 			tableName := sqlMetadataString(metadata, "table_name")
-			if tableName == "" {
+			if tableName != "" {
+				target, ok := resolveSQLRelationshipTarget(entityByName, tableName, "SqlTable", repoID, relativePath)
+				if ok {
+					edgeKey := entityID + "->TRIGGERS->" + target.entityID
+					if _, seen := seenEdges[edgeKey]; !seen {
+						seenEdges[edgeKey] = struct{}{}
+						rows = append(rows, map[string]any{
+							"source_entity_id":   entityID,
+							"target_entity_id":   target.entityID,
+							"source_entity_type": entityType,
+							"target_entity_type": target.entityType,
+							"repo_id":            repoID,
+							"relationship_type":  "TRIGGERS",
+						})
+					}
+				}
+			}
+
+			// function_name metadata -> EXECUTES edge.
+			functionName := sqlMetadataString(metadata, "function_name")
+			if functionName == "" {
 				continue
 			}
-			target, ok := entityByName[tableName]
-			if !ok || target.entityType != "SqlTable" {
+			target, ok := resolveSQLRelationshipTarget(entityByName, functionName, "SqlFunction", repoID, relativePath)
+			if !ok {
 				continue
 			}
-			edgeKey := entityID + "->TRIGGERS->" + target.entityID
+			edgeKey := entityID + "->EXECUTES->" + target.entityID
 			if _, seen := seenEdges[edgeKey]; seen {
 				continue
 			}
@@ -340,7 +365,7 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 				"source_entity_type": entityType,
 				"target_entity_type": target.entityType,
 				"repo_id":            repoID,
-				"relationship_type":  "TRIGGERS",
+				"relationship_type":  "EXECUTES",
 			})
 
 		case "SqlColumn":
@@ -349,8 +374,8 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 			if tableName == "" {
 				continue
 			}
-			source, ok := entityByName[tableName]
-			if !ok || source.entityType != "SqlTable" {
+			source, ok := resolveSQLRelationshipTarget(entityByName, tableName, "SqlTable", repoID, relativePath)
+			if !ok {
 				continue
 			}
 			edgeKey := source.entityID + "->HAS_COLUMN->" + entityID
