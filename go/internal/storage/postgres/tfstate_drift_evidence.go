@@ -74,7 +74,7 @@ type PostgresDriftEvidenceLoader struct {
 }
 
 // LoadDriftEvidence implements reducer.DriftEvidenceLoader. The method
-// returns one AddressedRow per address present in any of the three inputs;
+// returns one AddressedRow per address present in any of the four inputs;
 // aligned addresses pass through and are filtered out downstream by the
 // classifier rather than re-doing the classifier's dispatch order here.
 //

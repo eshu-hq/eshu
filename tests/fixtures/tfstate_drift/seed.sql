@@ -709,6 +709,11 @@ ON CONFLICT (generation_id) DO NOTHING;
 --    Current generation (gen-2): has the backend block but NO
 --    aws_iam_policy.legacy resource. An unrelated resource
 --    (aws_s3_bucket.unrelated) is present to prove the file was indexed.
+--    Side effect: aws_s3_bucket.unrelated is config-only and produces an
+--    added_in_config drift event. The verify script's counter assertion
+--    uses delta>=1 so bucket-F contributes one removed_from_config and one
+--    added_in_config; the bucket-B added_in_config still fires too, bringing
+--    the total to delta=2 for added_in_config across the run.
 --    Prior generation (gen-1): has the same backend block AND
 --    aws_iam_policy.legacy, which is the address the prior-config walk must
 --    find to promote it to removed_from_config.
