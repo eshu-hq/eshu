@@ -334,10 +334,10 @@ func (l PostgresDriftEvidenceLoader) logPriorConfigWalk(
 	l.Logger.LogAttrs(ctx, slog.LevelInfo, "drift evidence loader walked prior config generations",
 		slog.String(telemetry.LogKeyScopeID, scopeID),
 		slog.String(telemetry.LogKeyGenerationID, generationID),
-		slog.Int("depth", l.effectivePriorConfigDepth()),
-		slog.Int("prior_config_addresses", len(priorConfig)),
-		slog.Int("state_only_addresses", stateOnly),
-		slog.Int("addresses_promoted_to_removed_from_config", promoted),
+		slog.Int(telemetry.LogKeyDriftPriorConfigDepth, l.effectivePriorConfigDepth()),
+		slog.Int(telemetry.LogKeyDriftPriorConfigAddresses, len(priorConfig)),
+		slog.Int(telemetry.LogKeyDriftStateOnlyAddresses, stateOnly),
+		slog.Int(telemetry.LogKeyDriftAddressesPromoted, promoted),
 	)
 }
 

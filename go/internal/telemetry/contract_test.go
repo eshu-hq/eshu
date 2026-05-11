@@ -112,6 +112,10 @@ func TestLogKeys(t *testing.T) {
 		"acceptance.source_run_id",
 		"acceptance.generation_id",
 		"acceptance.stale_count",
+		"depth",
+		"prior_config_addresses",
+		"state_only_addresses",
+		"addresses_promoted_to_removed_from_config",
 	}
 
 	got := LogKeys()
