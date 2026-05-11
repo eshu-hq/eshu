@@ -263,35 +263,6 @@ func (l PostgresDriftEvidenceLoader) loadStateResources(
 	return out, nil
 }
 
-// configRowFromParserEntry maps one parsed_file_data.terraform_resources
-// entry to a ResourceRow. The parser
-// (go/internal/parser/hcl/parser.go:130-154) emits only resource_type,
-// resource_name, count, and for_each metadata per row — no module-path
-// field. The canonical address built here is therefore the root-module
-// form `<type>.<name>`.
-//
-// Module-nested state addresses (e.g. `module.vpc.aws_instance.web`) will
-// not match a config-side row built by this function because the parser
-// sees only the calling repo's `module {}` block, not the callee module's
-// resources. That scope mismatch is a known v1 limitation: addresses
-// inside called modules surface as added_in_state (state has them, no
-// config-side row) until the parser walks nested modules or the loader
-// joins module-call metadata. Returns (nil, false) on blank type or name
-// so genuinely invalid rows do not become drift candidates; per-attribute
-// values are reserved for a forward-compat attribute extractor.
-func configRowFromParserEntry(entry map[string]any) (*tfconfigstate.ResourceRow, bool) {
-	resourceType := strings.TrimSpace(coerceJSONString(entry["resource_type"]))
-	resourceName := strings.TrimSpace(coerceJSONString(entry["resource_name"]))
-	if resourceType == "" || resourceName == "" {
-		return nil, false
-	}
-	address := resourceType + "." + resourceName
-	return &tfconfigstate.ResourceRow{
-		Address:      address,
-		ResourceType: resourceType,
-	}, true
-}
-
 // logDecodeFailure surfaces a corrupt state-resource payload as an
 // operator-actionable WARN log. A decode failure indicates real corruption
 // or a payload schema break in the collector pipeline upstream; the loader
