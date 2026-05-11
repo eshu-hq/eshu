@@ -120,7 +120,28 @@ func TestParserLargeStateStreamsResourceInstances(t *testing.T) {
 	}
 }
 
-func TestParseStreamLargeStateDoesNotRetainResourceFacts(t *testing.T) {
+// TestParseStream_PeakMemoryGate is the CI hard gate for the streaming-parse
+// memory guarantee in terraformstate.ParseStream. It asserts two invariants
+// on a 20k-resource synthetic state:
+//
+//  1. peak heap growth stays under maxStreamResourcePeakHeapGrowth (48 MB);
+//     a refactor that re-introduces full-payload buffering fails here.
+//  2. resource facts are streamed through the FactSink rather than retained
+//     in the parser; total fact count and per-kind count match the input.
+//
+// Companion coverage:
+//   - TestParseStreamLargeStateDoesNotRetainProviderBindingsOrWarnings in
+//     parser_stream_memory_test.go asserts the same ceiling against a
+//     richer fixture exercising provider bindings and warnings.
+//   - TestParseStreamLargeState100MiBStreamingProof (env-gated by
+//     ESHU_TFSTATE_100MIB_PROOF=true) runs the assertion against a 100 MB
+//     synthetic state for periodic large-scale validation.
+//   - BenchmarkParseStream_LargeState in parser_bench_test.go reports
+//     allocations and throughput for trend tracking.
+//
+// Do not call t.Parallel here. Parallel tests perturb runtime.MemStats and
+// the measurement loses its meaning.
+func TestParseStream_PeakMemoryGate(t *testing.T) {
 	const resourceInstances = 20_000
 
 	options := parseFixtureOptions(t)
@@ -154,7 +175,7 @@ func TestParseStreamLargeStateDoesNotRetainResourceFacts(t *testing.T) {
 		t.Fatalf("streamed resource facts = %d, want %d", got, resourceInstances)
 	}
 	if peakHeapGrowth > maxStreamResourcePeakHeapGrowth {
-		t.Fatalf("ParseStream() peak heap growth = %d bytes, want at most %d", peakHeapGrowth, maxStreamResourcePeakHeapGrowth)
+		t.Fatalf("ParseStream() peak heap growth = %d bytes, want at most %d (maxStreamResourcePeakHeapGrowth); a regression has likely re-introduced full-payload buffering", peakHeapGrowth, maxStreamResourcePeakHeapGrowth)
 	}
 }
 

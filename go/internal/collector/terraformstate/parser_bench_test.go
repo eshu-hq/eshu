@@ -2,6 +2,7 @@ package terraformstate_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"testing"
 
@@ -24,7 +25,7 @@ import (
 // largeResourceInstancesStateReader returns a one-shot io.Reader.
 func BenchmarkParseStream_LargeState(b *testing.B) {
 	for _, instanceCount := range []int{1_000, 10_000, 20_000} {
-		b.Run(benchSubName(instanceCount), func(b *testing.B) {
+		b.Run(fmt.Sprintf("%d_instances", instanceCount), func(b *testing.B) {
 			options := parseFixtureOptions(b)
 			byteSize := measureFixtureBytes(b, instanceCount)
 			b.SetBytes(byteSize)
@@ -46,18 +47,6 @@ func BenchmarkParseStream_LargeState(b *testing.B) {
 			}
 		})
 	}
-}
-
-func benchSubName(instanceCount int) string {
-	switch instanceCount {
-	case 1_000:
-		return "1k_instances"
-	case 10_000:
-		return "10k_instances"
-	case 20_000:
-		return "20k_instances"
-	}
-	return "instances"
 }
 
 // measureFixtureBytes drains the fixture once to learn its exact byte size so

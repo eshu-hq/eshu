@@ -865,16 +865,22 @@ Admin status should expose, per instance:
 
 ### Performance Gates
 
-The streaming-parse memory guarantee for `ParseStream` is enforced by two
+The streaming-parse memory guarantee for `ParseStream` is enforced by three
 tests and tracked by one benchmark:
 
 - `TestParseStream_PeakMemoryGate` in
-  `go/internal/collector/terraformstate/parser_peak_memory_gate_test.go`
-  fails CI if `ParseStream` peak heap growth exceeds 48 MB on a
-  20k-resource synthetic state. Runs on every build.
+  `go/internal/collector/terraformstate/parser_memory_test.go` is the named
+  CI gate. It fails the build if `ParseStream` peak heap growth exceeds
+  48 MB on a 20k-resource synthetic state and also asserts that resource
+  facts are streamed through the `FactSink` rather than retained in the
+  parser. Runs on every build.
 - `TestParseStreamLargeStateDoesNotRetainProviderBindingsOrWarnings` in
   `parser_stream_memory_test.go` asserts the same ceiling against a richer
   fixture that exercises provider bindings and warnings.
+- `TestParseStreamLargeState100MiBStreamingProof` in `parser_memory_test.go`
+  is env-gated by `ESHU_TFSTATE_100MIB_PROOF=true`; it runs the streaming
+  assertion against a 100 MB synthetic state for periodic large-scale
+  validation.
 - `BenchmarkParseStream_LargeState` in `parser_bench_test.go` reports
   allocations and throughput across 1k, 10k, and 20k-resource fixtures for
   trend tracking. A future refactor that re-introduces full-payload
