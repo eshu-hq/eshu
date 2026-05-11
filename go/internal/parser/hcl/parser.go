@@ -151,7 +151,7 @@ func parseTerraformBlocks(payload map[string]any, body *hclsyntax.Body, source [
 					row["for_each"] = forEach
 				}
 			}
-			if known, unknown := extractResourceAttributes(block, source); len(known) > 0 || len(unknown) > 0 {
+			if known, unknown := extractResourceAttributes(block); len(known) > 0 || len(unknown) > 0 {
 				if len(known) > 0 {
 					row["attributes"] = known
 				}

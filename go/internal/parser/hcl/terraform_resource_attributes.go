@@ -53,13 +53,13 @@ var reservedResourceBlockTypes = map[string]struct{}{
 //
 // Returns nil/nil when the block declares no relevant attributes, so the
 // caller can omit the JSON keys and keep existing snapshots byte-stable.
-func extractResourceAttributes(block *hclsyntax.Block, source []byte) (map[string]any, []string) {
+func extractResourceAttributes(block *hclsyntax.Block) (map[string]any, []string) {
 	if block == nil {
 		return nil, nil
 	}
 	known := map[string]any{}
 	var unknown []string
-	walkBlockAttributes(block.Body, "", source, known, &unknown)
+	walkBlockAttributes(block.Body, "", known, &unknown)
 	if len(known) == 0 {
 		known = nil
 	}
@@ -73,7 +73,6 @@ func extractResourceAttributes(block *hclsyntax.Block, source []byte) (map[strin
 func walkBlockAttributes(
 	body *hclsyntax.Body,
 	prefix string,
-	source []byte,
 	known map[string]any,
 	unknown *[]string,
 ) {
@@ -117,7 +116,7 @@ func walkBlockAttributes(
 		if prefix != "" {
 			childPrefix = prefix + "." + nested.Type
 		}
-		walkBlockAttributes(nested.Body, childPrefix, source, known, unknown)
+		walkBlockAttributes(nested.Body, childPrefix, known, unknown)
 	}
 }
 
