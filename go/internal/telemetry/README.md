@@ -247,6 +247,16 @@ runtime; all emission happens in the packages that consume `Instruments`.
 - The Prometheus exporter uses its own `prometheus.NewRegistry()` (not the
   default registry), so it is isolated from any third-party code that
   registers on the default registry.
+- The Prometheus exporter is constructed with
+  `otelprom.WithResourceAsConstantLabels` keyed to allow `service.name`
+  and `service.namespace` only. Dropping or narrowing that filter breaks
+  every dashboard that filters by `service_name` or `service_namespace`.
+  The regression gate lives in `provider_resource_labels_test.go` (test
+  TestPrometheusExposesServiceLabelsOnMetrics). The default exporter
+  behavior leaves those attributes on `target_info` alone, so a Grafana
+  template variable scoped to a data-plane selector like
+  `label_values(eshu_dp_facts_emitted_total, service_name)` returns
+  empty even though `label_values(target_info, service_name)` works.
 - `TraceHandler` only injects `trace_id` and `span_id` when a valid span is
   active in the context. Log lines emitted outside any span do not carry trace
   fields; this is expected.
