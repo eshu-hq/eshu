@@ -4,26 +4,28 @@
 
 1. `README.md` - package boundary, exported surface, and invariants
 2. `doc.go` - godoc contract for the Go adapter package
-3. `language.go` and `call_chain_metadata.go` - `Parse`, `PreScan`, payload
-   assembly, call metadata, receiver handling, and chained receiver proof
-4. `dead_code_roots.go` - signature roots, import aliases, and root-kind
+3. `language.go` and `call_chain_metadata.go` - `Parse`, payload assembly,
+   call metadata, receiver handling, and chained receiver proof
+4. `prescan.go` - `PreScan`, the cheap name-only walk used by the collector
+   import-map prescan
+5. `dead_code_roots.go` - signature roots, import aliases, and root-kind
    helpers
-5. `dead_code_registrations.go` - net/http and Cobra registration evidence
-6. `dead_code_semantic_roots.go` - top-level semantic root collection
-7. `dead_code_semantic_helpers.go` and `dead_code_semantic_flows.go` -
+6. `dead_code_registrations.go` - net/http and Cobra registration evidence
+7. `dead_code_semantic_roots.go` - top-level semantic root collection
+8. `dead_code_semantic_helpers.go` and `dead_code_semantic_flows.go` -
    interface, callback, field, and argument flow helpers
-8. `function_literal_reachability.go` - callback and registry literal root
+9. `function_literal_reachability.go` - callback and registry literal root
    boundaries
-9. `package_interface_prescan.go` - imported-interface parameter extraction
-10. `parent_lookup.go` - per-file child-to-parent index used by every helper
+10. `package_interface_prescan.go` - imported-interface parameter extraction
+11. `parent_lookup.go` - per-file child-to-parent index used by every helper
     that walks ancestors; required to keep ancestor traversal amortized O(1)
-11. `variable_type_index.go` and `imported_variable_type_index.go` -
+12. `variable_type_index.go` and `imported_variable_type_index.go` -
     per-file, per-scope variable-type lookup indices that replace the
     per-call full-tree walks the dead-code and package-prescan helpers used
     to do
-12. `embedded_sql.go` - SQL literal extraction and line-number accounting
-13. `helpers.go` and `types.go` - local helper and shared contract aliases
-14. Parent tests in `go/internal/parser/go*_test.go` before changing emitted
+13. `embedded_sql.go` - SQL literal extraction and line-number accounting
+14. `helpers.go` and `types.go` - local helper and shared contract aliases
+15. Parent tests in `go/internal/parser/go*_test.go` before changing emitted
     payload shape
 
 ## Invariants this package enforces
