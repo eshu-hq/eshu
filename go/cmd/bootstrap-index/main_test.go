@@ -284,14 +284,16 @@ func (f *fakeSource) Next(context.Context) (collector.CollectedGeneration, bool,
 }
 
 type fakeCommitter struct {
-	mu            sync.Mutex
-	calls         []string
-	backfillCalls int
-	iacCalls      int
-	reopenCalls   int
-	backfillErr   error
-	iacErr        error
-	reopenErr     error
+	mu               sync.Mutex
+	calls            []string
+	backfillCalls    int
+	iacCalls         int
+	reopenCalls      int
+	driftEnqueueCalls int
+	backfillErr      error
+	iacErr           error
+	reopenErr        error
+	driftEnqueueErr  error
 }
 
 func (f *fakeCommitter) CommitScopeGeneration(
@@ -341,6 +343,18 @@ func (f *fakeCommitter) ReopenDeploymentMappingWorkItems(
 	f.calls = append(f.calls, "reopen")
 	f.reopenCalls++
 	return f.reopenErr
+}
+
+func (f *fakeCommitter) EnqueueConfigStateDriftIntents(
+	_ context.Context,
+	_ trace.Tracer,
+	_ *telemetry.Instruments,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "enqueue_drift")
+	f.driftEnqueueCalls++
+	return f.driftEnqueueErr
 }
 
 func (f *fakeCommitter) snapshotCalls() []string {
@@ -816,7 +830,7 @@ func TestPipelinedBootstrapRunsDeferredBackfillWorkflow(t *testing.T) {
 		t.Fatalf("runPipelined() error = %v, want nil", err)
 	}
 
-	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
 	if got := sink.acked.Load(); got != 0 {
@@ -912,7 +926,40 @@ func TestPipelinedBootstrapReopenFailureIsFatal(t *testing.T) {
 	if !errors.Is(err, reopenErr) {
 		t.Fatalf("runPipelined() error = %v, want wrapping %v", err, reopenErr)
 	}
+	// enqueue_drift must NOT be called when reopen fails — the pipeline
+	// returns before Phase 3.5 runs.
 	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("workflow calls = %v, want %v", got, want)
+	}
+}
+
+func TestPipelinedBootstrapDriftEnqueueFailureIsFatal(t *testing.T) {
+	t.Parallel()
+
+	driftErr := errors.New("drift enqueue failed")
+	committer := &fakeCommitter{driftEnqueueErr: driftErr}
+
+	err := runPipelined(
+		context.Background(),
+		collectorDeps{source: &fakeSource{generations: nil}, committer: committer},
+		projectorDeps{
+			workSource: &concurrentWorkSource{items: nil},
+			factStore:  &fakeFactStore{},
+			runner:     &fakeProjectionRunner{},
+			workSink:   &concurrentWorkSink{},
+		},
+		2,
+		nil,
+		nil,
+		nil,
+	)
+	if err == nil {
+		t.Fatal("runPipelined() error = nil, want non-nil")
+	}
+	if !errors.Is(err, driftErr) {
+		t.Fatalf("runPipelined() error = %v, want wrapping %v", err, driftErr)
+	}
+	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
 }
@@ -948,7 +995,7 @@ func TestPipelinedBootstrapWaitsForProjectorDrainBeforeReopen(t *testing.T) {
 	if got := sink.acked.Load(); got != 1 {
 		t.Fatalf("projector not drained before reopen: acked=%d, want 1", got)
 	}
-	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
 }
