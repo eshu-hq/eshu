@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 func TestResolveTerragruntRemoteStateFromSelf(t *testing.T) {
@@ -204,6 +206,62 @@ func containsWarningKind(warnings []terragruntIncludeWarning, kind string) bool 
 		}
 	}
 	return false
+}
+
+// TestResolveTerragruntIncludeWarningsSurfaceInPayload guarantees that a
+// depth-exceeded include chain emits a row in the parser's
+// terragrunt_include_warnings payload bucket. Without this surfacing the
+// walker's bound is invisible to downstream consumers, which conflicts with
+// the PR description's claim that include-chain failures are observable.
+func TestResolveTerragruntIncludeWarningsSurfaceInPayload(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const depth = 20
+	leafDir := root
+	for i := 0; i < depth; i++ {
+		leafDir = filepath.Join(leafDir, "level")
+	}
+	if err := os.MkdirAll(leafDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll error = %v", err)
+	}
+	curr := leafDir
+	for i := 0; i < depth; i++ {
+		body := `include "p" {
+  path = find_in_parent_folders("terragrunt.hcl")
+}
+`
+		if err := os.WriteFile(filepath.Join(curr, "terragrunt.hcl"), []byte(body), 0o644); err != nil {
+			t.Fatalf("write level error = %v", err)
+		}
+		curr = filepath.Dir(curr)
+	}
+
+	leafPath := filepath.Join(leafDir, "terragrunt.hcl")
+	got, err := Parse(leafPath, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	warnings := bucketForTest(t, got, "terragrunt_include_warnings")
+	if len(warnings) == 0 {
+		t.Fatalf("len(terragrunt_include_warnings) = 0, want at least 1")
+	}
+	found := false
+	for _, w := range warnings {
+		if kind, _ := w["kind"].(string); kind == "terragrunt_include_depth_exceeded" {
+			if reason, _ := w["reason"].(string); reason == "" {
+				t.Fatalf("warning row has empty reason: %#v", w)
+			}
+			if source, _ := w["source"].(string); source == "" {
+				t.Fatalf("warning row has empty source: %#v", w)
+			}
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("warnings = %#v, want one with kind=terragrunt_include_depth_exceeded", warnings)
+	}
 }
 
 // TestResolveTerragruntRemoteStateRejectsOversizeIncludeFile ensures the

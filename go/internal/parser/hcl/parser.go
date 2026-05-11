@@ -57,8 +57,12 @@ func Parse(
 		for _, row := range parseTerragruntRemoteStates(body, source, path) {
 			shared.AppendBucket(payload, "terragrunt_remote_states", row)
 		}
-		for _, row := range resolveTerragruntRemoteStateFromIncludes(body, source, path) {
+		includeRows, includeWarnings := resolveTerragruntRemoteStateFromIncludes(body, path)
+		for _, row := range includeRows {
 			shared.AppendBucket(payload, "terragrunt_remote_states", row)
+		}
+		for _, row := range includeWarnings {
+			shared.AppendBucket(payload, "terragrunt_include_warnings", row)
 		}
 	} else {
 		parseTerraformBlocks(payload, body, source, path)
@@ -86,6 +90,7 @@ func Parse(
 	shared.SortNamedBucket(payload, "terragrunt_locals")
 	shared.SortNamedBucket(payload, "terragrunt_inputs")
 	shared.SortNamedBucket(payload, "terragrunt_remote_states")
+	shared.SortNamedBucket(payload, "terragrunt_include_warnings")
 	if options.IndexSource {
 		payload["source"] = string(source)
 	}

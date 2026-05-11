@@ -90,22 +90,29 @@ func remoteStateRow(block *hclsyntax.Block, source []byte, path string) map[stri
 }
 
 // resolveTerragruntRemoteStateFromIncludes returns extra remote_state rows
-// inherited from a parent terragrunt.hcl through the local include chain. The
-// walker is implemented in include_chain.go; this entry point keeps the
-// dispatch site in parser.go free of include-traversal details.
-func resolveTerragruntRemoteStateFromIncludes(body *hclsyntax.Body, source []byte, path string) []map[string]any {
+// inherited from a parent terragrunt.hcl through the local include chain plus
+// any include-walker warning rows (depth exceeded, cycle, unsafe file). Both
+// slices are written to distinct payload buckets by the parser dispatch so
+// downstream consumers can treat resolved evidence and walker failures
+// independently. The walker itself is implemented in include_chain.go; this
+// entry point keeps the dispatch site in parser.go free of traversal details.
+func resolveTerragruntRemoteStateFromIncludes(body *hclsyntax.Body, path string) ([]map[string]any, []map[string]any) {
 	for _, block := range body.Blocks {
 		if block.Type == "remote_state" {
-			return nil
+			// A self-declared remote_state preempts include resolution; the
+			// caller already records that row directly. The walker is not
+			// invoked, so there are no include warnings to surface here.
+			return nil, nil
 		}
 	}
-	resolved, _ := resolveTerragruntRemoteState(path)
+	resolved, walkerWarnings := resolveTerragruntRemoteState(path)
+	warnings := includeWarningRows(walkerWarnings)
 	if resolved == nil {
-		return nil
+		return nil, warnings
 	}
 	if resolved.resolvedFrom == "self" {
 		// Self resolution already emitted by parseTerragruntRemoteStates above.
-		return nil
+		return nil, warnings
 	}
 	row := resolved.row
 	row["resolved_from"] = resolved.resolvedFrom
@@ -117,7 +124,26 @@ func resolveTerragruntRemoteStateFromIncludes(body *hclsyntax.Body, source []byt
 	// it was parsed under. The local backend's own `path` attribute (if any)
 	// stays untouched in row["path"].
 	row["source_path"] = path
-	return []map[string]any{row}
+	return []map[string]any{row}, warnings
+}
+
+// includeWarningRows projects the walker's terragruntIncludeWarning values
+// into the parser payload shape. The conversion is one-to-one and preserves
+// the warning's kind, reason, and source so a downstream consumer can render
+// or persist them without depending on the parser's internal type.
+func includeWarningRows(warnings []terragruntIncludeWarning) []map[string]any {
+	if len(warnings) == 0 {
+		return nil
+	}
+	rows := make([]map[string]any, 0, len(warnings))
+	for _, w := range warnings {
+		rows = append(rows, map[string]any{
+			"kind":   w.kind,
+			"reason": w.reason,
+			"source": w.source,
+		})
+	}
+	return rows
 }
 
 // isLiteralRemoteStateConfigValue reports whether the supplied expression is a
