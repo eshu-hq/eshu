@@ -263,17 +263,18 @@ func loadPositiveIntOrDefault(getenv func(string) string, key string, defaultVal
 }
 
 // parsePriorConfigDepth converts the ESHU_DRIFT_PRIOR_CONFIG_DEPTH env value
-// into the loader's bound. Empty values return 0, which the loader treats as
-// "use defaultPriorConfigDepth" (10). An invalid or non-positive value is
-// operator error: the function emits a structured WARN and returns 0 so a typo
-// does not disable drift detection entirely.
+// into the loader's bound. Empty input and explicit "0" both return 0 (the
+// loader interprets 0 as "use defaultPriorConfigDepth", currently 10).
+// Negative or non-integer values emit a WARN log and also fall back to 0 so
+// a typo cannot disable drift detection — operator error is observable but
+// non-fatal.
 func parsePriorConfigDepth(raw string, logger *slog.Logger) int {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return 0
 	}
 	n, err := strconv.Atoi(raw)
-	if err != nil || n <= 0 {
+	if err != nil || n < 0 {
 		if logger != nil {
 			logger.LogAttrs(context.Background(), slog.LevelWarn,
 				"invalid ESHU_DRIFT_PRIOR_CONFIG_DEPTH; falling back to default",

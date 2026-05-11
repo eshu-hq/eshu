@@ -395,7 +395,7 @@ func TestParsePriorConfigDepth(t *testing.T) {
 		{name: "whitespace trimmed around integer", raw: "  20  ", want: 20},
 		{name: "non-numeric returns zero", raw: "abc", want: 0},
 		{name: "negative returns zero", raw: "-3", want: 0},
-		{name: "zero returns zero (non-positive guard)", raw: "0", want: 0},
+		{name: "zero returns zero (explicit use-default sentinel)", raw: "0", want: 0},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -438,5 +438,20 @@ func TestParsePriorConfigDepthNilLoggerDoesNotPanic(t *testing.T) {
 
 	if got := parsePriorConfigDepth("abc", nil); got != 0 {
 		t.Fatalf("got = %d, want 0", got)
+	}
+}
+
+func TestParsePriorConfigDepthZeroDoesNotWarn(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	got := parsePriorConfigDepth("0", logger)
+	if got != 0 {
+		t.Fatalf("parsePriorConfigDepth(\"0\", logger) = %d, want 0", got)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("expected no WARN log for \"0\" (documented use-default sentinel); got: %s", buf.String())
 	}
 }
