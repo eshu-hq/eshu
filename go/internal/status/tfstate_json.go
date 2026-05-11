@@ -8,8 +8,8 @@ import (
 // status section. Empty slices are still emitted so consumers can rely on the
 // shape after the first report containing tfstate evidence.
 type terraformStateJSON struct {
-	LastSerials    []terraformStateSerialJSON               `json:"last_serials"`
-	RecentWarnings []terraformStateWarningJSON              `json:"recent_warnings"`
+	LastSerials    []terraformStateSerialJSON                        `json:"last_serials"`
+	RecentWarnings []terraformStateWarningJSON                       `json:"recent_warnings"`
 	WarningsByKind map[string]map[string][]terraformStateWarningJSON `json:"warnings_by_kind"`
 }
 
@@ -92,4 +92,3 @@ func warningRowJSON(row TerraformStateLocatorWarning) terraformStateWarningJSON 
 		ObservedAt:      nullableRFC3339Value(row.ObservedAt),
 	}
 }
-
