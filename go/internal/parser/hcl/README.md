@@ -59,8 +59,8 @@ neither value silently overwrites the other (`terragrunt_remote_state.go:54`).
 
 Terraform resource attribute extraction (`terraform_resource_attributes.go`)
 uses cty-value evaluation via `hclsyntax.Expression.Value(nil)` rather than
-byte-level source reads to produce the `known_attributes` and
-`unknown_attributes` fields. This correctly handles heredoc strings (which
+byte-level source reads to produce the `attributes` and
+`unknown_attributes` fields on each `terraform_resources` row. This correctly handles heredoc strings (which
 evaluate to the unindented body content) and escaped-quote strings (which
 evaluate to the unescaped character). The encoding must stay in lockstep with
 the state-side flattener in `tfstate_drift_evidence_state_row.go` — see
