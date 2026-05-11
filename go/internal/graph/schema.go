@@ -209,6 +209,15 @@ var schemaPerformanceIndexes = []string{
 // NornicDB's schema-backed MERGE lookup path. Neo4j uniqueness constraints
 // already create backing indexes for these schemas; keep this NornicDB-only to
 // avoid duplicate-index warnings on Neo4j.
+//
+// The SourceLocalRecord.scope_id and Parameter.path entries cover labels whose
+// composite UNIQUE constraints declared in schemaConstraints are silently
+// dropped by nornicDBSchemaConstraint because NornicDB rejects composite
+// constraint syntax. Without a backing single-property index, MERGE on those
+// labels in the source-local projection writer and the canonical
+// HAS_PARAMETER edge falls through to a full label scan, which the comment
+// above the source_local_record_unique constraint calls out as O(n²) for
+// large-repo projection.
 var nornicDBMergeLookupIndexes = []string{
 	"CREATE INDEX nornicdb_repository_id_lookup IF NOT EXISTS FOR (r:Repository) ON (r.id)",
 	"CREATE INDEX nornicdb_directory_path_lookup IF NOT EXISTS FOR (d:Directory) ON (d.path)",
@@ -219,6 +228,8 @@ var nornicDBMergeLookupIndexes = []string{
 	"CREATE INDEX nornicdb_endpoint_id_lookup IF NOT EXISTS FOR (e:Endpoint) ON (e.id)",
 	"CREATE INDEX nornicdb_evidence_artifact_id_lookup IF NOT EXISTS FOR (a:EvidenceArtifact) ON (a.id)",
 	"CREATE INDEX nornicdb_environment_name_lookup IF NOT EXISTS FOR (e:Environment) ON (e.name)",
+	"CREATE INDEX nornicdb_source_local_record_scope_lookup IF NOT EXISTS FOR (n:SourceLocalRecord) ON (n.scope_id)",
+	"CREATE INDEX nornicdb_parameter_path_lookup IF NOT EXISTS FOR (n:Parameter) ON (n.path)",
 }
 
 func nornicDBUIDLookupIndexes() []string {
