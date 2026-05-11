@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -243,5 +244,105 @@ func entityFunctionParams() map[string]any {
 	return map[string]any{
 		sourcecypher.StatementMetadataPhaseKey:       sourcecypher.CanonicalPhaseEntities,
 		sourcecypher.StatementMetadataEntityLabelKey: "Function",
+	}
+}
+
+// chunksSeenGroupExecutor blocks the first chunk that enters ExecuteGroup
+// until `blockUntilSeen` chunks have entered. Used to assert the entity-phase
+// executor streams chunks across what would be flush boundaries under the
+// pre-streaming sync-barrier design — every chunk has to enter ExecuteGroup
+// before the blocker unblocks, which only happens if the producer keeps
+// pushing chunks while an earlier chunk is still in flight.
+type chunksSeenGroupExecutor struct {
+	count          int64
+	blockUntilSeen int64
+	deadline       time.Duration
+}
+
+func (c *chunksSeenGroupExecutor) Execute(_ context.Context, _ sourcecypher.Statement) error {
+	return nil
+}
+
+func (c *chunksSeenGroupExecutor) ExecuteGroup(ctx context.Context, _ []sourcecypher.Statement) error {
+	idx := atomic.AddInt64(&c.count, 1)
+	if idx != 1 {
+		return nil
+	}
+	deadline := time.Now().Add(c.deadline)
+	for atomic.LoadInt64(&c.count) < c.blockUntilSeen {
+		if time.Now().After(deadline) {
+			return fmt.Errorf(
+				"only %d chunks entered ExecuteGroup before the first chunk's deadline, want %d (producer is stalled inside an earlier flush instead of streaming chunks to a persistent worker pool)",
+				atomic.LoadInt64(&c.count), c.blockUntilSeen,
+			)
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return nil
+}
+
+// TestNornicDBPhaseGroupExecutorEntityPhaseStreamsAcrossFlushBoundaries proves
+// that the entity-phase executor pushes chunks to its worker pool as they are
+// buffered, without per-flush sync barriers between batches. The K8s dogfood
+// canonical_write evidence showed Variable label wall-clock at 208s for 673
+// chunks × concurrency 8 — far above the 95s ideal floor. Per-flush
+// `wg.Wait()` calls inside `flushGrouped` were leaving workers idle while the
+// producer prepared the next batch, which is the structural waste this test
+// pins down: a chunk arriving early enough must keep the pool saturated even
+// when an earlier chunk is still running.
+//
+// Total chunks: 16 (twice the prior per-flush wave under
+// `entityFlushTrigger = limit*concurrency = 1*4 = 4`). Under the legacy
+// design, the first wave of 4 chunks runs, the blocker holds, and the
+// producer cannot push waves 2–4 until the first wave drains; the blocker
+// times out at 4 chunks and the test fails with a clear "stalled inside an
+// earlier flush" message. The streaming design pushes all 16 chunks into a
+// single long-lived channel; chunks 2–16 enter ExecuteGroup while the
+// blocker is still running, the counter reaches 16, and the test passes.
+func TestNornicDBPhaseGroupExecutorEntityPhaseStreamsAcrossFlushBoundaries(t *testing.T) {
+	t.Parallel()
+
+	const (
+		workers    = 4
+		totalStmts = 16
+	)
+
+	inner := &chunksSeenGroupExecutor{
+		blockUntilSeen: totalStmts,
+		deadline:       2 * time.Second,
+	}
+	executor := nornicDBPhaseGroupExecutor{
+		inner:                  inner,
+		maxStatements:          5,
+		entityMaxStatements:    1,
+		entityPhaseConcurrency: workers,
+	}
+
+	stmts := make([]sourcecypher.Statement, totalStmts)
+	for i := range stmts {
+		stmts[i] = sourcecypher.Statement{
+			Cypher:     "RETURN x",
+			Parameters: entityFunctionParams(),
+		}
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- executor.ExecutePhaseGroup(context.Background(), stmts)
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("ExecutePhaseGroup() error = %v, want nil (the entity-phase executor did not stream chunks across what would be flush boundaries)", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("ExecutePhaseGroup did not complete within 5s — the executor is stuck inside the legacy per-flush sync barrier and never dispatched chunks 5-16 while the first chunk was still in flight")
+	}
+	if got := atomic.LoadInt64(&inner.count); got != int64(totalStmts) {
+		t.Fatalf("ExecuteGroup call count = %d, want %d (some chunks were not dispatched)", got, totalStmts)
 	}
 }

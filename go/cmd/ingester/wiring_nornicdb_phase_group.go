@@ -42,6 +42,9 @@ func (e nornicDBPhaseGroupExecutor) ExecutePhaseGroup(ctx context.Context, stmts
 			return e.executeSequentialRetractPhase(ctx, stmts)
 		}
 		if statementPhaseUsesEntityLabelStats(statementPhase(stmts)) {
+			if e.entityPhaseConcurrency > 1 {
+				return e.executeEntityPhaseGroupStreaming(ctx, ge, stmts)
+			}
 			return e.executeEntityPhaseGroup(ctx, ge, stmts)
 		}
 		return e.executeGroupedChunks(ctx, ge, stmts, e.phaseGroupStatementLimit(stmts))

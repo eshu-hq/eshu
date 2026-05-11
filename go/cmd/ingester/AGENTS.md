@@ -104,14 +104,15 @@
   conformance pass. Using it prematurely can produce partial writes.
 
 - **Raising ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY without measuring NornicDB
-  commit headroom** — the parallel chunk dispatcher in
-  `wiring_nornicdb_phase_group_concurrent.go` is bounded to 16 for a reason:
-  each worker holds one Bolt session against NornicDB while a grouped chunk
-  runs, so peak Bolt session demand is
-  `ESHU_PROJECTOR_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`.
-  Raise the knob only after a focused run names the canonical entities
-  phase as the wall-clock bottleneck and NornicDB structured logs show
-  no contention on parallel commits.
+  commit headroom** — the streaming dispatcher in
+  `wiring_nornicdb_phase_group_streaming.go` keeps one Bolt session per
+  worker open for the lifetime of an entity-phase call, so peak Bolt session
+  demand is `ESHU_PROJECTOR_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`
+  and the cap of 16 still applies. The legacy per-flush path lives in
+  `wiring_nornicdb_phase_group.go` (`executeEntityPhaseGroup`) and runs only
+  when concurrency is at most one. Raise the knob only after a focused run
+  names the canonical entities phase as the wall-clock bottleneck and
+  NornicDB structured logs show no contention on parallel commits.
 
 ## What NOT to change without an ADR
 
