@@ -116,6 +116,15 @@ func TestHandleDeadCodeExcludesCRootKindsFromContentMetadata(t *testing.T) {
 					Language:     "c",
 					Metadata:     map[string]any{"dead_code_root_kinds": []string{"c.main_function"}},
 				},
+				"c-dispatch-target": {
+					EntityID:     "c-dispatch-target",
+					RepoID:       "repo-1",
+					RelativePath: "src/main.c",
+					EntityType:   "Function",
+					EntityName:   "dispatch_target",
+					Language:     "c",
+					Metadata:     map[string]any{"dead_code_root_kinds": []string{"c.function_pointer_target"}},
+				},
 				"c-unused": {
 					EntityID:     "c-unused",
 					RepoID:       "repo-1",
@@ -129,6 +138,10 @@ func TestHandleDeadCodeExcludesCRootKindsFromContentMetadata(t *testing.T) {
 		rows: []map[string]any{
 			{
 				"entity_id": "c-main", "name": "main", "labels": []any{"Function"},
+				"file_path": "src/main.c", "repo_id": "repo-1", "repo_name": "runtime", "language": "c",
+			},
+			{
+				"entity_id": "c-dispatch-target", "name": "dispatch_target", "labels": []any{"Function"},
 				"file_path": "src/main.c", "repo_id": "repo-1", "repo_name": "runtime", "language": "c",
 			},
 			{
@@ -183,7 +196,7 @@ func TestHandleDeadCodeExcludesCRootKindsFromContentMetadata(t *testing.T) {
 	}
 
 	analysis := data["analysis"].(map[string]any)
-	if got, want := analysis["framework_roots_from_parser_metadata"], float64(1); got != want {
+	if got, want := analysis["framework_roots_from_parser_metadata"], float64(2); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
 	}
 }

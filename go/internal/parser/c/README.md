@@ -26,7 +26,8 @@ callbacks, signal handlers, and direct function-pointer initializer targets.
 Callback roots accept bare and address-of callback arguments. Direct
 function-pointer initializer roots include bare and address-of targets for
 explicit pointer declarations, multiple initializer declarations, and local
-typedef pointer aliases.
+typedef pointer aliases, including brace initializer tables in those
+declarations.
 
 ## Dependencies
 

@@ -35,6 +35,8 @@ var cDirectInitializerTargetPattern = regexp.MustCompile(
 	`=\s*&?\s*([A-Za-z_]\w*)\s*(?:[,;]|$)`,
 )
 
+var cBraceInitializerPattern = regexp.MustCompile(`(?s)=\s*\{([^{}]*)\}`)
+
 type cRepoRootBounds struct {
 	abs      string
 	resolved string
@@ -224,20 +226,50 @@ func cDeclarationHasFunctionPointerTarget(left string, functionPointerTypedefs m
 
 func cDirectFunctionPointerInitializerTargets(text string) []string {
 	matches := cDirectInitializerTargetPattern.FindAllStringSubmatch(text, -1)
-	targets := make([]string, 0, len(matches))
+	braceInitializers := cBraceInitializerPattern.FindAllStringSubmatch(text, -1)
+	targets := make([]string, 0, len(matches)+len(braceInitializers))
 	seen := make(map[string]struct{}, len(matches))
 	for _, match := range matches {
 		if len(match) != 2 {
 			continue
 		}
-		target := strings.TrimSpace(match[1])
-		if target == "" || !cIdentifierLike(target) {
+		targets = appendCFunctionPointerTarget(targets, seen, match[1])
+	}
+	for _, match := range braceInitializers {
+		if len(match) != 2 {
 			continue
 		}
-		if _, ok := seen[target]; ok {
+		for _, target := range cBraceInitializerTargets(match[1]) {
+			targets = appendCFunctionPointerTarget(targets, seen, target)
+		}
+	}
+	return targets
+}
+
+func appendCFunctionPointerTarget(targets []string, seen map[string]struct{}, target string) []string {
+	target = strings.TrimSpace(target)
+	if target == "" || !cIdentifierLike(target) {
+		return targets
+	}
+	if _, ok := seen[target]; ok {
+		return targets
+	}
+	seen[target] = struct{}{}
+	return append(targets, target)
+}
+
+func cBraceInitializerTargets(initializer string) []string {
+	parts := strings.Split(initializer, ",")
+	targets := make([]string, 0, len(parts))
+	for _, part := range parts {
+		target := part
+		if index := strings.LastIndex(target, "="); index >= 0 {
+			target = target[index+1:]
+		}
+		target = cDirectIdentifierExpression(target)
+		if target == "" {
 			continue
 		}
-		seen[target] = struct{}{}
 		targets = append(targets, target)
 	}
 	return targets

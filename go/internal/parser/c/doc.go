@@ -6,7 +6,10 @@
 // declared by directly included local headers without scanning the full
 // repository; header reads stay inside the repository root, static header
 // prototypes stay private, and commented-out prototypes are ignored. The root
+// metadata also covers entrypoints, callback arguments, signal handlers, and
+// direct function-pointer initializers, including simple dispatch tables. The
 // metadata is suppressive parser evidence, not a complete C linker model:
-// macro expansion, conditional compilation, transitive include graphs, and
-// dynamic symbol lookup remain outside this package's exactness contract.
+// macro expansion, conditional compilation, transitive include graphs,
+// indirect dispatch, and dynamic symbol lookup remain outside this package's
+// exactness contract.
 package c

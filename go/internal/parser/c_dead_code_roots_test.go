@@ -290,8 +290,24 @@ int multi_typedef_second_target(void) {
     return 7;
 }
 
-int unused_target(void) {
+int table_first_target(void) {
     return 8;
+}
+
+int table_second_target(void) {
+    return 9;
+}
+
+int typedef_table_first_target(void) {
+    return 10;
+}
+
+int typedef_table_second_target(void) {
+    return 11;
+}
+
+int unused_target(void) {
+    return 12;
 }
 
 void setup(void) {
@@ -300,6 +316,8 @@ void setup(void) {
     Handler typedef_handler = &typedef_target;
     int (*multi_first)(void) = multi_first_target, (*multi_second)(void) = &multi_second_target;
     Handler typedef_first = multi_typedef_first_target, typedef_second = &multi_typedef_second_target;
+    int (*handler_table[])(void) = { table_first_target, &table_second_target };
+    Handler typedef_table[] = { typedef_table_first_target, &typedef_table_second_target };
 }
 `,
 	)
@@ -321,6 +339,10 @@ void setup(void) {
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "multi_second_target"), "dead_code_root_kinds", "c.function_pointer_target")
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "multi_typedef_first_target"), "dead_code_root_kinds", "c.function_pointer_target")
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "multi_typedef_second_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "table_first_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "table_second_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "typedef_table_first_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "typedef_table_second_target"), "dead_code_root_kinds", "c.function_pointer_target")
 	if unused := assertFunctionByName(t, got, "unused_target"); unused["dead_code_root_kinds"] != nil {
 		t.Fatalf("unused_target dead_code_root_kinds = %#v, want nil", unused["dead_code_root_kinds"])
 	}
