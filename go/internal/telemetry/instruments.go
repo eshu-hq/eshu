@@ -60,6 +60,16 @@ type Instruments struct {
 	TerraformStateWarningsEmitted             metric.Int64Counter
 	TerraformStateRedactionsApplied           metric.Int64Counter
 	TerraformStateS3ConditionalGetNotModified metric.Int64Counter
+	// CorrelationRuleMatches counts rule-match outcomes recorded by
+	// engine.Evaluate, labeled by pack and rule. Used by the drift pack
+	// (terraform_config_state_drift) in v1; available for any future
+	// pack that needs match-frequency observability.
+	CorrelationRuleMatches metric.Int64Counter
+	// CorrelationDriftDetected counts admitted drift candidates emitted by
+	// the terraform_config_state_drift correlation pack, labeled by
+	// pack, rule, and drift_kind (added_in_state, added_in_config,
+	// attribute_drift, removed_from_state, removed_from_config).
+	CorrelationDriftDetected metric.Int64Counter
 
 	// Histograms track distributions
 	CollectorObserveDuration             metric.Float64Histogram
@@ -334,6 +344,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register TerraformStateS3ConditionalGetNotModified counter: %w", err)
+	}
+
+	inst.CorrelationRuleMatches, err = meter.Int64Counter(
+		"eshu_dp_correlation_rule_matches_total",
+		metric.WithDescription("Total correlation rule matches by pack and rule"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CorrelationRuleMatches counter: %w", err)
+	}
+
+	inst.CorrelationDriftDetected, err = meter.Int64Counter(
+		"eshu_dp_correlation_drift_detected_total",
+		metric.WithDescription("Total admitted drift candidates by pack, rule, and drift kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CorrelationDriftDetected counter: %w", err)
 	}
 
 	// Register histograms with explicit bucket boundaries where specified
