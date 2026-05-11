@@ -6,45 +6,16 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func goKnownLocalVariableTypesForNode(
-	root *tree_sitter.Node,
-	node *tree_sitter.Node,
-	source []byte,
-	structTypes map[string]struct{},
-	constructorReturns map[string]string,
-) map[string]string {
-	variableTypes := goKnownLocalPackageVariableTypes(root, source, structTypes, constructorReturns)
-	scope := goEnclosingFunctionScope(node)
-	if scope == nil {
-		return variableTypes
-	}
-	walkNamed(scope, func(child *tree_sitter.Node) {
-		if child.StartByte() > node.StartByte() {
-			return
-		}
-		switch child.Kind() {
-		case "function_declaration", "method_declaration", "func_literal":
-			if child.StartByte() == scope.StartByte() {
-				goRecordLocalParameterTypes(child, source, structTypes, variableTypes)
-			}
-		case "var_spec":
-			goRecordLocalVarSpecTypes(child, source, structTypes, constructorReturns, variableTypes)
-		case "short_var_declaration", "assignment_statement":
-			goRecordLocalAssignmentTypes(child, source, structTypes, constructorReturns, variableTypes)
-		}
-	})
-	return variableTypes
-}
-
 func goKnownLocalPackageVariableTypes(
 	root *tree_sitter.Node,
 	source []byte,
 	structTypes map[string]struct{},
 	constructorReturns map[string]string,
+	lookup *goParentLookup,
 ) map[string]string {
 	variableTypes := make(map[string]string)
 	walkNamed(root, func(node *tree_sitter.Node) {
-		if goEnclosingFunctionScope(node) != nil {
+		if goEnclosingFunctionScope(node, lookup) != nil {
 			return
 		}
 		switch node.Kind() {

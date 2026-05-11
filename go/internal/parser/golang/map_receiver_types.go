@@ -17,7 +17,9 @@ type goLocalMapValueTypeBinding struct {
 
 // goLocalMapValueTypes records lexical map value types so range receiver
 // inference follows Go block shadowing instead of package-wide variable names.
-func goLocalMapValueTypes(root *tree_sitter.Node, source []byte) []goLocalMapValueTypeBinding {
+// The lookup is threaded so nested scope helpers walk ancestors in O(1) per
+// step instead of repeatedly re-entering tree-sitter cgo; see #161.
+func goLocalMapValueTypes(root *tree_sitter.Node, source []byte, lookup *goParentLookup) []goLocalMapValueTypeBinding {
 	bindings := make([]goLocalMapValueTypeBinding, 0)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -28,18 +30,18 @@ func goLocalMapValueTypes(root *tree_sitter.Node, source []byte) []goLocalMapVal
 		case "short_var_declaration", "assignment_statement":
 			leftNames := goIdentifierNodes(node.ChildByFieldName("left"), source)
 			values := goExpressionNodes(node.ChildByFieldName("right"))
-			bindings = append(bindings, goAssignedMapValueTypes(node, leftNames, values, source)...)
+			bindings = append(bindings, goAssignedMapValueTypes(node, leftNames, values, source, lookup)...)
 		case "var_spec":
 			nameNodes := goIdentifierNodes(node.ChildByFieldName("name"), source)
 			if typeName := goMapValueTypeNameFromNode(node.ChildByFieldName("type"), source); typeName != "" {
 				for _, nameNode := range nameNodes {
-					if binding := goNewMapValueTypeBinding(node, nameNode, typeName, source); binding.variable != "" {
+					if binding := goNewMapValueTypeBinding(node, nameNode, typeName, source, lookup); binding.variable != "" {
 						bindings = append(bindings, binding)
 					}
 				}
 				return
 			}
-			bindings = append(bindings, goAssignedMapValueTypes(node, nameNodes, goExpressionNodes(node.ChildByFieldName("value")), source)...)
+			bindings = append(bindings, goAssignedMapValueTypes(node, nameNodes, goExpressionNodes(node.ChildByFieldName("value")), source, lookup)...)
 		}
 	})
 	return bindings
@@ -84,6 +86,7 @@ func goAssignedMapValueTypes(
 	nameNodes []*tree_sitter.Node,
 	valueNodes []*tree_sitter.Node,
 	source []byte,
+	lookup *goParentLookup,
 ) []goLocalMapValueTypeBinding {
 	if len(nameNodes) == 0 || len(valueNodes) == 0 {
 		return nil
@@ -98,7 +101,7 @@ func goAssignedMapValueTypes(
 		if typeName == "" {
 			continue
 		}
-		if binding := goNewMapValueTypeBinding(node, nameNodes[i], typeName, source); binding.variable != "" {
+		if binding := goNewMapValueTypeBinding(node, nameNodes[i], typeName, source, lookup); binding.variable != "" {
 			bindings = append(bindings, binding)
 		}
 	}
@@ -110,8 +113,9 @@ func goNewMapValueTypeBinding(
 	nameNode *tree_sitter.Node,
 	typeName string,
 	source []byte,
+	lookup *goParentLookup,
 ) goLocalMapValueTypeBinding {
-	scope := goNearestLexicalScope(node)
+	scope := goNearestLexicalScope(node, lookup)
 	if scope == nil {
 		return goLocalMapValueTypeBinding{}
 	}
@@ -128,6 +132,7 @@ func goLocalReceiverBindingsFromRangeClause(
 	node *tree_sitter.Node,
 	source []byte,
 	mapValueTypes []goLocalMapValueTypeBinding,
+	lookup *goParentLookup,
 ) []goLocalReceiverBinding {
 	rangeNode := node
 	if node.Kind() == "for_statement" {
@@ -147,7 +152,7 @@ func goLocalReceiverBindingsFromRangeClause(
 		if valueType == "" || valueName == "" {
 			return nil
 		}
-		return goRangeValueReceiverBinding(node, rangeNode, valueName, valueType)
+		return goRangeValueReceiverBinding(node, rangeNode, valueName, valueType, lookup)
 	}
 	valueType := goMapValueTypeForName(strings.TrimSpace(nodeText(right, source)), nodeLine(rangeNode), mapValueTypes)
 	if valueType == "" {
@@ -162,7 +167,7 @@ func goLocalReceiverBindingsFromRangeClause(
 	if valueName == "" {
 		return nil
 	}
-	return goRangeValueReceiverBinding(node, rangeNode, valueName, valueType)
+	return goRangeValueReceiverBinding(node, rangeNode, valueName, valueType, lookup)
 }
 
 func goMapValueTypeForName(
@@ -200,8 +205,9 @@ func goRangeValueReceiverBinding(
 	rangeNode *tree_sitter.Node,
 	valueName string,
 	valueType string,
+	lookup *goParentLookup,
 ) []goLocalReceiverBinding {
-	scope := goNearestLexicalScope(scopeNode)
+	scope := goNearestLexicalScope(scopeNode, lookup)
 	if scope == nil {
 		return nil
 	}

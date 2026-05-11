@@ -44,17 +44,18 @@ func goConstructorReturnTypes(root *tree_sitter.Node, source []byte) map[string]
 }
 
 // goLocalNameBindings records local names that can shadow package-level
-// function-value references.
-func goLocalNameBindings(root *tree_sitter.Node, source []byte) []goLocalNameBinding {
+// function-value references. The lookup is threaded down to scope helpers so
+// each ancestor walk stays O(1); see #161.
+func goLocalNameBindings(root *tree_sitter.Node, source []byte, lookup *goParentLookup) []goLocalNameBinding {
 	bindings := make([]goLocalNameBinding, 0)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration", "method_declaration", "func_literal":
 			bindings = append(bindings, goLocalNameBindingsFromParameters(node, source)...)
 		case "short_var_declaration":
-			bindings = append(bindings, goLocalNameBindingsFromNames(node, goIdentifierNodes(node.ChildByFieldName("left"), source), source)...)
+			bindings = append(bindings, goLocalNameBindingsFromNames(node, goIdentifierNodes(node.ChildByFieldName("left"), source), source, lookup)...)
 		case "var_spec":
-			bindings = append(bindings, goLocalNameBindingsFromNames(node, goIdentifierNodes(node.ChildByFieldName("name"), source), source)...)
+			bindings = append(bindings, goLocalNameBindingsFromNames(node, goIdentifierNodes(node.ChildByFieldName("name"), source), source, lookup)...)
 		}
 	})
 	return bindings
@@ -98,8 +99,9 @@ func goLocalNameBindingsFromNames(
 	node *tree_sitter.Node,
 	nameNodes []*tree_sitter.Node,
 	source []byte,
+	lookup *goParentLookup,
 ) []goLocalNameBinding {
-	scope := goNearestLexicalScope(node)
+	scope := goNearestLexicalScope(node, lookup)
 	if scope == nil {
 		return nil
 	}
@@ -125,19 +127,20 @@ func goLocalReceiverBindings(
 	root *tree_sitter.Node,
 	source []byte,
 	constructorReturns map[string]string,
+	lookup *goParentLookup,
 ) []goLocalReceiverBinding {
 	bindings := make([]goLocalReceiverBinding, 0)
-	mapValueTypes := goLocalMapValueTypes(root, source)
+	mapValueTypes := goLocalMapValueTypes(root, source, lookup)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration", "method_declaration", "func_literal":
 			bindings = append(bindings, goLocalReceiverBindingsFromParameters(node, source)...)
 		case "short_var_declaration", "assignment_statement":
-			bindings = append(bindings, goLocalReceiverBindingsFromAssignment(node, source, constructorReturns)...)
+			bindings = append(bindings, goLocalReceiverBindingsFromAssignment(node, source, constructorReturns, lookup)...)
 		case "var_spec":
-			bindings = append(bindings, goLocalReceiverBindingsFromVarSpec(node, source, constructorReturns)...)
+			bindings = append(bindings, goLocalReceiverBindingsFromVarSpec(node, source, constructorReturns, lookup)...)
 		case "range_clause", "for_statement":
-			bindings = append(bindings, goLocalReceiverBindingsFromRangeClause(node, source, mapValueTypes)...)
+			bindings = append(bindings, goLocalReceiverBindingsFromRangeClause(node, source, mapValueTypes, lookup)...)
 		}
 	})
 	return bindings
@@ -182,6 +185,7 @@ func goLocalReceiverBindingsFromAssignment(
 	node *tree_sitter.Node,
 	source []byte,
 	constructorReturns map[string]string,
+	lookup *goParentLookup,
 ) []goLocalReceiverBinding {
 	left := node.ChildByFieldName("left")
 	right := node.ChildByFieldName("right")
@@ -200,7 +204,7 @@ func goLocalReceiverBindingsFromAssignment(
 		if typeName == "" {
 			continue
 		}
-		if binding := goNewLocalReceiverBinding(node, names[i], typeName, source); binding.variable != "" {
+		if binding := goNewLocalReceiverBinding(node, names[i], typeName, source, lookup); binding.variable != "" {
 			bindings = append(bindings, binding)
 		}
 	}
@@ -211,6 +215,7 @@ func goLocalReceiverBindingsFromVarSpec(
 	node *tree_sitter.Node,
 	source []byte,
 	constructorReturns map[string]string,
+	lookup *goParentLookup,
 ) []goLocalReceiverBinding {
 	nameNodes := goIdentifierNodes(node.ChildByFieldName("name"), source)
 	valueNodes := goExpressionNodes(node.ChildByFieldName("value"))
@@ -227,7 +232,7 @@ func goLocalReceiverBindingsFromVarSpec(
 		if typeName == "" {
 			continue
 		}
-		if binding := goNewLocalReceiverBinding(node, nameNodes[i], typeName, source); binding.variable != "" {
+		if binding := goNewLocalReceiverBinding(node, nameNodes[i], typeName, source, lookup); binding.variable != "" {
 			bindings = append(bindings, binding)
 		}
 	}
@@ -239,8 +244,9 @@ func goNewLocalReceiverBinding(
 	nameNode *tree_sitter.Node,
 	typeName string,
 	source []byte,
+	lookup *goParentLookup,
 ) goLocalReceiverBinding {
-	scope := goNearestLexicalScope(node)
+	scope := goNearestLexicalScope(node, lookup)
 	if scope == nil {
 		return goLocalReceiverBinding{}
 	}
@@ -381,8 +387,8 @@ func goExpressionNodes(node *tree_sitter.Node) []*tree_sitter.Node {
 	return nodes
 }
 
-func goEnclosingFunctionScope(node *tree_sitter.Node) *tree_sitter.Node {
-	for current := node; current != nil; current = current.Parent() {
+func goEnclosingFunctionScope(node *tree_sitter.Node, lookup *goParentLookup) *tree_sitter.Node {
+	for current := node; current != nil; current = lookup.Parent(current) {
 		switch current.Kind() {
 		case "function_declaration", "method_declaration", "func_literal":
 			return current
@@ -392,13 +398,14 @@ func goEnclosingFunctionScope(node *tree_sitter.Node) *tree_sitter.Node {
 }
 
 // goNearestLexicalScope returns the smallest syntax scope that can bound a
-// local declaration without making inner-block bindings visible outside.
-func goNearestLexicalScope(node *tree_sitter.Node) *tree_sitter.Node {
-	for current := node; current != nil; current = current.Parent() {
+// local declaration without making inner-block bindings visible outside. The
+// lookup amortizes ancestor traversal to O(1) per step (see #161).
+func goNearestLexicalScope(node *tree_sitter.Node, lookup *goParentLookup) *tree_sitter.Node {
+	for current := node; current != nil; current = lookup.Parent(current) {
 		switch current.Kind() {
 		case "block", "if_statement", "for_statement", "communication_case", "expression_case", "default_case":
 			return current
 		}
 	}
-	return goEnclosingFunctionScope(node)
+	return goEnclosingFunctionScope(node, lookup)
 }

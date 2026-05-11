@@ -26,6 +26,7 @@ func goCollectSemanticDeadCodeRoots(
 	functionRootKinds map[string][]string,
 	interfaceRootKinds map[string][]string,
 	structRootKinds map[string][]string,
+	lookup *goParentLookup,
 ) {
 	if root == nil {
 		return
@@ -80,11 +81,17 @@ func goCollectSemanticDeadCodeRoots(
 	functionParamTargets := goFunctionParamInterfaceTargets(root, source, interfaceMethods)
 	goMergeImportedInterfaceParamTargets(functionParamTargets, importedParamMethods)
 	functionCallbackParams := goFunctionParamCallbackIndexes(root, source, functionTypeNames)
+	// Variable-type lookups happen once per call_expression, var_spec,
+	// composite_literal, and return_statement during the walk below. The
+	// index folds the file's package-level walk into a single pass and
+	// memoises per-scope binding lists; without it each call cost a fresh
+	// full tree walk (see #161 follow-up).
+	variableTypeIndex := goBuildVariableTypeIndex(root, source, structTypes, constructorReturns, lookup)
 
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "var_spec":
-			scopedVariableTypes := goKnownLocalVariableTypesForNode(root, node, source, structTypes, constructorReturns)
+			scopedVariableTypes := variableTypeIndex.ForNode(root, node)
 			typeNode := node.ChildByFieldName("type")
 			valueNode := node.ChildByFieldName("value")
 			for _, interfaceName := range goReferencedLocalInterfaces(typeNode, source, interfaceMethods) {
@@ -93,12 +100,12 @@ func goCollectSemanticDeadCodeRoots(
 					interfaceConcreteTypes[interfaceName] = appendUniqueImportAlias(interfaceConcreteTypes[interfaceName], concreteType)
 				}
 			}
-			goCollectFunctionValuesFromExpression(valueNode, source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds)
+			goCollectFunctionValuesFromExpression(valueNode, source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds, lookup)
 		case "short_var_declaration", "assignment_statement":
-			scopedVariableTypes := goKnownLocalVariableTypesForNode(root, node, source, structTypes, constructorReturns)
-			goCollectFunctionValuesFromExpression(node.ChildByFieldName("right"), source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds)
+			scopedVariableTypes := variableTypeIndex.ForNode(root, node)
+			goCollectFunctionValuesFromExpression(node.ChildByFieldName("right"), source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds, lookup)
 		case "composite_literal":
-			scopedVariableTypes := goKnownLocalVariableTypesForNode(root, node, source, structTypes, constructorReturns)
+			scopedVariableTypes := variableTypeIndex.ForNode(root, node)
 			if concreteType := goConcreteTypeFromTypeNode(node.ChildByFieldName("type"), source, structTypes); concreteType != "" {
 				structRootKinds[concreteType] = appendUniqueImportAlias(structRootKinds[concreteType], "go.type_reference")
 			}
@@ -109,7 +116,7 @@ func goCollectSemanticDeadCodeRoots(
 					interfaceConcreteTypes[interfaceName] = appendUniqueImportAlias(interfaceConcreteTypes[interfaceName], concreteType)
 				}
 			}
-			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds)
+			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds, lookup)
 			goMarkCompositeLiteralInterfaceFields(
 				node,
 				source,
@@ -144,12 +151,12 @@ func goCollectSemanticDeadCodeRoots(
 				structRootKinds,
 			)
 		case "return_statement":
-			scopedVariableTypes := goKnownLocalVariableTypesForNode(root, node, source, structTypes, constructorReturns)
-			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds)
+			scopedVariableTypes := variableTypeIndex.ForNode(root, node)
+			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds, lookup)
 		case "call_expression":
-			scopedVariableTypes := goKnownLocalVariableTypesForNode(root, node, source, structTypes, constructorReturns)
-			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds)
-			goCollectDirectMethodCallRoot(node, source, methodKeys, scopedVariableTypes, structFieldTypes, functionRootKinds)
+			scopedVariableTypes := variableTypeIndex.ForNode(root, node)
+			goCollectFunctionValuesFromExpression(node, source, functionNames, methodKeys, scopedVariableTypes, localNameBindings, functionRootKinds, lookup)
+			goCollectDirectMethodCallRoot(node, source, methodKeys, scopedVariableTypes, structFieldTypes, functionRootKinds, lookup)
 			goCollectFmtStringerRoot(node, source, importAliases, methodKeys, scopedVariableTypes, structTypes, functionRootKinds)
 			goCollectDependencyInjectionCallbacksFromCall(
 				node,
