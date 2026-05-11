@@ -133,6 +133,7 @@ func runConcurrentBatches(
 		}()
 	}
 
+dispatch:
 	for i := 0; i < totalRows; i += batchSize {
 		end := i + batchSize
 		if end > totalRows {
@@ -141,6 +142,11 @@ func runConcurrentBatches(
 		select {
 		case jobs <- chunk{start: i, end: end}:
 		case <-ctx.Done():
+			// Stop dispatching immediately so workers can drain and exit;
+			// continuing the loop after cancel would spin through the
+			// remaining chunks (each hitting the cancel arm) and delay
+			// closing the jobs channel on large projections.
+			break dispatch
 		}
 	}
 	close(jobs)
