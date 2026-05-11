@@ -193,6 +193,147 @@ if __name__ == "__main__":
 	}
 }
 
+func TestDefaultEngineParsePathPythonEmitsReversedScriptMainGuardRoot(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "script.py")
+	writeTestFile(
+		t,
+		filePath,
+		`def main():
+    return 0
+
+def helper():
+    return 1
+
+if ("__main__" == __name__):
+    main()
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "main"),
+		"dead_code_root_kinds",
+		[]string{"python.script_main_guard"},
+	)
+	if helper := assertFunctionByName(t, got, "helper"); helper["dead_code_root_kinds"] != nil {
+		t.Fatalf("helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
+	}
+}
+
+func TestDefaultEngineParsePathPythonScriptMainGuardSkipsElseAndNestedDefinitions(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "script.py")
+	writeTestFile(
+		t,
+		filePath,
+		`def main():
+    return 0
+
+def else_helper():
+    return 1
+
+def nested_helper():
+    return 2
+
+def nested_definition_call():
+    return 3
+
+if __name__ == "__main__":
+    main()
+    def local():
+        nested_definition_call()
+else:
+    else_helper()
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "main"),
+		"dead_code_root_kinds",
+		[]string{"python.script_main_guard"},
+	)
+	if helper := assertFunctionByName(t, got, "else_helper"); helper["dead_code_root_kinds"] != nil {
+		t.Fatalf("else_helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
+	}
+	if nested := assertFunctionByName(t, got, "nested_definition_call"); nested["dead_code_root_kinds"] != nil {
+		t.Fatalf("nested_definition_call dead_code_root_kinds = %#v, want nil", nested["dead_code_root_kinds"])
+	}
+}
+
+func TestDefaultEngineParsePathPythonDunderAssignmentEvidenceIsEnclosingScopeScoped(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "protocol_patch.py")
+	writeTestFile(
+		t,
+		filePath,
+		`def __reduce__():
+    return "module"
+
+def patch_missing(missing):
+    def __reduce__():
+        return "missing"
+
+    type(missing).__reduce__ = __reduce__
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	reduceFunctions := pythonFunctionsByName(t, got, "__reduce__")
+	if len(reduceFunctions) != 2 {
+		t.Fatalf("__reduce__ function count = %d, want 2 in %#v", len(reduceFunctions), reduceFunctions)
+	}
+	for _, function := range reduceFunctions {
+		lineNumber, _ := function["line_number"].(int)
+		switch lineNumber {
+		case 1:
+			if function["dead_code_root_kinds"] != nil {
+				t.Fatalf("module __reduce__ dead_code_root_kinds = %#v, want nil", function["dead_code_root_kinds"])
+			}
+		case 5:
+			assertParserStringSliceFieldValue(t, function, "dead_code_root_kinds", []string{"python.dunder_method"})
+		default:
+			t.Fatalf("unexpected __reduce__ line_number = %d in %#v", lineNumber, function)
+		}
+	}
+}
+
 func TestDefaultEngineParsePathPythonEmitsSAMHandlerDeadCodeRootKind(t *testing.T) {
 	t.Parallel()
 
@@ -242,6 +383,23 @@ def helper():
 	if _, ok := assertFunctionByName(t, got, "helper")["dead_code_root_kinds"]; ok {
 		t.Fatalf("helper dead_code_root_kinds present, want absent")
 	}
+}
+
+func pythonFunctionsByName(t *testing.T, payload map[string]any, name string) []map[string]any {
+	t.Helper()
+
+	functions, ok := payload["functions"].([]map[string]any)
+	if !ok {
+		t.Fatalf("functions = %T, want []map[string]any", payload["functions"])
+	}
+	var matches []map[string]any
+	for _, function := range functions {
+		functionName, _ := function["name"].(string)
+		if functionName == name {
+			matches = append(matches, function)
+		}
+	}
+	return matches
 }
 
 func TestDefaultEngineParsePathPythonEmitsPublicAPIRootKinds(t *testing.T) {

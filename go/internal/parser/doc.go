@@ -9,10 +9,12 @@
 // nearest-package JavaScript roots extracted through the JavaScript helper
 // subpackage, Python route/task/CLI and AWS Lambda root metadata, Python method
 // class context, constructor calls, class receiver
-// references, dataclass/property roots, dunder protocol roots, inheritance
-// base names, bounded __all__/__init__.py public API roots, bases, and members,
-// and local constructor or self receiver metadata without marking every
-// non-underscore Python symbol live, Jupyter notebook source extraction through
+// references, dataclass/property roots including cached properties, class
+// protocol methods, module dunder hooks, assignment-proven nested dunder
+// protocol roots, inheritance base names, bounded __all__/__init__.py public
+// API roots, bases, and members, and local
+// constructor or self receiver metadata without marking every non-underscore
+// Python symbol live, Jupyter notebook source extraction through
 // the Python helper subpackage, CommonJS module.exports alias and mixin roots,
 // JSONC tsconfig comment/trailing-comma
 // baseUrl and paths metadata extracted through the JavaScript helper
