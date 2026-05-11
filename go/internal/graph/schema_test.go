@@ -85,6 +85,16 @@ func TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes(t *testing.T) 
 		"CREATE INDEX nornicdb_endpoint_id_lookup IF NOT EXISTS FOR (e:Endpoint) ON (e.id)",
 		"CREATE INDEX nornicdb_evidence_artifact_id_lookup IF NOT EXISTS FOR (a:EvidenceArtifact) ON (a.id)",
 		"CREATE INDEX nornicdb_environment_name_lookup IF NOT EXISTS FOR (e:Environment) ON (e.name)",
+		// SourceLocalRecord and Parameter declare composite UNIQUE constraints
+		// for MERGE performance on Neo4j (schema.go:113-119). NornicDB silently
+		// drops composite constraints in nornicDBSchemaConstraint, leaving MERGE
+		// on those labels without a backing index. Without a single-property
+		// index, source-local projection (writer.go MERGE on SourceLocalRecord)
+		// and the canonical HAS_PARAMETER edge (canonical_node_cypher.go MERGE
+		// on Parameter) fall through to a full label scan that the schema.go
+		// comment calls out as "O(n²)".
+		"CREATE INDEX nornicdb_source_local_record_scope_lookup IF NOT EXISTS FOR (n:SourceLocalRecord) ON (n.scope_id)",
+		"CREATE INDEX nornicdb_parameter_path_lookup IF NOT EXISTS FOR (n:Parameter) ON (n.path)",
 	}
 	for _, want := range expected {
 		assertContainsStatement(t, stmts, want)
@@ -120,6 +130,12 @@ func TestSchemaStatementsForBackendKeepsUIDLookupIndexesNornicDBOnly(t *testing.
 	assertNoStatementContains(t, stmts, "nornicdb_function_uid_lookup")
 	assertNoStatementContains(t, stmts, "nornicdb_type_alias_uid_lookup")
 	assertNoStatementContains(t, stmts, "nornicdb_workload_id_lookup")
+	// Neo4j keeps the composite UNIQUE constraints for SourceLocalRecord and
+	// Parameter, which already create backing indexes via the constraint
+	// machinery, so the NornicDB-only single-property lookup indexes must not
+	// be emitted on Neo4j or the duplicate-index warning fires.
+	assertNoStatementContains(t, stmts, "nornicdb_source_local_record_scope_lookup")
+	assertNoStatementContains(t, stmts, "nornicdb_parameter_path_lookup")
 }
 
 func TestNornicDBSchemaSkipsEveryCompositeUniqueConstraint(t *testing.T) {
