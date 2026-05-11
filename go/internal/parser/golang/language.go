@@ -2,7 +2,6 @@ package golang
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -32,10 +31,14 @@ func Parse(
 	payload["structs"] = []map[string]any{}
 	payload["embedded_sql_queries"] = embeddedSQLQueryPayloads(string(source))
 	root := tree.RootNode()
+	// Build the parent-lookup once per file so every helper that walks
+	// ancestors does so in amortized O(1) per step instead of paying
+	// tree-sitter's O(depth) Node.Parent() cost on each call (#161).
+	lookup := goBuildParentLookup(root)
 	importAliases := goImportAliasIndex(root, source)
 	constructorReturns := goConstructorReturnTypes(root, source)
-	localNameBindings := goLocalNameBindings(root, source)
-	localReceiverBindings := goLocalReceiverBindings(root, source, constructorReturns)
+	localNameBindings := goLocalNameBindings(root, source, lookup)
+	localReceiverBindings := goLocalReceiverBindings(root, source, constructorReturns, lookup)
 	deadCodeEvidence := goDeadCodeEvidence(
 		root,
 		source,
@@ -44,6 +47,7 @@ func Parse(
 		options.GoDirectMethodCallRoots,
 		options.GoPackageImportPath,
 		localNameBindings,
+		lookup,
 	)
 	scope := options.NormalizedVariableScope()
 
@@ -139,7 +143,7 @@ func Parse(
 				"line_number": nodeLine(node),
 				"lang":        "go",
 			}
-			goAnnotateCallMetadata(item, node, functionNode, source, importAliases, localReceiverBindings)
+			goAnnotateCallMetadata(item, node, functionNode, source, importAliases, localReceiverBindings, lookup)
 			shared.AppendBucket(payload, "function_calls", item)
 		case "composite_literal":
 			name := goCompositeLiteralTypeName(node.ChildByFieldName("type"), source)
@@ -154,7 +158,7 @@ func Parse(
 				"lang":        "go",
 			})
 		case "var_spec", "const_spec":
-			if scope == "module" && goInsideFunction(node) {
+			if scope == "module" && goInsideFunction(node, lookup) {
 				return
 			}
 			for _, item := range goVariableNames(node, source) {
@@ -169,7 +173,7 @@ func Parse(
 			}
 		}
 	})
-	for _, item := range goFunctionValueReferenceCalls(root, source, localNameBindings) {
+	for _, item := range goFunctionValueReferenceCalls(root, source, localNameBindings, lookup) {
 		shared.AppendBucket(payload, "function_calls", item)
 	}
 
@@ -181,18 +185,6 @@ func Parse(
 	shared.SortNamedBucket(payload, "function_calls")
 
 	return payload, nil
-}
-
-// PreScan returns deterministic Go symbols used by collector import-map
-// prescans.
-func PreScan(parser *tree_sitter.Parser, path string) ([]string, error) {
-	payload, err := Parse(parser, path, false, shared.Options{})
-	if err != nil {
-		return nil, err
-	}
-	names := shared.CollectBucketNames(payload, "functions", "structs", "interfaces")
-	slices.Sort(names)
-	return names, nil
 }
 
 func embeddedSQLQueryPayloads(source string) []map[string]any {
@@ -247,6 +239,7 @@ func goAnnotateCallMetadata(
 	source []byte,
 	importAliases map[string][]string,
 	localReceiverBindings []goLocalReceiverBinding,
+	lookup *goParentLookup,
 ) {
 	receiverIdentifier, receiverIsImportAlias := goCallReceiverIdentifier(functionNode, source, importAliases)
 	if receiverIdentifier == "" {
@@ -262,7 +255,7 @@ func goAnnotateCallMetadata(
 		}
 	}
 
-	enclosingReceiverName, enclosingClassContext := goEnclosingMethodReceiver(callNode, source)
+	enclosingReceiverName, enclosingClassContext := goEnclosingMethodReceiver(callNode, source, lookup)
 	if receiverIsImportAlias || enclosingReceiverName == "" || enclosingClassContext == "" {
 		return
 	}
@@ -316,8 +309,8 @@ func goIdentifierMatchesImportAlias(identifier string, importAliases map[string]
 	return false
 }
 
-func goEnclosingMethodReceiver(callNode *tree_sitter.Node, source []byte) (string, string) {
-	for current := callNode; current != nil; current = current.Parent() {
+func goEnclosingMethodReceiver(callNode *tree_sitter.Node, source []byte, lookup *goParentLookup) (string, string) {
+	for current := callNode; current != nil; current = lookup.Parent(current) {
 		if current.Kind() != "method_declaration" {
 			continue
 		}
@@ -359,8 +352,8 @@ func goMethodReceiverBinding(node *tree_sitter.Node, source []byte) (string, str
 	return strings.TrimSpace(nodeText(nameNode, source)), receiverType
 }
 
-func goInsideFunction(node *tree_sitter.Node) bool {
-	for current := node.Parent(); current != nil; current = current.Parent() {
+func goInsideFunction(node *tree_sitter.Node, lookup *goParentLookup) bool {
+	for current := lookup.Parent(node); current != nil; current = lookup.Parent(current) {
 		switch current.Kind() {
 		case "function_declaration", "method_declaration", "func_literal":
 			return true

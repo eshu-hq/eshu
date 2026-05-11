@@ -186,6 +186,7 @@ func goCollectDirectMethodCallRoot(
 	variableTypes map[string]string,
 	structFieldTypes map[string]map[string]string,
 	functionRootKinds map[string][]string,
+	lookup *goParentLookup,
 ) {
 	functionNode := node.ChildByFieldName("function")
 	if functionNode == nil || functionNode.Kind() != "selector_expression" {
@@ -199,7 +200,7 @@ func goCollectDirectMethodCallRoot(
 	if methodName == "" {
 		return
 	}
-	enclosingReceiver, enclosingType := goEnclosingMethodReceiver(node, source)
+	enclosingReceiver, enclosingType := goEnclosingMethodReceiver(node, source, lookup)
 	if strings.TrimSpace(receiver) == enclosingReceiver && enclosingType != "" {
 		key := strings.ToLower(enclosingType) + "." + methodName
 		if _, ok := methodKeys[key]; ok {

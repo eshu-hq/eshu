@@ -11,6 +11,7 @@ func goFunctionValueReferenceCalls(
 	root *tree_sitter.Node,
 	source []byte,
 	localNameBindings []goLocalNameBinding,
+	lookup *goParentLookup,
 ) []map[string]any {
 	if root == nil {
 		return nil
@@ -18,7 +19,7 @@ func goFunctionValueReferenceCalls(
 
 	calls := make([]map[string]any, 0)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "identifier" || !goFunctionValueReferenceContext(node) {
+		if node.Kind() != "identifier" || !goFunctionValueReferenceContext(node, lookup) {
 			return
 		}
 		name := strings.TrimSpace(nodeText(node, source))
@@ -39,8 +40,11 @@ func goFunctionValueReferenceCalls(
 	return calls
 }
 
-func goFunctionValueReferenceContext(node *tree_sitter.Node) bool {
-	parent := node.Parent()
+// goFunctionValueReferenceContext walks ancestors via the per-parse parent
+// lookup so the classification of each identifier costs O(depth) per call
+// instead of O(depth^2); see #161.
+func goFunctionValueReferenceContext(node *tree_sitter.Node, lookup *goParentLookup) bool {
+	parent := lookup.Parent(node)
 	if parent == nil {
 		return false
 	}
@@ -52,17 +56,17 @@ func goFunctionValueReferenceContext(node *tree_sitter.Node) bool {
 	case "selector_expression", "qualified_type", "field_declaration", "parameter_declaration":
 		return false
 	case "short_var_declaration", "assignment_statement", "var_spec":
-		return goNodeMatchesField(parent, node, "right") || goNodeMatchesField(parent, node, "value")
+		return goNodeMatchesField(parent, node, "right", lookup) || goNodeMatchesField(parent, node, "value", lookup)
 	case "literal_element":
 		return true
 	case "keyed_element":
-		return goNodeMatchesField(parent, node, "value")
+		return goNodeMatchesField(parent, node, "value", lookup)
 	default:
-		return goFunctionValueReferenceContext(parent)
+		return goFunctionValueReferenceContext(parent, lookup)
 	}
 }
 
-func goNodeMatchesField(parent *tree_sitter.Node, child *tree_sitter.Node, fieldName string) bool {
+func goNodeMatchesField(parent *tree_sitter.Node, child *tree_sitter.Node, fieldName string, lookup *goParentLookup) bool {
 	if parent == nil || child == nil {
 		return false
 	}
@@ -73,7 +77,7 @@ func goNodeMatchesField(parent *tree_sitter.Node, child *tree_sitter.Node, field
 	if goSameNodeRange(fieldNode, child) {
 		return true
 	}
-	for current := child.Parent(); current != nil; current = current.Parent() {
+	for current := lookup.Parent(child); current != nil; current = lookup.Parent(current) {
 		if goSameNodeRange(fieldNode, current) {
 			return true
 		}

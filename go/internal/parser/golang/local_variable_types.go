@@ -57,10 +57,11 @@ func goKnownImportedVariableTypes(
 	root *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
+	lookup *goParentLookup,
 ) map[string]string {
 	variableTypes := make(map[string]string)
 	walkNamed(root, func(node *tree_sitter.Node) {
-		if goEnclosingFunctionScope(node) != nil {
+		if goEnclosingFunctionScope(node, lookup) != nil {
 			return
 		}
 		switch node.Kind() {
@@ -68,33 +69,6 @@ func goKnownImportedVariableTypes(
 			goRecordImportedVarSpecTypes(node, source, importAliases, variableTypes)
 		case "short_var_declaration", "assignment_statement":
 			goRecordImportedAssignmentTypes(node, source, importAliases, variableTypes, nil, node.StartByte())
-		}
-	})
-	return variableTypes
-}
-
-func goKnownImportedVariableTypesForCall(
-	root *tree_sitter.Node,
-	call *tree_sitter.Node,
-	source []byte,
-	importAliases map[string][]string,
-) map[string]string {
-	variableTypes := goKnownImportedVariableTypes(root, source, importAliases)
-	scope := goEnclosingFunctionScope(call)
-	if scope == nil {
-		return variableTypes
-	}
-	walkNamed(scope, func(node *tree_sitter.Node) {
-		if node.StartByte() > call.StartByte() {
-			return
-		}
-		switch node.Kind() {
-		case "parameter_declaration":
-			goRecordImportedParameterTypes(node, source, importAliases, variableTypes)
-		case "var_spec":
-			goRecordImportedVarSpecTypes(node, source, importAliases, variableTypes)
-		case "short_var_declaration", "assignment_statement":
-			goRecordImportedAssignmentTypes(node, source, importAliases, variableTypes, nil, call.StartByte())
 		}
 	})
 	return variableTypes

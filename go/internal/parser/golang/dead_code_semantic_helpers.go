@@ -28,6 +28,7 @@ func goCollectFunctionValuesFromExpression(
 	variableTypes map[string]string,
 	localNameBindings []goLocalNameBinding,
 	functionRootKinds map[string][]string,
+	lookup *goParentLookup,
 ) {
 	if node == nil {
 		return
@@ -39,11 +40,11 @@ func goCollectFunctionValuesFromExpression(
 				goCollectFunctionLiteralReachableCalls(arg, source, functionNames, localNameBindings, functionRootKinds)
 				continue
 			}
-			goCollectFunctionValuesFromExpression(arg, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
+			goCollectFunctionValuesFromExpression(arg, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds, lookup)
 		}
 		return
 	case "func_literal":
-		if goFunctionLiteralIsCompositeElement(node) {
+		if goFunctionLiteralIsCompositeElement(node, lookup) {
 			goCollectFunctionLiteralReachableCalls(node, source, functionNames, localNameBindings, functionRootKinds)
 		}
 		return
@@ -78,7 +79,7 @@ func goCollectFunctionValuesFromExpression(
 	cursor := node.Walk()
 	defer cursor.Close()
 	for _, child := range node.NamedChildren(cursor) {
-		goCollectFunctionValuesFromExpression(&child, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds)
+		goCollectFunctionValuesFromExpression(&child, source, functionNames, methodKeys, variableTypes, localNameBindings, functionRootKinds, lookup)
 	}
 }
 

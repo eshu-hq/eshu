@@ -22,6 +22,7 @@ func goDeadCodeEvidence(
 	directMethodCallRoots GoDirectMethodCallRoots,
 	packageImportPath string,
 	localNameBindings []goLocalNameBinding,
+	lookup *goParentLookup,
 ) goDeadCodeEvidenceSet {
 	evidence := goDeadCodeEvidenceSet{
 		functionRootKinds:  goRegisteredDeadCodeRootKinds(root, source, importAliases),
@@ -38,6 +39,7 @@ func goDeadCodeEvidence(
 		evidence.functionRootKinds,
 		evidence.interfaceRootKinds,
 		evidence.structRootKinds,
+		lookup,
 	)
 	return evidence
 }

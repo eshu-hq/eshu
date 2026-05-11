@@ -67,6 +67,38 @@ func cyclomaticComplexity(node *tree_sitter.Node) int {
 	return complexity
 }
 
+// walkScopeBindings visits scope and its named descendants but does not
+// descend into nested function_declaration, method_declaration, or func_literal
+// subtrees. The walker preserves Go lexical scoping for variable-type indices:
+// a `var x = ...` inside an inner closure must not leak into the outer
+// function's binding table, otherwise call-expression metadata in the outer
+// scope would inherit shadowed identifiers from a body that never executes
+// there. Visited nodes are passed by pointer; callers that retain a binding
+// must copy the node value, because the underlying *tree_sitter.Node points
+// at a stack-allocated local inside the recursive walk.
+func walkScopeBindings(scope *tree_sitter.Node, visit func(*tree_sitter.Node)) {
+	if scope == nil {
+		return
+	}
+	var walk func(*tree_sitter.Node)
+	walk = func(current *tree_sitter.Node) {
+		if current == nil {
+			return
+		}
+		visit(current)
+		cursor := current.Walk()
+		defer cursor.Close()
+		for _, child := range current.NamedChildren(cursor) {
+			child := child
+			if isNestedDefinition(child.Kind()) {
+				continue
+			}
+			walk(&child)
+		}
+	}
+	walk(scope)
+}
+
 func isNestedDefinition(kind string) bool {
 	switch kind {
 	case "function_declaration", "method_declaration", "func_literal":
