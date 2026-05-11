@@ -16,6 +16,7 @@ func buildJavaMethodReferenceIndex(
 	inference *javaCallInferenceIndex,
 ) *javaMethodReferenceIndex {
 	index := &javaMethodReferenceIndex{namesByClass: map[string]map[string]struct{}{}}
+	declaredTypes := javaDeclaredTypeNameCounts(root, source)
 	walkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "method_reference" {
 			return
@@ -25,12 +26,15 @@ func buildJavaMethodReferenceIndex(
 			return
 		}
 		receiver = strings.TrimSpace(receiver)
-		classContext := nearestNamedAncestor(node, source, "class_declaration", "record_declaration")
+		classContext := javaNearestTypeContext(node, source)
 		if classContext == "" {
 			return
 		}
 		if receiver != "this" {
 			receiverType := javaVisibleNameType(node, receiver, source, inference)
+			if receiverType == "" && declaredTypes[receiver] == 1 {
+				receiverType = receiver
+			}
 			if receiverType == "" {
 				return
 			}
@@ -42,6 +46,31 @@ func buildJavaMethodReferenceIndex(
 		index.namesByClass[classContext][name] = struct{}{}
 	})
 	return index
+}
+
+func javaDeclaredTypeNameCounts(root *tree_sitter.Node, source []byte) map[string]int {
+	names := map[string]int{}
+	walkNamed(root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "class_declaration", "record_declaration", "interface_declaration", "enum_declaration":
+			name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+			if name != "" {
+				names[name]++
+			}
+		}
+	})
+	return names
+}
+
+func javaNearestTypeContext(node *tree_sitter.Node, source []byte) string {
+	return nearestNamedAncestor(
+		node,
+		source,
+		"class_declaration",
+		"interface_declaration",
+		"enum_declaration",
+		"record_declaration",
+	)
 }
 
 func (i *javaMethodReferenceIndex) hasTarget(classContext string, name string) bool {

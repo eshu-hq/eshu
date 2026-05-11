@@ -190,7 +190,7 @@ func javaIsMethodReferenceTarget(
 	name string,
 	methodReferences *javaMethodReferenceIndex,
 ) bool {
-	classContext := nearestNamedAncestor(node, source, "class_declaration", "record_declaration")
+	classContext := javaNearestTypeContext(node, source)
 	return methodReferences.hasTarget(classContext, strings.TrimSpace(name))
 }
 

@@ -285,6 +285,150 @@ public class BootZipCopyAction {
 	}
 }
 
+func TestDefaultEngineParsePathJavaMarksDeclaredTypeMethodReferenceTargets(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src/main/java/example/ProcessorPipeline.java")
+	writeTestFile(t, filePath, `package example;
+
+import java.util.stream.Stream;
+
+public class ProcessorPipeline {
+    void run(Stream<Processor> processors) {
+        processors.forEach(Processor::process);
+        processors.forEach(MissingProcessor::process);
+    }
+}
+
+final class Processor {
+    void process() {
+    }
+
+    void helper() {
+    }
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	processCall := assertJavaFunctionCallByNameAndKind(t, got, "process", "java.method_reference")
+	assertStringFieldValue(t, processCall, "full_name", "Processor.process")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "process", "Processor"), "dead_code_root_kinds", "java.method_reference_target")
+	if _, ok := assertFunctionByNameAndClass(t, got, "helper", "Processor")["dead_code_root_kinds"]; ok {
+		t.Fatalf("helper dead_code_root_kinds present, want absent")
+	}
+}
+
+func TestDefaultEngineParsePathJavaMarksInterfaceEnumAndRecordMethodReferenceTargets(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src/main/java/example/DeclaredTypes.java")
+	writeTestFile(t, filePath, `package example;
+
+import java.util.stream.Stream;
+
+interface ProcessorContract {
+    default void run(Stream<InterfaceProcessor> processors) {
+        processors.forEach(InterfaceProcessor::process);
+    }
+}
+
+interface InterfaceProcessor {
+    void process();
+}
+
+enum EnumProcessor {
+    INSTANCE;
+
+    void process() {
+    }
+}
+
+record RecordProcessor() {
+    void process() {
+    }
+}
+
+final class Pipeline {
+    void run(Stream<EnumProcessor> enums, Stream<RecordProcessor> records) {
+        enums.forEach(EnumProcessor::process);
+        records.forEach(RecordProcessor::process);
+    }
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "process", "InterfaceProcessor"), "dead_code_root_kinds", "java.method_reference_target")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "process", "EnumProcessor"), "dead_code_root_kinds", "java.method_reference_target")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "process", "RecordProcessor"), "dead_code_root_kinds", "java.method_reference_target")
+}
+
+func TestDefaultEngineParsePathJavaDoesNotMarkDuplicateDeclaredTypeMethodReferenceTargets(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src/main/java/example/DuplicateTypes.java")
+	writeTestFile(t, filePath, `package example;
+
+import java.util.stream.Stream;
+
+final class First {
+    static final class Processor {
+        void process() {
+        }
+    }
+}
+
+final class Second {
+    static final class Processor {
+        void process() {
+        }
+    }
+}
+
+final class Pipeline {
+    void run(Stream<Processor> processors) {
+        processors.forEach(Processor::process);
+    }
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	for _, item := range javaFunctionsByNameAndClass(t, got, "process", "Processor") {
+		if item["dead_code_root_kinds"] != nil {
+			t.Fatalf("duplicate Processor.process dead_code_root_kinds = %#v, want nil", item["dead_code_root_kinds"])
+		}
+	}
+}
+
 func assertJavaFunctionCallByNameAndKind(t *testing.T, payload map[string]any, name string, kind string) map[string]any {
 	t.Helper()
 
@@ -301,6 +445,27 @@ func assertJavaFunctionCallByNameAndKind(t *testing.T, payload map[string]any, n
 	}
 	t.Fatalf("function_calls missing name %q with call_kind %q in %#v", name, kind, items)
 	return nil
+}
+
+func javaFunctionsByNameAndClass(t *testing.T, payload map[string]any, name string, classContext string) []map[string]any {
+	t.Helper()
+
+	functions, ok := payload["functions"].([]map[string]any)
+	if !ok {
+		t.Fatalf("functions = %T, want []map[string]any", payload["functions"])
+	}
+	var matches []map[string]any
+	for _, function := range functions {
+		functionName, _ := function["name"].(string)
+		functionClassContext, _ := function["class_context"].(string)
+		if functionName == name && functionClassContext == classContext {
+			matches = append(matches, function)
+		}
+	}
+	if len(matches) == 0 {
+		t.Fatalf("functions missing name %q with class_context %q in %#v", name, classContext, functions)
+	}
+	return matches
 }
 
 func TestDefaultEngineParsePathJavaInfersLocalReceiverTypes(t *testing.T) {
