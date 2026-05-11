@@ -60,6 +60,29 @@ type Instruments struct {
 	TerraformStateWarningsEmitted             metric.Int64Counter
 	TerraformStateRedactionsApplied           metric.Int64Counter
 	TerraformStateS3ConditionalGetNotModified metric.Int64Counter
+	// CorrelationRuleMatches counts rule-match outcomes recorded by
+	// engine.Evaluate.Results[i].MatchCounts, labeled by pack and rule.
+	// The engine populates MatchCounts for RuleKindMatch rules only
+	// (correlation/engine/engine.go:50-56), keyed by rule name with
+	// boundedMatchCount(MaxMatches, len(Evidence)). Handlers emit one
+	// counter Add(count) per (rule, admitted candidate) pair, so
+	// rate(eshu_dp_correlation_rule_matches_total[5m]) by (rule)
+	// reflects match-phase activity per rule, not admission throughput.
+	// Used by the drift pack (terraform_config_state_drift) in v1;
+	// available for any future pack that needs match-frequency observability.
+	CorrelationRuleMatches metric.Int64Counter
+	// CorrelationDriftDetected counts admitted drift candidates emitted by
+	// the terraform_config_state_drift correlation pack, labeled by
+	// pack, rule, and drift_kind (added_in_state, added_in_config,
+	// attribute_drift, removed_from_state, removed_from_config).
+	//
+	// The `rule` label here is always the admission-producing rule
+	// (TerraformConfigStateDriftRuleAdmitDriftEvidence) by design; the drift
+	// pack's match/derive/explain rules are pre-admission and post-admission
+	// bookkeeping stages that do not gate emission. The pairing of the two
+	// counters lets operators relate match-phase activity (CorrelationRuleMatches)
+	// to admit-phase outcome volume (this counter) per pack.
+	CorrelationDriftDetected metric.Int64Counter
 
 	// Histograms track distributions
 	CollectorObserveDuration             metric.Float64Histogram
@@ -334,6 +357,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register TerraformStateS3ConditionalGetNotModified counter: %w", err)
+	}
+
+	inst.CorrelationRuleMatches, err = meter.Int64Counter(
+		"eshu_dp_correlation_rule_matches_total",
+		metric.WithDescription("Total correlation rule matches by pack and rule"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CorrelationRuleMatches counter: %w", err)
+	}
+
+	inst.CorrelationDriftDetected, err = meter.Int64Counter(
+		"eshu_dp_correlation_drift_detected_total",
+		metric.WithDescription("Total admitted drift candidates by pack, rule, and drift kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CorrelationDriftDetected counter: %w", err)
 	}
 
 	// Register histograms with explicit bucket boundaries where specified

@@ -88,6 +88,7 @@ func TestFirstPartyRulePacksShipCoverageForSupportedFamilies(t *testing.T) {
 		"terragrunt",
 		"ansible",
 		"cloudformation",
+		"terraform_config_state_drift",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("len(FirstPartyRulePacks()) = %d, want %d", len(got), len(want))

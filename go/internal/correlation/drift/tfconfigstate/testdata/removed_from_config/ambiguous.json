@@ -1,0 +1,9 @@
+{
+  "description": "moved-block transient: the old address is in state, the new address is in config (handled in a sibling call). For this address, the classifier emits removed_from_config",
+  "state": {
+    "address": "aws_iam_policy.legacy",
+    "resource_type": "aws_iam_policy",
+    "previously_declared_in_config": true
+  },
+  "expected_drift_kind": "removed_from_config"
+}

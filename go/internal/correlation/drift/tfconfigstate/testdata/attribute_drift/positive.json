@@ -1,0 +1,14 @@
+{
+  "description": "both sides declare aws_s3_bucket.logs; config sets versioning.enabled=true, state observes false",
+  "config": {
+    "address": "aws_s3_bucket.logs",
+    "resource_type": "aws_s3_bucket",
+    "attributes": {"versioning.enabled": "true"}
+  },
+  "state": {
+    "address": "aws_s3_bucket.logs",
+    "resource_type": "aws_s3_bucket",
+    "attributes": {"versioning.enabled": "false"}
+  },
+  "expected_drift_kind": "attribute_drift"
+}

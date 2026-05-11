@@ -1,0 +1,21 @@
+{
+  "description": "config has tags=local.common_tags (unresolved expression), state observes a concrete map; classifier records no signal (no false positive)",
+  "config": {
+    "address": "aws_s3_bucket.logs",
+    "resource_type": "aws_s3_bucket",
+    "attributes": {
+      "versioning.enabled": "true",
+      "tags": "local.common_tags"
+    },
+    "unknown_attributes": {"tags": true}
+  },
+  "state": {
+    "address": "aws_s3_bucket.logs",
+    "resource_type": "aws_s3_bucket",
+    "attributes": {
+      "versioning.enabled": "true",
+      "tags": "{\"env\":\"prod\"}"
+    }
+  },
+  "expected_drift_kind": ""
+}

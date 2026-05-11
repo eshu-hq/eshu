@@ -43,6 +43,12 @@ const (
 	// override, and alias edges from parser entity bases and trait adaptation
 	// metadata.
 	DomainInheritanceMaterialization Domain = "inheritance_materialization"
+	// DomainConfigStateDrift correlates Terraform config (parsed HCL) against
+	// Terraform state to detect five drift kinds. Cross-source, cross-scope,
+	// non-canonical-write — counters and structured logs are the v1 surface.
+	// Design contract:
+	// docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-design.md
+	DomainConfigStateDrift Domain = "config_state_drift"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.

@@ -54,6 +54,18 @@ const (
 	// the warning category (state_in_vcs, state_too_large, output_value_dropped,
 	// etc.) emitted by the streaming parser.
 	MetricDimensionWarningKind = "warning_kind"
+	// MetricDimensionPack labels correlation metrics with the rule-pack
+	// identifier (e.g. "terraform_config_state_drift"). The value space is the
+	// fixed set of pack names registered through FirstPartyRulePacks().
+	MetricDimensionPack = "pack"
+	// MetricDimensionRule labels correlation metrics with one rule name from
+	// the rule pack (e.g. "match-config-against-state"). Cardinality is
+	// bounded by the rule count in each pack.
+	MetricDimensionRule = "rule"
+	// MetricDimensionDriftKind labels drift-detection metrics with the closed
+	// enum of drift kinds: added_in_state, added_in_config, attribute_drift,
+	// removed_from_state, removed_from_config.
+	MetricDimensionDriftKind = "drift_kind"
 )
 
 // Span names define the stable data-plane tracing contract.
@@ -140,6 +152,9 @@ var metricDimensionKeys = []string{
 	MetricDimensionReason,
 	MetricDimensionSafeLocatorHash,
 	MetricDimensionWarningKind,
+	MetricDimensionPack,
+	MetricDimensionRule,
+	MetricDimensionDriftKind,
 }
 
 var spanNames = []string{

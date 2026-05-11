@@ -1,0 +1,4 @@
+{
+  "description": "resource was never present in prior or current state; config never declared it; no drift",
+  "expected_drift_kind": ""
+}

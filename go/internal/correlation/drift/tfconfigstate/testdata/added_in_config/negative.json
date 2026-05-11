@@ -1,0 +1,12 @@
+{
+  "description": "config and state both declare aws_iam_role.svc; no drift",
+  "config": {
+    "address": "aws_iam_role.svc",
+    "resource_type": "aws_iam_role"
+  },
+  "state": {
+    "address": "aws_iam_role.svc",
+    "resource_type": "aws_iam_role"
+  },
+  "expected_drift_kind": ""
+}

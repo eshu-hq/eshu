@@ -1,0 +1,14 @@
+{
+  "description": "both sides declare matching versioning.enabled=true; no drift",
+  "config": {
+    "address": "aws_s3_bucket.logs",
+    "resource_type": "aws_s3_bucket",
+    "attributes": {"versioning.enabled": "true"}
+  },
+  "state": {
+    "address": "aws_s3_bucket.logs",
+    "resource_type": "aws_s3_bucket",
+    "attributes": {"versioning.enabled": "true"}
+  },
+  "expected_drift_kind": ""
+}

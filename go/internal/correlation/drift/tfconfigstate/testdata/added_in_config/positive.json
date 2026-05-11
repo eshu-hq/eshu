@@ -1,0 +1,8 @@
+{
+  "description": "config declares aws_iam_role.svc; state has no entry",
+  "config": {
+    "address": "aws_iam_role.svc",
+    "resource_type": "aws_iam_role"
+  },
+  "expected_drift_kind": "added_in_config"
+}
