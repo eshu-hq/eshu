@@ -205,3 +205,78 @@ func containsWarningKind(warnings []terragruntIncludeWarning, kind string) bool 
 	}
 	return false
 }
+
+// TestResolveTerragruntRemoteStateRejectsOversizeIncludeFile ensures the
+// walker bounds the bytes it reads from disk so a malicious include cannot
+// trigger an unbounded os.ReadFile against /dev/zero, /proc/kcore, or a
+// large attacker-controlled file dropped in the repo.
+func TestResolveTerragruntRemoteStateRejectsOversizeIncludeFile(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	parentPath := filepath.Join(root, "shared.hcl")
+	// Write a file larger than the parser cap. The contents are inert HCL
+	// padding; the size check fires before the parser ever sees the bytes.
+	header := []byte("# padding\n")
+	padding := make([]byte, terragruntIncludeMaxFileBytes+1024)
+	for i := range padding {
+		padding[i] = '\n'
+	}
+	if err := os.WriteFile(parentPath, append(header, padding...), 0o644); err != nil {
+		t.Fatalf("write oversize parent error = %v", err)
+	}
+
+	childPath := filepath.Join(root, "terragrunt.hcl")
+	body := "include \"root\" {\n  path = \"" + parentPath + "\"\n}\n"
+	if err := os.WriteFile(childPath, []byte(body), 0o644); err != nil {
+		t.Fatalf("write child error = %v", err)
+	}
+
+	resolved, warnings := resolveTerragruntRemoteState(childPath)
+	if resolved != nil {
+		t.Fatalf("resolved = %#v, want nil for oversize include target", resolved)
+	}
+	if !containsWarningKind(warnings, "terragrunt_include_unsafe_file") {
+		t.Fatalf("warnings = %#v, want one with terragrunt_include_unsafe_file", warnings)
+	}
+}
+
+// TestResolveTerragruntRemoteStateRejectsIrregularIncludeFile ensures the
+// walker refuses to read non-regular files reached through include chains so
+// special device files (/dev/*, /proc/*) or symlinked attacker targets cannot
+// be slurped into the parser.
+func TestResolveTerragruntRemoteStateRejectsIrregularIncludeFile(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	target := filepath.Join(root, "real.hcl")
+	if err := os.WriteFile(target, []byte(`remote_state {
+  backend = "s3"
+  config = {
+    bucket = "abs-bucket"
+    key    = "abs.tfstate"
+    region = "us-east-1"
+  }
+}
+`), 0o644); err != nil {
+		t.Fatalf("write target error = %v", err)
+	}
+	symlink := filepath.Join(root, "shared.hcl")
+	if err := os.Symlink(target, symlink); err != nil {
+		t.Skipf("symlink not supported on this platform: %v", err)
+	}
+
+	childPath := filepath.Join(root, "terragrunt.hcl")
+	body := "include \"root\" {\n  path = \"" + symlink + "\"\n}\n"
+	if err := os.WriteFile(childPath, []byte(body), 0o644); err != nil {
+		t.Fatalf("write child error = %v", err)
+	}
+
+	resolved, warnings := resolveTerragruntRemoteState(childPath)
+	if resolved != nil {
+		t.Fatalf("resolved = %#v, want nil for symlinked include target", resolved)
+	}
+	if !containsWarningKind(warnings, "terragrunt_include_unsafe_file") {
+		t.Fatalf("warnings = %#v, want one with terragrunt_include_unsafe_file", warnings)
+	}
+}

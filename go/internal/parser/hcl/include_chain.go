@@ -17,6 +17,14 @@ import (
 // surfaced as a warning rather than silently truncated.
 const terragruntIncludeMaxDepth = 16
 
+// terragruntIncludeMaxFileBytes caps how many bytes the walker will read from
+// a single include target. Real Terragrunt files are well under this size;
+// the bound exists so an attacker-controlled include path pointing at a large
+// or unbounded file (/dev/zero, /proc/kcore, a multi-megabyte payload dropped
+// in the repo) cannot stall the parser or consume unbounded memory before the
+// HCL parser ever sees the bytes.
+const terragruntIncludeMaxFileBytes = 1 << 20 // 1 MiB
+
 // terragruntIncludeWarning is a parser-local warning record describing an
 // unresolvable terragrunt include chain. The walker emits one warning per
 // distinct condition (depth exceeded, cycle, etc.) so downstream packages can
@@ -88,6 +96,31 @@ func walkTerragruntIncludeChain(
 		return nil
 	}
 	visited[absolute] = struct{}{}
+
+	// Lstat (not Stat) so symlinks register as irregular and are rejected
+	// without ever being followed. Walking through symlinks would let an
+	// include path bypass the regular-file check by pointing at /dev/null,
+	// /dev/zero, /proc/*, or any other special file.
+	info, err := os.Lstat(absolute)
+	if err != nil {
+		return nil
+	}
+	if !info.Mode().IsRegular() {
+		*warnings = append(*warnings, terragruntIncludeWarning{
+			kind:   "terragrunt_include_unsafe_file",
+			reason: "terragrunt include target is not a regular file",
+			source: absolute,
+		})
+		return nil
+	}
+	if info.Size() > terragruntIncludeMaxFileBytes {
+		*warnings = append(*warnings, terragruntIncludeWarning{
+			kind:   "terragrunt_include_unsafe_file",
+			reason: "terragrunt include target exceeds size cap",
+			source: absolute,
+		})
+		return nil
+	}
 
 	source, err := os.ReadFile(absolute)
 	if err != nil {
