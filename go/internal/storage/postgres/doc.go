@@ -37,6 +37,19 @@
 // a state snapshot, and the second performs the three-step join across
 // terraform_resources, the active terraform_state_resource rows, and the
 // prior generation (skipping the prior lookup when current serial is zero).
+// Row construction is split across two sibling files:
+// tfstate_drift_evidence_config_row.go provides configRowFromParserEntry,
+// which maps each HCL-parser terraform_resources entry to a
+// tfconfigstate.ResourceRow by copying the flat dot-path attributes map and
+// decoding unknown_attributes; tfstate_drift_evidence_state_row.go provides
+// stateRowFromCollectorPayload and flattenStateAttributes, which decode the
+// collector payload and recursively produce a flat dot-path map so singleton
+// repeated blocks (e.g. versioning, server_side_encryption_configuration)
+// produce paths that match the parser's config-side dot-path form. The
+// dot-path encoding produced by coerceJSONString and flattenStateAttributes
+// must stay byte-identical to ctyValueToDriftString in
+// go/internal/parser/hcl/terraform_resource_attributes.go; the classifier's
+// value-equality check depends on both sides agreeing at the leaf level.
 // IngestionStore.EnqueueConfigStateDriftIntents is the bootstrap Phase 3.5
 // trigger that enqueues one config_state_drift reducer intent per active
 // state_snapshot:* scope.

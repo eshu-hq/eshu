@@ -85,6 +85,29 @@
   with the correct position in the slice; wrap with `InstrumentedDB` in `cmd/`
   wiring for observability.
 
+- **State-attribute decoding or flattening** → edit
+  `tfstate_drift_evidence_state_row.go`. `stateRowFromCollectorPayload`
+  (`tfstate_drift_evidence_state_row.go:21`) decodes the collector payload and
+  calls `flattenStateAttributes` (same file, line 71) to produce the flat
+  dot-path `map[string]string`. The dot-path encoding MUST stay byte-identical
+  to `ctyValueToDriftString` in
+  `go/internal/parser/hcl/terraform_resource_attributes.go`; the classifier's
+  value-equality check in `go/internal/correlation/drift/tfconfigstate/classify.go`
+  fires across both sides. Add a cross-package regression test when changing any
+  encoding rule. Singleton repeated blocks arrive from the state collector as
+  `[]any` of length 1 whose first element is `map[string]any`;
+  `flattenStateAttributes` unwraps the outer array and recurses into the object
+  so paths like `versioning.enabled` align with the parser-emitted form.
+
+- **Parser-entry bridging (config side)** → edit
+  `tfstate_drift_evidence_config_row.go`. `configRowFromParserEntry`
+  (`tfstate_drift_evidence_config_row.go:22`) maps one `terraform_resources`
+  JSON entry from the HCL parser into a `tfconfigstate.ResourceRow`. The
+  `attributes` field is already flat dot-path from the parser; this function
+  copies it to `ResourceRow.Attributes`. `unknown_attributes` is a JSON array
+  of dot-path strings; it becomes `ResourceRow.UnknownAttributes` so
+  `classifyAttributeDrift` can skip non-literal expressions.
+
 - **Add a new queue domain to ReducerQueue** → add the domain constant in
   `internal/reducer`; extend the `domain = $2` filter handling in
   `ReducerQueue.Claim`; add tests for claim, ack, and retry paths.
@@ -167,6 +190,15 @@
   path.** Entity batches fan out through `runConcurrentBatches` and
   arrive in non-deterministic order. Assert on the sorted multiset of
   batch sizes or on the per-batch query shape instead.
+- **Do not diverge the dot-path encoding between `coerceJSONString` /
+  `flattenStateAttributes` (`tfstate_drift_evidence_state_row.go:21`) and
+  `ctyValueToDriftString`
+  (`go/internal/parser/hcl/terraform_resource_attributes.go`).** The
+  classifier's value-equality check in
+  `go/internal/correlation/drift/tfconfigstate/classify.go` compares strings
+  produced by both sides; silent divergence causes false-positive or
+  false-negative attribute_drift detection without test failures in either
+  package alone. Add a cross-package test before changing any encoding rule.
 
 ## What NOT to change without an ADR
 

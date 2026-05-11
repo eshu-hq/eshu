@@ -30,13 +30,16 @@ import (
 // non-drifted candidates. Trading the union for a pre-filter would duplicate
 // classify.go's dispatch order — not worth the bug surface for v1.
 //
-// Attribute drift requires both sides to carry per-attribute values.
-// The state collector emits attributes (resources.go:173-181); the HCL parser
-// does NOT emit attributes on terraform_resources rows today
-// (parser.go:130-154). Until the parser is enhanced, attribute_drift cannot
-// fire in production from this loader — the dispatcher returns "" because the
-// config-side Attributes map is always empty. See the package AGENTS.md for
-// the follow-up tracking item.
+// Attribute drift is active end-to-end as of PR #167. The HCL parser
+// recursively walks resource blocks and emits a flat dot-path attributes
+// map plus an unknown_attributes list (parser/hcl/terraform_resource_attributes.go).
+// configRowFromParserEntry (tfstate_drift_evidence_config_row.go) decodes
+// both into ResourceRow.Attributes and ResourceRow.UnknownAttributes.
+// flattenStateAttributes (tfstate_drift_evidence_state_row.go) produces the
+// matching dot-path keys from Terraform-state's nested-array-wrapped repeated
+// blocks via singleton-array unwrap. The two sides must stay byte-identical
+// in their leaf-value encoding — see the coerceJSONString doc comment for the
+// per-type contract and the float64 scientific-notation hazard.
 //
 // removed_from_config detection is also dormant in v1: the loader cannot
 // cheaply prove that a state-only address was once declared in a prior
