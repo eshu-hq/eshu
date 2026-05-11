@@ -20,7 +20,7 @@ func TestTerragruntRemoteStateCandidateS3Backend(t *testing.T) {
 		"resolved_from":             "self",
 	}
 
-	candidate, ok := TerragruntRemoteStateCandidate("platform-infra", row)
+	candidate, ok := TerragruntRemoteStateCandidate("platform-infra", "/repos/platform-infra", row)
 	if !ok {
 		t.Fatalf("TerragruntRemoteStateCandidate ok = false, want true; row=%#v", row)
 	}
@@ -57,7 +57,7 @@ func TestTerragruntRemoteStateCandidateLocalBackend(t *testing.T) {
 		"resolved_from":   "self",
 	}
 
-	candidate, ok := TerragruntRemoteStateCandidate("platform-infra", row)
+	candidate, ok := TerragruntRemoteStateCandidate("platform-infra", "/repos/platform-infra", row)
 	if !ok {
 		t.Fatalf("TerragruntRemoteStateCandidate ok = false, want true; row=%#v", row)
 	}
@@ -70,8 +70,48 @@ func TestTerragruntRemoteStateCandidateLocalBackend(t *testing.T) {
 	if got, want := candidate.Source, DiscoveryCandidateSourceGitLocalFile; got != want {
 		t.Fatalf("Source = %q, want %q", got, want)
 	}
-	if candidate.RelativePath == "" {
-		t.Fatalf("RelativePath = empty, want non-empty for git local file source")
+	if got, want := candidate.RelativePath, "env/prod/terraform.tfstate"; got != want {
+		// RelativePath must be repo-relative so the approval matcher and
+		// downstream policy lookups operate on the same shape used by the
+		// existing local-state candidate path.
+		t.Fatalf("RelativePath = %q, want %q (repo-relative, not basename)", got, want)
+	}
+}
+
+// TestTerragruntRemoteStateCandidateLocalBackendRejectsOutsideRepo guards
+// against emitting a git-local candidate for a path that lives outside the
+// repository checkout. Approval keys on the repo-relative path; an absolute
+// backend path that escapes the repo cannot be expressed as repo-relative
+// and must not produce a git-local candidate.
+func TestTerragruntRemoteStateCandidateLocalBackendRejectsOutsideRepo(t *testing.T) {
+	t.Parallel()
+
+	row := map[string]any{
+		"backend_kind":    "local",
+		"path":            "/var/lib/state/terraform.tfstate",
+		"path_is_literal": true,
+	}
+
+	if _, ok := TerragruntRemoteStateCandidate("platform-infra", "/repos/platform-infra", row); ok {
+		t.Fatal("TerragruntRemoteStateCandidate ok = true, want false for path outside repo root")
+	}
+}
+
+// TestTerragruntRemoteStateCandidateLocalBackendRejectsBlankRepoLocalPath
+// guards the storage-adapter contract: when the repository fact has no
+// recorded local_path, the resolver cannot compute a repo-relative path and
+// must reject the candidate rather than emit a basename-only RelativePath.
+func TestTerragruntRemoteStateCandidateLocalBackendRejectsBlankRepoLocalPath(t *testing.T) {
+	t.Parallel()
+
+	row := map[string]any{
+		"backend_kind":    "local",
+		"path":            "/repos/platform-infra/env/prod/terraform.tfstate",
+		"path_is_literal": true,
+	}
+
+	if _, ok := TerragruntRemoteStateCandidate("platform-infra", "", row); ok {
+		t.Fatal("TerragruntRemoteStateCandidate ok = true, want false for blank repoLocalPath")
 	}
 }
 
@@ -88,7 +128,7 @@ func TestTerragruntRemoteStateCandidateRejectsDynamicAttributes(t *testing.T) {
 		"region_is_literal": true,
 	}
 
-	if _, ok := TerragruntRemoteStateCandidate("platform-infra", row); ok {
+	if _, ok := TerragruntRemoteStateCandidate("platform-infra", "/repos/platform-infra", row); ok {
 		t.Fatal("TerragruntRemoteStateCandidate ok = true, want false for dynamic bucket")
 	}
 }
@@ -102,7 +142,7 @@ func TestTerragruntRemoteStateCandidateRejectsRelativeLocalPath(t *testing.T) {
 		"path_is_literal": true,
 	}
 
-	if _, ok := TerragruntRemoteStateCandidate("platform-infra", row); ok {
+	if _, ok := TerragruntRemoteStateCandidate("platform-infra", "/repos/platform-infra", row); ok {
 		t.Fatal("TerragruntRemoteStateCandidate ok = true, want false for relative local path")
 	}
 }
@@ -120,7 +160,7 @@ func TestTerragruntRemoteStateCandidateRejectsBlankRepoID(t *testing.T) {
 		"region_is_literal": true,
 	}
 
-	if _, ok := TerragruntRemoteStateCandidate("", row); ok {
+	if _, ok := TerragruntRemoteStateCandidate("", "/repos/platform-infra", row); ok {
 		t.Fatal("TerragruntRemoteStateCandidate ok = true, want false for blank repoID")
 	}
 }
@@ -139,7 +179,7 @@ func TestTerragruntRemoteStateCandidatePreservesIncludeChainResolution(t *testin
 		"resolved_from":     "include_chain",
 	}
 
-	candidate, ok := TerragruntRemoteStateCandidate("platform-infra", row)
+	candidate, ok := TerragruntRemoteStateCandidate("platform-infra", "/repos/platform-infra", row)
 	if !ok {
 		t.Fatalf("TerragruntRemoteStateCandidate ok = false, want true")
 	}

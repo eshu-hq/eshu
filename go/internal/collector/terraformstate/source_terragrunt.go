@@ -11,17 +11,26 @@ import (
 // candidate validation, source readers, and fact persistence all see the
 // resolved backend (s3 or local) and never the synthetic "terragrunt" kind.
 //
+// repoLocalPath is the absolute filesystem root the repository is checked
+// out under, sourced from the repository fact's local_path. It is required
+// for local-backend resolution because the candidate's RelativePath must be
+// repo-relative for the approval matcher to recognise it; an unset
+// repoLocalPath therefore rejects local-backend rows. S3-backend rows do not
+// depend on repoLocalPath.
+//
 // The function returns ok=false when:
 //   - repoID is blank
 //   - the row's backend_kind is unsupported (anything other than s3 or local)
 //   - a required attribute is missing or marked non-literal
 //   - the resulting locator would violate the discovery exact-source contract
-//     (relative local paths, prefix-only S3 keys, dynamic expressions).
+//     (relative local paths, prefix-only S3 keys, dynamic expressions)
+//   - a local backend path lies outside the repoLocalPath tree, which would
+//     leave the candidate without a meaningful repo-relative key.
 //
 // Returning ok=false is the safe default: an unparseable row yields no
 // candidate and no fact rather than an under-constrained read of the wrong
 // state object.
-func TerragruntRemoteStateCandidate(repoID string, row map[string]any) (DiscoveryCandidate, bool) {
+func TerragruntRemoteStateCandidate(repoID, repoLocalPath string, row map[string]any) (DiscoveryCandidate, bool) {
 	repoID = strings.TrimSpace(repoID)
 	if repoID == "" {
 		return DiscoveryCandidate{}, false
@@ -31,7 +40,7 @@ func TerragruntRemoteStateCandidate(repoID string, row map[string]any) (Discover
 	case string(BackendS3):
 		return terragruntRemoteStateS3Candidate(repoID, row)
 	case string(BackendLocal):
-		return terragruntRemoteStateLocalCandidate(repoID, row)
+		return terragruntRemoteStateLocalCandidate(repoID, repoLocalPath, row)
 	default:
 		return DiscoveryCandidate{}, false
 	}
@@ -74,8 +83,10 @@ func terragruntRemoteStateS3Candidate(repoID string, row map[string]any) (Discov
 // path. The local backend points at a file path; the discovery contract
 // requires that path to be absolute and operator-approved. We surface it as a
 // DiscoveryCandidateSourceGitLocalFile so the downstream Git-local approval
-// gates still apply. A missing or relative path is rejected.
-func terragruntRemoteStateLocalCandidate(repoID string, row map[string]any) (DiscoveryCandidate, bool) {
+// gates still apply, which means the path must live inside repoLocalPath so
+// it can be expressed as a repo-relative path the approval matcher
+// recognises. A missing, relative, or out-of-repo path is rejected.
+func terragruntRemoteStateLocalCandidate(repoID, repoLocalPath string, row map[string]any) (DiscoveryCandidate, bool) {
 	path := strings.TrimSpace(stringAttr(row, "path"))
 	if !isExactRowAttribute(row, "path", path) {
 		return DiscoveryCandidate{}, false
@@ -83,14 +94,31 @@ func terragruntRemoteStateLocalCandidate(repoID string, row map[string]any) (Dis
 	if !filepath.IsAbs(path) {
 		return DiscoveryCandidate{}, false
 	}
+	repoLocalPath = strings.TrimSpace(repoLocalPath)
+	if repoLocalPath == "" {
+		// Without the repo root we cannot compute a repo-relative path; the
+		// candidate would default to filepath.Base(path), which the approval
+		// matcher rejects. Drop the candidate rather than emit an
+		// unmatchable shape.
+		return DiscoveryCandidate{}, false
+	}
+	cleanedPath := filepath.Clean(path)
+	cleanedRoot := filepath.Clean(repoLocalPath)
+	relative, err := filepath.Rel(cleanedRoot, cleanedPath)
+	if err != nil || relative == "" || relative == "." || strings.HasPrefix(relative, "..") {
+		// filepath.Rel returns a "../" prefix when cleanedPath is outside
+		// cleanedRoot. Such paths are not git-local from this repository's
+		// perspective and must not produce a git-local candidate.
+		return DiscoveryCandidate{}, false
+	}
 	return DiscoveryCandidate{
 		State: StateKey{
 			BackendKind: BackendLocal,
-			Locator:     filepath.Clean(path),
+			Locator:     cleanedPath,
 		},
 		Source:       DiscoveryCandidateSourceGitLocalFile,
 		RepoID:       repoID,
-		RelativePath: filepath.Base(path),
+		RelativePath: filepath.ToSlash(relative),
 		StateInVCS:   true,
 	}, true
 }

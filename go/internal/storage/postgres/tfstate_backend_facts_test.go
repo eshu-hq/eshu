@@ -284,6 +284,7 @@ func TestTerraformStateBackendFactReaderReturnsTerragruntRemoteStateCandidates(t
 			{},
 			{rows: [][]any{{
 				"platform-infra",
+				"/repos/platform-infra",
 				[]byte(`[{
 					"backend_kind":"s3",
 					"bucket":"app-tfstate-prod",
@@ -318,6 +319,61 @@ func TestTerraformStateBackendFactReaderReturnsTerragruntRemoteStateCandidates(t
 	}
 	if got, want := candidate.RepoID, "platform-infra"; got != want {
 		t.Fatalf("RepoID = %q, want %q", got, want)
+	}
+}
+
+// TestTerraformStateBackendFactReaderResolvesLocalTerragruntCandidateRepoRelative
+// guards Fix #4 from the Copilot review: a local-backend Terragrunt row whose
+// path lives inside the repository checkout should yield a candidate with a
+// repo-relative RelativePath (not the basename), and a row whose path
+// escapes the checkout should produce no candidate.
+func TestTerraformStateBackendFactReaderResolvesLocalTerragruntCandidateRepoRelative(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{},
+			{rows: [][]any{{
+				"platform-infra",
+				"/repos/platform-infra",
+				[]byte(`[
+					{
+						"backend_kind":"local",
+						"path":"/repos/platform-infra/env/prod/terraform.tfstate",
+						"path_is_literal":true,
+						"resolved_from":"self"
+					},
+					{
+						"backend_kind":"local",
+						"path":"/var/lib/state/elsewhere.tfstate",
+						"path_is_literal":true,
+						"resolved_from":"self"
+					}
+				]`),
+			}}},
+		},
+	}
+	reader := TerraformStateBackendFactReader{DB: db}
+
+	candidates, err := reader.TerraformStateCandidates(
+		context.Background(),
+		terraformstate.DiscoveryQuery{RepoIDs: []string{"platform-infra"}},
+	)
+	if err != nil {
+		t.Fatalf("TerraformStateCandidates() error = %v, want nil", err)
+	}
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(candidates) = %d, want %d (out-of-repo path must be rejected)", got, want)
+	}
+	candidate := candidates[0]
+	if got, want := candidate.State.BackendKind, terraformstate.BackendLocal; got != want {
+		t.Fatalf("BackendKind = %q, want %q", got, want)
+	}
+	if got, want := candidate.RelativePath, "env/prod/terraform.tfstate"; got != want {
+		t.Fatalf("RelativePath = %q, want %q (repo-relative)", got, want)
+	}
+	if got, want := candidate.State.Locator, "/repos/platform-infra/env/prod/terraform.tfstate"; got != want {
+		t.Fatalf("Locator = %q, want %q", got, want)
 	}
 }
 
