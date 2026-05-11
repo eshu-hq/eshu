@@ -95,9 +95,15 @@ func TestDefaultEngineParsePathPythonEmitsProtocolAndCachedPropertyRoots(t *test
 def __getattr__(name):
     raise AttributeError(name)
 
+def __unused_helper__():
+    return "private"
+
 def patch_missing():
     def __reduce__(*_args):
         return "missing"
+
+    def __private_protocol_name__():
+        return "private"
 
     type(missing).__reduce__ = __reduce__
 
@@ -134,6 +140,12 @@ class PublicKey:
 		"dead_code_root_kinds",
 		[]string{"python.dunder_method"},
 	)
+	if helper := assertFunctionByName(t, got, "__unused_helper__"); helper["dead_code_root_kinds"] != nil {
+		t.Fatalf("__unused_helper__ dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
+	}
+	if private := assertFunctionByName(t, got, "__private_protocol_name__"); private["dead_code_root_kinds"] != nil {
+		t.Fatalf("__private_protocol_name__ dead_code_root_kinds = %#v, want nil", private["dead_code_root_kinds"])
+	}
 	assertParserStringSliceFieldValue(
 		t,
 		assertFunctionByName(t, got, "fingerprint"),

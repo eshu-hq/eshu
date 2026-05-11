@@ -64,9 +64,10 @@ the guard statement become `python.script_main_guard` roots.
 
 Property root detection covers `@property`, `@cached_property`, and
 `@functools.cached_property`, including decorators with inline type-checker
-comments. Dunder protocol roots are not limited to class methods because module
-`__getattr__` hooks and nested runtime-assigned protocol functions are called by
-Python or library dispatch rather than direct source calls.
+comments. Dunder protocol roots cover recognized class protocol methods, module
+`__getattr__` and `__dir__` hooks, and nested dunder functions only when source
+assignment evidence in the same enclosing function or module installs them onto
+a protocol attribute.
 
 The adapter keeps module-scope variables by default. Set the shared
 VariableScope option to all when a caller needs local assignment payloads too.

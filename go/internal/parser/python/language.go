@@ -136,7 +136,12 @@ func Parse(
 			if name == "__post_init__" && dataclassClasses[classContext] {
 				rootKinds = appendUniqueString(rootKinds, "python.dataclass_post_init")
 			}
-			if pythonIsDunderMethod(name) {
+			switch {
+			case classContext != "" && pythonIsClassProtocolMethod(name):
+				rootKinds = appendUniqueString(rootKinds, "python.dunder_method")
+			case classContext == "" && pythonIsModuleProtocolFunction(name):
+				rootKinds = appendUniqueString(rootKinds, "python.dunder_method")
+			case classContext == "" && pythonDunderFunctionAssignedInEnclosingScope(node, name, source):
 				rootKinds = appendUniqueString(rootKinds, "python.dunder_method")
 			}
 			if classContext != "" && pythonPublicAPIClassMember(publicAPIRootKinds[classContext], name) {
