@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -77,6 +79,7 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 		return err
 	}
 	if len(intents) == 0 {
+		recordDriftEnqueueCounter(ctx, instruments, 0)
 		log.Printf("config_state_drift_intents_enqueued count=0 duration_s=%.2f", time.Since(start).Seconds())
 		return nil
 	}
@@ -95,13 +98,11 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 		return fmt.Errorf("enqueue config_state_drift intents: %w", err)
 	}
 
-	// No dedicated drift-enqueue counter yet; the two correlation counters
-	// (CorrelationRuleMatches and CorrelationDriftDetected) advance per
-	// admission downstream once the reducer claims the work. Enqueue
-	// volume surfaces in the log line below; add an eshu_dp_* counter here
-	// if dashboards need to alert on enqueue regressions independently of
-	// admission volume.
-	_ = instruments
+	// Phase 3.5 succeeded. Record enqueue volume so dashboards can decouple
+	// "trigger fired N intents" from "reducer admitted M drift candidates"
+	// downstream (CorrelationDriftDetected). See instruments.go for the
+	// label-set rationale.
+	recordDriftEnqueueCounter(ctx, instruments, len(intents))
 	log.Printf("config_state_drift_intents_enqueued count=%d duration_s=%.2f",
 		len(intents), time.Since(start).Seconds())
 
@@ -144,4 +145,22 @@ func listActiveStateSnapshotScopes(ctx context.Context, db ExecQueryer) ([]proje
 		return nil, fmt.Errorf("iterate active state_snapshot scopes: %w", err)
 	}
 	return intents, nil
+}
+
+// recordDriftEnqueueCounter advances the CorrelationDriftIntentsEnqueued
+// counter by `count` with the bounded label set `pack` +
+// `source=bootstrap_index`. Tolerates a nil instruments handle so callers
+// without telemetry wired (early bootstrap test paths) remain operable.
+func recordDriftEnqueueCounter(ctx context.Context, instruments *telemetry.Instruments, count int) {
+	if instruments == nil || instruments.CorrelationDriftIntentsEnqueued == nil {
+		return
+	}
+	instruments.CorrelationDriftIntentsEnqueued.Add(
+		ctx,
+		int64(count),
+		metric.WithAttributes(
+			attribute.String(telemetry.MetricDimensionPack, "terraform_config_state_drift"),
+			telemetry.AttrSource(driftIntentSourceSystem),
+		),
+	)
 }

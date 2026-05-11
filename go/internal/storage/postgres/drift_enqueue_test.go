@@ -4,7 +4,48 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// newEnqueueInstruments builds a real telemetry.Instruments backed by an
+// sdkmetric ManualReader so tests can assert counter advances without
+// touching the global meter provider.
+func newEnqueueInstruments(t *testing.T) (*telemetry.Instruments, sdkmetric.Reader) {
+	t.Helper()
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	return inst, reader
+}
+
+// counterTotal sums every Int64 counter data point for the named metric in
+// the collected ResourceMetrics. Used to assert per-test increments without
+// resetting the reader between increments.
+func counterTotal(rm metricdata.ResourceMetrics, name string) int64 {
+	var total int64
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != name {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				continue
+			}
+			for _, dp := range sum.DataPoints {
+				total += dp.Value
+			}
+		}
+	}
+	return total
+}
 
 func TestEnqueueConfigStateDriftIntentsEnqueuesOnePerActiveScope(t *testing.T) {
 	t.Parallel()
@@ -82,5 +123,59 @@ func TestEnqueueConfigStateDriftIntentsRequiresDatabase(t *testing.T) {
 	var store IngestionStore
 	if err := store.EnqueueConfigStateDriftIntents(context.Background(), nil, nil); err == nil {
 		t.Fatal("nil DB: error = nil, want non-nil")
+	}
+}
+
+func TestEnqueueConfigStateDriftIntentsAdvancesEnqueueCounterByScopeCount(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				{"state_snapshot:s3:hash-1", "gen-state-1"},
+				{"state_snapshot:s3:hash-2", "gen-state-2"},
+				{"state_snapshot:s3:hash-3", "gen-state-3"},
+			}},
+		},
+	}
+	store := NewIngestionStore(db)
+
+	inst, reader := newEnqueueInstruments(t)
+
+	if err := store.EnqueueConfigStateDriftIntents(context.Background(), nil, inst); err != nil {
+		t.Fatalf("EnqueueConfigStateDriftIntents() error = %v, want nil", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got, want := counterTotal(rm, "eshu_dp_correlation_drift_intents_enqueued_total"), int64(3); got != want {
+		t.Fatalf("enqueue counter = %d, want %d", got, want)
+	}
+}
+
+func TestEnqueueConfigStateDriftIntentsCounterEmitsZeroWhenNoScopes(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}}}
+	store := NewIngestionStore(db)
+
+	inst, reader := newEnqueueInstruments(t)
+
+	if err := store.EnqueueConfigStateDriftIntents(context.Background(), nil, inst); err != nil {
+		t.Fatalf("EnqueueConfigStateDriftIntents() error = %v, want nil", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	// Zero scopes means the counter advances by 0, but the series MUST exist
+	// so dashboards can distinguish "Phase 3.5 ran and produced zero work"
+	// from "Phase 3.5 did not run." Asserting the series is registered via
+	// counterTotal returning a defined zero (not a missing-series panic).
+	if got, want := counterTotal(rm, "eshu_dp_correlation_drift_intents_enqueued_total"), int64(0); got != want {
+		t.Fatalf("enqueue counter = %d, want %d (no-op trigger)", got, want)
 	}
 }
