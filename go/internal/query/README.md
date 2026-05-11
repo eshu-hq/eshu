@@ -373,6 +373,11 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 - `ContentReader` traces each Postgres call with an OTEL span labeled
   `db.sql.table`; queries that scan multiple tables need per-call spans to avoid
   misleading attribution (`content_reader.go:45`).
+- `queryContentStoreCoverage` uses `ContentReader.RepositoryCoverage` as the
+  bounded count source when content rows are available. The graph count in
+  `queryRepositoryGraphCoverageStats` is a no-content fallback, so
+  `graph_gap_count` and `content_gap_count` stay zero when graph parity was not
+  checked.
 - `WriteSuccess` branches on `acceptsEnvelope(r)` at `handler.go:29`; callers
   that do not send `Accept: application/eshu.envelope+json` receive the legacy
   payload shape. MCP tool dispatch relies on the envelope format; do not break

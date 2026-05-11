@@ -11,6 +11,8 @@ import (
 
 const repositorySelectorWhereClause = "r.id = $repo_selector OR r.name = $repo_selector"
 
+const repositoryGraphCoverageStatsTimeout = 2 * time.Second
+
 var repositoryBaseCypher = fmt.Sprintf(`
 	MATCH (r:Repository {id: $repo_id})
 	RETURN %s
@@ -666,23 +668,63 @@ func repositoryCatalogMap(entry RepositoryCatalogEntry) map[string]any {
 
 // queryContentStoreCoverage queries the Postgres content store for repository coverage.
 func (h *RepositoryHandler) queryContentStoreCoverage(ctx context.Context, repoID string) (map[string]any, error) {
-	graphStats, err := h.queryRepositoryGraphCoverageStats(ctx, repoID)
-	if err != nil {
-		return nil, fmt.Errorf("query graph coverage stats: %w", err)
+	var contentCoverage RepositoryContentCoverage
+	if h.Content != nil {
+		var err error
+		contentCoverage, err = h.Content.RepositoryCoverage(ctx, repoID)
+		if err != nil {
+			return nil, fmt.Errorf("query content coverage: %w", err)
+		}
+		if contentCoverage.Available {
+			return repositoryCoverageResponse(
+				repoID,
+				repositoryGraphCoverageStats{},
+				contentCoverage,
+				"graph coverage stats skipped because content store coverage is available",
+			), nil
+		}
 	}
 
+	graphStats, graphErr := h.queryRepositoryGraphCoverageStatsWithTimeout(ctx, repoID)
+	if graphErr != nil {
+		return nil, fmt.Errorf("query graph coverage stats: %w", graphErr)
+	}
+
+	return repositoryCoverageResponse(repoID, graphStats, contentCoverage, ""), nil
+}
+
+func repositoryCoverageResponse(
+	repoID string,
+	graphStats repositoryGraphCoverageStats,
+	contentCoverage RepositoryContentCoverage,
+	lastError string,
+) map[string]any {
+	graphGapCount, contentGapCount := 0, 0
+	if graphStats.Available && contentCoverage.Available {
+		graphGapCount, contentGapCount = computeCoverageGapCounts(
+			graphStats.FileCount,
+			graphStats.EntityCount,
+			contentCoverage.FileCount,
+			contentCoverage.EntityCount,
+		)
+	}
 	coverage := map[string]any{
 		"repo_id":                  repoID,
 		"file_count":               0,
 		"entity_count":             0,
 		"languages":                []map[string]any{},
 		"graph_available":          graphStats.Available,
-		"server_content_available": h.Content != nil,
-		"graph_gap_count":          0,
-		"content_gap_count":        0,
-		"completeness_state":       "unknown",
-		"content_last_indexed_at":  "",
-		"last_error":               "",
+		"server_content_available": contentCoverage.Available,
+		"graph_gap_count":          graphGapCount,
+		"content_gap_count":        contentGapCount,
+		"completeness_state": completenessStateForCoverage(
+			graphStats.Available,
+			contentCoverage.Available,
+			graphGapCount,
+			contentGapCount,
+		),
+		"content_last_indexed_at": "",
+		"last_error":              lastError,
 		"summary": map[string]any{
 			"graph_file_count":     graphStats.FileCount,
 			"graph_entity_count":   graphStats.EntityCount,
@@ -690,40 +732,14 @@ func (h *RepositoryHandler) queryContentStoreCoverage(ctx context.Context, repoI
 			"content_entity_count": 0,
 		},
 	}
-	if h.Content == nil {
-		coverage["completeness_state"] = completenessStateForCoverage(
-			graphStats.Available,
-			false,
-			0,
-			0,
-		)
+	if !contentCoverage.Available {
 		coverage["last_error"] = "content store not available"
-		return coverage, nil
+		return coverage
 	}
-
-	contentCoverage, err := h.Content.RepositoryCoverage(ctx, repoID)
-	if err != nil {
-		return nil, fmt.Errorf("query content coverage: %w", err)
-	}
-
-	graphGapCount, contentGapCount := computeCoverageGapCounts(
-		graphStats.FileCount,
-		graphStats.EntityCount,
-		contentCoverage.FileCount,
-		contentCoverage.EntityCount,
-	)
 	coverage["server_content_available"] = contentCoverage.Available
 	coverage["file_count"] = contentCoverage.FileCount
 	coverage["entity_count"] = contentCoverage.EntityCount
 	coverage["languages"] = coverageLanguageMaps(contentCoverage.Languages)
-	coverage["graph_gap_count"] = graphGapCount
-	coverage["content_gap_count"] = contentGapCount
-	coverage["completeness_state"] = completenessStateForCoverage(
-		graphStats.Available,
-		contentCoverage.Available,
-		graphGapCount,
-		contentGapCount,
-	)
 	if latest := latestCoverageTimestamp(contentCoverage.FileIndexedAt, contentCoverage.EntityIndexedAt); !latest.IsZero() {
 		coverage["content_last_indexed_at"] = latest.Format(time.RFC3339Nano)
 	}
@@ -736,7 +752,16 @@ func (h *RepositoryHandler) queryContentStoreCoverage(ctx context.Context, repoI
 	summary["content_gap_count"] = contentGapCount
 	summary["completeness_state"] = coverage["completeness_state"]
 	coverage["summary"] = summary
-	return coverage, nil
+	return coverage
+}
+
+func (h *RepositoryHandler) queryRepositoryGraphCoverageStatsWithTimeout(
+	ctx context.Context,
+	repoID string,
+) (repositoryGraphCoverageStats, error) {
+	graphCtx, cancel := context.WithTimeout(ctx, repositoryGraphCoverageStatsTimeout)
+	defer cancel()
+	return h.queryRepositoryGraphCoverageStats(graphCtx, repoID)
 }
 
 func coverageLanguageMaps(languages []RepositoryLanguageCount) []map[string]any {
