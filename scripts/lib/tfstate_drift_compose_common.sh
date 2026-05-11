@@ -128,7 +128,7 @@ tfstate_drift_wait_for_reducer_drain() {
 			echo "drift intents reached terminal failure state: dead_letter=$dead_letter failed=$failed" >&2
 			"${COMPOSE_CMD[@]}" exec -T -e PGPASSWORD="${ESHU_POSTGRES_PASSWORD:-change-me}" postgres \
 				psql -U eshu -d eshu -c \
-				"SELECT scope_id, status, failure_reason FROM fact_work_items WHERE domain='config_state_drift' AND status IN ('dead_letter','failed') ORDER BY status, scope_id;" \
+				"SELECT scope_id, status, COALESCE(failure_class,'') AS failure_class, COALESCE(failure_message,'') AS failure_message FROM fact_work_items WHERE domain='config_state_drift' AND status IN ('dead_letter','failed') ORDER BY status, scope_id;" \
 				>&2 || true
 			return 1
 		fi
