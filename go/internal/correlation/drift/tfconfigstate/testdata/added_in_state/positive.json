@@ -1,0 +1,8 @@
+{
+  "description": "state contains aws_s3_bucket.logs; config carries no matching declaration",
+  "state": {
+    "address": "aws_s3_bucket.logs",
+    "resource_type": "aws_s3_bucket"
+  },
+  "expected_drift_kind": "added_in_state"
+}

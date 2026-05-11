@@ -1,0 +1,13 @@
+{
+  "description": "prior generation belongs to a different lineage (lineage rotation in flight); classifier suppresses removed_from_state",
+  "config": {
+    "address": "aws_lambda_function.worker",
+    "resource_type": "aws_lambda_function"
+  },
+  "prior": {
+    "address": "aws_lambda_function.worker",
+    "resource_type": "aws_lambda_function",
+    "lineage_rotation": true
+  },
+  "expected_drift_kind": ""
+}

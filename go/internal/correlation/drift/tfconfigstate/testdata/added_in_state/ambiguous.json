@@ -1,0 +1,8 @@
+{
+  "description": "terraform import case: state carries the resource, config never had it; classifier still emits added_in_state (operator-actionable, not a bug)",
+  "state": {
+    "address": "aws_s3_bucket.imported_legacy",
+    "resource_type": "aws_s3_bucket"
+  },
+  "expected_drift_kind": "added_in_state"
+}

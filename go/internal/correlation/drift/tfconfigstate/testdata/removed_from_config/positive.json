@@ -1,0 +1,9 @@
+{
+  "description": "state contains aws_iam_policy.legacy; latest config no longer has the block (previously_declared_in_config = true)",
+  "state": {
+    "address": "aws_iam_policy.legacy",
+    "resource_type": "aws_iam_policy",
+    "previously_declared_in_config": true
+  },
+  "expected_drift_kind": "removed_from_config"
+}

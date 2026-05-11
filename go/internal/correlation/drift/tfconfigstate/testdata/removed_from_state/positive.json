@@ -1,0 +1,12 @@
+{
+  "description": "prior generation contained aws_lambda_function.worker; current generation does not; config still declares it",
+  "config": {
+    "address": "aws_lambda_function.worker",
+    "resource_type": "aws_lambda_function"
+  },
+  "prior": {
+    "address": "aws_lambda_function.worker",
+    "resource_type": "aws_lambda_function"
+  },
+  "expected_drift_kind": "removed_from_state"
+}

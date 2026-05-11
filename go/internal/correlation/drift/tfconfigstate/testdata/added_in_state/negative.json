@@ -1,0 +1,12 @@
+{
+  "description": "config and state both declare aws_s3_bucket.logs; no drift",
+  "config": {
+    "address": "aws_s3_bucket.logs",
+    "resource_type": "aws_s3_bucket"
+  },
+  "state": {
+    "address": "aws_s3_bucket.logs",
+    "resource_type": "aws_s3_bucket"
+  },
+  "expected_drift_kind": ""
+}

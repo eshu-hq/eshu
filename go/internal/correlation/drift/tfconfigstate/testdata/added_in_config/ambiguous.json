@@ -1,0 +1,8 @@
+{
+  "description": "for_each pre-apply: config declares a new key the state was not yet refreshed against; classifier emits added_in_config (documented as expected pre-apply state)",
+  "config": {
+    "address": "aws_iam_role.roles[\"new\"]",
+    "resource_type": "aws_iam_role"
+  },
+  "expected_drift_kind": "added_in_config"
+}
