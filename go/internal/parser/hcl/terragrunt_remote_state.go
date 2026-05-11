@@ -51,11 +51,15 @@ func remoteStateRow(block *hclsyntax.Block, source []byte, path string) map[stri
 	if backendKind == "" {
 		return nil
 	}
+	// row["source_path"] carries the parser-side provenance (the .hcl file
+	// the row was extracted from). It is intentionally distinct from
+	// row["path"], which is reserved for the local backend's `path` config
+	// attribute; the two values would collide if the parser used a single key.
 	row := map[string]any{
 		"name":         backendKind,
 		"backend_kind": backendKind,
 		"line_number":  block.TypeRange.Start.Line,
-		"path":         path,
+		"source_path":  path,
 		"lang":         "hcl",
 	}
 
@@ -105,12 +109,14 @@ func resolveTerragruntRemoteStateFromIncludes(body *hclsyntax.Body, source []byt
 	}
 	row := resolved.row
 	row["resolved_from"] = resolved.resolvedFrom
-	if origin, ok := row["path"].(string); ok && origin != "" {
+	if origin, ok := row["source_path"].(string); ok && origin != "" {
 		row["resolved_source"] = origin
 	}
-	// Re-anchor the row to the file the parser was invoked on so downstream
-	// fact persistence keys the row by the same path it was parsed under.
-	row["path"] = path
+	// Re-anchor the row's source_path provenance to the file the parser was
+	// invoked on so downstream fact persistence keys the row by the same path
+	// it was parsed under. The local backend's own `path` attribute (if any)
+	// stays untouched in row["path"].
+	row["source_path"] = path
 	return []map[string]any{row}
 }
 

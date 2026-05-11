@@ -80,10 +80,17 @@ func TestTerragruntParseRemoteStateLiteralLocalBackend(t *testing.T) {
 		t.Fatalf("backend_kind = %#v, want %#v", got, want)
 	}
 	if got, want := row["path"], "terraform.tfstate"; got != want {
-		t.Fatalf("path = %#v, want %#v", got, want)
+		// row["path"] is reserved for the local backend's path attribute.
+		// The HCL source file path lives under row["source_path"] so the
+		// local backend value never gets clobbered by the parser-side
+		// provenance metadata.
+		t.Fatalf("path = %#v, want %#v (local backend path attribute)", got, want)
 	}
 	if got, want := row["path_is_literal"], true; got != want {
 		t.Fatalf("path_is_literal = %#v, want %#v", got, want)
+	}
+	if got, want := row["source_path"], filePath; got != want {
+		t.Fatalf("source_path = %#v, want %#v (parser source file)", got, want)
 	}
 }
 
@@ -192,6 +199,41 @@ func TestTerragruntParseRemoteStateResolvesFromIncludeChain(t *testing.T) {
 	}
 	if got, want := row["resolved_source"], parentPath; got != want {
 		t.Fatalf("resolved_source = %#v, want %#v", got, want)
+	}
+	if got, want := row["source_path"], childPath; got != want {
+		t.Fatalf("source_path = %#v, want %#v (must be the child file)", got, want)
+	}
+}
+
+// TestTerragruntParseRemoteStateLocalBackendSourcePathDoesNotShadowPath
+// regression-tests the original Copilot finding: when the local backend
+// declares its own path attribute, the parser's source-file path must not
+// overwrite it (and vice versa). Both values must coexist in the row.
+func TestTerragruntParseRemoteStateLocalBackendSourcePathDoesNotShadowPath(t *testing.T) {
+	t.Parallel()
+
+	filePath := writeHCLTestFile(t, "terragrunt.hcl", `remote_state {
+  backend = "local"
+  config = {
+    path = "/var/lib/state/services/api/terraform.tfstate"
+  }
+}
+`)
+
+	got, err := Parse(filePath, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	rows := bucketForTest(t, got, "terragrunt_remote_states")
+	if len(rows) != 1 {
+		t.Fatalf("len(terragrunt_remote_states) = %d, want 1", len(rows))
+	}
+	row := rows[0]
+	if got, want := row["path"], "/var/lib/state/services/api/terraform.tfstate"; got != want {
+		t.Fatalf("path = %#v, want %#v (local backend wins)", got, want)
+	}
+	if got, want := row["source_path"], filePath; got != want {
+		t.Fatalf("source_path = %#v, want %#v (parser provenance preserved)", got, want)
 	}
 }
 
