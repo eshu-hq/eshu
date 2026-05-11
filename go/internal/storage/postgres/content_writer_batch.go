@@ -68,6 +68,35 @@ func contentWriterDefaultBatchConcurrency() int {
 	return n
 }
 
+// deduplicateEntityRows removes duplicate entity_id rows in input order,
+// keeping the last occurrence so callers see the same "later in input
+// wins" outcome the serial path achieved by row-level lock contention.
+// Mirrors deduplicateEnvelopes in facts.go for the fact path; the parallel
+// content_entity upsert path adds the same exposure (one ON CONFLICT DO
+// UPDATE per batch cannot affect the same row twice, and parallel batches
+// would otherwise pick a non-deterministic winner) so the dedup is owned
+// here at the writer boundary instead of depending on an upstream
+// projector invariant.
+func deduplicateEntityRows(rows []preparedEntityRow) []preparedEntityRow {
+	if len(rows) == 0 {
+		return rows
+	}
+	lastIndex := make(map[string]int, len(rows))
+	for i, row := range rows {
+		lastIndex[row.entityID] = i
+	}
+	if len(lastIndex) == len(rows) {
+		return rows
+	}
+	deduped := make([]preparedEntityRow, 0, len(lastIndex))
+	for i, row := range rows {
+		if lastIndex[row.entityID] == i {
+			deduped = append(deduped, row)
+		}
+	}
+	return deduped
+}
+
 // runConcurrentBatches partitions a row range into batchSize-sized chunks
 // and dispatches them to workers goroutines. It returns the first error
 // any worker reports and cancels the shared context so in-flight batches

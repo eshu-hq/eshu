@@ -3,6 +3,7 @@ package postgres
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
 	"sort"
 	"strings"
@@ -363,7 +364,11 @@ func TestContentWriterBatchesLargeEntitySet(t *testing.T) {
 	entities := make([]content.EntityRecord, 600)
 	for i := 0; i < 600; i++ {
 		entities[i] = content.EntityRecord{
-			EntityID:   "entity-" + strings.Repeat("x", i%10),
+			// One unique entity_id per row so the batch-fan-out gate exercises
+// real batch boundaries instead of being collapsed by the dedup pass
+// in ContentWriter.Write (see deduplicateEntityRows in
+// content_writer_batch.go).
+EntityID: fmt.Sprintf("entity-%d", i),
 			Path:       "file.go",
 			EntityType: "function",
 			EntityName: "func" + strings.Repeat("x", i%10),
@@ -414,7 +419,11 @@ func TestContentWriterUsesCustomEntityBatchSize(t *testing.T) {
 	entities := make([]content.EntityRecord, 450)
 	for i := 0; i < 450; i++ {
 		entities[i] = content.EntityRecord{
-			EntityID:   "entity-" + strings.Repeat("x", i%10),
+			// One unique entity_id per row so the batch-fan-out gate exercises
+// real batch boundaries instead of being collapsed by the dedup pass
+// in ContentWriter.Write (see deduplicateEntityRows in
+// content_writer_batch.go).
+EntityID: fmt.Sprintf("entity-%d", i),
 			Path:       "file.go",
 			EntityType: "function",
 			EntityName: "func" + strings.Repeat("x", i%10),

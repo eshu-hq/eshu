@@ -88,6 +88,11 @@ func TestRunConcurrentBatchesRespectsBatchSize(t *testing.T) {
 // once an error has been observed. The projector path treats one failed
 // batch as a fatal write; a leaked goroutine writing past the failure would
 // confuse retry semantics.
+//
+// The invocation count is bounded by the chunk count (1000/50 = 20) and the
+// test asserts the bound exactly, not a "strictly fewer" claim — cancel
+// propagation is best-effort and racing it deterministically requires
+// timing assumptions the test should not encode.
 func TestRunConcurrentBatchesReportsFirstError(t *testing.T) {
 	t.Parallel()
 
@@ -111,10 +116,12 @@ func TestRunConcurrentBatchesReportsFirstError(t *testing.T) {
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("err = %v, want %v", err, sentinel)
 	}
-	// All 20 chunks (1000/50) would run sequentially; with concurrency and
-	// early cancel we expect strictly fewer invocations.
-	if got := atomic.LoadInt32(&ran); got >= 20 {
-		t.Logf("note: ran=%d invocations (cancellation is best-effort)", got)
+	got := atomic.LoadInt32(&ran)
+	if got < 1 {
+		t.Fatalf("ran = %d, want >= 1 (the failing chunk must have executed)", got)
+	}
+	if got > 20 {
+		t.Fatalf("ran = %d, want <= 20 (total chunk count for 1000 rows / 50 batch)", got)
 	}
 }
 
@@ -193,6 +200,70 @@ func TestContentWriterBatchConcurrencyEnvOverride(t *testing.T) {
 	got := writer.effectiveBatchConcurrency()
 	if got < 1 || got > contentWriterBatchConcurrencyAutoCap {
 		t.Fatalf("auto-default = %d, want in [1,%d]", got, contentWriterBatchConcurrencyAutoCap)
+	}
+}
+
+// TestDeduplicateEntityRowsKeepsLastOccurrence confirms the dedup helper
+// preserves the "later in input wins" contract that the prior serial-batch
+// path achieved via row-level lock contention. Two rows with the same
+// entity_id collapse to the second one; rows with distinct entity_ids
+// survive intact and in original order.
+func TestDeduplicateEntityRowsKeepsLastOccurrence(t *testing.T) {
+	t.Parallel()
+	rows := []preparedEntityRow{
+		{entityID: "a", entityName: "first-a"},
+		{entityID: "b", entityName: "first-b"},
+		{entityID: "a", entityName: "second-a"},
+		{entityID: "c", entityName: "only-c"},
+		{entityID: "b", entityName: "second-b"},
+	}
+	got := deduplicateEntityRows(rows)
+	want := []preparedEntityRow{
+		{entityID: "a", entityName: "second-a"},
+		{entityID: "c", entityName: "only-c"},
+		{entityID: "b", entityName: "second-b"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("dedup length = %d, want %d (rows: %v)", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i].entityID != want[i].entityID || got[i].entityName != want[i].entityName {
+			t.Fatalf("dedup[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+// TestDeduplicateEntityRowsIsNoOpWhenUnique confirms the helper returns the
+// input slice unchanged when every entity_id is already unique. The fast
+// path matters because the projector emits unique-by-construction rows in
+// the common case and we should not allocate a new slice for nothing.
+func TestDeduplicateEntityRowsIsNoOpWhenUnique(t *testing.T) {
+	t.Parallel()
+	rows := []preparedEntityRow{
+		{entityID: "a"},
+		{entityID: "b"},
+		{entityID: "c"},
+	}
+	got := deduplicateEntityRows(rows)
+	if len(got) != len(rows) {
+		t.Fatalf("unique input dedup length = %d, want %d", len(got), len(rows))
+	}
+	// Same backing array means no copy was performed.
+	if &got[0] != &rows[0] {
+		t.Fatalf("unique input was copied; expected the same backing slice")
+	}
+}
+
+// TestDeduplicateEntityRowsHandlesEmpty confirms the helper does not panic
+// or allocate for an empty input. The dedup pass runs unconditionally
+// inside ContentWriter.Write so an empty entity set must be cheap.
+func TestDeduplicateEntityRowsHandlesEmpty(t *testing.T) {
+	t.Parallel()
+	if got := deduplicateEntityRows(nil); len(got) != 0 {
+		t.Fatalf("nil input dedup length = %d, want 0", len(got))
+	}
+	if got := deduplicateEntityRows([]preparedEntityRow{}); len(got) != 0 {
+		t.Fatalf("empty input dedup length = %d, want 0", len(got))
 	}
 }
 
