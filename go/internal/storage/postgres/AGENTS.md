@@ -107,6 +107,20 @@
   copies it to `ResourceRow.Attributes`. `unknown_attributes` is a JSON array
   of dot-path strings; it becomes `ResourceRow.UnknownAttributes` so
   `classifyAttributeDrift` can skip non-literal expressions.
+  Note: `loadPriorConfigAddresses` (see below) also calls
+  `configRowFromParserEntry` to extract addresses from prior-generation
+  parser facts. The same dot-path address-space contract applies to both the
+  current-config path and the prior-config walk.
+
+- **Prior-config walk for `removed_from_config`** → edit
+  `tfstate_drift_evidence_prior_config.go`. `loadPriorConfigAddresses`
+  (`tfstate_drift_evidence_prior_config.go:45`) queries prior repo-snapshot
+  generations bounded by `PostgresDriftEvidenceLoader.PriorConfigDepth`
+  (default 10, set from `ESHU_DRIFT_PRIOR_CONFIG_DEPTH`). It returns the
+  address set that `mergeDriftRows` uses to set `PreviouslyDeclaredInConfig`
+  on state-only addresses. When changing depth semantics, also update the
+  `defaultPriorConfigDepth` constant in the same file and the
+  `parsePriorConfigDepth` helper in `go/cmd/reducer/config.go`.
 
 - **Add a new queue domain to ReducerQueue** → add the domain constant in
   `internal/reducer`; extend the `domain = $2` filter handling in
@@ -197,8 +211,13 @@
   classifier's value-equality check in
   `go/internal/correlation/drift/tfconfigstate/classify.go` compares strings
   produced by both sides; silent divergence causes false-positive or
-  false-negative attribute_drift detection without test failures in either
+  false-negative `attribute_drift` detection without test failures in either
   package alone. Add a cross-package test before changing any encoding rule.
+  The same address-space contract governs `loadPriorConfigAddresses`: it
+  calls `configRowFromParserEntry` on prior-generation facts, so the address
+  strings it produces must match what the current-config path produces. A
+  divergence silently misclassifies resources as `added_in_state` instead of
+  `removed_from_config`.
 
 ## What NOT to change without an ADR
 

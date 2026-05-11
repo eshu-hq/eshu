@@ -1,0 +1,20 @@
+{
+  "scenario": "bucket-F removed_from_config (prior-config walk)",
+  "config": {
+    "resource_type": "aws_iam_policy",
+    "resource_name": "legacy",
+    "current_generation": "absent (no longer declared in current config)",
+    "prior_generation": "declared"
+  },
+  "state": {
+    "resource_type": "aws_iam_policy",
+    "address": "aws_iam_policy.legacy",
+    "attributes": {}
+  },
+  "expected_counter_label_set": {
+    "pack": "terraform_config_state_drift",
+    "drift_kind": "removed_from_config"
+  },
+  "expected_counter_delta": 1,
+  "expected_log_keys": ["drift.kind", "drift.address", "drift.pack"]
+}

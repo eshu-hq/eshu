@@ -34,10 +34,12 @@
 // reducer's Terraform config-vs-state drift handler: the first answers
 // tfstatebackend.TerraformBackendQuery from durable parser facts so the
 // resolver can deterministically pick the latest sealed config commit owning
-// a state snapshot, and the second performs the three-step join across
-// terraform_resources, the active terraform_state_resource rows, and the
-// prior generation (skipping the prior lookup when current serial is zero).
-// Row construction is split across two sibling files:
+// a state snapshot, and the second performs the four-input join across
+// terraform_resources (config), the active terraform_state_resource rows,
+// the prior generation (skipping the prior lookup when current serial is
+// zero), and prior-config-snapshot addresses (the union of declared
+// addresses across the most recent PriorConfigDepth prior repo-snapshot
+// generations). Row construction is split across three sibling files:
 // tfstate_drift_evidence_config_row.go provides configRowFromParserEntry,
 // which maps each HCL-parser terraform_resources entry to a
 // tfconfigstate.ResourceRow by copying the flat dot-path attributes map and
@@ -45,21 +47,25 @@
 // stateRowFromCollectorPayload and flattenStateAttributes, which decode the
 // collector payload and recursively produce a flat dot-path map so singleton
 // repeated blocks (e.g. versioning, server_side_encryption_configuration)
-// produce paths that match the parser's config-side dot-path form. The
-// dot-path encoding produced by coerceJSONString and flattenStateAttributes
-// must stay byte-identical to ctyValueToDriftString in
-// go/internal/parser/hcl/terraform_resource_attributes.go; the classifier's
-// value-equality check depends on both sides agreeing at the leaf level.
-// IngestionStore.EnqueueConfigStateDriftIntents is the bootstrap Phase 3.5
-// trigger that enqueues one config_state_drift reducer intent per active
-// state_snapshot:* scope and records
+// produce paths that match the parser's config-side dot-path form;
+// tfstate_drift_evidence_prior_config.go provides loadPriorConfigAddresses,
+// which walks prior repo-snapshot generations and returns the address set
+// used by mergeDriftRows to set PreviouslyDeclaredInConfig=true on
+// state-only addresses — activating removed_from_config classification as
+// of issue #168. The dot-path encoding produced by coerceJSONString and
+// flattenStateAttributes must stay byte-identical to ctyValueToDriftString
+// in go/internal/parser/hcl/terraform_resource_attributes.go; the
+// classifier's value-equality check depends on both sides agreeing at the
+// leaf level. IngestionStore.EnqueueConfigStateDriftIntents is the bootstrap
+// Phase 3.5 trigger that enqueues one config_state_drift reducer intent per
+// active state_snapshot:* scope and records
 // eshu_dp_correlation_drift_intents_enqueued_total for enqueue-volume
 // diagnostics.
 //
-// PreviouslyDeclaredInConfig is intentionally left false in v1: proving an
-// address was once declared in config requires walking prior repo
-// generations, which is deferred. The classifier then emits added_in_state
-// for every state-only address, which is the conservative fallback. The
-// drift queries gate on jsonb_array_length > 0 so files whose parser
-// buckets are empty (the base-payload default) are not scanned.
+// State-only addresses absent from the prior-config address set keep
+// PreviouslyDeclaredInConfig=false and surface as added_in_state — the
+// conservative outside-window fallback for operator-imported resources or
+// addresses first declared beyond the depth window. The drift queries gate
+// on jsonb_array_length > 0 so files whose parser buckets are empty (the
+// base-payload default) are not scanned.
 package postgres

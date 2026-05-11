@@ -10,8 +10,11 @@
 // repo-dependency, and graph-projection-phase repair runners (plus the
 // Terraform config-vs-state drift handler wired with the
 // PostgresTerraformBackendQuery and PostgresDriftEvidenceLoader adapters;
-// the loader receives the runtime tracer so its three-query join surfaces
-// as one SpanReducerDriftEvidenceLoad span over InstrumentedDB children),
+// the loader's PriorConfigDepth field is set from ESHU_DRIFT_PRIOR_CONFIG_DEPTH
+// via parsePriorConfigDepth (default 10, 0 means use default, invalid input
+// falls back to 0 with a WARN log); the loader receives the runtime tracer
+// so its four-input join surfaces as one SpanReducerDriftEvidenceLoad span
+// over InstrumentedDB children),
 // and hosts it
 // through app.NewHostedWithStatusServer so it exposes the shared `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. NornicDB reducer

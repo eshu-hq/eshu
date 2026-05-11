@@ -29,6 +29,14 @@ before touching any file in this directory.
 - **Heartbeat renews at `LeaseDuration / 2`** — `main.go:307`
   `HeartbeatInterval: workQueue.LeaseDuration / 2`; do not set
   `ESHU_REDUCER_RETRY_DELAY` shorter than the lease TTL or claims will churn.
+- **Prior-config depth defaults to 10; invalid input WARNs and falls back** —
+  `PriorConfigDepth` is set from `parsePriorConfigDepth` at `main.go:280`.
+  Invalid input (non-integer, negative) returns `0` and emits a WARN log via
+  `slog` with `failure_class="env_parse"`. Empty input and explicit `"0"` both
+  return `0` silently — they are documented sentinels for "use default", not
+  operator errors. The loader resolves `0` (or any non-positive value) to
+  `defaultPriorConfigDepth` (10). A `0` result keeps `removed_from_config`
+  active — it does not disable it.
 - **NornicDB batch claim size is `workers` (1:1)** — `config.go:75`
   returns `workers` when `GraphBackendNornicDB` is active;
   Neo4j default is `workers × 4` capped at 64.
@@ -47,6 +55,15 @@ before touching any file in this directory.
    or `loadDurationOrDefault`.
 3. Wire the value into `buildReducerService` in `main.go`.
 4. Update this README's configuration table and the service-runtimes doc.
+
+### Change the drift prior-config depth
+
+- `PriorConfigDepth` on the loader is set via `parsePriorConfigDepth`
+  (`config.go:270`) from the `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` env var
+  (`main.go:280`). The package default lives in
+  `go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go` as
+  `defaultPriorConfigDepth` (10). When changing the default, update both the
+  constant and the README configuration table.
 
 ### Change worker count defaults
 

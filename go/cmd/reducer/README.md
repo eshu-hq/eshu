@@ -129,6 +129,12 @@ Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
 | `ESHU_GRAPH_PROJECTION_REPAIR_BATCH_LIMIT` | `100` |
 | `ESHU_GRAPH_PROJECTION_REPAIR_RETRY_DELAY` | `1m` |
 
+### Terraform drift
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` | `10` | Number of prior repo-snapshot generations the drift loader walks to detect `removed_from_config`. `0` means use the default (10). Invalid or non-positive input falls back to `0` with a structured WARN log and the env key `failure_class=env_parse`. Parsed by `parsePriorConfigDepth` in `config.go:270` and stored in `PostgresDriftEvidenceLoader.PriorConfigDepth`. |
+
 ### NornicDB knobs (narrow seam)
 
 | Variable | Purpose |

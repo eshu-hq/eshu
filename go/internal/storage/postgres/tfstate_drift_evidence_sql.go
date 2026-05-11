@@ -109,3 +109,52 @@ WHERE fact.scope_id = $1
 ORDER BY fact.observed_at DESC, fact.fact_id DESC
 LIMIT 1
 `
+
+// listPriorConfigAddressesQuery returns the terraform_resources arrays from
+// the most recent N prior repo-snapshot generations for one scope, excluding
+// the current generation. Used by the drift loader to detect addresses that
+// were previously declared in config but are absent from the latest
+// generation — the load-bearing signal that activates removed_from_config.
+//
+// The query:
+//   - filters generations with status IN ('active','superseded') so failed
+//     and in-flight generations don't pollute the prior-config set;
+//   - excludes the anchor's current generation (caller passes generation_id
+//     in $2) so a state-only address in the current gen doesn't match itself;
+//   - bounds the walk by $3 generations ordered ingested_at DESC — the most
+//     recent N. Deeper history is intentionally conservative: an address
+//     that exited config more than N generations ago surfaces as
+//     added_in_state rather than removed_from_config;
+//   - reuses the same CASE/jsonb_typeof guard as
+//     listConfigResourcesForCommitQuery against jsonb null /
+//     scalar terraform_resources values (SQLSTATE 22023 regression).
+//
+// Result shape: one row per file (per generation) with a JSONB array of
+// terraform_resources entries. The loader decodes each row and unions the
+// canonical addresses into a set.
+//
+const listPriorConfigAddressesQuery = `
+WITH prior_generations AS (
+    SELECT generation_id
+    FROM scope_generations
+    WHERE scope_id = $1
+      AND generation_id <> $2
+      AND status IN ('active', 'superseded')
+    ORDER BY ingested_at DESC
+    LIMIT $3
+)
+SELECT
+    fact.payload->'parsed_file_data'->'terraform_resources' AS terraform_resources
+FROM fact_records AS fact
+JOIN prior_generations AS pg
+  ON pg.generation_id = fact.generation_id
+WHERE fact.scope_id = $1
+  AND fact.fact_kind = 'file'
+  AND fact.source_system = 'git'
+  AND CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_resources') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_resources')
+        ELSE 0
+      END > 0
+ORDER BY pg.generation_id ASC, fact.fact_id ASC
+`

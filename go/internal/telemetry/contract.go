@@ -78,12 +78,13 @@ const (
 	SpanReducerIntentEnqueue = "reducer_intent.enqueue"
 	SpanReducerRun           = "reducer.run"
 	SpanReducerBatchClaim    = "reducer.batch_claim"
-	// SpanReducerDriftEvidenceLoad covers the three-query join the
-	// PostgresDriftEvidenceLoader performs for one config_state_drift intent
-	// (config-side parser facts, current state-snapshot resources, optional
-	// prior-generation resources). Use it to answer "is the loader slow
-	// because of the config query, the state query, or the prior-state
-	// query?" — child spans of the InstrumentedDB queries appear under it.
+	// SpanReducerDriftEvidenceLoad wraps the PostgresDriftEvidenceLoader call
+	// for one config_state_drift intent. Children spans on the InstrumentedDB
+	// surface each component query (config-side terraform_resources, active
+	// state-snapshot lookup, current and optional prior state-resources, and
+	// the prior-config-addresses walk that activates removed_from_config).
+	// Operators reading a trace can tell which of those is slow without
+	// instrumenting each call site individually.
 	SpanReducerDriftEvidenceLoad = "reducer.drift_evidence_load"
 	SpanCanonicalWrite       = "canonical.write"
 	SpanCanonicalProjection  = "canonical.projection"
@@ -134,6 +135,28 @@ const (
 	LogKeyAcceptanceSourceRunID  = "acceptance.source_run_id"
 	LogKeyAcceptanceGenerationID = "acceptance.generation_id"
 	LogKeyAcceptanceStaleCount   = "acceptance.stale_count"
+
+	// LogKeyDriftPriorConfigDepth is the effective prior-config-walk depth
+	// bound applied when scanning prior repo-snapshot generations for
+	// removed_from_config evidence. Emitted by the drift evidence loader so
+	// operators can confirm the ESHU_DRIFT_PRIOR_CONFIG_DEPTH knob took effect.
+	LogKeyDriftPriorConfigDepth = "depth"
+	// LogKeyDriftPriorConfigAddresses is the count of unique resource addresses
+	// found across all prior-config-snapshot generations within the depth window.
+	// A lower-than-expected count here is the first signal that the window is
+	// too narrow to catch a removal.
+	LogKeyDriftPriorConfigAddresses = "prior_config_addresses"
+	// LogKeyDriftStateOnlyAddresses is the count of addresses present in state
+	// but absent from the current config snapshot. Includes both
+	// removed_from_config candidates (promoted) and plain added_in_state
+	// addresses (outside the depth window).
+	LogKeyDriftStateOnlyAddresses = "state_only_addresses"
+	// LogKeyDriftAddressesPromoted is the count of state-only addresses that
+	// were found in the prior-config set and promoted to
+	// PreviouslyDeclaredInConfig=true, enabling the classifier to emit
+	// removed_from_config. The wire key intentionally matches the classifier
+	// kind label so log lines and metric labels share the same terminology.
+	LogKeyDriftAddressesPromoted = "addresses_promoted_to_removed_from_config"
 )
 
 var metricDimensionKeys = []string{
@@ -217,6 +240,10 @@ var logKeys = []string{
 	LogKeyAcceptanceSourceRunID,
 	LogKeyAcceptanceGenerationID,
 	LogKeyAcceptanceStaleCount,
+	LogKeyDriftPriorConfigDepth,
+	LogKeyDriftPriorConfigAddresses,
+	LogKeyDriftStateOnlyAddresses,
+	LogKeyDriftAddressesPromoted,
 }
 
 // MetricDimensionKeys returns the frozen ordered metric dimensions.

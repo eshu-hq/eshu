@@ -27,6 +27,8 @@
 --     hash=6ef42db5dda508cb600e123a97ef2e128947bd582afac01e2e64a19dddf7ce4e
 --   bucket=eshu-drift-e/prod/terraform.tfstate
 --     hash=22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123
+--   bucket=eshu-drift-f/prod/terraform.tfstate
+--     hash=0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2
 -- ============================================================================
 --
 -- Scenarios and drift kinds (issue #166 in-scope set only):
@@ -44,15 +46,17 @@
 --                                       config SSE algorithm AES256, state aws:kms.
 --                                       Exercises the deepest nested allowlist
 --                                       path end-to-end.)
---
--- removed_from_config is dormant in v1 (loader leaves
--- PreviouslyDeclaredInConfig=false). Tracked separately by issue #168.
+--   bucket F → removed_from_config     (state has aws_iam_policy.legacy;
+--                                      current repo generation does not
+--                                      declare it; prior (superseded) repo
+--                                      generation did. Exercises the
+--                                      prior-config walk end-to-end.)
 
 BEGIN;
 
 -- ----------------------------------------------------------------------------
 -- 1. ingestion_scopes: one repo_snapshot scope per config-side repo
---    plus one state_snapshot scope per backend (A, B, C, D, E).
+--    plus one state_snapshot scope per backend (A, B, C, D, E, F).
 -- ----------------------------------------------------------------------------
 
 INSERT INTO ingestion_scopes (
@@ -624,6 +628,206 @@ INSERT INTO fact_records (
                 )
             )
         )
+    )
+)
+ON CONFLICT (fact_id) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Bucket F: removed_from_config — aws_iam_policy.legacy is present in state
+-- and in the prior (superseded) repo generation but absent from the current
+-- (active) repo generation. The prior-config walk
+-- (listPriorConfigAddressesQuery) finds the address in the superseded
+-- generation and sets PreviouslyDeclaredInConfig=true so the classifier emits
+-- removed_from_config rather than added_in_state.
+--
+-- Two repo-snapshot generations share the same scope_id:
+--   gen:repo:drift-tfstate-removed-from-config-2  status=active  (current)
+--   gen:repo:drift-tfstate-removed-from-config-1  status=superseded (prior)
+--
+-- The prior (superseded) generation has an earlier ingested_at than the
+-- active one, so the ORDER BY ingested_at DESC LIMIT N walk in
+-- listPriorConfigAddressesQuery (after excluding the current generation_id
+-- via $2) returns the prior generation when iterating newest-to-oldest. The active
+-- ingestion_scopes row points at generation-2, so the canonical backend query
+-- resolves to generation-2 (which has the backend block but no
+-- aws_iam_policy.legacy resource).
+-- ----------------------------------------------------------------------------
+
+-- 1. ingestion_scopes: one repo_snapshot + one state_snapshot for bucket F.
+INSERT INTO ingestion_scopes (
+    scope_id, scope_kind, source_system, source_key, collector_kind,
+    partition_key, observed_at, ingested_at, status, active_generation_id
+) VALUES
+    ('repo_snapshot:drift-tfstate-removed-from-config',
+     'repo_snapshot', 'git', 'drift-tfstate-removed-from-config', 'git',
+     'drift-tfstate-removed-from-config',
+     '2026-05-11T00:00:01Z', '2026-05-11T00:00:01Z',
+     'active', 'gen:repo:drift-tfstate-removed-from-config-2'),
+
+    ('state_snapshot:s3:0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2',
+     'state_snapshot', 'terraform_state', 'aws-s3:eshu-drift-f',
+     'terraform_state', 'aws-s3:eshu-drift-f',
+     '2026-05-11T00:00:01Z', '2026-05-11T00:00:01Z',
+     'active', 'gen:state:removed-from-config')
+ON CONFLICT (scope_id) DO NOTHING;
+
+-- 2. scope_generations: current (active) + prior (superseded) for the repo
+--    scope, plus one active generation for the state scope.
+--    The prior repo generation MUST have an earlier ingested_at than the
+--    current generation so that listPriorConfigAddressesQuery's
+--    ORDER BY ingested_at DESC places the prior generation in the walk window.
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, freshness_hint, observed_at,
+    ingested_at, status, activated_at
+) VALUES
+    -- Current repo generation: active, ingested after the prior one.
+    ('gen:repo:drift-tfstate-removed-from-config-2',
+     'repo_snapshot:drift-tfstate-removed-from-config',
+     'commit', NULL,
+     '2026-05-11T00:00:01Z', '2026-05-11T00:00:01Z',
+     'active', '2026-05-11T00:00:01Z'),
+
+    -- Prior repo generation: superseded, ingested before the current one.
+    -- The earlier ingested_at is load-bearing: the prior-config walk
+    -- orders by ingested_at DESC and the current generation_id is excluded
+    -- ($2 filter), so this row is first in the walk result.
+    ('gen:repo:drift-tfstate-removed-from-config-1',
+     'repo_snapshot:drift-tfstate-removed-from-config',
+     'commit', NULL,
+     '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
+     'superseded', '2026-05-11T00:00:01Z'),
+
+    -- State generation: active, serial=1.
+    ('gen:state:removed-from-config',
+     'state_snapshot:s3:0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2',
+     'state_snapshot', 'lineage=lineage-F;serial=1',
+     '2026-05-11T00:00:01Z', '2026-05-11T00:00:01Z',
+     'active', '2026-05-11T00:00:01Z')
+ON CONFLICT (generation_id) DO NOTHING;
+
+-- 3. fact_records — config-side file facts for both repo generations.
+--    Current generation (gen-2): has the backend block but NO
+--    aws_iam_policy.legacy resource. An unrelated resource
+--    (aws_s3_bucket.unrelated) is present to prove the file was indexed.
+--    Side effect: aws_s3_bucket.unrelated is config-only and produces an
+--    added_in_config drift event. The verify script's counter assertion
+--    uses delta>=1 so bucket-F contributes one removed_from_config and one
+--    added_in_config; the bucket-B added_in_config still fires too, bringing
+--    the total to delta=2 for added_in_config across the run.
+--    Prior generation (gen-1): has the same backend block AND
+--    aws_iam_policy.legacy, which is the address the prior-config walk must
+--    find to promote it to removed_from_config.
+
+-- Current repo generation — no aws_iam_policy.legacy.
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    schema_version, collector_kind, source_system, source_fact_key,
+    observed_at, ingested_at, payload
+) VALUES (
+    'fact:drift-removed-from-config:current:main.tf',
+    'repo_snapshot:drift-tfstate-removed-from-config',
+    'gen:repo:drift-tfstate-removed-from-config-2',
+    'file', 'drift-tfstate-removed-from-config:main.tf',
+    '1.0.0', 'git', 'git', 'drift-tfstate-removed-from-config:main.tf',
+    '2026-05-11T00:00:01Z', '2026-05-11T00:00:01Z',
+    jsonb_build_object(
+        'repo_id', 'drift-tfstate-removed-from-config',
+        'relative_path', 'main.tf',
+        'parsed_file_data', jsonb_build_object(
+            'terraform_backends', jsonb_build_array(jsonb_build_object(
+                'backend_kind', 's3',
+                'bucket', 'eshu-drift-f',
+                'bucket_is_literal', true,
+                'key', 'prod/terraform.tfstate',
+                'key_is_literal', true,
+                'region', 'us-east-1',
+                'region_is_literal', true
+            )),
+            'terraform_resources', jsonb_build_array(jsonb_build_object(
+                'resource_type', 'aws_s3_bucket',
+                'resource_name', 'unrelated'
+            ))
+        )
+    )
+)
+ON CONFLICT (fact_id) DO NOTHING;
+
+-- Prior repo generation — declares aws_iam_policy.legacy.
+-- The same backend block is required so both generations share the backend
+-- identity; the locator hash is identical because bucket+key are unchanged.
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    schema_version, collector_kind, source_system, source_fact_key,
+    observed_at, ingested_at, payload
+) VALUES (
+    'fact:drift-removed-from-config:prior:main.tf',
+    'repo_snapshot:drift-tfstate-removed-from-config',
+    'gen:repo:drift-tfstate-removed-from-config-1',
+    'file', 'drift-tfstate-removed-from-config:prior:main.tf',
+    '1.0.0', 'git', 'git', 'drift-tfstate-removed-from-config:prior:main.tf',
+    '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
+    jsonb_build_object(
+        'repo_id', 'drift-tfstate-removed-from-config',
+        'relative_path', 'main.tf',
+        'parsed_file_data', jsonb_build_object(
+            'terraform_backends', jsonb_build_array(jsonb_build_object(
+                'backend_kind', 's3',
+                'bucket', 'eshu-drift-f',
+                'bucket_is_literal', true,
+                'key', 'prod/terraform.tfstate',
+                'key_is_literal', true,
+                'region', 'us-east-1',
+                'region_is_literal', true
+            )),
+            'terraform_resources', jsonb_build_array(jsonb_build_object(
+                'resource_type', 'aws_iam_policy',
+                'resource_name', 'legacy'
+            ))
+        )
+    )
+)
+ON CONFLICT (fact_id) DO NOTHING;
+
+-- 4. fact_records — state-side terraform_state_snapshot fact for bucket F.
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    schema_version, collector_kind, source_system, source_fact_key,
+    observed_at, ingested_at, payload
+) VALUES (
+    'fact:snapshot:removed-from-config',
+    'state_snapshot:s3:0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2',
+    'gen:state:removed-from-config',
+    'terraform_state_snapshot', 'snapshot:0631b2ff',
+    '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:0631b2ff',
+    '2026-05-11T00:00:01Z', '2026-05-11T00:00:01Z',
+    jsonb_build_object(
+        'lineage', 'lineage-F',
+        'serial', 1,
+        'backend_kind', 's3',
+        'locator_hash', '0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2'
+    )
+)
+ON CONFLICT (fact_id) DO NOTHING;
+
+-- 5. fact_records — state-side terraform_state_resource fact for bucket F.
+--    State carries aws_iam_policy.legacy; the current config generation does
+--    not — the prior-config walk is the only signal that the address was
+--    previously managed.
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    schema_version, collector_kind, source_system, source_fact_key,
+    observed_at, ingested_at, payload
+) VALUES (
+    'fact:resource:removed-from-config:legacy',
+    'state_snapshot:s3:0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2',
+    'gen:state:removed-from-config',
+    'terraform_state_resource', 'resource:removed-from-config:legacy',
+    '1.0.0', 'terraform_state', 'terraform_state', 'resource:removed-from-config:legacy',
+    '2026-05-11T00:00:01Z', '2026-05-11T00:00:01Z',
+    jsonb_build_object(
+        'address', 'aws_iam_policy.legacy',
+        'type', 'aws_iam_policy',
+        'attributes', jsonb_build_object()
     )
 )
 ON CONFLICT (fact_id) DO NOTHING;

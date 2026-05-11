@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"log/slog"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -374,5 +377,81 @@ func TestLoadCodeCallEdgeWriterTuningDefaultsToMeasuredLargeRepoBatch(t *testing
 	}
 	if got, want := groupBatchSize, defaultCodeCallEdgeGroupBatchSize; got != want {
 		t.Fatalf("groupBatchSize = %d, want %d", got, want)
+	}
+}
+
+func TestParsePriorConfigDepth(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		raw  string
+		want int
+	}{
+		{name: "empty returns zero (loader uses default)", raw: "", want: 0},
+		{name: "whitespace-only returns zero", raw: "   ", want: 0},
+		{name: "valid positive integer", raw: "5", want: 5},
+		{name: "default value passes through explicitly", raw: "10", want: 10},
+		{name: "whitespace trimmed around integer", raw: "  20  ", want: 20},
+		{name: "non-numeric returns zero", raw: "abc", want: 0},
+		{name: "negative returns zero", raw: "-3", want: 0},
+		{name: "zero returns zero (explicit use-default sentinel)", raw: "0", want: 0},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := parsePriorConfigDepth(tc.raw, nil)
+			if got != tc.want {
+				t.Fatalf("parsePriorConfigDepth(%q, nil) = %d, want %d", tc.raw, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestParsePriorConfigDepthWarnsOnInvalidValue(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	got := parsePriorConfigDepth("abc", logger)
+	if got != 0 {
+		t.Fatalf("parsePriorConfigDepth(%q, logger) = %d, want 0", "abc", got)
+	}
+	output := buf.String()
+	if !strings.Contains(output, `"raw":"abc"`) {
+		t.Fatalf("log output missing raw value: %s", output)
+	}
+	if !strings.Contains(output, `"failure_class":"env_parse"`) {
+		t.Fatalf("log output missing failure_class: %s", output)
+	}
+}
+
+func TestParsePriorConfigDepthNilLoggerDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("parsePriorConfigDepth(invalid, nil) panicked: %v", r)
+		}
+	}()
+
+	if got := parsePriorConfigDepth("abc", nil); got != 0 {
+		t.Fatalf("got = %d, want 0", got)
+	}
+}
+
+func TestParsePriorConfigDepthZeroDoesNotWarn(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	got := parsePriorConfigDepth("0", logger)
+	if got != 0 {
+		t.Fatalf("parsePriorConfigDepth(\"0\", logger) = %d, want 0", got)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("expected no WARN log for \"0\" (documented use-default sentinel); got: %s", buf.String())
 	}
 }

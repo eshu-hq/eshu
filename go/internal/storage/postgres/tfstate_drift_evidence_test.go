@@ -87,6 +87,8 @@ func TestPostgresDriftEvidenceLoaderConfigOnlyAddress(t *testing.T) {
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 0, "gen-state-current")}},
 			// 3. current state-resource rows: none.
 			{rows: [][]any{}},
+			// No prior-config walk: state is empty, so hasStateOnlyAddress returns
+			// false and the DB round-trip is skipped.
 		},
 	}
 	loader := PostgresDriftEvidenceLoader{DB: db}
@@ -115,9 +117,11 @@ func TestPostgresDriftEvidenceLoaderConfigOnlyAddress(t *testing.T) {
 		t.Fatalf("row.Prior = %#v, want nil", row.Prior)
 	}
 
-	// Serial=0 short-circuit: only 3 queries must run (no prior lookup).
+	// Serial=0 short-circuits prior-state lookup. State is empty so
+	// hasStateOnlyAddress returns false and prior-config walk is skipped too.
+	// Total: config + snapshot + state-resources = 3 queries.
 	if got, want := len(db.queries), 3; got != want {
-		t.Fatalf("query count = %d, want %d (serial=0 must skip prior)", got, want)
+		t.Fatalf("query count = %d, want %d", got, want)
 	}
 }
 
@@ -144,6 +148,8 @@ func TestPostgresDriftEvidenceLoaderStateOnlyAddress(t *testing.T) {
 				"aws_s3_bucket.logs",
 				fixtureStatePayload("aws_s3_bucket.logs", "aws_s3_bucket", "logs", `{}`),
 			)}},
+			// 4. NEW: prior-config walk — returns no rows for this test's scenario.
+			{rows: [][]any{}},
 		},
 	}
 	loader := PostgresDriftEvidenceLoader{DB: db}
@@ -195,6 +201,8 @@ func TestPostgresDriftEvidenceLoaderPriorGenerationFetched(t *testing.T) {
 				"aws_lambda_function.worker",
 				fixtureStatePayload("aws_lambda_function.worker", "aws_lambda_function", "worker", `{}`),
 			)}},
+			// No prior-config walk: current state is empty, so hasStateOnlyAddress
+			// returns false and the DB round-trip is skipped.
 		},
 	}
 	loader := PostgresDriftEvidenceLoader{DB: db}
@@ -215,6 +223,7 @@ func TestPostgresDriftEvidenceLoaderPriorGenerationFetched(t *testing.T) {
 	}
 
 	// Five queries total: config + snapshot + current-state + prior-snapshot + prior-state.
+	// Prior-config walk is skipped because current state is empty (no state-only addresses).
 	if got, want := len(db.queries), 5; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
@@ -246,6 +255,8 @@ func TestPostgresDriftEvidenceLoaderLineageRotationFlagged(t *testing.T) {
 				"aws_lambda_function.worker",
 				fixtureStatePayload("aws_lambda_function.worker", "aws_lambda_function", "worker", `{}`),
 			)}},
+			// No prior-config walk: current state is empty, so hasStateOnlyAddress
+			// returns false and the DB round-trip is skipped.
 		},
 	}
 	loader := PostgresDriftEvidenceLoader{DB: db}
@@ -268,13 +279,11 @@ func TestPostgresDriftEvidenceLoaderLineageRotationFlagged(t *testing.T) {
 func TestPostgresDriftEvidenceLoaderStateOnlyWithPriorLeavesFlagFalse(t *testing.T) {
 	t.Parallel()
 
-	// State has an address that the prior generation also had (e.g. a
-	// resource that was operator-imported into state and persists across
-	// generations). v1 deliberately leaves PreviouslyDeclaredInConfig=false
-	// so the classifier emits added_in_state — the safer fallback for cases
-	// where we cannot cheaply prove the address was once in config.
-	// Setting the flag from prior-state existence (the previous behavior)
-	// would misclassify operator-imported resources as removed_from_config.
+	// State has an address that the prior STATE generation also had (operator-
+	// imported resource that persists across generations) but no prior CONFIG
+	// generation declared it. The classifier must emit added_in_state — the
+	// conservative outside-window fallback for resources that were imported
+	// into state without ever being managed in config.
 	anchor := tfstatebackend.CommitAnchor{
 		RepoID:      "repo-a",
 		ScopeID:     "repository:repo-a",
@@ -302,6 +311,8 @@ func TestPostgresDriftEvidenceLoaderStateOnlyWithPriorLeavesFlagFalse(t *testing
 				"aws_iam_role.imported",
 				fixtureStatePayload("aws_iam_role.imported", "aws_iam_role", "imported", `{}`),
 			)}},
+			// 6. NEW: prior-config walk — returns no rows (address never declared anywhere).
+			{rows: [][]any{}},
 		},
 	}
 	loader := PostgresDriftEvidenceLoader{DB: db}
@@ -317,7 +328,7 @@ func TestPostgresDriftEvidenceLoaderStateOnlyWithPriorLeavesFlagFalse(t *testing
 		t.Fatalf("row.State = nil, want non-nil")
 	}
 	if rows[0].State.PreviouslyDeclaredInConfig {
-		t.Fatalf("row.State.PreviouslyDeclaredInConfig = true, want false (v1 conservative fallback; see mergeDriftRows comment)")
+		t.Fatalf("row.State.PreviouslyDeclaredInConfig = true, want false (outside-window or never-declared fallback)")
 	}
 }
 

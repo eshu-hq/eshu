@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"log/slog"
 	"runtime"
 	"strconv"
 	"strings"
@@ -9,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
@@ -38,6 +41,8 @@ const (
 	graphProjectionRepairPollIntervalEnv = "ESHU_GRAPH_PROJECTION_REPAIR_POLL_INTERVAL"
 	graphProjectionRepairBatchLimitEnv   = "ESHU_GRAPH_PROJECTION_REPAIR_BATCH_LIMIT"
 	graphProjectionRepairRetryDelayEnv   = "ESHU_GRAPH_PROJECTION_REPAIR_RETRY_DELAY"
+
+	driftPriorConfigDepthEnv = "ESHU_DRIFT_PRIOR_CONFIG_DEPTH"
 
 	defaultCodeCallProjectionPollInterval        = 500 * time.Millisecond
 	defaultCodeCallProjectionLeaseTTL            = 60 * time.Second
@@ -255,4 +260,29 @@ func loadPositiveIntOrDefault(getenv func(string) string, key string, defaultVal
 		return defaultValue
 	}
 	return value
+}
+
+// parsePriorConfigDepth converts the ESHU_DRIFT_PRIOR_CONFIG_DEPTH env value
+// into the loader's bound. Empty input and explicit "0" both return 0 (the
+// loader interprets 0 as "use defaultPriorConfigDepth", currently 10).
+// Negative or non-integer values emit a WARN log and also fall back to 0 so
+// a typo cannot disable drift detection — operator error is observable but
+// non-fatal.
+func parsePriorConfigDepth(raw string, logger *slog.Logger) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 {
+		if logger != nil {
+			logger.LogAttrs(context.Background(), slog.LevelWarn,
+				"invalid ESHU_DRIFT_PRIOR_CONFIG_DEPTH; falling back to default",
+				slog.String("raw", raw),
+				slog.String(telemetry.LogKeyFailureClass, "env_parse"),
+			)
+		}
+		return 0
+	}
+	return n
 }

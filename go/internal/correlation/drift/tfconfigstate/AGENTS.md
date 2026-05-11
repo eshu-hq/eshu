@@ -32,6 +32,16 @@ Guidance for LLM assistants editing this package.
   (`go/internal/storage/postgres/tfstate_drift_evidence_config_row.go:22`).
   The state side uses `flattenStateAttributes` with the same dot-path rules
   (`go/internal/storage/postgres/tfstate_drift_evidence_state_row.go:71`).
+- `removed_from_config` is active end-to-end as of issue #168. State-only
+  addresses present in the prior-config snapshot (returned by
+  PostgresDriftEvidenceLoader.loadPriorConfigAddresses in
+  `go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go:45`)
+  get `ResourceRow.State.PreviouslyDeclaredInConfig=true`; the classifier
+  emits `DriftKindRemovedFromConfig` for them (`classify.go`). Operator-imported
+  addresses — never declared in any prior generation within the depth window
+  (default 10, configurable via the env var ESHU_DRIFT_PRIOR_CONFIG_DEPTH in
+  `go/cmd/reducer/config.go:270`) — keep the flag false and surface as
+  `added_in_state`, the conservative outside-window fallback.
 - `LineageRotation` on a prior row short-circuits the dispatcher
   (`classify.go:73`).
 - High-cardinality values (addresses, attribute paths, module paths)

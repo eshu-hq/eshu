@@ -15,7 +15,7 @@ import (
 )
 
 // PostgresDriftEvidenceLoader builds the per-address join the drift handler
-// classifier consumes. It pulls three logical inputs from durable facts:
+// classifier consumes. It pulls four logical inputs from durable facts:
 //
 //  1. Config-side parsed-HCL terraform_resources from the resolved
 //     anchor.ScopeID + anchor.CommitID.
@@ -23,12 +23,15 @@ import (
 //  3. Prior-generation terraform_state_resource rows when the current
 //     snapshot has serial > 0; the prior generation enables
 //     removed_from_state classification.
+//  4. Prior-config-snapshot addresses (the union of resource addresses
+//     declared in the most recent PriorConfigDepth prior repo-snapshot
+//     generations) that activates removed_from_config classification.
 //
-// The loader emits one AddressedRow per address present in any of the three
+// The loader emits one AddressedRow per address present in any of the four
 // inputs. Per the AddressedRow contract the loader MAY omit aligned
-// addresses, but for v1 it emits the union; the classifier already filters
+// addresses, but for now it emits the union; the classifier already filters
 // non-drifted candidates. Trading the union for a pre-filter would duplicate
-// classify.go's dispatch order — not worth the bug surface for v1.
+// classify.go's dispatch order — not worth the bug surface.
 //
 // Attribute drift is active end-to-end as of PR #167. The HCL parser
 // recursively walks resource blocks and emits a flat dot-path attributes
@@ -41,16 +44,15 @@ import (
 // in their leaf-value encoding — see the coerceJSONString doc comment for the
 // per-type contract and the float64 scientific-notation hazard.
 //
-// removed_from_config detection is also dormant in v1: the loader cannot
-// cheaply prove that a state-only address was once declared in a prior
-// config snapshot (requires walking prior repo generations for the joined
-// repo). Per the design, the safer fallback is to leave
-// ResourceRow.PreviouslyDeclaredInConfig false; the classifier then emits
-// added_in_state for every state-only address, including genuine
-// removed_from_config cases. Operators still see the drift via
-// added_in_state; misclassification of operator-imported resources as
-// removed_from_config is avoided. A follow-up parser+loader pass will
-// activate removed_from_config without changing the classifier.
+// removed_from_config is active as of issue #168. loadPriorConfigAddresses
+// (tfstate_drift_evidence_prior_config.go) walks the most recent
+// PriorConfigDepth (default 10, configurable via
+// ESHU_DRIFT_PRIOR_CONFIG_DEPTH) repo-snapshot generations and unions every
+// declared address. mergeDriftRows promotes state-only addresses present in
+// that set to PreviouslyDeclaredInConfig=true; the classifier emits
+// removed_from_config for them. Operator-imported addresses (never declared
+// in any prior generation within the depth window) stay outside the set and
+// surface as added_in_state — the conservative outside-window fallback.
 type PostgresDriftEvidenceLoader struct {
 	DB Queryer
 	// Tracer wraps LoadDriftEvidence in a single span so operators can
@@ -63,10 +65,18 @@ type PostgresDriftEvidenceLoader struct {
 	// upstream; the loader skips the row to keep the join bounded, but the
 	// log line is the operator-visible signal. Optional; nil drops logs.
 	Logger *slog.Logger
+	// PriorConfigDepth bounds the prior-generation walk that activates
+	// removed_from_config (see tfstate_drift_evidence_prior_config.go).
+	// Non-positive values (zero or negative) mean "use the package default"
+	// (defaultPriorConfigDepth = 10). Set from ESHU_DRIFT_PRIOR_CONFIG_DEPTH
+	// at construction time (cmd/reducer/main.go); parsePriorConfigDepth maps
+	// invalid env input to 0, which the loader then resolves to the default.
+	// Tests set this field directly.
+	PriorConfigDepth int
 }
 
 // LoadDriftEvidence implements reducer.DriftEvidenceLoader. The method
-// returns one AddressedRow per address present in any of the three inputs;
+// returns one AddressedRow per address present in any of the four inputs;
 // aligned addresses pass through and are filtered out downstream by the
 // classifier rather than re-doing the classifier's dispatch order here.
 //
@@ -139,7 +149,17 @@ func (l PostgresDriftEvidenceLoader) LoadDriftEvidence(
 		}
 	}
 
-	return mergeDriftRows(configByAddress, stateByAddress, priorByAddress), nil
+	var priorConfigAddresses map[string]struct{}
+	if hasStateOnlyAddress(configByAddress, stateByAddress) {
+		priorConfigAddresses, err = l.loadPriorConfigAddresses(ctx, configScopeID, configGenerationID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	merged := mergeDriftRows(configByAddress, stateByAddress, priorByAddress, priorConfigAddresses)
+	l.logPriorConfigWalk(ctx, configScopeID, configGenerationID, priorConfigAddresses, merged)
+	return merged, nil
 }
 
 // snapshotMetadata captures the lineage/serial/generation_id of one
@@ -292,24 +312,73 @@ func (l PostgresDriftEvidenceLoader) logDecodeFailure(ctx context.Context, scope
 	)
 }
 
+// logPriorConfigWalk emits one INFO log per drift intent summarizing the
+// prior-config walk that powers removed_from_config detection. Cardinality is
+// per-intent (low); address-level detail stays out of metric labels per
+// CLAUDE.md observability rules. Optional; nil logger drops the line.
+func (l PostgresDriftEvidenceLoader) logPriorConfigWalk(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	priorConfig map[string]struct{},
+	merged []tfconfigstate.AddressedRow,
+) {
+	if l.Logger == nil {
+		return
+	}
+	stateOnly := 0
+	promoted := 0
+	for _, row := range merged {
+		if row.Config == nil && row.State != nil {
+			stateOnly++
+			if row.State.PreviouslyDeclaredInConfig {
+				promoted++
+			}
+		}
+	}
+	l.Logger.LogAttrs(ctx, slog.LevelInfo, "drift evidence loader walked prior config generations",
+		slog.String(telemetry.LogKeyScopeID, scopeID),
+		slog.String(telemetry.LogKeyGenerationID, generationID),
+		slog.Int(telemetry.LogKeyDriftPriorConfigDepth, l.effectivePriorConfigDepth()),
+		slog.Int(telemetry.LogKeyDriftPriorConfigAddresses, len(priorConfig)),
+		slog.Int(telemetry.LogKeyDriftStateOnlyAddresses, stateOnly),
+		slog.Int(telemetry.LogKeyDriftAddressesPromoted, promoted),
+	)
+}
+
+// hasStateOnlyAddress reports whether the join has at least one address present
+// in state but absent from config. The prior-config walk can only promote
+// state-only addresses to PreviouslyDeclaredInConfig=true; when no such
+// address exists, the walk's DB round-trip and per-intent log are wasted work.
+// Short-circuiting here keeps the loader's hot path cheap on the common case
+// where every state resource also appears in config (aligned snapshots, no
+// removed_from_config candidates).
+func hasStateOnlyAddress(
+	config, state map[string]*tfconfigstate.ResourceRow,
+) bool {
+	for address := range state {
+		if _, inConfig := config[address]; !inConfig {
+			return true
+		}
+	}
+	return false
+}
+
 // mergeDriftRows unions the address keyspaces of config, state, and prior and
 // emits one AddressedRow per address that appears in any source. Aligned
 // addresses (config and state both present with identical Attributes, no
 // prior signal) pass through; classify.go returns the empty string for them
 // and tfconfigstate.BuildCandidates drops them before they reach the engine.
 //
-// PreviouslyDeclaredInConfig is intentionally LEFT FALSE in v1. The classifier
-// uses that flag to distinguish removed_from_config from added_in_state for
-// state-only addresses. Setting it from prior-state existence (the available
-// proxy) would misclassify operator-imported resources — which exist in
-// state across many generations without ever being declared in config — as
-// removed_from_config. The safer fallback is to let the classifier emit
-// added_in_state for every state-only address; removed_from_config remains
-// dormant until a future loader pass can walk prior-config-snapshot evidence
-// to prove the address was once declared. Operators still see the drift,
-// just under a more conservative label.
+// PreviouslyDeclaredInConfig is set to true on state-only addresses present
+// in priorConfigAddresses (the set returned by loadPriorConfigAddresses).
+// State-only addresses absent from that set keep PreviouslyDeclaredInConfig
+// false and surface as added_in_state — the conservative outside-window
+// fallback for operator-imported resources that were never in config or
+// whose declaration falls outside the PriorConfigDepth window.
 func mergeDriftRows(
 	config, state, prior map[string]*tfconfigstate.ResourceRow,
+	priorConfigAddresses map[string]struct{},
 ) []tfconfigstate.AddressedRow {
 	addresses := map[string]struct{}{}
 	for address := range config {
@@ -337,6 +406,11 @@ func mergeDriftRows(
 			resourceType = st.ResourceType
 		case pr != nil:
 			resourceType = pr.ResourceType
+		}
+		if cfg == nil && st != nil {
+			if _, declared := priorConfigAddresses[address]; declared {
+				st.PreviouslyDeclaredInConfig = true
+			}
 		}
 		out = append(out, tfconfigstate.AddressedRow{
 			Address:      address,

@@ -310,12 +310,15 @@ mutation is rejected because the current owner no longer holds the lease.
 - `PostgresTerraformBackendQuery` (`tfstate_backend_canonical.go:68`) — answers
   `tfstatebackend.TerraformBackendQuery` from durable parser facts; recomputes
   each row's locator hash with `terraformstate.LocatorHash`.
-- `PostgresDriftEvidenceLoader` (`tfstate_drift_evidence.go:51`) — builds the
-  per-address `tfconfigstate.AddressedRow` slice from config + state + prior
-  generation facts; skips the prior lookup when current serial is zero. The
-  config and backend queries gate on `jsonb_array_length > 0` so files with
-  empty parser buckets are not decoded. Row construction is split across two
-  sibling files:
+- `PostgresDriftEvidenceLoader` (`tfstate_drift_evidence.go:56`) — builds the
+  per-address `tfconfigstate.AddressedRow` slice from four logical inputs:
+  config facts, active state facts, prior-generation state facts (skipped when
+  current serial is zero), and prior-config-snapshot addresses. The config and
+  backend queries gate on `jsonb_array_length > 0` so files with empty parser
+  buckets are not decoded. `PriorConfigDepth` (default 10, set from
+  `ESHU_DRIFT_PRIOR_CONFIG_DEPTH`) controls how many prior repo-snapshot
+  generations the prior-config walk covers. Row construction is split across
+  three sibling files:
   - `configRowFromParserEntry` (`tfstate_drift_evidence_config_row.go:22`) —
     maps one HCL-parser `terraform_resources` JSON entry to a
     `tfconfigstate.ResourceRow`; copies the flat dot-path `attributes` map and
@@ -330,6 +333,15 @@ mutation is rejected because the current owner no longer holds the lease.
     The dot-path encoding MUST stay byte-identical to `ctyValueToDriftString`
     in `go/internal/parser/hcl/terraform_resource_attributes.go` so the
     classifier's value-equality check fires deterministically.
+  - `loadPriorConfigAddresses` (`tfstate_drift_evidence_prior_config.go:45`)
+    — walks the most recent `PriorConfigDepth` prior repo-snapshot generations
+    for the config scope and returns the union of all declared resource
+    addresses. `mergeDriftRows` sets `PreviouslyDeclaredInConfig=true` on
+    state-only addresses present in this set, activating `removed_from_config`
+    classification as of issue #168. Addresses outside the depth window keep
+    `PreviouslyDeclaredInConfig=false` and surface as `added_in_state`. The
+    walk is bounded by `listPriorConfigAddressesQuery`'s `LIMIT` so cost
+    stays proportional to depth.
 - `IngestionStore.EnqueueConfigStateDriftIntents` (`drift_enqueue.go:55`) —
   Phase 3.5 trigger that enqueues one `config_state_drift` reducer intent per
   active `state_snapshot:*` scope after bootstrap Phase 3 finishes. It records
