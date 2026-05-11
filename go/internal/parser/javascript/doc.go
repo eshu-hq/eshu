@@ -7,6 +7,7 @@
 // JavaScript and TypeScript dead-code helpers live in this package so root
 // modeling stays close to import, export, CommonJS default-export class, Hapi,
 // framework-route, TypeScript public-surface, and nearest-package evidence.
+// CommonJS class-method roots are limited to the exported class expression.
 // Declaration public-surface walks are static, repository-bounded, and
 // depth-capped. Shared helper aliases are kept local to the helpers that still
 // need them. Callers provide a ParserFactory so runtime grammar caching stays in

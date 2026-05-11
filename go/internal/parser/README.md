@@ -64,7 +64,8 @@ handler reference, Next.js app or route export,
 Express/Koa/Fastify/NestJS callback root, Node migration export, TypeScript
 module-contract export, TypeScript public method on a class that declares
 `implements`, or TypeScript package public API surface proven through a
-nearest-package `exports` or `types` target and a static one-hop re-export.
+nearest-package `exports` or `types` target and bounded static re-export
+barrels.
 Java adapters mark `main` methods, constructors, `@Override` methods, public
 Ant `Task` setters, Gradle plugin `apply` methods, Gradle task actions and
 properties, Gradle task setters and task-interface methods, public Gradle DSL
@@ -418,10 +419,10 @@ errors are surfaced in `collector snapshot stage completed` logs with
   treating every same-named overload as live.
   JavaScript-family import metadata preserves namespace aliases, JSONC
   tsconfig `baseUrl` and `paths` resolved sources with comments and trailing
-  commas accepted, and one-hop static relative re-exports used by reducer call
+  commas accepted, and static relative re-exports used by reducer call
   materialization. Dynamic reflection, build-tag-specific reachability,
-  multi-hop barrel graphs, package-manager resolution, and computed dispatch
-  still need query-side ambiguity handling.
+  package-manager resolution, and computed dispatch still need query-side
+  ambiguity handling.
 - `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form.
   Passing a relative path produces an absolute resolved path in the payload's
   `repo_path` field; this is correct behavior but callers should pass absolute

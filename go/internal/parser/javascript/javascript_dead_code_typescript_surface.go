@@ -305,6 +305,9 @@ func javaScriptTypeScriptReexportSourceCandidates(repoRoot string, fromPath stri
 	if strings.HasPrefix(source, ".") {
 		basePath := filepath.Join(filepath.Dir(fromPath), filepath.FromSlash(source))
 		for _, candidate := range TSConfigSourceCandidates(basePath) {
+			if !pathWithin(repoRoot, candidate) {
+				continue
+			}
 			appendCandidate(candidate)
 		}
 		return candidates
