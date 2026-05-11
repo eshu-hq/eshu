@@ -102,7 +102,7 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT | true | Fold entity containment into row-scoped entity upserts; set false only for fallback comparisons |
 | ESHU_NORNICDB_PHASE_GROUP_STATEMENTS | 500 | NornicDB phase group statement cap |
 | ESHU_NORNICDB_ENTITY_BATCH_SIZE | 100 | Entity upsert row cap |
-| ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY | NumCPU clamped to 4 | Parallel chunk dispatch for canonical entity phases. Clamped to 16. Set to 1 to keep serial dispatch. |
+| ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY | NumCPU clamped to 16 | Parallel chunk dispatch for canonical entity phases. Clamped to 16. Set to 1 to keep serial dispatch. |
 | ESHU_QUERY_PROFILE | — | local_lightweight or local_authoritative |
 | ESHU_DISABLE_NEO4J | — | Force local-lightweight writer when true |
 | SCIP_INDEXER | false | Enable external SCIP indexers |

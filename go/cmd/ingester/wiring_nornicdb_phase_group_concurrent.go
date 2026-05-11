@@ -40,14 +40,18 @@ func (e nornicDBPhaseGroupExecutor) entityFlushTrigger(stmts []sourcecypher.Stat
 // Bolt sessions.
 //
 // The default is `runtime.NumCPU()` clamped to
-// `nornicDBEntityPhaseConcurrencyAutoCap` (4) so a high-core host does not
-// silently exhaust the embedded NornicDB write headroom. Operators who
-// want more or less can set `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`; the
-// env path is clamped to `nornicDBEntityPhaseConcurrencyCap` (16).
+// `nornicDBEntityPhaseConcurrencyCap` (16). The earlier auto-cap of 4 was
+// conservative for a write path that turned out to scale sub-linearly
+// with worker count on the K8s dogfood lane (per-chunk CPU rose ~24%
+// when concurrency doubled from 4 to 8, while wall time still dropped),
+// so matching the env-override cap removes idle CPU on multi-core hosts
+// without changing peak Bolt session demand. Operators who want a smaller
+// or larger value can still set `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`;
+// the env path uses the same cap.
 func nornicDBDefaultEntityPhaseConcurrency() int {
 	n := runtime.NumCPU()
-	if n > nornicDBEntityPhaseConcurrencyAutoCap {
-		n = nornicDBEntityPhaseConcurrencyAutoCap
+	if n > nornicDBEntityPhaseConcurrencyCap {
+		n = nornicDBEntityPhaseConcurrencyCap
 	}
 	if n < 1 {
 		return 1

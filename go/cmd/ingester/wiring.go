@@ -83,17 +83,11 @@ const (
 	// time so NornicDB proves correctness before we widen this hot family.
 	defaultNornicDBK8sResourceEntityPhaseStatements = 1
 	// nornicDBEntityPhaseConcurrencyCap is the hard upper bound for the
-	// ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY env override. Each worker holds
-	// one Bolt session against NornicDB while a grouped chunk runs, so the
-	// cap also bounds peak Bolt session demand from the canonical entity
-	// path.
+	// ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY env override and for the
+	// CPU-derived default. Each worker holds one Bolt session against
+	// NornicDB while a grouped chunk runs, so the cap also bounds peak Bolt
+	// session demand from the canonical entity path.
 	nornicDBEntityPhaseConcurrencyCap = 16
-	// nornicDBEntityPhaseConcurrencyAutoCap clamps the CPU-derived default
-	// so a high-core host does not silently saturate the Bolt session pool.
-	// The default mirrors the postgres ContentWriter cap (#172) and stays
-	// within the comfortable embedded-NornicDB write concurrency budget
-	// observed on the K8s dogfood lane.
-	nornicDBEntityPhaseConcurrencyAutoCap = 4
 	canonicalWriteTimeoutEnv                        = "ESHU_CANONICAL_WRITE_TIMEOUT"
 	nornicDBCanonicalGroupedWritesEnv               = "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES"
 	nornicDBPhaseGroupStatementsEnv                 = "ESHU_NORNICDB_PHASE_GROUP_STATEMENTS"

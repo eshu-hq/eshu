@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -12,6 +13,28 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
+
+// TestNornicDBDefaultEntityPhaseConcurrencyTracksNumCPU pins the default
+// worker count for canonical entity-phase dispatch to NumCPU clamped only
+// at the env-override cap. The prior auto-cap of 4 left multi-core hosts
+// with idle workers during canonical_write; lifting it to the env cap
+// matches NornicDB's measured sub-linear scaling on the K8s dogfood lane.
+func TestNornicDBDefaultEntityPhaseConcurrencyTracksNumCPU(t *testing.T) {
+	t.Parallel()
+
+	got := nornicDBDefaultEntityPhaseConcurrency()
+	want := runtime.NumCPU()
+	if want > nornicDBEntityPhaseConcurrencyCap {
+		want = nornicDBEntityPhaseConcurrencyCap
+	}
+	if want < 1 {
+		want = 1
+	}
+	if got != want {
+		t.Fatalf("default entity phase concurrency = %d, want %d (NumCPU=%d, cap=%d)",
+			got, want, runtime.NumCPU(), nornicDBEntityPhaseConcurrencyCap)
+	}
+}
 
 // blockingGroupExecutor records concurrent ExecuteGroup invocations and
 // blocks them until the test releases the gate. Used to prove the
