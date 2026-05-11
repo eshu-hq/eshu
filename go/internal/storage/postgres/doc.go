@@ -30,4 +30,21 @@
 // row per state_snapshot scope keyed by safe locator hash, plus up to
 // MaxTerraformStateRecentWarnings recent warning_fact rows per locator so the
 // admin status surface shows tfstate liveness without scanning the fact stream.
+// PostgresTerraformBackendQuery and PostgresDriftEvidenceLoader serve the
+// reducer's Terraform config-vs-state drift handler: the first answers
+// tfstatebackend.TerraformBackendQuery from durable parser facts so the
+// resolver can deterministically pick the latest sealed config commit owning
+// a state snapshot, and the second performs the three-step join across
+// terraform_resources, the active terraform_state_resource rows, and the
+// prior generation (skipping the prior lookup when current serial is zero).
+// IngestionStore.EnqueueConfigStateDriftIntents is the bootstrap Phase 3.5
+// trigger that enqueues one config_state_drift reducer intent per active
+// state_snapshot:* scope.
+//
+// PreviouslyDeclaredInConfig is intentionally left false in v1: proving an
+// address was once declared in config requires walking prior repo
+// generations, which is deferred. The classifier then emits added_in_state
+// for every state-only address, which is the conservative fallback. The
+// drift queries gate on jsonb_array_length > 0 so files whose parser
+// buckets are empty (the base-payload default) are not scanned.
 package postgres

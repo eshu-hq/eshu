@@ -45,6 +45,15 @@ type bootstrapCommitter interface {
 	BackfillAllRelationshipEvidence(context.Context, trace.Tracer, *telemetry.Instruments) error
 	MaterializeIaCReachability(context.Context, trace.Tracer, *telemetry.Instruments) error
 	ReopenDeploymentMappingWorkItems(context.Context, trace.Tracer, *telemetry.Instruments) error
+	// EnqueueConfigStateDriftIntents enqueues one config_state_drift reducer
+	// intent per state_snapshot:* scope with an active generation. Phase 3.5
+	// trigger required by the facts-first bootstrap ordering: drift consumes
+	// both config-side parser facts and state-side collector facts, so the
+	// reducer must re-claim those scopes after Phase 3 has reopened
+	// deployment_mapping (see CLAUDE.md "Facts-First Bootstrap Ordering" and
+	// the AGENTS.md note on Phase-4 re-trigger consumers). Idempotent: the
+	// reducer queue dedupes on (domain, scope, generation).
+	EnqueueConfigStateDriftIntents(context.Context, trace.Tracer, *telemetry.Instruments) error
 }
 
 type collectorDeps struct {
@@ -292,6 +301,21 @@ func runPipelined(
 			)
 		}
 		return fmt.Errorf("reopen deployment_mapping fatal: %w", err)
+	}
+
+	// Phase 3.5: enqueue config_state_drift intents for every state_snapshot
+	// scope that has an active generation. The drift handler consumes both
+	// config-side parser facts and state-side collector facts, so its work
+	// items must land after Phase 3 reopens deployment_mapping (the same
+	// facts-first ordering rationale documented in CLAUDE.md). Idempotent.
+	if err := cd.committer.EnqueueConfigStateDriftIntents(ctx, tracer, instruments); err != nil {
+		if logger != nil {
+			logger.ErrorContext(ctx, "enqueue config_state_drift intents failed",
+				slog.String("error", err.Error()),
+				telemetry.FailureClassAttr("enqueue_config_state_drift_failure"),
+			)
+		}
+		return fmt.Errorf("enqueue config_state_drift fatal: %w", err)
 	}
 
 	totalDuration := time.Since(pipelineStart).Seconds()

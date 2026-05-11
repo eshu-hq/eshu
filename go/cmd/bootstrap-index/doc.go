@@ -1,7 +1,8 @@
 // Package main runs the eshu-bootstrap-index binary, which performs a
 // one-shot end-to-end indexing pass: collection, source-local projection,
-// relationship-evidence backfill, deployment-mapping reopen, and IaC
-// reachability materialization.
+// relationship-evidence backfill, IaC reachability materialization,
+// deployment-mapping reopen, and config_state_drift intent enqueue (Phase 3.5
+// trigger for the reducer's Terraform drift handler).
 //
 // When invoked with --version or -v, it prints the embedded application
 // version through the test-covered printBootstrapIndexVersionFlag helper and

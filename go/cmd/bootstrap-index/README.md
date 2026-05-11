@@ -29,27 +29,32 @@ sync -> discover -> parse -> emit facts -> enqueue projector work
 `eshu-bootstrap-index` owns steps 1–7. After it exits, `eshu-reducer` drains the
 reducer intents that were enqueued during source-local projection.
 
-## Internal flow — the four phases
+## Internal flow — the pipeline phases
 
-The orchestrator in `runPipelined` (`main.go:190`) drives four phases.
+The orchestrator in `runPipelined` (`main.go:213`) drives six sequential
+steps: collection + projection (Phase 1), relationship-evidence backfill
+(Phase 2), IaC reachability materialization, deployment-mapping reopen
+(Phase 3), drift-intent enqueue (Phase 3.5), and the final shutdown
+path.
 
 ```mermaid
 flowchart TD
-    A["run: wire telemetry, Postgres, graph backend\n(main.go:84)"]
+    A["run: wire telemetry, Postgres, graph backend\n(main.go:107)"]
     A --> B["Phase 1: pipelined collection + projection\nrunPipelined (main.go:190)"]
 
     subgraph Phase1["Phase 1 — concurrent goroutines"]
-        C["drainCollector (main.go:391)\nGitSource.Next → CommitScopeGeneration\nSkipRelationshipBackfill=true"]
-        D["drainProjectorPipelined (main.go:298)\ndrainingWorkSource polls queue\nN workers via drainProjectorWorkItem"]
+        C["drainCollector (main.go:431)\nGitSource.Next → CommitScopeGeneration\nSkipRelationshipBackfill=true"]
+        D["drainProjectorPipelined (main.go:340)\ndrainingWorkSource polls queue\nN workers via drainProjectorWorkItem"]
         C -- "collectorDone channel" --> D
     end
 
     B --> Phase1
-    Phase1 --> E["Phase 2: BackfillAllRelationshipEvidence\n(main.go:236)\npopulates relationship_evidence_facts\npublishes backward_evidence_committed readiness"]
-    E --> F["wait for projector drain\n(main.go:251)\ndrainProjectorPipelined must exit\nbefore reopen"]
-    F --> G["IaC reachability: MaterializeIaCReachability\n(main.go:256)\ncorpus-wide active-generation classification"]
-    G --> H["Phase 4: ReopenDeploymentMappingWorkItems\n(main.go:273)\nreopens succeeded deployment_mapping rows\nreducer creates resolved_relationships"]
-    H --> I["exit 0"]
+    Phase1 --> E["Phase 2: BackfillAllRelationshipEvidence\n(main.go:259)\npopulates relationship_evidence_facts\npublishes backward_evidence_committed readiness"]
+    E --> F["wait for projector drain\n(main.go:274)\ndrainProjectorPipelined must exit\nbefore reopen"]
+    F --> G["IaC reachability: MaterializeIaCReachability\n(main.go:279)\ncorpus-wide active-generation classification"]
+    G --> H["Phase 4: ReopenDeploymentMappingWorkItems\n(main.go:296)\nreopens succeeded deployment_mapping rows\nreducer creates resolved_relationships"]
+    H --> H2["Phase 3.5: EnqueueConfigStateDriftIntents\n(main.go:307)\nenqueues config_state_drift intents for\nactive state_snapshot scopes"]
+    H2 --> I["exit 0"]
 ```
 
 ### Phase 1 — collection and first-pass reduction
@@ -95,7 +100,7 @@ cancelled and errors are joined.
 
 ### Wait for projector drain
 
-`runPipelined` blocks on `projectorErr := <-errc` (`main.go:251`) before
+`runPipelined` blocks on `projectorErr := <-errc` (`main.go:274`) before
 issuing the reopen call. This ordering invariant prevents `deployment_mapping`
 items emitted after the reopen pass from missing reopening.
 
@@ -151,12 +156,12 @@ before opening either store.
 Key unexported interfaces and types used to make the binary testable via
 dependency injection:
 
-- `bootstrapCommitter` (`main.go:41`) — extends `collector.Committer` with
+- `bootstrapCommitter` (`main.go:43`) — extends `collector.Committer` with
   `BackfillAllRelationshipEvidence`, `MaterializeIaCReachability`, and
   `ReopenDeploymentMappingWorkItems`
 - `collectorDeps`, `projectorDeps`, `graphDeps` — wiring structs passed through
   `run` and `runPipelined`
-- `drainingWorkSource` (`main.go:331`) — wraps `ProjectorWorkSource`
+- `drainingWorkSource` (`main.go:369`) — wraps `ProjectorWorkSource`
   to add drain-then-exit behavior
 - `bootstrapNeo4jExecutor` (`wiring.go:231`) — `DriverWithContext`-based Bolt
   session executor for canonical writes
@@ -195,7 +200,7 @@ endpoint.
 
 | Signal | Name or key | Where |
 | --- | --- | --- |
-| Span | `telemetry.SpanCollectorObserve` | `main.go:408` — one collect + commit cycle |
+| Span | `telemetry.SpanCollectorObserve` | `main.go:448` — one collect + commit cycle |
 | Span | `telemetry.SpanProjectorRun` | `main.go:657` — one claim + project + ack cycle |
 | Metric | `eshu_dp_facts_emitted_total` | `instruments.FactsEmitted` (`main.go:438`) |
 | Metric | `eshu_dp_facts_committed_total` | `instruments.FactsCommitted` (`main.go:481`) |
@@ -296,7 +301,7 @@ Ordering".
 - The straggler window between Phase 2 and Phase 4 is a known limitation. Items
   that succeed in that window are not automatically replayed. Operators must use
   `/admin/replay` or wait for the ingester's incremental refresh.
-- `errProjectorDrained` is a sentinel value (`main.go:619`). It signals clean
+- `errProjectorDrained` is a sentinel value (`main.go:657`). It signals clean
   exit from `drainProjectorWorkItem` after the `PhaseProjection` drain loop
   exhausts the queue; it is not an error. Worker goroutines return on
   this value; they do not propagate it as an error.

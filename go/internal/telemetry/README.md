@@ -164,7 +164,8 @@ Defined in `contract.go`. Use `telemetry.SpanXxx` rather than string literals.
 
 Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`,
 `SpanFactEmit`, `SpanProjectorRun`, `SpanReducerIntentEnqueue`, `SpanReducerRun`,
-`SpanReducerBatchClaim`, `SpanCanonicalWrite`, `SpanCanonicalProjection`,
+`SpanReducerBatchClaim`, `SpanReducerDriftEvidenceLoad`,
+`SpanCanonicalWrite`, `SpanCanonicalProjection`,
 `SpanCanonicalRetract`, `SpanEvidenceDiscovery`,
 `SpanIaCReachabilityMaterialization`, `SpanSQLRelationshipMaterialization`,
 `SpanInheritanceMaterialization`, `SpanCrossRepoResolution`,

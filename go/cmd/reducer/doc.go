@@ -7,7 +7,12 @@
 // version and exits before runtime setup. Otherwise the binary boots OTEL
 // telemetry, opens Postgres and the graph backend,
 // wires the reducer service with shared-projection, code-call,
-// repo-dependency, and graph-projection-phase repair runners, and hosts it
+// repo-dependency, and graph-projection-phase repair runners (plus the
+// Terraform config-vs-state drift handler wired with the
+// PostgresTerraformBackendQuery and PostgresDriftEvidenceLoader adapters;
+// the loader receives the runtime tracer so its three-query join surfaces
+// as one SpanReducerDriftEvidenceLoad span over InstrumentedDB children),
+// and hosts it
 // through app.NewHostedWithStatusServer so it exposes the shared `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. NornicDB reducer
 // workers default to NumCPU, while Neo4j remains capped lower by default; the
