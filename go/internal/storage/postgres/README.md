@@ -197,11 +197,18 @@ mutation is rejected because the current owner no longer holds the lease.
   
   Pool budgeting: peak Postgres demand is `ESHU_PROJECTOR_WORKERS *
   ESHU_CONTENT_WRITER_BATCH_CONCURRENCY` plus connections held by
-  collector, status reads, and heartbeats; the auto cap of 4 keeps the
-  product under the 30-connection default pool
-  (`internal/runtime/data_stores.go`) for the common case where
-  `ESHU_PROJECTOR_WORKERS = NumCPU`. Operators raising the env knob must
-  also raise the Postgres pool ceiling.
+  collector, status reads, and heartbeats. The auto cap of 4 reduces
+  pressure relative to the prior unbounded fan-out, but does not on
+  its own guarantee the product stays under the 30-connection default
+  pool (`internal/runtime/data_stores.go`). Hosts with more than 7 CPUs
+  (and the `local_authoritative` + NornicDB ingester wiring, which sets
+  `ESHU_PROJECTOR_WORKERS = runtime.NumCPU()` uncapped) will see
+  `4 * NumCPU` peak demand. When that exceeds the pool, `database/sql`
+  queues new acquires rather than failing — throughput drops while the
+  writer waits for a connection. Operators on high-core hosts, or
+  operators raising the env knob, should raise
+  `ESHU_POSTGRES_MAX_OPEN_CONNS` or lower `ESHU_PROJECTOR_WORKERS` so
+  the product stays inside the configured pool.
 
 **Phase state**
 

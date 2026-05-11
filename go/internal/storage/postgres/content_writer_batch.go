@@ -118,6 +118,13 @@ func runConcurrentBatches(
 	if totalRows == 0 {
 		return nil
 	}
+	if err := ctx.Err(); err != nil {
+		// Short-circuit when the caller's context is already canceled so we
+		// do not report a successful "no-op" run for a batch set that never
+		// got dispatched. Projector retry depends on the writer surfacing
+		// cancellation rather than swallowing it.
+		return err
+	}
 	if batchSize <= 0 {
 		batchSize = totalRows
 	}
@@ -185,6 +192,12 @@ dispatch:
 	case err := <-errCh:
 		return err
 	default:
-		return nil
 	}
+	// If no batch reported an error but the context was canceled mid-run
+	// (parent timeout, caller cancel), surface that rather than treating a
+	// partial dispatch as a successful no-op write.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
 }

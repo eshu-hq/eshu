@@ -268,15 +268,16 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 			metadataJSON:    metadataJSON,
 		})
 	}
-	// Deduplicate by entity_id before fan-out. The Postgres unique key on
-	// content_entities is (repo_id, entity_id) and repo_id is constant
-	// within one Materialization, so duplicate entity_id rows in
-	// entityUpserts would either trip SQLSTATE 21000 inside one batch ("ON
-	// CONFLICT DO UPDATE command cannot affect row a second time") or
-	// produce race-determined last-writer-wins across parallel batches.
-	// Mirror deduplicateEnvelopes (facts.go) by keeping the last occurrence
-	// so callers see the same "later in input wins" outcome the prior
-	// serial path achieved via row-level lock contention.
+	// Deduplicate by entity_id before fan-out. content_entities has
+	// entity_id as its PRIMARY KEY (see upsertContentEntityQuery's
+	// ON CONFLICT (entity_id) clause in content_writer_sql.go), so
+	// duplicate entity_id rows in entityUpserts would either trip
+	// SQLSTATE 21000 inside one batch ("ON CONFLICT DO UPDATE command
+	// cannot affect row a second time") or produce race-determined
+	// last-writer-wins across parallel batches. Mirror deduplicateEnvelopes
+	// (facts.go) by keeping the last occurrence so callers see the same
+	// "later in input wins" outcome the prior serial path achieved via
+	// row-level lock contention.
 	entityUpserts = deduplicateEntityRows(entityUpserts)
 	w.logStage(ctx, cloned, "prepare_entities", entityPrepareStart,
 		"row_count", len(entityUpserts),
