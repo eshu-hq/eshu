@@ -206,9 +206,11 @@ mutation is rejected because the current owner no longer holds the lease.
   `4 * NumCPU` peak demand. When that exceeds the pool, `database/sql`
   queues new acquires rather than failing — throughput drops while the
   writer waits for a connection. Operators on high-core hosts, or
-  operators raising the env knob, should raise
-  `ESHU_POSTGRES_MAX_OPEN_CONNS` or lower `ESHU_PROJECTOR_WORKERS` so
-  the product stays inside the configured pool.
+  operators raising the env knob, should raise the Postgres pool
+  ceiling (the ESHU_POSTGRES_MAX_OPEN_CONNS env in
+  `internal/runtime/data_stores.go`) or lower
+  `ESHU_PROJECTOR_WORKERS` so the product stays inside the configured
+  pool.
 
 **Phase state**
 
