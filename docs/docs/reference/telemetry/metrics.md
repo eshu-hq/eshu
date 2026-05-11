@@ -200,8 +200,11 @@ collector/projector/reducer path.
   paths never appear as label values — they go in structured logs and
   span attributes.
 - Meaning: Rule-match volume and admitted drift volume from the
-  correlation engine. The first counter advances per rule per admitted
-  candidate (`engine.Evaluate` ordering); the second advances per
+  correlation engine. `eshu_dp_correlation_rule_matches_total`
+  advances once per admitted candidate, with the `rule` label set to
+  the admission-producing rule (the engine does not currently surface
+  per-rule match counts, so this is the honest contract until that
+  changes). `eshu_dp_correlation_drift_detected_total` advances per
   admitted drift candidate, with `drift_kind` set by the classifier in
   `go/internal/correlation/drift/tfconfigstate`.
 - Use them for: Detecting Terraform config-vs-state drift volume per

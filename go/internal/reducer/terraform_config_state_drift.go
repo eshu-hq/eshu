@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -184,26 +185,28 @@ func (h TerraformConfigStateDriftHandler) Handle(
 	}, nil
 }
 
+// driftIntentScopePrefix is the canonical state_snapshot scope prefix per
+// go/internal/scope/tfstate.go:33-40. The scope shape is
+// state_snapshot:<backend_kind>:<locator_hash> where locator_hash is a
+// hex-safe value with no embedded colons.
+const driftIntentScopePrefix = "state_snapshot:"
+
 // parseDriftIntentScope verifies the intent's ScopeID is a state_snapshot
-// scope and pulls (backend_kind, locator_hash) out of it. The state scope
-// convention is "state_snapshot:<backendKind>:<locatorHash>" per
-// go/internal/scope/tfstate.go:33-40.
+// scope and pulls (backend_kind, locator_hash) out of it. Locator hashes are
+// hex-safe by construction (`go/internal/scope/tfstate.go`); a colon inside
+// the locator hash field indicates either a malformed scope or a non-canonical
+// emitter and is rejected explicitly.
 func parseDriftIntentScope(intent Intent) (backendKind, locatorHash string, err error) {
-	const prefix = "state_snapshot:"
-	scope := intent.ScopeID
-	if len(scope) <= len(prefix) || scope[:len(prefix)] != prefix {
-		return "", "", fmt.Errorf("scope %q is not a state_snapshot scope", scope)
+	rest, ok := strings.CutPrefix(intent.ScopeID, driftIntentScopePrefix)
+	if !ok {
+		return "", "", fmt.Errorf("scope %q is not a state_snapshot scope", intent.ScopeID)
 	}
-	rest := scope[len(prefix):]
-	for i := 0; i < len(rest); i++ {
-		if rest[i] == ':' {
-			backendKind = rest[:i]
-			locatorHash = rest[i+1:]
-			break
-		}
+	backendKind, locatorHash, ok = strings.Cut(rest, ":")
+	if !ok || strings.TrimSpace(backendKind) == "" || strings.TrimSpace(locatorHash) == "" {
+		return "", "", fmt.Errorf("scope %q must be state_snapshot:<backend_kind>:<locator_hash>", intent.ScopeID)
 	}
-	if backendKind == "" || locatorHash == "" {
-		return "", "", fmt.Errorf("scope %q missing backend_kind or locator_hash", scope)
+	if strings.Contains(locatorHash, ":") {
+		return "", "", fmt.Errorf("scope %q locator hash contains forbidden colon", intent.ScopeID)
 	}
 	return backendKind, locatorHash, nil
 }
@@ -228,15 +231,19 @@ func (h TerraformConfigStateDriftHandler) emitTelemetry(
 		driftKind := readDriftKindAtom(result.Candidate)
 		address := result.Candidate.CorrelationKey
 
-		// Emit one rule-match increment per rule in the pack so the explain
-		// trace's MatchCounts surfaces through the counter dimension.
+		// Emit ONE rule-match increment per admitted candidate, labeled with
+		// the admission-producing rule. engine.Evaluate does not currently
+		// expose per-rule match counts (it sorts and counts, but match-bookkeeping
+		// is collapsed in Result.MatchCounts as bounded counts, not as "this
+		// rule matched these atoms"). Until the engine surfaces a per-rule
+		// fan-out, emitting one increment per admission keeps the contract
+		// honest: rate(eshu_dp_correlation_rule_matches_total[5m]) by (rule)
+		// reflects admission throughput per rule, not duplicated 5x.
 		if h.Instruments != nil && h.Instruments.CorrelationRuleMatches != nil {
-			for _, rule := range pack.Rules {
-				h.Instruments.CorrelationRuleMatches.Add(ctx, 1, metric.WithAttributes(
-					attribute.String(telemetry.MetricDimensionPack, pack.Name),
-					attribute.String(telemetry.MetricDimensionRule, rule.Name),
-				))
-			}
+			h.Instruments.CorrelationRuleMatches.Add(ctx, 1, metric.WithAttributes(
+				attribute.String(telemetry.MetricDimensionPack, pack.Name),
+				attribute.String(telemetry.MetricDimensionRule, rules.TerraformConfigStateDriftRuleAdmitDriftEvidence),
+			))
 		}
 
 		// Emit one drift_detected increment per admitted candidate with

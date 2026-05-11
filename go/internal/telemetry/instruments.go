@@ -64,11 +64,22 @@ type Instruments struct {
 	// engine.Evaluate, labeled by pack and rule. Used by the drift pack
 	// (terraform_config_state_drift) in v1; available for any future
 	// pack that needs match-frequency observability.
+	//
+	// Until engine.Evaluate exposes per-rule match counts, the drift handler
+	// emits exactly one increment per admitted candidate with the
+	// admission-producing rule as the `rule` label
+	// (TerraformConfigStateDriftRuleAdmitDriftEvidence). Operators reading
+	// rate(eshu_dp_correlation_rule_matches_total[5m]) by (rule) see
+	// admission throughput per rule, not fan-out across all rules in the pack.
 	CorrelationRuleMatches metric.Int64Counter
 	// CorrelationDriftDetected counts admitted drift candidates emitted by
 	// the terraform_config_state_drift correlation pack, labeled by
 	// pack, rule, and drift_kind (added_in_state, added_in_config,
 	// attribute_drift, removed_from_state, removed_from_config).
+	//
+	// The `rule` label is always the admission-producing rule by design;
+	// the drift pack's other rules (extract_key, match, derive, explain) are
+	// pre-admission bookkeeping stages that do not gate emission.
 	CorrelationDriftDetected metric.Int64Counter
 
 	// Histograms track distributions

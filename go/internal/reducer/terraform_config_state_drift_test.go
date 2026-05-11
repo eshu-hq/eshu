@@ -224,10 +224,13 @@ func TestDriftHandlerSingleOwnerEmitsCountersForAllFiveDriftKinds(t *testing.T) 
 		t.Fatalf("drift_detected = %d, want 5 (one per drift kind)", got)
 	}
 
-	// Each admitted candidate emits 5 rule-match increments (one per rule in
-	// the pack). 5 candidates * 5 rules = 25.
-	if got := counterTotal(rm, "eshu_dp_correlation_rule_matches_total"); got != 25 {
-		t.Fatalf("rule_matches = %d, want 25 (5 candidates x 5 rules)", got)
+	// Each admitted candidate emits exactly one rule-match increment with
+	// the admission-producing rule as the `rule` label. Five admitted
+	// candidates produce five increments, not 25: the engine does not
+	// surface per-rule match counts, so the contract is "one increment per
+	// admission" rather than "one increment per (admission * rule)".
+	if got := counterTotal(rm, "eshu_dp_correlation_rule_matches_total"); got != 5 {
+		t.Fatalf("rule_matches = %d, want 5 (one increment per admitted candidate)", got)
 	}
 
 	assertCounterLabelKeys(t, rm,
@@ -387,4 +390,74 @@ func collectDriftKindValues(rm metricdata.ResourceMetrics) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// TestParseDriftIntentScope covers the boundaries of the state_snapshot scope
+// parser, including the embedded-colon rejection that the locator-hash
+// invariant relies on. Locator hashes are hex-safe by construction
+// (`go/internal/scope/tfstate.go`); a colon inside the locator hash field
+// indicates either a malformed scope or a non-canonical emitter.
+func TestParseDriftIntentScope(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		scope       string
+		wantBackend string
+		wantLocator string
+		wantErr     bool
+	}{
+		{
+			name:        "valid_two_segment_scope",
+			scope:       "state_snapshot:s3:abc123",
+			wantBackend: "s3",
+			wantLocator: "abc123",
+		},
+		{
+			name:    "missing_prefix",
+			scope:   "repo:repo-1@abc",
+			wantErr: true,
+		},
+		{
+			name:    "prefix_only",
+			scope:   "state_snapshot:",
+			wantErr: true,
+		},
+		{
+			name:    "prefix_plus_backend_no_locator",
+			scope:   "state_snapshot:s3:",
+			wantErr: true,
+		},
+		{
+			name:    "prefix_plus_separator_no_backend",
+			scope:   "state_snapshot::hash",
+			wantErr: true,
+		},
+		{
+			name:    "locator_with_embedded_colon_rejected",
+			scope:   "state_snapshot:s3:hash:extra",
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			backend, locator, err := parseDriftIntentScope(Intent{ScopeID: tc.scope})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("parseDriftIntentScope(%q) err = nil, want non-nil", tc.scope)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseDriftIntentScope(%q) err = %v, want nil", tc.scope, err)
+			}
+			if backend != tc.wantBackend {
+				t.Fatalf("backend = %q, want %q", backend, tc.wantBackend)
+			}
+			if locator != tc.wantLocator {
+				t.Fatalf("locator = %q, want %q", locator, tc.wantLocator)
+			}
+		})
+	}
 }

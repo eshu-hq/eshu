@@ -81,6 +81,12 @@ emits `eshu_dp_correlation_rule_matches_total{pack, rule}` and
 `eshu_dp_correlation_drift_detected_total{pack, rule, drift_kind}` per the
 design doc §7.
 
+The `rule` label on both counters is always the admission-producing rule
+(`admit-drift-evidence`). The engine does not surface per-rule match
+counts today, so emission is one increment per admission rather than one
+per (admission × rule). Operators reading these counters see admission
+throughput per pack and per drift kind, not rule fan-out within the pack.
+
 ## Operational notes
 
 - Computed/unknown config attribute values must be marked in
