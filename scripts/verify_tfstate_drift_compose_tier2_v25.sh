@@ -39,8 +39,8 @@
 #       rows are marked superseded; new active gen-2 rows are published).
 #     - Coordinator plans fresh terraform_state work items against the
 #       gen-2 instance (the per-RunID idempotency at
-#       coordinator/tfstate_scheduler.go:129 is scoped to one instance, so
-#       gen-2's RunID is distinct from gen-1's).
+#       go/internal/coordinator/tfstate_scheduler.go:129 is scoped to one
+#       instance, so gen-2's RunID is distinct from gen-1's).
 #     - collector-gen2 claims and drains; emits the serial=2 snapshot for
 #       bucket C and the empty serial=2 snapshot for bucket F.
 #     - Phase 3.5 runs again. The prior-state query finds gen-1's serial=1
@@ -75,7 +75,6 @@ source "$TIER2_LIB"
 
 TMP_DIR="$(mktemp -d)"
 METRICS_BEFORE_FILE="$TMP_DIR/metrics-before.txt"
-METRICS_AFTER_PASS1_FILE="$TMP_DIR/metrics-after-pass1.txt"
 METRICS_AFTER_PASS2_FILE="$TMP_DIR/metrics-after-pass2.txt"
 PHASE_35_PASS1_LOG="$TMP_DIR/phase-3-5-pass1.log"
 PHASE_35_PASS2_LOG="$TMP_DIR/phase-3-5-pass2.log"
@@ -122,10 +121,28 @@ require_compose() {
         if "${cmd_array[@]}" version >/dev/null 2>&1; then
             COMPOSE_CMD=("${cmd_array[@]}")
             COMPOSE_DISPLAY="$candidate"
-            return 0
+            require_compose_profile_support
+            return $?
         fi
     done
     echo "docker compose not found on PATH" >&2
+    return 1
+}
+
+# require_compose_profile_support fails fast when the selected compose binary
+# does not understand `--profile`. The v2.5 verifier uses `--profile gen2` for
+# minio-init-gen2 and the teardown, so a legacy docker-compose v1 without
+# profile support would otherwise fail mid-run with a confusing error.
+# docker compose v2 and docker-compose v1.28+ both support profiles; earlier
+# v1 releases do not. Checked via the help text rather than version parsing so
+# vendor builds with non-standard version strings still pass when they wire
+# the flag.
+require_compose_profile_support() {
+    if "${COMPOSE_CMD[@]}" --help 2>&1 | grep -q -- '--profile'; then
+        return 0
+    fi
+    echo "compose binary '${COMPOSE_DISPLAY}' does not support --profile;" >&2
+    echo "the v2.5 verifier requires Docker Compose v2 or docker-compose >= 1.28" >&2
     return 1
 }
 
@@ -183,6 +200,27 @@ configure_ports() {
     assign_port MINIO_CONSOLE_PORT "${MINIO_CONSOLE_PORT:-59001}"
 }
 
+# v25_dump_v25_specific_failure_logs covers the v2.5-only services the shared
+# tier2_dump_failure_logs helper misses. tier2_dump_failure_logs iterates a
+# static service list (minio, minio-init, collector-terraform-state, ...) that
+# does not match the v2.5 overlay's suffixed service names
+# (minio-init-gen1, minio-init-gen2, collector-terraform-state-gen1,
+# collector-terraform-state-gen2). Without this helper, a Pass 2 failure
+# would emit empty log sections for both collector instances and both minio
+# loaders, leaving the operator without the evidence needed to debug.
+v25_dump_v25_specific_failure_logs() {
+    local services=(
+        "minio-init-gen1"
+        "minio-init-gen2"
+        "collector-terraform-state-gen1"
+        "collector-terraform-state-gen2"
+    )
+    for service in "${services[@]}"; do
+        echo "----- logs for ${service} (tail 80) -----"
+        "${COMPOSE_CMD[@]}" logs --tail=80 --no-color "$service" 2>&1 || true
+    done
+}
+
 cleanup() {
     local exit_code=$?
     if [[ "$exit_code" -ne 0 ]]; then
@@ -191,6 +229,7 @@ cleanup() {
         echo "Compose project: $COMPOSE_PROJECT_NAME"
         "${COMPOSE_CMD[@]}" ps || true
         tier2_dump_failure_logs
+        v25_dump_v25_specific_failure_logs
         [[ -f "$DRIFT_LOGS_FILE" ]] && {
             echo "Drift logs captured at $DRIFT_LOGS_FILE (tail 20):"
             tail -n 20 "$DRIFT_LOGS_FILE" || true

@@ -18,9 +18,9 @@
 #       - tier2-v25-terraform-state-gen2 (claims_enabled=false at startup;
 #         the verifier flips this on for Pass 2 via env overlay)
 #     Two instances bypass the per-RunID idempotency at
-#     `coordinator/tfstate_scheduler.go:129` so Pass 2 plans fresh work
-#     items against the same backend candidates the gen-2 collector should
-#     read.
+#     `go/internal/coordinator/tfstate_scheduler.go:129` so Pass 2 plans
+#     fresh work items against the same backend candidates the gen-2
+#     collector should read.
 #   * Two minio-init one-shot services: minio-init-gen1 runs at compose
 #     `up`; minio-init-gen2 is `profiles: ["gen2"]` and the verifier
 #     activates it via `docker compose --profile gen2 run --rm

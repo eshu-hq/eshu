@@ -27,7 +27,8 @@ after a previous generation has already been collected and persisted:
   prior must be `status='superseded'` on the same repo scope_id.
 
 A single collector pass cannot produce both rows because the planner is
-idempotent per `terraformStateRunID` (`coordinator/tfstate_scheduler.go:129`).
+idempotent per `terraformStateRunID`
+(`go/internal/coordinator/tfstate_scheduler.go:129`).
 The v2.5 verifier runs two distinct collector instances back-to-back against
 gen-1 and gen-2 fixtures so each pass gets a fresh RunID and Phase 3.5 can
 walk the prior-generation history on the second pass.
