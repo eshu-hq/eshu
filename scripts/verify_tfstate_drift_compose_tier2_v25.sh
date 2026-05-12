@@ -317,7 +317,18 @@ echo "==> Stopping ingester so bootstrap-index Pass 2 owns canonical projection"
 "${COMPOSE_CMD[@]}" stop ingester >/dev/null
 
 echo "==> Pass 2: re-running bootstrap-index against gen-2 repos"
-"${COMPOSE_CMD[@]}" run --rm bootstrap-index >"$PHASE_35_PASS2_LOG" 2>&1 \
+# ESHU_PROJECTION_WORKERS=1 forces the Pass 2 projector to single-thread.
+# bootstrap-index defaults to min(NumCPU, 8) workers
+# (go/cmd/bootstrap-index/main.go:425). On the second pass, the gen-2
+# facts touch graph nodes that Pass 1 already created — notably the
+# TerraformResource keyed on (repo, address) for bucket F's legacy
+# resource. With 8 workers racing MERGE-vs-MERGE on the same uid,
+# NornicDB rejects the second commit with UNIQUE on TerraformResource.[uid].
+# Serializing to one worker eliminates the within-process race without
+# changing projector code. Bucket F + bucket C are two small repos, so
+# wall-time cost is negligible. The underlying non-idempotent projection
+# under concurrent workers is tracked as a follow-up reducer issue.
+"${COMPOSE_CMD[@]}" run --rm -e ESHU_PROJECTION_WORKERS=1 bootstrap-index >"$PHASE_35_PASS2_LOG" 2>&1 \
     || {
         echo "bootstrap-index Pass 2 failed; tail of output:" >&2
         tail -n 60 "$PHASE_35_PASS2_LOG" >&2
