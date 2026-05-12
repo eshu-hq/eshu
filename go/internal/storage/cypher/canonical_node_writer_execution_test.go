@@ -317,7 +317,17 @@ func TestCanonicalNodeWriterEntityStatementsIncludePhaseDiagnostics(t *testing.T
 	}
 }
 
-func TestCanonicalNodeWriterSingletonFallbackMarksExecuteOnlyMode(t *testing.T) {
+// TestCanonicalNodeWriterTriggerSubstringRowStaysBatched is the inverted form
+// of the prior "SingletonFallbackMarksExecuteOnlyMode" test. Before Path C,
+// a single Function row whose EntityName contained the substring
+// "ShortestPath" was routed through the per-row parameterized singleton path
+// and tagged with _eshu_phase_group_mode="execute_only". The NornicDB-side
+// regression test TestUnwindMergeChainBatch_EshuSingletonFallbackUnnecessary
+// proved that parameterized UNWIND-batched cypher handles such trigger
+// substrings safely (parameters are bound separately from cypher text per the
+// Bolt protocol). The fallback is therefore obsolete; the row stays in the
+// UNWIND-batched path and carries no execute-only marker.
+func TestCanonicalNodeWriterTriggerSubstringRowStaysBatched(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
@@ -345,8 +355,11 @@ func TestCanonicalNodeWriterSingletonFallbackMarksExecuteOnlyMode(t *testing.T) 
 	if len(stmts) != 1 {
 		t.Fatalf("buildEntityStatements() count = %d, want 1", len(stmts))
 	}
-	if got, want := stmts[0].Parameters["_eshu_phase_group_mode"], "execute_only"; got != want {
-		t.Fatalf("singleton fallback _eshu_phase_group_mode = %#v, want %#v", got, want)
+	if got := stmts[0].Parameters["_eshu_phase_group_mode"]; got != nil {
+		t.Fatalf("_eshu_phase_group_mode = %#v, want absent (trigger substring no longer marks execute-only)", got)
+	}
+	if !strings.Contains(stmts[0].Cypher, "UNWIND $rows AS row") {
+		t.Fatalf("entity cypher = %q, want UNWIND-batched shape (trigger substring no longer forces singleton)", stmts[0].Cypher)
 	}
 }
 

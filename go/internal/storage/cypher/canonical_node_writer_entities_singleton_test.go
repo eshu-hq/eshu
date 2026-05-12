@@ -56,7 +56,29 @@ func TestCanonicalNodeWriterFileScopedContainmentKeepsNormalOneRowBatchGrouped(t
 	}
 }
 
-func TestCanonicalNodeWriterFileScopedContainmentOnlySingletonsFallbackRows(t *testing.T) {
+// TestCanonicalNodeWriterFileScopedContainment_TriggerSubstringsStayInBatch
+// is the inverted form of the prior "OnlySingletonsFallbackRows" test. The
+// canonicalEntityRowNeedsSingletonFallback security check at
+// canonical_node_writer_entities_singleton.go was originally implemented to
+// route rows whose values contained Cypher keyword substrings ("shortestpath",
+// "allshortestpaths", "remove ") into per-row parameterized singletons,
+// avoiding a hypothetical parser-confusion risk. The K8s native CPU profile
+// captured for ADR row 1813 attributed 17,000 such singletons (~26% of
+// NornicDB canonical_write CPU) to Kubernetes Function entities whose
+// docstrings contain the English word "remove" followed by a space.
+//
+// The NornicDB-side test
+// `TestUnwindMergeChainBatch_EshuSingletonFallbackUnnecessary` on branch
+// perf/k8s-tier2-canonical-write-followups proves that parameterized UNWIND-
+// batched cypher handles all three trigger substrings safely: parameters are
+// bound separately from cypher text per Bolt protocol, so parameter values
+// containing Cypher keywords never become cypher syntax. The security check
+// is therefore obsolete.
+//
+// This test asserts the new behavior: all rows including those whose
+// EntityName contains a former trigger substring remain in a single batched
+// UNWIND statement.
+func TestCanonicalNodeWriterFileScopedContainment_TriggerSubstringsStayInBatch(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil).
@@ -105,36 +127,35 @@ func TestCanonicalNodeWriterFileScopedContainmentOnlySingletonsFallbackRows(t *t
 	}
 
 	stmts := writer.buildEntityStatements(mat)
-	if got, want := len(stmts), 3; got != want {
-		t.Fatalf("buildEntityStatements() count = %d, want %d", got, want)
+	if got, want := len(stmts), 1; got != want {
+		t.Fatalf("buildEntityStatements() count = %d, want %d "+
+			"(all rows including trigger substrings must stay in one UNWIND-batched statement)",
+			got, want)
 	}
-
-	for _, idx := range []int{0, 2} {
-		stmt := stmts[idx]
-		if !strings.Contains(stmt.Cypher, "UNWIND $rows AS row") {
-			t.Fatalf("statement %d cypher = %q, want grouped one-row UNWIND shape", idx, stmt.Cypher)
-		}
-		if got := stmt.Parameters[StatementMetadataPhaseGroupModeKey]; got != nil {
-			t.Fatalf("statement %d phase group mode = %#v, want absent", idx, got)
-		}
-		rows, ok := stmt.Parameters["rows"].([]map[string]any)
-		if !ok {
-			t.Fatalf("statement %d rows type = %T, want []map[string]any", idx, stmt.Parameters["rows"])
-		}
-		if got, want := len(rows), 1; got != want {
-			t.Fatalf("statement %d rows = %d, want %d", idx, got, want)
+	stmt := stmts[0]
+	if !strings.Contains(stmt.Cypher, "UNWIND $rows AS row") {
+		t.Fatalf("statement cypher = %q, want batched UNWIND shape — singleton fallback removed", stmt.Cypher)
+	}
+	if got := stmt.Parameters[StatementMetadataPhaseGroupModeKey]; got != nil {
+		t.Fatalf("phase group mode = %#v, want grouped batch without execute-only mode", got)
+	}
+	rows, ok := stmt.Parameters["rows"].([]map[string]any)
+	if !ok {
+		t.Fatalf("rows type = %T, want []map[string]any", stmt.Parameters["rows"])
+	}
+	if got, want := len(rows), 3; got != want {
+		t.Fatalf("rows = %d, want %d (all 3 entities batched together)", got, want)
+	}
+	seen := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		if id, ok := row["entity_id"].(string); ok {
+			seen[id] = true
 		}
 	}
-
-	fallback := stmts[1]
-	if strings.Contains(fallback.Cypher, "UNWIND $rows AS row") {
-		t.Fatalf("fallback cypher = %q, want singleton shape without UNWIND", fallback.Cypher)
-	}
-	if got, want := fallback.Parameters[StatementMetadataPhaseGroupModeKey], PhaseGroupModeExecuteOnly; got != want {
-		t.Fatalf("fallback phase group mode = %#v, want %#v", got, want)
-	}
-	if got, want := fallback.Parameters["entity_id"], "fn-shortest"; got != want {
-		t.Fatalf("fallback entity_id = %#v, want %#v", got, want)
+	for _, want := range []string{"fn-1", "fn-shortest", "fn-2"} {
+		if !seen[want] {
+			t.Fatalf("entity_id %q missing from batched rows; the trigger substring must no longer cause fallback", want)
+		}
 	}
 }
 

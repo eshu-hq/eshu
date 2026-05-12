@@ -2,13 +2,39 @@ package cypher
 
 import (
 	"fmt"
-	"strings"
 )
 
+// canonicalEntityRowNeedsSingletonFallback decides whether a canonical entity
+// row must be written via a per-row parameterized singleton instead of the
+// UNWIND-batched fast path. Historically this returned true when row values
+// contained literal Cypher keyword substrings ("shortestpath",
+// "allshortestpaths", "remove ") on the theory that NornicDB's Cypher parser
+// might confuse them with reserved syntax. The check fired for ~17000 Function
+// entities per K8s native run (Kubernetes is a Go codebase with many comments
+// and identifiers containing the English word "remove"); each routed row
+// became a slow per-statement executeCompoundMatchMerge call and dominated
+// canonical_write CPU per the profile in ADR row 1813.
+//
+// Per the NornicDB-side regression test
+// TestUnwindMergeChainBatch_EshuSingletonFallbackUnnecessary at NornicDB-New
+// pkg/cypher/unwind_merge_chain_eshu_canonical_test.go, parameterized UNWIND-
+// batched cypher handles those substrings safely: parameters are bound
+// separately from cypher text per the Bolt protocol, so parameter values
+// containing Cypher keywords never become cypher syntax. Eshu emits all
+// canonical entity writes via Bolt parameters (entity_id, file_path,
+// generation_id, and the props map), so the parser-confusion theory has no
+// remaining surface to defend.
+//
+// The function and its dispatch infrastructure remain in place as a future
+// hook in case a NornicDB regression reintroduces a real parameter-handling
+// vulnerability, but it now returns false for every row so the UNWIND-batched
+// path stays engaged. Re-introducing a trigger here must be accompanied by an
+// updated NornicDB regression guard proving the trigger actually catches
+// unsafe behavior.
 func canonicalEntityRowNeedsSingletonFallback(label string, row map[string]any) bool {
-	return canonicalEntityValueContainsSubstring(row, "shortestpath") ||
-		canonicalEntityValueContainsSubstring(row, "allshortestpaths") ||
-		canonicalEntityValueContainsSubstring(row, "remove ")
+	_ = label
+	_ = row
+	return false
 }
 
 func canonicalEntitySingletonFallbackMode(label string, row map[string]any) string {
@@ -20,32 +46,6 @@ func canonicalEntitySingletonFallbackName(mode string) string {
 		return "grouped_singleton"
 	}
 	return "singleton_parameterized"
-}
-
-func canonicalEntityValueContainsSubstring(value any, needle string) bool {
-	switch typed := value.(type) {
-	case string:
-		return strings.Contains(strings.ToLower(typed), needle)
-	case []string:
-		for _, item := range typed {
-			if canonicalEntityValueContainsSubstring(item, needle) {
-				return true
-			}
-		}
-	case []any:
-		for _, item := range typed {
-			if canonicalEntityValueContainsSubstring(item, needle) {
-				return true
-			}
-		}
-	case map[string]any:
-		for key, item := range typed {
-			if canonicalEntityValueContainsSubstring(key, needle) || canonicalEntityValueContainsSubstring(item, needle) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func canonicalNodeEntitySingletonWithContainmentStatement(
