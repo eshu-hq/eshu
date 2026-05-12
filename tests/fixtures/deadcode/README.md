@@ -50,7 +50,7 @@ Each language fixture must include:
 | JavaScript | active | `derived` | module exports, Express/Next.js roots, dynamic property ambiguity |
 | Kotlin | planned | `derived_candidate_only` | public APIs, interfaces, annotations, Spring/Ktor roots |
 | Perl | planned | `derived_candidate_only` | packages, exported subs, dynamic symbol ambiguity |
-| PHP | planned | `derived_candidate_only` | public classes, framework controllers, attributes |
+| PHP | active | `derived` | Composer/autoload surfaces, dynamic dispatch, reflection, broader framework routes |
 | Python | active | `derived` | Lambda roots, bounded public APIs, dataclasses/properties, dynamic imports |
 | Ruby | active | `derived` | broader Rails route resolution, metaprogramming, autoload, gem public API |
 | Rust | planned | `derived_candidate_only` | public items, traits, macro-generated roots |

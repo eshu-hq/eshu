@@ -12,6 +12,10 @@ trait-use adaptation evidence.
 The package is responsible for PHP source scanning and payload bucket
 population. The parent parser package still owns registry dispatch, engine
 orchestration, repo path handling, and parse telemetry.
+The parser also emits bounded `dead_code_root_kinds` for PHP entrypoints,
+constructors, known magic methods, same-file interface and trait methods,
+route-backed controller actions, literal route handlers, Symfony route
+attributes, and WordPress hook callbacks.
 
 ## Exported surface
 
@@ -30,10 +34,15 @@ parser engine.
 ## Gotchas / invariants
 
 PHP scope tracking is line-oriented and uses brace depth to pop class, trait,
-interface, and function contexts. Call rows are deduplicated by full name and
-source line so repeated calls on different lines remain visible. PreScan sorts
-names after collecting them from the parsed function, class, trait, and
-interface buckets.
+interface, and function contexts. Type declarations keep a pending scope until
+their opening brace appears, so PSR-style declarations with the brace on the
+next line still attach method metadata and dead-code roots to the owning type.
+Call rows are deduplicated by full name and source line so repeated calls on
+different lines remain visible. PreScan sorts names after collecting them from
+the parsed function, class, trait, and interface buckets. Dead-code roots stay
+bounded to same-file declarations and literal framework registrations;
+Composer/autoload breadth, reflection, and dynamic dispatch remain query-layer
+exactness blockers.
 
 ## Related docs
 

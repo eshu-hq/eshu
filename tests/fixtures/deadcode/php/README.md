@@ -1,6 +1,6 @@
 # PHP Dead-Code Fixture
 
-Maturity: `derived_candidate_only`.
+Maturity: `derived`.
 
 Expected symbols:
 
@@ -12,8 +12,14 @@ Expected symbols:
 | `public_api` | `PublicPhpController` |
 | `framework_root` | `indexAction` |
 | `semantic_dispatch` | `selectedPhpHandler` |
+| `interface_method` | `PhpRenderable::render` |
+| `interface_implementation` | `PublicPhpController::render` |
+| `trait_method` | `PublicPhpTrait::bootPublicPhpController` |
+| `magic_method` | `PublicPhpController::__invoke` |
 | `excluded` | `generatedPhpStub` |
 | `ambiguous` | `dynamicPhpDispatch` |
 
-This fixture is candidate-only. PHP attributes, framework controllers, and
-dynamic calls need parser/query proof before promotion.
+This fixture exercises parser-backed PHP roots for script entrypoints,
+route-backed controller actions, literal route handlers, WordPress hook callbacks,
+interfaces, traits, and magic methods. Dynamic calls remain non-exact and must
+surface as blockers rather than cleanup-safe truth.

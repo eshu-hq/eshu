@@ -62,9 +62,12 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	payload["interfaces"] = []map[string]any{}
 
 	lines := strings.Split(string(source), "\n")
+	deadCodeFacts := newPHPDeadCodeFacts()
+	deadCodeFunctions := make([]phpDeadCodeFunctionFact, 0)
 	namespace := ""
 	braceDepth := 0
 	stack := make([]phpScopedContext, 0)
+	var pendingType *phpScopedContext
 	var pendingFunction *phpScopedContext
 	var pendingAnonymousClass *phpScopedContext
 	var pendingTraitAdaptation *phpScopedContext
@@ -76,10 +79,22 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	methodReturnTypes := make(map[string]map[string]string)
 	functionReturnTypes := make(map[string]string)
 	importAliases := make(map[string]string)
+	routeAttributePending := false
+	inDeadCodeBlockComment := false
 
 	for index, rawLine := range lines {
 		lineNumber := index + 1
 		trimmed := strings.TrimSpace(rawLine)
+		observePHPDeadCodeStatement(phpExecutableLineWithoutComments(rawLine, &inDeadCodeBlockComment), deadCodeFacts, &routeAttributePending)
+		if pendingType != nil && strings.Contains(rawLine, "{") {
+			stack = append(stack, phpScopedContext{
+				kind:       pendingType.kind,
+				name:       pendingType.name,
+				braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")),
+				lineNumber: pendingType.lineNumber,
+			})
+			pendingType = nil
+		}
 		if pendingFunction != nil && strings.Contains(rawLine, "{") {
 			stack = append(stack, phpScopedContext{
 				kind:       pendingFunction.kind,
@@ -118,6 +133,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		} else if contextName, contextKind, _ := currentPHPContext(stack); contextKind == "class_declaration" {
 			if bases := parsePHPClassTraitUses(trimmed); len(bases) > 0 {
 				appendPHPClassBases(payload, contextName, bases)
+				recordPHPDeadCodeTraitUses(deadCodeFacts, contextName, bases)
 			}
 			if strings.Contains(trimmed, "{") && strings.Contains(trimmed, "use ") {
 				pendingTraitAdaptation = &phpScopedContext{
@@ -167,17 +183,38 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			}
 			switch matches[1] {
 			case "class":
+				recordPHPDeadCodeType(deadCodeFacts, "class_declaration", name, bases)
 				if strings.Contains(matches[3], "extends") && len(bases) > 0 {
 					classParentTypes[name] = normalizePHPImportedTypeName(bases[0], importAliases)
 				}
 				shared.AppendBucket(payload, "classes", item)
-				stack = append(stack, phpScopedContext{kind: "class_declaration", name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")), lineNumber: lineNumber})
+				context := phpScopedContext{kind: "class_declaration", name: name, lineNumber: lineNumber}
+				if strings.Contains(rawLine, "{") {
+					context.braceDepth = braceDepth + max(1, strings.Count(rawLine, "{"))
+					stack = append(stack, context)
+				} else {
+					pendingType = &context
+				}
 			case "interface":
+				recordPHPDeadCodeType(deadCodeFacts, "interface_declaration", name, bases)
 				shared.AppendBucket(payload, "interfaces", item)
-				stack = append(stack, phpScopedContext{kind: "interface_declaration", name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")), lineNumber: lineNumber})
+				context := phpScopedContext{kind: "interface_declaration", name: name, lineNumber: lineNumber}
+				if strings.Contains(rawLine, "{") {
+					context.braceDepth = braceDepth + max(1, strings.Count(rawLine, "{"))
+					stack = append(stack, context)
+				} else {
+					pendingType = &context
+				}
 			case "trait":
+				recordPHPDeadCodeType(deadCodeFacts, "trait_declaration", name, bases)
 				shared.AppendBucket(payload, "traits", item)
-				stack = append(stack, phpScopedContext{kind: "trait_declaration", name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")), lineNumber: lineNumber})
+				context := phpScopedContext{kind: "trait_declaration", name: name, lineNumber: lineNumber}
+				if strings.Contains(rawLine, "{") {
+					context.braceDepth = braceDepth + max(1, strings.Count(rawLine, "{"))
+					stack = append(stack, context)
+				} else {
+					pendingType = &context
+				}
 			}
 		}
 
@@ -190,28 +227,30 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		if matches := phpFunctionPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
 			name := matches[1]
 			functionKind := "function_definition"
-			if currentPHPScopedName(stack, "class_declaration", "interface_declaration", "trait_declaration") != "" {
+			typeContextName, typeContextKind, _ := currentPHPTypeContext(stack)
+			if typeContextName != "" {
 				functionKind = "method_declaration"
 			}
 			returnType := extractPHPReturnType(lines, index, rawLine)
+			parameters := extractPHPParameters(lines, index, rawLine)
 			item := map[string]any{
 				"name":        name,
 				"line_number": lineNumber,
 				"end_line":    lineNumber,
 				"lang":        "php",
 				"decorators":  []string{},
-				"parameters":  extractPHPParameters(lines, index, rawLine),
+				"parameters":  parameters,
 			}
-			if classContext := currentPHPScopedName(stack, "class_declaration", "interface_declaration", "trait_declaration"); classContext != "" {
-				item["class_context"] = classContext
+			if typeContextName != "" {
+				item["class_context"] = typeContextName
 				if semanticKind := phpSemanticKindForMethod(name); semanticKind != "" {
 					item["semantic_kind"] = semanticKind
 				}
 				if returnType != "" {
-					if _, ok := methodReturnTypes[classContext]; !ok {
-						methodReturnTypes[classContext] = make(map[string]string)
+					if _, ok := methodReturnTypes[typeContextName]; !ok {
+						methodReturnTypes[typeContextName] = make(map[string]string)
 					}
-					methodReturnTypes[classContext][name] = returnType
+					methodReturnTypes[typeContextName][name] = returnType
 				}
 			} else if returnType != "" {
 				functionReturnTypes[name] = returnType
@@ -219,13 +258,23 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			if returnType != "" {
 				item["return_type"] = returnType
 			}
+			recordPHPDeadCodeFunction(deadCodeFacts, name, typeContextName, typeContextKind, lineNumber, parameters, &routeAttributePending)
+			deadCodeFunctions = append(deadCodeFunctions, phpDeadCodeFunctionFact{
+				item:        item,
+				name:        name,
+				contextName: typeContextName,
+				contextKind: typeContextKind,
+				lineNumber:  lineNumber,
+				parameters:  parameters,
+				rawLine:     rawLine,
+			})
 			if options.IndexSource {
 				item["source"] = collectPHPBlockSource(lines, index)
 			}
 			shared.AppendBucket(payload, "functions", item)
 			if strings.Contains(rawLine, "{") {
 				stack = append(stack, phpScopedContext{kind: functionKind, name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")), lineNumber: lineNumber})
-			} else {
+			} else if !strings.Contains(rawLine, ";") {
 				pendingFunction = &phpScopedContext{kind: functionKind, name: name, lineNumber: lineNumber}
 			}
 		}
@@ -391,6 +440,21 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		stack = popPHPCompletedScopes(stack, braceDepth)
 		if pendingTraitAdaptation != nil && braceDepth < pendingTraitAdaptation.braceDepth {
 			pendingTraitAdaptation = nil
+		}
+	}
+
+	for _, function := range deadCodeFunctions {
+		rootKinds := phpDeadCodeRootKinds(
+			function.name,
+			function.contextName,
+			function.contextKind,
+			function.lineNumber,
+			function.parameters,
+			function.rawLine,
+			deadCodeFacts,
+		)
+		if len(rootKinds) > 0 {
+			function.item["dead_code_root_kinds"] = rootKinds
 		}
 	}
 

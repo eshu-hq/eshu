@@ -4,6 +4,13 @@
 // legacy parser payload buckets for classes, traits, interfaces, functions,
 // imports, variables, calls, and trait-use adaptations. PreScan returns
 // declaration names from the same payload path so repository pre-scan and full
-// parse stay aligned. The package is deterministic and depends only on shared
-// parser helpers.
+// parse stay aligned. Scope tracking preserves PSR-style type declarations
+// whose opening brace appears on the next line, because method ownership is a
+// parser contract for downstream root metadata. The package emits bounded
+// dead-code root hints for PHP entrypoints, constructors, known magic methods,
+// same-file interface and trait methods, route-backed controller actions,
+// literal route handlers, Symfony route attributes, and WordPress hook
+// callbacks; broader autoload, reflection, and dynamic-dispatch behavior stays
+// non-exact. The package is deterministic and depends only on shared parser
+// helpers.
 package php

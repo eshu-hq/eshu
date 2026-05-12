@@ -66,9 +66,10 @@ Code dead-code queries add an analysis pass over graph rows so parser-provided
 candidate classifications are visible in the response body. Unsupported
 languages such as JSON package-script metadata are suppressed from cleanup
 results before classification. Requests may include a `language` filter; SQL
-uses that filter to scan `SqlFunction` candidates directly so mixed
-application repositories cannot fill the page with earlier function labels
-before SQL routine evidence is evaluated. The analysis block also names modeled framework
+uses that filter to scan `SqlFunction` candidates directly, and PHP uses it for
+language-scoped dogfood so mixed application repositories cannot fill the page
+with earlier function labels before the requested language evidence is
+evaluated. The analysis block also names modeled framework
 roots and Go semantic roots such as same-package direct method calls, imported
 receiver method calls, generic constraint methods, fmt Stringer methods,
 function-value references, and function-literal reachable calls. It also
@@ -115,8 +116,13 @@ autoload and constant resolution, framework route files, and gem public API
 surfaces. Groovy parser metadata suppresses Jenkinsfile pipeline entrypoints and
 Jenkins shared-library `vars/*.groovy` `call` methods; Groovy remains
 candidate-only because dynamic dispatch, closure delegate resolution, shared
-library loading, and pipeline DSL steps are not resolved exactly. The analysis
-payload also exposes
+library loading, and pipeline DSL steps are not resolved exactly. PHP parser
+metadata suppresses script entrypoints, constructors, known magic methods,
+same-file interface and trait methods, route-backed controller actions, literal
+route handlers, Symfony route attributes, and WordPress hook callbacks; PHP
+remains non-exact because broader autoloading, routing, reflection, and dynamic
+dispatch are not resolved exactly.
+The analysis payload also exposes
 `dead_code_language_exactness_blockers`, with Rust blockers
 for unresolved macro expansion, cfg/Cargo feature selection, semantic module
 resolution, and trait dispatch, C blockers for macro expansion, conditional
@@ -125,6 +131,9 @@ symbol lookup, and external linkage, C++ blockers for those same C-style
 blockers plus template instantiation, overload resolution, and broad virtual
 dispatch, C# blockers for reflection, dependency injection, source generators,
 partial types, dynamic dispatch, project references, and public API surfaces,
+PHP blockers for dynamic dispatch, reflection, Composer autoloading,
+include/require resolution, framework routing, trait resolution, namespace
+aliases, magic-method dispatch, and public API surfaces,
 Ruby blockers for metaprogramming, autoload, framework routing, gem public API,
 and constant resolution, Groovy blockers for dynamic dispatch, closure
 delegates, Jenkins shared-library resolution, and pipeline DSL dynamic steps,
@@ -154,7 +163,7 @@ Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
 payload names modeled root kinds in `modeled_framework_roots`, reports whether
 reflection evidence is modeled, and counts how many suppressions came from
-parser metadata. C, C#, C++, Ruby, and Groovy root suppressions are tested
+parser metadata. C, C#, C++, PHP, Ruby, and Groovy root suppressions are tested
 through both graph-shaped rows and content-store metadata so the policy matches
 the normal hydrated read path.
 That lets MCP and CLI callers explain why a candidate was suppressed. Candidate
@@ -191,10 +200,10 @@ Repository runtime artifacts parse Dockerfile stage metadata through
 `buildDockerfileRuntimeArtifacts`, including base image, base tag, build
 platform, copy-from, command, port, and environment signals.
 The OpenAPI fragment for `POST /api/v0/code/dead-code` names modeled language
-roots such as Go public-package exports plus C, C#, C++, Ruby, and Groovy
+roots such as Go public-package exports plus C, C#, C++, PHP, Ruby, and Groovy
 parser-backed roots. Its language filter examples include `csharp`, `c`,
-`cpp`, `groovy`, `ruby`, and `sql`; `csharp` is normalized to `c_sharp` before
-candidate scanning.
+`cpp`, `groovy`, `php`, `ruby`, and `sql`; `csharp` is normalized to `c_sharp`
+before candidate scanning.
 
 ## Exported surface
 

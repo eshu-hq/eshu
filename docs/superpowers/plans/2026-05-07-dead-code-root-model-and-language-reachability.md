@@ -374,7 +374,7 @@ fixtures, maturity assertions, and parser evidence tests. Do not promote to
 | Java | `tests/fixtures/deadcode/java/` | `go/internal/parser/java_language.go` | `cd go && go test ./internal/parser -run Java.*DeadCode -count=1` |
 | Kotlin | `tests/fixtures/deadcode/kotlin/` | `go/internal/parser/kotlin_language.go` | `cd go && go test ./internal/parser -run Kotlin.*DeadCode -count=1` |
 | Perl | `tests/fixtures/deadcode/perl/` | `go/internal/parser/perl_haskell_language.go` | `cd go && go test ./internal/parser -run Perl.*DeadCode -count=1` |
-| PHP | `tests/fixtures/deadcode/php/` | `go/internal/parser/php_language.go` | `cd go && go test ./internal/parser -run PHP.*DeadCode -count=1` |
+| PHP | `tests/fixtures/deadcode/php/` | `go/internal/parser/php/` | `cd go && go test ./internal/parser -run PHP.*DeadCode -count=1` |
 | Ruby | `tests/fixtures/deadcode/ruby/` | `go/internal/parser/ruby_language.go` | `cd go && go test ./internal/parser -run Ruby.*DeadCode -count=1` |
 | Rust | `tests/fixtures/deadcode/rust/` | `go/internal/parser/rust_language.go` | `cd go && go test ./internal/parser -run Rust.*DeadCode -count=1` |
 | Scala | `tests/fixtures/deadcode/scala/` | `go/internal/parser/scala_language.go` | `cd go && go test ./internal/parser -run Scala.*DeadCode -count=1` |

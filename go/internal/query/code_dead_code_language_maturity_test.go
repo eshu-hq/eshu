@@ -72,6 +72,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		"sql":        "derived",
 		"ruby":       "derived",
 		"groovy":     "derived_candidate_only",
+		"php":        "derived",
 	} {
 		if got := maturity[language]; got != want {
 			t.Fatalf("maturity[%s] = %#v, want %#v", language, got, want)
@@ -138,6 +139,25 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 	} {
 		if !queryTestStringSliceContains(groovyBlockers, want) {
 			t.Fatalf("blockers[groovy] missing %q in %#v", want, groovyBlockers)
+		}
+	}
+	phpBlockers, ok := blockers["php"].([]any)
+	if !ok {
+		t.Fatalf("blockers[php] type = %T, want []any", blockers["php"])
+	}
+	for _, want := range []string{
+		"dynamic_dispatch_unresolved",
+		"reflection_unresolved",
+		"composer_autoload_resolution_unavailable",
+		"include_require_resolution_unavailable",
+		"framework_route_resolution_unavailable",
+		"trait_resolution_unavailable",
+		"namespace_alias_resolution_unavailable",
+		"magic_method_dispatch_unresolved",
+		"public_api_surface_unresolved",
+	} {
+		if !queryTestStringSliceContains(phpBlockers, want) {
+			t.Fatalf("blockers[php] missing %q in %#v", want, phpBlockers)
 		}
 	}
 	cBlockers, ok := blockers["c"].([]any)
