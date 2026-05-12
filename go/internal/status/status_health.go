@@ -57,7 +57,7 @@ func evaluateHealth(
 			Reasons: []string{reason},
 		}
 	}
-	if sharedBacklog := sharedProjectionBacklog(domainBacklogs); sharedBacklog.Outstanding > 0 || sharedBacklog.InFlight > 0 {
+	if sharedBacklog := sharedProjectionBacklog(domainBacklogs); sharedBacklog.Outstanding > 0 {
 		if sharedBacklog.InFlight > 0 {
 			return HealthSummary{
 				State: healthProgressing,
@@ -103,13 +103,14 @@ func evaluateHealth(
 	}
 }
 
-// sharedProjectionBacklog returns the largest domain backlog remaining after
-// the fact queue is drained. At that point outstanding domain rows represent
-// shared projection intents that still need to become graph-visible.
+// sharedProjectionBacklog returns the largest outstanding domain backlog after
+// the fact queue is drained. Lease-only rows remain visible in domain_backlogs,
+// but without outstanding intents they are worker activity rather than
+// unfinished graph-visible work.
 func sharedProjectionBacklog(rows []DomainBacklog) DomainBacklog {
 	var largest DomainBacklog
 	for _, row := range rows {
-		if strings.TrimSpace(row.Domain) == "" || (row.Outstanding <= 0 && row.InFlight <= 0) {
+		if strings.TrimSpace(row.Domain) == "" || row.Outstanding <= 0 {
 			continue
 		}
 		if row.Outstanding > largest.Outstanding ||

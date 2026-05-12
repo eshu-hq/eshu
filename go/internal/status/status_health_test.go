@@ -226,7 +226,7 @@ func TestBuildReportTreatsActiveOldSharedProjectionBacklogAsProgressing(t *testi
 	}
 }
 
-func TestBuildReportTreatsInFlightOnlySharedProjectionAsProgressing(t *testing.T) {
+func TestBuildReportTreatsInFlightOnlySharedProjectionAsHealthy(t *testing.T) {
 	t.Parallel()
 
 	report := status.BuildReport(
@@ -250,14 +250,12 @@ func TestBuildReportTreatsInFlightOnlySharedProjectionAsProgressing(t *testing.T
 		},
 	)
 
-	if got, want := report.Health.State, "progressing"; got != want {
+	if got, want := report.Health.State, "healthy"; got != want {
 		t.Fatalf("BuildReport().Health.State = %q, want %q", got, want)
 	}
 	reasons := strings.Join(report.Health.Reasons, " ")
-	if !strings.Contains(reasons, "shared projection") ||
-		!strings.Contains(reasons, "code_calls") ||
-		!strings.Contains(reasons, "in flight") {
-		t.Fatalf("BuildReport().Health.Reasons = %v, want in-flight shared projection reason", report.Health.Reasons)
+	if reasons != "no outstanding queue backlog" {
+		t.Fatalf("BuildReport().Health.Reasons = %v, want healthy queue-drained reason", report.Health.Reasons)
 	}
 }
 

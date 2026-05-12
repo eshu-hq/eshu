@@ -102,7 +102,7 @@ states (in priority order):
 | --- | --- |
 | `stalled` | Overdue claims, or outstanding backlog with no in-flight work past `StallAfter` |
 | `degraded` | Dead-letter items, failed items, or failed generations present |
-| `progressing` | Work queued, in flight, pending generation work, or shared projection intents with active partition leases or still below `StallAfter` |
+| `progressing` | Work queued, in flight, pending generation work, or outstanding shared projection intents with active partition leases or still below `StallAfter` |
 | `healthy` | No outstanding queue backlog or shared projection backlog |
 
 ### Rendering and serving
@@ -167,9 +167,9 @@ strings.
 - **Shared projection work blocks healthy.** Once the fact queue is drained,
   outstanding `DomainBacklog` rows represent shared projection intents that still
   need to become graph-visible. Active shared-projection partition leases count
-  as `DomainBacklog.InFlight`, even when no intent row is still pending, so
-  `evaluateHealth` returns `progressing` while reducer-owned edge projection is
-  still moving and only returns `stalled` for old backlog with no active lease.
+  as `DomainBacklog.InFlight`, but a lease-only row with zero outstanding
+  intents is worker activity rather than unfinished graph work, so it remains
+  visible without blocking `healthy`.
 - **`DomainBacklogs` are capped.** `BuildReport` applies `topDomainBacklogs`
   with `Options.DomainLimit` (default 5) to prevent unbounded output when the
   reducer has many domains.
