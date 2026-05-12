@@ -292,8 +292,13 @@ func buildReducerService(
 			Tracer:           tracer,
 			Logger:           logger,
 			PriorConfigDepth: parsePriorConfigDepth(getenv(driftPriorConfigDepthEnv), logger),
+			// Instruments drives eshu_dp_drift_unresolved_module_calls_total
+			// for the module-aware drift join (issue #169). Nil-safe in the
+			// loader itself; passing it here keeps the counter wired in
+			// production runs.
+			Instruments: instruments,
 		},
-		DriftLogger:         logger,
+		DriftLogger: logger,
 	})
 	if err != nil {
 		return reducer.Service{}, err

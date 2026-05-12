@@ -109,6 +109,7 @@ gauge when a shared-acceptance observer is available.
 | `CorrelationRuleMatches` | `eshu_dp_correlation_rule_matches_total` |
 | `CorrelationDriftDetected` | `eshu_dp_correlation_drift_detected_total` |
 | `CorrelationDriftIntentsEnqueued` | `eshu_dp_correlation_drift_intents_enqueued_total` |
+| `DriftUnresolvedModuleCalls` | `eshu_dp_drift_unresolved_module_calls_total` |
 
 #### Histograms (Float64 unless noted)
 

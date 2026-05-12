@@ -66,6 +66,18 @@ const (
 	// enum of drift kinds: added_in_state, added_in_config, attribute_drift,
 	// removed_from_state, removed_from_config.
 	MetricDimensionDriftKind = "drift_kind"
+	// MetricDimensionDriftUnresolvedModuleReason labels
+	// eshu_dp_drift_unresolved_module_calls_total with the closed enum of
+	// reasons the drift loader could not resolve a Terraform module call's
+	// source to a local directory under the same repo snapshot:
+	// external_registry, external_git, external_archive, cross_repo_local,
+	// cycle_detected, depth_exceeded. The string value is "reason" — same
+	// short label as MetricDimensionReason but the constant exists so the
+	// drift counter's semantic dimension is anchored to this contract and
+	// future contributors can find every counter that uses it via
+	// grep-by-constant. Referenced from
+	// go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go.
+	MetricDimensionDriftUnresolvedModuleReason = "reason"
 )
 
 // Span names define the stable data-plane tracing contract.
@@ -86,9 +98,9 @@ const (
 	// Operators reading a trace can tell which of those is slow without
 	// instrumenting each call site individually.
 	SpanReducerDriftEvidenceLoad = "reducer.drift_evidence_load"
-	SpanCanonicalWrite       = "canonical.write"
-	SpanCanonicalProjection  = "canonical.projection"
-	SpanCanonicalRetract     = "canonical.retract"
+	SpanCanonicalWrite           = "canonical.write"
+	SpanCanonicalProjection      = "canonical.projection"
+	SpanCanonicalRetract         = "canonical.retract"
 
 	SpanEvidenceDiscovery                 = "ingestion.evidence_discovery"
 	SpanIaCReachabilityMaterialization    = "iac_reachability.materialize"

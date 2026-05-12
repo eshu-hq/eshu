@@ -317,8 +317,20 @@ mutation is rejected because the current owner no longer holds the lease.
   backend queries gate on `jsonb_array_length > 0` so files with empty parser
   buckets are not decoded. `PriorConfigDepth` (default 10, set from
   `ESHU_DRIFT_PRIOR_CONFIG_DEPTH`) controls how many prior repo-snapshot
-  generations the prior-config walk covers. Row construction is split across
-  three sibling files:
+  generations the prior-config walk covers.
+  As of issue #169 the loader also walks `terraform_modules` parser facts
+  (`buildModulePrefixMap` in
+  `tfstate_drift_evidence_module_prefix.go`) to learn which `.tf` files
+  live under a `module {}` callee directory. Resources whose path matches a
+  callee inherit the canonical
+  `module.<name>[.module.<name>...]` prefix so their config-side address
+  matches the state-side `terraform state list` shape. The same prefix map
+  feeds the prior-config walk through `collectPriorConfigAddresses` so
+  module-nested `removed_from_config` detection stays alive. Local-source
+  modules resolve; registry, git, archive, and cross-repo sources fall back
+  to `added_in_state` and increment
+  `eshu_dp_drift_unresolved_module_calls_total{reason}`.
+  Row construction is split across four sibling files:
   - `configRowFromParserEntry` (`tfstate_drift_evidence_config_row.go:22`) —
     maps one HCL-parser `terraform_resources` JSON entry to a
     `tfconfigstate.ResourceRow`; copies the flat dot-path `attributes` map and
@@ -338,7 +350,7 @@ mutation is rejected because the current owner no longer holds the lease.
     `ctyValueToDriftString` in
     `go/internal/parser/hcl/terraform_resource_attributes.go` so the
     classifier's value-equality check fires deterministically.
-  - `loadPriorConfigAddresses` (`tfstate_drift_evidence_prior_config.go:45`)
+  - `loadPriorConfigAddresses` (`tfstate_drift_evidence_prior_config.go`)
     — walks the most recent `PriorConfigDepth` prior repo-snapshot generations
     for the config scope and returns the union of all declared resource
     addresses. `mergeDriftRows` sets `PreviouslyDeclaredInConfig=true` on
@@ -347,6 +359,16 @@ mutation is rejected because the current owner no longer holds the lease.
     `PreviouslyDeclaredInConfig=false` and surface as `added_in_state`. The
     walk is bounded by `listPriorConfigAddressesQuery`'s `LIMIT` so cost
     stays proportional to depth.
+  - `buildModulePrefixMap` (`tfstate_drift_evidence_module_prefix.go`) —
+    walks `terraform_modules` facts in the same `(scope_id, generation_id)`
+    and returns a callee-directory to module-prefix map keyed by
+    forward-slash paths. Uses `path.Clean` (NOT `path/filepath.Clean`)
+    because the inputs are Postgres-stored strings, not live filesystem
+    paths. Bounds the chain at `maxModulePrefixDepth = 10` (hard-coded
+    const, no env knob) and breaks cycles with a per-expansion visited
+    set. Multiple distinct callers of the same callee produce a slice of
+    prefix strings; the loader's emission loop fans out to one
+    `ResourceRow` per prefix.
 - `IngestionStore.EnqueueConfigStateDriftIntents` (`drift_enqueue.go:61`) —
   Phase 3.5 trigger that enqueues one `config_state_drift` reducer intent per
   active `state_snapshot:*` scope after bootstrap Phase 3 finishes. It records

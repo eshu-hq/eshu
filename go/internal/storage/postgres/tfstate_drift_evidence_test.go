@@ -79,13 +79,16 @@ func TestPostgresDriftEvidenceLoaderConfigOnlyAddress(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			// 1. config-side query: one terraform_resources file with one entry.
+			// 1. NEW: terraform_modules walk for module-aware joining (#169) —
+			//    no module calls in this fixture, so an empty result.
+			{rows: [][]any{}},
+			// 2. config-side query: one terraform_resources file with one entry.
 			{rows: [][]any{{
 				fixtureConfigResourcesArray(fixtureConfigParserRow("aws_iam_role", "svc")),
 			}}},
-			// 2. current snapshot lookup: serial=0 (no prior possible).
+			// 3. current snapshot lookup: serial=0 (no prior possible).
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 0, "gen-state-current")}},
-			// 3. current state-resource rows: none.
+			// 4. current state-resource rows: none.
 			{rows: [][]any{}},
 			// No prior-config walk: state is empty, so hasStateOnlyAddress returns
 			// false and the DB round-trip is skipped.
@@ -119,8 +122,8 @@ func TestPostgresDriftEvidenceLoaderConfigOnlyAddress(t *testing.T) {
 
 	// Serial=0 short-circuits prior-state lookup. State is empty so
 	// hasStateOnlyAddress returns false and prior-config walk is skipped too.
-	// Total: config + snapshot + state-resources = 3 queries.
-	if got, want := len(db.queries), 3; got != want {
+	// Module-prefix walk + config + snapshot + state-resources = 4 queries.
+	if got, want := len(db.queries), 4; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
 }
@@ -139,6 +142,8 @@ func TestPostgresDriftEvidenceLoaderStateOnlyAddress(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			// terraform_modules walk (#169): no module calls in this fixture.
+			{rows: [][]any{}},
 			// config-side: empty.
 			{rows: [][]any{}},
 			// snapshot: serial=0 (no prior).
@@ -148,7 +153,7 @@ func TestPostgresDriftEvidenceLoaderStateOnlyAddress(t *testing.T) {
 				"aws_s3_bucket.logs",
 				fixtureStatePayload("aws_s3_bucket.logs", "aws_s3_bucket", "logs", `{}`),
 			)}},
-			// 4. NEW: prior-config walk — returns no rows for this test's scenario.
+			// prior-config walk — returns no rows for this test's scenario.
 			{rows: [][]any{}},
 		},
 	}
@@ -186,6 +191,8 @@ func TestPostgresDriftEvidenceLoaderPriorGenerationFetched(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			// terraform_modules walk (#169): no module calls in this fixture.
+			{rows: [][]any{}},
 			// config-side: lambda still declared.
 			{rows: [][]any{{
 				fixtureConfigResourcesArray(fixtureConfigParserRow("aws_lambda_function", "worker")),
@@ -222,9 +229,10 @@ func TestPostgresDriftEvidenceLoaderPriorGenerationFetched(t *testing.T) {
 		t.Fatalf("row.Prior.LineageRotation = true, want false (same lineage)")
 	}
 
-	// Five queries total: config + snapshot + current-state + prior-snapshot + prior-state.
-	// Prior-config walk is skipped because current state is empty (no state-only addresses).
-	if got, want := len(db.queries), 5; got != want {
+	// Six queries total: terraform_modules + config + snapshot + current-state +
+	// prior-snapshot + prior-state. Prior-config walk is skipped because current
+	// state is empty (no state-only addresses).
+	if got, want := len(db.queries), 6; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
 }
@@ -243,6 +251,8 @@ func TestPostgresDriftEvidenceLoaderLineageRotationFlagged(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			// terraform_modules walk (#169): no module calls in this fixture.
+			{rows: [][]any{}},
 			{rows: [][]any{{
 				fixtureConfigResourcesArray(fixtureConfigParserRow("aws_lambda_function", "worker")),
 			}}},
@@ -295,6 +305,8 @@ func TestPostgresDriftEvidenceLoaderStateOnlyWithPriorLeavesFlagFalse(t *testing
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			// terraform_modules walk (#169): no module calls in this fixture.
+			{rows: [][]any{}},
 			// config-side: empty.
 			{rows: [][]any{}},
 			// current snapshot: serial=5.
@@ -311,7 +323,7 @@ func TestPostgresDriftEvidenceLoaderStateOnlyWithPriorLeavesFlagFalse(t *testing
 				"aws_iam_role.imported",
 				fixtureStatePayload("aws_iam_role.imported", "aws_iam_role", "imported", `{}`),
 			)}},
-			// 6. NEW: prior-config walk — returns no rows (address never declared anywhere).
+			// prior-config walk — returns no rows (address never declared anywhere).
 			{rows: [][]any{}},
 		},
 	}
@@ -344,7 +356,8 @@ func TestPostgresDriftEvidenceLoaderNoSnapshotReturnsEmpty(t *testing.T) {
 	}
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{}},
+			{rows: [][]any{}}, // terraform_modules walk (#169)
+			{rows: [][]any{}}, // config-side
 			{rows: [][]any{}}, // no snapshot row
 		},
 	}
@@ -408,7 +421,7 @@ func TestStateRowFlattenSingletonArrayUnwrap(t *testing.T) {
 		"acl":                "private",
 		"versioning.enabled": "false",
 		"server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm": "aws:kms",
-		"tags.env":           "prod",
+		"tags.env": "prod",
 	}
 	for path, want := range cases {
 		got, has := row.Attributes[path]

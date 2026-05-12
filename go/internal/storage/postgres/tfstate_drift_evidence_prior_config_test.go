@@ -30,23 +30,25 @@ func TestPostgresDriftEvidenceLoaderPriorConfigDeclarationActivatesRemovedFromCo
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			// 1. config-side (current gen): empty.
+			// 1. terraform_modules walk (#169): no module calls in this fixture.
 			{rows: [][]any{}},
-			// 2. current snapshot: serial=5.
+			// 2. config-side (current gen): empty.
+			{rows: [][]any{}},
+			// 3. current snapshot: serial=5.
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 5, "gen-state-current")}},
-			// 3. current state-resource: an address that was once declared.
+			// 4. current state-resource: an address that was once declared.
 			{rows: [][]any{fixtureStateResourceRow(
 				"aws_iam_policy.legacy",
 				fixtureStatePayload("aws_iam_policy.legacy", "aws_iam_policy", "legacy", `{}`),
 			)}},
-			// 4. prior state snapshot lookup: same lineage, serial=4.
+			// 5. prior state snapshot lookup: same lineage, serial=4.
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 4, "gen-state-prior")}},
-			// 5. prior state-resource: same address.
+			// 6. prior state-resource: same address.
 			{rows: [][]any{fixtureStateResourceRow(
 				"aws_iam_policy.legacy",
 				fixtureStatePayload("aws_iam_policy.legacy", "aws_iam_policy", "legacy", `{}`),
 			)}},
-			// 6. NEW: prior-config addresses walk. The prior gen DID declare this address.
+			// 7. prior-config addresses walk. The prior gen DID declare this address.
 			{rows: [][]any{{
 				fixturePriorConfigAddressesArray(fixtureConfigParserRow("aws_iam_policy", "legacy")),
 			}}},
@@ -83,23 +85,25 @@ func TestPostgresDriftEvidenceLoaderPriorConfigNeverDeclaredLeavesFlagFalse(t *t
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			// 1. config-side: empty.
+			// 1. terraform_modules walk (#169): no module calls in this fixture.
 			{rows: [][]any{}},
-			// 2. current snapshot: serial=5.
+			// 2. config-side: empty.
+			{rows: [][]any{}},
+			// 3. current snapshot: serial=5.
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 5, "gen-state-current")}},
-			// 3. current state-resource: an operator-imported address.
+			// 4. current state-resource: an operator-imported address.
 			{rows: [][]any{fixtureStateResourceRow(
 				"aws_iam_role.imported",
 				fixtureStatePayload("aws_iam_role.imported", "aws_iam_role", "imported", `{}`),
 			)}},
-			// 4. prior snapshot: same lineage.
+			// 5. prior snapshot: same lineage.
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 4, "gen-state-prior")}},
-			// 5. prior state-resource: same address persisted.
+			// 6. prior state-resource: same address persisted.
 			{rows: [][]any{fixtureStateResourceRow(
 				"aws_iam_role.imported",
 				fixtureStatePayload("aws_iam_role.imported", "aws_iam_role", "imported", `{}`),
 			)}},
-			// 6. prior-config walk: returns NO rows (address never declared anywhere).
+			// 7. prior-config walk: returns NO rows (address never declared anywhere).
 			{rows: [][]any{}},
 		},
 	}
@@ -139,6 +143,8 @@ func TestPostgresDriftEvidenceLoaderPriorConfigOutsideDepthWindowLeavesFlagFalse
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			// terraform_modules walk (#169): no module calls in this fixture.
+			{rows: [][]any{}},
 			{rows: [][]any{}},
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 5, "gen-state-current")}},
 			{rows: [][]any{fixtureStateResourceRow(
@@ -150,7 +156,7 @@ func TestPostgresDriftEvidenceLoaderPriorConfigOutsideDepthWindowLeavesFlagFalse
 				"aws_iam_policy.deep_history",
 				fixtureStatePayload("aws_iam_policy.deep_history", "aws_iam_policy", "deep_history", `{}`),
 			)}},
-			// 6. prior-config walk with depth=1: most recent prior gen has no entry for this address.
+			// prior-config walk with depth=1: most recent prior gen has no entry for this address.
 			{rows: [][]any{{
 				fixturePriorConfigAddressesArray(fixtureConfigParserRow("aws_iam_role", "unrelated")),
 			}}},

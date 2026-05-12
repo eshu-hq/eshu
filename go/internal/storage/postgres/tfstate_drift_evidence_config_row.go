@@ -14,19 +14,36 @@ import (
 // (go/internal/correlation/drift/tfconfigstate/classify.go:154) has both sides
 // of the comparison.
 //
-// The canonical address is the root-module form `<type>.<name>`. Module-nested
-// state addresses surface as added_in_state in v1 — issue #169.
+// `modulePrefix` carries the canonical Terraform-state module-address prefix
+// when the entry's parsed file lives under a known `module {}` callee
+// directory; the loader's emission loop computes that prefix from the
+// module-prefix map built in tfstate_drift_evidence_module_prefix.go. Pass
+// "" for root-module resources — the address stays `<type>.<name>` exactly
+// as before. When non-empty, the prefix is prepended with a `.` separator
+// to produce `module.<name>[.module.<name>...].<type>.<name>` matching the
+// canonical shape collector-side identity.go:26-42 emits.
+//
+// The helper stays strictly 1:1 — one parser entry produces one ResourceRow.
+// The 1→N projection (one callee resource referenced by multiple `module {}`
+// blocks) lives in the loader's emission loop, not here, so future readers
+// of this row builder cannot see fan-out hiding inside a "build one row"
+// helper. See ADR 2026-05-11-module-aware-drift-joining for the binding
+// architectural rationale (constraint D).
 //
 // Returns (nil, false) on blank type or name so genuinely invalid rows do not
 // become drift candidates.
-func configRowFromParserEntry(entry map[string]any) (*tfconfigstate.ResourceRow, bool) {
+func configRowFromParserEntry(entry map[string]any, modulePrefix string) (*tfconfigstate.ResourceRow, bool) {
 	resourceType := strings.TrimSpace(coerceJSONString(entry["resource_type"]))
 	resourceName := strings.TrimSpace(coerceJSONString(entry["resource_name"]))
 	if resourceType == "" || resourceName == "" {
 		return nil, false
 	}
+	address := resourceType + "." + resourceName
+	if modulePrefix != "" {
+		address = modulePrefix + "." + address
+	}
 	row := &tfconfigstate.ResourceRow{
-		Address:      resourceType + "." + resourceName,
+		Address:      address,
 		ResourceType: resourceType,
 	}
 	if attrs, ok := entry["attributes"].(map[string]any); ok && len(attrs) > 0 {

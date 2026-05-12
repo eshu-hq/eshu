@@ -19,7 +19,7 @@ func TestConfigRowFromParserEntryPopulatesAttributes(t *testing.T) {
 		},
 		"unknown_attributes": []any{"tags", "logging.target_bucket"},
 	}
-	row, ok := configRowFromParserEntry(entry)
+	row, ok := configRowFromParserEntry(entry, "")
 	if !ok {
 		t.Fatal("ok = false")
 	}
@@ -44,16 +44,42 @@ func TestConfigRowFromParserEntryRejectsBlankTypeOrName(t *testing.T) {
 		{"resource_type": "aws_instance", "resource_name": ""},
 		{},
 	} {
-		if _, ok := configRowFromParserEntry(entry); ok {
+		if _, ok := configRowFromParserEntry(entry, ""); ok {
 			t.Fatalf("configRowFromParserEntry(%v) ok = true, want false", entry)
 		}
+	}
+}
+
+func TestConfigRowFromParserEntryAppliesModulePrefix(t *testing.T) {
+	t.Parallel()
+
+	entry := map[string]any{"resource_type": "aws_instance", "resource_name": "web"}
+	row, ok := configRowFromParserEntry(entry, "module.vpc")
+	if !ok {
+		t.Fatal("ok = false")
+	}
+	if got, want := row.Address, "module.vpc.aws_instance.web"; got != want {
+		t.Fatalf("Address = %q, want %q", got, want)
+	}
+}
+
+func TestConfigRowFromParserEntryEmptyPrefixKeepsRootAddress(t *testing.T) {
+	t.Parallel()
+
+	entry := map[string]any{"resource_type": "aws_instance", "resource_name": "web"}
+	row, ok := configRowFromParserEntry(entry, "")
+	if !ok {
+		t.Fatal("ok = false")
+	}
+	if got, want := row.Address, "aws_instance.web"; got != want {
+		t.Fatalf("Address = %q, want %q (root-module byte-identical regression)", got, want)
 	}
 }
 
 func TestConfigRowFromParserEntryHandlesMissingAttributeFields(t *testing.T) {
 	t.Parallel()
 	entry := map[string]any{"resource_type": "aws_s3_bucket", "resource_name": "empty"}
-	row, ok := configRowFromParserEntry(entry)
+	row, ok := configRowFromParserEntry(entry, "")
 	if !ok {
 		t.Fatal("ok = false")
 	}
@@ -74,7 +100,7 @@ func TestParserToClassifierEndToEndNestedAttributeDrift(t *testing.T) {
 		"attributes": map[string]any{
 			"server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm": "AES256",
 		},
-	})
+	}, "")
 	if !ok {
 		t.Fatal("cfg ok = false")
 	}
@@ -106,7 +132,7 @@ func TestParserToClassifierEndToEndUnknownAttributeSuppressesDrift(t *testing.T)
 		"resource_type":      "aws_s3_bucket",
 		"resource_name":      "logs",
 		"unknown_attributes": []any{"versioning.enabled"},
-	})
+	}, "")
 	if !ok {
 		t.Fatal("cfg ok = false")
 	}

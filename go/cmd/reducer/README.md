@@ -50,8 +50,11 @@ flowchart TB
    (including the Terraform config-vs-state drift adapters
    `TerraformBackendResolver`, `DriftEvidenceLoader`, and `DriftLogger`
    activated for chunk #163; the evidence loader carries the runtime
-   `Tracer` and `Logger` so its three-query join opens
-   `SpanReducerDriftEvidenceLoad` and surfaces decode-failure WARN logs),
+   `Tracer`, `Logger`, and `Instruments` so its four-query join opens
+   `SpanReducerDriftEvidenceLoad`, surfaces decode-failure WARN logs,
+   and increments
+   `eshu_dp_drift_unresolved_module_calls_total` per unresolvable
+   `module {}` source per the issue #169 module-aware join),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
    the `postgres.NewReducerQueue`.

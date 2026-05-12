@@ -8,6 +8,41 @@ package postgres
 // constant it consumes — the rationale in each constant's comment block is
 // the source of truth for what the helper may assume about the result shape.
 
+// listModuleCallsForCommitQuery returns the terraform_modules arrays emitted
+// by the HCL parser for one (scope_id, generation_id) — i.e. one sealed
+// commit anchor — restricted to git-source file facts that actually contain
+// module call blocks.
+//
+// Mirrors the predicate shape of listConfigResourcesForCommitQuery: the base
+// parser payload (parser.go:106) always emits an empty terraform_modules
+// array for every parsed file, so the jsonb_array_length > 0 filter is
+// load-bearing and prunes the scan to files that actually contain at least
+// one `module "<name>" {}` block. The CASE/jsonb_typeof guard avoids
+// SQLSTATE 22023 ("cannot get array length of a scalar") on rows whose
+// terraform_modules value is jsonb null or any other scalar; see the
+// listConfigResourcesForCommitQuery comment for the planner-ordering
+// rationale.
+//
+// Powers PostgresDriftEvidenceLoader's module-aware join (issue #169 /
+// ADR 2026-05-11-module-aware-drift-joining). The loader decodes each row
+// into a slice of `{name, source, path}` entries and feeds
+// buildModulePrefixMap (tfstate_drift_evidence_module_prefix.go).
+const listModuleCallsForCommitQuery = `
+SELECT
+    fact.payload->'parsed_file_data'->'terraform_modules' AS terraform_modules
+FROM fact_records AS fact
+WHERE fact.scope_id = $1
+  AND fact.generation_id = $2
+  AND fact.fact_kind = 'file'
+  AND fact.source_system = 'git'
+  AND CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_modules') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_modules')
+        ELSE 0
+      END > 0
+ORDER BY fact.fact_id ASC
+`
+
 // listConfigResourcesForCommitQuery returns the terraform_resources arrays
 // emitted by the parser for one (scope_id, generation_id) — i.e. one sealed
 // commit anchor — restricted to git-source file facts that actually contain
@@ -132,7 +167,6 @@ LIMIT 1
 // Result shape: one row per file (per generation) with a JSONB array of
 // terraform_resources entries. The loader decodes each row and unions the
 // canonical addresses into a set.
-//
 const listPriorConfigAddressesQuery = `
 WITH prior_generations AS (
     SELECT generation_id
