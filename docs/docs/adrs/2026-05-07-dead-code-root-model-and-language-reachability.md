@@ -457,6 +457,25 @@ Local and dogfood evidence gathered in this branch so far:
   performance envelope: `32966` files, `1093371` content entities, `1153024`
   facts, `399.154s` source-local projection, and `117.932s` code-call
   materialization before the run was stopped for bottleneck analysis.
+- The PHP slice promotes PHP to `derived`, not exact. Parser metadata now
+  suppresses script entrypoints, constructors, magic methods, same-file
+  interface and trait methods, route-backed controller actions, Symfony route
+  attributes, literal route handlers, and WordPress hook callbacks. A regression
+  fixture covers PSR-style type declarations whose opening brace is on the next
+  line so real Laravel and Symfony constructors keep their owning class context.
+- PHP dogfood used a unique Compose project,
+  `eshu-php104-dogfood-20260512085625-56178`, against Laravel Framework,
+  Symfony, and WordPress develop. The run drained healthy with queue
+  `pending=0`, `in_flight=0`, `retrying=0`, `failed=0`, and `dead_letter=0`.
+  Bootstrap collected `2964`, `10355`, and `1773` files respectively, parsed
+  `2964`, `10335`, and `1772` files, and finished the bootstrap pipeline in
+  `186.741s`.
+- API `code_quality.dead_code` checks after queue drain returned
+  `truth.level=derived` and `dead_code_language_maturity.php=derived` for all
+  three PHP dogfood repositories. Parser-root suppressions were observed in the
+  analysis payload (`164` for Laravel, `224` for Symfony, `69` for WordPress),
+  and the first `500` returned candidates for each repo contained no
+  `__construct` or other `__*` magic methods.
 
 Open proof work before this branch can close:
 

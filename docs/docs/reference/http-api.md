@@ -586,9 +586,9 @@ Example dead-code workflow:
 
 `repo_id` is optional. `language` is optional; pass it when validating one
 parser language family such as `c`, `csharp`, `cpp`, `sql`, `go`, `groovy`,
-`python`, `java`, `javascript`, `typescript`, `tsx`, `ruby`, or `rust`. For C#,
-`csharp` is normalized to the parser language key `c_sharp`. For SQL, the
-language filter narrows the
+`php`, `python`, `java`, `javascript`, `typescript`, `tsx`, `ruby`, or `rust`.
+For C#, `csharp` is normalized to the parser language key `c_sharp`. For SQL,
+the language filter narrows the
 candidate scan to `SqlFunction` routines so mixed repositories with many
 application functions do not starve SQL routine evidence. When `repo_id` is
 omitted, the Go API returns the first page of
@@ -624,6 +624,13 @@ ASP.NET controller actions, hosted-service callbacks, test methods, and
 serialization callbacks, while reflection, dependency injection, source
 generators, partial type merging, dynamic dispatch, project references, and
 broad public API surfaces remain named exactness blockers.
+PHP dead-code results are `derived`: parser metadata suppresses script
+entrypoints, constructors, magic methods, same-file interface methods and
+implementations, trait methods, controller actions, literal route handlers,
+Symfony route attributes, and WordPress hook callbacks, while dynamic dispatch,
+reflection, Composer/autoload surfaces, include/require resolution, broader
+framework routing, trait resolution, namespace alias breadth, magic-method
+dispatch, and broad public API surfaces remain named exactness blockers.
 Ruby dead-code results are `derived`: parser metadata suppresses Rails
 controller actions, Rails callback methods, literal method-reference targets,
 dynamic-dispatch hooks, and script entrypoints, while metaprogramming, autoload

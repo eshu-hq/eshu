@@ -10,9 +10,11 @@
 // envelopes, truth metadata, capability gates, and code-quality classifications
 // are stable wire contracts. The dead-code OpenAPI fragment names modeled
 // language roots and keeps the language filter examples aligned with C#, C,
-// Groovy, and SQL query behavior. Dead-code responses preserve language maturity,
-// modeled framework-root lists, and root-kind evidence for functions and types
-// so callers can separate cleanup candidates from modeled roots; TypeScript
+// Groovy, PHP, and SQL query behavior. That filter is part of the dogfood
+// contract for validating one language family without earlier candidate labels
+// filling the page. Dead-code responses preserve language maturity, modeled
+// framework-root lists, and root-kind evidence for functions and types so
+// callers can separate cleanup candidates from modeled roots; TypeScript
 // public API export, public API re-export, public type-reference, interface
 // implementation, module-contract, and static-registry roots are reported
 // alongside JavaScript-family package, CommonJS mixin, Next.js, Express, Koa,
@@ -36,9 +38,12 @@
 // cpp.function_pointer_target roots, plus cpp.node_addon_entrypoint, plus Ruby
 // Rails controller/callback roots, dynamic-dispatch hooks, literal
 // method-reference targets, and script entrypoints, plus Groovy Jenkinsfile
-// pipeline entrypoints and vars/*.groovy shared-library call roots. C, C++,
-// Ruby, and Rust now share the derived dead-code maturity tier with Go and
-// Java while exact cleanup remains gated on broader semantic resolution.
+// pipeline entrypoints and vars/*.groovy shared-library call roots, plus PHP
+// script entrypoints, constructors, magic methods, interface/trait methods,
+// controller actions, route handlers, Symfony route attributes, and WordPress
+// hook callbacks. C, C++, PHP, Ruby, and Rust now share the derived dead-code
+// maturity tier with Go and Java while exact cleanup remains gated on broader
+// semantic resolution.
 // C# shares that tier through parser-backed roots for common framework and
 // language entrypoints. Groovy remains candidate-only until dynamic dispatch,
 // closure delegates, shared library loading, and pipeline DSL steps have
@@ -56,6 +61,9 @@
 // overload resolution, and virtual dispatch breadth to those C-style blockers,
 // C# blockers cover reflection, dependency injection, source generators,
 // partial types, dynamic dispatch, project references, and public API surfaces,
+// PHP blockers cover dynamic dispatch, reflection, Composer autoloading,
+// include/require resolution, framework routing, trait resolution, namespace
+// aliases, magic-method dispatch, and public API surfaces,
 // Ruby exactness blockers cover metaprogramming, autoload, framework routing,
 // gem public API, and constant resolution, Groovy exactness blockers cover
 // dynamic dispatch, closure delegates, Jenkins shared libraries, and pipeline
@@ -87,8 +95,8 @@
 // result limits, and reports display truncation separately from bounded raw
 // candidate pages and rows so callers can tell whether the result list was
 // clipped or the candidate scan cap was reached. C root suppressions are
-// honored from content-store metadata after hydration, and C#, C++, Ruby, and
-// Groovy root suppressions use the same graph/content metadata path. That
+// honored from content-store metadata after hydration, and C#, C++, PHP, Ruby,
+// and Groovy root suppressions use the same graph/content metadata path. That
 // matches the
 // normal parser metadata path used by indexed repositories.
 // Infrastructure reads expose Terraform backend, import, moved, removed, check,

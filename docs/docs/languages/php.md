@@ -3,7 +3,7 @@
 This page tracks the checked-in Go PHP parser and query contract in the current repository state.
 
 Canonical implementation:
-- Parser: `go/internal/parser/php_language.go`
+- Parser: `go/internal/parser/php/`
 - Registry: `go/internal/parser/registry.go`
 - Query proof: `go/internal/query/*php*`
 - Fixture repo: `tests/fixtures/ecosystems/php_comprehensive/`
@@ -28,6 +28,7 @@ Canonical implementation:
 | Method-return receiver chains | `method-return-receiver-chains` | supported | `go/internal/parser/php_language_method_chain_test.go::TestDefaultEngineParsePathPHPInfersMethodReturnPropertyDereferenceReceiverCalls`, `go/internal/reducer/code_call_materialization_php_method_return_chain_test.go::TestExtractCodeCallRowsResolvesPHPMethodReturnPropertyDereferenceReceiverCallsUsingTypedPropertyInference`, `go/internal/query/code_relationships_graph_kotlin_php_additional_test.go::TestHandleRelationshipsReturnsGraphBackedPHPSameFileMethodReturnPropertyChainAliasCalls` | Method-return call chains, property dereference chains, and parenthesized method-return chains survive parser inference, reducer materialization, and graph-backed public query proof. |
 | Cross-file object-call families | `cross-file-object-call-families` | supported | `go/internal/reducer/code_call_materialization_cross_file_exact_test.go::TestExtractCodeCallRowsResolvesCrossFilePHPMethodReturnCallChainReceiverCallsUsingTypedPropertyInference`, `go/internal/query/code_relationships_graph_kotlin_php_test.go::TestHandleRelationshipsReturnsGraphBackedPHPCrossFileReturnTypeAliasedCalls`, `go/internal/query/code_relationships_graph_php_long_tail_test.go::TestHandleRelationshipsReturnsGraphBackedPHPCrossFileChainedStaticFactoryReturnCalls` | Cross-file return-type aliases, cross-file method-return chains, and cross-file chained static factory returns are all query-proven in the current platform. |
 | Nullsafe and anonymous-class receivers | `nullsafe-and-anonymous-class-receivers` | supported | `go/internal/parser/php_language_test.go::TestDefaultEngineParsePathPHPEmitsNullsafeReceiverMetadata`, `go/internal/reducer/code_call_materialization_family_test.go::TestExtractCodeCallRowsResolvesPHPNullsafeReceiverChainsUsingTypedPropertyInference`, `go/internal/query/code_relationships_graph_php_long_tail_test.go::TestHandleRelationshipsReturnsGraphBackedPHPAnonymousClassReceiverCalls` | Nullsafe receiver chains and anonymous-class receiver calls both survive the full parser/reducer/query path. |
+| Dead-code root hints | `dead-code-root-hints` | derived | `go/internal/parser/php_dead_code_roots_test.go::TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_php_roots_test.go::TestHandleDeadCodeExcludesPHPRootKindsFromMetadata`, `tests/fixtures/deadcode/php/app.php` | Parser metadata suppresses PHP script entrypoints, constructors, magic methods, interface methods, interface implementations, trait methods, controller actions, literal route handlers, Symfony route attributes, and WordPress hook callbacks from cleanup candidates. |
 
 ## Current Truth
 
@@ -35,6 +36,8 @@ Canonical implementation:
   families end to end.
 - The public Go `code/relationships` surface now has checked-in proof for the
   bounded PHP receiver families covered on this page.
+- `code_quality.dead_code` reports PHP as `derived`, not exact. The current
+  root model is parser-backed and bounded to syntax-proven roots.
 - Remaining PHP work, if any, is net-new future enhancement work around fully
   dynamic dispatch and reflection-heavy flows beyond the documented contract.
 
@@ -42,6 +45,7 @@ Canonical implementation:
 
 - Trait adaptation semantics beyond the bounded alias and override paths remain
   intentionally narrow.
-- Fully dynamic PHP dispatch, reflection-heavy call sites, and arbitrary
-  whole-program alias flow remain bounded future work beyond the documented
-  contract.
+- Fully dynamic PHP dispatch, reflection-heavy call sites, Composer/autoload
+  public surfaces, include/require resolution, namespace alias breadth, broader
+  framework route resolution, and arbitrary whole-program alias flow remain
+  bounded future work beyond the documented contract.
