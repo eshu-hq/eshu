@@ -1,7 +1,7 @@
 # ADR: Capture Composite Attribute Values For SchemaKnown Paths In The Terraform-State Parser
 
 **Date:** 2026-05-12
-**Status:** Accepted
+**Status:** Accepted — open questions resolved 2026-05-12; implementation tracked by this PR.
 **Authors:** Allen Sanabria
 **Deciders:** Platform Engineering
 
@@ -367,42 +367,53 @@ implementation PR to producing before/after evidence:
   the right thing (no drift fires when the value is absent), so prior
   generations stay silent rather than producing wrong drift candidates.
 
-## Open Questions Requiring Sign-Off
+## Resolved Questions
 
-1. **Should the walker emit a `parse_warning` fact when it tries to
-   read a schema-known composite and finds a malformed JSON subtree, or
-   should it fall back silently to `skipNested`?** Recommendation: emit
-   `parse_warning` with `warning_kind="composite_capture_failed"` and
-   the source path. Operators need to know the bundle and the state
-   disagree on shape.
+Resolved 2026-05-12 by the owner. Each entry records the resolution and
+the one-line rationale.
 
-2. **Should `eshu_dp_drift_schema_unknown_composite_total` be one
-   counter with two labels (resource_type, attribute_key), or a single
-   counter with no labels and a structured log per occurrence?**
-   Recommendation: counter without high-cardinality labels (resource
-   type only, attribute key in the structured log). Resource type
-   cardinality is bounded by the schema; attribute keys are not.
+1. **On malformed JSON inside a schema-known composite: emit a
+   `parse_warning` fact, or fall back silently to `skipNested`?**
+   **Resolution:** neither — use `slog.Warn` plus a counter increment;
+   do not introduce a new fact kind. Modified from the initial
+   recommendation; rationale: avoids new fact-kind contract surface in
+   a PR already four bugs deep. The counter (per Q2) carries the
+   "how often" signal and the structured log carries the diagnostic
+   detail (source path, `resource_type`, `attribute_key`, JSON-decode
+   error). That gives operators the same visibility without adding a
+   new contract. `CLAUDE.md` §"Observability Contract" names
+   slog + counter as the standard pair for "new retry/skip path."
+   Promotion to a fact kind is a follow-up if dogfood evidence shows
+   operators need durable history of composite-capture failures.
 
-3. **Should the implementation include size-aware truncation for
-   genuinely large schema-known composites (10+ MB)?** Recommendation:
-   no for v1. The current AWS schema bundle has no nested block with
-   multi-MB scalar leaves. The synthetic 10k-character regression test
-   bounds the worst case. File as a follow-up issue if dogfood evidence
-   shows it.
+2. **Should `eshu_dp_drift_schema_unknown_composite_total` carry both
+   `resource_type` and `attribute_key`, or only `resource_type`?**
+   **Resolution:** counter with `resource_type` label only;
+   `attribute_key` stays in the structured log. Rationale:
+   `CLAUDE.md` §"Observability Contract" forbids high-cardinality
+   values in metric labels. Resource-type cardinality is bounded by
+   the schema bundle; attribute-key cardinality is not.
 
-4. **Should the v2.5 follow-up (buckets C and F) inherit this ADR's
-   walker, or use a different approach?** Recommendation: inherit.
-   Buckets C and F need two collector generations of the same state;
-   that is an orchestration problem (how the verifier drives the
-   collector twice), not a parser problem. The walker applies the same
-   way.
+3. **Include size-aware truncation for genuinely large
+   schema-known composites (10+ MB) in v1?** **Resolution:** no.
+   Rationale: the synthetic 10k-character regression test bounds the
+   worst case; the current AWS schema bundle has no nested block with
+   multi-MB scalar leaves. File a follow-up stub if dogfood surfaces
+   multi-MB composites.
+
+4. **Does the v2.5 follow-up (buckets C and F) inherit this ADR's
+   walker, or use a different approach?** **Resolution:** inherit.
+   Rationale: buckets C and F are an orchestration problem (drive the
+   collector twice with state/repo swap), not a parser problem. The
+   walker applies the same way under the second pass.
 
 5. **Does the implementation need to update PR #198's truncation
-   contract, or does the existing first-wins truncation handle the
-   multi-element case correctly under the new walker output?**
-   Recommendation: no contract change needed. PR #198 truncates in the
-   loader's flattener, downstream of the walker. The regression test
-   verifies the truncation log still fires.
+   contract?** **Resolution:** no. Rationale: the walker (parser
+   layer) and the flattener (loader layer) operate at different
+   layers. The regression test commits to: multi-element repeated
+   block on a SchemaKnown path causes PR #198's truncation log to
+   fire with `multi_element.source="state_flatten"`. That is the gate.
+   No contract change.
 
 ## References
 
