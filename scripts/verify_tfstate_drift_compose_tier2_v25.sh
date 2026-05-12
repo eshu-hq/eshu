@@ -288,55 +288,38 @@ export ESHU_TIER2_V25_GEN2_CLAIMS=true
 # ESHU_COLLECTOR_INSTANCES_JSON gets parsed; both collectors must restart so
 # the new claims_enabled flag takes effect.
 #
-# bootstrap-index is intentionally NOT in this list. Including it would
-# launch a fresh long-running bootstrap-index container alongside the
-# `run --rm bootstrap-index` invocation below, and both would race on the
-# canonical projector's MERGE for File.[path] (the UNIQUE constraint fails
-# at NornicDB commit time when two transactions both index-probe as absent
-# and both try to CREATE). The `run --rm bootstrap-index` further down
-# already picks up the new ESHU_TIER2_V25_REPOS_DIR at exec time and binds
-# repos_gen2; the Pass-1 bootstrap-index container stays Exited.
+# bootstrap-index is intentionally NOT in this list. The Pass 1 bootstrap-
+# index container has already exited; the `run --rm bootstrap-index` Pass 2
+# invocation below picks up the new ESHU_TIER2_V25_REPOS_DIR at exec time
+# and binds repos_gen2.
 #
-# ingester is also intentionally NOT in this list. The ingester runs
-# canonical-projection workers that drain the Postgres fact queue. If the
-# force-recreated ingester boots with the gen-2 mount and its projector
-# workers race against `run --rm bootstrap-index` Pass 2 on the same
-# gen-2 File facts, both transactions index-probe absent, both attempt
-# CREATE, and the second commit fails the UNIQUE on File.[path]
-# constraint. The retried projections eventually succeed but the run log
-# fills with projection_failure noise. We stop the ingester explicitly
-# below so bootstrap-index owns the gen-2 projection alone, then bring
-# it back after Pass 2 commits.
+# ingester stays in the running set: the canonical writer's commit-time
+# UNIQUE-on-MERGE retry path (RetryingExecutor.ExecuteGroup classifying
+# isNornicDBCommitTimeUniqueConflict + allStatementsAreMerge as retryable,
+# go/internal/storage/cypher/retrying_executor.go) absorbs concurrent
+# writers on the same File.[path] uid without serializing here. Per the
+# project rule "Serialization Is Not A Fix" (CLAUDE.md / AGENTS.md), a
+# concurrent writer must not be stopped purely to silence a MERGE race.
 "${COMPOSE_CMD[@]}" up -d --force-recreate --no-deps \
     resolution-engine eshu \
     workflow-coordinator \
     collector-terraform-state-gen1 \
     collector-terraform-state-gen2
 
-echo "==> Stopping ingester so bootstrap-index Pass 2 owns canonical projection"
-"${COMPOSE_CMD[@]}" stop ingester >/dev/null
-
 echo "==> Pass 2: re-running bootstrap-index against gen-2 repos"
-# ESHU_PROJECTION_WORKERS=1 forces the Pass 2 projector to single-thread.
-# bootstrap-index defaults to min(NumCPU, 8) workers
-# (go/cmd/bootstrap-index/main.go:425). On the second pass, the gen-2
-# facts touch graph nodes that Pass 1 already created — notably the
-# TerraformResource keyed on (repo, address) for bucket F's legacy
-# resource. With 8 workers racing MERGE-vs-MERGE on the same uid,
-# NornicDB rejects the second commit with UNIQUE on TerraformResource.[uid].
-# Serializing to one worker eliminates the within-process race without
-# changing projector code. Bucket F + bucket C are two small repos, so
-# wall-time cost is negligible. The underlying non-idempotent projection
-# under concurrent workers is tracked as a follow-up reducer issue.
-"${COMPOSE_CMD[@]}" run --rm -e ESHU_PROJECTION_WORKERS=1 bootstrap-index >"$PHASE_35_PASS2_LOG" 2>&1 \
+# bootstrap-index defaults to min(NumCPU, 8) projection workers. With the
+# concurrent-MERGE retry now landed in RetryingExecutor.ExecuteGroup,
+# multi-worker projection on gen-2 facts that share a TerraformResource
+# uid with Pass 1 is self-healing: the first commit succeeds, racers
+# retry-and-match. Worker-knob serialization (ESHU_PROJECTION_WORKERS=1)
+# is intentionally NOT set — see "Serialization Is Not A Fix" in
+# CLAUDE.md / AGENTS.md.
+"${COMPOSE_CMD[@]}" run --rm bootstrap-index >"$PHASE_35_PASS2_LOG" 2>&1 \
     || {
         echo "bootstrap-index Pass 2 failed; tail of output:" >&2
         tail -n 60 "$PHASE_35_PASS2_LOG" >&2
         exit 1
     }
-
-echo "==> Restarting ingester on the gen-2 mount after bootstrap-index Pass 2"
-"${COMPOSE_CMD[@]}" up -d --force-recreate --no-deps ingester
 
 echo "==> Waiting for Pass 2 terraform_state work items (need additional rows for gen-2 instance)"
 tier2_wait_for_terraform_state_work_items 4 240

@@ -105,51 +105,74 @@ If you need to confirm the behavior against the current NornicDB binary:
 Tear the stack down after the experiment. Do not leave the corrupted state
 running for other workflows.
 
-## Pitfall: `MERGE` re-projection of an existing node fails the UNIQUE
-constraint when a single-property uid constraint is active
+## Pitfall: `MERGE` re-projection commit-time UNIQUE on `v1.0.45`+
 
 ### Observed shape
 
 In the Eshu Tier-2 v2.5 tfstate drift verifier (issue #209), Pass 2's
-canonical projector reissues `MERGE (r:TerraformResource {uid: row.uid}) SET
-...` against a uid that was created by Pass 1. The MERGE does not match the
-existing node; it attempts a fresh `CREATE`; the storage-level constraint
-check then fails with the same nodeID-points-at-itself shape described in the
-drop-and-recreate pitfall above.
+canonical projector reissues
+`MERGE (r:TerraformResource {uid: row.uid}) SET ...` against a uid that was
+created by Pass 1. Under concurrent writers (e.g. resolution-engine draining
+the queue while bootstrap-index Pass 2 runs its own projector), two
+transactions can both index-probe the uid as absent, both attempt `CREATE`,
+and the second commit fails with the shape:
 
-`File.path`-keyed MERGE re-projection in the same stack works correctly. The
-asymmetry between `File` (works) and `TerraformResource` (fails) is currently
-unexplained at the NornicDB level — the same Cypher pattern and constraint
-shape against either label.
+```text
+Neo4jError: Neo.ClientError.Transaction.TransactionCommitFailed
+(commit failed: constraint violation:
+ Constraint violation (UNIQUE on TerraformResource.[uid]):
+ Node with uid=<X> already exists (nodeID: <Y>))
+```
+
+This is normal MERGE-vs-MERGE race semantics. Both writers see the cache as
+empty during planning, both attempt CREATE, the storage-level UNIQUE check
+at commit fails the loser. The MERGE re-execution against the now-committed
+node is idempotent and would succeed.
 
 ### Status
 
-**Not reproduced in NornicDB isolation.** Direct Go-test reproductions using
-`MemoryEngine + NamespacedEngine` and `BadgerEngine + NamespacedEngine` with
-the identical Cypher pattern (UNWIND + MERGE on the uid-constrained label,
-then second MERGE on the same uid) commit cleanly. The bug therefore needs
-something specific to the live Compose path — candidates being investigated:
+**Resolved at the Eshu side, not the NornicDB side.** Direct Go-test
+reproductions using `MemoryEngine + NamespacedEngine` and
+`BadgerEngine + NamespacedEngine` with the identical Cypher pattern commit
+cleanly — the conflict only surfaces under concurrent commit, and NornicDB
+fails it correctly. The Eshu fix is in
+`go/internal/storage/cypher/retrying_executor.go`:
 
-- Bolt protocol layer (test bypasses Bolt; production goes through it).
-- `AsyncEngine` + `WALEngine` cache-flush timing in combination with new Bolt
-  sessions.
-- Cross-session cache interactions between `resolution-engine` (Pass 1
-  writer) and `bootstrap-index` (Pass 2 writer) as separate Bolt clients.
+- `RetryingExecutor.ExecuteGroup` now retries on commit-time UNIQUE
+  conflicts when every statement in the group is MERGE-shaped (
+  `allStatementsAreMerge`). Mixed groups containing non-MERGE statements
+  are NOT retried — re-executing a non-MERGE statement under partial
+  success is unsafe.
+- `isNornicDBCommitTimeUniqueConflict` matches the v1.0.45 error wrapping
+  (`commit failed: constraint violation:...` /
+  `Neo.ClientError.Transaction.TransactionCommitFailed`) in addition to
+  the older `failed to commit implicit transaction:...` wrapping. Earlier
+  binaries surfaced commit-time UNIQUE under the older wrapping; the
+  pinned `timothyswt/nornicdb-amd64-cpu:v1.0.45` uses the newer wrapping,
+  and the classifier had silently stopped matching after the upgrade.
 
-Track investigation in PR #215 and any issue that supersedes it. Update this
-section when the trigger is isolated.
+With these changes, concurrent canonical MERGE on the same uid is
+self-healing: the first commit lands, racers retry-and-match. No worker-
+knob serialization is required, consistent with the project rule
+"Serialization Is Not A Fix" in `CLAUDE.md` / `AGENTS.md`.
+
+If you observe this error shape after the v2.5 verifier work landed,
+suspect a regression in the retry classifier — verify against
+`retryable_error_test.go` and `retrying_executor_test.go` first.
 
 ### Implications for Eshu work
 
-- Re-projection of nodes by uid through the canonical writer must not be
-  assumed idempotent against the pinned NornicDB binary until this pitfall is
-  closed. Plan re-projection-heavy code paths accordingly: either gate the
-  write on a prior `MATCH` to detect existing-and-unchanged uids, or restrict
-  re-projection to fresh stacks.
-- Adding new `uidConstraintLabels` entries in
-  `go/internal/graph/schema.go` should be done with awareness of this pitfall:
-  any label whose canonical writer re-emits the same uid across Eshu
-  generations is potentially exposed.
+- Canonical MERGE re-projection through the phase-group executor is safe
+  under concurrent workers and across Pass 1 / Pass 2 process boundaries.
+  Do not gate re-projection-heavy code paths on a prior `MATCH` to "detect
+  existing-and-unchanged uids" as a workaround.
+- Adding a new `uidConstraintLabels` entry in `go/internal/graph/schema.go`
+  is safe for canonical projection as long as the writer goes through the
+  retrying phase-group executor. The retry classifier is label-agnostic.
+- If a future NornicDB upgrade changes the commit-time UNIQUE error
+  wrapping again, extend `isNornicDBCommitTimeUniqueConflict` to recognize
+  the new shape and add a regression test mirroring
+  `TestRetryingExecutorRetriesNornicDBMergeUniqueConflictV1045Format`.
 
 ## When to patch NornicDB itself
 
