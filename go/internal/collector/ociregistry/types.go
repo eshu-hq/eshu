@@ -9,8 +9,12 @@ const CollectorKind = "oci_registry"
 type Provider string
 
 const (
+	// ProviderDockerHub identifies Docker Hub registry repositories.
+	ProviderDockerHub Provider = "dockerhub"
 	// ProviderECR identifies Amazon Elastic Container Registry.
 	ProviderECR Provider = "ecr"
+	// ProviderGHCR identifies GitHub Container Registry repositories.
+	ProviderGHCR Provider = "ghcr"
 	// ProviderJFrog identifies JFrog Artifactory Docker/OCI repositories.
 	ProviderJFrog Provider = "jfrog"
 )

@@ -62,7 +62,9 @@ where the provider changes authentication or URL shape.
 | OCI Distribution-compatible registry | Supported baseline | `distribution.Client` performs `/v2/`, tag list, manifest, and Referrers API calls. |
 | JFrog Artifactory Docker/OCI repository | Supported live-validation target | `jfrog` maps an Artifactory base URL plus Docker repository key onto the Distribution client. Package feeds remain in the package-registry collector. |
 | Amazon ECR private registry | Supported live-validation target | `ecr` maps account/region registry hosts and converts `GetAuthorizationToken` output into Distribution basic auth. |
-| GHCR, Docker Hub, Harbor, Google Artifact Registry, Azure Container Registry | Future adapters | Add only when a provider needs auth, pagination, hostname, or warning-class behavior beyond the Distribution baseline. |
+| Docker Hub | Supported live-validation target | `dockerhub` maps `docker.io` identity to `registry-1.docker.io`, adds `library/` for official images, and obtains pull tokens from Docker's token service. |
+| GHCR | Supported live-validation target | `ghcr` validates owner/image names and obtains repository-scoped pull tokens from GitHub Container Registry. |
+| Harbor, Google Artifact Registry, Azure Container Registry | Future adapters | Add only when a provider needs auth, pagination, hostname, or warning-class behavior beyond the Distribution baseline. |
 
 Provider adapters must not change fact identity. They can normalize endpoint
 shape, obtain credentials, classify provider-specific warnings, and pass the
@@ -329,6 +331,12 @@ the descriptor and emit a warning instead of dropping evidence.
   https://github.com/opencontainers/image-spec/blob/main/annotations.md
 - AWS ECR private registry authentication:
   https://docs.aws.amazon.com/AmazonECR/latest/userguide/registry_auth.html
+- Docker Registry token authentication:
+  https://docs.docker.com/reference/api/registry/auth/
+- Docker Hub registry overview:
+  https://docs.docker.com/docker-hub/
+- GitHub Container Registry:
+  https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry
 - JFrog Docker repositories:
   https://docs.jfrog.com/artifactory/docs/docker-repositories
 - JFrog Docker repository catalog API:

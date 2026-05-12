@@ -15,10 +15,10 @@ Docker/OCI repositories use this lane. JFrog package feeds use
 ## Ownership boundary
 
 This package owns local identity rules and fact-envelope construction only.
-Distribution HTTP clients, JFrog repository-key mapping, and ECR token
-conversion live in provider subpackages. Workflow claims, runtime telemetry,
-graph writes, reducer correlation, and query surfaces belong to later
-collector, reducer, storage, and query slices.
+Distribution HTTP clients, Docker Hub and GHCR token mapping, JFrog
+repository-key mapping, and ECR token conversion live in provider subpackages.
+Workflow claims, runtime telemetry, graph writes, reducer correlation, and
+query surfaces belong to later collector, reducer, storage, and query slices.
 
 ```mermaid
 flowchart LR
@@ -75,6 +75,8 @@ the resolved digest. `FactID` includes `scope_id` and `generation_id`, while
 | Package | Role |
 | --- | --- |
 | `distribution` | Provider-neutral OCI Distribution API calls for ping, tags, manifests, and referrers. |
+| `dockerhub` | Docker Hub host normalization, official-library naming, and pull-token-backed live smoke tests. |
+| `ghcr` | GitHub Container Registry repository validation and pull-token-backed live smoke tests. |
 | `jfrog` | Artifactory Docker/OCI repository-key mapping and opt-in live smoke tests. |
 | `ecr` | Amazon ECR host mapping, auth-token conversion, and opt-in live smoke tests. |
 
@@ -89,6 +91,8 @@ live in the future OCI registry runtime slice.
 - `FactID` is generation-specific so repeated registry observations preserve
   history instead of overwriting prior rows.
 - ECR is OCI registry evidence, not package-registry evidence.
+- Docker Hub and GHCR use repository-scoped bearer tokens before Distribution
+  tag and manifest reads.
 - JFrog Docker/OCI repositories use this package; JFrog npm, Maven, PyPI,
   NuGet, Go, and Generic repositories use `packageregistry`.
 - Credentials and sensitive query parameters must not enter payloads or source

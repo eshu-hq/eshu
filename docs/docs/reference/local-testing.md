@@ -144,6 +144,36 @@ target registry host; the ECR authorization-token call itself does not pass a
 registry id because AWS now marks that request field deprecated. Use
 `ESHU_ECR_OCI_REGISTRY_HOST` instead when testing a nonstandard host shape.
 
+Docker Hub validation defaults to a public official-library image and uses
+anonymous pull tokens unless credentials are provided:
+
+```bash
+export ESHU_DOCKERHUB_OCI_LIVE=1
+export ESHU_DOCKERHUB_OCI_REPOSITORY="library/busybox"
+export ESHU_DOCKERHUB_OCI_REFERENCE="latest"
+
+cd go
+go test ./internal/collector/ociregistry/dockerhub -run TestLiveDockerHub -count=1 -v
+```
+
+Set `ESHU_DOCKERHUB_OCI_USERNAME` and `ESHU_DOCKERHUB_OCI_PASSWORD` when
+validating private Docker Hub repositories or avoiding anonymous rate limits.
+
+GHCR validation defaults to a public image and uses anonymous pull tokens unless
+credentials are provided:
+
+```bash
+export ESHU_GHCR_OCI_LIVE=1
+export ESHU_GHCR_OCI_REPOSITORY="stargz-containers/busybox"
+export ESHU_GHCR_OCI_REFERENCE="1.32.0-org"
+
+cd go
+go test ./internal/collector/ociregistry/ghcr -run TestLiveGHCR -count=1 -v
+```
+
+Set `ESHU_GHCR_OCI_USERNAME` and `ESHU_GHCR_OCI_PASSWORD` when validating
+private GHCR repositories or organization packages that deny anonymous pulls.
+
 ## Discovery Advisory Playbook
 
 Use this loop when a repository is slow, unexpectedly large, or timeout-heavy.

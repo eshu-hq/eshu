@@ -4,8 +4,9 @@
 
 `internal/collector/ociregistry/distribution` owns the provider-neutral OCI
 Distribution HTTP calls used by the future `oci_registry` runtime. It validates
-registry challenges, lists tags, fetches manifests and image indexes, and lists
-referrers where the registry supports the Referrers API.
+registry challenges, requests bearer tokens, lists tags, fetches manifests and
+image indexes, and lists referrers where the registry supports the Referrers
+API.
 
 ## Ownership boundary
 
@@ -27,7 +28,9 @@ flowchart LR
 
 - `ClientConfig` — base URL, auth, and HTTP client settings.
 - `Client` — bounded OCI Distribution HTTP client.
+- `TokenConfig` — Distribution bearer-token request settings.
 - `Ping` — validates a registry API endpoint or auth challenge.
+- `FetchBearerToken` — requests a pull token from a token service.
 - `ListTags` — reads tag names for one repository.
 - `GetManifest` — reads manifest or index bytes plus digest/media metadata.
 - `ListReferrers` — reads descriptors attached to one subject digest.
@@ -48,6 +51,7 @@ client in the future claim-driven collector.
 
 - `Ping` treats `401 Unauthorized` with `Docker-Distribution-Api-Version` or
   `WWW-Authenticate` as a valid Distribution endpoint challenge.
+- `FetchBearerToken` accepts both `token` and `access_token` response fields.
 - Request paths escape repository names and references segment-by-segment while
   preserving repository slashes.
 - Endpoint resolution preserves the `/v2/` trailing slash required by registry

@@ -7,6 +7,7 @@
 // observations, manifests, image indexes, descriptors, referrers, and warnings.
 // Builders validate boundary fields, keep tag evidence separate from digest
 // identity, make FactID generation-specific, and redact unknown annotations or
-// credential-bearing URLs. It does not call ECR, JFrog, or any live registry,
-// and it does not materialize graph truth or answer queries.
+// credential-bearing URLs. Provider adapters for Docker Hub, GHCR, ECR, and
+// JFrog live in subpackages; this root package does not call live registries,
+// materialize graph truth, or answer queries.
 package ociregistry
