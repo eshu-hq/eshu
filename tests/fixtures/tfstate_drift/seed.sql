@@ -12,23 +12,26 @@
 -- against the same Postgres without producing duplicates.
 --
 -- ============================================================================
--- Locator hash table (precomputed against terraformstate.LocatorHash —
--- see go/internal/collector/terraformstate/identity.go:100). Regenerate by
+-- Locator hash table (precomputed against terraformstate.ScopeLocatorHash —
+-- see go/internal/collector/terraformstate/identity.go). The drift resolver
+-- join key is intentionally version-agnostic; do NOT regenerate these with
+-- terraformstate.LocatorHash, which carries VersionID. Regenerate by
 -- running the helper in tests/fixtures/tfstate_drift/README.md if the hash
--- algorithm changes.
+-- algorithm changes. (Issue #203 aligned the two hash functions for the
+-- empty-VersionID case after a silent drift-rejection bug.)
 --
 --   bucket=eshu-drift-a/prod/terraform.tfstate
---     hash=01c90e0b47d80dfc362bb2647d1306c5889b316d1c3b37ad91a49ccbb7e16ae5
+--     hash=92d2c3373ab7c1558170b1e20861a7aa3d53cbfde6545bc408b9972960d8af0f
 --   bucket=eshu-drift-b/prod/terraform.tfstate
---     hash=ac3219927f950b4a0a57e415168765f0c49fccaa862b32e0906cacc29548eb66
+--     hash=0d25ca7f523acde9ee9afe3156e65992a34cbe3ec5ba7dd69db280f110aa1b01
 --   bucket=eshu-drift-c/prod/terraform.tfstate
---     hash=33f0f3a35fa8bf42780910e64cc72a8977797dac9eecbbc50a623687bc79be38
+--     hash=84b08900a6df9339a8e1d1b258234e7da14f01c0761d9f78acb7658d1c120f9e
 --   bucket=eshu-drift-d/prod/terraform.tfstate
---     hash=6ef42db5dda508cb600e123a97ef2e128947bd582afac01e2e64a19dddf7ce4e
+--     hash=6815f7e3d49f4ed59c5975f9698aa1f9f7a52c0c8c8d4281f9da7c15cfc38c21
 --   bucket=eshu-drift-e/prod/terraform.tfstate
---     hash=22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123
+--     hash=864eae7a3a2ae00d807f7566102a24b8b9910341f9d05f426d0501d5d2ce5cc9
 --   bucket=eshu-drift-f/prod/terraform.tfstate
---     hash=0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2
+--     hash=76073467642da3783752710ac2dc36933140be5c4149ec8c66a58c3c280b12e5
 -- ============================================================================
 --
 -- Scenarios and drift kinds (issue #166 in-scope set only):
@@ -94,25 +97,25 @@ INSERT INTO ingestion_scopes (
      'active', 'gen:repo:drift-tfstate-ambiguous-b'),
 
     -- state_snapshot:<backend_kind>:<locator_hash> per scope/tfstate.go:33-40.
-    ('state_snapshot:s3:01c90e0b47d80dfc362bb2647d1306c5889b316d1c3b37ad91a49ccbb7e16ae5',
+    ('state_snapshot:s3:92d2c3373ab7c1558170b1e20861a7aa3d53cbfde6545bc408b9972960d8af0f',
      'state_snapshot', 'terraform_state', 'aws-s3:eshu-drift-a',
      'terraform_state', 'aws-s3:eshu-drift-a',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      'active', 'gen:state:added-in-state'),
 
-    ('state_snapshot:s3:ac3219927f950b4a0a57e415168765f0c49fccaa862b32e0906cacc29548eb66',
+    ('state_snapshot:s3:0d25ca7f523acde9ee9afe3156e65992a34cbe3ec5ba7dd69db280f110aa1b01',
      'state_snapshot', 'terraform_state', 'aws-s3:eshu-drift-b',
      'terraform_state', 'aws-s3:eshu-drift-b',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      'active', 'gen:state:added-in-config'),
 
-    ('state_snapshot:s3:33f0f3a35fa8bf42780910e64cc72a8977797dac9eecbbc50a623687bc79be38',
+    ('state_snapshot:s3:84b08900a6df9339a8e1d1b258234e7da14f01c0761d9f78acb7658d1c120f9e',
      'state_snapshot', 'terraform_state', 'aws-s3:eshu-drift-c',
      'terraform_state', 'aws-s3:eshu-drift-c',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      'active', 'gen:state:removed-from-state:current'),
 
-    ('state_snapshot:s3:6ef42db5dda508cb600e123a97ef2e128947bd582afac01e2e64a19dddf7ce4e',
+    ('state_snapshot:s3:6815f7e3d49f4ed59c5975f9698aa1f9f7a52c0c8c8d4281f9da7c15cfc38c21',
      'state_snapshot', 'terraform_state', 'aws-s3:eshu-drift-d',
      'terraform_state', 'aws-s3:eshu-drift-d',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
@@ -159,31 +162,31 @@ INSERT INTO scope_generations (
      'active', '2026-05-11T00:00:01Z'),
 
     ('gen:state:added-in-state',
-     'state_snapshot:s3:01c90e0b47d80dfc362bb2647d1306c5889b316d1c3b37ad91a49ccbb7e16ae5',
+     'state_snapshot:s3:92d2c3373ab7c1558170b1e20861a7aa3d53cbfde6545bc408b9972960d8af0f',
      'state_snapshot', 'lineage=lineage-A;serial=1',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      'active', '2026-05-11T00:00:01Z'),
 
     ('gen:state:added-in-config',
-     'state_snapshot:s3:ac3219927f950b4a0a57e415168765f0c49fccaa862b32e0906cacc29548eb66',
+     'state_snapshot:s3:0d25ca7f523acde9ee9afe3156e65992a34cbe3ec5ba7dd69db280f110aa1b01',
      'state_snapshot', 'lineage=lineage-B;serial=1',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      'active', '2026-05-11T00:00:01Z'),
 
     ('gen:state:removed-from-state:prior',
-     'state_snapshot:s3:33f0f3a35fa8bf42780910e64cc72a8977797dac9eecbbc50a623687bc79be38',
+     'state_snapshot:s3:84b08900a6df9339a8e1d1b258234e7da14f01c0761d9f78acb7658d1c120f9e',
      'state_snapshot', 'lineage=lineage-C;serial=1',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      'superseded', '2026-05-11T00:00:01Z'),
 
     ('gen:state:removed-from-state:current',
-     'state_snapshot:s3:33f0f3a35fa8bf42780910e64cc72a8977797dac9eecbbc50a623687bc79be38',
+     'state_snapshot:s3:84b08900a6df9339a8e1d1b258234e7da14f01c0761d9f78acb7658d1c120f9e',
      'state_snapshot', 'lineage=lineage-C;serial=2',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      'active', '2026-05-11T00:00:02Z'),
 
     ('gen:state:ambiguous',
-     'state_snapshot:s3:6ef42db5dda508cb600e123a97ef2e128947bd582afac01e2e64a19dddf7ce4e',
+     'state_snapshot:s3:6815f7e3d49f4ed59c5975f9698aa1f9f7a52c0c8c8d4281f9da7c15cfc38c21',
      'state_snapshot', 'lineage=lineage-D;serial=1',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      'active', '2026-05-11T00:00:01Z')
@@ -369,72 +372,72 @@ INSERT INTO fact_records (
     observed_at, ingested_at, payload
 ) VALUES
     ('fact:snapshot:added-in-state',
-     'state_snapshot:s3:01c90e0b47d80dfc362bb2647d1306c5889b316d1c3b37ad91a49ccbb7e16ae5',
+     'state_snapshot:s3:92d2c3373ab7c1558170b1e20861a7aa3d53cbfde6545bc408b9972960d8af0f',
      'gen:state:added-in-state',
-     'terraform_state_snapshot', 'snapshot:01c90e0b',
-     '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:01c90e0b',
+     'terraform_state_snapshot', 'snapshot:92d2c337',
+     '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:92d2c337',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      jsonb_build_object(
         'lineage', 'lineage-A',
         'serial', 1,
         'backend_kind', 's3',
-        'locator_hash', '01c90e0b47d80dfc362bb2647d1306c5889b316d1c3b37ad91a49ccbb7e16ae5'
+        'locator_hash', '92d2c3373ab7c1558170b1e20861a7aa3d53cbfde6545bc408b9972960d8af0f'
      )),
 
     ('fact:snapshot:added-in-config',
-     'state_snapshot:s3:ac3219927f950b4a0a57e415168765f0c49fccaa862b32e0906cacc29548eb66',
+     'state_snapshot:s3:0d25ca7f523acde9ee9afe3156e65992a34cbe3ec5ba7dd69db280f110aa1b01',
      'gen:state:added-in-config',
-     'terraform_state_snapshot', 'snapshot:ac321992',
-     '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:ac321992',
+     'terraform_state_snapshot', 'snapshot:0d25ca7f',
+     '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:0d25ca7f',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      jsonb_build_object(
         'lineage', 'lineage-B',
         'serial', 1,
         'backend_kind', 's3',
-        'locator_hash', 'ac3219927f950b4a0a57e415168765f0c49fccaa862b32e0906cacc29548eb66'
+        'locator_hash', '0d25ca7f523acde9ee9afe3156e65992a34cbe3ec5ba7dd69db280f110aa1b01'
      )),
 
     -- Prior generation for scope C: serial=1, same lineage. Loader's
     -- priorStateSnapshotMetadataQuery looks up serial = currentSerial - 1.
     ('fact:snapshot:removed-from-state:prior',
-     'state_snapshot:s3:33f0f3a35fa8bf42780910e64cc72a8977797dac9eecbbc50a623687bc79be38',
+     'state_snapshot:s3:84b08900a6df9339a8e1d1b258234e7da14f01c0761d9f78acb7658d1c120f9e',
      'gen:state:removed-from-state:prior',
-     'terraform_state_snapshot', 'snapshot:33f0f3a3:prior',
-     '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:33f0f3a3:prior',
+     'terraform_state_snapshot', 'snapshot:84b08900:prior',
+     '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:84b08900:prior',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      jsonb_build_object(
         'lineage', 'lineage-C',
         'serial', 1,
         'backend_kind', 's3',
-        'locator_hash', '33f0f3a35fa8bf42780910e64cc72a8977797dac9eecbbc50a623687bc79be38'
+        'locator_hash', '84b08900a6df9339a8e1d1b258234e7da14f01c0761d9f78acb7658d1c120f9e'
      )),
 
     -- Active generation for scope C: serial=2, same lineage. Resource set is
     -- empty (the resource was removed between serials 1 and 2).
     ('fact:snapshot:removed-from-state:current',
-     'state_snapshot:s3:33f0f3a35fa8bf42780910e64cc72a8977797dac9eecbbc50a623687bc79be38',
+     'state_snapshot:s3:84b08900a6df9339a8e1d1b258234e7da14f01c0761d9f78acb7658d1c120f9e',
      'gen:state:removed-from-state:current',
-     'terraform_state_snapshot', 'snapshot:33f0f3a3:current',
-     '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:33f0f3a3:current',
+     'terraform_state_snapshot', 'snapshot:84b08900:current',
+     '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:84b08900:current',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      jsonb_build_object(
         'lineage', 'lineage-C',
         'serial', 2,
         'backend_kind', 's3',
-        'locator_hash', '33f0f3a35fa8bf42780910e64cc72a8977797dac9eecbbc50a623687bc79be38'
+        'locator_hash', '84b08900a6df9339a8e1d1b258234e7da14f01c0761d9f78acb7658d1c120f9e'
      )),
 
     ('fact:snapshot:ambiguous',
-     'state_snapshot:s3:6ef42db5dda508cb600e123a97ef2e128947bd582afac01e2e64a19dddf7ce4e',
+     'state_snapshot:s3:6815f7e3d49f4ed59c5975f9698aa1f9f7a52c0c8c8d4281f9da7c15cfc38c21',
      'gen:state:ambiguous',
-     'terraform_state_snapshot', 'snapshot:6ef42db5',
-     '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:6ef42db5',
+     'terraform_state_snapshot', 'snapshot:6815f7e3',
+     '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:6815f7e3',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      jsonb_build_object(
         'lineage', 'lineage-D',
         'serial', 1,
         'backend_kind', 's3',
-        'locator_hash', '6ef42db5dda508cb600e123a97ef2e128947bd582afac01e2e64a19dddf7ce4e'
+        'locator_hash', '6815f7e3d49f4ed59c5975f9698aa1f9f7a52c0c8c8d4281f9da7c15cfc38c21'
      ))
 ON CONFLICT (fact_id) DO NOTHING;
 
@@ -452,7 +455,7 @@ INSERT INTO fact_records (
 ) VALUES
     -- Scenario A: state carries aws_s3_bucket.unmanaged; config has nothing.
     ('fact:resource:added-in-state:unmanaged',
-     'state_snapshot:s3:01c90e0b47d80dfc362bb2647d1306c5889b316d1c3b37ad91a49ccbb7e16ae5',
+     'state_snapshot:s3:92d2c3373ab7c1558170b1e20861a7aa3d53cbfde6545bc408b9972960d8af0f',
      'gen:state:added-in-state',
      'terraform_state_resource', 'resource:added-in-state:unmanaged',
      '1.0.0', 'terraform_state', 'terraform_state', 'resource:added-in-state:unmanaged',
@@ -465,7 +468,7 @@ INSERT INTO fact_records (
 
     -- Scenario C prior generation: state carries aws_s3_bucket.was_there.
     ('fact:resource:removed-from-state:prior:was_there',
-     'state_snapshot:s3:33f0f3a35fa8bf42780910e64cc72a8977797dac9eecbbc50a623687bc79be38',
+     'state_snapshot:s3:84b08900a6df9339a8e1d1b258234e7da14f01c0761d9f78acb7658d1c120f9e',
      'gen:state:removed-from-state:prior',
      'terraform_state_resource', 'resource:removed-from-state:prior:was_there',
      '1.0.0', 'terraform_state', 'terraform_state', 'resource:removed-from-state:prior:was_there',
@@ -503,7 +506,7 @@ INSERT INTO ingestion_scopes (
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      'active', 'gen:repo:drift-tfstate-attribute-drift'),
 
-    ('state_snapshot:s3:22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123',
+    ('state_snapshot:s3:864eae7a3a2ae00d807f7566102a24b8b9910341f9d05f426d0501d5d2ce5cc9',
      'state_snapshot', 'terraform_state', 'aws-s3:eshu-drift-e',
      'terraform_state', 'aws-s3:eshu-drift-e',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
@@ -522,7 +525,7 @@ INSERT INTO scope_generations (
      'active', '2026-05-11T00:00:01Z'),
 
     ('gen:state:attribute-drift',
-     'state_snapshot:s3:22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123',
+     'state_snapshot:s3:864eae7a3a2ae00d807f7566102a24b8b9910341f9d05f426d0501d5d2ce5cc9',
      'state_snapshot', 'lineage=lineage-E;serial=1',
      '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
      'active', '2026-05-11T00:00:01Z')
@@ -579,16 +582,16 @@ INSERT INTO fact_records (
     observed_at, ingested_at, payload
 ) VALUES (
     'fact:snapshot:attribute-drift',
-    'state_snapshot:s3:22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123',
+    'state_snapshot:s3:864eae7a3a2ae00d807f7566102a24b8b9910341f9d05f426d0501d5d2ce5cc9',
     'gen:state:attribute-drift',
-    'terraform_state_snapshot', 'snapshot:22eafc85',
-    '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:22eafc85',
+    'terraform_state_snapshot', 'snapshot:864eae7a',
+    '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:864eae7a',
     '2026-05-11T00:00:00Z', '2026-05-11T00:00:00Z',
     jsonb_build_object(
         'lineage', 'lineage-E',
         'serial', 1,
         'backend_kind', 's3',
-        'locator_hash', '22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123'
+        'locator_hash', '864eae7a3a2ae00d807f7566102a24b8b9910341f9d05f426d0501d5d2ce5cc9'
     )
 )
 ON CONFLICT (fact_id) DO NOTHING;
@@ -603,7 +606,7 @@ INSERT INTO fact_records (
     observed_at, ingested_at, payload
 ) VALUES (
     'fact:resource:attribute-drift:logs',
-    'state_snapshot:s3:22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123',
+    'state_snapshot:s3:864eae7a3a2ae00d807f7566102a24b8b9910341f9d05f426d0501d5d2ce5cc9',
     'gen:state:attribute-drift',
     'terraform_state_resource', 'resource:attribute-drift:logs',
     '1.0.0', 'terraform_state', 'terraform_state', 'resource:attribute-drift:logs',
@@ -664,7 +667,7 @@ INSERT INTO ingestion_scopes (
      '2026-05-11T00:00:01Z', '2026-05-11T00:00:01Z',
      'active', 'gen:repo:drift-tfstate-removed-from-config-2'),
 
-    ('state_snapshot:s3:0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2',
+    ('state_snapshot:s3:76073467642da3783752710ac2dc36933140be5c4149ec8c66a58c3c280b12e5',
      'state_snapshot', 'terraform_state', 'aws-s3:eshu-drift-f',
      'terraform_state', 'aws-s3:eshu-drift-f',
      '2026-05-11T00:00:01Z', '2026-05-11T00:00:01Z',
@@ -699,7 +702,7 @@ INSERT INTO scope_generations (
 
     -- State generation: active, serial=1.
     ('gen:state:removed-from-config',
-     'state_snapshot:s3:0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2',
+     'state_snapshot:s3:76073467642da3783752710ac2dc36933140be5c4149ec8c66a58c3c280b12e5',
      'state_snapshot', 'lineage=lineage-F;serial=1',
      '2026-05-11T00:00:01Z', '2026-05-11T00:00:01Z',
      'active', '2026-05-11T00:00:01Z')
@@ -795,16 +798,16 @@ INSERT INTO fact_records (
     observed_at, ingested_at, payload
 ) VALUES (
     'fact:snapshot:removed-from-config',
-    'state_snapshot:s3:0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2',
+    'state_snapshot:s3:76073467642da3783752710ac2dc36933140be5c4149ec8c66a58c3c280b12e5',
     'gen:state:removed-from-config',
-    'terraform_state_snapshot', 'snapshot:0631b2ff',
-    '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:0631b2ff',
+    'terraform_state_snapshot', 'snapshot:76073467',
+    '1.0.0', 'terraform_state', 'terraform_state', 'snapshot:76073467',
     '2026-05-11T00:00:01Z', '2026-05-11T00:00:01Z',
     jsonb_build_object(
         'lineage', 'lineage-F',
         'serial', 1,
         'backend_kind', 's3',
-        'locator_hash', '0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2'
+        'locator_hash', '76073467642da3783752710ac2dc36933140be5c4149ec8c66a58c3c280b12e5'
     )
 )
 ON CONFLICT (fact_id) DO NOTHING;
@@ -819,7 +822,7 @@ INSERT INTO fact_records (
     observed_at, ingested_at, payload
 ) VALUES (
     'fact:resource:removed-from-config:legacy',
-    'state_snapshot:s3:0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2',
+    'state_snapshot:s3:76073467642da3783752710ac2dc36933140be5c4149ec8c66a58c3c280b12e5',
     'gen:state:removed-from-config',
     'terraform_state_resource', 'resource:removed-from-config:legacy',
     '1.0.0', 'terraform_state', 'terraform_state', 'resource:removed-from-config:legacy',

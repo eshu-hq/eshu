@@ -32,9 +32,12 @@
 // admin status surface shows tfstate liveness without scanning the fact stream.
 // PostgresTerraformBackendQuery and PostgresDriftEvidenceLoader serve the
 // reducer's Terraform config-vs-state drift handler: the first answers
-// tfstatebackend.TerraformBackendQuery from durable parser facts so the
-// resolver can deterministically pick the latest sealed config commit owning
-// a state snapshot, and the second performs the four-input join across
+// tfstatebackend.TerraformBackendQuery from durable parser facts (recomputing
+// each row's locator hash with terraformstate.ScopeLocatorHash so the join
+// stays aligned with the version-agnostic state-snapshot scope ID — see
+// issue #203) so the resolver can deterministically pick the latest sealed
+// config commit owning a state snapshot, and the second performs the
+// four-input join across
 // terraform_resources (config), the active terraform_state_resource rows,
 // the prior generation (skipping the prior lookup when current serial is
 // zero), and prior-config-snapshot addresses (the union of declared

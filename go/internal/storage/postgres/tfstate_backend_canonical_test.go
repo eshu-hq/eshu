@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // fixtureBackendFact builds a backend JSON array compatible with the
@@ -26,13 +27,14 @@ func fixtureBackendFact(backendKind, bucket, key, region string) []byte {
 	}]`)
 }
 
-// expectedLocatorHash mirrors the collector's canonical hash so tests can
+// expectedLocatorHash mirrors the canonical resolver join hash so tests can
 // drive the SUT with the same composite key the resolver receives at runtime.
+// This MUST stay scope-aligned (see ScopeLocatorHash and issue #203).
 func expectedLocatorHash(bucket, key string) string {
-	return terraformstate.LocatorHash(terraformstate.StateKey{
-		BackendKind: terraformstate.BackendS3,
-		Locator:     "s3://" + bucket + "/" + key,
-	})
+	return terraformstate.ScopeLocatorHash(
+		terraformstate.BackendS3,
+		"s3://"+bucket+"/"+key,
+	)
 }
 
 func TestPostgresTerraformBackendQueryReturnsEmptyOnNoRows(t *testing.T) {
@@ -272,5 +274,190 @@ func TestPostgresTerraformBackendQueryPropagatesQueryError(t *testing.T) {
 	_, err := query.ListTerraformBackendsByLocator(context.Background(), "s3", "hash")
 	if !errors.Is(err, want) {
 		t.Fatalf("error = %v, want errors.Is(_, want)=true", err)
+	}
+}
+
+// TestPostgresTerraformBackendQueryMatchesScopeIDDerivedHash is the
+// regression guard for issue #203. The drift handler parses the locator hash
+// out of a state-snapshot scope ID (built by
+// scope.NewTerraformStateSnapshotScope, which uses hashStateLocator) and
+// hands it to the resolver, which calls this adapter. Before the fix the
+// adapter recomputed candidate hashes with terraformstate.LocatorHash and
+// the two hashes diverged for empty VersionID by exactly one trailing null
+// byte, silently rejecting every drift candidate with
+// ErrNoConfigRepoOwnsBackend. This test wires the real production hash path
+// end-to-end (scope ID -> parsed hash -> adapter lookup) so the divergence
+// cannot regress.
+func TestPostgresTerraformBackendQueryMatchesScopeIDDerivedHash(t *testing.T) {
+	t.Parallel()
+
+	bucket := "eshu-drift-b"
+	key := "prod/terraform.tfstate"
+	locator := "s3://" + bucket + "/" + key
+
+	// Build the scope ID exactly as the production state-side path does.
+	scopeValue, err := scope.NewTerraformStateSnapshotScope(
+		"repo-scope-test",
+		string(terraformstate.BackendS3),
+		locator,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("NewTerraformStateSnapshotScope() error = %v, want nil", err)
+	}
+	scopeHash := strings.TrimPrefix(
+		scopeValue.ScopeID,
+		"state_snapshot:"+string(terraformstate.BackendS3)+":",
+	)
+
+	observed := time.Date(2026, time.May, 11, 14, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: [][]any{{
+			"repo-infra",
+			"repository:repo-infra",
+			"gen-abc",
+			observed,
+			fixtureBackendFact("s3", bucket, key, "us-east-1"),
+		}}}},
+	}
+	query := PostgresTerraformBackendQuery{DB: db}
+
+	rows, err := query.ListTerraformBackendsByLocator(
+		context.Background(),
+		string(terraformstate.BackendS3),
+		scopeHash,
+	)
+	if err != nil {
+		t.Fatalf("ListTerraformBackendsByLocator() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("len(rows) = %d, want %d; the canonical join hash diverged from "+
+			"the state-snapshot scope hash. See issue #203.", got, want)
+	}
+	if got, want := rows[0].LocatorHash, scopeHash; got != want {
+		t.Fatalf("rows[0].LocatorHash = %q, want %q (scope-derived hash)", got, want)
+	}
+	if got, want := rows[0].RepoID, "repo-infra"; got != want {
+		t.Fatalf("rows[0].RepoID = %q, want %q", got, want)
+	}
+}
+
+// TestPostgresTerraformBackendQueryAmbiguousScopeIDDerivedHash exercises the
+// ambiguous-owner path through the same scope-derived hash to round out the
+// positive/negative/ambiguous proof matrix for issue #203. The state-side
+// scope ID derives one hash; two distinct repo facts both contain a
+// terraform_backends row that hashes to the same value; the adapter MUST
+// return both rows so the resolver can emit ErrAmbiguousBackendOwner.
+func TestPostgresTerraformBackendQueryAmbiguousScopeIDDerivedHash(t *testing.T) {
+	t.Parallel()
+
+	bucket := "shared-tfstate"
+	key := "envs/prod/terraform.tfstate"
+	locator := "s3://" + bucket + "/" + key
+
+	scopeValue, err := scope.NewTerraformStateSnapshotScope(
+		"repo-scope-test",
+		string(terraformstate.BackendS3),
+		locator,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("NewTerraformStateSnapshotScope() error = %v, want nil", err)
+	}
+	scopeHash := strings.TrimPrefix(
+		scopeValue.ScopeID,
+		"state_snapshot:"+string(terraformstate.BackendS3)+":",
+	)
+
+	observed := time.Date(2026, time.May, 11, 14, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: [][]any{
+			{
+				"repo-team-a",
+				"repository:repo-team-a",
+				"gen-team-a",
+				observed,
+				fixtureBackendFact("s3", bucket, key, "us-east-1"),
+			},
+			{
+				"repo-team-b",
+				"repository:repo-team-b",
+				"gen-team-b",
+				observed,
+				fixtureBackendFact("s3", bucket, key, "us-east-1"),
+			},
+		}}},
+	}
+	query := PostgresTerraformBackendQuery{DB: db}
+
+	rows, err := query.ListTerraformBackendsByLocator(
+		context.Background(),
+		string(terraformstate.BackendS3),
+		scopeHash,
+	)
+	if err != nil {
+		t.Fatalf("ListTerraformBackendsByLocator() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 2; got != want {
+		t.Fatalf("len(rows) = %d, want %d; ambiguous owners must both surface so "+
+			"the resolver can emit ErrAmbiguousBackendOwner", got, want)
+	}
+	repoIDs := map[string]struct{}{rows[0].RepoID: {}, rows[1].RepoID: {}}
+	for _, want := range []string{"repo-team-a", "repo-team-b"} {
+		if _, ok := repoIDs[want]; !ok {
+			t.Fatalf("rows missing repo %q; got %#v", want, repoIDs)
+		}
+	}
+}
+
+// TestPostgresTerraformBackendQueryRejectsLocatorHashWithVersionDigest is the
+// negative-case guard for issue #203. If a caller mistakenly hands the
+// adapter a per-version LocatorHash (the old, buggy production behavior),
+// the lookup must NOT match a scope-aligned config-side row. This pins the
+// observable behavior: the version-aware hash is a different hash space and
+// cannot be joined against the scope hash.
+func TestPostgresTerraformBackendQueryRejectsLocatorHashWithVersionDigest(t *testing.T) {
+	t.Parallel()
+
+	bucket := "eshu-drift-b"
+	key := "prod/terraform.tfstate"
+	locator := "s3://" + bucket + "/" + key
+
+	// The buggy hash a pre-fix call site would produce: LocatorHash with empty
+	// VersionID, which differs from ScopeLocatorHash by one trailing null byte.
+	buggyHash := terraformstate.LocatorHash(terraformstate.StateKey{
+		BackendKind: terraformstate.BackendS3,
+		Locator:     locator,
+	})
+	scopeAlignedHash := terraformstate.ScopeLocatorHash(terraformstate.BackendS3, locator)
+	if buggyHash == scopeAlignedHash {
+		t.Fatalf("LocatorHash and ScopeLocatorHash must differ for empty VersionID; "+
+			"this test cannot exercise the bug if they agree. got %q == %q",
+			buggyHash, scopeAlignedHash)
+	}
+
+	observed := time.Date(2026, time.May, 11, 14, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: [][]any{{
+			"repo-infra",
+			"repository:repo-infra",
+			"gen-abc",
+			observed,
+			fixtureBackendFact("s3", bucket, key, "us-east-1"),
+		}}}},
+	}
+	query := PostgresTerraformBackendQuery{DB: db}
+
+	rows, err := query.ListTerraformBackendsByLocator(
+		context.Background(),
+		string(terraformstate.BackendS3),
+		buggyHash,
+	)
+	if err != nil {
+		t.Fatalf("ListTerraformBackendsByLocator() error = %v, want nil", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("len(rows) = %d, want 0; lookup with the per-version LocatorHash "+
+			"must not match a scope-aligned config-side row", len(rows))
 	}
 }

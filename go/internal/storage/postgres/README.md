@@ -309,7 +309,11 @@ mutation is rejected because the current owner no longer holds the lease.
 
 - `PostgresTerraformBackendQuery` (`tfstate_backend_canonical.go:68`) — answers
   `tfstatebackend.TerraformBackendQuery` from durable parser facts; recomputes
-  each row's locator hash with `terraformstate.LocatorHash`.
+  each row's locator hash with `terraformstate.ScopeLocatorHash` (the
+  version-agnostic join key) so the join stays aligned with the state-snapshot
+  scope ID built by `scope.NewTerraformStateSnapshotScope`. Using
+  `terraformstate.LocatorHash` here would silently reject every drift candidate
+  (issue #203).
 - `PostgresDriftEvidenceLoader` (`tfstate_drift_evidence.go:56`) — builds the
   per-address `tfconfigstate.AddressedRow` slice from four logical inputs:
   config facts, active state facts, prior-generation state facts (skipped when

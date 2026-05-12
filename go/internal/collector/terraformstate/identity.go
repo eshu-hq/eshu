@@ -95,10 +95,44 @@ func sourceURI(source StateKey) string {
 	return fmt.Sprintf("terraform_state:%s:%s", source.BackendKind, LocatorHash(source))
 }
 
-// LocatorHash returns the durable hash used to correlate exact state locators
+// LocatorHash returns the per-version durable hash used to identify one
+// exact Terraform state candidate (backend, locator, and S3 object version)
 // without exposing bucket names, object keys, or local paths.
+//
+// This hash IS version-aware: it digests BackendKind, Locator, and VersionID.
+// It backs the per-candidate planning identity (CandidatePlanningID) and
+// the persisted `terraform_state_snapshot.payload->>'locator_hash'` field,
+// where two S3 versions of the same state file MUST be distinguishable so
+// the workflow coordinator can plan and dispatch one work item per version.
+//
+// Do NOT use LocatorHash for the drift resolver join key. The drift join is
+// scope-level and version-agnostic — see ScopeLocatorHash and the alignment
+// contract documented at go/internal/collector/terraformstate/locator_hash_scope_alignment_test.go
+// (issue #203).
 func LocatorHash(source StateKey) string {
 	sum := sha256.Sum256([]byte(string(source.BackendKind) + "\x00" + source.Locator + "\x00" + source.VersionID))
+	return hex.EncodeToString(sum[:])
+}
+
+// ScopeLocatorHash returns the version-agnostic durable hash that identifies
+// one Terraform state-snapshot scope across both the state and config sides
+// of the drift pipeline.
+//
+// The hash digests only BackendKind and Locator. It MUST stay aligned with
+// scope.NewTerraformStateSnapshotScope, which drops VersionID by design — a
+// state-snapshot scope groups every observed S3 object version of the same
+// state file under one durable identity, with per-version generations
+// carrying lineage and serial. The drift resolver join compares the two
+// hashes byte-for-byte (go/internal/storage/postgres/tfstate_backend_canonical.go
+// against the scope hash parsed at
+// go/internal/reducer/terraform_config_state_drift.go); if the formulas
+// diverge, every drift intent silently rejects with
+// ErrNoConfigRepoOwnsBackend (issue #203).
+//
+// Use this function — not LocatorHash — when computing the join key for the
+// canonical resolver path.
+func ScopeLocatorHash(backendKind BackendKind, locator string) string {
+	sum := sha256.Sum256([]byte(string(backendKind) + "\x00" + locator))
 	return hex.EncodeToString(sum[:])
 }
 

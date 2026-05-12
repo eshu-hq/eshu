@@ -40,24 +40,38 @@ in v1 (per design doc §10); counters and structured logs are the v1 truth surfa
 
 | Scenario | Backend | Locator hash | Drift kind | Why |
 | --- | --- | --- | --- | --- |
-| `drift-tfstate-added-in-state` | `s3://eshu-drift-a/prod/terraform.tfstate` | `01c90e0b…` | `added_in_state` | State carries `aws_s3_bucket.unmanaged`; config has no resource block for it. |
-| `drift-tfstate-added-in-config` | `s3://eshu-drift-b/prod/terraform.tfstate` | `ac321992…` | `added_in_config` | Config declares `aws_s3_bucket.declared`; state has zero `terraform_state_resource` rows. |
-| `drift-tfstate-removed-from-state` | `s3://eshu-drift-c/prod/terraform.tfstate` | `33f0f3a3…` | `removed_from_state` | Prior state generation (serial=1) carried `aws_s3_bucket.was_there`; current generation (serial=2) does not; config still declares the resource. Same lineage so `LineageRotation` does not suppress. |
-| `drift-tfstate-ambiguous-{a,b}` | `s3://eshu-drift-d/prod/terraform.tfstate` | `6ef42db5…` | (rejection) | Two repos both emit `terraform_backends` facts at the same `(s3, 6ef42db5…)`. Resolver returns `ErrAmbiguousBackendOwner`; handler logs WARN with `failure_class="ambiguous_backend_owner"` and emits no counter increments. |
-| `drift-tfstate-attribute-drift` | `s3://eshu-drift-e/prod/terraform.tfstate` | `22eafc85…` | `attribute_drift` | Both config and state declare `aws_s3_bucket.logs`. Config carries `server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm = AES256`; state carries the same key wrapped in nested singleton arrays resolving to `aws:kms`. The `acl` value matches on both sides to confirm only the SSE path fires. Exercises the deepest nested allowlist path through `flattenStateAttributes` end-to-end. Locator hash `22eafc8517ec2dfd421d54e6605870c73adae2ac243e87d93f478742390b5123`. |
-| `drift-tfstate-removed-from-config` | `s3://eshu-drift-f/prod/terraform.tfstate` | `0631b2ff…` | `removed_from_config` | State carries `aws_iam_policy.legacy`; the current (active) repo generation does not declare it; the prior (superseded) repo generation did. The prior-config walk (`listPriorConfigAddressesQuery`) finds the address in the superseded generation and sets `PreviouslyDeclaredInConfig=true` so the classifier emits `removed_from_config`. This is the only bucket with two repo-snapshot generations. Locator hash `0631b2ff3147afc827c7bb396ed267608cacd932b5bc1a58c03ab6238f5750b2`. |
+| `drift-tfstate-added-in-state` | `s3://eshu-drift-a/prod/terraform.tfstate` | `92d2c337…` | `added_in_state` | State carries `aws_s3_bucket.unmanaged`; config has no resource block for it. |
+| `drift-tfstate-added-in-config` | `s3://eshu-drift-b/prod/terraform.tfstate` | `0d25ca7f…` | `added_in_config` | Config declares `aws_s3_bucket.declared`; state has zero `terraform_state_resource` rows. |
+| `drift-tfstate-removed-from-state` | `s3://eshu-drift-c/prod/terraform.tfstate` | `84b08900…` | `removed_from_state` | Prior state generation (serial=1) carried `aws_s3_bucket.was_there`; current generation (serial=2) does not; config still declares the resource. Same lineage so `LineageRotation` does not suppress. |
+| `drift-tfstate-ambiguous-{a,b}` | `s3://eshu-drift-d/prod/terraform.tfstate` | `6815f7e3…` | (rejection) | Two repos both emit `terraform_backends` facts at the same `(s3, 6815f7e3…)`. Resolver returns `ErrAmbiguousBackendOwner`; handler logs WARN with `failure_class="ambiguous_backend_owner"` and emits no counter increments. |
+| `drift-tfstate-attribute-drift` | `s3://eshu-drift-e/prod/terraform.tfstate` | `864eae7a…` | `attribute_drift` | Both config and state declare `aws_s3_bucket.logs`. Config carries `server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm = AES256`; state carries the same key wrapped in nested singleton arrays resolving to `aws:kms`. The `acl` value matches on both sides to confirm only the SSE path fires. Exercises the deepest nested allowlist path through `flattenStateAttributes` end-to-end. Locator hash `864eae7a3a2ae00d807f7566102a24b8b9910341f9d05f426d0501d5d2ce5cc9`. |
+| `drift-tfstate-removed-from-config` | `s3://eshu-drift-f/prod/terraform.tfstate` | `76073467…` | `removed_from_config` | State carries `aws_iam_policy.legacy`; the current (active) repo generation does not declare it; the prior (superseded) repo generation did. The prior-config walk (`listPriorConfigAddressesQuery`) finds the address in the superseded generation and sets `PreviouslyDeclaredInConfig=true` so the classifier emits `removed_from_config`. This is the only bucket with two repo-snapshot generations. Locator hash `76073467642da3783752710ac2dc36933140be5c4149ec8c66a58c3c280b12e5`. |
 
 Module-nested addresses are out of scope (#169).
 
 ## Regenerating locator hashes
 
-The six hashes are precomputed against `terraformstate.LocatorHash` at `go/internal/collector/terraformstate/identity.go:100`:
+The six hashes are precomputed against `terraformstate.ScopeLocatorHash` at `go/internal/collector/terraformstate/identity.go`:
 
 ```
-sha256(BackendKind + "\x00" + Locator + "\x00" + VersionID)
+sha256(BackendKind + "\x00" + Locator)
 ```
 
-with `Locator = "s3://" + bucket + "/" + key` and `VersionID = ""`. To regenerate:
+The hash is intentionally version-agnostic. It MUST stay aligned with the
+state-snapshot scope ID built by `scope.NewTerraformStateSnapshotScope`
+(`go/internal/scope/tfstate.go`), which also drops `VersionID` by design.
+The drift resolver compares the two hashes byte-for-byte
+(`go/internal/storage/postgres/tfstate_backend_canonical.go` vs the
+state-side scope hash parsed at
+`go/internal/reducer/terraform_config_state_drift.go`); see issue #203
+for the silent-rejection failure mode that motivated the alignment.
+
+Do NOT use `terraformstate.LocatorHash` to regenerate these values —
+`LocatorHash` is the per-version identity used by `CandidatePlanningID` and
+the persisted snapshot fact payload, and includes `VersionID` in the digest.
+The two functions agree only when `VersionID == ""`.
+
+`Locator = "s3://" + bucket + "/" + key`. To regenerate:
 
 ```bash
 cd go && mkdir -p internal/collector/terraformstate/_locator_check && cat > internal/collector/terraformstate/_locator_check/main.go <<'EOF'
@@ -70,23 +84,23 @@ import (
 )
 
 func main() {
-    keys := []terraformstate.StateKey{
-        {BackendKind: terraformstate.BackendS3, Locator: "s3://eshu-drift-a/prod/terraform.tfstate"},
-        {BackendKind: terraformstate.BackendS3, Locator: "s3://eshu-drift-b/prod/terraform.tfstate"},
-        {BackendKind: terraformstate.BackendS3, Locator: "s3://eshu-drift-c/prod/terraform.tfstate"},
-        {BackendKind: terraformstate.BackendS3, Locator: "s3://eshu-drift-d/prod/terraform.tfstate"},
-        {BackendKind: terraformstate.BackendS3, Locator: "s3://eshu-drift-e/prod/terraform.tfstate"},
-        {BackendKind: terraformstate.BackendS3, Locator: "s3://eshu-drift-f/prod/terraform.tfstate"},
+    locators := []string{
+        "s3://eshu-drift-a/prod/terraform.tfstate",
+        "s3://eshu-drift-b/prod/terraform.tfstate",
+        "s3://eshu-drift-c/prod/terraform.tfstate",
+        "s3://eshu-drift-d/prod/terraform.tfstate",
+        "s3://eshu-drift-e/prod/terraform.tfstate",
+        "s3://eshu-drift-f/prod/terraform.tfstate",
     }
-    for _, k := range keys {
-        fmt.Printf("%s %s\n", k.Locator, terraformstate.LocatorHash(k))
+    for _, loc := range locators {
+        fmt.Printf("%s %s\n", loc, terraformstate.ScopeLocatorHash(terraformstate.BackendS3, loc))
     }
 }
 EOF
 go run ./internal/collector/terraformstate/_locator_check/ && rm -rf internal/collector/terraformstate/_locator_check
 ```
 
-If `LocatorHash` is ever renamed or its construction changes, the seed's hashes drift and the verifier will fail with "expected scope `state_snapshot:s3:<hex>` not present." Regenerate above and update `seed.sql` (the six hashes are pinned in its header comment block).
+If `ScopeLocatorHash` is ever renamed or its construction changes, the seed's hashes drift and the verifier will fail with "expected scope `state_snapshot:s3:<hex>` not present." Regenerate above and update `seed.sql` (the six hashes are pinned in its header comment block).
 
 ## Running the proof matrix
 

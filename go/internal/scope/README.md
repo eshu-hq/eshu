@@ -59,7 +59,9 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
   Methods: `Validate`, `ValidateForScope`, `IsTerminal`, `CanTransitionTo`,
   `TransitionTo`, `MarkActive`, `MarkCompleted`, `MarkSuperseded`, `MarkFailed`.
 - `NewTerraformStateSnapshotScope` — builds a stable `state_snapshot` scope from
-  backend kind and locator hash.
+  backend kind and locator hash. The embedded locator hash is version-agnostic
+  by design and MUST stay aligned with `terraformstate.ScopeLocatorHash`; the
+  drift resolver compares the two byte-for-byte (issue #203).
 - `NewTerraformStateSnapshotGeneration` — builds the pending generation for one
   Terraform state serial and lineage.
 

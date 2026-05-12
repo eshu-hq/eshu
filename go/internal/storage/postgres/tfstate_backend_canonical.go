@@ -68,20 +68,28 @@ ORDER BY fact.payload->>'repo_id' ASC, fact.observed_at ASC, fact.fact_id ASC
 // PostgresTerraformBackendQuery answers
 // tfstatebackend.TerraformBackendQuery from durable parser facts. The adapter
 // reads terraform_backends rows out of fact_records, recomputes each row's
-// safe locator hash with the collector's LocatorHash helper, and returns every
+// safe locator hash with terraformstate.ScopeLocatorHash, and returns every
 // row whose composite (backend_kind, locator_hash) matches the caller. The
 // adapter never deduplicates owners: the resolver depends on seeing every
 // matching repo so it can return ErrAmbiguousBackendOwner when more than one
 // claims the same composite key.
+//
+// The hash MUST be the version-agnostic ScopeLocatorHash, not the per-version
+// LocatorHash. The caller-supplied locatorHash is parsed out of a
+// state-snapshot scope ID built by scope.NewTerraformStateSnapshotScope,
+// which is intentionally version-agnostic; using LocatorHash here would
+// silently reject every drift candidate (issue #203).
 type PostgresTerraformBackendQuery struct {
 	DB Queryer
 }
 
 // ListTerraformBackendsByLocator returns every sealed config-side
 // terraform_backend row whose (backend_kind, locator_hash) matches the input.
-// The locator hash on each row mirrors terraformstate.LocatorHash applied to
-// the parser-side backend block; the collector hashes state-side identities
-// the same way, so the join is hash-stable across config and state sources.
+// The locator hash on each row mirrors terraformstate.ScopeLocatorHash
+// applied to the parser-side backend block (BackendKind + Locator only,
+// version-agnostic). The state side hashes the locator the same way when
+// scope.NewTerraformStateSnapshotScope builds the durable scope ID, so the
+// join is hash-stable across config and state sources.
 //
 // The method returns:
 //
@@ -176,7 +184,14 @@ func matchingBackendRows(
 		if gotKind != backendKind {
 			continue
 		}
-		gotHash := terraformstate.LocatorHash(candidate.State)
+		// Use ScopeLocatorHash, NOT LocatorHash, for the canonical join key.
+		// The state side (drift handler) parses this hash out of the
+		// state-snapshot scope ID, which is built by
+		// scope.NewTerraformStateSnapshotScope and is intentionally
+		// version-agnostic. LocatorHash digests VersionID and would diverge
+		// here for empty VersionID by exactly one trailing null byte,
+		// silently rejecting every drift candidate (issue #203).
+		gotHash := terraformstate.ScopeLocatorHash(candidate.State.BackendKind, candidate.State.Locator)
 		if gotHash != locatorHash {
 			continue
 		}

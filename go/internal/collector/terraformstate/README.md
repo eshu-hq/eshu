@@ -60,6 +60,19 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   existing read-only source interfaces.
 - `cmd/collector-terraform-state` supplies the current AWS SDK adapter for
   read-only S3 access in the claim-driven runtime.
+- `LocatorHash(StateKey)` returns the per-version durable hash that backs
+  `CandidatePlanningID` and the persisted
+  `terraform_state_snapshot.payload->>'locator_hash'` field. It digests
+  `BackendKind`, `Locator`, and `VersionID` so the workflow coordinator can
+  dispatch one work item per S3 object version.
+- `ScopeLocatorHash(BackendKind, Locator)` returns the version-agnostic
+  durable hash used as the join key for the canonical drift resolver. It
+  MUST stay aligned with `scope.NewTerraformStateSnapshotScope`
+  (`go/internal/scope/tfstate.go`); the contract is locked by the
+  cross-package test in
+  `locator_hash_scope_alignment_test.go:31`. The two hash functions are
+  intentionally distinct — see issue #203 for the silent drift-rejection
+  bug that motivated the split.
 
 ## Safety Rules
 
