@@ -5,7 +5,9 @@
 1. README.md - package boundary, metadata fields, and invariants
 2. doc.go - godoc contract for the Dockerfile helper package
 3. metadata.go - Dockerfile instruction parsing and payload compatibility map
-4. metadata_test.go - behavior coverage for runtime metadata and map shape
+4. tokens.go - Dockerfile escape directive detection and command-line token
+   splitting for quoted and escaped metadata values
+5. metadata_test.go - behavior coverage for runtime metadata and map shape
 
 ## Invariants this package enforces
 

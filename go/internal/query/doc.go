@@ -94,6 +94,9 @@
 // Infrastructure reads expose Terraform backend, import, moved, removed, check,
 // and lockfile-provider evidence as first-class entity types once parser and
 // projector support exists.
+// Repository runtime artifacts surface Dockerfile base image, base tag, build
+// platform, copy-from, command, port, and environment evidence from parser
+// metadata.
 // local_authoritative and local_full_stack both answer graph-backed platform
 // impact queries, while local_lightweight returns structured unsupported errors
 // for those routes. Repository coverage reads content-store counts first and

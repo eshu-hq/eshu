@@ -226,9 +226,9 @@ constant resolution, framework route files, and gem public API surfaces are
 modeled or scoped out.
 
 The current `code_quality.dead_code` capability is code-call oriented. It must
-not classify Terraform, Helm, Kustomize, Kubernetes, ArgoCD, or other IaC
-artifacts as dead simply because they lack code-call inbound edges. Dead-IaC
-requires the separate IaC usage and reachability graph described in
+not classify Dockerfiles, Terraform, Helm, Kustomize, Kubernetes, ArgoCD, or
+other IaC/runtime artifacts as dead simply because they lack code-call inbound
+edges. Dead-IaC requires the separate IaC usage and reachability graph described in
 `../adrs/2026-04-24-iac-usage-reachability-and-refactor-impact.md`.
 
 ## Default Scope Policy

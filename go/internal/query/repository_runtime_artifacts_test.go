@@ -113,7 +113,7 @@ func TestBuildRepositoryRuntimeArtifactsSurfacesDockerfileRuntimeSignals(t *test
 		{
 			RelativePath: "Dockerfile",
 			ArtifactType: "dockerfile",
-			Content: `FROM golang:1.24 AS builder
+			Content: `FROM --platform=$BUILDPLATFORM golang:1.24 AS builder
 ENV CGO_ENABLED=0
 FROM alpine:3.20 AS runtime
 COPY --from=builder /out/app /app
@@ -146,7 +146,10 @@ HEALTHCHECK CMD /app --healthz
 	if got, want := builder["base_image"], "golang"; got != want {
 		t.Fatalf("builder.base_image = %#v, want %#v", got, want)
 	}
-	if got, want := builder["signals"], []string{"base_image", "environment"}; !stringSliceEqual(got, want) {
+	if got, want := builder["platform"], "$BUILDPLATFORM"; got != want {
+		t.Fatalf("builder.platform = %#v, want %#v", got, want)
+	}
+	if got, want := builder["signals"], []string{"base_image", "platform", "environment"}; !stringSliceEqual(got, want) {
 		t.Fatalf("builder.signals = %#v, want %#v", got, want)
 	}
 

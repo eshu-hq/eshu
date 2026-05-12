@@ -24,6 +24,7 @@ type Stage struct {
 	StageIndex  int
 	BaseImage   string
 	BaseTag     string
+	Platform    string
 	Alias       string
 	Path        string
 	CopiesFrom  string
@@ -85,28 +86,27 @@ func RuntimeMetadata(sourceText string) Metadata {
 		Labels: []Label{},
 	}
 
-	instructions := instructionsFromSource(sourceText)
+	escape := dockerfileEscapeRune(sourceText)
+	instructions := instructionsFromSource(sourceText, escape)
 	var currentStage *Stage
 	stageIndex := 0
 	for _, item := range instructions {
 		switch item.keyword {
 		case "FROM":
-			stage := parseStage(item, stageIndex)
+			stage := parseStage(item, stageIndex, escape)
 			metadata.Stages = append(metadata.Stages, stage)
 			currentStage = &metadata.Stages[len(metadata.Stages)-1]
 			stageIndex++
 		case "ARG":
-			if arg, ok := parseArg(item, currentStage); ok {
-				metadata.Args = append(metadata.Args, arg)
-			}
+			metadata.Args = append(metadata.Args, parseArgs(item, currentStage, escape)...)
 		case "ENV":
-			metadata.Envs = append(metadata.Envs, parseEnvs(item, currentStage)...)
+			metadata.Envs = append(metadata.Envs, parseEnvs(item, currentStage, escape)...)
 		case "EXPOSE":
 			metadata.Ports = append(metadata.Ports, parsePorts(item, currentStage)...)
 		case "LABEL":
-			metadata.Labels = append(metadata.Labels, parseLabels(item, currentStage)...)
+			metadata.Labels = append(metadata.Labels, parseLabels(item, currentStage, escape)...)
 		case "COPY":
-			annotateCopyFrom(item, currentStage)
+			annotateCopyFrom(item, currentStage, escape)
 		case "WORKDIR":
 			setStageField(currentStage, item.value, func(stage *Stage, value string) { stage.Workdir = value })
 		case "ENTRYPOINT":
@@ -142,9 +142,10 @@ func (m Metadata) Map() map[string]any {
 	}
 }
 
-func instructionsFromSource(source string) []instruction {
+func instructionsFromSource(source string, escape rune) []instruction {
 	scanner := bufio.NewScanner(strings.NewReader(source))
 	instructions := make([]instruction, 0)
+	escapeText := string(escape)
 	var (
 		buffer    strings.Builder
 		startLine int
@@ -173,13 +174,17 @@ func instructionsFromSource(source string) []instruction {
 		if trimmed == "" && buffer.Len() == 0 {
 			continue
 		}
+		if strings.HasPrefix(trimmed, "#") && buffer.Len() == 0 {
+			continue
+		}
 		if buffer.Len() == 0 {
 			startLine = line
 		} else {
 			buffer.WriteByte(' ')
 		}
-		buffer.WriteString(strings.TrimSpace(strings.TrimSuffix(text, "\\")))
-		if strings.HasSuffix(strings.TrimSpace(text), "\\") {
+		trimmedText := strings.TrimSpace(text)
+		buffer.WriteString(strings.TrimSpace(strings.TrimSuffix(text, escapeText)))
+		if strings.HasSuffix(trimmedText, escapeText) {
 			continue
 		}
 		flush()
@@ -188,18 +193,29 @@ func instructionsFromSource(source string) []instruction {
 	return instructions
 }
 
-func parseStage(item instruction, stageIndex int) Stage {
-	fields := strings.Fields(item.value)
+func parseStage(item instruction, stageIndex int, escape rune) Stage {
+	fields := splitDockerfileWords(item.value, escape)
+	platform := ""
+	for len(fields) > 0 && strings.HasPrefix(fields[0], "--") {
+		flag := strings.TrimPrefix(fields[0], "--")
+		fields = fields[1:]
+		name, value, hasValue := strings.Cut(flag, "=")
+		if !hasValue && len(fields) > 0 {
+			value = fields[0]
+			fields = fields[1:]
+		}
+		if strings.EqualFold(name, "platform") {
+			platform = value
+		}
+	}
+
 	image := ""
 	tag := ""
 	alias := ""
 	if len(fields) > 0 {
 		image = fields[0]
 	}
-	if separator := strings.Index(image, ":"); separator >= 0 {
-		tag = image[separator+1:]
-		image = image[:separator]
-	}
+	image, tag = splitImageTag(image)
 	for index := 1; index+1 < len(fields); index++ {
 		if strings.EqualFold(fields[index], "AS") {
 			alias = fields[index+1]
@@ -219,38 +235,67 @@ func parseStage(item instruction, stageIndex int) Stage {
 		StageIndex: stageIndex,
 		BaseImage:  image,
 		BaseTag:    tag,
+		Platform:   platform,
 		Alias:      alias,
 		Path:       filepath.Base(name),
 	}
 }
 
-func parseArg(item instruction, currentStage *Stage) (Arg, bool) {
-	name, value, _ := strings.Cut(item.value, "=")
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return Arg{}, false
+func splitImageTag(image string) (string, string) {
+	if strings.Contains(image, "@") {
+		return image, ""
 	}
-	return Arg{
-		Name:         name,
-		LineNumber:   item.line,
-		DefaultValue: strings.TrimSpace(value),
-		Stage:        stageName(currentStage),
-	}, true
+	tagIndex := strings.LastIndex(image, ":")
+	slashIndex := strings.LastIndex(image, "/")
+	if tagIndex < 0 || tagIndex < slashIndex {
+		return image, ""
+	}
+	return image[:tagIndex], image[tagIndex+1:]
 }
 
-func parseEnvs(item instruction, currentStage *Stage) []Env {
-	pairs := splitKeyValueTokens(item.value)
+func parseArgs(item instruction, currentStage *Stage, escape rune) []Arg {
+	tokens := splitDockerfileWords(item.value, escape)
+	rows := make([]Arg, 0, len(tokens))
+	for _, token := range tokens {
+		name, value, _ := strings.Cut(token, "=")
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		rows = append(rows, Arg{
+			Name:         name,
+			LineNumber:   item.line,
+			DefaultValue: strings.TrimSpace(value),
+			Stage:        stageName(currentStage),
+		})
+	}
+	return rows
+}
+
+func parseEnvs(item instruction, currentStage *Stage, escape rune) []Env {
+	pairs := splitEnvTokens(item.value, escape)
 	rows := make([]Env, 0, len(pairs))
-	for name, value := range pairs {
+	for _, pair := range pairs {
 		rows = append(rows, Env{
-			Name:       name,
-			Value:      value,
+			Name:       pair.name,
+			Value:      pair.value,
 			LineNumber: item.line,
 			Stage:      stageName(currentStage),
 		})
 	}
 	sortNamed(rows, func(item Env) string { return item.Name })
 	return rows
+}
+
+func splitEnvTokens(raw string, escape rune) []keyValueToken {
+	fields := splitDockerfileWords(raw, escape)
+	if len(fields) < 2 || strings.Contains(fields[0], "=") {
+		return splitKeyValueTokens(raw, escape)
+	}
+	return []keyValueToken{{
+		name:  strings.TrimSpace(fields[0]),
+		value: strings.TrimSpace(strings.Join(fields[1:], " ")),
+	}}
 }
 
 func parsePorts(item instruction, currentStage *Stage) []Port {
@@ -278,13 +323,13 @@ func parsePorts(item instruction, currentStage *Stage) []Port {
 	return rows
 }
 
-func parseLabels(item instruction, currentStage *Stage) []Label {
-	pairs := splitKeyValueTokens(item.value)
+func parseLabels(item instruction, currentStage *Stage, escape rune) []Label {
+	pairs := splitKeyValueTokens(item.value, escape)
 	rows := make([]Label, 0, len(pairs))
-	for name, value := range pairs {
+	for _, pair := range pairs {
 		rows = append(rows, Label{
-			Name:       name,
-			Value:      strings.Trim(value, `"'`),
+			Name:       pair.name,
+			Value:      pair.value,
 			LineNumber: item.line,
 			Stage:      stageName(currentStage),
 		})
@@ -293,11 +338,11 @@ func parseLabels(item instruction, currentStage *Stage) []Label {
 	return rows
 }
 
-func annotateCopyFrom(item instruction, currentStage *Stage) {
+func annotateCopyFrom(item instruction, currentStage *Stage, escape rune) {
 	if currentStage == nil {
 		return
 	}
-	for _, field := range strings.Fields(item.value) {
+	for _, field := range splitDockerfileWords(item.value, escape) {
 		if strings.HasPrefix(field, "--from=") {
 			currentStage.CopiesFrom = strings.TrimPrefix(field, "--from=")
 			return
@@ -321,23 +366,6 @@ func stageName(stage *Stage) string {
 		return ""
 	}
 	return stage.Name
-}
-
-func splitKeyValueTokens(raw string) map[string]string {
-	result := make(map[string]string)
-	for _, field := range strings.Fields(raw) {
-		name, value, found := strings.Cut(field, "=")
-		if !found {
-			continue
-		}
-		name = strings.TrimSpace(name)
-		value = strings.TrimSpace(value)
-		if name == "" {
-			continue
-		}
-		result[name] = value
-	}
-	return result
 }
 
 func sortNamed[T any](values []T, name func(T) string) {
@@ -365,6 +393,7 @@ func stageMap(stage Stage) map[string]any {
 		"path":        stage.Path,
 		"lang":        "dockerfile",
 	}
+	addOptional(row, "platform", stage.Platform)
 	addOptional(row, "copies_from", stage.CopiesFrom)
 	addOptional(row, "workdir", stage.Workdir)
 	addOptional(row, "entrypoint", stage.Entrypoint)
