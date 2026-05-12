@@ -296,11 +296,25 @@ export ESHU_TIER2_V25_GEN2_CLAIMS=true
 # and both try to CREATE). The `run --rm bootstrap-index` further down
 # already picks up the new ESHU_TIER2_V25_REPOS_DIR at exec time and binds
 # repos_gen2; the Pass-1 bootstrap-index container stays Exited.
+#
+# ingester is also intentionally NOT in this list. The ingester runs
+# canonical-projection workers that drain the Postgres fact queue. If the
+# force-recreated ingester boots with the gen-2 mount and its projector
+# workers race against `run --rm bootstrap-index` Pass 2 on the same
+# gen-2 File facts, both transactions index-probe absent, both attempt
+# CREATE, and the second commit fails the UNIQUE on File.[path]
+# constraint. The retried projections eventually succeed but the run log
+# fills with projection_failure noise. We stop the ingester explicitly
+# below so bootstrap-index owns the gen-2 projection alone, then bring
+# it back after Pass 2 commits.
 "${COMPOSE_CMD[@]}" up -d --force-recreate --no-deps \
-    ingester resolution-engine eshu \
+    resolution-engine eshu \
     workflow-coordinator \
     collector-terraform-state-gen1 \
     collector-terraform-state-gen2
+
+echo "==> Stopping ingester so bootstrap-index Pass 2 owns canonical projection"
+"${COMPOSE_CMD[@]}" stop ingester >/dev/null
 
 echo "==> Pass 2: re-running bootstrap-index against gen-2 repos"
 "${COMPOSE_CMD[@]}" run --rm bootstrap-index >"$PHASE_35_PASS2_LOG" 2>&1 \
@@ -309,6 +323,9 @@ echo "==> Pass 2: re-running bootstrap-index against gen-2 repos"
         tail -n 60 "$PHASE_35_PASS2_LOG" >&2
         exit 1
     }
+
+echo "==> Restarting ingester on the gen-2 mount after bootstrap-index Pass 2"
+"${COMPOSE_CMD[@]}" up -d --force-recreate --no-deps ingester
 
 echo "==> Waiting for Pass 2 terraform_state work items (need additional rows for gen-2 instance)"
 tier2_wait_for_terraform_state_work_items 4 240
