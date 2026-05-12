@@ -77,7 +77,13 @@ func run(parent context.Context) error {
 	if err := store.EnsureSchema(parent); err != nil {
 		return err
 	}
-	webhookMux, err := newWebhookMux(webhookHandler{Config: cfg, Store: store, Logger: logger})
+	webhookMux, err := newWebhookMux(webhookHandler{
+		Config:      cfg,
+		Store:       store,
+		Logger:      logger,
+		Instruments: instruments,
+		Tracer:      tracer,
+	})
 	if err != nil {
 		return err
 	}

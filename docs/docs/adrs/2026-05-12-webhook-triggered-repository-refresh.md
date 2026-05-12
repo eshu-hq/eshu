@@ -439,6 +439,9 @@ runtime slice:
   shared runtime mux, uses request body limits, writes trigger decisions before
   returning provider success, and keeps graph and workspace access out of the
   process.
+- The webhook listener emits bounded OTEL request, decision, store-operation,
+  request-duration, and store-duration telemetry plus `webhook.handle` and
+  `webhook.store` spans.
 - The ingester and local `collector-git` compatibility handoff can prioritize
   queued accepted triggers, sync only the referenced repositories, then fall
   back to scheduled polling as the safety net.

@@ -46,6 +46,10 @@ const (
 	MetricDimensionBackendKind   = "backend_kind"
 	MetricDimensionResult        = "result"
 	MetricDimensionReason        = "reason"
+	MetricDimensionProvider      = "provider"
+	MetricDimensionEventKind     = "event_kind"
+	MetricDimensionDecision      = "decision"
+	MetricDimensionStatus        = "status"
 	// MetricDimensionSafeLocatorHash labels Terraform-state metrics with the
 	// scope-level safe locator hash so operators can group counters per state
 	// without exposing bucket names, S3 keys, or local paths.
@@ -153,6 +157,8 @@ const (
 	SpanTerraformStateParserStream        = "tfstate.parser.stream"
 	SpanTerraformStateFactEmitBatch       = "tfstate.fact.emit_batch"
 	SpanTerraformStateCoordinatorDone     = "tfstate.coordinator.complete"
+	SpanWebhookHandle                     = "webhook.handle"
+	SpanWebhookStore                      = "webhook.store"
 
 	// Dependency service spans — track external call performance.
 	SpanPostgresExec  = "postgres.exec"
@@ -277,6 +283,10 @@ var metricDimensionKeys = []string{
 	MetricDimensionBackendKind,
 	MetricDimensionResult,
 	MetricDimensionReason,
+	MetricDimensionProvider,
+	MetricDimensionEventKind,
+	MetricDimensionDecision,
+	MetricDimensionStatus,
 	MetricDimensionSafeLocatorHash,
 	MetricDimensionWarningKind,
 	MetricDimensionPack,
@@ -316,6 +326,8 @@ var spanNames = []string{
 	SpanTerraformStateParserStream,
 	SpanTerraformStateFactEmitBatch,
 	SpanTerraformStateCoordinatorDone,
+	SpanWebhookHandle,
+	SpanWebhookStore,
 	SpanPostgresExec,
 	SpanPostgresQuery,
 	SpanNeo4jExecute,

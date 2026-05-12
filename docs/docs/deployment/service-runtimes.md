@@ -62,6 +62,7 @@ Current platform reality:
 | API | HTTP API, query reads, admin endpoints | `eshu api start --host 0.0.0.0 --port 8080` | graph + content reads only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | MCP Server | MCP tool transport plus mounted query passthrough | `eshu mcp start` | graph + content reads only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Ingester | repo sync, parsing, fact emission, workspace ownership | `/usr/local/bin/eshu-ingester` | workspace PVC + Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `StatefulSet` |
+| Webhook Listener | public provider webhook intake and durable refresh triggers | `/usr/local/bin/eshu-webhook-listener` | Postgres trigger table only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Workflow Coordinator | scheduling, trigger intake, claims, completeness, run orchestration | `/usr/local/bin/eshu-workflow-coordinator` | Postgres + graph backend | internal admin/status service plus `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Resolution Engine | queue draining, projection, retries, replay, recovery | `/usr/local/bin/eshu-reducer` | Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Bootstrap Index | one-shot initial indexing | `/usr/local/bin/eshu-bootstrap-index` | workspace + Postgres + graph backend | OTEL export only; no mounted runtime `/metrics` endpoint | one-shot local helper |
@@ -181,6 +182,8 @@ Eshu should refresh incrementally by default and reconcile instead of forcing a
 full re-index whenever possible.
 
 - the `ingester` should reconcile only the scopes and generations that changed
+- the `webhook-listener` should enqueue provider refresh triggers without
+  cloning repositories, parsing files, or writing graph truth directly
 - the `workflow-coordinator` should stay dark until claim ownership is enabled
 - the `resolution-engine` should drain queued follow-up work and shared
   corrections from durable state

@@ -48,3 +48,17 @@ The runtime mounts `/healthz`, `/readyz`, `/metrics`, and `/admin/status` using
 the shared runtime mux. In Kubernetes, only provider webhook paths should be
 publicly routed; admin and metrics paths should stay internal unless explicitly
 protected by the operator.
+
+Provider intake emits bounded OTEL metrics and spans. Labels cover provider,
+event kind, decision, status, outcome, and reason; repository names, delivery
+IDs, and commit SHAs stay out of metric labels.
+
+| Signal | Type | What it tells operators |
+| --- | --- | --- |
+| `eshu_dp_webhook_requests_total` | Counter | Request volume by provider, outcome, and rejection or success reason. |
+| `eshu_dp_webhook_trigger_decisions_total` | Counter | Normalized trigger decisions that reached durable storage, by provider, event kind, decision, reason, and status. |
+| `eshu_dp_webhook_store_operations_total` | Counter | Trigger-store upsert attempts by provider, outcome, and stored status. |
+| `eshu_dp_webhook_request_duration_seconds` | Histogram | End-to-end provider route latency, including body read, auth verification, normalization, and store handoff. |
+| `eshu_dp_webhook_store_duration_seconds` | Histogram | Durable trigger-store latency for the Postgres upsert path. |
+| `webhook.handle` | Span | Provider route handling for one delivery. |
+| `webhook.store` | Span | The durable trigger storage substep inside an accepted route. |

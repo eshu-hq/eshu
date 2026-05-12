@@ -44,6 +44,8 @@ The stable span families are:
 - `tfstate.parser.stream`
 - `tfstate.fact.emit_batch`
 - `tfstate.coordinator.complete`
+- `webhook.handle`
+- `webhook.store`
 - `postgres.exec`
 - `postgres.query`
 - `neo4j.execute`
@@ -121,6 +123,21 @@ result, claim/run correlation, and locator hashes from Terraform-state facts.
 Do not put raw bucket names, object keys, local paths, or full state locators in
 span attributes.
 
+### Webhook listener path
+
+- `webhook.handle` wraps one provider route request, including body read,
+  provider authentication, delivery identity validation, normalization, store
+  handoff, and response writing.
+- `webhook.store` wraps the durable trigger upsert substep.
+- child `postgres.exec` spans from the instrumented Postgres wrapper explain
+  query-level persistence cost inside `webhook.store`.
+
+Use these spans with `eshu_dp_webhook_requests_total`,
+`eshu_dp_webhook_trigger_decisions_total`, and
+`eshu_dp_webhook_store_duration_seconds` when public webhook intake is slow or
+rejecting traffic. Metric labels stay bounded; repository names, delivery IDs,
+branch names, and commit SHAs must not appear as metric labels.
+
 ## Key Attributes
 
 The most useful span attributes on the Go path are:
@@ -139,6 +156,15 @@ For query traces, also pay attention to:
 
 - repo identifiers or entity identifiers added by the caller
 - runtime/store labels such as `eshu.store`
+
+For webhook listener traces, also pay attention to bounded attributes:
+
+- `provider`
+- `event_kind`
+- `decision`
+- `status`
+- `outcome`
+- `reason`
 
 ## Investigation Recipes
 
@@ -178,6 +204,19 @@ For query traces, also pay attention to:
 2. Open the corresponding query trace.
 3. Use `postgres.query`, `neo4j.query`, and `neo4j.query.single` to determine
    whether the tail is in Postgres, Neo4j, or the caller’s shaping code.
+
+### Webhook intake is slow or rejected
+
+1. Start with `eshu_dp_webhook_requests_total` grouped by `provider`,
+   `outcome`, and `reason`.
+2. If requests are accepted but slow, compare
+   `eshu_dp_webhook_request_duration_seconds` with
+   `eshu_dp_webhook_store_duration_seconds`.
+3. Open the `webhook.handle` trace and check whether time is in provider
+   verification, normalization, `webhook.store`, or child `postgres.exec`
+   spans.
+4. If requests are rejected, use the bounded `reason` label before looking at
+   logs for exact request context.
 
 ## What This Page Does Not Claim
 

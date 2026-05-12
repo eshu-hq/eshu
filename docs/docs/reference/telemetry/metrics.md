@@ -176,6 +176,65 @@ collector/projector/reducer path.
   large or slow state files, and checking whether a new provider schema gap is
   causing more values to be redacted or dropped.
 
+### `eshu_dp_webhook_requests_total`
+
+- Type: Counter
+- Labels: `provider`, `outcome`, `reason`.
+  Provider is one of `github`, `gitlab`, `bitbucket`, or `unknown`.
+  Outcome is a bounded listener result such as `stored`, `rejected`, or
+  `failed`. Reason is a closed listener reason such as `auth_failed`,
+  `missing_delivery_id`, `body_too_large`, `malformed_event`, `store_failed`,
+  or `none`.
+- Meaning: Count of public webhook requests handled by the listener, including
+  requests rejected before normalization.
+- Use it for: Seeing provider delivery volume, alerting on auth or malformed
+  delivery spikes, and checking whether upstream providers are reaching the
+  public listener at all.
+
+### `eshu_dp_webhook_trigger_decisions_total`
+
+- Type: Counter
+- Labels: `provider`, `event_kind`, `decision`, `reason`, `status`.
+  `event_kind` is the normalized provider-neutral event kind, `decision` is
+  `accepted` or `ignored`, and `status` is the durable trigger status such as
+  `queued` or `ignored`.
+- Meaning: Count of normalized provider events that reached durable trigger
+  storage. This metric records graph-refresh intent after authentication,
+  delivery identity validation, normalization, and idempotent storage have all
+  succeeded.
+- Use it for: Measuring accepted versus ignored provider events, proving
+  default-branch merge and push events are becoming queued work, and separating
+  provider noise from real refresh demand.
+
+### `eshu_dp_webhook_store_operations_total`
+
+- Type: Counter
+- Labels: `provider`, `outcome`, `status`.
+- Meaning: Count of webhook trigger store attempts. Successful attempts include
+  the resulting durable status; failed attempts use `status=unknown`.
+- Use it for: Distinguishing listener rejection problems from Postgres trigger
+  persistence failures.
+
+### `eshu_dp_webhook_request_duration_seconds`
+
+- Type: Histogram
+- Labels: `provider`, `outcome`, `reason`.
+- Meaning: End-to-end provider route duration, including body read, signature
+  or token verification, normalization, trigger persistence, and response
+  writing.
+- Use it for: Detecting slow public webhook handling and deciding whether the
+  latency is broad or concentrated in a rejection/failure reason.
+
+### `eshu_dp_webhook_store_duration_seconds`
+
+- Type: Histogram
+- Labels: `provider`, `outcome`, `status`.
+- Meaning: Duration of the durable trigger-store operation inside the listener.
+  This isolates Postgres upsert latency from provider authentication and
+  normalization cost.
+- Use it for: Checking whether webhook intake latency is caused by Postgres
+  persistence before tuning ingress, body limits, or provider-side retries.
+
 ### `eshu_dp_projector_run_duration_seconds`
 ### `eshu_dp_projector_stage_duration_seconds`
 ### `eshu_dp_projections_completed_total`
@@ -455,6 +514,14 @@ collector/projector/reducer path.
 - `eshu_dp_collector_observe_duration_seconds`
 - `eshu_dp_projector_run_duration_seconds`
 - `eshu_dp_reducer_run_duration_seconds`
+
+### Webhook Intake
+
+- `eshu_dp_webhook_requests_total`
+- `eshu_dp_webhook_trigger_decisions_total`
+- `eshu_dp_webhook_store_operations_total`
+- `eshu_dp_webhook_request_duration_seconds`
+- `eshu_dp_webhook_store_duration_seconds`
 
 ### Shared Follow-Up
 

@@ -123,6 +123,17 @@ type Instruments struct {
 	// handle through an interface adapter so tests can substitute a
 	// stub recorder.
 	DriftUnresolvedModuleCalls metric.Int64Counter
+	// WebhookRequests counts public webhook requests by provider, bounded
+	// outcome, and reason. Provider is one of github, gitlab, bitbucket, or
+	// unknown; reason values are closed enums from the webhook listener.
+	WebhookRequests metric.Int64Counter
+	// WebhookTriggerDecisions counts normalized provider events that reached
+	// durable trigger storage, labeled by provider, event kind, decision,
+	// reason, and resulting queue status.
+	WebhookTriggerDecisions metric.Int64Counter
+	// WebhookStoreOperations counts durable trigger upserts attempted by the
+	// webhook listener, labeled by provider, outcome, and stored status.
+	WebhookStoreOperations metric.Int64Counter
 
 	// DriftSchemaUnknownComposite counts Terraform-state composite attributes
 	// the streaming nested walker dropped because the loaded
@@ -166,6 +177,8 @@ type Instruments struct {
 	SharedProjectionProcessingDuration   metric.Float64Histogram
 	SharedProjectionStepDuration         metric.Float64Histogram
 	DocumentationDriftGenerationDuration metric.Float64Histogram
+	WebhookRequestDuration               metric.Float64Histogram
+	WebhookStoreDuration                 metric.Float64Histogram
 
 	// Collector concurrency histograms and counters
 	RepoSnapshotDuration metric.Float64Histogram
@@ -459,6 +472,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register DriftSchemaUnknownComposite counter: %w", err)
 	}
 
+	inst.WebhookRequests, err = meter.Int64Counter(
+		"eshu_dp_webhook_requests_total",
+		metric.WithDescription("Total webhook listener requests by provider, outcome, and reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WebhookRequests counter: %w", err)
+	}
+
+	inst.WebhookTriggerDecisions, err = meter.Int64Counter(
+		"eshu_dp_webhook_trigger_decisions_total",
+		metric.WithDescription("Total normalized webhook trigger decisions by provider, event kind, decision, reason, and status"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WebhookTriggerDecisions counter: %w", err)
+	}
+
+	inst.WebhookStoreOperations, err = meter.Int64Counter(
+		"eshu_dp_webhook_store_operations_total",
+		metric.WithDescription("Total webhook trigger store operations by provider, outcome, and status"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WebhookStoreOperations counter: %w", err)
+	}
+
 	// Register histograms with explicit bucket boundaries where specified
 	collectorBuckets := []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
 	inst.CollectorObserveDuration, err = meter.Float64Histogram(
@@ -502,6 +539,27 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register TerraformStateParseDuration histogram: %w", err)
+	}
+
+	webhookBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
+	inst.WebhookRequestDuration, err = meter.Float64Histogram(
+		"eshu_dp_webhook_request_duration_seconds",
+		metric.WithDescription("Webhook listener request duration by provider, outcome, and reason"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(webhookBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WebhookRequestDuration histogram: %w", err)
+	}
+
+	inst.WebhookStoreDuration, err = meter.Float64Histogram(
+		"eshu_dp_webhook_store_duration_seconds",
+		metric.WithDescription("Webhook trigger store operation duration by provider, outcome, and status"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(webhookBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WebhookStoreDuration histogram: %w", err)
 	}
 
 	inst.ScopeAssignDuration, err = meter.Float64Histogram(
@@ -1265,6 +1323,26 @@ func AttrResult(v string) attribute.KeyValue {
 // AttrReason returns a reason attribute for metric recording.
 func AttrReason(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionReason, v)
+}
+
+// AttrProvider returns a provider attribute for webhook listener metrics.
+func AttrProvider(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionProvider, v)
+}
+
+// AttrEventKind returns an event_kind attribute for webhook listener metrics.
+func AttrEventKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionEventKind, v)
+}
+
+// AttrDecision returns a decision attribute for webhook listener metrics.
+func AttrDecision(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionDecision, v)
+}
+
+// AttrStatus returns a status attribute for metric recording.
+func AttrStatus(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionStatus, v)
 }
 
 // AttrSafeLocatorHash returns a safe_locator_hash attribute for Terraform-state

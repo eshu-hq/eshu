@@ -8,7 +8,10 @@
 // documentation extraction counters, Terraform-state collector spans, and
 // the safe_locator_hash and warning_kind dimensions used by the tfstate
 // output, module, warning emission, correlation drift-match, drift-admission,
-// and drift-intent enqueue counters. The reducer drift handler uses
+// drift-intent enqueue, and webhook-listener counters. Webhook listener intake
+// registers provider, event_kind, decision, and status dimensions plus
+// AttrProvider, AttrEventKind, AttrDecision, AttrStatus, SpanWebhookHandle, and
+// SpanWebhookStore. The reducer drift handler uses
 // SpanReducerDriftEvidenceLoad to bracket the three-query join the
 // PostgresDriftEvidenceLoader performs per config_state_drift intent. Pipeline
 // stage, graph-backend, and failure-class names stay centralized here so
@@ -26,7 +29,8 @@
 // classify each skip's cause via the closed-enum reason label; the
 // high-cardinality companions (attribute_key, source path, error) stay in
 // the LogKeyDriftComposite* log attrs and out of metric labels.
-// Callers must reuse existing log keys before adding new ones.
-// High-cardinality values such as file paths and fact identifiers belong in
+// Callers must reuse existing log keys and Attr* helpers before adding new
+// names. High-cardinality values such as file paths, fact identifiers,
+// repository names, delivery IDs, source paths, and attribute keys belong in
 // spans or logs, never in metric labels, so dashboards and alerts stay bounded.
 package telemetry

@@ -10,5 +10,9 @@
 // the repository workspace, connect to the graph backend, or mark webhook
 // metadata as graph truth. Request body handling returns 413 only when
 // MaxRequestBodyBytes is exceeded; other body read failures are rejected as bad
-// requests.
+// requests. Provider intake records bounded OTEL counters, histograms, and
+// spans through telemetry.Instruments and telemetry.SpanWebhookHandle/
+// telemetry.SpanWebhookStore. Provider, event kind, decision, status, outcome,
+// and reason are bounded metric labels; repository and delivery identity stay
+// out of metrics.
 package main
