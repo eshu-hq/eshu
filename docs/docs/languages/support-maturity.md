@@ -44,7 +44,7 @@ For audited family-level closure status and bounded gaps, see
 | Python | `DefaultEngine (python)` | supported | supported | supported | `fastapi-base`, `flask-base` | supported | supported | supported |
 | Ruby | `DefaultEngine (ruby)` | - | - | - | - | - | - | - |
 | Rust | `DefaultEngine (rust)` | - | - | - | - | - | - | - |
-| Scala | `DefaultEngine (scala)` | - | - | - | - | - | - | - |
+| Scala | `DefaultEngine (scala)` | supported | supported | supported | Play, Akka, JUnit, ScalaTest, lifecycle, traits | supported | fixture-backed | supported |
 | SQL | `DefaultEngine (sql)` | supported | supported | unsupported | - | supported | supported | supported |
 | Swift | `DefaultEngine (swift)` | - | - | - | - | - | - | - |
 | Terraform | `DefaultEngine (hcl)` | - | - | - | - | - | - | - |
@@ -69,6 +69,14 @@ lifecycle callbacks, and JUnit methods, while exact cleanup remains blocked by
 reflection, dependency injection, annotation processing, compiler plugins,
 dynamic dispatch, Gradle source sets, Kotlin multiplatform targets, and broad
 public API surfaces.
+Scala dead-code support is `derived`: parser metadata models main methods,
+`App` objects, trait methods and same-file implementations, overrides, Play
+controller actions, Akka actor `receive` methods, lifecycle callbacks, JUnit
+methods, and ScalaTest suite classes, while exact cleanup remains blocked by
+macros, implicit/given resolution, dynamic dispatch, reflection, sbt source
+sets, framework route files, compiler plugins, and broad public API surfaces.
+Issue #105 dogfood validated this path against Play Framework and the Scala
+compiler with fresh `derived` dead-code API truth after queue drain.
 SQL real-repo and end-to-end indexing are `supported` on the current Go
 parser/query path. The remaining dbt lineage limits are bounded non-goals for
 the documented SQL surface.

@@ -130,6 +130,13 @@ callbacks, and JUnit methods; Kotlin remains non-exact because reflection,
 dependency injection, annotation processing, compiler plugins, dynamic
 dispatch, Gradle source sets, Kotlin multiplatform targets, and broad public
 API surfaces are not resolved exactly.
+Scala parser metadata suppresses main methods, App objects, traits and trait
+methods, same-file trait implementations, overrides, Play controller actions,
+Akka actor receive methods, lifecycle callbacks, JUnit methods, and ScalaTest
+suite classes; Scala remains non-exact because macros, implicit/given
+resolution, dynamic dispatch, reflection, sbt source sets, framework route
+files, compiler plugin output, and broad public API surfaces are not resolved
+exactly.
 The analysis payload also exposes
 `dead_code_language_exactness_blockers`, with Rust blockers
 for unresolved macro expansion, cfg/Cargo feature selection, semantic module
@@ -142,6 +149,9 @@ partial types, dynamic dispatch, project references, and public API surfaces,
 Kotlin blockers for reflection, dependency injection, annotation processing,
 compiler plugins, dynamic dispatch, Gradle source sets, multiplatform targets,
 and public API surfaces,
+Scala blockers for macro expansion, implicit/given resolution, dynamic
+dispatch, reflection, sbt source sets, framework route files, compiler plugin
+output, and public API surfaces,
 PHP blockers for dynamic dispatch, reflection, Composer autoloading,
 include/require resolution, framework routing, trait resolution, namespace
 aliases, magic-method dispatch, and public API surfaces,
@@ -174,9 +184,9 @@ Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
 payload names modeled root kinds in `modeled_framework_roots`, reports whether
 reflection evidence is modeled, and counts how many suppressions came from
-parser metadata. C, C#, C++, Kotlin, PHP, Ruby, and Groovy root suppressions are tested
-through both graph-shaped rows and content-store metadata so the policy matches
-the normal hydrated read path.
+parser metadata. C, C#, C++, Kotlin, Scala, PHP, Ruby, and Groovy root
+suppressions are tested through both graph-shaped rows and content-store
+metadata so the policy matches the normal hydrated read path.
 That lets MCP and CLI callers explain why a candidate was suppressed. Candidate
 reads remain label-scoped and are repo-anchored when the request supplies a
 repository id, then content-backed policy checks run before completed reducer

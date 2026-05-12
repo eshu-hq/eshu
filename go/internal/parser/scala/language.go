@@ -25,13 +25,16 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	payload["traits"] = []map[string]any{}
 	root := tree.RootNode()
 	scope := options.NormalizedVariableScope()
+	traitMethods, typeTraits := scalaCollectTypeContracts(root, source)
 
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
-		case "class_definition", "object_definition":
-			appendNamedType(payload, "classes", node, source, "scala")
+		case "class_definition":
+			appendNamedType(payload, "classes", node, source, "scala", node.Kind())
+		case "object_definition":
+			appendNamedType(payload, "classes", node, source, "scala", node.Kind())
 		case "trait_definition":
-			appendNamedType(payload, "traits", node, source, "scala")
+			appendNamedType(payload, "traits", node, source, "scala", node.Kind())
 		case "function_definition", "function_declaration":
 			appendFunctionWithContext(
 				payload,
@@ -39,6 +42,8 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 				source,
 				"scala",
 				options,
+				traitMethods,
+				typeTraits,
 				"class_definition",
 				"object_definition",
 				"trait_definition",
@@ -143,18 +148,22 @@ func scalaInsideFunction(node *tree_sitter.Node) bool {
 	return false
 }
 
-func appendNamedType(payload map[string]any, bucket string, node *tree_sitter.Node, source []byte, lang string) {
+func appendNamedType(payload map[string]any, bucket string, node *tree_sitter.Node, source []byte, lang string, kind string) {
 	nameNode := node.ChildByFieldName("name")
 	name := shared.NodeText(nameNode, source)
 	if strings.TrimSpace(name) == "" {
 		return
 	}
-	shared.AppendBucket(payload, bucket, map[string]any{
+	item := map[string]any{
 		"name":        name,
 		"line_number": shared.NodeLine(nameNode),
 		"end_line":    shared.NodeEndLine(node),
 		"lang":        lang,
-	})
+	}
+	if rootKinds := scalaTypeDeadCodeRootKinds(kind, shared.NodeText(node, source)); len(rootKinds) > 0 {
+		item["dead_code_root_kinds"] = rootKinds
+	}
+	shared.AppendBucket(payload, bucket, item)
 }
 
 func appendFunctionWithContext(
@@ -163,6 +172,8 @@ func appendFunctionWithContext(
 	source []byte,
 	lang string,
 	options shared.Options,
+	traitMethods map[string]map[string]struct{},
+	typeTraits map[string]map[string]struct{},
 	contextKinds ...string,
 ) {
 	nameNode := node.ChildByFieldName("name")
@@ -181,6 +192,18 @@ func appendFunctionWithContext(
 	if classContext := nearestNamedAncestor(node, source, contextKinds...); classContext != "" {
 		item["class_context"] = classContext
 	}
+	typeContext := nearestNamedAncestor(node, source, "class_definition", "object_definition", "trait_definition")
+	contextKind := nearestAncestorKind(node, "class_definition", "object_definition", "trait_definition")
+	if rootKinds := scalaFunctionDeadCodeRootKinds(
+		shared.NodeText(node, source),
+		name,
+		typeContext,
+		contextKind,
+		traitMethods,
+		typeTraits,
+	); len(rootKinds) > 0 {
+		item["dead_code_root_kinds"] = rootKinds
+	}
 	if options.IndexSource {
 		item["source"] = shared.NodeText(node, source)
 	}
@@ -198,6 +221,21 @@ func nearestNamedAncestor(node *tree_sitter.Node, source []byte, kinds ...string
 		}
 	}
 	return ""
+}
+
+func nearestAncestorKind(node *tree_sitter.Node, kinds ...string) string {
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		for _, kind := range kinds {
+			if current.Kind() == kind {
+				return current.Kind()
+			}
+		}
+	}
+	return ""
+}
+
+func scalaNodeName(node *tree_sitter.Node, source []byte) string {
+	return strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
 }
 
 func appendCall(payload map[string]any, nameNode *tree_sitter.Node, source []byte, lang string) {

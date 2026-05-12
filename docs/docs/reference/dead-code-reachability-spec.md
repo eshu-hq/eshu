@@ -231,6 +231,17 @@ compiler plugin output, dynamic dispatch, Gradle source-set resolution,
 multiplatform target resolution, and broad public API surfaces are modeled or
 scoped out.
 
+Scala currently reports `derived` with parser-backed roots for `main` methods,
+objects extending `App`, traits and trait methods, same-file trait
+implementations, overrides, Play controller actions, Akka actor `receive`
+methods, lifecycle callbacks, JUnit methods, and ScalaTest suite classes. It
+remains non-exact until macros, implicit and given/using resolution, dynamic
+dispatch, reflection, sbt source-set resolution, framework route files,
+compiler plugin output, and broad public API surfaces are modeled or scoped
+out. Issue #105 dogfood validated the parser-backed root path against Play
+Framework and the Scala compiler with fresh `derived` API truth after queue
+drain.
+
 PHP currently reports `derived` with parser-backed roots for script
 entrypoints, constructors, known magic methods, same-file interface methods and
 implementations, trait methods, route-backed controller actions, literal route

@@ -74,6 +74,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		"ruby":       "derived",
 		"groovy":     "derived_candidate_only",
 		"php":        "derived",
+		"scala":      "derived",
 	} {
 		if got := maturity[language]; got != want {
 			t.Fatalf("maturity[%s] = %#v, want %#v", language, got, want)
@@ -235,6 +236,25 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 	} {
 		if !queryTestStringSliceContains(csharpBlockers, want) {
 			t.Fatalf("blockers[c_sharp] missing %q in %#v", want, csharpBlockers)
+		}
+	}
+	scalaBlockers, ok := blockers["scala"].([]any)
+	if !ok {
+		t.Fatalf("blockers[scala] type = %T, want []any", blockers["scala"])
+	}
+	for _, want := range []string{
+		"macro_expansion_unavailable",
+		"implicit_resolution_unavailable",
+		"given_using_resolution_unavailable",
+		"dynamic_dispatch_unresolved",
+		"reflection_unresolved",
+		"sbt_source_set_resolution_unavailable",
+		"framework_route_resolution_unavailable",
+		"compiler_plugin_generated_code_unavailable",
+		"public_api_surface_unresolved",
+	} {
+		if !queryTestStringSliceContains(scalaBlockers, want) {
+			t.Fatalf("blockers[scala] missing %q in %#v", want, scalaBlockers)
 		}
 	}
 }

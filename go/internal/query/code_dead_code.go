@@ -338,6 +338,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsKotlinRoot(result, entity, stats) {
 		return true
 	}
+	if deadCodeIsScalaRoot(result, entity, stats) {
+		return true
+	}
 	if deadCodeIsCRoot(result, entity, stats) {
 		return true
 	}
@@ -375,27 +378,6 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 		return true
 	}
 	return deadCodeIsGeneratedCode(result, entity)
-}
-
-func deadCodeIsCandidateEntity(result map[string]any, entity *EntityContent) bool {
-	for _, label := range StringSliceVal(result, "labels") {
-		if deadCodeIsCandidateEntityType(label) {
-			return true
-		}
-	}
-	if entity == nil {
-		return false
-	}
-	return deadCodeIsCandidateEntityType(entity.EntityType)
-}
-
-func deadCodeIsCandidateEntityType(entityType string) bool {
-	switch strings.TrimSpace(entityType) {
-	case "Function", "Class", "Struct", "Interface", "SqlFunction":
-		return true
-	default:
-		return false
-	}
 }
 
 func deadCodeIsLanguageEntrypoint(result map[string]any, entity *EntityContent) bool {

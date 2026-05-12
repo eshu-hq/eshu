@@ -1,7 +1,16 @@
 package deadcode.fixture
 
+import akka.actor.Actor
+import org.junit.Test
+import org.scalatest.funsuite.AnyFunSuite
+import play.api.mvc.InjectedController
+
 trait Task {
   def run(): Int
+}
+
+class DefaultTask extends Task {
+  override def run(): Int = Helpers.directlyUsedHelper()
 }
 
 object Helpers {
@@ -16,9 +25,23 @@ class PublicService {
   def status(): String = "ok"
 }
 
-class JobEndpoint {
-  @deprecated("fixture framework root", "1.0")
-  def handle(): String = "handled"
+class JobEndpoint extends InjectedController {
+  def handle = Action { "handled" }
+}
+
+class WorkerActor extends Actor {
+  override def receive: Receive = {
+    case "run" => sender() ! Helpers.directlyUsedHelper()
+  }
+}
+
+class FixtureSuite extends AnyFunSuite {
+  @Test
+  def exercisedByTestRunner(): Unit = {}
+}
+
+object ScriptMain extends App {
+  Helpers.directlyUsedHelper()
 }
 
 object Main {

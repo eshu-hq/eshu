@@ -194,6 +194,17 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 		"kotlin.lifecycle_callback_method",
 		"kotlin.junit_test_method",
 		"kotlin.junit_lifecycle_method",
+		"scala.main_method",
+		"scala.app_object",
+		"scala.trait_type",
+		"scala.trait_method",
+		"scala.trait_implementation_method",
+		"scala.override_method",
+		"scala.play_controller_action",
+		"scala.akka_actor_receive",
+		"scala.lifecycle_callback_method",
+		"scala.junit_test_method",
+		"scala.scalatest_suite_class",
 		"javascript.nextjs_route_export",
 		"javascript.nextjs_app_export",
 		"javascript.express_route_registration",
@@ -271,7 +282,7 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if !ok {
 		t.Fatalf("analysis[notes] type = %T, want []any", analysis["notes"])
 	}
-	for _, want := range []string{"c.public_header_api", "c.callback_argument_target", "cpp.public_header_api", "Ruby Rails controller"} {
+	for _, want := range []string{"c.public_header_api", "c.callback_argument_target", "cpp.public_header_api", "Ruby Rails controller", "Scala main/App object"} {
 		if !queryTestNotesContain(notes, want) {
 			t.Fatalf("analysis[notes] missing %q in %#v", want, notes)
 		}
