@@ -51,7 +51,7 @@ pipelinePM2(
 	assertEmptyNamedBucket(t, got, "functions")
 	assertEmptyNamedBucket(t, got, "classes")
 	assertEmptyNamedBucket(t, got, "imports")
-	assertEmptyNamedBucket(t, got, "function_calls")
+	assertBucketContainsFieldValue(t, got, "function_calls", "name", "pipelinePM2")
 	assertEmptyNamedBucket(t, got, "variables")
 	assertEmptyNamedBucket(t, got, "modules")
 	assertEmptyNamedBucket(t, got, "module_inclusions")

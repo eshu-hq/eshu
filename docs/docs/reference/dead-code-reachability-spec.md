@@ -183,6 +183,12 @@ edges from parsed `sql_relationships`. SQL remains non-exact until dynamic SQL,
 dialect-specific routine resolution, and migration-order resolution are modeled
 or scoped out.
 
+Groovy currently reports `derived_candidate_only`. Jenkinsfile pipeline
+entrypoints and Jenkins shared-library `vars/*.groovy` `call` methods are
+modeled as parser-backed roots, but Groovy dynamic dispatch, closure delegates,
+Jenkins shared-library loading, and pipeline DSL dynamic steps remain named
+exactness blockers.
+
 C currently reports `derived` with parser-backed roots for `main`, functions
 declared by directly included local headers, signal handlers, callback
 arguments, and direct function-pointer initializer targets. It remains non-exact
@@ -298,6 +304,8 @@ Current branch status:
 - Ruby Rails controller actions, Rails callback methods, dynamic-dispatch hooks,
   literal method-reference targets, and script entrypoints are modeled as
   parser-backed roots
+- Groovy Jenkinsfile pipeline entrypoints and Jenkins shared-library
+  `vars/*.groovy` `call` methods are modeled as parser-backed roots
 - Java main methods, constructors, overrides, Spring/JUnit/Jenkins/Stapler
   callbacks, Gradle plugin/task surfaces, serialization and Externalizable
   hook signatures, bounded literal reflection, ServiceLoader providers, Spring

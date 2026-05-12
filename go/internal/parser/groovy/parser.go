@@ -1,6 +1,7 @@
 package groovy
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -22,6 +23,18 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	for key, value := range PipelineMetadata(sourceText).Map() {
 		payload[key] = value
 	}
+	for _, class := range ExtractClassEntities(sourceText) {
+		shared.AppendBucket(payload, "classes", class)
+	}
+	for _, function := range ExtractFunctionEntities(path, sourceText) {
+		shared.AppendBucket(payload, "functions", function)
+	}
+	for _, call := range ExtractFunctionCallEntities(sourceText) {
+		shared.AppendBucket(payload, "function_calls", call)
+	}
+	shared.SortNamedBucket(payload, "classes")
+	shared.SortNamedBucket(payload, "functions")
+	shared.SortNamedBucket(payload, "function_calls")
 	if options.IndexSource {
 		payload["source"] = sourceText
 	}
@@ -56,4 +69,10 @@ func PreScan(path string) ([]string, error) {
 	}
 	slices.Sort(names)
 	return names, nil
+}
+
+func isSharedLibraryVarsFile(path string) bool {
+	normalized := filepath.ToSlash(filepath.Clean(path))
+	return (strings.HasPrefix(normalized, "vars/") || strings.Contains(normalized, "/vars/")) &&
+		strings.HasSuffix(strings.ToLower(normalized), ".groovy")
 }

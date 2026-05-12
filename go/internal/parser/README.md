@@ -197,9 +197,10 @@ code cells, then the parent parser writes that source view to a temporary
 Python file before tree-sitter parsing. The temporary file is removed after
 parse. The notebook path shares the same payload contract as `.py` files.
 
-Groovy/Jenkins pipeline metadata extraction, payload assembly, and pre-scan
-name extraction live in the Groovy helper subpackage. The parent parser keeps
-the `ExtractGroovyPipelineMetadata` compatibility wrapper used by query and
+Groovy/Jenkins pipeline metadata extraction, lexical class/function/call
+entities, payload assembly, and pre-scan name extraction live in the Groovy
+helper subpackage. The parent parser keeps the
+`ExtractGroovyPipelineMetadata` compatibility wrapper used by query and
 relationship code.
 
 Dockerfile runtime metadata extraction lives in the Dockerfile helper
@@ -338,8 +339,8 @@ SCIP is opt-in via SCIP_INDEXER=true. The allowed language list defaults to
   temporary-file parsing
 - `internal/parser/golang` — embedded SQL evidence before parent payload
   assembly
-- `internal/parser/groovy` — Jenkins/Groovy delivery metadata before parent
-  payload assembly
+- `internal/parser/groovy` — Jenkins/Groovy delivery metadata and lexical
+  entity extraction before parent payload assembly
 - `internal/parser/dockerfile` — Dockerfile stage and runtime metadata before
   parent payload assembly
 - `internal/terraformschema` — provider schema assets consumed by the HCL adapter
