@@ -7,6 +7,7 @@ Canonical implementation:
 - Registry: `go/internal/parser/registry.go`
 - Query proof: `go/internal/query/*kotlin*`
 - Fixture repo: `tests/fixtures/ecosystems/kotlin_comprehensive/`
+- Dead-code fixture repo: `tests/fixtures/deadcode/kotlin/`
 
 ## Parser Contract
 
@@ -32,6 +33,7 @@ Canonical implementation:
 | Constructor-root receiver chains | `constructor-root-receiver-chains` | supported | `go/internal/parser/engine_kotlin_function_return_alias_test.go::TestDefaultEngineParsePathKotlinInfersConstructorRootReceiverChainsForDotCalls`, `go/internal/query/code_relationships_graph_kotlin_php_test.go::TestHandleRelationshipsReturnsGraphBackedKotlinConstructorRootReceiverChains` | Constructor-root and parenthesized receiver chains keep the correct call-site semantics instead of collapsing into declaration-line noise. |
 | Class and interface context | `class-context-on-functions` | supported | `go/internal/parser/engine_kotlin_interface_test.go::TestDefaultEngineParsePathKotlinInterfaceMembersCarryTypeContext`, `go/internal/reducer/code_call_materialization_kotlin_interface_test.go::TestExtractCodeCallRowsResolvesKotlinInterfaceTypedReceiverCallsUsingInferredObjectType` | Class and interface methods carry `class_context`, which keeps interface-typed receiver calls resolvable on the normal reducer/query path. |
 | Secondary constructors | `secondary-constructors` | supported | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathKotlinSecondaryConstructors`, `go/internal/query/entity_story_kotlin_test.go::TestAttachSemanticSummaryAddsKotlinSecondaryConstructorStory` | Secondary constructors keep `constructor_kind` metadata through semantic summaries and stories. |
+| Dead-code roots | `dead-code-derived-roots` | supported | `go/internal/parser/kotlin_dead_code_roots_test.go::TestDefaultEngineParsePathKotlinEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_kotlin_roots_test.go::TestHandleDeadCodeExcludesKotlinRootKindsFromMetadata` | Parser metadata marks top-level `main`, secondary constructors, interface methods, same-file interface implementations, overrides, Gradle plugin/task callbacks, Spring component and method callbacks, lifecycle callbacks, and JUnit methods as `kotlin.*` dead-code roots. The query layer suppresses those parser-backed roots before returning cleanup candidates. |
 
 ## Current Truth
 
@@ -39,8 +41,10 @@ Canonical implementation:
   end to end.
 - The public Go `code/relationships` surface has checked-in proof for the
   Kotlin long-tail receiver families described on this page.
-- Remaining Kotlin work, if any, is net-new future enhancement work around
-  broader whole-program data-flow inference beyond the documented contract.
+- `code_quality.dead_code` reports Kotlin as `derived`. Exact cleanup remains
+  blocked by reflection, dependency injection, annotation processing, compiler
+  plugin output, dynamic dispatch, Gradle source-set resolution, Kotlin
+  multiplatform target resolution, and broad public API surface resolution.
 
 ## Known Limitations
 
@@ -51,3 +55,6 @@ Canonical implementation:
   The shipped Go path already covers the documented receiver surface: typed
   locals, casts, smart casts, safe calls, scope-function-preserved assignments,
   lazy delegates, and package-aware function-return chains.
+- Kotlin script and Gradle source-set selection are not resolved as exact
+  dead-code scope boundaries. They are named exactness blockers rather than
+  hidden assumptions.

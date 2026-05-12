@@ -586,7 +586,8 @@ Example dead-code workflow:
 
 `repo_id` is optional. `language` is optional; pass it when validating one
 parser language family such as `c`, `csharp`, `cpp`, `sql`, `go`, `groovy`,
-`php`, `python`, `java`, `javascript`, `typescript`, `tsx`, `ruby`, or `rust`.
+`kotlin`, `php`, `python`, `java`, `javascript`, `typescript`, `tsx`, `ruby`,
+or `rust`.
 For C#, `csharp` is normalized to the parser language key `c_sharp`. For SQL,
 the language filter narrows the
 candidate scan to `SqlFunction` routines so mixed repositories with many
@@ -624,6 +625,13 @@ ASP.NET controller actions, hosted-service callbacks, test methods, and
 serialization callbacks, while reflection, dependency injection, source
 generators, partial type merging, dynamic dispatch, project references, and
 broad public API surfaces remain named exactness blockers.
+Kotlin dead-code results are `derived`: parser metadata suppresses top-level
+main functions, secondary constructors, interface methods and same-file
+implementations, overrides, Gradle plugin and task callbacks, Spring component
+and method callbacks, lifecycle callbacks, and JUnit methods, while reflection,
+dependency injection, annotation processing, compiler plugin output, dynamic
+dispatch, Gradle source-set resolution, Kotlin multiplatform target resolution,
+and broad public API surfaces remain named exactness blockers.
 PHP dead-code results are `derived`: parser metadata suppresses script
 entrypoints, constructors, known magic methods, same-file interface methods and
 implementations, trait methods, route-backed controller actions, literal route

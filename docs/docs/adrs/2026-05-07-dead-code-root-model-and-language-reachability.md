@@ -476,6 +476,29 @@ Local and dogfood evidence gathered in this branch so far:
   analysis payload (`164` for Laravel, `224` for Symfony, `69` for WordPress),
   and the first `500` returned candidates for each repo contained no
   constructors or known PHP magic methods.
+- The Kotlin slice promotes Kotlin to `derived`, not exact. Parser metadata now
+  suppresses top-level `main`, secondary constructors, interface methods,
+  same-file interface implementations, overrides, Gradle plugin/task callbacks,
+  Spring component and method callbacks, lifecycle callbacks, and JUnit methods.
+  Query policy suppresses the same `kotlin.*` roots from graph and content
+  metadata before classifying remaining candidates.
+- Kotlin dogfood used a unique Compose project,
+  `eshu-kotlin102-dogfood-retry-20260512105955`, against Ktor. The checked-out
+  corpus had `2827` files and `2370` Kotlin/KTS files; discovery indexed `2297`
+  files after default skips, parsed `2297` files, materialized `28354` content
+  entities, and emitted `32956` facts. The first run exposed a Neo4j transaction
+  memory limit at canonical projection; the accepted retry used two projection
+  workers and a `2G` Neo4j transaction cap, then completed with queue
+  `outstanding=0`, `in_flight=0`, `retrying=0`, `failed=0`, and `dead_letter=0`.
+  Stage timings were discovery `0.063s`, pre-scan `7.715s`, parse `7.062s`,
+  materialize `0.152s`, canonical write `5.926s`, content write `2.867s`, and
+  bootstrap projection `29.238s`.
+- API `code_quality.dead_code` after the Ktor run returned `truth.level=derived`,
+  `dead_code_language_maturity.kotlin=derived`, `query_seconds=0.087625`,
+  `candidate_scan_rows=1000`, `candidate_scan_pages=4`,
+  `candidate_scan_truncated=false`, and `framework_roots_from_parser_metadata=359`.
+  The returned `500` candidates carried no `dead_code_root_kinds`, proving
+  parser-backed Kotlin roots were suppressed before cleanup classification.
 
 Open proof work before this branch can close:
 

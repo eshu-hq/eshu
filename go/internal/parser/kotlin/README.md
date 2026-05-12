@@ -4,8 +4,8 @@
 
 This package owns Kotlin source extraction for the parser engine. It turns one
 Kotlin file into parser payload buckets for declarations, imports, variables,
-function calls, receiver type inference, smart casts, and package-bounded
-function return lookups.
+function calls, receiver type inference, smart casts, parser-backed dead-code
+roots, and package-bounded function return lookups.
 
 ## Ownership boundary
 
@@ -19,9 +19,9 @@ parser helpers for common payload and source behavior.
 See doc.go for the godoc contract.
 
 - `Parse` reads one Kotlin file and returns the payload consumed by the
-  collector path. The entry point starts in parser.go:30.
+  collector path. The entry point starts in parser.go:12.
 - `PreScan` returns function, class, and interface names through the same
-  extraction path used by `Parse`. The entry point starts in parser.go:481.
+  extraction path used by `Parse`. The entry point starts in prescan.go:6.
 
 ## Dependencies
 
@@ -39,7 +39,10 @@ telemetry is owned by the collector and runtime layers that call the parser.
 ## Gotchas / invariants
 
 `Parse` must preserve the parent payload keys and keep deterministic bucket
-ordering before returning. `kotlinInferReceiverType` lives in
+ordering before returning. `kotlinFunctionDeadCodeRootKinds` lives in
+dead_code_roots.go:68 and only emits bounded parser-backed roots for Kotlin
+entrypoints, interfaces, overrides, Gradle, Spring, lifecycle, and JUnit
+callbacks. `kotlinInferReceiverType` lives in
 receiver_inference.go:5 with method-return helpers because receiver inference
 depends on local variables, class properties, sibling function returns, and type
 parameter resolution. `kotlinCollectSiblingFunctionReturnTypes` is bounded by
