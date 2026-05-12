@@ -215,7 +215,6 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 		"scala.junit_test_method",
 		"scala.scalatest_suite_class",
 		"elixir.application_start",
-		"elixir.main_function",
 		"elixir.public_macro",
 		"elixir.public_guard",
 		"elixir.behaviour_callback",

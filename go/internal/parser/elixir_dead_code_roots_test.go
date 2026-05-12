@@ -17,7 +17,14 @@ func TestDefaultEngineParsePathElixirEmitsDeadCodeRootKinds(t *testing.T) {
   use DemoWeb, :controller
 
   def index(conn, params), do: render(conn, "index.html", params: params)
+  def wrong_action(conn), do: render(conn, "index.html")
   defp helper(), do: :unused
+end
+
+defmodule Demo.Application do
+  use Application
+
+  def start(_type, _args), do: Demo.Supervisor.start_link([])
 end
 
 defmodule Demo.Worker do
@@ -31,7 +38,15 @@ defmodule Demo.Worker do
   @impl GenServer
   def handle_call(:status, _from, state), do: {:reply, :ok, state}
 
+  def handle_cast(message), do: message
   def helper(), do: :unused
+end
+
+defmodule Demo.Supervisor do
+  use Supervisor
+
+  def start_link(opts), do: Supervisor.start_link(__MODULE__, opts)
+  def init(children), do: Supervisor.init(children, strategy: :one_for_one)
 end
 
 defmodule Mix.Tasks.Demo.Sync do
@@ -52,6 +67,7 @@ defmodule DemoWeb.CounterLive do
   use Phoenix.LiveView
 
   def mount(_params, _session, socket), do: {:ok, socket}
+  def mount(_params, socket), do: {:ok, socket}
   def handle_event("inc", _params, socket), do: {:noreply, socket}
   def render(assigns), do: ~H"<div></div>"
 end
@@ -78,27 +94,43 @@ end
 	}
 
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "index", "DemoWeb.PageController"), "dead_code_root_kinds", "elixir.phoenix_controller_action")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "start", "Demo.Application"), "dead_code_root_kinds", "elixir.application_start")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Demo.Worker"), "dead_code_root_kinds", "elixir.behaviour_callback")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Demo.Worker"), "dead_code_root_kinds", "elixir.genserver_callback")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_call", "Demo.Worker"), "dead_code_root_kinds", "elixir.behaviour_callback")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_call", "Demo.Worker"), "dead_code_root_kinds", "elixir.genserver_callback")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Demo.Supervisor"), "dead_code_root_kinds", "elixir.supervisor_callback")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "run", "Mix.Tasks.Demo.Sync"), "dead_code_root_kinds", "elixir.mix_task_run")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "serialize", "Demo.Serializable"), "dead_code_root_kinds", "elixir.protocol_function")
 	assertElixirFunctionRootKindExists(t, got, "serialize", "Demo.Serializable", "elixir.protocol_implementation_function")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "mount", "DemoWeb.CounterLive"), "dead_code_root_kinds", "elixir.phoenix_liveview_callback")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_event", "DemoWeb.CounterLive"), "dead_code_root_kinds", "elixir.phoenix_liveview_callback")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "render", "DemoWeb.CounterLive"), "dead_code_root_kinds", "elixir.phoenix_liveview_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "start", "Demo.Macros"), "dead_code_root_kinds", "elixir.application_start")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "main", "Demo.Macros"), "dead_code_root_kinds", "elixir.main_function")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "expose", "Demo.Macros"), "dead_code_root_kinds", "elixir.public_macro")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "is_even", "Demo.Macros"), "dead_code_root_kinds", "elixir.public_guard")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "one_line_dispatch", "Demo.Macros"), "exactness_blockers", "dynamic_dispatch_unresolved")
 
+	if wrongAction := assertFunctionByNameAndClass(t, got, "wrong_action", "DemoWeb.PageController"); wrongAction["dead_code_root_kinds"] != nil {
+		t.Fatalf("PageController.wrong_action dead_code_root_kinds = %#v, want nil", wrongAction["dead_code_root_kinds"])
+	}
 	if helper := assertFunctionByNameAndClass(t, got, "helper", "DemoWeb.PageController"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("PageController.helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
+	if handleCast := assertFunctionByNameAndClass(t, got, "handle_cast", "Demo.Worker"); handleCast["dead_code_root_kinds"] != nil {
+		t.Fatalf("Worker.handle_cast/1 dead_code_root_kinds = %#v, want nil", handleCast["dead_code_root_kinds"])
+	}
 	if helper := assertFunctionByNameAndClass(t, got, "helper", "Demo.Worker"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("Worker.helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
+	}
+	if startLink := assertFunctionByNameAndClass(t, got, "start_link", "Demo.Supervisor"); startLink["dead_code_root_kinds"] != nil {
+		t.Fatalf("Supervisor.start_link dead_code_root_kinds = %#v, want nil", startLink["dead_code_root_kinds"])
+	}
+	assertElixirFunctionWithoutRootKind(t, got, "mount", "DemoWeb.CounterLive", "elixir.phoenix_liveview_callback", 2)
+	if start := assertFunctionByNameAndClass(t, got, "start", "Demo.Macros"); start["dead_code_root_kinds"] != nil {
+		t.Fatalf("Demo.Macros.start dead_code_root_kinds = %#v, want nil", start["dead_code_root_kinds"])
+	}
+	if main := assertFunctionByNameAndClass(t, got, "main", "Demo.Macros"); main["dead_code_root_kinds"] != nil {
+		t.Fatalf("Demo.Macros.main dead_code_root_kinds = %#v, want nil", main["dead_code_root_kinds"])
 	}
 	if helper := assertFunctionByNameAndClass(t, got, "private_macro_candidate", "Demo.Macros"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("Demo.Macros.private_macro_candidate dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
@@ -121,14 +153,13 @@ func TestDefaultEngineParsePathElixirDeadCodeFixtureExpectedRoots(t *testing.T) 
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "start", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.application_start")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.behaviour_callback")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.genserver_callback")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_call", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.behaviour_callback")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_call", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.genserver_callback")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "dynamic_elixir_dispatch", "DeadCodeFixture.DynamicElixir"), "exactness_blockers", "dynamic_dispatch_unresolved")
 
-	for _, name := range []string{"public_elixir_api", "unused_elixir_helper", "generated_elixir_stub"} {
+	for _, name := range []string{"start", "public_elixir_api", "unused_elixir_helper", "generated_elixir_stub"} {
 		if function := assertFunctionByNameAndClass(t, got, name, "DeadCodeFixture.DynamicElixir"); function["dead_code_root_kinds"] != nil {
 			t.Fatalf("%s dead_code_root_kinds = %#v, want nil", name, function["dead_code_root_kinds"])
 		}
@@ -153,6 +184,38 @@ func assertElixirFunctionRootKindExists(t *testing.T, payload map[string]any, na
 		}
 	}
 	t.Fatalf("functions missing root kind %q for name %q with class_context %q in %#v", rootKind, name, classContext, functions)
+}
+
+func assertElixirFunctionWithoutRootKind(
+	t *testing.T,
+	payload map[string]any,
+	name string,
+	classContext string,
+	rootKind string,
+	argCount int,
+) {
+	t.Helper()
+
+	functions, ok := payload["functions"].([]map[string]any)
+	if !ok {
+		t.Fatalf("functions = %T, want []map[string]any", payload["functions"])
+	}
+	for _, function := range functions {
+		functionName, _ := function["name"].(string)
+		functionClassContext, _ := function["class_context"].(string)
+		if functionName != name || functionClassContext != classContext {
+			continue
+		}
+		args, _ := function["args"].([]string)
+		if len(args) != argCount {
+			continue
+		}
+		if stringSliceFieldContains(function, "dead_code_root_kinds", rootKind) {
+			t.Fatalf("function %s/%d dead_code_root_kinds contains %q, function = %#v", name, argCount, rootKind, function)
+		}
+		return
+	}
+	t.Fatalf("functions missing name %q with class_context %q and arg count %d in %#v", name, classContext, argCount, functions)
 }
 
 func stringSliceFieldContains(item map[string]any, field string, value string) bool {

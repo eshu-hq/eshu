@@ -77,13 +77,14 @@ macros, implicit/given resolution, dynamic dispatch, reflection, sbt source
 sets, framework route files, compiler plugins, and broad public API surfaces.
 Issue #105 dogfood validated this path against Play Framework and the Scala
 compiler with fresh `derived` dead-code API truth after queue drain.
-Elixir dead-code support is `derived`: parser metadata models application
-`start/2`, escript `main/1`, public macros and guards, `@impl` behaviour
-callbacks, GenServer and Supervisor callbacks, Mix task `run/1`, protocol
-functions and implementations, Phoenix controller actions, and LiveView
-callbacks. It remains non-exact until macro expansion, dynamic dispatch,
-behaviour callback resolution, protocol dispatch, Phoenix route resolution,
-supervision trees, Mix environment selection, and broad public API surfaces are
+Elixir dead-code support is `derived`: parser metadata models Application
+`start/2`, public macros and guards, `@impl` behaviour callbacks,
+arity-checked GenServer and Supervisor callbacks, Mix task `run/1`, protocol
+functions and implementations, Phoenix controller actions shaped as `action/2`,
+and arity-checked LiveView callbacks. It remains non-exact until macro
+expansion, dynamic dispatch, behaviour callback resolution, protocol dispatch,
+Phoenix route resolution, supervision trees, Mix environment selection, and
+broad public API surfaces are
 modeled or scoped out.
 SQL real-repo and end-to-end indexing are `supported` on the current Go
 parser/query path. The remaining dbt lineage limits are bounded non-goals for

@@ -7,7 +7,6 @@ import (
 
 var elixirDeadCodeMetadataRootKinds = []string{
 	"elixir.application_start",
-	"elixir.main_function",
 	"elixir.public_macro",
 	"elixir.public_guard",
 	"elixir.behaviour_callback",

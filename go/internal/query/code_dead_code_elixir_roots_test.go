@@ -14,7 +14,6 @@ func TestHandleDeadCodeExcludesElixirRootKindsFromMetadata(t *testing.T) {
 
 	rootRows := []map[string]any{
 		{"entity_id": "elixir-start", "name": "start", "labels": []any{"Function"}, "dead_code_root_kinds": []any{"elixir.application_start"}},
-		{"entity_id": "elixir-main", "name": "main", "labels": []any{"Function"}, "dead_code_root_kinds": []any{"elixir.main_function"}},
 		{"entity_id": "elixir-macro", "name": "expose", "labels": []any{"Function"}, "dead_code_root_kinds": []any{"elixir.public_macro"}},
 		{"entity_id": "elixir-guard", "name": "is_even", "labels": []any{"Function"}, "dead_code_root_kinds": []any{"elixir.public_guard"}},
 		{"entity_id": "elixir-callback", "name": "init", "labels": []any{"Function"}, "dead_code_root_kinds": []any{"elixir.behaviour_callback"}},
@@ -100,14 +99,14 @@ func TestHandleDeadCodeExcludesElixirRootKindsFromContentMetadata(t *testing.T) 
 	content := &contentCandidateDeadCodeStore{
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
 			entities: map[string]EntityContent{
-				"elixir-main": {
-					EntityID:     "elixir-main",
+				"elixir-start": {
+					EntityID:     "elixir-start",
 					RepoID:       "repo-1",
-					RelativePath: "lib/demo/cli.ex",
+					RelativePath: "lib/demo/application.ex",
 					EntityType:   "Function",
-					EntityName:   "main",
+					EntityName:   "start",
 					Language:     "elixir",
-					Metadata:     map[string]any{"dead_code_root_kinds": []string{"elixir.main_function"}},
+					Metadata:     map[string]any{"dead_code_root_kinds": []string{"elixir.application_start"}},
 				},
 				"elixir-controller": {
 					EntityID:     "elixir-controller",
@@ -130,8 +129,8 @@ func TestHandleDeadCodeExcludesElixirRootKindsFromContentMetadata(t *testing.T) 
 		},
 		rows: []map[string]any{
 			{
-				"entity_id": "elixir-main", "name": "main", "labels": []any{"Function"},
-				"file_path": "lib/demo/cli.ex", "repo_id": "repo-1", "repo_name": "demo", "language": "elixir",
+				"entity_id": "elixir-start", "name": "start", "labels": []any{"Function"},
+				"file_path": "lib/demo/application.ex", "repo_id": "repo-1", "repo_name": "demo", "language": "elixir",
 			},
 			{
 				"entity_id": "elixir-controller", "name": "index", "labels": []any{"Function"},

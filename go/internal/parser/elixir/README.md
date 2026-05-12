@@ -39,8 +39,10 @@ the collector snapshot path.
 
 Elixir source is parsed with bounded line and scope helpers, not tree-sitter.
 Keep helper behavior deterministic because pre-scan output feeds repository
-import maps and root metadata feeds query classification. Helpers should stay
-package-local unless another language-owned package has a real caller.
+import maps and root metadata feeds query classification. Dead-code roots stay
+conservative: Application `start/2` needs Application syntax, and callback
+roots validate arity where Elixir defines the callback shape. Helpers should
+stay package-local unless another language-owned package has a real caller.
 
 ## Related docs
 

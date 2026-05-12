@@ -42,6 +42,8 @@ func recordElixirUse(facts elixirDeadCodeFacts, moduleName string, trimmed strin
 
 func recordElixirUseKind(facts elixirDeadCodeFacts, moduleName string, path string) {
 	switch elixirShortModuleName(path) {
+	case "Application":
+		facts.moduleUses[moduleName]["application"] = struct{}{}
 	case "GenServer":
 		facts.moduleUses[moduleName]["genserver"] = struct{}{}
 	case "Supervisor", "DynamicSupervisor":
@@ -59,6 +61,16 @@ func recordElixirUseKind(facts elixirDeadCodeFacts, moduleName string, path stri
 	}
 }
 
+func recordElixirBehaviour(facts elixirDeadCodeFacts, moduleName string, behaviour string) {
+	if moduleName == "" {
+		return
+	}
+	recordElixirModule(facts, moduleName)
+	if elixirShortModuleName(behaviour) == "Application" {
+		facts.moduleUses[moduleName]["application"] = struct{}{}
+	}
+}
+
 func elixirFunctionDeadCodeRootKinds(
 	keyword string,
 	name string,
@@ -69,11 +81,8 @@ func elixirFunctionDeadCodeRootKinds(
 	facts elixirDeadCodeFacts,
 ) []string {
 	rootKinds := make([]string, 0, 3)
-	if name == "start" && len(args) == 2 {
+	if elixirIsApplicationStart(moduleName, name, args, facts) {
 		rootKinds = appendElixirRootKind(rootKinds, "elixir.application_start")
-	}
-	if name == "main" && len(args) == 1 {
-		rootKinds = appendElixirRootKind(rootKinds, "elixir.main_function")
 	}
 	if keyword == "defmacro" {
 		rootKinds = appendElixirRootKind(rootKinds, "elixir.public_macro")
@@ -90,19 +99,19 @@ func elixirFunctionDeadCodeRootKinds(
 	if pendingImpl {
 		rootKinds = appendElixirRootKind(rootKinds, "elixir.behaviour_callback")
 	}
-	if elixirModuleHasUse(facts, moduleName, "genserver") && elixirIsGenServerCallback(name) {
+	if elixirModuleHasUse(facts, moduleName, "genserver") && elixirIsGenServerCallback(name, args) {
 		rootKinds = appendElixirRootKind(rootKinds, "elixir.genserver_callback")
 	}
-	if elixirModuleHasUse(facts, moduleName, "supervisor") && elixirIsSupervisorCallback(name) {
+	if elixirModuleHasUse(facts, moduleName, "supervisor") && elixirIsSupervisorCallback(name, args) {
 		rootKinds = appendElixirRootKind(rootKinds, "elixir.supervisor_callback")
 	}
 	if elixirIsMixTaskRun(moduleName, name, args, facts) {
 		rootKinds = appendElixirRootKind(rootKinds, "elixir.mix_task_run")
 	}
-	if keyword == "def" && elixirModuleHasUse(facts, moduleName, "phoenix_controller") {
+	if keyword == "def" && elixirIsPhoenixControllerAction(moduleName, args, facts) {
 		rootKinds = appendElixirRootKind(rootKinds, "elixir.phoenix_controller_action")
 	}
-	if elixirIsLiveViewCallback(moduleName, name, facts) {
+	if elixirIsLiveViewCallback(moduleName, name, args, facts) {
 		rootKinds = appendElixirRootKind(rootKinds, "elixir.phoenix_liveview_callback")
 	}
 	return rootKinds
@@ -156,6 +165,10 @@ func elixirModuleHasUse(facts elixirDeadCodeFacts, moduleName string, useKind st
 	return ok
 }
 
+func elixirIsApplicationStart(moduleName string, name string, args []string, facts elixirDeadCodeFacts) bool {
+	return name == "start" && len(args) == 2 && elixirModuleHasUse(facts, moduleName, "application")
+}
+
 func appendElixirMetadataString(existing any, value string) []string {
 	values, _ := existing.([]string)
 	for _, got := range values {
@@ -166,19 +179,25 @@ func appendElixirMetadataString(existing any, value string) []string {
 	return append(values, value)
 }
 
-func elixirIsGenServerCallback(name string) bool {
+func elixirIsGenServerCallback(name string, args []string) bool {
 	switch name {
-	case "init", "handle_call", "handle_cast", "handle_continue", "handle_info", "terminate", "code_change", "format_status":
-		return true
+	case "init":
+		return len(args) == 1
+	case "handle_call":
+		return len(args) == 3
+	case "handle_cast", "handle_continue", "handle_info", "terminate", "format_status":
+		return len(args) == 2
+	case "code_change":
+		return len(args) == 3
 	default:
 		return false
 	}
 }
 
-func elixirIsSupervisorCallback(name string) bool {
+func elixirIsSupervisorCallback(name string, args []string) bool {
 	switch name {
-	case "init", "start_link":
-		return true
+	case "init":
+		return len(args) == 1
 	default:
 		return false
 	}
@@ -191,14 +210,22 @@ func elixirIsMixTaskRun(moduleName string, name string, args []string, facts eli
 	return strings.HasPrefix(moduleName, "Mix.Tasks.") || elixirModuleHasUse(facts, moduleName, "mix_task")
 }
 
-func elixirIsLiveViewCallback(moduleName string, name string, facts elixirDeadCodeFacts) bool {
+func elixirIsPhoenixControllerAction(moduleName string, args []string, facts elixirDeadCodeFacts) bool {
+	return len(args) == 2 && elixirModuleHasUse(facts, moduleName, "phoenix_controller")
+}
+
+func elixirIsLiveViewCallback(moduleName string, name string, args []string, facts elixirDeadCodeFacts) bool {
 	if !elixirModuleHasUse(facts, moduleName, "phoenix_live_view") &&
 		!elixirModuleHasUse(facts, moduleName, "phoenix_live_component") {
 		return false
 	}
 	switch name {
-	case "mount", "handle_event", "handle_info", "handle_params", "render", "update":
-		return true
+	case "mount", "handle_event", "handle_params":
+		return len(args) == 3
+	case "handle_info", "update":
+		return len(args) == 2
+	case "render":
+		return len(args) == 1
 	default:
 		return false
 	}

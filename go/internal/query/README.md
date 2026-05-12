@@ -120,13 +120,16 @@ surfaces. Groovy parser metadata suppresses Jenkinsfile pipeline entrypoints and
 Jenkins shared-library `vars/*.groovy` `call` methods; Groovy remains
 candidate-only because dynamic dispatch, closure delegate resolution, shared
 library loading, and pipeline DSL steps are not resolved exactly. Elixir parser
-metadata suppresses application `start/2`, escript `main/1`, public macros,
-public guards, `@impl` behaviour callbacks, GenServer and Supervisor callbacks,
+metadata suppresses Application-backed `start/2`, public macros, public guards,
+`@impl` behaviour callbacks, arity-checked GenServer and Supervisor callbacks,
 Mix task `run/1`, protocol functions, protocol implementation functions,
-Phoenix controller actions, and LiveView callbacks; Elixir remains non-exact
-because macro expansion, dynamic dispatch, behaviour callback resolution,
-protocol dispatch, Phoenix route resolution, supervision trees, Mix environment
-selection, and public API surfaces are not resolved exactly. PHP parser
+Phoenix controller actions shaped as `action/2`, and arity-checked LiveView
+callbacks. Those checks keep broad `start/2`, `main/1`, wrong-arity callbacks,
+and wrong-arity controller helpers in the candidate set instead of suppressing
+them as roots. Elixir remains non-exact because macro expansion, dynamic
+dispatch, behaviour callback resolution, protocol dispatch, Phoenix route
+resolution, supervision trees, Mix environment selection, and public API
+surfaces are not resolved exactly. PHP parser
 metadata suppresses script entrypoints, constructors, known magic methods,
 same-file interface and trait methods, route-backed controller actions, literal
 route handlers, Symfony route attributes, and WordPress hook callbacks; PHP

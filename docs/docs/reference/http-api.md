@@ -641,13 +641,14 @@ resolution, framework route files, compiler plugin output, and broad public API
 surfaces remain named exactness blockers. Issue #105 dogfood validated this
 contract against Play Framework and the Scala compiler with fresh `derived`
 API truth after queue drain.
-Elixir dead-code results are `derived`: parser metadata suppresses application
-`start/2`, escript `main/1`, public macros and guards, `@impl` behaviour
-callbacks, GenServer and Supervisor callbacks, Mix task `run/1`, protocol
-functions and implementations, Phoenix controller actions, and LiveView
-callbacks, while macro expansion, dynamic dispatch, behaviour callback
-resolution, protocol dispatch, Phoenix route resolution, supervision trees, Mix
-environment selection, and broad public API surfaces remain named exactness
+Elixir dead-code results are `derived`: parser metadata suppresses Application
+`start/2`, public macros and guards, `@impl` behaviour callbacks,
+arity-checked GenServer and Supervisor callbacks, Mix task `run/1`, protocol
+functions and implementations, Phoenix controller actions shaped as `action/2`,
+and arity-checked LiveView callbacks, while macro expansion, dynamic dispatch,
+behaviour callback resolution, protocol dispatch, Phoenix route resolution,
+supervision trees, Mix environment selection, and broad public API surfaces
+remain named exactness
 blockers.
 PHP dead-code results are `derived`: parser metadata suppresses script
 entrypoints, constructors, known magic methods, same-file interface methods and

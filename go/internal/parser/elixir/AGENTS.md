@@ -7,7 +7,8 @@ sorting, and common parser helpers. Do not import `internal/parser`.
 Preserve existing payload keys and sorting unless a parser contract change is
 covered by tests and downstream materialization updates.
 Parser-backed reachability roots must stay conservative: only emit
-`dead_code_root_kinds` when Elixir syntax proves an application, escript,
-macro, guard, behaviour, GenServer, Supervisor, Mix task, protocol, Phoenix
-controller, or LiveView root. Use `exactness_blockers` for observed dynamic
-dispatch rather than pretending the call target is known.
+`dead_code_root_kinds` when Elixir syntax proves an Application, macro, guard,
+behaviour, GenServer, Supervisor, Mix task, protocol, Phoenix controller, or
+LiveView root. Validate callback arity where Elixir defines it. Use
+`exactness_blockers` for observed dynamic dispatch rather than pretending the
+call target is known.

@@ -40,7 +40,7 @@
 // and JUnit roots, plus Scala main, App object, trait, override, Play, Akka,
 // lifecycle, JUnit, and ScalaTest roots, plus Swift main, SwiftUI, protocol,
 // constructor, override, UIKit application delegate, Vapor, XCTest, and Swift
-// Testing roots, plus Elixir application start, public macro, public guard,
+// Testing roots, plus Elixir Application start, public macro, public guard,
 // behaviour callback, GenServer, Supervisor, Mix task, protocol, Phoenix
 // controller, and LiveView roots, plus Ruby
 // Rails controller/callback roots, dynamic-dispatch hooks, literal
@@ -52,12 +52,12 @@
 // and Rust now share the derived dead-code maturity tier with Go and Java while
 // exact cleanup remains gated on broader semantic resolution.
 // C#, Kotlin, Scala, and Elixir share that tier through parser-backed roots for
-// common framework and language entrypoints. Groovy remains candidate-only until dynamic dispatch,
-// closure delegates, shared library loading, and pipeline DSL steps have
-// stronger semantic resolution. Rust
-// Cargo auxiliary target
-// files under benches/ and examples/
-// are treated like non-production roots for cleanup analysis. Rust exactness
+// common framework and language entrypoints; Elixir Application, OTP, Phoenix
+// controller, and LiveView roots use syntax and arity checks before
+// suppression. Groovy remains candidate-only until dynamic dispatch, closure
+// delegates, shared library loading, and pipeline DSL steps have stronger
+// semantic resolution. Rust Cargo auxiliary target files under benches/ and
+// examples/ are treated like non-production roots for cleanup analysis. Rust exactness
 // blockers are reported in the analysis payload for
 // unresolved macro expansion, cfg and Cargo feature selection, semantic module
 // resolution, and trait dispatch, with observed blocker reporting for returned

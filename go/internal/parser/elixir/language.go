@@ -184,6 +184,11 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			if matches[1] == "@impl" {
 				pendingImpl = true
 			}
+			if matches[1] == "@behaviour" {
+				if moduleName, _ := currentModule(scopes); moduleName != "" {
+					recordElixirBehaviour(deadCodeFacts, moduleName, matches[2])
+				}
+			}
 			if appendAttribute(payload, matches, rawLine, lineNumber, scopes, isDependency, options) {
 				lastMeaningfulLine = trimmed
 				continue
