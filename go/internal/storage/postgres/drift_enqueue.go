@@ -85,13 +85,11 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 		return nil
 	}
 
-	// The reducer queue validates LeaseOwner/LeaseDuration even on the
-	// enqueue-only path (reducer_queue.go:431-440). Neither value is written
-	// into the inserted row — the consuming reducer applies its own lease
-	// config on Claim — but the constructor still requires non-zero values
-	// to pass validate(). Use a bootstrap-stamped owner so any leak through
-	// telemetry is attributable to the right producer.
-	queue := NewReducerQueue(s.db, "bootstrap-index", time.Minute)
+	// Construct the queue with only the fields the enqueue path actually
+	// uses. The reducer queue's enqueue SQL writes NULL for lease_owner and
+	// claim_until (see enqueueReducerBatchPrefix); LeaseOwner / LeaseDuration
+	// are the claim-side contract and validateEnqueue does not require them.
+	queue := ReducerQueue{db: s.db}
 	if s.Now != nil {
 		queue.Now = s.Now
 	}

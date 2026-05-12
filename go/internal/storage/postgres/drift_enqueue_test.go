@@ -155,6 +155,21 @@ func TestEnqueueConfigStateDriftIntentsNoOpWhenNoScopes(t *testing.T) {
 	}
 }
 
+// NOTE: TestEnqueueConfigStateDriftIntentsConstructsQueueWithoutLease was
+// removed in response to Copilot review of PR #196. The test claimed to guard
+// against re-introducing a placeholder lease owner on the drift enqueue path
+// by scanning INSERT args for "bootstrap-index", but the enqueue SQL writes
+// NULL constants for lease_owner / claim_until in the VALUES tuple
+// (see enqueueReducerBatchPrefix). A placeholder LeaseOwner on the
+// ReducerQueue struct would never reach the bind args, so the assertion was
+// tautological.
+//
+// The actual regression — that the drift enqueue path no longer needs a
+// fabricated lease — is covered by
+// TestReducerQueueValidateEnqueueAcceptsZeroLeaseFields in
+// reducer_queue_test.go, which proves the validateEnqueue contract that
+// drift_enqueue.go relies on.
+
 func TestEnqueueConfigStateDriftIntentsRequiresDatabase(t *testing.T) {
 	t.Parallel()
 
