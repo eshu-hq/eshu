@@ -40,6 +40,10 @@
 - **Add a new field to `Ref`** → same additive-only rule; check that all
   callers that construct `Ref` literals compile without modification.
 
+- **Add a new collector fact kind registry** → add constants, schema-version
+  helpers, tests, and README/doc.go contract text in the same slice. Keep the
+  package leaf-only: no collector imports and no I/O.
+
 - **Change `StableID` normalization** → first understand whether existing stored
   keys must be migrated. If yes, write a migration before merging. The stable key
   is used as a deduplication signal across ingestion runs; changing it changes

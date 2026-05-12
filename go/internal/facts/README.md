@@ -92,6 +92,22 @@ Use `PackageRegistryFactKinds` when callers need the full accepted set, and
 facts are reported registry evidence. Reducers must corroborate ownership,
 publication, and consumption before graph promotion.
 
+OCI registry fact kinds use schema version `1.0.0` for the first collector
+contract:
+
+- `oci_registry.repository`
+- `oci_registry.image_tag_observation`
+- `oci_registry.image_manifest`
+- `oci_registry.image_index`
+- `oci_registry.image_descriptor`
+- `oci_registry.image_referrer`
+- `oci_registry.warning`
+
+Use `OCIRegistryFactKinds` when callers need the full accepted set, and
+`OCIRegistrySchemaVersion` when building OCI registry envelopes. These facts are
+reported OCI evidence. Tags are mutable observations; digest-addressed
+descriptors, manifests, indexes, and referrers carry the stronger identity.
+
 See `doc.go` for the full godoc contract.
 
 ## Dependencies
