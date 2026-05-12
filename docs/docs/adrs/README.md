@@ -50,6 +50,7 @@ still needs an owner.
 | `2026-05-09-iac-replatforming-planner.md` | Proposed | Define the read-only IaC management-status and re-platforming planner capability on top of Git, Terraform state, and cloud scanner evidence. |
 | `2026-05-10-tag-taxonomy-correlation-dsl-addendum.md` | Accepted | Freezes tag alias packs, overrides, source precedence, negative evidence, and the `aws_tag_distribution` admin learning loop. |
 | `2026-05-11-module-aware-drift-joining.md` | Accepted; implemented in PR #202 | Adopts Option B (loader-side module-call join) for issue #169 so `module.<name>.<type>.<address>` state addresses can join with config-side `terraform_resources` facts instead of surfacing as `added_in_state`. Parser stays per-file; `PostgresDriftEvidenceLoader` learns a callee-directory prefix map. Local-filesystem `source` paths in scope; registry, Git, archive, cross-repo sources fall back to `added_in_state` with a new `eshu_dp_drift_unresolved_module_calls_total{reason}` counter. |
+| `2026-05-12-webhook-triggered-repository-refresh.md` | Proposed | Defines a separate public EKS `webhook-listener` runtime for GitHub/GitLab default-branch events. Webhook payloads are trigger evidence only; Git sync and the normal repository generation path remain authoritative for graph/query truth. |
 
 ## Discussion Shortlist
 
@@ -68,5 +69,6 @@ The ADRs that need active planning next are:
    collector evidence are stable.
 10. OCI registry collector implementation for digest-anchored image and
     supply-chain evidence.
-9. Tag taxonomy implementation in the reducer-owned normalizer and admin
+11. Tag taxonomy implementation in the reducer-owned normalizer and admin
    status payload.
+12. Webhook-triggered repository refresh runtime for hosted freshness.
