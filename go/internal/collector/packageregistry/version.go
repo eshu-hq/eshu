@@ -47,16 +47,14 @@ func NewPackageVersionEnvelope(observation PackageVersionObservation) (facts.Env
 		"is_retracted":          observation.Retracted,
 		"artifact_urls":         cloneStrings(observation.ArtifactURLs),
 		"checksums":             cloneStringMap(observation.Checksums),
+		"correlation_anchors":   correlationAnchors(normalized.PackageID, versionID),
 	}
 	if !observation.PublishedAt.IsZero() {
 		payload["published_at"] = observation.PublishedAt.UTC().Format(time.RFC3339)
 	}
 
 	return facts.Envelope{
-		FactID: facts.StableID("PackageRegistryFact", map[string]any{
-			"fact_kind":       facts.PackageRegistryPackageVersionFactKind,
-			"stable_fact_key": stableFactKey,
-		}),
+		FactID:           packageRegistryFactID(facts.PackageRegistryPackageVersionFactKind, stableFactKey, observation.ScopeID, observation.GenerationID),
 		ScopeID:          observation.ScopeID,
 		GenerationID:     observation.GenerationID,
 		FactKind:         facts.PackageRegistryPackageVersionFactKind,

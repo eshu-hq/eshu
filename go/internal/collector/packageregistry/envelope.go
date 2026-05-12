@@ -41,13 +41,11 @@ func NewPackageEnvelope(observation PackageObservation) (facts.Envelope, error) 
 		"classifier":            normalized.Classifier,
 		"package_id":            normalized.PackageID,
 		"visibility":            string(visibility),
+		"correlation_anchors":   correlationAnchors(normalized.PackageID),
 	}
 
 	return facts.Envelope{
-		FactID: facts.StableID("PackageRegistryFact", map[string]any{
-			"fact_kind":       facts.PackageRegistryPackageFactKind,
-			"stable_fact_key": stableFactKey,
-		}),
+		FactID:           packageRegistryFactID(facts.PackageRegistryPackageFactKind, stableFactKey, observation.ScopeID, observation.GenerationID),
 		ScopeID:          observation.ScopeID,
 		GenerationID:     observation.GenerationID,
 		FactKind:         facts.PackageRegistryPackageFactKind,

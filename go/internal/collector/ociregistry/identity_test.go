@@ -35,6 +35,22 @@ func TestNormalizeRepositoryIdentityBuildsStableScope(t *testing.T) {
 	}
 }
 
+func TestNormalizeRepositoryIdentityLowercasesBareRegistryHost(t *testing.T) {
+	t.Parallel()
+
+	normalized, err := NormalizeRepositoryIdentity(RepositoryIdentity{
+		Provider:   ProviderJFrog,
+		Registry:   "JFrog.Example/Artifactory/API/Docker/Prod",
+		Repository: "Team/API",
+	})
+	if err != nil {
+		t.Fatalf("NormalizeRepositoryIdentity() error = %v", err)
+	}
+	if normalized.Registry != "jfrog.example/Artifactory/API/Docker/Prod" {
+		t.Fatalf("Registry = %q", normalized.Registry)
+	}
+}
+
 func TestNormalizeRepositoryIdentityRejectsBlankRequiredFields(t *testing.T) {
 	t.Parallel()
 

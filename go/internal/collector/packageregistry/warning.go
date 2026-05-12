@@ -33,6 +33,7 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 		"warning_code":          warningCode,
 		"severity":              strings.TrimSpace(observation.Severity),
 		"message":               sanitizeText(observation.Message),
+		"correlation_anchors":   correlationAnchors(observation.ScopeID),
 	}
 	stableIdentity := map[string]any{
 		"scope_id":     observation.ScopeID,
@@ -54,6 +55,7 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 		payload["package_id"] = normalized.PackageID
 		payload["version"] = version
 		payload["version_id"] = versionID
+		payload["correlation_anchors"] = correlationAnchors(observation.ScopeID, normalized.PackageID, versionID)
 		stableIdentity["package_id"] = normalized.PackageID
 		stableIdentity["version"] = version
 	}

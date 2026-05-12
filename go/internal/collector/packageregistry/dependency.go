@@ -58,6 +58,7 @@ func NewPackageDependencyEnvelope(observation PackageDependencyObservation) (fac
 		"source_record_package":  pkg.PackageID,
 		"source_record_version":  version,
 		"source_record_dep_kind": dependencyType,
+		"correlation_anchors":    correlationAnchors(pkg.PackageID, versionID, dependency.PackageID),
 	}
 
 	envelope := newEnvelope(envelopeInput{

@@ -179,10 +179,7 @@ func NewReferrerEnvelope(observation ReferrerObservation) (facts.Envelope, error
 
 func newEnvelope(repository NormalizedRepositoryIdentity, factKind, schemaVersion, stableKey, generationID, collectorInstanceID string, fencingToken int64, observedAt time.Time, sourceURI, sourceRecordID string, payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactID: facts.StableID("OCIRegistryFact", map[string]any{
-			"fact_kind":       factKind,
-			"stable_fact_key": stableKey,
-		}),
+		FactID:           ociRegistryFactID(factKind, stableKey, repository.ScopeID, generationID),
 		ScopeID:          repository.ScopeID,
 		GenerationID:     generationID,
 		FactKind:         factKind,
@@ -202,6 +199,15 @@ func newEnvelope(repository NormalizedRepositoryIdentity, factKind, schemaVersio
 			SourceRecordID: sourceRecordID,
 		},
 	}
+}
+
+func ociRegistryFactID(factKind, stableFactKey, scopeID, generationID string) string {
+	return facts.StableID("OCIRegistryFact", map[string]any{
+		"fact_kind":       factKind,
+		"generation_id":   generationID,
+		"scope_id":        scopeID,
+		"stable_fact_key": stableFactKey,
+	})
 }
 
 func normalizedDescriptor(repository RepositoryIdentity, descriptor Descriptor) (NormalizedRepositoryIdentity, NormalizedDescriptorIdentity, error) {

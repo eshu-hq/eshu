@@ -95,3 +95,36 @@ func TestPackageVersionObservationRequiresVersion(t *testing.T) {
 		t.Fatal("NewPackageVersionEnvelope() error = nil, want missing version error")
 	}
 }
+
+func TestPackageVersionFactIDUsesGenerationBoundary(t *testing.T) {
+	t.Parallel()
+
+	base := PackageVersionObservation{
+		Package: PackageIdentity{
+			Ecosystem: EcosystemNPM,
+			Registry:  "registry.npmjs.org",
+			RawName:   "react",
+		},
+		Version:             "19.0.0",
+		ScopeID:             "npm://registry.npmjs.org/react",
+		GenerationID:        "etag:abc123",
+		CollectorInstanceID: "public-npm",
+	}
+	next := base
+	next.GenerationID = "etag:def456"
+
+	first, err := NewPackageVersionEnvelope(base)
+	if err != nil {
+		t.Fatalf("NewPackageVersionEnvelope(base) error = %v", err)
+	}
+	second, err := NewPackageVersionEnvelope(next)
+	if err != nil {
+		t.Fatalf("NewPackageVersionEnvelope(next) error = %v", err)
+	}
+	if first.StableFactKey != second.StableFactKey {
+		t.Fatalf("StableFactKey changed across generations: %q != %q", first.StableFactKey, second.StableFactKey)
+	}
+	if first.FactID == second.FactID {
+		t.Fatalf("FactID did not include generation boundary: %q", first.FactID)
+	}
+}

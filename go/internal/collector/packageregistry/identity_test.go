@@ -42,6 +42,21 @@ func TestNormalizePackageIdentityUsesEcosystemRules(t *testing.T) {
 			},
 		},
 		{
+			name: "bare registry input lowercases only host portion",
+			in: PackageIdentity{
+				Ecosystem: EcosystemPyPI,
+				Registry:  "Registry.PyPI.ORG/Simple/Private",
+				RawName:   "Friendly_Bard",
+			},
+			want: NormalizedPackageIdentity{
+				Ecosystem:      EcosystemPyPI,
+				Registry:       "registry.pypi.org/Simple/Private",
+				RawName:        "Friendly_Bard",
+				NormalizedName: "friendly-bard",
+				PackageID:      "pypi://registry.pypi.org/Simple/Private/friendly-bard",
+			},
+		},
+		{
 			name: "go module preserves module path case",
 			in: PackageIdentity{
 				Ecosystem: EcosystemGoModule,

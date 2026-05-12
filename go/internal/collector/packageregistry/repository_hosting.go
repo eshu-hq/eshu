@@ -31,6 +31,7 @@ func NewRepositoryHostingEnvelope(observation RepositoryHostingObservation) (fac
 		return facts.Envelope{}, fmt.Errorf("repository hosting repository must not be blank")
 	}
 	repositoryType := strings.TrimSpace(observation.RepositoryType)
+	repositoryID := provider + "://" + registry + "/" + repository
 
 	stableFactKey := facts.StableID(facts.PackageRegistryRepositoryHostingFactKind, map[string]any{
 		"provider":        provider,
@@ -47,6 +48,7 @@ func NewRepositoryHostingEnvelope(observation RepositoryHostingObservation) (fac
 		"ecosystem":             string(observation.Ecosystem),
 		"upstream_id":           strings.TrimSpace(observation.UpstreamID),
 		"upstream_url":          sanitizeURL(observation.UpstreamURL),
+		"correlation_anchors":   correlationAnchors(repositoryID, strings.TrimSpace(observation.UpstreamID), sanitizeURL(observation.UpstreamURL)),
 	}
 
 	envelope := newEnvelope(envelopeInput{
@@ -58,7 +60,7 @@ func NewRepositoryHostingEnvelope(observation RepositoryHostingObservation) (fac
 		collectorInstanceID: observation.CollectorInstanceID,
 		fencingToken:        observation.FencingToken,
 		sourceURI:           observation.SourceURI,
-		sourceRecordID:      provider + "://" + registry + "/" + repository,
+		sourceRecordID:      repositoryID,
 		payload:             payload,
 	})
 	envelope.ObservedAt = normalizedObservedAt(observation.ObservedAt)

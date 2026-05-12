@@ -109,4 +109,17 @@ func TestPackageObservationStableIDUsesNormalizedIdentity(t *testing.T) {
 	if first.FactID != second.FactID {
 		t.Fatalf("FactID differs for normalized identity: %q != %q", first.FactID, second.FactID)
 	}
+
+	laterGeneration := base
+	laterGeneration.GenerationID = "etag:def456"
+	third, err := NewPackageEnvelope(laterGeneration)
+	if err != nil {
+		t.Fatalf("NewPackageEnvelope(laterGeneration) error = %v", err)
+	}
+	if first.StableFactKey != third.StableFactKey {
+		t.Fatalf("StableFactKey changed across generations: %q != %q", first.StableFactKey, third.StableFactKey)
+	}
+	if first.FactID == third.FactID {
+		t.Fatalf("FactID did not include generation boundary: %q", first.FactID)
+	}
 }

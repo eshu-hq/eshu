@@ -27,10 +27,7 @@ type envelopeInput struct {
 
 func newEnvelope(input envelopeInput) facts.Envelope {
 	return facts.Envelope{
-		FactID: facts.StableID("PackageRegistryFact", map[string]any{
-			"fact_kind":       input.factKind,
-			"stable_fact_key": input.stableFactKey,
-		}),
+		FactID:           packageRegistryFactID(input.factKind, input.stableFactKey, input.scopeID, input.generationID),
 		ScopeID:          input.scopeID,
 		GenerationID:     input.generationID,
 		FactKind:         input.factKind,
@@ -49,6 +46,30 @@ func newEnvelope(input envelopeInput) facts.Envelope {
 			SourceRecordID: input.sourceRecordID,
 		},
 	}
+}
+
+func packageRegistryFactID(factKind, stableFactKey, scopeID, generationID string) string {
+	return facts.StableID("PackageRegistryFact", map[string]any{
+		"fact_kind":       factKind,
+		"generation_id":   generationID,
+		"scope_id":        scopeID,
+		"stable_fact_key": stableFactKey,
+	})
+}
+
+func correlationAnchors(values ...string) []string {
+	anchors := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		anchors = append(anchors, trimmed)
+	}
+	if len(anchors) == 0 {
+		return nil
+	}
+	return anchors
 }
 
 func validateObservationBoundary(scopeID, generationID, collectorInstanceID, noun string) error {

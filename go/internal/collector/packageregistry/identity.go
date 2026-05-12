@@ -58,7 +58,11 @@ func normalizeRegistry(raw string) string {
 		}
 		return host + "/" + path
 	}
-	return strings.Trim(trimmed, "/")
+	host, path, ok := strings.Cut(trimmed, "/")
+	if !ok {
+		return strings.ToLower(host)
+	}
+	return strings.ToLower(host) + "/" + strings.Trim(path, "/")
 }
 
 func normalizeNameForEcosystem(ecosystem Ecosystem, rawName, namespace string) (string, string, error) {

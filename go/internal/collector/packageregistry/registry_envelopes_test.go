@@ -287,4 +287,8 @@ func assertReportedPackageRegistryEnvelope(t *testing.T, envelope facts.Envelope
 	if envelope.SourceRef.SourceSystem != CollectorKind {
 		t.Fatalf("SourceRef.SourceSystem = %q, want %q", envelope.SourceRef.SourceSystem, CollectorKind)
 	}
+	anchors, ok := envelope.Payload["correlation_anchors"].([]string)
+	if !ok || len(anchors) == 0 {
+		t.Fatalf("correlation_anchors = %#v, want non-empty []string", envelope.Payload["correlation_anchors"])
+	}
 }

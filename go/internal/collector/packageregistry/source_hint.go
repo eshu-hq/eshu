@@ -58,6 +58,7 @@ func NewSourceHintEnvelope(observation SourceHintObservation) (facts.Envelope, e
 		"raw_url":               rawURL,
 		"normalized_url":        normalizedURL,
 		"confidence_reason":     strings.TrimSpace(observation.ConfidenceReason),
+		"correlation_anchors":   correlationAnchors(pkg.PackageID, versionID, stableURL),
 	}
 
 	envelope := newEnvelope(envelopeInput{

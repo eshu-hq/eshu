@@ -119,6 +119,19 @@ func TestTagObservationBuildsWeakTagEnvelopeWithDigestIdentity(t *testing.T) {
 	if envelope.StableFactKey != second.StableFactKey {
 		t.Fatalf("StableFactKey differs for normalized repository identity: %q != %q", envelope.StableFactKey, second.StableFactKey)
 	}
+
+	nextGeneration := observation
+	nextGeneration.GenerationID = "generation-tags-next"
+	third, err := NewTagObservationEnvelope(nextGeneration)
+	if err != nil {
+		t.Fatalf("NewTagObservationEnvelope(nextGeneration) error = %v", err)
+	}
+	if envelope.StableFactKey != third.StableFactKey {
+		t.Fatalf("StableFactKey changed across generations: %q != %q", envelope.StableFactKey, third.StableFactKey)
+	}
+	if envelope.FactID == third.FactID {
+		t.Fatalf("FactID did not include generation boundary: %q", envelope.FactID)
+	}
 }
 
 func TestDescriptorEnvelopesPreserveDigestIdentityAndRedactUnknownAnnotations(t *testing.T) {

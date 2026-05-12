@@ -99,6 +99,11 @@ live in the future package-registry runtime slice.
 - ECR is OCI registry evidence, not package-registry evidence. JFrog can emit
   both OCI and package-registry facts, depending on repository type.
 - Stable IDs use normalized package identity, not raw display names.
+- `FactID` includes `scope_id` and `generation_id`, while `StableFactKey`
+  remains the source-stable identity inside a generation. This preserves
+  historical rows when the same package is observed again.
+- Package-registry envelope payloads carry `correlation_anchors` so reducers can
+  join reported evidence without re-parsing source-specific payload fields.
 - Version fact IDs use `<package_id>@<version>` so artifact metadata and
   deprecation/yank/unlisted flags stay attached to the package-native version.
 - Dependency fact IDs use normalized source and dependency package identities

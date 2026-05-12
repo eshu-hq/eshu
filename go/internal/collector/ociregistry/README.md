@@ -61,7 +61,8 @@ See `doc.go` for the godoc contract.
 Envelope builders validate generation and collector-instance boundaries before
 emitting facts. Descriptor builders require a valid `sha256:` digest and media
 type; tag builders keep the tag in the payload while anchoring correlation on
-the resolved digest.
+the resolved digest. `FactID` includes `scope_id` and `generation_id`, while
+`StableFactKey` remains the source-stable identity inside a generation.
 
 ## Dependencies
 
@@ -76,6 +77,8 @@ live in the future OCI registry runtime slice.
 ## Gotchas / invariants
 
 - Digest identity wins. Tags are mutable observations and must stay weak.
+- `FactID` is generation-specific so repeated registry observations preserve
+  history instead of overwriting prior rows.
 - ECR is OCI registry evidence, not package-registry evidence.
 - JFrog Docker/OCI repositories use this package; JFrog npm, Maven, PyPI,
   NuGet, Go, and Generic repositories use `packageregistry`.

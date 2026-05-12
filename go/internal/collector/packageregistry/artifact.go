@@ -46,6 +46,7 @@ func NewPackageArtifactEnvelope(observation PackageArtifactObservation) (facts.E
 		"hashes":                cloneStringMap(observation.Hashes),
 		"classifier":            strings.TrimSpace(observation.Classifier),
 		"platform_tags":         cloneStrings(observation.PlatformTags),
+		"correlation_anchors":   correlationAnchors(pkg.PackageID, versionID, artifactKey),
 	}
 
 	envelope := newEnvelope(envelopeInput{
