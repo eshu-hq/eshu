@@ -3,7 +3,8 @@
 ## Purpose
 
 This package owns C++-specific tree-sitter payload extraction for functions,
-classes, structs, enums, unions, includes, macros, typedef aliases, and calls.
+classes, structs, enums, unions, includes, macros, typedef aliases, calls, and
+dead-code root metadata.
 
 ## Ownership Boundary
 
@@ -14,8 +15,9 @@ signatures.
 
 ## Exported Surface
 
-The package exposes Parse for full payload extraction and PreScan for dependency
-symbol discovery.
+The package exposes `Parse` for full payload extraction, `PreScan` for
+dependency symbol discovery, and `AnnotatePublicHeaderRoots` for bounded
+same-source local header root annotation after imports have been extracted.
 
 ## Dependencies
 
@@ -26,3 +28,13 @@ must not import the parent parser package.
 
 This package emits no telemetry directly. Parser timing and runtime observability
 remain owned by the parent engine.
+
+Dead-code roots are intentionally derived, not exact. `Parse` marks direct
+evidence for `cpp.main_function`, virtual and override methods, direct callback
+argument targets, direct function-pointer initializer targets, and Node
+native-addon entrypoints.
+`AnnotatePublicHeaderRoots` marks functions and methods declared in directly
+included local headers as `cpp.public_header_api` roots after checking that the
+header path stays inside the repository root. It does not recurse through
+include graphs or resolve build targets, template instantiations, overload
+sets, broad virtual dispatch, dynamic symbol lookup, or external linkage.

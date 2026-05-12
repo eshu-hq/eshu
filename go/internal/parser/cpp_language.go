@@ -7,6 +7,7 @@ import (
 )
 
 func (e *Engine) parseCPP(
+	repoRoot string,
 	path string,
 	isDependency bool,
 	options Options,
@@ -17,7 +18,12 @@ func (e *Engine) parseCPP(
 	}
 	defer parser.Close()
 
-	return cppparser.Parse(path, isDependency, sharedOptions(options), parser)
+	payload, err := cppparser.Parse(path, isDependency, sharedOptions(options), parser)
+	if err != nil {
+		return nil, err
+	}
+	cppparser.AnnotatePublicHeaderRoots(payload, repoRoot, path)
+	return payload, nil
 }
 
 func (e *Engine) preScanCPP(path string) ([]string, error) {

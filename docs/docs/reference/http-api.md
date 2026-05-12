@@ -585,8 +585,8 @@ Example dead-code workflow:
 ```
 
 `repo_id` is optional. `language` is optional; pass it when validating one
-parser language family such as `c`, `sql`, `go`, `python`, `java`, `javascript`,
-`typescript`, `tsx`, or `rust`. For SQL, the language filter narrows the
+parser language family such as `c`, `cpp`, `sql`, `go`, `python`, `java`,
+`javascript`, `typescript`, `tsx`, or `rust`. For SQL, the language filter narrows the
 candidate scan to `SqlFunction` routines so mixed repositories with many
 application functions do not starve SQL routine evidence. When `repo_id` is
 omitted, the Go API returns the first page of
@@ -609,7 +609,13 @@ dead-code results are `derived`: parser metadata suppresses `main`, directly
 included public-header declarations, signal handlers, callback arguments, and
 direct function-pointer initializer targets, while macro expansion, conditional
 compilation, transitive include graphs, and dynamic symbol lookup remain named
-exactness blockers.
+exactness blockers. C++ dead-code results are also `derived`: parser metadata
+suppresses `main`, directly included public-header declarations, virtual and
+override methods, callback arguments, and direct function-pointer initializer
+targets plus Node native-addon entrypoints, while broader macro expansion,
+conditional compilation, transitive include graphs, template instantiation,
+overload resolution, broad virtual dispatch, dynamic symbol lookup, and external
+linkage remain named exactness blockers.
 `analysis.roots_skipped_missing_source`
 counts Go candidates where the framework-root checks could not run because the
 content store did not have source cached. `analysis.framework_roots_from_parser_metadata`

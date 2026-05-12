@@ -82,7 +82,10 @@ Click, Typer, AWS Lambda handler, dataclass, post-init, property, dunder
 protocol, `__all__`, package `__init__.py`, public API base, and public API
 member roots, Python `if __name__ == "__main__"` script-main guards, C
 `c.main_function`, `c.public_header_api`, `c.signal_handler`,
-`c.callback_argument_target`, and `c.function_pointer_target` roots, and Java
+`c.callback_argument_target`, and `c.function_pointer_target` roots, C++
+`cpp.main_function`, `cpp.public_header_api`, `cpp.virtual_method`,
+`cpp.override_method`, `cpp.callback_argument_target`, and
+`cpp.function_pointer_target`, and `cpp.node_addon_entrypoint` roots, and Java
 `main`, constructor, `@Override`, Ant `Task` setter, Gradle plugin
 `apply`, task action/property, task setter, task-interface method, public Gradle
 DSL, same-class method-reference target roots, Spring component and callback
@@ -107,8 +110,10 @@ payload also exposes `dead_code_language_exactness_blockers`, with Rust blockers
 for unresolved macro expansion, cfg/Cargo feature selection, semantic module
 resolution, and trait dispatch, C blockers for macro expansion, conditional
 compilation, build targets, include graphs, callback registration, dynamic
-symbol lookup, and external linkage, plus SQL blockers for dynamic SQL,
-dialect-specific routine resolution, and migration-order resolution. SQL
+symbol lookup, and external linkage, C++ blockers for those same C-style
+blockers plus template instantiation, overload resolution, and broad virtual
+dispatch, plus SQL blockers for dynamic SQL, dialect-specific routine
+resolution, and migration-order resolution. SQL
 `SqlFunction` routines participate in the derived candidate scan, and the query
 policy uses a batched exact graph incoming probe so reducer-written `EXECUTES`
 edges protect trigger-bound routines without one graph round trip per routine.
@@ -133,8 +138,9 @@ Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
 payload names modeled root kinds in `modeled_framework_roots`, reports whether
 reflection evidence is modeled, and counts how many suppressions came from
-parser metadata. C root suppressions are tested through both graph-shaped rows
-and content-store metadata so the policy matches the normal hydrated read path.
+parser metadata. C and C++ root suppressions are tested through both
+graph-shaped rows and content-store metadata so the policy matches the normal
+hydrated read path.
 That lets MCP and CLI callers explain why a candidate was suppressed. Candidate
 reads remain label-scoped and are repo-anchored when the request supplies a
 repository id, then content-backed policy checks run before completed reducer
@@ -166,8 +172,8 @@ fields. Without that header, `WriteJSON` emits the legacy payload directly.
 `BuildTruthEnvelope` (`contract.go:411`) constructs the `TruthEnvelope`; it
 panics if the capability string is not in `capabilityMatrix`.
 The OpenAPI fragment for `POST /api/v0/code/dead-code` names modeled language
-roots such as Go public-package exports and C parser-backed roots, and its
-language filter examples include both C and SQL.
+roots such as Go public-package exports plus C and C++ parser-backed roots, and
+its language filter examples include C, C++, and SQL.
 
 ## Exported surface
 

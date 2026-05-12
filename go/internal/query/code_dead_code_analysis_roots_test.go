@@ -128,6 +128,13 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 		"c.signal_handler",
 		"c.callback_argument_target",
 		"c.function_pointer_target",
+		"cpp.main_function",
+		"cpp.public_header_api",
+		"cpp.virtual_method",
+		"cpp.override_method",
+		"cpp.callback_argument_target",
+		"cpp.function_pointer_target",
+		"cpp.node_addon_entrypoint",
 		"java.constructor",
 		"java.override_method",
 		"java.ant_task_setter",
@@ -203,6 +210,9 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if !queryTestStringSliceContains(modeledPublicAPI, "c.public_header_api") {
 		t.Fatalf("analysis[modeled_public_api] missing c.public_header_api in %#v", modeledPublicAPI)
 	}
+	if !queryTestStringSliceContains(modeledPublicAPI, "cpp.public_header_api") {
+		t.Fatalf("analysis[modeled_public_api] missing cpp.public_header_api in %#v", modeledPublicAPI)
+	}
 	if got, want := analysis["framework_roots_from_parser_metadata"], float64(0); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
 	}
@@ -216,7 +226,7 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if !ok {
 		t.Fatalf("analysis[notes] type = %T, want []any", analysis["notes"])
 	}
-	for _, want := range []string{"c.public_header_api", "c.callback_argument_target"} {
+	for _, want := range []string{"c.public_header_api", "c.callback_argument_target", "cpp.public_header_api"} {
 		if !queryTestNotesContain(notes, want) {
 			t.Fatalf("analysis[notes] missing %q in %#v", want, notes)
 		}

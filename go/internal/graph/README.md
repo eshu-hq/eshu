@@ -149,7 +149,7 @@ or span instruments are registered here; backend executors own those.
   name uniqueness constraint causes `ConstraintValidationFailed` when multiple
   repositories share module names like `consts` or `index`.
 - `NornicDB` composite `IS UNIQUE` constraints are silently dropped
-  (`schema.go:480`) because NornicDB's parser rejects the multi-property form.
+  (`schema.go:491`) because NornicDB's parser rejects the multi-property form.
   Canonical writes use separate `uid` uniqueness constraints for those labels
   instead.
 - `DeleteFileFromGraph` runs two sequential `ExecuteCypher` calls

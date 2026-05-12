@@ -68,6 +68,10 @@ nearest-package `exports` or `types` target and bounded static re-export
 barrels. C adapters mark `main`, functions declared by directly included local
 headers, signal-handler arguments, callback argument targets, and direct
 function-pointer initializer targets without scanning every repository header.
+C++ adapters mark `main`, functions and class methods declared by directly
+included local headers, virtual and override methods, callback argument targets,
+direct function-pointer initializer targets, and Node native-addon entrypoints
+without recursing through include graphs or resolving build targets.
 Java adapters mark `main` methods, constructors, `@Override` methods, public
 Ant `Task` setters, Gradle plugin `apply` methods, Gradle task actions and
 properties, Gradle task setters and task-interface methods, public Gradle DSL
@@ -419,6 +423,11 @@ errors are surfaced in `collector snapshot stage completed` logs with
   references such as `processor::process`, unqualified same-class calls, and
   call/function arity so the reducer can connect bounded method calls without
   treating every same-named overload as live.
+  C dead-code roots cover `main`, directly included public headers, signal
+  handlers, callback arguments, and direct function-pointer initializers. C++
+  roots cover `main`, directly included public headers, virtual and override
+  methods, callback arguments, direct function-pointer initializers, and Node
+  native-addon entrypoints.
   JavaScript-family import metadata preserves namespace aliases, JSONC
   tsconfig `baseUrl` and `paths` resolved sources with comments and trailing
   commas accepted, and static relative re-exports used by reducer call

@@ -280,7 +280,7 @@ func (e *Engine) parseDefinition(
 	case "c_sharp":
 		return e.parseCSharp(resolvedPath, isDependency, options)
 	case "cpp":
-		return e.parseCPP(resolvedPath, isDependency, options)
+		return e.parseCPP(repoRoot, resolvedPath, isDependency, options)
 	case "dart":
 		return e.parseDart(resolvedPath, isDependency, options)
 	case "dockerfile":

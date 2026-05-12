@@ -37,18 +37,6 @@ func appendNamedType(payload map[string]any, bucket string, node *tree_sitter.No
 	})
 }
 
-func appendImportFromNode(payload map[string]any, node *tree_sitter.Node, source []byte, lang string) {
-	name := strings.Trim(shared.NodeText(node, source), `<>"`)
-	if strings.TrimSpace(name) == "" {
-		return
-	}
-	shared.AppendBucket(payload, "imports", map[string]any{
-		"name":        name,
-		"line_number": shared.NodeLine(node),
-		"lang":        lang,
-	})
-}
-
 func appendMacro(payload map[string]any, node *tree_sitter.Node, source []byte, lang string) {
 	nameNode := firstNamedDescendant(node, "identifier")
 	name := shared.NodeText(nameNode, source)
