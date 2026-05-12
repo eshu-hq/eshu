@@ -287,8 +287,17 @@ export ESHU_TIER2_V25_GEN2_CLAIMS=true
 # take effect. workflow-coordinator must restart so the new
 # ESHU_COLLECTOR_INSTANCES_JSON gets parsed; both collectors must restart so
 # the new claims_enabled flag takes effect.
+#
+# bootstrap-index is intentionally NOT in this list. Including it would
+# launch a fresh long-running bootstrap-index container alongside the
+# `run --rm bootstrap-index` invocation below, and both would race on the
+# canonical projector's MERGE for File.[path] (the UNIQUE constraint fails
+# at NornicDB commit time when two transactions both index-probe as absent
+# and both try to CREATE). The `run --rm bootstrap-index` further down
+# already picks up the new ESHU_TIER2_V25_REPOS_DIR at exec time and binds
+# repos_gen2; the Pass-1 bootstrap-index container stays Exited.
 "${COMPOSE_CMD[@]}" up -d --force-recreate --no-deps \
-    bootstrap-index ingester resolution-engine eshu \
+    ingester resolution-engine eshu \
     workflow-coordinator \
     collector-terraform-state-gen1 \
     collector-terraform-state-gen2
