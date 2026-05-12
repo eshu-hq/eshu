@@ -225,6 +225,12 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 		"elixir.protocol_implementation_function",
 		"elixir.phoenix_controller_action",
 		"elixir.phoenix_liveview_callback",
+		"dart.main_function",
+		"dart.constructor",
+		"dart.override_method",
+		"dart.flutter_widget_build",
+		"dart.flutter_create_state",
+		"dart.public_library_api",
 		"javascript.nextjs_route_export",
 		"javascript.nextjs_app_export",
 		"javascript.express_route_registration",
@@ -302,6 +308,9 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	}
 	if !queryTestStringSliceContains(modeledPublicAPI, "cpp.public_header_api") {
 		t.Fatalf("analysis[modeled_public_api] missing cpp.public_header_api in %#v", modeledPublicAPI)
+	}
+	if !queryTestStringSliceContains(modeledPublicAPI, "dart.public_library_api") {
+		t.Fatalf("analysis[modeled_public_api] missing dart.public_library_api in %#v", modeledPublicAPI)
 	}
 	if got, want := analysis["framework_roots_from_parser_metadata"], float64(0); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)

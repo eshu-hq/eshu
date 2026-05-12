@@ -168,8 +168,9 @@ can still be `derived_candidate_only` for dead-code cleanup until it has a
 dead-code fixture suite, root model, reachability proof, and API/MCP evidence.
 The initial maturity states are:
 
-- `derived`: current C, C#, C++, Go, PHP, Python, Java, JavaScript, TypeScript,
-  TSX, Ruby, Rust, and SQL candidate scans with partial root modeling
+- `derived`: current C, C#, C++, Dart, Go, PHP, Python, Java, JavaScript,
+  TypeScript, TSX, Ruby, Rust, and SQL candidate scans with partial root
+  modeling
 - `derived_candidate_only`: parser-supported source languages where Eshu can
   return graph-backed candidates but has not implemented enough language roots
   and fixtures for cleanup-safe answers
@@ -221,6 +222,14 @@ ASP.NET controller actions, hosted-service callbacks, test methods, and
 serialization callbacks. It remains non-exact until reflection, dependency
 injection, source-generator output, partial type resolution, dynamic dispatch,
 project references, and broad public API surfaces are modeled or scoped out.
+
+Dart currently reports `derived` with parser-backed roots for top-level
+`main()`, constructors and named constructors, `@override` methods, Flutter
+`build` and `createState` callbacks, and public `lib/` API declarations outside
+`lib/src/`. It remains non-exact until part-file library resolution,
+conditional import/export selection, package export surfaces, dynamic dispatch,
+Flutter route and lifecycle wiring, generated code, reflection/mirrors, and
+broad public API surfaces are modeled or scoped out.
 
 Kotlin currently reports `derived` with parser-backed roots for top-level
 `main`, secondary constructors, interface methods, same-file interface

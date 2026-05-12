@@ -28,6 +28,30 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Top-level variable declarations | `top-level-variable-declarations` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_long_tail_test.go::TestDefaultEngineParsePathDartFixtures` | Compose-backed fixture verification | - |
 
 ## Known Limitations
-- Named constructors (`ClassName.named(...)`) are captured under the constructor name only
+- Named constructors (`ClassName.named(...)`) are captured as function symbols
+  with `class_context`, but the parser does not resolve constructor tear-offs
 - Cascade notation (`..method()`) is not tracked as a distinct call chain
 - `part`/`part of` directives are not modeled as import relationships
+
+## Dead-Code Support
+
+Maturity: `derived`.
+
+Parser metadata marks these roots through `dead_code_root_kinds`:
+
+- `dart.main_function` for top-level `main()`
+- `dart.constructor` for constructors and named constructors
+- `dart.override_method` for methods preceded by `@override`
+- `dart.flutter_widget_build` for Flutter widget `build` methods
+- `dart.flutter_create_state` for `StatefulWidget.createState`
+- `dart.public_library_api` for public `lib/` declarations outside `lib/src/`
+
+Exact cleanup is still blocked by part-file library resolution, conditional
+imports and exports, package export surfaces, dynamic dispatch, Flutter route
+and lifecycle wiring, generated code, reflection/mirrors, and broad public API
+surfaces.
+
+Dogfood evidence for Issue #98 used isolated Docker Compose project names
+against `flutter/flutter` and `dart-lang/http`. Both runs returned
+`truth.level=derived`, `dead_code_language_maturity.dart=derived`, and the six
+modeled Dart root kinds through `/api/v0/code/dead-code`.

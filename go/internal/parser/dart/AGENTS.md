@@ -12,6 +12,9 @@
 - Dependency direction stays one way: parent parser code may import this
   package, but this package must not import internal/parser.
 - Parse preserves the legacy Dart payload shape and deterministic bucket order.
+- `dead_code_root_kinds` must stay syntax-local: top-level `main`,
+  constructors, `@override`, Flutter `build`/`createState`, and public `lib/`
+  declarations outside `lib/src/`.
 - PreScan derives names from Parse so the parent engine sees the same language
   evidence in both phases.
 
@@ -24,8 +27,8 @@
 
 ## Failure modes and how to debug
 
-- Missing declarations usually mean a regex stopped matching the line-oriented
-  fixture shape.
+- Missing declarations or root metadata usually mean a regex stopped matching
+  the line-oriented fixture shape.
 - Duplicate or unstable call rows usually mean seen-call tracking or bucket
   sorting changed.
 

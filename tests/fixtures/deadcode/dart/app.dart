@@ -1,18 +1,29 @@
+import 'package:flutter/widgets.dart';
+
 void main() {
   directDartHelper();
   selectedDartHandler();
-  onPressedRoot();
 }
 
 void unusedDartHelper() {}
 
 void directDartHelper() {}
 
-class PublicDartWidget {
+class PublicDartWidget extends StatefulWidget {
+  const PublicDartWidget();
+
+  @override
+  State<PublicDartWidget> createState() => _PublicDartWidgetState();
+
   void render() {}
 }
 
-void onPressedRoot() {}
+class _PublicDartWidgetState extends State<PublicDartWidget> {
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+
+  void unusedStateHelper() {}
+}
 
 final void Function() selectedDartHandler = directDartHelper;
 

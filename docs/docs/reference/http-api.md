@@ -585,9 +585,9 @@ Example dead-code workflow:
 ```
 
 `repo_id` is optional. `language` is optional; pass it when validating one
-parser language family such as `c`, `csharp`, `cpp`, `sql`, `go`, `groovy`,
-`kotlin`, `elixir`, `php`, `python`, `java`, `javascript`, `typescript`,
-`tsx`, `ruby`, or `rust`.
+parser language family such as `c`, `csharp`, `cpp`, `dart`, `sql`, `go`,
+`groovy`, `kotlin`, `elixir`, `php`, `python`, `java`, `javascript`,
+`typescript`, `tsx`, `ruby`, or `rust`.
 For C#, `csharp` is normalized to the parser language key `c_sharp`. For SQL,
 the language filter narrows the
 candidate scan to `SqlFunction` routines so mixed repositories with many
@@ -625,6 +625,13 @@ ASP.NET controller actions, hosted-service callbacks, test methods, and
 serialization callbacks, while reflection, dependency injection, source
 generators, partial type merging, dynamic dispatch, project references, and
 broad public API surfaces remain named exactness blockers.
+Dart dead-code results are `derived`: parser metadata suppresses top-level
+`main()`, constructors and named constructors, `@override` methods, Flutter
+`build` and `createState` callbacks, and public `lib/` API declarations outside
+`lib/src/`, while part-file library resolution, conditional imports and
+exports, package export surfaces, dynamic dispatch, Flutter route/lifecycle
+wiring, generated code, reflection/mirrors, and broad public API surfaces
+remain named exactness blockers.
 Kotlin dead-code results are `derived`: parser metadata suppresses top-level
 main functions, secondary constructors, interface methods and same-file
 implementations, overrides, Gradle plugin and task callbacks, Spring component
