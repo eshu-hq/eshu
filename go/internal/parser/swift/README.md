@@ -38,10 +38,14 @@ output deterministic because pre-scan output feeds repository import maps.
 Dead-code roots must be emitted as `dead_code_root_kinds` metadata, not query
 source fallbacks. Declaration matching accepts common Swift access and storage
 modifiers before types and properties so `public protocol`, `open class`, and
-`public var body` stay visible to the root model. Current roots cover `@main`
-types, `main`, SwiftUI `App` types and `body`, protocol methods and same-file
-implementations, constructors, overrides, UIKit application delegate callbacks,
-Vapor route handlers, XCTest methods, and Swift Testing `@Test` functions.
+`public var body` stay visible to the root model. Leading attributes are
+stripped before declaration and call matching, including argument-bearing forms
+such as `@available(...)` and `@Test("...")`, so attributes attach to the next
+declaration without becoming function-call evidence. Current roots cover
+`@main` types, `main`, SwiftUI `App` types and `body`, protocol methods and
+same-file implementations, constructors on concrete types, overrides, UIKit
+application delegate callbacks, Vapor route handlers, XCTest methods, and Swift
+Testing `@Test` functions.
 Helpers should stay package-local unless another language-owned package has a
 real caller.
 

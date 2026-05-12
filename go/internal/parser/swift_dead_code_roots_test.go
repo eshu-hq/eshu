@@ -18,8 +18,7 @@ import UIKit
 import Vapor
 import XCTest
 
-@main
-struct DemoApp: App {
+@main struct DemoApp: App {
     public var body: some Scene {
         WindowGroup {
             ContentView()
@@ -28,6 +27,9 @@ struct DemoApp: App {
 }
 
 public protocol Runnable {
+    @available(iOS 13, *)
+    init()
+
     func run()
 }
 
@@ -59,7 +61,7 @@ class ServiceTests: XCTestCase {
     func testRunsFromXCTest() {}
 }
 
-@Test
+@Test("runs from runner")
 func swiftTestingRunsFromRunner() {}
 
 func main() {}
@@ -83,6 +85,8 @@ private func unusedCleanupCandidate() {}
 	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "variables", "body"), "dead_code_root_kinds", "swift.swiftui_body")
 	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "protocols", "Runnable"), "dead_code_root_kinds", "swift.protocol_type")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "run", "Runnable"), "dead_code_root_kinds", "swift.protocol_method")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Runnable"), "dead_code_root_kinds", "swift.protocol_method")
+	assertParserStringSliceNotContains(t, assertFunctionByNameAndClass(t, got, "init", "Runnable"), "dead_code_root_kinds", "swift.constructor")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Worker"), "dead_code_root_kinds", "swift.constructor")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "start", "Worker"), "dead_code_root_kinds", "swift.override_method")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "run", "Worker"), "dead_code_root_kinds", "swift.protocol_implementation_method")
@@ -92,6 +96,8 @@ private func unusedCleanupCandidate() {}
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "testRunsFromXCTest", "ServiceTests"), "dead_code_root_kinds", "swift.xctest_method")
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "swiftTestingRunsFromRunner"), "dead_code_root_kinds", "swift.swift_testing_method")
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "main"), "dead_code_root_kinds", "swift.main_function")
+	assertBucketMissingItemByName(t, got, "function_calls", "available")
+	assertBucketMissingItemByName(t, got, "function_calls", "Test")
 
 	for _, tc := range []struct {
 		name         string
@@ -106,6 +112,21 @@ private func unusedCleanupCandidate() {}
 		}
 		if function["dead_code_root_kinds"] != nil {
 			t.Fatalf("%s.%s dead_code_root_kinds = %#v, want nil", tc.classContext, tc.name, function["dead_code_root_kinds"])
+		}
+	}
+}
+
+func assertBucketMissingItemByName(t *testing.T, payload map[string]any, bucket string, name string) {
+	t.Helper()
+
+	items, ok := payload[bucket].([]map[string]any)
+	if !ok {
+		t.Fatalf("%s = %T, want []map[string]any", bucket, payload[bucket])
+	}
+	for _, item := range items {
+		itemName, _ := item["name"].(string)
+		if itemName == name {
+			t.Fatalf("%s has unexpected name %q in %#v", bucket, name, items)
 		}
 	}
 }

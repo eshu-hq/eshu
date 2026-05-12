@@ -17,7 +17,6 @@ var (
 	protocolPattern     = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|final)\s+)*protocol\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
 	functionPattern     = regexp.MustCompile(`\bfunc\s+([A-Za-z_]\w*)(?:<[^>]+>)?\s*\(`)
 	variablePattern     = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|static|class|final|lazy|weak|unowned|private\(set\)|fileprivate\(set\)|internal\(set\))\s+)*(?:let|var)\s+([A-Za-z_]\w*)(?:\s*:\s*([^=<{]+(?:<[^>]+>)?))?`)
-	attributePattern    = regexp.MustCompile(`@([A-Za-z_][A-Za-z0-9_\.]*)`)
 	vaporRoutePattern   = regexp.MustCompile(`\buse:\s*([A-Za-z_]\w*)`)
 	receiverCallPattern = regexp.MustCompile(`\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*\(`)
 	callPattern         = regexp.MustCompile(`\b([A-Za-z_]\w*)\s*\(`)
@@ -65,24 +64,24 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			continue
 		}
 
-		attributes := swiftAttributes(trimmed)
+		codeLine, attributes, onlyAttributes := swiftCodeLineAndAttributes(trimmed)
 		pendingAttributes = append(pendingAttributes, attributes...)
-		if swiftLineHasOnlyAttributes(trimmed) {
+		if onlyAttributes {
 			braceDepth += braceDelta(rawLine)
 			stack = popCompletedScopes(stack, braceDepth)
 			continue
 		}
 
-		appendImport(payload, trimmed, lineNumber, isDependency)
+		appendImport(payload, codeLine, lineNumber, isDependency)
 		matchedDeclaration := false
-		stack, matchedDeclaration = appendTypes(payload, stack, trimmed, rawLine, lineNumber, braceDepth, pendingAttributes)
-		if appendFunctions(payload, stack, trimmed, rawLine, lineNumber, options, pendingAttributes, facts) {
+		stack, matchedDeclaration = appendTypes(payload, stack, codeLine, rawLine, lineNumber, braceDepth, pendingAttributes)
+		if appendFunctions(payload, stack, codeLine, codeLine, lineNumber, options, pendingAttributes, facts) {
 			matchedDeclaration = true
 		}
-		if appendVariable(payload, stack, trimmed, lineNumber, seenVariables, variableTypes, facts) {
+		if appendVariable(payload, stack, codeLine, lineNumber, seenVariables, variableTypes, facts) {
 			matchedDeclaration = true
 		}
-		appendCalls(payload, trimmed, lineNumber, variableTypes, seenCalls, isDependency)
+		appendCalls(payload, codeLine, lineNumber, variableTypes, seenCalls, isDependency)
 		if matchedDeclaration {
 			pendingAttributes = pendingAttributes[:0]
 		}
@@ -175,7 +174,7 @@ func appendFunctions(
 		matched = true
 	}
 	if strings.HasPrefix(trimmed, "init(") || strings.Contains(trimmed, " init(") {
-		appendFunction(payload, "init", rawLine, lineNumber, options, currentScopedName(stack, "class", "struct"), scopeKind, attributes, facts)
+		appendFunction(payload, "init", rawLine, lineNumber, options, classContext, scopeKind, attributes, facts)
 		matched = true
 	}
 	return matched

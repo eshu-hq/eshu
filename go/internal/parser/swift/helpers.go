@@ -142,23 +142,93 @@ func popCompletedScopes(stack []scopedContext, braceDepth int) []scopedContext {
 	return stack
 }
 
-func swiftAttributes(line string) []string {
-	matches := attributePattern.FindAllStringSubmatch(line, -1)
-	if len(matches) == 0 {
-		return nil
-	}
-	attributes := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) == 2 && strings.TrimSpace(match[1]) != "" {
-			attributes = append(attributes, match[1])
+func swiftCodeLineAndAttributes(line string) (string, []string, bool) {
+	codeLine := strings.TrimSpace(line)
+	attributes := make([]string, 0, 2)
+	for strings.HasPrefix(codeLine, "@") {
+		name, remaining, ok := consumeSwiftAttribute(codeLine)
+		if !ok {
+			break
 		}
+		attributes = append(attributes, name)
+		codeLine = strings.TrimSpace(remaining)
 	}
-	return attributes
+	if len(attributes) == 0 {
+		return codeLine, nil, false
+	}
+	if codeLine == "" || strings.HasPrefix(codeLine, "//") {
+		return "", attributes, true
+	}
+	return codeLine, attributes, false
 }
 
-func swiftLineHasOnlyAttributes(line string) bool {
-	remaining := strings.TrimSpace(attributePattern.ReplaceAllString(line, ""))
-	return remaining == ""
+func consumeSwiftAttribute(line string) (string, string, bool) {
+	if len(line) < 2 || line[0] != '@' || !isSwiftAttributeStart(line[1]) {
+		return "", line, false
+	}
+	index := 2
+	for index < len(line) && isSwiftAttributePart(line[index]) {
+		index++
+	}
+	name := line[1:index]
+	remaining := strings.TrimLeft(line[index:], " \t")
+	if strings.HasPrefix(remaining, "(") {
+		closeIndex, ok := swiftAttributeArgumentEnd(remaining)
+		if !ok {
+			return name, "", true
+		}
+		remaining = remaining[closeIndex:]
+	}
+	return name, remaining, true
+}
+
+func swiftAttributeArgumentEnd(source string) (int, bool) {
+	depth := 0
+	inString := false
+	escaped := false
+	var quote byte
+	for index := 0; index < len(source); index++ {
+		character := source[index]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if character == '\\' {
+				escaped = true
+				continue
+			}
+			if character == quote {
+				inString = false
+			}
+			continue
+		}
+		switch character {
+		case '"', '\'':
+			inString = true
+			quote = character
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return index + 1, true
+			}
+		}
+	}
+	return len(source), false
+}
+
+func isSwiftAttributeStart(character byte) bool {
+	return character == '_' ||
+		(character >= 'A' && character <= 'Z') ||
+		(character >= 'a' && character <= 'z')
+}
+
+func isSwiftAttributePart(character byte) bool {
+	return isSwiftAttributeStart(character) ||
+		(character >= '0' && character <= '9') ||
+		character == '.'
 }
 
 func collectSwiftSemanticFacts(lines []string) swiftSemanticFacts {
@@ -176,13 +246,19 @@ func collectSwiftSemanticFacts(lines []string) swiftSemanticFacts {
 			stack = popCompletedScopes(stack, braceDepth)
 			continue
 		}
-		for _, match := range vaporRoutePattern.FindAllStringSubmatch(trimmed, -1) {
+		codeLine, _, onlyAttributes := swiftCodeLineAndAttributes(trimmed)
+		if onlyAttributes {
+			braceDepth += braceDelta(rawLine)
+			stack = popCompletedScopes(stack, braceDepth)
+			continue
+		}
+		for _, match := range vaporRoutePattern.FindAllStringSubmatch(codeLine, -1) {
 			if len(match) == 2 {
 				facts.vaporRouteHandlers[match[1]] = struct{}{}
 			}
 		}
 		for _, typed := range swiftTypePatterns() {
-			if matches := typed.pattern.FindStringSubmatch(trimmed); len(matches) >= 2 {
+			if matches := typed.pattern.FindStringSubmatch(codeLine); len(matches) >= 2 {
 				name := matches[1]
 				facts.typeConformances[name] = swiftStringSet(parseInheritanceClause(matches, 2))
 				stack = append(stack, scopedContext{
@@ -194,7 +270,7 @@ func collectSwiftSemanticFacts(lines []string) swiftSemanticFacts {
 			}
 		}
 		if currentScopedKind(stack, "protocol") == "protocol" {
-			if matches := functionPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
+			if matches := functionPattern.FindStringSubmatch(codeLine); len(matches) == 2 {
 				protocolName := currentScopedName(stack, "protocol")
 				if facts.protocolMethods[protocolName] == nil {
 					facts.protocolMethods[protocolName] = make(map[string]struct{})
@@ -246,7 +322,7 @@ func swiftFunctionDeadCodeRootKinds(
 	if classContext == "" && name == "main" {
 		rootKinds = appendSwiftRootKind(rootKinds, "swift.main_function")
 	}
-	if name == "init" {
+	if name == "init" && classContext != "" && scopeKind != "protocol" {
 		rootKinds = appendSwiftRootKind(rootKinds, "swift.constructor")
 	}
 	if scopeKind == "protocol" {
