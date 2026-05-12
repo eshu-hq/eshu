@@ -267,7 +267,7 @@ func defaultDefinitions() []Definition {
 		{
 			ParserKey:  "json",
 			Language:   "json",
-			Extensions: []string{".json"},
+			Extensions: []string{".json", ".jsonc"},
 		},
 		{
 			ParserKey:  "kotlin",

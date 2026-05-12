@@ -3,9 +3,9 @@
 ## Purpose
 
 `internal/parser/json` owns JSON file parsing for the parent parser engine. It
-decodes JSON and JSONC-compatible TypeScript config files, preserves top-level
-document order for metadata buckets, and emits the legacy payload rows consumed
-by collector and projection code.
+decodes JSON, `.jsonc`, and JSONC-compatible TypeScript config files, preserves
+top-level document order for metadata buckets, and emits the legacy payload
+rows consumed by collector and projection code.
 
 ## Ownership boundary
 
@@ -44,7 +44,8 @@ owned by the collector snapshot path and parent engine callers.
 JSON object order matters for `json_metadata.top_level_keys`, dependency rows,
 script rows, and TypeScript `compilerOptions.paths` rows. Keep ordered-object
 helpers in this package and use sorted fallback paths when decoded maps lose
-order.
+order. JSONC normalization strips comments and trailing commas for `.jsonc`
+files and TypeScript config files before decoding.
 
 dbt SQL lineage stays parent-owned. Do not import `internal/parser` from this
 package; add only narrow callback fields to `Config` when parent-owned behavior

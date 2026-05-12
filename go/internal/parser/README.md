@@ -127,9 +127,9 @@ metadata from
 cross-file calls.
 JSON parsing now lives in the JSON helper subpackage. The parent parser keeps
 the wrapper and dbt SQL lineage callback, while the child package owns
-ordered-object metadata, dependency manifests, TypeScript config rows,
-CloudFormation/SAM JSON attachment, dbt manifest payload construction, and
-data-intelligence replay documents.
+ordered-object metadata, dependency manifests, `.jsonc` config files,
+TypeScript config rows, CloudFormation/SAM JSON attachment, dbt manifest payload
+construction, and data-intelligence replay documents.
 
 Package-level roots are resolved from the nearest owning `package.json`, so
 nested workspaces can expose
@@ -291,7 +291,7 @@ JavaScript, Rust, Java, C, C++).
 | Java | `java` | `.java` | yes |
 | Java metadata | `java_metadata` | META-INF/services/*, AutoConfiguration.imports, spring.factories | — |
 | JavaScript | `javascript` | `.cjs`, `.js`, `.jsx`, `.mjs` | yes |
-| JSON | `json` | `.json` | — |
+| JSON | `json` | `.json`, `.jsonc` | — |
 | Kotlin | `kotlin` | `.kt` | — |
 | Perl | `perl` | `.pl`, `.pm` | — |
 | PHP | `php` | `.php` | — |

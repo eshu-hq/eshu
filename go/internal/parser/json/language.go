@@ -167,7 +167,7 @@ func normalizeJSONSource(source []byte, filename string) string {
 	}
 
 	normalized := strings.TrimLeft(strings.Join(lines[start:], "\n"), " \t\r\n")
-	if isTypeScriptConfigFilename(filename) {
+	if isJSONCConfigFilename(filename) {
 		normalized = stripJSONCComments(normalized)
 		normalized = stripTrailingCommas(normalized)
 	}
@@ -185,6 +185,11 @@ func shouldSkipJSONEntities(filename string) bool {
 func isTypeScriptConfigFilename(filename string) bool {
 	lower := strings.ToLower(filename)
 	return strings.HasPrefix(lower, "tsconfig") && strings.HasSuffix(lower, ".json")
+}
+
+func isJSONCConfigFilename(filename string) bool {
+	lower := strings.ToLower(filename)
+	return strings.HasSuffix(lower, ".jsonc") || isTypeScriptConfigFilename(lower)
 }
 
 func dependencyVariables(

@@ -44,6 +44,33 @@ func TestParsePackageJSONPreservesOrderedMetadataAndDependencyRows(t *testing.T)
 	}
 }
 
+func TestParseJSONCAcceptsCommentsAndTrailingCommas(t *testing.T) {
+	t.Parallel()
+
+	path := writeJSONTestFile(t, "turbo.jsonc", `{
+  "$schema": "./node_modules/turbo/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+    },
+    // Supabase-style JSONC config comments should not block parsing.
+    "lint": {
+      "outputs": [],
+    },
+  },
+}`)
+
+	payload, err := Parse(path, false, shared.Options{}, Config{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	if got, want := topLevelKeys(t, payload), []string{"$schema", "tasks"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("top-level keys = %#v, want %#v", got, want)
+	}
+}
+
 func TestParseDBTManifestUsesSuppliedLineageExtractor(t *testing.T) {
 	t.Parallel()
 
