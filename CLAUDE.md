@@ -30,6 +30,14 @@ fixture corpora used to validate parser behavior.
 - MUST ALWAYS create git worktrees before executing plans or PRDs.
 - MUST use the same branch/worktree name across repositories when one workflow
   touches multiple repos, so related changes can be audited together.
+- MUST NEVER ship serialization as a fix for a non-idempotent write path,
+  MERGE-vs-MERGE race, or other concurrency defect. Lowering worker counts
+  (`ESHU_PROJECTION_WORKERS=1`, `ESHU_REDUCER_WORKERS=1`, etc.), stopping a
+  concurrent writer to silence a race, narrowing batch sizes to 1, or
+  single-threading queue drains are all serialization. Acceptable only when
+  the design genuinely cannot support concurrency AND the serial cost meets
+  the performance contract; otherwise the design must be redesigned. See
+  "Serialization Is Not A Fix" under Concurrency Workflow.
 - MUST follow the Google Python Style Guide for any Python fixtures or tools.
 - MUST follow Effective Go and the official Go style guide for all Go code.
 - MUST use strict mode and proper typing for TypeScript; no `any` without an
@@ -472,6 +480,45 @@ writes, describe:
 
 Research the actual locking and consistency behavior of Postgres, Neo4j,
 NornicDB, or the Go runtime path in use. Never rely on intuition alone.
+
+### Serialization Is Not A Fix
+
+Lowering worker counts (e.g. `ESHU_PROJECTION_WORKERS=1`,
+`ESHU_REDUCER_WORKERS=1`, `ESHU_SHARED_PROJECTION_WORKERS=1`), stopping a
+concurrent writer to "silence" a race, narrowing batch sizes to 1, or forcing
+single-threaded queue drains are all forms of serialization. They are
+acceptable ONLY as one of:
+
+- a measured baseline used for comparison against a concurrent design,
+- a temporary safeguard while landing a real concurrency fix in the same PR,
+- a permanent property of a path that genuinely cannot be concurrent and
+  whose serial cost is within the performance contract.
+
+They are NOT acceptable as a shipped mitigation for a non-idempotent code
+path, a MERGE-vs-MERGE race, a UNIQUE-constraint commit-time conflict, or any
+other concurrency defect. If the design does not support concurrency and
+concurrency is needed for the performance contract, the design must be
+redesigned. Worker-knob workarounds in scripts, configs, or verifier overlays
+are evidence of a design defect, not a shipped contract.
+
+When investigating a concurrency-shaped failure, do not reach for a worker
+knob first. Diagnose the design defect, then choose one of:
+
+1. **Make the write path idempotent under concurrent execution.** Retry on
+   commit-time UNIQUE violation, run the MERGE inside a transaction that
+   handles the race, or rewrite as a two-phase match-then-create.
+2. **Partition by conflict key** so concurrent workers never touch the same
+   row. Hash by `uid` / `path` / `(repo, address)` and pin each key to a
+   single worker. Concurrency stays in the design; conflicts go away.
+3. **Document a constraint** if the design legitimately cannot be made
+   concurrent, prove the serial path meets the performance contract for
+   repo-scale inputs, and gate any future concurrent execution behind a
+   measured redesign with before/after numbers.
+
+Eshu canonical projection, reducer work, queue consumers, and shared graph
+writes are all subject to this rule. The same rule applies to verifier
+scripts and Compose overlays: stopping a concurrent writer to make a proof
+pass is a workaround, not a fix.
 
 ## Facts-First Bootstrap Ordering
 
