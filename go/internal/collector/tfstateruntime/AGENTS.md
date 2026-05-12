@@ -28,6 +28,8 @@
 - Add a new backend by extending `DefaultSourceFactory` after the reader package
   exposes a safe exact-source type.
 - Add telemetry around runtime integration here, not in the redaction package.
+- Wire new optional parser-side recorders (such as `CompositeCaptureRecorder`)
+  through `ClaimedSource` so the counter and slog plumbing stay testable.
 - Add cloud-provider SDK behavior in a small adapter that implements the reader
   interface. Do not leak SDK models into parser code.
 

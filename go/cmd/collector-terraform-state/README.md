@@ -34,7 +34,11 @@ flowchart LR
   binary refuses to start when this is blank because `redact.RuleSet` fails
   closed on an empty version (scalar attributes get redacted, composites get
   dropped). Audit evidence references this string to prove which policy
-  version produced each decision.
+  version produced each decision. When the version is non-empty AND a
+  provider-schema resolver covers a composite, the parser's streaming
+  nested walker captures the value so drift detection can compare config
+  and state side-by-side; uncovered composites still drop and increment
+  `eshu_dp_drift_schema_unknown_composite_total`.
 
 Set `ESHU_TFSTATE_COLLECTOR_INSTANCE_ID` when more than one enabled
 Terraform-state collector instance exists. Set `ESHU_TFSTATE_COLLECTOR_OWNER_ID`

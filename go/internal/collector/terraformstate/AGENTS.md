@@ -25,8 +25,17 @@
 - Facts must not include full S3 URLs or local paths. Use locator hashes in
   payloads and source references.
 - Redaction key material is mandatory before parsing.
-- Unknown provider-schema scalar attributes are redacted. Unknown composites are
-  dropped and represented by warning facts.
+- Unknown provider-schema scalar attributes are redacted. Unknown composites
+  are dropped via `skipNested` and observed through the
+  `eshu_dp_drift_schema_unknown_composite_total` counter wired by
+  `CompositeCaptureRecorder` so operators can detect provider-schema drift.
+- Schema-known composite attributes are captured through the streaming nested
+  walker in `composite_walker.go`. The walker reuses the existing
+  `json.Decoder` (no `json.Unmarshal` calls), classifies every scalar leaf
+  through `RedactionRules.Classify`, and emits the nested-singleton-array
+  shape the drift loader's flattener expects. Memory growth is bounded by
+  schema depth; the 48 MB ceiling enforced by
+  `TestParseStream_PeakMemoryGate_CompositeCapture` is non-negotiable.
 - `tags` and `tags_all` are emitted as correlation evidence, but scalar tag
   keys and values still follow the unknown provider-schema rule and are
   redacted by default. Non-scalar tag values are dropped with warning facts.

@@ -73,6 +73,16 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   `locator_hash_scope_alignment_test.go:31`. The two hash functions are
   intentionally distinct — see issue #203 for the silent drift-rejection
   bug that motivated the split.
+- `CompositeCaptureRecorder` is the observability seam the streaming nested
+  walker uses when it drops a composite attribute because the loaded
+  `ProviderSchemaResolver` does not cover the `(resourceType,
+  attributeKey)` pair. The collector wires a recorder that increments
+  `eshu_dp_drift_schema_unknown_composite_total{resource_type}` and emits
+  a `slog.Warn` line with the high-cardinality `attribute_key`, source
+  path, and diagnostic error. A nil recorder is allowed for fixtures and
+  early-bootstrap paths. ADR
+  `2026-05-12-tfstate-parser-composite-capture-for-schema-known-paths`
+  owns the contract.
 
 ## Safety Rules
 
@@ -92,7 +102,16 @@ AWS SDK wiring belong to integration slices outside the reader stack.
 - S3 write capability is rejected at source construction.
 - Redaction key material is mandatory before parsing.
 - Unknown provider-schema scalar attributes are redacted. Unknown composite
-  attributes are dropped and represented by warning facts.
+  attributes are dropped and observed via
+  `eshu_dp_drift_schema_unknown_composite_total` so operators can detect
+  provider-schema drift.
+- Schema-known composite attributes are captured through a streaming nested
+  walker (`readCompositeValue` in `composite_walker.go`). The walker reuses
+  the existing `json.Decoder`, applies per-leaf classification via
+  `RedactionRules.Classify`, and emits the nested-singleton-array shape the
+  drift loader's flattener expects. The 48 MB peak-heap ceiling enforced by
+  `TestParseStream_PeakMemoryGate_CompositeCapture` holds for a 20k-instance
+  fixture where every instance carries a populated SSE composite.
 - `tags` and `tags_all` are emitted as `terraform_state_tag_observation`
   facts for correlation indexing, but scalar tag keys and values still follow
   the unknown provider-schema rule and are redacted by default. Non-scalar tag

@@ -18,8 +18,14 @@
 // MetricDimensionDriftUnresolvedModuleReason dimension here so the closed
 // enum of unresolvable-module reasons (external_registry, external_git,
 // external_archive, cross_repo_local, cycle_detected, depth_exceeded) stays
-// anchored to the contract surface. Callers must reuse existing log keys
-// before adding new ones.
+// anchored to the contract surface. The streaming-nested-walker work in
+// ADR 2026-05-12-tfstate-parser-composite-capture-for-schema-known-paths
+// registers the DriftSchemaUnknownComposite counter and the
+// MetricDimensionResourceType dimension here so operators can detect
+// provider-schema drift; the high-cardinality companions (attribute_key,
+// source path, error) stay in the LogKeyDriftComposite* log attrs and out
+// of metric labels. Callers must reuse existing log keys before adding new
+// ones.
 // High-cardinality values such as file paths and fact identifiers belong in
 // spans or logs, never in metric labels, so dashboards and alerts stay bounded.
 package telemetry
