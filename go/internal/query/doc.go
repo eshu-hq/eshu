@@ -125,10 +125,12 @@
 // fallback for SQL routine reachability, keeps a bounded scan window for small
 // result limits, and reports display truncation separately from bounded raw
 // candidate pages and rows so callers can tell whether the result list was
-// clipped or the candidate scan cap was reached. C root suppressions are
-// honored from content-store metadata after hydration, and C#, C++, Kotlin,
-// Scala, Elixir, Haskell, Perl, PHP, Ruby, and Groovy root suppressions use the same
-// graph/content metadata path.
+// clipped or the candidate scan cap was reached. HCL is reported in the
+// dead-code maturity metadata as non-code IaC evidence, and explicit HCL
+// dead-code requests do not scan source-code candidate labels. C root
+// suppressions are honored from content-store metadata after hydration, and
+// C#, C++, Kotlin, Scala, Elixir, Haskell, Perl, PHP, Ruby, and Groovy root
+// suppressions use the same graph/content metadata path.
 // That matches the
 // normal parser metadata path used by indexed repositories.
 // Infrastructure reads expose Terraform backend, import, moved, removed, check,

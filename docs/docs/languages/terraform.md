@@ -30,6 +30,22 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - The packaged Terraform provider schemas are still intentionally present
   because the Go runtime uses them for schema-driven relationship extraction.
   They are part of the current relationship path.
+- Terraform entities are not returned as source-code dead-code candidates.
+  The code dead-code analysis reports HCL as `non_code_iac_evidence`; Terraform
+  liveness belongs to infrastructure evidence, relationship evidence, state or
+  plan comparison, and repository-context surfaces.
+
+## Dead-code Support
+
+Terraform/HCL dead-code support is `non_code_iac_evidence`. The parser
+extracts Terraform blocks, resources, modules, providers, backends, imports,
+moved blocks, removed blocks, checks, and lockfile providers for graph and
+query evidence, but the code dead-code endpoint does not treat those entities
+as cleanup candidates.
+
+Exact cleanup-safe Terraform liveness remains blocked by Terraform plan/state
+availability, module reference graph resolution, workspace and variable
+selection, dynamic block expansion, and Terragrunt runtime include resolution.
 
 ## Known Limitations
 - `count` and `for_each` meta-arguments are captured on resource rows, but are not expanded to model multiple resource instances

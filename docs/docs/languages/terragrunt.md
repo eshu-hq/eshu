@@ -26,6 +26,22 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - The current Go parser covers the documented Terragrunt contract end to end.
 - Repository-context read surfaces now also include `dependency.config_path`, `read_terragrunt_config`, `include`, `file`, `templatefile`, `*.tfvars`, and local module-source paths, while `terraform.source` also materializes through `TerraformModule`.
 - `read_terragrunt_config()` itself remains opaque in parser output.
+- Terragrunt entities are not returned as source-code dead-code candidates.
+  The code dead-code analysis reports HCL as `non_code_iac_evidence`; Terragrunt
+  liveness belongs to configuration provenance, relationship evidence, and
+  infrastructure query surfaces.
+
+## Dead-code Support
+
+Terragrunt/HCL dead-code support is `non_code_iac_evidence`. The parser records
+Terragrunt configs, dependency blocks, locals, inputs, Terraform module source
+evidence, and bounded include-chain remote-state evidence for graph and query
+surfaces, but the code dead-code endpoint does not treat those entities as
+cleanup candidates.
+
+Exact cleanup-safe Terragrunt liveness remains blocked by runtime include
+resolution, dependency graph selection, workspace and variable selection,
+Terraform plan/state availability, and dynamic Terraform block expansion.
 
 ## Known Limitations
 - `read_terragrunt_config()` calls remain opaque expression text.

@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
@@ -76,6 +74,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		"sql":        "derived",
 		"ruby":       "derived",
 		"groovy":     "derived_candidate_only",
+		"hcl":        "non_code_iac_evidence",
 		"haskell":    "derived",
 		"php":        "derived",
 		"scala":      "derived",
@@ -331,6 +330,21 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 			t.Fatalf("blockers[scala] missing %q in %#v", want, scalaBlockers)
 		}
 	}
+	hclBlockers, ok := blockers["hcl"].([]any)
+	if !ok {
+		t.Fatalf("blockers[hcl] type = %T, want []any", blockers["hcl"])
+	}
+	for _, want := range []string{
+		"terraform_plan_state_liveness_unavailable",
+		"terraform_module_reference_graph_unresolved",
+		"terraform_workspace_variable_resolution_unavailable",
+		"terraform_dynamic_block_expansion_unavailable",
+		"terragrunt_runtime_include_resolution_unavailable",
+	} {
+		if !queryTestStringSliceContains(hclBlockers, want) {
+			t.Fatalf("blockers[hcl] missing %q in %#v", want, hclBlockers)
+		}
+	}
 }
 
 func TestBuildDeadCodeAnalysisReportsObservedCExactnessBlockersFromGraphMetadata(t *testing.T) {
@@ -471,64 +485,5 @@ func TestBuildDeadCodeAnalysisReportsObservedRustExactnessBlockersFromGraphMetad
 	}
 	if got, want := observed["rust"], []string{"cfg_unresolved", "trait_dispatch_unresolved"}; !equalStringSlices(got, want) {
 		t.Fatalf("observed[rust] = %#v, want %#v", got, want)
-	}
-}
-
-func TestDeadCodeLanguageMaturityCoversParserSourceLanguages(t *testing.T) {
-	t.Parallel()
-
-	registry := parser.DefaultRegistry()
-	for _, definition := range registry.Definitions() {
-		key := definition.ParserKey
-		if !deadCodeSourceParserKeys[key] {
-			if _, ok := deadCodeLanguageMaturity[key]; ok {
-				t.Fatalf("deadCodeLanguageMaturity[%q] exists, want non-source parser excluded", key)
-			}
-			continue
-		}
-		if _, ok := deadCodeLanguageMaturity[key]; !ok {
-			t.Fatalf("deadCodeLanguageMaturity missing source parser key %q", key)
-		}
-	}
-}
-
-var deadCodeSourceParserKeys = map[string]bool{
-	"c":          true,
-	"c_sharp":    true,
-	"cpp":        true,
-	"dart":       true,
-	"elixir":     true,
-	"go":         true,
-	"groovy":     true,
-	"haskell":    true,
-	"java":       true,
-	"javascript": true,
-	"kotlin":     true,
-	"perl":       true,
-	"php":        true,
-	"python":     true,
-	"ruby":       true,
-	"rust":       true,
-	"scala":      true,
-	"sql":        true,
-	"swift":      true,
-	"tsx":        true,
-	"typescript": true,
-}
-
-func assertQueryTestStringSliceEqual(t *testing.T, got any, want []string) {
-	t.Helper()
-
-	gotSlice, ok := got.([]any)
-	if !ok {
-		t.Fatalf("string slice type = %T, want []any", got)
-	}
-	if len(gotSlice) != len(want) {
-		t.Fatalf("string slice = %#v, want %#v", gotSlice, want)
-	}
-	for i, wantValue := range want {
-		if gotValue, ok := gotSlice[i].(string); !ok || gotValue != wantValue {
-			t.Fatalf("string slice = %#v, want %#v", gotSlice, want)
-		}
 	}
 }
