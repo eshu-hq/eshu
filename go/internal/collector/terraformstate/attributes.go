@@ -51,26 +51,26 @@ func readAttributeValues(decoder *json.Decoder) ([]attributeValue, error) {
 	return attributes, nil
 }
 
-func (p *stateParser) classifyAttributes(address string, input []attributeValue) (map[string]any, error) {
+func (p *stateParser) classifyAttributes(resourceType string, address string, input []attributeValue) (map[string]any, error) {
 	attributes := make(map[string]any, len(input))
 	for _, attribute := range input {
 		if attribute.TagMap {
 			continue
 		}
-		if err := p.classifyAttribute(attributes, address, attribute); err != nil {
+		if err := p.classifyAttribute(attributes, resourceType, address, attribute); err != nil {
 			return nil, err
 		}
 	}
 	return attributes, nil
 }
 
-func (p *stateParser) classifyAttribute(attributes map[string]any, address string, attribute attributeValue) error {
+func (p *stateParser) classifyAttribute(attributes map[string]any, resourceType string, address string, attribute attributeValue) error {
 	source := "resources." + address + ".attributes." + attribute.Key
 	kind := redact.FieldComposite
 	if attribute.Scalar {
 		kind = redact.FieldScalar
 	}
-	decision := p.options.RedactionRules.Classify(source, redact.SchemaUnknown, kind)
+	decision := p.options.RedactionRules.Classify(source, p.schemaTrust(resourceType, attribute.Key), kind)
 
 	switch decision.Action {
 	case redact.ActionPreserve:
@@ -89,4 +89,26 @@ func (p *stateParser) classifyAttribute(attributes map[string]any, address strin
 		}
 	}
 	return nil
+}
+
+// schemaTrust returns redact.SchemaKnown when the parser has a
+// ProviderSchemaResolver that recognizes the (resourceType, attributeKey)
+// pair. Every other case — nil resolver, unknown resource type, unknown
+// attribute key, blank inputs — returns redact.SchemaUnknown so the
+// RedactionRules policy fails closed.
+//
+// This is the load-bearing seam that lets non-sensitive Terraform-state
+// attributes (e.g. aws_s3_bucket.acl) flow through to downstream drift
+// detection while keeping the fail-closed default for unmapped attributes.
+func (p *stateParser) schemaTrust(resourceType string, attributeKey string) redact.SchemaTrust {
+	if p.options.SchemaResolver == nil {
+		return redact.SchemaUnknown
+	}
+	if resourceType == "" || attributeKey == "" {
+		return redact.SchemaUnknown
+	}
+	if p.options.SchemaResolver.HasAttribute(resourceType, attributeKey) {
+		return redact.SchemaKnown
+	}
+	return redact.SchemaUnknown
 }

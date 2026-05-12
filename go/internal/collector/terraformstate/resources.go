@@ -158,11 +158,11 @@ func (p *stateParser) readInstance(resource resourceContext, instanceIndex int) 
 	if err := p.emitTagObservations(address, attributes); err != nil {
 		return err
 	}
-	classifiedAttributes, err := p.classifyAttributes(address, attributes)
+	classifiedAttributes, err := p.classifyAttributes(strings.TrimSpace(resource.Type), address, attributes)
 	if err != nil {
 		return err
 	}
-	return p.emitResourceInstance(resource, instance, instanceIndex, classifiedAttributes, p.correlationAnchors(address, attributes))
+	return p.emitResourceInstance(resource, instance, instanceIndex, classifiedAttributes, p.correlationAnchors(strings.TrimSpace(resource.Type), address, attributes))
 }
 
 func (p *stateParser) emitResourceInstance(resource resourceContext, instance instanceContext, instanceIndex int, attributes map[string]any, anchors []any) error {

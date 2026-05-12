@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/terraformschema"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -44,6 +46,7 @@ type runtimeConfig struct {
 	HeartbeatInterval    time.Duration
 	RedactionKey         redact.Key
 	RedactionRules       redact.RuleSet
+	SchemaResolver       terraformstate.ProviderSchemaResolver
 	SourceMaxBytes       int64
 	AWSRoleARN           string
 	AWSCredentials       awsCredentialConfig
@@ -149,6 +152,10 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 	if err != nil {
 		return runtimeConfig{}, err
 	}
+	schemaResolver, err := loadSchemaResolver(getenv)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
 	sourceMaxBytes, err := envInt64(getenv, "ESHU_TFSTATE_SOURCE_MAX_BYTES", defaultSourceMaxBytes)
 	if err != nil {
 		return runtimeConfig{}, err
@@ -173,12 +180,38 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 		HeartbeatInterval:    heartbeatInterval,
 		RedactionKey:         redactionKey,
 		RedactionRules:       redactionRules,
+		SchemaResolver:       schemaResolver,
 		SourceMaxBytes:       sourceMaxBytes,
 		AWSRoleARN:           awsCredentials.RoleARN,
 		AWSCredentials:       awsCredentials,
 		AWSTargetScopes:      awsTargetScopes,
 		AWSDynamoDBLockTable: awsDynamoDBLockTable,
 	}, nil
+}
+
+// loadSchemaResolver builds the production ProviderSchemaResolver from the
+// packaged provider schemas. Operators may override the schema directory with
+// `ESHU_TERRAFORM_SCHEMA_DIR` (already honored by terraformschema). A nil
+// resolver is acceptable — the parser treats it as redact.SchemaUnknown — so
+// missing or empty schema directories are non-fatal and the collector keeps
+// the existing fail-closed behavior on attribute classification.
+//
+// Wiring this resolver is the load-bearing fix that lets non-sensitive
+// Terraform-state attributes (e.g. aws_s3_bucket.acl,
+// aws_s3_bucket.server_side_encryption_configuration) flow through to
+// downstream drift detection. Without it, every attribute classification
+// falls into the unknown-schema branch of redact.RuleSet.Classify and the
+// state side of attribute drift comparisons is empty.
+func loadSchemaResolver(getenv func(string) string) (terraformstate.ProviderSchemaResolver, error) {
+	schemaDir := strings.TrimSpace(getenv("ESHU_TERRAFORM_SCHEMA_DIR"))
+	if schemaDir == "" {
+		schemaDir = terraformschema.DefaultSchemaDir()
+	}
+	resolver, err := terraformstate.LoadPackagedSchemaResolver(schemaDir)
+	if err != nil {
+		return nil, fmt.Errorf("load packaged Terraform provider schemas from %q: %w", schemaDir, err)
+	}
+	return resolver, nil
 }
 
 func selectTerraformStateInstance(

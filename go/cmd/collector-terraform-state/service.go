@@ -56,6 +56,7 @@ func buildClaimedService(
 		}),
 		RedactionKey:   config.RedactionKey,
 		RedactionRules: config.RedactionRules,
+		SchemaResolver: config.SchemaResolver,
 		Tracer:         tracer,
 		Instruments:    instruments,
 	}

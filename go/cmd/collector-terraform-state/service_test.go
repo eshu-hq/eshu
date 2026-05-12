@@ -205,6 +205,58 @@ func TestBuildClaimedServiceWiresRedactionRules(t *testing.T) {
 	}
 }
 
+// TestBuildClaimedServiceWiresProviderSchemaResolver is a regression guard
+// against the Scope 3 bug where `attributes.go:73` and `anchors.go:43`
+// hardcoded `redact.SchemaUnknown` for every attribute classification call.
+// Once RedactionRules carries a version (Scope 2), the fail-closed branch
+// shifts from unknown_redaction_ruleset to unknown_provider_schema — same
+// outcome, different reason. Composites dropped, scalars HMAC-stomped,
+// state-side drift detection blind to aws_s3_bucket.acl,
+// aws_s3_bucket.versioning, aws_s3_bucket.server_side_encryption_configuration.
+//
+// Construction MUST go through buildClaimedService so the wiring of
+// `tfstateruntime.ClaimedSource.SchemaResolver` from `runtimeConfig` is
+// covered, not just the field declaration.
+func TestBuildClaimedServiceWiresProviderSchemaResolver(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildClaimedService(
+		postgres.SQLDB{},
+		func(key string) string {
+			values := map[string]string{
+				"ESHU_COLLECTOR_INSTANCES_JSON":          singleTerraformStateInstanceJSON(),
+				"ESHU_TFSTATE_COLLECTOR_OWNER_ID":        "worker-a",
+				"ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL": "30s",
+				"ESHU_TFSTATE_COLLECTOR_HEARTBEAT":       "10s",
+				"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+				"ESHU_TFSTATE_REDACTION_RULESET_VERSION": "scope3-guard-v1",
+			}
+			return values[key]
+		},
+		noop.NewTracerProvider().Tracer("test"),
+		nil,
+		nil,
+		slog.Default(),
+	)
+	if err != nil {
+		t.Fatalf("buildClaimedService() error = %v, want nil", err)
+	}
+
+	source, ok := service.Source.(tfstateruntime.ClaimedSource)
+	if !ok {
+		t.Fatalf("Source type = %T, want tfstateruntime.ClaimedSource", service.Source)
+	}
+	if source.SchemaResolver == nil {
+		t.Fatal("Source.SchemaResolver = nil, want resolver wired from packaged provider schemas")
+	}
+	if !source.SchemaResolver.HasAttribute("aws_s3_bucket", "acl") {
+		t.Error("Source.SchemaResolver.HasAttribute(aws_s3_bucket, acl) = false, want true (Tier-2 attribute drift depends on this)")
+	}
+	if !source.SchemaResolver.HasAttribute("aws_s3_bucket", "server_side_encryption_configuration") {
+		t.Error("Source.SchemaResolver.HasAttribute(aws_s3_bucket, server_side_encryption_configuration) = false, want true (Tier-2 SSE drift depends on this)")
+	}
+}
+
 // TestLoadRuntimeConfigRequiresRedactionRulesetVersion proves the startup
 // validation: if ESHU_TFSTATE_REDACTION_RULESET_VERSION is blank the binary
 // must fail fast at config load, not at the first emitted fact. Without this

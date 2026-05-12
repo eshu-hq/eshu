@@ -70,6 +70,19 @@ type LockMetadataOutput struct {
 	ObservedAt time.Time
 }
 
+// ProviderSchemaResolver answers whether a Terraform resource attribute is
+// covered by a loaded provider schema. Callers that supply a non-nil resolver
+// authorize the parser to mark covered attributes as redact.SchemaKnown so
+// non-sensitive scalars flow through to downstream drift detection unredacted.
+// A nil resolver, or a resolver that does not know a given (resourceType,
+// attributeKey) pair, fails closed via redact.SchemaUnknown.
+//
+// Implementations must be safe for concurrent use because one resolver is
+// shared across every Terraform-state parse the collector runs.
+type ProviderSchemaResolver interface {
+	HasAttribute(resourceType string, attributeKey string) bool
+}
+
 // ParseOptions carries the durable envelope and redaction context for parsing.
 type ParseOptions struct {
 	Scope          scope.IngestionScope
@@ -79,6 +92,12 @@ type ParseOptions struct {
 	ObservedAt     time.Time
 	RedactionKey   redact.Key
 	RedactionRules redact.RuleSet
+	// SchemaResolver authorizes the parser to mark covered Terraform-state
+	// attributes as redact.SchemaKnown. Without a resolver, every attribute
+	// stays redact.SchemaUnknown which fails closed under the configured
+	// RedactionRules. The collector wires a real resolver from the packaged
+	// terraformschema bundle at startup; tests inject deterministic stubs.
+	SchemaResolver ProviderSchemaResolver
 	FencingToken   int64
 	SourceWarnings []SourceWarning
 }

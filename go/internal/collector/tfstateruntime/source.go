@@ -109,10 +109,18 @@ func (f DefaultSourceFactory) s3LockConfig(
 // ClaimedSource resolves exact Terraform-state candidates and returns the one
 // generation that matches the already-claimed workflow item.
 type ClaimedSource struct {
-	Resolver       terraformstate.DiscoveryResolver
-	SourceFactory  SourceFactory
-	RedactionKey   redact.Key
+	Resolver      terraformstate.DiscoveryResolver
+	SourceFactory SourceFactory
+	RedactionKey  redact.Key
+	// RedactionRules carries the versioned sensitive-key policy; without it
+	// every parsed attribute fails closed through redact.SchemaUnknown.
 	RedactionRules redact.RuleSet
+	// SchemaResolver authorizes the parser to mark Terraform-state attributes
+	// covered by a packaged provider schema as redact.SchemaKnown. Without
+	// this resolver, downstream drift detection cannot read non-sensitive
+	// attribute values because every scalar is HMAC-stomped and every
+	// composite is dropped under the fail-closed policy.
+	SchemaResolver terraformstate.ProviderSchemaResolver
 	Clock          func() time.Time
 	Tracer         trace.Tracer
 	Instruments    *telemetry.Instruments
@@ -309,6 +317,7 @@ func (s ClaimedSource) parseCandidate(
 		ObservedAt:     generationValue.ObservedAt,
 		RedactionKey:   s.RedactionKey,
 		RedactionRules: s.RedactionRules,
+		SchemaResolver: s.SchemaResolver,
 		FencingToken:   fencingToken,
 		SourceWarnings: sourceWarningsForCandidate(candidate),
 	}, factSpool)
