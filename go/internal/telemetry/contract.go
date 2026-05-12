@@ -157,6 +157,28 @@ const (
 	// removed_from_config. The wire key intentionally matches the classifier
 	// kind label so log lines and metric labels share the same terminology.
 	LogKeyDriftAddressesPromoted = "addresses_promoted_to_removed_from_config"
+	// LogKeyDriftMultiElementPrefix is the dot-path prefix at which a
+	// multi-element repeated nested block was truncated to its first element by
+	// either the state-loader flatten step
+	// (storage/postgres/tfstate_drift_evidence_state_row.go) or the parser's
+	// seenBlockTypes guard (parser/hcl/terraform_resource_attributes.go).
+	// Operators read this to identify which allowlist entry would silently lose
+	// drift signal once a multi-element entry lands. High-cardinality identifier;
+	// stays in log attrs per CLAUDE.md observability rules.
+	LogKeyDriftMultiElementPrefix = "multi_element.prefix"
+	// LogKeyDriftMultiElementCount is the number of elements present in a
+	// truncated repeated block on the state-flatten side. Always >= 2 by
+	// construction; singleton repeated blocks do not truncate. A higher value
+	// means more drift signal was discarded by the first-wins policy. Only the
+	// state-flatten emission carries this attr — the parser walker sees
+	// duplicates one-at-a-time during recursion and cannot precount cheaply.
+	LogKeyDriftMultiElementCount = "multi_element.count"
+	// LogKeyDriftMultiElementSource identifies which truncation site emitted the
+	// log. Closed enum: "parser_walk" (HCL walkBlockAttributes seenBlockTypes
+	// guard) or "state_flatten" (Postgres flattenStateAttributes first-element
+	// recursion). The two sources have different attr shapes (state side has
+	// count, parser side does not); the source field disambiguates them.
+	LogKeyDriftMultiElementSource = "multi_element.source"
 )
 
 var metricDimensionKeys = []string{
@@ -244,6 +266,9 @@ var logKeys = []string{
 	LogKeyDriftPriorConfigAddresses,
 	LogKeyDriftStateOnlyAddresses,
 	LogKeyDriftAddressesPromoted,
+	LogKeyDriftMultiElementPrefix,
+	LogKeyDriftMultiElementCount,
+	LogKeyDriftMultiElementSource,
 }
 
 // MetricDimensionKeys returns the frozen ordered metric dimensions.

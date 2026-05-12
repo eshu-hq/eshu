@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
@@ -87,7 +88,7 @@ func TestParserToClassifierEndToEndNestedAttributeDrift(t *testing.T) {
 			]
 		}
 	}`)
-	state, ok := stateRowFromCollectorPayload("aws_s3_bucket.logs", stateBytes, false)
+	state, ok := stateRowFromCollectorPayload(context.Background(), nil, "aws_s3_bucket.logs", stateBytes, false)
 	if !ok {
 		t.Fatal("state ok = false")
 	}
@@ -109,7 +110,7 @@ func TestParserToClassifierEndToEndUnknownAttributeSuppressesDrift(t *testing.T)
 	if !ok {
 		t.Fatal("cfg ok = false")
 	}
-	state, ok := stateRowFromCollectorPayload("aws_s3_bucket.logs",
+	state, ok := stateRowFromCollectorPayload(context.Background(), nil, "aws_s3_bucket.logs",
 		[]byte(`{"address":"aws_s3_bucket.logs","type":"aws_s3_bucket","attributes":{"versioning":[{"enabled":false}]}}`),
 		false)
 	if !ok {

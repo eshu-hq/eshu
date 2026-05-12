@@ -87,8 +87,8 @@
 
 - **State-attribute decoding or flattening** → edit
   `tfstate_drift_evidence_state_row.go`. `stateRowFromCollectorPayload`
-  (`tfstate_drift_evidence_state_row.go:21`) decodes the collector payload and
-  calls `flattenStateAttributes` (same file, line 71) to produce the flat
+  (`tfstate_drift_evidence_state_row.go:29`) decodes the collector payload and
+  calls `flattenStateAttributes` (same file, line 90) to produce the flat
   dot-path `map[string]string`. The dot-path encoding MUST stay byte-identical
   to `ctyValueToDriftString` in
   `go/internal/parser/hcl/terraform_resource_attributes.go`; the classifier's
@@ -205,7 +205,7 @@
   arrive in non-deterministic order. Assert on the sorted multiset of
   batch sizes or on the per-batch query shape instead.
 - **Do not diverge the dot-path encoding between `coerceJSONString` /
-  `flattenStateAttributes` (`tfstate_drift_evidence_state_row.go:21`) and
+  `flattenStateAttributes` (`tfstate_drift_evidence_state_row.go:29`) and
   `ctyValueToDriftString`
   (`go/internal/parser/hcl/terraform_resource_attributes.go`).** The
   classifier's value-equality check in
@@ -218,6 +218,17 @@
   strings it produces must match what the current-config path produces. A
   divergence silently misclassifies resources as `added_in_state` instead of
   `removed_from_config`.
+
+  Multi-element repeated nested blocks (`len(typed) > 1` with a map first
+  element) are truncated to their first element on both sides and emit a
+  debug log so the dropped signal is observable. State side fires at
+  `flattenStateAttributes` (`tfstate_drift_evidence_state_row.go:90`) with
+  `multi_element.source="state_flatten"` and a `multi_element.count`
+  attr. Parser side fires at `walkBlockAttributes`
+  (`go/internal/parser/hcl/terraform_resource_attributes.go:132`) with
+  `multi_element.source="parser_walk"` and no count (recursion sees
+  duplicates one-at-a-time). Keep both sides in lockstep when changing
+  the truncation policy.
 
 ## What NOT to change without an ADR
 

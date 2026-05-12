@@ -273,7 +273,7 @@ func (l PostgresDriftEvidenceLoader) loadStateResources(
 		if err := rows.Scan(&address, &payload); err != nil {
 			return nil, fmt.Errorf("scan state terraform_state_resource: %w", err)
 		}
-		row, ok := stateRowFromCollectorPayload(address, payload, lineageRotation)
+		row, ok := stateRowFromCollectorPayload(ctx, l.Logger, address, payload, lineageRotation)
 		if !ok {
 			l.logDecodeFailure(ctx, scopeID, generationID, address)
 			continue

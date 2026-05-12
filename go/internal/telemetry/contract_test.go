@@ -116,6 +116,9 @@ func TestLogKeys(t *testing.T) {
 		"prior_config_addresses",
 		"state_only_addresses",
 		"addresses_promoted_to_removed_from_config",
+		"multi_element.prefix",
+		"multi_element.count",
+		"multi_element.source",
 	}
 
 	got := LogKeys()
