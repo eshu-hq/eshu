@@ -5,6 +5,8 @@
 // calls, and bounded dead-code root metadata. PreScan returns the names the
 // parent engine needs for repository import context. Declaration annotations are
 // consumed at the declaration boundary so class annotations do not leak into
-// method decorators. The package is deterministic and depends only on shared
-// parser helpers, not the parent parser package.
+// method decorators, and constructor declarations are accepted only at
+// class-member depth so constructor calls stay call evidence. The package is
+// deterministic and depends only on shared parser helpers, not the parent
+// parser package.
 package dart

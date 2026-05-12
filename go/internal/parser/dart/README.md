@@ -36,6 +36,8 @@ Parse, then sorts those names before returning them to the parent engine.
 constructors, `@override`, Flutter `build`/`createState`, and public `lib/`
 declarations outside `lib/src/`. Annotations attached to class declarations are
 consumed at the declaration boundary so they do not become member decorators.
+Constructor detection only runs at class-member depth; constructor calls inside
+method bodies must remain call evidence, not constructor declarations.
 
 ## Related docs
 

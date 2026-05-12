@@ -121,6 +121,56 @@ void _privateHelper() {}
 	}
 }
 
+func TestParseDoesNotLeakDartAnnotationsFromFields(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, filepath.Join("pkg", "lib", "state.dart"), `class DemoState extends State<Demo> {
+  @override
+  final callback = createState;
+
+  void helper() {}
+}
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	helper := assertBucketName(t, payload, "functions", "helper")
+	assertStringSliceNotContains(t, helper, "decorators", "@override")
+	assertStringSliceNotContains(t, helper, "dead_code_root_kinds", "dart.override_method")
+}
+
+func TestParseDoesNotTreatConstructorCallsAsConstructors(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, filepath.Join("pkg", "lib", "widget.dart"), `class Demo {
+  Demo();
+
+  void make() {
+    Demo();
+  }
+}
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	functions := payload["functions"].([]map[string]any)
+	constructorCount := 0
+	for _, item := range functions {
+		if item["name"] == "Demo" {
+			constructorCount++
+		}
+	}
+	if got, want := constructorCount, 1; got != want {
+		t.Fatalf("constructor count = %d, want %d functions=%#v", got, want, functions)
+	}
+}
+
 func writeSource(t *testing.T, name string, source string) string {
 	t.Helper()
 

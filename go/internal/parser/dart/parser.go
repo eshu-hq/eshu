@@ -53,6 +53,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			continue
 		}
 
+		consumedDeclaration := false
 		if matches := dartImportPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
 			shared.AppendBucket(payload, "imports", map[string]any{
 				"name":        matches[1],
@@ -75,6 +76,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			addDartRootKind(item, dartClassRootKinds(name, publicLibraryPath)...)
 			shared.AppendBucket(payload, "classes", item)
 			currentClass = newDartClassScope(name, extends)
+			consumedDeclaration = true
 			pendingAnnotations = nil
 		} else {
 			for _, pattern := range []*regexp.Regexp{
@@ -89,6 +91,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 					}
 					addDartRootKind(item, dartClassRootKinds(matches[1], publicLibraryPath)...)
 					shared.AppendBucket(payload, "classes", item)
+					consumedDeclaration = true
 					pendingAnnotations = nil
 				}
 			}
@@ -96,6 +99,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		if currentClass != nil {
 			if item, ok := dartConstructorItem(trimmed, currentClass, lineNumber, rawLine, options); ok {
 				shared.AppendBucket(payload, "functions", item)
+				consumedDeclaration = true
 				pendingAnnotations = nil
 				updateDartClassScope(currentClass, trimmed)
 				if currentClass.braceDepth <= 0 {
@@ -134,6 +138,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 				item["source"] = rawLine
 			}
 			shared.AppendBucket(payload, "functions", item)
+			consumedDeclaration = true
 			pendingAnnotations = nil
 		}
 		if matches := dartVariablePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
@@ -147,6 +152,8 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 					"lang":        "dart",
 				})
 			}
+			consumedDeclaration = true
+			pendingAnnotations = nil
 		}
 		for _, match := range dartCallPattern.FindAllStringSubmatch(trimmed, -1) {
 			if len(match) != 2 {
@@ -164,6 +171,9 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			if currentClass.braceDepth <= 0 {
 				currentClass = nil
 			}
+		}
+		if !consumedDeclaration {
+			pendingAnnotations = nil
 		}
 	}
 
@@ -183,6 +193,9 @@ func dartConstructorItem(
 	options shared.Options,
 ) (map[string]any, bool) {
 	if scope == nil {
+		return nil, false
+	}
+	if scope.braceDepth != 1 {
 		return nil, false
 	}
 	matches := scope.constructorPattern.FindStringSubmatch(line)
