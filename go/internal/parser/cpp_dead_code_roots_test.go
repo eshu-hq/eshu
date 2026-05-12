@@ -225,3 +225,55 @@ int Widget::helper() const {
 		t.Fatalf("Widget::helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
 }
+
+func TestDefaultEngineParsePathCPPMarksNamespaceQualifiedHeaderMethod(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "src", "service.cpp")
+	headerPath := filepath.Join(repoRoot, "src", "service.hpp")
+	writeTestFile(
+		t,
+		headerPath,
+		`#pragma once
+
+namespace api {
+class Service {
+public:
+    int run() const;
+private:
+    int helper() const;
+};
+}
+`,
+	)
+	writeTestFile(
+		t,
+		sourcePath,
+		`#include "service.hpp"
+
+int api::Service::run() const {
+    return 1;
+}
+
+int api::Service::helper() const {
+    return 2;
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "run", "Service"), "dead_code_root_kinds", "cpp.public_header_api")
+	if helper := assertFunctionByNameAndClass(t, got, "helper", "Service"); helper["dead_code_root_kinds"] != nil {
+		t.Fatalf("api::Service::helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
+	}
+}

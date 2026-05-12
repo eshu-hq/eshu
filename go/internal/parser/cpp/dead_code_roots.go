@@ -20,7 +20,7 @@ const (
 )
 
 var cppQualifiedFunctionPattern = regexp.MustCompile(
-	`(?:^|[\s*&])([A-Za-z_]\w*)\s*::\s*(~?[A-Za-z_]\w*)\s*\(`,
+	`(?:^|[^\w:~])((?:[A-Za-z_]\w*\s*::\s*)+~?[A-Za-z_]\w*)\s*\(`,
 )
 
 var cppFunctionPointerAliasPattern = regexp.MustCompile(
@@ -47,6 +47,7 @@ func annotateCPPDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, so
 	if len(functionsByName) == 0 {
 		return
 	}
+	functionsByKey := cppFunctionItemsByKey(payload)
 	functionPointerAliases := cppFunctionPointerAliasNames(string(source))
 
 	for _, mainFunction := range functionsByName["main"] {
@@ -57,7 +58,7 @@ func annotateCPPDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, so
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_definition":
-			annotateCPPMethodRuntimeRoots(payload, node, source)
+			annotateCPPMethodRuntimeRoots(functionsByKey, functionsByName, node, source)
 		case "call_expression":
 			for _, argument := range cppCallArguments(node, source) {
 				for _, function := range functionsByName[argument] {
@@ -86,12 +87,17 @@ func annotateCPPNodeAddonRoots(functionsByName map[string][]map[string]any, sour
 	}
 }
 
-func annotateCPPMethodRuntimeRoots(payload map[string]any, node *tree_sitter.Node, source []byte) {
+func annotateCPPMethodRuntimeRoots(
+	functionsByKey map[cppFunctionKey][]map[string]any,
+	functionsByName map[string][]map[string]any,
+	node *tree_sitter.Node,
+	source []byte,
+) {
 	name, classContext := cppFunctionNameAndClass(node, firstNamedDescendant(node, "identifier", "field_identifier", "destructor_name"), source)
 	if name == "" {
 		return
 	}
-	function := cppFunctionItem(payload, classContext, name)
+	function := cppFunctionItem(functionsByKey, functionsByName, classContext, name)
 	if function == nil {
 		return
 	}
@@ -106,11 +112,28 @@ func annotateCPPMethodRuntimeRoots(payload map[string]any, node *tree_sitter.Nod
 
 func cppFunctionNameAndClass(node *tree_sitter.Node, nameNode *tree_sitter.Node, source []byte) (string, string) {
 	text := shared.NodeText(node, source)
-	if match := cppQualifiedFunctionPattern.FindStringSubmatch(text); len(match) == 3 {
-		return strings.TrimSpace(match[2]), strings.TrimSpace(match[1])
+	if name, classContext := cppQualifiedFunctionNameAndClass(text); name != "" {
+		return name, classContext
 	}
 	return strings.TrimSpace(shared.NodeText(nameNode, source)),
 		strings.TrimSpace(nearestNamedAncestor(node, source, "class_specifier", "struct_specifier"))
+}
+
+func cppQualifiedFunctionNameAndClass(text string) (string, string) {
+	matches := cppQualifiedFunctionPattern.FindAllStringSubmatch(text, -1)
+	if len(matches) == 0 || len(matches[len(matches)-1]) != 2 {
+		return "", ""
+	}
+	parts := strings.Split(matches[len(matches)-1][1], "::")
+	if len(parts) < 2 {
+		return "", ""
+	}
+	name := strings.TrimSpace(parts[len(parts)-1])
+	classContext := strings.TrimSpace(parts[len(parts)-2])
+	if name == "" || classContext == "" {
+		return "", ""
+	}
+	return name, classContext
 }
 
 func appendCPPImportMetadata(payload map[string]any, node *tree_sitter.Node, source []byte) {
@@ -165,10 +188,15 @@ func cppFunctionItemsByKey(payload map[string]any) map[cppFunctionKey][]map[stri
 	return functions
 }
 
-func cppFunctionItem(payload map[string]any, classContext string, name string) map[string]any {
-	items := cppFunctionItemsByKey(payload)[cppFunctionKey{class: strings.TrimSpace(classContext), name: strings.TrimSpace(name)}]
+func cppFunctionItem(
+	functionsByKey map[cppFunctionKey][]map[string]any,
+	functionsByName map[string][]map[string]any,
+	classContext string,
+	name string,
+) map[string]any {
+	items := functionsByKey[cppFunctionKey{class: strings.TrimSpace(classContext), name: strings.TrimSpace(name)}]
 	if len(items) == 0 && strings.TrimSpace(classContext) == "" {
-		items = cppFunctionItemsByName(payload)[strings.TrimSpace(name)]
+		items = functionsByName[strings.TrimSpace(name)]
 	}
 	if len(items) == 0 {
 		return nil

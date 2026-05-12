@@ -35,6 +35,9 @@ argument targets, direct function-pointer initializer targets, and Node
 native-addon entrypoints.
 `AnnotatePublicHeaderRoots` marks functions and methods declared in directly
 included local headers as `cpp.public_header_api` roots after checking that the
-header path stays inside the repository root. It does not recurse through
-include graphs or resolve build targets, template instantiations, overload
-sets, broad virtual dispatch, dynamic symbol lookup, or external linkage.
+header path stays inside the repository root. Namespace-qualified out-of-class
+method definitions keep the rightmost class qualifier as `class_context`, so
+direct local header declarations can match implementations under namespace
+prefixes. It does not recurse through include graphs or resolve build targets,
+template instantiations, overload sets, broad virtual dispatch, dynamic symbol
+lookup, or external linkage.
