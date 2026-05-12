@@ -4,10 +4,12 @@
 
 1. `README.md` — package purpose, exported surface, and invariants
 2. `identity.go` — ecosystem-specific identity normalization
-3. `envelope.go`, `version.go`, `dependency.go`, `artifact.go`,
+3. `metadata_parsers.go`, `metadata_parser_helpers.go` — local fixture parsing
+   into observation structs
+4. `envelope.go`, `version.go`, `dependency.go`, `artifact.go`,
    `source_hint.go`, `repository_hosting.go`, `warning.go` — durable
    fact-envelope construction
-4. `docs/docs/adrs/2026-05-12-package-registry-collector.md` — source-truth
+5. `docs/docs/adrs/2026-05-12-package-registry-collector.md` — source-truth
    boundary and implementation slices
 
 ## Invariants
@@ -21,6 +23,8 @@
   envelopes.
 - Strip URL credentials and sensitive token query parameters before adding URLs
   to payloads or source refs.
+- Keep metadata parsers local and deterministic. Do not add live HTTP clients,
+  registry crawling, workflow claims, graph writes, or ownership decisions here.
 - Do not put package names, private feed names, versions, URLs, or artifact
   paths in metrics.
 
@@ -30,6 +34,8 @@
   and the table tests in `identity_test.go`.
 - Add a new fact envelope builder only after `internal/facts` exposes the fact
   kind and schema version. Keep the source confidence explicit.
+- Add package-native fixture parsing in this package only when it maps to
+  existing observation structs without inventing graph truth.
 - Add live registry calls in a runtime subpackage or later collector slice, not
   in the identity helpers.
 

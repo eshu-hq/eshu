@@ -7,25 +7,28 @@ normalization and fact-envelope construction for the future `package_registry`
 collector family. It turns package/feed metadata into reported-confidence
 facts. It does not call registries yet, write graph state, or decide ownership.
 
-This package implements the first slice of
+This package implements the first slices of
 `docs/docs/adrs/2026-05-12-package-registry-collector.md`: contract fixtures,
-stable package identity, and reported-confidence fact envelopes for package,
-version, dependency, artifact, source-hint, hosting, and warning evidence.
+stable package identity, local metadata fixture parsers, and
+reported-confidence fact envelopes for package, version, dependency, artifact,
+source-hint, hosting, and warning evidence.
 
 ## Ownership boundary
 
-This package owns local package identity rules and fact-envelope construction
-for package-registry evidence. Live registry clients, workflow claims, runtime
-telemetry, graph writes, reducer correlation, and query surfaces belong to later
-collector, reducer, storage, and query slices.
+This package owns local package identity rules, package-native fixture parsing,
+and fact-envelope construction for package-registry evidence. Live registry
+clients, workflow claims, runtime telemetry, graph writes, reducer correlation,
+and query surfaces belong to later collector, reducer, storage, and query
+slices.
 
 ```mermaid
 flowchart LR
-  A["Registry/feed response"] --> B["NormalizePackageIdentity"]
-  B --> C["NewPackageEnvelope"]
-  C --> D["facts.Envelope"]
-  D --> E["Postgres fact store"]
-  E --> F["Reducer correlation"]
+  A["Registry/feed response"] --> B["ParseNPMPackumentMetadata / ParsePyPIProjectMetadata / ParseGenericPackageMetadata"]
+  B --> C["NormalizePackageIdentity"]
+  C --> D["NewPackageEnvelope"]
+  D --> E["facts.Envelope"]
+  E --> F["Postgres fact store"]
+  F --> G["Reducer correlation"]
 ```
 
 ## Exported surface
@@ -36,8 +39,18 @@ See `doc.go` for the godoc contract.
 - `Visibility` — source-reported package visibility.
 - `PackageIdentity` — raw package tuple from a feed.
 - `NormalizedPackageIdentity` — feed-aware stable identity.
+- `MetadataParserContext` — collector boundary copied into parsed fixture
+  observations.
+- `ParsedMetadata` — package, version, dependency, artifact, source-hint,
+  hosting, and warning observations produced from one metadata document.
 - `NormalizePackageIdentity` — ecosystem normalization for npm, PyPI, Go
   modules, Maven, NuGet, and generic package feeds.
+- `ParseNPMPackumentMetadata` — parses one npm packument fixture into
+  observations.
+- `ParsePyPIProjectMetadata` — parses one PyPI JSON API fixture into
+  observations.
+- `ParseGenericPackageMetadata` — parses one provider-specific generic package
+  fixture into observations.
 - `PackageObservation` — one package identity observation ready for envelope
   emission.
 - `NewPackageEnvelope` — builds a `package_registry.package` fact with
@@ -94,6 +107,8 @@ live in the future package-registry runtime slice.
   source-native artifact key.
 - Source hint and warning envelopes strip URL credentials and sensitive query
   parameters before payload or source-reference emission.
+- Metadata parsers are local fixture parsers. They do not make HTTP calls,
+  claim workflow leases, crawl registries, or infer ownership.
 - Private package names, feed URLs, versions, and artifact paths must not become
   metric labels.
 

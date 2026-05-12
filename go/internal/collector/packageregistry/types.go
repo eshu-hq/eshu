@@ -57,6 +57,32 @@ type NormalizedPackageIdentity struct {
 	PackageID      string
 }
 
+// MetadataParserContext carries the collector boundary fields that fixture
+// metadata parsers copy into emitted observations.
+type MetadataParserContext struct {
+	Ecosystem           Ecosystem
+	Registry            string
+	ScopeID             string
+	GenerationID        string
+	CollectorInstanceID string
+	FencingToken        int64
+	ObservedAt          time.Time
+	SourceURI           string
+	Visibility          Visibility
+}
+
+// ParsedMetadata is the normalized observation set produced from one
+// package-registry metadata document.
+type ParsedMetadata struct {
+	Packages     []PackageObservation
+	Versions     []PackageVersionObservation
+	Dependencies []PackageDependencyObservation
+	Artifacts    []PackageArtifactObservation
+	SourceHints  []SourceHintObservation
+	Hosting      []RepositoryHostingObservation
+	Warnings     []WarningObservation
+}
+
 // PackageObservation is one observed package identity ready for envelope
 // emission.
 type PackageObservation struct {
