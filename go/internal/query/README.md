@@ -190,8 +190,8 @@ panics if the capability string is not in `capabilityMatrix`.
 The OpenAPI fragment for `POST /api/v0/code/dead-code` names modeled language
 roots such as Go public-package exports plus C, C#, C++, Ruby, and Groovy
 parser-backed roots. Its language filter examples include `csharp`, `c`,
-`cpp`, `groovy`, `ruby`, and `sql`, with `csharp` normalized to `c_sharp`
-before candidate scanning.
+`cpp`, `groovy`, `ruby`, and `sql`; `csharp` is normalized to `c_sharp` before
+candidate scanning.
 
 ## Exported surface
 

@@ -2,6 +2,7 @@ package parser
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -27,6 +28,7 @@ public interface IJob {
 public class ReportJob : IJob {
     public ReportJob() {}
     public void Run() {}
+    public void Run(int retries) {}
     private void Helper() {}
 }
 
@@ -99,6 +101,26 @@ public static class InvalidParameterProgram {
 public static class AsyncProgram {
     public static Task<int> Main(string[] args) => Task.FromResult(0);
 }
+
+public static class FullyQualifiedTaskProgram {
+    public static System.Threading.Tasks.Task Main(string[] args) => System.Threading.Tasks.Task.CompletedTask;
+}
+
+namespace HostedNamespace {
+    public sealed class Worker : BackgroundService {
+        protected override Task ExecuteAsync(CancellationToken stoppingToken) {
+            return Task.CompletedTask;
+        }
+    }
+}
+
+namespace PlainNamespace {
+    public sealed class Worker {
+        public void ExecuteAsync(CancellationToken stoppingToken) {
+            var marker = "not hosted";
+        }
+    }
+}
 `,
 	)
 
@@ -107,7 +129,7 @@ public static class AsyncProgram {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
@@ -123,6 +145,8 @@ public static class AsyncProgram {
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Restore", "SerializedState"), "dead_code_root_kinds", "csharp.serialization_callback")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Main", "Program"), "dead_code_root_kinds", "csharp.main_method")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Main", "AsyncProgram"), "dead_code_root_kinds", "csharp.main_method")
+	assertParserStringSliceContains(t, assertFunctionBySourceContains(t, got, "System.Threading.Tasks.Task Main"), "dead_code_root_kinds", "csharp.main_method")
+	assertParserStringSliceContains(t, assertFunctionBySourceContains(t, got, "return Task.CompletedTask;"), "dead_code_root_kinds", "csharp.hosted_service_entrypoint")
 	if helper := assertFunctionByNameAndClass(t, got, "Helper", "ReportJob"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("ReportJob.Helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
@@ -130,8 +154,9 @@ public static class AsyncProgram {
 		t.Fatalf("OrdersController.Helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
 	for _, tc := range []struct {
-		name         string
-		classContext string
+		name           string
+		classContext   string
+		sourceContains string
 	}{
 		{name: "HelperAction", classContext: "OrdersController"},
 		{name: "Handle", classContext: "Processor"},
@@ -140,8 +165,13 @@ public static class AsyncProgram {
 		{name: "Main", classContext: "TextOnlyRoots"},
 		{name: "Main", classContext: "InvalidReturnProgram"},
 		{name: "Main", classContext: "InvalidParameterProgram"},
+		{name: "Run", classContext: "ReportJob", sourceContains: "Run(int retries)"},
+		{name: "ExecuteAsync", classContext: "Worker", sourceContains: "not hosted"},
 	} {
 		function := assertFunctionByNameAndClass(t, got, tc.name, tc.classContext)
+		if tc.sourceContains != "" {
+			function = assertFunctionBySourceContains(t, got, tc.sourceContains)
+		}
 		if function["dead_code_root_kinds"] != nil {
 			t.Fatalf("%s.%s dead_code_root_kinds = %#v, want nil", tc.classContext, tc.name, function["dead_code_root_kinds"])
 		}
@@ -177,4 +207,21 @@ func TestDefaultEngineParsePathCSharpDeadCodeFixtureExpectedRoots(t *testing.T) 
 	if helper := assertFunctionByNameAndClass(t, got, "InternalHelper", "PublicController"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("PublicController.InternalHelper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
+}
+
+func assertFunctionBySourceContains(t *testing.T, payload map[string]any, sourceContains string) map[string]any {
+	t.Helper()
+
+	functions, ok := payload["functions"].([]map[string]any)
+	if !ok {
+		t.Fatalf("functions = %T, want []map[string]any", payload["functions"])
+	}
+	for _, function := range functions {
+		source, _ := function["source"].(string)
+		if strings.Contains(source, sourceContains) {
+			return function
+		}
+	}
+	t.Fatalf("functions missing source containing %q in %#v", sourceContains, functions)
+	return nil
 }

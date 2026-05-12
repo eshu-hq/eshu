@@ -16,8 +16,14 @@ type csharpTypeInfo struct {
 
 type csharpSemanticFacts struct {
 	types                     map[string]csharpTypeInfo
-	interfaceMethods          map[string]map[string]struct{}
+	typeSimpleNameCounts      map[string]int
+	interfaceMethods          map[string]map[csharpMethodKey]struct{}
 	interfaceSimpleNameCounts map[string]int
+}
+
+type csharpMethodKey struct {
+	name  string
+	arity int
 }
 
 type csharpMethodSyntax struct {
@@ -26,6 +32,44 @@ type csharpMethodSyntax struct {
 	returnType        string
 	parameterTypes    []string
 	declarationHeader string
+}
+
+func (facts csharpSemanticFacts) typeInfo(simpleName string, qualifiedName string) csharpTypeInfo {
+	if qualifiedName != "" {
+		if info, ok := facts.types[qualifiedName]; ok {
+			return info
+		}
+	}
+	if facts.typeSimpleNameCounts[simpleName] == 1 {
+		return facts.types[simpleName]
+	}
+	return csharpTypeInfo{}
+}
+
+func csharpContextTypeInfo(node *tree_sitter.Node, source []byte, simpleName string, qualifiedName string, facts csharpSemanticFacts) csharpTypeInfo {
+	if info := facts.typeInfo(simpleName, qualifiedName); info.kind != "" {
+		return info
+	}
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		switch current.Kind() {
+		case "class_declaration", "interface_declaration", "struct_declaration", "record_declaration":
+			name := strings.TrimSpace(shared.NodeText(current.ChildByFieldName("name"), source))
+			if name != simpleName {
+				continue
+			}
+			currentQualifiedName := csharpQualifiedTypeName(current, source)
+			if qualifiedName != "" && currentQualifiedName != "" && currentQualifiedName != qualifiedName {
+				continue
+			}
+			return csharpTypeInfo{kind: current.Kind(), qualifiedName: currentQualifiedName, bases: csharpBaseNames(current, source)}
+		}
+	}
+	return csharpTypeInfo{}
+}
+
+func csharpMethodKeyForNode(name string, node *tree_sitter.Node, source []byte) csharpMethodKey {
+	syntax := csharpMethodSyntaxForNode(node, source)
+	return csharpMethodKey{name: name, arity: len(syntax.parameterTypes)}
 }
 
 func csharpBaseNames(node *tree_sitter.Node, source []byte) []string {
@@ -73,11 +117,6 @@ func csharpBaseListNode(node *tree_sitter.Node) *tree_sitter.Node {
 	return nil
 }
 
-func nearestNamedAncestorWithKind(node *tree_sitter.Node, source []byte, kinds ...string) (string, string) {
-	name, kind, _ := nearestNamedAncestorWithQualifiedKind(node, source, kinds...)
-	return name, kind
-}
-
 func nearestNamedAncestorWithQualifiedKind(node *tree_sitter.Node, source []byte, kinds ...string) (string, string, string) {
 	for current := node.Parent(); current != nil; current = current.Parent() {
 		for _, kind := range kinds {
@@ -94,7 +133,8 @@ func nearestNamedAncestorWithQualifiedKind(node *tree_sitter.Node, source []byte
 func collectCSharpSemanticFacts(root *tree_sitter.Node, source []byte) csharpSemanticFacts {
 	facts := csharpSemanticFacts{
 		types:                     map[string]csharpTypeInfo{},
-		interfaceMethods:          map[string]map[string]struct{}{},
+		typeSimpleNameCounts:      map[string]int{},
+		interfaceMethods:          map[string]map[csharpMethodKey]struct{}{},
 		interfaceSimpleNameCounts: map[string]int{},
 	}
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
@@ -106,7 +146,12 @@ func collectCSharpSemanticFacts(root *tree_sitter.Node, source []byte) csharpSem
 			}
 			qualifiedName := csharpQualifiedTypeName(node, source)
 			info := csharpTypeInfo{kind: node.Kind(), qualifiedName: qualifiedName, bases: csharpBaseNames(node, source)}
-			facts.types[name] = info
+			facts.typeSimpleNameCounts[name]++
+			if facts.typeSimpleNameCounts[name] == 1 {
+				facts.types[name] = info
+			} else {
+				delete(facts.types, name)
+			}
 			if qualifiedName != "" && qualifiedName != name {
 				facts.types[qualifiedName] = info
 			}
@@ -127,11 +172,12 @@ func collectCSharpSemanticFacts(root *tree_sitter.Node, source []byte) csharpSem
 		if name == "" {
 			return
 		}
+		methodKey := csharpMethodKeyForNode(name, node, source)
 		if contextQualified != "" {
-			csharpAddInterfaceMethod(facts.interfaceMethods, contextQualified, name)
+			csharpAddInterfaceMethod(facts.interfaceMethods, contextQualified, methodKey)
 		}
 		if facts.interfaceSimpleNameCounts[contextName] == 1 {
-			csharpAddInterfaceMethod(facts.interfaceMethods, contextName, name)
+			csharpAddInterfaceMethod(facts.interfaceMethods, contextName, methodKey)
 		}
 	})
 	return facts
@@ -143,11 +189,13 @@ func csharpFunctionRootKinds(
 	name string,
 	contextName string,
 	contextKind string,
+	contextQualified string,
 	facts csharpSemanticFacts,
 ) []string {
 	var rootKinds []string
 	syntax := csharpMethodSyntaxForNode(node, source)
-	typeInfo := facts.types[contextName]
+	typeInfo := csharpContextTypeInfo(node, source, contextName, contextQualified, facts)
+	methodKey := csharpMethodKey{name: name, arity: len(syntax.parameterTypes)}
 	if csharpIsMainMethod(node, name, syntax) {
 		rootKinds = append(rootKinds, "csharp.main_method")
 	}
@@ -157,7 +205,7 @@ func csharpFunctionRootKinds(
 	if contextKind == "interface_declaration" {
 		rootKinds = append(rootKinds, "csharp.interface_method")
 	}
-	if csharpMethodImplementsLocalInterface(name, typeInfo, facts) {
+	if csharpMethodImplementsLocalInterface(methodKey, typeInfo, facts) {
 		rootKinds = append(rootKinds, "csharp.interface_implementation_method")
 	}
 	if syntax.hasModifier("override") {
@@ -226,34 +274,34 @@ func csharpParameterTypes(parametersNode *tree_sitter.Node, source []byte) []str
 	return parameterTypes
 }
 
-func csharpAddInterfaceMethod(methods map[string]map[string]struct{}, interfaceName string, methodName string) {
+func csharpAddInterfaceMethod(methods map[string]map[csharpMethodKey]struct{}, interfaceName string, methodKey csharpMethodKey) {
 	if methods[interfaceName] == nil {
-		methods[interfaceName] = map[string]struct{}{}
+		methods[interfaceName] = map[csharpMethodKey]struct{}{}
 	}
-	methods[interfaceName][methodName] = struct{}{}
+	methods[interfaceName][methodKey] = struct{}{}
 }
 
-func csharpMethodImplementsLocalInterface(name string, typeInfo csharpTypeInfo, facts csharpSemanticFacts) bool {
+func csharpMethodImplementsLocalInterface(methodKey csharpMethodKey, typeInfo csharpTypeInfo, facts csharpSemanticFacts) bool {
 	for _, base := range typeInfo.bases {
-		if csharpInterfaceMethodsContain(facts.interfaceMethods[base], name) {
+		if csharpInterfaceMethodsContain(facts.interfaceMethods[base], methodKey) {
 			return true
 		}
 		simpleName := csharpLastTypeSegment(base)
 		if facts.interfaceSimpleNameCounts[simpleName] != 1 {
 			continue
 		}
-		if csharpInterfaceMethodsContain(facts.interfaceMethods[simpleName], name) {
+		if csharpInterfaceMethodsContain(facts.interfaceMethods[simpleName], methodKey) {
 			return true
 		}
 	}
 	return false
 }
 
-func csharpInterfaceMethodsContain(methods map[string]struct{}, name string) bool {
+func csharpInterfaceMethodsContain(methods map[csharpMethodKey]struct{}, methodKey csharpMethodKey) bool {
 	if methods == nil {
 		return false
 	}
-	_, ok := methods[name]
+	_, ok := methods[methodKey]
 	return ok
 }
 
@@ -270,220 +318,14 @@ func csharpIsMainMethod(node *tree_sitter.Node, name string, syntax csharpMethod
 	if len(parameterTypes) == 0 {
 		return true
 	}
-	return len(parameterTypes) == 1 && csharpNormalizedType(parameterTypes[0]) == "string[]"
+	return len(parameterTypes) == 1 && csharpIsMainStringArrayParameter(parameterTypes[0])
 }
 
-func csharpIsASPNetControllerAction(name string, contextName string, typeInfo csharpTypeInfo, syntax csharpMethodSyntax) bool {
-	if contextName == "" || name == contextName || !syntax.hasModifier("public") || csharpAttributesContainAny(syntax.attributes, "NonAction") {
-		return false
-	}
-	if strings.HasSuffix(contextName, "Controller") {
+func csharpIsMainStringArrayParameter(parameterType string) bool {
+	switch csharpNormalizedType(parameterType) {
+	case "string[]", "system.string[]":
 		return true
-	}
-	for _, base := range typeInfo.bases {
-		switch csharpLastTypeSegment(base) {
-		case "Controller", "ControllerBase":
-			return true
-		}
-	}
-	return false
-}
-
-func csharpIsHostedServiceEntrypoint(name string, typeInfo csharpTypeInfo) bool {
-	switch name {
-	case "ExecuteAsync", "StartAsync", "StopAsync":
 	default:
 		return false
 	}
-	for _, base := range typeInfo.bases {
-		switch csharpLastTypeSegment(base) {
-		case "BackgroundService", "IHostedService":
-			return true
-		}
-	}
-	return false
-}
-
-func csharpAttributeNames(node *tree_sitter.Node, source []byte) []string {
-	return csharpMethodSyntaxForNode(node, source).attributes
-}
-
-func csharpAttributeNamesFromList(node *tree_sitter.Node, source []byte) []string {
-	var names []string
-	cursor := node.Walk()
-	defer cursor.Close()
-	for _, child := range node.NamedChildren(cursor) {
-		child := child
-		if name := csharpAttributeNameFromNode(&child, source); name != "" {
-			names = append(names, csharpLastTypeSegment(name))
-		}
-	}
-	return names
-}
-
-func csharpAttributeNameFromNode(node *tree_sitter.Node, source []byte) string {
-	if node == nil {
-		return ""
-	}
-	if nameNode := node.ChildByFieldName("name"); nameNode != nil {
-		return strings.TrimSpace(shared.NodeText(nameNode, source))
-	}
-	return csharpTypeNameFromNode(node, source)
-}
-
-func csharpAttributesContainAny(attributes []string, names ...string) bool {
-	for _, attribute := range attributes {
-		normalized := strings.TrimSuffix(csharpLastTypeSegment(attribute), "Attribute")
-		for _, name := range names {
-			if normalized == strings.TrimSuffix(name, "Attribute") {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func csharpTypeNameFromNode(node *tree_sitter.Node, source []byte) string {
-	if node == nil {
-		return ""
-	}
-	switch node.Kind() {
-	case "identifier", "qualified_name", "generic_name":
-		return strings.TrimSpace(shared.NodeText(node, source))
-	}
-	cursor := node.Walk()
-	defer cursor.Close()
-	for _, child := range node.NamedChildren(cursor) {
-		child := child
-		if name := csharpTypeNameFromNode(&child, source); name != "" {
-			return name
-		}
-	}
-	return ""
-}
-
-func csharpQualifiedTypeName(node *tree_sitter.Node, source []byte) string {
-	name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
-	if name == "" {
-		return ""
-	}
-	var parents []string
-	for current := node.Parent(); current != nil; current = current.Parent() {
-		switch current.Kind() {
-		case "namespace_declaration", "file_scoped_namespace_declaration",
-			"class_declaration", "interface_declaration", "struct_declaration", "record_declaration":
-			parentName := strings.TrimSpace(shared.NodeText(current.ChildByFieldName("name"), source))
-			if parentName != "" {
-				parents = append(parents, parentName)
-			}
-		}
-	}
-	slices.Reverse(parents)
-	parents = append(parents, name)
-	return strings.Join(parents, ".")
-}
-
-func csharpLastTypeSegment(name string) string {
-	name = strings.TrimSpace(name)
-	for _, separator := range []string{".", ":"} {
-		name = shared.LastPathSegment(name, separator)
-	}
-	if index := strings.Index(name, "<"); index >= 0 {
-		name = name[:index]
-	}
-	return strings.TrimSpace(name)
-}
-
-func (syntax csharpMethodSyntax) hasModifier(name string) bool {
-	normalized := strings.ToLower(name)
-	if _, ok := syntax.modifiers[normalized]; ok {
-		return true
-	}
-	return csharpHeaderHasWord(syntax.declarationHeader, normalized)
-}
-
-func csharpNormalizedType(name string) string {
-	name = strings.TrimSpace(strings.TrimPrefix(name, "global::"))
-	name = strings.ReplaceAll(name, " ", "")
-	name = strings.ReplaceAll(name, "\t", "")
-	name = strings.ReplaceAll(name, "\n", "")
-	name = strings.ReplaceAll(name, "\r", "")
-	name = strings.TrimPrefix(name, "System.")
-	return strings.ToLower(name)
-}
-
-func csharpDeclarationHeader(text string) string {
-	header := text
-	for _, marker := range []string{"{", "=>"} {
-		if index := strings.Index(header, marker); index >= 0 {
-			header = header[:index]
-		}
-	}
-	return header
-}
-
-func csharpMainSignatureParts(syntax csharpMethodSyntax) (string, []string) {
-	if syntax.returnType != "" {
-		return syntax.returnType, syntax.parameterTypes
-	}
-	header := csharpStripAttributes(syntax.declarationHeader)
-	nameIndex := strings.Index(header, "Main")
-	if nameIndex < 0 {
-		return "", nil
-	}
-	prefix := strings.TrimSpace(header[:nameIndex])
-	fields := strings.Fields(prefix)
-	if len(fields) == 0 {
-		return "", nil
-	}
-	parameterText := ""
-	if openIndex := strings.Index(header[nameIndex:], "("); openIndex >= 0 {
-		start := nameIndex + openIndex + 1
-		if closeIndex := strings.LastIndex(header, ")"); closeIndex >= start {
-			parameterText = strings.TrimSpace(header[start:closeIndex])
-		}
-	}
-	return fields[len(fields)-1], csharpSignatureParameterTypes(parameterText)
-}
-
-func csharpSignatureParameterTypes(parameterText string) []string {
-	if parameterText == "" {
-		return nil
-	}
-	parts := strings.Split(parameterText, ",")
-	types := make([]string, 0, len(parts))
-	for _, part := range parts {
-		fields := strings.Fields(strings.TrimSpace(part))
-		if len(fields) < 2 {
-			continue
-		}
-		types = append(types, strings.Join(fields[:len(fields)-1], " "))
-	}
-	return types
-}
-
-func csharpStripAttributes(text string) string {
-	for {
-		trimmed := strings.TrimSpace(text)
-		if !strings.HasPrefix(trimmed, "[") {
-			return trimmed
-		}
-		end := strings.Index(trimmed, "]")
-		if end < 0 {
-			return trimmed
-		}
-		text = trimmed[end+1:]
-	}
-}
-
-func csharpHeaderHasWord(header string, word string) bool {
-	header = csharpStripAttributes(header)
-	for _, field := range strings.FieldsFunc(header, func(r rune) bool {
-		return r != '_' && (r < '0' || r > '9') && (r < 'A' || r > 'Z') && (r < 'a' || r > 'z')
-	}) {
-		if strings.EqualFold(field, word) {
-			return true
-		}
-	}
-	return false
 }

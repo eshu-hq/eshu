@@ -201,11 +201,11 @@ func appendFunctionWithContext(
 		"decorators":  csharpAttributeNames(node, source),
 		"lang":        lang,
 	}
-	contextName, contextKind := nearestNamedAncestorWithKind(node, source, contextKinds...)
+	contextName, contextKind, contextQualified := nearestNamedAncestorWithQualifiedKind(node, source, contextKinds...)
 	if contextName != "" {
 		item["class_context"] = contextName
 	}
-	if rootKinds := csharpFunctionRootKinds(node, source, name, contextName, contextKind, facts); len(rootKinds) > 0 {
+	if rootKinds := csharpFunctionRootKinds(node, source, name, contextName, contextKind, contextQualified, facts); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
 	if options.IndexSource {
