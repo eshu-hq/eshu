@@ -47,6 +47,11 @@
   remote and local filesystems. `partial-snapshot` and `discovery-skip`
   outcomes must be handled explicitly by callers.
 
+- **Collector observe spans cover source and commit work** —
+  `Service.Run` starts `SpanCollectorObserve` before `Source.Next` and ends it
+  after `commitWithTelemetry`, so slow source reads and durable writes are in
+  one trace (`service.go:140-168`).
+
 - **Facts channel buffer matches Postgres batch size** — `factStreamBuffer = 500`
   matches the Postgres ingestion batch INSERT size so the channel drains at the
   same rate the producer fills it. Do not change either without adjusting both.

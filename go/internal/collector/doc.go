@@ -23,6 +23,8 @@
 // package import paths, into per-file parser options. Native and SCIP snapshots
 // preserve parser-emitted dead-code root metadata in content entity facts;
 // query-time classification decides how that evidence is presented.
+// Service telemetry starts before Source.Next and ends after the durable
+// commit, so collector.observe traces include source collection and write time.
 // Service.AfterBatchDrained fires only after at least one committed
 // generation and a drained source batch, so callers can hook reducer or status
 // work to a real collection boundary instead of an idle poll.

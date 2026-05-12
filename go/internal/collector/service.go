@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -133,14 +134,20 @@ func (s Service) Run(ctx context.Context) error {
 
 	committedSinceDrain := false
 	for {
-		collected, ok, err := s.Source.Next(ctx)
+		if ctx.Err() != nil {
+			return nil
+		}
+		observeCtx, observeSpan, observedAt := s.startCollectorObserve(ctx)
+		collected, ok, err := s.Source.Next(observeCtx)
 		if err != nil {
+			s.endCollectorObserve(observeSpan, err)
 			if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
 				return nil
 			}
 			return fmt.Errorf("collect scope generation: %w", err)
 		}
 		if !ok {
+			s.endCollectorObserve(observeSpan, nil)
 			if committedSinceDrain && s.AfterBatchDrained != nil {
 				if err := s.AfterBatchDrained(ctx); err != nil {
 					return fmt.Errorf("after collector batch drained: %w", err)
@@ -153,23 +160,49 @@ func (s Service) Run(ctx context.Context) error {
 			continue
 		}
 
-		if err := s.commitWithTelemetry(ctx, collected); err != nil {
+		s.annotateCollectorObserve(observeSpan, collected)
+		if err := s.commitWithTelemetry(observeCtx, collected, observedAt); err != nil {
+			s.endCollectorObserve(observeSpan, err)
 			return err
 		}
+		s.endCollectorObserve(observeSpan, nil)
 		committedSinceDrain = true
 	}
 }
 
-func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGeneration) error {
+func (s Service) startCollectorObserve(ctx context.Context) (context.Context, trace.Span, time.Time) {
 	start := time.Now()
-
-	// Start span if tracer is available
 	if s.Tracer != nil {
 		var span trace.Span
 		ctx, span = s.Tracer.Start(ctx, telemetry.SpanCollectorObserve)
-		defer span.End()
+		return ctx, span, start
 	}
+	return ctx, nil, start
+}
 
+func (s Service) annotateCollectorObserve(span trace.Span, collected CollectedGeneration) {
+	if span == nil {
+		return
+	}
+	span.SetAttributes(
+		telemetry.AttrScopeID(collected.Scope.ScopeID),
+		telemetry.AttrSourceSystem(collected.Scope.SourceSystem),
+		telemetry.AttrCollectorKind(string(collected.Scope.CollectorKind)),
+	)
+}
+
+func (s Service) endCollectorObserve(span trace.Span, err error) {
+	if span == nil {
+		return
+	}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	span.End()
+}
+
+func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGeneration, startedAt time.Time) error {
 	factCount := int64(collected.FactCount)
 
 	var err error
@@ -198,7 +231,7 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 		)
 	}
 
-	duration := time.Since(start).Seconds()
+	duration := time.Since(startedAt).Seconds()
 
 	if s.Instruments != nil {
 		attrs := metric.WithAttributes(
