@@ -10,7 +10,8 @@
 3. `go/internal/storage/cypher/canonical_node_writer.go` — `CanonicalNodeWriter.Write`,
    phase dispatch, and the GroupExecutor/PhaseGroupExecutor/sequential paths
 4. `go/internal/storage/cypher/retrying_executor.go` — NornicDB MERGE unique
-   conflict handling and why `ExecuteGroup` does not retry
+   conflict handling and the shared retry loop for both `Execute` and
+   `ExecuteGroup`
 5. `go/internal/telemetry/instruments.go` and `contract.go` — metric names and
    span constants before adding new telemetry
 
@@ -32,10 +33,16 @@
   and `EdgeWriter`.
 - **No direct driver calls in this package** — the concrete Neo4j and NornicDB
   driver sessions live in `cmd/` wiring. This package only defines contracts.
-- **RetryingExecutor.ExecuteGroup skips the retry loop** — the driver's own
-  `GroupExecutor` implementation already retries transient errors for the group
-  path; adding a retry loop in `RetryingExecutor` would double-retry
-  (`retrying_executor.go:87`).
+- **RetryingExecutor.ExecuteGroup retries on MERGE-shaped groups** — both
+  `Execute` and `ExecuteGroup` run through `runWithRetry` with the same
+  exponential-backoff cadence. `ExecuteGroup` retries on commit-time UNIQUE
+  conflicts only when every statement in the group contains MERGE
+  (`allStatementsAreMerge`); mixed groups containing non-MERGE statements
+  are NOT retried, preserving idempotency safety. Driver-level
+  `session.ExecuteWrite` retries handle Neo.TransientError.* codes; the
+  Eshu retry loop additionally handles Neo.ClientError.Transaction.
+  TransactionCommitFailed when classified as a commit-time UNIQUE
+  conflict (`retrying_executor.go:52`).
 - **OperationCanonicalUpsert vs. OperationUpsertNode** — canonical domain nodes
   use `OperationCanonicalUpsert`; source-local `SourceLocalRecord` writes use
   `OperationUpsertNode`/`OperationDeleteNode`. Do not mix them.
