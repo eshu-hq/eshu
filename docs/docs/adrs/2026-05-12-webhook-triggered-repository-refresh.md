@@ -1,7 +1,7 @@
 # ADR: Webhook-Triggered Repository Refresh Runtime
 
 **Date:** 2026-05-12
-**Status:** Proposed
+**Status:** Accepted
 **Authors:** Allen Sanabria
 **Deciders:** Platform Engineering
 **Related:**
@@ -414,9 +414,17 @@ branch is the durable source state Eshu can parse, hash, and project.
 
 ## Status Review
 
-**Current disposition:** Proposed.
+**Current disposition:** Accepted. Implementation is in progress on issue #211
+and PR #213.
 
-Issue #211 tracks implementation. No runtime or Helm resources are implemented
-by this ADR. The ADR records the service boundary, EKS exposure posture,
-provider event contract, truth model, and rollout gates so implementation can
-land in the same branch and PR without changing the public decision mid-stream.
+Issue #211 tracks implementation. Chunk 2 has started with the
+`go/internal/webhook` package: provider authentication checks and
+provider-neutral trigger normalization are covered by focused Go tests for
+GitHub push, GitHub pull request merge, GitLab push, GitLab merge request
+merge, tag noise, non-default branches, malformed JSON, unsupported events,
+missing secrets, and invalid signatures.
+
+Runtime, durable storage, coordinator handoff, and Helm/EKS resources are still
+pending. The ADR records the service boundary, EKS exposure posture, provider
+event contract, truth model, and rollout gates so implementation can land in
+the same branch and PR without changing the public decision mid-stream.
