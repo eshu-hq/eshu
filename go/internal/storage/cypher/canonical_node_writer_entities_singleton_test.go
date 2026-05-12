@@ -63,9 +63,11 @@ func TestCanonicalNodeWriterFileScopedContainmentKeepsNormalOneRowBatchGrouped(t
 // route rows whose values contained Cypher keyword substrings ("shortestpath",
 // "allshortestpaths", "remove ") into per-row parameterized singletons,
 // avoiding a hypothetical parser-confusion risk. The K8s native CPU profile
-// captured for ADR row 1813 attributed 17,000 such singletons (~26% of
+// captured for ADR row 1809 attributed 17,000 such singletons (~26% of
 // NornicDB canonical_write CPU) to Kubernetes Function entities whose
-// docstrings contain the English word "remove" followed by a space.
+// docstrings contain the English word "remove" followed by a space; the
+// wall-clock measurement of returning those rows to the batched path is in
+// ADR row 1815.
 //
 // The NornicDB-side test
 // `TestUnwindMergeChainBatch_EshuSingletonFallbackUnnecessary` on branch

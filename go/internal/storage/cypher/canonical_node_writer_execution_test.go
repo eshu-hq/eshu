@@ -355,8 +355,8 @@ func TestCanonicalNodeWriterTriggerSubstringRowStaysBatched(t *testing.T) {
 	if len(stmts) != 1 {
 		t.Fatalf("buildEntityStatements() count = %d, want 1", len(stmts))
 	}
-	if got := stmts[0].Parameters["_eshu_phase_group_mode"]; got != nil {
-		t.Fatalf("_eshu_phase_group_mode = %#v, want absent (trigger substring no longer marks execute-only)", got)
+	if got := stmts[0].Parameters[StatementMetadataPhaseGroupModeKey]; got != nil {
+		t.Fatalf("%s = %#v, want absent (trigger substring no longer marks execute-only)", StatementMetadataPhaseGroupModeKey, got)
 	}
 	if !strings.Contains(stmts[0].Cypher, "UNWIND $rows AS row") {
 		t.Fatalf("entity cypher = %q, want UNWIND-batched shape (trigger substring no longer forces singleton)", stmts[0].Cypher)

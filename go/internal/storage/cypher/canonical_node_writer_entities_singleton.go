@@ -13,7 +13,8 @@ import (
 // entities per K8s native run (Kubernetes is a Go codebase with many comments
 // and identifiers containing the English word "remove"); each routed row
 // became a slow per-statement executeCompoundMatchMerge call and dominated
-// canonical_write CPU per the profile in ADR row 1813.
+// canonical_write CPU per the profile in ADR row 1809; the wall-clock
+// measurement of removing them is in ADR row 1815.
 //
 // Per the NornicDB-side regression test
 // TestUnwindMergeChainBatch_EshuSingletonFallbackUnnecessary at NornicDB-New
