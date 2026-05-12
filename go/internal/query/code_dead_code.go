@@ -365,6 +365,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsGroovyRoot(result, entity, stats) {
 		return true
 	}
+	if deadCodeIsHaskellRoot(result, entity, stats) {
+		return true
+	}
 	if deadCodeIsPHPRoot(result, entity, stats) {
 		return true
 	}

@@ -119,7 +119,12 @@ autoload and constant resolution, framework route files, and gem public API
 surfaces. Groovy parser metadata suppresses Jenkinsfile pipeline entrypoints and
 Jenkins shared-library `vars/*.groovy` `call` methods; Groovy remains
 candidate-only because dynamic dispatch, closure delegate resolution, shared
-library loading, and pipeline DSL steps are not resolved exactly. Elixir parser
+library loading, and pipeline DSL steps are not resolved exactly. Haskell
+parser metadata suppresses `main`, explicit module-exported functions and
+types, typeclass method declarations, and instance methods. Haskell remains
+non-exact because Template Haskell, CPP conditional compilation, Cabal
+component membership, implicit module exports, typeclass dispatch, module
+re-exports, and FFI callbacks are not resolved exactly. Elixir parser
 metadata suppresses Application-backed `start/2`, public macros, public guards,
 `@impl` behaviour callbacks, arity-checked GenServer and Supervisor callbacks,
 Mix task `run/1`, protocol functions, protocol implementation functions,
@@ -185,7 +190,9 @@ aliases, magic-method dispatch, and public API surfaces,
 Ruby blockers for metaprogramming, autoload, framework routing, gem public API,
 and constant resolution, Groovy blockers for dynamic dispatch, closure
 delegates, Jenkins shared-library resolution, and pipeline DSL dynamic steps,
-plus SQL blockers for dynamic SQL,
+Haskell blockers for Template Haskell expansion, CPP conditional compilation,
+Cabal component membership, implicit module exports, typeclass dispatch, module
+re-export resolution, and FFI callbacks, plus SQL blockers for dynamic SQL,
 dialect-specific routine resolution, and migration-order resolution. SQL
 `SqlFunction` routines participate in the derived candidate scan, and the query
 policy uses a batched exact graph incoming probe so reducer-written `EXECUTES`
@@ -251,10 +258,10 @@ Content-backed Argo CD relationship fallback reads `source_repos` for
 multi-source Applications and emits one `DEPLOYS_FROM` relationship per source
 repo while still accepting the older singular `source_repo` metadata field.
 The OpenAPI fragment for `POST /api/v0/code/dead-code` names modeled language
-roots such as Go public-package exports plus C, C#, C++, Kotlin, PHP, Ruby, and
-Groovy parser-backed roots. Its language filter examples include `csharp`, `c`,
-`cpp`, `groovy`, `kotlin`, `php`, `ruby`, and `sql`; `csharp` is normalized to
-`c_sharp` before candidate scanning.
+roots such as Go public-package exports plus C, C#, Dart, Haskell, Kotlin,
+Elixir, PHP, and Groovy parser-backed roots. Its language filter examples include
+`csharp`, `c`, `dart`, `haskell`, `kotlin`, `elixir`, `php`, `groovy`, and `sql`;
+`csharp` is normalized to `c_sharp` before candidate scanning.
 
 ## Exported surface
 

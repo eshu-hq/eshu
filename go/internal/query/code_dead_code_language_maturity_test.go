@@ -75,6 +75,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		"sql":        "derived",
 		"ruby":       "derived",
 		"groovy":     "derived_candidate_only",
+		"haskell":    "derived",
 		"php":        "derived",
 		"scala":      "derived",
 	} {
@@ -143,6 +144,23 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 	} {
 		if !queryTestStringSliceContains(groovyBlockers, want) {
 			t.Fatalf("blockers[groovy] missing %q in %#v", want, groovyBlockers)
+		}
+	}
+	haskellBlockers, ok := blockers["haskell"].([]any)
+	if !ok {
+		t.Fatalf("blockers[haskell] type = %T, want []any", blockers["haskell"])
+	}
+	for _, want := range []string{
+		"template_haskell_expansion_unavailable",
+		"cpp_conditional_compilation_unresolved",
+		"cabal_component_resolution_unavailable",
+		"implicit_module_export_surface_unresolved",
+		"typeclass_dispatch_unresolved",
+		"module_reexport_resolution_unavailable",
+		"foreign_function_interface_unresolved",
+	} {
+		if !queryTestStringSliceContains(haskellBlockers, want) {
+			t.Fatalf("blockers[haskell] missing %q in %#v", want, haskellBlockers)
 		}
 	}
 	phpBlockers, ok := blockers["php"].([]any)
