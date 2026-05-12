@@ -14,4 +14,15 @@
 // Local-backend rows additionally require the repository checkout's local
 // path so the resolver can compute a repo-relative RelativePath and reject
 // backend paths that escape the checkout.
+//
+// LocatorHash and ScopeLocatorHash are intentionally distinct. LocatorHash
+// digests (BackendKind, Locator, VersionID) and backs per-version identity
+// — CandidatePlanningID and the persisted
+// terraform_state_snapshot.payload->>'locator_hash' field. ScopeLocatorHash
+// digests (BackendKind, Locator) only and is the version-agnostic join key
+// shared with scope.NewTerraformStateSnapshotScope; the drift resolver
+// compares the two byte-for-byte. Use ScopeLocatorHash whenever the call
+// site needs the join key the resolver receives at runtime; use LocatorHash
+// only for per-candidate identity. Issue #203 documents the silent
+// drift-rejection bug that motivated the split.
 package terraformstate
