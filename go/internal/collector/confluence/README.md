@@ -90,7 +90,13 @@ already gathered them from Eshu.
 - HTTP access is `GET` only and maps 403/404 responses to
   `ErrPermissionDenied`.
 - Sync logs and metrics report counts, status, and scope identifiers only. Page
-  titles, body content, and excerpts are not emitted as telemetry fields.
+  titles, body content, and excerpts are not emitted as telemetry fields. The
+  shared `collector.observe` span and
+  `eshu_dp_collector_observe_duration_seconds` histogram include page
+  collection, fact construction, and durable commit time; the
+  `eshu_dp_facts_emitted_total`, `eshu_dp_generation_fact_count`, and
+  `eshu_dp_facts_committed_total` metrics report documentation fact volume with
+  `source_system=confluence` and `collector_kind=documentation`.
 - Pagination follows Confluence `_links.next` values without duplicating the
   configured context path, so Atlassian Cloud base URLs that include `/wiki`
   work with both `/api/v2/...` and `/wiki/api/v2/...` next links.
