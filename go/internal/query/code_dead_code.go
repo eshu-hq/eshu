@@ -338,6 +338,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsCRoot(result, entity, stats) {
 		return true
 	}
+	if deadCodeIsCSharpRoot(result, entity, stats) {
+		return true
+	}
 	if deadCodeIsCPPRoot(result, entity, stats) {
 		return true
 	}

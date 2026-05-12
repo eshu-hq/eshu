@@ -28,6 +28,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	payload["records"] = []map[string]any{}
 	payload["properties"] = []map[string]any{}
 	root := tree.RootNode()
+	facts := collectCSharpSemanticFacts(root, source)
 
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -50,6 +51,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 				source,
 				"c_sharp",
 				options,
+				facts,
 				"class_declaration",
 				"interface_declaration",
 				"struct_declaration",
@@ -163,53 +165,6 @@ func appendCSharpNamedType(payload map[string]any, bucket string, node *tree_sit
 	shared.AppendBucket(payload, bucket, item)
 }
 
-func csharpBaseNames(node *tree_sitter.Node, source []byte) []string {
-	baseListNode := csharpBaseListNode(node)
-	if baseListNode == nil {
-		return nil
-	}
-
-	seen := make(map[string]struct{})
-	var bases []string
-	shared.WalkNamed(baseListNode, func(child *tree_sitter.Node) {
-		switch child.Kind() {
-		case "identifier", "qualified_name", "generic_name":
-		default:
-			return
-		}
-		name := strings.TrimSpace(shared.NodeText(child, source))
-		if name == "" {
-			return
-		}
-		if _, ok := seen[name]; ok {
-			return
-		}
-		seen[name] = struct{}{}
-		bases = append(bases, name)
-	})
-	slices.Sort(bases)
-	return bases
-}
-
-func csharpBaseListNode(node *tree_sitter.Node) *tree_sitter.Node {
-	if node == nil {
-		return nil
-	}
-	if baseListNode := node.ChildByFieldName("bases"); baseListNode != nil {
-		return baseListNode
-	}
-
-	cursor := node.Walk()
-	defer cursor.Close()
-	for _, child := range node.NamedChildren(cursor) {
-		child := child
-		if child.Kind() == "base_list" {
-			return shared.CloneNode(&child)
-		}
-	}
-	return nil
-}
-
 func appendNamedType(payload map[string]any, bucket string, node *tree_sitter.Node, source []byte, lang string) {
 	nameNode := node.ChildByFieldName("name")
 	name := shared.NodeText(nameNode, source)
@@ -230,6 +185,7 @@ func appendFunctionWithContext(
 	source []byte,
 	lang string,
 	options shared.Options,
+	facts csharpSemanticFacts,
 	contextKinds ...string,
 ) {
 	nameNode := node.ChildByFieldName("name")
@@ -242,29 +198,20 @@ func appendFunctionWithContext(
 		"name":        name,
 		"line_number": shared.NodeLine(nameNode),
 		"end_line":    shared.NodeEndLine(node),
-		"decorators":  []string{},
+		"decorators":  csharpAttributeNames(node, source),
 		"lang":        lang,
 	}
-	if classContext := nearestNamedAncestor(node, source, contextKinds...); classContext != "" {
-		item["class_context"] = classContext
+	contextName, contextKind := nearestNamedAncestorWithKind(node, source, contextKinds...)
+	if contextName != "" {
+		item["class_context"] = contextName
+	}
+	if rootKinds := csharpFunctionRootKinds(node, source, name, contextName, contextKind, facts); len(rootKinds) > 0 {
+		item["dead_code_root_kinds"] = rootKinds
 	}
 	if options.IndexSource {
 		item["source"] = shared.NodeText(node, source)
 	}
 	shared.AppendBucket(payload, "functions", item)
-}
-
-func nearestNamedAncestor(node *tree_sitter.Node, source []byte, kinds ...string) string {
-	for current := node.Parent(); current != nil; current = current.Parent() {
-		for _, kind := range kinds {
-			if current.Kind() != kind {
-				continue
-			}
-			nameNode := current.ChildByFieldName("name")
-			return shared.NodeText(nameNode, source)
-		}
-	}
-	return ""
 }
 
 func appendCall(payload map[string]any, nameNode *tree_sitter.Node, source []byte, lang string) {

@@ -1,6 +1,6 @@
 # C# Dead-Code Fixture Intent
 
-Maturity: `derived_candidate_only`.
+Maturity: `derived`.
 
 Expected symbols:
 
@@ -9,8 +9,10 @@ Expected symbols:
 | `unused` | `UnusedCleanupCandidate` |
 | `direct_reference` | `DirectlyUsedHelper` |
 | `entrypoint` | `Program.Main` |
-| `public_api` | `PublicController.Get` |
+| `aspnet_controller_action` | `PublicController.Get` |
 | `framework_root` | `Worker.ExecuteAsync` |
 | `semantic_dispatch` | `IJob.Run` |
+| `test_root` | `FixtureTests.ExercisedByTestRunner` |
+| `serialization_root` | `SerializationHooks.Restore` |
 | `excluded` | `GeneratedExcludedHelper` |
 | `ambiguous` | `DynamicActionName` |

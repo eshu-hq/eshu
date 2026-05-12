@@ -585,8 +585,10 @@ Example dead-code workflow:
 ```
 
 `repo_id` is optional. `language` is optional; pass it when validating one
-parser language family such as `c`, `cpp`, `sql`, `go`, `groovy`, `python`,
-`java`, `javascript`, `typescript`, `tsx`, `ruby`, or `rust`. For SQL, the language filter narrows the
+parser language family such as `c`, `csharp`, `cpp`, `sql`, `go`, `groovy`,
+`python`, `java`, `javascript`, `typescript`, `tsx`, `ruby`, or `rust`. For C#,
+`csharp` is normalized to the parser language key `c_sharp`. For SQL, the
+language filter narrows the
 candidate scan to `SqlFunction` routines so mixed repositories with many
 application functions do not starve SQL routine evidence. When `repo_id` is
 omitted, the Go API returns the first page of
@@ -616,6 +618,12 @@ targets plus Node native-addon entrypoints, while broader macro expansion,
 conditional compilation, transitive include graphs, template instantiation,
 overload resolution, broad virtual dispatch, dynamic symbol lookup, and external
 linkage remain named exactness blockers.
+C# dead-code results are `derived`: parser metadata suppresses main methods,
+constructors, overrides, same-file interface methods and implementations,
+ASP.NET controller actions, hosted-service callbacks, test methods, and
+serialization callbacks, while reflection, dependency injection, source
+generators, partial type merging, dynamic dispatch, project references, and
+broad public API surfaces remain named exactness blockers.
 Ruby dead-code results are `derived`: parser metadata suppresses Rails
 controller actions, Rails callback methods, literal method-reference targets,
 dynamic-dispatch hooks, and script entrypoints, while metaprogramming, autoload
