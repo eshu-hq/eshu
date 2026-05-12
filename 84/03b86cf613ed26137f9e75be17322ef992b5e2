@@ -1,0 +1,21 @@
+docs/docs/adrs/2026-05-12-webhook-triggered-repository-refresh.md
+  s_d3259c8df205fa::t_55b27548ce491b 1-3,5-47,51-75,78-123,126-347,350-409,412-415,418
+docs/docs/adrs/README.md
+  s_d3259c8df205fa::t_55b27548ce491b 72,74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "8403b86cf613ed26137f9e75be17322ef992b5e2",
+  "prompts": {},
+  "sessions": {
+    "s_d3259c8df205fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c35-27db-7f23-a973-f62b0105d8b0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

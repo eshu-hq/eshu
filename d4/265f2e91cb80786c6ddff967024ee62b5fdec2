@@ -1,0 +1,127 @@
+go/cmd/ingester/README.md
+  s_d3259c8df205fa::t_b24b09bf3e96d6 56-57,62,118-120
+  s_d3259c8df205fa::t_739046494288d5 47-49
+go/internal/storage/postgres/webhook_trigger_store.go
+  s_d3259c8df205fa::t_33a160244614c5 1-55,57-77,94-153,156-160,195-211,219-302,342-344,346-351,311-312,324-325,330,332-333,338,340-341
+  s_d3259c8df205fa::t_883ab40ca5dee7 56,78-93
+  s_d3259c8df205fa::t_cd03b309477d52 161-183,185-186,189-194
+  s_d3259c8df205fa::t_7fa43ca0284ca2 212-218,345
+  s_d3259c8df205fa::t_9120ae7ab7b189 154-155,184,187-188,303-306,309-310,313-320,322-323,326-329,331,334-337,339
+  s_d3259c8df205fa::t_40ca183e2a784c 307-308,321
+deploy/helm/eshu/values.schema.json
+  s_d3259c8df205fa::t_2be41a32929d2f 165-193,215-220
+  s_d3259c8df205fa::t_fab2dee338beec 194-214
+go/internal/collector/README.md
+  s_d3259c8df205fa::t_b24b09bf3e96d6 128-129,231-232
+  s_d3259c8df205fa::t_db4ea75a986f47 144-145
+go/cmd/webhook-listener/handler.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1-9,11-20,25-41,43-50,56-57,59-61,63-65,67-74,86-87,96-98,100-104,107-109,111,113-114,116-117,119,121-131,133-146,149-153,58
+  s_d3259c8df205fa::t_496f505e9dfe1c 75-80
+  s_d3259c8df205fa::t_4e279797d2e86c 10,51
+  s_d3259c8df205fa::t_5383d4197f6eba 52-53,81-83
+  s_d3259c8df205fa::t_96f7f714d4eb80 54-55,84-85
+go/cmd/collector-git/README.md
+  s_d3259c8df205fa::t_b24b09bf3e96d6 41
+  s_d3259c8df205fa::t_f366a2b110858b 38-40
+  s_d3259c8df205fa::t_75b1be983f709f 63
+go/internal/webhook/normalizer_edge_test.go
+  s_d3259c8df205fa::t_d333e99a458f96 1-132
+go/internal/storage/postgres/doc.go
+  s_d3259c8df205fa::t_1a71a9157c8d3b 2-3,86
+deploy/helm/eshu/README.md
+  s_d3259c8df205fa::t_62761da3c7eb57 19,31-33,88-97
+go/internal/collector/doc.go
+  s_d3259c8df205fa::t_b24b09bf3e96d6 29
+  s_d3259c8df205fa::t_5f61b3d2573094 33
+go/internal/storage/postgres/webhook_trigger_store_sql.go
+  s_d3259c8df205fa::t_33a160244614c5 1-27,30-42,48-49,71-111,113-114,118-119
+  s_d3259c8df205fa::t_883ab40ca5dee7 50-70
+  s_d3259c8df205fa::t_cd03b309477d52 120,122-123,128-129
+  s_d3259c8df205fa::t_c1dddd4847f476 43-47,112,115-117,121,124-127
+go/internal/webhook/types.go
+  s_d3259c8df205fa::t_a59b50c8b10bdd 1-2,5-20,22-44,46-48,53-73
+  s_d3259c8df205fa::t_b53713f34a8844 74,4,75-100,103
+  s_d3259c8df205fa::t_33a160244614c5 3,101-102
+  s_d3259c8df205fa::t_6b6a5357917ef3 49-52
+docs/docs/deploy/kubernetes/helm-values.md
+  s_d3259c8df205fa::t_62761da3c7eb57 26-28,77-95
+  s_d3259c8df205fa::t_1aab400f087b0d 96
+go/internal/storage/postgres/README.md
+  s_d3259c8df205fa::t_1a71a9157c8d3b 4-7,153-156,162,297,481-482
+  s_d3259c8df205fa::t_1b1dd2dc26d812 298-299
+  s_d3259c8df205fa::t_60924a411fd129 157
+go/internal/webhook/normalizer.go
+  s_d3259c8df205fa::t_a59b50c8b10bdd 1-6,8-10,154-189,195,204-222,243-244,253-277,326,87,129,133,194,202-203
+  s_d3259c8df205fa::t_904a8d95565241 196-198,84,86,130,132,191,193
+  s_d3259c8df205fa::t_40bfd4417301e8 190,192,199-201
+go/internal/webhook/README.md
+  s_d3259c8df205fa::t_a59b50c8b10bdd 1-3,7-15,18-33,36-41,44,47-56
+  s_d3259c8df205fa::t_b24b09bf3e96d6 34-35
+  s_d3259c8df205fa::t_a73a837ab333fa 42-43
+go/cmd/webhook-listener/doc.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1,3-5,11
+  s_d3259c8df205fa::t_0463a98824256e 6-7
+go/internal/webhook/doc.go
+  s_d3259c8df205fa::t_a59b50c8b10bdd 3,11
+  s_d3259c8df205fa::t_b24b09bf3e96d6 4-7
+  s_d3259c8df205fa::t_c60ea49f5cdca0 8-10
+go/cmd/collector-git/service.go
+  s_d3259c8df205fa::t_bd24b1e555228b 34,37-40,43-47,51
+  s_d3259c8df205fa::t_b42a0597d3228d 35-36,41-42
+go/cmd/collector-git/doc.go
+  s_d3259c8df205fa::t_b24b09bf3e96d6 8
+go/cmd/ingester/wiring.go
+  s_d3259c8df205fa::t_bd24b1e555228b 147,150-153,156-160,164
+  s_d3259c8df205fa::t_5dd58a248816ab 123
+  s_d3259c8df205fa::t_3e655901215a87 148-149,154-155
+go/internal/collector/webhook_trigger_handoff_config.go
+  s_d3259c8df205fa::t_8ff4d16dbd7959 1-54
+go/cmd/webhook-listener/handler_test.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1-74,104-121,123-132,169-198,201-214,76,98,101-102,140,163,166-167
+  s_d3259c8df205fa::t_496f505e9dfe1c 122,133-135
+  s_d3259c8df205fa::t_4949b625f8eaf7 136-138,199,77,83-97,99-100,103,141,148-149,152-153,157-162,164-165,168
+  s_d3259c8df205fa::t_62c70c69c4aa99 75,78-82,139,142-147,150-151,154-156
+go/cmd/ingester/doc.go
+  s_d3259c8df205fa::t_b24b09bf3e96d6 24
+  s_d3259c8df205fa::t_c2ef67ff60fb96 7-9
+  s_d3259c8df205fa::t_0e342a589b8ea9 28-29
+go/internal/collector/webhook_trigger_selector.go
+  s_d3259c8df205fa::t_4bff469323eba5 1-4,6-15,22-26,28-63,75,81-89,99-118,138-144,146-156,159-170,21,70-72,124-127,133-134,136-137
+  s_d3259c8df205fa::t_cd03b309477d52 5,27,76,78-80,90,92-98
+  s_d3259c8df205fa::t_0f2c6b016ed053 64-65,16-20,66-69,73-74,77,91,121-123,128,130-132,135
+go/internal/collector/webhook_trigger_selector_test.go
+  s_d3259c8df205fa::t_4bff469323eba5 1-4,6-97,252,259-273,153,161-162,198,207,210,218-219
+  s_d3259c8df205fa::t_8c308c561cefcd 5,98-105,107-127,274-284,137,139,141-142,144,147,151
+  s_d3259c8df205fa::t_9d6139fa447437 249-251,289,128-132,134-136,143,145-146,148-150,154-160,163,166,169-171,173-177,179,181,183-185,187,189,191-197,199-206,209,211-217,220,223,226-248,253-256,285,287-288,291-301,303-304
+  s_d3259c8df205fa::t_1d03e7015a687d 106,286,302
+  s_d3259c8df205fa::t_64a4b9f19fa779 178,180,182,186,188,190
+go/cmd/webhook-listener/README.md
+  s_d3259c8df205fa::t_386c544b37aaa0 1-3,14-18,20-34,36-41
+  s_d3259c8df205fa::t_b42d8988b47abf 35
+  s_d3259c8df205fa::t_7cd7c2ec39687b 8-12
+go/cmd/ingester/composite_runner.go
+  s_d3259c8df205fa::t_965ab9b954a221 1-14,19-37
+  s_d3259c8df205fa::t_8325cc038750c1 15-18
+go/internal/storage/postgres/webhook_trigger_store_test.go
+  s_d3259c8df205fa::t_b53713f34a8844 1-21,23-45,49,51-61,64,67,70,77-81,83-93,97,99,101-106,108,135,139-170,172-182,254,215
+  s_d3259c8df205fa::t_fc631bdb508145 46-48,50,62-63,65-66,74-76,82,94-96,98,100,107,109-134,136-138,245-253
+  s_d3259c8df205fa::t_aa8bf37396f88d 171
+  s_d3259c8df205fa::t_b6037a1eb0d023 183-185,71-72,186,193,195,200-201,203-204,206-207,209-210,212-213,234-235,237-238
+  s_d3259c8df205fa::t_8c308c561cefcd 217-232,240-244,73,187-192,194,196-199,202,205,208,211,214,216,236,239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "d4265f2e91cb80786c6ddff967024ee62b5fdec2",
+  "prompts": {},
+  "sessions": {
+    "s_d3259c8df205fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c35-27db-7f23-a973-f62b0105d8b0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

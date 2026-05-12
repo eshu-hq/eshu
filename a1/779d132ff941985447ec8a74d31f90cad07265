@@ -1,0 +1,144 @@
+go/internal/storage/postgres/doc.go
+  s_d3259c8df205fa::t_1a71a9157c8d3b 2-3,86
+go/cmd/README.md
+  s_d3259c8df205fa::t_3fb59f8c278939 9-11,28,44
+deploy/helm/eshu/values.schema.json
+  s_d3259c8df205fa::t_2be41a32929d2f 165-193,195-200
+docs/docs/adrs/2026-05-12-webhook-triggered-repository-refresh.md
+  s_d3259c8df205fa::t_55b27548ce491b 1-3,5-47,51-75,78-123,126-347,350-409,412-415,419
+  s_d3259c8df205fa::t_4476bd48cefddd 4,417-418
+  s_d3259c8df205fa::t_6fcc37ce944607 420-423,427-429,432-444
+docs/docs/deploy/kubernetes/index.md
+  s_d3259c8df205fa::t_62761da3c7eb57 7,20
+go/cmd/collector-git/README.md
+  s_d3259c8df205fa::t_b24b09bf3e96d6 42
+go/internal/collector/README.md
+  s_d3259c8df205fa::t_b24b09bf3e96d6 128-129,229-230
+go/internal/collector/priority_selector.go
+  s_d3259c8df205fa::t_8cf32c12bd61e9 1-35
+go/cmd/collector-git/service.go
+  s_d3259c8df205fa::t_bd24b1e555228b 36,38-41,44-48,52
+deploy/helm/eshu/templates/deployment-webhook-listener.yaml
+  s_d3259c8df205fa::t_2be41a32929d2f 1-42,44-99
+  s_d3259c8df205fa::t_2146c1c36d743b 43
+go/internal/storage/postgres/webhook_trigger_store_schema_sql.go
+  s_d3259c8df205fa::t_33a160244614c5 1-4,6-28,31-34,36-41
+  s_d3259c8df205fa::t_dbfe2660dc916a 5,29-30
+go/internal/storage/postgres/webhook_trigger_store.go
+  s_d3259c8df205fa::t_33a160244614c5 1-4,6-56,58-78,95-154,156-160,197-213,221-307,309-314,321
+  s_d3259c8df205fa::t_883ab40ca5dee7 57,79-94
+  s_d3259c8df205fa::t_cd03b309477d52 161-185,191-196
+  s_d3259c8df205fa::t_7fa43ca0284ca2 214-220,308
+go/internal/storage/postgres/webhook_trigger_store_test.go
+  s_d3259c8df205fa::t_b53713f34a8844 1-21,23-45,49,51-61,64,67,70,74-78,80-90,94,96,98-103,105,132,136-167,169-179,214
+  s_d3259c8df205fa::t_fc631bdb508145 46-48,50,62-63,65-66,71-73,79,91-93,95,97,104,106-131,133-135,205-213
+  s_d3259c8df205fa::t_aa8bf37396f88d 168
+  s_d3259c8df205fa::t_b6037a1eb0d023 180-182
+  s_d3259c8df205fa::t_8c308c561cefcd 183-198,200-204
+scripts/install-local-binaries.sh
+  s_d3259c8df205fa::t_3fb59f8c278939 58
+go/internal/collector/priority_selector_test.go
+  s_d3259c8df205fa::t_8cf32c12bd61e9 1-14,17-19,21-32,34-37,39-44
+  s_d3259c8df205fa::t_5eb5d8be4956e5 15-16,20,33,38
+go/internal/storage/postgres/schema_test.go
+  s_d3259c8df205fa::t_7fa43ca0284ca2 16-17,37
+schema/data-plane/postgres/017_webhook_refresh_triggers.sql
+  s_d3259c8df205fa::t_7fa43ca0284ca2 1-31,33-37
+go/cmd/collector-git/doc.go
+  s_d3259c8df205fa::t_b24b09bf3e96d6 8
+go/cmd/webhook-listener/handler.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1-19,24-40,42-51,53-55,57-59,61-68,75-76,85-87,89-93,96-98,100,102-103,105-106,108,110-120,122-135,138-142
+  s_d3259c8df205fa::t_496f505e9dfe1c 69-74
+go/cmd/webhook-listener/main.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1-48,60-65,72-75,77-79,81-119
+  s_d3259c8df205fa::t_2146c1c36d743b 49-59,66-71,76
+go/cmd/webhook-listener/doc.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1,3-5,10
+Dockerfile
+  s_d3259c8df205fa::t_3fb59f8c278939 30
+go/internal/storage/postgres/webhook_trigger_store_sql.go
+  s_d3259c8df205fa::t_33a160244614c5 1-27,30-44,66-106,108-109,113-114
+  s_d3259c8df205fa::t_883ab40ca5dee7 45-65
+  s_d3259c8df205fa::t_cd03b309477d52 115,117-118,123-124
+go/internal/collector/webhook_trigger_selector.go
+  s_d3259c8df205fa::t_4bff469323eba5 1-4,6-20,22-57,62,68-76,86-105,108-114,116-126,129-140
+  s_d3259c8df205fa::t_cd03b309477d52 5,21,63,65-67,77,79-85
+  s_d3259c8df205fa::t_0f2c6b016ed053 58-59
+deploy/helm/eshu/templates/servicemonitor.yaml
+  s_d3259c8df205fa::t_2be41a32929d2f 115-130
+go/internal/collector/doc.go
+  s_d3259c8df205fa::t_b24b09bf3e96d6 29
+  s_d3259c8df205fa::t_617bf2ddc6e5a7 32
+  s_d3259c8df205fa::t_5f61b3d2573094 33
+go/internal/collector/webhook_trigger_selector_test.go
+  s_d3259c8df205fa::t_4bff469323eba5 1-4,6-97,132,139-153
+  s_d3259c8df205fa::t_8c308c561cefcd 5,98-126,154-164
+  s_d3259c8df205fa::t_9d6139fa447437 129-131,166
+deploy/helm/eshu/templates/ingress-webhook-listener.yaml
+  s_d3259c8df205fa::t_2be41a32929d2f 1-45
+docs/docs/architecture.md
+  s_d3259c8df205fa::t_ecd6c474a76528 63,120-121
+deploy/helm/eshu/templates/service-webhook-listener.yaml
+  s_d3259c8df205fa::t_2be41a32929d2f 1-24
+go/cmd/webhook-listener/config.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1-31,33-60
+deploy/helm/eshu/README.md
+  s_d3259c8df205fa::t_62761da3c7eb57 19,31-33,88-97
+deploy/helm/eshu/values.yaml
+  s_d3259c8df205fa::t_2be41a32929d2f 153-190
+go/cmd/ingester/doc.go
+  s_d3259c8df205fa::t_b24b09bf3e96d6 24
+go/cmd/webhook-listener/AGENTS.md
+  s_d3259c8df205fa::t_386c544b37aaa0 1-7,10-34
+go/internal/webhook/README.md
+  s_d3259c8df205fa::t_a59b50c8b10bdd 1-3,7-15,18-33,36-41,43,46-55
+  s_d3259c8df205fa::t_b24b09bf3e96d6 34-35
+deploy/helm/eshu/templates/networkpolicy.yaml
+  s_d3259c8df205fa::t_2146c1c36d743b 135-146
+go/internal/webhook/types.go
+  s_d3259c8df205fa::t_a59b50c8b10bdd 1-2,5-20,22-44,46-69
+  s_d3259c8df205fa::t_b53713f34a8844 70,4,71-96,99
+  s_d3259c8df205fa::t_33a160244614c5 3,97-98
+deploy/helm/eshu/templates/_helpers.tpl
+  s_d3259c8df205fa::t_2be41a32929d2f 51-54,79-82,112-114
+go/internal/webhook/doc.go
+  s_d3259c8df205fa::t_a59b50c8b10bdd 3,9
+  s_d3259c8df205fa::t_b24b09bf3e96d6 4-7
+go/internal/storage/postgres/README.md
+  s_d3259c8df205fa::t_1a71a9157c8d3b 4-7,153-156,160,295,479-480
+  s_d3259c8df205fa::t_6dbdc3f61a2050 158
+  s_d3259c8df205fa::t_1b1dd2dc26d812 296-297
+docs/docs/deploy/kubernetes/helm-values.md
+  s_d3259c8df205fa::t_62761da3c7eb57 26-28,77-93,97-98
+deploy/helm/eshu/templates/validate.yaml
+  s_d3259c8df205fa::t_2be41a32929d2f 19,21-27,29
+go/cmd/webhook-listener/handler_test.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1-92,94-103,110-139,142-155
+  s_d3259c8df205fa::t_496f505e9dfe1c 93,104-106
+  s_d3259c8df205fa::t_4949b625f8eaf7 107-109,140
+deploy/helm/eshu/templates/pdb.yaml
+  s_d3259c8df205fa::t_2146c1c36d743b 59-73
+go/cmd/ingester/wiring.go
+  s_d3259c8df205fa::t_bd24b1e555228b 174,176-179,182-186,190
+go/cmd/ingester/README.md
+  s_d3259c8df205fa::t_b24b09bf3e96d6 56-57,60,116-118
+go/cmd/webhook-listener/README.md
+  s_d3259c8df205fa::t_386c544b37aaa0 1-3,13-17,19-33,35-40
+  s_d3259c8df205fa::t_b42d8988b47abf 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "a1779d132ff941985447ec8a74d31f90cad07265",
+  "prompts": {},
+  "sessions": {
+    "s_d3259c8df205fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c35-27db-7f23-a973-f62b0105d8b0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
