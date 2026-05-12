@@ -1,0 +1,39 @@
+go/internal/collector/packageregistry/repository_hosting.go
+  s_b2ad8b7ca4126e::t_2a9db47dcda9f7 1-66
+go/internal/collector/packageregistry/warning.go
+  s_b2ad8b7ca4126e::t_758ab1d9dc66b4 1-76
+go/internal/collector/packageregistry/artifact.go
+  s_b2ad8b7ca4126e::t_945b17d55a3a19 1-65
+go/internal/collector/packageregistry/dependency.go
+  s_b2ad8b7ca4126e::t_64a69e59c219f1 1-77
+go/internal/collector/packageregistry/envelope_helpers.go
+  s_b2ad8b7ca4126e::t_97194037df8340 1-124
+go/internal/collector/packageregistry/doc.go
+  s_b2ad8b7ca4126e::t_d5c6346fbbbca6 5-11
+go/internal/collector/packageregistry/source_hint.go
+  s_b2ad8b7ca4126e::t_5e1346774b803a 1-77
+go/internal/collector/packageregistry/README.md
+  s_b2ad8b7ca4126e::t_4a68714f8936db 11-13,17-18,49-70,91-96
+go/internal/collector/packageregistry/registry_envelopes_test.go
+  s_b2ad8b7ca4126e::t_b1265efe82d0a0 1-290
+go/internal/collector/packageregistry/types.go
+  s_b2ad8b7ca4126e::t_17a2364babc081 92-183
+go/internal/collector/packageregistry/AGENTS.md
+  s_b2ad8b7ca4126e::t_edc7871c7dd553 7-9,20-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "872a59d69946f39cf50f9b17e70649228cdc8400",
+  "prompts": {},
+  "sessions": {
+    "s_b2ad8b7ca4126e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c8e-f2d6-7fd1-b594-24902f49d730",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
