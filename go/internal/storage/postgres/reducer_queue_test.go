@@ -716,8 +716,9 @@ func TestReducerQueueValidateClaimRequiresPositiveLeaseDuration(t *testing.T) {
 }
 
 // TestReducerQueueValidateEnqueueRejectsInvalidClaimDomain proves the shared
-// ClaimDomain.Validate() check lives in validateEnqueue() so both enqueue and
-// claim sides reject an unknown ClaimDomain.
+// ClaimDomain.Validate() check fires on the enqueue path and that the wrapped
+// error carries the enqueue-side marker so callers can self-locate failures
+// without parsing call stacks.
 func TestReducerQueueValidateEnqueueRejectsInvalidClaimDomain(t *testing.T) {
 	t.Parallel()
 
@@ -738,10 +739,18 @@ func TestReducerQueueValidateEnqueueRejectsInvalidClaimDomain(t *testing.T) {
 	if !strings.Contains(err.Error(), "unknown reducer domain") {
 		t.Fatalf("error = %q, want unknown-domain message", err.Error())
 	}
+	if !strings.Contains(err.Error(), "for enqueue") {
+		t.Fatalf("error = %q, want enqueue-side marker %q", err.Error(), "for enqueue")
+	}
 }
 
 // TestReducerQueueValidateClaimAlsoRejectsInvalidClaimDomain proves
-// validateClaim() inherits validateEnqueue()'s ClaimDomain check.
+// validateClaim() also fails on an invalid ClaimDomain and that the wrapped
+// error carries the claim-side marker (not the enqueue-side marker) even
+// though the underlying check is shared with the enqueue path. This is the
+// regression guard for Copilot review of PR #196: previously validateClaim
+// delegated to validateEnqueue verbatim, so a shared-check failure on the
+// claim path bubbled up labeled "for enqueue".
 func TestReducerQueueValidateClaimAlsoRejectsInvalidClaimDomain(t *testing.T) {
 	t.Parallel()
 
@@ -758,6 +767,39 @@ func TestReducerQueueValidateClaimAlsoRejectsInvalidClaimDomain(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unknown reducer domain") {
 		t.Fatalf("error = %q, want unknown-domain message", err.Error())
+	}
+	if !strings.Contains(err.Error(), "for claim/ack/heartbeat/fail") {
+		t.Fatalf("error = %q, want claim-side marker %q", err.Error(), "for claim/ack/heartbeat/fail")
+	}
+	if strings.Contains(err.Error(), "for enqueue") {
+		t.Fatalf("error = %q, must not carry enqueue-side marker on claim path", err.Error())
+	}
+}
+
+// TestReducerQueueValidateClaimRequiresDBWithClaimSideMarker is the
+// regression guard for the validateClaim->validateEnqueue composition trap
+// caught in Copilot review of PR #196: a db-nil failure on the claim path
+// must say "for claim/ack/heartbeat/fail", not "for enqueue". Before the
+// validateShared refactor, validateClaim delegated to validateEnqueue
+// verbatim, so the shared db-nil check produced an enqueue-marked error on
+// the claim path.
+func TestReducerQueueValidateClaimRequiresDBWithClaimSideMarker(t *testing.T) {
+	t.Parallel()
+
+	queue := ReducerQueue{LeaseOwner: "x", LeaseDuration: time.Minute}
+
+	_, _, err := queue.Claim(context.Background())
+	if err == nil {
+		t.Fatal("Claim() error = nil, want validation error for nil db")
+	}
+	if !strings.Contains(err.Error(), "database is required") {
+		t.Fatalf("error = %q, want substring %q", err.Error(), "database is required")
+	}
+	if !strings.Contains(err.Error(), "for claim/ack/heartbeat/fail") {
+		t.Fatalf("error = %q, want claim-side marker %q", err.Error(), "for claim/ack/heartbeat/fail")
+	}
+	if strings.Contains(err.Error(), "for enqueue") {
+		t.Fatalf("error = %q, must not carry enqueue-side marker on claim path", err.Error())
 	}
 }
 

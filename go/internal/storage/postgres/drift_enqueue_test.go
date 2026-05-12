@@ -155,43 +155,20 @@ func TestEnqueueConfigStateDriftIntentsNoOpWhenNoScopes(t *testing.T) {
 	}
 }
 
-// TestEnqueueConfigStateDriftIntentsConstructsQueueWithoutLease guards
-// against re-introducing a placeholder LeaseOwner/LeaseDuration on the
-// enqueue-only drift path. Per issue #170 and the validate() split, the
-// reducer queue's enqueue side accepts a zero-valued lease; the inserted
-// fact_work_items row writes NULL for lease_owner/claim_until anyway. If a
-// future change rewires drift_enqueue.go to call NewReducerQueue with a
-// fabricated lease again, the SQL would carry the bogus owner string in its
-// args and this assertion catches it.
-func TestEnqueueConfigStateDriftIntentsConstructsQueueWithoutLease(t *testing.T) {
-	t.Parallel()
-
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{rows: [][]any{
-				{"state_snapshot:s3:hash-1", "gen-state-1"},
-			}},
-		},
-	}
-	store := NewIngestionStore(db)
-
-	if err := store.EnqueueConfigStateDriftIntents(context.Background(), nil, nil); err != nil {
-		t.Fatalf("EnqueueConfigStateDriftIntents() error = %v, want nil", err)
-	}
-
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d (single INSERT batch)", got, want)
-	}
-
-	// The enqueue SQL itself writes NULL for lease_owner / claim_until via
-	// the VALUES tuple literal (see reducer_queue.go:307); no bind arg
-	// should carry the historical "bootstrap-index" lease-owner placeholder.
-	for i, arg := range db.execs[0].args {
-		if s, ok := arg.(string); ok && s == "bootstrap-index" {
-			t.Fatalf("INSERT args[%d] = %q — drift path must not stamp a placeholder lease owner", i, s)
-		}
-	}
-}
+// NOTE: TestEnqueueConfigStateDriftIntentsConstructsQueueWithoutLease was
+// removed in response to Copilot review of PR #196. The test claimed to guard
+// against re-introducing a placeholder lease owner on the drift enqueue path
+// by scanning INSERT args for "bootstrap-index", but the enqueue SQL writes
+// NULL constants for lease_owner / claim_until in the VALUES tuple
+// (see enqueueReducerBatchPrefix). A placeholder LeaseOwner on the
+// ReducerQueue struct would never reach the bind args, so the assertion was
+// tautological.
+//
+// The actual regression — that the drift enqueue path no longer needs a
+// fabricated lease — is covered by
+// TestReducerQueueValidateEnqueueAcceptsZeroLeaseFields in
+// reducer_queue_test.go, which proves the validateEnqueue contract that
+// drift_enqueue.go relies on.
 
 func TestEnqueueConfigStateDriftIntentsRequiresDatabase(t *testing.T) {
 	t.Parallel()

@@ -131,8 +131,11 @@
   `LeaseDuration`. Both fields remain NULL on insert per
   `enqueueReducerBatchPrefix`; the enqueue SQL never reads them. The
   internal `validateEnqueue` runs without lease fields and `validateClaim`
-  extends it with the lease-owner fence used by `Claim`, `Heartbeat`,
-  `Ack`, and `Fail`. Do not invent a parallel ReducerQueueEnqueuer port —
+  adds the lease-owner fence used by `Claim`, `Heartbeat`, `Ack`, and
+  `Fail`. Both delegate the shared db-nil and `ClaimDomain.Validate()`
+  checks to `validateShared`, which stamps the calling side onto the
+  error so wrapped failures self-locate to enqueue vs claim. Do not
+  invent a parallel ReducerQueueEnqueuer port —
   `projector.ReducerIntentWriter` already provides the narrower
   consumer-side interface (`internal/projector/runtime.go`).
 
