@@ -1,0 +1,23 @@
+docs/docs/reference/telemetry/index.md
+  s_0fd19061762ced::t_c253d7c4f26204 343
+go/cmd/collector-confluence/README.md
+  s_0fd19061762ced::t_af1e9b4cbf28ac 55-62
+go/internal/collector/confluence/README.md
+  s_0fd19061762ced::t_dc9a4c07f686e1 93-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "f0d0162ffbcbe6456160f25359ecaf045738e97d",
+  "prompts": {},
+  "sessions": {
+    "s_0fd19061762ced": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1d42-6b58-7843-9a2d-1c8df56ad1e2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
