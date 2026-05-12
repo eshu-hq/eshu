@@ -1,5 +1,11 @@
 services:
   nornicdb:
+    # NOTE: the `:latest` default tracks NornicDB-New main and may include
+    # storage-format changes that prevent downgrade from a newer
+    # `nornicdb_data` volume to an older binary. When upgrading an existing
+    # local stack, back up `nornicdb_data` first or set NORNICDB_IMAGE to a
+    # specific version/digest (e.g. `timothyswt/nornicdb-amd64-cpu:v1.0.45`)
+    # to pin a reproducible build. See PR #229 and ADR row 1818 for context.
     image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-amd64-cpu:latest}
     platform: ${NORNICDB_PLATFORM:-linux/amd64}
     ports:
