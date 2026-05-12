@@ -32,8 +32,10 @@
   healthy.** Do not swap the check order without updating operator runbooks.
 - **Shared projection work is part of readiness.** After the fact queue drains,
   outstanding `DomainBacklogs` are shared projection intents that still need to
-  become graph-visible. Keep that path in `evaluateHealth`; otherwise code graph
-  and dead-code queries can look ready before reducer-owned edges are written.
+  become graph-visible. Lease-only rows with zero outstanding intents are worker
+  activity and must not block healthy. Keep the outstanding-intent path in
+  `evaluateHealth`; otherwise code graph and dead-code queries can look ready
+  before reducer-owned edges are written.
 - **`DomainBacklogs` are capped at `Options.DomainLimit` (default 5)** by
   `topDomainBacklogs`. Do not remove this cap — unbounded domain output breaks
   CLI pagination and admin dashboards.
