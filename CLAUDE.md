@@ -529,6 +529,34 @@ Implementation rules:
 - High-cardinality values such as file paths and fact IDs belong in spans or
   logs, not metric labels.
 
+## Cypher Work
+
+Any time you read, write, debug, or optimize Cypher — NornicDB or Neo4j —
+research the docs first. **Accuracy, performance, and concurrency** is the
+motto; you cannot promise any of them without knowing what the engine actually
+does with your query.
+
+Required reading before any non-trivial Cypher change:
+
+- `~/os-repos/NornicDB-New/docs/performance/hot-path-query-cookbook.md` —
+  identify which recognized hot-path shape your query matches, or note that
+  none applies.
+- `~/os-repos/NornicDB-New/nornicdb-failing-query-shapes.md` — confirm your
+  shape is not on the known-bad list.
+- The relevant `pkg/cypher/*hotpath*_test.go` files in NornicDB-New — those
+  tests are NornicDB's empirical contract for what shape engages which fast
+  path.
+
+Before proposing a change:
+
+- Trace the exact dispatch path the production query takes — which executor
+  handler, which fast path or fallback — using profile or log evidence, not
+  assumption.
+- State which fast path your fix will engage and why. If you cannot make that
+  statement with evidence, stop and ask.
+
+The `cypher-query-rigor` skill encodes the rest of the discipline.
+
 ## NornicDB Compatibility Workflow
 
 When Eshu hits a NornicDB incompatibility such as Cypher parse rejection,
