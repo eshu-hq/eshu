@@ -6,7 +6,8 @@
 2. doc.go - godoc contract for the Ruby adapter
 3. parser.go - declaration, variable, import, and payload behavior
 4. calls.go - method-call and argument normalization helpers
-5. parser_test.go - behavior coverage for payload shape
+5. dead_code_roots.go - Ruby parser-backed dead-code root metadata
+6. parser_test.go - behavior coverage for payload shape
 
 ## Invariants this package enforces
 
@@ -14,7 +15,13 @@
   package, but this package must not import internal/parser.
 - Parse preserves the legacy Ruby payload shape, including modules,
   module_inclusions, framework_semantics, and context metadata.
+- Ruby `end` handling must keep function and class `end_line` metadata current
+  because reducer call materialization depends on method containment for
+  receiverless helper calls.
 - PreScan derives names from Parse so parent pre-scan and full parse agree.
+- Dead-code roots are parser evidence only. Rails controller action and callback
+  roots must stay bounded to literal class names, visibility lines, and symbol
+  arguments the line parser has actually seen.
 
 ## Common changes and how to scope them
 
@@ -23,14 +30,16 @@
   package unless the task explicitly includes those files.
 - Use internal/parser/shared helpers for payload buckets and sorting.
 - Keep constants in the legacy `variables` bucket unless a downstream shape
-  change explicitly introduces a constants bucket. Rails/Rake framework roots
-  also need a separate root-modeling design; DSL calls alone are call evidence.
+  change explicitly introduces a constants bucket. Keep unmodeled Rails/Rake DSL
+  calls as call evidence until a focused root model and dogfood proof exists.
 
 ## Failure modes and how to debug
 
 - Missing context metadata usually means block push/pop behavior changed.
 - Missing call rows usually mean calls.go filtered a DSL or chained-call shape
   that parent parser tests rely on.
+- Missing Ruby root metadata usually means `dead_code_roots.go` did not see a
+  literal callback symbol, script guard call, or class visibility transition.
 
 ## Anti-patterns specific to this package
 
