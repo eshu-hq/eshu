@@ -187,6 +187,9 @@ The response is written with `WriteSuccess` when the caller sends
 fields. Without that header, `WriteJSON` emits the legacy payload directly.
 `BuildTruthEnvelope` (`contract.go:411`) constructs the `TruthEnvelope`; it
 panics if the capability string is not in `capabilityMatrix`.
+Repository runtime artifacts parse Dockerfile stage metadata through
+`buildDockerfileRuntimeArtifacts`, including base image, base tag, build
+platform, copy-from, command, port, and environment signals.
 The OpenAPI fragment for `POST /api/v0/code/dead-code` names modeled language
 roots such as Go public-package exports plus C, C#, C++, Ruby, and Groovy
 parser-backed roots. Its language filter examples include `csharp`, `c`,

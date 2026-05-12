@@ -4,8 +4,8 @@
 
 This package owns Dockerfile parser helpers that do not need parent parser
 payload helpers. It extracts runtime metadata such as stages, exposed ports,
-arguments, environment variables, labels, and runtime commands from Dockerfile
-source text.
+arguments, environment variables, labels, build platforms, and runtime commands
+from Dockerfile source text.
 
 ## Ownership boundary
 
@@ -32,6 +32,16 @@ parser engine.
 
 RuntimeMetadata keeps bucket ordering deterministic by sorting rows by name,
 matching the old parent parser payload behavior.
+
+RuntimeMetadata follows Dockerfile command-line token rules for the metadata it
+models: quoted and escaped `ENV` and `LABEL` values keep spaces, legacy
+`ENV key value` lines emit a single environment row, multi-argument `ARG`
+instructions emit one row per argument, `FROM --platform=...` records stage
+platform metadata, registry hosts with ports do not get split as image tags,
+and the Dockerfile `# escape=` parser directive controls line continuation plus
+token escaping when it appears before any non-directive comment, empty line, or
+instruction. The tokenization helpers live in `tokens.go` so `metadata.go`
+stays below the package line cap.
 
 Metadata.Map keeps the legacy `map[string]any` payload shape because query and
 relationship packages still consume `parser.ExtractDockerfileRuntimeMetadata`.

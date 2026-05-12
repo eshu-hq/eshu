@@ -37,6 +37,9 @@ func buildDockerfileRuntimeArtifacts(file FileContent) []map[string]any {
 		if baseTag := strings.TrimSpace(StringVal(stage, "base_tag")); baseTag != "" {
 			row["base_tag"] = baseTag
 		}
+		if platform := strings.TrimSpace(StringVal(stage, "platform")); platform != "" {
+			row["platform"] = platform
+		}
 		if copyFrom := strings.TrimSpace(StringVal(stage, "copies_from")); copyFrom != "" {
 			row["copy_from"] = []string{copyFrom}
 		}
@@ -63,6 +66,9 @@ func dockerfileRuntimeSignals(stage map[string]any, metadata map[string]any) []s
 	stageName := strings.TrimSpace(StringVal(stage, "name"))
 	if strings.TrimSpace(StringVal(stage, "base_image")) != "" {
 		signals = append(signals, "base_image")
+	}
+	if strings.TrimSpace(StringVal(stage, "platform")) != "" {
+		signals = append(signals, "platform")
 	}
 	if strings.TrimSpace(StringVal(stage, "copies_from")) != "" {
 		signals = append(signals, "copy_from")
