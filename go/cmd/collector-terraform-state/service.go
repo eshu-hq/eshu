@@ -59,6 +59,7 @@ func buildClaimedService(
 		SchemaResolver: config.SchemaResolver,
 		Tracer:         tracer,
 		Instruments:    instruments,
+		Logger:         logger,
 	}
 
 	return collector.ClaimedService{

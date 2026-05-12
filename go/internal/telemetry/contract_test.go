@@ -34,6 +34,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"pack",
 		"rule",
 		"drift_kind",
+		"resource_type",
 	}
 
 	got := MetricDimensionKeys()
@@ -119,6 +120,10 @@ func TestLogKeys(t *testing.T) {
 		"multi_element.prefix",
 		"multi_element.count",
 		"multi_element.source",
+		"resource_type",
+		"attribute_key",
+		"path",
+		"error",
 	}
 
 	got := LogKeys()

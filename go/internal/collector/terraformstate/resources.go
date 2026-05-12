@@ -140,7 +140,7 @@ func (p *stateParser) readInstance(resource resourceContext, instanceIndex int) 
 				instance.IndexKeyHash = instanceIndexHash(value)
 			}
 		case "attributes":
-			readAttributes, err := readAttributeValues(p.decoder)
+			readAttributes, err := p.readAttributeValues(strings.TrimSpace(resource.Type))
 			if err != nil {
 				return err
 			}

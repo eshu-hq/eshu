@@ -83,6 +83,33 @@ type ProviderSchemaResolver interface {
 	HasAttribute(resourceType string, attributeKey string) bool
 }
 
+// CompositeCaptureSkip describes one moment where the streaming nested walker
+// stopped walking a SchemaKnown Terraform-state composite because the state
+// JSON shape disagreed with the schema's expectation. Carries the diagnostic
+// detail (path, attribute key, parse error) operators need to investigate a
+// "bundle and state disagree" condition without exposing high-cardinality
+// dimensions through metric labels.
+type CompositeCaptureSkip struct {
+	ResourceType string
+	AttributeKey string
+	Path         string
+	Err          error
+}
+
+// CompositeCaptureRecorder is the observability seam the streaming nested
+// walker uses when it stops walking a SchemaKnown composite. Implementations
+// must be safe for concurrent use; one recorder is shared across every
+// Terraform-state parse the collector runs.
+//
+// The collector wires a recorder that increments the
+// eshu_dp_drift_schema_unknown_composite_total{resource_type} counter and
+// emits a slog.Warn line with the high-cardinality attribute_key and source
+// path. A nil recorder is allowed (early bootstrap, fixtures without
+// telemetry); the parser treats nil as a no-op.
+type CompositeCaptureRecorder interface {
+	Record(ctx context.Context, skip CompositeCaptureSkip)
+}
+
 // ParseOptions carries the durable envelope and redaction context for parsing.
 type ParseOptions struct {
 	Scope          scope.IngestionScope
@@ -98,8 +125,13 @@ type ParseOptions struct {
 	// RedactionRules. The collector wires a real resolver from the packaged
 	// terraformschema bundle at startup; tests inject deterministic stubs.
 	SchemaResolver ProviderSchemaResolver
-	FencingToken   int64
-	SourceWarnings []SourceWarning
+	// CompositeCaptureMetrics receives one Record call every time the
+	// streaming nested walker stops walking a SchemaKnown composite because
+	// the state JSON shape disagrees with the schema. A nil recorder is
+	// treated as a no-op so fixtures and early bootstrap stay operable.
+	CompositeCaptureMetrics CompositeCaptureRecorder
+	FencingToken            int64
+	SourceWarnings          []SourceWarning
 }
 
 // SourceWarning is source-level evidence that should be emitted with the parse

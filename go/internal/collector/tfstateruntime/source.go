@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -124,6 +125,12 @@ type ClaimedSource struct {
 	Clock          func() time.Time
 	Tracer         trace.Tracer
 	Instruments    *telemetry.Instruments
+	// Logger carries the structured slog handle used by the composite-capture
+	// recorder when the streaming nested walker drops a SchemaUnknown
+	// composite. A nil logger is allowed; the recorder still increments the
+	// eshu_dp_drift_schema_unknown_composite_total counter so operators can
+	// see provider-schema drift via metrics alone.
+	Logger *slog.Logger
 }
 
 // NextClaimed implements collector.ClaimedSource for Terraform state work.
@@ -310,16 +317,17 @@ func (s ClaimedSource) parseCandidate(
 	}
 	start := time.Now()
 	result, err := terraformstate.ParseStream(ctx, reader, terraformstate.ParseOptions{
-		Scope:          scopeValue,
-		Generation:     generationValue,
-		Source:         sourceKey,
-		Metadata:       metadata,
-		ObservedAt:     generationValue.ObservedAt,
-		RedactionKey:   s.RedactionKey,
-		RedactionRules: s.RedactionRules,
-		SchemaResolver: s.SchemaResolver,
-		FencingToken:   fencingToken,
-		SourceWarnings: sourceWarningsForCandidate(candidate),
+		Scope:                   scopeValue,
+		Generation:              generationValue,
+		Source:                  sourceKey,
+		Metadata:                metadata,
+		ObservedAt:              generationValue.ObservedAt,
+		RedactionKey:            s.RedactionKey,
+		RedactionRules:          s.RedactionRules,
+		SchemaResolver:          s.SchemaResolver,
+		CompositeCaptureMetrics: s.newCompositeCaptureRecorder(),
+		FencingToken:            fencingToken,
+		SourceWarnings:          sourceWarningsForCandidate(candidate),
 	}, factSpool)
 	s.recordParseDuration(ctx, sourceKey.BackendKind, time.Since(start))
 	if err != nil {

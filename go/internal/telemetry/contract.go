@@ -78,6 +78,14 @@ const (
 	// grep-by-constant. Referenced from
 	// go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go.
 	MetricDimensionDriftUnresolvedModuleReason = "reason"
+	// MetricDimensionResourceType labels
+	// eshu_dp_drift_schema_unknown_composite_total with the Terraform resource
+	// type (e.g. "aws_s3_bucket") whose composite attribute the streaming
+	// nested walker dropped because the loaded ProviderSchemaResolver does not
+	// recognize it. Cardinality is bounded by the schema bundle; the
+	// high-cardinality attribute_key stays in the structured log per the
+	// observability rules in CLAUDE.md.
+	MetricDimensionResourceType = "resource_type"
 )
 
 // Span names define the stable data-plane tracing contract.
@@ -191,6 +199,31 @@ const (
 	// recursion). The two sources have different attr shapes (state side has
 	// count, parser side does not); the source field disambiguates them.
 	LogKeyDriftMultiElementSource = "multi_element.source"
+	// LogKeyDriftCompositeResourceType is the Terraform resource type carried
+	// alongside eshu_dp_drift_schema_unknown_composite_total log lines so an
+	// operator reading either signal sees the same dimension key. Duplicates
+	// the metric label's resource_type by intent — log lines must carry
+	// enough context for a triage operator to pivot without re-reading the
+	// counter export.
+	LogKeyDriftCompositeResourceType = "resource_type"
+	// LogKeyDriftCompositeAttributeKey is the high-cardinality attribute key
+	// the streaming nested walker dropped. Stays in log attrs (never metric
+	// labels) because attribute keys are unbounded across provider versions;
+	// operators investigating a counter spike read this key to learn which
+	// nested block disagrees with the bundle.
+	LogKeyDriftCompositeAttributeKey = "attribute_key"
+	// LogKeyDriftCompositePath is the source-prefixed walker path
+	// (resources.*.attributes.<key>) where the composite-capture skip
+	// happened. Anchors the log line to the parser surface that emitted it
+	// so a future second emitter (e.g., reducer-side composite reasoning)
+	// can carry the same key with a different prefix.
+	LogKeyDriftCompositePath = "path"
+	// LogKeyDriftCompositeError carries the walker's diagnostic error string
+	// (errCompositeSchemaUnknown for "bundle behind reality" or a
+	// walker-internal parse error for "state shape disagreed with schema").
+	// Closed enum at the parser boundary; future emitters may add new
+	// classes.
+	LogKeyDriftCompositeError = "error"
 )
 
 var metricDimensionKeys = []string{
@@ -219,6 +252,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionPack,
 	MetricDimensionRule,
 	MetricDimensionDriftKind,
+	MetricDimensionResourceType,
 }
 
 var spanNames = []string{
@@ -281,6 +315,10 @@ var logKeys = []string{
 	LogKeyDriftMultiElementPrefix,
 	LogKeyDriftMultiElementCount,
 	LogKeyDriftMultiElementSource,
+	LogKeyDriftCompositeResourceType,
+	LogKeyDriftCompositeAttributeKey,
+	LogKeyDriftCompositePath,
+	LogKeyDriftCompositeError,
 }
 
 // MetricDimensionKeys returns the frozen ordered metric dimensions.
