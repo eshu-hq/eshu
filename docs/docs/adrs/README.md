@@ -49,6 +49,7 @@ still needs an owner.
 | `2026-05-04-neo4j-parity-optimization-plan.md` | Accepted | Records the schema-first Neo4j proof, the shared writer cleanup, and the resulting support posture. |
 | `2026-05-09-iac-replatforming-planner.md` | Proposed | Define the read-only IaC management-status and re-platforming planner capability on top of Git, Terraform state, and cloud scanner evidence. |
 | `2026-05-10-tag-taxonomy-correlation-dsl-addendum.md` | Accepted | Freezes tag alias packs, overrides, source precedence, negative evidence, and the `aws_tag_distribution` admin learning loop. |
+| `2026-05-11-module-aware-drift-joining.md` | Accepted; implementation pending | Adopts Option B (loader-side module-call join) for issue #169 so `module.<name>.<type>.<address>` state addresses can join with config-side `terraform_resources` facts instead of surfacing as `added_in_state`. Parser stays per-file; `PostgresDriftEvidenceLoader` learns a callee-directory prefix map. Local-filesystem `source` paths in scope; registry, Git, archive, cross-repo sources fall back to `added_in_state` with a new `eshu_dp_drift_unresolved_module_calls_total{reason}` counter. |
 
 ## Discussion Shortlist
 
