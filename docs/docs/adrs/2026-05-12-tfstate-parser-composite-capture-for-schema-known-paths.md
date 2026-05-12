@@ -295,11 +295,12 @@ implementation PR to producing before/after evidence:
 
 - **Fixture**: a synthetic 20k-instance state where every instance
   carries a populated `server_side_encryption_configuration` composite.
-  Built from `largeResourceInstancesStateReader` in
-  `parser_memory_test.go:367` (extended to inject the composite).
+  Built from `largeCompositeResourceInstancesStateReader` in
+  `parser_memory_composite_test.go:171` (the composite variant of
+  `largeResourceInstancesStateReader` at `parser_memory_test.go:370`).
 - **Metric**: `runtime.MemStats.HeapAlloc` peak via
   `measurePeakHeapGrowth` (existing helper at
-  `parser_memory_test.go:312`).
+  `parser_memory_test.go:315`).
 - **Acceptance**: the new composite-capture path must keep peak heap
   growth under `maxStreamResourcePeakHeapGrowth = 48 MB` on the synthetic
   fixture. If it exceeds, the implementation must STOP and re-design.
