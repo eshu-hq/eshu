@@ -1,6 +1,6 @@
 services:
   nornicdb:
-    image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-amd64-cpu:v1.0.45}
+    image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-amd64-cpu:latest}
     platform: ${NORNICDB_PLATFORM:-linux/amd64}
     ports:
       - "${NEO4J_HTTP_PORT:-7474}:7474"
