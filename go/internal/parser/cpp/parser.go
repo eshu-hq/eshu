@@ -40,7 +40,7 @@ func Parse(
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "preproc_include":
-			appendImportFromNode(payload, firstNamedDescendant(node, "system_lib_string", "string_literal"), source, "cpp")
+			appendCPPImportMetadata(payload, node, source)
 		case "preproc_def", "preproc_function_def":
 			appendMacro(payload, node, source, "cpp")
 		case "class_specifier":
@@ -62,6 +62,7 @@ func Parse(
 		}
 	})
 	appendCTypedefAliasesFromSource(payload, string(source), "cpp")
+	annotateCPPDeadCodeRoots(payload, root, source)
 
 	sortSystemsPayload(
 		payload,
@@ -89,8 +90,8 @@ func PreScan(path string, parser *tree_sitter.Parser) ([]string, error) {
 }
 
 func appendCPPFunction(payload map[string]any, node *tree_sitter.Node, source []byte, options shared.Options) {
-	nameNode := firstNamedDescendant(node, "identifier", "field_identifier")
-	name := shared.NodeText(nameNode, source)
+	nameNode := firstNamedDescendant(node, "identifier", "field_identifier", "destructor_name")
+	name, qualifiedClass := cppFunctionNameAndClass(node, nameNode, source)
 	if name == "" {
 		return
 	}
@@ -101,7 +102,9 @@ func appendCPPFunction(payload map[string]any, node *tree_sitter.Node, source []
 		"decorators":  []string{},
 		"lang":        "cpp",
 	}
-	if classContext := nearestNamedAncestor(node, source, "class_specifier", "struct_specifier"); classContext != "" {
+	if qualifiedClass != "" {
+		item["class_context"] = qualifiedClass
+	} else if classContext := nearestNamedAncestor(node, source, "class_specifier", "struct_specifier"); classContext != "" {
 		item["class_context"] = classContext
 	}
 	if options.IndexSource {

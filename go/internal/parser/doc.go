@@ -28,7 +28,10 @@
 // roots, public Gradle DSL method roots, and same-class method-reference target
 // roots. C roots include main functions, directly included public-header
 // declarations, signal handlers, callback argument targets, and direct
-// function-pointer initializer targets. Java roots also include Spring
+// function-pointer initializer targets. C++ roots include main functions,
+// directly included public-header declarations, virtual and override methods,
+// callback argument targets, direct function-pointer initializer targets, and
+// Node native-addon entrypoints. Java roots also include Spring
 // component/configuration-property
 // classes, Spring request/bean/event/scheduled methods, Java lifecycle
 // callbacks, JUnit test and lifecycle methods, Jenkins extension/symbol/

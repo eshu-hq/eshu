@@ -76,6 +76,9 @@ Every dead-code analysis must classify roots into one or more of these groups:
     inherited by parser-proven public classes are treated as public API bases
     so inherited methods are protected. Eshu does not treat every
     non-underscore Python symbol as public in application code.
+  - C++ (currently modeled, bounded): functions and class methods declared in
+    directly included local headers are public-API roots. Eshu does not yet
+    resolve transitive include graphs or target-specific public surfaces.
   - Rust, Java, and broader language-specific public-surface rules remain
     Chunk 4 follow-up work.
 - conditional roots
@@ -154,7 +157,7 @@ can still be `derived_candidate_only` for dead-code cleanup until it has a
 dead-code fixture suite, root model, reachability proof, and API/MCP evidence.
 The initial maturity states are:
 
-- `derived`: current C, Go, Python, Java, JavaScript, TypeScript, TSX, Rust,
+- `derived`: current C, C++, Go, Python, Java, JavaScript, TypeScript, TSX, Rust,
   and SQL candidate scans with partial root modeling
 - `derived_candidate_only`: parser-supported source languages where Eshu can
   return graph-backed candidates but has not implemented enough language roots
@@ -184,6 +187,16 @@ arguments, and direct function-pointer initializer targets. It remains non-exact
 until macro expansion, conditional compilation, build-target selection,
 transitive include graphs, broader callback registration, dynamic symbol lookup,
 and external-linkage resolution are modeled or scoped out.
+
+C++ currently reports `derived` with parser-backed roots for `main`, functions
+and methods declared by directly included local headers, virtual methods,
+override methods, direct callback arguments, and direct function-pointer
+initializer targets, plus Node native-addon entrypoint macros such as
+`NAPI_MODULE_INIT`. It remains non-exact until broader macro expansion,
+conditional compilation, build-target selection, transitive include graphs,
+template instantiation, overload resolution, virtual dispatch breadth, broader
+callback registration, dynamic symbol lookup, and external-linkage resolution
+are modeled or scoped out.
 
 The current `code_quality.dead_code` capability is code-call oriented. It must
 not classify Terraform, Helm, Kustomize, Kubernetes, ArgoCD, or other IaC
@@ -269,6 +282,9 @@ Current branch status:
 - C main functions, directly included public-header declarations, signal
   handlers, callback arguments, and direct function-pointer initializer targets
   are modeled as parser-backed roots
+- C++ main functions, directly included public-header declarations, virtual and
+  override methods, callback arguments, and direct function-pointer initializer
+  targets plus Node native-addon entrypoints are modeled as parser-backed roots
 - Java main methods, constructors, overrides, Spring/JUnit/Jenkins/Stapler
   callbacks, Gradle plugin/task surfaces, serialization and Externalizable
   hook signatures, bounded literal reflection, ServiceLoader providers, Spring
@@ -301,8 +317,10 @@ Current branch status:
   JavaScript/TypeScript worker, static module graph, and dynamic-dispatch roots
   plus broader Java dynamic dispatch, dependency injection, and string-built
   reflection plus C macro expansion, conditional compilation, transitive include
-  graphs, dynamic symbol lookup, and broader callback registries plus arbitrary
-  Rust macro expansion, cfg/Cargo feature solving, cross-crate semantic module
+  graphs, dynamic symbol lookup, and broader callback registries plus C++ macro
+  expansion, conditional compilation, transitive include graphs, template
+  instantiation, overload resolution, virtual dispatch breadth, and broader
+  callback registries plus arbitrary Rust macro expansion, cfg/Cargo feature solving, cross-crate semantic module
   resolution, broad trait dispatch, dynamic SQL, dialect-specific routine
   resolution, and SQL migration-order resolution
   remain open, so dead-code truth stays `derived`

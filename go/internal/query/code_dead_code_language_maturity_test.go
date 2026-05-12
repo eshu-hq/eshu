@@ -60,6 +60,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 
 	for language, want := range map[string]string{
 		"c":          "derived",
+		"cpp":        "derived",
 		"go":         "derived",
 		"python":     "derived",
 		"javascript": "derived",
@@ -124,6 +125,28 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 	} {
 		if !queryTestStringSliceContains(cBlockers, want) {
 			t.Fatalf("blockers[c] missing %q in %#v", want, cBlockers)
+		}
+	}
+	cppBlockers, ok := blockers["cpp"].([]any)
+	if !ok {
+		t.Fatalf("blockers[cpp] type = %T, want []any", blockers["cpp"])
+	}
+	for _, want := range []string{
+		"preprocessor_macro_expansion_unavailable",
+		"conditional_compilation_unresolved",
+		"build_target_resolution_unavailable",
+		"include_graph_resolution_unavailable",
+		"public_header_surface_unresolved",
+		"template_instantiation_unresolved",
+		"overload_resolution_unavailable",
+		"virtual_dispatch_unresolved",
+		"function_pointer_dispatch_unresolved",
+		"callback_registration_unresolved",
+		"dynamic_symbol_lookup_unresolved",
+		"external_linkage_resolution_unavailable",
+	} {
+		if !queryTestStringSliceContains(cppBlockers, want) {
+			t.Fatalf("blockers[cpp] missing %q in %#v", want, cppBlockers)
 		}
 	}
 }

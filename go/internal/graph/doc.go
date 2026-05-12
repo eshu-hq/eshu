@@ -8,6 +8,7 @@
 // repository deletion mutations, and the EnsureSchema constraint and index
 // contract for the Neo4j and NornicDB dialects. Schema setup owns the
 // SourceLocalRecord identity constraint required for source-local MERGE
-// performance and keeps parser-matured infrastructure labels indexed before
-// canonical writers upsert them.
+// performance, keeps parser-matured infrastructure labels indexed before
+// canonical writers upsert them, and keeps backend-specific constraint
+// translation inside the schema dialect helpers.
 package graph

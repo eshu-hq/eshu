@@ -40,7 +40,7 @@ Each language fixture must include:
 | --- | --- | --- | --- |
 | C | active | `derived` | transitive include graphs, build-target conditionals, broader callback registries |
 | C# | planned | `derived_candidate_only` | public types, interface methods, attributes, ASP.NET roots |
-| C++ | planned | `derived_candidate_only` | entrypoints, exported headers, virtual dispatch, function pointers |
+| C++ | active | `derived` | transitive include graphs, templates, overload resolution, build-target conditionals |
 | Dart | planned | `derived_candidate_only` | public libraries, Flutter callbacks, constructors |
 | Elixir | planned | `derived_candidate_only` | modules, behaviours, Phoenix roots, supervision callbacks |
 | Go | active | `derived` | function values, local interfaces, method sets, DI callbacks |

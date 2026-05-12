@@ -1,6 +1,6 @@
 # C++ Dead-Code Fixture Intent
 
-Maturity: `derived_candidate_only`.
+Maturity: `derived`.
 
 Expected symbols:
 
@@ -9,8 +9,8 @@ Expected symbols:
 | `unused` | `unusedCleanupCandidate` |
 | `direct_reference` | `directlyUsedHelper` |
 | `entrypoint` | `main` |
-| `public_api` | `PublicWidget::render` |
-| `framework_root` | `Command::run` |
-| `semantic_dispatch` | `CallbackRunner::invoke` |
+| `public_api` | `eshuCppPublicAPI`, `HeaderWidget::render` |
+| `framework_root` | `Command::run`, `DerivedCommand::run`, `NAPI_MODULE_INIT` |
+| `semantic_dispatch` | `directlyUsedHelper`, `dispatchTarget`, `CallbackRunner::invoke` |
 | `excluded` | `generatedExcludedHelper` |
 | `ambiguous` | `dynamicMethodName` |
