@@ -585,8 +585,8 @@ Example dead-code workflow:
 ```
 
 `repo_id` is optional. `language` is optional; pass it when validating one
-parser language family such as `c`, `cpp`, `sql`, `go`, `python`, `java`,
-`javascript`, `typescript`, `tsx`, `ruby`, or `rust`. For SQL, the language filter narrows the
+parser language family such as `c`, `cpp`, `sql`, `go`, `groovy`, `python`,
+`java`, `javascript`, `typescript`, `tsx`, `ruby`, or `rust`. For SQL, the language filter narrows the
 candidate scan to `SqlFunction` routines so mixed repositories with many
 application functions do not starve SQL routine evidence. When `repo_id` is
 omitted, the Go API returns the first page of
@@ -621,6 +621,11 @@ controller actions, Rails callback methods, literal method-reference targets,
 dynamic-dispatch hooks, and script entrypoints, while metaprogramming, autoload
 and constant resolution, framework route files, and gem public API surfaces
 remain named exactness blockers.
+Groovy dead-code results are `derived_candidate_only`: parser metadata
+suppresses Jenkinsfile pipeline entrypoints and Jenkins shared-library
+`vars/*.groovy` `call` methods, while dynamic dispatch, closure delegates,
+Jenkins shared-library resolution, and pipeline DSL dynamic steps remain named
+exactness blockers.
 `analysis.roots_skipped_missing_source`
 counts Go candidates where the framework-root checks could not run because the
 content store did not have source cached. `analysis.framework_roots_from_parser_metadata`

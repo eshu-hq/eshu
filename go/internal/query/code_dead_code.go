@@ -350,6 +350,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsRubyRoot(result, entity, stats) {
 		return true
 	}
+	if deadCodeIsGroovyRoot(result, entity, stats) {
+		return true
+	}
 	if deadCodeIsJavaScriptFrameworkRoot(result, entity, stats) {
 		return true
 	}

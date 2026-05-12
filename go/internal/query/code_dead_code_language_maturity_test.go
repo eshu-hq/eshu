@@ -70,6 +70,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		"rust":       "derived",
 		"sql":        "derived",
 		"ruby":       "derived",
+		"groovy":     "derived_candidate_only",
 	} {
 		if got := maturity[language]; got != want {
 			t.Fatalf("maturity[%s] = %#v, want %#v", language, got, want)
@@ -122,6 +123,20 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 	} {
 		if !queryTestStringSliceContains(rubyBlockers, want) {
 			t.Fatalf("blockers[ruby] missing %q in %#v", want, rubyBlockers)
+		}
+	}
+	groovyBlockers, ok := blockers["groovy"].([]any)
+	if !ok {
+		t.Fatalf("blockers[groovy] type = %T, want []any", blockers["groovy"])
+	}
+	for _, want := range []string{
+		"dynamic_dispatch_unresolved",
+		"closure_delegate_resolution_unavailable",
+		"jenkins_shared_library_resolution_unavailable",
+		"pipeline_dsl_dynamic_steps_unresolved",
+	} {
+		if !queryTestStringSliceContains(groovyBlockers, want) {
+			t.Fatalf("blockers[groovy] missing %q in %#v", want, groovyBlockers)
 		}
 	}
 	cBlockers, ok := blockers["c"].([]any)

@@ -75,6 +75,12 @@ var deadCodeLanguageExactnessBlockers = map[string][]string{
 		"gem_public_api_surface_unresolved",
 		"constant_resolution_unavailable",
 	},
+	"groovy": {
+		"dynamic_dispatch_unresolved",
+		"closure_delegate_resolution_unavailable",
+		"jenkins_shared_library_resolution_unavailable",
+		"pipeline_dsl_dynamic_steps_unresolved",
+	},
 	"sql": {
 		"dynamic_sql_unresolved",
 		"dialect_specific_routine_resolution_unavailable",

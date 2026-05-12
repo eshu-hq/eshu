@@ -198,6 +198,8 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 		"ruby.dynamic_dispatch_hook",
 		"ruby.method_reference_target",
 		"ruby.script_entrypoint",
+		"groovy.jenkins_pipeline_entrypoint",
+		"groovy.shared_library_call",
 		"typescript.interface_method_implementation",
 		"typescript.module_contract_export",
 		"typescript.static_registry_member",
