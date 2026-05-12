@@ -74,8 +74,20 @@ If a change affects Docker Compose, also read:
 If a change affects NornicDB knobs or compatibility, also read:
 
 - `docs/docs/reference/nornicdb-tuning.md`
+- `docs/docs/reference/nornicdb-pitfalls.md`
 - `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`
 - `docs/docs/adrs/2026-04-20-embedded-local-backends-implementation-plan.md`
+
+When debugging NornicDB-shaped failures (false constraint violations,
+MERGE not finding existing nodes, re-projection conflicts), read
+`docs/docs/reference/nornicdb-pitfalls.md` BEFORE writing or proposing a
+NornicDB patch. That page captures known behaviors that have caught Eshu
+off guard, and the validation guidance there short-circuits speculative
+patching. Always validate the documented behavior against the
+NornicDB-New fork source (`/Users/asanabria/os-repos/NornicDB-New`) and
+the upstream changelog for the pinned binary tag before relying on the
+pitfall write-up — NornicDB evolves quickly and a documented behavior may
+already be fixed upstream.
 
 ## Communication Style
 
