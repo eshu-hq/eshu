@@ -319,6 +319,7 @@ func buildMarkWebhookTriggersFailedQuery(idCount int) string {
 		failureClassParam,
 		failureMessageParam,
 		timestampParam,
+		timestampParam,
 		triggerIDPlaceholders(idCount),
 	)
 }

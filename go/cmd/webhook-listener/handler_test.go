@@ -6,6 +6,8 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -226,6 +228,57 @@ func TestWebhookHandlerRejectsMissingGitLabDeliveryID(t *testing.T) {
 	}
 }
 
+func TestWebhookHandlerDistinguishesBodyReadErrors(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingTriggerStore{}
+	mux := mustWebhookMux(t, webhookListenerConfig{
+		GitHubSecret:        "secret",
+		GitHubPath:          "/webhooks/github",
+		MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+	}, store)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/github", errReader{})
+	req.Header.Set("X-GitHub-Event", "push")
+	req.Header.Set("X-GitHub-Delivery", "delivery-1")
+	req.Header.Set("X-Hub-Signature-256", "sha256=unused")
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if len(store.triggers) != 0 {
+		t.Fatalf("stored triggers = %d, want 0", len(store.triggers))
+	}
+}
+
+func TestWebhookHandlerReportsOversizedBody(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{"too":"large"}`)
+	store := &recordingTriggerStore{}
+	mux := mustWebhookMux(t, webhookListenerConfig{
+		GitHubSecret:        "secret",
+		GitHubPath:          "/webhooks/github",
+		MaxRequestBodyBytes: 4,
+	}, store)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/github", bytes.NewReader(payload))
+	req.Header.Set("X-GitHub-Event", "push")
+	req.Header.Set("X-GitHub-Delivery", "delivery-1")
+	req.Header.Set("X-Hub-Signature-256", githubSignature("secret", payload))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusRequestEntityTooLarge, rec.Body.String())
+	}
+	if len(store.triggers) != 0 {
+		t.Fatalf("stored triggers = %d, want 0", len(store.triggers))
+	}
+}
+
 func TestLoadWebhookListenerConfigRequiresProviderSecret(t *testing.T) {
 	t.Parallel()
 
@@ -257,6 +310,18 @@ func githubSignature(secret string, payload []byte) string {
 type recordingTriggerStore struct {
 	triggers []webhook.Trigger
 }
+
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) {
+	return 0, errors.New("socket closed")
+}
+
+func (errReader) Close() error {
+	return nil
+}
+
+var _ io.ReadCloser = errReader{}
 
 func (s *recordingTriggerStore) StoreTrigger(
 	_ context.Context,

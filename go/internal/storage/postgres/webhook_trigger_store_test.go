@@ -18,8 +18,10 @@ func TestWebhookTriggerSchemaDefinesDurableDedupeKeys(t *testing.T) {
 		"delivery_key TEXT NOT NULL",
 		"refresh_key TEXT NOT NULL",
 		"PRIMARY KEY (trigger_id)",
+		"failed_at TIMESTAMPTZ NULL",
 		"CREATE UNIQUE INDEX IF NOT EXISTS webhook_refresh_triggers_refresh_key_idx",
-		"CREATE INDEX IF NOT EXISTS webhook_refresh_triggers_status_idx",
+		"CREATE INDEX IF NOT EXISTS webhook_refresh_triggers_status_received_idx",
+		"ON webhook_refresh_triggers (status, received_at ASC, trigger_id ASC)",
 	} {
 		if !strings.Contains(schema, want) {
 			t.Fatalf("WebhookTriggerSchemaSQL() missing %q:\n%s", want, schema)
@@ -65,8 +67,8 @@ func TestWebhookTriggerStoreStoreTriggerUpsertsAcceptedTrigger(t *testing.T) {
 	if !strings.Contains(db.queries[0].query, "INSERT INTO webhook_refresh_triggers") {
 		t.Fatalf("query missing insert: %s", db.queries[0].query)
 	}
-	if !strings.Contains(db.queries[0].query, "ON CONFLICT (trigger_id) DO UPDATE") {
-		t.Fatalf("query missing idempotent upsert: %s", db.queries[0].query)
+	if !strings.Contains(db.queries[0].query, "ON CONFLICT (refresh_key) DO UPDATE") {
+		t.Fatalf("query missing refresh-key upsert: %s", db.queries[0].query)
 	}
 	if !strings.Contains(db.queries[0].query, "status = CASE") {
 		t.Fatalf("query missing ignored-to-queued status transition: %s", db.queries[0].query)
@@ -169,6 +171,9 @@ func TestWebhookTriggerStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 	if !strings.Contains(db.queries[0].query, "FOR UPDATE SKIP LOCKED") {
 		t.Fatalf("claim query missing SKIP LOCKED: %s", db.queries[0].query)
 	}
+	if !strings.Contains(WebhookTriggerSchemaSQL(), "ON webhook_refresh_triggers (status, received_at ASC, trigger_id ASC)") {
+		t.Fatalf("schema missing claim order index:\n%s", WebhookTriggerSchemaSQL())
+	}
 	if !strings.Contains(db.queries[0].query, "status = 'queued'") {
 		t.Fatalf("claim query missing queued filter: %s", db.queries[0].query)
 	}
@@ -230,6 +235,9 @@ func TestWebhookTriggerStoreMarkTriggersFailedPersistsFailureDetails(t *testing.
 	}
 	if !strings.Contains(db.execs[0].query, "status = 'failed'") {
 		t.Fatalf("query missing failed status: %s", db.execs[0].query)
+	}
+	if !strings.Contains(db.execs[0].query, "failed_at = $4") {
+		t.Fatalf("query missing failed_at timestamp: %s", db.execs[0].query)
 	}
 	if strings.Contains(db.execs[0].query, "ANY($1)") {
 		t.Fatalf("query still uses array parameter: %s", db.execs[0].query)

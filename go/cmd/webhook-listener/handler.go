@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -133,7 +134,12 @@ func (h webhookHandler) readPostBody(w http.ResponseWriter, r *http.Request) ([]
 	defer func() { _ = limited.Close() }()
 	payload, err := io.ReadAll(limited)
 	if err != nil {
-		http.Error(w, "invalid request body", http.StatusRequestEntityTooLarge)
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return nil, false
+		}
+		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return nil, false
 	}
 	if len(payload) == 0 {

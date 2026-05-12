@@ -38,6 +38,9 @@ flowchart LR
 
 GitHub uses `X-Hub-Signature-256`, GitLab uses `X-Gitlab-Token`, and
 Bitbucket uses `X-Hub-Signature` for provider authentication.
+Requests over `ESHU_WEBHOOK_MAX_BODY_BYTES` return 413; malformed or interrupted
+body reads return 400 so operators do not confuse transport errors with size
+limits.
 
 ## Operational Notes
 

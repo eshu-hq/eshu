@@ -8,5 +8,7 @@
 // the same durable trigger, and Bitbucket delivery identity prefers
 // X-Request-UUID with X-Hub-Signature verification. The runtime does not mount
 // the repository workspace, connect to the graph backend, or mark webhook
-// metadata as graph truth.
+// metadata as graph truth. Request body handling returns 413 only when
+// MaxRequestBodyBytes is exceeded; other body read failures are rejected as bad
+// requests.
 package main

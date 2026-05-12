@@ -25,8 +25,9 @@ INSERT INTO webhook_refresh_triggers (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
     $11, $12, $13, $14, $15, $16, $17, $18, $19
 )
-ON CONFLICT (trigger_id) DO UPDATE
-SET delivery_key = EXCLUDED.delivery_key,
+ON CONFLICT (refresh_key) DO UPDATE
+SET trigger_id = EXCLUDED.trigger_id,
+    delivery_key = EXCLUDED.delivery_key,
     provider = EXCLUDED.provider,
     event_kind = EXCLUDED.event_kind,
     decision = EXCLUDED.decision,
@@ -123,6 +124,7 @@ UPDATE webhook_refresh_triggers
 SET status = 'failed',
     failure_class = $%d,
     failure_message = $%d,
+    failed_at = $%d,
     updated_at = $%d
 WHERE trigger_id IN (%s)
   AND status = 'claimed'
