@@ -191,7 +191,27 @@
         "exposure": {
           "type": "object",
           "properties": {
-            "ingress": { "type": "object" }
+            "ingress": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "className": { "type": "string" },
+                "annotations": { "type": "object" },
+                "hosts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "host": { "type": "string" }
+                    },
+                    "required": ["host"],
+                    "additionalProperties": false
+                  }
+                },
+                "tls": { "type": "array" }
+              },
+              "additionalProperties": false
+            }
           }
         },
         "connectionTuning": { "$ref": "#/definitions/connectionTuning" },

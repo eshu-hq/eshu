@@ -74,13 +74,15 @@ func normalizeGitHubPullRequest(deliveryID string, payload []byte, defaultBranch
 	trigger.Action = strings.TrimSpace(event.Action)
 	trigger.Ref = branchRef(strings.TrimSpace(event.PullRequest.Base.Ref))
 	trigger.TargetSHA = strings.TrimSpace(event.PullRequest.MergeCommitSHA)
-	if trigger.TargetSHA == "" {
-		trigger.TargetSHA = strings.TrimSpace(event.PullRequest.Head.SHA)
-	}
 
 	if trigger.Action != "closed" || !event.PullRequest.Merged {
 		trigger.Decision = DecisionIgnored
 		trigger.Reason = ReasonPullRequestNotMerged
+		return trigger, nil
+	}
+	if trigger.TargetSHA == "" {
+		trigger.Decision = DecisionIgnored
+		trigger.Reason = ReasonMissingMergeCommit
 		return trigger, nil
 	}
 	return decideBranchTrigger(trigger)
@@ -117,14 +119,16 @@ func normalizeGitLabMergeRequest(deliveryID string, payload []byte, defaultBranc
 	trigger.Action = strings.TrimSpace(event.ObjectAttributes.Action)
 	trigger.Ref = branchRef(strings.TrimSpace(event.ObjectAttributes.TargetBranch))
 	trigger.TargetSHA = strings.TrimSpace(event.ObjectAttributes.MergeCommitSHA)
-	if trigger.TargetSHA == "" {
-		trigger.TargetSHA = strings.TrimSpace(event.ObjectAttributes.LastCommit.ID)
-	}
 	trigger.Sender = strings.TrimSpace(event.User.Username)
 
 	if trigger.Action != "merge" && trigger.Action != "merged" {
 		trigger.Decision = DecisionIgnored
 		trigger.Reason = ReasonMergeRequestNotMerged
+		return trigger, nil
+	}
+	if trigger.TargetSHA == "" {
+		trigger.Decision = DecisionIgnored
+		trigger.Reason = ReasonMissingMergeCommit
 		return trigger, nil
 	}
 	return decideBranchTrigger(trigger)
@@ -183,8 +187,18 @@ func decideBranchTrigger(trigger Trigger) (Trigger, error) {
 	if trigger.TargetSHA == "" {
 		return Trigger{}, errors.New("target sha is required")
 	}
+	if isZeroSHA(trigger.TargetSHA) {
+		trigger.Decision = DecisionIgnored
+		trigger.Reason = ReasonDeletedBranch
+		return trigger, nil
+	}
 	trigger.Decision = DecisionAccepted
 	return trigger, nil
+}
+
+func isZeroSHA(sha string) bool {
+	sha = strings.TrimSpace(sha)
+	return sha != "" && strings.Trim(sha, "0") == ""
 }
 
 func branchFromRef(ref string) (string, bool) {

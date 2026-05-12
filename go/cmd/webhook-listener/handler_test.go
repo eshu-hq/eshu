@@ -72,6 +72,35 @@ func TestWebhookHandlerRejectsBadGitHubSignature(t *testing.T) {
 	}
 }
 
+func TestWebhookHandlerRejectsMissingGitHubDeliveryID(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"ref":"refs/heads/main",
+		"after":"2222222222222222222222222222222222222222",
+		"repository":{"id":42,"full_name":"eshu-hq/eshu","default_branch":"main"}
+	}`)
+	store := &recordingTriggerStore{}
+	mux := mustWebhookMux(t, webhookListenerConfig{
+		GitHubSecret:        "secret",
+		GitHubPath:          "/webhooks/github",
+		MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+	}, store)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/github", bytes.NewReader(payload))
+	req.Header.Set("X-GitHub-Event", "push")
+	req.Header.Set("X-Hub-Signature-256", githubSignature("secret", payload))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if len(store.triggers) != 0 {
+		t.Fatalf("stored triggers = %d, want 0", len(store.triggers))
+	}
+}
+
 func TestWebhookHandlerAcceptsGitLabToken(t *testing.T) {
 	t.Parallel()
 
@@ -104,6 +133,36 @@ func TestWebhookHandlerAcceptsGitLabToken(t *testing.T) {
 	}
 	if store.triggers[0].DeliveryID != "retry-stable-delivery" {
 		t.Fatalf("DeliveryID = %q, want Idempotency-Key value", store.triggers[0].DeliveryID)
+	}
+}
+
+func TestWebhookHandlerRejectsMissingGitLabDeliveryID(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"object_kind":"push",
+		"ref":"refs/heads/main",
+		"after":"2222222222222222222222222222222222222222",
+		"project":{"id":77,"path_with_namespace":"eshu-hq/eshu","default_branch":"main"}
+	}`)
+	store := &recordingTriggerStore{}
+	mux := mustWebhookMux(t, webhookListenerConfig{
+		GitLabToken:         "secret",
+		GitLabPath:          "/webhooks/gitlab",
+		MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+	}, store)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/gitlab", bytes.NewReader(payload))
+	req.Header.Set("X-Gitlab-Event", "Push Hook")
+	req.Header.Set("X-Gitlab-Token", "secret")
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if len(store.triggers) != 0 {
+		t.Fatalf("stored triggers = %d, want 0", len(store.triggers))
 	}
 }
 

@@ -127,9 +127,9 @@ it.
 - `RepositorySelector` — interface: `SelectRepositories(context.Context) (SelectionBatch, error)`
 - `PriorityRepositorySelector` — tries selectors in order and returns the
   first non-empty batch
-- `WebhookTriggerRepositorySelector` — claims queued webhook triggers, syncs
-  only referenced repositories, marks handoff failures, and returns successful
-  syncs as a targeted batch
+- `WebhookTriggerRepositorySelector` — claims queued GitHub webhook triggers,
+  syncs only referenced repositories, fails unsupported providers, and returns
+  successful syncs as a targeted batch
 - `RepositorySnapshotter` — interface: `SnapshotRepository(context.Context, SelectedRepository) (RepositorySnapshot, error)`
 - `SelectionBatch` — `ObservedAt` + `[]SelectedRepository`
 - `SelectedRepository` — `RepoPath`, `RemoteURL`, `IsDependency`, `DisplayName`,
@@ -141,6 +141,8 @@ it.
 - `RepoSyncConfig` — all env-driven sync configuration; populated by
   `LoadRepoSyncConfig`
 - `LoadRepoSyncConfig(component, getenv)` — parses the repo-sync env contract
+- `LoadWebhookTriggerHandoffConfig(defaultOwner, getenv)` — parses the shared
+  webhook-trigger handoff env contract used by collector runtimes
 - `LoadDiscoveryOptionsFromEnv(getenv)` — parses `ESHU_DISCOVERY_IGNORED_PATH_GLOBS`
   and `ESHU_DISCOVERY_PRESERVED_PATH_GLOBS`
 - `LoadSnapshotSCIPConfig(getenv)` — parses the SCIP env contract

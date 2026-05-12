@@ -39,7 +39,8 @@ flowchart LR
 - A webhook is a wake-up signal only. The collector must still fetch git state,
   create a repository snapshot, emit facts, and let projection update graph and
   content state.
-- Tag events and non-default branch events are ignored with explicit
+- Tag events, non-default branch events, default-branch deletes, and merge
+  events without a provider merge commit are ignored with explicit
   `DecisionReason` values.
 - GitHub SHA-1 signatures are rejected so the listener cannot downgrade
   authentication.

@@ -35,10 +35,9 @@ Repo-sync and discovery configuration is loaded via
 Postgres env contract). The poll interval defaults to 1 second
 (`defaultCollectorPollInterval`).
 
-Set `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED=true` to claim queued webhook refresh
-triggers before scheduled polling. `ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER`
-defaults to `collector-git`, and `ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT` defaults to
-100.
+Set the shared webhook-trigger handoff enabled env value to true to claim queued
+webhook refresh triggers before scheduled polling. The handoff owner defaults
+to `collector-git`, and the claim limit defaults to 100.
 
 ## Telemetry
 
@@ -61,8 +60,9 @@ for the shared admin/metrics contract.
   for local verification, not as a Kubernetes-deployed collector
 - collector cycles are observed under the shared collector span and metrics;
   do not bypass `collector.Service` to write facts directly
-- webhook-triggered selection is still collection work: it prioritizes repo
-  sync, then the normal snapshot and fact commit path decides freshness
+- webhook-triggered selection is still collection work: it prioritizes
+  GitHub-backed repo sync, then the normal snapshot and fact commit path
+  decides freshness
 
 ## Related docs
 

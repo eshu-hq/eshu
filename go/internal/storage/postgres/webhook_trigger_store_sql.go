@@ -40,6 +40,11 @@ SET delivery_key = EXCLUDED.delivery_key,
     target_sha = EXCLUDED.target_sha,
     action = EXCLUDED.action,
     sender = EXCLUDED.sender,
+    status = CASE
+        WHEN webhook_refresh_triggers.status = 'ignored' AND EXCLUDED.status = 'queued'
+        THEN EXCLUDED.status
+        ELSE webhook_refresh_triggers.status
+    END,
     duplicate_count = webhook_refresh_triggers.duplicate_count + 1,
     updated_at = EXCLUDED.updated_at
 RETURNING
@@ -104,21 +109,21 @@ RETURNING
     trigger.updated_at
 `
 
-const markWebhookTriggersHandedOffQuery = `
+const markWebhookTriggersHandedOffQueryFormat = `
 UPDATE webhook_refresh_triggers
 SET status = 'handed_off',
-    handed_off_at = $2,
-    updated_at = $2
-WHERE trigger_id = ANY($1)
+    handed_off_at = $%d,
+    updated_at = $%d
+WHERE trigger_id IN (%s)
   AND status = 'claimed'
 `
 
-const markWebhookTriggersFailedQuery = `
+const markWebhookTriggersFailedQueryFormat = `
 UPDATE webhook_refresh_triggers
 SET status = 'failed',
-    failure_class = $2,
-    failure_message = $3,
-    updated_at = $4
-WHERE trigger_id = ANY($1)
+    failure_class = $%d,
+    failure_message = $%d,
+    updated_at = $%d
+WHERE trigger_id IN (%s)
   AND status = 'claimed'
 `

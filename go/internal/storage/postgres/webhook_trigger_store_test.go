@@ -68,6 +68,9 @@ func TestWebhookTriggerStoreStoreTriggerUpsertsAcceptedTrigger(t *testing.T) {
 	if !strings.Contains(db.queries[0].query, "ON CONFLICT (trigger_id) DO UPDATE") {
 		t.Fatalf("query missing idempotent upsert: %s", db.queries[0].query)
 	}
+	if !strings.Contains(db.queries[0].query, "status = CASE") {
+		t.Fatalf("query missing ignored-to-queued status transition: %s", db.queries[0].query)
+	}
 	if !strings.Contains(db.queries[0].query, "RETURNING") {
 		t.Fatalf("query missing persisted row return: %s", db.queries[0].query)
 	}
@@ -180,6 +183,37 @@ func TestWebhookTriggerStoreMarkTriggersHandedOffRequiresIDs(t *testing.T) {
 	}
 }
 
+func TestWebhookTriggerStoreMarkTriggersHandedOffUsesIndividualIDParameters(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	store := NewWebhookTriggerStore(db)
+	now := time.Date(2026, time.May, 12, 14, 0, 0, 0, time.UTC)
+
+	err := store.MarkTriggersHandedOff(context.Background(), []string{"trigger-2", "trigger-1", "trigger-2"}, now)
+	if err != nil {
+		t.Fatalf("MarkTriggersHandedOff() error = %v, want nil", err)
+	}
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+	if strings.Contains(db.execs[0].query, "ANY($1)") {
+		t.Fatalf("query still uses array parameter: %s", db.execs[0].query)
+	}
+	if !strings.Contains(db.execs[0].query, "trigger_id IN ($1, $2)") {
+		t.Fatalf("query missing individual id placeholders: %s", db.execs[0].query)
+	}
+	if got, want := db.execs[0].args[0], "trigger-2"; got != want {
+		t.Fatalf("arg 0 = %v, want %v", got, want)
+	}
+	if got, want := db.execs[0].args[1], "trigger-1"; got != want {
+		t.Fatalf("arg 1 = %v, want %v", got, want)
+	}
+	if got, want := db.execs[0].args[2], now; got != want {
+		t.Fatalf("arg 2 = %v, want %v", got, want)
+	}
+}
+
 func TestWebhookTriggerStoreMarkTriggersFailedPersistsFailureDetails(t *testing.T) {
 	t.Parallel()
 
@@ -196,6 +230,12 @@ func TestWebhookTriggerStoreMarkTriggersFailedPersistsFailureDetails(t *testing.
 	}
 	if !strings.Contains(db.execs[0].query, "status = 'failed'") {
 		t.Fatalf("query missing failed status: %s", db.execs[0].query)
+	}
+	if strings.Contains(db.execs[0].query, "ANY($1)") {
+		t.Fatalf("query still uses array parameter: %s", db.execs[0].query)
+	}
+	if !strings.Contains(db.execs[0].query, "trigger_id IN ($1)") {
+		t.Fatalf("query missing individual id placeholder: %s", db.execs[0].query)
 	}
 	if got := db.execs[0].args[1]; got != "sync_git_failed" {
 		t.Fatalf("failure class arg = %v, want sync_git_failed", got)

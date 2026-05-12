@@ -95,9 +95,6 @@ webhookListener:
       enabled: true
       hosts:
         - host: hooks.example.com
-          paths:
-            - path: /webhooks/github
-              pathType: Exact
 
 repoSync:
   source:

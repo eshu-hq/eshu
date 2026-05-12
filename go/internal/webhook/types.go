@@ -46,6 +46,10 @@ const (
 	ReasonPullRequestNotMerged DecisionReason = "pull_request_not_merged"
 	// ReasonMergeRequestNotMerged means a GitLab merge request was not merged.
 	ReasonMergeRequestNotMerged DecisionReason = "merge_request_not_merged"
+	// ReasonMissingMergeCommit means a merge event lacked the merge commit SHA.
+	ReasonMissingMergeCommit DecisionReason = "missing_merge_commit"
+	// ReasonDeletedBranch means a branch push deleted the branch instead of refreshing it.
+	ReasonDeletedBranch DecisionReason = "deleted_branch"
 )
 
 // Trigger is the provider-neutral refresh trigger decision.

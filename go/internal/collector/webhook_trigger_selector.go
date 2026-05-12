@@ -13,6 +13,12 @@ import (
 
 const defaultWebhookTriggerClaimLimit = 100
 
+const (
+	webhookTriggerFailureNoRepositoryID      = "no_repository_id"
+	webhookTriggerFailureSyncGit             = "sync_git_failed"
+	webhookTriggerFailureUnsupportedProvider = "unsupported_provider"
+)
+
 // WebhookTriggerStore is the durable trigger surface needed by the Git
 // collector compatibility selector.
 type WebhookTriggerStore interface {
@@ -57,11 +63,18 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 		return SelectionBatch{ObservedAt: observedAt}, nil
 	}
 
-	repositoryIDs := repositoryIDsFromWebhookTriggers(triggers)
-	triggerIDs := triggerIDsFromWebhookTriggers(triggers)
+	syncableTriggers, unsupportedTriggers := supportedWebhookRefreshTriggers(triggers)
+	if unsupportedTriggerIDs := triggerIDsFromWebhookTriggers(unsupportedTriggers); len(unsupportedTriggerIDs) > 0 {
+		if err := s.Store.MarkTriggersFailed(ctx, unsupportedTriggerIDs, observedAt, webhookTriggerFailureUnsupportedProvider, "webhook provider is not supported by the git collector handoff"); err != nil {
+			return SelectionBatch{}, fmt.Errorf("mark unsupported webhook triggers failed: %w", err)
+		}
+	}
+
+	repositoryIDs := repositoryIDsFromWebhookTriggers(syncableTriggers)
+	triggerIDs := triggerIDsFromWebhookTriggers(syncableTriggers)
 	if len(repositoryIDs) == 0 {
 		if len(triggerIDs) > 0 {
-			if err := s.Store.MarkTriggersFailed(ctx, triggerIDs, observedAt, "no_repository_id", "accepted webhook triggers did not resolve to repository ids"); err != nil {
+			if err := s.Store.MarkTriggersFailed(ctx, triggerIDs, observedAt, webhookTriggerFailureNoRepositoryID, "accepted webhook triggers did not resolve to repository ids"); err != nil {
 				return SelectionBatch{}, fmt.Errorf("mark webhook triggers failed: %w", err)
 			}
 		}
@@ -75,7 +88,7 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 	synced, err := syncGitFn(ctx, s.Config, repositoryIDs)
 	if err != nil {
 		if len(triggerIDs) > 0 {
-			markErr := s.Store.MarkTriggersFailed(ctx, triggerIDs, observedAt, "sync_git_failed", err.Error())
+			markErr := s.Store.MarkTriggersFailed(ctx, triggerIDs, observedAt, webhookTriggerFailureSyncGit, err.Error())
 			if markErr != nil {
 				return SelectionBatch{}, errors.Join(
 					fmt.Errorf("sync webhook-triggered repositories: %w", err),
@@ -103,6 +116,23 @@ func (s WebhookTriggerRepositorySelector) now() time.Time {
 		return s.Now()
 	}
 	return time.Now()
+}
+
+func supportedWebhookRefreshTriggers(triggers []webhook.StoredTrigger) ([]webhook.StoredTrigger, []webhook.StoredTrigger) {
+	syncable := make([]webhook.StoredTrigger, 0, len(triggers))
+	unsupported := make([]webhook.StoredTrigger, 0)
+	for _, trigger := range triggers {
+		if trigger.Decision != webhook.DecisionAccepted {
+			continue
+		}
+		switch trigger.Provider {
+		case webhook.ProviderGitHub:
+			syncable = append(syncable, trigger)
+		default:
+			unsupported = append(unsupported, trigger)
+		}
+	}
+	return syncable, unsupported
 }
 
 func repositoryIDsFromWebhookTriggers(triggers []webhook.StoredTrigger) []string {

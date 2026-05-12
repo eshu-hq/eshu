@@ -5,11 +5,12 @@ accepts GitHub and GitLab HTTP deliveries, verifies the provider secret,
 normalizes the payload with `go/internal/webhook`, and persists a durable
 refresh trigger in Postgres.
 
-The command does not clone repositories, parse files, emit facts, or connect to
-the graph backend. Repository truth still flows through the Git collector and
-the normal projector/reducer path.
-For GitLab, delivery identity prefers `Idempotency-Key` before provider UUID
-headers so retries dedupe against the same durable trigger row.
+The command requires a provider delivery identifier before normalization. It
+does not clone repositories, parse files, emit facts, or connect to the graph
+backend. Repository truth still flows through the Git collector and the normal
+projector/reducer path. For GitLab, delivery identity prefers `Idempotency-Key`
+before provider UUID headers so retries dedupe against the same durable trigger
+row.
 
 ## Runtime Flow
 

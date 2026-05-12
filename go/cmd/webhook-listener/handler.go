@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/webhook"
@@ -47,9 +48,14 @@ func (h webhookHandler) handleGitHub(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	deliveryID := strings.TrimSpace(r.Header.Get("X-GitHub-Delivery"))
+	if deliveryID == "" {
+		http.Error(w, "missing delivery id", http.StatusBadRequest)
+		return
+	}
 	trigger, err := webhook.NormalizeGitHub(
 		r.Header.Get("X-GitHub-Event"),
-		r.Header.Get("X-GitHub-Delivery"),
+		deliveryID,
 		payload,
 		h.Config.DefaultBranch,
 	)
@@ -72,6 +78,11 @@ func (h webhookHandler) handleGitLab(w http.ResponseWriter, r *http.Request) {
 		r.Header.Get("X-Gitlab-Event-UUID"),
 		r.Header.Get("X-Request-Id"),
 	)
+	deliveryID = strings.TrimSpace(deliveryID)
+	if deliveryID == "" {
+		http.Error(w, "missing delivery id", http.StatusBadRequest)
+		return
+	}
 	trigger, err := webhook.NormalizeGitLab(
 		r.Header.Get("X-Gitlab-Event"),
 		deliveryID,

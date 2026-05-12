@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql/driver"
 	"errors"
 	"fmt"
 	"strings"
@@ -152,7 +151,8 @@ func (s *WebhookTriggerStore) MarkTriggersHandedOff(ctx context.Context, trigger
 	if handedOffAt.IsZero() {
 		return errors.New("webhook trigger handed_off_at is required")
 	}
-	if _, err := s.db.ExecContext(ctx, markWebhookTriggersHandedOffQuery, stringArray(cleaned), handedOffAt.UTC()); err != nil {
+	args := triggerIDArgs(cleaned, handedOffAt.UTC())
+	if _, err := s.db.ExecContext(ctx, buildMarkWebhookTriggersHandedOffQuery(len(cleaned)), args...); err != nil {
 		return fmt.Errorf("mark webhook triggers handed off: %w", err)
 	}
 	return nil
@@ -181,13 +181,11 @@ func (s *WebhookTriggerStore) MarkTriggersFailed(
 	if failureClass == "" {
 		return errors.New("webhook trigger failure class is required")
 	}
+	args := triggerIDArgs(cleaned, failureClass, strings.TrimSpace(failureMessage), failedAt.UTC())
 	if _, err := s.db.ExecContext(
 		ctx,
-		markWebhookTriggersFailedQuery,
-		stringArray(cleaned),
-		failureClass,
-		strings.TrimSpace(failureMessage),
-		failedAt.UTC(),
+		buildMarkWebhookTriggersFailedQuery(len(cleaned)),
+		args...,
 	); err != nil {
 		return fmt.Errorf("mark webhook triggers failed: %w", err)
 	}
@@ -302,6 +300,45 @@ func cleanTriggerIDs(ids []string) []string {
 	return cleaned
 }
 
+func buildMarkWebhookTriggersHandedOffQuery(idCount int) string {
+	timestampParam := idCount + 1
+	return fmt.Sprintf(
+		markWebhookTriggersHandedOffQueryFormat,
+		timestampParam,
+		timestampParam,
+		triggerIDPlaceholders(idCount),
+	)
+}
+
+func buildMarkWebhookTriggersFailedQuery(idCount int) string {
+	failureClassParam := idCount + 1
+	failureMessageParam := idCount + 2
+	timestampParam := idCount + 3
+	return fmt.Sprintf(
+		markWebhookTriggersFailedQueryFormat,
+		failureClassParam,
+		failureMessageParam,
+		timestampParam,
+		triggerIDPlaceholders(idCount),
+	)
+}
+
+func triggerIDPlaceholders(count int) string {
+	placeholders := make([]string, count)
+	for i := range placeholders {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+	}
+	return strings.Join(placeholders, ", ")
+}
+
+func triggerIDArgs(ids []string, extra ...any) []any {
+	args := make([]any, 0, len(ids)+len(extra))
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	return append(args, extra...)
+}
+
 func webhookTriggerBootstrapDefinition() Definition {
 	return Definition{
 		Name: "webhook_refresh_triggers",
@@ -312,10 +349,4 @@ func webhookTriggerBootstrapDefinition() Definition {
 
 func init() {
 	bootstrapDefinitions = append(bootstrapDefinitions, webhookTriggerBootstrapDefinition())
-}
-
-type stringArray []string
-
-func (a stringArray) Value() (driver.Value, error) {
-	return "{" + strings.Join([]string(a), ",") + "}", nil
 }

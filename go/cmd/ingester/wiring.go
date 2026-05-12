@@ -12,7 +12,6 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/app"
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -101,32 +100,6 @@ const (
 	nornicDBEntityPhaseConcurrencyEnv          = "ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY"
 )
 
-// compositeRunner runs multiple Runner implementations concurrently.
-// If any runner returns an error, it cancels all others and returns the first error.
-type compositeRunner struct {
-	runners []app.Runner
-}
-
-// Run starts all runners concurrently and returns the first error received.
-func (c compositeRunner) Run(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	errc := make(chan error, len(c.runners))
-	for _, r := range c.runners {
-		go func(runner app.Runner) {
-			errc <- runner.Run(ctx)
-		}(r)
-	}
-
-	err := <-errc
-	cancel()
-	for i := 1; i < len(c.runners); i++ {
-		<-errc
-	}
-	return err
-}
-
 func buildIngesterService(
 	database postgres.ExecQueryer,
 	canonicalWriter projector.CanonicalWriter,
@@ -147,7 +120,7 @@ func buildIngesterService(
 		return compositeRunner{}, fmt.Errorf("build ingester projector: %w", err)
 	}
 
-	return compositeRunner{runners: []app.Runner{collectorSvc, projectorSvc}}, nil
+	return newCompositeRunner(collectorSvc, projectorSvc), nil
 }
 
 func buildIngesterCollectorService(
@@ -172,13 +145,14 @@ func buildIngesterCollectorService(
 	committer.Logger = logger
 
 	selector := collector.RepositorySelector(collector.NativeRepositorySelector{Config: config})
-	if webhookTriggerHandoffEnabled(getenv) {
+	handoffConfig := collector.LoadWebhookTriggerHandoffConfig("ingester", getenv)
+	if handoffConfig.Enabled {
 		selector = collector.PriorityRepositorySelector{Selectors: []collector.RepositorySelector{
 			collector.WebhookTriggerRepositorySelector{
 				Config:     config,
 				Store:      postgres.NewWebhookTriggerStore(database),
-				Owner:      webhookTriggerHandoffOwner("ingester", getenv),
-				ClaimLimit: webhookTriggerHandoffLimit(getenv),
+				Owner:      handoffConfig.Owner,
+				ClaimLimit: handoffConfig.ClaimLimit,
 			},
 			selector,
 		}}
@@ -210,30 +184,6 @@ func buildIngesterCollectorService(
 		Instruments:       instruments,
 		Logger:            logger,
 	}, nil
-}
-
-func webhookTriggerHandoffEnabled(getenv func(string) string) bool {
-	value := strings.TrimSpace(strings.ToLower(getenv("ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED")))
-	return value == "1" || value == "true" || value == "yes" || value == "on"
-}
-
-func webhookTriggerHandoffOwner(defaultOwner string, getenv func(string) string) string {
-	if owner := strings.TrimSpace(getenv("ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER")); owner != "" {
-		return owner
-	}
-	return defaultOwner
-}
-
-func webhookTriggerHandoffLimit(getenv func(string) string) int {
-	raw := strings.TrimSpace(getenv("ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT"))
-	if raw == "" {
-		return 0
-	}
-	limit, err := strconv.Atoi(raw)
-	if err != nil || limit <= 0 {
-		return 0
-	}
-	return limit
 }
 
 func ingesterDeferredRelationshipMaintenance(

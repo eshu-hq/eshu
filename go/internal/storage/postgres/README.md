@@ -154,9 +154,11 @@ mutation is rejected because the current owner no longer holds the lease.
 
 `WebhookTriggerStore` persists provider webhook decisions in
 `webhook_refresh_triggers`. Accepted triggers enter `queued`; ignored triggers
-stay audit-only. Claimers use `FOR UPDATE SKIP LOCKED`, then mark claimed rows
-`handed_off` after the Git selector receives the targeted repository list or
-`failed` when the compatibility handoff cannot complete.
+stay audit-only unless a later accepted delivery resolves the same refresh key,
+which moves the row back to `queued`. Claimers use `FOR UPDATE SKIP LOCKED`,
+then mark claimed rows `handed_off` after the Git selector receives the
+targeted repository list or `failed` when the compatibility handoff cannot
+complete.
 
 ## Exported surface
 

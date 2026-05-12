@@ -91,14 +91,12 @@ webhookListener:
       enabled: true
       hosts:
         - host: hooks.example.com
-          paths:
-            - path: /webhooks/github
-              pathType: Exact
 ```
 
-Only provider webhook paths are routed by the chart ingress. Runtime health,
-status, and metrics endpoints stay on the internal service unless an operator
-adds separate protected routing.
+Only provider webhook paths are routed by the chart ingress. Set those paths
+with `webhookListener.github.path` and `webhookListener.gitlab.path`; ingress
+hosts only select hostnames. Runtime health, status, and metrics endpoints stay
+on the internal service unless an operator adds separate protected routing.
 
 ## Repository sync
 
