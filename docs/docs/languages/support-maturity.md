@@ -36,7 +36,7 @@ For audited family-level closure status and bounded gaps, see
 | Java | `DefaultEngine (java)` | supported | supported | supported | Spring, Gradle, JUnit, Jenkins, Stapler, ServiceLoader, serialization, bounded reflection | supported | supported | supported |
 | JavaScript | `DefaultEngine (javascript)` | supported | supported | supported | `react-base`, `nextjs-app-router-base`, `express-base`, `hapi-base`, `aws-sdk-base`, `gcp-sdk-base` | supported | supported | supported |
 | JSON Config | `DefaultEngine (json)` | - | - | - | - | - | - | - |
-| Kotlin | `DefaultEngine (kotlin)` | - | - | - | - | - | - | - |
+| Kotlin | `DefaultEngine (kotlin)` | supported | supported | supported | Spring, Gradle, JUnit, lifecycle, interfaces | supported | fixture-backed | supported |
 | Kubernetes | `DefaultEngine (yaml)` | - | - | - | - | - | - | - |
 | Kustomize | `DefaultEngine (yaml)` | - | - | - | - | - | - | - |
 | Perl | `DefaultEngine (perl)` | - | - | - | - | - | - | - |
@@ -62,6 +62,13 @@ Java dead-code support remains `derived`, but parser and reducer coverage now
 models main/constructor/override roots, Gradle, Spring, JUnit, Jenkins,
 Stapler, serialization hooks, bounded literal reflection, ServiceLoader
 providers, and Spring metadata roots with checked fixtures.
+Kotlin dead-code support is `derived`: parser metadata models top-level main,
+secondary constructors, interface methods and same-file implementations,
+overrides, Gradle plugin/task callbacks, Spring component and method callbacks,
+lifecycle callbacks, and JUnit methods, while exact cleanup remains blocked by
+reflection, dependency injection, annotation processing, compiler plugins,
+dynamic dispatch, Gradle source sets, Kotlin multiplatform targets, and broad
+public API surfaces.
 SQL real-repo and end-to-end indexing are `supported` on the current Go
 parser/query path. The remaining dbt lineage limits are bounded non-goals for
 the documented SQL surface.

@@ -66,6 +66,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		"python":     "derived",
 		"javascript": "derived",
 		"java":       "derived",
+		"kotlin":     "derived",
 		"typescript": "derived",
 		"tsx":        "derived",
 		"rust":       "derived",
@@ -158,6 +159,24 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 	} {
 		if !queryTestStringSliceContains(phpBlockers, want) {
 			t.Fatalf("blockers[php] missing %q in %#v", want, phpBlockers)
+		}
+	}
+	kotlinBlockers, ok := blockers["kotlin"].([]any)
+	if !ok {
+		t.Fatalf("blockers[kotlin] type = %T, want []any", blockers["kotlin"])
+	}
+	for _, want := range []string{
+		"reflection_unresolved",
+		"dependency_injection_resolution_unavailable",
+		"annotation_processing_unavailable",
+		"compiler_plugin_generated_code_unavailable",
+		"dynamic_dispatch_unresolved",
+		"gradle_source_set_resolution_unavailable",
+		"multiplatform_target_resolution_unavailable",
+		"public_api_surface_unresolved",
+	} {
+		if !queryTestStringSliceContains(kotlinBlockers, want) {
+			t.Fatalf("blockers[kotlin] missing %q in %#v", want, kotlinBlockers)
 		}
 	}
 	cBlockers, ok := blockers["c"].([]any)

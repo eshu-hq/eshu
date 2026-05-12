@@ -1,30 +1,10 @@
 package kotlin
 
 import (
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
-)
-
-var (
-	kotlinImportPattern        = regexp.MustCompile(`^\s*import\s+([^\s]+)(?:\s+as\s+([A-Za-z_]\w*))?`)
-	kotlinClassPattern         = regexp.MustCompile(`^\s*(?:data\s+|sealed\s+|abstract\s+|open\s+)?class\s+([A-Za-z_]\w*)`)
-	kotlinObjectPattern        = regexp.MustCompile(`^\s*object\s+([A-Za-z_]\w*)`)
-	kotlinCompanionPattern     = regexp.MustCompile(`^\s*companion\s+object(?:\s+([A-Za-z_]\w*))?`)
-	kotlinInterfacePattern     = regexp.MustCompile(`^\s*interface\s+([A-Za-z_]\w*)`)
-	kotlinEnumPattern          = regexp.MustCompile(`^\s*enum\s+class\s+([A-Za-z_]\w*)`)
-	kotlinFunctionPattern      = regexp.MustCompile(`\bfun\s+(?:<[^>]+>\s*)?(?:([A-Za-z_]\w*)\.)?([A-Za-z_]\w*)\s*\(`)
-	kotlinConstructorPattern   = regexp.MustCompile(`^\s*(?:(?:public|private|protected|internal)\s+)?constructor\s*\(`)
-	kotlinVariablePattern      = regexp.MustCompile(`^\s*(?:private|public|protected|internal)?\s*(?:const\s+)?(?:val|var)\s+([A-Za-z_]\w*)`)
-	kotlinTypedVariablePattern = regexp.MustCompile(`^\s*(?:private|public|protected|internal)?\s*(?:const\s+)?(?:val|var)\s+([A-Za-z_]\w*)\s*:\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?:<[^>]+>)?\??)`)
-	kotlinCtorAssignPattern    = regexp.MustCompile(`^\s*(?:val|var)\s+([A-Za-z_]\w*)\s*=\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?:<[^>]+>)?\??)\s*\([^()]*\)\s*$`)
-	kotlinStringAssignPattern  = regexp.MustCompile(`^\s*(?:val|var)\s+([A-Za-z_]\w*)\s*=\s*"([^"]*)"`)
-	kotlinAliasAssignPattern   = regexp.MustCompile(`^\s*(?:val|var)\s+([A-Za-z_]\w*)\s*=\s*((?:this\.)?(?:[A-Za-z_]\w*(?:\([^)]*\))?)(?:\.(?:[A-Za-z_]\w*(?:\([^)]*\))?))*)\s*$`)
-	kotlinThisCallPattern      = regexp.MustCompile(`this\.([A-Za-z_]\w*)\s*\(`)
-	kotlinCallPattern          = regexp.MustCompile(`\b((?:[A-Za-z_]\w*(?:\([^)]*\))?)(?:\.(?:[A-Za-z_]\w*(?:\([^)]*\))?))*)\.([A-Za-z_]\w*)\s*\(`)
-	kotlinInfixCallPattern     = regexp.MustCompile(`^(?:return\s+)?([A-Za-z_]\w*)\s+([A-Za-z_]\w*)\s+(.+)$`)
 )
 
 // Parse extracts Kotlin declarations, imports, variables, calls, and
@@ -50,6 +30,8 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 	smartCastScopes := make([]kotlinTypeFlowScope, 0)
 	whenSubjectScopes := make([]kotlinWhenSubjectScope, 0)
 	classTypeParameters := make(map[string][]string)
+	interfaceMethods := make(map[string]map[string]struct{})
+	classInterfaces := make(map[string]map[string]struct{})
 	seenVariables := make(map[string]struct{})
 	localVariableTypes := make(map[string]map[string]string)
 	localVariableCallKinds := make(map[string]map[string]string)
@@ -59,6 +41,7 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 		functionReturnTypes[key] = returnType
 	}
 	knownTypeNames := make(map[string]struct{})
+	pendingAnnotations := make([]string, 0)
 
 	for index, rawLine := range lines {
 		lineNumber := index + 1
@@ -66,6 +49,19 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 		whenSubjectScopes = popKotlinWhenSubjectScopes(whenSubjectScopes, braceDepth)
 		trimmed := strings.TrimSpace(rawLine)
 		if trimmed == "" || strings.HasPrefix(trimmed, "//") {
+			braceDepth += braceDelta(rawLine)
+			stack = popCompletedScopes(stack, braceDepth)
+			continue
+		}
+		lineAnnotations := kotlinAnnotations(trimmed)
+		annotations := append(append([]string(nil), pendingAnnotations...), lineAnnotations...)
+		if len(lineAnnotations) > 0 &&
+			!strings.Contains(trimmed, "fun ") &&
+			!kotlinClassPattern.MatchString(trimmed) &&
+			!kotlinObjectPattern.MatchString(trimmed) &&
+			!kotlinInterfacePattern.MatchString(trimmed) &&
+			!kotlinEnumPattern.MatchString(trimmed) {
+			pendingAnnotations = append(pendingAnnotations, lineAnnotations...)
 			braceDepth += braceDelta(rawLine)
 			stack = popCompletedScopes(stack, braceDepth)
 			continue
@@ -106,12 +102,14 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 			if typeParameters := kotlinDeclaredTypeParameters(trimmed); len(typeParameters) > 0 {
 				classTypeParameters[name] = typeParameters
 			}
-			shared.AppendBucket(payload, "classes", map[string]any{
-				"name":        name,
-				"line_number": lineNumber,
-				"end_line":    lineNumber,
-				"lang":        "kotlin",
-			})
+			item := kotlinTypeItem(name, lineNumber, annotations, "class", trimmed)
+			if implementedTypes := kotlinImplementedTypes(rawLine); len(implementedTypes) > 0 {
+				classInterfaces[name] = make(map[string]struct{}, len(implementedTypes))
+				for _, implementedType := range implementedTypes {
+					classInterfaces[name][implementedType] = struct{}{}
+				}
+			}
+			shared.AppendBucket(payload, "classes", item)
 			if properties := kotlinPrimaryConstructorPropertyTypes(rawLine); len(properties) > 0 {
 				if _, ok := classPropertyTypes[name]; !ok {
 					classPropertyTypes[name] = make(map[string]string, len(properties))
@@ -126,12 +124,8 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 			name := matches[1]
 			knownTypeNames[name] = struct{}{}
 			declaredTypeNames[name] = struct{}{}
-			shared.AppendBucket(payload, "classes", map[string]any{
-				"name":        name,
-				"line_number": lineNumber,
-				"end_line":    lineNumber,
-				"lang":        "kotlin",
-			})
+			item := kotlinTypeItem(name, lineNumber, annotations, "class", trimmed)
+			shared.AppendBucket(payload, "classes", item)
 			stack = append(stack, scopedContext{kind: "class", name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
 		}
 		if matches := kotlinCompanionPattern.FindStringSubmatch(trimmed); len(matches) >= 1 {
@@ -141,12 +135,8 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 			}
 			knownTypeNames[name] = struct{}{}
 			declaredTypeNames[name] = struct{}{}
-			shared.AppendBucket(payload, "classes", map[string]any{
-				"name":        name,
-				"line_number": lineNumber,
-				"end_line":    lineNumber,
-				"lang":        "kotlin",
-			})
+			item := kotlinTypeItem(name, lineNumber, annotations, "class", trimmed)
+			shared.AppendBucket(payload, "classes", item)
 			stack = append(stack, scopedContext{kind: "companion", name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
 		}
 		if matches := kotlinInterfacePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
@@ -156,24 +146,16 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 			if typeParameters := kotlinDeclaredTypeParameters(trimmed); len(typeParameters) > 0 {
 				classTypeParameters[name] = typeParameters
 			}
-			shared.AppendBucket(payload, "interfaces", map[string]any{
-				"name":        name,
-				"line_number": lineNumber,
-				"end_line":    lineNumber,
-				"lang":        "kotlin",
-			})
+			item := kotlinTypeItem(name, lineNumber, annotations, "interface", trimmed)
+			shared.AppendBucket(payload, "interfaces", item)
 			stack = append(stack, scopedContext{kind: "interface", name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
 		}
 		if matches := kotlinEnumPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
 			name := matches[1]
 			knownTypeNames[name] = struct{}{}
 			declaredTypeNames[name] = struct{}{}
-			shared.AppendBucket(payload, "classes", map[string]any{
-				"name":        name,
-				"line_number": lineNumber,
-				"end_line":    lineNumber,
-				"lang":        "kotlin",
-			})
+			item := kotlinTypeItem(name, lineNumber, annotations, "class", trimmed)
+			shared.AppendBucket(payload, "classes", item)
 			stack = append(stack, scopedContext{kind: "class", name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
 		}
 
@@ -198,6 +180,25 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 					if _, ok := item["class_context"]; !ok {
 						item["class_context"] = receiverType
 					}
+				}
+				typeContext := kotlinCurrentTypeScopeName(stack)
+				scopeKind := currentScopedKind(stack, "class", "interface")
+				if rootKinds := kotlinFunctionDeadCodeRootKinds(
+					trimmed,
+					annotations,
+					name,
+					typeContext,
+					scopeKind,
+					interfaceMethods,
+					classInterfaces,
+				); len(rootKinds) > 0 {
+					item["dead_code_root_kinds"] = rootKinds
+				}
+				if scopeKind == "interface" && typeContext != "" {
+					if _, ok := interfaceMethods[typeContext]; !ok {
+						interfaceMethods[typeContext] = make(map[string]struct{})
+					}
+					interfaceMethods[typeContext][name] = struct{}{}
 				}
 				if options.IndexSource {
 					item["source"] = rawLine
@@ -233,6 +234,7 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 			if typeContext := kotlinCurrentTypeScopeName(stack); typeContext != "" {
 				item["class_context"] = typeContext
 			}
+			item["dead_code_root_kinds"] = kotlinConstructorDeadCodeRootKinds()
 			if options.IndexSource {
 				item["source"] = rawLine
 			}
@@ -466,6 +468,9 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 
 		braceDepth += braceDelta(rawLine)
 		stack = popCompletedScopes(stack, braceDepth)
+		if len(annotations) > 0 {
+			pendingAnnotations = pendingAnnotations[:0]
+		}
 	}
 
 	shared.SortNamedBucket(payload, "functions")
@@ -476,13 +481,4 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 	shared.SortNamedBucket(payload, "function_calls")
 
 	return payload, nil
-}
-
-// PreScan returns Kotlin names used by the collector import-map pre-scan.
-func PreScan(repoRoot string, path string) ([]string, error) {
-	payload, err := Parse(repoRoot, path, false, shared.Options{})
-	if err != nil {
-		return nil, err
-	}
-	return shared.DedupeNonEmptyStrings(shared.CollectBucketNames(payload, "functions", "classes", "interfaces")), nil
 }

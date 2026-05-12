@@ -88,7 +88,8 @@ member roots, Python `if __name__ == "__main__"` script-main guards, C
 `cpp.override_method`, `cpp.callback_argument_target`, and
 `cpp.function_pointer_target`, and `cpp.node_addon_entrypoint` roots, C# main,
 constructor, override, interface, ASP.NET controller, hosted-service, test, and
-serialization roots, and Java
+serialization roots, Kotlin top-level main, constructor, interface, override,
+Gradle, Spring, lifecycle, and JUnit roots, and Java
 `main`, constructor, `@Override`, Ant `Task` setter, Gradle plugin
 `apply`, task action/property, task setter, task-interface method, public Gradle
 DSL, same-class method-reference target roots, Spring component and callback
@@ -122,6 +123,13 @@ same-file interface and trait methods, route-backed controller actions, literal
 route handlers, Symfony route attributes, and WordPress hook callbacks; PHP
 remains non-exact because broader autoloading, routing, reflection, and dynamic
 dispatch are not resolved exactly.
+Kotlin parser metadata suppresses top-level main functions, secondary
+constructors, interface methods and same-file implementations, overrides,
+Gradle plugin/task callbacks, Spring component and method callbacks, lifecycle
+callbacks, and JUnit methods; Kotlin remains non-exact because reflection,
+dependency injection, annotation processing, compiler plugins, dynamic
+dispatch, Gradle source sets, Kotlin multiplatform targets, and broad public
+API surfaces are not resolved exactly.
 The analysis payload also exposes
 `dead_code_language_exactness_blockers`, with Rust blockers
 for unresolved macro expansion, cfg/Cargo feature selection, semantic module
@@ -131,6 +139,9 @@ symbol lookup, and external linkage, C++ blockers for those same C-style
 blockers plus template instantiation, overload resolution, and broad virtual
 dispatch, C# blockers for reflection, dependency injection, source generators,
 partial types, dynamic dispatch, project references, and public API surfaces,
+Kotlin blockers for reflection, dependency injection, annotation processing,
+compiler plugins, dynamic dispatch, Gradle source sets, multiplatform targets,
+and public API surfaces,
 PHP blockers for dynamic dispatch, reflection, Composer autoloading,
 include/require resolution, framework routing, trait resolution, namespace
 aliases, magic-method dispatch, and public API surfaces,
@@ -163,7 +174,7 @@ Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
 payload names modeled root kinds in `modeled_framework_roots`, reports whether
 reflection evidence is modeled, and counts how many suppressions came from
-parser metadata. C, C#, C++, PHP, Ruby, and Groovy root suppressions are tested
+parser metadata. C, C#, C++, Kotlin, PHP, Ruby, and Groovy root suppressions are tested
 through both graph-shaped rows and content-store metadata so the policy matches
 the normal hydrated read path.
 That lets MCP and CLI callers explain why a candidate was suppressed. Candidate
@@ -200,10 +211,10 @@ Repository runtime artifacts parse Dockerfile stage metadata through
 `buildDockerfileRuntimeArtifacts`, including base image, base tag, build
 platform, copy-from, command, port, and environment signals.
 The OpenAPI fragment for `POST /api/v0/code/dead-code` names modeled language
-roots such as Go public-package exports plus C, C#, C++, PHP, Ruby, and Groovy
-parser-backed roots. Its language filter examples include `csharp`, `c`,
-`cpp`, `groovy`, `php`, `ruby`, and `sql`; `csharp` is normalized to `c_sharp`
-before candidate scanning.
+roots such as Go public-package exports plus C, C#, C++, Kotlin, PHP, Ruby, and
+Groovy parser-backed roots. Its language filter examples include `csharp`, `c`,
+`cpp`, `groovy`, `kotlin`, `php`, `ruby`, and `sql`; `csharp` is normalized to
+`c_sharp` before candidate scanning.
 
 ## Exported surface
 

@@ -222,6 +222,15 @@ serialization callbacks. It remains non-exact until reflection, dependency
 injection, source-generator output, partial type resolution, dynamic dispatch,
 project references, and broad public API surfaces are modeled or scoped out.
 
+Kotlin currently reports `derived` with parser-backed roots for top-level
+`main`, secondary constructors, interface methods, same-file interface
+implementations, overrides, Gradle plugin and task callbacks, Spring component
+and method callbacks, lifecycle callbacks, and JUnit methods. It remains
+non-exact until reflection, dependency injection, annotation processing,
+compiler plugin output, dynamic dispatch, Gradle source-set resolution,
+multiplatform target resolution, and broad public API surfaces are modeled or
+scoped out.
+
 PHP currently reports `derived` with parser-backed roots for script
 entrypoints, constructors, known magic methods, same-file interface methods and
 implementations, trait methods, route-backed controller actions, literal route
@@ -336,6 +345,10 @@ Current branch status:
   hook signatures, bounded literal reflection, ServiceLoader providers, Spring
   Boot `AutoConfiguration.imports`, and legacy `spring.factories` metadata are
   modeled with parser-backed roots or reducer-produced `REFERENCES` edges
+- Kotlin top-level main functions, secondary constructors, interfaces,
+  overrides, Gradle plugin/task callbacks, Spring component and method
+  callbacks, lifecycle callbacks, and JUnit methods are modeled as
+  parser-backed roots
 - those Go signature roots are now emitted by the Go parser into entity
   metadata when imports, registrations, and signatures match directly; mixed
   native+SCIP indexing now preserves `dead_code_root_kinds` through the

@@ -335,6 +335,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsJavaRoot(result, entity, stats) {
 		return true
 	}
+	if deadCodeIsKotlinRoot(result, entity, stats) {
+		return true
+	}
 	if deadCodeIsCRoot(result, entity, stats) {
 		return true
 	}
