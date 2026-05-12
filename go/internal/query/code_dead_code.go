@@ -25,7 +25,7 @@ const (
 	deadCodeCandidateScanMaxPages    = 10
 )
 
-var deadCodeCandidateLabels = []string{"Function", "Class", "Struct", "Interface", "SqlFunction"}
+var deadCodeCandidateLabels = []string{"Function", "Class", "Struct", "Interface", "Trait", "SqlFunction"}
 
 // handleDeadCode finds graph-backed dead-code candidates and then applies the
 // current default reachability policy before returning a derived result.

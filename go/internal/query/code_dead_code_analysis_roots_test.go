@@ -96,6 +96,15 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if got, want := rootCategories[5], "framework_callback_roots"; got != want {
 		t.Fatalf("analysis[root_categories_used][5] = %#v, want %#v", got, want)
 	}
+	modeledEntrypoints, ok := analysis["modeled_entrypoints"].([]any)
+	if !ok {
+		t.Fatalf("analysis[modeled_entrypoints] type = %T, want []any", analysis["modeled_entrypoints"])
+	}
+	for _, want := range []string{"scala.main_method", "scala.app_object"} {
+		if !queryTestStringSliceContains(modeledEntrypoints, want) {
+			t.Fatalf("analysis[modeled_entrypoints] missing %q in %#v", want, modeledEntrypoints)
+		}
+	}
 
 	modeledFrameworkRoots, ok := analysis["modeled_framework_roots"].([]any)
 	if !ok {

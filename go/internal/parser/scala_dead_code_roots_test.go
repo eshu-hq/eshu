@@ -31,6 +31,14 @@ class Worker extends Runner {
   private def helper(): String = "unused"
 }
 
+trait UsewithLogging {
+  def audit(): Unit
+}
+
+class AuditedWorker extends UsewithLogging {
+  def audit(): Unit = ()
+}
+
 class HealthController extends InjectedController {
   def status = Action { "ok" }
 
@@ -81,6 +89,7 @@ private object UnusedHelpers {
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "run", "Runner"), "dead_code_root_kinds", "scala.trait_method")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "run", "Worker"), "dead_code_root_kinds", "scala.override_method")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "run", "Worker"), "dead_code_root_kinds", "scala.trait_implementation_method")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "audit", "AuditedWorker"), "dead_code_root_kinds", "scala.trait_implementation_method")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "status", "HealthController"), "dead_code_root_kinds", "scala.play_controller_action")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "receive", "WorkerActor"), "dead_code_root_kinds", "scala.akka_actor_receive")
 	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Lifecycle"), "dead_code_root_kinds", "scala.lifecycle_callback_method")

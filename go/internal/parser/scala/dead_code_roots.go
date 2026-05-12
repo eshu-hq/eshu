@@ -126,10 +126,13 @@ func scalaImplementedTypes(text string) []string {
 	if braceIndex := strings.Index(tail, "{"); braceIndex >= 0 {
 		tail = tail[:braceIndex]
 	}
-	tail = strings.ReplaceAll(tail, "with", ",")
-	parts := strings.Split(tail, ",")
+	tail = strings.ReplaceAll(tail, ",", " ")
+	parts := strings.Fields(tail)
 	types := make([]string, 0, len(parts))
 	for _, part := range parts {
+		if part == "with" {
+			continue
+		}
 		name := scalaShortTypeName(part)
 		if name == "" {
 			continue

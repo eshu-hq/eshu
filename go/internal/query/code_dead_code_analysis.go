@@ -51,6 +51,8 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 			"python.__main__",
 			"java.main_method",
 			"kotlin.main_function",
+			"scala.main_method",
+			"scala.app_object",
 			"c.main_function",
 			"csharp.main_method",
 			"cpp.main_function",
