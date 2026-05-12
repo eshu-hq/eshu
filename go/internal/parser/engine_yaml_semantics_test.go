@@ -103,8 +103,9 @@ spec:
 	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_repo", "https://github.com/myorg/helm-charts.git")
 	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_path", "charts/comprehensive-app")
 	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_repos", "https://github.com/myorg/helm-charts.git,https://github.com/myorg/config-repo.git")
-	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_paths", "charts/comprehensive-app")
-	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_revisions", "main")
+	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_paths", "charts/comprehensive-app,")
+	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_revisions", "main,main")
+	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_roots", "charts/comprehensive-app/,")
 	assertBucketContainsFieldValue(t, got, "argocd_applications", "dest_namespace", "production")
 }
 

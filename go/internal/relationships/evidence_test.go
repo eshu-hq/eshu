@@ -645,8 +645,9 @@ func TestDiscoverStructuredArgoCDEvidenceMatchesApplicationMultiSourceRepos(t *t
 						map[string]any{
 							"name":             "multi-source",
 							"source_repos":     "https://github.com/myorg/helm-charts.git,https://github.com/myorg/config-repo.git",
-							"source_paths":     "charts/comprehensive-app",
-							"source_revisions": "main",
+							"source_paths":     "charts/comprehensive-app,",
+							"source_revisions": "main,main",
+							"source_roots":     "charts/comprehensive-app/,",
 						},
 					},
 				},
@@ -669,6 +670,22 @@ func TestDiscoverStructuredArgoCDEvidenceMatchesApplicationMultiSourceRepos(t *t
 			t.Fatalf("EvidenceKind = %q, want %q", item.EvidenceKind, EvidenceKindArgoCDAppSource)
 		}
 		targets[item.TargetRepoID] = true
+		switch item.TargetRepoID {
+		case "repo-charts":
+			if got, want := item.Details["first_party_ref_path"], "charts/comprehensive-app"; got != want {
+				t.Fatalf("repo-charts first_party_ref_path = %#v, want %#v", got, want)
+			}
+			if got, want := item.Details["first_party_ref_root"], "charts/comprehensive-app/"; got != want {
+				t.Fatalf("repo-charts first_party_ref_root = %#v, want %#v", got, want)
+			}
+		case "repo-config":
+			if _, ok := item.Details["first_party_ref_path"]; ok {
+				t.Fatalf("repo-config must not inherit first_party_ref_path: %#v", item.Details)
+			}
+			if _, ok := item.Details["first_party_ref_root"]; ok {
+				t.Fatalf("repo-config must not inherit first_party_ref_root: %#v", item.Details)
+			}
+		}
 	}
 	for _, want := range []string{"repo-charts", "repo-config"} {
 		if !targets[want] {

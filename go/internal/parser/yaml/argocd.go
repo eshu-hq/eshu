@@ -71,18 +71,37 @@ func appendArgoApplicationSourceFields(row map[string]any, sources []argoApplica
 		sourceRevisions = append(sourceRevisions, source.targetRevision)
 		sourceRoots = append(sourceRoots, source.normalizedRoot)
 	}
-	if values := dedupeNonEmptyStrings(sourceRepos); len(values) > 0 {
-		row["source_repos"] = strings.Join(values, ",")
+	if values := joinArgoSourceTupleValues(sourceRepos); values != "" {
+		row["source_repos"] = values
 	}
-	if values := dedupeNonEmptyStrings(sourcePaths); len(values) > 0 {
-		row["source_paths"] = strings.Join(values, ",")
+	if values := joinArgoSourceTupleValues(sourcePaths); values != "" {
+		row["source_paths"] = values
 	}
-	if values := dedupeNonEmptyStrings(sourceRevisions); len(values) > 0 {
-		row["source_revisions"] = strings.Join(values, ",")
+	if values := joinArgoSourceTupleValues(sourceRevisions); values != "" {
+		row["source_revisions"] = values
 	}
-	if values := dedupeNonEmptyStrings(sourceRoots); len(values) > 0 {
-		row["source_roots"] = strings.Join(values, ",")
+	if values := joinArgoSourceTupleValues(sourceRoots); values != "" {
+		row["source_roots"] = values
 	}
+}
+
+func joinArgoSourceTupleValues(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	cleaned := make([]string, len(values))
+	hasNonEmpty := false
+	for index, value := range values {
+		candidate := strings.TrimSpace(value)
+		cleaned[index] = candidate
+		if candidate != "" {
+			hasNonEmpty = true
+		}
+	}
+	if !hasNonEmpty {
+		return ""
+	}
+	return strings.Join(cleaned, ",")
 }
 
 func extractArgoApplicationSources(spec map[string]any) []argoApplicationSource {

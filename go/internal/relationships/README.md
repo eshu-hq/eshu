@@ -62,8 +62,10 @@ calls `matchCatalog`, which compares candidate strings against each
 per-call `seen` map deduplicates facts within a single pass.
 
 Argo CD Application evidence accepts the legacy singular `source_repo` field and
-the multi-source `source_repos` field emitted for `spec.sources`. Each matched
-source repository produces its own `EvidenceKindArgoCDAppSource` fact. The
+the positional `source_repos`, `source_paths`, `source_roots`, and
+`source_revisions` fields emitted by the YAML parser. Each matched source
+repository produces its own `EvidenceKindArgoCDAppSource` fact without shifting
+path, root, or revision details across source indexes. The
 ApplicationSet extractor keeps generator discovery sources separate from
 template deploy sources so the reducer can preserve discovery versus deployment
 intent.

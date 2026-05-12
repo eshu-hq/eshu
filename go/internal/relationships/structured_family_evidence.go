@@ -209,13 +209,13 @@ type argoApplicationSourceRef struct {
 }
 
 func argoApplicationSourceRefs(application map[string]any) []argoApplicationSourceRef {
-	repos := csvValues(application["source_repos"])
+	repos := tupleCSVValues(application["source_repos"])
 	if len(repos) == 0 {
 		repos = csvValues(application["source_repo"])
 	}
-	paths := csvValues(application["source_paths"])
-	roots := csvValues(application["source_roots"])
-	revisions := csvValues(application["source_revisions"])
+	paths := tupleCSVValues(application["source_paths"])
+	roots := tupleCSVValues(application["source_roots"])
+	revisions := tupleCSVValues(application["source_revisions"])
 	if len(repos) == 1 {
 		paths = fallbackCSV(paths, application["source_path"])
 		roots = fallbackCSV(roots, application["source_root"])
@@ -224,6 +224,10 @@ func argoApplicationSourceRefs(application map[string]any) []argoApplicationSour
 
 	refs := make([]argoApplicationSourceRef, 0, len(repos))
 	for index, repoURL := range repos {
+		repoURL = strings.TrimSpace(repoURL)
+		if repoURL == "" {
+			continue
+		}
 		refs = append(refs, argoApplicationSourceRef{
 			repoURL:  repoURL,
 			path:     indexedCSV(paths, index),
@@ -232,6 +236,48 @@ func argoApplicationSourceRefs(application map[string]any) []argoApplicationSour
 		})
 	}
 	return refs
+}
+
+func tupleCSVValues(value any) []string {
+	var values []string
+	switch typed := value.(type) {
+	case string:
+		if strings.TrimSpace(typed) == "" {
+			return nil
+		}
+		parts := strings.Split(typed, ",")
+		values = make([]string, len(parts))
+		for index, part := range parts {
+			values[index] = strings.TrimSpace(part)
+		}
+	case []string:
+		values = make([]string, len(typed))
+		for index, part := range typed {
+			values[index] = strings.TrimSpace(part)
+		}
+	case []any:
+		values = make([]string, len(typed))
+		for index, part := range typed {
+			if value, ok := part.(string); ok {
+				values[index] = strings.TrimSpace(value)
+			}
+		}
+	default:
+		return nil
+	}
+	if !hasNonEmptyCSVValue(values) {
+		return nil
+	}
+	return values
+}
+
+func hasNonEmptyCSVValue(values []string) bool {
+	for _, value := range values {
+		if value != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func fallbackCSV(values []string, fallback any) []string {

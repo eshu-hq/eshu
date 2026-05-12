@@ -17,8 +17,10 @@ metadata inference.
 
 Argo CD Application rows preserve the existing singular `source_repo`,
 `source_path`, `source_revision`, and `source_root` fields from the primary
-source while also emitting `source_repos`, `source_paths`, `source_revisions`,
-and `source_roots` when `spec.sources` declares multiple source repositories.
+source while also emitting positional `source_repos`, `source_paths`,
+`source_revisions`, and `source_roots` CSV fields for parsed sources. Empty
+path, revision, or root positions are preserved so downstream consumers do not
+mis-associate source details with the wrong repository.
 
 CloudFormation/SAM classification and row extraction belong to the sibling
 internal/parser/cloudformation package. YAML owns file decoding and intrinsic
