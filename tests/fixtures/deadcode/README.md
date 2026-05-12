@@ -42,7 +42,7 @@ Each language fixture must include:
 | C# | active | `derived` | public API surfaces, dependency injection, reflection, source generators, partial types |
 | C++ | active | `derived` | transitive include graphs, templates, overload resolution, build-target conditionals |
 | Dart | planned | `derived_candidate_only` | public libraries, Flutter callbacks, constructors |
-| Elixir | planned | `derived_candidate_only` | modules, behaviours, Phoenix roots, supervision callbacks |
+| Elixir | active | `derived` | macro expansion, dynamic dispatch, protocol dispatch, Phoenix route resolution |
 | Go | active | `derived` | function values, local interfaces, method sets, DI callbacks |
 | Groovy | planned | `derived_candidate_only` | Jenkins pipeline entrypoints and shared-library calls |
 | Haskell | planned | `derived_candidate_only` | module exports, typeclasses, executable entrypoints |

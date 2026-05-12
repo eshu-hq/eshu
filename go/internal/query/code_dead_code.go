@@ -341,6 +341,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsScalaRoot(result, entity, stats) {
 		return true
 	}
+	if deadCodeIsElixirRoot(result, entity, stats) {
+		return true
+	}
 	if deadCodeIsCRoot(result, entity, stats) {
 		return true
 	}

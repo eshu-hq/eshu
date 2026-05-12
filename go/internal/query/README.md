@@ -66,9 +66,9 @@ Code dead-code queries add an analysis pass over graph rows so parser-provided
 candidate classifications are visible in the response body. Unsupported
 languages such as JSON package-script metadata are suppressed from cleanup
 results before classification. Requests may include a `language` filter; SQL
-uses that filter to scan `SqlFunction` candidates directly, and PHP uses it for
-language-scoped dogfood so mixed application repositories cannot fill the page
-with earlier function labels before the requested language evidence is
+uses that filter to scan `SqlFunction` candidates directly, and PHP and Elixir
+use it for language-scoped dogfood so mixed application repositories cannot fill
+the page with earlier function labels before the requested language evidence is
 evaluated. The analysis block also names modeled framework
 roots and Go semantic roots such as same-package direct method calls, imported
 receiver method calls, generic constraint methods, fmt Stringer methods,
@@ -119,7 +119,14 @@ autoload and constant resolution, framework route files, and gem public API
 surfaces. Groovy parser metadata suppresses Jenkinsfile pipeline entrypoints and
 Jenkins shared-library `vars/*.groovy` `call` methods; Groovy remains
 candidate-only because dynamic dispatch, closure delegate resolution, shared
-library loading, and pipeline DSL steps are not resolved exactly. PHP parser
+library loading, and pipeline DSL steps are not resolved exactly. Elixir parser
+metadata suppresses application `start/2`, escript `main/1`, public macros,
+public guards, `@impl` behaviour callbacks, GenServer and Supervisor callbacks,
+Mix task `run/1`, protocol functions, protocol implementation functions,
+Phoenix controller actions, and LiveView callbacks; Elixir remains non-exact
+because macro expansion, dynamic dispatch, behaviour callback resolution,
+protocol dispatch, Phoenix route resolution, supervision trees, Mix environment
+selection, and public API surfaces are not resolved exactly. PHP parser
 metadata suppresses script entrypoints, constructors, known magic methods,
 same-file interface and trait methods, route-backed controller actions, literal
 route handlers, Symfony route attributes, and WordPress hook callbacks; PHP
@@ -158,6 +165,9 @@ and public API surfaces,
 Scala blockers for macro expansion, implicit/given resolution, dynamic
 dispatch, reflection, sbt source sets, framework route files, compiler plugin
 output, and public API surfaces,
+Elixir blockers for macro expansion, dynamic dispatch, behaviour callback
+resolution, protocol dispatch, Phoenix route resolution, supervision trees, Mix
+environment selection, and public API surfaces,
 PHP blockers for dynamic dispatch, reflection, Composer autoloading,
 include/require resolution, framework routing, trait resolution, namespace
 aliases, magic-method dispatch, and public API surfaces,
@@ -190,7 +200,7 @@ Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
 payload names modeled root kinds in `modeled_framework_roots`, reports whether
 reflection evidence is modeled, and counts how many suppressions came from
-parser metadata. C, C#, C++, Kotlin, Scala, PHP, Ruby, and Groovy root
+parser metadata. C, C#, C++, Kotlin, Scala, Elixir, PHP, Ruby, and Groovy root
 suppressions are tested through both graph-shaped rows and content-store
 metadata so the policy matches the normal hydrated read path.
 That lets MCP and CLI callers explain why a candidate was suppressed. Candidate

@@ -31,6 +31,8 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	seenCalls := make(map[string]struct{})
 	scopes := make([]scope, 0)
 	lastMeaningfulLine := ""
+	deadCodeFacts := newElixirDeadCodeFacts()
+	pendingImpl := false
 
 	for index, rawLine := range lines {
 		lineNumber := index + 1
@@ -74,6 +76,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			} else {
 				shared.AppendBucket(payload, "modules", item)
 			}
+			recordElixirModule(deadCodeFacts, name)
 			if lineOpensBlock(keyword, trimmed) {
 				scopes = append(scopes, scope{
 					kind:       "module",
@@ -106,13 +109,36 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 				item["context"] = []any{moduleName, "module", moduleLine}
 				item["context_type"] = "module"
 				item["class_context"] = moduleName
+				if rootKinds := elixirFunctionDeadCodeRootKinds(
+					keyword,
+					name,
+					args,
+					moduleName,
+					elixirCurrentModuleKind(scopes),
+					pendingImpl,
+					deadCodeFacts,
+				); len(rootKinds) > 0 {
+					item["dead_code_root_kinds"] = rootKinds
+				}
+			} else if rootKinds := elixirFunctionDeadCodeRootKinds(
+				keyword,
+				name,
+				args,
+				"",
+				"",
+				pendingImpl,
+				deadCodeFacts,
+			); len(rootKinds) > 0 {
+				item["dead_code_root_kinds"] = rootKinds
 			}
+			pendingImpl = false
 			if options.IndexSource {
 				item["source"] = rawLine
 				if docstring := docstringFromPreviousLine(lastMeaningfulLine); docstring != "" {
 					item["docstring"] = docstring
 				}
 			}
+			markElixirObservedExactnessBlockersOnItem(item, trimmed)
 			shared.AppendBucket(payload, "functions", item)
 			if keyword == "defguard" || keyword == "defguardp" {
 				appendGuardCalls(payload, seenCalls, trimmed, lineNumber, scopes, item["name"], isDependency)
@@ -147,11 +173,17 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 					"import_type":      keyword,
 				})
 			}
+			if moduleName, _ := currentModule(scopes); moduleName != "" {
+				recordElixirUse(deadCodeFacts, moduleName, trimmed, keyword, paths)
+			}
 			lastMeaningfulLine = trimmed
 			continue
 		}
 
 		if matches := elixirAttributePattern.FindStringSubmatch(trimmed); len(matches) == 3 {
+			if matches[1] == "@impl" {
+				pendingImpl = true
+			}
 			if appendAttribute(payload, matches, rawLine, lineNumber, scopes, isDependency, options) {
 				lastMeaningfulLine = trimmed
 				continue
@@ -163,6 +195,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			continue
 		}
 
+		markElixirObservedExactnessBlockers(scopes, trimmed)
 		appendLineCalls(payload, seenCalls, trimmed, lineNumber, scopes, isDependency)
 		lastMeaningfulLine = trimmed
 	}
