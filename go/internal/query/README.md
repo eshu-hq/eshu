@@ -220,6 +220,9 @@ panics if the capability string is not in `capabilityMatrix`.
 Repository runtime artifacts parse Dockerfile stage metadata through
 `buildDockerfileRuntimeArtifacts`, including base image, base tag, build
 platform, copy-from, command, port, and environment signals.
+Content-backed Argo CD relationship fallback reads `source_repos` for
+multi-source Applications and emits one `DEPLOYS_FROM` relationship per source
+repo while still accepting the older singular `source_repo` metadata field.
 The OpenAPI fragment for `POST /api/v0/code/dead-code` names modeled language
 roots such as Go public-package exports plus C, C#, C++, Kotlin, PHP, Ruby, and
 Groovy parser-backed roots. Its language filter examples include `csharp`, `c`,

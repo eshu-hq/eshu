@@ -6,32 +6,33 @@ import (
 	"strings"
 )
 
+type argoApplicationSource struct {
+	repoURL        string
+	path           string
+	targetRevision string
+	normalizedRoot string
+}
+
 func isArgoCDApplication(apiVersion string, kind string) bool {
 	return strings.HasPrefix(apiVersion, "argoproj.io/") && kind == "Application"
 }
 
 func parseArgoCDApplication(document map[string]any, metadata map[string]any, path string, lineNumber int) map[string]any {
 	spec, _ := document["spec"].(map[string]any)
-	source, _ := spec["source"].(map[string]any)
 	destination, _ := spec["destination"].(map[string]any)
 	syncPolicy, syncOptions := collectArgoSyncPolicy(spec["syncPolicy"])
 	row := map[string]any{
-		"name":            strings.TrimSpace(fmt.Sprint(metadata["name"])),
-		"line_number":     lineNumber,
-		"namespace":       strings.TrimSpace(fmt.Sprint(metadata["namespace"])),
-		"project":         strings.TrimSpace(fmt.Sprint(spec["project"])),
-		"source_repo":     strings.TrimSpace(fmt.Sprint(source["repoURL"])),
-		"source_path":     strings.TrimSpace(fmt.Sprint(source["path"])),
-		"source_revision": strings.TrimSpace(fmt.Sprint(source["targetRevision"])),
-		"dest_name":       strings.TrimSpace(fmt.Sprint(destination["name"])),
-		"dest_server":     strings.TrimSpace(fmt.Sprint(destination["server"])),
-		"dest_namespace":  strings.TrimSpace(fmt.Sprint(destination["namespace"])),
-		"path":            path,
-		"lang":            "yaml",
+		"name":           strings.TrimSpace(fmt.Sprint(metadata["name"])),
+		"line_number":    lineNumber,
+		"namespace":      strings.TrimSpace(fmt.Sprint(metadata["namespace"])),
+		"project":        strings.TrimSpace(fmt.Sprint(spec["project"])),
+		"dest_name":      cleanYAMLString(destination["name"]),
+		"dest_server":    cleanYAMLString(destination["server"]),
+		"dest_namespace": cleanYAMLString(destination["namespace"]),
+		"path":           path,
+		"lang":           "yaml",
 	}
-	if sourceRoot := normalizeArgoSourceRoot(strings.TrimSpace(fmt.Sprint(source["path"]))); sourceRoot != "" {
-		row["source_root"] = sourceRoot
-	}
+	appendArgoApplicationSourceFields(row, extractArgoApplicationSources(spec))
 	if labels := collectMetadataLabels(metadata); labels != "" {
 		row["labels"] = labels
 	}
@@ -42,6 +43,98 @@ func parseArgoCDApplication(document map[string]any, metadata map[string]any, pa
 		row["sync_policy_options"] = syncOptions
 	}
 	return row
+}
+
+func appendArgoApplicationSourceFields(row map[string]any, sources []argoApplicationSource) {
+	if len(sources) == 0 {
+		row["source_repo"] = ""
+		row["source_path"] = ""
+		row["source_revision"] = ""
+		return
+	}
+
+	primary := sources[0]
+	row["source_repo"] = primary.repoURL
+	row["source_path"] = primary.path
+	row["source_revision"] = primary.targetRevision
+	if primary.normalizedRoot != "" {
+		row["source_root"] = primary.normalizedRoot
+	}
+
+	sourceRepos := make([]string, 0, len(sources))
+	sourcePaths := make([]string, 0, len(sources))
+	sourceRevisions := make([]string, 0, len(sources))
+	sourceRoots := make([]string, 0, len(sources))
+	for _, source := range sources {
+		sourceRepos = append(sourceRepos, source.repoURL)
+		sourcePaths = append(sourcePaths, source.path)
+		sourceRevisions = append(sourceRevisions, source.targetRevision)
+		sourceRoots = append(sourceRoots, source.normalizedRoot)
+	}
+	if values := joinArgoSourceTupleValues(sourceRepos); values != "" {
+		row["source_repos"] = values
+	}
+	if values := joinArgoSourceTupleValues(sourcePaths); values != "" {
+		row["source_paths"] = values
+	}
+	if values := joinArgoSourceTupleValues(sourceRevisions); values != "" {
+		row["source_revisions"] = values
+	}
+	if values := joinArgoSourceTupleValues(sourceRoots); values != "" {
+		row["source_roots"] = values
+	}
+}
+
+func joinArgoSourceTupleValues(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	cleaned := make([]string, len(values))
+	hasNonEmpty := false
+	for index, value := range values {
+		candidate := strings.TrimSpace(value)
+		cleaned[index] = candidate
+		if candidate != "" {
+			hasNonEmpty = true
+		}
+	}
+	if !hasNonEmpty {
+		return ""
+	}
+	return strings.Join(cleaned, ",")
+}
+
+func extractArgoApplicationSources(spec map[string]any) []argoApplicationSource {
+	sources := make([]argoApplicationSource, 0)
+	if source, ok := spec["source"].(map[string]any); ok {
+		if parsed := parseArgoApplicationSource(source); parsed.repoURL != "" || parsed.path != "" {
+			sources = append(sources, parsed)
+		}
+	}
+	if items, ok := spec["sources"].([]any); ok {
+		for _, item := range items {
+			source, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			parsed := parseArgoApplicationSource(source)
+			if parsed.repoURL == "" && parsed.path == "" {
+				continue
+			}
+			sources = append(sources, parsed)
+		}
+	}
+	return sources
+}
+
+func parseArgoApplicationSource(source map[string]any) argoApplicationSource {
+	sourcePath := cleanYAMLString(source["path"])
+	return argoApplicationSource{
+		repoURL:        cleanYAMLString(source["repoURL"]),
+		path:           sourcePath,
+		targetRevision: cleanYAMLString(source["targetRevision"]),
+		normalizedRoot: normalizeArgoSourceRoot(sourcePath),
+	}
 }
 
 func isArgoCDApplicationSet(apiVersion string, kind string) bool {
@@ -319,4 +412,12 @@ func boolValue(value any) bool {
 	default:
 		return false
 	}
+}
+
+func cleanYAMLString(value any) string {
+	text := strings.TrimSpace(fmt.Sprint(value))
+	if text == "<nil>" {
+		return ""
+	}
+	return text
 }

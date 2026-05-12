@@ -58,6 +58,57 @@ spec:
 	assertBucketContainsFieldValue(t, got, "argocd_applications", "sync_policy_options", "CreateNamespace=true|PruneLast=true")
 }
 
+func TestDefaultEngineParsePathYAMLArgoCDApplicationMultiSource(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "multi-source-application.yaml")
+	writeTestFile(
+		t,
+		filePath,
+		`apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: comprehensive-multi-source
+  namespace: argocd
+spec:
+  project: platform
+  sources:
+    - repoURL: https://github.com/myorg/helm-charts.git
+      path: charts/comprehensive-app
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/production/values.yaml
+    - repoURL: https://github.com/myorg/config-repo.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertNamedBucketContains(t, got, "argocd_applications", "comprehensive-multi-source")
+	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_repo", "https://github.com/myorg/helm-charts.git")
+	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_path", "charts/comprehensive-app")
+	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_repos", "https://github.com/myorg/helm-charts.git,https://github.com/myorg/config-repo.git")
+	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_paths", "charts/comprehensive-app,")
+	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_revisions", "main,main")
+	assertBucketContainsFieldValue(t, got, "argocd_applications", "source_roots", "charts/comprehensive-app/,")
+	assertBucketContainsFieldValue(t, got, "argocd_applications", "dest_namespace", "production")
+}
+
 func TestDefaultEngineParsePathYAMLArgoCDApplicationSetNestedSources(t *testing.T) {
 	t.Parallel()
 

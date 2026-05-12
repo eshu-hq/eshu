@@ -115,6 +115,9 @@
 // Repository runtime artifacts surface Dockerfile base image, base tag, build
 // platform, copy-from, command, port, and environment evidence from parser
 // metadata.
+// Content-backed Argo CD relationship fallback treats Application
+// source_repos as separate DEPLOYS_FROM targets while preserving source_repo
+// for older parser payloads.
 // local_authoritative and local_full_stack both answer graph-backed platform
 // impact queries, while local_lightweight returns structured unsupported errors
 // for those routes. Repository coverage reads content-store counts first and

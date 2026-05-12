@@ -91,41 +91,39 @@ func discoverStructuredArgoCDEvidence(
 			if !ok {
 				continue
 			}
-			repoURL := strings.TrimSpace(payloadString(application, "source_repo"))
-			if repoURL == "" {
-				continue
-			}
 			appName := strings.TrimSpace(payloadString(application, "name"))
-			details := withFirstPartyRefDetails(
-				map[string]any{
-					"argocd_application_name": appName,
-					"source_revision":         payloadString(application, "source_revision"),
-				},
-				"argocd_application_source",
-				appName,
-				payloadString(application, "source_path"),
-				payloadString(application, "source_root"),
-				payloadString(application, "source_revision"),
-				repoURL,
-			)
-			evidence = append(evidence, matchCatalog(
-				sourceRepoID, repoURL, filePath,
-				EvidenceKindArgoCDAppSource, RelDeploysFrom, 0.95,
-				"ArgoCD Application source references the target repository",
-				"argocd", catalog, seen, details,
-			)...)
-
-			for _, deployedRepo := range matchingCatalogEntries(repoURL, catalog) {
-				evidence = append(evidence, appendDestinationPlatformEvidence(
-					deployedRepo.RepoID,
-					filePath,
-					argocdDestination{
-						name:      payloadString(application, "dest_name"),
-						namespace: payloadString(application, "dest_namespace"),
-						server:    payloadString(application, "dest_server"),
+			for _, source := range argoApplicationSourceRefs(application) {
+				details := withFirstPartyRefDetails(
+					map[string]any{
+						"argocd_application_name": appName,
+						"source_revision":         source.revision,
 					},
-					seen,
+					"argocd_application_source",
+					appName,
+					source.path,
+					source.root,
+					source.revision,
+					source.repoURL,
+				)
+				evidence = append(evidence, matchCatalog(
+					sourceRepoID, source.repoURL, filePath,
+					EvidenceKindArgoCDAppSource, RelDeploysFrom, 0.95,
+					"ArgoCD Application source references the target repository",
+					"argocd", catalog, seen, details,
 				)...)
+
+				for _, deployedRepo := range matchingCatalogEntries(source.repoURL, catalog) {
+					evidence = append(evidence, appendDestinationPlatformEvidence(
+						deployedRepo.RepoID,
+						filePath,
+						argocdDestination{
+							name:      payloadString(application, "dest_name"),
+							namespace: payloadString(application, "dest_namespace"),
+							server:    payloadString(application, "dest_server"),
+						},
+						seen,
+					)...)
+				}
 			}
 		}
 	}
@@ -201,6 +199,99 @@ func discoverStructuredArgoCDEvidence(
 	}
 
 	return evidence
+}
+
+type argoApplicationSourceRef struct {
+	repoURL  string
+	path     string
+	root     string
+	revision string
+}
+
+func argoApplicationSourceRefs(application map[string]any) []argoApplicationSourceRef {
+	repos := tupleCSVValues(application["source_repos"])
+	if len(repos) == 0 {
+		repos = csvValues(application["source_repo"])
+	}
+	paths := tupleCSVValues(application["source_paths"])
+	roots := tupleCSVValues(application["source_roots"])
+	revisions := tupleCSVValues(application["source_revisions"])
+	if len(repos) == 1 {
+		paths = fallbackCSV(paths, application["source_path"])
+		roots = fallbackCSV(roots, application["source_root"])
+		revisions = fallbackCSV(revisions, application["source_revision"])
+	}
+
+	refs := make([]argoApplicationSourceRef, 0, len(repos))
+	for index, repoURL := range repos {
+		repoURL = strings.TrimSpace(repoURL)
+		if repoURL == "" {
+			continue
+		}
+		refs = append(refs, argoApplicationSourceRef{
+			repoURL:  repoURL,
+			path:     indexedCSV(paths, index),
+			root:     indexedCSV(roots, index),
+			revision: indexedCSV(revisions, index),
+		})
+	}
+	return refs
+}
+
+func tupleCSVValues(value any) []string {
+	var values []string
+	switch typed := value.(type) {
+	case string:
+		if strings.TrimSpace(typed) == "" {
+			return nil
+		}
+		parts := strings.Split(typed, ",")
+		values = make([]string, len(parts))
+		for index, part := range parts {
+			values[index] = strings.TrimSpace(part)
+		}
+	case []string:
+		values = make([]string, len(typed))
+		for index, part := range typed {
+			values[index] = strings.TrimSpace(part)
+		}
+	case []any:
+		values = make([]string, len(typed))
+		for index, part := range typed {
+			if value, ok := part.(string); ok {
+				values[index] = strings.TrimSpace(value)
+			}
+		}
+	default:
+		return nil
+	}
+	if !hasNonEmptyCSVValue(values) {
+		return nil
+	}
+	return values
+}
+
+func hasNonEmptyCSVValue(values []string) bool {
+	for _, value := range values {
+		if value != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func fallbackCSV(values []string, fallback any) []string {
+	if len(values) > 0 {
+		return values
+	}
+	return csvValues(fallback)
+}
+
+func indexedCSV(values []string, index int) string {
+	if index < 0 || index >= len(values) {
+		return ""
+	}
+	return values[index]
 }
 
 func applyStructuredRefDetails(
