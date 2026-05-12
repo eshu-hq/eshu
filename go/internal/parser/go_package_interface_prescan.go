@@ -323,11 +323,10 @@ type prescanFile struct {
 }
 
 // runPackagePrescanPass dispatches one job per file index across a worker
-// pool of size workers. Each worker owns its own tree-sitter parser
-// (tree-sitter parsers are not safe for concurrent use) and reuses it
+// pool capped to the number of files. Each worker owns its own tree-sitter
+// parser (tree-sitter parsers are not safe for concurrent use) and reuses it
 // across every file it processes. The first non-nil error any worker returns
-// is reported back to the caller; remaining workers still drain the queue
-// so the function does not leak goroutines on error.
+// is reported back to the caller after all workers finish.
 //
 // Workers do not synchronize on file results — work is expected to write to
 // pre-allocated slots in a caller-owned slice indexed by job index, which
@@ -337,11 +336,9 @@ func (e *Engine) runPackagePrescanPass(
 	files []prescanFile,
 	work func(parser *tree_sitter.Parser, idx int) error,
 ) error {
-	if len(files) == 0 {
+	workers = packagePrescanPassWorkerCount(workers, len(files))
+	if workers == 0 {
 		return nil
-	}
-	if workers < 1 {
-		workers = 1
 	}
 
 	jobs := make(chan int, len(files))
@@ -373,10 +370,6 @@ func (e *Engine) runPackagePrescanPass(
 			parser, err := e.runtime.Parser("go")
 			if err != nil {
 				setErr(err)
-				// Drain remaining jobs so the close(jobs) signal does not
-				// strand other workers waiting on a never-closed channel.
-				for range jobs {
-				}
 				return
 			}
 			defer parser.Close()
@@ -389,6 +382,19 @@ func (e *Engine) runPackagePrescanPass(
 	}
 	wg.Wait()
 	return firstErr
+}
+
+func packagePrescanPassWorkerCount(workers int, fileCount int) int {
+	if fileCount <= 0 {
+		return 0
+	}
+	if workers < 1 {
+		return 1
+	}
+	if workers > fileCount {
+		return fileCount
+	}
+	return workers
 }
 
 func goModulePath(repoRoot string) string {

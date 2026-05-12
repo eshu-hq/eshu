@@ -114,9 +114,10 @@ func writePrescanBenchCorpus(b *testing.B, repoRoot string, packageCount, filesP
 }
 
 // generatePrescanInterfaceFile produces an interface-bearing Go file shaped to
-// engage LocalInterfaceMethods, LocalInterfaceImportedMethodReturns, and the
-// MethodDeclarationKeys helpers. The local interface returns a fmt.Stringer so
-// downstream ImportedDirectMethodCallRootsWithInterfaceReturns has work.
+// engage LocalInterfaceMethods, LocalInterfaceImportedMethodReturns,
+// ExportedInterfaceParamMethods, and MethodDeclarationKeys helpers. The local
+// interface returns a fmt.Stringer so downstream
+// ImportedDirectMethodCallRootsWithInterfaceReturns has work.
 func generatePrescanInterfaceFile(packageName string, idx int) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "package %s\n\n", packageName)
@@ -131,17 +132,21 @@ func generatePrescanInterfaceFile(packageName string, idx int) string {
 	fmt.Fprintf(&b, "type Holder%d struct{ value string }\n\n", idx)
 	fmt.Fprintf(&b, "func (h *Holder%d) Stringer() fmt.Stringer { return stringerImpl(h.value) }\n", idx)
 	fmt.Fprintf(&b, "func (h *Holder%d) Name() string { return h.value }\n\n", idx)
+	fmt.Fprintf(&b, "// ExportSource%d keeps the exported-interface parameter prescan on the\n", idx)
+	b.WriteString("// same file as the interface declaration it inspects.\n")
+	fmt.Fprintf(&b, "func ExportSource%d(src Source%d) []string {\n", idx, idx)
+	b.WriteString("\treturn []string{src.Name(), src.Stringer().String()}\n")
+	b.WriteString("}\n\n")
 	b.WriteString("type stringerImpl string\n\n")
 	b.WriteString("func (s stringerImpl) String() string { return string(s) }\n")
 	return b.String()
 }
 
 // generatePrescanCallerFile produces a Go file shaped to engage the consumer
-// and exported interface extractors. The file imports fmt, declares an
-// exported function that takes a same-package interface parameter (exercising
-// ExportedInterfaceParamMethods), calls a fmt.Stringer method on a returned
-// value (exercising the chained imported direct method call roots), and
-// declares a generic helper whose type parameter is constrained by the
+// interface extractors. The file imports fmt, declares an exported function
+// that takes a same-package interface parameter, calls a fmt.Stringer method on
+// a returned value (exercising the chained imported direct method call roots),
+// and declares a generic helper whose type parameter is constrained by the
 // package-local interface (exercising the generic constraint pass).
 func generatePrescanCallerFile(packageName string, packageIdx, fileIdx int, modulePath string) string {
 	var b strings.Builder
@@ -152,8 +157,8 @@ func generatePrescanCallerFile(packageName string, packageIdx, fileIdx int, modu
 	b.WriteString(")\n\n")
 	// Reference the imports so go vet would not complain; the prescan does not
 	// run vet but the shape is realistic.
-	fmt.Fprintf(&b, "// Consume%d takes a same-package interface and exercises the exported\n", fileIdx)
-	b.WriteString("// interface parameter prescan plus imported direct method calls.\n")
+	fmt.Fprintf(&b, "// Consume%d takes a same-package interface and exercises imported\n", fileIdx)
+	b.WriteString("// direct method calls plus cross-file interface consumers.\n")
 	fmt.Fprintf(&b, "func Consume%d(src Source%d, prefix string) string {\n", fileIdx, packageIdx)
 	b.WriteString("\tout := src.Stringer().String()\n")
 	b.WriteString("\tjoined := strings.ToLower(strings.TrimSpace(out))\n")
