@@ -110,21 +110,57 @@ func TestScopeLocatorHashAgreesWithStateSnapshotScopeID(t *testing.T) {
 	}
 }
 
-// TestScopeLocatorHashIgnoresVersionID guards the version-agnostic property
-// of the join key. The state-snapshot scope is intentionally version-agnostic
-// — multiple S3 versions of the same state file collapse into one scope, with
-// per-version generations carrying the lineage and serial — so the join key
-// MUST follow the same identity rule.
-func TestScopeLocatorHashIgnoresVersionID(t *testing.T) {
+// TestScopeLocatorHashCollapsesAcrossVersionIDVariation guards the
+// version-agnostic property of the join key by demonstrating it against its
+// per-version sibling. The state-snapshot scope is intentionally
+// version-agnostic — multiple S3 versions of the same state file collapse
+// into one scope, with per-version generations carrying the lineage and
+// serial — so the join key MUST follow the same identity rule.
+//
+// The function signature already excludes VersionID structurally;
+// ScopeLocatorHash(BackendKind, Locator) takes no version input. This test
+// pairs it with LocatorHash, which DOES vary by VersionID, to prove the
+// behavioral contract: two LocatorHash inputs that differ only in VersionID
+// produce different per-version identities while the corresponding
+// ScopeLocatorHash for the same backend+locator stays fixed. If the scope
+// hash ever started depending on VersionID, the drift resolver join would
+// shatter into per-version buckets and silently reject every candidate.
+func TestScopeLocatorHashCollapsesAcrossVersionIDVariation(t *testing.T) {
 	t.Parallel()
 
 	const locator = "s3://tfstate-prod/services/api/terraform.tfstate"
-	first := terraformstate.ScopeLocatorHash(terraformstate.BackendS3, locator)
-	// LocatorHash with empty VersionID must NOT equal the scope hash; the two
-	// have different responsibilities. Per-candidate identity tracks the S3
-	// object version; the scope/join hash does not.
-	if first != terraformstate.ScopeLocatorHash(terraformstate.BackendS3, locator) {
-		t.Fatalf("ScopeLocatorHash is non-deterministic for the same input")
+
+	scopeHashFirst := terraformstate.ScopeLocatorHash(terraformstate.BackendS3, locator)
+	scopeHashSecond := terraformstate.ScopeLocatorHash(terraformstate.BackendS3, locator)
+	if scopeHashFirst != scopeHashSecond {
+		t.Fatalf("ScopeLocatorHash is non-deterministic for the same backend+locator: %q vs %q",
+			scopeHashFirst, scopeHashSecond)
+	}
+
+	versionA := terraformstate.LocatorHash(terraformstate.StateKey{
+		BackendKind: terraformstate.BackendS3,
+		Locator:     locator,
+		VersionID:   "version-a",
+	})
+	versionB := terraformstate.LocatorHash(terraformstate.StateKey{
+		BackendKind: terraformstate.BackendS3,
+		Locator:     locator,
+		VersionID:   "version-b",
+	})
+	if versionA == versionB {
+		t.Fatalf("LocatorHash failed to distinguish VersionID values; cannot prove the "+
+			"scope-hash collapse property without a version-sensitive baseline. got %q for both",
+			versionA)
+	}
+
+	// The scope hash for the same backend+locator must remain identical even
+	// though the per-version identities for that backend+locator span two
+	// distinct VersionID values. This is the load-bearing property: the
+	// drift-resolver join is one row per backend+locator, not per S3 object
+	// version.
+	if got := terraformstate.ScopeLocatorHash(terraformstate.BackendS3, locator); got != scopeHashFirst {
+		t.Fatalf("ScopeLocatorHash drifted while LocatorHash spanned two VersionID values: "+
+			"got %q, want %q", got, scopeHashFirst)
 	}
 }
 

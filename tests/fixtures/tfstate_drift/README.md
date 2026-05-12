@@ -66,10 +66,25 @@ state-side scope hash parsed at
 `go/internal/reducer/terraform_config_state_drift.go`); see issue #203
 for the silent-rejection failure mode that motivated the alignment.
 
-Do NOT use `terraformstate.LocatorHash` to regenerate these values —
-`LocatorHash` is the per-version identity used by `CandidatePlanningID` and
-the persisted snapshot fact payload, and includes `VersionID` in the digest.
-The two functions agree only when `VersionID == ""`.
+Do NOT use `terraformstate.LocatorHash` to regenerate these values.
+`LocatorHash` and `ScopeLocatorHash` are deliberately distinct hash
+functions with different responsibilities:
+
+- `ScopeLocatorHash(BackendKind, Locator)` digests two fields and is the
+  canonical drift-resolver join key (scope-level, version-agnostic).
+- `LocatorHash(StateKey)` digests `BackendKind`, `Locator`, **and**
+  `VersionID` — including a trailing `\x00` + `VersionID` even when
+  `VersionID` is the empty string — and is the per-candidate identity
+  used by `CandidatePlanningID` and the persisted snapshot fact payload.
+
+The two never agree byte-for-byte for the same backend + locator, even
+when `VersionID == ""`, because `LocatorHash` always appends the trailing
+separator. That separator is exactly what caused issue #203 when the
+canonical resolver path was computing the join key with
+`LocatorHash(StateKey{VersionID: ""})` while the state side was using the
+scope hash. Callers must pick the right hash for their responsibility:
+scope-level joins use `ScopeLocatorHash`, per-version identity uses
+`LocatorHash`.
 
 `Locator = "s3://" + bucket + "/" + key`. To regenerate:
 

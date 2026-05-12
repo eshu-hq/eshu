@@ -79,8 +79,9 @@ func NewTerraformStateSnapshotGeneration(
 // the drift resolver compares the two byte-for-byte, and any divergence
 // silently rejects every drift candidate with ErrNoConfigRepoOwnsBackend
 // (issue #203). The contract is locked by
-// TestLocatorHashAgreesWithStateSnapshotScopeID under
-// go/internal/collector/terraformstate.
+// TestScopeLocatorHashAgreesWithStateSnapshotScopeID under
+// go/internal/collector/terraformstate (file
+// locator_hash_scope_alignment_test.go).
 //
 // scope cannot import terraformstate (collector imports scope, not the
 // reverse), so the alignment is enforced by the cross-package contract test
