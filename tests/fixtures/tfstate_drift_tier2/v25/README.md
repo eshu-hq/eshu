@@ -42,8 +42,8 @@ walk the prior-generation history on the second pass.
 | `repos_gen2/drift-f-tf-config/main.tf` | Bucket F gen-2 config: same backend, resource removed. |
 | `state_gen1/drift-c.tfstate` | Bucket C gen-1 state: serial=1, lineage `…c3`, carries `aws_s3_bucket.cached`. |
 | `state_gen2/drift-c.tfstate` | Bucket C gen-2 state: serial=2, lineage `…c3`, no resources. |
-| `state_gen1/drift-f.tfstate` | Bucket F gen-1 state: serial=1, lineage `…f6`, no resources. |
-| `state_gen2/drift-f.tfstate` | Bucket F gen-2 state: serial=2, lineage `…f6`, no resources. |
+| `state_gen1/drift-f.tfstate` | Bucket F gen-1 state: serial=1, lineage `…f6`, carries `aws_s3_bucket.legacy`. |
+| `state_gen2/drift-f.tfstate` | Bucket F gen-2 state: serial=2, lineage `…f6`, still carries `aws_s3_bucket.legacy` (state unchanged; config-side drop drives the drift). |
 | `minio-init-gen1.sh` | Bucket creation + gen-1 object upload (compose `up`). |
 | `minio-init-gen2.sh` | Gen-2 object overwrite for the same `prod/terraform.tfstate` keys (between collector passes). |
 
@@ -83,9 +83,16 @@ The v2.5 verifier orchestration (Option B — dual collector instance):
   gen-1 and gen-2 facts — Tier-1's locator-hash recipe in
   `../README.md` applies unchanged.
 - Bucket F locator: `s3://eshu-drift-f/prod/terraform.tfstate`. Bucket F
-  state is always empty; the locator only exists so the planner emits a
-  work item the collector can drain (otherwise the repo never enters the
-  state pipeline).
+  state carries `aws_s3_bucket.legacy` across both serials (state unchanged
+  between generations; only config drops the resource block). The classifier
+  contract at
+  `go/internal/correlation/drift/tfconfigstate/classify.go:136` requires
+  the state row to remain present so `hasStateOnlyAddress` returns true,
+  the prior-config walk runs against gen-1's superseded
+  `scope_generations` row, and `mergeDriftRows` sets
+  `PreviouslyDeclaredInConfig=true`. An empty state file would short-
+  circuit the walk and the classifier would emit nothing — pre-apply
+  config rollback is not real drift by design.
 - Lineages are deliberately distinct from Tier-2 v1 (`…a1`, `…b2`, `…d4`,
   `…e5`) to avoid cross-bucket confusion in CI logs.
 
