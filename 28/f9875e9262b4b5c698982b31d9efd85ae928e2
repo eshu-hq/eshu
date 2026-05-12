@@ -1,0 +1,63 @@
+go/internal/facts/package_registry.go
+  s_00a320afddcac7::t_697d26986f6fbd 1-91
+go/internal/collector/packageregistry/identity.go
+  s_00a320afddcac7::t_0e5666bf36992b 95-96,99-100
+  s_00a320afddcac7::t_697d26986f6fbd 1-94,97-98,101-123
+go/internal/collector/packageregistry/types.go
+  s_00a320afddcac7::t_1720c151417042 72-91
+  s_00a320afddcac7::t_697d26986f6fbd 1-71
+go/internal/collector/packageregistry/identity_test.go
+  s_00a320afddcac7::t_14b0ed407b4fe4 1-135
+go/internal/collector/packageregistry/envelope_test.go
+  s_00a320afddcac7::t_14b0ed407b4fe4 1-112
+go/internal/collector/packageregistry/version_test.go
+  s_00a320afddcac7::t_281c047c682837 1-97
+go/internal/collector/packageregistry/AGENTS.md
+  s_00a320afddcac7::t_697d26986f6fbd 1-36
+go/internal/collector/AGENTS.md
+  s_00a320afddcac7::t_3afd3e6198be5a 17-18,82-85
+go/internal/facts/README.md
+  s_00a320afddcac7::t_3afd3e6198be5a 77-94
+go/internal/collector/packageregistry/envelope.go
+  s_00a320afddcac7::t_697d26986f6fbd 1-24,26-70
+  s_00a320afddcac7::t_1720c151417042 25
+docs/docs/adrs/2026-05-10-oci-container-registry-collector.md
+  s_00a320afddcac7::t_cfc23b865c8672 13,16,50-53
+docs/docs/adrs/README.md
+  s_00a320afddcac7::t_cfc23b865c8672 53,72-74
+go/internal/collector/packageregistry/doc.go
+  s_00a320afddcac7::t_0f52f9bdbffa61 5
+  s_00a320afddcac7::t_56bdb81d9abd73 6-11
+  s_00a320afddcac7::t_697d26986f6fbd 1-4,12
+go/internal/facts/package_registry_test.go
+  s_00a320afddcac7::t_14b0ed407b4fe4 1-42
+go/internal/facts/doc.go
+  s_00a320afddcac7::t_3afd3e6198be5a 12-15
+docs/docs/adrs/2026-05-12-package-registry-collector.md
+  s_00a320afddcac7::t_8fcbed160738a7 329-349
+  s_00a320afddcac7::t_cfc23b865c8672 1-328,350-394
+go/internal/collector/packageregistry/README.md
+  s_00a320afddcac7::t_0f52f9bdbffa61 14,19-21,30-31,33,36,39,59-66,69-76
+  s_00a320afddcac7::t_697d26986f6fbd 1-13,15,22-29,32,34-35,37-38,40-44,49-58
+  s_00a320afddcac7::t_56bdb81d9abd73 16-18,45-48,67-68
+go/internal/collector/README.md
+  s_00a320afddcac7::t_3afd3e6198be5a 154-156
+go/internal/collector/packageregistry/version.go
+  s_00a320afddcac7::t_1720c151417042 1-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "28f9875e9262b4b5c698982b31d9efd85ae928e2",
+  "prompts": {},
+  "sessions": {
+    "s_00a320afddcac7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c52-fa77-7391-8873-a102dce078ae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
