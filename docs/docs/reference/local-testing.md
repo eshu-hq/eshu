@@ -88,6 +88,62 @@ docker compose exec -T postgres \
 Stop the collector with Ctrl-C after the first successful sync unless you are
 testing repeated polling.
 
+## OCI Registry Live Smokes
+
+Use these only for maintainer/operator validation against real registries. They
+are opt-in and must not run in default CI. Keep registry hosts, account IDs,
+repository keys, image repository names, profiles, usernames, and tokens in
+local shell config only.
+
+JFrog Artifactory Docker/OCI repository validation uses public
+`ESHU_JFROG_OCI_*` test variables. Maintainers who already keep private
+`JFROG_*` aliases locally may map them before running the test:
+
+```bash
+set -a
+source /path/to/local/private/env
+set +a
+
+export ESHU_JFROG_OCI_LIVE=1
+export ESHU_JFROG_OCI_URL="${ESHU_JFROG_OCI_URL:-${JFROG_URL:-${JFROG_BASE_URL:-}}}"
+export ESHU_JFROG_OCI_REPOSITORY_KEY="${ESHU_JFROG_OCI_REPOSITORY_KEY:-${JFROG_DOCKER_REPOSITORY_KEY:-}}"
+export ESHU_JFROG_OCI_IMAGE_REPOSITORY="${ESHU_JFROG_OCI_IMAGE_REPOSITORY:-${JFROG_IMAGE_REPOSITORY:-}}"
+export ESHU_JFROG_OCI_REFERENCE="${ESHU_JFROG_OCI_REFERENCE:-${JFROG_IMAGE_REFERENCE:-}}"
+export ESHU_JFROG_OCI_USERNAME="${ESHU_JFROG_OCI_USERNAME:-${JFROG_USERNAME:-${JFROG_USER:-}}}"
+export ESHU_JFROG_OCI_PASSWORD="${ESHU_JFROG_OCI_PASSWORD:-${JFROG_PASSWORD:-}}"
+export ESHU_JFROG_OCI_BEARER_TOKEN="${ESHU_JFROG_OCI_BEARER_TOKEN:-${JFROG_ACCESS_TOKEN:-${JFROG_BEARER_TOKEN:-}}}"
+
+cd go
+go test ./internal/collector/ociregistry/jfrog -run TestLiveJFrog -count=1 -v
+```
+
+The JFrog challenge smoke can run with only `ESHU_JFROG_OCI_URL`. The tag-list
+smoke also needs `ESHU_JFROG_OCI_IMAGE_REPOSITORY`.
+`ESHU_JFROG_OCI_REPOSITORY_KEY` is required only when validating the
+Artifactory `/artifactory/api/docker/<repository-key>` route. When
+`ESHU_JFROG_OCI_REFERENCE` is set, the smoke resolves the manifest after
+listing tags.
+
+Amazon ECR private-registry validation uses AWS shared config plus explicit
+repository coordinates:
+
+```bash
+export ESHU_ECR_OCI_LIVE=1
+export ESHU_ECR_OCI_REGION="us-east-1"
+export ESHU_ECR_OCI_REGISTRY_ID="123456789012"
+export ESHU_ECR_OCI_REPOSITORY="team/api"
+export ESHU_ECR_OCI_REFERENCE="latest"
+
+cd go
+go test ./internal/collector/ociregistry/ecr -run TestLiveECR -count=1 -v
+```
+
+`ESHU_ECR_OCI_REFERENCE` is optional. When set, the live smoke resolves the
+manifest after listing tags. `ESHU_ECR_OCI_REGISTRY_ID` is used to build the
+target registry host; the ECR authorization-token call itself does not pass a
+registry id because AWS now marks that request field deprecated. Use
+`ESHU_ECR_OCI_REGISTRY_HOST` instead when testing a nonstandard host shape.
+
 ## Discovery Advisory Playbook
 
 Use this loop when a repository is slow, unexpectedly large, or timeout-heavy.

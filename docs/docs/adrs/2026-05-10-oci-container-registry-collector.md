@@ -52,6 +52,22 @@ The first contract is OCI-first, not provider-first:
   participates in the package-registry lane when collecting npm, Maven, NuGet,
   PyPI, Go, Generic, or other package-manager feed metadata.
 
+## Initial Provider Support Matrix
+
+The implementation starts with an OCI-first core and provider adapters only
+where the provider changes authentication or URL shape.
+
+| Provider | Initial status | Contract |
+| --- | --- | --- |
+| OCI Distribution-compatible registry | Supported baseline | `distribution.Client` performs `/v2/`, tag list, manifest, and Referrers API calls. |
+| JFrog Artifactory Docker/OCI repository | Supported live-validation target | `jfrog` maps an Artifactory base URL plus Docker repository key onto the Distribution client. Package feeds remain in the package-registry collector. |
+| Amazon ECR private registry | Supported live-validation target | `ecr` maps account/region registry hosts and converts `GetAuthorizationToken` output into Distribution basic auth. |
+| GHCR, Docker Hub, Harbor, Google Artifact Registry, Azure Container Registry | Future adapters | Add only when a provider needs auth, pagination, hostname, or warning-class behavior beyond the Distribution baseline. |
+
+Provider adapters must not change fact identity. They can normalize endpoint
+shape, obtain credentials, classify provider-specific warnings, and pass the
+result into the same `oci_registry` fact builders.
+
 ## Decision
 
 Add a future collector family named `oci_registry`.
@@ -311,3 +327,9 @@ the descriptor and emit a warning instead of dropping evidence.
   https://github.com/opencontainers/image-spec/blob/main/image-index.md
 - OCI annotations:
   https://github.com/opencontainers/image-spec/blob/main/annotations.md
+- AWS ECR private registry authentication:
+  https://docs.aws.amazon.com/AmazonECR/latest/userguide/registry_auth.html
+- JFrog Docker repositories:
+  https://docs.jfrog.com/artifactory/docs/docker-repositories
+- JFrog Docker repository catalog API:
+  https://docs.jfrog.com/artifactory/reference/listDockerRepositories

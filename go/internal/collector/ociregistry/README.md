@@ -15,9 +15,10 @@ Docker/OCI repositories use this lane. JFrog package feeds use
 ## Ownership boundary
 
 This package owns local identity rules and fact-envelope construction only.
-Live AWS/JFrog clients, workflow claims, runtime telemetry, graph writes,
-reducer correlation, and query surfaces belong to later collector, reducer,
-storage, and query slices.
+Distribution HTTP clients, JFrog repository-key mapping, and ECR token
+conversion live in provider subpackages. Workflow claims, runtime telemetry,
+graph writes, reducer correlation, and query surfaces belong to later
+collector, reducer, storage, and query slices.
 
 ```mermaid
 flowchart LR
@@ -68,6 +69,14 @@ the resolved digest. `FactID` includes `scope_id` and `generation_id`, while
 
 - `internal/facts` for durable fact constants, `Envelope`, `Ref`, and stable ID
   generation.
+
+## Provider support
+
+| Package | Role |
+| --- | --- |
+| `distribution` | Provider-neutral OCI Distribution API calls for ping, tags, manifests, and referrers. |
+| `jfrog` | Artifactory Docker/OCI repository-key mapping and opt-in live smoke tests. |
+| `ecr` | Amazon ECR host mapping, auth-token conversion, and opt-in live smoke tests. |
 
 ## Telemetry
 
