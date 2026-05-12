@@ -19,8 +19,11 @@ flowchart LR
 
 ## Internal Flow
 
-`Source.Next` performs one bounded collection generation. It loads either a
-space page list or a root page tree, filters non-current pages, keeps the
+`Source.Next` performs one bounded collection generation. `Source.NextObserved`
+uses the same path and returns `collector.CollectorObservation`, but starts the
+shared `collector.observe` span only after the source has ruled out a drained
+idle poll. The collection path loads either
+a space page list or a root page tree, filters non-current pages, keeps the
 latest visible revision per page ID, computes a stable generation ID from page
 versions, and returns fact envelopes through `collector.FactsFromSlice`.
 
@@ -30,7 +33,7 @@ generation because the collector cannot prove the source state.
 
 ## Exported Surface
 
-- `Source` - implements `collector.Source`
+- `Source` - implements `collector.Source` and `collector.ObservedSource`
 - `SourceConfig` and `LoadConfig` - env-backed Confluence config loading
 - `Client` - source evidence interface used by `Source`
 - `HTTPClient` and `NewHTTPClient` - Confluence Cloud REST API v2 reader

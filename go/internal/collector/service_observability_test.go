@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -75,18 +76,117 @@ func TestServiceRunCollectorObserveSpanWrapsSourceNextAndCommit(t *testing.T) {
 	}
 }
 
+func TestServiceRunDoesNotEmitCollectorObserveSpanForIdlePoll(t *testing.T) {
+	t.Parallel()
+
+	spanRecorder := tracetest.NewSpanRecorder()
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
+	defer func() {
+		if err := tracerProvider.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	service := Service{
+		Source: &stubSource{
+			empty: cancel,
+		},
+		Committer:    &stubCommitter{},
+		PollInterval: time.Millisecond,
+		Tracer:       tracerProvider.Tracer(telemetry.DefaultSignalName),
+	}
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	for _, span := range spanRecorder.Ended() {
+		if span.Name() == telemetry.SpanCollectorObserve {
+			t.Fatal("collector.observe span emitted for idle poll")
+		}
+	}
+}
+
+func TestServiceRunDoesNotMarkGracefulSourceCancellationAsSpanError(t *testing.T) {
+	t.Parallel()
+
+	spanRecorder := tracetest.NewSpanRecorder()
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
+	defer func() {
+		if err := tracerProvider.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	service := Service{
+		Source:       &cancelingObservedSource{cancel: cancel},
+		Committer:    &stubCommitter{},
+		PollInterval: time.Millisecond,
+		Tracer:       tracerProvider.Tracer(telemetry.DefaultSignalName),
+	}
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	var collectorObserveSpans int
+	for _, span := range spanRecorder.Ended() {
+		if span.Name() != telemetry.SpanCollectorObserve {
+			continue
+		}
+		collectorObserveSpans++
+		if span.Status().Code == codes.Error {
+			t.Fatal("collector.observe span marked graceful cancellation as error")
+		}
+	}
+	if collectorObserveSpans != 1 {
+		t.Fatalf("collector.observe spans = %d, want 1", collectorObserveSpans)
+	}
+}
+
 type spanCheckingSource struct {
 	collected CollectedGeneration
 	called    bool
 	sawSpan   bool
 }
 
-func (s *spanCheckingSource) Next(ctx context.Context) (CollectedGeneration, bool, error) {
+func (s *spanCheckingSource) Next(context.Context) (CollectedGeneration, bool, error) {
+	panic("spanCheckingSource must be called through NextObserved")
+}
+
+func (s *spanCheckingSource) NextObserved(
+	ctx context.Context,
+	startObserve StartObserveFunc,
+) (CollectedGeneration, bool, CollectorObservation, error) {
 	if !s.called {
 		s.called = true
-		s.sawSpan = oteltrace.SpanContextFromContext(ctx).IsValid()
-		return s.collected, true, nil
+		observation := startObserve(ctx)
+		s.sawSpan = oteltrace.SpanContextFromContext(observation.Context).IsValid()
+		return s.collected, true, observation, nil
 	}
 	<-ctx.Done()
-	return CollectedGeneration{}, false, ctx.Err()
+	return CollectedGeneration{}, false, CollectorObservation{}, ctx.Err()
+}
+
+type cancelingObservedSource struct {
+	cancel context.CancelFunc
+}
+
+func (s *cancelingObservedSource) Next(context.Context) (CollectedGeneration, bool, error) {
+	panic("cancelingObservedSource must be called through NextObserved")
+}
+
+func (s *cancelingObservedSource) NextObserved(
+	ctx context.Context,
+	startObserve StartObserveFunc,
+) (CollectedGeneration, bool, CollectorObservation, error) {
+	observation := startObserve(ctx)
+	s.cancel()
+	return CollectedGeneration{}, false, observation, context.Canceled
 }

@@ -50,7 +50,8 @@
 - **Collector observe spans cover source and commit work** —
   `Service.Run` starts `SpanCollectorObserve` before `Source.Next` and ends it
   after `commitWithTelemetry`, so slow source reads and durable writes are in
-  one trace (`service.go:140-168`).
+  one trace. Sources that implement `ObservedSource` must start the span only
+  for real collection attempts, not drained or idle polls.
 
 - **Facts channel buffer matches Postgres batch size** — `factStreamBuffer = 500`
   matches the Postgres ingestion batch INSERT size so the channel drains at the
