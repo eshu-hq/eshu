@@ -1,10 +1,13 @@
 package postgres
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // stateRowFromCollectorPayload decodes one terraform_state_resource fact
@@ -14,11 +17,22 @@ import (
 // attribute-drift dispatch can compare against the parser-emitted config-side
 // dot-paths (terraform_resource_attributes.go).
 //
+// ctx and logger are threaded into flattenStateAttributes so the first-wins
+// truncation log can attach to the calling request scope. A nil logger
+// silently drops the log line (matches logPriorConfigWalk); a nil ctx is not
+// supported by callers (the loader always has a request context).
+//
 // Returns (nil, false) when the address is blank or the payload fails to
 // decode. The caller surfaces decode failures via logDecodeFailure;
 // successful decodes with an empty address are a parser invariant violation
 // and intentionally silent (they cannot become drift candidates).
-func stateRowFromCollectorPayload(address string, payload []byte, lineageRotation bool) (*tfconfigstate.ResourceRow, bool) {
+func stateRowFromCollectorPayload(
+	ctx context.Context,
+	logger *slog.Logger,
+	address string,
+	payload []byte,
+	lineageRotation bool,
+) (*tfconfigstate.ResourceRow, bool) {
 	address = strings.TrimSpace(address)
 	if address == "" {
 		return nil, false
@@ -40,7 +54,7 @@ func stateRowFromCollectorPayload(address string, payload []byte, lineageRotatio
 	}
 	if len(decoded.Attributes) > 0 {
 		flat := map[string]string{}
-		flattenStateAttributes(decoded.Attributes, "", flat)
+		flattenStateAttributes(ctx, logger, decoded.Attributes, "", flat)
 		if len(flat) > 0 {
 			row.Attributes = flat
 		}
@@ -56,10 +70,12 @@ func stateRowFromCollectorPayload(address string, payload []byte, lineageRotatio
 //     "<key>" at the root).
 //  2. []any of length >= 1 whose first element is map[string]any: recurse into
 //     the FIRST element only. Singleton repeated blocks (versioning, the SSE
-//     chain, logging, …) wrap their object in a length-1 array; multi-element
-//     repeated blocks fall under the same first-wins policy applied by the
-//     parser's seenBlockTypes guard. The allowlist has no multi-element
-//     entries in v1.
+//     chain, logging, …) wrap their object in a length-1 array and are silent.
+//     Multi-element repeated blocks (len > 1) fall under the same first-wins
+//     policy applied by the parser's seenBlockTypes guard, AND emit a debug
+//     log so the dropped signal is observable. The two sub-cases share code
+//     but diverge in observability: singleton stays silent because no signal
+//     is dropped; multi-element logs because rules 2+ are discarded.
 //  3. []any of primitives or empty []any: emit out[prefix] =
 //     coerceJSONString(value).
 //  4. Any other scalar / nil: emit out[prefix] = coerceJSONString(value).
@@ -68,7 +84,16 @@ func stateRowFromCollectorPayload(address string, payload []byte, lineageRotatio
 // to. The recursive shape preserves the existing top-level behavior for
 // scalars at root because case 1 routes top-level scalars through case 4 with
 // prefix=key.
-func flattenStateAttributes(value any, prefix string, out map[string]string) {
+//
+// The truncation log uses telemetry.LogKeyDriftMultiElement* keys. A nil
+// logger drops the line; the truncation itself still applies.
+func flattenStateAttributes(
+	ctx context.Context,
+	logger *slog.Logger,
+	value any,
+	prefix string,
+	out map[string]string,
+) {
 	switch typed := value.(type) {
 	case map[string]any:
 		for key, child := range typed {
@@ -76,12 +101,20 @@ func flattenStateAttributes(value any, prefix string, out map[string]string) {
 			if prefix != "" {
 				childPath = prefix + "." + key
 			}
-			flattenStateAttributes(child, childPath, out)
+			flattenStateAttributes(ctx, logger, child, childPath, out)
 		}
 	case []any:
 		if len(typed) >= 1 {
 			if obj, isMap := typed[0].(map[string]any); isMap {
-				flattenStateAttributes(obj, prefix, out)
+				if len(typed) > 1 && logger != nil {
+					logger.LogAttrs(ctx, slog.LevelDebug,
+						"drift state flatten truncated multi-element repeated block",
+						slog.String(telemetry.LogKeyDriftMultiElementPrefix, prefix),
+						slog.Int(telemetry.LogKeyDriftMultiElementCount, len(typed)),
+						slog.String(telemetry.LogKeyDriftMultiElementSource, "state_flatten"),
+					)
+				}
+				flattenStateAttributes(ctx, logger, obj, prefix, out)
 				return
 			}
 		}

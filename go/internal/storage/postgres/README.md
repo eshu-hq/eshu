@@ -323,15 +323,20 @@ mutation is rejected because the current owner no longer holds the lease.
     maps one HCL-parser `terraform_resources` JSON entry to a
     `tfconfigstate.ResourceRow`; copies the flat dot-path `attributes` map and
     decodes `unknown_attributes` as `ResourceRow.UnknownAttributes`.
-  - `stateRowFromCollectorPayload` (`tfstate_drift_evidence_state_row.go:21`)
+  - `stateRowFromCollectorPayload` (`tfstate_drift_evidence_state_row.go:29`)
     — decodes the collector's `terraform_state_resource` payload and calls
-    `flattenStateAttributes` (same file, line 71) to produce a flat dot-path
+    `flattenStateAttributes` (same file, line 90) to produce a flat dot-path
     `map[string]string`. Singleton repeated blocks (e.g. `versioning`,
     `server_side_encryption_configuration`) arrive as `[]any` of length 1
     whose element is `map[string]any`; the flattener unwraps the array and
     recurses into the object so paths align with the parser's dot-path form.
-    The dot-path encoding MUST stay byte-identical to `ctyValueToDriftString`
-    in `go/internal/parser/hcl/terraform_resource_attributes.go` so the
+    Multi-element repeated blocks (`len(typed) > 1`) hit the same first-wins
+    unwrap and emit a debug-level slog record with
+    `LogKeyDriftMultiElementPrefix`, `LogKeyDriftMultiElementCount`, and
+    `LogKeyDriftMultiElementSource="state_flatten"` so the dropped signal is
+    observable. The dot-path encoding MUST stay byte-identical to
+    `ctyValueToDriftString` in
+    `go/internal/parser/hcl/terraform_resource_attributes.go` so the
     classifier's value-equality check fires deterministically.
   - `loadPriorConfigAddresses` (`tfstate_drift_evidence_prior_config.go:45`)
     — walks the most recent `PriorConfigDepth` prior repo-snapshot generations

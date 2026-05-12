@@ -60,6 +60,15 @@
   Heredocs and escaped-quote strings produce wrong values when read as bytes;
   use `literalAttributeValue` which calls `hclsyntax.Expression.Value(nil)`
   instead (`terraform_resource_attributes.go`).
+- Removing the multi-element first-wins debug log in `walkBlockAttributes`
+  (`terraform_resource_attributes.go:132`) without coordinating with the
+  state-side emission at
+  `internal/storage/postgres/tfstate_drift_evidence_state_row.go:90`. Both
+  sites are tied to the frozen `LogKeyDriftMultiElementPrefix` and
+  `LogKeyDriftMultiElementSource` keys; the parser side omits
+  `multi_element.count` by design (recursion sees duplicates one-at-a-time)
+  and uses `multi_element.source="parser_walk"` to disambiguate from the
+  state-flatten path.
 
 ## What NOT to change without an ADR
 

@@ -400,7 +400,7 @@ func TestStateRowFlattenSingletonArrayUnwrap(t *testing.T) {
 		}
 	}`)
 
-	row, ok := stateRowFromCollectorPayload("aws_s3_bucket.logs", payload, false)
+	row, ok := stateRowFromCollectorPayload(context.Background(), nil, "aws_s3_bucket.logs", payload, false)
 	if !ok {
 		t.Fatal("stateRowFromCollectorPayload() ok = false, want true")
 	}
@@ -434,7 +434,7 @@ func TestStateRowFlattenMultiElementArrayTakesFirst(t *testing.T) {
 			]
 		}
 	}`)
-	row, ok := stateRowFromCollectorPayload("aws_s3_bucket.logs", payload, false)
+	row, ok := stateRowFromCollectorPayload(context.Background(), nil, "aws_s3_bucket.logs", payload, false)
 	if !ok {
 		t.Fatal("ok = false")
 	}

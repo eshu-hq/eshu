@@ -33,8 +33,16 @@ classification. It must not import the parent `internal/parser` package.
 
 ## Telemetry
 
-This package emits no telemetry directly. File parse timing remains owned by
-the parent parser engine through `eshu_dp_file_parse_duration_seconds`.
+File parse timing is owned by the parent parser engine through
+`eshu_dp_file_parse_duration_seconds`. The walker emits one debug-level slog
+record per duplicate multi-element repeated nested block at
+`terraform_resource_attributes.go:132` — the
+`drift parser walk truncated multi-element repeated block` message, with the
+frozen log keys `LogKeyDriftMultiElementPrefix` and
+`LogKeyDriftMultiElementSource` (value `"parser_walk"`). The log uses
+`slog.Default()` because the parser has no logger plumbing; operators turn
+debug on to surface dropped first-wins signal when a multi-element allowlist
+entry lands.
 
 ## Gotchas / invariants
 

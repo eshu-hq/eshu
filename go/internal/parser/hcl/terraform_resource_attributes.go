@@ -1,12 +1,16 @@
 package hcl
 
 import (
+	"context"
+	"log/slog"
 	"math/big"
 	"sort"
 	"strconv"
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // reservedResourceAttributeNames are top-level attribute names the parser
@@ -108,7 +112,28 @@ func walkBlockAttributes(
 		}
 		if _, seen := seenBlockTypes[nested.Type]; seen {
 			// First-wins for multi-element repeated nested blocks; documented
-			// v1 limit, matches the state-side flatten policy.
+			// v1 limit, matches the state-side flatten policy. Emit a debug
+			// log per duplicate so operators can see which prefix lost signal
+			// when an allowlist entry eventually targets a multi-element block.
+			//
+			// slog.Default() is used here rather than threading a *slog.Logger
+			// through the parser call chain — see the "Parser-side logging
+			// access" decision in the issue #185 plan. context.Background() is
+			// the standard pattern for synchronous in-process work with no
+			// parent trace.
+			//
+			// Count intentionally omitted; the parser sees duplicates one-at-a-
+			// time during recursion. The multi_element.source field
+			// disambiguates from the state-flatten path, which can emit count.
+			duplicatePrefix := nested.Type
+			if prefix != "" {
+				duplicatePrefix = prefix + "." + nested.Type
+			}
+			slog.Default().LogAttrs(context.Background(), slog.LevelDebug,
+				"drift parser walk truncated multi-element repeated block",
+				slog.String(telemetry.LogKeyDriftMultiElementPrefix, duplicatePrefix),
+				slog.String(telemetry.LogKeyDriftMultiElementSource, "parser_walk"),
+			)
 			continue
 		}
 		seenBlockTypes[nested.Type] = struct{}{}
