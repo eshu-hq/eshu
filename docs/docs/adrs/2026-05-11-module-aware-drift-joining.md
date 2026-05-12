@@ -202,9 +202,15 @@ Resolution algorithm:
 1. Take the calling file's `path` (committed on every
    `terraform_modules` fact at `parser.go:202`).
 2. Take `Dir(path)` as the call site directory.
-3. Join the call site directory with `source`, clean with `filepath.Clean`
+3. Join the call site directory with `source`, clean with `path.Clean`
    (forward-slash semantics; the path is a Postgres-stored string, not a
-   live filesystem path).
+   live filesystem path). Implementation note: this uses Go's `path`
+   package, NOT `path/filepath`. The two are different stdlib packages —
+   `path` is forward-slash-only and stable across OSes, `path/filepath` is
+   OS-specific and would mis-split on Windows builds. The implementation
+   was tightened during PR #202 to make this explicit; an early ADR draft
+   referenced `filepath.Clean`, which compiles but silently introduces an
+   OS-specific regression.
 4. If the cleaned result escapes the repo snapshot root (any leading
    `..` after Clean), reject the resolution and surface as a fallback
    (see below).
@@ -350,7 +356,7 @@ plan must produce tests for every row:
 
 - **Path normalization mistakes.** Forward-slash vs OS-specific
   separators, trailing slashes, or `..` semantics could mis-bucket
-  resources. Mitigated by `filepath.Clean` on forward-slash inputs and
+  resources. Mitigated by `path.Clean` on forward-slash inputs and
   by tests that exercise every separator/cleanup variant.
 - **Callee-directory inheritance ambiguity.** A `.tf` file inside
   `./modules/vpc/submodule/main.tf` could be reachable through both

@@ -284,6 +284,13 @@ func (l PostgresDriftEvidenceLoader) unresolvedRecorder() unresolvedRecorder {
 // and (optionally) to the structured logger. Wraps the counter in a typed
 // adapter so test paths can substitute a stub recorder without faking the
 // OTEL surface.
+//
+// The log line is emitted at DEBUG (matching the first-wins truncation log
+// in tfstate_drift_evidence_state_row.go:110) because repos with many
+// module blocks would otherwise flood steady-state output: the counter
+// eshu_dp_drift_unresolved_module_calls_total{reason} is the operator-
+// visible signal, and the per-call log is a diagnostic detail discoverable
+// when an operator turns debug logging up.
 type loggingUnresolvedRecorder struct {
 	counter metric.Int64Counter
 	logger  *slog.Logger
@@ -294,7 +301,7 @@ func (r loggingUnresolvedRecorder) record(ctx context.Context, reason string) {
 		attribute.String(telemetry.MetricDimensionDriftUnresolvedModuleReason, reason),
 	))
 	if r.logger != nil {
-		r.logger.LogAttrs(ctx, slog.LevelInfo, "drift evidence loader skipped unresolvable module call",
+		r.logger.LogAttrs(ctx, slog.LevelDebug, "drift evidence loader skipped unresolvable module call",
 			slog.String(telemetry.LogKeyFailureClass, reason),
 		)
 	}

@@ -116,10 +116,15 @@ type moduleCallEntry struct {
 //
 //  1. Empty / whitespace-only source — external_archive (catch-all for
 //     unparseable parser emissions).
-//  2. Starts with "git::", "git@", or contains "github.com/" / "gitlab.com/"
-//     git URL shapes — external_git.
-//  3. Starts with "http://", "https://" — external_archive (treat HTTP
-//     archives and unparseable schemes as the catch-all).
+//  2. Starts with "git::", "git@", or one of the well-known forge https
+//     prefixes ("https://github.com/", "https://gitlab.com/",
+//     "https://bitbucket.org/") — external_git. The check is HasPrefix, not
+//     substring: a bare "github.com/..." source with no scheme falls through
+//     to the registry/local branches below, matching Terraform's own source
+//     resolution rules.
+//  3. Starts with "http://" or with any other "https://" scheme not matched
+//     above — external_archive (treat HTTP archives and unparseable schemes
+//     as the catch-all).
 //  4. Starts with "s3::", "gcs::", "mercurial::" — external_archive
 //     (per the ADR's Q3 resolution: do NOT split sub-types).
 //  5. Starts with "./" or "../" — local relative path; resolve.
@@ -336,7 +341,6 @@ func (l PostgresDriftEvidenceLoader) buildModulePrefixMap(
 		for _, call := range callerToCalls[callerDir] {
 			walkModulePrefixChain(
 				ctx,
-				callerDir,
 				call,
 				callerToCalls,
 				"module."+call.name,
@@ -376,7 +380,6 @@ type moduleCallEdge struct {
 // and avoid per-step allocation of return slices.
 func walkModulePrefixChain(
 	ctx context.Context,
-	callerDir string,
 	call moduleCallEdge,
 	callerToCalls map[string][]moduleCallEdge,
 	prefix string,
@@ -399,7 +402,6 @@ func walkModulePrefixChain(
 		nextVisited[child.callee] = struct{}{}
 		walkModulePrefixChain(
 			ctx,
-			call.callee,
 			child,
 			callerToCalls,
 			prefix+".module."+child.name,
