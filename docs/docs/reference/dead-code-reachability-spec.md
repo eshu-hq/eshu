@@ -88,6 +88,9 @@ Every dead-code analysis must classify roots into one or more of these groups:
     methods and implementations, trait methods, route-backed controller
     actions, literal route handlers, Symfony route attributes, and WordPress
     hook callbacks are modeled as derived roots.
+  - Perl does not yet claim a broad CPAN public API surface. Public package
+    namespaces and bounded Exporter `@EXPORT` / `@EXPORT_OK` functions are
+    modeled as derived roots.
   - Ruby does not yet claim a broad public API surface. Rails controller
     actions are modeled as framework roots, not general library exports.
   - Rust, Java, and broader language-specific public-surface rules remain
@@ -168,9 +171,9 @@ can still be `derived_candidate_only` for dead-code cleanup until it has a
 dead-code fixture suite, root model, reachability proof, and API/MCP evidence.
 The initial maturity states are:
 
-- `derived`: current C, C#, C++, Dart, Go, PHP, Python, Java, JavaScript,
-  TypeScript, TSX, Ruby, Rust, and SQL candidate scans with partial root
-  modeling
+- `derived`: current C, C#, C++, Dart, Go, Perl, PHP, Python, Java,
+  JavaScript, TypeScript, TSX, Ruby, Rust, and SQL candidate scans with partial
+  root modeling
 - `derived_candidate_only`: parser-supported source languages where Eshu can
   return graph-backed candidates but has not implemented enough language roots
   and fixtures for cleanup-safe answers
@@ -268,6 +271,14 @@ handlers, Symfony route attributes, and WordPress hook callbacks. It remains non
 until dynamic dispatch, reflection, Composer/autoload public surfaces,
 include/require resolution, broader framework routes, trait resolution,
 namespace alias breadth, magic-method dispatch, and broad public API surfaces
+are modeled or scoped out.
+
+Perl currently reports `derived` with parser-backed roots for script `main`,
+public package namespaces, Exporter `@EXPORT` and `@EXPORT_OK` functions,
+package constructors, `BEGIN` / `UNITCHECK` / `CHECK` / `INIT` / `END` special
+blocks, `AUTOLOAD`, and `DESTROY`. It remains non-exact until symbolic
+reference dispatch, AUTOLOAD target resolution, `@ISA` inheritance, Moose/Moo
+metadata, import side effects, runtime `eval`, and broad public API surfaces
 are modeled or scoped out.
 
 Ruby currently reports `derived` with parser-backed roots for Rails controller
@@ -378,6 +389,9 @@ Current branch status:
 - Kotlin top-level main functions, secondary constructors, interfaces,
   overrides, Gradle plugin/task callbacks, Spring component and method
   callbacks, lifecycle callbacks, and JUnit methods are modeled as
+  parser-backed roots
+- Perl script entrypoints, public package namespaces, Exporter exports,
+  constructors, special blocks, `AUTOLOAD`, and `DESTROY` are modeled as
   parser-backed roots
 - those Go signature roots are now emitted by the Go parser into entity
   metadata when imports, registrations, and signatures match directly; mixed

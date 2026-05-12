@@ -1,6 +1,6 @@
 # Perl Dead-Code Fixture
 
-Maturity: `derived_candidate_only`.
+Maturity: `derived`.
 
 Expected symbols:
 
@@ -15,5 +15,8 @@ Expected symbols:
 | `excluded` | `generated_perl_stub` |
 | `ambiguous` | `dynamic_perl_dispatch` |
 
-This fixture is candidate-only. Perl package exports and symbolic calls remain
-ambiguous until parser and query proof exists.
+This fixture now carries parser-backed Perl roots for package namespaces,
+Exporter-backed public functions, script `main`, constructors, special blocks,
+`AUTOLOAD`, and `DESTROY`. It remains non-exact because symbolic references,
+AUTOLOAD dispatch, inheritance, Moose/Moo metadata, import side effects,
+runtime `eval`, and broad public API surfaces are not resolved.

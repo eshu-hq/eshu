@@ -368,6 +368,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsHaskellRoot(result, entity, stats) {
 		return true
 	}
+	if deadCodeIsPerlRoot(result, entity, stats) {
+		return true
+	}
 	if deadCodeIsPHPRoot(result, entity, stats) {
 		return true
 	}

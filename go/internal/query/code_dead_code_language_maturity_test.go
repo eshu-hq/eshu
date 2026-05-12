@@ -69,6 +69,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		"java":       "derived",
 		"kotlin":     "derived",
 		"elixir":     "derived",
+		"perl":       "derived",
 		"typescript": "derived",
 		"tsx":        "derived",
 		"rust":       "derived",
@@ -216,6 +217,23 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 	} {
 		if !queryTestStringSliceContains(elixirBlockers, want) {
 			t.Fatalf("blockers[elixir] missing %q in %#v", want, elixirBlockers)
+		}
+	}
+	perlBlockers, ok := blockers["perl"].([]any)
+	if !ok {
+		t.Fatalf("blockers[perl] type = %T, want []any", blockers["perl"])
+	}
+	for _, want := range []string{
+		"symbolic_reference_dispatch_unresolved",
+		"autoload_dispatch_unresolved",
+		"inheritance_isa_resolution_unavailable",
+		"moose_moo_metadata_unavailable",
+		"import_side_effect_resolution_unavailable",
+		"runtime_eval_unresolved",
+		"public_api_surface_unresolved",
+	} {
+		if !queryTestStringSliceContains(perlBlockers, want) {
+			t.Fatalf("blockers[perl] missing %q in %#v", want, perlBlockers)
 		}
 	}
 	cBlockers, ok := blockers["c"].([]any)

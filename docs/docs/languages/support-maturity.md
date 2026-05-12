@@ -39,7 +39,7 @@ For audited family-level closure status and bounded gaps, see
 | Kotlin | `DefaultEngine (kotlin)` | supported | supported | supported | Spring, Gradle, JUnit, lifecycle, interfaces | supported | fixture-backed | supported |
 | Kubernetes | `DefaultEngine (yaml)` | - | - | - | - | - | - | - |
 | Kustomize | `DefaultEngine (yaml)` | - | - | - | - | - | - | - |
-| Perl | `DefaultEngine (perl)` | - | - | - | - | - | - | - |
+| Perl | `DefaultEngine (perl)` | supported | supported | supported | Exporter, package namespaces, lifecycle hooks | supported | supported | supported |
 | PHP | `DefaultEngine (php)` | - | - | - | - | - | - | - |
 | Python | `DefaultEngine (python)` | supported | supported | supported | `fastapi-base`, `flask-base` | supported | supported | supported |
 | Ruby | `DefaultEngine (ruby)` | - | - | - | - | - | - | - |
@@ -101,6 +101,15 @@ instance methods. Function-call rows are bounded lexical evidence from
 definition right-hand sides. Exact cleanup remains blocked by Template Haskell,
 CPP conditional compilation, Cabal component membership, implicit module export
 surfaces, typeclass dispatch, module re-export resolution, and FFI callbacks.
+Perl dead-code support is `derived`: parser metadata models script `main`,
+public package namespaces, Exporter `@EXPORT` and `@EXPORT_OK` functions,
+package constructors, compile/runtime special blocks, `AUTOLOAD`, and
+`DESTROY`. Exact cleanup remains blocked by symbolic reference dispatch,
+AUTOLOAD target resolution, `@ISA` inheritance, Moose/Moo metadata, import side
+effects, runtime `eval`, and broad public API surfaces. Issue #103 dogfood is
+validated against Mojolicious and MetaCPAN, with the larger `Perl/perl5` run
+recorded as a Neo4j default-memory projection limit after successful parse and
+materialization.
 SQL real-repo and end-to-end indexing are `supported` on the current Go
 parser/query path. The remaining dbt lineage limits are bounded non-goals for
 the documented SQL surface.

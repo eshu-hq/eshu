@@ -1,6 +1,21 @@
 use strict;
 use warnings;
 
+package DeadCode::PerlFixture;
+
+use Exporter qw(import);
+
+our @EXPORT_OK = qw(public_perl_api);
+
+BEGIN {
+    direct_perl_helper();
+}
+
+sub new {
+    my ($class) = @_;
+    return bless {}, $class;
+}
+
 sub main {
     direct_perl_helper();
     selected_perl_handler();
@@ -35,6 +50,14 @@ sub dynamic_perl_dispatch {
     my ($name) = @_;
     no strict 'refs';
     return &{$name}();
+}
+
+sub AUTOLOAD {
+    return;
+}
+
+sub DESTROY {
+    return;
 }
 
 main();

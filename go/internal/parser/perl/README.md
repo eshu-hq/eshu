@@ -4,7 +4,7 @@
 
 This package owns the line-oriented Perl parser adapter used by the parent
 parser engine. It extracts package declarations, use imports, subroutines,
-variables, and simple call evidence.
+variables, simple call evidence, and bounded dead-code root metadata.
 
 ## Ownership boundary
 
@@ -29,9 +29,12 @@ parser engine.
 ## Gotchas / invariants
 
 Package names are emitted as class rows using the final `::` segment to
-preserve the legacy payload. Function calls are deduplicated by name, matching
-the old regex adapter behavior. PreScan sorts names after collecting them from
-the parsed function and class buckets.
+preserve the legacy payload. Public packages carry `perl.package_namespace`.
+Subroutines carry root metadata for script `main`, Exporter `@EXPORT` /
+`@EXPORT_OK` declarations, package `new`, Perl special blocks, `AUTOLOAD`, and
+`DESTROY`. Function calls are deduplicated by name, matching the old regex
+adapter behavior. PreScan sorts names after collecting them from the parsed
+function and class buckets.
 
 ## Related docs
 
