@@ -88,6 +88,9 @@ schema bundle outside the source tree.
   (`schema.go:181`)
 - `DefaultSchemaDir()` — return the canonical packaged schema directory;
   respects ESHU_TERRAFORM_SCHEMA_DIR override (`paths.go:12`)
+- `EmbeddedSchemasFS()` — return the same `schemas/*.json.gz` bundle through
+  `go:embed` so containerized runtime binaries can populate provider-attribute
+  coverage without a source-tree path (`embed.go:28`)
 - `AttributeSchema` — holds the raw JSON type field for one resource attribute
   (`schema.go:41`)
 - `ProviderSchemaInfo` — normalized loader output: `ProviderKey`,

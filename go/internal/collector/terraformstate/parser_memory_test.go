@@ -133,6 +133,9 @@ func TestParserLargeStateStreamsResourceInstances(t *testing.T) {
 //   - TestParseStreamLargeStateDoesNotRetainProviderBindingsOrWarnings in
 //     parser_stream_memory_test.go asserts the same ceiling against a
 //     richer fixture exercising provider bindings and warnings.
+//   - TestParseStream_PeakMemoryGate_CompositeCapture in
+//     parser_memory_composite_test.go asserts the same ceiling when every
+//     instance carries a SchemaKnown composite the walker captures.
 //   - TestParseStreamLargeState100MiBStreamingProof (env-gated by
 //     ESHU_TFSTATE_100MIB_PROOF=true) runs the assertion against a 100 MB
 //     synthetic state for periodic large-scale validation.

@@ -78,6 +78,38 @@ const (
 	// grep-by-constant. Referenced from
 	// go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go.
 	MetricDimensionDriftUnresolvedModuleReason = "reason"
+	// MetricDimensionResourceType labels
+	// eshu_dp_drift_schema_unknown_composite_total with the Terraform resource
+	// type (e.g. "aws_s3_bucket") whose composite attribute the streaming
+	// nested walker dropped because the loaded ProviderSchemaResolver does not
+	// recognize it. Cardinality is bounded by the schema bundle; the
+	// high-cardinality attribute_key stays in the structured log per the
+	// observability rules in CLAUDE.md.
+	MetricDimensionResourceType = "resource_type"
+	// MetricDimensionCompositeSkipReason labels
+	// eshu_dp_drift_schema_unknown_composite_total with a closed enum that
+	// disambiguates why the streaming nested walker dropped a composite. The
+	// cases carry different operator signals:
+	//   - schema_unknown: the resolver does not recognize the (resource_type,
+	//     attribute_key) pair; refresh the provider-schema bundle.
+	//   - shape_mismatch: the resolver recognizes the pair, but the state
+	//     JSON shape disagreed with the schema and the walker bailed mid-walk;
+	//     investigate the state file and the walker error.
+	//   - known_sensitive_key: the redaction policy classified the top-level
+	//     composite source path as sensitive before the walker started.
+	//   - unknown_redaction_ruleset or unknown_field_kind: redaction policy
+	//     setup was incomplete or unsafe, so the parser failed closed.
+	// Cardinality is bounded by the closed enum. The closed-enum values live
+	// in terraformstate.CompositeCaptureSkipReason* and producers MUST use
+	// those constants.
+	//
+	// The wire key intentionally shares the "reason" string with
+	// MetricDimensionReason and MetricDimensionDriftUnresolvedModuleReason
+	// because the metricDimensionKeys() registry deduplicates on the wire
+	// label; the constant exists so the composite counter's semantic
+	// dimension is anchored to this contract and grep-by-constant locates
+	// every counter that uses it.
+	MetricDimensionCompositeSkipReason = "reason"
 )
 
 // Span names define the stable data-plane tracing contract.
@@ -191,6 +223,37 @@ const (
 	// recursion). The two sources have different attr shapes (state side has
 	// count, parser side does not); the source field disambiguates them.
 	LogKeyDriftMultiElementSource = "multi_element.source"
+	// LogKeyDriftCompositeResourceType is the Terraform resource type carried
+	// alongside eshu_dp_drift_schema_unknown_composite_total log lines so an
+	// operator reading either signal sees the same dimension key. Duplicates
+	// the metric label's resource_type by intent — log lines must carry
+	// enough context for a triage operator to pivot without re-reading the
+	// counter export.
+	LogKeyDriftCompositeResourceType = "resource_type"
+	// LogKeyDriftCompositeAttributeKey is the high-cardinality attribute key
+	// the streaming nested walker dropped. Stays in log attrs (never metric
+	// labels) because attribute keys are unbounded across provider versions;
+	// operators investigating a counter spike read this key to learn which
+	// nested block disagrees with the bundle.
+	LogKeyDriftCompositeAttributeKey = "attribute_key"
+	// LogKeyDriftCompositePath is the source-prefixed walker path
+	// (resources.*.attributes.<key>) where the composite-capture skip
+	// happened. Anchors the log line to the parser surface that emitted it
+	// so a future second emitter (e.g., reducer-side composite reasoning)
+	// can carry the same key with a different prefix.
+	LogKeyDriftCompositePath = "path"
+	// LogKeyDriftCompositeError carries the walker's diagnostic error string
+	// (errCompositeSchemaUnknown for "bundle behind reality" or a
+	// walker-internal parse error for "state shape disagreed with schema").
+	// Closed enum at the parser boundary; future emitters may add new
+	// classes.
+	LogKeyDriftCompositeError = "error"
+	// LogKeyDriftCompositeReason is the closed-enum reason emitted on the
+	// same log line as the eshu_dp_drift_schema_unknown_composite_total
+	// counter's `reason` label so operators reading either signal see the
+	// same value. The closed-enum values live in
+	// terraformstate.CompositeCaptureSkipReason*.
+	LogKeyDriftCompositeReason = "reason"
 )
 
 var metricDimensionKeys = []string{
@@ -219,6 +282,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionPack,
 	MetricDimensionRule,
 	MetricDimensionDriftKind,
+	MetricDimensionResourceType,
 }
 
 var spanNames = []string{
@@ -281,6 +345,10 @@ var logKeys = []string{
 	LogKeyDriftMultiElementPrefix,
 	LogKeyDriftMultiElementCount,
 	LogKeyDriftMultiElementSource,
+	LogKeyDriftCompositeResourceType,
+	LogKeyDriftCompositeAttributeKey,
+	LogKeyDriftCompositePath,
+	LogKeyDriftCompositeError,
 }
 
 // MetricDimensionKeys returns the frozen ordered metric dimensions.

@@ -15,14 +15,14 @@ var correlationAnchorFields = map[string]string{
 	"region":     "region",
 }
 
-func (p *stateParser) correlationAnchors(resourceAddress string, attributes []attributeValue) []any {
+func (p *stateParser) correlationAnchors(resourceType string, resourceAddress string, attributes []attributeValue) []any {
 	anchors := []any{}
 	for _, attribute := range attributes {
 		if !attribute.Scalar {
 			continue
 		}
 		anchorKind, ok := correlationAnchorFields[attribute.Key]
-		if !ok || p.redactsAnchor(resourceAddress, attribute.Key) {
+		if !ok || p.redactsAnchor(resourceType, resourceAddress, attribute.Key) {
 			continue
 		}
 		anchors = append(anchors, map[string]any{
@@ -38,9 +38,12 @@ func (p *stateParser) correlationAnchors(resourceAddress string, attributes []at
 	return anchors
 }
 
-func (p *stateParser) redactsAnchor(resourceAddress string, attributeKey string) bool {
+// redactsAnchor classifies a correlation-anchor candidate through the same
+// schema-trust seam attributes.go uses so an anchor field on a known schema
+// is only emitted when the underlying attribute would have been preserved.
+func (p *stateParser) redactsAnchor(resourceType string, resourceAddress string, attributeKey string) bool {
 	source := "resources." + resourceAddress + ".attributes." + attributeKey
-	decision := p.options.RedactionRules.Classify(source, redact.SchemaUnknown, redact.FieldScalar)
+	decision := p.options.RedactionRules.Classify(source, p.schemaTrust(resourceType, attributeKey), redact.FieldScalar)
 	return decision.Action != redact.ActionPreserve
 }
 

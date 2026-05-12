@@ -171,6 +171,11 @@ func TestAttrHelpers(t *testing.T) {
 			attrFunc: func(v string) string { return string(AttrWarningKind(v).Key) },
 			wantKey:  MetricDimensionWarningKind,
 		},
+		{
+			name:     "AttrResourceType",
+			attrFunc: func(v string) string { return string(AttrResourceType(v).Key) },
+			wantKey:  MetricDimensionResourceType,
+		},
 	}
 
 	for _, tt := range tests {

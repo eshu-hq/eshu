@@ -29,6 +29,16 @@ flowchart LR
   where `claims_enabled` is `true`.
 - `ESHU_TFSTATE_REDACTION_KEY`, a deployment-scoped secret used to produce
   deterministic redaction markers.
+- `ESHU_TFSTATE_REDACTION_RULESET_VERSION`, a non-empty version string for the
+  redaction rule set the collector applies to every parsed attribute. The
+  binary refuses to start when this is blank because `redact.RuleSet` fails
+  closed on an empty version (scalar attributes get redacted, composites get
+  dropped). Audit evidence references this string to prove which policy
+  version produced each decision. When the version is non-empty AND a
+  provider-schema resolver covers a composite, the parser's streaming
+  nested walker captures the value so drift detection can compare config
+  and state side-by-side; uncovered composites still drop and increment
+  `eshu_dp_drift_schema_unknown_composite_total`.
 
 Set `ESHU_TFSTATE_COLLECTOR_INSTANCE_ID` when more than one enabled
 Terraform-state collector instance exists. Set `ESHU_TFSTATE_COLLECTOR_OWNER_ID`
@@ -43,6 +53,10 @@ the runtime uses host and process identity.
   older `ESHU_TFSTATE_COLLECTOR_HEARTBEAT` alias is still accepted.
 - `ESHU_TFSTATE_SOURCE_MAX_BYTES` sets the max bytes per state object. The
   reader default is used when this is unset or zero.
+- `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` is a comma-separated list of leaf
+  attribute keys the redactor treats as secrets. When unset the collector
+  uses `defaultRedactionSensitiveKeys` in `config.go` (`password`, `secret`,
+  `token`, `access_key`, `private_key`, `certificate`, `key_pair`).
 
 S3 reads use the default AWS credential chain unless the collector instance
 configuration includes `aws.role_arn`, in which case the runtime assumes that
@@ -85,6 +99,14 @@ with bounded labels only. Do not log or trace raw state locators, bucket names,
 keys, local paths, or work item IDs. Use backend kind, result, claim/run
 correlation, and the locator hash emitted in Terraform-state facts when you
 need to investigate a specific source.
+
+`eshu_dp_tfstate_schema_resolver_entries` reports the number of Terraform
+resource types the loaded provider-schema bundle covers. The bundle is loaded
+once at startup and held for the lifetime of the process — operators size the
+collector pod's memory request against this value plus the steady-state parse
+footprint. The gauge registers only when the configured resolver implements
+the optional `SchemaResolverEntryCounter` capability; the production resolver
+loaded from `terraformschema.EmbeddedSchemasFS` always does.
 
 The main trace spans are `tfstate.source.open`, `tfstate.parser.stream`, and
 `tfstate.fact.emit_batch`.

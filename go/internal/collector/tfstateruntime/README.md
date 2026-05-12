@@ -54,6 +54,11 @@ provided:
   (including the bypass `state_too_large` path)
 - redactions and safe drops by policy reason
 - S3 conditional-read not-modified outcomes
+- `eshu_dp_drift_schema_unknown_composite_total{resource_type,reason}` whenever
+  the parser drops a composite before capture or the streaming nested walker
+  stops mid-capture. The companion `slog.Warn` line carries the
+  high-cardinality `attribute_key`, source path, reason, and diagnostic error
+  per the CLAUDE.md observability contract.
 
 The runtime also uses the Terraform-state span family from
 `go/internal/telemetry`: source open, parser stream, and fact batch handoff. Do

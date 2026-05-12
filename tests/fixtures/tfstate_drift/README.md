@@ -130,4 +130,6 @@ The state collector is a separate long-running binary (`eshu-collector-terraform
 - supplying `ESHU_COLLECTOR_INSTANCES_JSON` with a `terraform_state` instance that approves a local-state candidate,
 - and a fixture Terraform repo with `terraform { backend "s3" { … } }` plus a fixture `.tfstate` file.
 
-That's a substantial compose-surface change orthogonal to #166's question ("does the drift handler fire correctly under the production reducer?"). #166 reaches the same handler entry points by writing the durable facts the collector would otherwise emit. A future issue tracks the full E2E proof.
+That's a substantial compose-surface change orthogonal to #166's question ("does the drift handler fire correctly under the production reducer?"). #166 reaches the same handler entry points by writing the durable facts the collector would otherwise emit.
+
+The Tier-2 sibling at [`../tfstate_drift_tier2/`](../tfstate_drift_tier2/README.md) (issue #187) does the full E2E proof by adding a minio service, the real `collector-terraform-state` container, and the workflow-coordinator in active mode. It runs alongside Tier-1 with no shared state.

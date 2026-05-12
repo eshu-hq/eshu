@@ -50,6 +50,18 @@ allow_project=(
   Helm Kustomize Argo Terraform Compose
   SIGTERM SIGINT
   GOMEMLIMIT GODEBUG GOMAXPROCS
+  # Shared Eshu runtime env vars defined in internal/runtime and consumed by
+  # multiple cmd binaries. Backticked references in cmd-local README.md files
+  # are correct but the names do not live in cmd-local *.go.
+  ESHU_POSTGRES_DSN ESHU_FACT_STORE_DSN ESHU_CONTENT_STORE_DSN
+  # HTTP/S3 header prefix tokens referenced in narrative prose (the
+  # extractor captures up to the dash, so `If-None-Match` lands as `If`).
+  If
+  # Test function names cited in package README/AGENTS docs as load-bearing
+  # regression gates. The slop gate excludes *_test.go from the source
+  # haystack on purpose, so test names must be allowlisted explicitly when
+  # docs need to cite the gate by name.
+  TestParseStream_PeakMemoryGate_CompositeCapture
 )
 
 is_allowlisted() {

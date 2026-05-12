@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -20,6 +21,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// Pure helper functions (claim matching, scope/generation derivation, locator
+// parsing, sourceError typing) live in source_helpers.go to keep this file
+// focused on the ClaimedSource orchestration path.
 
 // SourceFactory opens an exact Terraform state source for a resolved candidate.
 type SourceFactory interface {
@@ -109,13 +114,27 @@ func (f DefaultSourceFactory) s3LockConfig(
 // ClaimedSource resolves exact Terraform-state candidates and returns the one
 // generation that matches the already-claimed workflow item.
 type ClaimedSource struct {
-	Resolver       terraformstate.DiscoveryResolver
-	SourceFactory  SourceFactory
-	RedactionKey   redact.Key
+	Resolver      terraformstate.DiscoveryResolver
+	SourceFactory SourceFactory
+	RedactionKey  redact.Key
+	// RedactionRules carries the versioned sensitive-key policy; without it
+	// every parsed attribute fails closed through redact.SchemaUnknown.
 	RedactionRules redact.RuleSet
+	// SchemaResolver authorizes the parser to mark Terraform-state attributes
+	// covered by a packaged provider schema as redact.SchemaKnown. Without
+	// this resolver, downstream drift detection cannot read non-sensitive
+	// attribute values because every scalar is HMAC-stomped and every
+	// composite is dropped under the fail-closed policy.
+	SchemaResolver terraformstate.ProviderSchemaResolver
 	Clock          func() time.Time
 	Tracer         trace.Tracer
 	Instruments    *telemetry.Instruments
+	// Logger carries the structured slog handle used by the composite-capture
+	// recorder when the streaming nested walker drops a SchemaUnknown
+	// composite. A nil logger is allowed; the recorder still increments the
+	// eshu_dp_drift_schema_unknown_composite_total counter so operators can
+	// see provider-schema drift via metrics alone.
+	Logger *slog.Logger
 }
 
 // NextClaimed implements collector.ClaimedSource for Terraform state work.
@@ -302,15 +321,17 @@ func (s ClaimedSource) parseCandidate(
 	}
 	start := time.Now()
 	result, err := terraformstate.ParseStream(ctx, reader, terraformstate.ParseOptions{
-		Scope:          scopeValue,
-		Generation:     generationValue,
-		Source:         sourceKey,
-		Metadata:       metadata,
-		ObservedAt:     generationValue.ObservedAt,
-		RedactionKey:   s.RedactionKey,
-		RedactionRules: s.RedactionRules,
-		FencingToken:   fencingToken,
-		SourceWarnings: sourceWarningsForCandidate(candidate),
+		Scope:                   scopeValue,
+		Generation:              generationValue,
+		Source:                  sourceKey,
+		Metadata:                metadata,
+		ObservedAt:              generationValue.ObservedAt,
+		RedactionKey:            s.RedactionKey,
+		RedactionRules:          s.RedactionRules,
+		SchemaResolver:          s.SchemaResolver,
+		CompositeCaptureMetrics: s.newCompositeCaptureRecorder(),
+		FencingToken:            fencingToken,
+		SourceWarnings:          sourceWarningsForCandidate(candidate),
 	}, factSpool)
 	s.recordParseDuration(ctx, sourceKey.BackendKind, time.Since(start))
 	if err != nil {
@@ -320,17 +341,6 @@ func (s ClaimedSource) parseCandidate(
 	s.recordSnapshotBytes(ctx, sourceKey.BackendKind, metadata.Size)
 	factStream, factStreamErr := factSpool.Stream(ctx)
 	return result, metadata, factStream, factStreamErr, factSpool.count, nil
-}
-
-func sourceWarningsForCandidate(candidate terraformstate.DiscoveryCandidate) []terraformstate.SourceWarning {
-	if !candidate.StateInVCS {
-		return nil
-	}
-	return []terraformstate.SourceWarning{{
-		WarningKind: "state_in_vcs",
-		Reason:      "terraform state file was discovered in git and explicitly approved for ingestion",
-		Source:      string(candidate.Source),
-	}}
 }
 
 func (s ClaimedSource) openSource(
@@ -349,143 +359,9 @@ func (s ClaimedSource) openSource(
 	return reader, metadata, nil
 }
 
-func generationForCandidate(
-	candidate terraformstate.DiscoveryCandidate,
-	sourceKey terraformstate.StateKey,
-	identity terraformstate.SnapshotIdentity,
-	observedAt time.Time,
-) (scope.IngestionScope, scope.ScopeGeneration, error) {
-	scopeValue, err := scopeForCandidate(candidate, sourceKey)
-	if err != nil {
-		return scope.IngestionScope{}, scope.ScopeGeneration{}, err
-	}
-	generationValue, err := scope.NewTerraformStateSnapshotGeneration(
-		scopeValue.ScopeID,
-		identity.Serial,
-		identity.Lineage,
-		observedAt,
-	)
-	if err != nil {
-		return scope.IngestionScope{}, scope.ScopeGeneration{}, err
-	}
-	return scopeValue, generationValue, nil
-}
-
-func scopeForCandidate(
-	candidate terraformstate.DiscoveryCandidate,
-	sourceKey terraformstate.StateKey,
-) (scope.IngestionScope, error) {
-	metadata := map[string]string{}
-	if repoID := strings.TrimSpace(candidate.RepoID); repoID != "" {
-		metadata["repo_id"] = repoID
-	}
-	return scope.NewTerraformStateSnapshotScope(
-		strings.TrimSpace(candidate.RepoID),
-		string(sourceKey.BackendKind),
-		sourceKey.Locator,
-		metadata,
-	)
-}
-
-func ensureSourceIdentity(expected terraformstate.StateKey, actual terraformstate.StateKey) error {
-	if expected == actual {
-		return nil
-	}
-	return fmt.Errorf("terraform state source identity mismatch for %s candidate", expected.BackendKind)
-}
-
-func claimMatchesCandidate(item workflow.WorkItem, scopeValue scope.IngestionScope, candidateID string) bool {
-	if item.ScopeID != scopeValue.ScopeID {
-		return false
-	}
-	if !usesCandidatePlanningID(item) {
-		return true
-	}
-	return item.GenerationID == candidateID && item.SourceRunID == candidateID
-}
-
-func claimMatchesCollected(
-	item workflow.WorkItem,
-	scopeValue scope.IngestionScope,
-	generationValue scope.ScopeGeneration,
-	candidateID string,
-) bool {
-	if item.ScopeID != scopeValue.ScopeID {
-		return false
-	}
-	if usesCandidatePlanningID(item) {
-		return item.GenerationID == candidateID && item.SourceRunID == candidateID
-	}
-	return item.GenerationID == generationValue.GenerationID && item.SourceRunID == generationValue.GenerationID
-}
-
-func usesCandidatePlanningID(item workflow.WorkItem) bool {
-	return terraformstate.IsCandidatePlanningID(item.GenerationID) ||
-		terraformstate.IsCandidatePlanningID(item.SourceRunID)
-}
-
 func (s ClaimedSource) now() time.Time {
 	if s.Clock != nil {
 		return s.Clock().UTC()
 	}
 	return time.Now().UTC()
-}
-
-func firstTime(values ...time.Time) time.Time {
-	for _, value := range values {
-		if !value.IsZero() {
-			return value.UTC()
-		}
-	}
-	return time.Now().UTC()
-}
-
-func closeReader(reader io.Closer) {
-	if reader != nil {
-		_ = reader.Close()
-	}
-}
-
-func parseS3Locator(locator string) (string, string, error) {
-	rest, ok := strings.CutPrefix(locator, "s3://")
-	if !ok {
-		return "", "", fmt.Errorf("s3 state locator must start with s3://")
-	}
-	bucket, key, ok := strings.Cut(rest, "/")
-	if !ok || strings.TrimSpace(bucket) == "" || strings.TrimSpace(key) == "" {
-		return "", "", fmt.Errorf("s3 state locator must include bucket and key")
-	}
-	return bucket, key, nil
-}
-
-func sourceFailure(action string, state terraformstate.StateKey, err error) error {
-	var existing sourceError
-	if errors.As(err, &existing) {
-		return err
-	}
-	message := err.Error()
-	if locator := strings.TrimSpace(state.Locator); locator != "" {
-		message = strings.ReplaceAll(message, locator, "<redacted>")
-	}
-	return sourceError{
-		action:      action,
-		backendKind: state.BackendKind,
-		message:     message,
-		cause:       err,
-	}
-}
-
-type sourceError struct {
-	action      string
-	backendKind terraformstate.BackendKind
-	message     string
-	cause       error
-}
-
-func (e sourceError) Error() string {
-	return fmt.Sprintf("%s terraform state %s source: %s", e.action, e.backendKind, e.message)
-}
-
-func (e sourceError) Unwrap() error {
-	return e.cause
 }

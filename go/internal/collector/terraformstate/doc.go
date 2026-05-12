@@ -15,6 +15,22 @@
 // path so the resolver can compute a repo-relative RelativePath and reject
 // backend paths that escape the checkout.
 //
+// Composite Terraform-state attributes (nested blocks, repeated blocks)
+// flow through two paths. When ProviderSchemaResolver covers the
+// (resourceType, attributeKey) pair, readCompositeValue walks the JSON
+// subtree through the same streaming decoder the rest of the parser
+// drives and emits the nested-singleton-array shape the loader's
+// flattener expects. Every scalar leaf inside the captured composite
+// is still classified through RedactionRules.Classify so a
+// sensitive-key segment (e.g., "password" under aws_iam_user.
+// login_profile) is HMAC-stamped at the leaf. Composites the resolver
+// does not cover, composites the top-level redaction decision drops, and
+// schema-known composites the walker cannot consume are all reported through
+// the caller-supplied CompositeCaptureRecorder with a bounded reason label.
+// ADR
+// 2026-05-12-tfstate-parser-composite-capture-for-schema-known-paths
+// owns the contract.
+//
 // LocatorHash and ScopeLocatorHash are intentionally distinct. LocatorHash
 // digests (BackendKind, Locator, VersionID) and backs per-version identity
 // — CandidatePlanningID and the persisted

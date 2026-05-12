@@ -21,6 +21,12 @@
   create a second claim lifecycle in this command.
 - S3 access must stay read-only and must go through `terraformstate.S3ObjectClient`.
 - Redaction key material is required at startup and must never be hardcoded.
+- The versioned `redact.RuleSet` is required at startup. `service.go` MUST set
+  `tfstateruntime.ClaimedSource.RedactionRules` from
+  `config.RedactionRules`; blank `RedactionRules.version` makes the redactor
+  fail closed and silently breaks attribute-level drift detection. See
+  `service_test.go:TestBuildClaimedServiceWiresRedactionRules` for the
+  regression guard.
 
 ## Anti-patterns
 

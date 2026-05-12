@@ -278,6 +278,54 @@ ESHU_TFSTATE_100MIB_PROOF=true \
     -run TestParseStreamLargeState100MiBStreamingProof -timeout 300s
 ```
 
+## Terraform Config-vs-State Drift Compose Proofs
+
+Use these gates when touching `DomainConfigStateDrift`, the Phase 3.5 drift
+enqueue path, `terraformBackendCandidate` and related canonical-side reads, or
+the `collector-terraform-state` binary itself.
+
+### Tier-1: seeded-fact handler proof
+
+Hand-seeded Postgres facts drive the production reducer to fire the drift
+handler. Fast (under 2 min wall time) and avoids any collector binary.
+
+```bash
+bash scripts/verify_tfstate_drift_compose.sh
+# optional artifact:
+ESHU_TFSTATE_DRIFT_PROOF_OUT=docs/superpowers/proofs/$(date +%Y-%m-%d)-tfstate-drift-compose.md \
+    bash scripts/verify_tfstate_drift_compose.sh
+```
+
+Asserts non-zero counter deltas on `eshu_dp_correlation_drift_detected_total`
+for every drift kind in scope (`added_in_state`, `added_in_config`,
+`removed_from_state`, `attribute_drift`, `removed_from_config`) plus the
+ambiguous-owner WARN log.
+
+### Tier-2: real collector chain proof
+
+Brings up minio plus `eshu-collector-terraform-state` and the
+workflow-coordinator in active mode so every fact the drift handler reads is
+emitted by a real Eshu binary. Slower (3-5 min wall time) but proves the wire
+Tier-1 cannot.
+
+```bash
+bash scripts/verify_tfstate_drift_compose_tier2.sh
+```
+
+Tier-2 covers buckets A (`added_in_state`), B (`added_in_config`),
+D (ambiguous owner), and E (`attribute_drift`). Buckets C
+(`removed_from_state`) and F (`removed_from_config`) stay Tier-1-only because
+they need two collector generations of the same state or repo.
+
+Both verifiers use distinct `COMPOSE_PROJECT_NAME` values and dynamic host
+ports, so they can run side-by-side without colliding:
+
+```bash
+bash scripts/verify_tfstate_drift_compose.sh &
+bash scripts/verify_tfstate_drift_compose_tier2.sh &
+wait
+```
+
 ## Runtime Tree Hygiene
 
 The deployable runtime tree is Go-only. Use this check when confirming that

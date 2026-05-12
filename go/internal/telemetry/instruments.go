@@ -124,6 +124,26 @@ type Instruments struct {
 	// stub recorder.
 	DriftUnresolvedModuleCalls metric.Int64Counter
 
+	// DriftSchemaUnknownComposite counts Terraform-state composite attributes
+	// the streaming nested walker dropped because the loaded
+	// ProviderSchemaResolver did not recognize the (resource_type,
+	// attribute_key) pair. Each increment carries a `resource_type` label
+	// (bounded by the schema bundle); the high-cardinality attribute_key
+	// stays in the structured log per CLAUDE.md observability rules.
+	//
+	// Operators read this counter to detect provider-schema drift: real
+	// state JSON shipped a nested block (or composite-typed attribute) the
+	// bundled schema is behind on, and drift detection for that attribute
+	// silently regresses until somebody refreshes the bundle. Paired with
+	// the slog.Warn line emitted at the same call site, the counter is the
+	// operator-visible signal and the log carries the diagnostic detail.
+	//
+	// Owned by terraformstate.compositeCaptureLoggingRecorder
+	// (go/internal/collector/tfstateruntime/composite_capture_recorder.go).
+	// Tolerates a nil Instruments handle so fixtures and early-bootstrap
+	// paths stay operable.
+	DriftSchemaUnknownComposite metric.Int64Counter
+
 	// Histograms track distributions
 	CollectorObserveDuration             metric.Float64Histogram
 	TerraformStateClaimWaitDuration      metric.Float64Histogram
@@ -429,6 +449,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DriftUnresolvedModuleCalls counter: %w", err)
+	}
+
+	inst.DriftSchemaUnknownComposite, err = meter.Int64Counter(
+		"eshu_dp_drift_schema_unknown_composite_total",
+		metric.WithDescription("Total Terraform-state composite attributes the streaming nested walker dropped because the provider schema bundle does not cover the (resource_type, attribute_key) pair"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DriftSchemaUnknownComposite counter: %w", err)
 	}
 
 	// Register histograms with explicit bucket boundaries where specified
@@ -1249,6 +1277,49 @@ func AttrSafeLocatorHash(v string) attribute.KeyValue {
 // metrics.
 func AttrWarningKind(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionWarningKind, v)
+}
+
+// AttrResourceType returns a resource_type attribute for Terraform-resource
+// counters such as eshu_dp_drift_schema_unknown_composite_total. The label is
+// bounded by the schema bundle, so cardinality stays under the operator-
+// visible cap; high-cardinality companions (attribute_key, source path) stay
+// in the structured log.
+func AttrResourceType(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionResourceType, v)
+}
+
+// AttrCompositeSkipReason returns a reason attribute for
+// eshu_dp_drift_schema_unknown_composite_total. The value must come from the
+// closed enum in terraformstate (CompositeCaptureSkipReason* constants) so
+// cardinality stays bounded.
+func AttrCompositeSkipReason(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionCompositeSkipReason, v)
+}
+
+// RegisterTfstateSchemaResolverEntries registers the
+// eshu_dp_tfstate_schema_resolver_entries observable gauge. The supplied
+// counter is invoked on every scrape and must report the number of Terraform
+// resource types currently held in memory by the collector's provider-schema
+// resolver. Operators read this gauge to size the collector pod for the
+// startup-loaded schema footprint; the resolver is loaded once at startup and
+// held for the process lifetime, so the value is stable per process.
+//
+// A nil meter or nil counter returns nil without registering anything; the
+// caller is responsible for skipping the call when the runtime resolver does
+// not implement SchemaResolverEntryCounter.
+func RegisterTfstateSchemaResolverEntries(meter metric.Meter, counter func() int) error {
+	if meter == nil || counter == nil {
+		return nil
+	}
+	_, err := meter.Int64ObservableGauge(
+		"eshu_dp_tfstate_schema_resolver_entries",
+		metric.WithDescription("Number of Terraform resource types covered by the loaded provider-schema resolver in the collector process"),
+		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+			o.Observe(int64(counter()))
+			return nil
+		}),
+	)
+	return err
 }
 
 // RecordGOMEMLIMIT registers and records the applied GOMEMLIMIT as a gauge.

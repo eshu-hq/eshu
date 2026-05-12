@@ -2,6 +2,7 @@ package main
 
 import (
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ func TestBuildClaimedServiceWiresTerraformStateRuntime(t *testing.T) {
 				"ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL": "30s",
 				"ESHU_TFSTATE_COLLECTOR_HEARTBEAT":       "10s",
 				"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+				"ESHU_TFSTATE_REDACTION_RULESET_VERSION": "test-schema-v1",
 			}
 			return values[key]
 		},
@@ -32,6 +34,7 @@ func TestBuildClaimedServiceWiresTerraformStateRuntime(t *testing.T) {
 		nil,
 		nil,
 		slog.Default(),
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildClaimedService() error = %v, want nil", err)
@@ -124,6 +127,7 @@ func TestBuildClaimedServiceWiresDynamoDBLockMetadataRuntime(t *testing.T) {
 				"ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL": "30s",
 				"ESHU_TFSTATE_COLLECTOR_HEARTBEAT":       "10s",
 				"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+				"ESHU_TFSTATE_REDACTION_RULESET_VERSION": "test-schema-v1",
 			}
 			return values[key]
 		},
@@ -131,6 +135,7 @@ func TestBuildClaimedServiceWiresDynamoDBLockMetadataRuntime(t *testing.T) {
 		nil,
 		nil,
 		slog.Default(),
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildClaimedService() error = %v, want nil", err)
@@ -153,3 +158,140 @@ func TestBuildClaimedServiceWiresDynamoDBLockMetadataRuntime(t *testing.T) {
 }
 
 var _ collector.ClaimedSource = tfstateruntime.ClaimedSource{}
+
+// TestBuildClaimedServiceWiresRedactionRules is a regression guard against a
+// production bug where `buildClaimedService` constructed
+// `tfstateruntime.ClaimedSource{}` without a `RedactionRules` field, leaving
+// `RuleSet.version == ""` and forcing `redact.RuleSet.Classify` down its
+// fail-closed path. That fail-closed path redacts every scalar attribute and
+// drops every composite attribute (see go/internal/redact/policy.go), which
+// silently broke E2E attribute_drift detection because the drift classifier
+// could no longer find allowlisted keys such as `acl`, `versioning.enabled`,
+// or `sse_algorithm` on the state side.
+//
+// Construction MUST go through `buildClaimedService` (the production wiring)
+// instead of directly creating a `tfstateruntime.ClaimedSource{}` literal,
+// because the bug is in the wiring, not in the runtime struct itself.
+func TestBuildClaimedServiceWiresRedactionRules(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildClaimedService(
+		postgres.SQLDB{},
+		func(key string) string {
+			values := map[string]string{
+				"ESHU_COLLECTOR_INSTANCES_JSON":          singleTerraformStateInstanceJSON(),
+				"ESHU_TFSTATE_COLLECTOR_OWNER_ID":        "worker-a",
+				"ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL": "30s",
+				"ESHU_TFSTATE_COLLECTOR_HEARTBEAT":       "10s",
+				"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+				"ESHU_TFSTATE_REDACTION_RULESET_VERSION": "regression-guard-v1",
+				"ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS":  "password,secret",
+			}
+			return values[key]
+		},
+		noop.NewTracerProvider().Tracer("test"),
+		nil,
+		nil,
+		slog.Default(),
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildClaimedService() error = %v, want nil", err)
+	}
+
+	source, ok := service.Source.(tfstateruntime.ClaimedSource)
+	if !ok {
+		t.Fatalf("Source type = %T, want tfstateruntime.ClaimedSource", service.Source)
+	}
+	if got := source.RedactionRules.Version(); got != "regression-guard-v1" {
+		t.Fatalf("Source.RedactionRules.Version() = %q, want %q", got, "regression-guard-v1")
+	}
+}
+
+// TestBuildClaimedServiceWiresProviderSchemaResolver is a regression guard
+// against the Scope 3 bug where `attributes.go:73` and `anchors.go:43`
+// hardcoded `redact.SchemaUnknown` for every attribute classification call.
+// Once RedactionRules carries a version (Scope 2), the fail-closed branch
+// shifts from unknown_redaction_ruleset to unknown_provider_schema — same
+// outcome, different reason. Composites dropped, scalars HMAC-stomped,
+// state-side drift detection blind to aws_s3_bucket.acl,
+// aws_s3_bucket.versioning, aws_s3_bucket.server_side_encryption_configuration.
+//
+// Construction MUST go through buildClaimedService so the wiring of
+// `tfstateruntime.ClaimedSource.SchemaResolver` from `runtimeConfig` is
+// covered, not just the field declaration.
+func TestBuildClaimedServiceWiresProviderSchemaResolver(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildClaimedService(
+		postgres.SQLDB{},
+		func(key string) string {
+			values := map[string]string{
+				"ESHU_COLLECTOR_INSTANCES_JSON":          singleTerraformStateInstanceJSON(),
+				"ESHU_TFSTATE_COLLECTOR_OWNER_ID":        "worker-a",
+				"ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL": "30s",
+				"ESHU_TFSTATE_COLLECTOR_HEARTBEAT":       "10s",
+				"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+				"ESHU_TFSTATE_REDACTION_RULESET_VERSION": "scope3-guard-v1",
+			}
+			return values[key]
+		},
+		noop.NewTracerProvider().Tracer("test"),
+		nil,
+		nil,
+		slog.Default(),
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildClaimedService() error = %v, want nil", err)
+	}
+
+	source, ok := service.Source.(tfstateruntime.ClaimedSource)
+	if !ok {
+		t.Fatalf("Source type = %T, want tfstateruntime.ClaimedSource", service.Source)
+	}
+	if source.SchemaResolver == nil {
+		t.Fatal("Source.SchemaResolver = nil, want resolver wired from packaged provider schemas")
+	}
+	if !source.SchemaResolver.HasAttribute("aws_s3_bucket", "acl") {
+		t.Error("Source.SchemaResolver.HasAttribute(aws_s3_bucket, acl) = false, want true (Tier-2 attribute drift depends on this)")
+	}
+	if !source.SchemaResolver.HasAttribute("aws_s3_bucket", "server_side_encryption_configuration") {
+		t.Error("Source.SchemaResolver.HasAttribute(aws_s3_bucket, server_side_encryption_configuration) = false, want true (Tier-2 SSE drift depends on this)")
+	}
+}
+
+// TestLoadRuntimeConfigRequiresRedactionRulesetVersion proves the startup
+// validation: if ESHU_TFSTATE_REDACTION_RULESET_VERSION is blank the binary
+// must fail fast at config load, not at the first emitted fact. Without this
+// gate the collector would happily start and silently redact every attribute
+// in production.
+func TestLoadRuntimeConfigRequiresRedactionRulesetVersion(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildClaimedService(
+		postgres.SQLDB{},
+		func(key string) string {
+			values := map[string]string{
+				"ESHU_COLLECTOR_INSTANCES_JSON":          singleTerraformStateInstanceJSON(),
+				"ESHU_TFSTATE_COLLECTOR_OWNER_ID":        "worker-a",
+				"ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL": "30s",
+				"ESHU_TFSTATE_COLLECTOR_HEARTBEAT":       "10s",
+				"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+				// ESHU_TFSTATE_REDACTION_RULESET_VERSION intentionally blank.
+			}
+			return values[key]
+		},
+		noop.NewTracerProvider().Tracer("test"),
+		nil,
+		nil,
+		slog.Default(),
+		nil,
+	)
+	if err == nil {
+		t.Fatal("buildClaimedService() error = nil, want error citing ESHU_TFSTATE_REDACTION_RULESET_VERSION")
+	}
+	if !strings.Contains(err.Error(), "ESHU_TFSTATE_REDACTION_RULESET_VERSION") {
+		t.Fatalf("buildClaimedService() error = %v, want error citing ESHU_TFSTATE_REDACTION_RULESET_VERSION", err)
+	}
+}
