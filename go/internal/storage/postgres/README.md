@@ -118,6 +118,8 @@ NornicDB-specific semantic gates. When the NornicDB gate is active (`$5 = true`)
 `semantic_entity_materialization` items are blocked while any source-local
 projection is in-flight, preventing cross-scope contention on NornicDB label
 indexes. The gate is disabled for Neo4j.
+`reducer_queue.go` keeps lifecycle/validation; `reducer_queue_helpers.go`
+keeps scan/default/retry/ID helpers shared by single-claim, batch, and replay paths.
 
 `NewReducerGraphDrain` exposes a small read-side gate for code-call projection.
 It checks whether reducer-owned graph domains are still pending, claimed,
