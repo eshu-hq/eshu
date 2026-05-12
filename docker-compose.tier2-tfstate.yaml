@@ -1,0 +1,253 @@
+# docker-compose.tier2-tfstate.yaml
+#
+# Overlay for scripts/verify_tfstate_drift_compose_tier2.sh (issue #187).
+# Layers on top of docker-compose.yaml to bring up:
+#
+#   * minio + minio-init for hosting the .tfstate objects the collector reads.
+#   * collector-terraform-state for the real claimed-source read path.
+#   * workflow-coordinator in active mode so it actually plans terraform_state
+#     work items (the base compose keeps coordinator dark by default).
+#
+# It also re-points bootstrap-index/ingester/resolution-engine at the Tier-2
+# fixture repo tree so the Git collector emits terraform_backends facts the
+# coordinator's planner can resolve.
+#
+# Image pins:
+#
+#   minio/minio is pinned to RELEASE.2025-09-07T16-13-09Z. The minio team
+#   ships immutable RELEASE.* tags; never use :latest. The Docker Hub
+#   registry lags the upstream GitHub releases page by a few days, so when
+#   bumping, confirm the tag actually resolves via
+#   `curl -fsS https://registry.hub.docker.com/v2/repositories/minio/minio/tags?ordering=last_updated`
+#   before committing the change.
+#
+#   minio/mc is pinned to RELEASE.2025-08-13T08-35-41Z. The mc client and
+#   the server release on different cadences; pin separately.
+
+x-collector-instances: &tier2_collector_instances
+  # The local_repos entries are the canonical repository IDs the Git
+  # collector emits for filesystem-mode repos, NOT the folder names. The
+  # canonical ID is `repository:r_<first 8 hex chars of sha1(localPath)>` and
+  # `localPath` resolves to `/data/repos/<folder>` inside the container, so
+  # the hashes here are stable for this fixture layout. Recompute with
+  # `printf '/data/repos/<folder>' | sha1sum | head -c8` if the in-container
+  # repo path or fixture folder names change.
+  #
+  # The match keys live in two queries the drift wire reads through:
+  #   - `terraformStateGitReadinessQuery` keys off `payload->>'repo_id'`
+  #   - `listTerraformBackendFactsQuery` keys off `payload->>'repo_id'`
+  ESHU_COLLECTOR_INSTANCES_JSON: |
+    [
+      {
+        "instance_id": "tier2-terraform-state",
+        "collector_kind": "terraform_state",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": true,
+        "bootstrap": true,
+        "configuration": {
+          "discovery": {
+            "graph": true,
+            "local_repos": [
+              "repository:r_0c292281",
+              "repository:r_cf466301",
+              "repository:r_610552d1",
+              "repository:r_4eedc49a",
+              "repository:r_126e93d3"
+            ]
+          }
+        }
+      }
+    ]
+
+services:
+  bootstrap-index:
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ./tests/fixtures/tfstate_drift_tier2/repos:/fixtures:ro
+      - ${ESHU_ESHUIGNORE_PATH:-/dev/null}:/tmp/eshuignore-source:ro
+
+  ingester:
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ./tests/fixtures/tfstate_drift_tier2/repos:/fixtures:ro
+      - ${ESHU_ESHUIGNORE_PATH:-/dev/null}:/tmp/eshuignore-source:ro
+
+  resolution-engine:
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ./tests/fixtures/tfstate_drift_tier2/repos:/fixtures:ro
+
+  eshu:
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ./tests/fixtures/tfstate_drift_tier2/repos:/fixtures:ro
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    healthcheck:
+      # The minio server image ships curl by default; hit its public health
+      # endpoint rather than depending on the mc client which is not in the
+      # server image.
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 5s
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      # Tell minio that vhost-style requests have hostname suffix `.minio` so
+      # `Host: <bucket>.minio:9000` resolves to bucket=<bucket>. Without this
+      # minio falls back to path-style and rejects the AWS SDK Go v2 default
+      # vhost requests with NoSuchBucket.
+      MINIO_DOMAIN: minio
+    ports:
+      - "${MINIO_PORT:-39000}:9000"
+      - "${MINIO_CONSOLE_PORT:-39001}:9001"
+    networks:
+      default:
+        # Aliases include the .minio suffix so the AWS SDK Go v2 virtual-hosted
+        # request URL `http://<bucket>.<endpoint-host>:9000/<key>` resolves.
+        # When AWS_ENDPOINT_URL_S3=http://minio:9000 the SDK builds the host as
+        # `<bucket>.minio` and DNS must answer for that exact name. Compose
+        # service-name aliases are flat by default; explicit dotted aliases
+        # synthesize the subdomain layer the SDK expects.
+        aliases:
+          - eshu-drift-a.minio
+          - eshu-drift-b.minio
+          - eshu-drift-d.minio
+          - eshu-drift-e.minio
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      STATE_DIR: /state
+      # Bypass any host-injected HTTP proxy (e.g. OrbStack's
+      # proxyproxy.orb.internal) for compose-internal DNS names. Without this
+      # the mc client's S3 probe is routed through the proxy and bounces with
+      # 502 because the proxy cannot reach the docker network address.
+      no_proxy: "*"
+      NO_PROXY: "*"
+      HTTPS_PROXY: ""
+      https_proxy: ""
+      HTTP_PROXY: ""
+      http_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+    volumes:
+      - ./tests/fixtures/tfstate_drift_tier2/state:/state:ro
+      - ./tests/fixtures/tfstate_drift_tier2/minio-init.sh:/init.sh:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
+
+  workflow-coordinator:
+    profiles: []
+    ports:
+      - "${ESHU_WORKFLOW_COORDINATOR_HTTP_PORT:-38082}:8080"
+      - "${ESHU_WORKFLOW_COORDINATOR_METRICS_PORT:-31469}:9464"
+    environment:
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: active
+      ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED: "true"
+      <<: *tier2_collector_instances
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  collector-terraform-state:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # The collector exits on any work-item failure (open-state error, AWS
+    # transient error, etc.); restart it so the workflow-coordinator can
+    # re-lease the failed work item against a fresh process.
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-terraform-state"]
+    ports:
+      - "${ESHU_COLLECTOR_TFSTATE_METRICS_PORT:-31470}:9464"
+    environment:
+      ESHU_GRAPH_BACKEND: nornicdb
+      DEFAULT_DATABASE: nornic
+      ESHU_NEO4J_DATABASE: nornic
+      NEO4J_DATABASE: nornic
+      NEO4J_URI: bolt://nornicdb:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_TFSTATE_COLLECTOR_INSTANCE_ID: tier2-terraform-state
+      ESHU_TFSTATE_COLLECTOR_OWNER_ID: tier2-worker
+      ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL: 2s
+      ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL: 60s
+      ESHU_TFSTATE_COLLECTOR_HEARTBEAT: 10s
+      ESHU_TFSTATE_REDACTION_KEY: tier2-tfstate-drift-redaction-key-32b
+      # `ESHU_TFSTATE_REDACTION_RULESET_VERSION` is mandatory. The collector
+      # fails fast at startup when this is blank because `redact.RuleSet`
+      # fails closed on empty versions — every scalar attribute would be
+      # redacted and every composite attribute would be dropped, which
+      # silently breaks downstream attribute_drift (bucket E) detection on
+      # `acl`, `versioning.enabled`, and `sse_algorithm` keys. The Tier-2
+      # fixture intentionally relies on those keys remaining classifiable.
+      ESHU_TFSTATE_REDACTION_RULESET_VERSION: tier2-tfstate-schema-v1
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL_S3: http://minio:9000
+      # Bypass any host-injected HTTP proxy for compose-internal DNS names.
+      # The AWS SDK Go v2 respects HTTP_PROXY/HTTPS_PROXY/ALL_PROXY/NO_PROXY,
+      # and a developer-host proxy (e.g. OrbStack's proxyproxy.orb.internal)
+      # cannot route to docker DNS names. Clear every variant the SDK or its
+      # transport may pick up.
+      no_proxy: "*"
+      NO_PROXY: "*"
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+      <<: *tier2_collector_instances
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully

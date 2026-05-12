@@ -83,6 +83,26 @@ Use active mode only for fenced claim validation. The Kubernetes chart remains
 dark-only until the remote full-corpus proof, API checks, MCP checks, and
 evidence truth checks are clean.
 
+## Run the Tier-2 tfstate drift overlay
+
+The overlay `docker-compose.tier2-tfstate.yaml` layers a minio object store,
+the `collector-terraform-state` container, and the workflow-coordinator in
+active mode on top of the default stack. It is consumed by
+`scripts/verify_tfstate_drift_compose_tier2.sh` (see
+[Local Testing](../reference/local-testing.md#tier-2-real-collector-chain-proof))
+to prove the full collector chain end-to-end.
+
+The overlay pins the minio images to immutable release tags
+(`minio/minio:RELEASE.2025-09-07T16-13-09Z`,
+`minio/mc:RELEASE.2025-08-13T08-35-41Z`). Docker Hub lags the upstream
+GitHub releases page by a few days, so when bumping confirm the tag exists
+on Hub before committing the pin change; do not switch to `:latest`.
+
+The overlay also redirects `bootstrap-index`, `ingester`,
+`resolution-engine`, and `eshu` to read repositories from
+`./tests/fixtures/tfstate_drift_tier2/repos/` so the Tier-2 verifier owns its
+fixture corpus and does not collide with the default ecosystem fixtures.
+
 ## Point local CLI commands at Compose
 
 The API is available at `http://localhost:8080` by default. For indexing into
