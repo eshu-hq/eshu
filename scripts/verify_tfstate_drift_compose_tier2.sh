@@ -260,19 +260,28 @@ tfstate_drift_extract_drift_logs "$DRIFT_LOGS_FILE"
 
 # -- assertions --------------------------------------------------------------
 
-echo "==> Asserting per-kind counter deltas (A, B, E)"
-for kind in added_in_state added_in_config attribute_drift; do
+echo "==> Asserting per-kind counter deltas (A, B, E) via compose runtime ${COMPOSE_DISPLAY}"
+# Iterate over the (kind, label) pairs so the assertion uses the same label
+# literals declared at the top of the script. Keeping the literals out of
+# the loop body lets readers grep for which drift_kind values bucket
+# assertions actually cover.
+for entry in \
+	"added_in_state:$LABEL_ADDED_IN_STATE" \
+	"added_in_config:$LABEL_ADDED_IN_CONFIG" \
+	"attribute_drift:$LABEL_ATTRIBUTE_DRIFT"; do
+	kind="${entry%%:*}"
+	kind_label="${entry#*:}"
 	value_after="$(
 		tfstate_drift_counter_value "$METRICS_AFTER_FILE" \
 			'^eshu_dp_correlation_drift_detected_total\{' \
 			"$LABEL_PACK" \
-			"drift_kind=\"$kind\""
+			"$kind_label"
 	)"
 	value_before="$(
 		tfstate_drift_counter_value "$METRICS_BEFORE_FILE" \
 			'^eshu_dp_correlation_drift_detected_total\{' \
 			"$LABEL_PACK" \
-			"drift_kind=\"$kind\""
+			"$kind_label"
 	)"
 	delta=$((value_after - value_before))
 	echo "  drift_kind=$kind before=$value_before after=$value_after delta=$delta"
