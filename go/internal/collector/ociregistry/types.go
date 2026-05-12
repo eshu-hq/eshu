@@ -49,6 +49,12 @@ const (
 	MediaTypeOCIImageManifest = "application/vnd.oci.image.manifest.v1+json"
 	// MediaTypeOCIImageIndex is the OCI image index media type.
 	MediaTypeOCIImageIndex = "application/vnd.oci.image.index.v1+json"
+	// MediaTypeDockerImageManifest is the Docker schema 2 image manifest media
+	// type accepted by OCI Distribution-compatible registries.
+	MediaTypeDockerImageManifest = "application/vnd.docker.distribution.manifest.v2+json"
+	// MediaTypeDockerManifestList is the Docker schema 2 manifest-list media
+	// type accepted by OCI Distribution-compatible registries.
+	MediaTypeDockerManifestList = "application/vnd.docker.distribution.manifest.list.v2+json"
 	// IdentityStrengthWeakTag marks tag evidence as mutable and weak.
 	IdentityStrengthWeakTag = "weak_tag"
 	// RedactedValue replaces annotation values that are not allowlisted.
@@ -56,6 +62,9 @@ const (
 	// WarningUnsupportedReferrersAPI marks registries without Referrers API
 	// support.
 	WarningUnsupportedReferrersAPI = "unsupported_referrers_api"
+	// WarningComputedManifestDigest marks registries that returned manifest
+	// bytes without a Docker-Content-Digest header.
+	WarningComputedManifestDigest = "computed_manifest_digest"
 	// SeverityInfo marks informational warnings.
 	SeverityInfo = "info"
 	// ReferrersUnsupported records unsupported Referrers API state.

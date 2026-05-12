@@ -5,7 +5,8 @@
 1. `README.md` — package purpose, exported surface, and invariants
 2. `identity.go` — repository and descriptor identity normalization
 3. `envelope.go`, `warning.go` — durable fact-envelope construction
-4. `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md` —
+4. `ociruntime/README.md` — runtime scan orchestration and telemetry
+5. `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md` —
    source-truth boundary and implementation slices
 
 ## Invariants
@@ -25,8 +26,8 @@
 - Add a new provider by extending `Provider` and identity tests.
 - Add a new fact envelope builder only after `internal/facts` exposes the fact
   kind and schema version. Keep source confidence explicit.
-- Add live registry calls in a runtime subpackage or later collector slice, not
-  in identity helpers or envelope builders.
+- Add live registry calls in `ociruntime` or a provider subpackage, not in
+  identity helpers or envelope builders.
 
 ## What Not To Change Without An ADR
 

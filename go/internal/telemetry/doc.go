@@ -5,13 +5,14 @@
 // and failure-class names) and the metric instruments themselves live in
 // instruments.go. Metric names use the eshu_dp_ prefix; new dimensions and
 // span names must be registered in contract.go before use, including
-// documentation extraction counters, Terraform-state collector spans, and
-// the safe_locator_hash and warning_kind dimensions used by the tfstate
-// output, module, warning emission, correlation drift-match, drift-admission,
-// drift-intent enqueue, and webhook-listener counters. Webhook listener intake
-// registers provider, event_kind, decision, and status dimensions plus
-// AttrProvider, AttrEventKind, AttrDecision, AttrStatus, SpanWebhookHandle, and
-// SpanWebhookStore. The reducer drift handler uses
+// documentation extraction counters, Terraform-state collector spans, webhook
+// listener spans, OCI registry collector spans, and the safe_locator_hash and
+// warning_kind dimensions used by the tfstate output, module, warning emission,
+// correlation drift-match, drift-admission, drift-intent enqueue, webhook, and
+// OCI registry counters. Webhook listener intake registers provider,
+// event_kind, decision, status, SpanWebhookHandle, and SpanWebhookStore. OCI
+// registry intake registers operation, media_family, artifact_family,
+// SpanOCIRegistryScan, and SpanOCIRegistryAPICall. The reducer drift handler uses
 // SpanReducerDriftEvidenceLoad to bracket the three-query join the
 // PostgresDriftEvidenceLoader performs per config_state_drift intent. Pipeline
 // stage, graph-backend, and failure-class names stay centralized here so

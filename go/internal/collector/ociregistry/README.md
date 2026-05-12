@@ -17,8 +17,9 @@ Docker/OCI repositories use this lane. JFrog package feeds use
 This package owns local identity rules and fact-envelope construction only.
 Distribution HTTP clients, Docker Hub and GHCR token mapping, JFrog
 repository-key mapping, and ECR token conversion live in provider subpackages.
-Workflow claims, runtime telemetry, graph writes, reducer correlation, and
-query surfaces belong to later collector, reducer, storage, and query slices.
+`ociruntime` owns runtime scan orchestration and telemetry. Workflow claims,
+graph writes, reducer correlation, and query surfaces belong to later
+collector, reducer, storage, and query slices.
 
 ```mermaid
 flowchart LR
@@ -82,8 +83,18 @@ the resolved digest. `FactID` includes `scope_id` and `generation_id`, while
 
 ## Telemetry
 
-This package emits no metrics, spans, or logs. Runtime collector telemetry will
-live in the future OCI registry runtime slice.
+The envelope package emits no metrics, spans, or logs directly. The
+`ociruntime` adapter records the runtime scan metrics:
+
+| Metric | Type | Labels | Purpose |
+| --- | --- | --- | --- |
+| `eshu_dp_oci_registry_api_calls_total` | Counter | `provider`, `operation`, `result` | Registry API success/failure volume. |
+| `eshu_dp_oci_registry_tags_observed_total` | Counter | `provider`, `result` | Tags accepted into the bounded scan. |
+| `eshu_dp_oci_registry_manifests_observed_total` | Counter | `provider`, `media_family` | Manifest, index, and descriptor volume. |
+| `eshu_dp_oci_registry_referrers_observed_total` | Counter | `provider`, `artifact_family` | SBOM, signature, attestation, vulnerability, unknown, and other referrers. |
+| `eshu_dp_oci_registry_scan_duration_seconds` | Float64 histogram | `provider`, `result` | Per-repository scan latency before durable commit. |
+
+The runtime also emits `oci_registry.scan` and `oci_registry.api_call` spans.
 
 ## Gotchas / invariants
 
@@ -100,6 +111,9 @@ live in the future OCI registry runtime slice.
 - Unknown OCI annotation values are redacted unless explicitly allowlisted.
 - Referrers API absence is a warning fact, not evidence that a subject digest
   has no SBOMs, signatures, or attestations.
+- Missing registry digest headers are warning evidence. `ociruntime` may
+  compute the OCI digest from exact manifest bytes, but it must never infer a
+  digest from repository or tag text.
 - Private registry names, repository paths, tags, and digests must not become
   metric labels.
 

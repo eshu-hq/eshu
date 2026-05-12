@@ -118,6 +118,7 @@ the shared `/healthz`, `/readyz`, optional `/metrics`, and optional
 `/admin/status` contract:
 
 - `collector-git`: `go run ./cmd/collector-git`
+- `collector-oci-registry`: `go run ./cmd/collector-oci-registry`
 - `collector-terraform-state`: `go run ./cmd/collector-terraform-state`
 - `projector`: `go run ./cmd/projector`
 - `reducer`: `go run ./cmd/reducer`
@@ -132,6 +133,13 @@ workflow work for that instance, opens exact local or S3 state sources, and
 commits redacted Terraform-state facts through the shared ingestion boundary.
 The workflow coordinator remains the control plane; it does not parse state or
 run collectors.
+
+`collector-oci-registry` scans configured OCI registry repositories from
+`ESHU_OCI_REGISTRY_TARGETS_JSON`, supports JFrog Docker/OCI, ECR, Docker Hub,
+and GHCR client wiring, and commits digest-addressed registry facts through the
+shared ingestion boundary. It exposes `oci_registry.scan` and
+`oci_registry.api_call` spans plus the `eshu_dp_oci_registry_*` metric family
+documented in the telemetry reference.
 
 ## Admin Contract
 

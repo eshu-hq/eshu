@@ -104,6 +104,10 @@ gauge when a shared-acceptance observer is available.
 | `TerraformStateWarningsEmitted` | `eshu_dp_tfstate_warnings_emitted_total` |
 | `TerraformStateRedactionsApplied` | `eshu_dp_tfstate_redactions_applied_total` |
 | `TerraformStateS3ConditionalGetNotModified` | `eshu_dp_tfstate_s3_conditional_get_not_modified_total` |
+| `OCIRegistryAPICalls` | `eshu_dp_oci_registry_api_calls_total` |
+| `OCIRegistryTagsObserved` | `eshu_dp_oci_registry_tags_observed_total` |
+| `OCIRegistryManifestsObserved` | `eshu_dp_oci_registry_manifests_observed_total` |
+| `OCIRegistryReferrersObserved` | `eshu_dp_oci_registry_referrers_observed_total` |
 | `CrossRepoEvidenceLoaded` | `eshu_dp_cross_repo_evidence_loaded_total` |
 | `CrossRepoEdgesResolved` | `eshu_dp_cross_repo_edges_resolved_total` |
 | `CorrelationRuleMatches` | `eshu_dp_correlation_rule_matches_total` |
@@ -125,6 +129,7 @@ gauge when a shared-acceptance observer is available.
 | `TerraformStateParseDuration` | `eshu_dp_tfstate_parse_duration_seconds` | 0.001–10 s |
 | `WebhookRequestDuration` | `eshu_dp_webhook_request_duration_seconds` | 0.001–10 s |
 | `WebhookStoreDuration` | `eshu_dp_webhook_store_duration_seconds` | 0.001–10 s |
+| `OCIRegistryScanDuration` | `eshu_dp_oci_registry_scan_duration_seconds` | 0.05–120 s |
 | `ScopeAssignDuration` | `eshu_dp_scope_assign_duration_seconds` | default |
 | `FactEmitDuration` | `eshu_dp_fact_emit_duration_seconds` | default |
 | `ProjectorRunDuration` | `eshu_dp_projector_run_duration_seconds` | 0.1–120 s |
@@ -186,9 +191,9 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanQueryDocumentationEvidencePacket`, `SpanQueryDocumentationPacketFreshness`,
 `SpanQueryDeadIaC`, `SpanQueryInfraResourceSearch`, `SpanTerraformStateClaimProcess`,
 `SpanTerraformStateDiscoveryResolve`, `SpanTerraformStateSourceOpen`,
-`SpanTerraformStateParserStream`, `SpanTerraformStateFactEmitBatch`, and
-`SpanTerraformStateCoordinatorDone`, `SpanWebhookHandle`, and
-`SpanWebhookStore`.
+`SpanTerraformStateParserStream`, `SpanTerraformStateFactEmitBatch`,
+`SpanTerraformStateCoordinatorDone`, `SpanWebhookHandle`, `SpanWebhookStore`,
+`SpanOCIRegistryScan`, and `SpanOCIRegistryAPICall`.
 
 Dependency spans: `SpanPostgresExec`, `SpanPostgresQuery`, `SpanNeo4jExecute`.
 

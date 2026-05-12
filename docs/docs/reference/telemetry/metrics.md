@@ -149,6 +149,55 @@ collector/projector/reducer path.
 - Use it for: Confirming whether tfstate collection is bootstrapping from
   operator seeds or from Git-observed backend evidence.
 
+### `eshu_dp_oci_registry_api_calls_total`
+
+- Type: Counter
+- Labels: `provider`, `operation`, `result`
+- Meaning: OCI registry API calls split by provider and operation. Operations
+  include `ping`, `list_tags`, `get_manifest`, and `list_referrers`.
+- Use it for: Separating auth or capability failures from manifest-specific
+  failures without putting registry hostnames, repositories, tags, or digests
+  into labels.
+
+### `eshu_dp_oci_registry_tags_observed_total`
+
+- Type: Counter
+- Labels: `provider`, `result`
+- Meaning: Tags accepted into the bounded scan after tag listing and `tag_limit`
+  filtering.
+- Use it for: Confirming whether the collector is seeing tag volume for a
+  provider before manifest fetches begin.
+
+### `eshu_dp_oci_registry_manifests_observed_total`
+
+- Type: Counter
+- Labels: `provider`, `media_family`
+- Meaning: Digest objects observed from manifest reads. `media_family` is
+  `image_manifest`, `image_index`, or `descriptor`.
+- Use it for: Understanding whether a registry target is mostly
+  single-platform manifests, multi-platform indexes, or unknown descriptor
+  evidence.
+
+### `eshu_dp_oci_registry_referrers_observed_total`
+
+- Type: Counter
+- Labels: `provider`, `artifact_family`
+- Meaning: Referrer descriptors reported for subject digests. `artifact_family`
+  is bounded to `sbom`, `signature`, `attestation`, `vulnerability`, `unknown`,
+  or `other`.
+- Use it for: Seeing whether SBOM, signature, attestation, or scan artifact
+  evidence exists without interpreting those artifacts in the registry
+  collector.
+
+### `eshu_dp_oci_registry_scan_duration_seconds`
+
+- Type: Histogram
+- Labels: `provider`, `result`
+- Meaning: One target scan from client creation through tag, manifest,
+  referrer, and fact-envelope construction. The later Postgres commit is still
+  measured by `eshu_dp_collector_observe_duration_seconds`.
+- Use it for: Distinguishing slow registry APIs from slow durable ingestion.
+
 ### `eshu_dp_tfstate_claim_wait_seconds`
 
 - Type: Histogram

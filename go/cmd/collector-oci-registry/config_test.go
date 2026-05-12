@@ -1,0 +1,67 @@
+package main
+
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
+)
+
+func TestLoadRuntimeConfigResolvesTargetsAndCredentialsFromEnv(t *testing.T) {
+	env := map[string]string{
+		envCollectorInstanceID: "oci-registry-test",
+		envTargetsJSON: `[{
+			"provider":"jfrog",
+			"base_url":"https://example.jfrog.io",
+			"repository_key":"docker-local",
+			"repository":"service-api",
+			"references":["latest"],
+			"tag_limit":1,
+			"username_env":"JFROG_USER",
+			"password_env":"JFROG_TOKEN"
+		}]`,
+		"JFROG_USER":  "user",
+		"JFROG_TOKEN": "token",
+	}
+
+	config, err := loadRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v", err)
+	}
+	if got, want := config.CollectorInstanceID, "oci-registry-test"; got != want {
+		t.Fatalf("CollectorInstanceID = %q, want %q", got, want)
+	}
+	if got, want := len(config.Targets), 1; got != want {
+		t.Fatalf("len(Targets) = %d, want %d", got, want)
+	}
+	target := config.Targets[0]
+	if got, want := target.Provider, ociregistry.ProviderJFrog; got != want {
+		t.Fatalf("Provider = %q, want %q", got, want)
+	}
+	if got, want := target.Registry, "https://example.jfrog.io/artifactory/api/docker/docker-local"; got != want {
+		t.Fatalf("Registry = %q, want %q", got, want)
+	}
+	if got, want := target.Username, "user"; got != want {
+		t.Fatalf("Username = %q, want %q", got, want)
+	}
+	if got, want := target.Password, "token"; got != want {
+		t.Fatalf("Password = %q, want %q", got, want)
+	}
+}
+
+func TestLoadRuntimeConfigDefaultsDockerHubRegistry(t *testing.T) {
+	env := map[string]string{
+		envCollectorInstanceID: "oci-registry-test",
+		envTargetsJSON:         `[{"provider":"dockerhub","repository":"busybox","references":["latest"]}]`,
+	}
+	config, err := loadRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v", err)
+	}
+	target := config.Targets[0]
+	if got, want := target.Registry, "docker.io"; got != want {
+		t.Fatalf("Registry = %q, want %q", got, want)
+	}
+	if got, want := target.Repository, "library/busybox"; got != want {
+		t.Fatalf("Repository = %q, want %q", got, want)
+	}
+}

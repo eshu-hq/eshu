@@ -26,30 +26,33 @@ const (
 // Metric dimension keys define the stable labels used by the Go data-plane
 // telemetry contract.
 const (
-	MetricDimensionScopeID       = "scope_id"
-	MetricDimensionScopeKind     = "scope_kind"
-	MetricDimensionSource        = "source"
-	MetricDimensionSourceSystem  = "source_system"
-	MetricDimensionGenerationID  = "generation_id"
-	MetricDimensionCollectorKind = "collector_kind"
-	MetricDimensionDomain        = "domain"
-	MetricDimensionPartitionKey  = "partition_key"
-	MetricDimensionRunner        = "runner"
-	MetricDimensionLookupResult  = "lookup_result"
-	MetricDimensionErrorType     = "error_type"
-	MetricDimensionRepoSizeTier  = "repo_size_tier"
-	MetricDimensionSkipReason    = "skip_reason"
-	MetricDimensionNodeType      = "node_type"
-	MetricDimensionEdgeType      = "edge_type"
-	MetricDimensionWritePhase    = "write_phase"
-	MetricDimensionOutcome       = "outcome"
-	MetricDimensionBackendKind   = "backend_kind"
-	MetricDimensionResult        = "result"
-	MetricDimensionReason        = "reason"
-	MetricDimensionProvider      = "provider"
-	MetricDimensionEventKind     = "event_kind"
-	MetricDimensionDecision      = "decision"
-	MetricDimensionStatus        = "status"
+	MetricDimensionScopeID        = "scope_id"
+	MetricDimensionScopeKind      = "scope_kind"
+	MetricDimensionSource         = "source"
+	MetricDimensionSourceSystem   = "source_system"
+	MetricDimensionGenerationID   = "generation_id"
+	MetricDimensionCollectorKind  = "collector_kind"
+	MetricDimensionDomain         = "domain"
+	MetricDimensionPartitionKey   = "partition_key"
+	MetricDimensionRunner         = "runner"
+	MetricDimensionLookupResult   = "lookup_result"
+	MetricDimensionErrorType      = "error_type"
+	MetricDimensionRepoSizeTier   = "repo_size_tier"
+	MetricDimensionSkipReason     = "skip_reason"
+	MetricDimensionNodeType       = "node_type"
+	MetricDimensionEdgeType       = "edge_type"
+	MetricDimensionWritePhase     = "write_phase"
+	MetricDimensionOutcome        = "outcome"
+	MetricDimensionBackendKind    = "backend_kind"
+	MetricDimensionResult         = "result"
+	MetricDimensionReason         = "reason"
+	MetricDimensionProvider       = "provider"
+	MetricDimensionEventKind      = "event_kind"
+	MetricDimensionDecision       = "decision"
+	MetricDimensionStatus         = "status"
+	MetricDimensionOperation      = "operation"
+	MetricDimensionMediaFamily    = "media_family"
+	MetricDimensionArtifactFamily = "artifact_family"
 	// MetricDimensionSafeLocatorHash labels Terraform-state metrics with the
 	// scope-level safe locator hash so operators can group counters per state
 	// without exposing bucket names, S3 keys, or local paths.
@@ -159,6 +162,8 @@ const (
 	SpanTerraformStateCoordinatorDone     = "tfstate.coordinator.complete"
 	SpanWebhookHandle                     = "webhook.handle"
 	SpanWebhookStore                      = "webhook.store"
+	SpanOCIRegistryScan                   = "oci_registry.scan"
+	SpanOCIRegistryAPICall                = "oci_registry.api_call"
 
 	// Dependency service spans — track external call performance.
 	SpanPostgresExec  = "postgres.exec"
@@ -287,6 +292,9 @@ var metricDimensionKeys = []string{
 	MetricDimensionEventKind,
 	MetricDimensionDecision,
 	MetricDimensionStatus,
+	MetricDimensionOperation,
+	MetricDimensionMediaFamily,
+	MetricDimensionArtifactFamily,
 	MetricDimensionSafeLocatorHash,
 	MetricDimensionWarningKind,
 	MetricDimensionPack,
@@ -328,6 +336,8 @@ var spanNames = []string{
 	SpanTerraformStateCoordinatorDone,
 	SpanWebhookHandle,
 	SpanWebhookStore,
+	SpanOCIRegistryScan,
+	SpanOCIRegistryAPICall,
 	SpanPostgresExec,
 	SpanPostgresQuery,
 	SpanNeo4jExecute,

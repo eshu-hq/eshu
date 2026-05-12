@@ -60,6 +60,10 @@ type Instruments struct {
 	TerraformStateWarningsEmitted             metric.Int64Counter
 	TerraformStateRedactionsApplied           metric.Int64Counter
 	TerraformStateS3ConditionalGetNotModified metric.Int64Counter
+	OCIRegistryAPICalls                       metric.Int64Counter
+	OCIRegistryTagsObserved                   metric.Int64Counter
+	OCIRegistryManifestsObserved              metric.Int64Counter
+	OCIRegistryReferrersObserved              metric.Int64Counter
 	// CorrelationRuleMatches counts rule-match outcomes recorded by
 	// engine.Evaluate.Results[i].MatchCounts, labeled by pack and rule.
 	// The engine populates MatchCounts for RuleKindMatch rules only
@@ -160,6 +164,7 @@ type Instruments struct {
 	TerraformStateClaimWaitDuration      metric.Float64Histogram
 	TerraformStateSnapshotBytes          metric.Int64Histogram
 	TerraformStateParseDuration          metric.Float64Histogram
+	OCIRegistryScanDuration              metric.Float64Histogram
 	ScopeAssignDuration                  metric.Float64Histogram
 	FactEmitDuration                     metric.Float64Histogram
 	ProjectorRunDuration                 metric.Float64Histogram
@@ -432,6 +437,38 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register TerraformStateS3ConditionalGetNotModified counter: %w", err)
 	}
 
+	inst.OCIRegistryAPICalls, err = meter.Int64Counter(
+		"eshu_dp_oci_registry_api_calls_total",
+		metric.WithDescription("Total OCI registry API calls by provider, operation, and result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register OCIRegistryAPICalls counter: %w", err)
+	}
+
+	inst.OCIRegistryTagsObserved, err = meter.Int64Counter(
+		"eshu_dp_oci_registry_tags_observed_total",
+		metric.WithDescription("Total OCI registry tags observed by provider and result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register OCIRegistryTagsObserved counter: %w", err)
+	}
+
+	inst.OCIRegistryManifestsObserved, err = meter.Int64Counter(
+		"eshu_dp_oci_registry_manifests_observed_total",
+		metric.WithDescription("Total OCI registry manifests observed by provider and media family"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register OCIRegistryManifestsObserved counter: %w", err)
+	}
+
+	inst.OCIRegistryReferrersObserved, err = meter.Int64Counter(
+		"eshu_dp_oci_registry_referrers_observed_total",
+		metric.WithDescription("Total OCI registry referrers observed by provider and artifact family"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register OCIRegistryReferrersObserved counter: %w", err)
+	}
+
 	inst.CorrelationRuleMatches, err = meter.Int64Counter(
 		"eshu_dp_correlation_rule_matches_total",
 		metric.WithDescription("Total correlation rule matches by pack and rule"),
@@ -560,6 +597,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WebhookStoreDuration histogram: %w", err)
+	}
+
+	ociRegistryScanBuckets := []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120}
+	inst.OCIRegistryScanDuration, err = meter.Float64Histogram(
+		"eshu_dp_oci_registry_scan_duration_seconds",
+		metric.WithDescription("OCI registry repository scan duration"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(ociRegistryScanBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register OCIRegistryScanDuration histogram: %w", err)
 	}
 
 	inst.ScopeAssignDuration, err = meter.Float64Histogram(
@@ -1325,7 +1373,7 @@ func AttrReason(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionReason, v)
 }
 
-// AttrProvider returns a provider attribute for webhook listener metrics.
+// AttrProvider returns a provider attribute for metric recording.
 func AttrProvider(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionProvider, v)
 }
@@ -1343,6 +1391,21 @@ func AttrDecision(v string) attribute.KeyValue {
 // AttrStatus returns a status attribute for metric recording.
 func AttrStatus(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionStatus, v)
+}
+
+// AttrOperation returns an operation attribute for metric recording.
+func AttrOperation(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionOperation, v)
+}
+
+// AttrMediaFamily returns a media_family attribute for metric recording.
+func AttrMediaFamily(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionMediaFamily, v)
+}
+
+// AttrArtifactFamily returns an artifact_family attribute for metric recording.
+func AttrArtifactFamily(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionArtifactFamily, v)
 }
 
 // AttrSafeLocatorHash returns a safe_locator_hash attribute for Terraform-state

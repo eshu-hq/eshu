@@ -241,12 +241,20 @@ Required status fields:
 
 Required metrics:
 
-- `eshu_dp_oci_registry_api_calls_total{operation,result}`
-- `eshu_dp_oci_registry_rate_limit_total{provider}`
-- `eshu_dp_oci_registry_tags_observed_total`
-- `eshu_dp_oci_registry_manifests_observed_total{media_family}`
-- `eshu_dp_oci_registry_referrers_observed_total{artifact_family}`
-- `eshu_dp_oci_registry_scan_duration_seconds`
+| Metric | Type | Labels | Purpose |
+| --- | --- | --- | --- |
+| `eshu_dp_oci_registry_api_calls_total` | Counter | `provider`, `operation`, `result` | Registry API call volume and failures for ping, tag listing, manifest fetches, and Referrers API calls. |
+| `eshu_dp_oci_registry_tags_observed_total` | Counter | `provider`, `result` | Tag observations accepted into a bounded repository scan. |
+| `eshu_dp_oci_registry_manifests_observed_total` | Counter | `provider`, `media_family` | Manifest, image-index, and descriptor observations by broad media family. |
+| `eshu_dp_oci_registry_referrers_observed_total` | Counter | `provider`, `artifact_family` | Referrer artifact observations by bounded artifact family. |
+| `eshu_dp_oci_registry_scan_duration_seconds` | Float64 histogram | `provider`, `result` | Repository scan latency before durable commit. |
+
+Required spans:
+
+| Span | Purpose |
+| --- | --- |
+| `oci_registry.scan` | One configured repository scan. |
+| `oci_registry.api_call` | One registry API call with bounded provider and operation attributes. |
 
 Metric labels must stay low-cardinality and must not include image names,
 repository names, tags, digests, or private paths.
@@ -265,6 +273,8 @@ The design must account for:
 - unsupported Referrers API
 - registries that return Docker-compatible media types
 - missing `Docker-Content-Digest` headers from older registry behavior
+- computed manifest digests from exact response bytes when that header is
+  missing
 - rate limits and retry-after responses
 - auth denied versus repository not found
 - duplicate descriptors across repositories
