@@ -242,6 +242,16 @@ out. Issue #105 dogfood validated the parser-backed root path against Play
 Framework and the Scala compiler with fresh `derived` API truth after queue
 drain.
 
+Elixir currently reports `derived` with parser-backed roots for Application
+`start/2`, public macros and guards, `@impl` behaviour callbacks,
+arity-checked GenServer callbacks, arity-checked Supervisor callbacks, Mix task
+`run/1`, protocol functions and implementations, Phoenix controller actions
+shaped as `action/2`, and arity-checked LiveView callbacks. It remains
+non-exact until macro expansion, dynamic
+dispatch, behaviour callback resolution, protocol dispatch, Phoenix route
+resolution, supervision tree resolution, Mix environment selection, and broad
+public API surfaces are modeled or scoped out.
+
 PHP currently reports `derived` with parser-backed roots for script
 entrypoints, constructors, known magic methods, same-file interface methods and
 implementations, trait methods, route-backed controller actions, literal route

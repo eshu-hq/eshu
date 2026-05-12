@@ -546,6 +546,52 @@ Local and dogfood evidence gathered in this branch so far:
   and `framework_roots_from_parser_metadata=54`. Content metadata contained
   root buckets for trait methods/types, overrides, JUnit methods, objects
   extending `App`, main methods, and trait implementation methods.
+- The Elixir slice promotes Elixir to `derived`, not exact. Parser metadata now
+  suppresses Application-backed `start/2`, public macros and guards, `@impl`
+  behaviour callbacks, arity-checked GenServer and Supervisor callbacks, Mix
+  task `run/1`, protocol functions and implementations, Phoenix controller
+  actions shaped as `action/2`, and arity-checked LiveView callbacks. Functions
+  containing dynamic `apply(...)` dispatch carry `dynamic_dispatch_unresolved`
+  as observed exactness evidence so query classification can keep them
+  ambiguous instead of cleanup-ready.
+- Elixir remains non-exact until macro expansion, dynamic dispatch, behaviour
+  callback resolution, protocol dispatch, Phoenix route resolution, supervision
+  trees, Mix environment selection, and broad public API surfaces are modeled or
+  scoped out. The fixture-backed tests cover parser metadata, graph-shaped
+  query suppression, content-metadata query suppression, and maturity/blocker
+  reporting.
+- Elixir core dogfood used unique Compose project
+  `eshu_elixir99_review_elixir_18301` against `elixir-lang/elixir` at
+  `b0db1a26e1326a8aa1ea199bed7e80b76741cce6`. The checked-out corpus had
+  `746` files and `565` `.ex`/`.exs` files; discovery indexed `577` files,
+  parsed `577` files, materialized `21206` content entities, and emitted
+  `22368` facts. Stage timings were discovery `0.021s`, pre-scan `0.141s`,
+  parse `0.211s`, materialize `0.034s`, canonical write `4.767s`, content
+  write `2.617s`, and bootstrap projection `10.677s`. The final status after
+  reducer drain was healthy with queue `pending=0`, `in_flight=0`,
+  `retrying=0`, `failed=0`, and `dead_letter=0`. The scoped dead-code API
+  returned `truth.level=derived`,
+  `dead_code_language_maturity.elixir=derived`, and
+  `framework_roots_from_parser_metadata=19`. Content metadata contained Elixir
+  root buckets for Application starts, behaviour callbacks, GenServer
+  callbacks, Mix tasks, protocols, protocol implementations, public guards,
+  public macros, and Supervisor callbacks.
+- Phoenix dogfood used unique Compose project
+  `eshu_elixir99_review_phoenix_18311` against `phoenixframework/phoenix` at
+  `8cbe8172d449fe7b8ab5720a5b448ac1cad36882`. The checked-out corpus had
+  `469` files and `175` `.ex`/`.exs` files; discovery indexed `216` files,
+  parsed `216` files, materialized `4722` content entities, and emitted `5162`
+  facts. Stage timings were discovery `0.015s`, pre-scan `0.521s`, parse
+  `0.469s`, materialize `0.029s`, canonical write `2.384s`, content write
+  `0.697s`, and bootstrap projection `5.338s`. The final status after reducer
+  drain was healthy with queue `pending=0`, `in_flight=0`, `retrying=0`,
+  `failed=0`, and `dead_letter=0`. The scoped dead-code API returned
+  `truth.level=derived`,
+  `dead_code_language_maturity.elixir=derived`, and
+  `framework_roots_from_parser_metadata=10`. Content metadata contained Elixir
+  root buckets for application starts, behaviour callbacks, GenServer
+  callbacks, Mix tasks, Phoenix controller actions, protocols, protocol
+  implementations, and public macros.
 
 Open proof work before this branch can close:
 

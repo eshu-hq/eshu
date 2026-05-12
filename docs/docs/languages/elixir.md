@@ -30,4 +30,18 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 ## Known Limitations
 - Multiple function clause heads for the same function are each captured as separate entries
 - Pipe operator (`|>`) chains are not collapsed into a single call chain node
-- GenServer callbacks are not distinguished from regular function definitions
+
+## Dead-Code Support
+
+Elixir dead-code support is `derived`, not exact. The parser emits
+`dead_code_root_kinds` for Application-backed `start/2`, public macros, public
+guards, `@impl` behaviour callbacks, arity-checked GenServer callbacks,
+arity-checked Supervisor callbacks, Mix task `run/1`, protocol functions,
+protocol implementation functions, Phoenix controller actions shaped as
+`action/2`, and arity-checked LiveView callbacks. It emits
+`exactness_blockers=dynamic_dispatch_unresolved` when a function body or
+one-line function declaration contains dynamic `apply(...)` dispatch.
+
+Exact cleanup remains blocked by macro expansion, dynamic dispatch, behaviour
+callback resolution, protocol dispatch, Phoenix route resolution, supervision
+tree resolution, Mix environment selection, and broad public API surfaces.

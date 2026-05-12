@@ -10,7 +10,7 @@
 // envelopes, truth metadata, capability gates, and code-quality classifications
 // are stable wire contracts. The dead-code OpenAPI fragment names modeled
 // language roots and keeps the language filter examples aligned with C#, C,
-// Groovy, PHP, and SQL query behavior. That filter is part of the dogfood
+// Groovy, Elixir, PHP, and SQL query behavior. That filter is part of the dogfood
 // contract for validating one language family without earlier candidate labels
 // filling the page. Dead-code responses preserve language maturity, modeled
 // framework-root lists, and root-kind evidence for functions and types so
@@ -40,7 +40,9 @@
 // and JUnit roots, plus Scala main, App object, trait, override, Play, Akka,
 // lifecycle, JUnit, and ScalaTest roots, plus Swift main, SwiftUI, protocol,
 // constructor, override, UIKit application delegate, Vapor, XCTest, and Swift
-// Testing roots, plus Ruby
+// Testing roots, plus Elixir Application start, public macro, public guard,
+// behaviour callback, GenServer, Supervisor, Mix task, protocol, Phoenix
+// controller, and LiveView roots, plus Ruby
 // Rails controller/callback roots, dynamic-dispatch hooks, literal
 // method-reference targets, and script entrypoints, plus Groovy Jenkinsfile
 // pipeline entrypoints and vars/*.groovy shared-library call roots, plus PHP
@@ -49,13 +51,13 @@
 // Symfony route attributes, and WordPress hook callbacks. C, C++, PHP, Ruby,
 // and Rust now share the derived dead-code maturity tier with Go and Java while
 // exact cleanup remains gated on broader semantic resolution.
-// C#, Kotlin, and Scala share that tier through parser-backed roots for common
-// framework and language entrypoints. Groovy remains candidate-only until dynamic dispatch,
-// closure delegates, shared library loading, and pipeline DSL steps have
-// stronger semantic resolution. Rust
-// Cargo auxiliary target
-// files under benches/ and examples/
-// are treated like non-production roots for cleanup analysis. Rust exactness
+// C#, Kotlin, Scala, and Elixir share that tier through parser-backed roots for
+// common framework and language entrypoints; Elixir Application, OTP, Phoenix
+// controller, and LiveView roots use syntax and arity checks before
+// suppression. Groovy remains candidate-only until dynamic dispatch, closure
+// delegates, shared library loading, and pipeline DSL steps have stronger
+// semantic resolution. Rust Cargo auxiliary target files under benches/ and
+// examples/ are treated like non-production roots for cleanup analysis. Rust exactness
 // blockers are reported in the analysis payload for
 // unresolved macro expansion, cfg and Cargo feature selection, semantic module
 // resolution, and trait dispatch, with observed blocker reporting for returned
@@ -75,6 +77,9 @@
 // Swift blockers cover macro expansion, conditional compilation, SwiftPM target
 // resolution, protocol witnesses, dynamic dispatch, generated property-wrapper
 // and result-builder code, Objective-C runtime dispatch, and public API surfaces,
+// Elixir blockers cover macro expansion, dynamic dispatch, behaviour callback
+// resolution, protocol dispatch, Phoenix route resolution, supervision trees,
+// Mix environment selection, and public API surfaces,
 // PHP blockers cover dynamic dispatch, reflection, Composer autoloading,
 // include/require resolution, framework routing, trait resolution, namespace
 // aliases, magic-method dispatch, and public API surfaces,
@@ -110,7 +115,7 @@
 // candidate pages and rows so callers can tell whether the result list was
 // clipped or the candidate scan cap was reached. C root suppressions are
 // honored from content-store metadata after hydration, and C#, C++, Kotlin,
-// Scala, PHP, Ruby, and Groovy root suppressions use the same graph/content
+// Scala, Elixir, PHP, Ruby, and Groovy root suppressions use the same graph/content
 // metadata path.
 // That matches the
 // normal parser metadata path used by indexed repositories.

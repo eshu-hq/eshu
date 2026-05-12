@@ -1,6 +1,6 @@
 # Elixir Dead-Code Fixture
 
-Maturity: `derived_candidate_only`.
+Maturity: `derived`.
 
 Expected symbols:
 
@@ -15,5 +15,7 @@ Expected symbols:
 | `excluded` | `generated_elixir_stub/0` |
 | `ambiguous` | `dynamic_elixir_dispatch/1` |
 
-This fixture is candidate-only. It records root expectations for later parser
-and query proof without promoting Elixir beyond `derived_candidate_only`.
+This fixture records parser-backed Elixir root metadata and dynamic-dispatch
+ambiguity. It keeps Elixir non-exact until macro expansion, protocol dispatch,
+Phoenix route resolution, supervision trees, Mix environment selection, and
+broad public API surfaces are modeled or scoped out.

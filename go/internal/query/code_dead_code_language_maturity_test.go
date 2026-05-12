@@ -67,6 +67,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		"javascript": "derived",
 		"java":       "derived",
 		"kotlin":     "derived",
+		"elixir":     "derived",
 		"typescript": "derived",
 		"tsx":        "derived",
 		"rust":       "derived",
@@ -178,6 +179,24 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 	} {
 		if !queryTestStringSliceContains(kotlinBlockers, want) {
 			t.Fatalf("blockers[kotlin] missing %q in %#v", want, kotlinBlockers)
+		}
+	}
+	elixirBlockers, ok := blockers["elixir"].([]any)
+	if !ok {
+		t.Fatalf("blockers[elixir] type = %T, want []any", blockers["elixir"])
+	}
+	for _, want := range []string{
+		"macro_expansion_unavailable",
+		"dynamic_dispatch_unresolved",
+		"behaviour_callback_resolution_unavailable",
+		"protocol_dispatch_unresolved",
+		"phoenix_route_resolution_unavailable",
+		"supervision_tree_resolution_unavailable",
+		"mix_environment_resolution_unavailable",
+		"public_api_surface_unresolved",
+	} {
+		if !queryTestStringSliceContains(elixirBlockers, want) {
+			t.Fatalf("blockers[elixir] missing %q in %#v", want, elixirBlockers)
 		}
 	}
 	cBlockers, ok := blockers["c"].([]any)
