@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -314,6 +315,11 @@ func stateParserHasField(parsed *ast.File, fieldName string) bool {
 
 func measurePeakHeapGrowth(t *testing.T, run func()) uint64 {
 	t.Helper()
+
+	// Keep the gate focused on live retention instead of runner-specific GC
+	// scheduling. Full-payload buffering would still remain live across GC.
+	previousGCPercent := debug.SetGCPercent(20)
+	defer debug.SetGCPercent(previousGCPercent)
 
 	runtime.GC()
 	var before runtime.MemStats

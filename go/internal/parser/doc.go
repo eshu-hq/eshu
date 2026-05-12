@@ -50,7 +50,8 @@
 // methods. The package also emits Go embedded SQL metadata through the Go
 // helper subpackage, Groovy/Jenkins delivery metadata through the Groovy helper
 // subpackage, Dockerfile runtime metadata through the Dockerfile helper
-// subpackage, JSON document extraction through the JSON helper subpackage,
+// subpackage, JSON and JSONC document extraction through the JSON helper
+// subpackage,
 // YAML document extraction through the YAML helper subpackage,
 // CloudFormation/SAM template extraction through the CloudFormation helper
 // subpackage, returned function-value references, static re-export metadata,

@@ -124,6 +124,21 @@ func TestDefaultRegistryLookupByExtensionAndPath(t *testing.T) {
 			t.Fatalf("Language = %q, want %q", definition.Language, "hcl")
 		}
 	})
+
+	t.Run("jsonc extension", func(t *testing.T) {
+		t.Parallel()
+
+		definition, ok := registry.LookupByPath(filepath.Join("apps", "studio", "turbo.jsonc"))
+		if !ok {
+			t.Fatalf("expected turbo.jsonc to resolve")
+		}
+		if definition.ParserKey != "json" {
+			t.Fatalf("ParserKey = %q, want %q", definition.ParserKey, "json")
+		}
+		if definition.Language != "json" {
+			t.Fatalf("Language = %q, want %q", definition.Language, "json")
+		}
+	})
 }
 
 func TestRegistryOrderingAndImmutability(t *testing.T) {

@@ -16,14 +16,14 @@
   on this package and supplies parent-owned helpers through `Config`.
 - Preserve existing JSON payload bucket names and row fields.
 - Preserve document order for metadata, dependency, script, and TypeScript path
-  rows when ordered JSON data is available.
+  rows when ordered JSON or JSONC data is available.
 - Keep CloudFormation extraction delegated to `internal/parser/cloudformation`.
 - Keep dbt SQL lineage parsing in the parent package.
 
 ## Common changes
 
-- New JSON document shapes belong in `language.go` only when they are selected
-  by filename or decoded document shape with bounded cost.
+- New JSON or JSONC document shapes belong in `language.go` only when they are
+  selected by filename or decoded document shape with bounded cost.
 - New dbt manifest fields belong in `dbt_manifest.go` and need focused tests
   proving payload rows and coverage state.
 - New replay fixture families belong in `data_intelligence.go` unless they are

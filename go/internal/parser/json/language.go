@@ -167,7 +167,7 @@ func normalizeJSONSource(source []byte, filename string) string {
 	}
 
 	normalized := strings.TrimLeft(strings.Join(lines[start:], "\n"), " \t\r\n")
-	if isTypeScriptConfigFilename(filename) {
+	if isJSONCConfigFilename(filename) {
 		normalized = stripJSONCComments(normalized)
 		normalized = stripTrailingCommas(normalized)
 	}
@@ -184,7 +184,16 @@ func shouldSkipJSONEntities(filename string) bool {
 
 func isTypeScriptConfigFilename(filename string) bool {
 	lower := strings.ToLower(filename)
+	return isLowerTypeScriptConfigFilename(lower)
+}
+
+func isLowerTypeScriptConfigFilename(lower string) bool {
 	return strings.HasPrefix(lower, "tsconfig") && strings.HasSuffix(lower, ".json")
+}
+
+func isJSONCConfigFilename(filename string) bool {
+	lower := strings.ToLower(filename)
+	return strings.HasSuffix(lower, ".jsonc") || isLowerTypeScriptConfigFilename(lower)
 }
 
 func dependencyVariables(
@@ -406,12 +415,24 @@ func stripTrailingCommas(source string) string {
 			continue
 		}
 		if current == ',' {
-			rest := strings.TrimLeft(source[index+1:], " \t\r\n")
-			if strings.HasPrefix(rest, "}") || strings.HasPrefix(rest, "]") {
+			next := nextNonWhitespaceIndex(source, index+1)
+			if next < len(source) && (source[next] == '}' || source[next] == ']') {
 				continue
 			}
 		}
 		builder.WriteByte(current)
 	}
 	return builder.String()
+}
+
+func nextNonWhitespaceIndex(source string, start int) int {
+	for start < len(source) {
+		switch source[start] {
+		case ' ', '\t', '\r', '\n':
+			start++
+		default:
+			return start
+		}
+	}
+	return start
 }
