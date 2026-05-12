@@ -85,7 +85,9 @@ member roots, Python `if __name__ == "__main__"` script-main guards, C
 `c.callback_argument_target`, and `c.function_pointer_target` roots, C++
 `cpp.main_function`, `cpp.public_header_api`, `cpp.virtual_method`,
 `cpp.override_method`, `cpp.callback_argument_target`, and
-`cpp.function_pointer_target`, and `cpp.node_addon_entrypoint` roots, and Java
+`cpp.function_pointer_target`, and `cpp.node_addon_entrypoint` roots, C# main,
+constructor, override, interface, ASP.NET controller, hosted-service, test, and
+serialization roots, and Java
 `main`, constructor, `@Override`, Ant `Task` setter, Gradle plugin
 `apply`, task action/property, task setter, task-interface method, public Gradle
 DSL, same-class method-reference target roots, Spring component and callback
@@ -121,10 +123,12 @@ resolution, and trait dispatch, C blockers for macro expansion, conditional
 compilation, build targets, include graphs, callback registration, dynamic
 symbol lookup, and external linkage, C++ blockers for those same C-style
 blockers plus template instantiation, overload resolution, and broad virtual
-dispatch, Ruby blockers for metaprogramming, autoload, framework routing, gem
-public API, and constant resolution, Groovy blockers for dynamic dispatch,
-closure delegates, Jenkins shared-library resolution, and pipeline DSL dynamic
-steps, plus SQL blockers for dynamic SQL,
+dispatch, C# blockers for reflection, dependency injection, source generators,
+partial types, dynamic dispatch, project references, and public API surfaces,
+Ruby blockers for metaprogramming, autoload, framework routing, gem public API,
+and constant resolution, Groovy blockers for dynamic dispatch, closure
+delegates, Jenkins shared-library resolution, and pipeline DSL dynamic steps,
+plus SQL blockers for dynamic SQL,
 dialect-specific routine resolution, and migration-order resolution. SQL
 `SqlFunction` routines participate in the derived candidate scan, and the query
 policy uses a batched exact graph incoming probe so reducer-written `EXECUTES`
@@ -150,9 +154,9 @@ Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
 payload names modeled root kinds in `modeled_framework_roots`, reports whether
 reflection evidence is modeled, and counts how many suppressions came from
-parser metadata. C, C++, Ruby, and Groovy root suppressions are tested through
-both graph-shaped rows and content-store metadata so the policy matches the
-normal hydrated read path.
+parser metadata. C, C#, C++, Ruby, and Groovy root suppressions are tested
+through both graph-shaped rows and content-store metadata so the policy matches
+the normal hydrated read path.
 That lets MCP and CLI callers explain why a candidate was suppressed. Candidate
 reads remain label-scoped and are repo-anchored when the request supplies a
 repository id, then content-backed policy checks run before completed reducer
@@ -184,9 +188,10 @@ fields. Without that header, `WriteJSON` emits the legacy payload directly.
 `BuildTruthEnvelope` (`contract.go:411`) constructs the `TruthEnvelope`; it
 panics if the capability string is not in `capabilityMatrix`.
 The OpenAPI fragment for `POST /api/v0/code/dead-code` names modeled language
-roots such as Go public-package exports plus C, C++, Ruby, and Groovy
-parser-backed roots, and its language filter examples include C, C++, Groovy,
-Ruby, and SQL.
+roots such as Go public-package exports plus C, C#, C++, Ruby, and Groovy
+parser-backed roots. Its language filter examples include `csharp`, `c`,
+`cpp`, `groovy`, `ruby`, and `sql`; `csharp` is normalized to `c_sharp` before
+candidate scanning.
 
 ## Exported surface
 

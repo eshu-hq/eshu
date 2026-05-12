@@ -87,7 +87,12 @@ func deadCodeCandidateLabelsForLanguage(language string) []string {
 }
 
 func normalizeDeadCodeLanguage(language string) string {
-	return strings.ToLower(strings.TrimSpace(language))
+	switch normalized := strings.ToLower(strings.TrimSpace(language)); normalized {
+	case "c#", "csharp":
+		return "c_sharp"
+	default:
+		return normalized
+	}
 }
 
 func filterDuplicateDeadCodeRows(rows []map[string]any, seenEntityIDs map[string]struct{}) []map[string]any {

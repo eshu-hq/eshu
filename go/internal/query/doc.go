@@ -9,8 +9,8 @@
 // must agree whenever public routes or response shapes change. Response
 // envelopes, truth metadata, capability gates, and code-quality classifications
 // are stable wire contracts. The dead-code OpenAPI fragment names modeled
-// language roots and keeps the language filter examples aligned with C, Groovy,
-// and SQL query behavior. Dead-code responses preserve language maturity,
+// language roots and keeps the language filter examples aligned with C#, C,
+// Groovy, and SQL query behavior. Dead-code responses preserve language maturity,
 // modeled framework-root lists, and root-kind evidence for functions and types
 // so callers can separate cleanup candidates from modeled roots; TypeScript
 // public API export, public API re-export, public type-reference, interface
@@ -29,17 +29,20 @@
 // resolution, macro-declaration, conditional-derive, nested-annotation, and
 // where-clause evidence, plus C c.main_function, c.public_header_api,
 // c.signal_handler, c.callback_argument_target, and c.function_pointer_target
-// roots, plus C++ cpp.main_function, cpp.public_header_api, cpp.virtual_method,
+// roots, plus C# main, constructor, override, interface, ASP.NET controller,
+// hosted-service, test, and serialization roots, plus C++
+// cpp.main_function, cpp.public_header_api, cpp.virtual_method,
 // cpp.override_method, cpp.callback_argument_target, and
 // cpp.function_pointer_target roots, plus cpp.node_addon_entrypoint, plus Ruby
 // Rails controller/callback roots, dynamic-dispatch hooks, literal
 // method-reference targets, and script entrypoints, plus Groovy Jenkinsfile
 // pipeline entrypoints and vars/*.groovy shared-library call roots. C, C++,
-// Ruby, and Rust now share the derived dead-code maturity tier with Go and Java
-// while exact cleanup remains gated on broader semantic resolution. Groovy
-// remains candidate-only until dynamic dispatch, closure delegates, shared
-// library loading, and pipeline DSL steps have stronger semantic resolution.
-// Rust
+// Ruby, and Rust now share the derived dead-code maturity tier with Go and
+// Java while exact cleanup remains gated on broader semantic resolution.
+// C# shares that tier through parser-backed roots for common framework and
+// language entrypoints. Groovy remains candidate-only until dynamic dispatch,
+// closure delegates, shared library loading, and pipeline DSL steps have
+// stronger semantic resolution. Rust
 // Cargo auxiliary target
 // files under benches/ and examples/
 // are treated like non-production roots for cleanup analysis. Rust exactness
@@ -51,6 +54,8 @@
 // callback registration, dynamic symbol lookup, and external linkage are
 // reported the same way. C++ exactness blockers add template instantiation,
 // overload resolution, and virtual dispatch breadth to those C-style blockers,
+// C# blockers cover reflection, dependency injection, source generators,
+// partial types, dynamic dispatch, project references, and public API surfaces,
 // Ruby exactness blockers cover metaprogramming, autoload, framework routing,
 // gem public API, and constant resolution, Groovy exactness blockers cover
 // dynamic dispatch, closure delegates, Jenkins shared libraries, and pipeline
@@ -82,8 +87,9 @@
 // result limits, and reports display truncation separately from bounded raw
 // candidate pages and rows so callers can tell whether the result list was
 // clipped or the candidate scan cap was reached. C root suppressions are
-// honored from content-store metadata after hydration, and C++, Ruby, and
-// Groovy root suppressions use the same graph/content metadata path. That matches the
+// honored from content-store metadata after hydration, and C#, C++, Ruby, and
+// Groovy root suppressions use the same graph/content metadata path. That
+// matches the
 // normal parser metadata path used by indexed repositories.
 // Infrastructure reads expose Terraform backend, import, moved, removed, check,
 // and lockfile-provider evidence as first-class entity types once parser and

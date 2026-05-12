@@ -79,6 +79,10 @@ Every dead-code analysis must classify roots into one or more of these groups:
   - C++ (currently modeled, bounded): functions and class methods declared in
     directly included local headers are public-API roots. Eshu does not yet
     resolve transitive include graphs or target-specific public surfaces.
+  - C# does not yet claim a broad public API surface. ASP.NET controller actions,
+    hosted-service callbacks, constructors, overrides, same-file interface
+    methods and implementations, test methods, serialization callbacks, and
+    `Main` are modeled as derived roots.
   - Ruby does not yet claim a broad public API surface. Rails controller
     actions are modeled as framework roots, not general library exports.
   - Rust, Java, and broader language-specific public-surface rules remain
@@ -159,8 +163,8 @@ can still be `derived_candidate_only` for dead-code cleanup until it has a
 dead-code fixture suite, root model, reachability proof, and API/MCP evidence.
 The initial maturity states are:
 
-- `derived`: current C, C++, Go, Python, Java, JavaScript, TypeScript, TSX, Ruby,
-  Rust, and SQL candidate scans with partial root modeling
+- `derived`: current C, C#, C++, Go, Python, Java, JavaScript, TypeScript, TSX,
+  Ruby, Rust, and SQL candidate scans with partial root modeling
 - `derived_candidate_only`: parser-supported source languages where Eshu can
   return graph-backed candidates but has not implemented enough language roots
   and fixtures for cleanup-safe answers
@@ -205,6 +209,13 @@ conditional compilation, build-target selection, transitive include graphs,
 template instantiation, overload resolution, virtual dispatch breadth, broader
 callback registration, dynamic symbol lookup, and external-linkage resolution
 are modeled or scoped out.
+
+C# currently reports `derived` with parser-backed roots for `Main`,
+constructors, overrides, same-file interface methods and implementations,
+ASP.NET controller actions, hosted-service callbacks, test methods, and
+serialization callbacks. It remains non-exact until reflection, dependency
+injection, source-generator output, partial type resolution, dynamic dispatch,
+project references, and broad public API surfaces are modeled or scoped out.
 
 Ruby currently reports `derived` with parser-backed roots for Rails controller
 actions, Rails callback methods declared by literal callback symbols, literal

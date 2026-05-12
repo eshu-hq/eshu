@@ -1,4 +1,10 @@
 using System;
+using System.Runtime.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
+using Xunit;
 
 namespace DeadCodeFixture;
 
@@ -9,6 +15,10 @@ public interface IJob
 
 public sealed class ReportJob : IJob
 {
+    public ReportJob()
+    {
+    }
+
     public void Run()
     {
         DirectlyUsedHelper();
@@ -27,13 +37,42 @@ public sealed class ReportJob : IJob
 
 public sealed class PublicController
 {
+    [HttpGet]
     public string Get() => "ok";
+
+    private string InternalHelper() => "private";
 }
 
-public sealed class Worker
+public sealed class Worker : BackgroundService
 {
-    [Obsolete("fixture framework root")]
-    public void ExecuteAsync() => Console.WriteLine("worker");
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        Console.WriteLine("worker");
+        return Task.CompletedTask;
+    }
+}
+
+public sealed class FixtureTests
+{
+    [Fact]
+    public void ExercisedByTestRunner()
+    {
+        DirectlyUsedTestHelper();
+    }
+
+    private void DirectlyUsedTestHelper()
+    {
+        Console.WriteLine("test helper");
+    }
+}
+
+public sealed class SerializationHooks
+{
+    [OnDeserialized]
+    private void Restore(StreamingContext context)
+    {
+        Console.WriteLine("restore");
+    }
 }
 
 public static class GeneratedFile
