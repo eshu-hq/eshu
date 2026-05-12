@@ -1,0 +1,54 @@
+{{- if and .Values.webhookListener.enabled .Values.webhookListener.exposure.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "eshu.webhookListenerFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook-listener
+  {{- with .Values.webhookListener.exposure.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.webhookListener.exposure.ingress.className }}
+  ingressClassName: {{ .Values.webhookListener.exposure.ingress.className }}
+  {{- end }}
+  rules:
+    {{- range .Values.webhookListener.exposure.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- if $.Values.webhookListener.github.enabled }}
+          - path: {{ $.Values.webhookListener.github.path | quote }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "eshu.webhookListenerFullname" $ }}
+                port:
+                  number: 8080
+          {{- end }}
+          {{- if $.Values.webhookListener.gitlab.enabled }}
+          - path: {{ $.Values.webhookListener.gitlab.path | quote }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "eshu.webhookListenerFullname" $ }}
+                port:
+                  number: 8080
+          {{- end }}
+          {{- if $.Values.webhookListener.bitbucket.enabled }}
+          - path: {{ $.Values.webhookListener.bitbucket.path | quote }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "eshu.webhookListenerFullname" $ }}
+                port:
+                  number: 8080
+          {{- end }}
+    {{- end }}
+  {{- with .Values.webhookListener.exposure.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

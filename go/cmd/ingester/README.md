@@ -44,14 +44,21 @@ flowchart TB
 and `telemetry.NewProviders`, opens Postgres through `runtimecfg.OpenPostgres`,
 and builds the canonical graph writer (`sourcecypher.NewCanonicalNodeWriter`
 backed by the adapter selected via `ESHU_GRAPH_BACKEND`). It then calls
-`buildIngesterService`, which returns a `compositeRunner` that runs
-`collector.Service` and `projector.Service` concurrently. The first error from
-either service cancels the other.
+`buildIngesterService`, which assembles a `compositeRunner` through
+`newCompositeRunner` so `collector.Service` and `projector.Service` run
+concurrently. The first error from either service cancels the other.
 
 `signal.NotifyContext` on `SIGINT` and `SIGTERM` propagates cancellation through
 `compositeRunner.Run`. `app.NewHostedWithStatusServer` mounts `/healthz`,
 `/readyz`, `/metrics`, `/admin/status`, and `/admin/recovery` alongside the
 composite runner.
+
+When `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED` is true, the ingester wraps the
+normal repository selector with a webhook-trigger selector. Accepted queued
+GitHub, GitLab, and Bitbucket triggers are claimed first, synced as targeted
+repositories, then handed to the same snapshot and fact-emission path as
+scheduled polling. Unsupported provider triggers are marked failed instead of
+being routed through a guessed clone path.
 
 After each full collector batch drain, `AfterBatchDrained` calls
 `BackfillAllRelationshipEvidence` then `ReopenDeploymentMappingWorkItems`.
@@ -108,6 +115,9 @@ telemetry, Postgres, or graph setup begins.
 | SCIP_INDEXER | false | Enable external SCIP indexers |
 | SCIP_LANGUAGES | python,typescript,go,rust,java | Languages eligible for SCIP indexing |
 | ESHU_PROJECTOR_RETRY_ONCE_SCOPE_GENERATION | — | Fault-injection: scope generation ID for one-shot retry |
+| ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED | false | Check queued webhook refresh triggers before scheduled repository polling |
+| ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER | ingester | Lease owner written when claiming queued webhook triggers |
+| ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT | 100 | Max webhook triggers claimed per selector pass |
 | ESHU_PPROF_ADDR | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
 Per-label NornicDB tuning knobs (ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES,

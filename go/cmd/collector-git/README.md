@@ -35,6 +35,10 @@ Repo-sync and discovery configuration is loaded via
 Postgres env contract). The poll interval defaults to 1 second
 (`defaultCollectorPollInterval`).
 
+Set the shared webhook-trigger handoff enabled env value to true to claim queued
+webhook refresh triggers before scheduled polling. The handoff owner defaults
+to `collector-git`, and the claim limit defaults to 100.
+
 ## Telemetry
 
 The binary inherits its telemetry stack from the shared bootstrap
@@ -56,6 +60,9 @@ for the shared admin/metrics contract.
   for local verification, not as a Kubernetes-deployed collector
 - collector cycles are observed under the shared collector span and metrics;
   do not bypass `collector.Service` to write facts directly
+- webhook-triggered selection is still collection work: it prioritizes
+  GitHub, GitLab, or Bitbucket repo sync, then the normal snapshot and fact
+  commit path decides freshness
 
 ## Related docs
 

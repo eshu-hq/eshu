@@ -23,6 +23,7 @@ the reported state is live or inferred.
 | one repository is slow | ingester metrics | `collector snapshot stage completed` logs, ingester traces, and resolution-engine stage timings |
 | graph writes are slow | resolution metrics | Neo4j traces and graph persistence logs |
 | content reads are missing or slow | API metrics and content metrics | content traces and logs |
+| provider webhooks are rejected or delayed | webhook listener metrics | webhook spans, store metrics, and listener logs |
 | replay or dead-letter behavior looks wrong | recovery metrics | recovery traces and admin recovery logs |
 
 ## Health Versus Completeness
@@ -135,6 +136,20 @@ For shared-write debugging specifically:
   `collector snapshot stage completed` records for `discovery`, `pre_scan`,
   `parse`, and `materialize` before changing parser workers, NornicDB batch
   sizes, or graph-write timeouts.
+
+### Webhook Listener
+
+- Metrics answer provider request rate, rejection reason, normalized decision
+  volume, and trigger-store latency.
+- `eshu_dp_webhook_requests_total` and
+  `eshu_dp_webhook_request_duration_seconds` are labeled by provider, bounded
+  outcome, and reason.
+- `eshu_dp_webhook_trigger_decisions_total` is labeled by provider, event kind,
+  decision, reason, and stored status.
+- `eshu_dp_webhook_store_duration_seconds` shows whether intake latency is in
+  request verification or durable trigger persistence.
+- Traces use `webhook.handle` and `webhook.store` spans; repository names,
+  delivery IDs, and commit SHAs stay out of metric labels.
 
 ### Facts Layer
 
@@ -355,6 +370,9 @@ log streams.
 | `eshu_dp_tfstate_resources_emitted_total` | Terraform-state resource facts emitted after parsing | `backend_kind` |
 | `eshu_dp_tfstate_redactions_applied_total` | Terraform-state redactions or safe drops by policy reason | `reason` |
 | `eshu_dp_tfstate_s3_conditional_get_not_modified_total` | S3 conditional Terraform-state reads that returned not modified | none |
+| `eshu_dp_webhook_requests_total` | Webhook listener requests by provider and bounded outcome | `provider`, `outcome`, `reason` |
+| `eshu_dp_webhook_trigger_decisions_total` | Normalized webhook trigger decisions after durable storage | `provider`, `event_kind`, `decision`, `reason`, `status` |
+| `eshu_dp_webhook_store_operations_total` | Webhook trigger store operations by result | `provider`, `outcome`, `status` |
 | `eshu_dp_repos_snapshotted_total` | Total repositories snapshotted | status (`succeeded`/`failed`/`skipped`) |
 | `eshu_dp_files_parsed_total` | Total files parsed | status (`succeeded`/`failed`/`skipped`) |
 | `eshu_dp_fact_batches_committed_total` | Total fact batches committed to Postgres during streaming ingestion | `scope_id`, `source_system` |
@@ -367,6 +385,8 @@ log streams.
 | `eshu_dp_tfstate_claim_wait_seconds` | Terraform-state work item age when a claim starts | s | 0 .. 3600 |
 | `eshu_dp_tfstate_snapshot_bytes` | Terraform-state source size after a successful parse | By | 1 KiB .. 100 MiB |
 | `eshu_dp_tfstate_parse_duration_seconds` | Terraform-state streaming parse duration | s | 0.001 .. 10 |
+| `eshu_dp_webhook_request_duration_seconds` | Webhook listener request duration | s | 0.001 .. 10 |
+| `eshu_dp_webhook_store_duration_seconds` | Webhook trigger store duration | s | 0.001 .. 10 |
 | `eshu_dp_scope_assign_duration_seconds` | Scope assignment duration | s | default |
 | `eshu_dp_fact_emit_duration_seconds` | Fact emission duration | s | default |
 | `eshu_dp_projector_run_duration_seconds` | Projector run cycle duration | s | 0.1 .. 120 |
@@ -418,6 +438,10 @@ The `eshu_dp_projector_stage_duration_seconds` histogram carries a `stage` attri
 | `domain` | Reducer or projection domain |
 | `partition_key` | Shared projection partition |
 | `outcome` | Timing outcome such as processed, completed, or readiness_blocked |
+| `provider` | Webhook provider (github, gitlab, bitbucket, unknown) |
+| `event_kind` | Normalized webhook event kind |
+| `decision` | Webhook refresh decision |
+| `reason` | Bounded reason label for webhook, retry, or policy outcomes |
 | `stage` | Projector stage (build_projection, graph_write, content_write, intent_enqueue) |
 | `status` | Operation outcome (succeeded/failed) |
 | `queue` | Queue name for claim duration (projector/reducer) |
@@ -437,6 +461,8 @@ The `eshu_dp_projector_stage_duration_seconds` histogram carries a `stage` attri
 | `reducer.run` | Reducer main loop | One claim + execute + ack cycle |
 | `iac_reachability.materialize` | Bootstrap finalization | Corpus-wide active-generation IaC usage classification and Postgres row upsert |
 | `canonical.write` | Projector runtime / Reducer shared projection | Graph and content writes to Neo4j |
+| `webhook.handle` | Webhook listener route | Provider verification, normalization, and response handling |
+| `webhook.store` | Webhook listener store call | Durable trigger upsert and status selection |
 
 #### Query handler spans
 

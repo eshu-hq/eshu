@@ -48,6 +48,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-workflow-coordinator" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "eshu.webhookListenerFullname" -}}
+{{- printf "%s-webhook-listener" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "eshu.confluenceCollectorFullname" -}}
 {{- printf "%s-confluence-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -70,6 +74,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "eshu.workflowCoordinatorMetricsServiceName" -}}
 {{- printf "%s-workflow-coordinator-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.webhookListenerMetricsServiceName" -}}
+{{- printf "%s-webhook-listener-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "eshu.confluenceCollectorMetricsServiceName" -}}
@@ -99,6 +107,11 @@ app.kubernetes.io/component: resolution-engine
 {{- define "eshu.workflowCoordinatorSelectorLabels" -}}
 {{- include "eshu.selectorLabels" . }}
 app.kubernetes.io/component: workflow-coordinator
+{{- end -}}
+
+{{- define "eshu.webhookListenerSelectorLabels" -}}
+{{- include "eshu.selectorLabels" . }}
+app.kubernetes.io/component: webhook-listener
 {{- end -}}
 
 {{- define "eshu.confluenceCollectorSelectorLabels" -}}

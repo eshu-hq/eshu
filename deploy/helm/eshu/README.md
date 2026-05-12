@@ -15,7 +15,8 @@ workloads with:
 - An optional workflow-coordinator `Deployment` for dark-mode control-plane validation
 - A stateless Resolution Engine `Deployment` for facts queue projection
 - An optional Confluence collector `Deployment` that stores documentation sections in Postgres
-- Optional Prometheus scrape endpoints and `ServiceMonitor` resources for API, MCP, ingester, workflow-coordinator, resolution-engine, and Confluence collector
+- An optional public webhook listener `Deployment` that stores GitHub/GitLab/Bitbucket refresh triggers in Postgres
+- Optional Prometheus scrape endpoints and `ServiceMonitor` resources for API, MCP, ingester, workflow-coordinator, resolution-engine, Confluence collector, and webhook listener
 - Flexible service exposure (ClusterIP, LoadBalancer, Ingress, Gateway API)
 - Hardened defaults such as public API docs disabled unless explicitly re-enabled
 
@@ -27,6 +28,9 @@ Important routing notes:
   backend at a time: `api` or `mcp`.
 - If you want separate public API and MCP hostnames, add an additional
   Ingress or HTTPRoute from your overlay or GitOps layer.
+- The webhook listener has its own ingress block. The chart routes only
+  provider webhook paths there; admin and metrics paths remain internal by
+  default.
 - For bundled NornicDB, set `neo4j.auth.secretName=""`. The chart then renders
   literal Bolt client credentials from `neo4j.auth.username/password` because
   Eshu requires non-empty Bolt auth fields even when NornicDB itself runs
@@ -80,6 +84,20 @@ confluenceCollector:
   spaceId: "123456789"
   credentials:
     secretName: confluence-collector-credentials
+
+webhookListener:
+  enabled: true
+  github:
+    enabled: true
+    secretName: github-webhook-secret
+  bitbucket:
+    enabled: true
+    secretName: bitbucket-webhook-secret
+  exposure:
+    ingress:
+      enabled: true
+      hosts:
+        - host: hooks.example.com
 
 repoSync:
   source:

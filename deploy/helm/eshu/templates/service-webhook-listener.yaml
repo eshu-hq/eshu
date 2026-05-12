@@ -1,0 +1,24 @@
+{{- if .Values.webhookListener.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eshu.webhookListenerFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook-listener
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "eshu.webhookListenerSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+    {{- if .Values.observability.prometheus.enabled }}
+    - name: metrics
+      port: {{ .Values.observability.prometheus.port }}
+      targetPort: metrics
+      protocol: TCP
+    {{- end }}
+{{- end }}

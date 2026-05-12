@@ -31,10 +31,24 @@ func buildCollectorService(
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
 
+	selector := collector.RepositorySelector(collector.NativeRepositorySelector{Config: config})
+	handoffConfig := collector.LoadWebhookTriggerHandoffConfig("collector-git", getenv)
+	if handoffConfig.Enabled {
+		selector = collector.PriorityRepositorySelector{Selectors: []collector.RepositorySelector{
+			collector.WebhookTriggerRepositorySelector{
+				Config:     config,
+				Store:      postgres.NewWebhookTriggerStore(database),
+				Owner:      handoffConfig.Owner,
+				ClaimLimit: handoffConfig.ClaimLimit,
+			},
+			selector,
+		}}
+	}
+
 	return collector.Service{
 		Source: &collector.GitSource{
 			Component: "collector-git",
-			Selector:  collector.NativeRepositorySelector{Config: config},
+			Selector:  selector,
 			Snapshotter: collector.NativeRepositorySnapshotter{
 				SCIP:             collector.LoadSnapshotSCIPConfig(getenv),
 				ParseWorkers:     config.ParseWorkers,

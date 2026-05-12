@@ -111,6 +111,9 @@ gauge when a shared-acceptance observer is available.
 | `CorrelationDriftIntentsEnqueued` | `eshu_dp_correlation_drift_intents_enqueued_total` |
 | `DriftUnresolvedModuleCalls` | `eshu_dp_drift_unresolved_module_calls_total` |
 | `DriftSchemaUnknownComposite` | `eshu_dp_drift_schema_unknown_composite_total` |
+| `WebhookRequests` | `eshu_dp_webhook_requests_total` |
+| `WebhookTriggerDecisions` | `eshu_dp_webhook_trigger_decisions_total` |
+| `WebhookStoreOperations` | `eshu_dp_webhook_store_operations_total` |
 
 #### Histograms (Float64 unless noted)
 
@@ -120,6 +123,8 @@ gauge when a shared-acceptance observer is available.
 | `TerraformStateClaimWaitDuration` | `eshu_dp_tfstate_claim_wait_seconds` | 0–3600 s |
 | `TerraformStateSnapshotBytes` | `eshu_dp_tfstate_snapshot_bytes` | 1 KiB–100 MiB |
 | `TerraformStateParseDuration` | `eshu_dp_tfstate_parse_duration_seconds` | 0.001–10 s |
+| `WebhookRequestDuration` | `eshu_dp_webhook_request_duration_seconds` | 0.001–10 s |
+| `WebhookStoreDuration` | `eshu_dp_webhook_store_duration_seconds` | 0.001–10 s |
 | `ScopeAssignDuration` | `eshu_dp_scope_assign_duration_seconds` | default |
 | `FactEmitDuration` | `eshu_dp_fact_emit_duration_seconds` | default |
 | `ProjectorRunDuration` | `eshu_dp_projector_run_duration_seconds` | 0.1–120 s |
@@ -182,7 +187,8 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanQueryDeadIaC`, `SpanQueryInfraResourceSearch`, `SpanTerraformStateClaimProcess`,
 `SpanTerraformStateDiscoveryResolve`, `SpanTerraformStateSourceOpen`,
 `SpanTerraformStateParserStream`, `SpanTerraformStateFactEmitBatch`, and
-`SpanTerraformStateCoordinatorDone`.
+`SpanTerraformStateCoordinatorDone`, `SpanWebhookHandle`, and
+`SpanWebhookStore`.
 
 Dependency spans: `SpanPostgresExec`, `SpanPostgresQuery`, `SpanNeo4jExecute`.
 
@@ -218,6 +224,9 @@ Pipeline phase constants (defined in `logging.go`): `PhaseDiscovery`,
 Attribute helpers — typed constructors for every metric dimension key, for
 example `AttrDomain`, `AttrScopeID`, `AttrWritePhase`; use these rather than
 `attribute.String` literals when recording metrics.
+Webhook listener labels use `AttrProvider`, `AttrEventKind`, `AttrDecision`,
+`AttrStatus`, `AttrOutcome`, and `AttrReason` so provider intake stays on the
+same bounded vocabulary as the rest of the data plane.
 
 `ScopeAttrs`, `DomainAttrs`, `AcceptanceAttrs` — return `[]slog.Attr` slices
 for the common scope, domain, and acceptance-context log fields.

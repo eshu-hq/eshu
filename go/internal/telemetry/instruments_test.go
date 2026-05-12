@@ -41,6 +41,9 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.TerraformStateRedactionsApplied, "TerraformStateRedactionsApplied counter should be registered")
 	assert.NotNil(t, inst.TerraformStateS3ConditionalGetNotModified, "TerraformStateS3ConditionalGetNotModified counter should be registered")
 	assert.NotNil(t, inst.CorrelationDriftIntentsEnqueued, "CorrelationDriftIntentsEnqueued counter should be registered")
+	assert.NotNil(t, inst.WebhookRequests, "WebhookRequests counter should be registered")
+	assert.NotNil(t, inst.WebhookTriggerDecisions, "WebhookTriggerDecisions counter should be registered")
+	assert.NotNil(t, inst.WebhookStoreOperations, "WebhookStoreOperations counter should be registered")
 
 	// Verify all histogram fields are non-nil
 	assert.NotNil(t, inst.CollectorObserveDuration, "CollectorObserveDuration histogram should be registered")
@@ -70,6 +73,8 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.IaCReachabilityMaterializationDuration, "IaCReachabilityMaterializationDuration histogram should be registered")
 	assert.NotNil(t, inst.TerraformStateSnapshotBytes, "TerraformStateSnapshotBytes histogram should be registered")
 	assert.NotNil(t, inst.TerraformStateParseDuration, "TerraformStateParseDuration histogram should be registered")
+	assert.NotNil(t, inst.WebhookRequestDuration, "WebhookRequestDuration histogram should be registered")
+	assert.NotNil(t, inst.WebhookStoreDuration, "WebhookStoreDuration histogram should be registered")
 }
 
 func TestNewInstrumentsNilMeterError(t *testing.T) {
@@ -160,6 +165,26 @@ func TestAttrHelpers(t *testing.T) {
 			name:     "AttrReason",
 			attrFunc: func(v string) string { return string(AttrReason(v).Key) },
 			wantKey:  MetricDimensionReason,
+		},
+		{
+			name:     "AttrProvider",
+			attrFunc: func(v string) string { return string(AttrProvider(v).Key) },
+			wantKey:  MetricDimensionProvider,
+		},
+		{
+			name:     "AttrEventKind",
+			attrFunc: func(v string) string { return string(AttrEventKind(v).Key) },
+			wantKey:  MetricDimensionEventKind,
+		},
+		{
+			name:     "AttrDecision",
+			attrFunc: func(v string) string { return string(AttrDecision(v).Key) },
+			wantKey:  MetricDimensionDecision,
+		},
+		{
+			name:     "AttrStatus",
+			attrFunc: func(v string) string { return string(AttrStatus(v).Key) },
+			wantKey:  MetricDimensionStatus,
 		},
 		{
 			name:     "AttrSafeLocatorHash",

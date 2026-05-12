@@ -210,17 +210,45 @@ func repoCheckoutName(repoID string) (string, error) {
 }
 
 func repoRemoteURL(config RepoSyncConfig, repoID string) string {
-	slug := normalizeRepositoryID(repoID)
+	provider, slug := repoProviderAndSlug(repoID)
 	if slug == "" {
 		return ""
 	}
-	if !strings.Contains(slug, "/") && strings.TrimSpace(config.GithubOrg) != "" {
+	if provider == "" {
+		provider = "github"
+	}
+	if provider == "github" && !strings.Contains(slug, "/") && strings.TrimSpace(config.GithubOrg) != "" {
 		slug = config.GithubOrg + "/" + slug
 	}
 	if strings.ToLower(strings.TrimSpace(config.GitAuthMethod)) == "ssh" {
-		return "git@github.com:" + slug + ".git"
+		return "git@" + repoProviderHost(provider) + ":" + slug + ".git"
 	}
-	return "https://github.com/" + slug + ".git"
+	return "https://" + repoProviderHost(provider) + "/" + slug + ".git"
+}
+
+func repoProviderAndSlug(repoID string) (string, string) {
+	normalized := normalizeRepositoryID(repoID)
+	parts := strings.Split(normalized, "/")
+	if len(parts) < 3 {
+		return "", normalized
+	}
+	switch parts[0] {
+	case "github", "gitlab", "bitbucket":
+		return parts[0], strings.Join(parts[1:], "/")
+	default:
+		return "", normalized
+	}
+}
+
+func repoProviderHost(provider string) string {
+	switch provider {
+	case "gitlab":
+		return "gitlab.com"
+	case "bitbucket":
+		return "bitbucket.org"
+	default:
+		return "github.com"
+	}
 }
 
 func repoIDFromManagedPath(reposDir string, repoPath string) string {

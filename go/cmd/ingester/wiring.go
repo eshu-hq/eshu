@@ -12,7 +12,6 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/app"
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -87,45 +86,19 @@ const (
 	// CPU-derived default. Each worker holds one Bolt session against
 	// NornicDB while a grouped chunk runs, so the cap also bounds peak Bolt
 	// session demand from the canonical entity path.
-	nornicDBEntityPhaseConcurrencyCap = 16
-	canonicalWriteTimeoutEnv                        = "ESHU_CANONICAL_WRITE_TIMEOUT"
-	nornicDBCanonicalGroupedWritesEnv               = "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES"
-	nornicDBPhaseGroupStatementsEnv                 = "ESHU_NORNICDB_PHASE_GROUP_STATEMENTS"
-	nornicDBFilePhaseGroupStatementsEnv             = "ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS"
-	nornicDBFileBatchSizeEnv                        = "ESHU_NORNICDB_FILE_BATCH_SIZE"
-	nornicDBEntityPhaseStatementsEnv                = "ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS"
-	nornicDBEntityBatchSizeEnv                      = "ESHU_NORNICDB_ENTITY_BATCH_SIZE"
-	nornicDBEntityLabelBatchSizesEnv                = "ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES"
-	nornicDBEntityLabelPhaseGroupStatementsEnv      = "ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS"
-	nornicDBBatchedEntityContainmentEnv             = "ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT"
-	nornicDBEntityPhaseConcurrencyEnv               = "ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY"
+	nornicDBEntityPhaseConcurrencyCap          = 16
+	canonicalWriteTimeoutEnv                   = "ESHU_CANONICAL_WRITE_TIMEOUT"
+	nornicDBCanonicalGroupedWritesEnv          = "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES"
+	nornicDBPhaseGroupStatementsEnv            = "ESHU_NORNICDB_PHASE_GROUP_STATEMENTS"
+	nornicDBFilePhaseGroupStatementsEnv        = "ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS"
+	nornicDBFileBatchSizeEnv                   = "ESHU_NORNICDB_FILE_BATCH_SIZE"
+	nornicDBEntityPhaseStatementsEnv           = "ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS"
+	nornicDBEntityBatchSizeEnv                 = "ESHU_NORNICDB_ENTITY_BATCH_SIZE"
+	nornicDBEntityLabelBatchSizesEnv           = "ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES"
+	nornicDBEntityLabelPhaseGroupStatementsEnv = "ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS"
+	nornicDBBatchedEntityContainmentEnv        = "ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT"
+	nornicDBEntityPhaseConcurrencyEnv          = "ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY"
 )
-
-// compositeRunner runs multiple Runner implementations concurrently.
-// If any runner returns an error, it cancels all others and returns the first error.
-type compositeRunner struct {
-	runners []app.Runner
-}
-
-// Run starts all runners concurrently and returns the first error received.
-func (c compositeRunner) Run(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	errc := make(chan error, len(c.runners))
-	for _, r := range c.runners {
-		go func(runner app.Runner) {
-			errc <- runner.Run(ctx)
-		}(r)
-	}
-
-	err := <-errc
-	cancel()
-	for i := 1; i < len(c.runners); i++ {
-		<-errc
-	}
-	return err
-}
 
 func buildIngesterService(
 	database postgres.ExecQueryer,
@@ -147,7 +120,7 @@ func buildIngesterService(
 		return compositeRunner{}, fmt.Errorf("build ingester projector: %w", err)
 	}
 
-	return compositeRunner{runners: []app.Runner{collectorSvc, projectorSvc}}, nil
+	return newCompositeRunner(collectorSvc, projectorSvc), nil
 }
 
 func buildIngesterCollectorService(
@@ -171,10 +144,24 @@ func buildIngesterCollectorService(
 	committer.SkipRelationshipBackfill = true
 	committer.Logger = logger
 
+	selector := collector.RepositorySelector(collector.NativeRepositorySelector{Config: config})
+	handoffConfig := collector.LoadWebhookTriggerHandoffConfig("ingester", getenv)
+	if handoffConfig.Enabled {
+		selector = collector.PriorityRepositorySelector{Selectors: []collector.RepositorySelector{
+			collector.WebhookTriggerRepositorySelector{
+				Config:     config,
+				Store:      postgres.NewWebhookTriggerStore(database),
+				Owner:      handoffConfig.Owner,
+				ClaimLimit: handoffConfig.ClaimLimit,
+			},
+			selector,
+		}}
+	}
+
 	return collector.Service{
 		Source: &collector.GitSource{
 			Component: "ingester",
-			Selector:  collector.NativeRepositorySelector{Config: config},
+			Selector:  selector,
 			Snapshotter: collector.NativeRepositorySnapshotter{
 				ParseWorkers:     config.ParseWorkers,
 				DiscoveryOptions: discoveryOptions,

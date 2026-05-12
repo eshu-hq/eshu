@@ -162,6 +162,71 @@
         "resources": { "type": "object" }
       }
     },
+    "webhookListener": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "maxBodyBytes": { "type": "integer", "minimum": 1 },
+        "defaultBranch": { "type": "string" },
+        "github": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "secretName": { "type": "string" },
+            "secretKey": { "type": "string" }
+          }
+        },
+        "gitlab": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "secretName": { "type": "string" },
+            "tokenKey": { "type": "string" }
+          }
+        },
+        "bitbucket": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "secretName": { "type": "string" },
+            "secretKey": { "type": "string" }
+          }
+        },
+        "exposure": {
+          "type": "object",
+          "properties": {
+            "ingress": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "className": { "type": "string" },
+                "annotations": { "type": "object" },
+                "hosts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "host": { "type": "string" }
+                    },
+                    "required": ["host"],
+                    "additionalProperties": false
+                  }
+                },
+                "tls": { "type": "array" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      }
+    },
     "confluenceCollector": {
       "type": "object",
       "properties": {

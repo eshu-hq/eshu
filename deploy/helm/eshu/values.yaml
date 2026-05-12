@@ -150,6 +150,49 @@ workflowCoordinator:
       cpu: 2000m
       memory: 8Gi
 
+webhookListener:
+  enabled: false
+  replicas: 1
+  revisionHistoryLimit: 3
+  maxBodyBytes: 1048576
+  defaultBranch: ""
+  github:
+    enabled: false
+    path: /webhooks/github
+    secretName: ""
+    secretKey: secret
+  gitlab:
+    enabled: false
+    path: /webhooks/gitlab
+    secretName: ""
+    tokenKey: token
+  bitbucket:
+    enabled: false
+    path: /webhooks/bitbucket
+    secretName: ""
+    secretKey: secret
+  exposure:
+    ingress:
+      enabled: false
+      className: ""
+      annotations: {}
+      hosts: []
+      tls: []
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
 confluenceCollector:
   enabled: false
   replicas: 1

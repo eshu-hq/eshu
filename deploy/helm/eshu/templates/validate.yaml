@@ -16,6 +16,20 @@
 {{- if and .Values.workflowCoordinator.enabled .Values.workflowCoordinator.claimsEnabled -}}
 {{- fail "workflowCoordinator.claimsEnabled must remain false in this chart; use the documented Compose proof path for active claim validation" -}}
 {{- end -}}
+{{- if .Values.webhookListener.enabled -}}
+{{- if and (not .Values.webhookListener.github.enabled) (not .Values.webhookListener.gitlab.enabled) (not .Values.webhookListener.bitbucket.enabled) -}}
+{{- fail "webhookListener requires at least one enabled provider" -}}
+{{- end -}}
+{{- if and .Values.webhookListener.github.enabled (not .Values.webhookListener.github.secretName) -}}
+{{- fail "webhookListener.github.secretName is required when webhookListener.github.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.webhookListener.gitlab.enabled (not .Values.webhookListener.gitlab.secretName) -}}
+{{- fail "webhookListener.gitlab.secretName is required when webhookListener.gitlab.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.webhookListener.bitbucket.enabled (not .Values.webhookListener.bitbucket.secretName) -}}
+{{- fail "webhookListener.bitbucket.secretName is required when webhookListener.bitbucket.enabled=true" -}}
+{{- end -}}
+{{- end -}}
 {{- if .Values.confluenceCollector.enabled -}}
 {{- if not .Values.confluenceCollector.baseUrl -}}
 {{- fail "confluenceCollector.baseUrl is required when confluenceCollector.enabled=true" -}}
