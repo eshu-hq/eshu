@@ -157,7 +157,7 @@ COMPOSE_CMD+=(-f docker-compose.yaml -f docker-compose.tier2-tfstate-v25.yaml)
 pick_port() {
     local start_port="$1" port
     for ((port = start_port; port < start_port + 200; port++)); do
-        if [[ " ${RESERVED_HOST_PORTS[*]} " == *" $port "* ]]; then
+        if [[ " ${RESERVED_HOST_PORTS[*]-} " == *" $port "* ]]; then
             continue
         fi
         nc -z 127.0.0.1 "$port" >/dev/null 2>&1 || {
