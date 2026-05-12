@@ -59,8 +59,10 @@
 - **Use the dead-code `language` filter for language maturity proof** —
   `deadCodeCandidateLabelsForLanguage` narrows SQL scans to `SqlFunction`
   (`code_dead_code_scan.go:72`) so mixed repositories cannot fill the page
-  before SQL routine evidence is evaluated. Keep this path when adding or
-  dogfooding a language-specific dead-code slice.
+  before SQL routine evidence is evaluated. Perl and other source-language
+  slices also rely on the filter during dogfood so earlier candidate labels do
+  not hide language-specific evidence. Keep this path when adding or dogfooding
+  a language-specific dead-code slice.
 
 - **SQL routine reachability uses graph `EXECUTES` probes** —
   `CodeHandler.filterDeadCodeResultsWithoutIncomingEdges` falls through to

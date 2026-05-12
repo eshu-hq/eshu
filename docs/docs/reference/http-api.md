@@ -587,7 +587,7 @@ Example dead-code workflow:
 `repo_id` is optional. `language` is optional; pass it when validating one
 parser language family such as `c`, `csharp`, `cpp`, `dart`, `sql`, `go`,
 `groovy`, `kotlin`, `elixir`, `php`, `python`, `java`, `javascript`,
-`typescript`, `tsx`, `ruby`, or `rust`.
+`typescript`, `tsx`, `ruby`, `rust`, or `perl`.
 For C#, `csharp` is normalized to the parser language key `c_sharp`. For SQL,
 the language filter narrows the
 candidate scan to `SqlFunction` routines so mixed repositories with many
@@ -656,6 +656,13 @@ and arity-checked LiveView callbacks, while macro expansion, dynamic dispatch,
 behaviour callback resolution, protocol dispatch, Phoenix route resolution,
 supervision trees, Mix environment selection, and broad public API surfaces
 remain named exactness
+blockers.
+Perl dead-code results are `derived`: parser metadata suppresses script
+`main`, public package namespaces, Exporter-backed `@EXPORT` and `@EXPORT_OK`
+functions, package constructors, `BEGIN` / `UNITCHECK` / `CHECK` / `INIT` /
+`END` special blocks, `AUTOLOAD`, and `DESTROY`, while symbolic references,
+AUTOLOAD target resolution, `@ISA` inheritance, Moose/Moo metadata, import side
+effects, runtime `eval`, and broad public API surfaces remain named exactness
 blockers.
 PHP dead-code results are `derived`: parser metadata suppresses script
 entrypoints, constructors, known magic methods, same-file interface methods and

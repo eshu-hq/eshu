@@ -105,6 +105,9 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 			t.Fatalf("analysis[modeled_entrypoints] missing %q in %#v", want, modeledEntrypoints)
 		}
 	}
+	if !queryTestStringSliceContains(modeledEntrypoints, "perl.script_entrypoint") {
+		t.Fatalf("analysis[modeled_entrypoints] missing perl.script_entrypoint in %#v", modeledEntrypoints)
+	}
 
 	modeledFrameworkRoots, ok := analysis["modeled_framework_roots"].([]any)
 	if !ok {
@@ -270,6 +273,13 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 		"haskell.exported_type",
 		"haskell.typeclass_method",
 		"haskell.instance_method",
+		"perl.script_entrypoint",
+		"perl.package_namespace",
+		"perl.exported_subroutine",
+		"perl.constructor",
+		"perl.special_block",
+		"perl.autoload_subroutine",
+		"perl.destroy_subroutine",
 		"php.script_entrypoint",
 		"php.constructor",
 		"php.magic_method",
@@ -323,6 +333,12 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if !queryTestStringSliceContains(modeledPublicAPI, "haskell.exported_type") {
 		t.Fatalf("analysis[modeled_public_api] missing haskell.exported_type in %#v", modeledPublicAPI)
 	}
+	if !queryTestStringSliceContains(modeledPublicAPI, "perl.package_namespace") {
+		t.Fatalf("analysis[modeled_public_api] missing perl.package_namespace in %#v", modeledPublicAPI)
+	}
+	if !queryTestStringSliceContains(modeledPublicAPI, "perl.exported_subroutine") {
+		t.Fatalf("analysis[modeled_public_api] missing perl.exported_subroutine in %#v", modeledPublicAPI)
+	}
 	if got, want := analysis["framework_roots_from_parser_metadata"], float64(0); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
 	}
@@ -336,7 +352,7 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if !ok {
 		t.Fatalf("analysis[notes] type = %T, want []any", analysis["notes"])
 	}
-	for _, want := range []string{"c.public_header_api", "c.callback_argument_target", "cpp.public_header_api", "Ruby Rails controller", "Scala main/App object"} {
+	for _, want := range []string{"c.public_header_api", "c.callback_argument_target", "cpp.public_header_api", "Perl script entrypoints", "Ruby Rails controller", "Scala main/App object"} {
 		if !queryTestNotesContain(notes, want) {
 			t.Fatalf("analysis[notes] missing %q in %#v", want, notes)
 		}

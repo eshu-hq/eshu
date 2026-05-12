@@ -627,6 +627,51 @@ Local and dogfood evidence gathered in this branch so far:
   `truth.level=derived`, `dead_code_language_maturity.dart=derived`,
   `framework_roots_from_parser_metadata=202`, and all six modeled Dart root
   kinds.
+- The Perl slice promotes Perl to `derived`, not exact. Parser metadata now
+  suppresses script `main`, public package namespaces, Exporter `@EXPORT` and
+  `@EXPORT_OK` functions, package constructors, `BEGIN` / `UNITCHECK` /
+  `CHECK` / `INIT` / `END` special blocks, `AUTOLOAD`, and `DESTROY`. Query
+  policy suppresses the same `perl.*` roots from graph and content metadata
+  before classifying remaining candidates.
+- Perl remains non-exact until symbolic reference dispatch, AUTOLOAD target
+  resolution, `@ISA` inheritance, Moose/Moo metadata, import side effects,
+  runtime `eval`, and broad public API surfaces are modeled or scoped out. The
+  fixture-backed tests cover parser metadata, graph-shaped query suppression,
+  content-metadata query suppression, and maturity/blocker reporting.
+- Mojolicious dogfood used unique Compose project `eshu_perl103_mojo_18711`
+  against `mojolicious/mojo` at
+  `ef9a681c0d2d235e9cc3bbd855f14ae32bd5574f`. The checked-out corpus had
+  `401` files and `274` `.pl` / `.pm` / `.t` files; discovery indexed `187`
+  files, parsed `185` files with `2` skips, materialized `3,582` content
+  entities, and emitted `4,122` facts. Stage timings were discovery `0.010s`,
+  pre-scan `0.111s`, parse `0.111s`, materialize `0.024s`, canonical write
+  `1.888s`, content write `0.346s`, and bootstrap projection `3.350s`. The
+  final shared projection queue drained to `pending=0`. The scoped dead-code
+  API returned `truth.level=derived`,
+  `dead_code_language_maturity.perl=derived`,
+  `framework_roots_from_parser_metadata=10`, and all seven modeled Perl root
+  kinds.
+- MetaCPAN dogfood used unique Compose project `eshu_perl103_meta_18721`
+  against `metacpan/metacpan-web` at
+  `d0e81c3cd33d490ce3b14ed53004cb7c267c0e8b`. The checked-out corpus had
+  `659` files and `121` `.pl` / `.pm` / `.t` files; discovery indexed and
+  parsed `115` files with no skips, materialized `1,318` content entities, and
+  emitted `1,556` facts. Stage timings were discovery `0.011s`, pre-scan
+  `0.085s`, parse `0.075s`, materialize `0.006s`, canonical write `1.881s`,
+  content write `0.139s`, and bootstrap projection `2.575s`. The final shared
+  projection queue drained to `pending=0`. The scoped dead-code API returned
+  `truth.level=derived`,
+  `dead_code_language_maturity.perl=derived`,
+  `framework_roots_from_parser_metadata=32`, and all seven modeled Perl root
+  kinds.
+- Perl core dogfood used unique Compose project `eshu_perl103_perl5_18701`
+  against `Perl/perl5` at `16357f7bef073667e5bd2316408a6a004055174b`. The
+  checked-out corpus had `6,850` files and `4,321` `.pl` / `.pm` / `.t` files;
+  discovery indexed `1,552` files, parsed `1,549` files with `3` skips,
+  materialized `67,927` content entities, and emitted `71,033` facts. The run
+  then failed during Neo4j canonical projection on the default Compose
+  transaction memory cap. This is backend-capacity evidence, not a Perl parser
+  failure, and it is not counted as passing dogfood.
 
 Open proof work before this branch can close:
 

@@ -12,6 +12,10 @@
 - Dependency direction stays one way: parent parser code may import this
   package, but this package must not import internal/parser.
 - Parse preserves package declarations as class rows.
+- Public packages and bounded Exporter declarations emit
+  `dead_code_root_kinds` metadata for the query dead-code policy.
+- Perl special blocks are modeled as derived roots, not ordinary callable
+  subroutines.
 - PreScan derives names from Parse so parent pre-scan and full parse agree.
 
 ## Common changes and how to scope them
@@ -27,6 +31,9 @@
   namespace separators.
 - Missing call rows usually mean the call regex filtered a line shape that
   parent parser tests rely on.
+- Dead-code false positives around `main`, `new`, `@EXPORT`, `@EXPORT_OK`,
+  `AUTOLOAD`, `DESTROY`, or special blocks usually mean parser metadata did not
+  survive into the content entity row.
 
 ## Anti-patterns specific to this package
 

@@ -66,7 +66,8 @@ Code dead-code queries add an analysis pass over graph rows so parser-provided
 candidate classifications are visible in the response body. Unsupported
 languages such as JSON package-script metadata are suppressed from cleanup
 results before classification. Requests may include a `language` filter; SQL
-uses that filter to scan `SqlFunction` candidates directly, and Dart, PHP, and Elixir
+uses that filter to scan `SqlFunction` candidates directly, and Dart, Perl,
+PHP, and Elixir
 use it for language-scoped dogfood so mixed application repositories cannot fill
 the page with earlier function labels before the requested language evidence is
 evaluated. The analysis block also names modeled framework
@@ -145,6 +146,12 @@ same-file interface and trait methods, route-backed controller actions, literal
 route handlers, Symfony route attributes, and WordPress hook callbacks; PHP
 remains non-exact because broader autoloading, routing, reflection, and dynamic
 dispatch are not resolved exactly.
+Perl parser metadata suppresses script `main`, public package namespaces,
+Exporter `@EXPORT` and `@EXPORT_OK` functions, package constructors, special
+blocks, `AUTOLOAD`, and `DESTROY`; Perl remains non-exact because symbolic
+references, AUTOLOAD target resolution, `@ISA` inheritance, Moose/Moo metadata,
+import side effects, runtime `eval`, and broad public API surfaces are not
+resolved exactly.
 Swift parser metadata suppresses known runtime roots while exact cleanup stays
 blocked on macro expansion, conditional compilation, SwiftPM target membership,
 protocol witnesses, dynamic dispatch, generated property-wrapper and
@@ -164,39 +171,14 @@ resolution, dynamic dispatch, reflection, sbt source sets, framework route
 files, compiler plugin output, and broad public API surfaces are not resolved
 exactly.
 The analysis payload also exposes
-`dead_code_language_exactness_blockers`, with Rust blockers
-for unresolved macro expansion, cfg/Cargo feature selection, semantic module
-resolution, and trait dispatch, C blockers for macro expansion, conditional
-compilation, build targets, include graphs, callback registration, dynamic
-symbol lookup, and external linkage, C++ blockers for those same C-style
-blockers plus template instantiation, overload resolution, and broad virtual
-dispatch, C# blockers for reflection, dependency injection, source generators,
-partial types, dynamic dispatch, project references, and public API surfaces,
-Kotlin blockers for reflection, dependency injection, annotation processing,
-compiler plugins, dynamic dispatch, Gradle source sets, multiplatform targets,
-and public API surfaces,
-Scala blockers for macro expansion, implicit/given resolution, dynamic
-dispatch, reflection, sbt source sets, framework route files, compiler plugin
-output, and public API surfaces,
-Elixir blockers for macro expansion, dynamic dispatch, behaviour callback
-resolution, protocol dispatch, Phoenix route resolution, supervision trees, Mix
-environment selection, and public API surfaces,
-Dart blockers for part-file library resolution, conditional import/export
-selection, package export surfaces, dynamic dispatch, Flutter route/lifecycle
-wiring, generated code, mirrors, and public API surfaces,
-PHP blockers for dynamic dispatch, reflection, Composer autoloading,
-include/require resolution, framework routing, trait resolution, namespace
-aliases, magic-method dispatch, and public API surfaces,
-Ruby blockers for metaprogramming, autoload, framework routing, gem public API,
-and constant resolution, Groovy blockers for dynamic dispatch, closure
-delegates, Jenkins shared-library resolution, and pipeline DSL dynamic steps,
-Haskell blockers for Template Haskell expansion, CPP conditional compilation,
-Cabal component membership, implicit module exports, typeclass dispatch, module
-re-export resolution, and FFI callbacks, plus SQL blockers for dynamic SQL,
-dialect-specific routine resolution, and migration-order resolution. SQL
-`SqlFunction` routines participate in the derived candidate scan, and the query
-policy uses a batched exact graph incoming probe so reducer-written `EXECUTES`
-edges protect trigger-bound routines without one graph round trip per routine.
+`dead_code_language_exactness_blockers` for language-specific non-exact areas
+such as macros, reflection, dynamic dispatch, import or module resolution,
+framework routing, public API surfaces, and SQL dialect/runtime behavior. Keep
+the table in `code_dead_code_language_maturity.go` aligned with
+`docs/docs/reference/dead-code-reachability-spec.md`. SQL `SqlFunction`
+routines participate in the derived candidate scan, and the query policy uses a
+batched exact graph incoming probe so reducer-written `EXECUTES` edges protect
+trigger-bound routines without one graph round trip per routine.
 Returned candidates can also populate
 `dead_code_observed_exactness_blockers` so callers can distinguish language-wide
 blockers from blockers actually present in the page they received. Candidates
@@ -218,8 +200,8 @@ Static TypeScript registry members are reported when parser metadata proves an
 exported object registry holds the same-file function value. The analysis
 payload names modeled root kinds in `modeled_framework_roots`, reports whether
 reflection evidence is modeled, and counts how many suppressions came from
-parser metadata. C, C#, C++, Kotlin, Scala, Elixir, PHP, Ruby, and Groovy root
-suppressions are tested through both graph-shaped rows and content-store
+parser metadata. C, C#, C++, Kotlin, Scala, Elixir, Perl, PHP, Ruby, and Groovy
+root suppressions are tested through both graph-shaped rows and content-store
 metadata so the policy matches the normal hydrated read path.
 That lets MCP and CLI callers explain why a candidate was suppressed. Candidate
 reads remain label-scoped and are repo-anchored when the request supplies a

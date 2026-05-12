@@ -10,7 +10,7 @@
 // envelopes, truth metadata, capability gates, and code-quality classifications
 // are stable wire contracts. The dead-code OpenAPI fragment names modeled
 // language roots and keeps the language filter examples aligned with C#, C,
-// Dart, Haskell, Kotlin, Elixir, PHP, Groovy, and SQL query behavior. That
+// Dart, Haskell, Kotlin, Elixir, Perl, PHP, Groovy, and SQL query behavior. That
 // filter is part of the dogfood contract for validating one language family
 // without earlier candidate labels filling the page. Dead-code responses preserve language maturity, modeled
 // framework-root lists, and root-kind evidence for functions and types so
@@ -48,10 +48,12 @@
 // method-reference targets, and script entrypoints, plus Groovy Jenkinsfile
 // pipeline entrypoints and vars/*.groovy shared-library call roots, plus
 // Haskell main, explicit module-export, exported type, typeclass method, and
-// instance method roots, plus PHP script entrypoints, constructors, known magic methods, same-file
+// instance method roots, plus Perl script entrypoints, public package
+// namespaces, Exporter exports, constructors, special blocks, AUTOLOAD, and
+// DESTROY roots, plus PHP script entrypoints, constructors, known magic methods, same-file
 // interface/trait methods, route-backed controller actions, route handlers,
-// Symfony route attributes, and WordPress hook callbacks. C, C++, PHP, Ruby,
-// Haskell, and Rust now share the derived dead-code maturity tier with Go and Java while
+// Symfony route attributes, and WordPress hook callbacks. C, C++, Perl, PHP,
+// Ruby, Haskell, and Rust now share the derived dead-code maturity tier with Go and Java while
 // exact cleanup remains gated on broader semantic resolution.
 // C#, Kotlin, Scala, and Elixir share that tier through parser-backed roots for
 // common framework and language entrypoints; Elixir Application, OTP, Phoenix
@@ -88,6 +90,9 @@
 // PHP blockers cover dynamic dispatch, reflection, Composer autoloading,
 // include/require resolution, framework routing, trait resolution, namespace
 // aliases, magic-method dispatch, and public API surfaces,
+// Perl blockers cover symbolic reference dispatch, AUTOLOAD dispatch,
+// inheritance resolution, Moose/Moo metadata, import side effects, runtime
+// eval, and public API surfaces,
 // Ruby exactness blockers cover metaprogramming, autoload, framework routing,
 // gem public API, and constant resolution, Groovy exactness blockers cover
 // dynamic dispatch, closure delegates, Jenkins shared libraries, and pipeline
@@ -122,7 +127,7 @@
 // candidate pages and rows so callers can tell whether the result list was
 // clipped or the candidate scan cap was reached. C root suppressions are
 // honored from content-store metadata after hydration, and C#, C++, Kotlin,
-// Scala, Elixir, Haskell, PHP, Ruby, and Groovy root suppressions use the same
+// Scala, Elixir, Haskell, Perl, PHP, Ruby, and Groovy root suppressions use the same
 // graph/content metadata path.
 // That matches the
 // normal parser metadata path used by indexed repositories.

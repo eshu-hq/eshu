@@ -49,7 +49,7 @@ Each language fixture must include:
 | Java | planned | `derived_candidate_only` | public APIs, interface methods, annotations, Spring roots |
 | JavaScript | active | `derived` | module exports, Express/Next.js roots, dynamic property ambiguity |
 | Kotlin | planned | `derived_candidate_only` | public APIs, interfaces, annotations, Spring/Ktor roots |
-| Perl | planned | `derived_candidate_only` | packages, exported subs, dynamic symbol ambiguity |
+| Perl | active | `derived` | symbolic references, AUTOLOAD dispatch, inheritance, Moose/Moo metadata, import side effects, runtime eval |
 | PHP | active | `derived` | Composer/autoload surfaces, dynamic dispatch, reflection, broader framework routes |
 | Python | active | `derived` | Lambda roots, bounded public APIs, dataclasses/properties, dynamic imports |
 | Ruby | active | `derived` | broader Rails route resolution, metaprogramming, autoload, gem public API |
