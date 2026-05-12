@@ -96,12 +96,16 @@ LABEL_REMOVED_FROM_STATE="drift_kind=\"removed_from_state\""
 LABEL_REMOVED_FROM_CONFIG="drift_kind=\"removed_from_config\""
 
 # Canonical repository ID for a filesystem-mode repo is
-# `repository:r_<first 8 hex chars of sha1(localPath)>`. localPath is the
-# in-container mount path /fixtures/<folder>. compute_repo_id is a deterministic
-# substitute the v25 collector-instances env var consumes.
+# `repository:r_<first 8 hex chars of sha1(localPath)>`. localPath inside the
+# bootstrap-index/ingester container resolves to /data/repos/<folder> (the
+# fixture tree is bind-mounted at /fixtures but staged into /data/repos by the
+# Git collector). The v1 Tier-2 overlay documents the same convention at
+# docker-compose.tier2-tfstate.yaml:31. compute_repo_id is a deterministic
+# substitute the v25 collector-instances env var consumes; the coordinator
+# matches scope_generations rows keyed against this exact ID.
 compute_repo_id() {
     local folder="$1"
-    local in_container_path="/fixtures/${folder}"
+    local in_container_path="/data/repos/${folder}"
     local hash
     if command -v sha1sum >/dev/null 2>&1; then
         hash="$(printf '%s' "$in_container_path" | sha1sum | head -c8)"
@@ -248,7 +252,7 @@ echo "==> Asserting workflow-coordinator planned >=2 terraform_state work items 
 tier2_wait_for_terraform_state_work_items 2 180
 
 echo "==> Waiting for collector-gen1 to drain Pass 1 work items"
-tier2_wait_for_terraform_state_work_drained 240
+tier2_wait_for_terraform_state_work_drained 240 2
 
 echo "==> Asserting Pass 1 terraform_state_snapshot facts landed (>=2: C-serial1, F-serial1)"
 tier2_assert_terraform_state_snapshot_facts 2
@@ -301,7 +305,7 @@ echo "==> Waiting for Pass 2 terraform_state work items (need additional rows fo
 tier2_wait_for_terraform_state_work_items 4 240
 
 echo "==> Waiting for collector-gen2 to drain Pass 2 work items"
-tier2_wait_for_terraform_state_work_drained 300
+tier2_wait_for_terraform_state_work_drained 300 4
 
 echo "==> Asserting Pass 2 terraform_state_snapshot facts landed (>=4: C-s1, C-s2, F-s1, F-s2)"
 tier2_assert_terraform_state_snapshot_facts 4
