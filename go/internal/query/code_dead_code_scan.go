@@ -70,6 +70,9 @@ func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadCodeRe
 }
 
 func deadCodeCandidateLabelsForLanguage(language string) []string {
+	if language == "hcl" {
+		return nil
+	}
 	if language == "sql" {
 		return []string{"SqlFunction"}
 	}

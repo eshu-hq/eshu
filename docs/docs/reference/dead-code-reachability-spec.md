@@ -137,9 +137,10 @@ Every parser-supported source language has the same exactness contract:
 This contract applies per language. A response may return `exact` only for the
 repo or query scope whose observed evidence satisfies that language contract.
 When a scope contains valid but unsupported language behavior, the response must
-return `derived`, `derived_candidate_only`, `ambiguous_only`, or an unsupported
-exactness state with explicit blocker names such as `macro_expansion_unavailable`,
-`cfg_unresolved`, `dynamic_import_unresolved`, or `reflection_unresolved`.
+return `derived`, `derived_candidate_only`, `non_code_iac_evidence`,
+`ambiguous_only`, or an unsupported exactness state with explicit blocker names
+such as `macro_expansion_unavailable`, `cfg_unresolved`,
+`dynamic_import_unresolved`, or `reflection_unresolved`.
 
 Parser support is therefore the floor, not the finish line. The parser and
 dead-code dogfood tickets for each language must track the full language
@@ -177,6 +178,9 @@ The initial maturity states are:
 - `derived_candidate_only`: parser-supported source languages where Eshu can
   return graph-backed candidates but has not implemented enough language roots
   and fixtures for cleanup-safe answers
+- `non_code_iac_evidence`: parser-supported non-source or IaC languages where
+  Eshu exposes infrastructure and configuration evidence but does not scan
+  source-code dead-code candidates
 - `unsupported_language`: languages outside Eshu's parser/indexing contract for
   this capability
 - future `exact`: language scopes whose fixture and runtime gates prove the
@@ -195,6 +199,14 @@ protected when reducer materialization creates trigger-to-function `EXECUTES`
 edges from parsed `sql_relationships`. SQL remains non-exact until dynamic SQL,
 dialect-specific routine resolution, and migration-order resolution are modeled
 or scoped out.
+
+HCL currently reports `non_code_iac_evidence`. Terraform and Terragrunt
+entities remain available on infrastructure, repository-context,
+language-query, and relationship-evidence surfaces, but `code_quality.dead_code`
+does not return them as source-code cleanup candidates. Exact cleanup-safe IaC
+liveness remains blocked by Terraform plan and state availability,
+module/reference graph resolution, workspace and variable selection, dynamic
+block expansion, and Terragrunt runtime include resolution.
 
 Groovy currently reports `derived_candidate_only`. Jenkinsfile pipeline
 entrypoints and Jenkins shared-library `vars/*.groovy` `call` methods are

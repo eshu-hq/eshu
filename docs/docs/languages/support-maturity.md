@@ -47,8 +47,8 @@ For audited family-level closure status and bounded gaps, see
 | Scala | `DefaultEngine (scala)` | supported | supported | supported | Play, Akka, JUnit, ScalaTest, lifecycle, traits | supported | fixture-backed | supported |
 | SQL | `DefaultEngine (sql)` | supported | supported | unsupported | - | supported | supported | supported |
 | Swift | `DefaultEngine (swift)` | supported | supported | supported | SwiftUI, UIKit, Vapor, XCTest, Swift Testing, protocols | supported | fixture-backed | supported |
-| Terraform | `DefaultEngine (hcl)` | - | - | - | - | - | - | - |
-| Terragrunt | `DefaultEngine (hcl)` | - | - | - | - | - | - | - |
+| Terraform | `DefaultEngine (hcl)` | supported | supported | unsupported | - | supported | supported | supported |
+| Terragrunt | `DefaultEngine (hcl)` | supported | supported | unsupported | - | supported | supported | supported |
 | TypeScript | `DefaultEngine (typescript)` | supported | supported | supported | `react-base`, `nextjs-app-router-base`, `express-base`, `hapi-base`, `aws-sdk-base`, `gcp-sdk-base` | supported | supported | supported |
 | TypeScript JSX | `DefaultEngine (tsx)` | supported | supported | supported | `react-base`, `nextjs-app-router-base` | supported | supported | supported |
 
@@ -121,6 +121,13 @@ remains blocked by macro expansion, conditional compilation, SwiftPM target
 membership, protocol witness resolution, dynamic dispatch, property-wrapper and
 result-builder generated code, Objective-C runtime dispatch, and broad public
 API surfaces.
+Terraform and Terragrunt dead-code support is `non_code_iac_evidence`: parser
+and query surfaces expose Terraform and Terragrunt entities as infrastructure
+and configuration evidence, while the code dead-code endpoint does not treat
+HCL entities as source-code cleanup candidates. Exact cleanup-safe IaC liveness
+requires Terraform plan/state availability, module and dependency graph
+resolution, workspace and variable selection, dynamic block expansion, and
+Terragrunt runtime include resolution.
 
 This matrix stays intentionally coarse and should not be read as the
 canonical signoff checklist.

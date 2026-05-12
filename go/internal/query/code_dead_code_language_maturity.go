@@ -8,6 +8,7 @@ import (
 const (
 	deadCodeMaturityDerived          = "derived"
 	deadCodeMaturityDerivedCandidate = "derived_candidate_only"
+	deadCodeMaturityNonCodeIaC       = "non_code_iac_evidence"
 )
 
 var deadCodeLanguageMaturity = map[string]string{
@@ -18,6 +19,7 @@ var deadCodeLanguageMaturity = map[string]string{
 	"elixir":     deadCodeMaturityDerived,
 	"go":         deadCodeMaturityDerived,
 	"groovy":     deadCodeMaturityDerivedCandidate,
+	"hcl":        deadCodeMaturityNonCodeIaC,
 	"haskell":    deadCodeMaturityDerived,
 	"java":       deadCodeMaturityDerived,
 	"javascript": deadCodeMaturityDerived,
@@ -117,6 +119,13 @@ var deadCodeLanguageExactnessBlockers = map[string][]string{
 		"import_side_effect_resolution_unavailable",
 		"runtime_eval_unresolved",
 		"public_api_surface_unresolved",
+	},
+	"hcl": {
+		"terraform_plan_state_liveness_unavailable",
+		"terraform_module_reference_graph_unresolved",
+		"terraform_workspace_variable_resolution_unavailable",
+		"terraform_dynamic_block_expansion_unavailable",
+		"terragrunt_runtime_include_resolution_unavailable",
 	},
 	"php": {
 		"dynamic_dispatch_unresolved",

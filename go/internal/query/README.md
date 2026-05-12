@@ -175,7 +175,10 @@ The analysis payload also exposes
 such as macros, reflection, dynamic dispatch, import or module resolution,
 framework routing, public API surfaces, and SQL dialect/runtime behavior. Keep
 the table in `code_dead_code_language_maturity.go` aligned with
-`docs/docs/reference/dead-code-reachability-spec.md`. SQL `SqlFunction`
+`docs/docs/reference/dead-code-reachability-spec.md`. HCL is reported as
+`non_code_iac_evidence`, so Terraform and Terragrunt entities stay on
+infrastructure, repository-context, language-query, and relationship-evidence
+surfaces instead of becoming source-code cleanup candidates. SQL `SqlFunction`
 routines participate in the derived candidate scan, and the query policy uses a
 batched exact graph incoming probe so reducer-written `EXECUTES` edges protect
 trigger-bound routines without one graph round trip per routine.
