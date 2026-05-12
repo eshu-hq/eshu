@@ -6,7 +6,8 @@ This package owns the line-oriented Haskell parser adapter used by the parent
 parser engine. It extracts module declarations, imports with common aliases,
 data and class names, top-level functions, bounded function-call evidence from
 definition bodies and continuation lines, and simple local variables from where
-blocks. It also annotates dead-code root kinds for explicit module exports,
+blocks without promoting those local bindings to top-level functions. It also
+annotates dead-code root kinds for explicit module exports,
 `main`, typeclass methods, and instance methods.
 
 ## Ownership boundary
@@ -32,8 +33,8 @@ parser engine.
 ## Gotchas / invariants
 
 Where-block variable extraction depends on raw-line indentation. Keep that
-check stable so top-level declarations are not misclassified as local
-variables. Explicit export parsing is intentionally bounded to the module
+check stable so local bindings stay in the `variables` bucket and do not become
+top-level `functions`. Explicit export parsing is intentionally bounded to the module
 header; modules without an export list do not mark every top-level declaration
 as a dead-code root. Indented keyword-led bindings such as `let name = ...`
 stay inside the current function context, so call evidence on the right-hand

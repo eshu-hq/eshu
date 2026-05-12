@@ -94,6 +94,39 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			}
 			shared.AppendBucket(payload, "imports", item)
 		}
+		if inWhereBlock {
+			if !strings.HasPrefix(rawLine, " ") && !strings.HasPrefix(rawLine, "\t") {
+				inWhereBlock = false
+			} else {
+				if currentFunctionItem != nil {
+					currentFunctionItem["end_line"] = lineNumber
+				}
+				if matches := haskellVariablePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
+					name := matches[1]
+					if _, ok := seenVariables[name]; !ok {
+						seenVariables[name] = struct{}{}
+						shared.AppendBucket(payload, "variables", map[string]any{
+							"name":        name,
+							"line_number": lineNumber,
+							"end_line":    lineNumber,
+							"lang":        "haskell",
+						})
+					}
+				}
+				if currentFunction != "" {
+					haskellAppendFunctionCalls(
+						payload,
+						trimmed,
+						lineNumber,
+						currentFunction,
+						currentFunctionContext,
+						currentFunctionParams,
+						seenCalls,
+					)
+				}
+				continue
+			}
+		}
 		if matches := haskellTypeDeclarationRegex.FindStringSubmatch(trimmed); len(matches) == 3 {
 			item := map[string]any{
 				"name":          matches[2],
@@ -219,22 +252,6 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		if strings.HasSuffix(trimmed, "where") || trimmed == "where" {
 			inWhereBlock = true
 			continue
-		}
-		if inWhereBlock {
-			if !strings.HasPrefix(rawLine, " ") && !strings.HasPrefix(rawLine, "\t") {
-				inWhereBlock = false
-			} else if matches := haskellVariablePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-				name := matches[1]
-				if _, ok := seenVariables[name]; !ok {
-					seenVariables[name] = struct{}{}
-					shared.AppendBucket(payload, "variables", map[string]any{
-						"name":        name,
-						"line_number": lineNumber,
-						"end_line":    lineNumber,
-						"lang":        "haskell",
-					})
-				}
-			}
 		}
 	}
 

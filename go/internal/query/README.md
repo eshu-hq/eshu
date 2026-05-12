@@ -258,9 +258,9 @@ Content-backed Argo CD relationship fallback reads `source_repos` for
 multi-source Applications and emits one `DEPLOYS_FROM` relationship per source
 repo while still accepting the older singular `source_repo` metadata field.
 The OpenAPI fragment for `POST /api/v0/code/dead-code` names modeled language
-roots such as Go public-package exports plus C, C#, C++, Haskell, Kotlin, PHP,
-Ruby, and Groovy parser-backed roots. Its language filter examples include
-`csharp`, `c`, `cpp`, `groovy`, `haskell`, `kotlin`, `php`, `ruby`, and `sql`;
+roots such as Go public-package exports plus C, C#, Dart, Haskell, Kotlin,
+Elixir, PHP, and Groovy parser-backed roots. Its language filter examples include
+`csharp`, `c`, `dart`, `haskell`, `kotlin`, `elixir`, `php`, `groovy`, and `sql`;
 `csharp` is normalized to `c_sharp` before candidate scanning.
 
 ## Exported surface

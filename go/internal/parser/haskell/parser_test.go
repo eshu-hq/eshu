@@ -32,6 +32,7 @@ run task = result
 		t.Fatalf("functions[run][source] = %#v, want source line", got)
 	}
 	assertBucketName(t, payload, "variables", "result")
+	assertBucketMissingName(t, payload, "functions", "result")
 }
 
 func TestParseCapturesHaskellDeadCodeRootsAndCalls(t *testing.T) {
