@@ -52,6 +52,14 @@ Shared collector metrics carry `collector_kind=documentation` and
 `source_system=confluence`. Logs and metrics must not include page titles,
 stored body content, or body excerpts.
 
+| Signal | Type | Labels | What it is for |
+| --- | --- | --- | --- |
+| `collector.observe` | Span | `scope_id`, `source_system`, `collector_kind` when a generation is available | Shows the full Confluence collect and durable commit cycle in one trace. Use it to tell whether time is going to page listing, page body fetch/enrich work, documentation fact construction, or Postgres commit. |
+| `eshu_dp_collector_observe_duration_seconds` | Histogram | `scope_id`, `source_system`, `collector_kind` | Measures end-to-end collect and commit duration for one observed generation. Use it to alert on slow documentation syncs and compare Confluence collection cost with other collector kinds. |
+| `eshu_dp_facts_emitted_total` | Counter | `scope_id`, `source_system`, `collector_kind` | Counts documentation facts emitted by the Confluence generation before commit. Use it to confirm the collector is producing source, document, section, link, and optional documentation-truth facts. |
+| `eshu_dp_generation_fact_count` | Histogram | `scope_id`, `source_system`, `collector_kind` | Records fact volume per generation. Use it to spot unusually large Confluence spaces or unexpectedly small syncs after permission or config changes. |
+| `eshu_dp_facts_committed_total` | Counter | `scope_id`, `source_system`, `collector_kind` | Counts facts durably committed to Postgres after a successful write. Use it with `eshu_dp_facts_emitted_total` to separate collection output from commit failures or Postgres pressure. |
+
 ## Invariants
 
 - The collector is read-only. It only issues Confluence HTTP `GET` requests.

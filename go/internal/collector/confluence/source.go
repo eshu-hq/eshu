@@ -30,12 +30,7 @@ type Source struct {
 	drained bool
 }
 
-// Next collects one bounded Confluence generation.
-func (s *Source) Next(ctx context.Context) (collector.CollectedGeneration, bool, error) {
-	if s.drained {
-		s.drained = false
-		return collector.CollectedGeneration{}, false, nil
-	}
+func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool, error) {
 	if s.Client == nil {
 		return collector.CollectedGeneration{}, false, errors.New("confluence client is required")
 	}

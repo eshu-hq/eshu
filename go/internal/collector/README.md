@@ -28,8 +28,8 @@ flowchart LR
 flowchart TB
   A["Service.Run\npoll Source.Next"] --> B{"generation\navailable?"}
   B -- no --> C["AfterBatchDrained?\nwait PollInterval"]
-  B -- yes --> D["commitWithTelemetry\nSpanCollectorObserve"]
-  D --> E["Committer.CommitScopeGeneration\ndurable Postgres write"]
+  B -- yes --> D["SpanCollectorObserve\ncollect + commit cycle"]
+  D --> E["commitWithTelemetry\nCommitter.CommitScopeGeneration"]
   A2["GitSource.Next\nstartStream on first call"] --> F["discoverRepositories\nSelector.SelectRepositories\nSpanScopeAssign"]
   F --> G["resolveRepositories\nabsolute paths + stable sourceRunID"]
   G --> H["two-lane workers\nsmallCh + largeCh + largeSem"]
@@ -40,13 +40,16 @@ flowchart TB
 
 ## Lifecycle / workflow
 
-`Service.Run` is the poll-and-dispatch loop. It calls `Source.Next` to receive
-one `CollectedGeneration` at a time. When no generation is ready, it calls
-`AfterBatchDrained` if at least one generation was committed since the last
-drain, then waits `PollInterval` (1 second in `cmd/ingester`). On receipt of a
-generation it calls `Committer.CommitScopeGeneration` with the `facts.Envelope`
-channel and records `CollectorObserveDuration`, `FactsEmitted`,
-`GenerationFactCount`, and `FactsCommitted`.
+`Service.Run` is the poll-and-dispatch loop. Sources that implement
+`ObservedSource` can start `SpanCollectorObserve` once they know the poll is a
+real collection attempt, which keeps drained or idle polls out of trace export.
+When a generation is available, the span covers source collection and durable
+commit. When no generation is ready, the service calls `AfterBatchDrained` if
+at least one generation was committed since the last drain, then waits
+`PollInterval` (1 second in `cmd/ingester`). On receipt of a generation it
+calls `Committer.CommitScopeGeneration` with the `facts.Envelope` channel and
+records `CollectorObserveDuration`, `FactsEmitted`, `GenerationFactCount`, and
+`FactsCommitted`.
 
 `GitSource.Next` manages a per-batch streaming lifecycle. On the first call per
 batch it launches `startStream`, which:
@@ -113,6 +116,9 @@ it.
   `PollInterval`, and optionally `AfterBatchDrained`, `Tracer`,
   `Instruments`, `Logger`
 - `Source` — interface: `Next(context.Context) (CollectedGeneration, bool, error)`
+- `ObservedSource` — optional source interface that receives a
+  `StartObserveFunc` and returns a `CollectorObservation` so real collection
+  attempts, not idle polls, can share one `collector.observe` span with commit
 - `Committer` — interface: `CommitScopeGeneration(ctx, scope, generation, <-chan facts.Envelope) error`
 - `ClaimedCommitter` — optional fence-aware commit interface used by
   `ClaimedService` so claim ownership can be verified in the same transaction
@@ -166,7 +172,8 @@ it.
 
 ## Telemetry
 
-- Spans: `SpanCollectorObserve` (`collector.observe`) wraps each commit cycle;
+- Spans: `SpanCollectorObserve` (`collector.observe`) wraps each collect and
+  commit cycle for sources that implement `ObservedSource`,
   `SpanCollectorStream` (`collector.stream`) wraps the full stream lifecycle;
   `SpanScopeAssign` (`scope.assign`) wraps repository discovery;
   `SpanFactEmit` (`fact.emit`) wraps per-repo snapshotting

@@ -340,7 +340,7 @@ log streams.
 | Metric | Description | Dimensions |
 | --- | --- | --- |
 | `eshu_dp_facts_emitted_total` | Total facts emitted by collector | `scope_id`, `source_system`, `collector_kind` |
-| `eshu_dp_facts_committed_total` | Total facts committed to store | `scope_id`, `source_system` |
+| `eshu_dp_facts_committed_total` | Total facts committed to store | `scope_id`, `source_system`, `collector_kind` |
 | `eshu_dp_projections_completed_total` | Total projection cycles completed | `scope_id`, status (`succeeded`/`failed`) |
 | `eshu_dp_reducer_intents_enqueued_total` | Total reducer intents enqueued | `domain` |
 | `eshu_dp_reducer_executions_total` | Total reducer intent executions | `domain`, status (`succeeded`/`failed`) |

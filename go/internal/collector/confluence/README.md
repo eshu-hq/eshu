@@ -19,8 +19,11 @@ flowchart LR
 
 ## Internal Flow
 
-`Source.Next` performs one bounded collection generation. It loads either a
-space page list or a root page tree, filters non-current pages, keeps the
+`Source.Next` performs one bounded collection generation. `Source.NextObserved`
+uses the same path and returns `collector.CollectorObservation`, but starts the
+shared `collector.observe` span only after the source has ruled out a drained
+idle poll. The collection path loads either
+a space page list or a root page tree, filters non-current pages, keeps the
 latest visible revision per page ID, computes a stable generation ID from page
 versions, and returns fact envelopes through `collector.FactsFromSlice`.
 
@@ -30,7 +33,7 @@ generation because the collector cannot prove the source state.
 
 ## Exported Surface
 
-- `Source` - implements `collector.Source`
+- `Source` - implements `collector.Source` and `collector.ObservedSource`
 - `SourceConfig` and `LoadConfig` - env-backed Confluence config loading
 - `Client` - source evidence interface used by `Source`
 - `HTTPClient` and `NewHTTPClient` - Confluence Cloud REST API v2 reader
@@ -90,7 +93,13 @@ already gathered them from Eshu.
 - HTTP access is `GET` only and maps 403/404 responses to
   `ErrPermissionDenied`.
 - Sync logs and metrics report counts, status, and scope identifiers only. Page
-  titles, body content, and excerpts are not emitted as telemetry fields.
+  titles, body content, and excerpts are not emitted as telemetry fields. The
+  shared `collector.observe` span and
+  `eshu_dp_collector_observe_duration_seconds` histogram include page
+  collection, fact construction, and durable commit time; the
+  `eshu_dp_facts_emitted_total`, `eshu_dp_generation_fact_count`, and
+  `eshu_dp_facts_committed_total` metrics report documentation fact volume with
+  `source_system=confluence` and `collector_kind=documentation`.
 - Pagination follows Confluence `_links.next` values without duplicating the
   configured context path, so Atlassian Cloud base URLs that include `/wiki`
   work with both `/api/v2/...` and `/wiki/api/v2/...` next links.

@@ -7,5 +7,8 @@
 // doctruth.Extractor plus claim hints to emit non-authoritative mention and
 // claim-candidate facts from the same page evidence. The HTTP client keeps
 // pagination bounded to the configured Confluence base URL and handles next
-// links that already include the Atlassian Cloud /wiki context path.
+// links that already include the Atlassian Cloud /wiki context path. Source
+// implements collector.ObservedSource and returns collector.CollectorObservation
+// so collector.observe telemetry covers real Confluence collection attempts
+// without emitting spans for drained polls.
 package confluence
