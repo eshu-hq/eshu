@@ -10,6 +10,9 @@
 // fail when its heartbeat returns ErrWorkSuperseded, which means a newer
 // same-scope generation replaced stale local polling work. Projector code does
 // not make cross-source admission decisions; those belong to internal/reducer.
+// OCI registry projection keeps digest-addressed manifests, indexes, and
+// descriptors as canonical identity while treating tags as mutable weak
+// observations that can enrich queries but do not mint image identity.
 // EntityTypeLabel keeps parser/content entity labels, including Terraform
 // backend/import/refactor/check and lockfile-provider labels, aligned with graph
 // schema support.

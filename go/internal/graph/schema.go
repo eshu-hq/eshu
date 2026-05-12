@@ -130,6 +130,10 @@ var uidConstraintLabels = []string{
 	"CloudFormationOutput",
 	"CloudFormationParameter",
 	"CloudFormationResource",
+	"ContainerImage",
+	"ContainerImageDescriptor",
+	"ContainerImageIndex",
+	"ContainerImageTagObservation",
 	"CrossplaneClaim",
 	"CrossplaneComposition",
 	"CrossplaneXRD",
@@ -185,6 +189,12 @@ var uidConstraintLabels = []string{
 	"Union",
 	"Variable",
 	"Component",
+	"OciImageDescriptor",
+	"OciImageIndex",
+	"OciImageManifest",
+	"OciImageReferrer",
+	"OciImageTagObservation",
+	"OciRegistryRepository",
 }
 
 // schemaPerformanceIndexes lists secondary indexes that improve query
@@ -201,6 +211,10 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX workload_instance_environment IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.environment)",
 	"CREATE INDEX workload_instance_workload_id IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.workload_id)",
 	"CREATE INDEX workload_instance_repo_id IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.repo_id)",
+	"CREATE INDEX container_image_digest IF NOT EXISTS FOR (i:ContainerImage) ON (i.digest)",
+	"CREATE INDEX container_image_index_digest IF NOT EXISTS FOR (i:ContainerImageIndex) ON (i.digest)",
+	"CREATE INDEX container_image_descriptor_digest IF NOT EXISTS FOR (d:ContainerImageDescriptor) ON (d.digest)",
+	"CREATE INDEX container_image_tag_observation_ref IF NOT EXISTS FOR (t:ContainerImageTagObservation) ON (t.image_ref)",
 	"CREATE INDEX function_name IF NOT EXISTS FOR (f:Function) ON (f.name)",
 	"CREATE INDEX class_name IF NOT EXISTS FOR (c:Class) ON (c.name)",
 }

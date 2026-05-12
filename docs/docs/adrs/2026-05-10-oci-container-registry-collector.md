@@ -10,8 +10,10 @@
 - `2026-04-19-multi-source-correlation-dsl-and-collector-readiness.md`
 - `2026-04-20-multi-source-reducer-and-consumer-contract.md`
 - `2026-04-20-aws-cloud-scanner-collector.md`
+- `2026-05-12-package-registry-collector.md`
 - `2026-05-09-optional-component-boundary.md`
 - Issue: `#15`
+- Issue: `#24`
 
 ---
 
@@ -45,6 +47,28 @@ The first contract is OCI-first, not provider-first:
   type when present.
 - Referrers are optional registry capabilities. Missing Referrers API support
   is a warning, not proof that no SBOMs, signatures, or attestations exist.
+- ECR and JFrog Artifactory are the first live-validation adapters because
+  they are available for direct testing. ECR stays in this OCI lane. JFrog also
+  participates in the package-registry lane when collecting npm, Maven, NuGet,
+  PyPI, Go, Generic, or other package-manager feed metadata.
+
+## Initial Provider Support Matrix
+
+The implementation starts with an OCI-first core and provider adapters only
+where the provider changes authentication or URL shape.
+
+| Provider | Initial status | Contract |
+| --- | --- | --- |
+| OCI Distribution-compatible registry | Supported baseline | `distribution.Client` performs `/v2/`, tag list, manifest, and Referrers API calls. |
+| JFrog Artifactory Docker/OCI repository | Supported live-validation target | `jfrog` maps an Artifactory base URL plus Docker repository key onto the Distribution client. Package feeds remain in the package-registry collector. |
+| Amazon ECR private registry | Supported live-validation target | `ecr` maps account/region registry hosts and converts `GetAuthorizationToken` output into Distribution basic auth. |
+| Docker Hub | Supported live-validation target | `dockerhub` maps `docker.io` identity to `registry-1.docker.io`, adds `library/` for official images, and obtains pull tokens from Docker's token service. |
+| GHCR | Supported live-validation target | `ghcr` validates owner/image names and obtains repository-scoped pull tokens from GitHub Container Registry. |
+| Harbor, Google Artifact Registry, Azure Container Registry | Future adapters | Add only when a provider needs auth, pagination, hostname, or warning-class behavior beyond the Distribution baseline. |
+
+Provider adapters must not change fact identity. They can normalize endpoint
+shape, obtain credentials, classify provider-specific warnings, and pass the
+result into the same `oci_registry` fact builders.
 
 ## Decision
 
@@ -196,13 +220,17 @@ Required query capabilities after implementation:
 
 ## Operational Model
 
-The collector should run as a claim-driven Go runtime:
+The initial collector runs as a configured-target Go runtime:
 
 - configuration declares registry instances and repository allowlists
-- workflow coordinator enqueues repository work
-- collector workers claim repository scans, heartbeat, emit facts, and complete
-  claims through the shared workflow store
+- the collector polls those configured repository targets on a bounded interval
+- scans emit durable facts into Postgres; the projector then promotes
+  digest-addressed image truth into the graph
 - the runtime mounts `/healthz`, `/readyz`, `/admin/status`, and `/metrics`
+
+The workflow contract registers `oci_registry` as a fact-only collector family
+for now. Claim-driven scheduling stays disabled until repository scan
+partitioning, lease ownership, and retry semantics have live proof.
 
 Required status fields:
 
@@ -217,12 +245,20 @@ Required status fields:
 
 Required metrics:
 
-- `eshu_dp_oci_registry_api_calls_total{operation,result}`
-- `eshu_dp_oci_registry_rate_limit_total{provider}`
-- `eshu_dp_oci_registry_tags_observed_total`
-- `eshu_dp_oci_registry_manifests_observed_total{media_family}`
-- `eshu_dp_oci_registry_referrers_observed_total{artifact_family}`
-- `eshu_dp_oci_registry_scan_duration_seconds`
+| Metric | Type | Labels | Purpose |
+| --- | --- | --- | --- |
+| `eshu_dp_oci_registry_api_calls_total` | Counter | `provider`, `operation`, `result` | Registry API call volume and failures for ping, tag listing, manifest fetches, and Referrers API calls. |
+| `eshu_dp_oci_registry_tags_observed_total` | Counter | `provider`, `result` | Tag observations accepted into a bounded repository scan. |
+| `eshu_dp_oci_registry_manifests_observed_total` | Counter | `provider`, `media_family` | Manifest, image-index, and descriptor observations by broad media family. |
+| `eshu_dp_oci_registry_referrers_observed_total` | Counter | `provider`, `artifact_family` | Referrer artifact observations by bounded artifact family. |
+| `eshu_dp_oci_registry_scan_duration_seconds` | Float64 histogram | `provider`, `result` | Repository scan latency before durable commit. |
+
+Required spans:
+
+| Span | Purpose |
+| --- | --- |
+| `oci_registry.scan` | One configured repository scan. |
+| `oci_registry.api_call` | One registry API call with bounded provider and operation attributes. |
 
 Metric labels must stay low-cardinality and must not include image names,
 repository names, tags, digests, or private paths.
@@ -241,6 +277,8 @@ The design must account for:
 - unsupported Referrers API
 - registries that return Docker-compatible media types
 - missing `Docker-Content-Digest` headers from older registry behavior
+- computed manifest digests from exact response bytes when that header is
+  missing
 - rate limits and retry-after responses
 - auth denied versus repository not found
 - duplicate descriptors across repositories
@@ -277,10 +315,13 @@ the descriptor and emit a warning instead of dropping evidence.
 3. Implement repository scan, tag listing, manifest resolution, digest
    verification, and fact emission.
 4. Add provider adapters for one OCI-compatible baseline and ECR.
-5. Add projector scaffolding for `ContainerImage` and `ContainerImageIndex`.
-6. Add DSL joins to Git/CI, AWS ECR, Kubernetes live image refs, SBOMs, and
+5. Add projector scaffolding for `ContainerImage`, `ContainerImageIndex`,
+   `ContainerImageDescriptor`, and mutable tag observations.
+6. Add deployment trace enrichment for Kubernetes image references using
+   digest-first registry graph truth.
+7. Add DSL joins to Git/CI, AWS ECR, Kubernetes live image refs, SBOMs, and
    vulnerability facts.
-7. Add telemetry, admin status, and local fixture validation.
+8. Add claim-driven workflow scheduling after live configured-target proof.
 
 ## Acceptance Criteria
 
@@ -305,4 +346,15 @@ the descriptor and emit a warning instead of dropping evidence.
   https://github.com/opencontainers/image-spec/blob/main/image-index.md
 - OCI annotations:
   https://github.com/opencontainers/image-spec/blob/main/annotations.md
-
+- AWS ECR private registry authentication:
+  https://docs.aws.amazon.com/AmazonECR/latest/userguide/registry_auth.html
+- Docker Registry token authentication:
+  https://docs.docker.com/reference/api/registry/auth/
+- Docker Hub registry overview:
+  https://docs.docker.com/docker-hub/
+- GitHub Container Registry:
+  https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry
+- JFrog Docker repositories:
+  https://docs.jfrog.com/artifactory/docs/docker-repositories
+- JFrog Docker repository catalog API:
+  https://docs.jfrog.com/artifactory/reference/listDockerRepositories

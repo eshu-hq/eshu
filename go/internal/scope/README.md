@@ -40,9 +40,10 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
 **Enums**
 
 - `ScopeKind` — `KindRepository`, `KindAccount`, `KindRegion`, `KindCluster`,
-  `KindStateSnapshot`, `KindEventTrigger`
+  `KindStateSnapshot`, `KindEventTrigger`, `KindDocumentationSource`,
+  `KindContainerRegistryRepository`
 - `CollectorKind` — `CollectorGit`, `CollectorAWS`, `CollectorTerraformState`,
-  `CollectorWebhook`
+  `CollectorWebhook`, `CollectorDocumentation`, `CollectorOCIRegistry`
 - `TriggerKind` — `TriggerKindSnapshot`
 - `GenerationStatus` — `GenerationStatusPending`, `GenerationStatusActive`,
   `GenerationStatusSuperseded`, `GenerationStatusCompleted`,

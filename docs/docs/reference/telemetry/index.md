@@ -373,6 +373,10 @@ log streams.
 | `eshu_dp_webhook_requests_total` | Webhook listener requests by provider and bounded outcome | `provider`, `outcome`, `reason` |
 | `eshu_dp_webhook_trigger_decisions_total` | Normalized webhook trigger decisions after durable storage | `provider`, `event_kind`, `decision`, `reason`, `status` |
 | `eshu_dp_webhook_store_operations_total` | Webhook trigger store operations by result | `provider`, `outcome`, `status` |
+| `eshu_dp_oci_registry_api_calls_total` | OCI registry API calls by operation outcome | `provider`, `operation`, `result` |
+| `eshu_dp_oci_registry_tags_observed_total` | OCI registry tags accepted into a bounded scan | `provider`, `result` |
+| `eshu_dp_oci_registry_manifests_observed_total` | OCI registry manifests, indexes, and descriptors observed | `provider`, `media_family` |
+| `eshu_dp_oci_registry_referrers_observed_total` | OCI registry referrer artifacts observed | `provider`, `artifact_family` |
 | `eshu_dp_repos_snapshotted_total` | Total repositories snapshotted | status (`succeeded`/`failed`/`skipped`) |
 | `eshu_dp_files_parsed_total` | Total files parsed | status (`succeeded`/`failed`/`skipped`) |
 | `eshu_dp_fact_batches_committed_total` | Total fact batches committed to Postgres during streaming ingestion | `scope_id`, `source_system` |
@@ -387,6 +391,7 @@ log streams.
 | `eshu_dp_tfstate_parse_duration_seconds` | Terraform-state streaming parse duration | s | 0.001 .. 10 |
 | `eshu_dp_webhook_request_duration_seconds` | Webhook listener request duration | s | 0.001 .. 10 |
 | `eshu_dp_webhook_store_duration_seconds` | Webhook trigger store duration | s | 0.001 .. 10 |
+| `eshu_dp_oci_registry_scan_duration_seconds` | OCI registry repository scan duration before durable commit | s | 0.05 .. 120 |
 | `eshu_dp_scope_assign_duration_seconds` | Scope assignment duration | s | default |
 | `eshu_dp_fact_emit_duration_seconds` | Fact emission duration | s | default |
 | `eshu_dp_projector_run_duration_seconds` | Projector run cycle duration | s | 0.1 .. 120 |
@@ -459,6 +464,8 @@ The `eshu_dp_projector_stage_duration_seconds` histogram carries a `stage` attri
 | `projector.run` | Ingester projector loop | One claim + project + ack cycle |
 | `reducer_intent.enqueue` | Projector runtime | Enqueuing reducer intents after projection |
 | `reducer.run` | Reducer main loop | One claim + execute + ack cycle |
+| `oci_registry.scan` | OCI registry collector | One configured registry repository scan |
+| `oci_registry.api_call` | OCI registry collector | One ping, tag-list, manifest, or referrer API call |
 | `iac_reachability.materialize` | Bootstrap finalization | Corpus-wide active-generation IaC usage classification and Postgres row upsert |
 | `canonical.write` | Projector runtime / Reducer shared projection | Graph and content writes to Neo4j |
 | `webhook.handle` | Webhook listener route | Provider verification, normalization, and response handling |

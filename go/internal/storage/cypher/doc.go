@@ -34,5 +34,8 @@
 // Repository-contained path that does not require a synthetic root Directory.
 // High-volume analysis metadata such as dead_code_root_kinds and
 // exactness_blockers stays in the content store unless a graph query owns a
-// proven need for that property.
+// proven need for that property. OCI registry writes keep manifests, indexes,
+// and descriptors on ContainerImage-family labels keyed by digest-backed uid
+// values; tag observations remain weak mutable evidence and participate in
+// cleanup without becoming canonical image identity.
 package cypher

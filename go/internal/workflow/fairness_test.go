@@ -102,8 +102,8 @@ func TestFairnessCandidatesFromCollectorInstancesUsesEnabledClaimInstances(t *te
 			UpdatedAt:      observedAt,
 		},
 		{
-			InstanceID:     "collector-webhook-no-claims",
-			CollectorKind:  scope.CollectorWebhook,
+			InstanceID:     "collector-oci-registry-no-claims",
+			CollectorKind:  scope.CollectorOCIRegistry,
 			Mode:           CollectorModeContinuous,
 			Enabled:        true,
 			ClaimsEnabled:  false,

@@ -302,6 +302,7 @@ func TestCanonicalNodeWriterRetractCoversProjectableEntityLabels(t *testing.T) {
 		{name: "cloudformation", labels: canonicalNodeRetractCloudFormationEntityLabels},
 		{name: "sql", labels: canonicalNodeRetractSQLEntityLabels},
 		{name: "data", labels: canonicalNodeRetractDataEntityLabels},
+		{name: "oci", labels: canonicalNodeRetractOCIEntityLabels},
 	} {
 		for label := range family.labels {
 			if previous, exists := covered[label]; exists {

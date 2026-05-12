@@ -10,7 +10,8 @@
    stages and their ordering
 4. `go/internal/projector/canonical.go` and `canonical_builder.go` — the
    `CanonicalMaterialization` shape and how it is built from facts. Read
-   `tfstate_canonical.go` when touching Terraform-state projection.
+   `tfstate_canonical.go` when touching Terraform-state projection and
+   `oci_registry_canonical.go` when touching OCI registry projection.
 5. `go/internal/telemetry/instruments.go` and `contract.go` — metric and span
    names before adding new telemetry
 
@@ -33,11 +34,14 @@
   committed Terraform-state facts into canonical resource/module/output rows
   without cloud joins. Cross-source AWS matching belongs in reducer domains
   after the Terraform-state readiness checkpoints publish.
+- **OCI digest identity stays source-local** — `oci_registry_canonical.go`
+  projects committed OCI registry facts into digest-keyed image rows. Tags are
+  mutable weak evidence and must not become the canonical image key.
 - **Directory sort order** — `buildDirectoryChain` sorts by `Depth` ascending so
   parent directories exist before children during graph writes
   (`canonical_builder.go:191`).
 - **ReducerIntent stable ordering** — `intents` are sorted by `Domain`,
-  `EntityKey`, then `FactID` before enqueue (`runtime.go:308`). Do not remove
+  `EntityKey`, then `FactID` before enqueue (`runtime.go:373`). Do not remove
   this sort.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.

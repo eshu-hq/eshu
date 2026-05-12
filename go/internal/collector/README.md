@@ -164,6 +164,11 @@ it.
 - `tfstateruntime` subpackage — claim-aware Terraform-state runtime adapter that
   resolves exact candidates, opens the matching state source, and emits a
   fenced collected generation for `ClaimedService`
+- `packageregistry` subpackage — package-registry identity normalization and
+  reported-confidence package fact-envelope construction for the future
+  `package_registry` collector family
+- `ociregistry` subpackage — OCI registry identity, provider adapters,
+  runtime scan orchestration, and reported-confidence container image facts
 
 ## Dependencies
 

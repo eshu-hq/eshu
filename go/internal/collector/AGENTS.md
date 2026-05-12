@@ -14,6 +14,8 @@
    `LoadRepoSyncConfig`; env var names and defaults
 6. `go/internal/telemetry/instruments.go` and `contract.go` — metric and span
    names before adding new telemetry
+7. `go/internal/collector/packageregistry/README.md` — package-registry
+   evidence contracts when editing package/feed collection support
 
 ## Invariants this package enforces
 
@@ -82,6 +84,11 @@
   `DiscoveryAdvisoryReport` or one of its nested types in
   `discovery_advisory.go`; populate it in `buildDiscoveryAdvisoryReport`; add a
   test in `git_snapshot_native_discovery_test.go`.
+
+- **Add package-registry support** → keep normalization and fact-envelope work
+  in `packageregistry`; keep live registry clients and runtime claim loops in a
+  later bounded collector slice; do not materialize package graph truth from
+  collector code.
 
 ## Failure modes and how to debug
 

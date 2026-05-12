@@ -56,6 +56,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-confluence-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "eshu.ociRegistryCollectorFullname" -}}
+{{- printf "%s-oci-registry-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "eshu.apiMetricsServiceName" -}}
 {{- printf "%s-api-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -82,6 +86,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "eshu.confluenceCollectorMetricsServiceName" -}}
 {{- printf "%s-confluence-collector-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.ociRegistryCollectorMetricsServiceName" -}}
+{{- printf "%s-oci-registry-collector-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "eshu.apiSelectorLabels" -}}
@@ -117,6 +125,11 @@ app.kubernetes.io/component: webhook-listener
 {{- define "eshu.confluenceCollectorSelectorLabels" -}}
 {{- include "eshu.selectorLabels" . }}
 app.kubernetes.io/component: confluence-collector
+{{- end -}}
+
+{{- define "eshu.ociRegistryCollectorSelectorLabels" -}}
+{{- include "eshu.selectorLabels" . }}
+app.kubernetes.io/component: oci-registry-collector
 {{- end -}}
 
 {{- define "eshu.serviceAccountName" -}}
@@ -232,6 +245,24 @@ app.kubernetes.io/component: confluence-collector
     secretKeyRef:
       name: {{ .Values.confluenceCollector.credentials.secretName }}
       key: {{ .Values.confluenceCollector.credentials.apiTokenKey }}
+{{- end }}
+{{- end -}}
+
+{{- define "eshu.renderOCIRegistryCollectorEnv" -}}
+- name: ESHU_OCI_REGISTRY_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.ociRegistryCollector.instanceId | quote }}
+- name: ESHU_OCI_REGISTRY_POLL_INTERVAL
+  value: {{ .Values.ociRegistryCollector.pollInterval | quote }}
+- name: ESHU_OCI_REGISTRY_TARGETS_JSON
+  value: {{ required "ociRegistryCollector.targets must contain at least one target when ociRegistryCollector.enabled=true" .Values.ociRegistryCollector.targets | toJson | quote }}
+{{- with .Values.ociRegistryCollector.aws.region }}
+- name: AWS_REGION
+  value: {{ . | quote }}
+- name: AWS_DEFAULT_REGION
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.ociRegistryCollector.extraEnv }}
+{{ toYaml . }}
 {{- end }}
 {{- end -}}
 

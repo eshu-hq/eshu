@@ -138,7 +138,12 @@
 // projector support exists.
 // Repository runtime artifacts surface Dockerfile base image, base tag, build
 // platform, copy-from, command, port, and environment evidence from parser
-// metadata.
+// metadata. Deployment trace image references can include projected OCI registry
+// truth when digest-addressed ContainerImage-family rows, or tag observations
+// with one projected immutable digest, are available; tag-only conflicts remain
+// ambiguous and are counted separately from canonical digest matches. The OCI
+// read path starts from digest or image_ref anchors before traversing registry
+// publish edges.
 // Content-backed Argo CD relationship fallback treats Application
 // source_repos as separate DEPLOYS_FROM targets while preserving source_repo
 // for older parser payloads.

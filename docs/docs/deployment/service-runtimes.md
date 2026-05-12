@@ -63,6 +63,7 @@ Current platform reality:
 | MCP Server | MCP tool transport plus mounted query passthrough | `eshu mcp start` | graph + content reads only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Ingester | repo sync, parsing, fact emission, workspace ownership | `/usr/local/bin/eshu-ingester` | workspace PVC + Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `StatefulSet` |
 | Webhook Listener | public provider webhook intake and durable refresh triggers | `/usr/local/bin/eshu-webhook-listener` | Postgres trigger table only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
+| OCI Registry Collector | OCI registry scan, tag observation, manifest/referrer fact emission | `/usr/local/bin/eshu-collector-oci-registry` | Postgres fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
 | Workflow Coordinator | scheduling, trigger intake, claims, completeness, run orchestration | `/usr/local/bin/eshu-workflow-coordinator` | Postgres + graph backend | internal admin/status service plus `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Resolution Engine | queue draining, projection, retries, replay, recovery | `/usr/local/bin/eshu-reducer` | Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Bootstrap Index | one-shot initial indexing | `/usr/local/bin/eshu-bootstrap-index` | workspace + Postgres + graph backend | OTEL export only; no mounted runtime `/metrics` endpoint | one-shot local helper |
@@ -112,12 +113,15 @@ overlay.
 The repo also has local verification runtimes that exercise the Go data plane
 directly.
 
-They are not yet separate deployed Kubernetes workloads in the public chart.
-Only the long-running hosted variants that mount `go/internal/runtime` expose
-the shared `/healthz`, `/readyz`, optional `/metrics`, and optional
+Most verification runtimes are not yet separate deployed Kubernetes workloads
+in the public chart. `collector-oci-registry` is the exception in this branch:
+it can run as an optional Helm `Deployment` when `ociRegistryCollector.enabled`
+is true. Only the long-running hosted variants that mount `go/internal/runtime`
+expose the shared `/healthz`, `/readyz`, optional `/metrics`, and optional
 `/admin/status` contract:
 
 - `collector-git`: `go run ./cmd/collector-git`
+- `collector-oci-registry`: `go run ./cmd/collector-oci-registry`
 - `collector-terraform-state`: `go run ./cmd/collector-terraform-state`
 - `projector`: `go run ./cmd/projector`
 - `reducer`: `go run ./cmd/reducer`
@@ -132,6 +136,13 @@ workflow work for that instance, opens exact local or S3 state sources, and
 commits redacted Terraform-state facts through the shared ingestion boundary.
 The workflow coordinator remains the control plane; it does not parse state or
 run collectors.
+
+`collector-oci-registry` scans configured OCI registry repositories from
+`ESHU_OCI_REGISTRY_TARGETS_JSON`, supports JFrog Docker/OCI, ECR, Docker Hub,
+and GHCR client wiring, and commits digest-addressed registry facts through the
+shared ingestion boundary. It exposes `oci_registry.scan` and
+`oci_registry.api_call` spans plus the `eshu_dp_oci_registry_*` metric family
+documented in the telemetry reference.
 
 ## Admin Contract
 
@@ -603,8 +614,12 @@ render `ServiceMonitor` resources for:
 
 - API
 - Ingester
+- MCP Server
 - Workflow Coordinator
 - Resolution Engine
+- Webhook Listener
+- Confluence Collector
+- OCI Registry Collector
 
 `ServiceMonitor` does not apply to the bootstrap helper because it is not a
 steady-state Kubernetes service in the public chart.

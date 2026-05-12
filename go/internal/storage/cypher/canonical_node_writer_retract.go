@@ -111,6 +111,7 @@ func canonicalNodeRetractEntityLabels() []string {
 		canonicalNodeRetractCloudFormationEntityLabels,
 		canonicalNodeRetractSQLEntityLabels,
 		canonicalNodeRetractDataEntityLabels,
+		canonicalNodeRetractOCIEntityLabels,
 	} {
 		for label := range family {
 			labels[label] = struct{}{}

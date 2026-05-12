@@ -42,8 +42,8 @@ an `Executor`.
 
 `CanonicalNodeWriter.Write` executes all canonical writes in named phases:
 `retract`, `repository_cleanup`, `repository`, `directories`, `files`,
-`entities`, `entity_retract`, `entity_containment`, `terraform_state`, `modules`, and
-`structural_edges`. When the executor
+`entities`, `entity_retract`, `entity_containment`, `terraform_state`,
+`oci_registry`, `modules`, and `structural_edges`. When the executor
 implements `GroupExecutor`, all phases are sent in a single atomic transaction.
 When it implements
 `PhaseGroupExecutor`, each phase executes as a bounded group. Otherwise phases
@@ -68,6 +68,15 @@ Terraform-state rows are written as `TerraformResource`, `TerraformModule`, and
 binding, tag-key hashes, and hashed correlation anchors on the node without
 creating cloud-resource joins. Those joins are reducer work after the
 Terraform-state readiness checkpoints exist.
+
+OCI registry rows are written as `OciRegistryRepository`,
+`ContainerImage`/`OciImageManifest`, `ContainerImageIndex`/`OciImageIndex`,
+`ContainerImageDescriptor`/`OciImageDescriptor`,
+`ContainerImageTagObservation`/`OciImageTagObservation`, and
+`OciImageReferrer` nodes keyed by `uid`. Manifests, indexes, and descriptors
+use digest-backed descriptor identity; tag observations keep
+`identity_strength=weak_tag` and point at a resolved digest without making the
+tag the stable image key.
 
 `EdgeWriter.WriteEdges` maps a `reducer.Domain` to a batched UNWIND Cypher
 template and dispatches rows in batches of `BatchSize` (default
@@ -251,6 +260,11 @@ adapter seam.
   use MATCH on these nodes. Identity cleanup phases run immediately before the
   corresponding MERGE phase, and `directories` are sorted by `Depth` ascending
   (`canonical_node_writer_phases.go`).
+- OCI registry writes must keep `MERGE` anchored on concrete labels plus `uid`.
+  Tags are mutable observations; do not use `tag` or `source_tag` as the
+  manifest/index identity key. OCI labels participate in the stale-entity
+  retract family, and `canonicalNodeRetractEntityLabels` includes that family in
+  the generated cleanup list.
 - Repository-root `File` rows are the exception to the Directory parent rule:
   they must attach directly to `Repository` through `REPO_CONTAINS` because
   `buildDirectoryChain` intentionally does not create a synthetic Directory for

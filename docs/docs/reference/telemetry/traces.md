@@ -46,6 +46,8 @@ The stable span families are:
 - `tfstate.coordinator.complete`
 - `webhook.handle`
 - `webhook.store`
+- `oci_registry.scan`
+- `oci_registry.api_call`
 - `postgres.exec`
 - `postgres.query`
 - `neo4j.execute`
@@ -76,6 +78,14 @@ Legacy span families such as `eshu.http.*`, `eshu.mcp.*`, `eshu.query.*`,
 - `fact.emit` covers parsing, snapshot shaping, and fact emission for one scope
 - child `postgres.exec` and `postgres.query` spans explain Postgres cost inside
   the collector path
+
+### OCI registry collector path
+
+- `oci_registry.scan` is one configured repository scan before durable commit
+- `oci_registry.api_call` is one registry call; the `operation` attribute is
+  `ping`, `list_tags`, `get_manifest`, or `list_referrers`
+- child `postgres.exec` and `postgres.query` spans still belong to the
+  collector commit path, not to registry API time
 
 ### Projector path
 

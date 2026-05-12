@@ -223,6 +223,31 @@ confluenceCollector:
       cpu: 1000m
       memory: 2Gi
 
+ociRegistryCollector:
+  enabled: false
+  replicas: 1
+  revisionHistoryLimit: 3
+  instanceId: oci-registry-primary
+  pollInterval: 5m
+  targets: []
+  aws:
+    region: ""
+  extraEnv: []
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
 exposure:
   ingress:
     enabled: false

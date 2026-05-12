@@ -179,6 +179,36 @@ func TestReconcileRunProgressComplete(t *testing.T) {
 	}
 }
 
+func TestReconcileRunProgressCompletesOCIRegistryWithoutReducerPhases(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 12, 19, 0, 0, 0, time.UTC)
+	run, completeness, err := ReconcileRunProgress(RunProgressSnapshot{
+		Run: Run{
+			RunID:       "run-oci-registry",
+			TriggerKind: TriggerKindBootstrap,
+			Status:      RunStatusCollectionActive,
+			CreatedAt:   now.Add(-time.Minute),
+			UpdatedAt:   now.Add(-time.Minute),
+		},
+		Collectors: []CollectorRunProgress{{
+			CollectorKind:        scope.CollectorOCIRegistry,
+			TotalWorkItems:       1,
+			CompletedWorkItems:   1,
+			PublishedPhaseCounts: map[PhasePublicationKey]int{},
+		}},
+	}, now)
+	if err != nil {
+		t.Fatalf("ReconcileRunProgress() error = %v, want nil", err)
+	}
+	if got, want := run.Status, RunStatusComplete; got != want {
+		t.Fatalf("run.Status = %q, want %q", got, want)
+	}
+	if got := len(completeness); got != 0 {
+		t.Fatalf("len(completeness) = %d, want 0 because OCI registry has no graph projection readiness yet", got)
+	}
+}
+
 func TestReconcileRunProgressFailed(t *testing.T) {
 	t.Parallel()
 

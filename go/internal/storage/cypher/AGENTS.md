@@ -20,10 +20,11 @@
   unconditional CREATE. `doc.go` states this as a package invariant.
 - **Phase order** — `CanonicalNodeWriter.Write` phases run strictly in order:
   retract → repository_cleanup → repository → directories → files → entities →
-  entity_retract → entity_containment → modules → structural_edges. Parent
-  nodes must exist before child MATCH statements run, repository cleanup must
-  commit before the repository MERGE, and stale entity cleanup must run after
-  current entity upserts so it can avoid giant `uid IN` exclusion filters.
+  entity_retract → entity_containment → terraform_state → oci_registry →
+  modules → structural_edges. Parent nodes must exist before child MATCH
+  statements run, repository cleanup must commit before the repository MERGE,
+  and stale entity cleanup must run after current entity upserts so it can avoid
+  giant `uid IN` exclusion filters.
 - **No GraphWrite type** — this package does not export a GraphWrite port.
   The backend seam is `Executor`. Every caller in `internal/projector` and
   `internal/reducer` uses the projector CanonicalWriter or
@@ -38,6 +39,10 @@
 - **OperationCanonicalUpsert vs. OperationUpsertNode** — canonical domain nodes
   use `OperationCanonicalUpsert`; source-local `SourceLocalRecord` writes use
   `OperationUpsertNode`/`OperationDeleteNode`. Do not mix them.
+- **OCI tags are weak evidence** — `oci_registry_canonical_writer.go` writes
+  manifests and indexes on `ContainerImage` labels keyed by digest-backed uid.
+  Tag observations are separate `ContainerImageTagObservation` nodes; do not
+  MERGE image manifest or index identity from tag text.
 - **Identity cleanup** — repository upserts must keep cleanup before MERGE and
   in a separate phase group. Directory and File writers must not restore
   current-directory or current-file `DETACH DELETE` cleanup.

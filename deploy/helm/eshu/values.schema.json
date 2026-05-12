@@ -257,6 +257,76 @@
         "resources": { "type": "object" }
       }
     },
+    "ociRegistryCollector": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "instanceId": { "type": "string" },
+        "pollInterval": { "type": "string" },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "type": "string",
+                "enum": ["jfrog", "ecr", "dockerhub", "ghcr"]
+              },
+              "registry": { "type": "string" },
+              "base_url": { "type": "string" },
+              "repository_key": { "type": "string" },
+              "repository": { "type": "string" },
+              "region": { "type": "string" },
+              "registry_id": { "type": "string" },
+              "registry_host": { "type": "string" },
+              "references": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "tag_limit": { "type": "integer", "minimum": 0 },
+              "visibility": { "type": "string" },
+              "auth_mode": { "type": "string" },
+              "source_uri": { "type": "string" },
+              "username_env": { "type": "string" },
+              "password_env": { "type": "string" },
+              "bearer_token_env": { "type": "string" },
+              "aws_profile": { "type": "string" },
+              "fencing_token": { "type": "integer" }
+            },
+            "required": ["provider", "repository"],
+            "additionalProperties": false
+          }
+        },
+        "aws": {
+          "type": "object",
+          "properties": {
+            "region": { "type": "string" }
+          }
+        },
+        "extraEnv": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": { "const": true }
+            }
+          },
+          "then": {
+            "properties": {
+              "targets": { "minItems": 1 }
+            }
+          }
+        }
+      ]
+    },
     "api": {
       "type": "object",
       "properties": {

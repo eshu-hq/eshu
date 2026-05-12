@@ -110,7 +110,8 @@ Types in this package flow through four phases of the workflow control plane:
 - `CollectorContract`, `CollectorContractFor`, `CanonicalKeyspacesForCollector`,
   `RequiredPhasesForCollector` — lookup table of required reducer phases per
   collector family; registered entries: `CollectorGit`,
-  `CollectorTerraformState`, `CollectorAWS`, `CollectorWebhook`
+  `CollectorTerraformState`, `CollectorAWS`, `CollectorWebhook`,
+  `CollectorDocumentation`, `CollectorOCIRegistry`
 - `PhaseRequirement`, `PhasePublicationKey` — per-phase requirement and
   publication checkpoint key types
 
@@ -134,6 +135,12 @@ Types in this package flow through four phases of the workflow control plane:
 S3 seeds must include bucket, key, and region; any S3 seed also requires
 `aws.role_arn`. This keeps unsafe or incomplete state-reader config out of the
 durable `collector_instances` table.
+
+`oci_registry` collector instances are config/poll driven. They are registered
+in the collector contract table so workflow progress and readiness code knows
+the family, but they do not declare reducer phase requirements until registry
+facts have a graph projection contract. Claim scheduling must stay disabled for
+OCI registry instances.
 
 **Defaults**:
 - `DefaultClaimLeaseTTL()` — 60s

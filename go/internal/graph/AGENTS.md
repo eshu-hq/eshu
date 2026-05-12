@@ -29,9 +29,13 @@
   must be split before calling.
 - **Module index not constraint** — `schema.go:57` uses `CREATE INDEX` for
   `Module` nodes. Do not convert it to a uniqueness constraint.
+- **OCI image truth is digest-first** — `ContainerImage`, `ContainerImageIndex`,
+  and `ContainerImageDescriptor` labels get `uid` constraints and digest
+  indexes. `ContainerImageTagObservation` keeps a separate `image_ref` index for
+  mutable tag evidence; do not use tag text as image identity.
 - **NornicDB composite constraint suppression** — `nornicDBSchemaConstraint`
-  at `schema.go:491` drops composite `IS UNIQUE` constraints. The NornicDB
-  dialect uses `uid` uniqueness constraints for the same labels instead.
+  drops composite `IS UNIQUE` constraints. The NornicDB dialect uses `uid`
+  uniqueness constraints for the same labels instead.
 - **No import cycles** — `CypherStatement` and `CypherExecutor` are defined
   here, not imported from `storage/cypher`. Do not add an import of
   `internal/storage/cypher` or any package that imports it.

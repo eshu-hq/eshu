@@ -24,6 +24,8 @@ const (
 	KindEventTrigger ScopeKind = "event_trigger"
 	// KindDocumentationSource represents a documentation source scope.
 	KindDocumentationSource ScopeKind = "documentation_source"
+	// KindContainerRegistryRepository represents an OCI registry repository.
+	KindContainerRegistryRepository ScopeKind = "container_registry_repository"
 )
 
 // CollectorKind identifies the collector family that owns the scope.
@@ -40,6 +42,8 @@ const (
 	CollectorWebhook CollectorKind = "webhook"
 	// CollectorDocumentation represents the documentation source collector.
 	CollectorDocumentation CollectorKind = "documentation"
+	// CollectorOCIRegistry represents the OCI registry collector.
+	CollectorOCIRegistry CollectorKind = "oci_registry"
 )
 
 // TriggerKind identifies how a generation was produced.

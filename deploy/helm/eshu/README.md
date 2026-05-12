@@ -1,8 +1,8 @@
 # Eshu Helm Chart
 
 This chart deploys Eshu as separate API, MCP, ingester,
-workflow-coordinator, resolution-engine, and optional documentation collector
-workloads with:
+workflow-coordinator, resolution-engine, optional documentation collector, and
+optional OCI registry collector workloads with:
 
 - External Bolt-compatible graph backend and Postgres connectivity
 - NornicDB as the default graph adapter through the Bolt-compatible graph
@@ -15,8 +15,9 @@ workloads with:
 - An optional workflow-coordinator `Deployment` for dark-mode control-plane validation
 - A stateless Resolution Engine `Deployment` for facts queue projection
 - An optional Confluence collector `Deployment` that stores documentation sections in Postgres
+- An optional OCI registry collector `Deployment` that stores digest-addressed image facts in Postgres
 - An optional public webhook listener `Deployment` that stores GitHub/GitLab/Bitbucket refresh triggers in Postgres
-- Optional Prometheus scrape endpoints and `ServiceMonitor` resources for API, MCP, ingester, workflow-coordinator, resolution-engine, Confluence collector, and webhook listener
+- Optional Prometheus scrape endpoints and `ServiceMonitor` resources for API, MCP, ingester, workflow-coordinator, resolution-engine, Confluence collector, OCI registry collector, and webhook listener
 - Flexible service exposure (ClusterIP, LoadBalancer, Ingress, Gateway API)
 - Hardened defaults such as public API docs disabled unless explicitly re-enabled
 
@@ -84,6 +85,21 @@ confluenceCollector:
   spaceId: "123456789"
   credentials:
     secretName: confluence-collector-credentials
+
+ociRegistryCollector:
+  enabled: true
+  instanceId: oci-registry-primary
+  aws:
+    region: us-east-1
+  targets:
+    - provider: ecr
+      registry_id: "123456789012"
+      region: us-east-1
+      repository: team/api
+      references: ["latest"]
+    - provider: dockerhub
+      repository: library/busybox
+      references: ["latest"]
 
 webhookListener:
   enabled: true

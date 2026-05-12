@@ -24,6 +24,12 @@ type CanonicalMaterialization struct {
 	TerraformStateResources []TerraformStateResourceRow
 	TerraformStateModules   []TerraformStateModuleRow
 	TerraformStateOutputs   []TerraformStateOutputRow
+	OCIRegistryRepository   *OCIRegistryRepositoryRow
+	OCIImageManifests       []OCIImageManifestRow
+	OCIImageIndexes         []OCIImageIndexRow
+	OCIImageDescriptors     []OCIImageDescriptorRow
+	OCIImageTagObservations []OCIImageTagObservationRow
+	OCIImageReferrers       []OCIImageReferrerRow
 }
 
 // IsEmpty reports whether the materialization carries no projectable data.
@@ -34,7 +40,13 @@ func (m CanonicalMaterialization) IsEmpty() bool {
 		len(m.Entities) == 0 &&
 		len(m.TerraformStateResources) == 0 &&
 		len(m.TerraformStateModules) == 0 &&
-		len(m.TerraformStateOutputs) == 0
+		len(m.TerraformStateOutputs) == 0 &&
+		m.OCIRegistryRepository == nil &&
+		len(m.OCIImageManifests) == 0 &&
+		len(m.OCIImageIndexes) == 0 &&
+		len(m.OCIImageDescriptors) == 0 &&
+		len(m.OCIImageTagObservations) == 0 &&
+		len(m.OCIImageReferrers) == 0
 }
 
 // RepositoryRow carries the canonical properties for a Repository node.
@@ -202,6 +214,18 @@ var entityTypeLabelMap = map[string]string{
 	"query_execution":    "QueryExecution",
 	"data_contract":      "DataContract",
 	"data_owner":         "DataOwner",
+
+	// OCI / container registry entities
+	"container_image":                 "ContainerImage",
+	"container_image_descriptor":      "ContainerImageDescriptor",
+	"container_image_index":           "ContainerImageIndex",
+	"container_image_tag_observation": "ContainerImageTagObservation",
+	"oci_registry_repository":         "OciRegistryRepository",
+	"oci_image_manifest":              "OciImageManifest",
+	"oci_image_index":                 "OciImageIndex",
+	"oci_image_descriptor":            "OciImageDescriptor",
+	"oci_image_tag_observation":       "OciImageTagObservation",
+	"oci_image_referrer":              "OciImageReferrer",
 
 	// Terragrunt extended types (emitted by parser as PascalCase, added as
 	// lowercase aliases for completeness).
