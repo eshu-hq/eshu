@@ -40,10 +40,15 @@ func dockerfileEscapeRune(source string) rune {
 		if !found {
 			return defaultEscapeRune
 		}
-		if strings.EqualFold(strings.TrimSpace(directive), "escape") {
+		switch strings.ToLower(strings.TrimSpace(directive)) {
+		case "escape":
 			for _, char := range strings.TrimSpace(value) {
 				return char
 			}
+			return defaultEscapeRune
+		case "syntax", "check":
+			continue
+		default:
 			return defaultEscapeRune
 		}
 	}

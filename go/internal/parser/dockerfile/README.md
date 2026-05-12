@@ -39,7 +39,8 @@ models: quoted and escaped `ENV` and `LABEL` values keep spaces, legacy
 instructions emit one row per argument, `FROM --platform=...` records stage
 platform metadata, registry hosts with ports do not get split as image tags,
 and the Dockerfile `# escape=` parser directive controls line continuation plus
-token escaping. The tokenization helpers live in `tokens.go` so `metadata.go`
+token escaping when it appears before any non-directive comment, empty line, or
+instruction. The tokenization helpers live in `tokens.go` so `metadata.go`
 stays below the package line cap.
 
 Metadata.Map keeps the legacy `map[string]any` payload shape because query and

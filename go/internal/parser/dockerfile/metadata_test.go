@@ -212,6 +212,22 @@ func TestRuntimeMetadataHonorsEscapeDirective(t *testing.T) {
 	}
 }
 
+func TestRuntimeMetadataIgnoresEscapeDirectiveAfterUnknownDirective(t *testing.T) {
+	t.Parallel()
+
+	got := RuntimeMetadata(
+		"# unknowndirective=value\n" +
+			"# escape=`\n" +
+			"FROM alpine\n" +
+			"LABEL description=Windows` label\n",
+	)
+
+	labels := labelsByName(got.Labels)
+	if labels["description"].Value != "Windows`" {
+		t.Fatalf("description = %#v, want backtick treated as literal with default escape", labels["description"])
+	}
+}
+
 func stagesByName(stages []Stage) map[string]Stage {
 	result := make(map[string]Stage, len(stages))
 	for _, stage := range stages {
