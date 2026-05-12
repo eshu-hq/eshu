@@ -1,0 +1,35 @@
+go/internal/webhook/normalizer_test.go
+  s_d3259c8df205fa::t_fcc15135a9ea80 1-394
+go/internal/webhook/signature.go
+  s_d3259c8df205fa::t_a59b50c8b10bdd 1-57
+docs/docs/adrs/2026-05-12-webhook-triggered-repository-refresh.md
+  s_d3259c8df205fa::t_4476bd48cefddd 4,417-418,420-430
+docs/docs/adrs/README.md
+  s_d3259c8df205fa::t_ec3c516f1a4e0b 53
+go/internal/webhook/AGENTS.md
+  s_d3259c8df205fa::t_a59b50c8b10bdd 1-37
+go/internal/webhook/README.md
+  s_d3259c8df205fa::t_a59b50c8b10bdd 1-53
+go/internal/webhook/normalizer.go
+  s_d3259c8df205fa::t_a59b50c8b10bdd 1-312
+go/internal/webhook/types.go
+  s_d3259c8df205fa::t_a59b50c8b10bdd 1-68
+go/internal/webhook/doc.go
+  s_d3259c8df205fa::t_a59b50c8b10bdd 1-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "154ebaa03c03532940f0e6aec239c11708ec2a49",
+  "prompts": {},
+  "sessions": {
+    "s_d3259c8df205fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c35-27db-7f23-a973-f62b0105d8b0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
