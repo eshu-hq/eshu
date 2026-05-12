@@ -285,7 +285,7 @@ JavaScript, Rust, Java, C, C++).
 | Dockerfile | `__dockerfile__` | `Dockerfile`, `Dockerfile.*` | — |
 | Elixir | `elixir` | `.ex`, `.exs` | — |
 | Go | `go` | `.go` | yes |
-| Groovy/Jenkinsfile | `groovy`, `__jenkinsfile__` | `.groovy`, `Jenkinsfile` | yes |
+| Groovy/Jenkinsfile | `groovy`, `__jenkinsfile__` | `.groovy`, `Jenkinsfile` | — |
 | Haskell | `haskell` | `.hs` | — |
 | HCL/Terraform | `hcl` | `.hcl`, `.tf`, `.tfvars`, `.tfvars.json` | — |
 | Java | `java` | `.java` | yes |

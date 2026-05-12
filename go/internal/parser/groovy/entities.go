@@ -51,8 +51,8 @@ func ExtractClassEntities(sourceText string) []map[string]any {
 }
 
 // ExtractFunctionEntities returns method and function declarations plus a
-// synthetic Jenkinsfile root when the file is a pipeline entrypoint without
-// ordinary declarations.
+// synthetic Jenkinsfile root for Jenkinsfiles with a top-level pipeline or node
+// block.
 func ExtractFunctionEntities(path string, sourceText string) []map[string]any {
 	lines := strings.Split(sourceText, "\n")
 	functions := make([]map[string]any, 0)

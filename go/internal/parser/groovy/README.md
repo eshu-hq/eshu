@@ -42,7 +42,8 @@ down to `pipelines`, matching existing parser payload behavior.
 
 ExtractFunctionEntities marks declarative/scripted Jenkinsfiles with
 `groovy.jenkins_pipeline_entrypoint` when a top-level `pipeline {` or `node {`
-block is present. It marks `call` in `vars/*.groovy` shared-library files with
+block is present, even when the file also declares helper functions. It marks
+`call` in `vars/*.groovy` shared-library files with
 `groovy.shared_library_call` for absolute and repository-relative paths. Those
 root kinds are metadata only; the parser does not resolve Groovy dynamic
 dispatch, closure delegates, or Jenkins shared library loading.
