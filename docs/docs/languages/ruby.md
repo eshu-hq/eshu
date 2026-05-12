@@ -24,8 +24,13 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Local variable assignments | `local-variable-assignments` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_ruby_semantics_test.go::TestDefaultEngineParsePathRubyCapturesLocalAndInstanceAssignments` | Compose-backed fixture verification | - |
 | Module inclusions (`include`/`extend`) | `module-inclusions-include-extend` | supported | `module_inclusions` | `class, module, line_number` | `relationship:INCLUDES` | `go/internal/parser/engine_long_tail_test.go::TestDefaultEngineParsePathRubyFixtures` | Compose-backed fixture verification | - |
 | Parent context (class/module) | `parent-context-class-module` | supported | `functions` | `name, line_number, class_context` | `property:Function.class_context` | `go/internal/parser/engine_ruby_semantics_test.go::TestDefaultEngineParsePathRubyEmitsFunctionArgsAndContext` | Compose-backed fixture verification | - |
+| Dead-code roots | `dead-code-roots` | derived | `functions.metadata.dead_code_root_kinds` | `name, line_number, dead_code_root_kinds` | `code_quality.dead_code` root suppression | `go/internal/parser/ruby_dead_code_roots_test.go::TestDefaultEngineParsePathRubyEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_ruby_roots_test.go::TestHandleDeadCodeExcludesRubyRootKindsFromMetadata` | Compose-backed Ruby dogfood required by issue #93 | Rails controller actions, Rails callback methods, dynamic dispatch hooks, literal method-reference targets, and script entrypoints are modeled as derived roots. |
 
 ## Known Limitations
-- Singleton methods (defined on specific objects) are not separated from instance methods
-- `method_missing` based dynamic dispatch is not tracked
-- DSL-style method definitions (e.g., ActiveRecord scopes) are captured as regular calls only
+- Singleton methods on specific objects are only separated for `def self.name`
+  and `class << self`; broader singleton-object targets are not resolved.
+- `method_missing` and `respond_to_missing?` are protected as runtime hooks, but
+  arbitrary dynamic dispatch targets are not resolved.
+- Rails route files, autoload/eager-load configuration, ActiveRecord scopes,
+  gem public API surfaces, and broad constant resolution remain exactness
+  blockers.

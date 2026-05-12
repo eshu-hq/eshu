@@ -52,7 +52,7 @@ Each language fixture must include:
 | Perl | planned | `derived_candidate_only` | packages, exported subs, dynamic symbol ambiguity |
 | PHP | planned | `derived_candidate_only` | public classes, framework controllers, attributes |
 | Python | active | `derived` | Lambda roots, bounded public APIs, dataclasses/properties, dynamic imports |
-| Ruby | planned | `derived_candidate_only` | Rails routes, public methods, metaprogramming ambiguity |
+| Ruby | active | `derived` | broader Rails route resolution, metaprogramming, autoload, gem public API |
 | Rust | planned | `derived_candidate_only` | public items, traits, macro-generated roots |
 | Scala | planned | `derived_candidate_only` | public APIs, traits, annotations, framework roots |
 | Swift | planned | `derived_candidate_only` | public APIs, protocols, SwiftUI/UIKit callbacks |

@@ -25,7 +25,7 @@ var deadCodeLanguageMaturity = map[string]string{
 	"perl":       deadCodeMaturityDerivedCandidate,
 	"php":        deadCodeMaturityDerivedCandidate,
 	"python":     deadCodeMaturityDerived,
-	"ruby":       deadCodeMaturityDerivedCandidate,
+	"ruby":       deadCodeMaturityDerived,
 	"rust":       deadCodeMaturityDerived,
 	"scala":      deadCodeMaturityDerivedCandidate,
 	"sql":        deadCodeMaturityDerived,
@@ -66,6 +66,14 @@ var deadCodeLanguageExactnessBlockers = map[string][]string{
 		"cargo_feature_resolution_unavailable",
 		"semantic_module_resolution_unavailable",
 		"trait_dispatch_unresolved",
+	},
+	"ruby": {
+		"dynamic_dispatch_unresolved",
+		"metaprogrammed_methods_unresolved",
+		"autoload_resolution_unavailable",
+		"framework_route_resolution_unavailable",
+		"gem_public_api_surface_unresolved",
+		"constant_resolution_unavailable",
 	},
 	"sql": {
 		"dynamic_sql_unresolved",

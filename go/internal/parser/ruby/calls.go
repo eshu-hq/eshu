@@ -6,10 +6,13 @@ import (
 )
 
 var (
-	rubyChainedCallPattern   = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:[A-Za-z_]\w*|@[A-Za-z_]\w*|self|[A-Z][A-Za-z0-9_:]*)(?:\.[A-Za-z_]\w*[!?=]?)+)\(([^()]*)\)\.([A-Za-z_]\w*[!?=]?)(?:\s*\(([^)]*)\)|\s+([^#]+))?`)
-	rubyScopedCallPattern    = regexp.MustCompile(`([A-Z][A-Za-z0-9_:]*\.[A-Za-z_]\w*[!?=]?)\(`)
-	rubyQualifiedCallPattern = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:[A-Za-z_]\w*|@[A-Za-z_]\w*|self|[A-Z][A-Za-z0-9_:]*)(?:\.[A-Za-z_]\w*)+[!?=]?)(?:\s*\(|\b|[\s;])`)
-	rubyBareCallPattern      = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:require_relative|require|load|include|extend|attr_accessor|attr_reader|attr_writer|define_method|define_singleton_method|instance_method|instance_eval|cache_method|puts|sleep|method|public_send|send|super|bind))(?:\s*\(([^)]*)\)|\s+([^#]+))`)
+	rubyChainedCallPattern                = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:[A-Za-z_]\w*|@[A-Za-z_]\w*|self|[A-Z][A-Za-z0-9_:]*)(?:\.[A-Za-z_]\w*[!?=]?)+)\(([^()]*)\)\.([A-Za-z_]\w*[!?=]?)(?:\s*\(([^)]*)\)|\s+([^#]+))?`)
+	rubyScopedCallPattern                 = regexp.MustCompile(`([A-Z][A-Za-z0-9_:]*\.[A-Za-z_]\w*[!?=]?)\(`)
+	rubyQualifiedCallPattern              = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:[A-Za-z_]\w*|@[A-Za-z_]\w*|self|[A-Z][A-Za-z0-9_:]*)(?:\.[A-Za-z_]\w*)+[!?=]?)(?:\s*\(|\b|[\s;])`)
+	rubyBareCallPattern                   = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:require_relative|require|load|include|extend|attr_accessor|attr_reader|attr_writer|define_method|define_singleton_method|instance_method|instance_eval|cache_method|puts|sleep|method|public_send|send|super|bind))(?:\s*\(([^)]*)\)|\s+([^#]+))`)
+	rubyReceiverlessParenCallPattern      = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@.])([a-z_]\w*[!?]?)\s*\(([^)]*)\)`)
+	rubyReceiverlessAssignmentCallPattern = regexp.MustCompile(`=\s*([a-z_]\w*[!?]?)\s*(?:$|[#;,)])`)
+	rubyReceiverlessStatementCallPattern  = regexp.MustCompile(`^\s*([a-z_]\w*[!?]?)\s+([^#=]+)$`)
 )
 
 type rubyCallMatch struct {
@@ -113,8 +116,77 @@ func rubyParseCalls(line string) []rubyCallMatch {
 			args:     argsText,
 		})
 	}
+	for _, matches := range rubyReceiverlessParenCallPattern.FindAllStringSubmatch(line, -1) {
+		if len(matches) < 2 {
+			continue
+		}
+		fullName := strings.TrimSpace(matches[1])
+		if fullName == "" || rubyIsIgnoredReceiverlessCall(fullName) {
+			continue
+		}
+		if _, ok := seen[fullName]; ok {
+			continue
+		}
+		argsText := ""
+		if len(matches) >= 3 {
+			argsText = matches[2]
+		}
+		seen[fullName] = struct{}{}
+		calls = append(calls, rubyCallMatch{
+			name:     rubyCallName(fullName),
+			fullName: fullName,
+			args:     argsText,
+		})
+	}
+	for _, matches := range rubyReceiverlessAssignmentCallPattern.FindAllStringSubmatch(line, -1) {
+		if len(matches) != 2 {
+			continue
+		}
+		fullName := strings.TrimSpace(matches[1])
+		if fullName == "" || rubyIsIgnoredReceiverlessCall(fullName) {
+			continue
+		}
+		if _, ok := seen[fullName]; ok {
+			continue
+		}
+		seen[fullName] = struct{}{}
+		calls = append(calls, rubyCallMatch{
+			name:     rubyCallName(fullName),
+			fullName: fullName,
+		})
+	}
+	for _, matches := range rubyReceiverlessStatementCallPattern.FindAllStringSubmatch(line, -1) {
+		if len(matches) != 3 {
+			continue
+		}
+		fullName := strings.TrimSpace(matches[1])
+		if fullName == "" || rubyIsIgnoredReceiverlessCall(fullName) {
+			continue
+		}
+		if _, ok := seen[fullName]; ok {
+			continue
+		}
+		seen[fullName] = struct{}{}
+		calls = append(calls, rubyCallMatch{
+			name:     rubyCallName(fullName),
+			fullName: fullName,
+			args:     strings.TrimSpace(matches[2]),
+		})
+	}
 
 	return calls
+}
+
+func rubyIsIgnoredReceiverlessCall(name string) bool {
+	switch name {
+	case "and", "begin", "break", "case", "class", "def", "defined", "do", "else",
+		"elsif", "end", "ensure", "false", "for", "if", "in", "module", "next",
+		"nil", "not", "or", "redo", "rescue", "retry", "return", "self", "super",
+		"then", "true", "undef", "unless", "until", "when", "while", "yield":
+		return true
+	default:
+		return false
+	}
 }
 
 func rubyCallName(fullName string) string {

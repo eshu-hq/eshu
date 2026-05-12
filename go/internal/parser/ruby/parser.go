@@ -26,8 +26,10 @@ var (
 )
 
 type rubyBlock struct {
-	kind string
-	name string
+	kind       string
+	name       string
+	visibility string
+	item       map[string]any
 }
 
 // Parse reads path and returns the legacy Ruby parser payload.
@@ -56,20 +58,26 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 
 		if trimmed == "end" {
 			if len(blocks) > 0 {
+				rubyCloseBlock(blocks[len(blocks)-1], lineNumber)
 				blocks = blocks[:len(blocks)-1]
 			}
+			continue
+		}
+		if rubyVisibilityKeyword(trimmed) != "" {
+			rubySetCurrentClassVisibility(blocks, trimmed)
 			continue
 		}
 
 		if matches := rubyModulePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
 			name := rubyLastSegment(matches[1])
-			shared.AppendBucket(payload, "modules", map[string]any{
+			item := map[string]any{
 				"name":        name,
 				"line_number": lineNumber,
 				"end_line":    lineNumber,
 				"lang":        "ruby",
-			})
-			blocks = append(blocks, rubyBlock{kind: "module", name: name})
+			}
+			shared.AppendBucket(payload, "modules", item)
+			blocks = append(blocks, rubyBlock{kind: "module", name: name, visibility: "public", item: item})
 			continue
 		}
 
@@ -86,7 +94,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 				item["bases"] = []string{rubyLastSegment(matches[2])}
 			}
 			shared.AppendBucket(payload, "classes", item)
-			blocks = append(blocks, rubyBlock{kind: "class", name: name})
+			blocks = append(blocks, rubyBlock{kind: "class", name: name, visibility: "public", item: item})
 			continue
 		}
 
@@ -95,7 +103,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			if className == "" {
 				className = "self"
 			}
-			blocks = append(blocks, rubyBlock{kind: "singleton_class", name: className})
+			blocks = append(blocks, rubyBlock{kind: "singleton_class", name: className, visibility: "public"})
 			continue
 		}
 
@@ -117,18 +125,26 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 				"type":        functionType,
 				"args":        rubyParseArguments(matches[3]),
 			}
-			if contextName, contextType := rubyCurrentContext(blocks, "class", "module"); contextName != "" {
+			contextName, contextType := rubyCurrentContext(blocks, "class", "module")
+			visibility := "public"
+			if contextType == "class" {
+				visibility = rubyCurrentClassVisibility(blocks)
+			}
+			if contextName != "" {
 				item["context"] = contextName
 				item["context_type"] = contextType
 				if contextType == "class" {
 					item["class_context"] = contextName
 				}
 			}
+			if rootKinds := rubyFunctionDefinitionRootKinds(name, functionType, contextName, contextType, visibility); len(rootKinds) > 0 {
+				item["dead_code_root_kinds"] = rootKinds
+			}
 			if options.IndexSource {
 				item["source"] = rawLine
 			}
 			shared.AppendBucket(payload, "functions", item)
-			blocks = append(blocks, rubyBlock{kind: "def", name: name})
+			blocks = append(blocks, rubyBlock{kind: "def", name: name, item: item})
 			continue
 		}
 
@@ -140,6 +156,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			blocks = append(blocks, rubyBlock{kind: "block"})
 		}
 	}
+	annotateRubyDeadCodeRoots(payload, lines)
 
 	shared.SortNamedBucket(payload, "functions")
 	shared.SortNamedBucket(payload, "classes")
@@ -282,6 +299,9 @@ func appendRubyCalls(
 				item["class_context"] = contextName
 			}
 		}
+		if className := rubyCurrentBlockName(blocks, "class"); className != "" {
+			item["class_context"] = className
+		}
 		shared.AppendBucket(payload, "function_calls", item)
 	}
 }
@@ -293,6 +313,69 @@ func rubyCurrentBlockName(blocks []rubyBlock, kind string) string {
 		}
 	}
 	return ""
+}
+
+func rubyCloseBlock(block rubyBlock, lineNumber int) {
+	switch block.kind {
+	case "class", "def", "module":
+	default:
+		return
+	}
+	if block.item == nil || lineNumber <= 0 {
+		return
+	}
+	startLine := rubyLineNumberValue(block.item["line_number"])
+	if startLine > 0 && lineNumber < startLine {
+		return
+	}
+	block.item["end_line"] = lineNumber
+}
+
+func rubyLineNumberValue(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	default:
+		return 0
+	}
+}
+
+func rubyCurrentClassVisibility(blocks []rubyBlock) string {
+	for index := len(blocks) - 1; index >= 0; index-- {
+		if blocks[index].kind == "class" {
+			if blocks[index].visibility != "" {
+				return blocks[index].visibility
+			}
+			return "public"
+		}
+	}
+	return "public"
+}
+
+func rubySetCurrentClassVisibility(blocks []rubyBlock, visibility string) {
+	visibility = rubyVisibilityKeyword(visibility)
+	if visibility == "" {
+		return
+	}
+	for index := len(blocks) - 1; index >= 0; index-- {
+		if blocks[index].kind == "class" {
+			blocks[index].visibility = visibility
+			return
+		}
+	}
+}
+
+func rubyVisibilityKeyword(value string) string {
+	switch strings.TrimSpace(value) {
+	case "public", "private", "protected":
+		return strings.TrimSpace(value)
+	default:
+		return ""
+	}
 }
 
 func rubyCurrentContext(blocks []rubyBlock, kinds ...string) (string, string) {

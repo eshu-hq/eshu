@@ -79,6 +79,8 @@ Every dead-code analysis must classify roots into one or more of these groups:
   - C++ (currently modeled, bounded): functions and class methods declared in
     directly included local headers are public-API roots. Eshu does not yet
     resolve transitive include graphs or target-specific public surfaces.
+  - Ruby does not yet claim a broad public API surface. Rails controller
+    actions are modeled as framework roots, not general library exports.
   - Rust, Java, and broader language-specific public-surface rules remain
     Chunk 4 follow-up work.
 - conditional roots
@@ -157,8 +159,8 @@ can still be `derived_candidate_only` for dead-code cleanup until it has a
 dead-code fixture suite, root model, reachability proof, and API/MCP evidence.
 The initial maturity states are:
 
-- `derived`: current C, C++, Go, Python, Java, JavaScript, TypeScript, TSX, Rust,
-  and SQL candidate scans with partial root modeling
+- `derived`: current C, C++, Go, Python, Java, JavaScript, TypeScript, TSX, Ruby,
+  Rust, and SQL candidate scans with partial root modeling
 - `derived_candidate_only`: parser-supported source languages where Eshu can
   return graph-backed candidates but has not implemented enough language roots
   and fixtures for cleanup-safe answers
@@ -197,6 +199,14 @@ conditional compilation, build-target selection, transitive include graphs,
 template instantiation, overload resolution, virtual dispatch breadth, broader
 callback registration, dynamic symbol lookup, and external-linkage resolution
 are modeled or scoped out.
+
+Ruby currently reports `derived` with parser-backed roots for Rails controller
+actions, Rails callback methods declared by literal callback symbols, literal
+method-reference targets, `method_missing` / `respond_to_missing?` dynamic
+dispatch hooks, and functions called from `__FILE__ == $PROGRAM_NAME` script
+guards. It remains non-exact until broader metaprogramming, autoload and
+constant resolution, framework route files, and gem public API surfaces are
+modeled or scoped out.
 
 The current `code_quality.dead_code` capability is code-call oriented. It must
 not classify Terraform, Helm, Kustomize, Kubernetes, ArgoCD, or other IaC
@@ -285,6 +295,9 @@ Current branch status:
 - C++ main functions, directly included public-header declarations, virtual and
   override methods, callback arguments, and direct function-pointer initializer
   targets plus Node native-addon entrypoints are modeled as parser-backed roots
+- Ruby Rails controller actions, Rails callback methods, dynamic-dispatch hooks,
+  literal method-reference targets, and script entrypoints are modeled as
+  parser-backed roots
 - Java main methods, constructors, overrides, Spring/JUnit/Jenkins/Stapler
   callbacks, Gradle plugin/task surfaces, serialization and Externalizable
   hook signatures, bounded literal reflection, ServiceLoader providers, Spring

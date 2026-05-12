@@ -31,9 +31,11 @@
 // c.signal_handler, c.callback_argument_target, and c.function_pointer_target
 // roots, plus C++ cpp.main_function, cpp.public_header_api, cpp.virtual_method,
 // cpp.override_method, cpp.callback_argument_target, and
-// cpp.function_pointer_target roots, plus cpp.node_addon_entrypoint. C, C++,
-// and Rust now share the derived dead-code maturity tier with Go and Java while
-// exact cleanup remains gated on broader semantic resolution. Rust
+// cpp.function_pointer_target roots, plus cpp.node_addon_entrypoint, plus Ruby
+// Rails controller/callback roots, dynamic-dispatch hooks, literal
+// method-reference targets, and script entrypoints. C, C++, Ruby, and Rust now
+// share the derived dead-code maturity tier with Go and Java while exact cleanup
+// remains gated on broader semantic resolution. Rust
 // Cargo auxiliary target
 // files under benches/ and examples/
 // are treated like non-production roots for cleanup analysis. Rust exactness
@@ -45,7 +47,8 @@
 // callback registration, dynamic symbol lookup, and external linkage are
 // reported the same way. C++ exactness blockers add template instantiation,
 // overload resolution, and virtual dispatch breadth to those C-style blockers,
-// and candidates with observed blockers classify as
+// Ruby exactness blockers cover metaprogramming, autoload, framework routing,
+// gem public API, and constant resolution, and candidates with observed blockers classify as
 // ambiguous instead of cleanup-ready unused. SQL SqlFunction
 // routines are scanned as derived candidates, SQL dynamic/routine/migration
 // blockers are reported, and batched exact graph incoming probes let
@@ -73,7 +76,7 @@
 // result limits, and reports display truncation separately from bounded raw
 // candidate pages and rows so callers can tell whether the result list was
 // clipped or the candidate scan cap was reached. C root suppressions are
-// honored from content-store metadata after hydration, and C++ root
+// honored from content-store metadata after hydration, and C++ and Ruby root
 // suppressions use the same graph/content metadata path. That matches the
 // normal parser metadata path used by indexed repositories.
 // Infrastructure reads expose Terraform backend, import, moved, removed, check,

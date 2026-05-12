@@ -193,6 +193,11 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 		"rust.public_api_item",
 		"rust.trait_impl_method",
 		"rust.benchmark_function",
+		"ruby.rails_controller_action",
+		"ruby.rails_callback_method",
+		"ruby.dynamic_dispatch_hook",
+		"ruby.method_reference_target",
+		"ruby.script_entrypoint",
 		"typescript.interface_method_implementation",
 		"typescript.module_contract_export",
 		"typescript.static_registry_member",
@@ -226,7 +231,7 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	if !ok {
 		t.Fatalf("analysis[notes] type = %T, want []any", analysis["notes"])
 	}
-	for _, want := range []string{"c.public_header_api", "c.callback_argument_target", "cpp.public_header_api"} {
+	for _, want := range []string{"c.public_header_api", "c.callback_argument_target", "cpp.public_header_api", "Ruby Rails controller"} {
 		if !queryTestNotesContain(notes, want) {
 			t.Fatalf("analysis[notes] missing %q in %#v", want, notes)
 		}
