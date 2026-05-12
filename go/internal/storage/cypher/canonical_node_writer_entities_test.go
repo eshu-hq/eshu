@@ -374,7 +374,23 @@ func TestCanonicalNodeWriterCanInlineEntityContainmentAcrossFilesForPatchedBacke
 	}
 }
 
-func TestCanonicalNodeWriterSplitsShortestPathRowsIntoSingletonFallback(t *testing.T) {
+// TestCanonicalNodeWriterKeepsShortestPathRowsBatched is the inverted form of
+// the prior "SplitsShortestPathRowsIntoSingletonFallback" test. Before Path C,
+// the writer flushed pending batches whenever a row's EntityName contained the
+// substring "ShortestPath" and emitted that one row through the per-row
+// parameterized singleton template, splitting an otherwise-contiguous run of
+// 3 rows into 3 separate statements. The NornicDB-side regression test
+// TestUnwindMergeChainBatch_EshuSingletonFallbackUnnecessary proved this
+// fallback is unnecessary because parameterized cypher handles trigger
+// substrings safely (parameters are bound separately from cypher text per
+// the Bolt protocol). With the fallback removed, the writer keeps all three
+// rows together — batched up to the configured entity batch size — and emits
+// the standard UNWIND-batched canonical entity upsert.
+//
+// With WithEntityBatchSize(2), three rows produce exactly two batched
+// statements: one with 2 rows, one with 1 row, both UNWIND-shaped, no
+// singleton.
+func TestCanonicalNodeWriterKeepsShortestPathRowsBatched(t *testing.T) {
 	t.Parallel()
 
 	exec := &mockExecutor{}
@@ -445,36 +461,36 @@ func TestCanonicalNodeWriterSplitsShortestPathRowsIntoSingletonFallback(t *testi
 		}
 	}
 
-	if got, want := len(entityCalls), 3; got != want {
-		t.Fatalf("entity statement count = %d, want %d", got, want)
+	if got, want := len(entityCalls), 2; got != want {
+		t.Fatalf("entity statement count = %d, want %d (batch size 2 over 3 rows produces 2 batched statements)", got, want)
 	}
-
-	if !strings.Contains(entityCalls[0].Cypher, "UNWIND $rows AS row") {
-		t.Fatalf("first entity statement = %q, want batched UNWIND shape", entityCalls[0].Cypher)
+	for idx, call := range entityCalls {
+		if !strings.Contains(call.Cypher, "UNWIND $rows AS row") {
+			t.Fatalf("entity statement %d cypher = %q, want UNWIND-batched shape; no singleton fallback", idx, call.Cypher)
+		}
+		if strings.Contains(call.Cypher, "MERGE (n:Function {uid: $entity_id})") {
+			t.Fatalf("entity statement %d still uses singleton parameterized shape — trigger substring should no longer cause fallback", idx)
+		}
 	}
 	firstRows, ok := entityCalls[0].Parameters["rows"].([]map[string]any)
-	if !ok || len(firstRows) != 1 {
-		t.Fatalf("first batch rows = %#v, want 1 safe row", entityCalls[0].Parameters["rows"])
+	if !ok || len(firstRows) != 2 {
+		t.Fatalf("first batch rows = %#v, want 2 rows (entity-1 and entity-2 together)", entityCalls[0].Parameters["rows"])
 	}
-	if got := firstRows[0]["entity_id"]; got != "entity-1" {
-		t.Fatalf("first batch entity_id = %#v, want entity-1", got)
-	}
-
-	if !strings.Contains(entityCalls[1].Cypher, "MERGE (n:Function {uid: $entity_id})") {
-		t.Fatalf("second entity statement = %q, want singleton parameterized shape", entityCalls[1].Cypher)
-	}
-	if got := entityCalls[1].Parameters["entity_id"]; got != "entity-2" {
-		t.Fatalf("singleton entity_id = %#v, want entity-2", got)
-	}
-
-	if !strings.Contains(entityCalls[2].Cypher, "UNWIND $rows AS row") {
-		t.Fatalf("third entity statement = %q, want trailing batched UNWIND shape", entityCalls[2].Cypher)
-	}
-	lastRows, ok := entityCalls[2].Parameters["rows"].([]map[string]any)
+	lastRows, ok := entityCalls[1].Parameters["rows"].([]map[string]any)
 	if !ok || len(lastRows) != 1 {
-		t.Fatalf("last batch rows = %#v, want 1 safe row", entityCalls[2].Parameters["rows"])
+		t.Fatalf("second batch rows = %#v, want 1 row (entity-3)", entityCalls[1].Parameters["rows"])
 	}
-	if got := lastRows[0]["entity_id"]; got != "entity-3" {
-		t.Fatalf("last batch entity_id = %#v, want entity-3", got)
+	gotIDs := []string{firstRows[0]["entity_id"].(string), firstRows[1]["entity_id"].(string), lastRows[0]["entity_id"].(string)}
+	for _, want := range []string{"entity-1", "entity-2", "entity-3"} {
+		found := false
+		for _, got := range gotIDs {
+			if got == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("entity_id %q missing from batched rows (got %v); trigger substring no longer routes to singleton", want, gotIDs)
+		}
 	}
 }

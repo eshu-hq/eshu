@@ -234,13 +234,20 @@ MERGE (f)-[r:IMPORTS]->(m)
 SET r.imported_name = row.imported_name, r.alias = row.alias, r.line_number = row.line_number,
     r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id`
 
+// canonicalNodeHasParameterEdgeCypher upserts Parameter nodes and the
+// HAS_PARAMETER relationship from Function to Parameter. The SET assignments
+// for p and rel are split into two clauses (one per target variable) so
+// NornicDB's executeUnwindMergeChainBatch fast path engages — its
+// parseUnwindSimpleSetAssignments helper enforces single-variable SET bodies
+// and bails the whole chain-batch plan on a multi-variable SET. The split is
+// semantically equivalent per Cypher spec.
 const canonicalNodeHasParameterEdgeCypher = `UNWIND $rows AS row
 MATCH (fn:Function {name: row.func_name, path: row.file_path, line_number: row.func_line})
 MERGE (p:Parameter {name: row.param_name, path: row.file_path, function_line_number: row.func_line})
-MERGE (fn)-[rel:HAS_PARAMETER]->(p)
 SET p.evidence_source = 'projector/canonical',
-    p.generation_id = row.generation_id,
-    rel.evidence_source = 'projector/canonical',
+    p.generation_id = row.generation_id
+MERGE (fn)-[rel:HAS_PARAMETER]->(p)
+SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`
 
 const canonicalNodeClassContainsFuncEdgeCypher = `UNWIND $rows AS row
