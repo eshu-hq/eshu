@@ -10,9 +10,9 @@
 // envelopes, truth metadata, capability gates, and code-quality classifications
 // are stable wire contracts. The dead-code OpenAPI fragment names modeled
 // language roots and keeps the language filter examples aligned with C#, C,
-// Groovy, Dart, Elixir, PHP, and SQL query behavior. That filter is part of the
-// dogfood contract for validating one language family without earlier candidate
-// labels filling the page. Dead-code responses preserve language maturity, modeled
+// Dart, Haskell, Kotlin, Elixir, PHP, Groovy, and SQL query behavior. That
+// filter is part of the dogfood contract for validating one language family
+// without earlier candidate labels filling the page. Dead-code responses preserve language maturity, modeled
 // framework-root lists, and root-kind evidence for functions and types so
 // callers can separate cleanup candidates from modeled roots; TypeScript
 // public API export, public API re-export, public type-reference, interface
@@ -46,11 +46,12 @@
 // Flutter build/createState, and public library API roots, plus Ruby
 // Rails controller/callback roots, dynamic-dispatch hooks, literal
 // method-reference targets, and script entrypoints, plus Groovy Jenkinsfile
-// pipeline entrypoints and vars/*.groovy shared-library call roots, plus PHP
-// script entrypoints, constructors, known magic methods, same-file
+// pipeline entrypoints and vars/*.groovy shared-library call roots, plus
+// Haskell main, explicit module-export, exported type, typeclass method, and
+// instance method roots, plus PHP script entrypoints, constructors, known magic methods, same-file
 // interface/trait methods, route-backed controller actions, route handlers,
 // Symfony route attributes, and WordPress hook callbacks. C, C++, PHP, Ruby,
-// and Rust now share the derived dead-code maturity tier with Go and Java while
+// Haskell, and Rust now share the derived dead-code maturity tier with Go and Java while
 // exact cleanup remains gated on broader semantic resolution.
 // C#, Kotlin, Scala, and Elixir share that tier through parser-backed roots for
 // common framework and language entrypoints; Elixir Application, OTP, Phoenix
@@ -90,7 +91,9 @@
 // Ruby exactness blockers cover metaprogramming, autoload, framework routing,
 // gem public API, and constant resolution, Groovy exactness blockers cover
 // dynamic dispatch, closure delegates, Jenkins shared libraries, and pipeline
-// DSL dynamic steps, and candidates with observed blockers classify as
+// DSL dynamic steps, Haskell blockers cover Template Haskell, CPP conditional
+// compilation, Cabal component membership, implicit module exports, typeclass
+// dispatch, module re-exports, and FFI callbacks, and candidates with observed blockers classify as
 // ambiguous instead of cleanup-ready unused. SQL SqlFunction
 // routines are scanned as derived candidates, SQL dynamic/routine/migration
 // blockers are reported, and batched exact graph incoming probes let
@@ -119,8 +122,8 @@
 // candidate pages and rows so callers can tell whether the result list was
 // clipped or the candidate scan cap was reached. C root suppressions are
 // honored from content-store metadata after hydration, and C#, C++, Kotlin,
-// Scala, Elixir, PHP, Ruby, and Groovy root suppressions use the same graph/content
-// metadata path.
+// Scala, Elixir, Haskell, PHP, Ruby, and Groovy root suppressions use the same
+// graph/content metadata path.
 // That matches the
 // normal parser metadata path used by indexed repositories.
 // Infrastructure reads expose Terraform backend, import, moved, removed, check,

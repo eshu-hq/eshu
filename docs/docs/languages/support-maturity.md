@@ -31,7 +31,7 @@ For audited family-level closure status and bounded gaps, see
 | Elixir | `DefaultEngine (elixir)` | supported | supported | supported | Phoenix, GenServer, Supervisor, Mix, protocols | supported | fixture-backed | supported |
 | Go | `DefaultEngine (go)` | supported | supported | - | - | supported | supported | supported |
 | Groovy | `DefaultEngine (groovy)` | - | - | - | - | - | - | - |
-| Haskell | `DefaultEngine (haskell)` | - | - | - | - | - | - | - |
+| Haskell | `DefaultEngine (haskell)` | supported | supported | supported | module exports, typeclasses, instances | supported | fixture-backed | supported |
 | Helm | `DefaultEngine (yaml)` | - | - | - | - | - | - | - |
 | Java | `DefaultEngine (java)` | supported | supported | supported | Spring, Gradle, JUnit, Jenkins, Stapler, ServiceLoader, serialization, bounded reflection | supported | supported | supported |
 | JavaScript | `DefaultEngine (javascript)` | supported | supported | supported | `react-base`, `nextjs-app-router-base`, `express-base`, `hapi-base`, `aws-sdk-base`, `gcp-sdk-base` | supported | supported | supported |
@@ -95,6 +95,12 @@ Flutter route/lifecycle wiring, generated code, reflection/mirrors, and broad
 public API surfaces are modeled or scoped out. Issue #98 dogfood validated this
 path against Flutter and `dart-lang/http` with fresh `derived` dead-code API
 truth from isolated Compose runs.
+Haskell dead-code support is `derived`: parser metadata models `main`, explicit
+module-exported functions and types, typeclass method declarations, and
+instance methods. Function-call rows are bounded lexical evidence from
+definition right-hand sides. Exact cleanup remains blocked by Template Haskell,
+CPP conditional compilation, Cabal component membership, implicit module export
+surfaces, typeclass dispatch, module re-export resolution, and FFI callbacks.
 SQL real-repo and end-to-end indexing are `supported` on the current Go
 parser/query path. The remaining dbt lineage limits are bounded non-goals for
 the documented SQL surface.

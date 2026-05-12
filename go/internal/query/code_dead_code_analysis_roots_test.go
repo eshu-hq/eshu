@@ -265,6 +265,11 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 		"ruby.script_entrypoint",
 		"groovy.jenkins_pipeline_entrypoint",
 		"groovy.shared_library_call",
+		"haskell.main_function",
+		"haskell.module_export",
+		"haskell.exported_type",
+		"haskell.typeclass_method",
+		"haskell.instance_method",
 		"php.script_entrypoint",
 		"php.constructor",
 		"php.magic_method",
@@ -311,6 +316,12 @@ func TestHandleDeadCodeReportsModeledGoFrameworkRootsInAnalysis(t *testing.T) {
 	}
 	if !queryTestStringSliceContains(modeledPublicAPI, "dart.public_library_api") {
 		t.Fatalf("analysis[modeled_public_api] missing dart.public_library_api in %#v", modeledPublicAPI)
+	}
+	if !queryTestStringSliceContains(modeledPublicAPI, "haskell.module_export") {
+		t.Fatalf("analysis[modeled_public_api] missing haskell.module_export in %#v", modeledPublicAPI)
+	}
+	if !queryTestStringSliceContains(modeledPublicAPI, "haskell.exported_type") {
+		t.Fatalf("analysis[modeled_public_api] missing haskell.exported_type in %#v", modeledPublicAPI)
 	}
 	if got, want := analysis["framework_roots_from_parser_metadata"], float64(0); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)

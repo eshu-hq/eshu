@@ -13,6 +13,11 @@
   package, but this package must not import internal/parser.
 - Parse preserves modules as their own bucket and data/class declarations as
   class rows.
+- Function-call rows are bounded lexical evidence from definition right-hand
+  sides, not compiler-resolved Haskell name binding.
+- Dead-code root metadata is limited to explicit module exports, `main`,
+  typeclass methods, and instance methods. Do not mark every top-level
+  declaration in implicit-export modules as public API.
 - PreScan derives names from Parse so parent pre-scan and full parse agree.
 
 ## Common changes and how to scope them
