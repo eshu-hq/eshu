@@ -14,9 +14,9 @@ import (
 // terraformstate.CompositeCaptureRecorder used by ClaimedSource. It forwards
 // every Record call to the eshu_dp_drift_schema_unknown_composite_total
 // counter and to a structured slog.Warn so operators can see provider-schema
-// drift the moment it shows up in real state JSON. Without this recorder, the
-// streaming nested walker silently skips composites the bundle does not know
-// about and bucket E (attribute_drift) regresses for those attributes.
+// drift, redaction-policy drops, and walker shape mismatches the moment they
+// show up in real state JSON. Without this recorder, composite skips have no
+// operator-visible trail and bucket E (attribute_drift) can regress.
 type compositeCaptureLoggingRecorder struct {
 	counter metric.Int64Counter
 	logger  *slog.Logger
@@ -24,13 +24,24 @@ type compositeCaptureLoggingRecorder struct {
 
 // Record implements terraformstate.CompositeCaptureRecorder.
 //
-// The counter carries the resource_type label only; high-cardinality
-// attribute_key, the source path, and the diagnostic error string stay in the
-// structured log attrs per CLAUDE.md observability rules.
+// The counter carries two bounded labels: resource_type (bounded by the
+// loaded schema bundle) and reason (closed enum:
+// terraformstate.CompositeCaptureSkipReason* values). High-cardinality
+// attribute_key, the source path, and the diagnostic error string stay in
+// the structured log attrs per CLAUDE.md observability rules.
 func (r compositeCaptureLoggingRecorder) Record(ctx context.Context, skip terraformstate.CompositeCaptureSkip) {
+	reason := skip.Reason
+	if reason == "" {
+		// Defensive default: pre-reason callers (or fixtures that did not
+		// set the field) get attributed to schema_unknown, which matches
+		// the original counter's interpretation before the dimension was
+		// added.
+		reason = terraformstate.CompositeCaptureSkipReasonSchemaUnknown
+	}
 	if r.counter != nil {
 		r.counter.Add(ctx, 1, metric.WithAttributes(
 			telemetry.AttrResourceType(skip.ResourceType),
+			telemetry.AttrCompositeSkipReason(reason),
 		))
 	}
 	if r.logger != nil {
@@ -38,14 +49,27 @@ func (r compositeCaptureLoggingRecorder) Record(ctx context.Context, skip terraf
 			slog.String(telemetry.LogKeyDriftCompositeResourceType, skip.ResourceType),
 			slog.String(telemetry.LogKeyDriftCompositeAttributeKey, skip.AttributeKey),
 			slog.String(telemetry.LogKeyDriftCompositePath, skip.Path),
+			slog.String(telemetry.LogKeyDriftCompositeReason, reason),
 		}
 		if skip.Err != nil {
 			attrs = append(attrs, slog.String(telemetry.LogKeyDriftCompositeError, skip.Err.Error()))
 		}
-		r.logger.LogAttrs(ctx, slog.LevelWarn,
-			"terraform-state composite skipped: provider schema does not cover (resource_type, attribute_key)",
-			attrs...,
-		)
+		r.logger.LogAttrs(ctx, slog.LevelWarn, compositeCaptureSkipMessage(reason), attrs...)
+	}
+}
+
+func compositeCaptureSkipMessage(reason string) string {
+	switch reason {
+	case terraformstate.CompositeCaptureSkipReasonSchemaUnknown:
+		return "terraform-state composite skipped: provider schema does not cover (resource_type, attribute_key)"
+	case terraformstate.CompositeCaptureSkipReasonWalkerError:
+		return "terraform-state composite skipped: state JSON shape disagreed with provider schema mid-walk"
+	case terraformstate.CompositeCaptureSkipReasonSensitiveSource:
+		return "terraform-state composite skipped: redaction policy dropped sensitive source path"
+	case terraformstate.CompositeCaptureSkipReasonUnknownRuleSet:
+		return "terraform-state composite skipped: redaction rules are not initialized"
+	default:
+		return "terraform-state composite skipped"
 	}
 }
 

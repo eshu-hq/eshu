@@ -10,7 +10,7 @@
 // DefaultSchemaDir resolves the packaged schemas directory from the source
 // file location and lets ESHU_TERRAFORM_SCHEMA_DIR override that path for
 // focused schema tests. EmbeddedSchemasFS returns the same bundle through
-// go:embed so containerized runtime binaries (e.g.,
+// Go embed so containerized runtime binaries (e.g.,
 // collector-terraform-state) can resolve provider attribute coverage
 // without a source-tree path; the disk lookup remains canonical for
 // build-time tooling and tests.

@@ -1288,6 +1288,14 @@ func AttrResourceType(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionResourceType, v)
 }
 
+// AttrCompositeSkipReason returns a reason attribute for
+// eshu_dp_drift_schema_unknown_composite_total. The value must come from the
+// closed enum in terraformstate (CompositeCaptureSkipReason* constants) so
+// cardinality stays bounded.
+func AttrCompositeSkipReason(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionCompositeSkipReason, v)
+}
+
 // RecordGOMEMLIMIT registers and records the applied GOMEMLIMIT as a gauge.
 // Call once at startup after instruments and memlimit are configured.
 func RecordGOMEMLIMIT(meter metric.Meter, limitBytes int64) error {

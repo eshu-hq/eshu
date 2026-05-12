@@ -59,7 +59,7 @@ The collector's AWS SDK v2 client defaults to virtual-hosted addressing
 (`https://<bucket>.<endpoint-host>/...`). The compose overlay routes that
 through compose-network aliases: `eshu-drift-a`, `eshu-drift-b`,
 `eshu-drift-d`, and `eshu-drift-e` all resolve to the minio container, so
-the SDK's `GET http://eshu-drift-a:9000/prod/terraform.tfstate` works
+the SDK's `GET http://eshu-drift-a.minio:9000/prod/terraform.tfstate` works
 without a path-style flag.
 
 ## Tfstate JSON shape

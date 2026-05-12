@@ -28,7 +28,7 @@ func (p *stateParser) readCompositeValue(opening json.Delim, resourceType string
 	// delimiter has already been consumed by readAttributeBody, so depth
 	// starts at one regardless of how deep the walker bailed.
 	_ = drainBalancedScope(p.decoder)
-	p.recordCompositeShapeMismatch(resourceType, attributeKey, walkErr)
+	p.recordCompositeSkip(resourceType, attributeKey, CompositeCaptureSkipReasonWalkerError, walkErr)
 	return nil, errCompositeShapeMismatch
 }
 
@@ -125,7 +125,13 @@ func drainBalancedScope(decoder *json.Decoder) error {
 	return nil
 }
 
-func (p *stateParser) recordCompositeShapeMismatch(resourceType string, attributeKey string, err error) {
+// recordCompositeSkip emits a CompositeCaptureSkip with the closed-enum
+// Reason label so the recorder can disambiguate the operator-visible cases
+// (schema_unknown vs. shape_mismatch) on the
+// eshu_dp_drift_schema_unknown_composite_total counter. The high-cardinality
+// attribute_key, source path, and walker error string stay in the
+// structured-log companion attached to the same Record call.
+func (p *stateParser) recordCompositeSkip(resourceType string, attributeKey string, reason string, err error) {
 	if p.options.CompositeCaptureMetrics == nil {
 		return
 	}
@@ -133,6 +139,7 @@ func (p *stateParser) recordCompositeShapeMismatch(resourceType string, attribut
 		ResourceType: resourceType,
 		AttributeKey: attributeKey,
 		Path:         "resources.*.attributes." + attributeKey,
+		Reason:       reason,
 		Err:          err,
 	})
 }

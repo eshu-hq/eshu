@@ -24,10 +24,10 @@
 // is still classified through RedactionRules.Classify so a
 // sensitive-key segment (e.g., "password" under aws_iam_user.
 // login_profile) is HMAC-stamped at the leaf. Composites the resolver
-// does not cover keep the existing skipNested path and increment the
-// eshu_dp_drift_schema_unknown_composite_total counter through the
-// caller-supplied CompositeCaptureRecorder so operators can detect
-// provider-schema drift. ADR
+// does not cover, composites the top-level redaction decision drops, and
+// schema-known composites the walker cannot consume are all reported through
+// the caller-supplied CompositeCaptureRecorder with a bounded reason label.
+// ADR
 // 2026-05-12-tfstate-parser-composite-capture-for-schema-known-paths
 // owns the contract.
 //

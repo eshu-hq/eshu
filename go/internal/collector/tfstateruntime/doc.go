@@ -11,10 +11,9 @@
 //
 // ClaimedSource also wires a CompositeCaptureRecorder into ParseOptions
 // (compositeCaptureLoggingRecorder in composite_capture_recorder.go) so the
-// streaming nested walker can increment
-// eshu_dp_drift_schema_unknown_composite_total and emit a slog.Warn line
-// whenever a composite attribute the loaded ProviderSchemaResolver does not
-// cover arrives in real state JSON. The counter is the operator-visible
-// signal for provider-schema drift; the log carries the high-cardinality
-// attribute_key and source path that stay out of metric labels.
+// parser can increment eshu_dp_drift_schema_unknown_composite_total with a
+// bounded reason label and emit a slog.Warn line whenever it drops a composite
+// before capture or the streaming nested walker stops mid-capture. The log
+// carries the high-cardinality attribute_key and source path that stay out of
+// metric labels.
 package tfstateruntime

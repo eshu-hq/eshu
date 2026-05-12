@@ -83,29 +83,73 @@ type ProviderSchemaResolver interface {
 	HasAttribute(resourceType string, attributeKey string) bool
 }
 
-// CompositeCaptureSkip describes one moment where the streaming nested walker
-// stopped walking a SchemaKnown Terraform-state composite because the state
-// JSON shape disagreed with the schema's expectation. Carries the diagnostic
-// detail (path, attribute key, parse error) operators need to investigate a
-// "bundle and state disagree" condition without exposing high-cardinality
-// dimensions through metric labels.
+// SchemaResolverEntryCounter is an optional capability for
+// ProviderSchemaResolver implementations that can report how many resource
+// types they cover. The production packagedSchemaResolver implements this;
+// fixture stubs typically do not, in which case the
+// eshu_dp_tfstate_schema_resolver_entries gauge is not registered.
+type SchemaResolverEntryCounter interface {
+	EntryCount() int
+}
+
+// CompositeCaptureSkip describes one moment where the parser dropped a
+// Terraform-state composite before capture or where the streaming nested
+// walker stopped mid-capture. Schema-unknown and sensitive-source decisions
+// happen before walking; walker-error decisions happen after schema and
+// redaction gates allow capture but the state JSON cannot be consumed as the
+// expected shape. Carries the diagnostic detail operators need without
+// exposing high-cardinality dimensions through metric labels.
+//
+// The Reason field carries the closed enum that disambiguates the cases
+// for telemetry. Producers MUST set Reason to one of the
+// CompositeCaptureSkipReason* values below; recorders MUST echo Reason as
+// the `reason` metric label.
 type CompositeCaptureSkip struct {
 	ResourceType string
 	AttributeKey string
 	Path         string
+	Reason       string
 	Err          error
 }
 
-// CompositeCaptureRecorder is the observability seam the streaming nested
-// walker uses when it stops walking a SchemaKnown composite. Implementations
-// must be safe for concurrent use; one recorder is shared across every
-// Terraform-state parse the collector runs.
+// CompositeCaptureSkipReason values are the closed enum for the
+// CompositeCaptureSkip.Reason field and the `reason` label on the
+// eshu_dp_drift_schema_unknown_composite_total counter. Adding a new value
+// requires updating recorder call sites and the contract documentation.
+const (
+	// CompositeCaptureSkipReasonSchemaUnknown is recorded when the loaded
+	// ProviderSchemaResolver does not cover the (resource_type,
+	// attribute_key) pair. The bundle is behind reality; drift detection
+	// for that attribute will regress until the bundle is refreshed.
+	CompositeCaptureSkipReasonSchemaUnknown = "schema_unknown"
+	// CompositeCaptureSkipReasonWalkerError is recorded when the walker
+	// recognizes the composite but the state JSON shape disagreed with the
+	// schema mid-walk. The walker drains the malformed sub-document so the
+	// outer decoder stays consumable.
+	CompositeCaptureSkipReasonWalkerError = "shape_mismatch"
+	// CompositeCaptureSkipReasonSensitiveSource is recorded when the redaction
+	// policy classifies the top-level composite source path as sensitive
+	// before the streaming nested walker starts.
+	CompositeCaptureSkipReasonSensitiveSource = redact.ReasonKnownSensitiveKey
+	// CompositeCaptureSkipReasonUnknownRuleSet is recorded when redaction
+	// rules are not initialized, so composite capture fails closed.
+	CompositeCaptureSkipReasonUnknownRuleSet = redact.ReasonUnknownRuleSet
+	// CompositeCaptureSkipReasonUnknownFieldKind is recorded when the
+	// redaction policy rejects the field shape classification.
+	CompositeCaptureSkipReasonUnknownFieldKind = redact.ReasonUnknownFieldKind
+)
+
+// CompositeCaptureRecorder is the observability seam the parser uses when it
+// skips a composite before capture or when the streaming nested walker stops
+// walking a SchemaKnown composite. Implementations must be safe for concurrent
+// use; one recorder is shared across every Terraform-state parse the collector
+// runs.
 //
 // The collector wires a recorder that increments the
-// eshu_dp_drift_schema_unknown_composite_total{resource_type} counter and
-// emits a slog.Warn line with the high-cardinality attribute_key and source
-// path. A nil recorder is allowed (early bootstrap, fixtures without
-// telemetry); the parser treats nil as a no-op.
+// eshu_dp_drift_schema_unknown_composite_total counter with resource_type and
+// reason labels and emits a slog.Warn line with the high-cardinality
+// attribute_key and source path. A nil recorder is allowed (early bootstrap,
+// fixtures without telemetry); the parser treats nil as a no-op.
 type CompositeCaptureRecorder interface {
 	Record(ctx context.Context, skip CompositeCaptureSkip)
 }

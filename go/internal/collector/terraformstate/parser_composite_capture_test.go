@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 // stubCompositeCaptureRecorder counts recorded composite-capture skips so
@@ -215,6 +216,61 @@ func TestParserRedactsSensitiveLeafInsideSchemaKnownComposite(t *testing.T) {
 	}
 }
 
+// TestParserDropsSensitiveCompositeBeforeWalking guards the parser boundary
+// before the streaming nested walker runs. A schema-known composite whose
+// source path is classified as sensitive must be dropped from the decoder
+// stream without first materializing the raw subtree. The source-path form here
+// matches the parser's pre-address composite source because the final resource
+// address is not available until the whole instance has been read.
+func TestParserDropsSensitiveCompositeBeforeWalking(t *testing.T) {
+	t.Parallel()
+
+	options := parseFixtureOptions(t)
+	rules, err := redact.NewRuleSet("test-schema", []string{
+		"resources.*.attributes.secret_block",
+	})
+	if err != nil {
+		t.Fatalf("NewRuleSet() error = %v, want nil", err)
+	}
+	options.RedactionRules = rules
+	options.SchemaResolver = newStubResolver(
+		[2]string{"aws_iam_user", "secret_block"},
+	)
+
+	state := `{
+		"serial":17,
+		"lineage":"lineage-123",
+		"resources":[{
+			"mode":"managed",
+			"type":"aws_iam_user",
+			"name":"app",
+			"instances":[{
+				"attributes":{
+					"secret_block":{"token":"plain-text-token"}
+				}
+			}]
+		}]
+	}`
+
+	result, err := terraformstate.Parse(context.Background(), strings.NewReader(state), options)
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	assertNoRawSecret(t, result.Facts, "plain-text-token")
+
+	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	attributes, ok := resource.Payload["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
+	}
+	if _, present := attributes["secret_block"]; present {
+		t.Fatalf("attributes[secret_block] present = %#v, want dropped sensitive composite", attributes["secret_block"])
+	}
+	if got := result.RedactionsApplied[redact.ReasonKnownSensitiveKey]; got == 0 {
+		t.Fatalf("RedactionsApplied[%s] = 0, want sensitive composite drop recorded", redact.ReasonKnownSensitiveKey)
+	}
+}
+
 // TestParserPreservesMultiElementCompositeForDownstreamFlattenerTruncation is
 // the ambiguous-case proof. When a schema-known repeated block has multiple
 // elements (e.g., aws_security_group.ingress), the walker emits the full array
@@ -319,5 +375,45 @@ func TestParserRecordsCounterOnSchemaUnknownComposite(t *testing.T) {
 	}
 	if got, want := recorder.last.AttributeKey, "server_side_encryption_configuration"; got != want {
 		t.Fatalf("recorder.last.AttributeKey = %q, want %q", got, want)
+	}
+	if got, want := recorder.last.Reason, terraformstate.CompositeCaptureSkipReasonSchemaUnknown; got != want {
+		t.Fatalf("recorder.last.Reason = %q, want %q", got, want)
+	}
+}
+
+func TestParserRecordsWalkerErrorReasonOnMalformedSchemaKnownComposite(t *testing.T) {
+	t.Parallel()
+
+	recorder := &stubCompositeCaptureRecorder{}
+	options := parseFixtureOptions(t)
+	options.SchemaResolver = newStubResolver(
+		[2]string{"aws_s3_bucket", "server_side_encryption_configuration"},
+	)
+	options.CompositeCaptureMetrics = recorder
+
+	state := `{
+		"serial":17,
+		"lineage":"lineage-123",
+		"resources":[{
+			"mode":"managed",
+			"type":"aws_s3_bucket",
+			"name":"logs",
+			"instances":[{
+				"attributes":{
+					"server_side_encryption_configuration":[
+						{"rule":[{"apply_server_side_encryption_by_default":[{"sse_algorithm":"AES256"}]}]}
+				}
+			}]
+		}]
+	}`
+
+	if _, err := terraformstate.Parse(context.Background(), strings.NewReader(state), options); err == nil {
+		t.Fatal("Parse() error = nil, want malformed composite error")
+	}
+	if got := atomic.LoadInt64(&recorder.calls); got == 0 {
+		t.Fatalf("recorder.calls = 0, want walker error recorded")
+	}
+	if got, want := recorder.last.Reason, terraformstate.CompositeCaptureSkipReasonWalkerError; got != want {
+		t.Fatalf("recorder.last.Reason = %q, want %q", got, want)
 	}
 }

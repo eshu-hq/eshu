@@ -86,6 +86,30 @@ const (
 	// high-cardinality attribute_key stays in the structured log per the
 	// observability rules in CLAUDE.md.
 	MetricDimensionResourceType = "resource_type"
+	// MetricDimensionCompositeSkipReason labels
+	// eshu_dp_drift_schema_unknown_composite_total with a closed enum that
+	// disambiguates why the streaming nested walker dropped a composite. The
+	// cases carry different operator signals:
+	//   - schema_unknown: the resolver does not recognize the (resource_type,
+	//     attribute_key) pair; refresh the provider-schema bundle.
+	//   - shape_mismatch: the resolver recognizes the pair, but the state
+	//     JSON shape disagreed with the schema and the walker bailed mid-walk;
+	//     investigate the state file and the walker error.
+	//   - known_sensitive_key: the redaction policy classified the top-level
+	//     composite source path as sensitive before the walker started.
+	//   - unknown_redaction_ruleset or unknown_field_kind: redaction policy
+	//     setup was incomplete or unsafe, so the parser failed closed.
+	// Cardinality is bounded by the closed enum. The closed-enum values live
+	// in terraformstate.CompositeCaptureSkipReason* and producers MUST use
+	// those constants.
+	//
+	// The wire key intentionally shares the "reason" string with
+	// MetricDimensionReason and MetricDimensionDriftUnresolvedModuleReason
+	// because the metricDimensionKeys() registry deduplicates on the wire
+	// label; the constant exists so the composite counter's semantic
+	// dimension is anchored to this contract and grep-by-constant locates
+	// every counter that uses it.
+	MetricDimensionCompositeSkipReason = "reason"
 )
 
 // Span names define the stable data-plane tracing contract.
@@ -224,6 +248,12 @@ const (
 	// Closed enum at the parser boundary; future emitters may add new
 	// classes.
 	LogKeyDriftCompositeError = "error"
+	// LogKeyDriftCompositeReason is the closed-enum reason emitted on the
+	// same log line as the eshu_dp_drift_schema_unknown_composite_total
+	// counter's `reason` label so operators reading either signal see the
+	// same value. The closed-enum values live in
+	// terraformstate.CompositeCaptureSkipReason*.
+	LogKeyDriftCompositeReason = "reason"
 )
 
 var metricDimensionKeys = []string{

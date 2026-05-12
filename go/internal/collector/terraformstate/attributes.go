@@ -9,12 +9,14 @@ import (
 )
 
 type attributeValue struct {
-	Key           string
-	Value         any
-	Scalar        bool
-	TagMap        bool
-	Tags          []tagValue
-	InvalidTagMap bool
+	Key                   string
+	Value                 any
+	Scalar                bool
+	TagMap                bool
+	Tags                  []tagValue
+	InvalidTagMap         bool
+	Preclassified         bool
+	PreclassifiedDecision redact.Decision
 }
 
 // readAttributeValues consumes the JSON object after "attributes" for one
@@ -51,11 +53,17 @@ func (p *stateParser) readAttributeValues(resourceType string) ([]attributeValue
 			}
 			attributes = append(attributes, attributeValue{Key: key, TagMap: true, Tags: tags, InvalidTagMap: !valid})
 		default:
-			value, scalar, err := p.readAttributeBody(resourceType, key)
+			value, scalar, decision, preclassified, err := p.readAttributeBody(resourceType, key)
 			if err != nil {
 				return nil, fmt.Errorf("decode terraform state resource attribute %q: %w", key, err)
 			}
-			attributes = append(attributes, attributeValue{Key: key, Value: value, Scalar: scalar})
+			attributes = append(attributes, attributeValue{
+				Key:                   key,
+				Value:                 value,
+				Scalar:                scalar,
+				Preclassified:         preclassified,
+				PreclassifiedDecision: decision,
+			})
 		}
 	}
 	if _, err := p.decoder.Token(); err != nil {
@@ -67,49 +75,83 @@ func (p *stateParser) readAttributeValues(resourceType string) ([]attributeValue
 // readAttributeBody decides at the attribute boundary whether the next JSON
 // token belongs in a SchemaKnown composite-capture path or in the existing
 // skip-on-composite fail-closed path. Scalars always pass through unchanged.
-func (p *stateParser) readAttributeBody(resourceType string, key string) (any, bool, error) {
+func (p *stateParser) readAttributeBody(resourceType string, key string) (any, bool, redact.Decision, bool, error) {
 	token, err := p.decoder.Token()
 	if err != nil {
-		return nil, false, err
+		return nil, false, redact.Decision{}, false, err
 	}
 	delim, isDelim := token.(json.Delim)
 	if !isDelim {
-		return token, true, nil
+		return token, true, redact.Decision{}, false, nil
 	}
 	if delim != '{' && delim != '[' {
-		return nil, false, fmt.Errorf("unsupported json delimiter %q at terraform state attribute %q", delim, key)
+		return nil, false, redact.Decision{}, false, fmt.Errorf("unsupported json delimiter %q at terraform state attribute %q", delim, key)
 	}
-	if !p.schemaKnownCompositeCapture(resourceType, key) {
-		p.recordCompositeShapeMismatch(resourceType, key, errCompositeSchemaUnknown)
-		return nil, false, skipNested(p.decoder, delim)
+	decision := p.compositeCaptureDecision(resourceType, key)
+	if decision.Action != redact.ActionPreserve {
+		p.recordCompositeSkip(resourceType, key, compositeSkipCause(decision), compositeSkipError(decision))
+		return nil, false, decision, true, skipNested(p.decoder, delim)
 	}
 	value, err := p.readCompositeValue(delim, resourceType, key)
 	if err != nil {
 		if errors.Is(err, errCompositeShapeMismatch) {
 			// Walker already balanced the open delimiter and recorded
-			// telemetry; surface the attribute as a nil composite so the
-			// downstream classifier treats it identically to the previous
-			// skipNested behavior.
-			return nil, false, nil
+			// telemetry; keep the value absent so the downstream classifier
+			// treats it identically to the previous skipNested behavior.
+			walkerDecision := redact.Decision{
+				Action: redact.ActionDrop,
+				Reason: CompositeCaptureSkipReasonWalkerError,
+				Source: compositeAttributeSource(key),
+			}
+			return nil, false, walkerDecision, true, nil
 		}
-		return nil, false, err
+		return nil, false, redact.Decision{}, false, err
 	}
-	return value, false, nil
+	return value, false, redact.Decision{}, false, nil
 }
 
-// schemaKnownCompositeCapture returns true when the streaming nested walker
-// should capture the composite at (resourceType, key) instead of skipping it.
-// A SchemaKnown composite whose top-level source path matches a sensitive
-// key (e.g., resources.<addr>.attributes.password_history) still skips so
-// the redact policy's per-source segment match never sees the raw value.
-func (p *stateParser) schemaKnownCompositeCapture(resourceType string, key string) bool {
-	if p.schemaTrust(resourceType, key) != redact.SchemaKnown {
-		return false
+// compositeCaptureDecision returns the redaction decision available at the
+// streaming boundary before the final resource address is known. The source is
+// intentionally the parser-local wildcard path used by composite skip logs; a
+// drop decision here must run before the walker sees raw nested values.
+func (p *stateParser) compositeCaptureDecision(resourceType string, key string) redact.Decision {
+	return p.options.RedactionRules.Classify(
+		compositeAttributeSource(key),
+		p.schemaTrust(resourceType, key),
+		redact.FieldComposite,
+	)
+}
+
+func compositeAttributeSource(key string) string {
+	return "resources.*.attributes." + key
+}
+
+func compositeSkipCause(decision redact.Decision) string {
+	switch decision.Reason {
+	case redact.ReasonUnknownProviderSchema:
+		return CompositeCaptureSkipReasonSchemaUnknown
+	case redact.ReasonKnownSensitiveKey:
+		return CompositeCaptureSkipReasonSensitiveSource
+	case redact.ReasonUnknownRuleSet:
+		return CompositeCaptureSkipReasonUnknownRuleSet
+	case redact.ReasonUnknownFieldKind:
+		return CompositeCaptureSkipReasonUnknownFieldKind
+	default:
+		return decision.Reason
 	}
-	if p.options.RedactionRules.Version() == "" {
-		return false
+}
+
+func compositeSkipError(decision redact.Decision) error {
+	switch decision.Reason {
+	case redact.ReasonUnknownProviderSchema:
+		return errCompositeSchemaUnknown
+	case redact.ReasonKnownSensitiveKey:
+		return errCompositeSensitiveSource
+	case redact.ReasonUnknownRuleSet:
+		return errCompositeUnknownRuleSet
+	default:
+		return fmt.Errorf("terraform state composite capture rejected by redaction policy: %s", decision.Reason)
 	}
-	return true
 }
 
 // errCompositeShapeMismatch is returned by the streaming nested walker when
@@ -129,6 +171,10 @@ var errCompositeShapeMismatch = errors.New("terraform state composite shape mism
 // know about, and drift detection for that attribute will silently regress
 // until the bundle is refreshed.
 var errCompositeSchemaUnknown = errors.New("terraform state composite is not covered by provider schema")
+
+var errCompositeSensitiveSource = errors.New("terraform state composite source is classified as sensitive")
+
+var errCompositeUnknownRuleSet = errors.New("terraform state composite skipped because redaction rules are not initialized")
 
 func (p *stateParser) classifyAttributes(resourceType string, address string, input []attributeValue) (map[string]any, error) {
 	attributes := make(map[string]any, len(input))
@@ -150,6 +196,9 @@ func (p *stateParser) classifyAttribute(attributes map[string]any, resourceType 
 		kind = redact.FieldScalar
 	}
 	decision := p.options.RedactionRules.Classify(source, p.schemaTrust(resourceType, attribute.Key), kind)
+	if attribute.Preclassified {
+		decision = attribute.PreclassifiedDecision
+	}
 
 	switch decision.Action {
 	case redact.ActionPreserve:
