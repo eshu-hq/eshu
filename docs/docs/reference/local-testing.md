@@ -391,6 +391,54 @@ Capture a profile while reproducing the slow path on the same host as the
 runtime; loopback-only binding means `kubectl port-forward` (in a deployment)
 or just running the binary locally (for dogfood) is the typical access path.
 
+### Dual-Side CPU Capture During A Phase
+
+For perf investigations that need matched CPU profiles from both the
+ingester and a co-running NornicDB child process, `scripts/capture-cpu-profile.sh`
+takes a run directory (containing `run.log`; profiles land in `$RUN_DIR/profiles/`)
+plus the two pprof endpoints, waits for a configurable log marker, then
+fires parallel `curl pprof/profile?seconds=N` requests against both
+endpoints inside the same wall-clock window. Heap, allocs, and
+goroutine snapshots follow once the CPU window closes.
+
+```bash
+# In one shell, start the stack with both pprof endpoints enabled
+ESHU_PPROF_ADDR=127.0.0.1:0 \
+NORNICDB_PPROF_ENABLED=true \
+NORNICDB_PPROF_LISTEN=127.0.0.1:19091 \
+eshu graph start --workspace-root /path/to/repo --logs terminal \
+  > /tmp/run-X/run.log 2>&1 &
+
+# Scrape the ingester's actual pprof port from the run.log
+# (ESHU_PPROF_ADDR=:0 lets the kernel pick a free port)
+INGESTER_PPROF=$(rg -o '"pprof server listening","addr":"[^"]+","service_name":"ingester"' \
+  /tmp/run-X/run.log | rg -o '127\.0\.0\.1:[0-9]+' | head -1)
+
+# Fire the watcher; it captures when the marker fires
+PPROF_CPU_S=20 PPROF_SLEEP_S=5 \
+  scripts/capture-cpu-profile.sh /tmp/run-X "$INGESTER_PPROF" 127.0.0.1:19091
+```
+
+Defaults match the post-Path-D K8s entities-phase shape (~28s entities-phase
+wall): marker is `canonical phase group completed.*phase=files`, sleep 5s,
+20s CPU window. Earlier versions of this harness used 20s sleep / 60s window
+which is too long for the post-Path-D shape — the run finishes mid-curl and
+the captured profile is zero bytes. Tune `PPROF_CPU_S` and `PPROF_SLEEP_S`
+to whichever phase you are profiling. Set `PPROF_LOG_MARKER` for a different
+trigger line.
+
+Profiles land in `$RUN_DIR/profiles/`:
+
+- `ingester-cpu-${PPROF_CPU_S}s.pb.gz`
+- `nornicdb-cpu-${PPROF_CPU_S}s.pb.gz`
+- `nornicdb-{heap,allocs}.pb.gz` + `*goroutines.txt` snapshots
+- `watcher.log` (timestamps, per-side curl exit codes, byte counts)
+
+If the CPU profile is zero bytes after the run, check `watcher.log` for the
+curl exit codes: rc=7 means the pprof endpoint went away before the curl
+finished (the eshu stack tore down mid-capture; shorten `PPROF_CPU_S` or
+verify the stack stayed alive long enough).
+
 ## Docs And Hygiene
 
 Docs, `CLAUDE.md`, `AGENTS.md`, and README changes require:
