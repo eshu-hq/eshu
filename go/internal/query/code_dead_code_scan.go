@@ -76,7 +76,7 @@ func deadCodeCandidateLabelsForLanguage(language string) []string {
 	if language != "" {
 		labels := make([]string, 0, len(deadCodeCandidateLabels)-1)
 		for _, label := range deadCodeCandidateLabels {
-			if label == "SqlFunction" {
+			if label == "SqlFunction" || (label == "Trait" && language != "scala") {
 				continue
 			}
 			labels = append(labels, label)

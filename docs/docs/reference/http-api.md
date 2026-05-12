@@ -632,6 +632,15 @@ and method callbacks, lifecycle callbacks, and JUnit methods, while reflection,
 dependency injection, annotation processing, compiler plugin output, dynamic
 dispatch, Gradle source-set resolution, Kotlin multiplatform target resolution,
 and broad public API surfaces remain named exactness blockers.
+Scala dead-code results are `derived`: parser metadata suppresses main
+methods, `App` objects, traits and trait methods, same-file trait
+implementations, overrides, Play controller actions, Akka actor `receive`
+methods, lifecycle callbacks, JUnit methods, and ScalaTest suite classes, while
+macros, implicit/given resolution, dynamic dispatch, reflection, sbt source-set
+resolution, framework route files, compiler plugin output, and broad public API
+surfaces remain named exactness blockers. Issue #105 dogfood validated this
+contract against Play Framework and the Scala compiler with fresh `derived`
+API truth after queue drain.
 PHP dead-code results are `derived`: parser metadata suppresses script
 entrypoints, constructors, known magic methods, same-file interface methods and
 implementations, trait methods, route-backed controller actions, literal route

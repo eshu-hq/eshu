@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -373,6 +374,18 @@ func TestHandleDeadCodeContinuesCandidateScanAfterPolicyExclusions(t *testing.T)
 	}
 	if got, want := resp["candidate_scan_rows"], float64(pageLimit+1); got != want {
 		t.Fatalf("resp[candidate_scan_rows] = %#v, want %#v", got, want)
+	}
+}
+
+func TestDeadCodeCandidateLabelsForScalaIncludesTraits(t *testing.T) {
+	t.Parallel()
+
+	labels := deadCodeCandidateLabelsForLanguage("scala")
+	if !slices.Contains(labels, "Trait") {
+		t.Fatalf("deadCodeCandidateLabelsForLanguage(scala) = %#v, want Trait", labels)
+	}
+	if slices.Contains(deadCodeCandidateLabelsForLanguage("sql"), "Trait") {
+		t.Fatalf("deadCodeCandidateLabelsForLanguage(sql) includes Trait")
 	}
 }
 

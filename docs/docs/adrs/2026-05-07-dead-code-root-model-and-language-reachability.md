@@ -499,6 +499,53 @@ Local and dogfood evidence gathered in this branch so far:
   `candidate_scan_truncated=false`, and `framework_roots_from_parser_metadata=359`.
   The returned `500` candidates carried no `dead_code_root_kinds`, proving
   parser-backed Kotlin roots were suppressed before cleanup classification.
+- The Scala slice promotes Scala to `derived`, not exact. Parser metadata now
+  suppresses `main` methods, objects extending `App`, traits and trait methods,
+  same-file trait implementations, overrides, Play controller actions, Akka
+  actor `receive` methods, lifecycle callbacks, JUnit methods, and ScalaTest
+  suite classes. Query policy treats materialized `Trait` entities as
+  dead-code candidates so trait roots are counted and explained instead of
+  being dropped before root classification.
+- Scala remains non-exact until macros, implicit and given/using resolution,
+  dynamic dispatch, reflection, sbt source-set resolution, framework route
+  files, compiler plugin output, and broad public API surfaces are modeled or
+  scoped out. The fixture-backed tests cover parser metadata, graph-shaped
+  query suppression, and content-metadata query suppression.
+- Scala dogfood used unique Compose project names and ports for issue #105.
+  The default NornicDB Compose stack did not reach indexing on this local
+  Docker host because the NornicDB container exited with code `2` during
+  startup; the accepted Scala parser proof therefore used the Neo4j Compose
+  stack with explicit transaction-memory caps following Neo4j's documented
+  `NEO4J_*` Docker configuration mapping.
+- Play Framework dogfood used `eshu_scala105_play_neo` against
+  `playframework/playframework` at
+  `bcdc682de2250bbd0f2788bc5acc06f6d66ad5a7`. The checked-out corpus had
+  `2557` files and `935` Scala/SBT/Sc files; discovery indexed `1644` files,
+  parsed `1644` files, materialized `27924` content entities, and emitted
+  `31220` facts. Stage timings were discovery `0.043s`, pre-scan `5.145s`,
+  parse `4.276s`, materialize `0.163s`, canonical write `4.706s`, content
+  write `2.452s`, and bootstrap projection `23.071s`. The final status was
+  healthy with queue `outstanding=0`, `in_flight=0`, `retrying=0`,
+  `failed=0`, and `dead_letter=0`. The scoped dead-code API returned
+  `truth.level=derived`, `dead_code_language_maturity.scala=derived`, and
+  `framework_roots_from_parser_metadata=112`. Content metadata contained
+  Scala root buckets for overrides, trait methods/types, Play controller
+  actions, trait implementations, ScalaTest suites, main methods, Akka
+  `receive`, and objects extending `App`.
+- Scala compiler dogfood used `eshu_scala105_compiler_neo` against
+  `scala/scala` branch `2.13.x` at
+  `25075e9b9b79954a0f99de515618901818822e62`. The checked-out corpus had
+  `13611` files and `9382` Scala/SBT/Sc files; discovery indexed `10037`
+  files, parsed `10036` files with one skip, materialized `157759` content
+  entities, and emitted `177839` facts. Stage timings were discovery `0.100s`,
+  pre-scan `24.488s`, parse `19.701s`, materialize `1.384s`, canonical write
+  `15.134s`, content write `10.058s`, and bootstrap projection `91.994s`.
+  The final status was healthy with queue `outstanding=0`, `in_flight=0`,
+  `retrying=0`, `failed=0`, and `dead_letter=0`. The scoped dead-code API
+  returned `truth.level=derived`, `dead_code_language_maturity.scala=derived`,
+  and `framework_roots_from_parser_metadata=54`. Content metadata contained
+  root buckets for trait methods/types, overrides, JUnit methods, objects
+  extending `App`, main methods, and trait implementation methods.
 
 Open proof work before this branch can close:
 

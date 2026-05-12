@@ -37,7 +37,8 @@
 // cpp.override_method, cpp.callback_argument_target, and
 // cpp.function_pointer_target roots, plus cpp.node_addon_entrypoint, plus Kotlin
 // top-level main, constructor, interface, override, Gradle, Spring, lifecycle,
-// and JUnit roots, plus Ruby
+// and JUnit roots, plus Scala main, App object, trait, override, Play, Akka,
+// lifecycle, JUnit, and ScalaTest roots, plus Ruby
 // Rails controller/callback roots, dynamic-dispatch hooks, literal
 // method-reference targets, and script entrypoints, plus Groovy Jenkinsfile
 // pipeline entrypoints and vars/*.groovy shared-library call roots, plus PHP
@@ -46,8 +47,8 @@
 // Symfony route attributes, and WordPress hook callbacks. C, C++, PHP, Ruby,
 // and Rust now share the derived dead-code maturity tier with Go and Java while
 // exact cleanup remains gated on broader semantic resolution.
-// C# and Kotlin share that tier through parser-backed roots for common framework
-// and language entrypoints. Groovy remains candidate-only until dynamic dispatch,
+// C#, Kotlin, and Scala share that tier through parser-backed roots for common
+// framework and language entrypoints. Groovy remains candidate-only until dynamic dispatch,
 // closure delegates, shared library loading, and pipeline DSL steps have
 // stronger semantic resolution. Rust
 // Cargo auxiliary target
@@ -66,6 +67,9 @@
 // Kotlin blockers cover reflection, dependency injection, annotation
 // processing, compiler plugins, dynamic dispatch, Gradle source sets,
 // multiplatform targets, and public API surfaces,
+// Scala blockers cover macro expansion, implicit/given resolution, dynamic
+// dispatch, reflection, sbt source sets, framework route files, compiler plugin
+// output, and public API surfaces,
 // PHP blockers cover dynamic dispatch, reflection, Composer autoloading,
 // include/require resolution, framework routing, trait resolution, namespace
 // aliases, magic-method dispatch, and public API surfaces,
@@ -100,8 +104,9 @@
 // result limits, and reports display truncation separately from bounded raw
 // candidate pages and rows so callers can tell whether the result list was
 // clipped or the candidate scan cap was reached. C root suppressions are
-// honored from content-store metadata after hydration, and C#, C++, Kotlin, PHP,
-// Ruby, and Groovy root suppressions use the same graph/content metadata path.
+// honored from content-store metadata after hydration, and C#, C++, Kotlin,
+// Scala, PHP, Ruby, and Groovy root suppressions use the same graph/content
+// metadata path.
 // That matches the
 // normal parser metadata path used by indexed repositories.
 // Infrastructure reads expose Terraform backend, import, moved, removed, check,
