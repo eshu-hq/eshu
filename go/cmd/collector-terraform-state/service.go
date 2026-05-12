@@ -54,9 +54,10 @@ func buildClaimedService(
 			S3FallbackLockTableName: config.AWSDynamoDBLockTable,
 			MaxBytes:                config.SourceMaxBytes,
 		}),
-		RedactionKey: config.RedactionKey,
-		Tracer:       tracer,
-		Instruments:  instruments,
+		RedactionKey:   config.RedactionKey,
+		RedactionRules: config.RedactionRules,
+		Tracer:         tracer,
+		Instruments:    instruments,
 	}
 
 	return collector.ClaimedService{

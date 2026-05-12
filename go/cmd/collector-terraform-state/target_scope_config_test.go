@@ -42,7 +42,8 @@ func TestLoadRuntimeConfigParsesCentralAssumeRoleTargetScope(t *testing.T) {
 					}
 				}
 			]`,
-			"ESHU_TFSTATE_REDACTION_KEY": "test-redaction-key",
+			"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+			"ESHU_TFSTATE_REDACTION_RULESET_VERSION": "test-schema-v1",
 		}
 		return values[key]
 	})
@@ -114,7 +115,8 @@ func TestLoadRuntimeConfigParsesAccountLocalTargetScope(t *testing.T) {
 					}
 				}
 			]`,
-			"ESHU_TFSTATE_REDACTION_KEY": "test-redaction-key",
+			"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+			"ESHU_TFSTATE_REDACTION_RULESET_VERSION": "test-schema-v1",
 		}
 		return values[key]
 	})
@@ -183,7 +185,8 @@ func TestLoadRuntimeConfigAcceptsDivergentTargetScopeCredentials(t *testing.T) {
 					}
 				}
 			]`,
-			"ESHU_TFSTATE_REDACTION_KEY": "test-redaction-key",
+			"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+			"ESHU_TFSTATE_REDACTION_RULESET_VERSION": "test-schema-v1",
 		}
 		return values[key]
 	})

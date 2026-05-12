@@ -29,6 +29,12 @@ flowchart LR
   where `claims_enabled` is `true`.
 - `ESHU_TFSTATE_REDACTION_KEY`, a deployment-scoped secret used to produce
   deterministic redaction markers.
+- `ESHU_TFSTATE_REDACTION_RULESET_VERSION`, a non-empty version string for the
+  redaction rule set the collector applies to every parsed attribute. The
+  binary refuses to start when this is blank because `redact.RuleSet` fails
+  closed on an empty version (scalar attributes get redacted, composites get
+  dropped). Audit evidence references this string to prove which policy
+  version produced each decision.
 
 Set `ESHU_TFSTATE_COLLECTOR_INSTANCE_ID` when more than one enabled
 Terraform-state collector instance exists. Set `ESHU_TFSTATE_COLLECTOR_OWNER_ID`
@@ -43,6 +49,10 @@ the runtime uses host and process identity.
   older `ESHU_TFSTATE_COLLECTOR_HEARTBEAT` alias is still accepted.
 - `ESHU_TFSTATE_SOURCE_MAX_BYTES` sets the max bytes per state object. The
   reader default is used when this is unset or zero.
+- `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` is a comma-separated list of leaf
+  attribute keys the redactor treats as secrets. When unset the collector
+  uses `defaultRedactionSensitiveKeys` in `config.go` (`password`, `secret`,
+  `token`, `access_key`, `private_key`, `certificate`, `key_pair`).
 
 S3 reads use the default AWS credential chain unless the collector instance
 configuration includes `aws.role_arn`, in which case the runtime assumes that

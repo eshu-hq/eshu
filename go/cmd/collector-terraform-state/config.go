@@ -18,6 +18,24 @@ const (
 	defaultSourceMaxBytes int64 = 0
 )
 
+// defaultRedactionSensitiveKeys is the fail-safe sensitive-key list applied
+// when `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` is unset. Each entry matches
+// the normalized leaf key segment that `redact.RuleSet.Classify` extracts
+// from `resources.<address>.attributes.<key>` source paths. Operators can
+// extend this list per provider schema, but the default covers the AWS,
+// GCP, and TLS secrets that appear in stock Terraform-state attribute
+// payloads (`password`, API tokens, IAM access keys, private keys, TLS
+// certificates, EC2 key pairs).
+var defaultRedactionSensitiveKeys = []string{
+	"password",
+	"secret",
+	"token",
+	"access_key",
+	"private_key",
+	"certificate",
+	"key_pair",
+}
+
 type runtimeConfig struct {
 	Instance             workflow.DesiredCollectorInstance
 	OwnerID              string
@@ -25,6 +43,7 @@ type runtimeConfig struct {
 	ClaimLeaseTTL        time.Duration
 	HeartbeatInterval    time.Duration
 	RedactionKey         redact.Key
+	RedactionRules       redact.RuleSet
 	SourceMaxBytes       int64
 	AWSRoleARN           string
 	AWSCredentials       awsCredentialConfig
@@ -126,6 +145,10 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 	if err != nil {
 		return runtimeConfig{}, err
 	}
+	redactionRules, err := loadRedactionRules(getenv)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
 	sourceMaxBytes, err := envInt64(getenv, "ESHU_TFSTATE_SOURCE_MAX_BYTES", defaultSourceMaxBytes)
 	if err != nil {
 		return runtimeConfig{}, err
@@ -149,6 +172,7 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 		ClaimLeaseTTL:        claimLeaseTTL,
 		HeartbeatInterval:    heartbeatInterval,
 		RedactionKey:         redactionKey,
+		RedactionRules:       redactionRules,
 		SourceMaxBytes:       sourceMaxBytes,
 		AWSRoleARN:           awsCredentials.RoleARN,
 		AWSCredentials:       awsCredentials,
@@ -206,6 +230,42 @@ func validateTerraformStateInstance(instance workflow.DesiredCollectorInstance) 
 		return fmt.Errorf("terraform_state collector instance %q: %w", instance.InstanceID, err)
 	}
 	return nil
+}
+
+// loadRedactionRules builds the versioned redaction rule set the collector
+// passes to `tfstateruntime.ClaimedSource`. The version is mandatory because
+// `redact.RuleSet` fails closed when its version is blank — every scalar
+// attribute would be redacted and every composite attribute would be dropped,
+// which silently breaks downstream drift detection on attribute-level buckets
+// (acl, versioning.enabled, sse_algorithm). Operators MUST set
+// `ESHU_TFSTATE_REDACTION_RULESET_VERSION` so audit evidence can prove which
+// policy version made each decision. `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS`
+// is optional and falls back to `defaultRedactionSensitiveKeys`; the env-var
+// form accepts comma-separated leaf keys (e.g. "password,secret,token").
+func loadRedactionRules(getenv func(string) string) (redact.RuleSet, error) {
+	version := strings.TrimSpace(getenv("ESHU_TFSTATE_REDACTION_RULESET_VERSION"))
+	if version == "" {
+		return redact.RuleSet{}, fmt.Errorf(
+			"ESHU_TFSTATE_REDACTION_RULESET_VERSION is required; the collector cannot start " +
+				"without a versioned redaction rule set because the policy fails closed on blank versions",
+		)
+	}
+	raw := strings.TrimSpace(getenv("ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS"))
+	var sensitiveKeys []string
+	if raw == "" {
+		sensitiveKeys = append(sensitiveKeys, defaultRedactionSensitiveKeys...)
+	} else {
+		for _, part := range strings.Split(raw, ",") {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				sensitiveKeys = append(sensitiveKeys, trimmed)
+			}
+		}
+	}
+	rules, err := redact.NewRuleSet(version, sensitiveKeys)
+	if err != nil {
+		return redact.RuleSet{}, fmt.Errorf("ESHU_TFSTATE_REDACTION_RULESET_VERSION: %w", err)
+	}
+	return rules, nil
 }
 
 func loadRedactionKey(getenv func(string) string) (redact.Key, error) {

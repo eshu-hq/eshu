@@ -81,6 +81,7 @@ and small warning records cross the persistence boundary.
 | `ESHU_POSTGRES_DSN` (or `ESHU_FACT_STORE_DSN` + `ESHU_CONTENT_STORE_DSN`) | Shared Postgres runtime loader. |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | One enabled `terraform_state` instance with `claims_enabled: true`. |
 | `ESHU_TFSTATE_REDACTION_KEY` | Deployment-scoped secret; produces deterministic redaction markers. |
+| `ESHU_TFSTATE_REDACTION_RULESET_VERSION` | Non-empty version label for the redaction rule set; the binary fails to start when this is blank because the rule set fails closed. |
 
 ### Optional
 
@@ -92,6 +93,7 @@ and small warning records cross the persistence boundary.
 | `ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | Per-claim lease duration. |
 | `ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL` | derived | Claim heartbeat cadence (alias: `ESHU_TFSTATE_COLLECTOR_HEARTBEAT`). |
 | `ESHU_TFSTATE_SOURCE_MAX_BYTES` | reader default (512 MB) | Per-object size ceiling. Oversize emits `terraform_state_warning` with `warning_kind=state_too_large`. |
+| `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` | `password,secret,token,access_key,private_key,certificate,key_pair` | Comma-separated leaf attribute keys the redactor treats as secrets. |
 
 ### Instance Configuration (JSON)
 

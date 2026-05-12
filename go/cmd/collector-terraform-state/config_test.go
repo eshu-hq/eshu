@@ -53,6 +53,7 @@ func TestLoadRuntimeConfigSelectsTerraformStateInstance(t *testing.T) {
 			"ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL": "45s",
 			"ESHU_TFSTATE_COLLECTOR_HEARTBEAT":       "10s",
 			"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+			"ESHU_TFSTATE_REDACTION_RULESET_VERSION": "test-schema-v1",
 			"ESHU_TFSTATE_SOURCE_MAX_BYTES":          "1048576",
 		}
 		return values[key]
@@ -120,7 +121,8 @@ func TestLoadRuntimeConfigAcceptsLegacyDynamoDBLockTableName(t *testing.T) {
 					}
 				}
 			]`,
-			"ESHU_TFSTATE_REDACTION_KEY": "test-redaction-key",
+			"ESHU_TFSTATE_REDACTION_KEY":             "test-redaction-key",
+			"ESHU_TFSTATE_REDACTION_RULESET_VERSION": "test-schema-v1",
 		}
 		return values[key]
 	})
