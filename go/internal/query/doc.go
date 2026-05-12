@@ -10,9 +10,9 @@
 // envelopes, truth metadata, capability gates, and code-quality classifications
 // are stable wire contracts. The dead-code OpenAPI fragment names modeled
 // language roots and keeps the language filter examples aligned with C#, C,
-// Groovy, Elixir, PHP, and SQL query behavior. That filter is part of the dogfood
-// contract for validating one language family without earlier candidate labels
-// filling the page. Dead-code responses preserve language maturity, modeled
+// Groovy, Dart, Elixir, PHP, and SQL query behavior. That filter is part of the
+// dogfood contract for validating one language family without earlier candidate
+// labels filling the page. Dead-code responses preserve language maturity, modeled
 // framework-root lists, and root-kind evidence for functions and types so
 // callers can separate cleanup candidates from modeled roots; TypeScript
 // public API export, public API re-export, public type-reference, interface
@@ -42,7 +42,8 @@
 // constructor, override, UIKit application delegate, Vapor, XCTest, and Swift
 // Testing roots, plus Elixir Application start, public macro, public guard,
 // behaviour callback, GenServer, Supervisor, Mix task, protocol, Phoenix
-// controller, and LiveView roots, plus Ruby
+// controller, and LiveView roots, plus Dart main, constructor, override,
+// Flutter build/createState, and public library API roots, plus Ruby
 // Rails controller/callback roots, dynamic-dispatch hooks, literal
 // method-reference targets, and script entrypoints, plus Groovy Jenkinsfile
 // pipeline entrypoints and vars/*.groovy shared-library call roots, plus PHP
@@ -80,6 +81,9 @@
 // Elixir blockers cover macro expansion, dynamic dispatch, behaviour callback
 // resolution, protocol dispatch, Phoenix route resolution, supervision trees,
 // Mix environment selection, and public API surfaces,
+// Dart blockers cover part-file library resolution, conditional import/export
+// selection, package export surfaces, dynamic dispatch, Flutter route/lifecycle
+// wiring, generated code, mirrors, and public API surfaces,
 // PHP blockers cover dynamic dispatch, reflection, Composer autoloading,
 // include/require resolution, framework routing, trait resolution, namespace
 // aliases, magic-method dispatch, and public API surfaces,

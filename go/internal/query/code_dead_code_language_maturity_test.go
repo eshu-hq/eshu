@@ -62,6 +62,7 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 		"c":          "derived",
 		"c_sharp":    "derived",
 		"cpp":        "derived",
+		"dart":       "derived",
 		"go":         "derived",
 		"python":     "derived",
 		"javascript": "derived",
@@ -255,6 +256,24 @@ func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
 	} {
 		if !queryTestStringSliceContains(csharpBlockers, want) {
 			t.Fatalf("blockers[c_sharp] missing %q in %#v", want, csharpBlockers)
+		}
+	}
+	dartBlockers, ok := blockers["dart"].([]any)
+	if !ok {
+		t.Fatalf("blockers[dart] type = %T, want []any", blockers["dart"])
+	}
+	for _, want := range []string{
+		"library_part_resolution_unavailable",
+		"conditional_import_export_resolution_unavailable",
+		"package_export_surface_unresolved",
+		"dynamic_dispatch_unresolved",
+		"flutter_route_resolution_unavailable",
+		"generated_code_unavailable",
+		"reflection_mirror_unresolved",
+		"public_api_surface_unresolved",
+	} {
+		if !queryTestStringSliceContains(dartBlockers, want) {
+			t.Fatalf("blockers[dart] missing %q in %#v", want, dartBlockers)
 		}
 	}
 	scalaBlockers, ok := blockers["scala"].([]any)

@@ -66,7 +66,7 @@ Code dead-code queries add an analysis pass over graph rows so parser-provided
 candidate classifications are visible in the response body. Unsupported
 languages such as JSON package-script metadata are suppressed from cleanup
 results before classification. Requests may include a `language` filter; SQL
-uses that filter to scan `SqlFunction` candidates directly, and PHP and Elixir
+uses that filter to scan `SqlFunction` candidates directly, and Dart, PHP, and Elixir
 use it for language-scoped dogfood so mixed application repositories cannot fill
 the page with earlier function labels before the requested language evidence is
 evaluated. The analysis block also names modeled framework
@@ -129,7 +129,12 @@ and wrong-arity controller helpers in the candidate set instead of suppressing
 them as roots. Elixir remains non-exact because macro expansion, dynamic
 dispatch, behaviour callback resolution, protocol dispatch, Phoenix route
 resolution, supervision trees, Mix environment selection, and public API
-surfaces are not resolved exactly. PHP parser
+surfaces are not resolved exactly. Dart parser metadata suppresses top-level
+`main`, constructors, `@override` methods, Flutter `build` and `createState`
+callbacks, and public `lib/` API declarations outside `lib/src/`; Dart remains
+non-exact because part libraries, conditional imports and exports, package
+export surfaces, dynamic dispatch, Flutter route/lifecycle wiring, generated
+code, mirrors, and public API breadth are not resolved exactly. PHP parser
 metadata suppresses script entrypoints, constructors, known magic methods,
 same-file interface and trait methods, route-backed controller actions, literal
 route handlers, Symfony route attributes, and WordPress hook callbacks; PHP
@@ -171,6 +176,9 @@ output, and public API surfaces,
 Elixir blockers for macro expansion, dynamic dispatch, behaviour callback
 resolution, protocol dispatch, Phoenix route resolution, supervision trees, Mix
 environment selection, and public API surfaces,
+Dart blockers for part-file library resolution, conditional import/export
+selection, package export surfaces, dynamic dispatch, Flutter route/lifecycle
+wiring, generated code, mirrors, and public API surfaces,
 PHP blockers for dynamic dispatch, reflection, Composer autoloading,
 include/require resolution, framework routing, trait resolution, namespace
 aliases, magic-method dispatch, and public API surfaces,

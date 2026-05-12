@@ -260,7 +260,7 @@ const openAPIPathsCode = `
                 "type": "object",
                 "properties": {
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)"},
-                  "language": {"type": "string", "description": "Optional parser language filter. Use this when validating one language family, for example csharp, c, kotlin, elixir, php, groovy, or sql."},
+                  "language": {"type": "string", "description": "Optional parser language filter. Use this when validating one language family, for example csharp, c, dart, kotlin, elixir, php, groovy, or sql."},
                   "limit": {"type": "integer", "description": "Maximum dead-code candidates to return (default 100, max 500).", "default": 100},
                   "exclude_decorated_with": {
                     "type": "array",

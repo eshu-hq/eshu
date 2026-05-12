@@ -27,7 +27,7 @@ For audited family-level closure status and bounded gaps, see
 | C++ | `DefaultEngine (cpp)` | - | - | - | - | - | - | - |
 | Crossplane | `DefaultEngine (yaml)` | - | - | - | - | - | - | - |
 | C# | `DefaultEngine (c_sharp)` | - | - | - | - | - | - | - |
-| Dart | `DefaultEngine (dart)` | - | - | - | - | - | - | - |
+| Dart | `DefaultEngine (dart)` | supported | supported | supported | Flutter, public library API | supported | supported | supported |
 | Elixir | `DefaultEngine (elixir)` | supported | supported | supported | Phoenix, GenServer, Supervisor, Mix, protocols | supported | fixture-backed | supported |
 | Go | `DefaultEngine (go)` | supported | supported | - | - | supported | supported | supported |
 | Groovy | `DefaultEngine (groovy)` | - | - | - | - | - | - | - |
@@ -86,6 +86,15 @@ expansion, dynamic dispatch, behaviour callback resolution, protocol dispatch,
 Phoenix route resolution, supervision trees, Mix environment selection, and
 broad public API surfaces are
 modeled or scoped out.
+Dart dead-code support is `derived`: parser metadata models top-level
+`main()`, constructors and named constructors, `@override` methods, Flutter
+`build` and `createState` callbacks, and public `lib/` API declarations outside
+`lib/src/`. It remains non-exact until part-file library resolution,
+conditional import/export selection, package export surfaces, dynamic dispatch,
+Flutter route/lifecycle wiring, generated code, reflection/mirrors, and broad
+public API surfaces are modeled or scoped out. Issue #98 dogfood validated this
+path against Flutter and `dart-lang/http` with fresh `derived` dead-code API
+truth from isolated Compose runs.
 SQL real-repo and end-to-end indexing are `supported` on the current Go
 parser/query path. The remaining dbt lineage limits are bounded non-goals for
 the documented SQL surface.

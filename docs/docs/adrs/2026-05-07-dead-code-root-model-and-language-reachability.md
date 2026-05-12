@@ -592,6 +592,41 @@ Local and dogfood evidence gathered in this branch so far:
   root buckets for application starts, behaviour callbacks, GenServer
   callbacks, Mix tasks, Phoenix controller actions, protocols, protocol
   implementations, and public macros.
+- The Dart slice promotes Dart to `derived`, not exact. Parser metadata now
+  suppresses top-level `main()`, constructors and named constructors,
+  `@override` methods, Flutter `build` and `createState` callbacks, and public
+  `lib/` API declarations outside `lib/src/`. Query policy suppresses the same
+  `dart.*` roots from graph and content metadata before classifying remaining
+  candidates.
+- Dart remains non-exact until part-file library resolution, conditional
+  import/export selection, package export surfaces, dynamic dispatch, Flutter
+  route and lifecycle wiring, generated code, reflection/mirrors, and broad
+  public API surfaces are modeled or scoped out. The fixture-backed tests cover
+  parser metadata, graph-shaped query suppression, content-metadata query
+  suppression, and maturity/blocker reporting.
+- Dart package dogfood used unique Compose project
+  `eshu_dart98_http_18611` against `dart-lang/http` at
+  `c140dc012da1df74b0fb99230b8736438b8eba6a`. The checked-out corpus had
+  `610` files and `324` Dart files; discovery indexed `408` files, parsed
+  `408` files, materialized `4618` content entities, and emitted `5442` facts.
+  Stage timings were discovery `0.092s`, pre-scan `0.123s`, parse `0.228s`,
+  materialize `0.122s`, canonical write `2.375s`, content write `1.038s`, and
+  bootstrap projection `5.080s`. The scoped dead-code API returned
+  `truth.level=derived`, `dead_code_language_maturity.dart=derived`,
+  `framework_roots_from_parser_metadata=40`, and all six modeled Dart root
+  kinds.
+- Flutter dogfood used unique Compose project `eshu_dart98_flutter_18601`
+  against `flutter/flutter` at
+  `583dec70ff3a56f9dc99d985a3aaf714bfd229f2`. The checked-out corpus had
+  `15569` files and `6401` Dart files; discovery indexed `7603` files, parsed
+  `7600` files, materialized `125882` content entities, and emitted `141358`
+  facts. Stage timings were discovery `2.983s`, pre-scan `11.115s`, parse
+  `14.087s`, materialize `1.548s`, canonical write `21.225s`, content write
+  `16.935s`, and bootstrap projection `90.838s`. The final shared projection
+  intent table had no pending rows. The scoped dead-code API returned
+  `truth.level=derived`, `dead_code_language_maturity.dart=derived`,
+  `framework_roots_from_parser_metadata=202`, and all six modeled Dart root
+  kinds.
 
 Open proof work before this branch can close:
 

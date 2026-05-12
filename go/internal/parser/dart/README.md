@@ -4,7 +4,8 @@
 
 This package owns the line-oriented Dart parser adapter used by the parent
 parser engine. It extracts import/export names, class-style declarations,
-top-level function rows, variables, and simple call evidence.
+top-level function rows, variables, simple call evidence, and parser-backed
+dead-code root metadata for bounded Dart and Flutter roots.
 
 ## Ownership boundary
 
@@ -31,6 +32,10 @@ parser engine.
 Bucket ordering must stay deterministic because parser payloads become fact
 inputs. PreScan returns function and class names using the same payload path as
 Parse, then sorts those names before returning them to the parent engine.
+`dead_code_root_kinds` is limited to syntax-local evidence: top-level `main`,
+constructors, `@override`, Flutter `build`/`createState`, and public `lib/`
+declarations outside `lib/src/`. Annotations attached to class declarations are
+consumed at the declaration boundary so they do not become member decorators.
 
 ## Related docs
 
