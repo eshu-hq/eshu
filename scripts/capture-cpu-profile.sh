@@ -50,7 +50,7 @@
 #   1 — marker never appeared within PPROF_MARKER_TIMEOUT_S
 #   2 — bad argument
 
-set -u
+set -euo pipefail
 
 if [ "$#" -ne 3 ]; then
   echo "usage: $0 <RUN_DIR> <INGESTER_PPROF> <NORNICDB_PPROF>" >&2
@@ -104,32 +104,37 @@ echo "[$(ts)] starting ${PPROF_CPU_S}s CPU profiles (parallel: ingester + nornic
 INGESTER_CPU="$PROFILE_DIR/ingester-cpu-${PPROF_CPU_S}s.pb.gz"
 NORNICDB_CPU="$PROFILE_DIR/nornicdb-cpu-${PPROF_CPU_S}s.pb.gz"
 
+# curl exits non-zero when the pprof endpoint dies mid-capture (e.g. the
+# eshu stack tore down before the seconds= window closed). We want to
+# capture that rc in the watcher log rather than abort the script, so
+# allow these specific commands to continue on failure under `set -e`.
 curl -sS -o "$INGESTER_CPU" "http://${INGESTER_PPROF}/debug/pprof/profile?seconds=${PPROF_CPU_S}" &
 ING_PID=$!
 curl -sS -o "$NORNICDB_CPU" "http://${NORNICDB_PPROF}/debug/pprof/profile?seconds=${PPROF_CPU_S}" &
 NDB_PID=$!
 
-wait "$ING_PID"
-ING_RC=$?
+ING_RC=0
+wait "$ING_PID" || ING_RC=$?
 ING_BYTES=$(stat -f%z "$INGESTER_CPU" 2>/dev/null || stat -c%s "$INGESTER_CPU" 2>/dev/null || echo 0)
 echo "[$(ts)] ingester CPU captured rc=$ING_RC bytes=$ING_BYTES" >> "$WATCHER_LOG"
 
-wait "$NDB_PID"
-NDB_RC=$?
+NDB_RC=0
+wait "$NDB_PID" || NDB_RC=$?
 NDB_BYTES=$(stat -f%z "$NORNICDB_CPU" 2>/dev/null || stat -c%s "$NORNICDB_CPU" 2>/dev/null || echo 0)
 echo "[$(ts)] nornicdb CPU captured rc=$NDB_RC bytes=$NDB_BYTES" >> "$WATCHER_LOG"
 
 # Heap, allocs, goroutine snapshots after the CPU window closes. These are
-# one-shot reads (no seconds= parameter) so they finish quickly.
+# one-shot reads (no seconds= parameter) so they finish quickly. We tolerate
+# curl failure here too — the eshu stack may have already torn down.
 for kind in heap allocs; do
-  curl -sS -o "$PROFILE_DIR/nornicdb-${kind}.pb.gz" "http://${NORNICDB_PPROF}/debug/pprof/${kind}" 2>/dev/null
+  curl -sS -o "$PROFILE_DIR/nornicdb-${kind}.pb.gz" "http://${NORNICDB_PPROF}/debug/pprof/${kind}" 2>/dev/null || true
   echo "[$(ts)] nornicdb $kind captured" >> "$WATCHER_LOG"
 done
 
-curl -sS -o "$PROFILE_DIR/nornicdb-goroutines.txt" "http://${NORNICDB_PPROF}/debug/pprof/goroutine?debug=2" 2>/dev/null
+curl -sS -o "$PROFILE_DIR/nornicdb-goroutines.txt" "http://${NORNICDB_PPROF}/debug/pprof/goroutine?debug=2" 2>/dev/null || true
 echo "[$(ts)] nornicdb goroutines captured" >> "$WATCHER_LOG"
 
-curl -sS -o "$PROFILE_DIR/ingester-goroutines.txt" "http://${INGESTER_PPROF}/debug/pprof/goroutine?debug=2" 2>/dev/null
+curl -sS -o "$PROFILE_DIR/ingester-goroutines.txt" "http://${INGESTER_PPROF}/debug/pprof/goroutine?debug=2" 2>/dev/null || true
 echo "[$(ts)] ingester goroutines captured" >> "$WATCHER_LOG"
 
 echo "[$(ts)] watcher done" >> "$WATCHER_LOG"

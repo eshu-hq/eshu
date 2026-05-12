@@ -395,9 +395,10 @@ or just running the binary locally (for dogfood) is the typical access path.
 
 For perf investigations that need matched CPU profiles from both the
 ingester and a co-running NornicDB child process, `scripts/capture-cpu-profile.sh`
-takes a run-log path plus the two pprof endpoints, waits for a configurable
-log marker, then fires parallel `curl pprof/profile?seconds=N` requests
-against both endpoints inside the same wall-clock window. Heap, allocs, and
+takes a run directory (containing `run.log`; profiles land in `$RUN_DIR/profiles/`)
+plus the two pprof endpoints, waits for a configurable log marker, then
+fires parallel `curl pprof/profile?seconds=N` requests against both
+endpoints inside the same wall-clock window. Heap, allocs, and
 goroutine snapshots follow once the CPU window closes.
 
 ```bash
