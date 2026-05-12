@@ -56,11 +56,14 @@ seed corpus already proves the loader logic for those drift kinds.
 ## minio addressing
 
 The collector's AWS SDK v2 client defaults to virtual-hosted addressing
-(`https://<bucket>.<endpoint-host>/...`). The compose overlay routes that
-through compose-network aliases: `eshu-drift-a`, `eshu-drift-b`,
-`eshu-drift-d`, and `eshu-drift-e` all resolve to the minio container, so
-the SDK's `GET http://eshu-drift-a.minio:9000/prod/terraform.tfstate` works
-without a path-style flag.
+(`https://<bucket>.<endpoint-host>/...`). With
+`AWS_ENDPOINT_URL_S3=http://minio:9000` and virtual-hosted addressing the
+SDK rewrites the host to `<bucket>.minio`, so the compose overlay declares
+network aliases `eshu-drift-a.minio`, `eshu-drift-b.minio`,
+`eshu-drift-d.minio`, and `eshu-drift-e.minio` on the minio container
+(`docker-compose.tier2-tfstate.yaml:137`). The resulting SDK request is
+`GET http://eshu-drift-a.minio:9000/prod/terraform.tfstate`, which the
+Docker DNS resolves to the minio container without a path-style flag.
 
 ## Tfstate JSON shape
 
