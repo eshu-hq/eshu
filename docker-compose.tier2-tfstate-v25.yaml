@@ -84,6 +84,17 @@ x-collector-instances-v25: &tier2_v25_collector_instances
     ]
 
 services:
+  # Honor a caller-controlled pull policy so a locally-built NornicDB image
+  # (e.g. for testing an upstream commit or a maintainer patch) is used
+  # without Docker Compose trying to pull a non-existent registry tag. When
+  # NORNICDB_PULL_POLICY is unset, compose v2 falls back to its default
+  # "missing" semantics — pull only when the tagged image isn't already in
+  # the local daemon — so the published timothyswt/nornicdb-amd64-cpu image
+  # still works without operator intervention. Set NORNICDB_PULL_POLICY=never
+  # alongside NORNICDB_IMAGE=<local-tag> to pin a locally-built image.
+  nornicdb:
+    pull_policy: ${NORNICDB_PULL_POLICY:-missing}
+
   bootstrap-index:
     volumes:
       - type: volume
