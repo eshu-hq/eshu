@@ -133,6 +133,9 @@ func TestParserLargeStateStreamsResourceInstances(t *testing.T) {
 //   - TestParseStreamLargeStateDoesNotRetainProviderBindingsOrWarnings in
 //     parser_stream_memory_test.go asserts the same ceiling against a
 //     richer fixture exercising provider bindings and warnings.
+//   - TestParseStream_PeakMemoryGate_CompositeCapture in
+//     parser_memory_composite_test.go asserts the same ceiling when every
+//     instance carries a SchemaKnown composite the walker captures.
 //   - TestParseStreamLargeState100MiBStreamingProof (env-gated by
 //     ESHU_TFSTATE_100MIB_PROOF=true) runs the assertion against a 100 MB
 //     synthetic state for periodic large-scale validation.
@@ -176,64 +179,6 @@ func TestParseStream_PeakMemoryGate(t *testing.T) {
 	}
 	if peakHeapGrowth > maxStreamResourcePeakHeapGrowth {
 		t.Fatalf("ParseStream() peak heap growth = %d bytes, want at most %d (maxStreamResourcePeakHeapGrowth); a regression has likely re-introduced full-payload buffering", peakHeapGrowth, maxStreamResourcePeakHeapGrowth)
-	}
-}
-
-// TestParseStream_PeakMemoryGate_CompositeCapture is the ADR-named acceptance
-// gate for the streaming nested walker. It asserts the 48 MB
-// maxStreamResourcePeakHeapGrowth ceiling still holds when every one of the
-// 20k synthetic resource instances carries a populated
-// server_side_encryption_configuration composite that the walker captures.
-//
-// A regression here means the walker has stopped being streaming — either by
-// buffering the whole composite via decoder.Decode(&v any), or by retaining
-// captured composites in parser state instead of streaming them to the
-// FactSink. Pair with TestParseStream_PeakMemoryGate (no composites) and
-// BenchmarkParseStreamComposite_LargeState to triangulate the regression.
-//
-// Do not call t.Parallel here. Parallel tests perturb runtime.MemStats and
-// the measurement loses its meaning.
-func TestParseStream_PeakMemoryGate_CompositeCapture(t *testing.T) {
-	const resourceInstances = 20_000
-
-	options := parseFixtureOptions(t)
-	options.SchemaResolver = newStubResolver(
-		[2]string{"aws_s3_bucket", "server_side_encryption_configuration"},
-		[2]string{"aws_s3_bucket", "rule"},
-		[2]string{"aws_s3_bucket", "apply_server_side_encryption_by_default"},
-		[2]string{"aws_s3_bucket", "sse_algorithm"},
-	)
-	var count int
-	var resourceFacts int64
-	peakHeapGrowth := measurePeakHeapGrowth(t, func() {
-		result, err := terraformstate.ParseStream(
-			context.Background(),
-			largeCompositeResourceInstancesStateReader(resourceInstances),
-			options,
-			terraformstate.FactSinkFunc(func(_ context.Context, envelope facts.Envelope) error {
-				count++
-				if envelope.FactKind == facts.TerraformStateResourceFactKind {
-					resourceFacts++
-				}
-				return nil
-			}),
-		)
-		if err != nil {
-			t.Fatalf("ParseStream() error = %v, want nil", err)
-		}
-		if got := result.ResourceFacts; got != resourceInstances {
-			t.Fatalf("ResourceFacts = %d, want %d", got, resourceInstances)
-		}
-	})
-
-	if got, want := count, resourceInstances+1; got != want {
-		t.Fatalf("ParseStream() emitted %d facts, want %d", got, want)
-	}
-	if got := resourceFacts; got != resourceInstances {
-		t.Fatalf("streamed resource facts = %d, want %d", got, resourceInstances)
-	}
-	if peakHeapGrowth > maxStreamResourcePeakHeapGrowth {
-		t.Fatalf("ParseStream() peak heap growth = %d bytes, want at most %d (maxStreamResourcePeakHeapGrowth); the composite-capture walker may have stopped streaming", peakHeapGrowth, maxStreamResourcePeakHeapGrowth)
 	}
 }
 
@@ -428,23 +373,6 @@ func largeResourceInstancesStateReader(instanceCount int) io.Reader {
 	return io.MultiReader(
 		strings.NewReader(prefix),
 		newRepeatedCountJSONArrayReader(`{"attributes":{"id":"i-1234567890","instance_type":"t3.micro","private_ip":"10.0.0.10"}}`, instanceCount),
-		strings.NewReader(suffix),
-	)
-}
-
-// largeCompositeResourceInstancesStateReader returns a synthetic state JSON
-// where every one of instanceCount instances ships a populated
-// server_side_encryption_configuration nested block. Used by the
-// composite-capture memory gate to prove the streaming nested walker keeps
-// peak heap growth under maxStreamResourcePeakHeapGrowth even when every
-// instance triggers the walker.
-func largeCompositeResourceInstancesStateReader(instanceCount int) io.Reader {
-	const prefix = `{"serial":17,"lineage":"lineage-123","resources":[{"mode":"managed","type":"aws_s3_bucket","name":"logs","instances":[`
-	const suffix = `]}]}`
-	const instance = `{"attributes":{"bucket":"eshu-bucket","server_side_encryption_configuration":[{"rule":[{"apply_server_side_encryption_by_default":[{"sse_algorithm":"AES256"}]}]}]}}`
-	return io.MultiReader(
-		strings.NewReader(prefix),
-		newRepeatedCountJSONArrayReader(instance, instanceCount),
 		strings.NewReader(suffix),
 	)
 }

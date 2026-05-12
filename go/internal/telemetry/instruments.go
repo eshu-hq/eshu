@@ -1296,6 +1296,32 @@ func AttrCompositeSkipReason(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionCompositeSkipReason, v)
 }
 
+// RegisterTfstateSchemaResolverEntries registers the
+// eshu_dp_tfstate_schema_resolver_entries observable gauge. The supplied
+// counter is invoked on every scrape and must report the number of Terraform
+// resource types currently held in memory by the collector's provider-schema
+// resolver. Operators read this gauge to size the collector pod for the
+// startup-loaded schema footprint; the resolver is loaded once at startup and
+// held for the process lifetime, so the value is stable per process.
+//
+// A nil meter or nil counter returns nil without registering anything; the
+// caller is responsible for skipping the call when the runtime resolver does
+// not implement SchemaResolverEntryCounter.
+func RegisterTfstateSchemaResolverEntries(meter metric.Meter, counter func() int) error {
+	if meter == nil || counter == nil {
+		return nil
+	}
+	_, err := meter.Int64ObservableGauge(
+		"eshu_dp_tfstate_schema_resolver_entries",
+		metric.WithDescription("Number of Terraform resource types covered by the loaded provider-schema resolver in the collector process"),
+		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+			o.Observe(int64(counter()))
+			return nil
+		}),
+	)
+	return err
+}
+
 // RecordGOMEMLIMIT registers and records the applied GOMEMLIMIT as a gauge.
 // Call once at startup after instruments and memlimit are configured.
 func RecordGOMEMLIMIT(meter metric.Meter, limitBytes int64) error {
