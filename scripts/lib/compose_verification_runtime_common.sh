@@ -32,22 +32,35 @@ eshu_compose_wait_for_named_exit() {
 	local service="$1" timeout_seconds="$2"
 	local deadline=$((SECONDS + timeout_seconds))
 	while ((SECONDS < deadline)); do
-		local container_id state exit_code
+		local container_id snapshot state exit_code
 		container_id="$("${COMPOSE_CMD[@]}" ps -a -q "$service")"
 		if [[ -z "$container_id" ]]; then
-			sleep 2
+			/bin/sleep 2
 			continue
 		fi
-		state="$(docker inspect --format='{{.State.Status}}' "$container_id" 2>/dev/null || true)"
+		# Fetch status and exit code in a single inspect so a container
+		# disappearing/recreating between calls cannot return an empty
+		# exit_code that we would misread as a clean zero. If the inspect
+		# itself fails (container gone), retry rather than treat the empty
+		# read as a result.
+		snapshot="$(docker inspect -f '{{.State.Status}} {{.State.ExitCode}}' "$container_id" 2>/dev/null || true)"
+		if [[ -z "$snapshot" ]]; then
+			/bin/sleep 2
+			continue
+		fi
+		read -r state exit_code <<<"$snapshot"
 		if [[ "$state" == "exited" ]]; then
-			exit_code="$(docker inspect --format='{{.State.ExitCode}}' "$container_id" 2>/dev/null || true)"
+			if [[ -z "$exit_code" ]]; then
+				/bin/sleep 2
+				continue
+			fi
 			if [[ "$exit_code" != "0" ]]; then
 				echo "$service exited with code $exit_code" >&2
 				return 1
 			fi
 			return 0
 		fi
-		sleep 2
+		/bin/sleep 2
 	done
 	echo "Timed out waiting for $service to exit" >&2
 	return 1
