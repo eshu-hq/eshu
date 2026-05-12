@@ -126,7 +126,7 @@
 // result limits, and reports display truncation separately from bounded raw
 // candidate pages and rows so callers can tell whether the result list was
 // clipped or the candidate scan cap was reached. HCL is reported in the
-// dead-code maturity metadata as non-code IaC evidence, and explicit HCL
+// dead-code maturity metadata as `non_code_iac_evidence`, and explicit HCL
 // dead-code requests do not scan source-code candidate labels. C root
 // suppressions are honored from content-store metadata after hydration, and
 // C#, C++, Kotlin, Scala, Elixir, Haskell, Perl, PHP, Ruby, and Groovy root
