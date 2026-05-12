@@ -1,0 +1,19 @@
+docs/docs/adrs/2026-05-09-documentation-truth-collectors-and-actuators.md
+  s_0fd19061762ced::t_707b23ea51de76 121-190,257-268,270,272,287-289,535-541,560-564
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "5401137e4e7bfcb736b9ae01f4678cd641770342",
+  "prompts": {},
+  "sessions": {
+    "s_0fd19061762ced": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1d42-6b58-7843-9a2d-1c8df56ad1e2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
