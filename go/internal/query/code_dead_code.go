@@ -365,6 +365,9 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsPHPRoot(result, entity, stats) {
 		return true
 	}
+	if deadCodeIsSwiftRoot(result, entity, stats) {
+		return true
+	}
 	if deadCodeIsJavaScriptFrameworkRoot(result, entity, stats) {
 		return true
 	}

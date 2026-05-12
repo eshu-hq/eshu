@@ -10,16 +10,24 @@ import (
 
 var (
 	importPattern       = regexp.MustCompile(`^\s*import\s+([A-Za-z0-9_\.]+)`)
-	classPattern        = regexp.MustCompile(`^\s*(?:final\s+)?class\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
-	actorPattern        = regexp.MustCompile(`^\s*actor\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
-	structPattern       = regexp.MustCompile(`^\s*struct\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
-	enumPattern         = regexp.MustCompile(`^\s*enum\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
-	protocolPattern     = regexp.MustCompile(`^\s*protocol\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
+	classPattern        = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|final)\s+)*class\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
+	actorPattern        = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|final)\s+)*actor\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
+	structPattern       = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|final)\s+)*struct\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
+	enumPattern         = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|final)\s+)*enum\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
+	protocolPattern     = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|final)\s+)*protocol\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
 	functionPattern     = regexp.MustCompile(`\bfunc\s+([A-Za-z_]\w*)(?:<[^>]+>)?\s*\(`)
-	variablePattern     = regexp.MustCompile(`^\s*(?:let|var)\s+([A-Za-z_]\w*)(?:\s*:\s*([^=<{]+(?:<[^>]+>)?))?`)
+	variablePattern     = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|static|class|final|lazy|weak|unowned|private\(set\)|fileprivate\(set\)|internal\(set\))\s+)*(?:let|var)\s+([A-Za-z_]\w*)(?:\s*:\s*([^=<{]+(?:<[^>]+>)?))?`)
+	attributePattern    = regexp.MustCompile(`@([A-Za-z_][A-Za-z0-9_\.]*)`)
+	vaporRoutePattern   = regexp.MustCompile(`\buse:\s*([A-Za-z_]\w*)`)
 	receiverCallPattern = regexp.MustCompile(`\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*\(`)
 	callPattern         = regexp.MustCompile(`\b([A-Za-z_]\w*)\s*\(`)
 )
+
+type swiftSemanticFacts struct {
+	protocolMethods    map[string]map[string]struct{}
+	typeConformances   map[string]map[string]struct{}
+	vaporRouteHandlers map[string]struct{}
+}
 
 type scopedContext struct {
 	kind       string
@@ -40,11 +48,13 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	payload["protocols"] = []map[string]any{}
 
 	lines := strings.Split(string(source), "\n")
+	facts := collectSwiftSemanticFacts(lines)
 	braceDepth := 0
 	stack := make([]scopedContext, 0)
 	seenVariables := make(map[string]struct{})
 	variableTypes := make(map[string]string)
 	seenCalls := make(map[string]struct{})
+	pendingAttributes := make([]string, 0)
 
 	for index, rawLine := range lines {
 		lineNumber := index + 1
@@ -55,11 +65,27 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			continue
 		}
 
+		attributes := swiftAttributes(trimmed)
+		pendingAttributes = append(pendingAttributes, attributes...)
+		if swiftLineHasOnlyAttributes(trimmed) {
+			braceDepth += braceDelta(rawLine)
+			stack = popCompletedScopes(stack, braceDepth)
+			continue
+		}
+
 		appendImport(payload, trimmed, lineNumber, isDependency)
-		stack = appendTypes(payload, stack, trimmed, rawLine, lineNumber, braceDepth)
-		appendFunctions(payload, stack, trimmed, rawLine, lineNumber, options)
-		appendVariable(payload, stack, trimmed, lineNumber, seenVariables, variableTypes)
+		matchedDeclaration := false
+		stack, matchedDeclaration = appendTypes(payload, stack, trimmed, rawLine, lineNumber, braceDepth, pendingAttributes)
+		if appendFunctions(payload, stack, trimmed, rawLine, lineNumber, options, pendingAttributes, facts) {
+			matchedDeclaration = true
+		}
+		if appendVariable(payload, stack, trimmed, lineNumber, seenVariables, variableTypes, facts) {
+			matchedDeclaration = true
+		}
 		appendCalls(payload, trimmed, lineNumber, variableTypes, seenCalls, isDependency)
+		if matchedDeclaration {
+			pendingAttributes = pendingAttributes[:0]
+		}
 
 		braceDepth += braceDelta(rawLine)
 		stack = popCompletedScopes(stack, braceDepth)
@@ -104,48 +130,68 @@ func appendTypes(
 	rawLine string,
 	lineNumber int,
 	braceDepth int,
-) []scopedContext {
-	typePatterns := []struct {
-		pattern *regexp.Regexp
-		bucket  string
-		kind    string
-	}{
-		{pattern: classPattern, bucket: "classes", kind: "class"},
-		{pattern: actorPattern, bucket: "classes", kind: "class"},
-		{pattern: structPattern, bucket: "structs", kind: "struct"},
-		{pattern: enumPattern, bucket: "enums", kind: "enum"},
-		{pattern: protocolPattern, bucket: "protocols", kind: "protocol"},
-	}
-	for _, typed := range typePatterns {
+	attributes []string,
+) ([]scopedContext, bool) {
+	for _, typed := range swiftTypePatterns() {
 		if matches := typed.pattern.FindStringSubmatch(trimmed); len(matches) >= 2 {
 			name := matches[1]
-			shared.AppendBucket(payload, typed.bucket, map[string]any{
+			bases := parseInheritanceClause(matches, 2)
+			item := map[string]any{
 				"name":        name,
 				"line_number": lineNumber,
 				"end_line":    lineNumber,
-				"bases":       parseInheritanceClause(matches, 2),
+				"bases":       bases,
 				"lang":        "swift",
-			})
+			}
+			if rootKinds := swiftTypeDeadCodeRootKinds(typed.kind, bases, attributes); len(rootKinds) > 0 {
+				item["dead_code_root_kinds"] = rootKinds
+			}
+			shared.AppendBucket(payload, typed.bucket, item)
 			return append(stack, scopedContext{
 				kind:       typed.kind,
 				name:       name,
 				braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")),
-			})
+			}), true
 		}
 	}
-	return stack
+	return stack, false
 }
 
-func appendFunctions(payload map[string]any, stack []scopedContext, trimmed string, rawLine string, lineNumber int, options shared.Options) {
+func appendFunctions(
+	payload map[string]any,
+	stack []scopedContext,
+	trimmed string,
+	rawLine string,
+	lineNumber int,
+	options shared.Options,
+	attributes []string,
+	facts swiftSemanticFacts,
+) bool {
+	matched := false
+	classContext := currentScopedName(stack, "class", "struct", "enum", "protocol")
+	scopeKind := currentScopedKind(stack, "class", "struct", "enum", "protocol")
 	if matches := functionPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-		appendFunction(payload, matches[1], rawLine, lineNumber, options, currentScopedName(stack, "class", "struct", "enum"))
+		appendFunction(payload, matches[1], rawLine, lineNumber, options, classContext, scopeKind, attributes, facts)
+		matched = true
 	}
 	if strings.HasPrefix(trimmed, "init(") || strings.Contains(trimmed, " init(") {
-		appendFunction(payload, "init", rawLine, lineNumber, options, currentScopedName(stack, "class", "struct"))
+		appendFunction(payload, "init", rawLine, lineNumber, options, currentScopedName(stack, "class", "struct"), scopeKind, attributes, facts)
+		matched = true
 	}
+	return matched
 }
 
-func appendFunction(payload map[string]any, name string, source string, lineNumber int, options shared.Options, classContext string) {
+func appendFunction(
+	payload map[string]any,
+	name string,
+	source string,
+	lineNumber int,
+	options shared.Options,
+	classContext string,
+	scopeKind string,
+	attributes []string,
+	facts swiftSemanticFacts,
+) {
 	args := extractParameters(source)
 	item := map[string]any{
 		"name":        name,
@@ -162,6 +208,9 @@ func appendFunction(payload map[string]any, name string, source string, lineNumb
 	if options.IndexSource {
 		item["source"] = source
 	}
+	if rootKinds := swiftFunctionDeadCodeRootKinds(name, source, classContext, scopeKind, attributes, facts); len(rootKinds) > 0 {
+		item["dead_code_root_kinds"] = rootKinds
+	}
 	shared.AppendBucket(payload, "functions", item)
 }
 
@@ -172,14 +221,15 @@ func appendVariable(
 	lineNumber int,
 	seenVariables map[string]struct{},
 	variableTypes map[string]string,
-) {
+	facts swiftSemanticFacts,
+) bool {
 	matches := variablePattern.FindStringSubmatch(trimmed)
 	if len(matches) < 2 {
-		return
+		return false
 	}
 	name := matches[1]
 	if _, ok := seenVariables[name]; ok {
-		return
+		return false
 	}
 	seenVariables[name] = struct{}{}
 	contextName := currentScopedName(stack, "class", "struct", "enum")
@@ -187,7 +237,7 @@ func appendVariable(
 	if len(matches) >= 3 {
 		varType = strings.TrimSpace(matches[2])
 	}
-	shared.AppendBucket(payload, "variables", map[string]any{
+	item := map[string]any{
 		"name":          name,
 		"type":          varType,
 		"context":       contextName,
@@ -195,8 +245,13 @@ func appendVariable(
 		"line_number":   lineNumber,
 		"end_line":      lineNumber,
 		"lang":          "swift",
-	})
+	}
+	if rootKinds := swiftVariableDeadCodeRootKinds(name, varType, contextName, facts); len(rootKinds) > 0 {
+		item["dead_code_root_kinds"] = rootKinds
+	}
+	shared.AppendBucket(payload, "variables", item)
 	variableTypes[name] = varType
+	return true
 }
 
 func appendCalls(payload map[string]any, trimmed string, lineNumber int, variableTypes map[string]string, seenCalls map[string]struct{}, isDependency bool) {

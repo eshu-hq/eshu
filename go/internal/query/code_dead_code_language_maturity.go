@@ -29,7 +29,7 @@ var deadCodeLanguageMaturity = map[string]string{
 	"rust":       deadCodeMaturityDerived,
 	"scala":      deadCodeMaturityDerived,
 	"sql":        deadCodeMaturityDerived,
-	"swift":      deadCodeMaturityDerivedCandidate,
+	"swift":      deadCodeMaturityDerived,
 	"tsx":        deadCodeMaturityDerived,
 	"typescript": deadCodeMaturityDerived,
 }
@@ -126,6 +126,17 @@ var deadCodeLanguageExactnessBlockers = map[string][]string{
 		"dynamic_sql_unresolved",
 		"dialect_specific_routine_resolution_unavailable",
 		"migration_order_resolution_unavailable",
+	},
+	"swift": {
+		"macro_expansion_unavailable",
+		"conditional_compilation_unresolved",
+		"swiftpm_target_resolution_unavailable",
+		"protocol_witness_resolution_unavailable",
+		"dynamic_dispatch_unresolved",
+		"property_wrapper_generated_code_unavailable",
+		"result_builder_expansion_unavailable",
+		"objective_c_runtime_dispatch_unresolved",
+		"public_api_surface_unresolved",
 	},
 }
 

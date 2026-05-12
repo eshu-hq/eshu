@@ -89,7 +89,9 @@ member roots, Python `if __name__ == "__main__"` script-main guards, C
 `cpp.function_pointer_target`, and `cpp.node_addon_entrypoint` roots, C# main,
 constructor, override, interface, ASP.NET controller, hosted-service, test, and
 serialization roots, Kotlin top-level main, constructor, interface, override,
-Gradle, Spring, lifecycle, and JUnit roots, and Java
+Gradle, Spring, lifecycle, and JUnit roots, Swift `@main`, top-level `main`,
+SwiftUI `App`/`body`, protocol, constructor, override, UIKit application
+delegate, Vapor route, XCTest, and Swift Testing roots, and Java
 `main`, constructor, `@Override`, Ant `Task` setter, Gradle plugin
 `apply`, task action/property, task setter, task-interface method, public Gradle
 DSL, same-class method-reference target roots, Spring component and callback
@@ -123,6 +125,10 @@ same-file interface and trait methods, route-backed controller actions, literal
 route handlers, Symfony route attributes, and WordPress hook callbacks; PHP
 remains non-exact because broader autoloading, routing, reflection, and dynamic
 dispatch are not resolved exactly.
+Swift parser metadata suppresses known runtime roots while exact cleanup stays
+blocked on macro expansion, conditional compilation, SwiftPM target membership,
+protocol witnesses, dynamic dispatch, generated property-wrapper and
+result-builder code, Objective-C runtime dispatch, and broad public APIs.
 Kotlin parser metadata suppresses top-level main functions, secondary
 constructors, interface methods and same-file implementations, overrides,
 Gradle plugin/task callbacks, Spring component and method callbacks, lifecycle
@@ -386,6 +392,7 @@ wired in `cmd/api/wiring.go`, not here.
   module-contract, and TypeScript interface implementation roots, plus Java
   main, constructor, override, Ant `Task` setter, Gradle plugin `apply`, task
   action/property, and public Gradle DSL roots when query policy suppresses
+  those candidates, plus Swift parser-backed roots when query policy suppresses
   those candidates; the analysis notes name the same Java and C root families.
   Rust parser-backed root,
   syntax-evidence, and observed-blocker rows must stay aligned with the
