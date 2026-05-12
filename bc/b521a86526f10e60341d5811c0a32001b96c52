@@ -1,0 +1,40 @@
+go/cmd/webhook-listener/handler.go
+  s_d3259c8df205fa::t_40ca183e2a784c 6,137-142
+go/internal/storage/postgres/webhook_trigger_store_sql.go
+  s_d3259c8df205fa::t_40ca183e2a784c 28-30,127
+go/internal/storage/postgres/webhook_trigger_store_schema_sql.go
+  s_d3259c8df205fa::t_40ca183e2a784c 28,34-36,40-41
+go/cmd/webhook-listener/handler_test.go
+  s_d3259c8df205fa::t_4949b625f8eaf7 9-10,231-281,314-324
+go/internal/storage/postgres/webhook_trigger_store.go
+  s_d3259c8df205fa::t_40ca183e2a784c 322
+go/internal/storage/postgres/webhook_trigger_store_test.go
+  s_d3259c8df205fa::t_aa8bf37396f88d 21,23-24,70-71,174-176,239-240
+go/cmd/webhook-listener/README.md
+  s_d3259c8df205fa::t_1d31abd3ad24f9 41-43
+go/internal/storage/postgres/README.md
+  s_d3259c8df205fa::t_6dbdc3f61a2050 158-164
+go/internal/storage/postgres/doc.go
+  s_d3259c8df205fa::t_6dbdc3f61a2050 87-89
+  s_d3259c8df205fa::t_1b808d3b07753d 90-91
+schema/data-plane/postgres/017_webhook_refresh_triggers.sql
+  s_d3259c8df205fa::t_40ca183e2a784c 25,31-33,37-38
+go/cmd/webhook-listener/doc.go
+  s_d3259c8df205fa::t_1d31abd3ad24f9 11-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "bcb521a86526f10e60341d5811c0a32001b96c52",
+  "prompts": {},
+  "sessions": {
+    "s_d3259c8df205fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c35-27db-7f23-a973-f62b0105d8b0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
