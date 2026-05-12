@@ -4,10 +4,42 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 
 	golangparser "github.com/eshu-hq/eshu/go/internal/parser/golang"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
+
+// defaultPackagePrescanWorkerCap matches the existing snapshot parse-worker
+// default (min(NumCPU, 8)) the collector applies to its file-level parse
+// pool. Going above this would not help the Go package prescan because the
+// dominant cost after the per-file parse collapse is file I/O, and APFS
+// throughput tops out around this concurrency on M-series and Linux NVMe
+// alike.
+const defaultPackagePrescanWorkerCap = 8
+
+// effectivePackagePrescanWorkers normalizes the worker count callers request.
+// A non-positive configured value selects the default min(NumCPU, cap); any
+// positive value is clamped to NumCPU*2 so a stale operator override cannot
+// over-subscribe the host.
+func effectivePackagePrescanWorkers(configured int) int {
+	cpu := runtime.NumCPU()
+	if cpu < 1 {
+		cpu = 1
+	}
+	if configured <= 0 {
+		if cpu < defaultPackagePrescanWorkerCap {
+			return cpu
+		}
+		return defaultPackagePrescanWorkerCap
+	}
+	if configured > cpu*2 {
+		return cpu * 2
+	}
+	return configured
+}
 
 // PreScanGoPackageSemanticRoots returns package-level Go reachability evidence
 // that must be collected before per-file parsing. The result includes package
@@ -16,37 +48,49 @@ import (
 // The collector feeds these contracts back into per-file parsing so symbol
 // roots can be bounded by package and receiver evidence.
 //
-// The implementation parses each Go file once, using a single shared
-// tree-sitter parser, and collects every per-file evidence type the
-// package-level aggregation needs in that one walk. Files whose package
-// declares same-package interfaces with imported-receiver method returns get
-// a second parse pass to compute chained method call roots; that secondary
-// pass is skipped for packages without such interfaces. Before this shape, the
-// function ran seven separate per-file parses regardless of package shape,
-// which dominated the K8s parse-stage wall (ADR row 1818 follow-up).
+// This entrypoint preserves the original sequential signature for callers
+// that have no opinion on worker count; it delegates to
+// PreScanGoPackageSemanticRootsWithWorkers with a default of
+// min(NumCPU, 8) workers, matching the snapshot parse pool the collector
+// already runs.
 func (e *Engine) PreScanGoPackageSemanticRoots(
 	repoRoot string,
 	paths []string,
+) (GoPackageSemanticRoots, error) {
+	return e.PreScanGoPackageSemanticRootsWithWorkers(repoRoot, paths, 0)
+}
+
+// PreScanGoPackageSemanticRootsWithWorkers is the worker-count-aware variant
+// of PreScanGoPackageSemanticRoots. The per-file parse passes run on a pool
+// of size effectivePackagePrescanWorkers(workers); zero or negative values
+// select the default min(NumCPU, 8). Aggregation across files stays on the
+// calling goroutine so the result is deterministic regardless of worker
+// scheduling.
+//
+// The implementation parses each Go file once, builds the per-file evidence
+// every package-level extractor needs, and feeds the result into a single
+// sequential aggregation pass. Files whose package declares same-package
+// interfaces with imported-receiver method returns get a second per-file
+// parse to compute chained method call roots; that secondary pass also runs
+// on the worker pool and is skipped entirely for packages without such
+// interfaces. Before this shape, the function ran seven separate per-file
+// parses sequentially regardless of package shape, which dominated the K8s
+// parse-stage wall (ADR row 1818 follow-up).
+func (e *Engine) PreScanGoPackageSemanticRootsWithWorkers(
+	repoRoot string,
+	paths []string,
+	workers int,
 ) (GoPackageSemanticRoots, error) {
 	resolvedRepoRoot, err := filepath.Abs(repoRoot)
 	if err != nil {
 		return nil, fmt.Errorf("resolve go package interface prescan repo root %q: %w", repoRoot, err)
 	}
 
-	parser, err := e.runtime.Parser("go")
-	if err != nil {
-		return nil, err
-	}
-	defer parser.Close()
+	workerCount := effectivePackagePrescanWorkers(workers)
 
-	// Pass 1: one read+parse+walk per Go file collects every per-file evidence
-	// type the package-level aggregation needs.
-	type prescanFile struct {
-		resolvedPath string
-		packageDir   string
-		importPath   string
-		evidence     *golangparser.PrescanFileEvidence
-	}
+	// Filter and resolve Go paths before launching workers so the pool only
+	// dispatches real work and the post-parse aggregation loop has stable
+	// inputs.
 	prescanFiles := make([]prescanFile, 0, len(paths))
 	packageDirs := make(map[string]struct{})
 	for _, rawPath := range paths {
@@ -62,17 +106,30 @@ func (e *Engine) PreScanGoPackageSemanticRoots(
 		if !ok || definition.Language != "go" {
 			continue
 		}
-		evidence, err := golangparser.PreScanFileEvidence(parser, resolvedPath)
-		if err != nil {
-			return nil, err
-		}
 		packageDir := filepath.Dir(resolvedPath)
 		packageDirs[packageDir] = struct{}{}
 		prescanFiles = append(prescanFiles, prescanFile{
 			resolvedPath: resolvedPath,
 			packageDir:   packageDir,
-			evidence:     evidence,
 		})
+	}
+
+	// Pass 1: one read+parse+walk per Go file collects every per-file evidence
+	// type the package-level aggregation needs. Workers consume slice indices
+	// and write evidence back to the same slot, so the post-parse aggregation
+	// loop iterates prescanFiles in the original caller-supplied order — that
+	// determinism keeps the aggregated GoImportedInterfaceParamMethods and
+	// GoDirectMethodCallRoots slice orderings byte-identical to the previous
+	// sequential shape.
+	if err := e.runPackagePrescanPass(workerCount, prescanFiles, func(parser *tree_sitter.Parser, idx int) error {
+		evidence, err := golangparser.PreScanFileEvidence(parser, prescanFiles[idx].resolvedPath)
+		if err != nil {
+			return err
+		}
+		prescanFiles[idx].evidence = evidence
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	// Resolve module path and per-package import paths from the module root.
@@ -166,16 +223,27 @@ func (e *Engine) PreScanGoPackageSemanticRoots(
 	// Pass 5 (chained method call roots using package-level interface returns)
 	// needs the pass-4 aggregate, so it runs as a second per-file parse for any
 	// file whose package has non-empty interface returns. Packages without such
-	// interfaces skip this pass entirely.
-	chainedDirectMethodRoots := make(GoDirectMethodCallRoots)
-	for _, fe := range prescanFiles {
-		interfaceReturns := packageInterfaceReturns[fe.packageDir]
+	// interfaces skip this pass entirely. Workers write each file's roots into
+	// the indexed slot so the post-parse merge stays deterministic.
+	chainedPerFile := make([]golangparser.GoDirectMethodCallRoots, len(prescanFiles))
+	if err := e.runPackagePrescanPass(workerCount, prescanFiles, func(parser *tree_sitter.Parser, idx int) error {
+		interfaceReturns := packageInterfaceReturns[prescanFiles[idx].packageDir]
 		if len(interfaceReturns) == 0 {
-			continue
+			return nil
 		}
-		fileRoots, err := golangparser.ImportedDirectMethodCallRootsWithInterfaceReturns(parser, fe.resolvedPath, interfaceReturns)
+		fileRoots, err := golangparser.ImportedDirectMethodCallRootsWithInterfaceReturns(parser, prescanFiles[idx].resolvedPath, interfaceReturns)
 		if err != nil {
-			return nil, err
+			return err
+		}
+		chainedPerFile[idx] = fileRoots
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	chainedDirectMethodRoots := make(GoDirectMethodCallRoots)
+	for _, fileRoots := range chainedPerFile {
+		if len(fileRoots) == 0 {
+			continue
 		}
 		mergeGoDirectMethodCallRoots(chainedDirectMethodRoots, GoDirectMethodCallRoots(fileRoots))
 	}
@@ -240,6 +308,87 @@ func goMethodListContains(methods []string, method string) bool {
 		}
 	}
 	return false
+}
+
+// prescanFile is the per-file working set the parent passes between worker
+// pool steps. Declared at file scope so the worker-pool helper can name the
+// type in its signature; pass-1 workers populate the evidence slot, and the
+// post-parse aggregation loop in PreScanGoPackageSemanticRootsWithWorkers
+// reads each slot in original order.
+type prescanFile struct {
+	resolvedPath string
+	packageDir   string
+	importPath   string
+	evidence     *golangparser.PrescanFileEvidence
+}
+
+// runPackagePrescanPass dispatches one job per file index across a worker
+// pool of size workers. Each worker owns its own tree-sitter parser
+// (tree-sitter parsers are not safe for concurrent use) and reuses it
+// across every file it processes. The first non-nil error any worker returns
+// is reported back to the caller; remaining workers still drain the queue
+// so the function does not leak goroutines on error.
+//
+// Workers do not synchronize on file results — work is expected to write to
+// pre-allocated slots in a caller-owned slice indexed by job index, which
+// preserves byte-identical aggregation order across runs.
+func (e *Engine) runPackagePrescanPass(
+	workers int,
+	files []prescanFile,
+	work func(parser *tree_sitter.Parser, idx int) error,
+) error {
+	if len(files) == 0 {
+		return nil
+	}
+	if workers < 1 {
+		workers = 1
+	}
+
+	jobs := make(chan int, len(files))
+	for i := range files {
+		jobs <- i
+	}
+	close(jobs)
+
+	var (
+		wg       sync.WaitGroup
+		errMu    sync.Mutex
+		firstErr error
+	)
+	setErr := func(err error) {
+		if err == nil {
+			return
+		}
+		errMu.Lock()
+		if firstErr == nil {
+			firstErr = err
+		}
+		errMu.Unlock()
+	}
+
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			parser, err := e.runtime.Parser("go")
+			if err != nil {
+				setErr(err)
+				// Drain remaining jobs so the close(jobs) signal does not
+				// strand other workers waiting on a never-closed channel.
+				for range jobs {
+				}
+				return
+			}
+			defer parser.Close()
+			for idx := range jobs {
+				if err := work(parser, idx); err != nil {
+					setErr(err)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	return firstErr
 }
 
 func goModulePath(repoRoot string) string {
