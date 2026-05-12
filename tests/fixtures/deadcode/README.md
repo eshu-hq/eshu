@@ -55,7 +55,7 @@ Each language fixture must include:
 | Ruby | active | `derived` | broader Rails route resolution, metaprogramming, autoload, gem public API |
 | Rust | planned | `derived_candidate_only` | public items, traits, macro-generated roots |
 | Scala | planned | `derived_candidate_only` | public APIs, traits, annotations, framework roots |
-| Swift | planned | `derived_candidate_only` | public APIs, protocols, SwiftUI/UIKit callbacks |
+| Swift | active | `derived` | public APIs, macros, SwiftPM targets, protocol witnesses, dynamic dispatch |
 | TSX | active | `derived` | React/Next.js roots, component exports, hook ambiguity |
 | TypeScript | active | `derived` | exports, Express/Next.js roots, decorators, dynamic imports |
 

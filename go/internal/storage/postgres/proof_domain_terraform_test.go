@@ -125,15 +125,7 @@ func TestProofDomainTerraformSchemaEvidenceFlowsCollectorToStorage(t *testing.T)
 				collector.FactsFromSlice(infraScope, infraGeneration, infraEnvelopes),
 			},
 		},
-		Committer: collectorCommitterFunc(func(
-			ctx context.Context,
-			scopeValue scope.IngestionScope,
-			generationValue scope.ScopeGeneration,
-			factStream <-chan facts.Envelope,
-		) error {
-			defer cancelCollector()
-			return ingestionStore.CommitScopeGeneration(ctx, scopeValue, generationValue, factStream)
-		}),
+		Committer:    collectorCommitterCancelAfter(ingestionStore, cancelCollector, 2),
 		PollInterval: time.Millisecond,
 	}
 	if err := collectorService.Run(collectorCtx); err != nil {

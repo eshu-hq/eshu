@@ -46,7 +46,7 @@ For audited family-level closure status and bounded gaps, see
 | Rust | `DefaultEngine (rust)` | - | - | - | - | - | - | - |
 | Scala | `DefaultEngine (scala)` | supported | supported | supported | Play, Akka, JUnit, ScalaTest, lifecycle, traits | supported | fixture-backed | supported |
 | SQL | `DefaultEngine (sql)` | supported | supported | unsupported | - | supported | supported | supported |
-| Swift | `DefaultEngine (swift)` | - | - | - | - | - | - | - |
+| Swift | `DefaultEngine (swift)` | supported | supported | supported | SwiftUI, UIKit, Vapor, XCTest, Swift Testing, protocols | supported | fixture-backed | supported |
 | Terraform | `DefaultEngine (hcl)` | - | - | - | - | - | - | - |
 | Terragrunt | `DefaultEngine (hcl)` | - | - | - | - | - | - | - |
 | TypeScript | `DefaultEngine (typescript)` | supported | supported | supported | `react-base`, `nextjs-app-router-base`, `express-base`, `hapi-base`, `aws-sdk-base`, `gcp-sdk-base` | supported | supported | supported |
@@ -80,6 +80,14 @@ compiler with fresh `derived` dead-code API truth after queue drain.
 SQL real-repo and end-to-end indexing are `supported` on the current Go
 parser/query path. The remaining dbt lineage limits are bounded non-goals for
 the documented SQL surface.
+Swift dead-code support is `derived`: parser metadata models `@main`, top-level
+`main`, SwiftUI app/body roots, protocol methods and same-file implementations,
+constructors, overrides, UIKit application delegate callbacks, Vapor route
+handlers, XCTest methods, and Swift Testing `@Test` methods. Exact cleanup
+remains blocked by macro expansion, conditional compilation, SwiftPM target
+membership, protocol witness resolution, dynamic dispatch, property-wrapper and
+result-builder generated code, Objective-C runtime dispatch, and broad public
+API surfaces.
 
 This matrix stays intentionally coarse and should not be read as the
 canonical signoff checklist.

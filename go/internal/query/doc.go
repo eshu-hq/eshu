@@ -38,7 +38,9 @@
 // cpp.function_pointer_target roots, plus cpp.node_addon_entrypoint, plus Kotlin
 // top-level main, constructor, interface, override, Gradle, Spring, lifecycle,
 // and JUnit roots, plus Scala main, App object, trait, override, Play, Akka,
-// lifecycle, JUnit, and ScalaTest roots, plus Ruby
+// lifecycle, JUnit, and ScalaTest roots, plus Swift main, SwiftUI, protocol,
+// constructor, override, UIKit application delegate, Vapor, XCTest, and Swift
+// Testing roots, plus Ruby
 // Rails controller/callback roots, dynamic-dispatch hooks, literal
 // method-reference targets, and script entrypoints, plus Groovy Jenkinsfile
 // pipeline entrypoints and vars/*.groovy shared-library call roots, plus PHP
@@ -70,6 +72,9 @@
 // Scala blockers cover macro expansion, implicit/given resolution, dynamic
 // dispatch, reflection, sbt source sets, framework route files, compiler plugin
 // output, and public API surfaces,
+// Swift blockers cover macro expansion, conditional compilation, SwiftPM target
+// resolution, protocol witnesses, dynamic dispatch, generated property-wrapper
+// and result-builder code, Objective-C runtime dispatch, and public API surfaces,
 // PHP blockers cover dynamic dispatch, reflection, Composer autoloading,
 // include/require resolution, framework routing, trait resolution, namespace
 // aliases, magic-method dispatch, and public API surfaces,
