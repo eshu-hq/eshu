@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"strconv"
 	"strings"
 )
 
@@ -47,7 +48,9 @@ func NewPprofServer(getenv func(string) string) (*HTTPServer, error) {
 // normalizePprofAddr trims the env value, returns "" when disabled, and forces
 // the loopback host when the operator supplied only a port. It rejects values
 // that cannot be parsed as host:port so a typo fails fast at startup instead
-// of producing a confusing listener error later.
+// of producing a confusing listener error later. Port validity is checked here
+// rather than left to net.Listen so all configuration errors surface in the
+// same parse-time error format.
 func normalizePprofAddr(raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -57,6 +60,13 @@ func normalizePprofAddr(raw string) (string, error) {
 	host, port, err := net.SplitHostPort(trimmed)
 	if err != nil {
 		return "", fmt.Errorf("parse %s=%q: %w", PprofAddrEnvVar, raw, err)
+	}
+	if port == "" {
+		return "", fmt.Errorf("parse %s=%q: port is required", PprofAddrEnvVar, raw)
+	}
+	portNum, err := strconv.Atoi(port)
+	if err != nil || portNum < 0 || portNum > 65535 {
+		return "", fmt.Errorf("parse %s=%q: invalid port %q", PprofAddrEnvVar, raw, port)
 	}
 	if host == "" {
 		host = pprofLoopbackHost

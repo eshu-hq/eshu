@@ -96,6 +96,10 @@ func TestNormalizePprofAddr(t *testing.T) {
 		{name: "ipv6 loopback preserved", in: "[::1]:6060", want: "[::1]:6060"},
 		{name: "no colon rejected", in: "garbage", wantErr: true},
 		{name: "extra colon rejected", in: "host:port:extra", wantErr: true},
+		{name: "empty port rejected", in: ":", wantErr: true},
+		{name: "non-numeric port rejected", in: ":abc", wantErr: true},
+		{name: "negative port rejected", in: ":-1", wantErr: true},
+		{name: "port above 65535 rejected", in: ":65536", wantErr: true},
 	}
 
 	for _, tc := range tests {

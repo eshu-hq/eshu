@@ -52,9 +52,12 @@
   `ESHU_PPROF_ADDR` is unset or whitespace-only, the function returns
   `(nil, nil)` and the binary runs without a profiler endpoint. When a
   port-only value is supplied (e.g. `:6060`), the bind host is forced to
-  `127.0.0.1` (`pprof.go:14`) so a default cannot expose pprof on a
-  routable interface. Explicit hosts including `0.0.0.0` are preserved
-  for the operator's chosen exposure. Invalid addresses fail at startup.
+  `pprofLoopbackHost` (`pprof.go:19`) so a default cannot expose pprof on
+  a routable interface. Explicit hosts including `0.0.0.0` are preserved
+  for the operator's chosen exposure. Invalid addresses fail at startup,
+  including empty ports, non-numeric ports, and ports outside the
+  0–65535 range, so configuration mistakes surface in a uniform parse-time
+  error rather than at `net.Listen`.
 
 ## Common changes and how to scope them
 
