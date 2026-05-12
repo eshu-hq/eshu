@@ -68,4 +68,16 @@
 // addresses first declared beyond the depth window. The drift queries gate
 // on jsonb_array_length > 0 so files whose parser buckets are empty (the
 // base-payload default) are not scanned.
+//
+// As of issue #169 the loader also walks terraform_modules facts within the
+// active commit anchor and builds a callee-directory to module-prefix map
+// (tfstate_drift_evidence_module_prefix.go) so resources declared inside a
+// local-source module {} block join on the canonical state-side address
+// shape `module.<name>[.module.<name>...].<type>.<name>`. Local sources only
+// in v1; registry, git, archive, and cross-repo sources fall back to
+// added_in_state with a per-call increment of
+// eshu_dp_drift_unresolved_module_calls_total{reason}. The module-prefix
+// helpers normalize forward-slash paths exclusively (path package, not
+// path/filepath) because terraform_modules.path is a Postgres-stored string,
+// not a live filesystem path.
 package postgres

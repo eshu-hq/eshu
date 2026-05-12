@@ -236,6 +236,41 @@ collector/projector/reducer path.
     surfaces the gap between trigger emission rate and admission rate per
     pack, aggregated across all admitted drift kinds.
 
+### `eshu_dp_drift_unresolved_module_calls_total`
+
+- Type: Counter
+- Labels: `reason` — closed enum
+  `{external_registry, external_git, external_archive, cross_repo_local,
+  cycle_detected, depth_exceeded}`. No resource addresses, source URLs, or
+  file paths appear as label values; high-cardinality detail goes in
+  structured logs.
+- Meaning: One Terraform `module {}` call the drift loader's module-aware
+  join (issue #169) could not resolve to a local-filesystem callee
+  directory under the same repo snapshot. State-side resources whose
+  canonical address would have been prefixed by the unresolvable call
+  surface as `added_in_state` instead of joining cleanly with the
+  config-side row. Reasons:
+  - `external_registry` — Terraform Registry shorthand
+    (`namespace/name/provider`).
+  - `external_git` — `git::` scheme, GitHub/GitLab/Bitbucket HTTPS URL,
+    `git@` SSH form.
+  - `external_archive` — HTTP/HTTPS archive URL, `s3::`, `gcs::`,
+    `mercurial::`, or any unparseable source string.
+  - `cross_repo_local` — local relative path that escapes the repo
+    snapshot root (`../../sibling-repo/...`).
+  - `cycle_detected` — module call graph cycle; the resolver breaks at
+    the second visit so the loader does not run forever.
+  - `depth_exceeded` — module call chain deeper than
+    `maxModulePrefixDepth` (10). Hard-coded; the bound exists to make
+    cycles cheap to break, not as a real ceiling.
+- Use it for: Sizing how much config the v1 module-aware join is missing
+  per intent. Pair with
+  `eshu_dp_correlation_drift_detected_total{drift_kind="added_in_state"}`
+  to distinguish "real operator-imported resource" from "callee module
+  out of scope for v1 join." A growing `external_registry` count is the
+  signal to vendor-in third-party modules; a `cross_repo_local` count
+  shows demand for the deferred cross-repo-modules feature.
+
 ### `eshu_dp_documentation_entity_mentions_extracted_total`
 ### `eshu_dp_documentation_claim_candidates_extracted_total`
 ### `eshu_dp_documentation_claim_candidates_suppressed_total`

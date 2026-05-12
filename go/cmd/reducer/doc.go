@@ -14,7 +14,10 @@
 // via parsePriorConfigDepth (default 10, 0 means use default, invalid input
 // falls back to 0 with a WARN log); the loader receives the runtime tracer
 // so its four-input join surfaces as one SpanReducerDriftEvidenceLoad span
-// over InstrumentedDB children),
+// over InstrumentedDB children, plus the runtime *telemetry.Instruments
+// handle so the module-aware join in issue #169 can increment
+// eshu_dp_drift_unresolved_module_calls_total when a module call's source
+// resolves to a registry, git URL, archive, or cross-repo path),
 // and hosts it
 // through app.NewHostedWithStatusServer so it exposes the shared `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. NornicDB reducer

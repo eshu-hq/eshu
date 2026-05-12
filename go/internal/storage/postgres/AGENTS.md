@@ -101,26 +101,52 @@
 
 - **Parser-entry bridging (config side)** → edit
   `tfstate_drift_evidence_config_row.go`. `configRowFromParserEntry`
-  (`tfstate_drift_evidence_config_row.go:22`) maps one `terraform_resources`
-  JSON entry from the HCL parser into a `tfconfigstate.ResourceRow`. The
-  `attributes` field is already flat dot-path from the parser; this function
-  copies it to `ResourceRow.Attributes`. `unknown_attributes` is a JSON array
-  of dot-path strings; it becomes `ResourceRow.UnknownAttributes` so
-  `classifyAttributeDrift` can skip non-literal expressions.
+  maps one `terraform_resources` JSON entry from the HCL parser into a
+  `tfconfigstate.ResourceRow`. The `attributes` field is already flat
+  dot-path from the parser; this function copies it to
+  `ResourceRow.Attributes`. `unknown_attributes` is a JSON array of dot-path
+  strings; it becomes `ResourceRow.UnknownAttributes` so
+  `classifyAttributeDrift` can skip non-literal expressions. The function
+  takes a `modulePrefix string` parameter (issue #169) — empty for
+  root-module resources, `module.<name>[.module.<name>...]` for resources
+  inside a module {} block. The helper stays strictly 1:1; the 1→N
+  projection (one callee resource referenced by multiple module {} blocks)
+  lives in the loader's emission loop, not here, so future readers cannot
+  mistake the row builder for the projection seam.
   Note: `loadPriorConfigAddresses` (see below) also calls
-  `configRowFromParserEntry` to extract addresses from prior-generation
-  parser facts. The same dot-path address-space contract applies to both the
-  current-config path and the prior-config walk.
+  `configRowFromParserEntry` (through `collectPriorConfigAddresses`) and
+  applies the SAME prefix map. Splitting the prefix application between the
+  two walks would silently regress `removed_from_config` on module-nested
+  addresses.
+
+- **Module-aware drift joining** → edit
+  `tfstate_drift_evidence_module_prefix.go`. `buildModulePrefixMap` walks
+  `terraform_modules` parser facts (`listModuleCallsForCommitQuery`) and
+  produces a callee-directory to prefix-string slice. The loader applies
+  the map in two places: `emitConfigRowsForEntry` (current generation) and
+  `collectPriorConfigAddresses` (prior generations). Local-source modules
+  resolve to a callee directory with `path.Clean(path.Join(callerDir,
+  source))`; registry, git, archive, and cross-repo sources fall back to
+  `added_in_state` and increment
+  `eshu_dp_drift_unresolved_module_calls_total{reason}` through
+  `loggingUnresolvedRecorder` (a thin wrapper over `*telemetry.Instruments`).
+  Depth bound is `maxModulePrefixDepth = 10`, hard-coded with no env
+  override — see the constant's doc comment. Cycles are broken by the
+  per-expansion `visited` set tracked in `walkModulePrefixChain`.
 
 - **Prior-config walk for `removed_from_config`** → edit
   `tfstate_drift_evidence_prior_config.go`. `loadPriorConfigAddresses`
-  (`tfstate_drift_evidence_prior_config.go:45`) queries prior repo-snapshot
-  generations bounded by `PostgresDriftEvidenceLoader.PriorConfigDepth`
-  (default 10, set from `ESHU_DRIFT_PRIOR_CONFIG_DEPTH`). It returns the
-  address set that `mergeDriftRows` uses to set `PreviouslyDeclaredInConfig`
-  on state-only addresses. When changing depth semantics, also update the
-  `defaultPriorConfigDepth` constant in the same file and the
-  `parsePriorConfigDepth` helper in `go/cmd/reducer/config.go`.
+  queries prior repo-snapshot generations bounded by
+  `PostgresDriftEvidenceLoader.PriorConfigDepth` (default 10, set from
+  `ESHU_DRIFT_PRIOR_CONFIG_DEPTH`). It returns the address set that
+  `mergeDriftRows` uses to set `PreviouslyDeclaredInConfig` on state-only
+  addresses. The walk applies the module-prefix map built from the CURRENT
+  generation's `terraform_modules` facts so module-nested removed-block
+  detection still fires; cross-generation prefix walking (a module {} block
+  renamed across generations) is a v1 limitation tracked in a follow-up.
+  When changing depth semantics, also update the `defaultPriorConfigDepth`
+  constant in the same file and the `parsePriorConfigDepth` helper in
+  `go/cmd/reducer/config.go`.
 
 - **Add a new queue domain to ReducerQueue** → add the domain constant in
   `internal/reducer`; extend the `domain = $2` filter handling in
@@ -187,6 +213,15 @@
 
 ## Anti-patterns
 
+- **Do not use `path/filepath` in the drift evidence module helpers.** The
+  `tfstate_drift_evidence_module_prefix.go` helper deals with
+  Postgres-stored forward-slash strings (the parser's `path` field), not
+  live filesystem paths. `path/filepath.Clean` uses OS-specific separators
+  (`\` on Windows) and would silently mis-bucket callee directories on
+  Windows builds while passing every macOS/Linux test. Use `path.Clean`,
+  `path.Dir`, `path.Join` from the standard `path` package. The
+  `TestBuildModulePrefixMapForwardSlashSemanticsRegression` test locks the
+  contract in.
 - **Do not bypass `deduplicateEnvelopes`** when calling `upsertFactBatch`
   directly. Duplicate `fact_id` values in a single multi-row INSERT trigger
   `SQLSTATE 21000`.

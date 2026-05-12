@@ -13,7 +13,13 @@
 // PostgresDriftEvidenceLoader performs per config_state_drift intent. Pipeline
 // stage, graph-backend, and failure-class names stay centralized here so
 // runtime packages can report comparable events without inventing local label
-// vocabularies. Callers must reuse existing log keys before adding new ones.
+// vocabularies. The drift loader's module-aware join (issue #169) registers
+// the DriftUnresolvedModuleCalls counter and the
+// MetricDimensionDriftUnresolvedModuleReason dimension here so the closed
+// enum of unresolvable-module reasons (external_registry, external_git,
+// external_archive, cross_repo_local, cycle_detected, depth_exceeded) stays
+// anchored to the contract surface. Callers must reuse existing log keys
+// before adding new ones.
 // High-cardinality values such as file paths and fact identifiers belong in
 // spans or logs, never in metric labels, so dashboards and alerts stay bounded.
 package telemetry
