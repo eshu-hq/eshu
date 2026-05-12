@@ -162,6 +162,42 @@
         "resources": { "type": "object" }
       }
     },
+    "webhookListener": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "maxBodyBytes": { "type": "integer", "minimum": 1 },
+        "defaultBranch": { "type": "string" },
+        "github": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "secretName": { "type": "string" },
+            "secretKey": { "type": "string" }
+          }
+        },
+        "gitlab": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "secretName": { "type": "string" },
+            "tokenKey": { "type": "string" }
+          }
+        },
+        "exposure": {
+          "type": "object",
+          "properties": {
+            "ingress": { "type": "object" }
+          }
+        },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      }
+    },
     "confluenceCollector": {
       "type": "object",
       "properties": {

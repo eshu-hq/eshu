@@ -56,6 +56,21 @@ spec:
       {{- include "eshu.workflowCoordinatorSelectorLabels" . | nindent 6 }}
 ---
 {{- end }}
+{{- if .Values.webhookListener.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.webhookListenerFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook-listener
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.webhookListenerSelectorLabels" . | nindent 6 }}
+---
+{{- end }}
 {{- if .Values.repoSync.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget

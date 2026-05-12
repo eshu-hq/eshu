@@ -417,14 +417,28 @@ branch is the durable source state Eshu can parse, hash, and project.
 **Current disposition:** Accepted. Implementation is in progress on issue #211
 and PR #213.
 
-Issue #211 tracks implementation. Chunk 2 has started with the
-`go/internal/webhook` package: provider authentication checks and
-provider-neutral trigger normalization are covered by focused Go tests for
-GitHub push, GitHub pull request merge, GitLab push, GitLab merge request
-merge, tag noise, non-default branches, malformed JSON, unsupported events,
-missing secrets, and invalid signatures.
+Issue #211 tracks implementation. The branch now contains the first complete
+runtime slice:
 
-Runtime, durable storage, coordinator handoff, and Helm/EKS resources are still
-pending. The ADR records the service boundary, EKS exposure posture, provider
-event contract, truth model, and rollout gates so implementation can land in
-the same branch and PR without changing the public decision mid-stream.
+- `go/internal/webhook` verifies provider authentication inputs and normalizes
+  GitHub push, GitHub pull request merge, GitLab push, and GitLab merge request
+  merge events, including ignored outcomes for tag noise, non-default branches,
+  malformed JSON, unsupported events, missing secrets, and invalid signatures.
+- `webhook_refresh_triggers` persists normalized trigger decisions in Postgres
+  with durable delivery and refresh keys, queued/ignored/claimed/handed-off
+  status transitions, and `FOR UPDATE SKIP LOCKED` claim behavior.
+- `go/cmd/webhook-listener` hosts GitHub and GitLab routes on the shared
+  runtime mux, uses request body limits, writes trigger decisions before
+  returning provider success, and keeps graph and workspace access out of the
+  process.
+- The ingester and local `collector-git` compatibility handoff can prioritize
+  queued accepted triggers, sync only the referenced repositories, then fall
+  back to scheduled polling as the safety net.
+- The Helm chart renders a separate disabled-by-default `webhookListener`
+  `Deployment`, `Service`, optional provider-path ingress, `ServiceMonitor`,
+  `NetworkPolicy`, `PodDisruptionBudget`, and provider secret validation.
+
+The remaining production acceptance gap is an end-to-end Compose or cluster
+proof that follows one accepted provider delivery through targeted Git refresh,
+new generation persistence, projector completion, and API/MCP truth on the new
+active generation.

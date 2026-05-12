@@ -1,5 +1,7 @@
 package webhook
 
+import "time"
+
 // Provider names the source control provider that emitted a webhook.
 type Provider string
 
@@ -65,4 +67,33 @@ type Trigger struct {
 	TargetSHA            string
 	Action               string
 	Sender               string
+}
+
+// TriggerStatus describes the durable intake and handoff lifecycle for one
+// normalized webhook delivery.
+type TriggerStatus string
+
+const (
+	// TriggerStatusQueued means the accepted trigger is waiting for git refresh.
+	TriggerStatusQueued TriggerStatus = "queued"
+	// TriggerStatusIgnored means the trigger was valid but intentionally skipped.
+	TriggerStatusIgnored TriggerStatus = "ignored"
+	// TriggerStatusClaimed means a collector compatibility handoff claimed it.
+	TriggerStatusClaimed TriggerStatus = "claimed"
+	// TriggerStatusHandedOff means a collector selected the repository refresh.
+	TriggerStatusHandedOff TriggerStatus = "handed_off"
+	// TriggerStatusFailed means durable handoff failed and needs attention.
+	TriggerStatusFailed TriggerStatus = "failed"
+)
+
+// StoredTrigger is the durable representation of a normalized webhook trigger.
+type StoredTrigger struct {
+	Trigger
+	TriggerID      string
+	DeliveryKey    string
+	RefreshKey     string
+	Status         TriggerStatus
+	DuplicateCount int
+	ReceivedAt     time.Time
+	UpdatedAt      time.Time
 }

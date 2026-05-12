@@ -125,6 +125,11 @@ it.
 - `NativeRepositorySnapshotter` — implements `RepositorySnapshotter`; fields
   include `Engine`, `Registry`, `DiscoveryOptions`, `SCIP`, `ParseWorkers`
 - `RepositorySelector` — interface: `SelectRepositories(context.Context) (SelectionBatch, error)`
+- `PriorityRepositorySelector` — tries selectors in order and returns the
+  first non-empty batch
+- `WebhookTriggerRepositorySelector` — claims queued webhook triggers, syncs
+  only referenced repositories, marks handoff failures, and returns successful
+  syncs as a targeted batch
 - `RepositorySnapshotter` — interface: `SnapshotRepository(context.Context, SelectedRepository) (RepositorySnapshot, error)`
 - `SelectionBatch` — `ObservedAt` + `[]SelectedRepository`
 - `SelectedRepository` — `RepoPath`, `RemoteURL`, `IsDependency`, `DisplayName`,
@@ -221,6 +226,8 @@ it.
 
 - `RepositorySelector` — replace `NativeRepositorySelector` with any
   implementation to change how repositories are discovered
+- `PriorityRepositorySelector` — compose a high-priority selector, such as
+  webhook-triggered refresh, ahead of scheduled polling
 - `RepositorySnapshotter` — replace `NativeRepositorySnapshotter` with any
   implementation to change how repositories are snapshotted
 - `Source` / `Committer` — both are interfaces; test implementations substitute
@@ -248,6 +255,8 @@ it.
   If `fingerprintTree` starts hashing ignored generated files, local watch mode
   can keep publishing newer generations and supersede projector work before the
   graph settles.
+- Webhook trigger selection is a wake-up path only. It may prioritize a repo
+  sync, but the fetched default branch still decides freshness.
 
 ## Related docs
 

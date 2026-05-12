@@ -4,8 +4,10 @@ Use this path when Eshu will run as a shared service for a team.
 
 The Helm chart is the supported Kubernetes entry point. It renders separate
 workloads for the API, MCP server, ingester, optional workflow coordinator, and
-resolution engine. Every database-backed workload also runs the
-`eshu-bootstrap-data-plane` init container before the main process starts.
+resolution engine. It can also render a separate public webhook listener for
+GitHub or GitLab default-branch refresh triggers. Every database-backed
+workload also runs the `eshu-bootstrap-data-plane` init container before the
+main process starts.
 
 ## What gets deployed
 
@@ -15,6 +17,7 @@ resolution engine. Every database-backed workload also runs the
 | MCP server | `Deployment` | Serves MCP transport and mounted query routes. |
 | Ingester | `StatefulSet` | Owns repository sync, parsing, fact emission, and the workspace PVC. |
 | Workflow coordinator | `Deployment` | Optional dark-mode control-plane validation. Disabled by default. |
+| Webhook listener | `Deployment` | Optional public webhook intake that writes targeted refresh triggers to Postgres. |
 | Resolution engine | `Deployment` | Drains queued projection work and writes canonical graph state. |
 | DB migrate | `initContainer` | Applies Postgres and graph schema DDL before each workload starts. |
 

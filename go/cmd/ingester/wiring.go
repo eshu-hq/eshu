@@ -87,18 +87,18 @@ const (
 	// CPU-derived default. Each worker holds one Bolt session against
 	// NornicDB while a grouped chunk runs, so the cap also bounds peak Bolt
 	// session demand from the canonical entity path.
-	nornicDBEntityPhaseConcurrencyCap = 16
-	canonicalWriteTimeoutEnv                        = "ESHU_CANONICAL_WRITE_TIMEOUT"
-	nornicDBCanonicalGroupedWritesEnv               = "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES"
-	nornicDBPhaseGroupStatementsEnv                 = "ESHU_NORNICDB_PHASE_GROUP_STATEMENTS"
-	nornicDBFilePhaseGroupStatementsEnv             = "ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS"
-	nornicDBFileBatchSizeEnv                        = "ESHU_NORNICDB_FILE_BATCH_SIZE"
-	nornicDBEntityPhaseStatementsEnv                = "ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS"
-	nornicDBEntityBatchSizeEnv                      = "ESHU_NORNICDB_ENTITY_BATCH_SIZE"
-	nornicDBEntityLabelBatchSizesEnv                = "ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES"
-	nornicDBEntityLabelPhaseGroupStatementsEnv      = "ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS"
-	nornicDBBatchedEntityContainmentEnv             = "ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT"
-	nornicDBEntityPhaseConcurrencyEnv               = "ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY"
+	nornicDBEntityPhaseConcurrencyCap          = 16
+	canonicalWriteTimeoutEnv                   = "ESHU_CANONICAL_WRITE_TIMEOUT"
+	nornicDBCanonicalGroupedWritesEnv          = "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES"
+	nornicDBPhaseGroupStatementsEnv            = "ESHU_NORNICDB_PHASE_GROUP_STATEMENTS"
+	nornicDBFilePhaseGroupStatementsEnv        = "ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS"
+	nornicDBFileBatchSizeEnv                   = "ESHU_NORNICDB_FILE_BATCH_SIZE"
+	nornicDBEntityPhaseStatementsEnv           = "ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS"
+	nornicDBEntityBatchSizeEnv                 = "ESHU_NORNICDB_ENTITY_BATCH_SIZE"
+	nornicDBEntityLabelBatchSizesEnv           = "ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES"
+	nornicDBEntityLabelPhaseGroupStatementsEnv = "ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS"
+	nornicDBBatchedEntityContainmentEnv        = "ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT"
+	nornicDBEntityPhaseConcurrencyEnv          = "ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY"
 )
 
 // compositeRunner runs multiple Runner implementations concurrently.
@@ -171,10 +171,23 @@ func buildIngesterCollectorService(
 	committer.SkipRelationshipBackfill = true
 	committer.Logger = logger
 
+	selector := collector.RepositorySelector(collector.NativeRepositorySelector{Config: config})
+	if webhookTriggerHandoffEnabled(getenv) {
+		selector = collector.PriorityRepositorySelector{Selectors: []collector.RepositorySelector{
+			collector.WebhookTriggerRepositorySelector{
+				Config:     config,
+				Store:      postgres.NewWebhookTriggerStore(database),
+				Owner:      webhookTriggerHandoffOwner("ingester", getenv),
+				ClaimLimit: webhookTriggerHandoffLimit(getenv),
+			},
+			selector,
+		}}
+	}
+
 	return collector.Service{
 		Source: &collector.GitSource{
 			Component: "ingester",
-			Selector:  collector.NativeRepositorySelector{Config: config},
+			Selector:  selector,
 			Snapshotter: collector.NativeRepositorySnapshotter{
 				ParseWorkers:     config.ParseWorkers,
 				DiscoveryOptions: discoveryOptions,
@@ -197,6 +210,30 @@ func buildIngesterCollectorService(
 		Instruments:       instruments,
 		Logger:            logger,
 	}, nil
+}
+
+func webhookTriggerHandoffEnabled(getenv func(string) string) bool {
+	value := strings.TrimSpace(strings.ToLower(getenv("ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED")))
+	return value == "1" || value == "true" || value == "yes" || value == "on"
+}
+
+func webhookTriggerHandoffOwner(defaultOwner string, getenv func(string) string) string {
+	if owner := strings.TrimSpace(getenv("ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER")); owner != "" {
+		return owner
+	}
+	return defaultOwner
+}
+
+func webhookTriggerHandoffLimit(getenv func(string) string) int {
+	raw := strings.TrimSpace(getenv("ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT"))
+	if raw == "" {
+		return 0
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil || limit <= 0 {
+		return 0
+	}
+	return limit
 }
 
 func ingesterDeferredRelationshipMaintenance(

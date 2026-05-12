@@ -1,0 +1,99 @@
+{{- if .Values.webhookListener.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eshu.webhookListenerFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook-listener
+spec:
+  replicas: {{ .Values.webhookListener.replicas }}
+  revisionHistoryLimit: {{ .Values.webhookListener.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      {{- include "eshu.webhookListenerSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "eshu.webhookListenerSelectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "eshu.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: webhook-listener
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/eshu-webhook-listener"]
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: ESHU_HOME
+              value: /tmp/.eshu
+            - name: HOME
+              value: /tmp
+            - name: ESHU_WEBHOOK_MAX_BODY_BYTES
+              value: {{ int .Values.webhookListener.maxBodyBytes | quote }}
+            {{- with .Values.webhookListener.defaultBranch }}
+            - name: ESHU_WEBHOOK_DEFAULT_BRANCH
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.webhookListener.github.enabled }}
+            - name: ESHU_WEBHOOK_GITHUB_PATH
+              value: {{ .Values.webhookListener.github.path | quote }}
+            - name: ESHU_WEBHOOK_GITHUB_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.webhookListener.github.secretName }}
+                  key: {{ .Values.webhookListener.github.secretKey }}
+            {{- end }}
+            {{- if .Values.webhookListener.gitlab.enabled }}
+            - name: ESHU_WEBHOOK_GITLAB_PATH
+              value: {{ .Values.webhookListener.gitlab.path | quote }}
+            - name: ESHU_WEBHOOK_GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.webhookListener.gitlab.secretName }}
+                  key: {{ .Values.webhookListener.gitlab.tokenKey }}
+            {{- end }}
+            {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}
+            {{- include "eshu.renderConnectionTuningEnv" .Values.webhookListener.connectionTuning | nindent 12 }}
+            {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "webhook-listener") | nindent 12 }}
+            {{- include "eshu.renderPrometheusEnv" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            {{- if .Values.observability.prometheus.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.observability.prometheus.port }}
+              protocol: TCP
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.webhookListener.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

@@ -6,8 +6,9 @@ root, not a Go package — each child has its own rich `README.md` and
 
 The public CLI command is `eshu`. The service binaries use ESHU-prefixed names
 when installed for local runtime work, such as `eshu-api`, `eshu-mcp-server`,
-`eshu-ingester`, and `eshu-reducer`. Use `scripts/install-local-binaries.sh`
-from the repository root when you need that exact binary set on `PATH`.
+`eshu-ingester`, `eshu-reducer`, and `eshu-webhook-listener`. Use
+`scripts/install-local-binaries.sh` from the repository root when you need that
+exact binary set on `PATH`.
 
 ## Binary-to-runtime map
 
@@ -24,6 +25,7 @@ from the repository root when you need that exact binary set on `PATH`.
 | `eshu-collector-git` | `collector-git/` | Local git-collector helper |
 | `eshu-collector-confluence` | `collector-confluence/` | Long-running Confluence documentation collector |
 | `eshu-collector-terraform-state` | `collector-terraform-state/` | Long-running Terraform-state collector |
+| `eshu-webhook-listener` | `webhook-listener/` | Long-running GitHub/GitLab webhook intake |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |
 | `eshu-workflow-coordinator` | `workflow-coordinator/` | Long-running workflow coordinator |
 
@@ -39,6 +41,7 @@ flowchart LR
   bootstrap -.one-shot.-> reducer
   workflow[workflow-coordinator] --> postgres
   tfstate[collector-terraform-state] --> postgres
+  webhook[webhook-listener] --> postgres
   api[api] --> graph
   api --> postgres
   mcp[mcp-server] --> api

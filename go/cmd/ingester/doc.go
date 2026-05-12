@@ -21,10 +21,11 @@
 // entity-phase call and consumes chunks from a streaming channel as the
 // producer buffers them, so the slowest chunk in one batch no longer
 // stalls workers that have already finished their share.
-// It is the only
-// long-running runtime that mounts the
-// workspace PVC in Kubernetes, runs as
-// a StatefulSet, and shuts down cleanly on SIGINT or SIGTERM.
+// If ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED is true, the repository selector
+// checks queued webhook refresh triggers before scheduled polling and still
+// sends selected repositories through the same Git sync and snapshot path. It
+// is the only long-running runtime that mounts the workspace PVC in Kubernetes,
+// runs as a StatefulSet, and shuts down cleanly on SIGINT or SIGTERM.
 //
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in
 // net/http/pprof endpoint via runtime.NewPprofServer, bound to 127.0.0.1

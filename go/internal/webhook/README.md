@@ -31,6 +31,8 @@ flowchart LR
   that target the repository default branch.
 - `Trigger` carries provider, delivery, repository, ref, target SHA, sender, and
   decision fields for the later durable trigger handoff.
+- `StoredTrigger` adds durable trigger IDs, refresh keys, status, duplicate
+  count, and timestamps after persistence owns the decision.
 
 ## Invariants
 

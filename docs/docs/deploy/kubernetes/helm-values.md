@@ -22,6 +22,10 @@ The chart lives at `deploy/helm/eshu`.
 | `confluenceCollector.spaceId` | empty | Confluence space ID to crawl. Set this or `rootPageId`, not both. |
 | `confluenceCollector.rootPageId` | empty | Root page ID for a bounded crawl. Set this or `spaceId`, not both. |
 | `confluenceCollector.credentials.secretName` | empty | Secret containing Confluence auth material. |
+| `webhookListener.enabled` | `false` | Deploy the public GitHub/GitLab webhook intake runtime. |
+| `webhookListener.github.enabled` | `false` | Enable the GitHub route. Requires `github.secretName`. |
+| `webhookListener.gitlab.enabled` | `false` | Enable the GitLab route. Requires `gitlab.secretName`. |
+| `webhookListener.exposure.ingress.enabled` | `false` | Render provider-only ingress paths for webhook delivery. |
 | `contentStore.dsn` | empty | Postgres DSN. |
 | `neo4j.uri` | `bolt://neo4j:7687` | Bolt URI for NornicDB or Neo4j. |
 | `neo4j.auth.secretName` | `eshu-neo4j` | Secret for Bolt auth. Set to empty only for bundled NornicDB no-auth installs. |
@@ -69,6 +73,32 @@ confluenceCollector:
 
 The chart rejects installs where the collector is enabled without a base URL,
 credential Secret, or exactly one crawl scope.
+
+## Webhook listener
+
+The webhook listener is off by default. When enabled, it accepts provider
+webhook deliveries, verifies provider secrets, and writes refresh triggers to
+Postgres. It does not mount the repository workspace PVC or graph credentials.
+
+```yaml
+webhookListener:
+  enabled: true
+  github:
+    enabled: true
+    secretName: github-webhook-secret
+  exposure:
+    ingress:
+      enabled: true
+      hosts:
+        - host: hooks.example.com
+          paths:
+            - path: /webhooks/github
+              pathType: Exact
+```
+
+Only provider webhook paths are routed by the chart ingress. Runtime health,
+status, and metrics endpoints stay on the internal service unless an operator
+adds separate protected routing.
 
 ## Repository sync
 

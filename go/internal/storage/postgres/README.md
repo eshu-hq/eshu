@@ -1,9 +1,10 @@
 # storage/postgres
 
 `storage/postgres` owns Eshu's relational persistence layer: facts, queue state,
-content store, status, recovery data, decisions, shared projection intents, and
-workflow coordination tables. It is the single durable source of truth for
-pipeline state that projector, reducer, ingester, and the API surface all share.
+content store, status, recovery data, decisions, webhook refresh triggers,
+shared projection intents, and workflow coordination tables. It is the single
+durable source of truth for pipeline state that projector, reducer, ingester,
+and the API surface all share.
 
 ## Where this fits in the pipeline
 
@@ -149,6 +150,14 @@ writing edges.
 fenced claim leases. `ErrWorkflowClaimRejected` is returned when a claim
 mutation is rejected because the current owner no longer holds the lease.
 
+### Webhook refresh triggers
+
+`WebhookTriggerStore` persists provider webhook decisions in
+`webhook_refresh_triggers`. Accepted triggers enter `queued`; ignored triggers
+stay audit-only. Claimers use `FOR UPDATE SKIP LOCKED`, then mark claimed rows
+`handed_off` after the Git selector receives the targeted repository list or
+`failed` when the compatibility handoff cannot complete.
+
 ## Exported surface
 
 **Database interfaces**
@@ -283,6 +292,9 @@ mutation is rejected because the current owner no longer holds the lease.
 - `WorkflowControlStore` / `NewWorkflowControlStore` — claim, heartbeat,
   release with lease fencing; `ErrWorkflowClaimRejected`, `ClaimSelector`,
   `ClaimMutation`
+- `WebhookTriggerStore` / `NewWebhookTriggerStore` —
+  `StoreTrigger`, `ClaimQueuedTriggers`, `MarkTriggersHandedOff`,
+  `MarkTriggersFailed`, and `WebhookTriggerSchemaSQL`
 
 **Schema bootstrap**
 
@@ -464,6 +476,8 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   `semantic_entity_materialization` storms on NornicDB label indexes.
 - `WorkflowControlStore` claim mutations use `ErrWorkflowClaimRejected` for
   fenced writes; callers must stop processing when this error is returned.
+- `WebhookTriggerStore` treats webhook payloads as trigger evidence only. The
+  Git collector must still fetch the repository before freshness becomes true.
 - Schema definitions in `bootstrapDefinitions` are applied in slice order.
   Tables with foreign key constraints on other tables must appear after their
   dependencies.

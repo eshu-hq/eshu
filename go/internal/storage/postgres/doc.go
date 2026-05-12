@@ -1,6 +1,6 @@
 // Package postgres owns Eshu's relational persistence: facts, queue state,
-// content store, status, recovery data, decisions, and workflow
-// coordination tables.
+// content store, status, recovery data, decisions, webhook refresh triggers,
+// and workflow coordination tables.
 //
 // The package wraps the Postgres driver with OTEL-instrumented helpers and
 // exposes typed access to queue claim, lease, batch, and recovery
@@ -83,4 +83,8 @@
 // helpers normalize forward-slash paths exclusively (path package, not
 // path/filepath) because terraform_modules.path is a Postgres-stored string,
 // not a live filesystem path.
+// WebhookTriggerStore persists provider webhook trigger decisions in
+// webhook_refresh_triggers, deduplicates refresh requests by target commit,
+// claims queued triggers with FOR UPDATE SKIP LOCKED, and records handed-off
+// or failed rows without making repository or graph freshness claims.
 package postgres

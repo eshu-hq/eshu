@@ -26,4 +26,9 @@
 // Service.AfterBatchDrained fires only after at least one committed
 // generation and a drained source batch, so callers can hook reducer or status
 // work to a real collection boundary instead of an idle poll.
+// WebhookTriggerRepositorySelector is a compatibility selector for the
+// webhook-listener rollout: it claims queued trigger rows, syncs only the
+// referenced repositories, marks handoff failures visibly, and lets
+// PriorityRepositorySelector fall back to the scheduled selector when no
+// webhook work is waiting.
 package collector
