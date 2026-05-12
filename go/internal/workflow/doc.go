@@ -12,5 +12,8 @@
 // Terraform state collector instances also validate their discovery config
 // before reaching durable storage: they must enable graph discovery, explicit
 // seeds, or local repo limits, and S3 seeds require bucket, key, region, and an
-// AWS role ARN.
+// AWS role ARN. OCI registry collector instances stay config/poll driven:
+// workflow registers the collector family for progress/readiness awareness, but
+// rejects claim-enabled OCI registry instances until that runtime has a
+// claim-planned work contract.
 package workflow

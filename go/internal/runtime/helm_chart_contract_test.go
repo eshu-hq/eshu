@@ -3,9 +3,11 @@ package runtime
 import (
 	"bytes"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -66,6 +68,87 @@ func TestHelmHTTPRuntimesScrapeMetricsOnHTTPPort(t *testing.T) {
 	}
 }
 
+func TestHelmOCIRegistryCollectorDeployment(t *testing.T) {
+	t.Parallel()
+
+	defaultManifests := renderHelmChart(t)
+	if helmManifestExists(defaultManifests, "Deployment", "eshu-oci-registry-collector") {
+		t.Fatal("default chart render included OCI registry collector deployment")
+	}
+
+	valuesPath := filepath.Join(t.TempDir(), "oci-values.yaml")
+	values := []byte(`
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-oci-registry-collector
+contentStore:
+  dsn: postgresql://eshu:secret@postgres:5432/eshu
+neo4j:
+  auth:
+    secretName: ""
+observability:
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+ociRegistryCollector:
+  enabled: true
+  instanceId: oci-registry-primary
+  pollInterval: 10m
+  aws:
+    region: us-east-1
+  targets:
+    - provider: ecr
+      registry_id: "123456789012"
+      region: us-east-1
+      repository: team/api
+      references: ["latest"]
+    - provider: dockerhub
+      repository: library/busybox
+      references: ["latest"]
+  extraEnv:
+    - name: JFROG_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: jfrog-oci-credentials
+          key: username
+`)
+	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+		t.Fatalf("write OCI registry collector values: %v", err)
+	}
+
+	manifests := renderHelmChart(t, "-f", valuesPath)
+	deployment := requireHelmManifest(t, manifests, "Deployment", "eshu-oci-registry-collector")
+	container := requireHelmContainer(t, deployment, "oci-registry-collector")
+	command := helmStringSlice(container["command"])
+	if !stringSlicesEqual(command, []string{"/usr/local/bin/eshu-collector-oci-registry"}) {
+		t.Fatalf("oci registry collector command = %#v", command)
+	}
+
+	env := helmEnvByName(container)
+	assertHelmLiteralEnv(t, env, "ESHU_OCI_REGISTRY_COLLECTOR_INSTANCE_ID", "oci-registry-primary")
+	assertHelmLiteralEnv(t, env, "ESHU_OCI_REGISTRY_POLL_INTERVAL", "10m")
+	assertHelmLiteralEnv(t, env, "AWS_REGION", "us-east-1")
+	assertHelmLiteralEnv(t, env, "AWS_DEFAULT_REGION", "us-east-1")
+	targets := helmString(env["ESHU_OCI_REGISTRY_TARGETS_JSON"]["value"])
+	for _, want := range []string{`"provider":"ecr"`, `"provider":"dockerhub"`} {
+		if !strings.Contains(targets, want) {
+			t.Fatalf("ESHU_OCI_REGISTRY_TARGETS_JSON = %q, missing %s", targets, want)
+		}
+	}
+	if _, ok := env["JFROG_USERNAME"]["valueFrom"]; !ok {
+		t.Fatalf("JFROG_USERNAME env = %#v, want valueFrom secret ref", env["JFROG_USERNAME"])
+	}
+
+	serviceAccount := requireHelmManifest(t, manifests, "ServiceAccount", "eshu")
+	annotations := helmMap(helmMap(serviceAccount["metadata"])["annotations"])
+	if got, want := helmString(annotations["eks.amazonaws.com/role-arn"]), "arn:aws:iam::123456789012:role/eshu-oci-registry-collector"; got != want {
+		t.Fatalf("IRSA annotation = %q, want %q", got, want)
+	}
+	requireHelmManifest(t, manifests, "Service", "eshu-oci-registry-collector-metrics")
+	requireHelmManifest(t, manifests, "ServiceMonitor", "eshu-oci-registry-collector-metrics")
+}
+
 func renderHelmChart(t *testing.T, args ...string) []helmManifest {
 	t.Helper()
 
@@ -107,6 +190,19 @@ func repositoryRoot(t *testing.T) string {
 		t.Fatal("resolve test filename")
 	}
 	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", ".."))
+}
+
+func helmManifestExists(manifests []helmManifest, kind, name string) bool {
+	for _, manifest := range manifests {
+		if manifest["kind"] != kind {
+			continue
+		}
+		metadata := helmMap(manifest["metadata"])
+		if metadata["name"] == name {
+			return true
+		}
+	}
+	return false
 }
 
 func requireHelmManifest(t *testing.T, manifests []helmManifest, kind, name string) helmManifest {

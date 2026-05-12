@@ -3,32 +3,35 @@
 ## Purpose
 
 `internal/collector/packageregistry` owns package-registry identity
-normalization and fact-envelope construction for the future `package_registry`
-collector family. It turns package/feed metadata into reported-confidence
-facts. It does not call registries yet, write graph state, or decide ownership.
+normalization, bounded target configuration, parser registration, and
+fact-envelope construction for the future `package_registry` collector family.
+It turns local package/feed metadata into reported-confidence facts. It does
+not call registries yet, write graph state, or decide ownership.
 
 This package implements the first slices of
 `docs/docs/adrs/2026-05-12-package-registry-collector.md`: contract fixtures,
-stable package identity, local metadata fixture parsers, and
-reported-confidence fact envelopes for package, version, dependency, artifact,
-source-hint, hosting, and warning evidence.
+stable package identity, bounded runtime target configuration, local metadata
+fixture parsers, parser registration, and reported-confidence fact envelopes
+for package, version, dependency, artifact, source-hint, hosting, and warning
+evidence.
 
 ## Ownership boundary
 
-This package owns local package identity rules, package-native fixture parsing,
-and fact-envelope construction for package-registry evidence. Live registry
-clients, workflow claims, runtime telemetry, graph writes, reducer correlation,
-and query surfaces belong to later collector, reducer, storage, and query
-slices.
+This package owns local package identity rules, bounded target config,
+package-native fixture parser registration, and fact-envelope construction for
+package-registry evidence. Live registry clients, workflow claims, runtime
+telemetry, graph writes, reducer correlation, and query surfaces belong to
+later collector, reducer, storage, and query slices.
 
 ```mermaid
 flowchart LR
   A["Registry/feed response"] --> B["ParseNPMPackumentMetadata / ParsePyPIProjectMetadata / ParseGenericPackageMetadata"]
   B --> C["NormalizePackageIdentity"]
-  C --> D["NewPackageEnvelope"]
-  D --> E["facts.Envelope"]
-  E --> F["Postgres fact store"]
-  F --> G["Reducer correlation"]
+  C --> D["MetadataParserRegistry / RuntimeConfig"]
+  D --> E["NewPackageEnvelope"]
+  E --> F["facts.Envelope"]
+  F --> G["Postgres fact store"]
+  G --> H["Reducer correlation"]
 ```
 
 ## Exported surface
@@ -37,10 +40,18 @@ See `doc.go` for the godoc contract.
 
 - `Ecosystem` — package-native identity family.
 - `Visibility` — source-reported package visibility.
+- `RuntimeConfig` — future collector runtime boundary for bounded
+  package-registry targets.
+- `TargetConfig` — one provider, ecosystem, registry, and scope target.
 - `PackageIdentity` — raw package tuple from a feed.
 - `NormalizedPackageIdentity` — feed-aware stable identity.
 - `MetadataParserContext` — collector boundary copied into parsed fixture
   observations.
+- `MetadataParser` — one ecosystem-native metadata parser function.
+- `MetadataParserRegistry` — explicit ecosystem parser registry for future
+  runtime sources.
+- `DefaultMetadataParserRegistry` — registry containing the npm, PyPI, and
+  Generic fixture parsers implemented today.
 - `ParsedMetadata` — package, version, dependency, artifact, source-hint,
   hosting, and warning observations produced from one metadata document.
 - `NormalizePackageIdentity` — ecosystem normalization for npm, PyPI, Go
@@ -112,8 +123,12 @@ live in the future package-registry runtime slice.
   source-native artifact key.
 - Source hint and warning envelopes strip URL credentials and sensitive query
   parameters before payload or source-reference emission.
-- Metadata parsers are local fixture parsers. They do not make HTTP calls,
-  claim workflow leases, crawl registries, or infer ownership.
+- Metadata parsers and `RuntimeConfig` are local runtime scaffolding only. They
+  do not make HTTP calls, claim workflow leases, crawl registries, commit facts,
+  or infer ownership.
+- New ecosystems should add a parser and register it with
+  `MetadataParserRegistry`; do not route package-manager behavior through one
+  opaque adapter.
 - Private package names, feed URLs, versions, and artifact paths must not become
   metric labels.
 

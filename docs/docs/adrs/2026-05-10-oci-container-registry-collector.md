@@ -220,13 +220,17 @@ Required query capabilities after implementation:
 
 ## Operational Model
 
-The collector should run as a claim-driven Go runtime:
+The initial collector runs as a configured-target Go runtime:
 
 - configuration declares registry instances and repository allowlists
-- workflow coordinator enqueues repository work
-- collector workers claim repository scans, heartbeat, emit facts, and complete
-  claims through the shared workflow store
+- the collector polls those configured repository targets on a bounded interval
+- scans emit durable facts into Postgres; the projector then promotes
+  digest-addressed image truth into the graph
 - the runtime mounts `/healthz`, `/readyz`, `/admin/status`, and `/metrics`
+
+The workflow contract registers `oci_registry` as a fact-only collector family
+for now. Claim-driven scheduling stays disabled until repository scan
+partitioning, lease ownership, and retry semantics have live proof.
 
 Required status fields:
 
@@ -311,10 +315,13 @@ the descriptor and emit a warning instead of dropping evidence.
 3. Implement repository scan, tag listing, manifest resolution, digest
    verification, and fact emission.
 4. Add provider adapters for one OCI-compatible baseline and ECR.
-5. Add projector scaffolding for `ContainerImage` and `ContainerImageIndex`.
-6. Add DSL joins to Git/CI, AWS ECR, Kubernetes live image refs, SBOMs, and
+5. Add projector scaffolding for `ContainerImage`, `ContainerImageIndex`,
+   `ContainerImageDescriptor`, and mutable tag observations.
+6. Add deployment trace enrichment for Kubernetes image references using
+   digest-first registry graph truth.
+7. Add DSL joins to Git/CI, AWS ECR, Kubernetes live image refs, SBOMs, and
    vulnerability facts.
-7. Add telemetry, admin status, and local fixture validation.
+8. Add claim-driven workflow scheduling after live configured-target proof.
 
 ## Acceptance Criteria
 

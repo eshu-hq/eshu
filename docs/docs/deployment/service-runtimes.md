@@ -63,6 +63,7 @@ Current platform reality:
 | MCP Server | MCP tool transport plus mounted query passthrough | `eshu mcp start` | graph + content reads only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Ingester | repo sync, parsing, fact emission, workspace ownership | `/usr/local/bin/eshu-ingester` | workspace PVC + Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `StatefulSet` |
 | Webhook Listener | public provider webhook intake and durable refresh triggers | `/usr/local/bin/eshu-webhook-listener` | Postgres trigger table only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
+| OCI Registry Collector | OCI registry scan, tag observation, manifest/referrer fact emission | `/usr/local/bin/eshu-collector-oci-registry` | Postgres fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
 | Workflow Coordinator | scheduling, trigger intake, claims, completeness, run orchestration | `/usr/local/bin/eshu-workflow-coordinator` | Postgres + graph backend | internal admin/status service plus `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Resolution Engine | queue draining, projection, retries, replay, recovery | `/usr/local/bin/eshu-reducer` | Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Bootstrap Index | one-shot initial indexing | `/usr/local/bin/eshu-bootstrap-index` | workspace + Postgres + graph backend | OTEL export only; no mounted runtime `/metrics` endpoint | one-shot local helper |
@@ -112,9 +113,11 @@ overlay.
 The repo also has local verification runtimes that exercise the Go data plane
 directly.
 
-They are not yet separate deployed Kubernetes workloads in the public chart.
-Only the long-running hosted variants that mount `go/internal/runtime` expose
-the shared `/healthz`, `/readyz`, optional `/metrics`, and optional
+Most verification runtimes are not yet separate deployed Kubernetes workloads
+in the public chart. `collector-oci-registry` is the exception in this branch:
+it can run as an optional Helm `Deployment` when `ociRegistryCollector.enabled`
+is true. Only the long-running hosted variants that mount `go/internal/runtime`
+expose the shared `/healthz`, `/readyz`, optional `/metrics`, and optional
 `/admin/status` contract:
 
 - `collector-git`: `go run ./cmd/collector-git`
@@ -611,8 +614,12 @@ render `ServiceMonitor` resources for:
 
 - API
 - Ingester
+- MCP Server
 - Workflow Coordinator
 - Resolution Engine
+- Webhook Listener
+- Confluence Collector
+- OCI Registry Collector
 
 `ServiceMonitor` does not apply to the bootstrap helper because it is not a
 steady-state Kubernetes service in the public chart.

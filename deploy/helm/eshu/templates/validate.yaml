@@ -10,6 +10,9 @@
 {{- if and (eq .Values.exposure.gateway.backend "mcp") (not .Values.mcpServer.enabled) -}}
 {{- fail "exposure.gateway.backend=mcp requires mcpServer.enabled=true" -}}
 {{- end -}}
+{{- if and .Values.ociRegistryCollector.enabled (not .Values.ociRegistryCollector.targets) -}}
+{{- fail "ociRegistryCollector.targets must contain at least one target when ociRegistryCollector.enabled=true" -}}
+{{- end -}}
 {{- if and .Values.workflowCoordinator.enabled (ne .Values.workflowCoordinator.deploymentMode "dark") -}}
 {{- fail "workflowCoordinator.deploymentMode must remain dark in this chart until coordinator-owned claims finish proof validation" -}}
 {{- end -}}

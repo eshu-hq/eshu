@@ -48,9 +48,9 @@ ready, the worker waits `PollInterval` (default 1 s) and retries.
 Once a claim is held, the worker loads all fact envelopes for that scope
 generation via `FactStore.LoadFacts`, then hands them to `Runtime.Project`. The
 `Runtime` builds a `CanonicalMaterialization` (repository, directory, file,
-entity, module, import, parameter, class member, nested-function, and
-Terraform-state rows) and a content materialization in a single pass via
-`buildProjection`. It writes
+entity, module, import, parameter, class member, nested-function,
+Terraform-state rows, and OCI registry rows) and a content materialization in a
+single pass via `buildProjection`. It writes
 canonical nodes through `CanonicalWriter.Write`, publishes a
 `graph_projection_phase_state` row via the `PhasePublisher` so reducer-owned
 edge domains can gate on `canonical_nodes_committed`, writes content store rows,
@@ -84,7 +84,8 @@ high-cardinality repositories running at once.
 - `CanonicalMaterialization` — full set of canonical node writes for one
   scope generation: `RepositoryRow`, `DirectoryRow`, `FileRow`, `EntityRow`,
   `ModuleRow`, `ImportRow`, `ParameterRow`, `ClassMemberRow`,
-  `NestedFunctionRow`, and Terraform-state resource/module/output rows
+  `NestedFunctionRow`, Terraform-state resource/module/output rows, and OCI
+  registry repository/image/tag/referrer rows
 - `ScopeGenerationWork` — one claimed queue item; carries `scope.IngestionScope`
   and `scope.ScopeGeneration`
 - `Result` — output of one projection pass; includes `content.Result` and
@@ -137,7 +138,10 @@ Graph writes route through `internal/storage/cypher.CanonicalNodeWriter` via the
 `CanonicalWriter` interface. Terraform-state facts are projected as
 `TerraformResource`, `TerraformModule`, and `TerraformOutput` nodes with
 lineage, serial, provider, tag hash, and correlation-anchor evidence kept as
-properties. The projector never calls a Neo4j or NornicDB driver directly.
+properties. OCI registry facts are projected as digest-addressed image
+manifest/index/descriptor rows; tag facts remain weak mutable observations and
+do not define image identity. The projector never calls a Neo4j or NornicDB
+driver directly.
 
 ## Telemetry
 
@@ -215,6 +219,12 @@ backend-specific adapters.
 - Terraform entity labels from the content store include backends, imports,
   moved blocks, removed blocks, checks, and lockfile providers. `EntityTypeLabel`
   must know each label before canonical graph writes can project it.
+- OCI image identity is digest-backed. `oci_registry.image_tag_observation`
+  facts can create weak tag evidence only when they include a resolved digest;
+  tag-only facts must not mint canonical image identity. The OCI rows live on
+  `CanonicalMaterialization` alongside Terraform rows (`canonical.go:27`), and
+  the label map includes the ContainerImage and OciImage labels required by the
+  graph schema.
 - File paths in `EntityRow.FilePath` and `FileRow.Path` are repo-qualified
   (`repoPath/relative_path`) to prevent cross-repository MERGE collisions in the
   graph (`canonical_builder.go:112`).
@@ -226,7 +236,7 @@ backend-specific adapters.
   by `Depth` so parent nodes exist before children during ordered writes
   (`canonical_builder.go:191`).
 - `ReducerIntent` values are sorted by `Domain`, `EntityKey`, and `FactID`
-  before enqueue to produce a stable queue order (`runtime.go:308`).
+  before enqueue to produce a stable queue order (`runtime.go:373`).
 
 ## Related docs
 

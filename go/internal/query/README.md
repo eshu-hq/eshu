@@ -239,6 +239,16 @@ panics if the capability string is not in `capabilityMatrix`.
 Repository runtime artifacts parse Dockerfile stage metadata through
 `buildDockerfileRuntimeArtifacts`, including base image, base tag, build
 platform, copy-from, command, port, and environment signals.
+Deployment trace image references can be enriched with projected OCI registry
+truth when `ContainerImage`, `ContainerImageIndex`, or
+`ContainerImageDescriptor` graph rows exist. Digest references surface as
+canonical image identity; mutable tag references surface only when a registry
+tag observation resolves to one projected digest, and conflicting tag
+observations stay ambiguous. Digest reads start from ContainerImage-family
+`digest` anchors before matching repository publish edges
+(`impact_trace_deployment_oci.go:70`), and tag reads start from
+`ContainerImageTagObservation.image_ref` before matching the resolved digest
+image (`impact_trace_deployment_oci.go:103`).
 Content-backed Argo CD relationship fallback reads `source_repos` for
 multi-source Applications and emits one `DEPLOYS_FROM` relationship per source
 repo while still accepting the older singular `source_repo` metadata field.

@@ -116,6 +116,11 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
 - `SourceLocalRecord` receives a `(scope_id, generation_id, record_id)`
   uniqueness constraint during schema setup; canonical source-local MERGE
   statements rely on it to avoid full label scans on large repositories.
+- OCI registry projection labels (`OciRegistryRepository`, `ContainerImage`,
+  `ContainerImageIndex`, `ContainerImageDescriptor`, and
+  `ContainerImageTagObservation`) receive `uid` constraints, and digest/tag-ref
+  indexes keep deployment trace enrichment anchored on immutable image identity
+  or explicit mutable tag observations.
 
 See `doc.go` for the godoc contract.
 
@@ -148,8 +153,9 @@ or span instruments are registered here; backend executors own those.
   property while semantic entity writes MERGE on the per-repo `uid`. A global
   name uniqueness constraint causes `ConstraintValidationFailed` when multiple
   repositories share module names like `consts` or `index`.
-- `NornicDB` composite `IS UNIQUE` constraints are silently dropped
-  (`schema.go:491`) because NornicDB's parser rejects the multi-property form.
+- `NornicDB` composite `IS UNIQUE` constraints are silently dropped by
+  `nornicDBSchemaConstraint` because NornicDB's parser rejects the
+  multi-property form.
   Canonical writes use separate `uid` uniqueness constraints for those labels
   instead.
 - `DeleteFileFromGraph` runs two sequential `ExecuteCypher` calls

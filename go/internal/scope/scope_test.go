@@ -67,6 +67,11 @@ func TestIngestionScopeValidateAllowsAdditionalCollectorKinds(t *testing.T) {
 			sourceSystem:  "documentation",
 			collectorKind: CollectorDocumentation,
 		},
+		{
+			name:          "oci_registry",
+			sourceSystem:  "oci_registry",
+			collectorKind: CollectorOCIRegistry,
+		},
 	}
 
 	for _, tt := range tests {
@@ -146,6 +151,14 @@ func TestIngestionScopeValidateAllowsAdditionalScopeKinds(t *testing.T) {
 			scopeKind:     KindDocumentationSource,
 			collectorKind: CollectorDocumentation,
 			partitionKey:  "confluence-platform",
+		},
+		{
+			name:          "container_registry_repository",
+			sourceSystem:  "oci_registry",
+			scopeID:       "oci-registry-dockerhub-library-busybox",
+			scopeKind:     KindContainerRegistryRepository,
+			collectorKind: CollectorOCIRegistry,
+			partitionKey:  "docker.io/library/busybox",
 		},
 	}
 

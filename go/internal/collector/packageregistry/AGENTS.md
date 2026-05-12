@@ -4,12 +4,14 @@
 
 1. `README.md` — package purpose, exported surface, and invariants
 2. `identity.go` — ecosystem-specific identity normalization
-3. `metadata_parsers.go`, `metadata_parser_helpers.go` — local fixture parsing
+3. `runtime_config.go`, `parser_registry.go` — bounded target config and
+   ecosystem parser registration
+4. `metadata_parsers.go`, `metadata_parser_helpers.go` — local fixture parsing
    into observation structs
-4. `envelope.go`, `version.go`, `dependency.go`, `artifact.go`,
+5. `envelope.go`, `version.go`, `dependency.go`, `artifact.go`,
    `source_hint.go`, `repository_hosting.go`, `warning.go` — durable
    fact-envelope construction
-5. `docs/docs/adrs/2026-05-12-package-registry-collector.md` — source-truth
+6. `docs/docs/adrs/2026-05-12-package-registry-collector.md` — source-truth
    boundary and implementation slices
 
 ## Invariants
@@ -25,6 +27,11 @@
   to payloads or source refs.
 - Keep metadata parsers local and deterministic. Do not add live HTTP clients,
   registry crawling, workflow claims, graph writes, or ownership decisions here.
+- Keep runtime config bounded by explicit provider, ecosystem, registry, scope,
+  package limits, and version limits. Do not let config imply full registry
+  crawling.
+- Add new ecosystem parsing through `MetadataParserRegistry` registration
+  instead of a runtime source switch that hides package-native behavior.
 - Do not put package names, private feed names, versions, URLs, or artifact
   paths in metrics.
 
@@ -35,7 +42,8 @@
 - Add a new fact envelope builder only after `internal/facts` exposes the fact
   kind and schema version. Keep the source confidence explicit.
 - Add package-native fixture parsing in this package only when it maps to
-  existing observation structs without inventing graph truth.
+  existing observation structs without inventing graph truth, then register the
+  parser explicitly with `MetadataParserRegistry`.
 - Add live registry calls in a runtime subpackage or later collector slice, not
   in the identity helpers.
 

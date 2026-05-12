@@ -22,6 +22,11 @@ The chart lives at `deploy/helm/eshu`.
 | `confluenceCollector.spaceId` | empty | Confluence space ID to crawl. Set this or `rootPageId`, not both. |
 | `confluenceCollector.rootPageId` | empty | Root page ID for a bounded crawl. Set this or `spaceId`, not both. |
 | `confluenceCollector.credentials.secretName` | empty | Secret containing Confluence auth material. |
+| `ociRegistryCollector.enabled` | `false` | Deploy the OCI registry collector. |
+| `ociRegistryCollector.instanceId` | `oci-registry-primary` | Collector instance ID used in emitted scope metadata. |
+| `ociRegistryCollector.targets` | `[]` | OCI registry repositories to scan. Supports `jfrog`, `ecr`, `dockerhub`, and `ghcr`. |
+| `ociRegistryCollector.aws.region` | empty | Optional AWS region env for ECR targets; EKS should use IRSA through `serviceAccount.annotations`. |
+| `ociRegistryCollector.extraEnv` | `[]` | Extra env entries, usually Secret refs for JFrog, Docker Hub, or GHCR credentials named by target env indirection. |
 | `webhookListener.enabled` | `false` | Deploy the public GitHub/GitLab/Bitbucket webhook intake runtime. |
 | `webhookListener.github.enabled` | `false` | Enable the GitHub route. Requires `github.secretName`. |
 | `webhookListener.gitlab.enabled` | `false` | Enable the GitLab route. Requires `gitlab.secretName`. |
@@ -74,6 +79,63 @@ confluenceCollector:
 
 The chart rejects installs where the collector is enabled without a base URL,
 credential Secret, or exactly one crawl scope.
+
+## OCI registry collector
+
+The OCI registry collector is off by default. When enabled, it scans configured
+registry repositories and writes digest-addressed image facts to Postgres. ECR
+on EKS should use IAM Roles for Service Accounts through
+`serviceAccount.annotations`; do not set `aws_profile` in Kubernetes values.
+
+```yaml
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-oci-registry-collector
+
+ociRegistryCollector:
+  enabled: true
+  instanceId: oci-registry-primary
+  aws:
+    region: us-east-1
+  targets:
+    - provider: ecr
+      registry_id: "123456789012"
+      region: us-east-1
+      repository: team/api
+      references: ["latest"]
+    - provider: dockerhub
+      repository: library/busybox
+      references: ["latest"]
+```
+
+Private JFrog, Docker Hub, and GHCR targets should use target-level env
+indirection plus `extraEnv` Secret refs:
+
+```yaml
+ociRegistryCollector:
+  enabled: true
+  targets:
+    - provider: jfrog
+      base_url: https://artifacts.example.test
+      repository_key: docker-local
+      repository: team/app
+      username_env: JFROG_USERNAME
+      password_env: JFROG_PASSWORD
+  extraEnv:
+    - name: JFROG_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: jfrog-oci-credentials
+          key: username
+    - name: JFROG_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: jfrog-oci-credentials
+          key: password
+```
+
+This collector currently proves registry-to-Postgres fact ingestion. Graph
+projection and API/MCP image-correlation answers are a separate promotion step.
 
 ## Webhook listener
 

@@ -54,6 +54,40 @@ func TestDesiredCollectorInstanceValidateAcceptsTerraformStateGraphDiscoveryWith
 	}
 }
 
+func TestDesiredCollectorInstanceValidateAcceptsOCIRegistryWithClaimsDisabled(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "collector-oci-registry",
+		CollectorKind: scope.CollectorOCIRegistry,
+		Mode:          CollectorModeContinuous,
+		Enabled:       true,
+		ClaimsEnabled: false,
+		Configuration: `{"targets":[{"provider":"dockerhub","registry":"registry-1.docker.io","repository":"library/busybox"}]}`,
+	}
+
+	if err := instance.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
+func TestDesiredCollectorInstanceValidateRejectsOCIRegistryClaimsEnabled(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "collector-oci-registry",
+		CollectorKind: scope.CollectorOCIRegistry,
+		Mode:          CollectorModeContinuous,
+		Enabled:       true,
+		ClaimsEnabled: true,
+		Configuration: `{}`,
+	}
+
+	if err := instance.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
+	}
+}
+
 func TestDesiredCollectorInstanceValidateRejectsTerraformStateGraphDiscoveryWithoutRepoScope(t *testing.T) {
 	t.Parallel()
 
@@ -250,6 +284,27 @@ func TestCollectorInstanceValidateRejectsBackwardsTimes(t *testing.T) {
 		LastObservedAt: createdAt.Add(-time.Second),
 		CreatedAt:      createdAt,
 		UpdatedAt:      createdAt,
+	}
+
+	if err := instance.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
+	}
+}
+
+func TestCollectorInstanceValidateRejectsOCIRegistryClaimsEnabled(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 12, 19, 30, 0, 0, time.UTC)
+	instance := CollectorInstance{
+		InstanceID:     "collector-oci-registry",
+		CollectorKind:  scope.CollectorOCIRegistry,
+		Mode:           CollectorModeContinuous,
+		Enabled:        true,
+		ClaimsEnabled:  true,
+		Configuration:  `{}`,
+		LastObservedAt: observedAt,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
 	}
 
 	if err := instance.Validate(); err == nil {

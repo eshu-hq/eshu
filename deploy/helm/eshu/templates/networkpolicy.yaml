@@ -185,4 +185,31 @@ spec:
   egress:
     - {}
 {{- end }}
+---
+{{- if .Values.ociRegistryCollector.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "eshu.ociRegistryCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oci-registry-collector
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eshu.ociRegistryCollectorSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+        {{- if .Values.observability.prometheus.enabled }}
+        - protocol: TCP
+          port: {{ .Values.observability.prometheus.port }}
+        {{- end }}
+  egress:
+    - {}
+{{- end }}
 {{- end }}

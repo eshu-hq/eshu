@@ -95,10 +95,18 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		}
 		k8sResources = mergeDeploymentTraceRows(k8sResources, deploymentRepoK8s)
 		imageRefs = uniqueSortedStrings(append(append([]string{}, imageRefs...), deploymentRepoImages...))
+		imageRegistryTruth, err := h.fetchOCIImageRegistryTruth(r.Context(), imageRefs)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query OCI image registry truth: %v", err))
+			return
+		}
 		ctx["deployment_sources"] = deploymentSources
 		ctx["cloud_resources"] = cloudResources
 		ctx["k8s_resources"] = k8sResources
 		ctx["image_refs"] = imageRefs
+		if len(imageRegistryTruth) > 0 {
+			ctx["image_registry_truth"] = imageRegistryTruth
+		}
 		ctx["controller_entities"] = controllerEntities
 	}
 
@@ -139,6 +147,7 @@ func buildDeploymentTraceResponse(serviceName string, workloadContext map[string
 	cloudResources, _ := workloadContext["cloud_resources"].([]map[string]any)
 	k8sResources, _ := workloadContext["k8s_resources"].([]map[string]any)
 	imageRefs, _ := workloadContext["image_refs"].([]string)
+	imageRegistryTruth := mapSliceValue(workloadContext, "image_registry_truth")
 	controllerEntities, _ := workloadContext["controller_entities"].([]map[string]any)
 	hostnames := mapSliceValue(workloadContext, "hostnames")
 	entrypoints := mapSliceValue(workloadContext, "entrypoints")
@@ -190,6 +199,10 @@ func buildDeploymentTraceResponse(serviceName string, workloadContext map[string
 	deploymentOverview["cloud_resource_count"] = len(cloudResources)
 	deploymentOverview["k8s_resource_count"] = len(k8sResources)
 	deploymentOverview["image_ref_count"] = len(imageRefs)
+	if len(imageRegistryTruth) > 0 {
+		deploymentOverview["image_registry_match_count"] = len(imageRegistryTruth)
+		deploymentOverview["canonical_image_match_count"] = canonicalOCIImageMatchCount(imageRegistryTruth)
+	}
 	deploymentOverview["platform_kinds"] = platformKinds
 	deploymentOverview["platforms"] = platforms
 	deploymentOverview["environments"] = materializedEnvironments
@@ -246,6 +259,9 @@ func buildDeploymentTraceResponse(serviceName string, workloadContext map[string
 		"runtime_overview":        buildRuntimeOverview(materializedEnvironments),
 		"deployment_fact_summary": deploymentFactSummary,
 		"drilldowns":              buildDeploymentDrilldowns(serviceName, safeStr(workloadContext, "id")),
+	}
+	if len(imageRegistryTruth) > 0 {
+		response["image_registry_truth"] = imageRegistryTruth
 	}
 	if len(provenanceOverview) > 0 {
 		response["provenance_overview"] = provenanceOverview

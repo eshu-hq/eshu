@@ -184,6 +184,8 @@ func TestSchemaStatementsContainsPerformanceIndexes(t *testing.T) {
 		"CREATE INDEX workload_name IF NOT EXISTS",
 		"CREATE INDEX workload_instance_workload_id IF NOT EXISTS",
 		"CREATE INDEX workload_instance_repo_id IF NOT EXISTS",
+		"CREATE INDEX container_image_digest IF NOT EXISTS",
+		"CREATE INDEX container_image_tag_observation_ref IF NOT EXISTS",
 	}
 	for _, want := range expected {
 		found := false
@@ -216,6 +218,9 @@ func TestSchemaStatementsContainsUIDConstraints(t *testing.T) {
 		"CREATE CONSTRAINT protocol_uid_unique IF NOT EXISTS FOR (n:Protocol) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT protocol_implementation_uid_unique IF NOT EXISTS FOR (n:ProtocolImplementation) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT k8s_resource_uid_unique IF NOT EXISTS FOR (n:K8sResource) REQUIRE n.uid IS UNIQUE",
+		"CREATE CONSTRAINT container_image_uid_unique IF NOT EXISTS FOR (n:ContainerImage) REQUIRE n.uid IS UNIQUE",
+		"CREATE CONSTRAINT container_image_tag_observation_uid_unique IF NOT EXISTS FOR (n:ContainerImageTagObservation) REQUIRE n.uid IS UNIQUE",
+		"CREATE CONSTRAINT oci_registry_repository_uid_unique IF NOT EXISTS FOR (n:OciRegistryRepository) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT terraform_resource_uid_unique IF NOT EXISTS FOR (n:TerraformResource) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT terraform_module_uid_unique IF NOT EXISTS FOR (n:TerraformModule) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT terraform_output_uid_unique IF NOT EXISTS FOR (n:TerraformOutput) REQUIRE n.uid IS UNIQUE",

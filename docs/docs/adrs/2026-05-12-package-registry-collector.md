@@ -331,19 +331,23 @@ run both Neo4j and NornicDB conformance for the statement shape.
 1. **Contract fixtures first:** add package identity normalization and fact
    payload tests for npm, PyPI, Go modules, Maven, NuGet, and Generic artifacts
    without live registry credentials.
-2. **OCI live lane:** use the existing OCI registry ADR to implement ECR and
+2. **Runtime extension seam:** add bounded runtime target config and an explicit
+   ecosystem parser registry so npm, PyPI, Generic, Go modules, Maven, NuGet,
+   and future ecosystems register source-native behavior without one opaque
+   adapter switch.
+3. **OCI live lane:** use the existing OCI registry ADR to implement ECR and
    JFrog Docker/OCI observation for repositories, tags, manifests, indexes,
    referrers, warnings, and redaction.
-3. **JFrog package lane:** implement Artifactory package-feed observation using
+4. **JFrog package lane:** implement Artifactory package-feed observation using
    package-native contracts first, with Artifactory repository topology emitted
    only as provider hosting evidence.
-4. **Reducer correlation lane:** add tests for exact, derived, ambiguous,
+5. **Reducer correlation lane:** add tests for exact, derived, ambiguous,
    unresolved, stale, and rejected package-source correlations before any
    canonical package ownership or consumption edges are promoted.
-5. **Query lane:** expose package publication and consumption evidence only
+6. **Query lane:** expose package publication and consumption evidence only
    after graph truth and query truth agree for repo, service, and package
    surfaces.
-6. **Provider expansion lane:** add fixture-backed adapters for public ecosystem
+7. **Provider expansion lane:** add fixture-backed adapters for public ecosystem
    registries, then live-gated adapters for GitHub, GitLab, Google, Azure,
    Nexus, and CodeArtifact.
 
