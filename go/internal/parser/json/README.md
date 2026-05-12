@@ -45,7 +45,9 @@ JSON object order matters for `json_metadata.top_level_keys`, dependency rows,
 script rows, and TypeScript `compilerOptions.paths` rows. Keep ordered-object
 helpers in this package and use sorted fallback paths when decoded maps lose
 order. JSONC normalization strips comments and trailing commas for `.jsonc`
-files and TypeScript config files before decoding.
+files and TypeScript config files before decoding. Trailing-comma removal uses
+bounded byte lookahead so large config files do not pay repeated substring
+trims.
 
 dbt SQL lineage stays parent-owned. Do not import `internal/parser` from this
 package; add only narrow callback fields to `Config` when parent-owned behavior

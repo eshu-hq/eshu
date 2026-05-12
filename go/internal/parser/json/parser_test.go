@@ -71,6 +71,28 @@ func TestParseJSONCAcceptsCommentsAndTrailingCommas(t *testing.T) {
 	}
 }
 
+func TestStripTrailingCommasPreservesStringCommas(t *testing.T) {
+	t.Parallel()
+
+	source := `{
+  "literal": ",}",
+  "array": [
+    "keep,]",
+  ],
+}`
+
+	got := stripTrailingCommas(source)
+	want := `{
+  "literal": ",}",
+  "array": [
+    "keep,]"
+  ]
+}`
+	if got != want {
+		t.Fatalf("stripTrailingCommas() = %q, want %q", got, want)
+	}
+}
+
 func TestParseDBTManifestUsesSuppliedLineageExtractor(t *testing.T) {
 	t.Parallel()
 
