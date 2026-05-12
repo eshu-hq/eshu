@@ -134,15 +134,7 @@ func TestGoCollectorContentFactsProduceEvidenceDuringIngestion(t *testing.T) {
 				collector.FactsFromSlice(infraScope, infraGeneration, infraFacts),
 			},
 		},
-		Committer: collectorCommitterFunc(func(
-			ctx context.Context,
-			scopeValue scope.IngestionScope,
-			generationValue scope.ScopeGeneration,
-			factStream <-chan facts.Envelope,
-		) error {
-			defer cancelCollector()
-			return ingestionStore.CommitScopeGeneration(ctx, scopeValue, generationValue, factStream)
-		}),
+		Committer:    collectorCommitterCancelAfter(ingestionStore, cancelCollector, 2),
 		PollInterval: time.Millisecond,
 	}
 	if err := collectorService.Run(collectorCtx); err != nil {
@@ -284,15 +276,7 @@ func TestGoCollectorContentFactsBackfillEvidenceWhenTargetArrivesLater(t *testin
 				collector.FactsFromSlice(targetScope, targetGeneration, targetFacts),
 			},
 		},
-		Committer: collectorCommitterFunc(func(
-			ctx context.Context,
-			scopeValue scope.IngestionScope,
-			generationValue scope.ScopeGeneration,
-			factStream <-chan facts.Envelope,
-		) error {
-			defer cancelCollector()
-			return ingestionStore.CommitScopeGeneration(ctx, scopeValue, generationValue, factStream)
-		}),
+		Committer:    collectorCommitterCancelAfter(ingestionStore, cancelCollector, 2),
 		PollInterval: time.Millisecond,
 	}
 	if err := collectorService.Run(collectorCtx); err != nil {
@@ -420,15 +404,7 @@ func TestGoCollectorHelmFactsProduceEvidenceDuringIngestion(t *testing.T) {
 				collector.FactsFromSlice(helmScope, helmGeneration, helmFacts),
 			},
 		},
-		Committer: collectorCommitterFunc(func(
-			ctx context.Context,
-			scopeValue scope.IngestionScope,
-			generationValue scope.ScopeGeneration,
-			factStream <-chan facts.Envelope,
-		) error {
-			defer cancelCollector()
-			return ingestionStore.CommitScopeGeneration(ctx, scopeValue, generationValue, factStream)
-		}),
+		Committer:    collectorCommitterCancelAfter(ingestionStore, cancelCollector, 2),
 		PollInterval: time.Millisecond,
 	}
 	if err := collectorService.Run(collectorCtx); err != nil {
@@ -563,15 +539,7 @@ func TestGoCollectorArgoCDFactsProduceEvidenceDuringIngestion(t *testing.T) {
 				collector.FactsFromSlice(argoScope, argoGeneration, argoFacts),
 			},
 		},
-		Committer: collectorCommitterFunc(func(
-			ctx context.Context,
-			scopeValue scope.IngestionScope,
-			generationValue scope.ScopeGeneration,
-			factStream <-chan facts.Envelope,
-		) error {
-			defer cancelCollector()
-			return ingestionStore.CommitScopeGeneration(ctx, scopeValue, generationValue, factStream)
-		}),
+		Committer:    collectorCommitterCancelAfter(ingestionStore, cancelCollector, 2),
 		PollInterval: time.Millisecond,
 	}
 	if err := collectorService.Run(collectorCtx); err != nil {

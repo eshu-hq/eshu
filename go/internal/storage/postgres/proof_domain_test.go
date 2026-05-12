@@ -429,3 +429,26 @@ func (f collectorCommitterFunc) CommitScopeGeneration(
 ) error {
 	return f(ctx, scopeValue, generationValue, factStream)
 }
+
+func collectorCommitterCancelAfter(
+	store IngestionStore,
+	cancel context.CancelFunc,
+	commitCount int,
+) collectorCommitterFunc {
+	remaining := commitCount
+	return collectorCommitterFunc(func(
+		ctx context.Context,
+		scopeValue scope.IngestionScope,
+		generationValue scope.ScopeGeneration,
+		factStream <-chan facts.Envelope,
+	) error {
+		if err := store.CommitScopeGeneration(ctx, scopeValue, generationValue, factStream); err != nil {
+			return err
+		}
+		remaining--
+		if remaining <= 0 {
+			cancel()
+		}
+		return nil
+	})
+}
