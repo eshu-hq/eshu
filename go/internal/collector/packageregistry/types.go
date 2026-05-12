@@ -89,3 +89,95 @@ type PackageVersionObservation struct {
 	Checksums           map[string]string
 	SourceURI           string
 }
+
+// PackageDependencyObservation is one source-reported dependency declared by a
+// package version.
+type PackageDependencyObservation struct {
+	Package             PackageIdentity
+	Version             string
+	Dependency          PackageIdentity
+	Range               string
+	DependencyType      string
+	TargetFramework     string
+	Marker              string
+	Optional            bool
+	Excluded            bool
+	ScopeID             string
+	GenerationID        string
+	CollectorInstanceID string
+	FencingToken        int64
+	ObservedAt          time.Time
+	SourceURI           string
+}
+
+// PackageArtifactObservation is one source-reported package artifact for a
+// package version.
+type PackageArtifactObservation struct {
+	Package             PackageIdentity
+	Version             string
+	ArtifactKey         string
+	ArtifactType        string
+	ArtifactURL         string
+	ArtifactPath        string
+	SizeBytes           int64
+	Hashes              map[string]string
+	Classifier          string
+	PlatformTags        []string
+	ScopeID             string
+	GenerationID        string
+	CollectorInstanceID string
+	FencingToken        int64
+	ObservedAt          time.Time
+	SourceURI           string
+}
+
+// SourceHintObservation is one package metadata hint that may identify source,
+// homepage, SCM, or build-provenance evidence.
+type SourceHintObservation struct {
+	Package             PackageIdentity
+	Version             string
+	HintKind            string
+	RawURL              string
+	NormalizedURL       string
+	ConfidenceReason    string
+	ScopeID             string
+	GenerationID        string
+	CollectorInstanceID string
+	FencingToken        int64
+	ObservedAt          time.Time
+	SourceURI           string
+}
+
+// RepositoryHostingObservation is one provider-reported package repository or
+// feed topology record.
+type RepositoryHostingObservation struct {
+	Provider            string
+	Registry            string
+	Repository          string
+	RepositoryType      string
+	Ecosystem           Ecosystem
+	UpstreamID          string
+	UpstreamURL         string
+	ScopeID             string
+	GenerationID        string
+	CollectorInstanceID string
+	FencingToken        int64
+	ObservedAt          time.Time
+	SourceURI           string
+}
+
+// WarningObservation is one non-fatal package-registry collection warning.
+type WarningObservation struct {
+	WarningKey          string
+	WarningCode         string
+	Severity            string
+	Message             string
+	Package             *PackageIdentity
+	Version             string
+	ScopeID             string
+	GenerationID        string
+	CollectorInstanceID string
+	FencingToken        int64
+	ObservedAt          time.Time
+	SourceURI           string
+}

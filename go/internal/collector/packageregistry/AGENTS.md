@@ -4,7 +4,9 @@
 
 1. `README.md` — package purpose, exported surface, and invariants
 2. `identity.go` — ecosystem-specific identity normalization
-3. `envelope.go` — durable fact-envelope construction
+3. `envelope.go`, `version.go`, `dependency.go`, `artifact.go`,
+   `source_hint.go`, `repository_hosting.go`, `warning.go` — durable
+   fact-envelope construction
 4. `docs/docs/adrs/2026-05-12-package-registry-collector.md` — source-truth
    boundary and implementation slices
 
@@ -15,6 +17,10 @@
 - Keep ecosystem semantics separate. npm, PyPI, Go modules, Maven, NuGet, and
   generic feeds do not share one universal identity rule.
 - Use normalized identity for `StableFactKey` and `FactID`.
+- Use stable source-native keys for artifact, hosting, source-hint, and warning
+  envelopes.
+- Strip URL credentials and sensitive token query parameters before adding URLs
+  to payloads or source refs.
 - Do not put package names, private feed names, versions, URLs, or artifact
   paths in metrics.
 

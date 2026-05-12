@@ -8,14 +8,14 @@ collector family. It turns package/feed metadata into reported-confidence
 facts. It does not call registries yet, write graph state, or decide ownership.
 
 This package implements the first slice of
-`docs/docs/adrs/2026-05-12-package-registry-collector.md`: contract fixtures
-and stable package identity.
+`docs/docs/adrs/2026-05-12-package-registry-collector.md`: contract fixtures,
+stable package identity, and reported-confidence fact envelopes for package,
+version, dependency, artifact, source-hint, hosting, and warning evidence.
 
 ## Ownership boundary
 
-This package owns local package identity rules, `package_registry.package`
-envelope construction, and `package_registry.package_version` envelope
-construction. Live registry clients, workflow claims, runtime
+This package owns local package identity rules and fact-envelope construction
+for package-registry evidence. Live registry clients, workflow claims, runtime
 telemetry, graph writes, reducer correlation, and query surfaces belong to later
 collector, reducer, storage, and query slices.
 
@@ -46,6 +46,28 @@ See `doc.go` for the godoc contract.
   envelope emission.
 - `NewPackageVersionEnvelope` — builds a `package_registry.package_version`
   fact with `source_confidence=reported`.
+- `PackageDependencyObservation` — one package version dependency ready for
+  envelope emission.
+- `NewPackageDependencyEnvelope` — builds a
+  `package_registry.package_dependency` fact with
+  `source_confidence=reported`.
+- `PackageArtifactObservation` — one package version artifact ready for
+  envelope emission.
+- `NewPackageArtifactEnvelope` — builds a `package_registry.package_artifact`
+  fact with `source_confidence=reported`.
+- `SourceHintObservation` — one repository, homepage, SCM, or provenance hint
+  ready for envelope emission.
+- `NewSourceHintEnvelope` — builds a `package_registry.source_hint` fact with
+  `source_confidence=reported`.
+- `RepositoryHostingObservation` — one provider/feed topology record ready for
+  envelope emission.
+- `NewRepositoryHostingEnvelope` — builds a
+  `package_registry.repository_hosting` fact with
+  `source_confidence=reported`.
+- `WarningObservation` — one non-fatal collector warning ready for envelope
+  emission.
+- `NewWarningEnvelope` — builds a `package_registry.warning` fact with
+  `source_confidence=reported`.
 
 ## Dependencies
 
@@ -66,6 +88,12 @@ live in the future package-registry runtime slice.
 - Stable IDs use normalized package identity, not raw display names.
 - Version fact IDs use `<package_id>@<version>` so artifact metadata and
   deprecation/yank/unlisted flags stay attached to the package-native version.
+- Dependency fact IDs use normalized source and dependency package identities
+  plus package-native dependency scope fields.
+- Artifact fact IDs use normalized package version identity plus a stable
+  source-native artifact key.
+- Source hint and warning envelopes strip URL credentials and sensitive query
+  parameters before payload or source-reference emission.
 - Private package names, feed URLs, versions, and artifact paths must not become
   metric labels.
 
