@@ -157,3 +157,51 @@ func TestDefaultEngineParsePathKotlinDeadCodeFixtureExpectedRoots(t *testing.T) 
 		t.Fatalf("unusedCleanupCandidate dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
 }
+
+func TestDefaultEngineParsePathKotlinKeepsPendingMultilineAnnotations(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "src/main/kotlin/example/Routes.kt")
+	writeTestFile(
+		t,
+		sourcePath,
+		`package example
+
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
+
+@RestController
+class Routes {
+    @RequestMapping(
+        "/status"
+    )
+    fun status(): String = "ok"
+
+    @GetMapping(
+        path = ["/health"]
+    )
+    fun health(): String = "ok"
+
+    private fun helper(): String = "unused"
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "status", "Routes"), "dead_code_root_kinds", "kotlin.spring_request_mapping_method")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "health", "Routes"), "dead_code_root_kinds", "kotlin.spring_request_mapping_method")
+	if helper := assertFunctionByNameAndClass(t, got, "helper", "Routes"); helper["dead_code_root_kinds"] != nil {
+		t.Fatalf("Routes.helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
+	}
+}

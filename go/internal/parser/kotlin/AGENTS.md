@@ -15,7 +15,7 @@ Do not import the parent parser package. Use go/internal/parser/shared for
 sorting, and pre-scan name cleanup.
 
 `Parse` must preserve the parent engine behavior and payload shape from
-parser.go:12 through parser.go:484. `PreScan` must continue to derive names from
+parser.go:12 through parser.go:493. `PreScan` must continue to derive names from
 the shared patterns in patterns.go so collection pre-scan and full parsing
 agree.
 

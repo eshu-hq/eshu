@@ -95,7 +95,9 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 		}
 
 		declaredTypeNames := make(map[string]struct{})
+		annotationsConsumed := false
 		if matches := kotlinClassPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
+			annotationsConsumed = true
 			name := matches[1]
 			knownTypeNames[name] = struct{}{}
 			declaredTypeNames[name] = struct{}{}
@@ -121,6 +123,7 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 			stack = append(stack, scopedContext{kind: "class", name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
 		}
 		if matches := kotlinObjectPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
+			annotationsConsumed = true
 			name := matches[1]
 			knownTypeNames[name] = struct{}{}
 			declaredTypeNames[name] = struct{}{}
@@ -129,6 +132,7 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 			stack = append(stack, scopedContext{kind: "class", name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
 		}
 		if matches := kotlinCompanionPattern.FindStringSubmatch(trimmed); len(matches) >= 1 {
+			annotationsConsumed = true
 			name := "Companion"
 			if len(matches) == 2 && strings.TrimSpace(matches[1]) != "" {
 				name = matches[1]
@@ -140,6 +144,7 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 			stack = append(stack, scopedContext{kind: "companion", name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
 		}
 		if matches := kotlinInterfacePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
+			annotationsConsumed = true
 			name := matches[1]
 			knownTypeNames[name] = struct{}{}
 			declaredTypeNames[name] = struct{}{}
@@ -151,6 +156,7 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 			stack = append(stack, scopedContext{kind: "interface", name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
 		}
 		if matches := kotlinEnumPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
+			annotationsConsumed = true
 			name := matches[1]
 			knownTypeNames[name] = struct{}{}
 			declaredTypeNames[name] = struct{}{}
@@ -160,6 +166,7 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 		}
 
 		if matches := kotlinFunctionPattern.FindStringSubmatch(trimmed); len(matches) == 3 {
+			annotationsConsumed = true
 			name := matches[2]
 			if strings.TrimSpace(name) != "" {
 				item := map[string]any{
@@ -223,6 +230,7 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 			}
 		}
 		if kotlinConstructorPattern.MatchString(trimmed) {
+			annotationsConsumed = true
 			item := map[string]any{
 				"name":             "constructor",
 				"line_number":      lineNumber,
@@ -242,6 +250,7 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 		}
 
 		if matches := kotlinVariablePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
+			annotationsConsumed = true
 			name := matches[1]
 			functionContext := currentScopedName(stack, "function")
 			typeContext := kotlinCurrentTypeScopeName(stack)
@@ -468,7 +477,7 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 
 		braceDepth += braceDelta(rawLine)
 		stack = popCompletedScopes(stack, braceDepth)
-		if len(annotations) > 0 {
+		if annotationsConsumed {
 			pendingAnnotations = pendingAnnotations[:0]
 		}
 	}
