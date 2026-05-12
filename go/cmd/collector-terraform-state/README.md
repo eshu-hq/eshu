@@ -100,6 +100,14 @@ keys, local paths, or work item IDs. Use backend kind, result, claim/run
 correlation, and the locator hash emitted in Terraform-state facts when you
 need to investigate a specific source.
 
+`eshu_dp_tfstate_schema_resolver_entries` reports the number of Terraform
+resource types the loaded provider-schema bundle covers. The bundle is loaded
+once at startup and held for the lifetime of the process — operators size the
+collector pod's memory request against this value plus the steady-state parse
+footprint. The gauge registers only when the configured resolver implements
+the optional `SchemaResolverEntryCounter` capability; the production resolver
+loaded from `terraformschema.EmbeddedSchemasFS` always does.
+
 The main trace spans are `tfstate.source.open`, `tfstate.parser.stream`, and
 `tfstate.fact.emit_batch`.
 

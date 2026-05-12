@@ -87,6 +87,7 @@ func run(parent context.Context) error {
 		instruments,
 		discoveryMetrics,
 		logger,
+		meter,
 	)
 	if err != nil {
 		return err

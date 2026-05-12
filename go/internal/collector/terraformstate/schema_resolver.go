@@ -42,6 +42,18 @@ func (r *packagedSchemaResolver) HasAttribute(resourceType string, attributeKey 
 	return ok
 }
 
+// EntryCount returns the number of Terraform resource types covered by the
+// loaded provider schemas. Callers report this through the
+// eshu_dp_tfstate_schema_resolver_entries observable gauge so operators can
+// size the collector pod for the startup-loaded schema footprint. Returns 0
+// when r is nil.
+func (r *packagedSchemaResolver) EntryCount() int {
+	if r == nil {
+		return 0
+	}
+	return len(r.resourceAttributes)
+}
+
 // LoadPackagedSchemaResolver builds a ProviderSchemaResolver from the gzipped
 // JSON provider schemas. It first scans schemaDir on disk; when schemaDir is
 // blank, missing, or contains no parseable bundles, it falls back to the
@@ -173,6 +185,13 @@ type schemaBlock struct {
 // aggregate lookup. Block names live alongside attribute names because
 // Terraform state JSON serializes both under the same per-resource
 // `attributes` object.
+//
+// Top-level only: this merge does not recurse into nested block_types. Only
+// the top-level keys of the resource block are added to the trusted surface.
+// Nested blocks are walked unconditionally by the streaming nested walker
+// (composite_walker.go) once the top-level capture is permitted, so the
+// resolver does not need them in its lookup. A future contributor adding
+// per-nested-key coverage MUST update the walker contract too.
 func mergeResourceBlock(dst map[string]map[string]struct{}, resourceType string, block schemaBlock) {
 	bucket, ok := dst[resourceType]
 	if !ok {

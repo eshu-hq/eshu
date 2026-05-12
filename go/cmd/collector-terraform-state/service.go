@@ -8,13 +8,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/collector/tfstateruntime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"go.opentelemetry.io/otel/trace"
 )
 
 var fallbackClaimSequence uint64
@@ -26,6 +28,7 @@ func buildClaimedService(
 	instruments *telemetry.Instruments,
 	discoveryMetrics terraformstate.DiscoveryMetrics,
 	logger *slog.Logger,
+	meter metric.Meter,
 ) (collector.ClaimedService, error) {
 	config, err := loadRuntimeConfig(getenv)
 	if err != nil {
@@ -34,6 +37,15 @@ func buildClaimedService(
 	discoveryConfig, err := terraformstate.ParseDiscoveryConfig(config.Instance.Configuration)
 	if err != nil {
 		return collector.ClaimedService{}, err
+	}
+	// Register the schema-resolver entry-count gauge so operators can size
+	// the collector pod for the startup-loaded provider-schema bundle. The
+	// resolver is loaded once at startup and held for the lifetime of the
+	// process; the gauge reports the per-process footprint.
+	if counter, ok := config.SchemaResolver.(terraformstate.SchemaResolverEntryCounter); ok {
+		if err := telemetry.RegisterTfstateSchemaResolverEntries(meter, counter.EntryCount); err != nil {
+			return collector.ClaimedService{}, fmt.Errorf("register tfstate schema resolver entries gauge: %w", err)
+		}
 	}
 
 	committer := postgres.NewIngestionStore(database)

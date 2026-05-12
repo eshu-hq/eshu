@@ -34,6 +34,7 @@ func TestBuildClaimedServiceWiresTerraformStateRuntime(t *testing.T) {
 		nil,
 		nil,
 		slog.Default(),
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildClaimedService() error = %v, want nil", err)
@@ -134,6 +135,7 @@ func TestBuildClaimedServiceWiresDynamoDBLockMetadataRuntime(t *testing.T) {
 		nil,
 		nil,
 		slog.Default(),
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildClaimedService() error = %v, want nil", err)
@@ -191,6 +193,7 @@ func TestBuildClaimedServiceWiresRedactionRules(t *testing.T) {
 		nil,
 		nil,
 		slog.Default(),
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildClaimedService() error = %v, want nil", err)
@@ -237,6 +240,7 @@ func TestBuildClaimedServiceWiresProviderSchemaResolver(t *testing.T) {
 		nil,
 		nil,
 		slog.Default(),
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildClaimedService() error = %v, want nil", err)
@@ -282,6 +286,7 @@ func TestLoadRuntimeConfigRequiresRedactionRulesetVersion(t *testing.T) {
 		nil,
 		nil,
 		slog.Default(),
+		nil,
 	)
 	if err == nil {
 		t.Fatal("buildClaimedService() error = nil, want error citing ESHU_TFSTATE_REDACTION_RULESET_VERSION")
