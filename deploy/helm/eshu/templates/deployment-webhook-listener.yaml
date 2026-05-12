@@ -63,6 +63,15 @@ spec:
                   name: {{ .Values.webhookListener.gitlab.secretName }}
                   key: {{ .Values.webhookListener.gitlab.tokenKey }}
             {{- end }}
+            {{- if .Values.webhookListener.bitbucket.enabled }}
+            - name: ESHU_WEBHOOK_BITBUCKET_PATH
+              value: {{ .Values.webhookListener.bitbucket.path | quote }}
+            - name: ESHU_WEBHOOK_BITBUCKET_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.webhookListener.bitbucket.secretName }}
+                  key: {{ .Values.webhookListener.bitbucket.secretKey }}
+            {{- end }}
             {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}
             {{- include "eshu.renderConnectionTuningEnv" .Values.webhookListener.connectionTuning | nindent 12 }}
             {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "webhook-listener") | nindent 12 }}

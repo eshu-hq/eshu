@@ -16,6 +16,18 @@ func TestVerifyGitHubSignature(t *testing.T) {
 	}
 }
 
+func TestVerifyBitbucketSignature(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte("Hello, World!")
+	secret := "It's a Secret to Everybody"
+	validSignature := "sha256=757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17"
+
+	if err := VerifyBitbucketSignature(payload, secret, validSignature); err != nil {
+		t.Fatalf("VerifyBitbucketSignature() error = %v, want nil", err)
+	}
+}
+
 func TestVerifyGitHubSignatureRejectsInvalidInputs(t *testing.T) {
 	t.Parallel()
 

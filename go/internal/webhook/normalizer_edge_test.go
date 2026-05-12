@@ -100,6 +100,15 @@ func TestNormalizePushIgnoresDefaultBranchDeletes(t *testing.T) {
 				"project": {"id": 77, "path_with_namespace": "eshu-hq/eshu", "default_branch": "main"}
 			}`,
 		},
+		{
+			name:        "bitbucket",
+			provider:    ProviderBitbucket,
+			eventHeader: "repo:push",
+			payload: `{
+				"repository": {"uuid": "{repo-uuid}", "full_name": "eshu-hq/eshu", "mainbranch": {"name": "main"}},
+				"push": {"changes": [{"new": {"type": "branch", "name": "main", "target": {"hash": "` + zeroSHA + `"}}}]}
+			}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -115,6 +124,8 @@ func TestNormalizePushIgnoresDefaultBranchDeletes(t *testing.T) {
 				trigger, err = NormalizeGitHub(tt.eventHeader, "delivery-delete", []byte(tt.payload), "")
 			case ProviderGitLab:
 				trigger, err = NormalizeGitLab(tt.eventHeader, "delivery-delete", []byte(tt.payload), "")
+			case ProviderBitbucket:
+				trigger, err = NormalizeBitbucket(tt.eventHeader, "delivery-delete", []byte(tt.payload), "")
 			default:
 				t.Fatalf("unsupported provider %q", tt.provider)
 			}

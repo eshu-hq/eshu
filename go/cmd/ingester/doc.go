@@ -22,9 +22,10 @@
 // producer buffers them, so the slowest chunk in one batch no longer
 // stalls workers that have already finished their share.
 // If ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED is true, the repository selector
-// checks queued GitHub webhook refresh triggers before scheduled polling,
-// marks unsupported providers failed, and still sends selected repositories
-// through the same Git sync and snapshot path. It is the only long-running
+// checks queued GitHub, GitLab, and Bitbucket webhook refresh triggers before
+// scheduled polling, marks unsupported providers failed, and still sends
+// selected repositories through the same Git sync and snapshot path. It is the
+// only long-running
 // runtime that mounts the workspace PVC in Kubernetes, runs as a StatefulSet,
 // and shuts down cleanly on SIGINT or SIGTERM.
 //

@@ -22,9 +22,10 @@ The chart lives at `deploy/helm/eshu`.
 | `confluenceCollector.spaceId` | empty | Confluence space ID to crawl. Set this or `rootPageId`, not both. |
 | `confluenceCollector.rootPageId` | empty | Root page ID for a bounded crawl. Set this or `spaceId`, not both. |
 | `confluenceCollector.credentials.secretName` | empty | Secret containing Confluence auth material. |
-| `webhookListener.enabled` | `false` | Deploy the public GitHub/GitLab webhook intake runtime. |
+| `webhookListener.enabled` | `false` | Deploy the public GitHub/GitLab/Bitbucket webhook intake runtime. |
 | `webhookListener.github.enabled` | `false` | Enable the GitHub route. Requires `github.secretName`. |
 | `webhookListener.gitlab.enabled` | `false` | Enable the GitLab route. Requires `gitlab.secretName`. |
+| `webhookListener.bitbucket.enabled` | `false` | Enable the Bitbucket route. Requires `bitbucket.secretName`. |
 | `webhookListener.exposure.ingress.enabled` | `false` | Render provider-only ingress paths for webhook delivery. |
 | `contentStore.dsn` | empty | Postgres DSN. |
 | `neo4j.uri` | `bolt://neo4j:7687` | Bolt URI for NornicDB or Neo4j. |
@@ -86,6 +87,9 @@ webhookListener:
   github:
     enabled: true
     secretName: github-webhook-secret
+  bitbucket:
+    enabled: true
+    secretName: bitbucket-webhook-secret
   exposure:
     ingress:
       enabled: true
@@ -94,9 +98,10 @@ webhookListener:
 ```
 
 Only provider webhook paths are routed by the chart ingress. Set those paths
-with `webhookListener.github.path` and `webhookListener.gitlab.path`; ingress
-hosts only select hostnames. Runtime health, status, and metrics endpoints stay
-on the internal service unless an operator adds separate protected routing.
+with `webhookListener.github.path`, `webhookListener.gitlab.path`, and
+`webhookListener.bitbucket.path`; ingress hosts only select hostnames. Runtime
+health, status, and metrics endpoints stay on the internal service unless an
+operator adds separate protected routing.
 
 ## Repository sync
 

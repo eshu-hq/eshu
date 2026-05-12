@@ -136,6 +136,66 @@ func TestWebhookHandlerAcceptsGitLabToken(t *testing.T) {
 	}
 }
 
+func TestWebhookHandlerAcceptsSignedBitbucketPush(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"repository":{"uuid":"{repo-uuid}","full_name":"eshu-hq/eshu","mainbranch":{"name":"main"}},
+		"push":{"changes":[{"new":{"type":"branch","name":"main","target":{"hash":"2222222222222222222222222222222222222222"}}}]}
+	}`)
+	store := &recordingTriggerStore{}
+	mux := mustWebhookMux(t, webhookListenerConfig{
+		BitbucketSecret:     "secret",
+		BitbucketPath:       "/webhooks/bitbucket",
+		MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+	}, store)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/bitbucket", bytes.NewReader(payload))
+	req.Header.Set("X-Event-Key", "repo:push")
+	req.Header.Set("X-Request-UUID", "request-1")
+	req.Header.Set("X-Hub-Signature", githubSignature("secret", payload))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	if got, want := len(store.triggers), 1; got != want {
+		t.Fatalf("stored triggers = %d, want %d", got, want)
+	}
+	if store.triggers[0].Provider != webhook.ProviderBitbucket {
+		t.Fatalf("Provider = %q, want bitbucket", store.triggers[0].Provider)
+	}
+}
+
+func TestWebhookHandlerRejectsMissingBitbucketDeliveryID(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"repository":{"uuid":"{repo-uuid}","full_name":"eshu-hq/eshu","mainbranch":{"name":"main"}},
+		"push":{"changes":[{"new":{"type":"branch","name":"main","target":{"hash":"2222222222222222222222222222222222222222"}}}]}
+	}`)
+	store := &recordingTriggerStore{}
+	mux := mustWebhookMux(t, webhookListenerConfig{
+		BitbucketSecret:     "secret",
+		BitbucketPath:       "/webhooks/bitbucket",
+		MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+	}, store)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/bitbucket", bytes.NewReader(payload))
+	req.Header.Set("X-Event-Key", "repo:push")
+	req.Header.Set("X-Hub-Signature", githubSignature("secret", payload))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if len(store.triggers) != 0 {
+		t.Fatalf("stored triggers = %d, want 0", len(store.triggers))
+	}
+}
+
 func TestWebhookHandlerRejectsMissingGitLabDeliveryID(t *testing.T) {
 	t.Parallel()
 

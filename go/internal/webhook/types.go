@@ -10,6 +10,8 @@ const (
 	ProviderGitHub Provider = "github"
 	// ProviderGitLab identifies webhook events emitted by GitLab.
 	ProviderGitLab Provider = "gitlab"
+	// ProviderBitbucket identifies webhook events emitted by Bitbucket Cloud.
+	ProviderBitbucket Provider = "bitbucket"
 )
 
 // EventKind names the normalized event category that can trigger refresh work.
@@ -18,7 +20,7 @@ type EventKind string
 const (
 	// EventKindPush represents a push to a repository branch.
 	EventKindPush EventKind = "push"
-	// EventKindPullRequestMerged represents a GitHub pull request merge.
+	// EventKindPullRequestMerged represents a pull request merge.
 	EventKindPullRequestMerged EventKind = "pull_request_merged"
 	// EventKindMergeRequestMerged represents a GitLab merge request merge.
 	EventKindMergeRequestMerged EventKind = "merge_request_merged"
@@ -42,7 +44,7 @@ const (
 	ReasonNonDefaultBranch DecisionReason = "non_default_branch"
 	// ReasonTagRef means the event targeted a tag rather than a branch.
 	ReasonTagRef DecisionReason = "tag_ref"
-	// ReasonPullRequestNotMerged means a GitHub pull request was not merged.
+	// ReasonPullRequestNotMerged means a provider pull request was not merged.
 	ReasonPullRequestNotMerged DecisionReason = "pull_request_not_merged"
 	// ReasonMergeRequestNotMerged means a GitLab merge request was not merged.
 	ReasonMergeRequestNotMerged DecisionReason = "merge_request_not_merged"

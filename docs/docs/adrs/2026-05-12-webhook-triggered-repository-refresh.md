@@ -39,15 +39,17 @@ contract Eshu needs:
   with `X-Hub-Signature-256` when a secret is configured.
 - GitLab sends push and merge request webhook events; push webhooks identify
   branch refs, and merge request webhooks identify merge actions.
+- Bitbucket Cloud sends `repo:push` and `pullrequest:fulfilled` webhook
+  events; signed hooks use `X-Hub-Signature` with HMAC-SHA256.
 
 Eshu should use those events as a wake-up signal. It must not use them as
 canonical source truth.
 
 ## Problem Statement
 
-Eshu needs a public EKS-facing service that can receive GitHub and GitLab
-webhooks, validate them, and turn default-branch changes into targeted
-repository refresh work without weakening graph truth.
+Eshu needs a public EKS-facing service that can receive GitHub, GitLab, and
+Bitbucket webhooks, validate them, and turn default-branch changes into
+targeted repository refresh work without weakening graph truth.
 
 The service must answer these questions safely:
 
@@ -73,8 +75,8 @@ Introduce a new long-running runtime named `webhook-listener`, packaged as
 
 The runtime is a separate Kubernetes `Deployment` in the Helm chart. It is
 publicly reachable through an explicitly configured ingress or gateway route on
-EKS so GitHub and GitLab can deliver webhooks. It does not mount the repository
-workspace PVC and it does not connect to the graph backend.
+EKS so GitHub, GitLab, and Bitbucket can deliver webhooks. It does not mount the
+repository workspace PVC and it does not connect to the graph backend.
 
 The listener owns:
 
@@ -121,8 +123,9 @@ replace the fetched repository state.
 
 ### Prefer Default-Branch Push Events As The Commit Boundary
 
-GitHub pull request and GitLab merge request events are useful context, but
-default-branch push events are the stronger cross-provider commit boundary.
+GitHub pull request, GitLab merge request, and Bitbucket fulfilled pull request
+events are useful context, but default-branch push events are the stronger
+cross-provider commit boundary.
 They cover:
 
 - merge commits
@@ -219,6 +222,9 @@ legacy SHA-1 signature is not an acceptance path.
 GitLab verification must use the configured GitLab webhook token or equivalent
 secret header supported by the deployed GitLab flavor. Missing or mismatched
 secrets reject the request before payload normalization.
+
+Bitbucket Cloud verification must use `X-Hub-Signature` with HMAC-SHA256 when a
+webhook secret is configured. SHA-1 is not an acceptance path for Bitbucket.
 
 ### Idempotency And Ordering
 
@@ -345,8 +351,9 @@ branch is the durable source state Eshu can parse, hash, and project.
 ### Chunk 2: Normalizer And Verification Package
 
 - Add a Go package for provider verification and event normalization.
-- Cover GitHub push, GitHub pull request closed/merged, GitLab push, and
-  GitLab merge request merged cases.
+- Cover GitHub push, GitHub pull request closed/merged, GitLab push, GitLab
+  merge request merged, Bitbucket push, and Bitbucket fulfilled pull request
+  cases.
 - Cover negative and ambiguous cases: invalid signature, non-default branch,
   tag push, closed-unmerged PR/MR, missing repo identity, duplicate delivery,
   stale older target SHA, oversized payload.
@@ -407,8 +414,8 @@ branch is the durable source state Eshu can parse, hash, and project.
    webhooks first, or both in the same slice?
 3. Should GitLab group webhooks be accepted in the first slice, or only project
    webhooks?
-4. What is the default public route shape: `/webhooks/github` and
-   `/webhooks/gitlab`, or provider-versioned paths?
+4. What is the default public route shape: `/webhooks/github`,
+   `/webhooks/gitlab`, and `/webhooks/bitbucket`, or provider-versioned paths?
 5. Should missed webhook recovery stay as low-frequency scheduled polling, or
    should the coordinator also run periodic provider audit checks?
 
@@ -421,14 +428,15 @@ Issue #211 tracks implementation. The branch now contains the first complete
 runtime slice:
 
 - `go/internal/webhook` verifies provider authentication inputs and normalizes
-  GitHub push, GitHub pull request merge, GitLab push, and GitLab merge request
-  merge events, including ignored outcomes for tag noise, non-default branches,
-  malformed JSON, unsupported events, missing secrets, and invalid signatures.
+  GitHub push, GitHub pull request merge, GitLab push, GitLab merge request
+  merge, Bitbucket push, and Bitbucket fulfilled pull request events, including
+  ignored outcomes for tag noise, non-default branches, malformed JSON,
+  unsupported events, missing secrets, and invalid signatures.
 - `webhook_refresh_triggers` persists normalized trigger decisions in Postgres
   with durable delivery and refresh keys, queued/ignored/claimed/handed-off
   status transitions, and `FOR UPDATE SKIP LOCKED` claim behavior.
-- `go/cmd/webhook-listener` hosts GitHub and GitLab routes on the shared
-  runtime mux, uses request body limits, writes trigger decisions before
+- `go/cmd/webhook-listener` hosts GitHub, GitLab, and Bitbucket routes on the
+  shared runtime mux, uses request body limits, writes trigger decisions before
   returning provider success, and keeps graph and workspace access out of the
   process.
 - The ingester and local `collector-git` compatibility handoff can prioritize

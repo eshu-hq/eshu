@@ -55,10 +55,10 @@ composite runner.
 
 When `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED` is true, the ingester wraps the
 normal repository selector with a webhook-trigger selector. Accepted queued
-GitHub triggers are claimed first, synced as targeted repositories, then handed
-to the same snapshot and fact-emission path as scheduled polling. Unsupported
-provider triggers are marked failed instead of being routed through the
-GitHub-only sync path.
+GitHub, GitLab, and Bitbucket triggers are claimed first, synced as targeted
+repositories, then handed to the same snapshot and fact-emission path as
+scheduled polling. Unsupported provider triggers are marked failed instead of
+being routed through a guessed clone path.
 
 After each full collector batch drain, `AfterBatchDrained` calls
 `BackfillAllRelationshipEvidence` then `ReopenDeploymentMappingWorkItems`.

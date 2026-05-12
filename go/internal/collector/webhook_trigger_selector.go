@@ -126,7 +126,7 @@ func supportedWebhookRefreshTriggers(triggers []webhook.StoredTrigger) ([]webhoo
 			continue
 		}
 		switch trigger.Provider {
-		case webhook.ProviderGitHub:
+		case webhook.ProviderGitHub, webhook.ProviderGitLab, webhook.ProviderBitbucket:
 			syncable = append(syncable, trigger)
 		default:
 			unsupported = append(unsupported, trigger)
@@ -142,7 +142,7 @@ func repositoryIDsFromWebhookTriggers(triggers []webhook.StoredTrigger) []string
 		if trigger.Decision != webhook.DecisionAccepted {
 			continue
 		}
-		repositoryID := normalizeRepositoryID(trigger.RepositoryFullName)
+		repositoryID := repositoryIDFromWebhookTrigger(trigger)
 		if repositoryID == "" {
 			continue
 		}
@@ -154,6 +154,21 @@ func repositoryIDsFromWebhookTriggers(triggers []webhook.StoredTrigger) []string
 	}
 	sort.Strings(repositoryIDs)
 	return repositoryIDs
+}
+
+func repositoryIDFromWebhookTrigger(trigger webhook.StoredTrigger) string {
+	repositoryID := normalizeRepositoryID(trigger.RepositoryFullName)
+	if repositoryID == "" {
+		return ""
+	}
+	switch trigger.Provider {
+	case webhook.ProviderGitHub:
+		return repositoryID
+	case webhook.ProviderGitLab, webhook.ProviderBitbucket:
+		return string(trigger.Provider) + "/" + repositoryID
+	default:
+		return ""
+	}
 }
 
 func triggerIDsFromWebhookTriggers(triggers []webhook.StoredTrigger) []string {

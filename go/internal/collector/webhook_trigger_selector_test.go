@@ -3,7 +3,9 @@ package collector
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -130,27 +132,44 @@ func TestWebhookTriggerRepositorySelectorMarksTriggersFailedWhenSyncFails(t *tes
 	}
 }
 
-func TestWebhookTriggerRepositorySelectorFailsUnsupportedGitLabTriggers(t *testing.T) {
+func TestWebhookTriggerRepositorySelectorSyncsProviderScopedRepositories(t *testing.T) {
 	t.Parallel()
 
+	reposDir := t.TempDir()
 	store := &stubWebhookTriggerStore{
-		claimed: []webhook.StoredTrigger{{
-			TriggerID: "trigger-gitlab",
-			Trigger: webhook.Trigger{
-				Provider:           webhook.ProviderGitLab,
-				Decision:           webhook.DecisionAccepted,
-				RepositoryFullName: "eshu-hq/eshu",
+		claimed: []webhook.StoredTrigger{
+			{
+				TriggerID: "trigger-gitlab",
+				Trigger: webhook.Trigger{
+					Provider:           webhook.ProviderGitLab,
+					Decision:           webhook.DecisionAccepted,
+					RepositoryFullName: "eshu-hq/eshu",
+				},
 			},
-		}},
+			{
+				TriggerID: "trigger-bitbucket",
+				Trigger: webhook.Trigger{
+					Provider:           webhook.ProviderBitbucket,
+					Decision:           webhook.DecisionAccepted,
+					RepositoryFullName: "eshu-hq/worker",
+				},
+			},
+		},
 	}
 	selector := WebhookTriggerRepositorySelector{
-		Config: RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
+		Config: RepoSyncConfig{ReposDir: reposDir, SourceMode: "explicit", CloneDepth: 1},
 		Store:  store,
 		Owner:  "collector-git",
 		Now:    func() time.Time { return time.Date(2026, time.May, 12, 15, 0, 0, 0, time.UTC) },
-		SyncGit: func(context.Context, RepoSyncConfig, []string) (GitSyncSelection, error) {
-			t.Fatal("SyncGit called, want unsupported GitLab trigger to fail before GitHub sync")
-			return GitSyncSelection{}, nil
+		SyncGit: func(_ context.Context, _ RepoSyncConfig, repositoryIDs []string) (GitSyncSelection, error) {
+			want := []string{"bitbucket/eshu-hq/worker", "gitlab/eshu-hq/eshu"}
+			if !reflect.DeepEqual(repositoryIDs, want) {
+				t.Fatalf("repositoryIDs = %#v, want provider-scoped ids %#v", repositoryIDs, want)
+			}
+			return GitSyncSelection{SelectedRepoPaths: []string{
+				filepath.Join(reposDir, "bitbucket", "eshu-hq", "worker"),
+				filepath.Join(reposDir, "gitlab", "eshu-hq", "eshu"),
+			}}, nil
 		},
 	}
 
@@ -158,21 +177,30 @@ func TestWebhookTriggerRepositorySelectorFailsUnsupportedGitLabTriggers(t *testi
 	if err != nil {
 		t.Fatalf("SelectRepositories() error = %v, want nil", err)
 	}
-	if len(batch.Repositories) != 0 {
-		t.Fatalf("len(batch.Repositories) = %d, want 0", len(batch.Repositories))
+	if len(batch.Repositories) != 2 {
+		t.Fatalf("len(batch.Repositories) = %d, want 2", len(batch.Repositories))
 	}
-	if got := store.failedCall("unsupported_provider"); !reflect.DeepEqual(got, []string{"trigger-gitlab"}) {
-		t.Fatalf("failed unsupported_provider = %#v, want GitLab trigger", got)
+	gotRemoteURLs := remoteURLsFromSelectedRepositories(batch.Repositories)
+	wantRemoteURLs := []string{
+		"https://bitbucket.org/eshu-hq/worker.git",
+		"https://gitlab.com/eshu-hq/eshu.git",
 	}
-	if len(store.handedOff) != 0 {
-		t.Fatalf("handedOff = %#v, want none", store.handedOff)
+	if !reflect.DeepEqual(gotRemoteURLs, wantRemoteURLs) {
+		t.Fatalf("remote URLs = %#v, want %#v", gotRemoteURLs, wantRemoteURLs)
+	}
+	if !reflect.DeepEqual(store.handedOff, []string{"trigger-bitbucket", "trigger-gitlab"}) {
+		t.Fatalf("handedOff = %#v, want provider trigger IDs", store.handedOff)
+	}
+	if got := store.failedCall("unsupported_provider"); len(got) != 0 {
+		t.Fatalf("failed unsupported_provider = %#v, want none", got)
 	}
 }
 
-func TestWebhookTriggerRepositorySelectorSyncsGitHubAndFailsGitLabInMixedBatch(t *testing.T) {
+func TestWebhookTriggerRepositorySelectorSyncsMixedProviders(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 12, 15, 0, 0, 0, time.UTC)
+	reposDir := t.TempDir()
 	store := &stubWebhookTriggerStore{
 		claimed: []webhook.StoredTrigger{
 			{
@@ -191,11 +219,19 @@ func TestWebhookTriggerRepositorySelectorSyncsGitHubAndFailsGitLabInMixedBatch(t
 					RepositoryFullName: "eshu-hq/eshu",
 				},
 			},
+			{
+				TriggerID: "trigger-bitbucket",
+				Trigger: webhook.Trigger{
+					Provider:           webhook.ProviderBitbucket,
+					Decision:           webhook.DecisionAccepted,
+					RepositoryFullName: "eshu-hq/worker",
+				},
+			},
 		},
 	}
 	selector := WebhookTriggerRepositorySelector{
 		Config: RepoSyncConfig{
-			ReposDir:      t.TempDir(),
+			ReposDir:      reposDir,
 			SourceMode:    "explicit",
 			GitAuthMethod: "token",
 			CloneDepth:    1,
@@ -204,10 +240,15 @@ func TestWebhookTriggerRepositorySelectorSyncsGitHubAndFailsGitLabInMixedBatch(t
 		Owner: "collector-git",
 		Now:   func() time.Time { return now },
 		SyncGit: func(_ context.Context, _ RepoSyncConfig, repositoryIDs []string) (GitSyncSelection, error) {
-			if !reflect.DeepEqual(repositoryIDs, []string{"eshu-hq/eshu"}) {
-				t.Fatalf("repositoryIDs = %#v, want only GitHub-compatible repo", repositoryIDs)
+			want := []string{"bitbucket/eshu-hq/worker", "eshu-hq/eshu", "gitlab/eshu-hq/eshu"}
+			if !reflect.DeepEqual(repositoryIDs, want) {
+				t.Fatalf("repositoryIDs = %#v, want %#v", repositoryIDs, want)
 			}
-			return GitSyncSelection{SelectedRepoPaths: []string{t.TempDir()}}, nil
+			return GitSyncSelection{SelectedRepoPaths: []string{
+				filepath.Join(reposDir, "bitbucket", "eshu-hq", "worker"),
+				filepath.Join(reposDir, "eshu-hq", "eshu"),
+				filepath.Join(reposDir, "gitlab", "eshu-hq", "eshu"),
+			}}, nil
 		},
 	}
 
@@ -215,14 +256,23 @@ func TestWebhookTriggerRepositorySelectorSyncsGitHubAndFailsGitLabInMixedBatch(t
 	if err != nil {
 		t.Fatalf("SelectRepositories() error = %v, want nil", err)
 	}
-	if len(batch.Repositories) != 1 {
-		t.Fatalf("len(batch.Repositories) = %d, want 1", len(batch.Repositories))
+	if len(batch.Repositories) != 3 {
+		t.Fatalf("len(batch.Repositories) = %d, want 3", len(batch.Repositories))
 	}
-	if !reflect.DeepEqual(store.handedOff, []string{"trigger-github"}) {
-		t.Fatalf("handedOff = %#v, want only GitHub trigger", store.handedOff)
+	gotRemoteURLs := remoteURLsFromSelectedRepositories(batch.Repositories)
+	wantRemoteURLs := []string{
+		"https://bitbucket.org/eshu-hq/worker.git",
+		"https://github.com/eshu-hq/eshu.git",
+		"https://gitlab.com/eshu-hq/eshu.git",
 	}
-	if got := store.failedCall("unsupported_provider"); !reflect.DeepEqual(got, []string{"trigger-gitlab"}) {
-		t.Fatalf("failed unsupported_provider = %#v, want GitLab trigger", got)
+	if !reflect.DeepEqual(gotRemoteURLs, wantRemoteURLs) {
+		t.Fatalf("remote URLs = %#v, want %#v", gotRemoteURLs, wantRemoteURLs)
+	}
+	if !reflect.DeepEqual(store.handedOff, []string{"trigger-bitbucket", "trigger-github", "trigger-gitlab"}) {
+		t.Fatalf("handedOff = %#v, want all provider triggers", store.handedOff)
+	}
+	if got := store.failedCall("unsupported_provider"); len(got) != 0 {
+		t.Fatalf("failed unsupported_provider = %#v, want none", got)
 	}
 }
 
@@ -254,6 +304,15 @@ type stubWebhookTriggerStore struct {
 	handedOff   []string
 	failed      []string
 	failedCalls []webhookTriggerFailureCall
+}
+
+func remoteURLsFromSelectedRepositories(repositories []SelectedRepository) []string {
+	remoteURLs := make([]string, 0, len(repositories))
+	for _, repository := range repositories {
+		remoteURLs = append(remoteURLs, repository.RemoteURL)
+	}
+	sort.Strings(remoteURLs)
+	return remoteURLs
 }
 
 func (s *stubWebhookTriggerStore) ClaimQueuedTriggers(

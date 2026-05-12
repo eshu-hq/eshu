@@ -31,8 +31,9 @@ Eshu is split into a small number of clear service and storage boundaries:
   MCP clients.
 - **Ingester** discovers repositories, snapshots content, parses source and
   IaC, and writes durable facts.
-- **Webhook Listener** receives GitHub and GitLab webhook deliveries, verifies
-  provider secrets, and persists refresh triggers without touching graph state.
+- **Webhook Listener** receives GitHub, GitLab, and Bitbucket webhook
+  deliveries, verifies provider secrets, and persists refresh triggers without
+  touching graph state.
 - **Resolution Engine** drains queues, materializes canonical graph state, and
   owns replay and recovery.
 - **Bootstrap Index** runs the same write path as a one-shot seeding flow.
@@ -119,10 +120,11 @@ workspace volume in deployed environments.
 
 ### Webhook Listener
 
-The webhook listener owns public GitHub and GitLab webhook intake. It verifies
-provider secrets, normalizes default-branch events, and writes durable refresh
-triggers to Postgres. It does not clone repositories, mount the workspace PVC,
-connect to the graph backend, or claim source truth from provider metadata.
+The webhook listener owns public GitHub, GitLab, and Bitbucket webhook intake.
+It verifies provider secrets, normalizes default-branch events, and writes
+durable refresh triggers to Postgres. It does not clone repositories, mount the
+workspace PVC, connect to the graph backend, or claim source truth from
+provider metadata.
 
 ### Resolution Engine
 

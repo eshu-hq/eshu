@@ -35,6 +35,9 @@ func newWebhookMux(handler webhookHandler) (*http.ServeMux, error) {
 	if handler.Config.GitLabToken != "" {
 		mux.HandleFunc(handler.Config.GitLabPath, handler.handleGitLab)
 	}
+	if handler.Config.BitbucketSecret != "" {
+		mux.HandleFunc(handler.Config.BitbucketPath, handler.handleBitbucket)
+	}
 	return mux, nil
 }
 
@@ -85,6 +88,34 @@ func (h webhookHandler) handleGitLab(w http.ResponseWriter, r *http.Request) {
 	}
 	trigger, err := webhook.NormalizeGitLab(
 		r.Header.Get("X-Gitlab-Event"),
+		deliveryID,
+		payload,
+		h.Config.DefaultBranch,
+	)
+	h.storeAndWrite(w, r, trigger, err)
+}
+
+func (h webhookHandler) handleBitbucket(w http.ResponseWriter, r *http.Request) {
+	payload, ok := h.readPostBody(w, r)
+	if !ok {
+		return
+	}
+	if err := webhook.VerifyBitbucketSignature(payload, h.Config.BitbucketSecret, r.Header.Get("X-Hub-Signature")); err != nil {
+		http.Error(w, "signature verification failed", http.StatusUnauthorized)
+		return
+	}
+
+	deliveryID := firstNonEmpty(
+		r.Header.Get("X-Request-UUID"),
+		r.Header.Get("X-Hook-UUID"),
+	)
+	deliveryID = strings.TrimSpace(deliveryID)
+	if deliveryID == "" {
+		http.Error(w, "missing delivery id", http.StatusBadRequest)
+		return
+	}
+	trigger, err := webhook.NormalizeBitbucket(
+		r.Header.Get("X-Event-Key"),
 		deliveryID,
 		payload,
 		h.Config.DefaultBranch,

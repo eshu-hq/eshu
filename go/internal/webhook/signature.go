@@ -5,26 +5,36 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 )
 
-const githubSHA256Prefix = "sha256="
+const sha256SignaturePrefix = "sha256="
 
 // VerifyGitHubSignature validates GitHub's X-Hub-Signature-256 header.
 //
 // Only SHA-256 signatures are accepted. The legacy SHA-1 header is rejected so
 // callers cannot accidentally downgrade webhook authentication.
 func VerifyGitHubSignature(payload []byte, secret string, signature string) error {
+	return verifySHA256Signature(payload, secret, signature, "github")
+}
+
+// VerifyBitbucketSignature validates Bitbucket Cloud's X-Hub-Signature header.
+func VerifyBitbucketSignature(payload []byte, secret string, signature string) error {
+	return verifySHA256Signature(payload, secret, signature, "bitbucket")
+}
+
+func verifySHA256Signature(payload []byte, secret string, signature string, provider string) error {
 	secret = strings.TrimSpace(secret)
 	signature = strings.TrimSpace(signature)
 	if secret == "" {
-		return errors.New("github webhook secret is required")
+		return fmt.Errorf("%s webhook secret is required", provider)
 	}
-	if !strings.HasPrefix(signature, githubSHA256Prefix) {
-		return errors.New("github sha256 signature is required")
+	if !strings.HasPrefix(signature, sha256SignaturePrefix) {
+		return fmt.Errorf("%s sha256 signature is required", provider)
 	}
 
-	got, err := hex.DecodeString(strings.TrimPrefix(signature, githubSHA256Prefix))
+	got, err := hex.DecodeString(strings.TrimPrefix(signature, sha256SignaturePrefix))
 	if err != nil {
 		return err
 	}
@@ -34,7 +44,7 @@ func VerifyGitHubSignature(payload []byte, secret string, signature string) erro
 		return err
 	}
 	if !hmac.Equal(got, mac.Sum(nil)) {
-		return errors.New("github webhook signature mismatch")
+		return fmt.Errorf("%s webhook signature mismatch", provider)
 	}
 	return nil
 }

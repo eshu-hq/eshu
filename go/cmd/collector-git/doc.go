@@ -6,7 +6,7 @@
 // version and exits before runtime setup. Otherwise the binary opens Postgres
 // through the runtime config helpers, builds a collector.Service backed by the
 // native repository selector and snapshotter, optionally prioritizes queued
-// GitHub webhook refresh triggers, and hosts it through
+// GitHub, GitLab, and Bitbucket webhook refresh triggers, and hosts it through
 // app.NewHostedWithStatusServer so it exposes the shared `/healthz`, `/readyz`,
 // `/metrics`, and `/admin/status` admin surface. It honors SIGINT and SIGTERM
 // for clean shutdown.

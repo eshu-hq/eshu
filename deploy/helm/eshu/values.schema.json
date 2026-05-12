@@ -188,6 +188,15 @@
             "tokenKey": { "type": "string" }
           }
         },
+        "bitbucket": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "secretName": { "type": "string" },
+            "secretKey": { "type": "string" }
+          }
+        },
         "exposure": {
           "type": "object",
           "properties": {

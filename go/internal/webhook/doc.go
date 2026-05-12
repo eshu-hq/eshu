@@ -1,5 +1,6 @@
-// Package webhook verifies provider webhook authentication material and
-// normalizes provider payloads into repository refresh trigger decisions.
+// Package webhook verifies GitHub, GitLab, and Bitbucket webhook authentication
+// material and normalizes provider payloads into repository refresh trigger
+// decisions.
 //
 // The package deliberately stops before persistence or queue handoff. Trigger
 // describes the provider decision; StoredTrigger adds the durable status fields

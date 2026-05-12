@@ -11,8 +11,10 @@ const defaultMaxWebhookBodyBytes = int64(1 << 20)
 type webhookListenerConfig struct {
 	GitHubSecret        string
 	GitLabToken         string
+	BitbucketSecret     string
 	GitHubPath          string
 	GitLabPath          string
+	BitbucketPath       string
 	MaxRequestBodyBytes int64
 	DefaultBranch       string
 }
@@ -24,12 +26,14 @@ func loadWebhookListenerConfig(getenv func(string) string) (webhookListenerConfi
 	cfg := webhookListenerConfig{
 		GitHubSecret:        strings.TrimSpace(getenv("ESHU_WEBHOOK_GITHUB_SECRET")),
 		GitLabToken:         strings.TrimSpace(getenv("ESHU_WEBHOOK_GITLAB_TOKEN")),
+		BitbucketSecret:     strings.TrimSpace(getenv("ESHU_WEBHOOK_BITBUCKET_SECRET")),
 		GitHubPath:          firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_GITHUB_PATH")), "/webhooks/github"),
 		GitLabPath:          firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_GITLAB_PATH")), "/webhooks/gitlab"),
+		BitbucketPath:       firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_BITBUCKET_PATH")), "/webhooks/bitbucket"),
 		MaxRequestBodyBytes: int64FromEnv(getenv, "ESHU_WEBHOOK_MAX_BODY_BYTES", defaultMaxWebhookBodyBytes),
 		DefaultBranch:       strings.TrimSpace(getenv("ESHU_WEBHOOK_DEFAULT_BRANCH")),
 	}
-	if cfg.GitHubSecret == "" && cfg.GitLabToken == "" {
+	if cfg.GitHubSecret == "" && cfg.GitLabToken == "" && cfg.BitbucketSecret == "" {
 		return webhookListenerConfig{}, fmt.Errorf("at least one webhook provider secret is required")
 	}
 	if cfg.MaxRequestBodyBytes <= 0 {

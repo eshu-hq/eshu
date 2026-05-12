@@ -166,6 +166,11 @@ webhookListener:
     path: /webhooks/gitlab
     secretName: ""
     tokenKey: token
+  bitbucket:
+    enabled: false
+    path: /webhooks/bitbucket
+    secretName: ""
+    secretKey: secret
   exposure:
     ingress:
       enabled: false

@@ -127,9 +127,9 @@ it.
 - `RepositorySelector` — interface: `SelectRepositories(context.Context) (SelectionBatch, error)`
 - `PriorityRepositorySelector` — tries selectors in order and returns the
   first non-empty batch
-- `WebhookTriggerRepositorySelector` — claims queued GitHub webhook triggers,
-  syncs only referenced repositories, fails unsupported providers, and returns
-  successful syncs as a targeted batch
+- `WebhookTriggerRepositorySelector` — claims queued GitHub, GitLab, and
+  Bitbucket webhook triggers, syncs only referenced repositories, fails
+  unsupported providers, and returns successful syncs as a targeted batch
 - `RepositorySnapshotter` — interface: `SnapshotRepository(context.Context, SelectedRepository) (RepositorySnapshot, error)`
 - `SelectionBatch` — `ObservedAt` + `[]SelectedRepository`
 - `SelectedRepository` — `RepoPath`, `RemoteURL`, `IsDependency`, `DisplayName`,
@@ -257,8 +257,11 @@ it.
   If `fingerprintTree` starts hashing ignored generated files, local watch mode
   can keep publishing newer generations and supersede projector work before the
   graph settles.
-- Webhook trigger selection is a wake-up path only. It may prioritize a repo
-  sync, but the fetched default branch still decides freshness.
+- Webhook trigger selection is a wake-up path only. It may prioritize a GitHub,
+  GitLab, or Bitbucket repo sync, but the fetched default branch still decides
+  freshness. Provider-scoped repository IDs select the right clone host; GitHub
+  token and GitHub App auth remain GitHub-specific, while SSH is the
+  provider-neutral private-repo path.
 
 ## Related docs
 

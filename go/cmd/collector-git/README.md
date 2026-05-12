@@ -61,8 +61,8 @@ for the shared admin/metrics contract.
 - collector cycles are observed under the shared collector span and metrics;
   do not bypass `collector.Service` to write facts directly
 - webhook-triggered selection is still collection work: it prioritizes
-  GitHub-backed repo sync, then the normal snapshot and fact commit path
-  decides freshness
+  GitHub, GitLab, or Bitbucket repo sync, then the normal snapshot and fact
+  commit path decides freshness
 
 ## Related docs
 
