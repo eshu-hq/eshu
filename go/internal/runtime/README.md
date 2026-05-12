@@ -119,6 +119,10 @@ ComposeLifecycles in `internal/app` chains multiple Lifecycle values
 - `NewStatusMetricsServer(cfg, reader, opts...)` — optional dedicated metrics
   `HTTPServer` when `MetricsAddr` differs from `ListenAddr`; returns `nil`
   when `MetricsAddr` is empty
+- `NewPprofServer(getenv)` — opt-in `net/http/pprof` `HTTPServer` gated by
+  `PprofAddrEnvVar` (`ESHU_PPROF_ADDR`); returns `(nil, nil)` when unset;
+  port-only inputs (`:6060`) are rewritten to `127.0.0.1:6060` so the
+  default cannot reach beyond the local host
 - `NewStatusAdminMux` — lower-level mux builder; combines status handler,
   metrics handler, optional recovery routes, and optional app handler
 - `NewStatusMetricsHandler(serviceName, reader)` — Prometheus-style text handler
@@ -240,6 +244,11 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
 - `NewStatusMetricsServer` returns `(nil, nil)` when `MetricsAddr` is empty.
   Callers must handle the nil return; MountStatusServer in `internal/app`
   checks this.
+- `NewPprofServer` returns `(nil, nil)` when `ESHU_PPROF_ADDR` is unset or
+  whitespace-only, matching the `NewStatusMetricsServer` precedent. Callers
+  must check the nil return before calling Start. Port-only inputs are
+  rewritten to `127.0.0.1` to keep the default exposure on loopback;
+  explicit hosts (`0.0.0.0`, named hosts) are preserved.
 - `ConfigureMemoryLimit` is a no-op when `GOMEMLIMIT` is already set as an
   env var; it logs the existing value and returns 0. Do not call it twice.
 - Admin routes are not authenticated by this package. If the admin port is

@@ -10,4 +10,8 @@
 // to five seconds for graceful shutdown before exiting. The runtime serves
 // reads only; it does not own repo sync, parsing, fact emission, or queued
 // projection work.
+//
+// When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in
+// net/http/pprof endpoint via runtime.NewPprofServer, bound to 127.0.0.1
+// for port-only inputs so the default does not reach beyond the local host.
 package main

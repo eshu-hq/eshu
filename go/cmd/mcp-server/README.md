@@ -103,6 +103,7 @@ satisfies `query.GraphQuery` and `query.ContentReader` satisfies
 | `ESHU_QUERY_PROFILE` | `production` | `loadQueryProfile` defaults to `query.ProfileProduction` |
 | `ESHU_DISABLE_NEO4J` | — | `true` skips Neo4j dial |
 | `DEFAULT_DATABASE` | `neo4j` | Neo4j database name |
+| `ESHU_PPROF_ADDR` | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
 ## Telemetry
 

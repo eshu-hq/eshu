@@ -317,6 +317,32 @@ Validate queue work beyond the happy path:
 - ack failures emit logs and metrics
 - structured logs keep failure class, queue name, and work item identity
 
+## Process Profiling
+
+Each Go runtime binary (`eshu-api`, `eshu-mcp-server`, `eshu-ingester`,
+`eshu-reducer`, `eshu-bootstrap-index`) ships an opt-in `net/http/pprof`
+endpoint. It is disabled by default and gated by `ESHU_PPROF_ADDR`.
+
+```bash
+ESHU_PPROF_ADDR=:6060 eshu-ingester
+# logs: pprof server listening addr=127.0.0.1:6060
+
+go tool pprof -seconds=30 http://127.0.0.1:6060/debug/pprof/profile
+go tool pprof http://127.0.0.1:6060/debug/pprof/heap
+curl -sS http://127.0.0.1:6060/debug/pprof/goroutine?debug=2 > goroutines.txt
+```
+
+A bare port like `:6060` is rewritten to `127.0.0.1:6060` so a typo cannot
+silently expose profiling endpoints on a routable interface. Supply an explicit
+host (`0.0.0.0:6060`, `192.0.2.5:6060`) only when you intend the broader
+exposure; pprof reveals goroutine dumps, heap snapshots, and CPU profiles and
+must be treated as credential-grade. Invalid values fail at startup, matching
+the rest of the runtime contract.
+
+Capture a profile while reproducing the slow path on the same host as the
+runtime; loopback-only binding means `kubectl port-forward` (in a deployment)
+or just running the binary locally (for dogfood) is the typical access path.
+
 ## Docs And Hygiene
 
 Docs, `CLAUDE.md`, `AGENTS.md`, and README changes require:

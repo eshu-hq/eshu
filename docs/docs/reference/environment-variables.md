@@ -32,6 +32,7 @@ advisory report.
 | `ESHU_GRAPH_BACKEND` | `nornicdb` | API, MCP, ingester, reducer, local Eshu service | Selects graph adapter: `nornicdb` or `neo4j`. | Set to `neo4j` for the explicit Neo4j path. |
 | `ESHU_LISTEN_ADDR` | `0.0.0.0:8080` | Go service runtimes | HTTP listen address for services using shared runtime config. | Change for deployment port binding, not performance. |
 | `ESHU_METRICS_ADDR` | `0.0.0.0:9464` | Go service runtimes | Prometheus metrics listen address. | Change for deployment port binding or sidecar scrape layout. |
+| `ESHU_PPROF_ADDR` | unset (pprof disabled) | API, MCP, ingester, reducer, bootstrap-index | Opt-in `net/http/pprof` endpoint. A bare port (e.g. `:6060`) binds to `127.0.0.1`; supply an explicit host to expose elsewhere. | Set when you need a CPU, heap, or goroutine profile and have evidence the next bottleneck is on a specific binary. Leave unset in deployment defaults. |
 | `ESHU_API_ADDR` | unset; CLI wrappers set host/port flags | API CLI service wrapper | API listen address when using `eshu service` helpers. | Use CLI flags first; set only for scripted local service wrappers. |
 | `ESHU_MCP_TRANSPORT` | `http` | MCP server | MCP transport: `http` or `stdio`. | Set to `stdio` only for stdio MCP clients or local attach flows. |
 | `ESHU_MCP_ADDR` | `:8080` | MCP server | HTTP MCP listen address. | Change for deployment port binding. |

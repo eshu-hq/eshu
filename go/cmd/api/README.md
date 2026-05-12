@@ -103,6 +103,9 @@ See `doc.go` for the full godoc contract.
 - `ESHU_DISABLE_NEO4J` — with the local-lightweight profile, skips the
   graph driver
 - `DEFAULT_DATABASE` — graph database name, default `nornic`
+- `ESHU_PPROF_ADDR` — opt-in `net/http/pprof` endpoint via
+  `runtime.NewPprofServer`; unset disables the profiler; port-only inputs
+  (`:6060`) bind to `127.0.0.1`
 - API key resolved via `runtime.ResolveAPIKey`; Bolt details via
   `runtime.OpenNeo4jDriver`
 
@@ -161,7 +164,7 @@ See `doc.go` for the full godoc contract.
   unrecognized values.
 - `wireAPI` returns a cleanup closure. `PrometheusHandler` and all acquired
   connections are freed when the closure runs; partial wiring failures still
-  free already-acquired connections (`main.go:40`).
+  free already-acquired connections (`main.go:67`).
 - The API mux is wrapped with `AuthMiddleware` before it is handed to the
   HTTP server; do not add unprotected data routes after this wrap point.
 
