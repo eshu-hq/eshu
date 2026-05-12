@@ -172,6 +172,111 @@ class WorkerController implements Runnable
 	}
 }
 
+func TestDefaultEngineParsePathPHPDoesNotRootAmbiguousSyntax(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "ambiguous.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+function commentedHook(): void {
+}
+
+// add_action('init', 'commentedHook');
+/* Route::get('/support', [SupportController::class, 'commentedRoute']); */
+
+class SupportController {
+    public function unusedAction(): void {
+    }
+
+    public function commentedRoute(): void {
+    }
+
+    #[MyRoute('/support')]
+    public function myRouteOnly(): void {
+    }
+
+    public function __legacyHelper(): void {
+    }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	for _, tc := range []struct {
+		name         string
+		classContext string
+	}{
+		{name: "commentedHook"},
+		{name: "unusedAction", classContext: "SupportController"},
+		{name: "commentedRoute", classContext: "SupportController"},
+		{name: "myRouteOnly", classContext: "SupportController"},
+		{name: "__legacyHelper", classContext: "SupportController"},
+	} {
+		function := assertBucketItemByName(t, got, "functions", tc.name)
+		if tc.classContext != "" {
+			function = assertFunctionByNameAndClass(t, got, tc.name, tc.classContext)
+		}
+		if function["dead_code_root_kinds"] != nil {
+			t.Fatalf("%s.%s dead_code_root_kinds = %#v, want nil", tc.classContext, tc.name, function["dead_code_root_kinds"])
+		}
+	}
+}
+
+func TestDefaultEngineParsePathPHPRootsInheritedInterfaceMethods(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "interfaces.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+interface ParentContract {
+    public function inherited(array $options = ['a', 'b']): void;
+}
+
+interface ChildContract extends ParentContract {
+    public function child(): void;
+}
+
+class ChildImplementation implements ChildContract {
+    public function inherited(array $options = ['a', 'b']): void {
+    }
+
+    public function child(): void {
+    }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "inherited", "ParentContract"), "dead_code_root_kinds", "php.interface_method")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "child", "ChildContract"), "dead_code_root_kinds", "php.interface_method")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "inherited", "ChildImplementation"), "dead_code_root_kinds", "php.interface_implementation_method")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "child", "ChildImplementation"), "dead_code_root_kinds", "php.interface_implementation_method")
+}
+
 func TestDefaultEngineParsePathPHPDeadCodeFixtureExpectedRoots(t *testing.T) {
 	t.Parallel()
 

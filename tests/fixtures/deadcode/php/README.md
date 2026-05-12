@@ -20,6 +20,6 @@ Expected symbols:
 | `ambiguous` | `dynamicPhpDispatch` |
 
 This fixture exercises parser-backed PHP roots for script entrypoints,
-controller actions, literal route handlers, WordPress hook callbacks,
+route-backed controller actions, literal route handlers, WordPress hook callbacks,
 interfaces, traits, and magic methods. Dynamic calls remain non-exact and must
 surface as blockers rather than cleanup-safe truth.

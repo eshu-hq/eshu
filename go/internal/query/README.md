@@ -117,10 +117,11 @@ surfaces. Groovy parser metadata suppresses Jenkinsfile pipeline entrypoints and
 Jenkins shared-library `vars/*.groovy` `call` methods; Groovy remains
 candidate-only because dynamic dispatch, closure delegate resolution, shared
 library loading, and pipeline DSL steps are not resolved exactly. PHP parser
-metadata suppresses script entrypoints, constructors, magic methods, interface
-and trait methods, controller actions, literal route handlers, Symfony route
-attributes, and WordPress hook callbacks; PHP remains non-exact because broader
-autoloading, routing, reflection, and dynamic dispatch are not resolved exactly.
+metadata suppresses script entrypoints, constructors, known magic methods,
+same-file interface and trait methods, route-backed controller actions, literal
+route handlers, Symfony route attributes, and WordPress hook callbacks; PHP
+remains non-exact because broader autoloading, routing, reflection, and dynamic
+dispatch are not resolved exactly.
 The analysis payload also exposes
 `dead_code_language_exactness_blockers`, with Rust blockers
 for unresolved macro expansion, cfg/Cargo feature selection, semantic module

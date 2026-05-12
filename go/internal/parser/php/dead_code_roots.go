@@ -8,6 +8,7 @@ import (
 var (
 	phpClassMethodArrayPattern = regexp.MustCompile(`\[\s*\\?([A-Za-z_]\w*(?:\\[A-Za-z_]\w*)*)::class\s*,\s*['"]([A-Za-z_]\w*)['"]\s*\]`)
 	phpWordPressHookPattern    = regexp.MustCompile(`\badd_(?:action|filter)\s*\([^,]+,\s*['"]([A-Za-z_]\w*)['"]`)
+	phpSymfonyRoutePattern     = regexp.MustCompile(`^#\[\s*(?:\\?Route|\\?Symfony\\Component\\Routing\\(?:Annotation|Attribute)\\Route)\s*\(`)
 )
 
 type phpDeadCodeFacts struct {
@@ -24,8 +25,18 @@ type phpMethodKey struct {
 	arity int
 }
 
-func collectPHPDeadCodeFacts(lines []string) phpDeadCodeFacts {
-	facts := phpDeadCodeFacts{
+type phpDeadCodeFunctionFact struct {
+	item        map[string]any
+	name        string
+	contextName string
+	contextKind string
+	lineNumber  int
+	parameters  []string
+	rawLine     string
+}
+
+func newPHPDeadCodeFacts() phpDeadCodeFacts {
+	return phpDeadCodeFacts{
 		typeKinds:                 map[string]string{},
 		typeBases:                 map[string][]string{},
 		interfaceMethods:          map[string]map[phpMethodKey]struct{}{},
@@ -33,106 +44,66 @@ func collectPHPDeadCodeFacts(lines []string) phpDeadCodeFacts {
 		symfonyRouteAttributeLine: map[int]struct{}{},
 		wordpressFunctionTargets:  map[string]struct{}{},
 	}
-	braceDepth := 0
-	stack := make([]phpScopedContext, 0)
-	var pendingType *phpScopedContext
-	var pendingFunction *phpScopedContext
-	routeAttributePending := false
-	for index, rawLine := range lines {
-		lineNumber := index + 1
-		trimmed := strings.TrimSpace(rawLine)
-		if pendingType != nil && strings.Contains(rawLine, "{") {
-			stack = append(stack, phpScopedContext{
-				kind:       pendingType.kind,
-				name:       pendingType.name,
-				braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")),
-				lineNumber: pendingType.lineNumber,
-			})
-			pendingType = nil
-		}
-		if pendingFunction != nil && strings.Contains(rawLine, "{") {
-			stack = append(stack, phpScopedContext{
-				kind:       pendingFunction.kind,
-				name:       pendingFunction.name,
-				braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")),
-				lineNumber: pendingFunction.lineNumber,
-			})
-			pendingFunction = nil
-		}
-		if matches := phpTypePattern.FindStringSubmatch(trimmed); len(matches) == 4 {
-			name := strings.TrimSpace(matches[2])
-			kind := phpTypeKindForDeclaration(matches[1])
-			facts.typeKinds[name] = kind
-			if bases := parsePHPBases(matches[1], matches[3]); len(bases) > 0 {
-				facts.typeBases[name] = bases
-			}
-			context := phpScopedContext{kind: kind, name: name, lineNumber: lineNumber}
-			if strings.Contains(rawLine, "{") {
-				context.braceDepth = braceDepth + max(1, strings.Count(rawLine, "{"))
-				stack = append(stack, context)
-			} else {
-				pendingType = &context
-			}
-		} else if contextName, contextKind, _ := currentPHPTypeContext(stack); contextKind == "class_declaration" {
-			if bases := parsePHPClassTraitUses(trimmed); len(bases) > 0 {
-				facts.typeBases[contextName] = dedupePHPNonEmptyStrings(append(facts.typeBases[contextName], bases...))
-			}
-		}
-		if strings.HasPrefix(trimmed, "#[") && strings.Contains(trimmed, "Route(") {
-			routeAttributePending = true
-		}
-		collectPHPLiteralRouteTargets(trimmed, facts)
-		collectPHPWordPressHookTargets(trimmed, facts)
-		if matches := phpFunctionPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			name := strings.TrimSpace(matches[1])
-			contextName, contextKind, _ := currentPHPTypeContext(stack)
-			methodKey := phpMethodKey{name: name, arity: len(extractPHPParameters(lines, index, rawLine))}
-			if contextKind == "interface_declaration" {
-				if facts.interfaceMethods[contextName] == nil {
-					facts.interfaceMethods[contextName] = map[phpMethodKey]struct{}{}
-				}
-				facts.interfaceMethods[contextName][methodKey] = struct{}{}
-			}
-			if routeAttributePending {
-				facts.symfonyRouteAttributeLine[lineNumber] = struct{}{}
-				routeAttributePending = false
-			}
-			functionKind := "function_definition"
-			if contextKind != "" {
-				functionKind = "method_declaration"
-			}
-			if strings.Contains(rawLine, "{") {
-				stack = append(stack, phpScopedContext{kind: functionKind, name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")), lineNumber: lineNumber})
-			} else if !strings.Contains(rawLine, ";") {
-				pendingFunction = &phpScopedContext{kind: functionKind, name: name, lineNumber: lineNumber}
-			}
-		}
-		braceDepth += braceDelta(rawLine)
-		stack = popPHPCompletedScopes(stack, braceDepth)
-	}
-	return facts
 }
 
-func phpTypeKindForDeclaration(kind string) string {
-	switch kind {
-	case "class":
-		return "class_declaration"
-	case "interface":
-		return "interface_declaration"
-	case "trait":
-		return "trait_declaration"
-	default:
-		return ""
+func recordPHPDeadCodeType(facts phpDeadCodeFacts, kind string, name string, bases []string) {
+	if name == "" {
+		return
+	}
+	facts.typeKinds[name] = kind
+	if len(bases) > 0 {
+		facts.typeBases[name] = dedupePHPNonEmptyStrings(append(facts.typeBases[name], bases...))
+	}
+}
+
+func recordPHPDeadCodeTraitUses(facts phpDeadCodeFacts, className string, bases []string) {
+	if className == "" || len(bases) == 0 {
+		return
+	}
+	facts.typeBases[className] = dedupePHPNonEmptyStrings(append(facts.typeBases[className], bases...))
+}
+
+func observePHPDeadCodeStatement(line string, facts phpDeadCodeFacts, routeAttributePending *bool) {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return
+	}
+	if phpSymfonyRoutePattern.MatchString(trimmed) {
+		*routeAttributePending = true
+	}
+	collectPHPLiteralRouteTargets(trimmed, facts)
+	collectPHPWordPressHookTargets(trimmed, facts)
+}
+
+func recordPHPDeadCodeFunction(
+	facts phpDeadCodeFacts,
+	name string,
+	contextName string,
+	contextKind string,
+	lineNumber int,
+	parameters []string,
+	routeAttributePending *bool,
+) {
+	methodKey := phpMethodKey{name: name, arity: len(parameters)}
+	if contextKind == "interface_declaration" {
+		if facts.interfaceMethods[contextName] == nil {
+			facts.interfaceMethods[contextName] = map[phpMethodKey]struct{}{}
+		}
+		facts.interfaceMethods[contextName][methodKey] = struct{}{}
+	}
+	if *routeAttributePending {
+		facts.symfonyRouteAttributeLine[lineNumber] = struct{}{}
+		*routeAttributePending = false
 	}
 }
 
 func collectPHPLiteralRouteTargets(line string, facts phpDeadCodeFacts) {
-	for _, match := range phpClassMethodArrayPattern.FindAllStringSubmatch(line, -1) {
-		if len(match) != 3 {
+	for _, match := range phpClassMethodArrayPattern.FindAllStringSubmatchIndex(line, -1) {
+		if len(match) != 6 || phpIndexInQuotedString(line, match[0]) {
 			continue
 		}
-		className := normalizePHPTypeName(match[1])
-		methodName := strings.TrimSpace(match[2])
+		className := normalizePHPTypeName(line[match[2]:match[3]])
+		methodName := strings.TrimSpace(line[match[4]:match[5]])
 		if className == "" || methodName == "" {
 			continue
 		}
@@ -144,14 +115,90 @@ func collectPHPLiteralRouteTargets(line string, facts phpDeadCodeFacts) {
 }
 
 func collectPHPWordPressHookTargets(line string, facts phpDeadCodeFacts) {
-	for _, match := range phpWordPressHookPattern.FindAllStringSubmatch(line, -1) {
-		if len(match) != 2 {
+	for _, match := range phpWordPressHookPattern.FindAllStringSubmatchIndex(line, -1) {
+		if len(match) != 4 || phpIndexInQuotedString(line, match[0]) {
 			continue
 		}
-		if functionName := strings.TrimSpace(match[1]); functionName != "" {
+		if functionName := strings.TrimSpace(line[match[2]:match[3]]); functionName != "" {
 			facts.wordpressFunctionTargets[functionName] = struct{}{}
 		}
 	}
+}
+
+func phpExecutableLineWithoutComments(rawLine string, inBlockComment *bool) string {
+	var builder strings.Builder
+	var quote rune
+	escaped := false
+	for index, r := range rawLine {
+		if *inBlockComment {
+			if r == '/' && index > 0 && rawLine[index-1] == '*' {
+				*inBlockComment = false
+			}
+			continue
+		}
+		if quote != 0 {
+			builder.WriteRune(r)
+			if escaped {
+				escaped = false
+				continue
+			}
+			if r == '\\' {
+				escaped = true
+				continue
+			}
+			if r == quote {
+				quote = 0
+			}
+			continue
+		}
+		if r == '\'' || r == '"' || r == '`' {
+			quote = r
+			builder.WriteRune(r)
+			continue
+		}
+		if r == '/' && index+1 < len(rawLine) {
+			switch rawLine[index+1] {
+			case '/':
+				return strings.TrimSpace(builder.String())
+			case '*':
+				*inBlockComment = true
+				continue
+			}
+		}
+		if r == '#' && (index+1 >= len(rawLine) || rawLine[index+1] != '[') {
+			return strings.TrimSpace(builder.String())
+		}
+		builder.WriteRune(r)
+	}
+	return strings.TrimSpace(builder.String())
+}
+
+func phpIndexInQuotedString(line string, target int) bool {
+	var quote rune
+	escaped := false
+	for index, r := range line {
+		if index >= target {
+			return quote != 0
+		}
+		if quote != 0 {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if r == '\\' {
+				escaped = true
+				continue
+			}
+			if r == quote {
+				quote = 0
+			}
+			continue
+		}
+		if r == '\'' || r == '"' || r == '`' {
+			quote = r
+		}
+	}
+	return quote != 0
 }
 
 func currentPHPTypeContext(stack []phpScopedContext) (string, string, int) {
@@ -193,7 +240,7 @@ func phpDeadCodeRootKinds(
 		if name == "__construct" {
 			rootKinds = append(rootKinds, "php.constructor")
 		}
-		if strings.HasPrefix(name, "__") {
+		if phpIsMagicMethod(name) {
 			rootKinds = append(rootKinds, "php.magic_method")
 		}
 		if phpClassImplementsInterfaceMethod(contextName, methodKey, facts) {
@@ -217,7 +264,23 @@ func phpClassImplementsInterfaceMethod(className string, methodKey phpMethodKey,
 		if facts.typeKinds[base] != "interface_declaration" {
 			continue
 		}
-		if _, ok := facts.interfaceMethods[base][methodKey]; ok {
+		if phpInterfaceHasMethod(base, methodKey, facts, map[string]struct{}{}) {
+			return true
+		}
+	}
+	return false
+}
+
+func phpInterfaceHasMethod(interfaceName string, methodKey phpMethodKey, facts phpDeadCodeFacts, seen map[string]struct{}) bool {
+	if _, ok := seen[interfaceName]; ok {
+		return false
+	}
+	seen[interfaceName] = struct{}{}
+	if _, ok := facts.interfaceMethods[interfaceName][methodKey]; ok {
+		return true
+	}
+	for _, base := range facts.typeBases[interfaceName] {
+		if facts.typeKinds[base] == "interface_declaration" && phpInterfaceHasMethod(base, methodKey, facts, seen) {
 			return true
 		}
 	}
@@ -228,10 +291,21 @@ func phpIsControllerAction(contextName string, name string, rawLine string, rout
 	if !strings.HasSuffix(contextName, "Controller") || strings.HasPrefix(name, "__") {
 		return false
 	}
-	if !routeBacked && !strings.HasSuffix(name, "Action") {
+	if !routeBacked {
 		return false
 	}
 	return phpMethodLineIsPublic(rawLine)
+}
+
+func phpIsMagicMethod(name string) bool {
+	switch strings.ToLower(name) {
+	case "__construct", "__destruct", "__call", "__callstatic", "__get", "__set",
+		"__isset", "__unset", "__sleep", "__wakeup", "__serialize", "__unserialize",
+		"__tostring", "__invoke", "__set_state", "__clone", "__debuginfo":
+		return true
+	default:
+		return false
+	}
 }
 
 func phpMethodLineIsPublic(rawLine string) bool {

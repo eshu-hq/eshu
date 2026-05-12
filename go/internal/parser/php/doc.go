@@ -7,9 +7,10 @@
 // parse stay aligned. Scope tracking preserves PSR-style type declarations
 // whose opening brace appears on the next line, because method ownership is a
 // parser contract for downstream root metadata. The package emits bounded
-// dead-code root hints for syntax-proven PHP entrypoints, magic methods,
-// interface and trait methods, controller actions, literal route handlers,
-// Symfony route attributes, and WordPress hook callbacks; broader autoload,
-// reflection, and dynamic-dispatch behavior stays non-exact. The package is
-// deterministic and depends only on shared parser helpers.
+// dead-code root hints for PHP entrypoints, constructors, known magic methods,
+// same-file interface and trait methods, route-backed controller actions,
+// literal route handlers, Symfony route attributes, and WordPress hook
+// callbacks; broader autoload, reflection, and dynamic-dispatch behavior stays
+// non-exact. The package is deterministic and depends only on shared parser
+// helpers.
 package php

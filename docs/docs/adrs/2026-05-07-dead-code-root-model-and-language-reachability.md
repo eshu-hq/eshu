@@ -458,7 +458,7 @@ Local and dogfood evidence gathered in this branch so far:
   facts, `399.154s` source-local projection, and `117.932s` code-call
   materialization before the run was stopped for bottleneck analysis.
 - The PHP slice promotes PHP to `derived`, not exact. Parser metadata now
-  suppresses script entrypoints, constructors, magic methods, same-file
+  suppresses script entrypoints, constructors, known magic methods, same-file
   interface and trait methods, route-backed controller actions, Symfony route
   attributes, literal route handlers, and WordPress hook callbacks. A regression
   fixture covers PSR-style type declarations whose opening brace is on the next
@@ -475,7 +475,7 @@ Local and dogfood evidence gathered in this branch so far:
   three PHP dogfood repositories. Parser-root suppressions were observed in the
   analysis payload (`164` for Laravel, `224` for Symfony, `69` for WordPress),
   and the first `500` returned candidates for each repo contained no
-  `__construct` or other `__*` magic methods.
+  constructors or known PHP magic methods.
 
 Open proof work before this branch can close:
 

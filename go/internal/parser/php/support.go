@@ -1,7 +1,6 @@
 package php
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -110,9 +109,47 @@ func splitPHPCommaSeparated(raw string) []string {
 	}
 	parts := make([]string, 0, 4)
 	var current strings.Builder
+	parenDepth := 0
+	bracketDepth := 0
 	braceDepth := 0
+	var quote rune
+	escaped := false
 	for _, r := range raw {
+		if quote != 0 {
+			current.WriteRune(r)
+			if escaped {
+				escaped = false
+				continue
+			}
+			if r == '\\' {
+				escaped = true
+				continue
+			}
+			if r == quote {
+				quote = 0
+			}
+			continue
+		}
 		switch r {
+		case '\'', '"', '`':
+			quote = r
+			current.WriteRune(r)
+		case '(':
+			parenDepth++
+			current.WriteRune(r)
+		case ')':
+			if parenDepth > 0 {
+				parenDepth--
+			}
+			current.WriteRune(r)
+		case '[':
+			bracketDepth++
+			current.WriteRune(r)
+		case ']':
+			if bracketDepth > 0 {
+				bracketDepth--
+			}
+			current.WriteRune(r)
 		case '{':
 			braceDepth++
 			current.WriteRune(r)
@@ -122,7 +159,7 @@ func splitPHPCommaSeparated(raw string) []string {
 			}
 			current.WriteRune(r)
 		case ',':
-			if braceDepth == 0 {
+			if parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 {
 				parts = append(parts, strings.TrimSpace(current.String()))
 				current.Reset()
 				continue
@@ -239,35 +276,6 @@ func appendPHPClassBases(payload map[string]any, className string, additionalBas
 		}
 		return
 	}
-}
-
-func extractPHPParameters(lines []string, startIndex int, rawLine string) []string {
-	signature := rawLine
-	for index := startIndex; index < len(lines) && !strings.Contains(signature, ")"); index++ {
-		if index == startIndex {
-			continue
-		}
-		signature += " " + strings.TrimSpace(lines[index])
-	}
-	start := strings.Index(signature, "(")
-	end := strings.LastIndex(signature, ")")
-	if start < 0 || end < 0 || end <= start {
-		return nil
-	}
-	rawParams := signature[start+1 : end]
-	if strings.TrimSpace(rawParams) == "" {
-		return []string{}
-	}
-	parts := strings.Split(rawParams, ",")
-	parameters := make([]string, 0, len(parts))
-	for _, part := range parts {
-		match := regexp.MustCompile(`\$(\w+)`).FindStringSubmatch(part)
-		if len(match) != 2 {
-			continue
-		}
-		parameters = append(parameters, "$"+match[1])
-	}
-	return parameters
 }
 
 func collectPHPBlockSource(lines []string, startIndex int) string {

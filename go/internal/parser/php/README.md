@@ -12,9 +12,10 @@ trait-use adaptation evidence.
 The package is responsible for PHP source scanning and payload bucket
 population. The parent parser package still owns registry dispatch, engine
 orchestration, repo path handling, and parse telemetry.
-The parser also emits bounded `dead_code_root_kinds` for syntax-proven PHP
-entrypoints, magic methods, interface and trait methods, controller actions,
-literal route handlers, Symfony route attributes, and WordPress hook callbacks.
+The parser also emits bounded `dead_code_root_kinds` for PHP entrypoints,
+constructors, known magic methods, same-file interface and trait methods,
+route-backed controller actions, literal route handlers, Symfony route
+attributes, and WordPress hook callbacks.
 
 ## Exported surface
 

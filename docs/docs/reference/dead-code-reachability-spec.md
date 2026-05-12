@@ -84,10 +84,10 @@ Every dead-code analysis must classify roots into one or more of these groups:
     methods and implementations, test methods, serialization callbacks, and
     `Main` are modeled as derived roots.
   - PHP does not yet claim a broad Composer or package public API surface.
-    Script entrypoints, constructors, magic methods, same-file interface
-    methods and implementations, trait methods, controller actions, literal
-    route handlers, Symfony route attributes, and WordPress hook callbacks are
-    modeled as derived roots.
+    Script entrypoints, constructors, known magic methods, same-file interface
+    methods and implementations, trait methods, route-backed controller
+    actions, literal route handlers, Symfony route attributes, and WordPress
+    hook callbacks are modeled as derived roots.
   - Ruby does not yet claim a broad public API surface. Rails controller
     actions are modeled as framework roots, not general library exports.
   - Rust, Java, and broader language-specific public-surface rules remain
@@ -223,9 +223,9 @@ injection, source-generator output, partial type resolution, dynamic dispatch,
 project references, and broad public API surfaces are modeled or scoped out.
 
 PHP currently reports `derived` with parser-backed roots for script
-entrypoints, constructors, magic methods, same-file interface methods and
-implementations, trait methods, controller actions, literal route handlers,
-Symfony route attributes, and WordPress hook callbacks. It remains non-exact
+entrypoints, constructors, known magic methods, same-file interface methods and
+implementations, trait methods, route-backed controller actions, literal route
+handlers, Symfony route attributes, and WordPress hook callbacks. It remains non-exact
 until dynamic dispatch, reflection, Composer/autoload public surfaces,
 include/require resolution, broader framework routes, trait resolution,
 namespace alias breadth, magic-method dispatch, and broad public API surfaces

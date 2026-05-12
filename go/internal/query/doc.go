@@ -39,11 +39,11 @@
 // Rails controller/callback roots, dynamic-dispatch hooks, literal
 // method-reference targets, and script entrypoints, plus Groovy Jenkinsfile
 // pipeline entrypoints and vars/*.groovy shared-library call roots, plus PHP
-// script entrypoints, constructors, magic methods, interface/trait methods,
-// controller actions, route handlers, Symfony route attributes, and WordPress
-// hook callbacks. C, C++, PHP, Ruby, and Rust now share the derived dead-code
-// maturity tier with Go and Java while exact cleanup remains gated on broader
-// semantic resolution.
+// script entrypoints, constructors, known magic methods, same-file
+// interface/trait methods, route-backed controller actions, route handlers,
+// Symfony route attributes, and WordPress hook callbacks. C, C++, PHP, Ruby,
+// and Rust now share the derived dead-code maturity tier with Go and Java while
+// exact cleanup remains gated on broader semantic resolution.
 // C# shares that tier through parser-backed roots for common framework and
 // language entrypoints. Groovy remains candidate-only until dynamic dispatch,
 // closure delegates, shared library loading, and pipeline DSL steps have

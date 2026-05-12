@@ -62,7 +62,8 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	payload["interfaces"] = []map[string]any{}
 
 	lines := strings.Split(string(source), "\n")
-	deadCodeFacts := collectPHPDeadCodeFacts(lines)
+	deadCodeFacts := newPHPDeadCodeFacts()
+	deadCodeFunctions := make([]phpDeadCodeFunctionFact, 0)
 	namespace := ""
 	braceDepth := 0
 	stack := make([]phpScopedContext, 0)
@@ -78,10 +79,13 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	methodReturnTypes := make(map[string]map[string]string)
 	functionReturnTypes := make(map[string]string)
 	importAliases := make(map[string]string)
+	routeAttributePending := false
+	inDeadCodeBlockComment := false
 
 	for index, rawLine := range lines {
 		lineNumber := index + 1
 		trimmed := strings.TrimSpace(rawLine)
+		observePHPDeadCodeStatement(phpExecutableLineWithoutComments(rawLine, &inDeadCodeBlockComment), deadCodeFacts, &routeAttributePending)
 		if pendingType != nil && strings.Contains(rawLine, "{") {
 			stack = append(stack, phpScopedContext{
 				kind:       pendingType.kind,
@@ -129,6 +133,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		} else if contextName, contextKind, _ := currentPHPContext(stack); contextKind == "class_declaration" {
 			if bases := parsePHPClassTraitUses(trimmed); len(bases) > 0 {
 				appendPHPClassBases(payload, contextName, bases)
+				recordPHPDeadCodeTraitUses(deadCodeFacts, contextName, bases)
 			}
 			if strings.Contains(trimmed, "{") && strings.Contains(trimmed, "use ") {
 				pendingTraitAdaptation = &phpScopedContext{
@@ -178,6 +183,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			}
 			switch matches[1] {
 			case "class":
+				recordPHPDeadCodeType(deadCodeFacts, "class_declaration", name, bases)
 				if strings.Contains(matches[3], "extends") && len(bases) > 0 {
 					classParentTypes[name] = normalizePHPImportedTypeName(bases[0], importAliases)
 				}
@@ -190,6 +196,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 					pendingType = &context
 				}
 			case "interface":
+				recordPHPDeadCodeType(deadCodeFacts, "interface_declaration", name, bases)
 				shared.AppendBucket(payload, "interfaces", item)
 				context := phpScopedContext{kind: "interface_declaration", name: name, lineNumber: lineNumber}
 				if strings.Contains(rawLine, "{") {
@@ -199,6 +206,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 					pendingType = &context
 				}
 			case "trait":
+				recordPHPDeadCodeType(deadCodeFacts, "trait_declaration", name, bases)
 				shared.AppendBucket(payload, "traits", item)
 				context := phpScopedContext{kind: "trait_declaration", name: name, lineNumber: lineNumber}
 				if strings.Contains(rawLine, "{") {
@@ -250,9 +258,16 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			if returnType != "" {
 				item["return_type"] = returnType
 			}
-			if rootKinds := phpDeadCodeRootKinds(name, typeContextName, typeContextKind, lineNumber, parameters, rawLine, deadCodeFacts); len(rootKinds) > 0 {
-				item["dead_code_root_kinds"] = rootKinds
-			}
+			recordPHPDeadCodeFunction(deadCodeFacts, name, typeContextName, typeContextKind, lineNumber, parameters, &routeAttributePending)
+			deadCodeFunctions = append(deadCodeFunctions, phpDeadCodeFunctionFact{
+				item:        item,
+				name:        name,
+				contextName: typeContextName,
+				contextKind: typeContextKind,
+				lineNumber:  lineNumber,
+				parameters:  parameters,
+				rawLine:     rawLine,
+			})
 			if options.IndexSource {
 				item["source"] = collectPHPBlockSource(lines, index)
 			}
@@ -425,6 +440,21 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		stack = popPHPCompletedScopes(stack, braceDepth)
 		if pendingTraitAdaptation != nil && braceDepth < pendingTraitAdaptation.braceDepth {
 			pendingTraitAdaptation = nil
+		}
+	}
+
+	for _, function := range deadCodeFunctions {
+		rootKinds := phpDeadCodeRootKinds(
+			function.name,
+			function.contextName,
+			function.contextKind,
+			function.lineNumber,
+			function.parameters,
+			function.rawLine,
+			deadCodeFacts,
+		)
+		if len(rootKinds) > 0 {
+			function.item["dead_code_root_kinds"] = rootKinds
 		}
 	}
 
