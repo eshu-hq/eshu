@@ -10,8 +10,10 @@
 - `2026-04-19-multi-source-correlation-dsl-and-collector-readiness.md`
 - `2026-04-20-multi-source-reducer-and-consumer-contract.md`
 - `2026-04-20-aws-cloud-scanner-collector.md`
+- `2026-05-12-package-registry-collector.md`
 - `2026-05-09-optional-component-boundary.md`
 - Issue: `#15`
+- Issue: `#24`
 
 ---
 
@@ -45,6 +47,10 @@ The first contract is OCI-first, not provider-first:
   type when present.
 - Referrers are optional registry capabilities. Missing Referrers API support
   is a warning, not proof that no SBOMs, signatures, or attestations exist.
+- ECR and JFrog Artifactory are the first live-validation adapters because
+  they are available for direct testing. ECR stays in this OCI lane. JFrog also
+  participates in the package-registry lane when collecting npm, Maven, NuGet,
+  PyPI, Go, Generic, or other package-manager feed metadata.
 
 ## Decision
 
@@ -305,4 +311,3 @@ the descriptor and emit a warning instead of dropping evidence.
   https://github.com/opencontainers/image-spec/blob/main/image-index.md
 - OCI annotations:
   https://github.com/opencontainers/image-spec/blob/main/annotations.md
-

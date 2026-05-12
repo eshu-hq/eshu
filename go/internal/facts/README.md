@@ -74,6 +74,24 @@ from copying string literals.
 Terraform-state reader. It is metadata-only evidence for repo-local `.tfstate`
 files and must not contain raw state content or an absolute local path.
 
+Package registry fact kinds use schema version `1.0.0` for the first collector
+contract:
+
+- `package_registry.package`
+- `package_registry.package_version`
+- `package_registry.package_dependency`
+- `package_registry.package_artifact`
+- `package_registry.source_hint`
+- `package_registry.vulnerability_hint`
+- `package_registry.registry_event`
+- `package_registry.repository_hosting`
+- `package_registry.warning`
+
+Use `PackageRegistryFactKinds` when callers need the full accepted set, and
+`PackageRegistrySchemaVersion` when building package-registry envelopes. These
+facts are reported registry evidence. Reducers must corroborate ownership,
+publication, and consumption before graph promotion.
+
 See `doc.go` for the full godoc contract.
 
 ## Dependencies
