@@ -71,6 +71,16 @@ If a change affects Docker Compose, also read:
 
 - `docs/docs/deployment/docker-compose.md`
 
+If a change touches Cypher in a hot path (canonical writer, reducer
+projection, query handler, materialization job, schema DDL), also read:
+
+- `docs/docs/reference/cypher-performance.md`
+
+That page mandates two pre-implementation checks: research the pinned
+backend's actual behavior (NornicDB-New source, Neo4j docs+changelog) and
+capture a before/after benchmark on the same inputs against the pinned
+binary. Skipping either step is research debt, not a finished change.
+
 If a change affects NornicDB knobs or compatibility, also read:
 
 - `docs/docs/reference/nornicdb-tuning.md`

@@ -129,6 +129,7 @@ nav:
       - Graph Backend Operations: reference/graph-backend-operations.md
       - NornicDB Tuning: reference/nornicdb-tuning.md
       - NornicDB Pitfalls: reference/nornicdb-pitfalls.md
+      - Cypher Performance: reference/cypher-performance.md
     - Parity Closure Matrix: reference/parity-closure-matrix.md
     - Relationship Mapping: reference/relationship-mapping.md
     - Relationship Mapping Observability: reference/relationship-mapping-observability.md
