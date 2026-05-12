@@ -130,8 +130,8 @@ func TestFlattenStateAttributesFirstWinsLogsMultiElement(t *testing.T) {
 		count  int64
 		source string
 	}{
-		"ingress":      {count: 2, source: "state_flatten"},
-		"aws_x.rule":   {count: 3, source: "state_flatten"},
+		"ingress":    {count: 2, source: "state_flatten"},
+		"aws_x.rule": {count: 3, source: "state_flatten"},
 	}
 	for prefix, want := range wantRecords {
 		g, ok := got[prefix]

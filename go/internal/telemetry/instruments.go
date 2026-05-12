@@ -102,6 +102,27 @@ type Instruments struct {
 	// (currently always "bootstrap_index"; reserved for a future ingester
 	// delta-trigger that would emit the same intent domain).
 	CorrelationDriftIntentsEnqueued metric.Int64Counter
+	// DriftUnresolvedModuleCalls counts Terraform module {} calls the drift
+	// loader could not resolve to a local-filesystem callee directory under
+	// the same repo snapshot. Each increment carries a `reason` label drawn
+	// from the closed enum documented at
+	// MetricDimensionDriftUnresolvedModuleReason: external_registry,
+	// external_git, external_archive, cross_repo_local, cycle_detected,
+	// depth_exceeded. State-side resources whose canonical address would
+	// have been prefixed by the unresolved call surface as added_in_state
+	// (the existing classifier fallback) — the counter lets operators size
+	// how much config the v1 module-aware join is missing per intent.
+	//
+	// Cardinality is bounded by the six closed-enum reasons. Pairing this
+	// with CorrelationDriftDetected{drift_kind="added_in_state"} lets
+	// operators distinguish "real operator-imported resource" from
+	// "callee module out of scope for v1 join."
+	//
+	// Owned by PostgresDriftEvidenceLoader (issue #169 / ADR
+	// 2026-05-11-module-aware-drift-joining). Tolerates a nil Instruments
+	// handle through an interface adapter so tests can substitute a
+	// stub recorder.
+	DriftUnresolvedModuleCalls metric.Int64Counter
 
 	// Histograms track distributions
 	CollectorObserveDuration             metric.Float64Histogram
@@ -400,6 +421,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CorrelationDriftIntentsEnqueued counter: %w", err)
+	}
+
+	inst.DriftUnresolvedModuleCalls, err = meter.Int64Counter(
+		"eshu_dp_drift_unresolved_module_calls_total",
+		metric.WithDescription("Total Terraform module calls the drift loader could not resolve to a local callee, labeled by reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DriftUnresolvedModuleCalls counter: %w", err)
 	}
 
 	// Register histograms with explicit bucket boundaries where specified
