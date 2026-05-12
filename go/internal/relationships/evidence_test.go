@@ -631,6 +631,52 @@ func TestDiscoverStructuredArgoCDEvidenceIncludesNormalizedFirstPartyDetails(t *
 	}
 }
 
+func TestDiscoverStructuredArgoCDEvidenceMatchesApplicationMultiSourceRepos(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-gitops",
+			Payload: map[string]any{
+				"artifact_type": "argocd",
+				"relative_path": "apps/multi-source.yaml",
+				"parsed_file_data": map[string]any{
+					"argocd_applications": []any{
+						map[string]any{
+							"name":             "multi-source",
+							"source_repos":     "https://github.com/myorg/helm-charts.git,https://github.com/myorg/config-repo.git",
+							"source_paths":     "charts/comprehensive-app",
+							"source_revisions": "main",
+						},
+					},
+				},
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-charts", Aliases: []string{"helm-charts"}},
+		{RepoID: "repo-config", Aliases: []string{"config-repo"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) != 2 {
+		t.Fatalf("len(evidence) = %d, want 2: %#v", len(evidence), evidence)
+	}
+
+	targets := map[string]bool{}
+	for _, item := range evidence {
+		if item.EvidenceKind != EvidenceKindArgoCDAppSource {
+			t.Fatalf("EvidenceKind = %q, want %q", item.EvidenceKind, EvidenceKindArgoCDAppSource)
+		}
+		targets[item.TargetRepoID] = true
+	}
+	for _, want := range []string{"repo-charts", "repo-config"} {
+		if !targets[want] {
+			t.Fatalf("missing ArgoCD Application multi-source evidence for %s in %#v", want, evidence)
+		}
+	}
+}
+
 func TestDiscoverGitHubActionsReusableWorkflowEvidence(t *testing.T) {
 	t.Parallel()
 

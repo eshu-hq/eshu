@@ -54,6 +54,38 @@ func TestBuildContentRelationshipSetArgoCDApplicationPromotesSourceAndDestinatio
 	}
 }
 
+func TestBuildContentRelationshipSetArgoCDApplicationPromotesMultiSourceRepos(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, nil)
+	reader := NewContentReader(db)
+	application := EntityContent{
+		EntityID:   "argocd-app-1",
+		RepoID:     "repo-1",
+		EntityType: "ArgoCDApplication",
+		EntityName: "multi-source-app",
+		Metadata: map[string]any{
+			"source_repos": "https://github.com/myorg/helm-charts.git,https://github.com/myorg/config-repo.git",
+		},
+	}
+
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, application)
+	if err != nil {
+		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
+	}
+	if len(relationships.outgoing) != 2 {
+		t.Fatalf("len(relationships.outgoing) = %d, want 2", len(relationships.outgoing))
+	}
+	for index, want := range []string{"https://github.com/myorg/helm-charts.git", "https://github.com/myorg/config-repo.git"} {
+		if got := relationships.outgoing[index]["type"]; got != "DEPLOYS_FROM" {
+			t.Fatalf("relationships.outgoing[%d][type] = %#v, want DEPLOYS_FROM", index, got)
+		}
+		if got := relationships.outgoing[index]["target_name"]; got != want {
+			t.Fatalf("relationships.outgoing[%d][target_name] = %#v, want %#v", index, got, want)
+		}
+	}
+}
+
 func TestBuildContentRelationshipSetArgoCDApplicationSetPromotesDiscoveryDeployAndDestination(t *testing.T) {
 	t.Parallel()
 

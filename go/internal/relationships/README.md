@@ -61,6 +61,13 @@ calls `matchCatalog`, which compares candidate strings against each
 `CatalogEntry.Aliases` entry using case-insensitive substring matching. A
 per-call `seen` map deduplicates facts within a single pass.
 
+Argo CD Application evidence accepts the legacy singular `source_repo` field and
+the multi-source `source_repos` field emitted for `spec.sources`. Each matched
+source repository produces its own `EvidenceKindArgoCDAppSource` fact. The
+ApplicationSet extractor keeps generator discovery sources separate from
+template deploy sources so the reducer can preserve discovery versus deployment
+intent.
+
 Schema-driven Terraform extraction (`discoverTerraformSchemaEvidence`) uses
 `RegisterSchemaDrivenTerraformExtractors` to bootstrap extractors from
 packaged provider schemas at first call. Each schema-derived extractor runs
