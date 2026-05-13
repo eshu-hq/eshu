@@ -303,6 +303,7 @@ func TestCanonicalNodeWriterRetractCoversProjectableEntityLabels(t *testing.T) {
 		{name: "sql", labels: canonicalNodeRetractSQLEntityLabels},
 		{name: "data", labels: canonicalNodeRetractDataEntityLabels},
 		{name: "oci", labels: canonicalNodeRetractOCIEntityLabels},
+		{name: "package_registry", labels: canonicalNodeRetractPackageRegistryEntityLabels},
 	} {
 		for label := range family.labels {
 			if previous, exists := covered[label]; exists {

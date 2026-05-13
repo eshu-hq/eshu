@@ -121,6 +121,11 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
   `ContainerImageTagObservation`) receive `uid` constraints, and digest/tag-ref
   indexes keep deployment trace enrichment anchored on immutable image identity
   or explicit mutable tag observations.
+- Package-registry projection labels (`Package`, `PackageVersion`,
+  `PackageRegistryPackage`, and `PackageRegistryPackageVersion`) receive `uid`
+  constraints. Secondary indexes on package ecosystem, package normalized name,
+  and package-version parent ID keep bounded package query surfaces from falling
+  back to label scans.
 
 See `doc.go` for the godoc contract.
 

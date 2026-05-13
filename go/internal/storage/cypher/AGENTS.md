@@ -50,6 +50,10 @@
   manifests and indexes on `ContainerImage` labels keyed by digest-backed uid.
   Tag observations are separate `ContainerImageTagObservation` nodes; do not
   MERGE image manifest or index identity from tag text.
+- **Package source hints are weak evidence** —
+  `package_registry_canonical_writer.go` writes only package identity, package
+  version identity, and `HAS_VERSION`. Do not join to `Repository` or create
+  ownership/publication edges from registry source URLs.
 - **Identity cleanup** — repository upserts must keep cleanup before MERGE and
   in a separate phase group. Directory and File writers must not restore
   current-directory or current-file `DETACH DELETE` cleanup.

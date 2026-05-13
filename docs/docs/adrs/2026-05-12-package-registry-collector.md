@@ -215,7 +215,9 @@ ownership without corroborating source, build, or release evidence.
 Projector/reducer ownership:
 
 - A package-registry projector may materialize `(:Package)` and
-  `(:PackageVersion)` nodes only from stable ecosystem identity.
+  `(:PackageVersion)` nodes only from stable ecosystem identity. The first
+  registry-promotion slice implements this with `uid`-keyed package and version
+  nodes plus a package-local `HAS_VERSION` edge.
 - Package ownership, publication, and consumption edges require reducer
   correlation. Registry metadata alone remains provenance.
 - Package dependency edges use ecosystem-specific semantics and must preserve
@@ -349,7 +351,10 @@ run both Neo4j and NornicDB conformance for the statement shape.
    only as provider hosting evidence.
 5. **Reducer correlation lane:** add tests for exact, derived, ambiguous,
    unresolved, stale, and rejected package-source correlations before any
-   canonical package ownership or consumption edges are promoted.
+   canonical package ownership or consumption edges are promoted. The first
+   graph-promotion sub-slice materializes `Package`/`PackageVersion` identity
+   and keeps source hints provenance-only; ownership and consumption remain for
+   reducer admission.
 6. **Query lane:** expose package publication and consumption evidence only
    after graph truth and query truth agree for repo, service, and package
    surfaces.

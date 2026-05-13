@@ -355,6 +355,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		if err := validateOCIRegistrySchemaVersion(fact); err != nil {
 			return projection{}, err
 		}
+		if err := validatePackageRegistrySchemaVersion(fact); err != nil {
+			return projection{}, err
+		}
 
 		if record, ok := buildContentRecord(fact); ok {
 			contentMaterialization.Records = append(contentMaterialization.Records, record)

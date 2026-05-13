@@ -30,6 +30,8 @@ type CanonicalMaterialization struct {
 	OCIImageDescriptors     []OCIImageDescriptorRow
 	OCIImageTagObservations []OCIImageTagObservationRow
 	OCIImageReferrers       []OCIImageReferrerRow
+	PackageRegistryPackages []PackageRegistryPackageRow
+	PackageRegistryVersions []PackageRegistryVersionRow
 }
 
 // IsEmpty reports whether the materialization carries no projectable data.
@@ -46,7 +48,9 @@ func (m CanonicalMaterialization) IsEmpty() bool {
 		len(m.OCIImageIndexes) == 0 &&
 		len(m.OCIImageDescriptors) == 0 &&
 		len(m.OCIImageTagObservations) == 0 &&
-		len(m.OCIImageReferrers) == 0
+		len(m.OCIImageReferrers) == 0 &&
+		len(m.PackageRegistryPackages) == 0 &&
+		len(m.PackageRegistryVersions) == 0
 }
 
 // RepositoryRow carries the canonical properties for a Repository node.
@@ -226,6 +230,12 @@ var entityTypeLabelMap = map[string]string{
 	"oci_image_descriptor":            "OciImageDescriptor",
 	"oci_image_tag_observation":       "OciImageTagObservation",
 	"oci_image_referrer":              "OciImageReferrer",
+
+	// Package registry entities
+	"package":                          "Package",
+	"package_version":                  "PackageVersion",
+	"package_registry_package":         "PackageRegistryPackage",
+	"package_registry_package_version": "PackageRegistryPackageVersion",
 
 	// Terragrunt extended types (emitted by parser as PascalCase, added as
 	// lowercase aliases for completeness).
