@@ -1,6 +1,12 @@
 package shared
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
+)
 
 func TestBasePayloadCarriesCommonParserBuckets(t *testing.T) {
 	t.Parallel()
@@ -72,6 +78,51 @@ func TestCollectBucketNamesCleansNonEmptyNames(t *testing.T) {
 	got := CollectBucketNames(payload, "functions", "classes")
 	if len(got) != 2 || got[0] != "cmd/api" || got[1] != "internal/parser" {
 		t.Fatalf("CollectBucketNames() = %#v, want cleaned non-empty names", got)
+	}
+}
+
+func TestWalkNamedVisitsNamedNodesInSourceOrder(t *testing.T) {
+	t.Parallel()
+
+	parser := tree_sitter.NewParser()
+	if err := parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_go.Language())); err != nil {
+		t.Fatalf("SetLanguage(go) error = %v", err)
+	}
+	tree := parser.Parse([]byte(`package main
+
+type Worker struct{}
+
+func main() {
+	value := Worker{}
+	_ = value
+}
+`), nil)
+	if tree == nil {
+		t.Fatal("Parse() returned nil tree")
+	}
+	defer tree.Close()
+
+	var got []string
+	WalkNamed(tree.RootNode(), func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "source_file", "package_clause", "type_declaration", "type_spec",
+			"struct_type", "function_declaration", "block", "short_var_declaration":
+			got = append(got, node.Kind())
+		}
+	})
+
+	want := []string{
+		"source_file",
+		"package_clause",
+		"type_declaration",
+		"type_spec",
+		"struct_type",
+		"function_declaration",
+		"block",
+		"short_var_declaration",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("WalkNamed visit order = %#v, want %#v", got, want)
 	}
 }
 
