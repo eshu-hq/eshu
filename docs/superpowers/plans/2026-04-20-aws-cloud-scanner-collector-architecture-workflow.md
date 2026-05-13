@@ -750,9 +750,14 @@ Sign-offs:
 - [ ] Integration: 50 accounts × 4 regions × 8 services — coordinator fairness spreads load; no account exceeds concurrency cap
 - [ ] Integration: real-account smoke in `ops-qa` account before `ops-prod`
 
-Fixture strategy: mocked SDK responses via `aws.ConfigLoader` with test
-endpoint resolver. Recorded fixtures committed under
-`go/internal/collector/awscloud/testdata/`.
+Fixture strategy: production client builders call
+`awsconfig.LoadDefaultConfig` from `github.com/aws/aws-sdk-go-v2/config`, then
+construct service clients behind narrow scanner-owned interfaces. Unit
+fixtures inject fake service clients directly. Wiring tests that need SDK
+serialization use an `httptest.Server` or stub `http.RoundTripper`; service
+specific endpoint overrides must use the AWS SDK v2 service client's endpoint
+seam rather than a repo-local config-loader abstraction. Recorded fixtures are
+committed under `go/internal/collector/awscloud/testdata/`.
 
 ---
 
