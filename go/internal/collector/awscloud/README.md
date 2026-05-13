@@ -50,6 +50,12 @@ See `doc.go` for the godoc contract.
 - `ImageReferenceObservation` - one ECR image digest and tag reference.
 - `DNSRecordObservation` - one Route 53 DNS record observation.
 - `WarningObservation` - one non-fatal AWS scan condition.
+- `APICallEvent` - one bounded AWS SDK call observation used for per-claim
+  status accounting.
+- `APICallStatsRecorder` - in-memory per-claim API/throttle accumulator used
+  before a single durable scan-status update.
+- `ScanStatusStart`, `ScanStatusObservation`, and `ScanStatusCommit` -
+  scanner-side and commit-side status records for admin visibility.
 - `NewResourceEnvelope` - builds an `aws_resource` fact.
 - `NewRelationshipEnvelope` - builds an `aws_relationship` fact.
 - `NewImageReferenceEnvelope` - builds an `aws_image_reference` fact.
@@ -71,6 +77,9 @@ collector instance, and fencing token boundaries before emitting facts.
 This package emits no metrics, spans, or logs directly. Runtime adapters that
 claim AWS work and call AWS APIs must emit collector spans, API call counters,
 scan duration histograms, and warning/failure counters at that boundary.
+Service SDK adapters call `RecordAPICall` so the runtime can persist bounded
+per-claim API and throttle counts without writing one Postgres row per AWS
+request.
 
 ## Gotchas / invariants
 
@@ -86,6 +95,9 @@ scan duration histograms, and warning/failure counters at that boundary.
   metric labels.
 - Account IDs, regions, and service kinds are acceptable claim dimensions.
   Resource ARNs, names, tags, URLs, and policy JSON are not metric labels.
+- API-call status events carry only account, region, service, operation,
+  result, and a throttle flag. Do not add resource names, page tokens, ARNs, or
+  raw AWS error text to `APICallEvent`.
 - EC2 instance inventory stays out of EC2 network-topology facts. ENI
   attachment target ARNs are reported metadata, not instance resource facts.
 - Lambda function environment values must be redacted before persistence.

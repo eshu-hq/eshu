@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -29,6 +30,13 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 	if err != nil {
 		result = "error"
 	}
+	throttled := isThrottleError(err)
+	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+		Boundary:  c.boundary,
+		Operation: operation,
+		Result:    result,
+		Throttled: throttled,
+	})
 	if c.instruments != nil {
 		c.instruments.AWSAPICalls.Add(ctx, 1, metric.WithAttributes(
 			telemetry.AttrService(c.boundary.ServiceKind),
@@ -37,7 +45,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 			telemetry.AttrOperation(operation),
 			telemetry.AttrResult(result),
 		))
-		if isThrottleError(err) {
+		if throttled {
 			c.instruments.AWSThrottles.Add(ctx, 1, metric.WithAttributes(
 				telemetry.AttrService(c.boundary.ServiceKind),
 				telemetry.AttrAccount(c.boundary.AccountID),

@@ -1,6 +1,6 @@
 // Package postgres owns Eshu's relational persistence: facts, queue state,
 // content store, status, recovery data, decisions, webhook refresh triggers,
-// and workflow coordination tables.
+// AWS scan status, and workflow coordination tables.
 //
 // The package wraps the Postgres driver with OTEL-instrumented helpers and
 // exposes typed access to queue claim, lease, batch, and recovery

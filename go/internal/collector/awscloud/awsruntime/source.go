@@ -31,6 +31,7 @@ type ClaimedSource struct {
 	Instruments *telemetry.Instruments
 	Limiter     *AccountLimiter
 	Checkpoints CheckpointStore
+	ScanStatus  ScanStatusStore
 }
 
 type claimTarget struct {
@@ -74,6 +75,9 @@ func (s ClaimedSource) NextClaimed(
 	if err := s.expireStaleCheckpoints(ctx, boundary); err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
+	if err := s.startScanStatus(ctx, boundary); err != nil {
+		return collector.CollectedGeneration{}, false, err
+	}
 
 	lease, err := s.acquireCredentials(ctx, target, item.LeaseExpiresAt.UTC())
 	if err != nil {
@@ -90,6 +94,10 @@ func (s ClaimedSource) NextClaimed(
 			return collector.CollectedGeneration{}, false, warningErr
 		}
 		s.recordAssumeRoleFailure(ctx, target)
+		envelopes := []facts.Envelope{envelope}
+		if err := s.observeScanStatus(ctx, boundary, awscloud.APICallStats{}, envelopes, err); err != nil {
+			return collector.CollectedGeneration{}, false, err
+		}
 		return collector.FactsFromSlice(scopeValue, generationValue, []facts.Envelope{envelope}), true, nil
 	}
 	defer func() {
@@ -102,8 +110,16 @@ func (s ClaimedSource) NextClaimed(
 	if err != nil {
 		return collector.CollectedGeneration{}, false, fmt.Errorf("create AWS service scanner: %w", err)
 	}
-	envelopes, err := s.scanService(ctx, target, boundary, scanner)
+	apiRecorder := awscloud.NewAPICallStatsRecorder(boundary)
+	scanCtx := awscloud.ContextWithAPICallRecorder(ctx, apiRecorder)
+	envelopes, err := s.scanService(scanCtx, target, boundary, scanner)
 	if err != nil {
+		if statusErr := s.observeScanStatus(ctx, boundary, apiRecorder.Snapshot(), nil, err); statusErr != nil {
+			return collector.CollectedGeneration{}, false, statusErr
+		}
+		return collector.CollectedGeneration{}, false, err
+	}
+	if err := s.observeScanStatus(ctx, boundary, apiRecorder.Snapshot(), envelopes, nil); err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), true, nil

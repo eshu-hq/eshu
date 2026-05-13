@@ -5,16 +5,17 @@
 `internal/collector/awscloud/awsruntime` adapts AWS service scanners to the
 workflow-claimed collector runtime. It parses `(account_id, region,
 service_kind)` claim targets, authorizes them against configured target scopes,
-acquires claim-scoped credentials, and returns collected generations for the
-shared collector commit path.
+acquires claim-scoped credentials, records durable scanner-side status, and
+returns collected generations for the shared collector commit path.
 
 ## Ownership boundary
 
 This package owns claim parsing, target authorization, credential lease
-coordination, per-account concurrency, production scanner selection, and AWS
-pagination checkpoint invalidation. It does not own AWS service response
-mapping, fact-envelope identity, workflow row persistence, graph writes,
-reducer admission, or query behavior.
+coordination, per-account concurrency, production scanner selection, AWS
+pagination checkpoint invalidation, and scanner-side scan-status updates. It
+does not own AWS service response mapping, fact-envelope identity, workflow row
+persistence, commit-side status updates, graph writes, reducer admission, or
+query behavior.
 
 ```mermaid
 flowchart LR
@@ -52,6 +53,8 @@ See `doc.go` for the godoc contract.
 - `ServiceScanner` - scans one service claim into fact envelopes.
 - `CheckpointStore` - durable pagination checkpoint store used by long service
   scans.
+- `ScanStatusStore` - durable scanner-side status store for start, API count,
+  throttle count, warning, and partial-run evidence.
 - `ClaimedSource` - implements the collector claimed-source contract.
 
 ## Dependencies
@@ -84,6 +87,7 @@ pagination spans. The command registers the instruments:
 - `eshu_dp_aws_throttle_total`
 - `eshu_dp_aws_claim_concurrency`
 - `eshu_dp_aws_assumerole_failed_total`
+- `eshu_dp_aws_budget_exhausted_total`
 - `eshu_dp_aws_pagination_checkpoint_events_total`
 - `eshu_dp_aws_resources_emitted_total`
 - `eshu_dp_aws_relationships_emitted_total`
@@ -114,9 +118,12 @@ pagination spans. The command registers the instruments:
 - Target scopes default to one active claim per account when
   `max_concurrent_claims` is unset.
 - STS or workload-identity failures emit an `assumerole_failed` warning fact for
-  the claimed generation.
+  the claimed generation and record `credential_failed` scan status.
 - Stale pagination checkpoints are expired at claim start for the current
   workflow generation before credentials are acquired.
+- Scanner-side status records API call counts and throttle counts before fact
+  commit. The command's commit wrapper records whether the fenced fact
+  transaction later committed or failed.
 - Route 53 alias targets are reported DNS evidence only; do not infer workload
   or deployable-unit truth in the runtime.
 - Lambda aliases, event-source mappings, image URIs, execution roles, subnets,

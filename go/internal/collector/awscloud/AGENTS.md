@@ -5,12 +5,14 @@
 1. `README.md` - package purpose, exported surface, and invariants.
 2. `types.go` - collector, service, resource, relationship, and observation
    contracts.
-3. `envelope.go` - durable fact-envelope construction and validation.
-4. Service package docs under `services/` before changing scanner-specific
+3. `apicall.go` and `scan_status.go` - bounded API-call accounting and
+   durable scan-status contracts.
+4. `envelope.go` - durable fact-envelope construction and validation.
+5. Service package docs under `services/` before changing scanner-specific
    behavior.
-5. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
+6. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
    source-truth, claim, and credential contract.
-6. `docs/docs/guides/collector-authoring.md` - general collector fact
+7. `docs/docs/guides/collector-authoring.md` - general collector fact
    contract.
 
 ## Invariants
@@ -23,6 +25,8 @@
   `StableFactKey` values.
 - Never put secrets, session tokens, presigned URLs, full policies, tags, ARNs,
   or resource names in metric labels.
+- Keep `APICallEvent` low-cardinality. It may carry service, account, region,
+  operation, result, and throttle state only.
 - Redact ECS task-definition environment values before persistence; preserve
   secret `value_from` references without resolving them.
 - Redact Lambda function environment values before persistence; preserve image

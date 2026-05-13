@@ -22,7 +22,8 @@
 slice merged; ECR scanner slice merged; ECS scanner slice merged; ELBv2 scanner
 slice merged; Route 53 scanner slice merged; EC2 network-topology scanner slice
 merged; Lambda scanner slice merged; EKS scanner slice merged; durable
-pagination checkpoint slice implemented in this PR pending merge.
+pagination checkpoint slice merged; coordinator completeness and admin-status
+slice implemented in this PR pending merge.
 
 Gate issue #48 is the start point for AWS collector work. The architecture
 workflow plan now maps to the current Eshu issue set (#51 epic, #42 runtime,
@@ -611,6 +612,14 @@ The coordinator considers an AWS run complete when, for every
 Partial completion is a first-class state. A run where `ec2` succeeded but
 `lambda` was budget-exhausted is explicitly `partial`, not `failed`, and
 the next run resumes `lambda` from checkpoint.
+
+`collector-aws-cloud` persists this operator view in `aws_scan_status`, keyed by
+`(collector_instance_id, account_id, region, service_kind)`. Scanner-side state
+records API call counts, throttle counts, warning counts, and budget or
+credential flags. Commit-side state records whether the fenced fact transaction
+committed after the scanner returned. `/admin/status` reads that row so a 3 AM
+operator can separate throttling, credentials, budget ceilings, and commit
+failures without scanning logs.
 
 ---
 

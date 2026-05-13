@@ -23,6 +23,9 @@
    `ApplyDefinitions`; DDL ordering and idempotency rules
 8. `go/internal/storage/postgres/aws_pagination_checkpoint.go` — AWS
    checkpoint fencing and stale-generation expiry
+9. `go/internal/storage/postgres/aws_scan_status.go` and
+   `status_aws_cloud.go` — AWS scanner status persistence and admin status
+   projection
 
 ## Invariants this package enforces
 
@@ -83,6 +86,9 @@
 - **AWS checkpoint fencing** — `AWSPaginationCheckpointStore.Save` must keep the
   `fencing_token <= EXCLUDED.fencing_token` conflict guard. A stale AWS worker
   must not overwrite page state from a newer claim.
+- **AWS scan-status fencing** — `AWSScanStatusStore` mutations must keep their
+  fencing guards. A stale AWS worker must not overwrite per-tuple status from a
+  newer claim.
 
 ## Common changes and how to scope them
 

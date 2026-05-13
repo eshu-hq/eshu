@@ -492,3 +492,55 @@ func TestRenderStatusIncludesRegistryCollectors(t *testing.T) {
 		t.Fatalf("RenderText() = %s, want registry collector summary", text)
 	}
 }
+
+func TestRenderStatusIncludesAWSCloudScans(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 13, 14, 30, 0, 0, time.UTC)
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: now,
+			AWSCloudScans: []status.AWSCloudScanStatus{{
+				CollectorInstanceID: "aws-prod",
+				AccountID:           "123456789012",
+				Region:              "us-east-1",
+				ServiceKind:         "ecr",
+				Status:              "partial",
+				CommitStatus:        "committed",
+				FailureClass:        "budget_exhausted",
+				APICallCount:        51,
+				ThrottleCount:       3,
+				WarningCount:        1,
+				BudgetExhausted:     true,
+				LastCompletedAt:     now.Add(-2 * time.Minute),
+			}},
+		},
+		status.DefaultOptions(),
+	)
+
+	payload, err := status.RenderJSON(report)
+	if err != nil {
+		t.Fatalf("RenderJSON() error = %v, want nil", err)
+	}
+	body := string(payload)
+	for _, want := range []string{
+		"\"aws_cloud_scans\"",
+		"\"collector_instance_id\": \"aws-prod\"",
+		"\"status\": \"partial\"",
+		"\"commit_status\": \"committed\"",
+		"\"throttle_count\": 3",
+		"\"budget_exhausted\": true",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("RenderJSON() = %s, want %q", payload, want)
+		}
+	}
+
+	text := status.RenderText(report)
+	if !strings.Contains(text, "AWS cloud scans:") ||
+		!strings.Contains(text, "123456789012/us-east-1/ecr status=partial commit=committed") ||
+		!strings.Contains(text, "api_calls=51 throttles=3 warnings=1") ||
+		!strings.Contains(text, "failure=budget_exhausted") {
+		t.Fatalf("RenderText() = %s, want AWS cloud scan summary", text)
+	}
+}

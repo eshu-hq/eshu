@@ -16,4 +16,8 @@
 // operators can confirm tfstate liveness without scanning the fact stream.
 // RegistryCollectorSnapshot rows expose aggregate OCI and package-registry
 // runtime liveness and bounded failure classes without registry object names.
+// AWSCloudScanStatus rows expose per-account, per-region, per-service AWS
+// scanner liveness, throttle counts, warning state, and commit status so
+// operators can separate throttling, credential failure, budget exhaustion, and
+// commit failures without scanning logs.
 package status

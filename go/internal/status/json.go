@@ -21,6 +21,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		LatestFailure         *queueFailureJSON          `json:"latest_failure,omitempty"`
 		RetryPolicies         []retryPolicyJSON          `json:"retry_policies"`
 		RegistryCollectors    []registryCollectorJSON    `json:"registry_collectors,omitempty"`
+		AWSCloudScans         []awsCloudScanJSON         `json:"aws_cloud_scans,omitempty"`
 		ScopeActivity         scopeActivityJSON          `json:"scope_activity"`
 		GenerationHistory     generationHistoryJSON      `json:"generation_history"`
 		GenerationTransitions []generationTransitionJSON `json:"generation_transitions"`
@@ -40,6 +41,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		LatestFailure:         queueFailureJSONFromReport(report.LatestQueueFailure),
 		RetryPolicies:         retryPoliciesJSON(report.RetryPolicies),
 		RegistryCollectors:    registryCollectorsJSON(report.RegistryCollectors),
+		AWSCloudScans:         awsCloudScansJSON(report.AWSCloudScans),
 		ScopeActivity:         scopeActivityJSONFromReport(report.ScopeActivity),
 		GenerationHistory:     generationHistoryJSONFromReport(report.GenerationHistory),
 		GenerationTransitions: generationTransitionsJSON(report.GenerationTransitions),
@@ -134,6 +136,30 @@ type registryCollectorJSON struct {
 	RetryableFailures          int              `json:"retryable_failures"`
 	TerminalFailures           int              `json:"terminal_failures"`
 	FailureClassCounts         []namedCountJSON `json:"failure_class_counts,omitempty"`
+}
+
+type awsCloudScanJSON struct {
+	CollectorInstanceID string `json:"collector_instance_id"`
+	AccountID           string `json:"account_id"`
+	Region              string `json:"region"`
+	ServiceKind         string `json:"service_kind"`
+	Status              string `json:"status"`
+	CommitStatus        string `json:"commit_status"`
+	FailureClass        string `json:"failure_class,omitempty"`
+	FailureMessage      string `json:"failure_message,omitempty"`
+	APICallCount        int    `json:"api_call_count"`
+	ThrottleCount       int    `json:"throttle_count"`
+	WarningCount        int    `json:"warning_count"`
+	ResourceCount       int    `json:"resource_count"`
+	RelationshipCount   int    `json:"relationship_count"`
+	TagObservationCount int    `json:"tag_observation_count"`
+	BudgetExhausted     bool   `json:"budget_exhausted"`
+	CredentialFailed    bool   `json:"credential_failed"`
+	LastStartedAt       string `json:"last_started_at,omitempty"`
+	LastObservedAt      string `json:"last_observed_at,omitempty"`
+	LastCompletedAt     string `json:"last_completed_at,omitempty"`
+	LastSuccessfulAt    string `json:"last_successful_at,omitempty"`
+	UpdatedAt           string `json:"updated_at,omitempty"`
 }
 
 type domainBacklogJSON struct {
@@ -284,6 +310,36 @@ func registryCollectorsJSON(rows []RegistryCollectorSnapshot) []registryCollecto
 			RetryableFailures:          row.RetryableFailures,
 			TerminalFailures:           row.TerminalFailures,
 			FailureClassCounts:         namedCountsJSON(row.FailureClassCounts),
+		})
+	}
+	return projected
+}
+
+func awsCloudScansJSON(rows []AWSCloudScanStatus) []awsCloudScanJSON {
+	projected := make([]awsCloudScanJSON, 0, len(rows))
+	for _, row := range rows {
+		projected = append(projected, awsCloudScanJSON{
+			CollectorInstanceID: row.CollectorInstanceID,
+			AccountID:           row.AccountID,
+			Region:              row.Region,
+			ServiceKind:         row.ServiceKind,
+			Status:              row.Status,
+			CommitStatus:        row.CommitStatus,
+			FailureClass:        row.FailureClass,
+			FailureMessage:      row.FailureMessage,
+			APICallCount:        row.APICallCount,
+			ThrottleCount:       row.ThrottleCount,
+			WarningCount:        row.WarningCount,
+			ResourceCount:       row.ResourceCount,
+			RelationshipCount:   row.RelationshipCount,
+			TagObservationCount: row.TagObservationCount,
+			BudgetExhausted:     row.BudgetExhausted,
+			CredentialFailed:    row.CredentialFailed,
+			LastStartedAt:       nullableRFC3339Value(row.LastStartedAt),
+			LastObservedAt:      nullableRFC3339Value(row.LastObservedAt),
+			LastCompletedAt:     nullableRFC3339Value(row.LastCompletedAt),
+			LastSuccessfulAt:    nullableRFC3339Value(row.LastSuccessfulAt),
+			UpdatedAt:           nullableRFC3339Value(row.UpdatedAt),
 		})
 	}
 	return projected

@@ -2,9 +2,9 @@
 
 `storage/postgres` owns Eshu's relational persistence layer: facts, queue state,
 content store, status, recovery data, decisions, webhook refresh triggers,
-shared projection intents, and workflow coordination tables. It is the single
-durable source of truth for pipeline state that projector, reducer, ingester,
-and the API surface all share.
+shared projection intents, AWS scan status, and workflow coordination tables.
+It is the single durable source of truth for pipeline state that projector,
+reducer, ingester, collectors, and the API surface all share.
 
 ## Where this fits in the pipeline
 
@@ -152,6 +152,16 @@ writing edges.
 fenced claim leases. `ErrWorkflowClaimRejected` is returned when a claim
 mutation is rejected because the current owner no longer holds the lease.
 
+### AWS scan status
+
+`AWSScanStatusStore` persists one row per AWS
+`(collector_instance_id, account_id, region, service_kind)` tuple in
+`aws_scan_status`. Scanner-side updates record `running`, `succeeded`,
+`partial`, `credential_failed`, or `failed` along with bounded API call,
+throttle, warning, and fact counts. The `collector-aws-cloud` command records a
+separate commit status after the fenced ingestion transaction so operators can
+distinguish scanner failures from commit failures.
+
 ### Webhook refresh triggers
 
 `WebhookTriggerStore` persists provider webhook decisions in
@@ -190,6 +200,8 @@ compatibility handoff cannot complete.
   (batch); `ErrReducerClaimRejected`
 - `QueueObserverStore` / `NewQueueObserverStore` — queue depth, age, and
   blockage queries for the status surface
+- `AWSScanStatusStore` / `NewAWSScanStatusStore` — per AWS tuple scanner and
+  commit status for `/admin/status`
 
 **Content stores**
 
@@ -501,6 +513,9 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   `semantic_entity_materialization` storms on NornicDB label indexes.
 - `WorkflowControlStore` claim mutations use `ErrWorkflowClaimRejected` for
   fenced writes; callers must stop processing when this error is returned.
+- `AWSScanStatusStore` mutations must keep their fencing guards. A stale AWS
+  worker must not overwrite per-tuple scanner or commit state from a newer
+  claim.
 - `WebhookTriggerStore` treats webhook payloads as trigger evidence only. The
   Git collector must still fetch the repository before freshness becomes true.
 - Schema definitions in `bootstrapDefinitions` are applied in slice order.

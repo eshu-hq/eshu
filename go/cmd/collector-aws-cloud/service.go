@@ -40,6 +40,8 @@ func buildClaimedService(
 	committer.Logger = logger
 	checkpoints := postgres.NewAWSPaginationCheckpointStore(database)
 	checkpoints.Instruments = instruments
+	scanStatus := postgres.NewAWSScanStatusStore(database)
+	commitStatus := newAWSStatusCommitter(committer, scanStatus, config.Instance.InstanceID, time.Now)
 	return collector.ClaimedService{
 		ControlStore: postgres.NewWorkflowControlStore(database),
 		Source: awsruntime.ClaimedSource{
@@ -55,8 +57,9 @@ func buildClaimedService(
 			Instruments: instruments,
 			Limiter:     limiter,
 			Checkpoints: checkpoints,
+			ScanStatus:  scanStatus,
 		},
-		Committer:           committer,
+		Committer:           commitStatus,
 		CollectorKind:       scope.CollectorAWS,
 		CollectorInstanceID: config.Instance.InstanceID,
 		OwnerID:             config.OwnerID,

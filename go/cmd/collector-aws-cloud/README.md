@@ -5,8 +5,9 @@
 `cmd/collector-aws-cloud` runs the claim-aware AWS cloud collector process. It
 loads an AWS collector instance from `ESHU_COLLECTOR_INSTANCES_JSON`, claims
 bounded `(account_id, region, service_kind)` work items, obtains claim-scoped
-AWS credentials, scans the requested AWS service, and commits reported facts
-through the shared ingestion store.
+AWS credentials, scans the requested AWS service, records scanner-side status,
+and commits reported facts through the shared ingestion store. A commit wrapper
+records whether the fenced fact transaction reached durable storage.
 
 ## Ownership boundary
 
@@ -73,8 +74,8 @@ chain. Static credential fields are rejected during config parsing.
 - `internal/collector` for the claim-aware collector runner.
 - `internal/collector/awscloud/awsruntime` for claim parsing, credentials,
   scanner registry, and collected generation construction.
-- `internal/storage/postgres` for workflow claims, ingestion commits, and
-  status.
+- `internal/storage/postgres` for workflow claims, ingestion commits, AWS scan
+  status rows, and status reports.
 
 ## Telemetry
 
@@ -83,6 +84,7 @@ The command registers the shared data-plane telemetry instruments and emits:
 - `eshu_dp_aws_api_calls_total`
 - `eshu_dp_aws_throttle_total`
 - `eshu_dp_aws_assumerole_failed_total`
+- `eshu_dp_aws_budget_exhausted_total`
 - `eshu_dp_aws_claim_concurrency`
 - `eshu_dp_aws_resources_emitted_total`
 - `eshu_dp_aws_relationships_emitted_total`
@@ -120,6 +122,9 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   not fetch function code or persist presigned package download URLs.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
+- `/admin/status` includes per `(account_id, region, service_kind)` AWS scan
+  status, commit status, API call count, throttle count, and outstanding
+  warning class when the data-plane schema includes `aws_scan_status`.
 
 ## Related docs
 

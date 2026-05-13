@@ -434,6 +434,10 @@ For OCI and package-registry collectors, `/admin/status?format=json` includes
 retryable/terminal failures, and bounded failure classes. It intentionally
 omits registry hosts, repository paths, package names, tags, digests, account
 IDs, metadata URLs, and credentials.
+For AWS cloud collectors, `/admin/status?format=json` includes
+`aws_cloud_scans` rows keyed by collector instance, account, region, and
+service. Those rows separate scanner status from fact commit status and include
+API call counts, throttle counts, warning counts, and budget/credential flags.
 
 Queue a full workspace rebuild on a deployed ingester:
 
