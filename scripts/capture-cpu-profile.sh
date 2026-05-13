@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# capture-cpu-profile.sh — event-driven dual-side CPU profile capture for
-# an `eshu graph start` run.
+# capture-cpu-profile.sh — event-driven CPU profile capture for an `eshu graph
+# start` run.
 #
 # Waits for a log marker that signals "interesting phase begins" in the
 # run log, sleeps briefly to let the workers ramp into steady state, then
-# captures matched-wall-clock CPU profiles from the ingester pprof endpoint
-# and the NornicDB pprof endpoint in parallel. After the CPU window closes,
+# captures CPU profiles from the ingester pprof endpoint and, when configured,
+# the NornicDB pprof endpoint in parallel. After the CPU window closes, it
 # snapshots heap, allocs, and goroutine state on the NornicDB side, and a
 # goroutine snapshot on the ingester side.
 #
 # Usage:
-#   capture-cpu-profile.sh <RUN_DIR> <INGESTER_PPROF> [NORNICDB_PPROF]
+#   capture-cpu-profile.sh <RUN_DIR> <INGESTER_PPROF> [NORNICDB_PPROF|-]
 #
 #   RUN_DIR         directory containing run.log; profiles/ subdir is created
 #                   if missing
@@ -79,7 +79,11 @@ WATCHER_LOG="$PROFILE_DIR/watcher.log"
 ts() { date -u +%FT%TZ; }
 
 {
-  echo "[$(ts)] dual-side watcher started"
+  if [ "$CAPTURE_NORNICDB" -eq 1 ]; then
+    echo "[$(ts)] profile watcher started (ingester + nornicdb)"
+  else
+    echo "[$(ts)] profile watcher started (ingester only)"
+  fi
   echo "[$(ts)]   RUN_DIR=$RUN_DIR"
   echo "[$(ts)]   INGESTER_PPROF=$INGESTER_PPROF NORNICDB_PPROF=${NORNICDB_PPROF:-<disabled>}"
   echo "[$(ts)]   PPROF_LOG_MARKER='$PPROF_LOG_MARKER' PPROF_SLEEP_S=$PPROF_SLEEP_S PPROF_CPU_S=$PPROF_CPU_S"
