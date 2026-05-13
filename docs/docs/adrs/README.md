@@ -52,6 +52,7 @@ still needs an owner.
 | `2026-05-11-module-aware-drift-joining.md` | Accepted; implemented in PR #202 | Adopts Option B (loader-side module-call join) for issue #169 so `module.<name>.<type>.<address>` state addresses can join with config-side `terraform_resources` facts instead of surfacing as `added_in_state`. Parser stays per-file; `PostgresDriftEvidenceLoader` learns a callee-directory prefix map. Local-filesystem `source` paths in scope; registry, Git, archive, cross-repo sources fall back to `added_in_state` with a new `eshu_dp_drift_unresolved_module_calls_total{reason}` counter. |
 | `2026-05-12-webhook-triggered-repository-refresh.md` | Accepted | Defines a separate public EKS `webhook-listener` runtime for GitHub/GitLab default-branch events. Webhook payloads are trigger evidence only; Git sync and the normal repository generation path remain authoritative for graph/query truth. |
 | `2026-05-12-package-registry-collector.md` | Proposed | Defines issue #24 package-registry collection as a separate source-truth boundary from OCI image collection. Phase 1 validates ECR through the OCI lane and JFrog through both OCI and package-feed lanes, then expands to public ecosystem fixtures, GitHub, GitLab, Google, Azure, Nexus, and CodeArtifact. |
+| `2026-05-13-eshu-console-read-only-product-surface.md` | Proposed | Defines the first private read-only console: `apps/console`, role-neutral search, entity-centered workspaces, demo/private mode separation, and contract-first envelope handling. |
 
 ## Discussion Shortlist
 
