@@ -43,7 +43,11 @@ func buildClaimedService(
 		Source: awsruntime.ClaimedSource{
 			Config:      config.AWS,
 			Credentials: awsruntime.SDKCredentialProvider{},
-			Scanners:    awsruntime.DefaultScannerFactory{Tracer: tracer, Instruments: instruments},
+			Scanners: awsruntime.DefaultScannerFactory{
+				Tracer:       tracer,
+				Instruments:  instruments,
+				RedactionKey: config.AWSRedactionKey,
+			},
 			Tracer:      tracer,
 			Instruments: instruments,
 			Limiter:     limiter,

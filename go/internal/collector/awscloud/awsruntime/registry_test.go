@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 func TestDefaultScannerFactoryBuildsIAMScanner(t *testing.T) {
@@ -47,6 +48,49 @@ func TestDefaultScannerFactoryBuildsECRScanner(t *testing.T) {
 	}
 	if scanner == nil {
 		t.Fatalf("Scanner() = nil, want ECR scanner")
+	}
+}
+
+func TestDefaultScannerFactoryBuildsECSScanner(t *testing.T) {
+	key, err := redact.NewKey([]byte("aws-redaction-key"))
+	if err != nil {
+		t.Fatalf("NewKey() error = %v", err)
+	}
+	factory := DefaultScannerFactory{RedactionKey: key}
+	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
+	scanner, err := factory.Scanner(context.Background(), Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceECS,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceECS,
+	}, lease)
+	if err != nil {
+		t.Fatalf("Scanner() error = %v", err)
+	}
+	if scanner == nil {
+		t.Fatalf("Scanner() = nil, want ECS scanner")
+	}
+}
+
+func TestDefaultScannerFactoryRequiresRedactionKeyForECS(t *testing.T) {
+	factory := DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceECS,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceECS,
+	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
+	if err == nil {
+		t.Fatalf("Scanner() error = nil, want missing ECS redaction key")
+	}
+	if !strings.Contains(err.Error(), "redaction key") {
+		t.Fatalf("Scanner() error = %q, want redaction key", err)
 	}
 }
 

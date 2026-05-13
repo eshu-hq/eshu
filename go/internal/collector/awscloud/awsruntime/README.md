@@ -44,7 +44,9 @@ See `doc.go` for the godoc contract.
   adapters.
 - `SDKCredentialProvider` - production credential provider using workload
   identity or STS AssumeRole.
-- `DefaultScannerFactory` - production service registry for AWS scanners.
+- `DefaultScannerFactory` - production service registry for AWS scanners. ECS
+  scanners receive the command-provided redaction key for task-definition
+  environment values.
 - `ScannerFactory` - creates a service scanner for one target and lease.
 - `ServiceScanner` - scans one service claim into fact envelopes.
 - `ClaimedSource` - implements the collector claimed-source contract.
@@ -53,8 +55,9 @@ See `doc.go` for the godoc contract.
 
 - `internal/collector` for `CollectedGeneration` and `FactsFromSlice`.
 - `internal/collector/awscloud` for claim boundaries and warning envelopes.
-- `internal/collector/awscloud/services/iam` and
-  `internal/collector/awscloud/services/ecr` plus their `awssdk` adapters for
+- `internal/collector/awscloud/services/iam`,
+  `internal/collector/awscloud/services/ecr`, and
+  `internal/collector/awscloud/services/ecs` plus their `awssdk` adapters for
   production service scanners.
 - `internal/facts` for warning fact types.
 - `internal/scope` for AWS scope and collector identity.
@@ -92,6 +95,9 @@ pagination spans. The command registers the instruments:
   configured STS external IDs.
 - `DefaultScannerFactory` is the only production registry for service scanners;
   add full-scan services there instead of branching in the command.
+- ECS service scans require a non-empty redaction key because task-definition
+  environment values are treated as sensitive even when the variable name looks
+  harmless.
 - Target scopes default to one active claim per account when
   `max_concurrent_claims` is unset.
 - STS or workload-identity failures emit an `assumerole_failed` warning fact for

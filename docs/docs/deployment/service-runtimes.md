@@ -145,7 +145,9 @@ service_kind)` work for that instance, obtains claim-scoped AWS credentials
 through central STS AssumeRole or local workload identity, and commits reported
 AWS facts through the shared ingestion boundary. The scanner slices currently
 cover IAM roles, managed policies, instance profiles, trust relationships, ECR
-repositories, ECR lifecycle policies, and ECR image references.
+repositories, ECR lifecycle policies, ECR image references, ECS clusters, ECS
+services, redacted ECS task definitions, ECS tasks, and ECS service
+relationships.
 
 `collector-oci-registry` scans configured OCI registry repositories. In the
 legacy local mode it reads `ESHU_OCI_REGISTRY_TARGETS_JSON`; when

@@ -11,6 +11,9 @@ const (
 	// ServiceECR identifies the regional Amazon Elastic Container Registry
 	// service scan slice.
 	ServiceECR = "ecr"
+	// ServiceECS identifies the regional Amazon Elastic Container Service
+	// service scan slice.
+	ServiceECS = "ecs"
 )
 
 const (
@@ -27,6 +30,14 @@ const (
 	// ResourceTypeECRLifecyclePolicy identifies an ECR repository lifecycle
 	// policy child resource.
 	ResourceTypeECRLifecyclePolicy = "aws_ecr_lifecycle_policy"
+	// ResourceTypeECSCluster identifies an ECS cluster.
+	ResourceTypeECSCluster = "aws_ecs_cluster"
+	// ResourceTypeECSService identifies an ECS service.
+	ResourceTypeECSService = "aws_ecs_service"
+	// ResourceTypeECSTaskDefinition identifies an ECS task definition.
+	ResourceTypeECSTaskDefinition = "aws_ecs_task_definition"
+	// ResourceTypeECSTask identifies an ECS task.
+	ResourceTypeECSTask = "aws_ecs_task"
 )
 
 const (
@@ -36,6 +47,15 @@ const (
 	RelationshipIAMRoleAttachedPolicy = "iam_role_attached_policy"
 	// RelationshipIAMRoleInInstanceProfile records a role/profile membership.
 	RelationshipIAMRoleInInstanceProfile = "iam_role_in_instance_profile"
+	// RelationshipECSServiceUsesTaskDefinition records the task definition a
+	// service currently runs.
+	RelationshipECSServiceUsesTaskDefinition = "ecs_service_uses_task_definition"
+	// RelationshipECSTaskDefinitionUsesImage records a container image
+	// referenced by a task definition.
+	RelationshipECSTaskDefinitionUsesImage = "ecs_task_definition_uses_image"
+	// RelationshipECSServiceTargetsLoadBalancer records an ECS service load
+	// balancer or target group binding.
+	RelationshipECSServiceTargetsLoadBalancer = "ecs_service_targets_load_balancer"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by

@@ -15,6 +15,8 @@
 ## Invariants
 
 - Do not accept static AWS credential fields.
+- Require `ESHU_AWS_REDACTION_KEY` when ECS is enabled so task-definition
+  environment values cannot cross persistence boundaries in plaintext.
 - Keep this command process-only. AWS credentials belong in `awsruntime`; AWS
   service pagination belongs in service `awssdk` adapters.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
