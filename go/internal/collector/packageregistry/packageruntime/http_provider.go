@@ -49,7 +49,9 @@ func (p HTTPMetadataProvider) FetchMetadata(ctx context.Context, target TargetCo
 	if err != nil {
 		return MetadataDocument{}, fmt.Errorf("request package metadata: %w", err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		if response.StatusCode == http.StatusTooManyRequests {
 			return MetadataDocument{}, ErrRateLimited

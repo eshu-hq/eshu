@@ -73,10 +73,6 @@ func (c RuntimeConfig) Validate() (RuntimeConfig, error) {
 	}, nil
 }
 
-func (t TargetConfig) validated() (TargetConfig, error) {
-	return t.Validate()
-}
-
 // Validate normalizes a single bounded package-registry feed or package
 // target.
 func (t TargetConfig) Validate() (TargetConfig, error) {
