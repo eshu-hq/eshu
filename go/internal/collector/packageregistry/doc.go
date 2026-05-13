@@ -4,10 +4,11 @@
 // The package belongs to the collector boundary: it validates bounded
 // package-registry target config, registers ecosystem-native metadata parsers,
 // observes and normalizes package/feed metadata, parses local npm, PyPI, Go
-// module, Maven, NuGet, and generic fixture metadata into observations, then
-// emits reported-confidence facts through the package, version, dependency,
-// artifact, source-hint, vulnerability-hint, registry-event, hosting, and
-// warning envelope builders. The packageruntime subpackage owns the
+// module, Maven, NuGet, and Generic/JFrog fixture metadata into observations,
+// including source-native advisory hints and registry events, then emits
+// reported-confidence facts through the package, version, dependency, artifact,
+// source-hint, vulnerability-hint, registry-event, hosting, and warning
+// envelope builders. The packageruntime subpackage owns the
 // claim-driven HTTP metadata fetch path and returns these facts through the
 // shared collector commit boundary.
 // NormalizePackageIdentity keeps ecosystem identity rules separate so package

@@ -138,6 +138,78 @@ func sourceHintObservation(
 	}
 }
 
+func genericVulnerabilityHints(
+	ctx MetadataParserContext,
+	identity PackageIdentity,
+	version string,
+	metadata genericMetadata,
+) []VulnerabilityHintObservation {
+	vulnerabilities := append([]genericVulnerability{}, metadata.Vulnerabilities...)
+	vulnerabilities = append(vulnerabilities, metadata.Advisories...)
+	observations := make([]VulnerabilityHintObservation, 0, len(vulnerabilities))
+	for _, vulnerability := range vulnerabilities {
+		advisoryID := firstNonBlank(vulnerability.AdvisoryID, vulnerability.VulnerabilityID)
+		advisorySource := firstNonBlank(vulnerability.AdvisorySource, metadata.Provider, "generic")
+		if advisoryID == "" || advisorySource == "" {
+			continue
+		}
+		observations = append(observations, VulnerabilityHintObservation{
+			Package:             identity,
+			Version:             strings.TrimSpace(version),
+			AdvisoryID:          advisoryID,
+			AdvisorySource:      advisorySource,
+			VulnerabilityID:     strings.TrimSpace(vulnerability.VulnerabilityID),
+			SourceSeverity:      strings.TrimSpace(vulnerability.SourceSeverity),
+			AffectedRange:       strings.TrimSpace(vulnerability.AffectedRange),
+			FixedVersion:        strings.TrimSpace(vulnerability.FixedVersion),
+			URL:                 sanitizeURL(vulnerability.URL),
+			Summary:             sanitizeText(strings.TrimSpace(vulnerability.Summary)),
+			PublishedAt:         parseTimestamp(vulnerability.PublishedAt),
+			ModifiedAt:          parseTimestamp(vulnerability.ModifiedAt),
+			ScopeID:             ctx.ScopeID,
+			GenerationID:        ctx.GenerationID,
+			CollectorInstanceID: ctx.CollectorInstanceID,
+			FencingToken:        ctx.FencingToken,
+			ObservedAt:          ctx.ObservedAt,
+			SourceURI:           ctx.SourceURI,
+		})
+	}
+	return observations
+}
+
+func genericRegistryEvents(
+	ctx MetadataParserContext,
+	identity PackageIdentity,
+	version string,
+	events []genericRegistryEvent,
+) []RegistryEventObservation {
+	observations := make([]RegistryEventObservation, 0, len(events))
+	for _, event := range events {
+		eventKey := strings.TrimSpace(event.EventKey)
+		eventType := strings.TrimSpace(event.EventType)
+		if eventKey == "" || eventType == "" {
+			continue
+		}
+		observations = append(observations, RegistryEventObservation{
+			Package:             identity,
+			Version:             strings.TrimSpace(version),
+			EventKey:            eventKey,
+			EventType:           eventType,
+			ArtifactKey:         strings.TrimSpace(event.ArtifactKey),
+			Actor:               strings.TrimSpace(event.Actor),
+			Message:             sanitizeText(strings.TrimSpace(event.Message)),
+			OccurredAt:          parseTimestamp(event.OccurredAt),
+			ScopeID:             ctx.ScopeID,
+			GenerationID:        ctx.GenerationID,
+			CollectorInstanceID: ctx.CollectorInstanceID,
+			FencingToken:        ctx.FencingToken,
+			ObservedAt:          ctx.ObservedAt,
+			SourceURI:           ctx.SourceURI,
+		})
+	}
+	return observations
+}
+
 func npmDependencies(
 	ctx MetadataParserContext,
 	identity PackageIdentity,

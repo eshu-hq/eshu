@@ -158,6 +158,8 @@ func ParseGenericPackageMetadata(ctx MetadataParserContext, document []byte) (Pa
 		}
 		parsed.Versions = append(parsed.Versions, versionObservation)
 	}
+	parsed.Vulnerables = append(parsed.Vulnerables, genericVulnerabilityHints(ctx, identity, version, generic)...)
+	parsed.Events = append(parsed.Events, genericRegistryEvents(ctx, identity, version, generic.Events)...)
 	if generic.SourceURL != "" {
 		parsed.SourceHints = append(parsed.SourceHints, sourceHintObservation(
 			ctx,
@@ -231,15 +233,18 @@ type pypiFile struct {
 }
 
 type genericMetadata struct {
-	Provider       string            `json:"provider"`
-	Repository     string            `json:"repository"`
-	RepositoryType string            `json:"repository_type"`
-	Name           string            `json:"name"`
-	Namespace      string            `json:"namespace"`
-	Version        string            `json:"version"`
-	Visibility     string            `json:"visibility"`
-	SourceURL      string            `json:"source_url"`
-	Artifacts      []genericArtifact `json:"artifacts"`
+	Provider        string                 `json:"provider"`
+	Repository      string                 `json:"repository"`
+	RepositoryType  string                 `json:"repository_type"`
+	Name            string                 `json:"name"`
+	Namespace       string                 `json:"namespace"`
+	Version         string                 `json:"version"`
+	Visibility      string                 `json:"visibility"`
+	SourceURL       string                 `json:"source_url"`
+	Artifacts       []genericArtifact      `json:"artifacts"`
+	Vulnerabilities []genericVulnerability `json:"vulnerabilities"`
+	Advisories      []genericVulnerability `json:"advisories"`
+	Events          []genericRegistryEvent `json:"events"`
 }
 
 type genericArtifact struct {
@@ -252,4 +257,26 @@ type genericArtifact struct {
 	SHA1   string            `json:"sha1"`
 	MD5    string            `json:"md5"`
 	Hashes map[string]string `json:"hashes"`
+}
+
+type genericVulnerability struct {
+	AdvisoryID      string `json:"advisory_id"`
+	AdvisorySource  string `json:"advisory_source"`
+	VulnerabilityID string `json:"vulnerability_id"`
+	SourceSeverity  string `json:"source_severity"`
+	AffectedRange   string `json:"affected_range"`
+	FixedVersion    string `json:"fixed_version"`
+	URL             string `json:"url"`
+	Summary         string `json:"summary"`
+	PublishedAt     string `json:"published_at"`
+	ModifiedAt      string `json:"modified_at"`
+}
+
+type genericRegistryEvent struct {
+	EventKey    string `json:"event_key"`
+	EventType   string `json:"event_type"`
+	ArtifactKey string `json:"artifact_key"`
+	Actor       string `json:"actor"`
+	Message     string `json:"message"`
+	OccurredAt  string `json:"occurred_at"`
 }
