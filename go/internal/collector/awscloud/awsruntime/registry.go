@@ -9,8 +9,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	ecrservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecr"
 	ecrawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecr/awssdk"
+	ecsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecs"
+	ecsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecs/awssdk"
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
 	iamawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/awssdk"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -19,6 +22,9 @@ import (
 type DefaultScannerFactory struct {
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
+	// RedactionKey produces ECS task-definition environment value markers.
+	// It is required only when building ECS scanners.
+	RedactionKey redact.Key
 }
 
 // Scanner implements ScannerFactory.
@@ -33,6 +39,14 @@ func (f DefaultScannerFactory) Scanner(
 		return nil, fmt.Errorf("unsupported AWS credential lease %T", lease)
 	}
 	switch target.ServiceKind {
+	case awscloud.ServiceECS:
+		if f.RedactionKey.IsZero() {
+			return nil, fmt.Errorf("ecs scanner redaction key is required")
+		}
+		return ecsservice.Scanner{
+			Client:       ecsawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+			RedactionKey: f.RedactionKey,
+		}, nil
 	case awscloud.ServiceECR:
 		return ecrservice.Scanner{
 			Client: ecrawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),

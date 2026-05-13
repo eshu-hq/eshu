@@ -25,6 +25,8 @@
 - Keep resource ARNs, policy JSON, tags, account names, and raw error payloads
   out of metric labels.
 - Keep ECR lifecycle policy JSON and image digests out of metric labels.
+- Keep ECS task-definition environment values out of persisted payloads unless
+  they are replaced by `internal/redact` markers.
 
 ## Common Changes
 

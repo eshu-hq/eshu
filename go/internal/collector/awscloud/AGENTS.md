@@ -23,6 +23,8 @@
   `StableFactKey` values.
 - Never put secrets, session tokens, presigned URLs, full policies, tags, ARNs,
   or resource names in metric labels.
+- Redact ECS task-definition environment values before persistence; preserve
+  secret `value_from` references without resolving them.
 - Keep AWS SDK calls out of this package. Runtime adapters own SDK pagination,
   retries, throttling, and credential loading.
 

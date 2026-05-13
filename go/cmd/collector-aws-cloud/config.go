@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -21,6 +23,7 @@ type runtimeConfig struct {
 	ClaimLeaseTTL     time.Duration
 	HeartbeatInterval time.Duration
 	AWS               awsruntime.Config
+	AWSRedactionKey   redact.Key
 }
 
 type awsRuntimeConfiguration struct {
@@ -63,6 +66,10 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 	if err != nil {
 		return runtimeConfig{}, err
 	}
+	redactionKey, err := loadAWSRedactionKeyIfNeeded(getenv, awsConfig)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
 	pollInterval, err := envDuration(getenv, "ESHU_AWS_COLLECTOR_POLL_INTERVAL", defaultPollInterval)
 	if err != nil {
 		return runtimeConfig{}, err
@@ -85,6 +92,7 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 		ClaimLeaseTTL:     claimLeaseTTL,
 		HeartbeatInterval: heartbeatInterval,
 		AWS:               awsConfig,
+		AWSRedactionKey:   redactionKey,
 	}, nil
 }
 
@@ -199,6 +207,35 @@ func mapCredentialConfig(config awsCredentialConfiguration) (awsruntime.Credenti
 		RoleARN:    strings.TrimSpace(config.RoleARN),
 		ExternalID: strings.TrimSpace(config.ExternalID),
 	}, nil
+}
+
+func loadAWSRedactionKeyIfNeeded(
+	getenv func(string) string,
+	config awsruntime.Config,
+) (redact.Key, error) {
+	if !awsConfigNeedsRedactionKey(config) {
+		return redact.Key{}, nil
+	}
+	value := strings.TrimSpace(getenv("ESHU_AWS_REDACTION_KEY"))
+	if value == "" {
+		return redact.Key{}, fmt.Errorf("ESHU_AWS_REDACTION_KEY is required when ecs service scans are enabled")
+	}
+	key, err := redact.NewKey([]byte(value))
+	if err != nil {
+		return redact.Key{}, fmt.Errorf("ESHU_AWS_REDACTION_KEY: %w", err)
+	}
+	return key, nil
+}
+
+func awsConfigNeedsRedactionKey(config awsruntime.Config) bool {
+	for _, target := range config.Targets {
+		for _, service := range target.AllowedServices {
+			if strings.TrimSpace(service) == awscloud.ServiceECS {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func envDuration(getenv func(string) string, key string, fallback time.Duration) (time.Duration, error) {

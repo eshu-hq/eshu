@@ -19,7 +19,7 @@
 ## Status Review (2026-05-13)
 
 **Current disposition:** Architecture gate closed; IAM-first scanner runtime
-slice merged; ECR scanner slice in implementation.
+slice merged; ECR scanner slice merged; ECS scanner slice in implementation.
 
 Gate issue #48 is the start point for AWS collector work. The architecture
 workflow plan now maps to the current Eshu issue set (#51 epic, #42 runtime,

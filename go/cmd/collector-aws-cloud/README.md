@@ -41,6 +41,9 @@ the environment/configuration it accepts:
   than the lease TTL.
 - `ESHU_AWS_COLLECTOR_OWNER_ID` - optional owner ID override; defaults to
   `HOSTNAME`, then `collector-aws-cloud`.
+- `ESHU_AWS_REDACTION_KEY` - required when any target scope enables `ecs`.
+  The ECS scanner uses it to produce deterministic HMAC-SHA256 markers for task
+  definition environment values before persistence.
 
 Instance configuration uses:
 
@@ -50,7 +53,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1"],
-      "allowed_services": ["iam", "ecr"],
+      "allowed_services": ["iam", "ecr", "ecs"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -81,6 +84,9 @@ The command registers the shared data-plane telemetry instruments and emits:
 - `eshu_dp_aws_throttle_total`
 - `eshu_dp_aws_assumerole_failed_total`
 - `eshu_dp_aws_claim_concurrency`
+- `eshu_dp_aws_resources_emitted_total`
+- `eshu_dp_aws_relationships_emitted_total`
+- `eshu_dp_aws_tag_observations_emitted_total`
 - `eshu_dp_aws_scan_duration_seconds`
 - `aws.collector.claim.process`
 - `aws.credentials.assume_role`
@@ -99,6 +105,7 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   service `awssdk` adapters; command tests should not mock the full AWS SDK
   surface.
 - Credential leases are released after scanner construction and service scan.
+- ECS targets require `ESHU_AWS_REDACTION_KEY`; IAM and ECR targets do not.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 
