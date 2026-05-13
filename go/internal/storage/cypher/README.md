@@ -78,6 +78,12 @@ use digest-backed descriptor identity; tag observations keep
 `identity_strength=weak_tag` and point at a resolved digest without making the
 tag the stable image key.
 
+Package-registry rows are written as `Package`/`PackageRegistryPackage` and
+`PackageVersion`/`PackageRegistryPackageVersion` nodes keyed by `uid`.
+`HAS_VERSION` is the only relationship emitted by this phase; source repository
+hints are not promoted to ownership or publication edges until reducer
+correlation supplies corroborating evidence.
+
 `EdgeWriter.WriteEdges` maps a `reducer.Domain` to a batched UNWIND Cypher
 template and dispatches rows in batches of `BatchSize` (default
 `DefaultBatchSize` = 500). Domain-specific sub-batch sizes are available for
@@ -265,6 +271,10 @@ adapter seam.
   manifest/index identity key. OCI labels participate in the stale-entity
   retract family, and `canonicalNodeRetractEntityLabels` includes that family in
   the generated cleanup list.
+- Package-registry writes must keep `MERGE` anchored on `uid` for `Package` and
+  `PackageVersion` labels. Do not add `Repository` matches or ownership edges to
+  `package_registry_canonical_writer.go`; source hints need reducer admission
+  first.
 - Repository-root `File` rows are the exception to the Directory parent rule:
   they must attach directly to `Repository` through `REPO_CONTAINS` because
   `buildDirectoryChain` intentionally does not create a synthetic Directory for

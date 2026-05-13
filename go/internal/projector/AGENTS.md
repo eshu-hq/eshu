@@ -37,6 +37,10 @@
 - **OCI digest identity stays source-local** — `oci_registry_canonical.go`
   projects committed OCI registry facts into digest-keyed image rows. Tags are
   mutable weak evidence and must not become the canonical image key.
+- **Package identity stays source-local** — `package_registry_canonical.go`
+  projects committed package and package-version facts into package identity
+  rows. Source hints are provenance only; do not create repository ownership,
+  publication, or consumption truth in the projector.
 - **Directory sort order** — `buildDirectoryChain` sorts by `Depth` ascending so
   parent directories exist before children during graph writes
   (`canonical_builder.go:191`).

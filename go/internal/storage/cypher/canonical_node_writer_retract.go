@@ -112,6 +112,7 @@ func canonicalNodeRetractEntityLabels() []string {
 		canonicalNodeRetractSQLEntityLabels,
 		canonicalNodeRetractDataEntityLabels,
 		canonicalNodeRetractOCIEntityLabels,
+		canonicalNodeRetractPackageRegistryEntityLabels,
 	} {
 		for label := range family {
 			labels[label] = struct{}{}

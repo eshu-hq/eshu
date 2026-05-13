@@ -66,6 +66,7 @@ func buildCanonicalMaterialization(
 	extractRelationships(inputFacts, &mat)
 	extractTerraformStateRows(&mat, inputFacts)
 	extractOCIRegistryRows(&mat, inputFacts)
+	extractPackageRegistryRows(&mat, inputFacts)
 
 	return mat
 }
