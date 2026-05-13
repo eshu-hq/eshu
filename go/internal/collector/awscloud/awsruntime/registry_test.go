@@ -30,6 +30,26 @@ func TestDefaultScannerFactoryBuildsIAMScanner(t *testing.T) {
 	}
 }
 
+func TestDefaultScannerFactoryBuildsECRScanner(t *testing.T) {
+	factory := DefaultScannerFactory{}
+	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
+	scanner, err := factory.Scanner(context.Background(), Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceECR,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceECR,
+	}, lease)
+	if err != nil {
+		t.Fatalf("Scanner() error = %v", err)
+	}
+	if scanner == nil {
+		t.Fatalf("Scanner() = nil, want ECR scanner")
+	}
+}
+
 func TestDefaultScannerFactoryRejectsUnsupportedService(t *testing.T) {
 	factory := DefaultScannerFactory{}
 	_, err := factory.Scanner(context.Background(), Target{

@@ -143,8 +143,9 @@ run collectors.
 instance from `ESHU_COLLECTOR_INSTANCES_JSON`, claims `(account_id, region,
 service_kind)` work for that instance, obtains claim-scoped AWS credentials
 through central STS AssumeRole or local workload identity, and commits reported
-AWS facts through the shared ingestion boundary. The first scanner slice covers
-IAM roles, managed policies, instance profiles, and trust relationships.
+AWS facts through the shared ingestion boundary. The scanner slices currently
+cover IAM roles, managed policies, instance profiles, trust relationships, ECR
+repositories, ECR lifecycle policies, and ECR image references.
 
 `collector-oci-registry` scans configured OCI registry repositories from
 `ESHU_OCI_REGISTRY_TARGETS_JSON`, supports JFrog Docker/OCI, ECR, Docker Hub,

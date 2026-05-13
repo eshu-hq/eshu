@@ -47,6 +47,9 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.AWSAPICalls, "AWSAPICalls counter should be registered")
 	assert.NotNil(t, inst.AWSThrottles, "AWSThrottles counter should be registered")
 	assert.NotNil(t, inst.AWSAssumeRoleFailed, "AWSAssumeRoleFailed counter should be registered")
+	assert.NotNil(t, inst.AWSResourcesEmitted, "AWSResourcesEmitted counter should be registered")
+	assert.NotNil(t, inst.AWSRelationshipsEmitted, "AWSRelationshipsEmitted counter should be registered")
+	assert.NotNil(t, inst.AWSTagObservationsEmitted, "AWSTagObservationsEmitted counter should be registered")
 
 	// Verify all histogram fields are non-nil
 	assert.NotNil(t, inst.CollectorObserveDuration, "CollectorObserveDuration histogram should be registered")

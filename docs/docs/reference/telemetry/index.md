@@ -169,6 +169,20 @@ For shared-write debugging specifically:
   `duration_seconds` to distinguish slow fact persistence from queue or
   commit latency.
 
+### AWS Cloud Collector
+
+- Metrics answer AWS API call volume, throttling, scan duration, active
+  per-account claim concurrency, credential failures, and emitted resource
+  counts.
+- `eshu_dp_aws_api_calls_total` is labeled by service, account, region,
+  operation, and result.
+- `eshu_dp_aws_throttle_total` is labeled by service, account, and region.
+- `eshu_dp_aws_resources_emitted_total` is labeled by service, account, region,
+  and resource type. Resource ARNs, tags, image digests, lifecycle policy JSON,
+  and raw AWS error payloads stay out of metric labels.
+- `aws.service.pagination.page` spans wrap AWS paginator pages and point reads
+  such as ECR lifecycle policy lookups.
+
 ### Resolution Engine
 
 - Metrics answer claim latency, worker activity, stage duration, stage output
@@ -382,6 +396,9 @@ log streams.
 | `eshu_dp_aws_api_calls_total` | AWS API calls by operation outcome | `service`, `account`, `region`, `operation`, `result` |
 | `eshu_dp_aws_throttle_total` | AWS throttle-shaped service errors | `service`, `account`, `region` |
 | `eshu_dp_aws_assumerole_failed_total` | AWS claim credential acquisition failures | `account` |
+| `eshu_dp_aws_resources_emitted_total` | AWS resource facts emitted by service scanner | `service`, `account`, `region`, `resource_type` |
+| `eshu_dp_aws_relationships_emitted_total` | AWS relationship facts emitted by service scanner | `service`, `account`, `region` |
+| `eshu_dp_aws_tag_observations_emitted_total` | AWS tag observation facts emitted by service scanner | `service`, `account`, `region` |
 | `eshu_dp_aws_claim_concurrency` | Active AWS collector claims by account | `account` |
 | `eshu_dp_repos_snapshotted_total` | Total repositories snapshotted | status (`succeeded`/`failed`/`skipped`) |
 | `eshu_dp_files_parsed_total` | Total files parsed | status (`succeeded`/`failed`/`skipped`) |

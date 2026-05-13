@@ -23,7 +23,7 @@ flowchart LR
   D --> E["awsruntime.SDKCredentialProvider"]
   D --> F["awsruntime.DefaultScannerFactory"]
   E --> F
-  F --> H["services/iam/awssdk"]
+  F --> H["service awssdk adapters"]
   H --> G["Postgres ingestion store"]
 ```
 
@@ -50,7 +50,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1"],
-      "allowed_services": ["iam"],
+      "allowed_services": ["iam", "ecr"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -95,8 +95,8 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   configuration.
 - `central_assume_role` must include `role_arn`; `external_id` is passed to STS
   when configured.
-- AWS SDK configuration and IAM pagination live under `awsruntime` and
-  `services/iam/awssdk`; command tests should not mock the full AWS SDK
+- AWS SDK configuration and service pagination live under `awsruntime` and
+  service `awssdk` adapters; command tests should not mock the full AWS SDK
   surface.
 - Credential leases are released after scanner construction and service scan.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and

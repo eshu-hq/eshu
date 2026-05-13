@@ -154,7 +154,46 @@ func (s ClaimedSource) scanService(
 		result = "error"
 		return nil, err
 	}
+	s.recordEmissionCounts(ctx, target, envelopes)
 	return envelopes, nil
+}
+
+func (s ClaimedSource) recordEmissionCounts(ctx context.Context, target Target, envelopes []facts.Envelope) {
+	if s.Instruments == nil {
+		return
+	}
+	relationshipCount := int64(0)
+	tagObservationCount := int64(0)
+	for _, envelope := range envelopes {
+		switch envelope.FactKind {
+		case facts.AWSResourceFactKind:
+			resourceType, _ := envelope.Payload["resource_type"].(string)
+			s.Instruments.AWSResourcesEmitted.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrService(target.ServiceKind),
+				telemetry.AttrAccount(target.AccountID),
+				telemetry.AttrRegion(target.Region),
+				telemetry.AttrResourceType(resourceType),
+			))
+		case facts.AWSRelationshipFactKind:
+			relationshipCount++
+		case facts.AWSTagObservationFactKind:
+			tagObservationCount++
+		}
+	}
+	if relationshipCount > 0 {
+		s.Instruments.AWSRelationshipsEmitted.Add(ctx, relationshipCount, metric.WithAttributes(
+			telemetry.AttrService(target.ServiceKind),
+			telemetry.AttrAccount(target.AccountID),
+			telemetry.AttrRegion(target.Region),
+		))
+	}
+	if tagObservationCount > 0 {
+		s.Instruments.AWSTagObservationsEmitted.Add(ctx, tagObservationCount, metric.WithAttributes(
+			telemetry.AttrService(target.ServiceKind),
+			telemetry.AttrAccount(target.AccountID),
+			telemetry.AttrRegion(target.Region),
+		))
+	}
 }
 
 func (s ClaimedSource) recordAssumeRoleFailure(ctx context.Context, target Target) {

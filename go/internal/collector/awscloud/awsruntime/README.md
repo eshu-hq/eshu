@@ -53,8 +53,9 @@ See `doc.go` for the godoc contract.
 
 - `internal/collector` for `CollectedGeneration` and `FactsFromSlice`.
 - `internal/collector/awscloud` for claim boundaries and warning envelopes.
-- `internal/collector/awscloud/services/iam` and its `awssdk` adapter for the
-  launch IAM scanner.
+- `internal/collector/awscloud/services/iam` and
+  `internal/collector/awscloud/services/ecr` plus their `awssdk` adapters for
+  production service scanners.
 - `internal/facts` for warning fact types.
 - `internal/scope` for AWS scope and collector identity.
 - `internal/workflow` for durable work item claims.
@@ -70,6 +71,9 @@ pagination spans. The command registers the instruments:
 - `eshu_dp_aws_throttle_total`
 - `eshu_dp_aws_claim_concurrency`
 - `eshu_dp_aws_assumerole_failed_total`
+- `eshu_dp_aws_resources_emitted_total`
+- `eshu_dp_aws_relationships_emitted_total`
+- `eshu_dp_aws_tag_observations_emitted_total`
 - `eshu_dp_aws_scan_duration_seconds`
 - `aws.collector.claim.process`
 - `aws.credentials.assume_role`

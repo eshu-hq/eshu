@@ -110,6 +110,60 @@ func NewRelationshipEnvelope(observation RelationshipObservation) (facts.Envelop
 	), nil
 }
 
+// NewImageReferenceEnvelope builds the durable aws_image_reference fact for one
+// ECR repository image digest and tag reference.
+func NewImageReferenceEnvelope(observation ImageReferenceObservation) (facts.Envelope, error) {
+	if err := validateBoundary(observation.Boundary); err != nil {
+		return facts.Envelope{}, err
+	}
+	repositoryName := strings.TrimSpace(observation.RepositoryName)
+	imageDigest := strings.TrimSpace(observation.ImageDigest)
+	if repositoryName == "" {
+		return facts.Envelope{}, fmt.Errorf("aws image reference observation requires repository_name")
+	}
+	if imageDigest == "" {
+		return facts.Envelope{}, fmt.Errorf("aws image reference observation requires image_digest")
+	}
+	tag := strings.TrimSpace(observation.Tag)
+	manifestDigest := strings.TrimSpace(observation.ManifestDigest)
+	if manifestDigest == "" {
+		manifestDigest = imageDigest
+	}
+	stableKey := facts.StableID(facts.AWSImageReferenceFactKind, map[string]any{
+		"account_id":      observation.Boundary.AccountID,
+		"image_digest":    imageDigest,
+		"region":          observation.Boundary.Region,
+		"repository_name": repositoryName,
+		"tag":             tag,
+	})
+	payload := map[string]any{
+		"account_id":            observation.Boundary.AccountID,
+		"region":                observation.Boundary.Region,
+		"service_kind":          observation.Boundary.ServiceKind,
+		"collector_instance_id": observation.Boundary.CollectorInstanceID,
+		"repository_arn":        strings.TrimSpace(observation.RepositoryARN),
+		"repository_name":       repositoryName,
+		"registry_id":           strings.TrimSpace(observation.RegistryID),
+		"image_digest":          imageDigest,
+		"manifest_digest":       manifestDigest,
+		"tag":                   tag,
+		"pushed_at":             timeOrNil(observation.PushedAt),
+		"image_size_in_bytes":   observation.ImageSizeInBytes,
+		"manifest_media_type":   strings.TrimSpace(observation.ManifestMediaType),
+		"artifact_media_type":   strings.TrimSpace(observation.ArtifactMediaType),
+		"correlation_anchors":   imageReferenceAnchors(repositoryName, imageDigest, manifestDigest, tag),
+	}
+	return newEnvelope(
+		observation.Boundary,
+		facts.AWSImageReferenceFactKind,
+		facts.AWSImageReferenceSchemaVersion,
+		stableKey,
+		sourceRecordID(observation.SourceRecordID, repositoryName+"@"+imageDigest+"#"+tag),
+		observation.SourceURI,
+		payload,
+	), nil
+}
+
 // NewWarningEnvelope builds the durable aws_warning fact for a non-fatal AWS
 // scan condition.
 func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) {
@@ -232,6 +286,14 @@ func normalizedAnchors(values []string, fallback ...string) []string {
 	return anchors
 }
 
+func imageReferenceAnchors(repositoryName, imageDigest, manifestDigest, tag string) []string {
+	anchors := []string{imageDigest, manifestDigest, repositoryName + "@" + imageDigest}
+	if strings.TrimSpace(tag) != "" {
+		anchors = append(anchors, repositoryName+":"+tag)
+	}
+	return normalizedAnchors(nil, anchors...)
+}
+
 func sourceRecordID(candidate, fallback string) string {
 	candidate = strings.TrimSpace(candidate)
 	if candidate != "" {
@@ -260,4 +322,11 @@ func cloneAnyMap(input map[string]any) map[string]any {
 		output[key] = value
 	}
 	return output
+}
+
+func timeOrNil(input time.Time) any {
+	if input.IsZero() {
+		return nil
+	}
+	return input.UTC()
 }

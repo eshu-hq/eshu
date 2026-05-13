@@ -223,6 +223,32 @@ collector/projector/reducer path.
 - Use it for: Detecting broken trust policy, external ID, or workload identity
   setup.
 
+### `eshu_dp_aws_resources_emitted_total`
+
+- Type: Counter
+- Labels: `service`, `account`, `region`, `resource_type`
+- Meaning: AWS `aws_resource` facts emitted by service scanner and resource
+  type.
+- Use it for: Confirming service scanners are producing bounded source facts
+  without putting ARNs, tags, image digests, lifecycle policy JSON, or resource
+  names into labels.
+
+### `eshu_dp_aws_relationships_emitted_total`
+
+- Type: Counter
+- Labels: `service`, `account`, `region`
+- Meaning: AWS `aws_relationship` facts emitted by service scanner.
+- Use it for: Confirming relationship-producing scanners are emitting source
+  relationships before reducer-owned correlation.
+
+### `eshu_dp_aws_tag_observations_emitted_total`
+
+- Type: Counter
+- Labels: `service`, `account`, `region`
+- Meaning: AWS `aws_tag_observation` facts emitted by service scanner.
+- Use it for: Confirming tag evidence is available for reducer-owned tag
+  normalization without adding raw tags to metric labels.
+
 ### `eshu_dp_aws_scan_duration_seconds`
 
 - Type: Histogram

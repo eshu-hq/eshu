@@ -8,6 +8,9 @@ const (
 
 	// ServiceIAM identifies the global IAM service scan slice.
 	ServiceIAM = "iam"
+	// ServiceECR identifies the regional Amazon Elastic Container Registry
+	// service scan slice.
+	ServiceECR = "ecr"
 )
 
 const (
@@ -19,6 +22,11 @@ const (
 	ResourceTypeIAMInstanceProfile = "aws_iam_instance_profile"
 	// ResourceTypeIAMPrincipal identifies a principal from an IAM trust policy.
 	ResourceTypeIAMPrincipal = "aws_iam_principal"
+	// ResourceTypeECRRepository identifies an ECR repository.
+	ResourceTypeECRRepository = "aws_ecr_repository"
+	// ResourceTypeECRLifecyclePolicy identifies an ECR repository lifecycle
+	// policy child resource.
+	ResourceTypeECRLifecyclePolicy = "aws_ecr_lifecycle_policy"
 )
 
 const (
@@ -70,6 +78,23 @@ type RelationshipObservation struct {
 	Attributes       map[string]any
 	SourceURI        string
 	SourceRecordID   string
+}
+
+// ImageReferenceObservation describes one ECR image digest and tag reference.
+type ImageReferenceObservation struct {
+	Boundary          Boundary
+	RepositoryARN     string
+	RepositoryName    string
+	RegistryID        string
+	ImageDigest       string
+	ManifestDigest    string
+	Tag               string
+	PushedAt          time.Time
+	ImageSizeInBytes  int64
+	ManifestMediaType string
+	ArtifactMediaType string
+	SourceURI         string
+	SourceRecordID    string
 }
 
 // WarningObservation describes one non-fatal AWS scan warning.

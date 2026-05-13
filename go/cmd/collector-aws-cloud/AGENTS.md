@@ -7,8 +7,8 @@
 3. `service.go` - claim-aware runner and runtime wiring.
 4. `go/internal/collector/awscloud/awsruntime/README.md` - claim runtime
    contract.
-5. `go/internal/collector/awscloud/services/iam/awssdk/README.md` - IAM SDK
-   adapter contract.
+5. Service `awssdk` README files under
+   `go/internal/collector/awscloud/services/` - SDK adapter contracts.
 6. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - security and
    runtime requirements.
 
