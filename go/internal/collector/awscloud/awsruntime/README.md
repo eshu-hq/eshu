@@ -56,9 +56,10 @@ See `doc.go` for the godoc contract.
 - `internal/collector` for `CollectedGeneration` and `FactsFromSlice`.
 - `internal/collector/awscloud` for claim boundaries and warning envelopes.
 - `internal/collector/awscloud/services/iam`,
-  `internal/collector/awscloud/services/ecr`, and
-  `internal/collector/awscloud/services/ecs`, and
-  `internal/collector/awscloud/services/elbv2` plus their `awssdk` adapters
+  `internal/collector/awscloud/services/ecr`,
+  `internal/collector/awscloud/services/ecs`,
+  `internal/collector/awscloud/services/elbv2`, and
+  `internal/collector/awscloud/services/route53` plus their `awssdk` adapters
   for production service scanners.
 - `internal/facts` for warning fact types.
 - `internal/scope` for AWS scope and collector identity.
@@ -103,6 +104,8 @@ pagination spans. The command registers the instruments:
   `max_concurrent_claims` is unset.
 - STS or workload-identity failures emit an `assumerole_failed` warning fact for
   the claimed generation.
+- Route 53 alias targets are reported DNS evidence only; do not infer workload
+  or deployable-unit truth in the runtime.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

@@ -53,7 +53,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1"],
-      "allowed_services": ["iam", "ecr", "ecs", "elbv2"],
+      "allowed_services": ["iam", "ecr", "ecs", "elbv2", "route53"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -108,6 +108,9 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
 - ECS targets require `ESHU_AWS_REDACTION_KEY`; IAM and ECR targets do not.
 - ELBv2 targets emit stable routing topology and intentionally exclude target
   health status.
+- Route 53 targets emit hosted-zone resources and A/AAAA/CNAME/ALIAS DNS record
+  facts. Use a global region label such as `aws-global` when scheduling Route
+  53 claims.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 

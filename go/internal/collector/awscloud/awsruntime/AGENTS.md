@@ -29,13 +29,15 @@
   they are replaced by `internal/redact` markers.
 - Keep ELBv2 target health out of service scans; it is live/noisy status, not
   stable routing topology.
+- Keep Route 53 DNS names, hosted-zone IDs, and record values out of metric
+  labels.
 
 ## Common Changes
 
 - Add a new credential mode by extending `CredentialMode`, writing focused
   claim tests, and implementing the provider here.
 - Add a new service scanner by adding a service constant in `awscloud`, scanner
-  package tests, a service `awssdk` adapter, and a
+  package tests, a service `awssdk` adapter, package docs, and a
   `DefaultScannerFactory.Scanner` branch.
 - Change claim shape only with coordinator, workflow, and ADR updates in the
   same PR.
