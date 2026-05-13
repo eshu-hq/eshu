@@ -8,6 +8,7 @@ RUNTIME_LIB="$REPO_ROOT/scripts/lib/compose_verification_runtime_common.sh"
 ASSERT_LIB="$REPO_ROOT/scripts/lib/compose_verification_assertions.sh"
 
 TMP_DIR="$(mktemp -d)"
+TMP_DIR="$(cd "$TMP_DIR" && pwd -P)"
 FIXTURE_ROOT="$TMP_DIR/fixtures"
 SOURCE_REPO="$TMP_DIR/source-repo"
 REMOTE_REPO="$FIXTURE_ROOT/remotes/eshu.git"
@@ -36,7 +37,9 @@ INITIAL_GENERATION_COUNT="0"
 COMPOSE_CMD=()
 COMPOSE_DISPLAY=""
 
+# shellcheck source=scripts/lib/compose_verification_runtime_common.sh disable=SC1091
 source "$RUNTIME_LIB"
+# shellcheck source=scripts/lib/compose_verification_assertions.sh disable=SC1091
 source "$ASSERT_LIB"
 
 cleanup() {
@@ -57,9 +60,13 @@ cleanup() {
 	fi
 
 	if [[ "$KEEP_STACK" != "true" ]]; then
-		"${COMPOSE_CMD[@]}" down -v >/dev/null 2>&1 || true
+		if ((${#COMPOSE_CMD[@]} > 0)); then
+			"${COMPOSE_CMD[@]}" down -v >/dev/null 2>&1 || true
+		fi
+		rm -rf "$TMP_DIR"
+	else
+		echo "Keeping compose stack and fixture root: $TMP_DIR"
 	fi
-	rm -rf "$TMP_DIR"
 	exit "$exit_code"
 }
 trap cleanup EXIT
@@ -138,7 +145,7 @@ PY
 	git -C "$SOURCE_REPO" add app.py
 	git -C "$SOURCE_REPO" commit -m "initial webhook proof fixture" >/dev/null
 	BEFORE_SHA="$(git -C "$SOURCE_REPO" rev-parse HEAD)"
-	git init --bare "$REMOTE_REPO" >/dev/null
+	git -c init.defaultBranch=main init --bare "$REMOTE_REPO" >/dev/null
 	git -C "$SOURCE_REPO" remote add origin "$REMOTE_REPO"
 	git -C "$SOURCE_REPO" push origin main >/dev/null
 	git --git-dir "$REMOTE_REPO" symbolic-ref HEAD refs/heads/main
@@ -235,6 +242,7 @@ configure_ports
 export COMPOSE_PROJECT_NAME
 export ESHU_FILESYSTEM_HOST_ROOT="$FIXTURE_ROOT"
 export ESHU_FILESYSTEM_ROOT="/data/repos"
+export ESHU_FILESYSTEM_DIRECT="true"
 export ESHU_REPO_SOURCE_MODE="filesystem"
 export ESHU_REPOSITORY_RULES_JSON='[]'
 export ESHU_WEBHOOK_GITHUB_SECRET="$WEBHOOK_SECRET"
@@ -249,16 +257,32 @@ eshu_require_tool jq
 eshu_require_tool nc
 eshu_require_tool openssl
 
+require_compose_profile_support() {
+	local -a candidate_cmd=("$@")
+	local help_text
+	help_text="$("${candidate_cmd[@]}" --help 2>&1 || true)"
+	if [[ "$help_text" == *"--profile"* ]]; then
+		return 0
+	fi
+	echo "compose binary '${candidate_cmd[*]}' does not support --profile;" >&2
+	echo "the webhook refresh verifier requires Docker Compose v2 or docker-compose >= 1.28" >&2
+	return 1
+}
+
 if docker compose version >/dev/null 2>&1; then
-	COMPOSE_CMD=(docker compose --profile webhook-listener)
-	COMPOSE_DISPLAY="docker compose --profile webhook-listener"
+	require_compose_profile_support docker compose
+	COMPOSE_CMD=(docker compose)
+	COMPOSE_DISPLAY="docker compose"
 elif command -v docker-compose >/dev/null 2>&1; then
-	COMPOSE_CMD=(docker-compose --profile webhook-listener)
-	COMPOSE_DISPLAY="docker-compose --profile webhook-listener"
+	require_compose_profile_support docker-compose
+	COMPOSE_CMD=(docker-compose)
+	COMPOSE_DISPLAY="docker-compose"
 else
 	echo "Missing required compose command: docker compose or docker-compose" >&2
 	exit 1
 fi
+COMPOSE_CMD+=(--profile webhook-listener)
+COMPOSE_DISPLAY="$COMPOSE_DISPLAY --profile webhook-listener"
 
 cd "$REPO_ROOT"
 
