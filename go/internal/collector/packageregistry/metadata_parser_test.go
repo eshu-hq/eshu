@@ -137,12 +137,139 @@ func TestParseGenericPackageMetadataBuildsHostingAndDeduplicatesArtifacts(t *tes
 	}
 }
 
+func TestParseMavenPackageMetadataBuildsObservations(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := ParseMavenPackageMetadata(parserTestContext(EcosystemMaven, "https://repo.maven.apache.org/maven2"), []byte(`
+		<project>
+			<modelVersion>4.0.0</modelVersion>
+			<groupId>org.Example</groupId>
+			<artifactId>Core-API</artifactId>
+			<version>1.2.3</version>
+			<packaging>jar</packaging>
+			<url>https://example.com/core-api</url>
+			<scm>
+				<url>scm:git:https://user:secret@github.com/example/core-api.git?token=secret</url>
+			</scm>
+			<dependencies>
+				<dependency>
+					<groupId>org.slf4j</groupId>
+					<artifactId>slf4j-api</artifactId>
+					<version>[2.0,3.0)</version>
+					<scope>compile</scope>
+				</dependency>
+				<dependency>
+					<groupId>junit</groupId>
+					<artifactId>junit</artifactId>
+					<version>4.13.2</version>
+					<scope>test</scope>
+					<optional>true</optional>
+				</dependency>
+			</dependencies>
+		</project>`))
+	if err != nil {
+		t.Fatalf("ParseMavenPackageMetadata() error = %v", err)
+	}
+
+	requireObservationCounts(t, metadata, 1, 1, 2, 1, 2)
+	if got := metadata.Packages[0].Identity.Namespace; got != "org.Example" {
+		t.Fatalf("package namespace = %q", got)
+	}
+	if got := metadata.Packages[0].Identity.RawName; got != "Core-API" {
+		t.Fatalf("package raw name = %q", got)
+	}
+	if got := metadata.Dependencies[0].Dependency.Namespace; got != "org.slf4j" {
+		t.Fatalf("dependency namespace = %q", got)
+	}
+	if got := metadata.Dependencies[0].DependencyType; got != "compile" {
+		t.Fatalf("dependency type = %q", got)
+	}
+	if !metadata.Dependencies[1].Optional {
+		t.Fatalf("test dependency Optional = false, want true")
+	}
+	if got := metadata.Artifacts[0].ArtifactKey; got != "org/Example/Core-API/1.2.3/Core-API-1.2.3.jar" {
+		t.Fatalf("artifact key = %q", got)
+	}
+}
+
+func TestParseNuGetPackageMetadataBuildsObservations(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := ParseNuGetPackageMetadata(parserTestContext(EcosystemNuGet, "https://api.nuget.org/v3/index.json"), []byte(`
+		<package>
+			<metadata>
+				<id>Friendly.Json</id>
+				<version>13.0.3</version>
+				<projectUrl>https://example.com/friendly</projectUrl>
+				<repository type="git" url="https://user:secret@github.com/example/friendly-json.git?token=secret" />
+				<dependencies>
+					<group targetFramework="net8.0">
+						<dependency id="System.Text.Json" version="[8.0.0,)" />
+					</group>
+					<dependency id="Newtonsoft.Json" version="[13.0.1,)" />
+				</dependencies>
+			</metadata>
+		</package>`))
+	if err != nil {
+		t.Fatalf("ParseNuGetPackageMetadata() error = %v", err)
+	}
+
+	requireObservationCounts(t, metadata, 1, 1, 2, 1, 2)
+	if got := metadata.Packages[0].Identity.RawName; got != "Friendly.Json" {
+		t.Fatalf("package raw name = %q", got)
+	}
+	if got := metadata.Dependencies[0].TargetFramework; got != "net8.0" {
+		t.Fatalf("dependency target framework = %q", got)
+	}
+	if got := metadata.Artifacts[0].ArtifactKey; got != "friendly.json.13.0.3.nupkg" {
+		t.Fatalf("artifact key = %q", got)
+	}
+}
+
+func TestParseGoModuleProxyMetadataBuildsObservations(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := ParseGoModuleProxyMetadata(parserTestContext(EcosystemGoModule, "https://proxy.golang.org"), []byte(`{
+		"module": "golang.org/x/mod",
+		"info": {"Version": "v0.20.0", "Time": "2026-05-10T08:30:00Z"},
+		"mod": "module golang.org/x/mod\n\nrequire golang.org/x/tools v0.24.0\nrequire (\n\tgithub.com/google/go-cmp v0.6.0\n\tgolang.org/x/sync v0.8.0 // indirect\n)\n",
+		"zip_url": "https://proxy.golang.org/golang.org/x/mod/@v/v0.20.0.zip?token=secret",
+		"sum": "h1:abc"
+	}`))
+	if err != nil {
+		t.Fatalf("ParseGoModuleProxyMetadata() error = %v", err)
+	}
+
+	requireObservationCounts(t, metadata, 1, 1, 3, 1, 0)
+	if got := metadata.Packages[0].Identity.RawName; got != "golang.org/x/mod" {
+		t.Fatalf("package raw name = %q", got)
+	}
+	if got := metadata.Dependencies[2].Dependency.RawName; got != "golang.org/x/tools" {
+		t.Fatalf("dependency raw name = %q", got)
+	}
+	if got := dependencyTypeByName(metadata.Dependencies)["golang.org/x/sync"]; got != "indirect" {
+		t.Fatalf("golang.org/x/sync dependency type = %q", got)
+	}
+	if got := metadata.Artifacts[0].Hashes["sum"]; got != "h1:abc" {
+		t.Fatalf("artifact sum = %q", got)
+	}
+}
+
 func TestMetadataParsersRejectMalformedDocuments(t *testing.T) {
 	t.Parallel()
 
 	ctx := parserTestContext(EcosystemNPM, "registry.npmjs.org")
 	if _, err := ParseNPMPackumentMetadata(ctx, []byte(`{"name":`)); err == nil {
 		t.Fatal("ParseNPMPackumentMetadata() error = nil, want malformed JSON error")
+	}
+	if _, err := ParseMavenPackageMetadata(parserTestContext(EcosystemMaven, "repo.maven.apache.org"), []byte(`<project>`)); err == nil {
+		t.Fatal("ParseMavenPackageMetadata() error = nil, want malformed XML error")
+	}
+	if _, err := ParseNuGetPackageMetadata(parserTestContext(EcosystemNuGet, "api.nuget.org"), []byte(`<package>`)); err == nil {
+		t.Fatal("ParseNuGetPackageMetadata() error = nil, want malformed XML error")
+	}
+	if _, err := ParseGoModuleProxyMetadata(parserTestContext(EcosystemGoModule, "proxy.golang.org"), []byte(`{"module":`)); err == nil {
+		t.Fatal("ParseGoModuleProxyMetadata() error = nil, want malformed JSON error")
 	}
 	if _, err := ParseGenericPackageMetadata(parserTestContext(EcosystemGeneric, "registry.example"), []byte(`{"name":`)); err == nil {
 		t.Fatal("ParseGenericPackageMetadata() error = nil, want malformed JSON error")
@@ -199,6 +326,14 @@ func dependencyTypes(dependencies []PackageDependencyObservation) map[string]boo
 	types := make(map[string]bool)
 	for _, dependency := range dependencies {
 		types[dependency.DependencyType] = true
+	}
+	return types
+}
+
+func dependencyTypeByName(dependencies []PackageDependencyObservation) map[string]string {
+	types := make(map[string]string)
+	for _, dependency := range dependencies {
+		types[dependency.Dependency.RawName] = dependency.DependencyType
 	}
 	return types
 }

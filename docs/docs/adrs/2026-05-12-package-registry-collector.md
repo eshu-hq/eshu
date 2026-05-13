@@ -330,7 +330,9 @@ run both Neo4j and NornicDB conformance for the statement shape.
 
 1. **Contract fixtures first:** add package identity normalization and fact
    payload tests for npm, PyPI, Go modules, Maven, NuGet, and Generic artifacts
-   without live registry credentials.
+   without live registry credentials. Implemented parser fixtures cover npm
+   packuments, PyPI JSON, offline GOPROXY bundles, Maven POM XML, NuGet nuspec
+   XML, and provider-specific Generic/JFrog metadata.
 2. **Runtime extension seam:** add bounded runtime target config and an explicit
    ecosystem parser registry so npm, PyPI, Generic, Go modules, Maven, NuGet,
    and future ecosystems register source-native behavior without one opaque
@@ -388,8 +390,9 @@ run both Neo4j and NornicDB conformance for the statement shape.
   <https://docs.gitlab.com/ee/user/packages/package_registry/supported_package_managers.html>
   <https://docs.gitlab.com/user/packages/container_registry/>
 - Google Artifact Registry supports Docker/OCI, Maven, npm, Python, Apt, and
-  Yum:
+  Yum, and Docker repository names use `LOCATION-docker.pkg.dev/PROJECT/REPOSITORY`:
   <https://docs.cloud.google.com/artifact-registry/docs/supported-formats>
+  <https://cloud.google.com/artifact-registry/docs/docker/names>
 - Azure Container Registry covers OCI artifacts, while Azure Artifacts covers
   Maven, npm, NuGet, Python, and universal packages:
   <https://learn.microsoft.com/en-us/azure/container-registry/container-registry-concepts>

@@ -11,9 +11,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
+	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/acr"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/dockerhub"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ecr"
+	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/gar"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ghcr"
+	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/harbor"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/jfrog"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ociruntime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -77,6 +80,30 @@ func (providerFactory) Client(ctx context.Context, target ociruntime.TargetConfi
 		})
 	case ociregistry.ProviderECR:
 		return newECRDistributionClient(ctx, target)
+	case ociregistry.ProviderHarbor:
+		return harbor.NewDistributionClient(harbor.Config{
+			BaseURL:     target.Registry,
+			Repository:  target.Repository,
+			Username:    target.Username,
+			Password:    target.Password,
+			BearerToken: target.BearerToken,
+		})
+	case ociregistry.ProviderGoogleArtifactRegistry:
+		return gar.NewDistributionClient(gar.Config{
+			RegistryHost: target.Registry,
+			Repository:   target.Repository,
+			Username:     target.Username,
+			Password:     target.Password,
+			BearerToken:  target.BearerToken,
+		})
+	case ociregistry.ProviderAzureContainerRegistry:
+		return acr.NewDistributionClient(acr.Config{
+			RegistryHost: target.Registry,
+			Repository:   target.Repository,
+			Username:     target.Username,
+			Password:     target.Password,
+			BearerToken:  target.BearerToken,
+		})
 	default:
 		return nil, fmt.Errorf("unsupported OCI registry provider %q", target.Provider)
 	}

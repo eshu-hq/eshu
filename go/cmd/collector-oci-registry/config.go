@@ -7,9 +7,12 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
+	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/acr"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/dockerhub"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ecr"
+	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/gar"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ghcr"
+	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/harbor"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/jfrog"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ociruntime"
 )
@@ -111,6 +114,29 @@ func mapTarget(target targetJSON, getenv func(string) string) (ociruntime.Target
 			}
 			registry = host
 		}
+	case ociregistry.ProviderHarbor:
+		identity, err := harbor.RepositoryIdentity(target.BaseURL, repository)
+		if err != nil {
+			return ociruntime.TargetConfig{}, err
+		}
+		registry = identity.Registry
+		repository = identity.Repository
+	case ociregistry.ProviderGoogleArtifactRegistry:
+		host := firstNonBlank(target.RegistryHost, registry)
+		identity, err := gar.RepositoryIdentity(host, repository)
+		if err != nil {
+			return ociruntime.TargetConfig{}, err
+		}
+		registry = identity.Registry
+		repository = identity.Repository
+	case ociregistry.ProviderAzureContainerRegistry:
+		host := firstNonBlank(target.RegistryHost, registry)
+		identity, err := acr.RepositoryIdentity(host, repository)
+		if err != nil {
+			return ociruntime.TargetConfig{}, err
+		}
+		registry = identity.Registry
+		repository = identity.Repository
 	default:
 		return ociruntime.TargetConfig{}, fmt.Errorf("unsupported provider %q", target.Provider)
 	}

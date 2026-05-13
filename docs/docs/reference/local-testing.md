@@ -174,6 +174,54 @@ go test ./internal/collector/ociregistry/ghcr -run TestLiveGHCR -count=1 -v
 Set `ESHU_GHCR_OCI_USERNAME` and `ESHU_GHCR_OCI_PASSWORD` when validating
 private GHCR repositories or organization packages that deny anonymous pulls.
 
+Harbor validation uses a Harbor endpoint and project/image repository path.
+Robot-account usernames and secrets should come from local shell config only:
+
+```bash
+export ESHU_HARBOR_OCI_LIVE=1
+export ESHU_HARBOR_OCI_URL="https://harbor.example.com"
+export ESHU_HARBOR_OCI_REPOSITORY="project/image"
+export ESHU_HARBOR_OCI_REFERENCE="latest"
+export ESHU_HARBOR_OCI_USERNAME="robot$reader"
+export ESHU_HARBOR_OCI_PASSWORD="local-secret"
+
+cd go
+go test ./internal/collector/ociregistry/harbor -run TestLiveHarbor -count=1 -v
+```
+
+Google Artifact Registry validation uses the Docker host shape documented by
+Google, such as `us-west1-docker.pkg.dev`, and a
+`PROJECT/REPOSITORY/IMAGE` path. Use a short-lived access token, credential
+helper output, or service-account credential translated into local env vars:
+
+```bash
+export ESHU_GAR_OCI_LIVE=1
+export ESHU_GAR_OCI_REGISTRY_HOST="us-west1-docker.pkg.dev"
+export ESHU_GAR_OCI_REPOSITORY="project-id/repository/image"
+export ESHU_GAR_OCI_REFERENCE="latest"
+export ESHU_GAR_OCI_USERNAME="oauth2accesstoken"
+export ESHU_GAR_OCI_PASSWORD="local-access-token"
+
+cd go
+go test ./internal/collector/ociregistry/gar -run TestLiveGAR -count=1 -v
+```
+
+Azure Container Registry validation uses the `<registry>.azurecr.io` host. For
+token auth from `az acr login --expose-token`, pass the documented zero-GUID
+username and the token through local env vars:
+
+```bash
+export ESHU_ACR_OCI_LIVE=1
+export ESHU_ACR_OCI_REGISTRY_HOST="example.azurecr.io"
+export ESHU_ACR_OCI_REPOSITORY="samples/artifact"
+export ESHU_ACR_OCI_REFERENCE="latest"
+export ESHU_ACR_OCI_USERNAME="00000000-0000-0000-0000-000000000000"
+export ESHU_ACR_OCI_PASSWORD="local-access-token"
+
+cd go
+go test ./internal/collector/ociregistry/acr -run TestLiveACR -count=1 -v
+```
+
 ## Discovery Advisory Playbook
 
 Use this loop when a repository is slow, unexpectedly large, or timeout-heavy.
