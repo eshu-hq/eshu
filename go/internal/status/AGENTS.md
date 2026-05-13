@@ -58,6 +58,11 @@
   JSON outputs are operator contract surfaces; missing one breaks the CLI while
   the HTTP surface looks correct.
 
+- **Add registry status fields** → keep `RegistryCollectorSnapshot` aggregate-
+  only. Do not include registry hosts, repository paths, package names, tags,
+  digests, metadata URLs, account IDs, credential environment names, or
+  credential values in text or JSON status payloads.
+
 - **Add a new coordinator field** → extend `CoordinatorSnapshot` in
   `coordinator.go`, extend `coordinatorSnapshotJSON` in `json.go`, and extend
   `renderCoordinatorLines`. Nil-guard the new field in `cloneCoordinatorSnapshot`.

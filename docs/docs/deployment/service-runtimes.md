@@ -162,6 +162,9 @@ Google Artifact Registry, and Azure Container Registry client wiring, and
 commits digest-addressed registry facts through the shared ingestion boundary.
 It exposes `oci_registry.scan` and `oci_registry.api_call` spans plus the
 `eshu_dp_oci_registry_*` metric family documented in the telemetry reference.
+Registry HTTP and transport failures are reported through bounded
+`registry_*` failure classes; status output does not include registry hosts,
+repository paths, tags, digests, account IDs, or credential references.
 
 `collector-package-registry` is claim-driven. It selects one enabled
 `package_registry` collector instance from `ESHU_COLLECTOR_INSTANCES_JSON`,
@@ -171,6 +174,9 @@ metadata, and commits reported package-registry facts through the shared
 ingestion boundary. It exposes `package_registry.observe` and
 `package_registry.fetch` spans plus the `eshu_dp_package_registry_*` metric
 family documented in the telemetry reference.
+Registry HTTP and transport failures use the same bounded `registry_*` failure
+classes; status output does not include package names, feed URLs, metadata
+paths, credential environment names, or credential values.
 
 ## Admin Contract
 
@@ -664,6 +670,10 @@ steady-state Kubernetes service in the public chart.
   tools
 - treat the shared admin/status report as the first place to look for live,
   inferred, backlog, and failure state
+- use the `registry_collectors` status section for private registry incidents:
+  it shows configured instances, active scope counts, completed generation
+  counts from the last 24 hours, last completed timestamps, and bounded
+  failure-class counts without exposing private registry object names
 - prefer incremental scope refresh and reconciliation over platform-wide
   re-indexing
 - use the [Telemetry Overview](../reference/telemetry/index.md) to decide which

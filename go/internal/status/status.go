@@ -96,6 +96,7 @@ type RawSnapshot struct {
 	Queue                 QueueSnapshot
 	LatestQueueFailure    *QueueFailureSnapshot
 	Coordinator           *CoordinatorSnapshot
+	RegistryCollectors    []RegistryCollectorSnapshot
 	// TerraformStateLastSerials carries the most recent observed serial per
 	// active state_snapshot scope, keyed by safe_locator_hash. Empty when the
 	// reader does not surface tfstate evidence.
@@ -152,6 +153,7 @@ type Report struct {
 	QueueBlockages        []QueueBlockage
 	LatestQueueFailure    *QueueFailureSnapshot
 	Coordinator           *CoordinatorSnapshot
+	RegistryCollectors    []RegistryCollectorSnapshot
 	// TerraformState carries the operator-facing tfstate admin status section
 	// derived from RawSnapshot.TerraformStateLastSerials and
 	// RawSnapshot.TerraformStateRecentWarnings. Empty when the reader did not
@@ -234,6 +236,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		QueueBlockages:        cloneQueueBlockages(raw.QueueBlockages),
 		LatestQueueFailure:    cloneQueueFailure(raw.LatestQueueFailure),
 		Coordinator:           cloneCoordinatorSnapshot(raw.Coordinator),
+		RegistryCollectors:    cloneRegistryCollectorSnapshots(raw.RegistryCollectors),
 		TerraformState: TerraformStateReport{
 			LastSerials:    SortTerraformStateSerials(raw.TerraformStateLastSerials),
 			RecentWarnings: SortTerraformStateWarnings(raw.TerraformStateRecentWarnings),
@@ -289,6 +292,7 @@ func RenderText(report Report) string {
 	}
 	lines = append(lines, renderQueueBlockageLines(report.QueueBlockages)...)
 	lines = append(lines, renderCoordinatorLines(report.Coordinator)...)
+	lines = append(lines, renderRegistryCollectorLines(report.RegistryCollectors)...)
 	lines = append(lines, renderFlowLines(report.FlowSummaries)...)
 	if len(report.StageSummaries) > 0 {
 		lines = append(lines, "Stages:")

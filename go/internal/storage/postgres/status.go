@@ -94,6 +94,10 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
+	registryCollectors, err := readRegistryCollectorSnapshots(ctx, s.queryer, asOf.UTC())
+	if err != nil {
+		return statuspkg.RawSnapshot{}, err
+	}
 	terraformStateEvidence, err := readTerraformStateAdminEvidence(
 		ctx,
 		s.queryer,
@@ -117,6 +121,7 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 		Queue:                        queueSnapshot,
 		LatestQueueFailure:           latestQueueFailure,
 		Coordinator:                  coordinatorSnapshot,
+		RegistryCollectors:           registryCollectors,
 		TerraformStateLastSerials:    terraformStateEvidence.LastSerials,
 		TerraformStateRecentWarnings: terraformStateEvidence.RecentWarnings,
 	}, nil

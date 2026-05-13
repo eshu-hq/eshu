@@ -75,6 +75,10 @@ See `doc.go` for the godoc contract. Key types and functions:
   instances, run and work-item status counts, completeness counts, active and
   overdue claims
 - `CollectorInstanceSummary` — one configured collector runtime instance
+- `RegistryCollectorSnapshot` — bounded OCI and package-registry runtime status
+  counts for configured instances, active scopes, recent completed generations,
+  last completed timestamp, retryable/terminal failures, and failure classes
+  without private registry object names
 - `TerraformStateLocatorSerial` — most recent observed serial per
   Terraform-state scope, keyed by safe locator hash so the report never carries
   raw bucket names, S3 keys, or local paths

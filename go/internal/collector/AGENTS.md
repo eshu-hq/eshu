@@ -107,6 +107,16 @@
   check `eshu_dp_postgres_query_duration_seconds`; check Postgres connection
   pool saturation.
 
+- Symptom: registry collector status shows `failure_class=registry_auth_denied`,
+  `registry_not_found`, `registry_rate_limited`, `registry_retryable_failure`,
+  `registry_canceled`, or `registry_terminal_failure` → likely cause: a bounded
+  OCI or package-registry HTTP/transport failure → check `registry_collectors`
+  counts, then the registry collector trace operation. Context deadlines stay
+  `registry_retryable_failure`; `registry_canceled` is reserved for shutdown or
+  operator cancellation. Do not add registry hosts, repositories, package names,
+  tags, digests, paths, account IDs, or credential references to metric labels
+  or status messages.
+
 - Symptom: `collector stream failed` log with `stream_snapshot_failure` →
   likely cause: first non-nil worker error → the first failing repo path and
   error are in the log; fix the repo or add a `.eshu/discovery.json` exclusion.

@@ -165,6 +165,12 @@ whether the latest published Go checkpoint is finished.
     - `GET /metrics`
   Those routes are documented by `docs/openapi/runtime-admin-v1.yaml`, not the
   public `/api/v0` OpenAPI schema.
+  The `/admin/status` JSON shape includes `registry_collectors` for OCI and
+  package-registry runtimes. That section reports aggregate instance, active
+  scope, 24-hour recent completed generation, last-completed,
+  retryable/terminal failure, and bounded failure-class counts without registry
+  hosts, repository paths, package names, tags, digests, account IDs, metadata
+  URLs, or credentials.
 - `GET /api/v0/status/index` returns the current checkpoint summary.
 - `GET /api/v0/index-status` returns the same checkpoint summary.
 - `GET /api/v0/status/ingesters` is the canonical ingester-status list route.

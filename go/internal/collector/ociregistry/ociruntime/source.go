@@ -190,11 +190,11 @@ func (s *Source) buildEnvelopes(
 	for _, reference := range references {
 		manifest, err := s.getManifest(ctx, client, target, reference)
 		if err != nil {
-			return nil, fmt.Errorf("get OCI manifest for %q: %w", reference, err)
+			return nil, fmt.Errorf("get OCI manifest: %w", err)
 		}
 		mediaType, parsed, err := parseManifest(manifest)
 		if err != nil {
-			return nil, fmt.Errorf("parse OCI manifest for %q: %w", reference, err)
+			return nil, fmt.Errorf("parse OCI manifest: %w", err)
 		}
 		if s.Instruments != nil {
 			s.Instruments.OCIRegistryManifestsObserved.Add(ctx, 1, metric.WithAttributes(

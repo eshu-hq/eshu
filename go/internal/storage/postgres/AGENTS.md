@@ -15,8 +15,10 @@
 5. `go/internal/storage/postgres/facts.go` — `upsertFacts`,
    `deduplicateEnvelopes`, `sanitizeJSONB`; understand the batching and
    deduplication constraints before changing fact write paths
-6. `go/internal/storage/postgres/status_queries.go` — status aggregate SQL,
-   including fact queue and shared projection domain backlog
+6. `go/internal/storage/postgres/status_queries.go` and
+   `go/internal/storage/postgres/status_registry.go` — status aggregate SQL,
+   including fact queue, shared projection domain backlog, and bounded registry
+   collector aggregates
 7. `go/internal/storage/postgres/schema.go` — `BootstrapDefinitions`,
    `ApplyDefinitions`; DDL ordering and idempotency rules
 

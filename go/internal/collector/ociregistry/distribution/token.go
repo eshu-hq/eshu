@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector"
 )
 
 // TokenConfig configures an OCI Distribution bearer-token request.
@@ -52,11 +54,11 @@ func FetchBearerToken(ctx context.Context, config TokenConfig) (string, error) {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("OCI token request failed: %w", err)
+		return "", collector.RegistryTransportFailure("oci", "", "fetch_token", err)
 	}
 	defer closeBody(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", statusError(http.MethodGet, requestURL.Path, resp.StatusCode)
+		return "", statusError("fetch_token", resp.StatusCode)
 	}
 
 	var decoded struct {

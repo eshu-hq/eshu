@@ -123,6 +123,8 @@ paths:
                 Scope statuses: active=2 pending=1
                 Generation history: active=1 pending=1 completed=4 superseded=0 failed=0 other=0
                 Generation transitions: scope=scope-123 generation=generation-b status=active trigger=snapshot freshness=changed files observed=2026-04-12T15:45:00Z activated=2026-04-12T15:46:00Z superseded= current_active=generation-b
+                Registry collectors:
+                  oci_registry instances=1 active_scopes=2 recent_completed_generations=4 retryable_failures=1 terminal_failures=0 last_completed_at=2026-05-13T14:28:00Z failure_classes=registry_rate_limited=1
             application/json:
               schema:
                 $ref: "#/components/schemas/StatusReport"
@@ -411,6 +413,58 @@ components:
           type: string
         oldest_age_seconds:
           type: number
+    RegistryFailureClassCount:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - count
+      properties:
+        name:
+          type: string
+          enum:
+            - registry_auth_denied
+            - registry_not_found
+            - registry_rate_limited
+            - registry_retryable_failure
+            - registry_canceled
+            - registry_terminal_failure
+        count:
+          type: integer
+    RegistryCollectorSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - collector_kind
+        - configured_instances
+        - active_scopes
+        - recent_completed_generations
+        - retryable_failures
+        - terminal_failures
+      properties:
+        collector_kind:
+          type: string
+          enum:
+            - oci_registry
+            - package_registry
+        configured_instances:
+          type: integer
+        active_scopes:
+          type: integer
+        recent_completed_generations:
+          description: Completed workflow items in the last 24 hours.
+          type: integer
+        last_completed_at:
+          type: string
+          format: date-time
+        retryable_failures:
+          type: integer
+        terminal_failures:
+          type: integer
+        failure_class_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/RegistryFailureClassCount"
     TagTaxonomySummary:
       type: object
       additionalProperties: false
@@ -494,5 +548,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/QueueBlockage"
+        registry_collectors:
+          type: array
+          description: >
+            Aggregate OCI and package-registry runtime status. Rows must not
+            include registry hosts, repository paths, package names, tags,
+            digests, account IDs, metadata URLs, credential environment names,
+            or credential values.
+          items:
+            $ref: "#/components/schemas/RegistryCollectorSummary"
         tag_taxonomy:
           $ref: "#/components/schemas/TagTaxonomySummary"

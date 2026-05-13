@@ -20,6 +20,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		Queue                 queueJSON                  `json:"queue"`
 		LatestFailure         *queueFailureJSON          `json:"latest_failure,omitempty"`
 		RetryPolicies         []retryPolicyJSON          `json:"retry_policies"`
+		RegistryCollectors    []registryCollectorJSON    `json:"registry_collectors,omitempty"`
 		ScopeActivity         scopeActivityJSON          `json:"scope_activity"`
 		GenerationHistory     generationHistoryJSON      `json:"generation_history"`
 		GenerationTransitions []generationTransitionJSON `json:"generation_transitions"`
@@ -38,6 +39,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		Queue:                 queueJSONFromReport(report.Queue),
 		LatestFailure:         queueFailureJSONFromReport(report.LatestQueueFailure),
 		RetryPolicies:         retryPoliciesJSON(report.RetryPolicies),
+		RegistryCollectors:    registryCollectorsJSON(report.RegistryCollectors),
 		ScopeActivity:         scopeActivityJSONFromReport(report.ScopeActivity),
 		GenerationHistory:     generationHistoryJSONFromReport(report.GenerationHistory),
 		GenerationTransitions: generationTransitionsJSON(report.GenerationTransitions),
@@ -121,6 +123,17 @@ type coordinatorSnapshotJSON struct {
 	OverdueClaims        int                     `json:"overdue_claims"`
 	OldestPendingAge     string                  `json:"oldest_pending_age"`
 	OldestPendingSeconds float64                 `json:"oldest_pending_age_seconds"`
+}
+
+type registryCollectorJSON struct {
+	CollectorKind              string           `json:"collector_kind"`
+	ConfiguredInstances        int              `json:"configured_instances"`
+	ActiveScopes               int              `json:"active_scopes"`
+	RecentCompletedGenerations int              `json:"recent_completed_generations"`
+	LastCompletedAt            string           `json:"last_completed_at,omitempty"`
+	RetryableFailures          int              `json:"retryable_failures"`
+	TerminalFailures           int              `json:"terminal_failures"`
+	FailureClassCounts         []namedCountJSON `json:"failure_class_counts,omitempty"`
 }
 
 type domainBacklogJSON struct {
@@ -255,6 +268,23 @@ func namedCountsJSON(rows []NamedCount) []namedCountJSON {
 	projected := make([]namedCountJSON, 0, len(rows))
 	for _, row := range rows {
 		projected = append(projected, namedCountJSON(row))
+	}
+	return projected
+}
+
+func registryCollectorsJSON(rows []RegistryCollectorSnapshot) []registryCollectorJSON {
+	projected := make([]registryCollectorJSON, 0, len(rows))
+	for _, row := range rows {
+		projected = append(projected, registryCollectorJSON{
+			CollectorKind:              row.CollectorKind,
+			ConfiguredInstances:        row.ConfiguredInstances,
+			ActiveScopes:               row.ActiveScopes,
+			RecentCompletedGenerations: row.RecentCompletedGenerations,
+			LastCompletedAt:            nullableRFC3339Value(row.LastCompletedAt),
+			RetryableFailures:          row.RetryableFailures,
+			TerminalFailures:           row.TerminalFailures,
+			FailureClassCounts:         namedCountsJSON(row.FailureClassCounts),
+		})
 	}
 	return projected
 }

@@ -52,6 +52,9 @@ CREATE INDEX IF NOT EXISTS workflow_work_items_lease_idx
     WHERE lease_expires_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS workflow_work_items_run_idx
     ON workflow_work_items (run_id, status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS workflow_work_items_registry_status_updated_idx
+    ON workflow_work_items (collector_kind, status, updated_at DESC)
+    WHERE collector_kind IN ('oci_registry', 'package_registry');
 CREATE UNIQUE INDEX IF NOT EXISTS workflow_work_items_tfstate_candidate_nonterminal_idx
     ON workflow_work_items (
         collector_instance_id,
