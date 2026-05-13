@@ -51,6 +51,26 @@ func TestDefaultScannerFactoryBuildsECRScanner(t *testing.T) {
 	}
 }
 
+func TestDefaultScannerFactoryBuildsELBv2Scanner(t *testing.T) {
+	factory := DefaultScannerFactory{}
+	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
+	scanner, err := factory.Scanner(context.Background(), Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceELBv2,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceELBv2,
+	}, lease)
+	if err != nil {
+		t.Fatalf("Scanner() error = %v", err)
+	}
+	if scanner == nil {
+		t.Fatalf("Scanner() = nil, want ELBv2 scanner")
+	}
+}
+
 func TestDefaultScannerFactoryBuildsECSScanner(t *testing.T) {
 	key, err := redact.NewKey([]byte("aws-redaction-key"))
 	if err != nil {

@@ -35,6 +35,8 @@ See `doc.go` for the godoc contract.
 - `ServiceIAM` - IAM service-kind value for global IAM scans.
 - `ServiceECR` - ECR service-kind value for regional image scans.
 - `ServiceECS` - ECS service-kind value for regional workload placement scans.
+- `ServiceELBv2` - ELBv2 service-kind value for regional routing topology
+  scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.

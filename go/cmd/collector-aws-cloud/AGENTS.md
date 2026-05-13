@@ -19,6 +19,8 @@
   environment values cannot cross persistence boundaries in plaintext.
 - Keep this command process-only. AWS credentials belong in `awsruntime`; AWS
   service pagination belongs in service `awssdk` adapters.
+- Keep ELBv2 target health out of stable AWS collector facts; target health is
+  live status, not routing topology.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 

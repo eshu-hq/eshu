@@ -14,6 +14,9 @@ const (
 	// ServiceECS identifies the regional Amazon Elastic Container Service
 	// service scan slice.
 	ServiceECS = "ecs"
+	// ServiceELBv2 identifies the regional Elastic Load Balancing v2 service
+	// scan slice.
+	ServiceELBv2 = "elbv2"
 )
 
 const (
@@ -38,6 +41,14 @@ const (
 	ResourceTypeECSTaskDefinition = "aws_ecs_task_definition"
 	// ResourceTypeECSTask identifies an ECS task.
 	ResourceTypeECSTask = "aws_ecs_task"
+	// ResourceTypeELBv2LoadBalancer identifies an ELBv2 load balancer.
+	ResourceTypeELBv2LoadBalancer = "aws_elbv2_load_balancer"
+	// ResourceTypeELBv2Listener identifies an ELBv2 listener.
+	ResourceTypeELBv2Listener = "aws_elbv2_listener"
+	// ResourceTypeELBv2TargetGroup identifies an ELBv2 target group.
+	ResourceTypeELBv2TargetGroup = "aws_elbv2_target_group"
+	// ResourceTypeELBv2Rule identifies an ELBv2 listener rule.
+	ResourceTypeELBv2Rule = "aws_elbv2_rule"
 )
 
 const (
@@ -56,6 +67,17 @@ const (
 	// RelationshipECSServiceTargetsLoadBalancer records an ECS service load
 	// balancer or target group binding.
 	RelationshipECSServiceTargetsLoadBalancer = "ecs_service_targets_load_balancer"
+	// RelationshipELBv2LoadBalancerHasListener records listener membership on a
+	// load balancer.
+	RelationshipELBv2LoadBalancerHasListener = "elbv2_load_balancer_has_listener"
+	// RelationshipELBv2ListenerHasRule records rule membership on a listener.
+	RelationshipELBv2ListenerHasRule = "elbv2_listener_has_rule"
+	// RelationshipELBv2ListenerRoutesToTargetGroup records listener or rule
+	// routing to a target group.
+	RelationshipELBv2ListenerRoutesToTargetGroup = "elbv2_listener_routes_to_target_group"
+	// RelationshipELBv2TargetGroupAttachedToLoadBalancer records target group
+	// attachment to a load balancer.
+	RelationshipELBv2TargetGroupAttachedToLoadBalancer = "elbv2_target_group_attached_to_load_balancer"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by

@@ -25,6 +25,8 @@
   or resource names in metric labels.
 - Redact ECS task-definition environment values before persistence; preserve
   secret `value_from` references without resolving them.
+- Keep ELBv2 target health out of facts; it is live/noisy state, not stable
+  topology truth.
 - Keep AWS SDK calls out of this package. Runtime adapters own SDK pagination,
   retries, throttling, and credential loading.
 
