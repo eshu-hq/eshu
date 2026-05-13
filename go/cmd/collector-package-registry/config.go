@@ -33,6 +33,7 @@ type targetJSON struct {
 	Visibility     string   `json:"visibility"`
 	SourceURI      string   `json:"source_uri"`
 	MetadataURL    string   `json:"metadata_url"`
+	DocumentFormat string   `json:"document_format"`
 	UsernameEnv    string   `json:"username_env"`
 	PasswordEnv    string   `json:"password_env"`
 	BearerTokenEnv string   `json:"bearer_token_env"`
@@ -177,10 +178,11 @@ func mapTarget(target targetJSON, getenv func(string) string) (packageruntime.Ta
 			Visibility:   visibility,
 			SourceURI:    strings.TrimSpace(firstNonBlank(target.SourceURI, target.MetadataURL)),
 		},
-		MetadataURL: strings.TrimRight(strings.TrimSpace(target.MetadataURL), "/"),
-		Username:    getenv(strings.TrimSpace(target.UsernameEnv)),
-		Password:    getenv(strings.TrimSpace(target.PasswordEnv)),
-		BearerToken: getenv(strings.TrimSpace(target.BearerTokenEnv)),
+		MetadataURL:    strings.TrimRight(strings.TrimSpace(target.MetadataURL), "/"),
+		DocumentFormat: strings.TrimSpace(target.DocumentFormat),
+		Username:       getenv(strings.TrimSpace(target.UsernameEnv)),
+		Password:       getenv(strings.TrimSpace(target.PasswordEnv)),
+		BearerToken:    getenv(strings.TrimSpace(target.BearerTokenEnv)),
 	}, nil
 }
 

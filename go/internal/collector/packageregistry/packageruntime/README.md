@@ -5,8 +5,9 @@
 `internal/collector/packageregistry/packageruntime` owns the claim-driven
 runtime for `package_registry` collector work. It maps one workflow claim to
 one configured package-registry target, fetches that target's metadata document,
-parses it with `packageregistry.MetadataParserRegistry`, and returns fact
-envelopes to `collector.ClaimedService`.
+parses it with `packageregistry.MetadataParserRegistry` or the Artifactory
+package wrapper when configured, and returns fact envelopes to
+`collector.ClaimedService`.
 
 ## Flow
 
@@ -14,8 +15,8 @@ envelopes to `collector.ClaimedService`.
 flowchart LR
   A["workflow.WorkItem"] --> B["ClaimedSource.NextClaimed"]
   B --> C["MetadataProvider.FetchMetadata"]
-  C --> D["MetadataParserRegistry.Parse"]
-  D --> E["New*Envelope\nincluding advisories + events"]
+  C --> D["native parser or artifactory_package wrapper"]
+  D --> E["New*Envelope\nincluding hosting, advisories + events"]
   E --> F["collector.CollectedGeneration"]
   F --> G["Postgres commit with claim fencing"]
 ```
@@ -24,8 +25,8 @@ flowchart LR
 
 - `SourceConfig` validates collector instance ID, bounded targets, provider,
   and optional telemetry handles.
-- `TargetConfig` stores parsed target identity plus runtime-only endpoint and
-  credential material.
+- `TargetConfig` stores parsed target identity plus runtime-only endpoint,
+  document format, and credential material.
 - `MetadataProvider` fetches one bounded metadata document for a target.
 - `HTTPMetadataProvider` performs the first production metadata fetch path
   using an explicit `metadata_url`.
@@ -51,6 +52,9 @@ must stay out of metrics.
 - A claimed source only collects the configured `scope_id` from the workflow
   item. Unknown scope IDs fail the claim instead of falling back to another
   target.
+- `document_format` defaults to `native`. `artifactory_package` is allowed only
+  as a wrapper around package-native metadata; Artifactory repository topology
+  remains hosting evidence.
 - `collector_instance_id`, `generation_id`, and `fencing_token` come from the
   workflow claim path and are copied into every emitted fact.
 - Advisory and registry-event observations are bounded by the same configured

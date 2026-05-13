@@ -14,7 +14,9 @@ stable package identity, bounded runtime target configuration, local metadata
 fixture parsers, parser registration, and reported-confidence fact envelopes
 for package, version, dependency, artifact, source-hint, hosting, and warning
 evidence. Generic/JFrog metadata can also emit registry-reported advisory hints
-and registry events when the source fixture exposes those streams.
+and registry events when the source fixture exposes those streams. Artifactory
+package fixtures can wrap package-native metadata and add repository topology
+only as `repository_hosting` evidence.
 
 ## Ownership boundary
 
@@ -68,6 +70,9 @@ See `doc.go` for the godoc contract.
   observations.
 - `ParseNuGetPackageMetadata` — parses one NuGet nuspec XML fixture into
   observations.
+- `ParseArtifactoryPackageMetadata` — parses one Artifactory package-feed
+  wrapper by delegating to the package-native parser and appending provider
+  repository topology as hosting evidence.
 - `ParseGenericPackageMetadata` — parses one provider-specific generic package
   fixture into observations, including JFrog-style advisory and event streams
   when present.
@@ -128,6 +133,9 @@ in `packageruntime` and uses the `eshu_dp_package_registry_*` metric family.
   dependency truth before graph promotion.
 - ECR is OCI registry evidence, not package-registry evidence. JFrog can emit
   both OCI and package-registry facts, depending on repository type.
+- Artifactory package metadata is an adapter around package-native metadata.
+  Repository type, upstream ID, and upstream URL are hosting evidence only; they
+  do not prove source ownership or package consumption.
 - Stable IDs use normalized package identity, not raw display names.
 - `FactID` includes `scope_id` and `generation_id`, while `StableFactKey`
   remains the source-stable identity inside a generation. This preserves

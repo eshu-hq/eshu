@@ -11,10 +11,24 @@ import (
 func TestPackageRegistryCollectorConfigurationAcceptsBoundedTargets(t *testing.T) {
 	t.Parallel()
 
-	raw := `{"targets":[{"provider":"jfrog","ecosystem":"generic","registry":"https://artifactory.example.com","scope_id":"package-registry://jfrog/generic/team-api","packages":["team-api"],"package_limit":10,"version_limit":25,"metadata_url":"https://artifactory.example.com/api/storage/generic/team-api"}]}`
+	raw := `{"targets":[{"provider":"jfrog","ecosystem":"generic","registry":"https://artifactory.example.com","scope_id":"package-registry://jfrog/generic/team-api","packages":["team-api"],"package_limit":10,"version_limit":25,"document_format":"artifactory_package","metadata_url":"https://artifactory.example.com/api/storage/generic/team-api"}]}`
 
 	if err := ValidatePackageRegistryCollectorConfiguration(raw); err != nil {
 		t.Fatalf("ValidatePackageRegistryCollectorConfiguration() error = %v, want nil", err)
+	}
+}
+
+func TestPackageRegistryCollectorConfigurationRejectsUnknownDocumentFormat(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"targets":[{"provider":"jfrog","ecosystem":"generic","registry":"https://artifactory.example.com","scope_id":"package-registry://jfrog/generic/team-api","packages":["team-api"],"package_limit":10,"version_limit":25,"document_format":"full_registry_crawl","metadata_url":"https://artifactory.example.com/api/storage/generic/team-api"}]}`
+
+	err := ValidatePackageRegistryCollectorConfiguration(raw)
+	if err == nil {
+		t.Fatal("ValidatePackageRegistryCollectorConfiguration() error = nil, want document_format rejection")
+	}
+	if got := err.Error(); !strings.Contains(got, `unsupported document_format "full_registry_crawl"`) {
+		t.Fatalf("ValidatePackageRegistryCollectorConfiguration() error = %q, want document_format rejection", got)
 	}
 }
 

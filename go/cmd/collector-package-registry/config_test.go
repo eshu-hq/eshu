@@ -25,6 +25,7 @@ func TestLoadClaimedRuntimeConfigSelectsPackageRegistryInstance(t *testing.T) {
 				"packages":["team-api"],
 				"package_limit":1,
 				"version_limit":2,
+				"document_format":"artifactory_package",
 				"metadata_url":"https://artifactory.example.com/api/storage/generic/team-api",
 				"bearer_token_env":"PACKAGE_TOKEN"
 			}]}
@@ -41,6 +42,9 @@ func TestLoadClaimedRuntimeConfigSelectsPackageRegistryInstance(t *testing.T) {
 	}
 	if got, want := config.Source.Targets[0].BearerToken, "token-123"; got != want {
 		t.Fatalf("BearerToken = %q, want %q", got, want)
+	}
+	if got, want := config.Source.Targets[0].DocumentFormat, "artifactory_package"; got != want {
+		t.Fatalf("DocumentFormat = %q, want %q", got, want)
 	}
 	if got := config.Source.Targets[0].Base.SourceURI; strings.Contains(got, "token-123") {
 		t.Fatalf("SourceURI = %q, want no credential material", got)

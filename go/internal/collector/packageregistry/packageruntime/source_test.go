@@ -151,6 +151,61 @@ func TestEnvelopesFromParsedMetadataIncludesAdvisoriesAndEvents(t *testing.T) {
 	}
 }
 
+func TestClaimedSourceParsesArtifactoryPackageDocumentFormat(t *testing.T) {
+	t.Parallel()
+
+	source := newTestClaimedSource(t, TargetConfig{
+		Base: packageregistry.TargetConfig{
+			Provider:     "jfrog",
+			Ecosystem:    packageregistry.EcosystemNPM,
+			Registry:     "https://artifactory.example.com/artifactory/api/npm/npm-local",
+			ScopeID:      "package-registry://jfrog/npm/@scope/pkg",
+			Packages:     []string{"@scope/pkg"},
+			PackageLimit: 1,
+			VersionLimit: 2,
+		},
+		DocumentFormat: "artifactory_package",
+	}, staticMetadataProvider{
+		document: []byte(`{
+			"provider":"jfrog",
+			"repository":"npm-local",
+			"repository_type":"local",
+			"package_type":"npm",
+			"metadata":{
+				"name":"@scope/pkg",
+				"versions":{
+					"1.0.0":{
+						"dist":{"tarball":"https://artifactory.example.com/artifactory/api/npm/npm-local/@scope/pkg/-/pkg-1.0.0.tgz"}
+					}
+				}
+			}
+		}`),
+	})
+
+	collected, ok, err := source.NextClaimed(context.Background(), testPackageRegistryWorkItemForScope("package-registry://jfrog/npm/@scope/pkg"))
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+
+	gotKinds := map[string]int{}
+	for envelope := range collected.Facts {
+		gotKinds[envelope.FactKind]++
+	}
+	for _, wantKind := range []string{
+		facts.PackageRegistryPackageFactKind,
+		facts.PackageRegistryPackageVersionFactKind,
+		facts.PackageRegistryPackageArtifactFactKind,
+		facts.PackageRegistryRepositoryHostingFactKind,
+	} {
+		if gotKinds[wantKind] == 0 {
+			t.Fatalf("fact kinds = %#v, missing %q", gotKinds, wantKind)
+		}
+	}
+}
+
 func TestClaimedSourceRejectsMetadataForUnexpectedPackage(t *testing.T) {
 	t.Parallel()
 
