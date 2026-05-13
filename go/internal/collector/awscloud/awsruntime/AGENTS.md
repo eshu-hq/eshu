@@ -24,6 +24,7 @@
   fails.
 - Keep resource ARNs, policy JSON, tags, account names, and raw error payloads
   out of metric labels.
+- Keep ECR lifecycle policy JSON and image digests out of metric labels.
 
 ## Common Changes
 

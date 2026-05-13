@@ -73,6 +73,9 @@ type Instruments struct {
 	AWSAPICalls                               metric.Int64Counter
 	AWSThrottles                              metric.Int64Counter
 	AWSAssumeRoleFailed                       metric.Int64Counter
+	AWSResourcesEmitted                       metric.Int64Counter
+	AWSRelationshipsEmitted                   metric.Int64Counter
+	AWSTagObservationsEmitted                 metric.Int64Counter
 	// CorrelationRuleMatches counts rule-match outcomes recorded by
 	// engine.Evaluate.Results[i].MatchCounts, labeled by pack and rule.
 	// The engine populates MatchCounts for RuleKindMatch rules only
@@ -504,6 +507,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWSAssumeRoleFailed counter: %w", err)
+	}
+
+	inst.AWSResourcesEmitted, err = meter.Int64Counter(
+		"eshu_dp_aws_resources_emitted_total",
+		metric.WithDescription("Total AWS resource facts emitted by service, account, region, and resource type"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSResourcesEmitted counter: %w", err)
+	}
+
+	inst.AWSRelationshipsEmitted, err = meter.Int64Counter(
+		"eshu_dp_aws_relationships_emitted_total",
+		metric.WithDescription("Total AWS relationship facts emitted by service, account, and region"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSRelationshipsEmitted counter: %w", err)
+	}
+
+	inst.AWSTagObservationsEmitted, err = meter.Int64Counter(
+		"eshu_dp_aws_tag_observations_emitted_total",
+		metric.WithDescription("Total AWS tag observation facts emitted by service, account, and region"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSTagObservationsEmitted counter: %w", err)
 	}
 
 	inst.CorrelationRuleMatches, err = meter.Int64Counter(

@@ -33,14 +33,17 @@ See `doc.go` for the godoc contract.
 
 - `CollectorKind` - durable collector kind for AWS cloud facts.
 - `ServiceIAM` - IAM service-kind value for global IAM scans.
+- `ServiceECR` - ECR service-kind value for regional image scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
 - `RelationshipObservation` - one AWS relationship ready for envelope
   emission.
+- `ImageReferenceObservation` - one ECR image digest and tag reference.
 - `WarningObservation` - one non-fatal AWS scan condition.
 - `NewResourceEnvelope` - builds an `aws_resource` fact.
 - `NewRelationshipEnvelope` - builds an `aws_relationship` fact.
+- `NewImageReferenceEnvelope` - builds an `aws_image_reference` fact.
 - `NewWarningEnvelope` - builds an `aws_warning` fact.
 
 Envelope builders validate account, region, service kind, scope, generation,

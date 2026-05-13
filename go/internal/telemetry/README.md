@@ -108,6 +108,12 @@ gauge when a shared-acceptance observer is available.
 | `OCIRegistryTagsObserved` | `eshu_dp_oci_registry_tags_observed_total` |
 | `OCIRegistryManifestsObserved` | `eshu_dp_oci_registry_manifests_observed_total` |
 | `OCIRegistryReferrersObserved` | `eshu_dp_oci_registry_referrers_observed_total` |
+| `AWSAPICalls` | `eshu_dp_aws_api_calls_total` |
+| `AWSThrottles` | `eshu_dp_aws_throttle_total` |
+| `AWSAssumeRoleFailed` | `eshu_dp_aws_assumerole_failed_total` |
+| `AWSResourcesEmitted` | `eshu_dp_aws_resources_emitted_total` |
+| `AWSRelationshipsEmitted` | `eshu_dp_aws_relationships_emitted_total` |
+| `AWSTagObservationsEmitted` | `eshu_dp_aws_tag_observations_emitted_total` |
 | `CrossRepoEvidenceLoaded` | `eshu_dp_cross_repo_evidence_loaded_total` |
 | `CrossRepoEdgesResolved` | `eshu_dp_cross_repo_edges_resolved_total` |
 | `CorrelationRuleMatches` | `eshu_dp_correlation_rule_matches_total` |

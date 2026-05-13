@@ -6,9 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -149,6 +154,98 @@ func TestClaimedSourceRejectsUnauthorizedClaimTarget(t *testing.T) {
 	}
 }
 
+func TestClaimedSourceRecordsEmissionCounters(t *testing.T) {
+	now := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
+	item := awsWorkItem(now)
+	item.WorkItemID = "aws:collector-1:run-1:123456789012:us-east-1:ecr"
+	item.ScopeID = "aws:123456789012:us-east-1:ecr"
+	item.AcceptanceUnitID = `{"account_id":"123456789012","region":"us-east-1","service_kind":"ecr"}`
+	item.SourceRunID = "aws-generation-ecr-1"
+	item.GenerationID = item.SourceRunID
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(meterProvider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	source := ClaimedSource{
+		Config: Config{
+			CollectorInstanceID: item.CollectorInstanceID,
+			Targets: []TargetScope{{
+				AccountID:       "123456789012",
+				AllowedRegions:  []string{"us-east-1"},
+				AllowedServices: []string{awscloud.ServiceECR},
+				Credentials: CredentialConfig{
+					Mode: CredentialModeLocalWorkloadIdentity,
+				},
+			}},
+		},
+		Credentials: &stubCredentialProvider{lease: &stubCredentialLease{}},
+		Scanners: &stubScannerFactory{scanner: stubScanner{envelopes: []facts.Envelope{
+			{
+				FactKind: facts.AWSResourceFactKind,
+				Payload: map[string]any{
+					"resource_type": awscloud.ResourceTypeECRRepository,
+				},
+			},
+			{
+				FactKind: facts.AWSResourceFactKind,
+				Payload: map[string]any{
+					"resource_type": awscloud.ResourceTypeECRLifecyclePolicy,
+				},
+			},
+			{FactKind: facts.AWSRelationshipFactKind},
+			{FactKind: facts.AWSRelationshipFactKind},
+			{FactKind: facts.AWSTagObservationFactKind},
+		}}},
+		Clock:       func() time.Time { return now },
+		Instruments: instruments,
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v", err)
+	}
+	if !ok {
+		t.Fatalf("NextClaimed() ok = false, want true")
+	}
+	if got := drainFacts(t, collected.Facts); len(got) != 5 {
+		t.Fatalf("fact count = %d, want 5", len(got))
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	targetAttrs := map[string]string{
+		telemetry.MetricDimensionService: awscloud.ServiceECR,
+		telemetry.MetricDimensionAccount: "123456789012",
+		telemetry.MetricDimensionRegion:  "us-east-1",
+	}
+	if got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_resources_emitted_total", map[string]string{
+		telemetry.MetricDimensionService:      awscloud.ServiceECR,
+		telemetry.MetricDimensionAccount:      "123456789012",
+		telemetry.MetricDimensionRegion:       "us-east-1",
+		telemetry.MetricDimensionResourceType: awscloud.ResourceTypeECRRepository,
+	}); got != 1 {
+		t.Fatalf("repository resource counter = %d, want 1", got)
+	}
+	if got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_resources_emitted_total", map[string]string{
+		telemetry.MetricDimensionService:      awscloud.ServiceECR,
+		telemetry.MetricDimensionAccount:      "123456789012",
+		telemetry.MetricDimensionRegion:       "us-east-1",
+		telemetry.MetricDimensionResourceType: awscloud.ResourceTypeECRLifecyclePolicy,
+	}); got != 1 {
+		t.Fatalf("lifecycle policy resource counter = %d, want 1", got)
+	}
+	if got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_relationships_emitted_total", targetAttrs); got != 2 {
+		t.Fatalf("relationship counter = %d, want 2", got)
+	}
+	if got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_tag_observations_emitted_total", targetAttrs); got != 1 {
+		t.Fatalf("tag observation counter = %d, want 1", got)
+	}
+}
+
 func awsWorkItem(now time.Time) workflow.WorkItem {
 	return workflow.WorkItem{
 		WorkItemID:          "aws:collector-1:run-1:123456789012:us-east-1:iam",
@@ -167,6 +264,47 @@ func awsWorkItem(now time.Time) workflow.WorkItem {
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}
+}
+
+func awsRuntimeCounterValue(
+	t *testing.T,
+	rm metricdata.ResourceMetrics,
+	metricName string,
+	wantAttrs map[string]string,
+) int64 {
+	t.Helper()
+
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, metricRecord := range scopeMetrics.Metrics {
+			if metricRecord.Name != metricName {
+				continue
+			}
+			sum, ok := metricRecord.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("metric %s data = %T, want metricdata.Sum[int64]", metricName, metricRecord.Data)
+			}
+			for _, dp := range sum.DataPoints {
+				if awsRuntimeAttrsMatch(dp.Attributes.ToSlice(), wantAttrs) {
+					return dp.Value
+				}
+			}
+		}
+	}
+
+	t.Fatalf("metric %s with attrs %v not found", metricName, wantAttrs)
+	return 0
+}
+
+func awsRuntimeAttrsMatch(actual []attribute.KeyValue, want map[string]string) bool {
+	if len(actual) != len(want) {
+		return false
+	}
+	for _, attr := range actual {
+		if want[string(attr.Key)] != attr.Value.AsString() {
+			return false
+		}
+	}
+	return true
 }
 
 func drainFacts(t *testing.T, input <-chan facts.Envelope) []facts.Envelope {

@@ -94,6 +94,49 @@ func TestNewWarningEnvelopeUsesGenerationScopedIdentity(t *testing.T) {
 	}
 }
 
+func TestNewImageReferenceEnvelopeCarriesDigestTagAndRepository(t *testing.T) {
+	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
+	boundary.ServiceKind = ServiceECR
+	envelope, err := NewImageReferenceEnvelope(ImageReferenceObservation{
+		Boundary:          boundary,
+		RepositoryARN:     "arn:aws:ecr:us-east-1:123456789012:repository/team/api",
+		RepositoryName:    "team/api",
+		RegistryID:        "123456789012",
+		ImageDigest:       "sha256:image",
+		ManifestDigest:    "sha256:manifest",
+		Tag:               "latest",
+		PushedAt:          time.Date(2026, 5, 13, 11, 0, 0, 0, time.UTC),
+		ImageSizeInBytes:  1234,
+		ManifestMediaType: "application/vnd.oci.image.manifest.v1+json",
+	})
+	if err != nil {
+		t.Fatalf("NewImageReferenceEnvelope returned error: %v", err)
+	}
+	if envelope.FactKind != facts.AWSImageReferenceFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.AWSImageReferenceFactKind)
+	}
+	if envelope.SchemaVersion != facts.AWSImageReferenceSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.AWSImageReferenceSchemaVersion)
+	}
+	assertPayloadString(t, envelope.Payload, "repository_name", "team/api")
+	assertPayloadString(t, envelope.Payload, "image_digest", "sha256:image")
+	assertPayloadString(t, envelope.Payload, "manifest_digest", "sha256:manifest")
+	assertPayloadString(t, envelope.Payload, "tag", "latest")
+	assertPayloadString(t, envelope.Payload, "repository_arn", "arn:aws:ecr:us-east-1:123456789012:repository/team/api")
+}
+
+func TestNewImageReferenceEnvelopeRequiresDigest(t *testing.T) {
+	boundary := testBoundary(time.Now())
+	boundary.ServiceKind = ServiceECR
+	_, err := NewImageReferenceEnvelope(ImageReferenceObservation{
+		Boundary:       boundary,
+		RepositoryName: "team/api",
+	})
+	if err == nil {
+		t.Fatalf("NewImageReferenceEnvelope() error = nil, want missing digest error")
+	}
+}
+
 func testBoundary(observedAt time.Time) Boundary {
 	return Boundary{
 		AccountID:           "123456789012",

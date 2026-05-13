@@ -7,6 +7,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	ecrservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecr"
+	ecrawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecr/awssdk"
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
 	iamawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/awssdk"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -31,6 +33,10 @@ func (f DefaultScannerFactory) Scanner(
 		return nil, fmt.Errorf("unsupported AWS credential lease %T", lease)
 	}
 	switch target.ServiceKind {
+	case awscloud.ServiceECR:
+		return ecrservice.Scanner{
+			Client: ecrawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{
 			Client: iamawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),

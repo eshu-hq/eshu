@@ -19,7 +19,7 @@
 ## Status Review (2026-05-13)
 
 **Current disposition:** Architecture gate closed; IAM-first scanner runtime
-slice in implementation.
+slice merged; ECR scanner slice in implementation.
 
 Gate issue #48 is the start point for AWS collector work. The architecture
 workflow plan now maps to the current Eshu issue set (#51 epic, #42 runtime,
@@ -29,9 +29,10 @@ exists: `scope.CollectorAWS`, the workflow AWS reducer contract, and
 `go/internal/redact`.
 
 Issue #48 recorded the principal engineer, principal SRE, and security
-sign-offs. The first runtime slice now adds `collector-aws-cloud`, AWS fact
+sign-offs. The first runtime slice added `collector-aws-cloud`, AWS fact
 envelope contracts, the IAM scanner, STS/local workload identity credential
-wiring, and AWS collector telemetry.
+wiring, and AWS collector telemetry. The next container-vertical-slice work
+adds ECR repositories, lifecycle policies, and `aws_image_reference` facts.
 
 ## Status Review (2026-05-10)
 
