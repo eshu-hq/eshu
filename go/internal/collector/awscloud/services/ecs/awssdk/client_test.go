@@ -34,7 +34,10 @@ func TestMapTaskDefinitionPreservesSecretReferencesAndEnvValuesForScannerRedacti
 		Status:            awsecstypes.TaskDefinitionStatusActive,
 		TaskDefinitionArn: aws.String("arn:aws:ecs:us-east-1:123456789012:task-definition/api:7"),
 		TaskRoleArn:       aws.String("arn:aws:iam::123456789012:role/api-task"),
-	})
+	}, []awsecstypes.Tag{{
+		Key:   aws.String("environment"),
+		Value: aws.String("prod"),
+	}})
 
 	if taskDefinition.ARN != "arn:aws:ecs:us-east-1:123456789012:task-definition/api:7" {
 		t.Fatalf("ARN = %q", taskDefinition.ARN)
@@ -44,6 +47,9 @@ func TestMapTaskDefinitionPreservesSecretReferencesAndEnvValuesForScannerRedacti
 	}
 	if got := taskDefinition.Containers[0].Secrets[0].ValueFrom; got != "arn:aws:secretsmanager:us-east-1:123456789012:secret:api-token" {
 		t.Fatalf("secret ValueFrom = %q, want ARN reference", got)
+	}
+	if got := taskDefinition.Tags["environment"]; got != "prod" {
+		t.Fatalf("tag environment = %q, want prod", got)
 	}
 }
 

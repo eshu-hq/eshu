@@ -147,13 +147,8 @@ func (s Scanner) taskDefinitionEnvelopes(
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, container := range taskDefinition.Containers {
-		if strings.TrimSpace(container.Image) == "" {
-			continue
-		}
-		relationship, err := awscloud.NewRelationshipEnvelope(
-			taskDefinitionImageRelationship(boundary, *taskDefinition, container),
-		)
+	for _, observation := range taskDefinitionImageRelationships(boundary, *taskDefinition) {
+		relationship, err := awscloud.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -220,6 +215,7 @@ func (s Scanner) taskDefinitionObservation(
 		ResourceType: awscloud.ResourceTypeECSTaskDefinition,
 		Name:         strings.TrimSpace(taskDefinition.Family),
 		State:        taskDefinition.Status,
+		Tags:         taskDefinition.Tags,
 		Attributes: map[string]any{
 			"containers":               s.containerMaps(taskDefinition),
 			"cpu":                      strings.TrimSpace(taskDefinition.CPU),
@@ -283,27 +279,6 @@ func serviceTaskDefinitionRelationship(boundary awscloud.Boundary, service Servi
 		TargetARN:        taskDefinitionARN,
 		TargetType:       awscloud.ResourceTypeECSTaskDefinition,
 		SourceRecordID:   serviceARN + "#task-definition#" + taskDefinitionARN,
-	}
-}
-
-func taskDefinitionImageRelationship(
-	boundary awscloud.Boundary,
-	taskDefinition TaskDefinition,
-	container Container,
-) awscloud.RelationshipObservation {
-	taskDefinitionARN := strings.TrimSpace(taskDefinition.ARN)
-	image := strings.TrimSpace(container.Image)
-	return awscloud.RelationshipObservation{
-		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipECSTaskDefinitionUsesImage,
-		SourceResourceID: taskDefinitionARN,
-		SourceARN:        taskDefinitionARN,
-		TargetResourceID: image,
-		TargetType:       containerImageTargetType,
-		Attributes: map[string]any{
-			"container_name": strings.TrimSpace(container.Name),
-		},
-		SourceRecordID: taskDefinitionARN + "#container-image#" + strings.TrimSpace(container.Name) + "#" + image,
 	}
 }
 

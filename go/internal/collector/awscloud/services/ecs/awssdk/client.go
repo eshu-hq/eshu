@@ -157,7 +157,7 @@ func (c *Client) DescribeTaskDefinition(
 	if output == nil || output.TaskDefinition == nil {
 		return nil, nil
 	}
-	value := mapTaskDefinition(*output.TaskDefinition)
+	value := mapTaskDefinition(*output.TaskDefinition, output.Tags)
 	return &value, nil
 }
 
@@ -252,7 +252,10 @@ func mapService(service awsecstypes.Service) ecsservice.Service {
 	}
 }
 
-func mapTaskDefinition(taskDefinition awsecstypes.TaskDefinition) ecsservice.TaskDefinition {
+func mapTaskDefinition(
+	taskDefinition awsecstypes.TaskDefinition,
+	tags []awsecstypes.Tag,
+) ecsservice.TaskDefinition {
 	return ecsservice.TaskDefinition{
 		ARN:                     aws.ToString(taskDefinition.TaskDefinitionArn),
 		Family:                  aws.ToString(taskDefinition.Family),
@@ -266,6 +269,7 @@ func mapTaskDefinition(taskDefinition awsecstypes.TaskDefinition) ecsservice.Tas
 		RequiresCompatibilities: mapCompatibilities(taskDefinition.RequiresCompatibilities),
 		CreatedAt:               aws.ToTime(taskDefinition.RegisteredAt),
 		Containers:              mapContainers(taskDefinition.ContainerDefinitions),
+		Tags:                    mapTags(tags),
 	}
 }
 

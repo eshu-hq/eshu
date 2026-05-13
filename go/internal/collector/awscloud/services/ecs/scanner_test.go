@@ -136,6 +136,47 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	}
 }
 
+func TestScannerAggregatesContainerNamesForSharedImageRelationship(t *testing.T) {
+	key, err := redact.NewKey([]byte("ecs-redaction-key"))
+	if err != nil {
+		t.Fatalf("NewKey() error = %v", err)
+	}
+	image := "123456789012.dkr.ecr.us-east-1.amazonaws.com/team/api:prod"
+	taskDefinitionARN := "arn:aws:ecs:us-east-1:123456789012:task-definition/api:7"
+	client := fakeClient{
+		taskDefinitions: map[string]TaskDefinition{
+			taskDefinitionARN: {
+				ARN:      taskDefinitionARN,
+				Family:   "api",
+				Revision: 7,
+				Containers: []Container{
+					{Name: "api", Image: image},
+					{Name: "sidecar", Image: image},
+				},
+			},
+		},
+		taskDefinitionARNs: []string{taskDefinitionARN},
+	}
+
+	envelopes, err := (Scanner{Client: client, RedactionKey: key}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+
+	relationships := relationshipsByType(envelopes, awscloud.RelationshipECSTaskDefinitionUsesImage)
+	if len(relationships) != 1 {
+		t.Fatalf("image relationship count = %d, want 1: %#v", len(relationships), relationships)
+	}
+	attributes, ok := relationships[0].Payload["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("attributes = %#v, want map", relationships[0].Payload["attributes"])
+	}
+	names, ok := attributes["container_names"].([]string)
+	if !ok || strings.Join(names, ",") != "api,sidecar" {
+		t.Fatalf("container_names = %#v, want api and sidecar", attributes["container_names"])
+	}
+}
+
 func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
@@ -205,15 +246,23 @@ func assertResourceType(t *testing.T, envelopes []facts.Envelope, resourceType s
 
 func assertRelationship(t *testing.T, envelopes []facts.Envelope, relationshipType string) {
 	t.Helper()
+	if len(relationshipsByType(envelopes, relationshipType)) > 0 {
+		return
+	}
+	t.Fatalf("missing relationship_type %q in %#v", relationshipType, envelopes)
+}
+
+func relationshipsByType(envelopes []facts.Envelope, relationshipType string) []facts.Envelope {
+	var relationships []facts.Envelope
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {
-			return
+			relationships = append(relationships, envelope)
 		}
 	}
-	t.Fatalf("missing relationship_type %q in %#v", relationshipType, envelopes)
+	return relationships
 }
 
 func assertTaskDefinitionRedaction(t *testing.T, envelope facts.Envelope) {

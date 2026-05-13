@@ -65,6 +65,7 @@ type TaskDefinition struct {
 	RequiresCompatibilities []string
 	CreatedAt               time.Time
 	Containers              []Container
+	Tags                    map[string]string
 }
 
 // Container is the scanner-owned representation of an ECS container
