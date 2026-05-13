@@ -14,8 +14,10 @@
 // watch mode does not reindex on ignored generated output. Native snapshots
 // choose parser variable scope from the source language so high-cardinality
 // local variables do not enter graph projection unless a language needs them
-// for query truth. Parse-stage telemetry records bounded per-language summaries
-// so operators can attribute repo-scale parser cost without logging file paths.
+// for query truth. Snapshot-stage telemetry separates Go package semantic
+// pre-scan cost from parser worker cost, and parse-stage telemetry records
+// bounded per-language summaries so operators can attribute repo-scale parser
+// cost without logging file paths.
 // Snapshot entity mapping carries parser buckets, including Terraform
 // import/refactor/check and lockfile-provider evidence, into content facts
 // before projector or query policy decides how to present them. Native

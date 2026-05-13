@@ -180,10 +180,15 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Int("import_symbol_count", len(importsMap)),
 		slog.Int("pre_scan_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
 	)
+	goPackageSemanticPreScanStartedAt := time.Now()
 	goPackageTargets, err := engine.PreScanGoPackageSemanticRoots(repoPath, fileSet.Files)
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan go package interface params for %q: %w", repoPath, err)
 	}
+	s.logSnapshotStageTiming(ctx, repoPath, "go_package_semantic_prescan", goPackageSemanticPreScanStartedAt,
+		slog.Int("file_count", len(fileSet.Files)),
+		slog.Int("go_package_target_count", len(goPackageTargets)),
+	)
 
 	repoMetadata, err := repositoryidentity.MetadataFor(
 		filepath.Base(repoPath),

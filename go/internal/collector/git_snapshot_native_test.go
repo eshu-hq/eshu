@@ -242,10 +242,12 @@ func TestNativeRepositorySnapshotterLogsSnapshotStageTimings(t *testing.T) {
 	for _, want := range []string{
 		`"stage":"discovery"`,
 		`"stage":"pre_scan"`,
+		`"stage":"go_package_semantic_prescan"`,
 		`"stage":"parse"`,
 		`"stage":"materialize"`,
 		`"duration_seconds":`,
 		`"pre_scan_workers":2`,
+		`"go_package_target_count":0`,
 		`"parse_workers":2`,
 		`"language_parse_summary":`,
 		`"language":"hcl"`,

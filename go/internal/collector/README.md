@@ -33,7 +33,7 @@ flowchart TB
   A2["GitSource.Next\nstartStream on first call"] --> F["discoverRepositories\nSelector.SelectRepositories\nSpanScopeAssign"]
   F --> G["resolveRepositories\nabsolute paths + stable sourceRunID"]
   G --> H["two-lane workers\nsmallCh + largeCh + largeSem"]
-  H --> I["NativeRepositorySnapshotter.SnapshotRepository\ndiscovery → pre-scan → parse → materialize"]
+  H --> I["NativeRepositorySnapshotter.SnapshotRepository\ndiscovery → pre-scan → Go semantic pre-scan → parse → materialize"]
   I --> J["buildStreamingGeneration\nfactCh + streamFacts goroutine"]
   J --> K["stream send\ncollected.Facts channel"]
 ```
@@ -78,7 +78,7 @@ workspaces. The manifest hashes the files the collector can actually use:
 those rules are skipped. This keeps local watch mode from creating new
 generations for ignored logs, build outputs, or editor scratch files.
 
-`NativeRepositorySnapshotter.SnapshotRepository` runs four sequential stages
+`NativeRepositorySnapshotter.SnapshotRepository` runs five sequential stages
 per repository:
 
 1. **Discovery** — `resolveNativeSnapshotFileSet` calls
@@ -86,10 +86,11 @@ per repository:
    `.eshu/discovery.json`, `.eshu/vendor-roots.json`, `.gitignore`, and
    `.eshuignore` applied before parsing.
 2. **Pre-scan** — `engine.PreScanRepositoryPathsWithWorkers` builds the import
-   map concurrently, then `engine.PreScanGoPackageSemanticRoots` builds package
-   interface escapes, imported receiver method roots, chained receiver roots,
-   generic constraint roots, and package import paths for parser options.
-3. **Parse** — `buildParsedRepositoryFiles` parses each file through the
+   map concurrently.
+3. **Go semantic pre-scan** — `engine.PreScanGoPackageSemanticRoots` builds
+   package interface escapes, imported receiver method roots, chained receiver
+   roots, generic constraint roots, and package import paths for parser options.
+4. **Parse** — `buildParsedRepositoryFiles` parses each file through the
    `parser.Engine` worker pool; each parsed file becomes a `map[string]any`
    entry in `snapshot.FileData` and may carry semantic metadata such as
    dead-code root evidence. `snapshotParserOptions` keeps language-specific
@@ -99,7 +100,7 @@ per repository:
    `VariableScope=all`. Terraform parser buckets are mapped explicitly into
    content entities, including backends, imports, moved blocks, removed blocks,
    checks, and lockfile providers.
-4. **Materialize** — `shape.Materialize` turns parsed files into
+5. **Materialize** — `shape.Materialize` turns parsed files into
    `ContentFileMeta` records and `ContentEntitySnapshot` rows. Body strings are
    released after materialization; `streamFacts` re-reads them from disk at emit
    time so snapshot memory is `O(single_file)`.
@@ -199,9 +200,11 @@ it.
   `eshu_dp_large_repo_classifications_total` (labeled `repo_size_tier`),
   `eshu_dp_large_repo_semaphore_wait_seconds`
 - Log events: `collector stream started`, `collector snapshot stage completed`
-  (stages: `discovery`, `pre_scan`, `parse`, `materialize`; the `parse` stage
-  includes bounded `language_parse_summary` rows with file count and parse
-  duration totals per language), `collector snapshot completed`,
+  (stages: `discovery`, `pre_scan`, `go_package_semantic_prescan`, `parse`,
+  `materialize`; the Go semantic pre-scan stage includes
+  `go_package_target_count`, and the `parse` stage includes bounded
+  `language_parse_summary` rows with file count and parse duration totals per
+  language), `collector snapshot completed`,
   `collector commit succeeded / failed`, `collector stream completed / failed`,
   `large repository queued`, `large repo semaphore acquired / released`
 
