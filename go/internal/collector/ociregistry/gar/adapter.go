@@ -32,7 +32,7 @@ func DistributionBaseURL(registryHost string) (string, error) {
 
 // RepositoryName normalizes GAR project/repository/image paths.
 func RepositoryName(repository string) (string, error) {
-	repository = strings.Trim(strings.TrimSpace(repository), "/")
+	repository = strings.ToLower(strings.Trim(strings.TrimSpace(repository), "/"))
 	if repository == "" {
 		return "", fmt.Errorf("google artifact registry repository is required")
 	}

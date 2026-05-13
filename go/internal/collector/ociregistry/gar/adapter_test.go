@@ -35,7 +35,7 @@ func TestDistributionBaseURLRejectsNonGARHostAndCredentials(t *testing.T) {
 func TestRepositoryIdentityUsesGARProvider(t *testing.T) {
 	t.Parallel()
 
-	identity, err := RepositoryIdentity("us-west1-docker.pkg.dev", "example-project/team-api/service")
+	identity, err := RepositoryIdentity("us-west1-docker.pkg.dev", "Example-Project/Team-API/Service")
 	if err != nil {
 		t.Fatalf("RepositoryIdentity() error = %v", err)
 	}
