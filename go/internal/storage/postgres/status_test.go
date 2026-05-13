@@ -382,7 +382,7 @@ func TestReadRegistryCollectorSnapshotsUsesBoundedStatusOnly(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		"updated_at >= $1 - INTERVAL '24 hours'",
+		"updated_at >= $1::timestamptz - INTERVAL '24 hours'",
 		"DISTINCT ON (collector_kind)",
 	} {
 		if !strings.Contains(joinedQueries, want) {
@@ -391,6 +391,17 @@ func TestReadRegistryCollectorSnapshotsUsesBoundedStatusOnly(t *testing.T) {
 	}
 	if strings.Contains(joinedQueries, "'unknown'") {
 		t.Fatalf("registry status query still emits unreachable unknown failure class:\n%s", joinedQueries)
+	}
+}
+
+func TestRegistryCollectorStatusQueryCastsAsOfParameter(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(registryCollectorStatusQuery, "$1 - INTERVAL '24 hours'") {
+		t.Fatalf("registryCollectorStatusQuery leaves as-of parameter under-typed:\n%s", registryCollectorStatusQuery)
+	}
+	if !strings.Contains(registryCollectorStatusQuery, "$1::timestamptz - INTERVAL '24 hours'") {
+		t.Fatalf("registryCollectorStatusQuery missing timestamptz cast for interval bound:\n%s", registryCollectorStatusQuery)
 	}
 }
 

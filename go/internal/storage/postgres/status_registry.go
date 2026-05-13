@@ -37,7 +37,7 @@ work_counts AS (
         COUNT(work_item_id)
             FILTER (
                 WHERE status = 'completed'
-                  AND updated_at >= $1 - INTERVAL '24 hours'
+                  AND updated_at >= $1::timestamptz - INTERVAL '24 hours'
             ) AS recent_completed_generations,
         COUNT(work_item_id)
             FILTER (WHERE status = 'failed_retryable') AS retryable_failures,
@@ -46,7 +46,7 @@ work_counts AS (
     FROM workflow_work_items
     WHERE collector_kind IN ('oci_registry', 'package_registry')
       AND status IN ('pending', 'claimed', 'failed_retryable', 'failed_terminal', 'completed')
-      AND (status <> 'completed' OR updated_at >= $1 - INTERVAL '24 hours')
+      AND (status <> 'completed' OR updated_at >= $1::timestamptz - INTERVAL '24 hours')
     GROUP BY collector_kind
 ),
 latest_completed AS (
