@@ -106,3 +106,32 @@ func TestOCIRegistryWorkPlannerNormalizesProviderEndpointFields(t *testing.T) {
 		}
 	}
 }
+
+func TestOCIRegistryWorkPlannerRejectsDuplicateNormalizedTargets(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 13, 16, 0, 0, 0, time.UTC)
+	instance := workflow.CollectorInstance{
+		InstanceID:    "collector-oci-registry",
+		CollectorKind: scope.CollectorOCIRegistry,
+		Mode:          workflow.CollectorModeContinuous,
+		Enabled:       true,
+		ClaimsEnabled: true,
+		Configuration: `{"targets":[
+			{"provider":"dockerhub","repository":"busybox","references":["latest"]},
+			{"provider":"dockerhub","registry":"docker.io","repository":"library/busybox","references":["stable"]}
+		]}`,
+		LastObservedAt: observedAt,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
+	}
+
+	_, _, err := OCIRegistryWorkPlanner{}.PlanOCIRegistryWork(context.Background(), OCIRegistryPlanRequest{
+		Instance:   instance,
+		ObservedAt: observedAt,
+		PlanKey:    "continuous-20260513T160000Z",
+	})
+	if err == nil {
+		t.Fatal("PlanOCIRegistryWork() error = nil, want duplicate target rejection")
+	}
+}

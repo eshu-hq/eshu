@@ -94,6 +94,54 @@ func TestDesiredCollectorInstanceValidateAcceptsOCIRegistryProviderEndpointField
 	}
 }
 
+func TestDesiredCollectorInstanceValidateRejectsOCIRegistryProviderShapeMismatch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		configuration string
+	}{
+		{
+			name:          "ghcr repository without owner",
+			configuration: `{"targets":[{"provider":"ghcr","repository":"busybox","references":["latest"]}]}`,
+		},
+		{
+			name:          "gar repository without project repository and image",
+			configuration: `{"targets":[{"provider":"google_artifact_registry","registry_host":"us-west1-docker.pkg.dev","repository":"service","references":["latest"]}]}`,
+		},
+		{
+			name:          "acr repository with empty path segment",
+			configuration: `{"targets":[{"provider":"azure_container_registry","registry_host":"example.azurecr.io","repository":"team//api","references":["latest"]}]}`,
+		},
+		{
+			name:          "harbor repository without project",
+			configuration: `{"targets":[{"provider":"harbor","base_url":"https://harbor.example.com","repository":"api","references":["latest"]}]}`,
+		},
+		{
+			name:          "jfrog base url without scheme",
+			configuration: `{"targets":[{"provider":"jfrog","base_url":"example.jfrog.io","repository_key":"docker-local","repository":"service-api","references":["latest"]}]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			instance := DesiredCollectorInstance{
+				InstanceID:    "collector-oci-registry",
+				CollectorKind: scope.CollectorOCIRegistry,
+				Mode:          CollectorModeContinuous,
+				Enabled:       true,
+				ClaimsEnabled: true,
+				Configuration: tt.configuration,
+			}
+
+			if err := instance.Validate(); err == nil {
+				t.Fatal("Validate() error = nil, want non-nil")
+			}
+		})
+	}
+}
+
 func TestDesiredCollectorInstanceValidateRejectsOCIRegistryClaimsEnabledWithoutTargets(t *testing.T) {
 	t.Parallel()
 

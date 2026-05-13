@@ -33,6 +33,7 @@ func (s ClaimedSource) NextClaimed(ctx context.Context, item workflow.WorkItem) 
 	if item.CollectorInstanceID != config.CollectorInstanceID {
 		return collector.CollectedGeneration{}, false, fmt.Errorf("claimed collector_instance_id %q does not match OCI runtime %q", item.CollectorInstanceID, config.CollectorInstanceID)
 	}
+	var matched *TargetConfig
 	for _, target := range config.Targets {
 		scopeID, err := targetScopeID(target)
 		if err != nil {
@@ -41,11 +42,18 @@ func (s ClaimedSource) NextClaimed(ctx context.Context, item workflow.WorkItem) 
 		if scopeID != item.ScopeID {
 			continue
 		}
-		target.FencingToken = item.CurrentFencingToken
-		collected, err := s.Source.scanTarget(ctx, config, target, item.GenerationID)
-		return collected, true, err
+		if matched != nil {
+			return collector.CollectedGeneration{}, false, fmt.Errorf("OCI registry claimed source found multiple configured targets for scope_id %q", item.ScopeID)
+		}
+		targetCopy := target
+		matched = &targetCopy
 	}
-	return collector.CollectedGeneration{}, false, nil
+	if matched == nil {
+		return collector.CollectedGeneration{}, false, nil
+	}
+	matched.FencingToken = item.CurrentFencingToken
+	collected, err := s.Source.scanTarget(ctx, config, *matched, item.GenerationID)
+	return collected, true, err
 }
 
 func targetScopeID(target TargetConfig) (string, error) {

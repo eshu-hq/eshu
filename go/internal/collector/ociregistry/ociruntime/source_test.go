@@ -202,6 +202,55 @@ func TestClaimedSourceNextClaimedScansMatchingTargetWithClaimGeneration(t *testi
 	}
 }
 
+func TestClaimedSourceNextClaimedRejectsDuplicateMatchingTargets(t *testing.T) {
+	observedAt := time.Date(2026, 5, 13, 15, 30, 0, 0, time.UTC)
+	source := ClaimedSource{
+		Source: Source{
+			Config: Config{
+				CollectorInstanceID: "oci-runtime-test",
+				Targets: []TargetConfig{
+					{
+						Provider:   ociregistry.ProviderDockerHub,
+						Registry:   "https://docker.io",
+						Repository: "library/busybox",
+						References: []string{"latest"},
+					},
+					{
+						Provider:   ociregistry.ProviderDockerHub,
+						Registry:   "docker.io",
+						Repository: "library/busybox",
+						References: []string{"stable"},
+					},
+				},
+			},
+			ClientFactory: ClientFactoryFunc(func(context.Context, TargetConfig) (RegistryClient, error) {
+				t.Fatal("ClientFactory should not be called for duplicate claimed targets")
+				return nil, nil
+			}),
+			Clock: func() time.Time { return observedAt },
+		},
+	}
+	item := workflow.WorkItem{
+		WorkItemID:          "oci-item-1",
+		RunID:               "oci-run-1",
+		CollectorKind:       scope.CollectorOCIRegistry,
+		CollectorInstanceID: "oci-runtime-test",
+		SourceSystem:        string(scope.CollectorOCIRegistry),
+		ScopeID:             "oci-registry://docker.io/library/busybox",
+		AcceptanceUnitID:    "oci-registry://docker.io/library/busybox",
+		SourceRunID:         "oci-generation-1",
+		GenerationID:        "oci-generation-1",
+		CurrentFencingToken: 9,
+		Status:              workflow.WorkItemStatusClaimed,
+		CreatedAt:           observedAt,
+		UpdatedAt:           observedAt,
+	}
+
+	if _, _, err := source.NextClaimed(context.Background(), item); err == nil {
+		t.Fatal("NextClaimed() error = nil, want duplicate target rejection")
+	}
+}
+
 const (
 	testManifestDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 	testConfigDigest   = "sha256:2222222222222222222222222222222222222222222222222222222222222222"

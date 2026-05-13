@@ -65,6 +65,9 @@ func (p OCIRegistryWorkPlanner) PlanOCIRegistryWork(
 	if len(targets) == 0 {
 		return workflow.Run{}, nil, nil
 	}
+	if err := validateUniqueOCIRegistryTargets(targets); err != nil {
+		return workflow.Run{}, nil, err
+	}
 
 	observedAt := request.ObservedAt.UTC()
 	run := workflow.Run{
@@ -152,6 +155,21 @@ func parseOCIRegistryRuntimeTargets(raw string) ([]ociRegistryTargetConfiguratio
 		targets = append(targets, target)
 	}
 	return targets, nil
+}
+
+func validateUniqueOCIRegistryTargets(targets []ociRegistryTargetConfiguration) error {
+	seen := make(map[string]struct{}, len(targets))
+	for _, target := range targets {
+		identity, err := ociRegistryTargetIdentity(target)
+		if err != nil {
+			return err
+		}
+		if _, ok := seen[identity.ScopeID]; ok {
+			return fmt.Errorf("duplicate OCI registry target scope_id %q", identity.ScopeID)
+		}
+		seen[identity.ScopeID] = struct{}{}
+	}
+	return nil
 }
 
 func ociRegistryRunID(instance workflow.CollectorInstance, planKey string) string {
