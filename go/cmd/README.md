@@ -25,6 +25,7 @@ exact binary set on `PATH`.
 | `eshu-collector-git` | `collector-git/` | Local git-collector helper |
 | `eshu-collector-confluence` | `collector-confluence/` | Long-running Confluence documentation collector |
 | `eshu-collector-terraform-state` | `collector-terraform-state/` | Long-running Terraform-state collector |
+| `eshu-collector-package-registry` | `collector-package-registry/` | Long-running package-registry collector |
 | `eshu-collector-aws-cloud` | `collector-aws-cloud/` | Long-running AWS cloud collector |
 | `eshu-webhook-listener` | `webhook-listener/` | Long-running GitHub/GitLab webhook intake |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |

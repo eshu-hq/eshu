@@ -183,6 +183,19 @@ For shared-write debugging specifically:
 - `aws.service.pagination.page` spans wrap AWS paginator pages and point reads
   such as ECR lifecycle policy lookups.
 
+### Package Registry Collector
+
+- Metrics answer metadata fetch success, rate limiting, parse failures, emitted
+  fact volume, and source-observation lag for package feeds.
+- `eshu_dp_package_registry_requests_total` is labeled by ecosystem and bounded
+  status class.
+- `eshu_dp_package_registry_facts_emitted_total` is labeled by ecosystem and
+  fact kind. Package names, feed URLs, versions, artifact paths, and credential
+  env names stay out of metric labels.
+- `package_registry.observe` spans wrap one claimed target from metadata fetch
+  through fact envelope construction. `package_registry.fetch` isolates the
+  remote metadata request.
+
 ### Resolution Engine
 
 - Metrics answer claim latency, worker activity, stage duration, stage output
@@ -393,6 +406,10 @@ log streams.
 | `eshu_dp_oci_registry_tags_observed_total` | OCI registry tags accepted into a bounded scan | `provider`, `result` |
 | `eshu_dp_oci_registry_manifests_observed_total` | OCI registry manifests, indexes, and descriptors observed | `provider`, `media_family` |
 | `eshu_dp_oci_registry_referrers_observed_total` | OCI registry referrer artifacts observed | `provider`, `artifact_family` |
+| `eshu_dp_package_registry_requests_total` | Package registry metadata request attempts | `ecosystem`, `status_class` |
+| `eshu_dp_package_registry_facts_emitted_total` | Package registry facts emitted by parser output | `ecosystem`, `fact_kind` |
+| `eshu_dp_package_registry_rate_limited_total` | Package registry metadata requests rejected with HTTP 429 | `ecosystem` |
+| `eshu_dp_package_registry_parse_failures_total` | Package registry metadata parse failures | `ecosystem`, `document_type` |
 | `eshu_dp_aws_api_calls_total` | AWS API calls by operation outcome | `service`, `account`, `region`, `operation`, `result` |
 | `eshu_dp_aws_throttle_total` | AWS throttle-shaped service errors | `service`, `account`, `region` |
 | `eshu_dp_aws_assumerole_failed_total` | AWS claim credential acquisition failures | `account` |
@@ -415,6 +432,8 @@ log streams.
 | `eshu_dp_webhook_request_duration_seconds` | Webhook listener request duration | s | 0.001 .. 10 |
 | `eshu_dp_webhook_store_duration_seconds` | Webhook trigger store duration | s | 0.001 .. 10 |
 | `eshu_dp_oci_registry_scan_duration_seconds` | OCI registry repository scan duration before durable commit | s | 0.05 .. 120 |
+| `eshu_dp_package_registry_observe_duration_seconds` | Package registry claimed target observation duration | s | 0.01 .. 60 |
+| `eshu_dp_package_registry_generation_lag_seconds` | Package registry source observation lag | s | 0.01 .. 60 |
 | `eshu_dp_aws_scan_duration_seconds` | AWS service claim scan duration before durable commit | s | 0.05 .. 300 |
 | `eshu_dp_scope_assign_duration_seconds` | Scope assignment duration | s | default |
 | `eshu_dp_fact_emit_duration_seconds` | Fact emission duration | s | default |
@@ -490,6 +509,8 @@ The `eshu_dp_projector_stage_duration_seconds` histogram carries a `stage` attri
 | `reducer.run` | Reducer main loop | One claim + execute + ack cycle |
 | `oci_registry.scan` | OCI registry collector | One configured registry repository scan |
 | `oci_registry.api_call` | OCI registry collector | One ping, tag-list, manifest, or referrer API call |
+| `package_registry.observe` | Package registry collector | One claimed package-registry target observation |
+| `package_registry.fetch` | Package registry collector | One explicit metadata document request |
 | `aws.collector.claim.process` | AWS cloud collector | One claimed `(account, region, service)` work item |
 | `aws.credentials.assume_role` | AWS cloud collector | Claim-scoped credential acquisition |
 | `aws.service.scan` | AWS cloud collector | One AWS service scan |

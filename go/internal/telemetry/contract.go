@@ -56,6 +56,10 @@ const (
 	MetricDimensionRegion         = "region"
 	MetricDimensionMediaFamily    = "media_family"
 	MetricDimensionArtifactFamily = "artifact_family"
+	MetricDimensionEcosystem      = "ecosystem"
+	MetricDimensionStatusClass    = "status_class"
+	MetricDimensionFactKind       = "fact_kind"
+	MetricDimensionDocumentType   = "document_type"
 	// MetricDimensionSafeLocatorHash labels Terraform-state metrics with the
 	// scope-level safe locator hash so operators can group counters per state
 	// without exposing bucket names, S3 keys, or local paths.
@@ -167,6 +171,8 @@ const (
 	SpanWebhookStore                      = "webhook.store"
 	SpanOCIRegistryScan                   = "oci_registry.scan"
 	SpanOCIRegistryAPICall                = "oci_registry.api_call"
+	SpanPackageRegistryObserve            = "package_registry.observe"
+	SpanPackageRegistryFetch              = "package_registry.fetch"
 	SpanAWSCollectorClaimProcess          = "aws.collector.claim.process"
 	SpanAWSCredentialsAssumeRole          = "aws.credentials.assume_role"
 	SpanAWSServiceScan                    = "aws.service.scan"

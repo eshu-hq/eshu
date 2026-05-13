@@ -85,6 +85,9 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `OCIRegistryWorkPlanner` — plans OCI registry collection runs from configured
   repository targets without opening registry connections. Each target becomes
   one claimable work item keyed by the normalized registry repository scope.
+- `PackageRegistryWorkPlanner` — plans package-registry collection runs from
+  configured package/feed targets without opening registry connections. Each
+  target becomes one claimable work item keyed by its configured `scope_id`.
 
 ## Dependencies
 
@@ -161,8 +164,8 @@ warning (`collector_instance_drift_detected`, fields
   because `Metrics` only declares `RecordReconcile`. If the wired `Metrics`
   does not implement the broader interface the recording calls are silently
   skipped. `otelMetrics` (returned by `NewMetrics`) implements all three.
-- This package only schedules families with explicit planners. Terraform-state
-  and OCI registry have planners today; other collector families remain
+- This package only schedules families with explicit planners. Terraform-state,
+  OCI registry, and package registry have planners today; other collector families remain
   instance-reconciled only until they define a bounded work unit.
 
 ## Related docs

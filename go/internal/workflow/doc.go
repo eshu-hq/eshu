@@ -13,6 +13,7 @@
 // before reaching durable storage: they must enable graph discovery, explicit
 // seeds, or local repo limits, and S3 seeds require bucket, key, region, and an
 // AWS role ARN. OCI registry collector instances validate bounded repository
-// targets so the coordinator can plan one claimable work item per registry
-// repository without opening provider connections.
+// targets, and package registry collector instances validate bounded package
+// metadata targets, so the coordinator can plan claimable work items without
+// opening provider connections.
 package workflow

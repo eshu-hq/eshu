@@ -72,9 +72,10 @@ func run(parent context.Context) error {
 			GitReadiness: postgres.TerraformStateGitReadinessChecker{DB: postgres.SQLQueryer{DB: db}},
 			BackendFacts: postgres.TerraformStateBackendFactReader{DB: postgres.SQLQueryer{DB: db}},
 		},
-		OCIRegistryPlanner: coordinator.OCIRegistryWorkPlanner{},
-		Metrics:            metrics,
-		Logger:             logger,
+		OCIRegistryPlanner:     coordinator.OCIRegistryWorkPlanner{},
+		PackageRegistryPlanner: coordinator.PackageRegistryWorkPlanner{},
+		Metrics:                metrics,
+		Logger:                 logger,
 	}
 	statusReader := postgres.NewStatusStore(postgres.SQLQueryer{DB: db})
 	service, err := app.NewHostedWithStatusServer(

@@ -14,6 +14,7 @@
    fact-envelope construction
 6. `docs/docs/adrs/2026-05-12-package-registry-collector.md` — source-truth
    boundary and implementation slices
+7. `packageruntime/README.md` — claim-driven metadata fetch and commit flow
 
 ## Invariants
 
@@ -26,8 +27,9 @@
   envelopes.
 - Strip URL credentials and sensitive token query parameters before adding URLs
   to payloads or source refs.
-- Keep metadata parsers local and deterministic. Do not add live HTTP clients,
-  registry crawling, workflow claims, graph writes, or ownership decisions here.
+- Keep metadata parsers local and deterministic. Live HTTP clients and workflow
+  claims belong in `packageruntime`; graph writes and ownership decisions do not
+  belong in this package tree.
 - Keep runtime config bounded by explicit provider, ecosystem, registry, scope,
   package limits, and version limits. Do not let config imply full registry
   crawling.
@@ -45,8 +47,8 @@
 - Add package-native fixture parsing in this package only when it maps to
   existing observation structs without inventing graph truth, then register the
   parser explicitly with `MetadataParserRegistry`.
-- Add live registry calls in a runtime subpackage or later collector slice, not
-  in the identity helpers.
+- Add live registry calls in `packageruntime`, not in identity helpers or
+  envelope builders.
 
 ## What Not To Change Without An ADR
 

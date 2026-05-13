@@ -4,9 +4,9 @@
 
 `internal/collector/packageregistry` owns package-registry identity
 normalization, bounded target configuration, parser registration, and
-fact-envelope construction for the future `package_registry` collector family.
+fact-envelope construction for the `package_registry` collector family.
 It turns local package/feed metadata into reported-confidence facts. It does
-not call registries yet, write graph state, or decide ownership.
+not write graph state or decide ownership.
 
 This package implements the first slices of
 `docs/docs/adrs/2026-05-12-package-registry-collector.md`: contract fixtures,
@@ -19,9 +19,9 @@ evidence.
 
 This package owns local package identity rules, bounded target config,
 package-native fixture parser registration, and fact-envelope construction for
-package-registry evidence. Live registry clients, workflow claims, runtime
-telemetry, graph writes, reducer correlation, and query surfaces belong to
-later collector, reducer, storage, and query slices.
+package-registry evidence. Live metadata fetches and workflow claims live in
+`packageruntime`; graph writes, reducer correlation, and query surfaces belong
+to later reducer, storage, and query slices.
 
 ```mermaid
 flowchart LR
@@ -40,8 +40,8 @@ See `doc.go` for the godoc contract.
 
 - `Ecosystem` — package-native identity family.
 - `Visibility` — source-reported package visibility.
-- `RuntimeConfig` — future collector runtime boundary for bounded
-  package-registry targets.
+- `RuntimeConfig` — collector runtime boundary for bounded package-registry
+  targets.
 - `TargetConfig` — one provider, ecosystem, registry, and scope target.
 - `PackageIdentity` — raw package tuple from a feed.
 - `NormalizedPackageIdentity` — feed-aware stable identity.
@@ -106,8 +106,8 @@ See `doc.go` for the godoc contract.
 
 ## Telemetry
 
-This package emits no metrics, spans, or logs. Runtime collector telemetry will
-live in the future package-registry runtime slice.
+This package emits no metrics, spans, or logs. Runtime collector telemetry lives
+in `packageruntime` and uses the `eshu_dp_package_registry_*` metric family.
 
 ## Gotchas / invariants
 
@@ -129,8 +129,8 @@ live in the future package-registry runtime slice.
   source-native artifact key.
 - Source hint and warning envelopes strip URL credentials and sensitive query
   parameters before payload or source-reference emission.
-- Metadata parsers and `RuntimeConfig` are local runtime scaffolding only. They
-  do not make HTTP calls, claim workflow leases, crawl registries, commit facts,
+- Metadata parsers and `RuntimeConfig` are shared runtime contracts. They do
+  not make HTTP calls, claim workflow leases, crawl registries, commit facts,
   or infer ownership.
 - New ecosystems should add a parser and register it with
   `MetadataParserRegistry`; do not route package-manager behavior through one
