@@ -48,6 +48,10 @@ The stable span families are:
 - `webhook.store`
 - `oci_registry.scan`
 - `oci_registry.api_call`
+- `aws.collector.claim.process`
+- `aws.credentials.assume_role`
+- `aws.service.scan`
+- `aws.service.pagination.page`
 - `postgres.exec`
 - `postgres.query`
 - `neo4j.execute`
@@ -86,6 +90,15 @@ Legacy span families such as `eshu.http.*`, `eshu.mcp.*`, `eshu.query.*`,
   `ping`, `list_tags`, `get_manifest`, or `list_referrers`
 - child `postgres.exec` and `postgres.query` spans still belong to the
   collector commit path, not to registry API time
+
+### AWS cloud collector path
+
+- `aws.collector.claim.process` is one workflow-claimed account, region, and
+  service slice
+- `aws.credentials.assume_role` covers claim-scoped credential acquisition for
+  central STS AssumeRole or local workload identity
+- `aws.service.scan` is one service scanner run before durable commit
+- `aws.service.pagination.page` is one AWS SDK paginated API request
 
 ### Projector path
 

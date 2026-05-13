@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.68
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.42.1
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.36.3
+	github.com/aws/aws-sdk-go-v2/service/iam v1.36.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.80.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.20
 	github.com/aws/smithy-go v1.22.3

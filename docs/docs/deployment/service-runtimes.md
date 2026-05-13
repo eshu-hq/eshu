@@ -64,6 +64,7 @@ Current platform reality:
 | Ingester | repo sync, parsing, fact emission, workspace ownership | `/usr/local/bin/eshu-ingester` | workspace PVC + Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `StatefulSet` |
 | Webhook Listener | public provider webhook intake and durable refresh triggers | `/usr/local/bin/eshu-webhook-listener` | Postgres trigger table only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | OCI Registry Collector | OCI registry scan, tag observation, manifest/referrer fact emission | `/usr/local/bin/eshu-collector-oci-registry` | Postgres fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
+| AWS Cloud Collector | AWS IAM-first cloud observation and fact emission | `/usr/local/bin/eshu-collector-aws-cloud` | Postgres workflow + fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
 | Workflow Coordinator | scheduling, trigger intake, claims, completeness, run orchestration | `/usr/local/bin/eshu-workflow-coordinator` | Postgres + graph backend | internal admin/status service plus `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Resolution Engine | queue draining, projection, retries, replay, recovery | `/usr/local/bin/eshu-reducer` | Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Bootstrap Index | one-shot initial indexing | `/usr/local/bin/eshu-bootstrap-index` | workspace + Postgres + graph backend | OTEL export only; no mounted runtime `/metrics` endpoint | one-shot local helper |
@@ -121,6 +122,7 @@ expose the shared `/healthz`, `/readyz`, optional `/metrics`, and optional
 `/admin/status` contract:
 
 - `collector-git`: `go run ./cmd/collector-git`
+- `collector-aws-cloud`: `go run ./cmd/collector-aws-cloud`
 - `collector-oci-registry`: `go run ./cmd/collector-oci-registry`
 - `collector-terraform-state`: `go run ./cmd/collector-terraform-state`
 - `projector`: `go run ./cmd/projector`
@@ -136,6 +138,13 @@ workflow work for that instance, opens exact local or S3 state sources, and
 commits redacted Terraform-state facts through the shared ingestion boundary.
 The workflow coordinator remains the control plane; it does not parse state or
 run collectors.
+
+`collector-aws-cloud` is claim-driven. It selects one enabled `aws` collector
+instance from `ESHU_COLLECTOR_INSTANCES_JSON`, claims `(account_id, region,
+service_kind)` work for that instance, obtains claim-scoped AWS credentials
+through central STS AssumeRole or local workload identity, and commits reported
+AWS facts through the shared ingestion boundary. The first scanner slice covers
+IAM roles, managed policies, instance profiles, and trust relationships.
 
 `collector-oci-registry` scans configured OCI registry repositories from
 `ESHU_OCI_REGISTRY_TARGETS_JSON`, supports JFrog Docker/OCI, ECR, Docker Hub,

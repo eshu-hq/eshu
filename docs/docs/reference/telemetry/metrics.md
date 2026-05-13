@@ -198,6 +198,47 @@ collector/projector/reducer path.
   measured by `eshu_dp_collector_observe_duration_seconds`.
 - Use it for: Distinguishing slow registry APIs from slow durable ingestion.
 
+### `eshu_dp_aws_api_calls_total`
+
+- Type: Counter
+- Labels: `service`, `account`, `region`, `operation`, `result`
+- Meaning: AWS service API calls split by service, target account, region, and
+  SDK operation.
+- Use it for: Separating IAM pagination failures, throttles, and successful
+  scans without putting ARNs, policy JSON, tags, or resource names into labels.
+
+### `eshu_dp_aws_throttle_total`
+
+- Type: Counter
+- Labels: `service`, `account`, `region`
+- Meaning: AWS API calls that returned throttling-shaped service errors.
+- Use it for: Tuning claim fan-out and service scan cadence per AWS account.
+
+### `eshu_dp_aws_assumerole_failed_total`
+
+- Type: Counter
+- Labels: `account`
+- Meaning: Claim-scoped credential acquisition failures before a service scan
+  starts.
+- Use it for: Detecting broken trust policy, external ID, or workload identity
+  setup.
+
+### `eshu_dp_aws_scan_duration_seconds`
+
+- Type: Histogram
+- Labels: `service`, `account`, `region`, `result`
+- Meaning: One claimed AWS service scan before durable commit.
+- Use it for: Distinguishing slow AWS service reads from slow Postgres commit
+  time.
+
+### `eshu_dp_aws_claim_concurrency`
+
+- Type: Observable gauge
+- Labels: `account`
+- Meaning: Active AWS claims by account when a multi-worker AWS runner
+  registers its account limiter.
+- Use it for: Confirming per-account concurrency caps during AWS scans.
+
 ### `eshu_dp_tfstate_claim_wait_seconds`
 
 - Type: Histogram

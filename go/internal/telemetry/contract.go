@@ -51,6 +51,9 @@ const (
 	MetricDimensionDecision       = "decision"
 	MetricDimensionStatus         = "status"
 	MetricDimensionOperation      = "operation"
+	MetricDimensionService        = "service"
+	MetricDimensionAccount        = "account"
+	MetricDimensionRegion         = "region"
 	MetricDimensionMediaFamily    = "media_family"
 	MetricDimensionArtifactFamily = "artifact_family"
 	// MetricDimensionSafeLocatorHash labels Terraform-state metrics with the
@@ -164,6 +167,10 @@ const (
 	SpanWebhookStore                      = "webhook.store"
 	SpanOCIRegistryScan                   = "oci_registry.scan"
 	SpanOCIRegistryAPICall                = "oci_registry.api_call"
+	SpanAWSCollectorClaimProcess          = "aws.collector.claim.process"
+	SpanAWSCredentialsAssumeRole          = "aws.credentials.assume_role"
+	SpanAWSServiceScan                    = "aws.service.scan"
+	SpanAWSServicePaginationPage          = "aws.service.pagination.page"
 
 	// Dependency service spans — track external call performance.
 	SpanPostgresExec  = "postgres.exec"
@@ -293,6 +300,9 @@ var metricDimensionKeys = []string{
 	MetricDimensionDecision,
 	MetricDimensionStatus,
 	MetricDimensionOperation,
+	MetricDimensionService,
+	MetricDimensionAccount,
+	MetricDimensionRegion,
 	MetricDimensionMediaFamily,
 	MetricDimensionArtifactFamily,
 	MetricDimensionSafeLocatorHash,
@@ -338,6 +348,10 @@ var spanNames = []string{
 	SpanWebhookStore,
 	SpanOCIRegistryScan,
 	SpanOCIRegistryAPICall,
+	SpanAWSCollectorClaimProcess,
+	SpanAWSCredentialsAssumeRole,
+	SpanAWSServiceScan,
+	SpanAWSServicePaginationPage,
 	SpanPostgresExec,
 	SpanPostgresQuery,
 	SpanNeo4jExecute,

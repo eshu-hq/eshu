@@ -193,7 +193,7 @@ advisory report.
 | `ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL` | workflow default | workflow coordinator | Collector claim heartbeat interval. | Keep below claim TTL; lower for faster liveness signal. |
 | `ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_LIMIT` | workflow default | workflow coordinator | Max expired claims reaped per cycle. | Raise only if expired-claim backlog grows. |
 | `ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_REQUEUE_DELAY` | workflow default | workflow coordinator | Delay before requeueing expired work. | Tune to avoid immediate flapping after collector loss. |
-| `ESHU_COLLECTOR_INSTANCES_JSON` | unset | workflow coordinator, collector-terraform-state | Desired collector instance list. | Set from deployment config, not ad hoc shell sessions. Terraform-state runtimes select their enabled claim-capable instance from this list. |
+| `ESHU_COLLECTOR_INSTANCES_JSON` | unset | workflow coordinator, collector-terraform-state, collector-aws-cloud | Desired collector instance list. | Set from deployment config, not ad hoc shell sessions. Claim-driven runtimes select their enabled claim-capable instance from this list. |
 
 Active coordinator mode is intentionally guarded. The process rejects
 `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE=active` unless
@@ -215,6 +215,16 @@ full-corpus validation is complete.
 | `ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-terraform-state | Lease TTL used when claiming and refreshing work. | Raise only if valid state reads or commits approach the current lease. |
 | `ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-terraform-state | Heartbeat interval for active workflow claims. | Keep below claim TTL. Lower for faster stale-worker detection. |
 | `ESHU_TFSTATE_SOURCE_MAX_BYTES` | reader default | collector-terraform-state | Max bytes read from one local or S3 state source. | Lower to fail fast on unexpectedly large state; raise only after confirming the state object is legitimate. |
+
+## AWS Cloud Collector
+
+| Variable | Default | Read By | Purpose | Tune When |
+| --- | --- | --- | --- | --- |
+| `ESHU_AWS_COLLECTOR_INSTANCE_ID` | required when more than one enabled AWS instance exists | collector-aws-cloud | Selects the claim-capable `aws` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. | Set whenever multiple AWS collectors are deployed. |
+| `ESHU_AWS_COLLECTOR_OWNER_ID` | host/process-derived | collector-aws-cloud | Owner label written into workflow claim rows. | Set to a stable pod or worker name when debugging claim ownership. |
+| `ESHU_AWS_COLLECTOR_POLL_INTERVAL` | `1s` | collector-aws-cloud | Delay between empty claim polls. | Raise to reduce idle DB polling; lower only when claim pickup latency matters. |
+| `ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-aws-cloud | Lease TTL used when claiming and refreshing work. | Raise if valid AWS service scans or commits approach the current lease. |
+| `ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-aws-cloud | Heartbeat interval for active workflow claims. | Keep below claim TTL. Lower for faster stale-worker detection. |
 
 ## Telemetry, Memory, And Compose
 

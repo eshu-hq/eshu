@@ -34,6 +34,12 @@ type AcceptanceObserver interface {
 	AcceptanceRowCount(ctx context.Context) (int64, error)
 }
 
+// AWSClaimConcurrencyObserver provides active AWS claim counts by account.
+type AWSClaimConcurrencyObserver interface {
+	// AWSClaimConcurrency returns active claim counts keyed by AWS account ID.
+	AWSClaimConcurrency(ctx context.Context) (map[string]int64, error)
+}
+
 // Instruments holds all pre-registered OTEL metric instruments for the Go
 // data plane. All instruments use the eshu_dp_ prefix to differentiate from
 // Python eshu_ metrics.
@@ -64,6 +70,9 @@ type Instruments struct {
 	OCIRegistryTagsObserved                   metric.Int64Counter
 	OCIRegistryManifestsObserved              metric.Int64Counter
 	OCIRegistryReferrersObserved              metric.Int64Counter
+	AWSAPICalls                               metric.Int64Counter
+	AWSThrottles                              metric.Int64Counter
+	AWSAssumeRoleFailed                       metric.Int64Counter
 	// CorrelationRuleMatches counts rule-match outcomes recorded by
 	// engine.Evaluate.Results[i].MatchCounts, labeled by pack and rule.
 	// The engine populates MatchCounts for RuleKindMatch rules only
@@ -167,6 +176,7 @@ type Instruments struct {
 	TerraformStateSnapshotBytes          metric.Int64Histogram
 	TerraformStateParseDuration          metric.Float64Histogram
 	OCIRegistryScanDuration              metric.Float64Histogram
+	AWSScanDuration                      metric.Float64Histogram
 	ScopeAssignDuration                  metric.Float64Histogram
 	FactEmitDuration                     metric.Float64Histogram
 	ProjectorRunDuration                 metric.Float64Histogram
@@ -257,6 +267,7 @@ type Instruments struct {
 	QueueOldestAge       metric.Float64ObservableGauge
 	WorkerPoolActive     metric.Int64ObservableGauge
 	SharedAcceptanceRows metric.Int64ObservableGauge
+	AWSClaimConcurrency  metric.Int64ObservableGauge
 }
 
 // NewInstruments creates and registers all OTEL metric instruments using the
@@ -471,6 +482,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register OCIRegistryReferrersObserved counter: %w", err)
 	}
 
+	inst.AWSAPICalls, err = meter.Int64Counter(
+		"eshu_dp_aws_api_calls_total",
+		metric.WithDescription("Total AWS API calls by service, account, region, operation, and result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSAPICalls counter: %w", err)
+	}
+
+	inst.AWSThrottles, err = meter.Int64Counter(
+		"eshu_dp_aws_throttle_total",
+		metric.WithDescription("Total AWS API throttle responses by service, account, and region"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSThrottles counter: %w", err)
+	}
+
+	inst.AWSAssumeRoleFailed, err = meter.Int64Counter(
+		"eshu_dp_aws_assumerole_failed_total",
+		metric.WithDescription("Total AWS claim credential acquisition failures by account"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSAssumeRoleFailed counter: %w", err)
+	}
+
 	inst.CorrelationRuleMatches, err = meter.Int64Counter(
 		"eshu_dp_correlation_rule_matches_total",
 		metric.WithDescription("Total correlation rule matches by pack and rule"),
@@ -610,6 +645,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register OCIRegistryScanDuration histogram: %w", err)
+	}
+
+	awsScanBuckets := []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}
+	inst.AWSScanDuration, err = meter.Float64Histogram(
+		"eshu_dp_aws_scan_duration_seconds",
+		metric.WithDescription("AWS service claim scan duration"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(awsScanBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSScanDuration histogram: %w", err)
 	}
 
 	inst.ScopeAssignDuration, err = meter.Float64Histogram(
@@ -1275,6 +1321,43 @@ func RegisterAcceptanceObservableGauges(inst *Instruments, meter metric.Meter, a
 	return nil
 }
 
+// RegisterAWSClaimConcurrencyGauge registers the AWS active-claim gauge.
+func RegisterAWSClaimConcurrencyGauge(
+	inst *Instruments,
+	meter metric.Meter,
+	observer AWSClaimConcurrencyObserver,
+) error {
+	if inst == nil {
+		return errors.New("instruments are required")
+	}
+	if meter == nil {
+		return errors.New("meter is required")
+	}
+	if observer == nil {
+		return nil
+	}
+
+	var err error
+	inst.AWSClaimConcurrency, err = meter.Int64ObservableGauge(
+		"eshu_dp_aws_claim_concurrency",
+		metric.WithDescription("Current active AWS collector claims by account"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			counts, err := observer.AWSClaimConcurrency(ctx)
+			if err != nil {
+				return err
+			}
+			for account, count := range counts {
+				o.Observe(count, metric.WithAttributes(AttrAccount(account)))
+			}
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register AWSClaimConcurrency gauge: %w", err)
+	}
+	return nil
+}
+
 // AttrScopeID returns a scope_id attribute for metric recording.
 func AttrScopeID(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionScopeID, v)
@@ -1398,6 +1481,21 @@ func AttrStatus(v string) attribute.KeyValue {
 // AttrOperation returns an operation attribute for metric recording.
 func AttrOperation(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOperation, v)
+}
+
+// AttrService returns a service attribute for cloud-provider metrics.
+func AttrService(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionService, v)
+}
+
+// AttrAccount returns an account attribute for cloud-provider metrics.
+func AttrAccount(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionAccount, v)
+}
+
+// AttrRegion returns a region attribute for cloud-provider metrics.
+func AttrRegion(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionRegion, v)
 }
 
 // AttrMediaFamily returns a media_family attribute for metric recording.
