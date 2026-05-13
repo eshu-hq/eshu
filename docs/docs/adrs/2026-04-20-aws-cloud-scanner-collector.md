@@ -16,6 +16,21 @@
 
 ---
 
+## Status Review (2026-05-13)
+
+**Current disposition:** Architecture gate active; scanner runtime still
+blocked.
+
+Gate issue #48 is the start point for AWS collector work. The architecture
+workflow plan now maps to the current Eshu issue set (#51 epic, #42 runtime,
+#41 container vertical slice, #30-#36 service scanners, #40 admin/completeness,
+#39 correlation, #38 expansion, #37 freshness) and to the code that already
+exists: `scope.CollectorAWS`, the workflow AWS reducer contract, and
+`go/internal/redact`.
+
+Implementation remains blocked until #48 records principal engineer, principal
+SRE, and security sign-offs. The runtime must not land before that gate closes.
+
 ## Status Review (2026-05-10)
 
 **Current disposition:** Design accepted; deployment model amended.
@@ -253,8 +268,10 @@ Required behavior:
 
 1. **Per-service token bucket** inside each worker, sized per-service and
    configurable per collector instance. Defaults are conservative.
-2. **SDK v2 adaptive retry mode** enabled on every client. No retries
-   disabled anywhere.
+2. **SDK v2 retry mode** enabled on every client. No retries disabled
+   anywhere. Adaptive mode is allowed only when clients are isolated by the
+   service throttle boundary for the claim; otherwise the scanner uses
+   standard retry plus Eshu's token bucket.
 3. **Pagination pacing** for high-cardinality services (EC2, Lambda,
    CloudWatch Logs). A small sleep between pages when a run exceeds a
    configurable page count. Backoff on throttle.
@@ -289,13 +306,16 @@ At claim time:
 
 1. worker calls `sts:AssumeRole` with the configured `role_arn` and external
    ID
-2. worker receives short-lived credentials (15 minutes default, tuned to
-   claim lease)
+2. worker receives short-lived credentials with `DurationSeconds=900` requested
+   to match the proposed claim lease
 3. credentials are used only for the duration of this claim
-4. on claim completion or expiry, credentials are zeroed from memory
+4. on claim completion or expiry, scanner-owned references to the credentials,
+   provider, cache, and claim-scoped clients are cleared
 
-No long-lived keys, no env-var-injected credentials, no role chaining beyond
-the cross-account hop.
+No long-lived keys, no env-var-injected static credentials, no role chaining
+beyond the cross-account hop. The runtime must reject static access key
+credential sources; central and account-local modes use workload identity or
+an equivalent role provider.
 
 ### Scope And Generation Identity
 
@@ -396,7 +416,7 @@ Some AWS resources leak secrets through attributes:
 
 The scanner applies redaction analogous to the state collector:
 
-- env var values replaced with `sha256:<hex>`
+- env var values replaced with deterministic `go/internal/redact` markers
 - secret references (ARN) preserved as ARN (not a leak)
 - attribute keys on a shared sensitive-key list redacted by default
 - telemetry never carries plaintext values
@@ -431,7 +451,7 @@ go/
       awscloud/
         service.go              # coordinator claim loop
         worker.go               # per-claim worker
-        credentials.go          # STS AssumeRole, caching, zeroing
+        credentials.go          # STS AssumeRole and claim-scoped lifecycle
         throttle.go             # per-service token buckets
         pagination.go           # shared pagination + pacing
         facts.go                # fact envelope builders
@@ -522,7 +542,8 @@ handles them uniformly.
    - applies redaction in the emission loop
 4. On completion, worker reports resource counts, API call counts, throttle
    counts, and budget consumption to the coordinator.
-5. Credentials are zeroed. Claim is released.
+5. Scanner-owned credential references and claim-scoped clients are cleared.
+   Claim is released.
 
 Cross-service dependencies (e.g., ECS service references a task def that
 references an ECR image) are **not** resolved inside the scanner. Those
@@ -696,8 +717,8 @@ behind schedule.
 ### Risks
 
 - **Throttle-driven outages** of cloud control planes. Mitigated by
-  coordinator-enforced claim uniqueness, per-service token buckets, adaptive
-  retry, and per-account concurrency caps.
+  coordinator-enforced claim uniqueness, per-service token buckets, SDK retry,
+  and per-account concurrency caps.
 - **Credential compromise.** Mitigated by IRSA-only principals, required
   external IDs, claim-scoped credential lifetime, redaction of secret-
   adjacent attributes, and telemetry on `assumerole_failed`.

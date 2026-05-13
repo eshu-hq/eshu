@@ -7,7 +7,10 @@
 **Related:**
 
 - ADR: `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
-- Gate issue: `eshu-hq/eshu#104`
+- Gate issue: `eshu-hq/eshu#48`
+- Epic: `eshu-hq/eshu#51`
+- Implementation issues blocked by this gate: `#42`, `#41`, `#40`,
+  `#39`, `#38`, `#37`, and service issues `#30`-`#36`
 
 All numeric proposals marked `[PROPOSED]`. Reviewers may reject any value and
 force revision before gate closes.
@@ -17,15 +20,50 @@ force revision before gate closes.
 ## Purpose
 
 Architecture workflow for the AWS cloud scanner. Must be approved **before
-any implementation work begins** on issues #110–#115 (aws/A–F) and every
-child #116–#122.
+any implementation work begins** on the AWS collector runtime, service scanner,
+coordinator/admin, correlation, phase-2, and freshness issues listed above.
 
 ADR captures decisions. This plan captures **how those decisions hold under
 throttling, credential rotation, partial-run recovery, multi-account scale,
 and SDK schema drift, with telemetry strong enough to diagnose at 3 AM**.
 
 Git-collector mistake not repeated: concurrency, memory, telemetry designed
-before code. Gate issue #104 lists every prerequisite.
+before code. Gate issue #48 lists every prerequisite.
+
+### Current Eshu Alignment (2026-05-13)
+
+- `go/internal/scope` already defines `scope.CollectorAWS`.
+- `go/internal/workflow` already registers the AWS reducer-facing contract for
+  `cloud_resource_uid` canonical projection and cross-source anchors.
+- `go/internal/redact` now exists and must be reused for cloud-sensitive
+  scalar handling instead of creating an AWS-local redaction package.
+- No runtime exists yet: there is still no `go/cmd/collector-aws-cloud` or
+  `go/internal/collector/awscloud` implementation.
+- AWS implementation remains blocked until #48 is reviewed, sign-offs are
+  recorded, and the merged plan explicitly unblocks #42/#41/#40/#39/#38/#37.
+
+### External Contract Check (2026-05-13)
+
+- AWS STS `AssumeRole` supports `DurationSeconds` from 900 seconds up to the
+  role maximum, and defaults to 3600 seconds if omitted:
+  <https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html>
+- AWS recommends external IDs for third-party cross-account role assumption to
+  prevent confused-deputy access:
+  <https://docs.aws.amazon.com/IAM/latest/UserGuide/confused-deputy.html>
+- AWS SDK retry behavior supports standard and adaptive modes; adaptive mode
+  must isolate clients by the service throttle dimension:
+  <https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html>
+- AWS SDK for Go v2 standard retry defaults to 3 attempts and 20 second max
+  backoff, with client-side retry token buckets:
+  <https://docs.aws.amazon.com/sdk-for-go/v2/developer-guide/configure-retries-timeouts.html>
+- Route 53 API requests are limited to five requests per second per account:
+  <https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/DNSLimitations.html>
+- EC2 API throttling uses token buckets and penalizes unpaginated
+  non-mutating calls more heavily:
+  <https://docs.aws.amazon.com/ec2/latest/devguide/ec2-api-throttling.html>
+- AWS STS request quota defaults to 600 requests per second per account per
+  Region:
+  <https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html>
 
 ---
 
@@ -42,14 +80,14 @@ sequenceDiagram
     participant FQ as Fact Queue
 
     WC->>W: Claim (instance, account, region, service, fence_token)
-    W->>STS: AssumeRole(role_arn, external_id, duration=900s)
-    STS-->>W: short-lived credentials (15m TTL)
+    W->>STS: AssumeRole(role_arn, external_id, DurationSeconds=900)
+    STS-->>W: short-lived credentials (requested 15m TTL)
     loop per API operation
         W->>W: acquire token (per-service bucket)
         W->>API: List* / Describe*
         alt Throttled
             API-->>W: ThrottlingException
-            W->>W: SDK adaptive retry (max 3, backoff ≤20s)
+            W->>W: SDK retry (max 3, backoff ≤20s)
             W->>W: eshu_dp_aws_throttle_total++
         else OK
             API-->>W: page
@@ -63,7 +101,7 @@ sequenceDiagram
         end
         W->>W: heartbeat check (every 30s)
     end
-    W->>W: zero credentials in memory
+    W->>W: clear credential references and cancel claim-scoped clients
     W->>WC: Ack (counts, api_calls, throttle_count, fence_token)
 ```
 
@@ -96,21 +134,21 @@ sequenceDiagram
     participant W as AWS scanner worker
     participant HC as Go HTTP client (per claim)
     participant STS as STS
-    participant MEM as heap
+    participant MEM as process memory
 
     W->>STS: AssumeRole
-    STS-->>W: access_key, secret_key, session_token (15m TTL)
-    W->>MEM: credentials written to single *aws.Credentials pointer
+    STS-->>W: access_key, secret_key, session_token (requested 15m TTL)
+    W->>MEM: credentials held in claim-scoped provider/cache only
     W->>HC: inject credentials into SDK config (scoped to this claim only)
     Note over W,MEM: Credentials never written to disk, env var, log, or metric
     W->>W: scan ...
     alt claim completes
-        W->>MEM: zero credential struct (set fields to zero-value)
-        W->>MEM: release *aws.Credentials pointer
+        W->>MEM: clear credential struct references
+        W->>MEM: release claim-scoped provider/cache/client references
     else lease expired
-        W->>MEM: zero + release (reaper will not resume this worker)
+        W->>MEM: clear references + release (reaper will not resume this worker)
     end
-    Note over MEM: benchmark: heap scan post-release shows no session token residue
+    Note over MEM: Go strings cannot be guaranteed overwritten; tests prove no Eshu-owned logs, facts, spans, status, checkpoints, or byte buffers retain credential material
 ```
 
 ### 1.4 AssumeRole failure
@@ -134,7 +172,7 @@ sequenceDiagram
         W->>STS: AssumeRole (retry once)
     else Throttled
         STS-->>W: Throttling
-        W->>W: SDK adaptive retry
+        W->>W: SDK retry
     end
 ```
 
@@ -157,7 +195,7 @@ sequenceDiagram
     W2->>W2: resume + emit
     W2->>FQ: emit (fence=43) ✓ accepted
     W1->>FQ: emit (fence=42) ✗ rejected (stale fence)
-    W1->>W1: zero credentials; exit
+    W1->>W1: clear credential references; exit
 ```
 
 ---
@@ -215,7 +253,8 @@ checkpoint rows.
   - 1 × **heartbeat loop** (30s tick)
   - 1 × **service scan** (inline in claim loop; pagination + decode)
   - 1 × **emit loop** (batches facts to queue)
-- Credential cache lifetime: **per-claim only**. Zeroed on claim end.
+- Credential cache lifetime: **per-claim only**. References are cleared on
+  claim end; scanner code must avoid additional credential copies.
 
 ### 3.2 Claim granularity
 
@@ -224,7 +263,8 @@ checkpoint rows.
 Maps 1:1 to AWS throttle boundary. Coordinator fencing guarantees at most
 one active scan per `(account, region, service)`.
 
-- [PROPOSED] Lease duration: **900s** (matches STS default 15m)
+- [PROPOSED] Lease duration: **900s**. STS defaults to 3600s when
+  `DurationSeconds` is omitted, so the scanner must explicitly request 900s.
 - [PROPOSED] Heartbeat interval: **30s**
 - Fence token: monotonic int64; propagated into every fact envelope, every
   checkpoint UPSERT, every ack RPC.
@@ -233,8 +273,10 @@ one active scan per `(account, region, service)`.
 
 Three layers:
 
-1. **AWS SDK v2 adaptive retry mode** on every client (max attempts = 3,
-   max backoff = 20s).
+1. **AWS SDK v2 retry mode** on every client (max attempts = 3,
+   max backoff = 20s). Use adaptive mode only when clients are isolated by the
+   service throttle boundary for the claim; otherwise use standard retry plus
+   the Eshu token bucket.
 2. **Per-service token buckets** (in-memory per pod, keyed by service):
    bucket size = sustained TPS; fills at that rate; workers `Acquire(1)`
    before every API call.
@@ -353,7 +395,7 @@ Per-client middleware ordering (top → bottom on outbound; reverse on inbound):
 1. `Initialize` — user-agent, request ID
 2. `Serialize` — marshal to HTTP request
 3. `Build` — signing metadata
-4. **`Retry`** — `aws.RetryModeAdaptive`, `MaxAttempts=3`, `MaxBackoffDelay=20s` (SDK native)
+4. **`Retry`** — SDK retryer, `MaxAttempts=3`, `MaxBackoffDelay=20s`
 5. **Custom rate-limit middleware** — registered with `middleware.After(retry.ClientRateLimiter)` so it fires AFTER retry decides to issue a call (retry-generated calls consume tokens)
 6. `Signer` — SigV4 with credentials from `aws.CredentialsCache`
 7. `Finalize` — HTTP RoundTrip
@@ -362,7 +404,9 @@ Per-client middleware ordering (top → bottom on outbound; reverse on inbound):
 Rate limit placement rationale (critical):
 - Bucket **above** retry would let retried calls bypass the bucket → burst → throttle cascade.
 - Bucket **inside** retry (between decide-to-retry and issue) → each retry takes a token → correctly paced.
-- SDK's own adaptive retry has an internal bucket; ours is a second layer protecting against cross-client bursts within the same pod.
+- SDK retry has an internal retry token bucket; adaptive mode also has a
+  request-rate bucket. Eshu's bucket is a second layer protecting against
+  cross-client bursts within the same pod.
 
 Reference: `github.com/aws/aws-sdk-go-v2/aws/retry` + `middleware.Stack.Finalize.Add(rateLimitMW, middleware.After)` with name `"RateLimit"` placed after `"Retry"`.
 
@@ -382,11 +426,15 @@ if err != nil {
     // continue with old creds; SDK will retry on ExpiredToken
     return
 }
-oldPtr := creds.Swap(&newCreds)    // atomic
-zeroBytes(oldPtr)                  // explicit zero
+oldPtr := creds.Swap(&newCreds) // atomic
+clearCredentialReferences(oldPtr)
 ```
 
-SDK integration: `aws.CredentialsCache` wraps our swappable provider. Provider's `Retrieve(ctx)` returns `*creds.Load()` — always returns current pointer. Cache TTL set to 30s so cache picks up swap within 30s; in-flight requests that receive `ExpiredToken` auto-retry via the retry middleware, which re-signs with fresh credentials on the next attempt.
+SDK integration: `aws.CredentialsCache` wraps our swappable provider.
+Provider's `Retrieve(ctx)` returns `*creds.Load()` — always returns current
+pointer. Cache TTL set to 30s so cache picks up swap within 30s; in-flight
+requests that receive `ExpiredToken` auto-retry via the retry middleware,
+which re-signs with fresh credentials on the next attempt.
 
 **Race window:** in-flight request signed with old creds, lands at AWS after swap, gets `ExpiredToken` → retry → re-sign with new creds → succeeds. One wasted call maximum per refresh.
 
@@ -446,12 +494,15 @@ Coordinator validation:
 - Rate `r` tokens/sec = sustained TPS from §3.3 table.
 - Burst `b` = `r` (1s burst capacity).
 
-Worst-case cold start: 16 workers simultaneously pick claims for the same service → 16 `Wait(ctx)` calls on same limiter.
+Worst-case cold start: 16 workers simultaneously pick claims for the same
+service → 16 `Wait(ctx)` calls on the same limiter.
 - First `b` calls return immediately.
-- Remaining queue FIFO, served at rate `r`.
+- Remaining calls wait for reservations at rate `r`; correctness must not
+  depend on strict FIFO ordering.
 - `Wait(ctx)` honors cancel → if claim cancels mid-wait, returns `ctx.Err()` without consuming token.
 
-**Fairness:** `rate.Limiter` uses FIFO queue for waiters. No starvation.
+**Fairness:** cross-account and cross-service fairness is owned by coordinator
+claim scheduling. The in-process limiter only enforces rate pacing.
 
 **Across pods:** buckets are per-pod. N pods × bucket → effective rate = N × r. Multi-pod deployments must tune per-pod `r` = `quota / N_pods`. Runtime knob: `ESHU_AWS_BUCKET_SCALE_FACTOR` (default 1.0; set to `1/N` when multi-pod).
 
@@ -622,7 +673,7 @@ Log level policy:
 - **WARN**: throttle_pressure_yield, budget_exhausted, assumerole_failed
   (first occurrence), unknown_schema, region_disabled
 - **ERROR**: AssumeRole sustained failure (3×), lease expiry, credential
-  leak detection (heap scan failing post-release)
+  retention audit failure
 
 Sampling:
 - `pagination.page` events: sampled at 1 per 100 pages when `page_index > 100`
@@ -635,9 +686,9 @@ Sampling:
 
 | Failure | Detection Signal | Recovery Path | Operator Action |
 |---|---|---|---|
-| API throttled | `throttle_total` + span event | Adaptive retry 3×; sustained → yield claim with partial-run | Dashboard shows throttle; tune interval or request quota |
+| API throttled | `throttle_total` + span event | SDK retry 3×; sustained → yield claim with partial-run | Dashboard shows throttle; tune interval or request quota |
 | AssumeRole failed (AccessDenied) | `assumerole_failed_total{error_class=access_denied}` + warning fact | Fail claim; 3 consecutive → mark instance unhealthy | Rotate role, verify external ID, verify IRSA trust |
-| AssumeRole throttled | `assumerole_failed_total{error_class=throttle}` | Adaptive retry | Check STS quota (default 100 TPS/account) |
+| AssumeRole throttled | `assumerole_failed_total{error_class=throttle}` | SDK retry | Check STS quota (default 600 RPS/account/Region) |
 | Credentials expired mid-scan | span event + `api_errors_total{error_class=expired_token}` | Refresh via new AssumeRole if lease allows; else yield | Investigate scan duration vs STS TTL |
 | IRSA token stale | `api_errors_total{error_class=irsa_stale}` | Re-read projected SA token; re-AssumeRole | K8s projection audit |
 | Budget exhausted | `budget_exhausted_total` + warning fact | Checkpoint pagination; next run resumes | Review budget vs inventory size |
@@ -648,7 +699,7 @@ Sampling:
 | Account disabled or role deleted | `assumerole_failed_total` sustained | Circuit-break instance | Disable collector instance |
 | Worker OOM | `eshu_dp_gomemlimit_bytes` breach | Soft back-off | Incident; tune ceiling |
 | Region disabled for service | `api_errors_total{error_class=service_not_available}` | Mark (service,region) skipped; emit warning once | Adjust region list |
-| Lambda reserved concurrency change mid-scan | `api_errors_total{operation=GetFunction,error_class=throttle}` | Adaptive retry; sustained → yield | Investigate concurrent workloads |
+| Lambda reserved concurrency change mid-scan | `api_errors_total{operation=GetFunction,error_class=throttle}` | SDK retry; sustained → yield | Investigate concurrent workloads |
 | EKS API version deprecated | `api_errors_total{error_class=deprecated_api}` + warning | Skip operation; emit warning | Upgrade SDK |
 | Route53 5 TPS hard limit | sustained `throttle_total{service=route53}` | Extend interval automatically; emit info | Consider splitting scan by zone |
 
@@ -668,7 +719,8 @@ Proofs:
 - [x] Claim fencing prevents dual-writer on same `(account, region, service)` — fence token unique + monotonic; queue constraint rejects stale
 - [x] Per-account concurrency cap prevents control-plane hammering — semaphore width 4, enforced both in-process and coordinator admission
 - [x] Token bucket refill correct under goroutine contention — `golang.org/x/time/rate.Limiter` is thread-safe
-- [x] Credential cache never leaks across claims — per-claim struct, zeroed on release, benchmark verified
+- [x] Credential cache never leaks across claims — per-claim struct,
+      claim-scoped clients, and reference clearing on release
 - [x] Lock ordering cycle-free (see §3.4)
 - [x] Heartbeat + scan cannot deadlock (separate Postgres rows; heartbeat never touches queue)
 
@@ -684,22 +736,28 @@ Sign-offs:
 - [ ] Fixture: mocked 1k ECS services across 10 clusters — all emitted, no dupes
 - [ ] Fixture: Lambda with sensitive env vars — hashed in fact; never in logs/metrics
 - [ ] Fixture: ECS task def with `secrets` section — ARNs preserved, values never materialized
-- [ ] Fixture: throttled API — adaptive retry works; counter increments; scan completes or yields
+- [ ] Fixture: throttled API — SDK retry works; counter increments; scan completes or yields
 - [ ] Fixture: AssumeRole AccessDenied — warning emitted, instance marked unhealthy after 3
 - [ ] Fixture: pagination checkpoint resume — second run picks up mid-page and completes
 - [ ] Fixture: unknown resource type — conservative redaction + warning, no panic
 - [ ] Fixture: Route53 hosted zone with 10k records — pagination paces, no OOM
 - [ ] Fixture: credentials expired at page 47 — refresh succeeds; scan completes
-- [ ] Fixture: heap scan post-claim-release — no session token bytes resident
+- [ ] Fixture: post-claim-release audit — no session token in Eshu-owned logs,
+      facts, spans, status, checkpoints, or byte buffers
 - [ ] Fixture: region disabled — warning emitted once, subsequent cycles skip
 - [ ] Fixture: budget_exhausted at call 10000 — checkpoint stored; resume works
 - [ ] Integration: two workers racing same `(account, region, service)` — fence-token mismatch rejects the loser
 - [ ] Integration: 50 accounts × 4 regions × 8 services — coordinator fairness spreads load; no account exceeds concurrency cap
 - [ ] Integration: real-account smoke in `ops-qa` account before `ops-prod`
 
-Fixture strategy: mocked SDK responses via `aws.ConfigLoader` with test
-endpoint resolver. Recorded fixtures committed under
-`go/internal/collector/aws/testdata/`.
+Fixture strategy: production client builders call
+`awsconfig.LoadDefaultConfig` from `github.com/aws/aws-sdk-go-v2/config`, then
+construct service clients behind narrow scanner-owned interfaces. Unit
+fixtures inject fake service clients directly. Wiring tests that need SDK
+serialization use an `httptest.Server` or stub `http.RoundTripper`; service
+specific endpoint overrides must use the AWS SDK v2 service client's endpoint
+seam rather than a repo-local config-loader abstraction. Recorded fixtures are
+committed under `go/internal/collector/awscloud/testdata/`.
 
 ---
 
@@ -710,8 +768,9 @@ endpoint resolver. Recorded fixtures committed under
 - [ ] Runtime guard rejecting configs that request write permissions (boot-time simulate)
 - [ ] External ID required in every trust policy; rejected if absent
 - [ ] IRSA principal locked to scanner service account (`eshu-aws-scanner`)
-- [ ] Credential zeroing verified (benchmark: heap scan post-release shows no session token residue)
-- [ ] Redaction library (`go/internal/redact`, gate #123) covers:
+- [ ] Credential-retention audit verifies no Eshu-owned logs, facts, spans,
+      status, checkpoints, or byte buffers retain session token material
+- [ ] Redaction library (`go/internal/redact`) covers:
   - Lambda `Environment.Variables`
   - ECS `containerDefinitions[].environment`
   - ECS `containerDefinitions[].secrets` (ARN preserved, value never resolved)
@@ -739,7 +798,7 @@ Sign-off:
 | Credential refresh strategy | Re-AssumeRole within same claim if lease still valid and STS TTL < 60s remaining |
 | Per-service default intervals | See §5.3 table (30m baseline, 6h IAM, 1h Route53 + ECR) |
 | Pagination checkpoint storage | Separate table `collector_pagination_checkpoints` keyed by `(claim_key, fence_token)` |
-| Lease duration / heartbeat | 900s / 30s (matches STS default) |
+| Lease duration / heartbeat | 900s / 30s; scanner explicitly requests `DurationSeconds=900` because STS otherwise defaults to 3600s |
 | Per-account concurrency cap | 4 simultaneous claims |
 | Token bucket per service | See §3.3 table (derived from AWS quotas) |
 | Route53 special handling | 1h interval default; budget includes `ListResourceRecordSets` = 1 call per zone |
@@ -750,7 +809,7 @@ Reviewers may challenge any row; mark accepted in sign-off comment.
 
 ## 12. Gate Closure Checklist
 
-All below checked, reviewed, sign-offs recorded before #104 closes and
+All below checked, reviewed, sign-offs recorded before #48 closes and
 implementation may begin.
 
 - [x] Section 1 diagrams complete (5 diagrams: happy, partial-run, creds, assumerole-fail, lease-expiry)
@@ -769,5 +828,5 @@ implementation may begin.
 - [ ] Principal SRE sign-off
 - [ ] Security sign-off
 
-Only after every box is checked does #104 close. Only after #104 closes may
+Only after every box is checked does #48 close. Only after #48 closes may
 any aws/* PR merge.
