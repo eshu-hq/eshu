@@ -137,6 +137,119 @@ func TestParseGenericPackageMetadataBuildsHostingAndDeduplicatesArtifacts(t *tes
 	}
 }
 
+func TestParseGenericPackageMetadataBuildsAdvisoriesAndEvents(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := ParseGenericPackageMetadata(parserTestContext(EcosystemGeneric, "https://jfrog.example/artifactory/"), []byte(`{
+		"provider": "jfrog-xray",
+		"repository": "generic-local",
+		"name": "team/tool",
+		"namespace": "team",
+		"version": "2026.05.12",
+		"vulnerabilities": [{
+			"advisory_id": "JFSA-2026-0001",
+			"advisory_source": "jfrog-xray",
+			"vulnerability_id": "CVE-2026-1111",
+			"source_severity": "high",
+			"affected_range": "<2026.05.13",
+			"fixed_version": "2026.05.13",
+			"url": "https://user:secret@jfrog.example/ui/vulnerabilities/JFSA-2026-0001?token=secret&view=full",
+			"summary": "reported at https://user:secret@jfrog.example/private?api_key=secret",
+			"published_at": "2026-05-11T09:00:00Z",
+			"modified_at": "2026-05-12T10:00:00Z"
+		}],
+		"events": [{
+			"event_key": "storage:42",
+			"event_type": "publish",
+			"artifact_key": "team/tool/2026.05.12/tool-linux-amd64.tar.gz",
+			"actor": "build-bot",
+			"message": "published from https://user:secret@jfrog.example/build?token=secret",
+			"occurred_at": "2026-05-12T11:00:00Z"
+		}]
+	}`))
+	if err != nil {
+		t.Fatalf("ParseGenericPackageMetadata() error = %v", err)
+	}
+
+	requireObservationCounts(t, metadata, 1, 1, 0, 0, 0)
+	if len(metadata.Vulnerables) != 1 {
+		t.Fatalf("vulnerability hints = %d, want 1", len(metadata.Vulnerables))
+	}
+	if len(metadata.Events) != 1 {
+		t.Fatalf("registry events = %d, want 1", len(metadata.Events))
+	}
+
+	vulnerability := metadata.Vulnerables[0]
+	if got := vulnerability.Package.RawName; got != "team/tool" {
+		t.Fatalf("vulnerability package raw name = %q", got)
+	}
+	if got := vulnerability.Version; got != "2026.05.12" {
+		t.Fatalf("vulnerability version = %q", got)
+	}
+	if got := vulnerability.AdvisoryID; got != "JFSA-2026-0001" {
+		t.Fatalf("advisory id = %q", got)
+	}
+	if got := vulnerability.AdvisorySource; got != "jfrog-xray" {
+		t.Fatalf("advisory source = %q", got)
+	}
+	if got := vulnerability.VulnerabilityID; got != "CVE-2026-1111" {
+		t.Fatalf("vulnerability id = %q", got)
+	}
+	if got := vulnerability.SourceSeverity; got != "high" {
+		t.Fatalf("source severity = %q", got)
+	}
+	if got := vulnerability.AffectedRange; got != "<2026.05.13" {
+		t.Fatalf("affected range = %q", got)
+	}
+	if got := vulnerability.FixedVersion; got != "2026.05.13" {
+		t.Fatalf("fixed version = %q", got)
+	}
+	if got := vulnerability.URL; got != "https://jfrog.example/ui/vulnerabilities/JFSA-2026-0001?view=full" {
+		t.Fatalf("vulnerability URL = %q", got)
+	}
+	if strings.Contains(vulnerability.Summary, "secret") {
+		t.Fatalf("vulnerability summary was not sanitized: %q", vulnerability.Summary)
+	}
+	if got := vulnerability.PublishedAt; !got.Equal(time.Date(2026, 5, 11, 9, 0, 0, 0, time.UTC)) {
+		t.Fatalf("published at = %s", got)
+	}
+	if got := vulnerability.ModifiedAt; !got.Equal(time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)) {
+		t.Fatalf("modified at = %s", got)
+	}
+	if got := vulnerability.ScopeID; got != "generic://scope" {
+		t.Fatalf("vulnerability scope id = %q", got)
+	}
+
+	event := metadata.Events[0]
+	if got := event.Package.RawName; got != "team/tool" {
+		t.Fatalf("event package raw name = %q", got)
+	}
+	if got := event.Version; got != "2026.05.12" {
+		t.Fatalf("event version = %q", got)
+	}
+	if got := event.EventKey; got != "storage:42" {
+		t.Fatalf("event key = %q", got)
+	}
+	if got := event.EventType; got != "publish" {
+		t.Fatalf("event type = %q", got)
+	}
+	if got := event.ArtifactKey; got != "team/tool/2026.05.12/tool-linux-amd64.tar.gz" {
+		t.Fatalf("event artifact key = %q", got)
+	}
+	if got := event.Actor; got != "build-bot" {
+		t.Fatalf("event actor = %q", got)
+	}
+	if strings.Contains(event.Message, "secret") {
+		t.Fatalf("event message was not sanitized: %q", event.Message)
+	}
+	if got := event.OccurredAt; !got.Equal(time.Date(2026, 5, 12, 11, 0, 0, 0, time.UTC)) {
+		t.Fatalf("occurred at = %s", got)
+	}
+	if got := event.ScopeID; got != "generic://scope" {
+		t.Fatalf("event scope id = %q", got)
+	}
+}
+
 func TestParseMavenPackageMetadataBuildsObservations(t *testing.T) {
 	t.Parallel()
 

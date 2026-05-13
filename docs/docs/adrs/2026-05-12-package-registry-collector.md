@@ -334,7 +334,8 @@ run both Neo4j and NornicDB conformance for the statement shape.
    payload tests for npm, PyPI, Go modules, Maven, NuGet, and Generic artifacts
    without live registry credentials. Implemented parser fixtures cover npm
    packuments, PyPI JSON, offline GOPROXY bundles, Maven POM XML, NuGet nuspec
-   XML, and provider-specific Generic/JFrog metadata.
+   XML, and provider-specific Generic/JFrog metadata, including source-native
+   advisory hints and registry events when the fixture carries them.
 2. **Runtime extension seam:** add bounded runtime target config and an explicit
    ecosystem parser registry so npm, PyPI, Generic, Go modules, Maven, NuGet,
    and future ecosystems register source-native behavior without one opaque

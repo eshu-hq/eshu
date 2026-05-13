@@ -13,8 +13,8 @@ This package implements the first slices of
 stable package identity, bounded runtime target configuration, local metadata
 fixture parsers, parser registration, and reported-confidence fact envelopes
 for package, version, dependency, artifact, source-hint, hosting, and warning
-evidence. It also provides advisory and registry-event envelope builders for
-later parsers that expose source-native advisory or event streams.
+evidence. Generic/JFrog metadata can also emit registry-reported advisory hints
+and registry events when the source fixture exposes those streams.
 
 ## Ownership boundary
 
@@ -54,7 +54,8 @@ See `doc.go` for the godoc contract.
 - `DefaultMetadataParserRegistry` — registry containing npm, PyPI, Go module,
   Maven, NuGet, and Generic fixture parsers.
 - `ParsedMetadata` — package, version, dependency, artifact, source-hint,
-  hosting, and warning observations produced from one metadata document.
+  vulnerability-hint, registry-event, hosting, and warning observations
+  produced from one metadata document.
 - `NormalizePackageIdentity` — ecosystem normalization for npm, PyPI, Go
   modules, Maven, NuGet, and generic package feeds.
 - `ParseNPMPackumentMetadata` — parses one npm packument fixture into
@@ -68,7 +69,8 @@ See `doc.go` for the godoc contract.
 - `ParseNuGetPackageMetadata` — parses one NuGet nuspec XML fixture into
   observations.
 - `ParseGenericPackageMetadata` — parses one provider-specific generic package
-  fixture into observations.
+  fixture into observations, including JFrog-style advisory and event streams
+  when present.
 - `PackageObservation` — one package identity observation ready for envelope
   emission.
 - `NewPackageEnvelope` — builds a `package_registry.package` fact with
