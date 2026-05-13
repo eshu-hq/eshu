@@ -379,6 +379,10 @@ log streams.
 | `eshu_dp_oci_registry_tags_observed_total` | OCI registry tags accepted into a bounded scan | `provider`, `result` |
 | `eshu_dp_oci_registry_manifests_observed_total` | OCI registry manifests, indexes, and descriptors observed | `provider`, `media_family` |
 | `eshu_dp_oci_registry_referrers_observed_total` | OCI registry referrer artifacts observed | `provider`, `artifact_family` |
+| `eshu_dp_aws_api_calls_total` | AWS API calls by operation outcome | `service`, `account`, `region`, `operation`, `result` |
+| `eshu_dp_aws_throttle_total` | AWS throttle-shaped service errors | `service`, `account`, `region` |
+| `eshu_dp_aws_assumerole_failed_total` | AWS claim credential acquisition failures | `account` |
+| `eshu_dp_aws_claim_concurrency` | Active AWS collector claims by account | `account` |
 | `eshu_dp_repos_snapshotted_total` | Total repositories snapshotted | status (`succeeded`/`failed`/`skipped`) |
 | `eshu_dp_files_parsed_total` | Total files parsed | status (`succeeded`/`failed`/`skipped`) |
 | `eshu_dp_fact_batches_committed_total` | Total fact batches committed to Postgres during streaming ingestion | `scope_id`, `source_system` |
@@ -394,6 +398,7 @@ log streams.
 | `eshu_dp_webhook_request_duration_seconds` | Webhook listener request duration | s | 0.001 .. 10 |
 | `eshu_dp_webhook_store_duration_seconds` | Webhook trigger store duration | s | 0.001 .. 10 |
 | `eshu_dp_oci_registry_scan_duration_seconds` | OCI registry repository scan duration before durable commit | s | 0.05 .. 120 |
+| `eshu_dp_aws_scan_duration_seconds` | AWS service claim scan duration before durable commit | s | 0.05 .. 300 |
 | `eshu_dp_scope_assign_duration_seconds` | Scope assignment duration | s | default |
 | `eshu_dp_fact_emit_duration_seconds` | Fact emission duration | s | default |
 | `eshu_dp_projector_run_duration_seconds` | Projector run cycle duration | s | 0.1 .. 120 |
@@ -468,6 +473,10 @@ The `eshu_dp_projector_stage_duration_seconds` histogram carries a `stage` attri
 | `reducer.run` | Reducer main loop | One claim + execute + ack cycle |
 | `oci_registry.scan` | OCI registry collector | One configured registry repository scan |
 | `oci_registry.api_call` | OCI registry collector | One ping, tag-list, manifest, or referrer API call |
+| `aws.collector.claim.process` | AWS cloud collector | One claimed `(account, region, service)` work item |
+| `aws.credentials.assume_role` | AWS cloud collector | Claim-scoped credential acquisition |
+| `aws.service.scan` | AWS cloud collector | One AWS service scan |
+| `aws.service.pagination.page` | AWS cloud collector | One AWS SDK page request |
 | `iac_reachability.materialize` | Bootstrap finalization | Corpus-wide active-generation IaC usage classification and Postgres row upsert |
 | `canonical.write` | Projector runtime / Reducer shared projection | Graph and content writes to Neo4j |
 | `webhook.handle` | Webhook listener route | Provider verification, normalization, and response handling |

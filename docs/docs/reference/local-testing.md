@@ -287,6 +287,7 @@ Use this gate when validating the current runtime and collector wiring.
 cd go
 go test ./internal/parser ./internal/collector/discovery ./internal/content/shape \
   ./internal/collector ./cmd/collector-git ./cmd/collector-terraform-state \
+  ./cmd/collector-aws-cloud \
   ./cmd/ingester ./cmd/bootstrap-index \
   ./internal/runtime ./internal/app ./internal/telemetry \
   ./internal/storage/cypher ./internal/storage/neo4j ./internal/storage/postgres \

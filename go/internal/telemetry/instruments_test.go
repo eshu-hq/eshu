@@ -44,6 +44,9 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.WebhookRequests, "WebhookRequests counter should be registered")
 	assert.NotNil(t, inst.WebhookTriggerDecisions, "WebhookTriggerDecisions counter should be registered")
 	assert.NotNil(t, inst.WebhookStoreOperations, "WebhookStoreOperations counter should be registered")
+	assert.NotNil(t, inst.AWSAPICalls, "AWSAPICalls counter should be registered")
+	assert.NotNil(t, inst.AWSThrottles, "AWSThrottles counter should be registered")
+	assert.NotNil(t, inst.AWSAssumeRoleFailed, "AWSAssumeRoleFailed counter should be registered")
 
 	// Verify all histogram fields are non-nil
 	assert.NotNil(t, inst.CollectorObserveDuration, "CollectorObserveDuration histogram should be registered")
@@ -75,6 +78,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.TerraformStateParseDuration, "TerraformStateParseDuration histogram should be registered")
 	assert.NotNil(t, inst.WebhookRequestDuration, "WebhookRequestDuration histogram should be registered")
 	assert.NotNil(t, inst.WebhookStoreDuration, "WebhookStoreDuration histogram should be registered")
+	assert.NotNil(t, inst.AWSScanDuration, "AWSScanDuration histogram should be registered")
 }
 
 func TestNewInstrumentsNilMeterError(t *testing.T) {
@@ -187,6 +191,21 @@ func TestAttrHelpers(t *testing.T) {
 			wantKey:  MetricDimensionStatus,
 		},
 		{
+			name:     "AttrService",
+			attrFunc: func(v string) string { return string(AttrService(v).Key) },
+			wantKey:  MetricDimensionService,
+		},
+		{
+			name:     "AttrAccount",
+			attrFunc: func(v string) string { return string(AttrAccount(v).Key) },
+			wantKey:  MetricDimensionAccount,
+		},
+		{
+			name:     "AttrRegion",
+			attrFunc: func(v string) string { return string(AttrRegion(v).Key) },
+			wantKey:  MetricDimensionRegion,
+		},
+		{
 			name:     "AttrSafeLocatorHash",
 			attrFunc: func(v string) string { return string(AttrSafeLocatorHash(v).Key) },
 			wantKey:  MetricDimensionSafeLocatorHash,
@@ -271,6 +290,21 @@ func TestRegisterObservableGauges_WithObservers(t *testing.T) {
 	}
 }
 
+func TestRegisterAWSClaimConcurrencyGauge(t *testing.T) {
+	meter := sdkmetric.NewMeterProvider().Meter("test")
+	inst := &Instruments{}
+
+	err := RegisterAWSClaimConcurrencyGauge(inst, meter, &fakeAWSClaimConcurrencyObserver{
+		counts: map[string]int64{"123456789012": 2},
+	})
+	if err != nil {
+		t.Fatalf("RegisterAWSClaimConcurrencyGauge() error = %v", err)
+	}
+	if inst.AWSClaimConcurrency == nil {
+		t.Fatalf("AWSClaimConcurrency gauge was not registered")
+	}
+}
+
 func TestRegisterAcceptanceObservableGauges_NilInputs(t *testing.T) {
 	meter := sdkmetric.NewMeterProvider().Meter("test")
 	inst := &Instruments{}
@@ -314,6 +348,14 @@ type fakeWorkerObserver struct {
 }
 
 func (f *fakeWorkerObserver) ActiveWorkers(_ context.Context) (map[string]int64, error) {
+	return f.counts, nil
+}
+
+type fakeAWSClaimConcurrencyObserver struct {
+	counts map[string]int64
+}
+
+func (f *fakeAWSClaimConcurrencyObserver) AWSClaimConcurrency(context.Context) (map[string]int64, error) {
 	return f.counts, nil
 }
 

@@ -15,5 +15,7 @@
 // warning evidence reported by package feeds. OCI registry fact kind constants
 // and schema-version helpers live here for repository, tag, manifest, index,
 // descriptor, referrer, and warning evidence reported by OCI-compatible
-// registries.
+// registries. AWS cloud fact kind constants and schema-version helpers live
+// here for resource, relationship, tag, DNS, image-reference, and warning
+// evidence reported by AWS service APIs.
 package facts

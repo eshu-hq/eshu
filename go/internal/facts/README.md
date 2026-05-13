@@ -108,6 +108,21 @@ Use `OCIRegistryFactKinds` when callers need the full accepted set, and
 reported OCI evidence. Tags are mutable observations; digest-addressed
 descriptors, manifests, indexes, and referrers carry the stronger identity.
 
+AWS cloud fact kinds use schema version `1.0.0` for the first collector
+contract:
+
+- `aws_resource`
+- `aws_relationship`
+- `aws_tag_observation`
+- `aws_dns_record`
+- `aws_image_reference`
+- `aws_warning`
+
+Use `AWSFactKinds` when callers need the full accepted set, and
+`AWSSchemaVersion` when building AWS cloud envelopes. These facts are reported
+AWS evidence. Reducers must corroborate workload, deployment, ownership, and
+environment truth before graph promotion.
+
 See `doc.go` for the full godoc contract.
 
 ## Dependencies
