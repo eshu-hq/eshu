@@ -94,7 +94,7 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	registryCollectors, err := readRegistryCollectorSnapshots(ctx, s.queryer)
+	registryCollectors, err := readRegistryCollectorSnapshots(ctx, s.queryer, asOf.UTC())
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}

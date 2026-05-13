@@ -201,6 +201,9 @@ For shared-write debugging specifically:
   `registry_terminal_failure`. Status messages and details include provider,
   ecosystem, operation, and HTTP status code when available, but not package
   names, feed URLs, paths, or credential environment names.
+- `registry_canceled` is reserved for operator/shutdown cancellation. Request
+  timeouts such as context deadlines remain `registry_retryable_failure` so
+  they stay in the retryable incident bucket.
 
 ### Resolution Engine
 
@@ -281,10 +284,10 @@ For shared-write debugging specifically:
   inferred questions in one place.
 - The `registry_collectors` section summarizes `oci_registry` and
   `package_registry` runtimes with configured instance count, active scope
-  count, completed generation count, last completed timestamp, retryable and
-  terminal failure counts, and bounded failure-class counts. It intentionally
-  omits registry hosts, repositories, packages, tags, digests, account IDs,
-  metadata URLs, and credential references.
+  count, 24-hour recent completed generation count, last completed timestamp,
+  retryable and terminal failure counts, and bounded failure-class counts. It
+  intentionally omits registry hosts, repositories, packages, tags, digests,
+  account IDs, metadata URLs, and credential references.
 - When queue failures exist, the report includes the latest persisted
   `failure_class`, message, and details so operators can spot cases such as
   `graph_write_timeout` without adding repository- or work-item-level metric

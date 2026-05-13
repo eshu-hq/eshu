@@ -10,14 +10,14 @@ import (
 // state without exposing registry hosts, repositories, packages, tags, digests,
 // account identifiers, metadata URLs, or credential environment names.
 type RegistryCollectorSnapshot struct {
-	CollectorKind        string
-	ConfiguredInstances  int
-	ActiveScopes         int
-	CompletedGenerations int
-	LastCompletedAt      time.Time
-	RetryableFailures    int
-	TerminalFailures     int
-	FailureClassCounts   []NamedCount
+	CollectorKind              string
+	ConfiguredInstances        int
+	ActiveScopes               int
+	RecentCompletedGenerations int
+	LastCompletedAt            time.Time
+	RetryableFailures          int
+	TerminalFailures           int
+	FailureClassCounts         []NamedCount
 }
 
 func cloneRegistryCollectorSnapshots(rows []RegistryCollectorSnapshot) []RegistryCollectorSnapshot {
@@ -35,11 +35,11 @@ func renderRegistryCollectorLines(rows []RegistryCollectorSnapshot) []string {
 	lines := []string{"Registry collectors:"}
 	for _, row := range rows {
 		line := fmt.Sprintf(
-			"  %s instances=%d active_scopes=%d completed_generations=%d retryable_failures=%d terminal_failures=%d",
+			"  %s instances=%d active_scopes=%d recent_completed_generations=%d retryable_failures=%d terminal_failures=%d",
 			row.CollectorKind,
 			row.ConfiguredInstances,
 			row.ActiveScopes,
-			row.CompletedGenerations,
+			row.RecentCompletedGenerations,
 			row.RetryableFailures,
 			row.TerminalFailures,
 		)

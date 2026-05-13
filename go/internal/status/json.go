@@ -126,14 +126,14 @@ type coordinatorSnapshotJSON struct {
 }
 
 type registryCollectorJSON struct {
-	CollectorKind        string           `json:"collector_kind"`
-	ConfiguredInstances  int              `json:"configured_instances"`
-	ActiveScopes         int              `json:"active_scopes"`
-	CompletedGenerations int              `json:"completed_generations"`
-	LastCompletedAt      string           `json:"last_completed_at,omitempty"`
-	RetryableFailures    int              `json:"retryable_failures"`
-	TerminalFailures     int              `json:"terminal_failures"`
-	FailureClassCounts   []namedCountJSON `json:"failure_class_counts,omitempty"`
+	CollectorKind              string           `json:"collector_kind"`
+	ConfiguredInstances        int              `json:"configured_instances"`
+	ActiveScopes               int              `json:"active_scopes"`
+	RecentCompletedGenerations int              `json:"recent_completed_generations"`
+	LastCompletedAt            string           `json:"last_completed_at,omitempty"`
+	RetryableFailures          int              `json:"retryable_failures"`
+	TerminalFailures           int              `json:"terminal_failures"`
+	FailureClassCounts         []namedCountJSON `json:"failure_class_counts,omitempty"`
 }
 
 type domainBacklogJSON struct {
@@ -276,14 +276,14 @@ func registryCollectorsJSON(rows []RegistryCollectorSnapshot) []registryCollecto
 	projected := make([]registryCollectorJSON, 0, len(rows))
 	for _, row := range rows {
 		projected = append(projected, registryCollectorJSON{
-			CollectorKind:        row.CollectorKind,
-			ConfiguredInstances:  row.ConfiguredInstances,
-			ActiveScopes:         row.ActiveScopes,
-			CompletedGenerations: row.CompletedGenerations,
-			LastCompletedAt:      nullableRFC3339Value(row.LastCompletedAt),
-			RetryableFailures:    row.RetryableFailures,
-			TerminalFailures:     row.TerminalFailures,
-			FailureClassCounts:   namedCountsJSON(row.FailureClassCounts),
+			CollectorKind:              row.CollectorKind,
+			ConfiguredInstances:        row.ConfiguredInstances,
+			ActiveScopes:               row.ActiveScopes,
+			RecentCompletedGenerations: row.RecentCompletedGenerations,
+			LastCompletedAt:            nullableRFC3339Value(row.LastCompletedAt),
+			RetryableFailures:          row.RetryableFailures,
+			TerminalFailures:           row.TerminalFailures,
+			FailureClassCounts:         namedCountsJSON(row.FailureClassCounts),
 		})
 	}
 	return projected

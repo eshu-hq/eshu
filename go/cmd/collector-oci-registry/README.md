@@ -95,9 +95,10 @@ artifact family. Registry hosts, repositories, tags, and digests stay out of
 metric labels.
 
 `/admin/status` also includes OCI rows in `registry_collectors`. Those rows show
-configured instance count, active scope count, completed generation count, last
-completed timestamp, retryable and terminal failure counts, and bounded failure
-classes such as `registry_auth_denied`, `registry_not_found`,
+configured instance count, active scope count, completed generation count for
+the last 24 hours, last completed timestamp,
+retryable and terminal failure counts, and bounded failure classes such as
+`registry_auth_denied`, `registry_not_found`,
 `registry_rate_limited`, `registry_retryable_failure`, `registry_canceled`, and
 `registry_terminal_failure`. Status messages and details keep registry hosts,
 repository paths, tags, digests, account IDs, credential environment variable

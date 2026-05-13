@@ -124,7 +124,7 @@ paths:
                 Generation history: active=1 pending=1 completed=4 superseded=0 failed=0 other=0
                 Generation transitions: scope=scope-123 generation=generation-b status=active trigger=snapshot freshness=changed files observed=2026-04-12T15:45:00Z activated=2026-04-12T15:46:00Z superseded= current_active=generation-b
                 Registry collectors:
-                  oci_registry instances=1 active_scopes=2 completed_generations=4 retryable_failures=1 terminal_failures=0 last_completed_at=2026-05-13T14:28:00Z failure_classes=registry_rate_limited=1
+                  oci_registry instances=1 active_scopes=2 recent_completed_generations=4 retryable_failures=1 terminal_failures=0 last_completed_at=2026-05-13T14:28:00Z failure_classes=registry_rate_limited=1
             application/json:
               schema:
                 $ref: "#/components/schemas/StatusReport"
@@ -429,7 +429,6 @@ components:
             - registry_retryable_failure
             - registry_canceled
             - registry_terminal_failure
-            - unknown
         count:
           type: integer
     RegistryCollectorSummary:
@@ -439,7 +438,7 @@ components:
         - collector_kind
         - configured_instances
         - active_scopes
-        - completed_generations
+        - recent_completed_generations
         - retryable_failures
         - terminal_failures
       properties:
@@ -452,7 +451,8 @@ components:
           type: integer
         active_scopes:
           type: integer
-        completed_generations:
+        recent_completed_generations:
+          description: Completed workflow items in the last 24 hours.
           type: integer
         last_completed_at:
           type: string

@@ -672,8 +672,8 @@ steady-state Kubernetes service in the public chart.
   inferred, backlog, and failure state
 - use the `registry_collectors` status section for private registry incidents:
   it shows configured instances, active scope counts, completed generation
-  counts, last completed timestamps, and bounded failure-class counts without
-  exposing private registry object names
+  counts from the last 24 hours, last completed timestamps, and bounded
+  failure-class counts without exposing private registry object names
 - prefer incremental scope refresh and reconciliation over platform-wide
   re-indexing
 - use the [Telemetry Overview](../reference/telemetry/index.md) to decide which

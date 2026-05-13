@@ -16,6 +16,7 @@ func TestWorkflowControlSchemaIncludesExpectedTables(t *testing.T) {
 		"acceptance_unit_id TEXT NOT NULL",
 		"source_run_id TEXT NOT NULL",
 		"workflow_work_items_phase_tuple_idx",
+		"workflow_work_items_registry_status_updated_idx",
 		"workflow_work_items_tfstate_candidate_nonterminal_idx",
 		"generation_id LIKE 'terraform_state_candidate:%'",
 		"current_fencing_token BIGINT NOT NULL DEFAULT 0",

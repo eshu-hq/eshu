@@ -455,12 +455,12 @@ func TestRenderStatusIncludesRegistryCollectors(t *testing.T) {
 		status.RawSnapshot{
 			AsOf: now,
 			RegistryCollectors: []status.RegistryCollectorSnapshot{{
-				CollectorKind:        "oci_registry",
-				ConfiguredInstances:  1,
-				ActiveScopes:         2,
-				CompletedGenerations: 4,
-				LastCompletedAt:      now.Add(-2 * time.Minute),
-				RetryableFailures:    1,
+				CollectorKind:              "oci_registry",
+				ConfiguredInstances:        1,
+				ActiveScopes:               2,
+				RecentCompletedGenerations: 4,
+				LastCompletedAt:            now.Add(-2 * time.Minute),
+				RetryableFailures:          1,
 				FailureClassCounts: []status.NamedCount{{
 					Name:  "registry_rate_limited",
 					Count: 1,
@@ -479,6 +479,7 @@ func TestRenderStatusIncludesRegistryCollectors(t *testing.T) {
 		"\"registry_collectors\"",
 		"\"collector_kind\": \"oci_registry\"",
 		"\"active_scopes\": 2",
+		"\"recent_completed_generations\": 4",
 		"\"name\": \"registry_rate_limited\"",
 	} {
 		if !strings.Contains(body, want) {

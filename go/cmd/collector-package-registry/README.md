@@ -71,8 +71,8 @@ labels.
 
 `/admin/status` also includes package-registry rows in `registry_collectors`.
 Those rows show configured instance count, active scope count, completed
-generation count, last completed timestamp, retryable and terminal failure
-counts, and bounded failure classes such as `registry_auth_denied`,
+generation count for the last 24 hours, last completed timestamp, retryable and
+terminal failure counts, and bounded failure classes such as `registry_auth_denied`,
 `registry_not_found`, `registry_rate_limited`, `registry_retryable_failure`,
 `registry_canceled`, and `registry_terminal_failure`. Status messages and
 details keep package names, private feed URLs, metadata paths, credential

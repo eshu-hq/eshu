@@ -355,7 +355,7 @@ func TestReadRegistryCollectorSnapshotsUsesBoundedStatusOnly(t *testing.T) {
 		},
 	}
 
-	got, err := readRegistryCollectorSnapshots(context.Background(), queryer)
+	got, err := readRegistryCollectorSnapshots(context.Background(), queryer, now)
 	if err != nil {
 		t.Fatalf("readRegistryCollectorSnapshots() error = %v, want nil", err)
 	}
@@ -363,7 +363,7 @@ func TestReadRegistryCollectorSnapshotsUsesBoundedStatusOnly(t *testing.T) {
 		t.Fatalf("readRegistryCollectorSnapshots() len = %d, want 2", len(got))
 	}
 	if got[0].CollectorKind != "oci_registry" || got[0].ConfiguredInstances != 2 ||
-		got[0].ActiveScopes != 3 || got[0].CompletedGenerations != 8 ||
+		got[0].ActiveScopes != 3 || got[0].RecentCompletedGenerations != 8 ||
 		got[0].RetryableFailures != 1 || got[0].TerminalFailures != 0 {
 		t.Fatalf("OCI registry snapshot = %#v", got[0])
 	}
@@ -380,6 +380,17 @@ func TestReadRegistryCollectorSnapshotsUsesBoundedStatusOnly(t *testing.T) {
 		if strings.Contains(strings.ToLower(joinedQueries), privateColumn) {
 			t.Fatalf("registry status query mentions private column %q:\n%s", privateColumn, joinedQueries)
 		}
+	}
+	for _, want := range []string{
+		"updated_at >= $1 - INTERVAL '24 hours'",
+		"DISTINCT ON (collector_kind)",
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("registry status query missing %q:\n%s", want, joinedQueries)
+		}
+	}
+	if strings.Contains(joinedQueries, "'unknown'") {
+		t.Fatalf("registry status query still emits unreachable unknown failure class:\n%s", joinedQueries)
 	}
 }
 
