@@ -82,6 +82,9 @@ fall back to defaults rather than failing; malformed values fail fast.
   resolved discovery candidates. `BackendFacts` returns both Terraform backend
   block candidates and Terragrunt remote_state candidates resolved into their
   underlying backend kind, so the planner stays on one scheduler shape.
+- `OCIRegistryWorkPlanner` — plans OCI registry collection runs from configured
+  repository targets without opening registry connections. Each target becomes
+  one claimable work item keyed by the normalized registry repository scope.
 
 ## Dependencies
 
@@ -91,6 +94,8 @@ fall back to defaults rather than failing; malformed values fail fast.
   `DesiredCollectorInstance`.
 - `internal/telemetry` — `MetricDimensionOutcome` attribute key used in
   `otelMetrics`.
+- `internal/collector/ociregistry` — OCI repository identity normalization used
+  by the claim planner.
 
 ## Telemetry
 
@@ -156,8 +161,9 @@ warning (`collector_instance_drift_detected`, fields
   because `Metrics` only declares `RecordReconcile`. If the wired `Metrics`
   does not implement the broader interface the recording calls are silently
   skipped. `otelMetrics` (returned by `NewMetrics`) implements all three.
-- This package does not normalize triggers, schedule runs, or own permanent
-  claim assignments. Those capabilities are not implemented here today.
+- This package only schedules families with explicit planners. Terraform-state
+  and OCI registry have planners today; other collector families remain
+  instance-reconciled only until they define a bounded work unit.
 
 ## Related docs
 

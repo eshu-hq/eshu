@@ -87,9 +87,10 @@
 
 ## Anti-patterns specific to this package
 
-- **Adding trigger normalization or claim scheduling here** — these are not
-  implemented today. Do not add logic that claims work items on behalf of
-  collectors; that ownership boundary belongs to the ingester collector path.
+- **Adding trigger normalization or ad hoc claim ownership here** — the
+  coordinator may plan bounded work rows for families with explicit planners,
+  but it must not claim work on behalf of collectors. Claim ownership belongs
+  to collector runtimes through `collector.ClaimedService`.
 
 - **Calling Store methods outside runXxx helpers** — all Store calls must go
   through the private `runXxx` methods so telemetry recording is consistent.

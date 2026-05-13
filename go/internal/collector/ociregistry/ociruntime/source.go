@@ -70,14 +70,14 @@ func (s *Source) Next(ctx context.Context) (collector.CollectedGeneration, bool,
 	}
 	target := config.Targets[s.next]
 	s.next++
-	collected, err := s.scanTarget(ctx, config, target)
+	collected, err := s.scanTarget(ctx, config, target, "")
 	if err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
 	return collected, true, nil
 }
 
-func (s *Source) scanTarget(ctx context.Context, config Config, target TargetConfig) (collector.CollectedGeneration, error) {
+func (s *Source) scanTarget(ctx context.Context, config Config, target TargetConfig, generationID string) (collector.CollectedGeneration, error) {
 	start := time.Now()
 	if s.Tracer != nil {
 		var span trace.Span
@@ -111,7 +111,7 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 	}
 
 	observedAt := s.now()
-	scopeValue, generationValue, err := s.scopeAndGeneration(target, observedAt, tags)
+	scopeValue, generationValue, err := s.scopeAndGeneration(target, observedAt, tags, generationID)
 	if err != nil {
 		result = "failed"
 		return collector.CollectedGeneration{}, err
@@ -396,19 +396,22 @@ func (s *Source) warningEnvelope(
 	})
 }
 
-func (s *Source) scopeAndGeneration(target TargetConfig, observedAt time.Time, references []string) (scope.IngestionScope, scope.ScopeGeneration, error) {
+func (s *Source) scopeAndGeneration(target TargetConfig, observedAt time.Time, references []string, generationID string) (scope.IngestionScope, scope.ScopeGeneration, error) {
 	identity, err := ociregistry.NormalizeRepositoryIdentity(target.identity())
 	if err != nil {
 		return scope.IngestionScope{}, scope.ScopeGeneration{}, err
 	}
-	fingerprint := facts.StableID("OCIRegistryGeneration", map[string]any{
-		"provider":   string(identity.Provider),
-		"registry":   identity.Registry,
-		"repository": identity.Repository,
-		"refs":       references,
-		"observed":   observedAt.UTC().Format(time.RFC3339Nano),
-	})
-	generationID := "oci-registry:" + fingerprint
+	generationID = strings.TrimSpace(generationID)
+	if generationID == "" {
+		fingerprint := facts.StableID("OCIRegistryGeneration", map[string]any{
+			"provider":   string(identity.Provider),
+			"registry":   identity.Registry,
+			"repository": identity.Repository,
+			"refs":       references,
+			"observed":   observedAt.UTC().Format(time.RFC3339Nano),
+		})
+		generationID = "oci-registry:" + fingerprint
+	}
 	scopeValue := scope.IngestionScope{
 		ScopeID:       identity.ScopeID,
 		SourceSystem:  ociregistry.CollectorKind,

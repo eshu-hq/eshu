@@ -54,7 +54,7 @@ func TestDesiredCollectorInstanceValidateAcceptsTerraformStateGraphDiscoveryWith
 	}
 }
 
-func TestDesiredCollectorInstanceValidateAcceptsOCIRegistryWithClaimsDisabled(t *testing.T) {
+func TestDesiredCollectorInstanceValidateAcceptsOCIRegistryWithClaimsEnabled(t *testing.T) {
 	t.Parallel()
 
 	instance := DesiredCollectorInstance{
@@ -62,7 +62,7 @@ func TestDesiredCollectorInstanceValidateAcceptsOCIRegistryWithClaimsDisabled(t 
 		CollectorKind: scope.CollectorOCIRegistry,
 		Mode:          CollectorModeContinuous,
 		Enabled:       true,
-		ClaimsEnabled: false,
+		ClaimsEnabled: true,
 		Configuration: `{"targets":[{"provider":"dockerhub","registry":"registry-1.docker.io","repository":"library/busybox"}]}`,
 	}
 
@@ -71,7 +71,78 @@ func TestDesiredCollectorInstanceValidateAcceptsOCIRegistryWithClaimsDisabled(t 
 	}
 }
 
-func TestDesiredCollectorInstanceValidateRejectsOCIRegistryClaimsEnabled(t *testing.T) {
+func TestDesiredCollectorInstanceValidateAcceptsOCIRegistryProviderEndpointFields(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "collector-oci-registry",
+		CollectorKind: scope.CollectorOCIRegistry,
+		Mode:          CollectorModeContinuous,
+		Enabled:       true,
+		ClaimsEnabled: true,
+		Configuration: `{"targets":[
+			{"provider":"ecr","registry_id":"123456789012","region":"us-east-1","repository":"team/api","references":["latest"]},
+			{"provider":"google_artifact_registry","registry_host":"us-west1-docker.pkg.dev","repository":"example-project/team-api/service","references":["sha256:abc"]},
+			{"provider":"azure_container_registry","registry_host":"example.azurecr.io","repository":"Samples/Artifact","references":["readme"]},
+			{"provider":"jfrog","base_url":"https://example.jfrog.io","repository_key":"docker-local","repository":"service-api","references":["latest"]},
+			{"provider":"harbor","base_url":"https://harbor.example.com","repository":"Project/API","references":["latest"]}
+		]}`,
+	}
+
+	if err := instance.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
+func TestDesiredCollectorInstanceValidateRejectsOCIRegistryProviderShapeMismatch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		configuration string
+	}{
+		{
+			name:          "ghcr repository without owner",
+			configuration: `{"targets":[{"provider":"ghcr","repository":"busybox","references":["latest"]}]}`,
+		},
+		{
+			name:          "gar repository without project repository and image",
+			configuration: `{"targets":[{"provider":"google_artifact_registry","registry_host":"us-west1-docker.pkg.dev","repository":"service","references":["latest"]}]}`,
+		},
+		{
+			name:          "acr repository with empty path segment",
+			configuration: `{"targets":[{"provider":"azure_container_registry","registry_host":"example.azurecr.io","repository":"team//api","references":["latest"]}]}`,
+		},
+		{
+			name:          "harbor repository without project",
+			configuration: `{"targets":[{"provider":"harbor","base_url":"https://harbor.example.com","repository":"api","references":["latest"]}]}`,
+		},
+		{
+			name:          "jfrog base url without scheme",
+			configuration: `{"targets":[{"provider":"jfrog","base_url":"example.jfrog.io","repository_key":"docker-local","repository":"service-api","references":["latest"]}]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			instance := DesiredCollectorInstance{
+				InstanceID:    "collector-oci-registry",
+				CollectorKind: scope.CollectorOCIRegistry,
+				Mode:          CollectorModeContinuous,
+				Enabled:       true,
+				ClaimsEnabled: true,
+				Configuration: tt.configuration,
+			}
+
+			if err := instance.Validate(); err == nil {
+				t.Fatal("Validate() error = nil, want non-nil")
+			}
+		})
+	}
+}
+
+func TestDesiredCollectorInstanceValidateRejectsOCIRegistryClaimsEnabledWithoutTargets(t *testing.T) {
 	t.Parallel()
 
 	instance := DesiredCollectorInstance{
@@ -291,7 +362,7 @@ func TestCollectorInstanceValidateRejectsBackwardsTimes(t *testing.T) {
 	}
 }
 
-func TestCollectorInstanceValidateRejectsOCIRegistryClaimsEnabled(t *testing.T) {
+func TestCollectorInstanceValidateAcceptsOCIRegistryClaimsEnabled(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.May, 12, 19, 30, 0, 0, time.UTC)
@@ -301,13 +372,13 @@ func TestCollectorInstanceValidateRejectsOCIRegistryClaimsEnabled(t *testing.T) 
 		Mode:           CollectorModeContinuous,
 		Enabled:        true,
 		ClaimsEnabled:  true,
-		Configuration:  `{}`,
+		Configuration:  `{"targets":[{"provider":"dockerhub","registry":"registry-1.docker.io","repository":"library/busybox"}]}`,
 		LastObservedAt: observedAt,
 		CreatedAt:      observedAt,
 		UpdatedAt:      observedAt,
 	}
 
-	if err := instance.Validate(); err == nil {
-		t.Fatal("Validate() error = nil, want non-nil")
+	if err := instance.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
 	}
 }

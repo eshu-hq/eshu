@@ -16,7 +16,8 @@
 
 - Provider configs may reference credential env vars, but credentials must not
   be logged, placed in metrics, or written into facts.
-- Facts must flow through `collector.Service` and `postgres.NewIngestionStore`.
+- Facts must flow through `collector.Service` or `collector.ClaimedService` and
+  `postgres.NewIngestionStore`.
 - The command package owns SDK/client wiring only; fact identity belongs in
   `ociregistry`, and scan behavior belongs in `ociruntime`.
 - Keep `/healthz`, `/readyz`, `/metrics`, and `/admin/status` wired through

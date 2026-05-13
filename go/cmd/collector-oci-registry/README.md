@@ -2,16 +2,19 @@
 
 ## Purpose
 
-`collector-oci-registry` scans configured OCI Distribution-compatible registry
+`collector-oci-registry` scans OCI Distribution-compatible registry
 repositories and emits `oci_registry` facts through the shared collector commit
-boundary. It covers the JFrog Artifactory Docker/OCI, ECR, Docker Hub, GHCR,
-Harbor, Google Artifact Registry, and Azure Container Registry runtime lane.
+boundary. It can run the older configured-target polling path or, when
+`ESHU_COLLECTOR_INSTANCES_JSON` is present, the claim-aware workflow path. It
+covers the JFrog Artifactory Docker/OCI, ECR, Docker Hub, GHCR, Harbor, Google
+Artifact Registry, and Azure Container Registry runtime lane.
 
 ## Ownership Boundary
 
-This binary owns process wiring only: target JSON parsing, provider client
-construction, `collector.Service` setup, Postgres ingestion, telemetry, and the
-hosted status surface. Fact identity and envelope construction live in
+This binary owns process wiring only: target JSON parsing, collector-instance
+selection, provider client construction, `collector.Service` or
+`collector.ClaimedService` setup, Postgres ingestion, telemetry, and the hosted
+status surface. Fact identity and envelope construction live in
 `internal/collector/ociregistry`; registry scan orchestration lives in
 `internal/collector/ociregistry/ociruntime`.
 
@@ -30,7 +33,7 @@ hosted status surface. Fact identity and envelope construction live in
 The collector requires standard Postgres env values plus one collector instance
 ID and a JSON target list.
 
-Required values:
+Configured-target mode required values:
 
 - `ESHU_OCI_REGISTRY_COLLECTOR_INSTANCE_ID`
 - `ESHU_OCI_REGISTRY_TARGETS_JSON`
@@ -38,6 +41,20 @@ Required values:
 Optional values:
 
 - `ESHU_OCI_REGISTRY_POLL_INTERVAL` (Go duration, defaults to `5m`)
+
+Claim-aware mode is selected when `ESHU_COLLECTOR_INSTANCES_JSON` is non-empty.
+The runtime selects the `oci_registry` collector instance, requires
+`claims_enabled=true`, and uses:
+
+- `ESHU_OCI_REGISTRY_COLLECTOR_INSTANCE_ID` when multiple OCI instances exist
+- `ESHU_OCI_REGISTRY_POLL_INTERVAL` for idle claim polling
+- `ESHU_OCI_REGISTRY_CLAIM_LEASE_TTL`
+- `ESHU_OCI_REGISTRY_HEARTBEAT_INTERVAL`
+- `ESHU_OCI_REGISTRY_COLLECTOR_OWNER_ID`
+
+In claim-aware mode the target list comes from the selected collector
+instance's `configuration.targets` array. The workflow coordinator plans one
+work item per configured registry repository target.
 
 Each target JSON object supports:
 
@@ -82,7 +99,9 @@ metric labels.
 - The collector is read-only. It only calls Distribution and provider auth
   read APIs.
 - Facts must flow through `collector.Service`; do not write facts directly from
-  this command package.
+  this command package. Claim-aware mode flows through
+  `collector.ClaimedService` and the same Postgres ingestion store with claim
+  fencing.
 - Missing Referrers API support is warning evidence, not proof of no SBOMs,
   signatures, or attestations.
 - Provider adapters may change auth or endpoint shape, but fact identity stays

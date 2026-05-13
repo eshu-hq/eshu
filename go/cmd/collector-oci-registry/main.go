@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -75,16 +76,30 @@ func run(parent context.Context) error {
 		Instruments: instruments,
 		StoreName:   "collector_oci_registry",
 	}
-	runner, err := buildCollectorService(
-		parent,
-		storeDB,
-		os.Getenv,
-		tracer,
-		instruments,
-		logger,
-	)
-	if err != nil {
-		return err
+	var runner app.Runner
+	if claimAwareModeEnabled(os.Getenv) {
+		runner, err = buildClaimedService(
+			storeDB,
+			os.Getenv,
+			tracer,
+			instruments,
+			logger,
+		)
+		if err != nil {
+			return err
+		}
+	} else {
+		runner, err = buildCollectorService(
+			parent,
+			storeDB,
+			os.Getenv,
+			tracer,
+			instruments,
+			logger,
+		)
+		if err != nil {
+			return err
+		}
 	}
 	service, err := app.NewHostedWithStatusServer(
 		"collector-oci-registry",
@@ -100,4 +115,8 @@ func run(parent context.Context) error {
 	defer stop()
 
 	return service.Run(ctx)
+}
+
+func claimAwareModeEnabled(getenv func(string) string) bool {
+	return strings.TrimSpace(getenv(envCollectorInstances)) != ""
 }

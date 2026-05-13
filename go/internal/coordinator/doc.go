@@ -9,8 +9,8 @@
 // least one claim-capable collector instance.
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from the
-// resolved discovery candidates. The planner consumes BackendFacts which now
-// returns both Terraform backend block candidates and Terragrunt remote_state
-// candidates resolved into their underlying backend kind, so no separate
-// scheduler shape is needed for Terragrunt sources.
+// resolved discovery candidates. OCIRegistryWorkPlanner plans one bounded work
+// item per configured registry repository target without opening registry
+// connections. Both planners produce workflow rows only; claim ownership and
+// fact emission stay with the collector runtimes.
 package coordinator
