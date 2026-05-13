@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 41
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 43
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,12 +59,12 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 41 tools from five source files.
+`ReadOnlyTools` assembles 43 tools from five source files.
 
 | Group | Count | Source file |
 |---|---|---|
 | `codebaseTools` | 13 | `tools_codebase.go` |
-| `ecosystemTools` | 14 | `tools_ecosystem.go` |
+| `ecosystemTools` | 16 | `tools_ecosystem.go` |
 | `contextTools` | 6 | `tools_context.go` |
 | `contentTools` | 5 | `tools_content.go` |
 | `runtimeTools` | 3 | `tools_runtime.go` |
@@ -77,6 +77,8 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:237`):
 | `analyze_code_relationships` | POST | `/api/v0/code/relationships` |
 | `find_dead_iac` | POST | `/api/v0/iac/dead` |
 | `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |
+| `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
+| `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
 | `get_file_content` | POST | `/api/v0/content/files/read` |
@@ -91,7 +93,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:237`):
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 41 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 43 tool definitions |
 
 ## SSE session model
 

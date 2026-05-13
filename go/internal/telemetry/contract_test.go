@@ -86,6 +86,8 @@ func TestSpanNames(t *testing.T) {
 		"query.documentation_packet_freshness",
 		"query.dead_iac",
 		"query.infra_resource_search",
+		"query.package_registry_packages",
+		"query.package_registry_versions",
 		"tfstate.collector.claim.process",
 		"tfstate.discovery.resolve",
 		"tfstate.source.open",

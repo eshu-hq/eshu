@@ -108,18 +108,19 @@ func capabilityUnsupported(profile QueryProfile, capability string) bool {
 
 // APIRouter builds the top-level /api/v0 mux for all query endpoints.
 type APIRouter struct {
-	Repositories  *RepositoryHandler
-	Entities      *EntityHandler
-	Code          *CodeHandler
-	Content       *ContentHandler
-	Infra         *InfraHandler
-	IaC           *IaCHandler
-	Impact        *ImpactHandler
-	Evidence      *EvidenceHandler
-	Documentation *DocumentationHandler
-	Status        *StatusHandler
-	Compare       *CompareHandler
-	Admin         *AdminHandler
+	Repositories    *RepositoryHandler
+	Entities        *EntityHandler
+	Code            *CodeHandler
+	Content         *ContentHandler
+	Infra           *InfraHandler
+	IaC             *IaCHandler
+	Impact          *ImpactHandler
+	Evidence        *EvidenceHandler
+	Documentation   *DocumentationHandler
+	PackageRegistry *PackageRegistryHandler
+	Status          *StatusHandler
+	Compare         *CompareHandler
+	Admin           *AdminHandler
 }
 
 // Mount registers all query-layer HTTP routes on the given mux.
@@ -177,6 +178,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Documentation
 	if a.Documentation != nil {
 		a.Documentation.Mount(mux)
+	}
+
+	// Package registry
+	if a.PackageRegistry != nil {
+		a.PackageRegistry.Mount(mux)
 	}
 
 	// Status

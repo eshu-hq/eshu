@@ -1,5 +1,5 @@
 version: v1
-updated_at: 2026-05-09
+updated_at: 2026-05-13
 owners:
   - platform-engineering
 profiles: [local_lightweight, local_authoritative, local_full_stack, production]
@@ -166,6 +166,20 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: documentation evidence packet freshness by packet_id}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 500, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: documentation evidence packet freshness by packet_id}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 800, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-documentation-packet-freshness}], notes: documentation evidence packet freshness by packet_id}
+  - capability: package_registry.packages.list
+    tools: [list_package_registry_packages]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-package-registry-packages}], notes: requires package registry graph identity nodes}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: bounded_registry_scope, verification: [{go_test: ./internal/query}], notes: bounded package identity lookup by package_id or ecosystem/name; source ownership remains provenance-only}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: bounded_registry_scope, verification: [{go_test: ./internal/query}], notes: bounded package identity lookup by package_id or ecosystem/name; source ownership remains provenance-only}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: bounded_registry_scope, verification: [{remote_validation: prod-package-registry-packages}], notes: bounded package identity lookup by package_id or ecosystem/name; source ownership remains provenance-only}
+  - capability: package_registry.versions.list
+    tools: [list_package_registry_versions]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-package-registry-versions}], notes: requires package registry graph identity nodes}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: package_id, verification: [{go_test: ./internal/query}], notes: package-version identity lookup anchored by Package.uid}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: package_id, verification: [{go_test: ./internal/query}], notes: package-version identity lookup anchored by Package.uid}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: package_id, verification: [{remote_validation: prod-package-registry-versions}], notes: package-version identity lookup anchored by Package.uid}
   - capability: platform_impact.resource_to_code
     tools: [trace_resource_to_code]
     profiles:

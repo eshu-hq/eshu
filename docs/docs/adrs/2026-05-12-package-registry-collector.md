@@ -357,7 +357,9 @@ run both Neo4j and NornicDB conformance for the statement shape.
    reducer admission.
 6. **Query lane:** expose package publication and consumption evidence only
    after graph truth and query truth agree for repo, service, and package
-   surfaces.
+   surfaces. The first query sub-slice exposes bounded package/package-version
+   identity reads from the canonical graph and explicitly omits repository
+   ownership until reducer admission lands.
 7. **Provider expansion lane:** add fixture-backed adapters for public ecosystem
    registries, then live-gated adapters for GitHub, GitLab, Google, Azure,
    Nexus, and CodeArtifact.
