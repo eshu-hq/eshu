@@ -5,8 +5,9 @@
 1. `README.md` - package purpose, telemetry, and invariants.
 2. `client.go` - IAM SDK pagination, trust policy decoding, and telemetry.
 3. `../scanner.go` - scanner-owned IAM fact selection.
-4. `../../README.md` - AWS cloud envelope contract.
-5. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
+4. `../README.md` - IAM scanner contract.
+5. `../../../README.md` - AWS cloud envelope contract.
+6. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
    service coverage and runtime requirements.
 
 ## Invariants
