@@ -164,9 +164,10 @@ LIMIT 1
 //     listConfigResourcesForCommitQuery against jsonb null /
 //     scalar terraform_resources values (SQLSTATE 22023 regression).
 //
-// Result shape: one row per file (per generation) with a JSONB array of
-// terraform_resources entries. The loader decodes each row and unions the
-// canonical addresses into a set.
+// Result shape: (generation_id, terraform_resources), one row per file (per
+// generation) with a JSONB array of terraform_resources entries. The loader
+// decodes each row, builds a module-prefix map for that same prior
+// generation, and unions the canonical addresses into a set.
 const listPriorConfigAddressesQuery = `
 WITH prior_generations AS (
     SELECT generation_id
@@ -178,6 +179,7 @@ WITH prior_generations AS (
     LIMIT $3
 )
 SELECT
+    pg.generation_id AS generation_id,
     fact.payload->'parsed_file_data'->'terraform_resources' AS terraform_resources
 FROM fact_records AS fact
 JOIN prior_generations AS pg

@@ -218,7 +218,7 @@ func TestLoadConfigByAddressMissingTerraformModulesFactDegradesGracefully(t *tes
 // same-PR requirement (binding ADR Q5): a module-nested resource block
 // deleted in the current generation while the surrounding module call still
 // exists must trigger removed_from_config — which only works if the
-// prior-config walk applies the SAME module-prefix map the live join does.
+// prior-config walk applies a generation-appropriate module-prefix map.
 func TestLoadPriorConfigAddressesAppliesModulePrefix(t *testing.T) {
 	t.Parallel()
 
@@ -249,11 +249,14 @@ func TestLoadPriorConfigAddressesAppliesModulePrefix(t *testing.T) {
 				fixtureStatePayload("module.vpc.aws_instance.web", "aws_instance", "web", `{}`),
 			)}},
 			// 7. prior-config walk: prior gen had the resource at the callee path.
-			//    The prefix map (built from CURRENT terraform_modules in step 1)
-			//    must apply to this row too, so the prior-config address set
-			//    contains "module.vpc.aws_instance.web" — matching the state row.
-			{rows: [][]any{{fixturePriorConfigAddressesArray(
+			{rows: [][]any{{"gen-a1", fixturePriorConfigAddressesArray(
 				fixtureConfigParserRowAtPath("aws_instance", "web", "modules/vpc/main.tf"),
+			)}}},
+			// 8. terraform_modules PRIOR gen: the surrounding module call still
+			//    existed, so the prior-config address set contains
+			//    "module.vpc.aws_instance.web" and matches the state row.
+			{rows: [][]any{{fixtureModuleCallsArray(
+				fixtureModuleCallRow("vpc", "./modules/vpc", "main.tf"),
 			)}}},
 		},
 	}
@@ -270,5 +273,77 @@ func TestLoadPriorConfigAddressesAppliesModulePrefix(t *testing.T) {
 	}
 	if !rows[0].State.PreviouslyDeclaredInConfig {
 		t.Fatalf("row.State.PreviouslyDeclaredInConfig = false, want true (prior-config walk must apply module-prefix map)")
+	}
+}
+
+func TestLoadPriorConfigAddressesUsesPriorGenerationModulePrefixOnRename(t *testing.T) {
+	t.Parallel()
+
+	// Regression for issue #201. The current repo generation renamed the
+	// module block from "vpc" to "network" while the same callee path still
+	// contains aws_instance.web. State still uses Terraform's prior canonical
+	// address, module.vpc.aws_instance.web. The prior-config walk must project
+	// the prior resource with the prior generation's module name; applying the
+	// current generation's "network" prefix would leave the state-only row
+	// indistinguishable from an operator import.
+	anchor := tfstatebackend.CommitAnchor{
+		RepoID: "repo-a", ScopeID: "repository:repo-a", CommitID: "gen-a2",
+	}
+	stateScopeID := "state_snapshot:s3:hash-xyz"
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			// 1. terraform_modules CURRENT gen: module was renamed.
+			{rows: [][]any{{fixtureModuleCallsArray(
+				fixtureModuleCallRow("network", "./modules/vpc", "main.tf"),
+			)}}},
+			// 2. config-side CURRENT gen: same callee resource now projects to
+			//    module.network.aws_instance.web.
+			{rows: [][]any{{fixtureConfigResourcesArray(
+				fixtureConfigParserRowAtPath("aws_instance", "web", "modules/vpc/main.tf"),
+			)}}},
+			// 3. snapshot serial=5.
+			{rows: [][]any{fixtureSnapshotRow("lineage-1", 5, "gen-state-current")}},
+			// 4. current state-resource: Terraform state still carries the old
+			//    module address.
+			{rows: [][]any{fixtureStateResourceRow(
+				"module.vpc.aws_instance.web",
+				fixtureStatePayload("module.vpc.aws_instance.web", "aws_instance", "web", `{}`),
+			)}},
+			// 5. prior snapshot.
+			{rows: [][]any{fixtureSnapshotRow("lineage-1", 4, "gen-state-prior")}},
+			// 6. prior state-resource: same old address.
+			{rows: [][]any{fixtureStateResourceRow(
+				"module.vpc.aws_instance.web",
+				fixtureStatePayload("module.vpc.aws_instance.web", "aws_instance", "web", `{}`),
+			)}},
+			// 7. prior-config walk: prior gen had the same callee resource, but
+			//    it must be interpreted through prior module name "vpc", not the
+			//    current module name "network".
+			{rows: [][]any{{"gen-a1", fixturePriorConfigAddressesArray(
+				fixtureConfigParserRowAtPath("aws_instance", "web", "modules/vpc/main.tf"),
+			)}}},
+			// 8. terraform_modules PRIOR gen: old module name.
+			{rows: [][]any{{fixtureModuleCallsArray(
+				fixtureModuleCallRow("vpc", "./modules/vpc", "main.tf"),
+			)}}},
+		},
+	}
+	loader := PostgresDriftEvidenceLoader{DB: db, PriorConfigDepth: 10}
+
+	rows, err := loader.LoadDriftEvidence(context.Background(), stateScopeID, anchor)
+	if err != nil {
+		t.Fatalf("LoadDriftEvidence() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 2; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	byAddress := map[string]bool{}
+	for _, row := range rows {
+		if row.State != nil {
+			byAddress[row.Address] = row.State.PreviouslyDeclaredInConfig
+		}
+	}
+	if !byAddress["module.vpc.aws_instance.web"] {
+		t.Fatalf("module.vpc state row was not marked previously declared; prior-generation module prefix was not used")
 	}
 }

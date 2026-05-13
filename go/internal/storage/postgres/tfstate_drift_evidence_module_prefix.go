@@ -60,6 +60,7 @@ const (
 	unresolvedReasonCrossRepoLocal   = "cross_repo_local"
 	unresolvedReasonCycleDetected    = "cycle_detected"
 	unresolvedReasonDepthExceeded    = "depth_exceeded"
+	unresolvedReasonModuleRenamed    = "module_renamed"
 )
 
 // unresolvedRecorder reports unresolved module calls so the loader can drive

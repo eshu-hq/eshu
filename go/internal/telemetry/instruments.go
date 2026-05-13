@@ -112,12 +112,14 @@ type Instruments struct {
 	// from the closed enum documented at
 	// MetricDimensionDriftUnresolvedModuleReason: external_registry,
 	// external_git, external_archive, cross_repo_local, cycle_detected,
-	// depth_exceeded. State-side resources whose canonical address would
-	// have been prefixed by the unresolved call surface as added_in_state
-	// (the existing classifier fallback) — the counter lets operators size
-	// how much config the v1 module-aware join is missing per intent.
+	// depth_exceeded, module_renamed. State-side resources whose canonical
+	// address would have been prefixed by the unresolved call surface as
+	// added_in_state (the existing classifier fallback); module_renamed
+	// increments when prior-config projection sees a prior generation module
+	// prefix differ from the current generation prefix for the same callee
+	// path.
 	//
-	// Cardinality is bounded by the six closed-enum reasons. Pairing this
+	// Cardinality is bounded by the seven closed-enum reasons. Pairing this
 	// with CorrelationDriftDetected{drift_kind="added_in_state"} lets
 	// operators distinguish "real operator-imported resource" from
 	// "callee module out of scope for v1 join."

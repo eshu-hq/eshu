@@ -347,12 +347,15 @@ compatibility handoff cannot complete.
   live under a `module {}` callee directory. Resources whose path matches a
   callee inherit the canonical
   `module.<name>[.module.<name>...]` prefix so their config-side address
-  matches the state-side `terraform state list` shape. The same prefix map
-  feeds the prior-config walk through `collectPriorConfigAddresses` so
-  module-nested `removed_from_config` detection stays alive. Local-source
-  modules resolve; registry, git, archive, and cross-repo sources fall back
-  to `added_in_state` and increment
-  `eshu_dp_drift_unresolved_module_calls_total{reason}`.
+  matches the state-side `terraform state list` shape. The prior-config walk
+  builds a prefix map per prior generation before calling
+  `collectPriorConfigAddresses` so module-nested `removed_from_config`
+  detection stays alive even when a module block is renamed across
+  generations. Local-source modules resolve; registry, git, archive, and
+  cross-repo sources fall back to `added_in_state` and increment
+  `eshu_dp_drift_unresolved_module_calls_total{reason}`. Module rename
+  detection increments the same counter with `reason="module_renamed"` once
+  per prior generation and callee path.
   Row construction is split across four sibling files:
   - `configRowFromParserEntry` (`tfstate_drift_evidence_config_row.go:22`) —
     maps one HCL-parser `terraform_resources` JSON entry to a
@@ -381,7 +384,8 @@ compatibility handoff cannot complete.
     classification as of issue #168. Addresses outside the depth window keep
     `PreviouslyDeclaredInConfig=false` and surface as `added_in_state`. The
     walk is bounded by `listPriorConfigAddressesQuery`'s `LIMIT` so cost
-    stays proportional to depth.
+    stays proportional to depth. It builds one prior-generation module-prefix
+    map per generation returned by the bounded walk.
   - `buildModulePrefixMap` (`tfstate_drift_evidence_module_prefix.go`) —
     walks `terraform_modules` facts in the same `(scope_id, generation_id)`
     and returns a callee-directory to module-prefix map keyed by

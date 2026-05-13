@@ -21,8 +21,9 @@
 // the DriftUnresolvedModuleCalls counter and the
 // MetricDimensionDriftUnresolvedModuleReason dimension here so the closed
 // enum of unresolvable-module reasons (external_registry, external_git,
-// external_archive, cross_repo_local, cycle_detected, depth_exceeded) stays
-// anchored to the contract surface. The streaming-nested-walker work in
+// external_archive, cross_repo_local, cycle_detected, depth_exceeded,
+// module_renamed) stays anchored to the contract surface. The
+// streaming-nested-walker work in
 // ADR 2026-05-12-tfstate-parser-composite-capture-for-schema-known-paths
 // registers the DriftSchemaUnknownComposite counter and the
 // MetricDimensionResourceType and MetricDimensionCompositeSkipReason

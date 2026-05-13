@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -38,16 +39,12 @@ func (l PostgresDriftEvidenceLoader) effectivePriorConfigDepth() int {
 // conservative outside-window policy keeps the cost bounded and avoids
 // promoting truly-ancient resources whose removal was already actioned.
 //
-// `prefixMap` is the module-prefix map built from the CURRENT generation's
-// terraform_modules facts (issue #169 / ADR
-// 2026-05-11-module-aware-drift-joining). Applying it to prior-config
-// entries keeps removed_from_config alive for module-nested addresses: a
-// resource block deleted in the current generation while the surrounding
-// module call still exists must still match the state-side prefixed
-// address. The current-generation map is the right one because the
-// dominant removed_from_config shape is "resource block deleted, module
-// call preserved" — a module rename across generations remains a v1
-// limitation tracked as a follow-up issue.
+// The loader builds a module-prefix map per prior generation before
+// projecting that generation's terraform_resources rows. This preserves
+// removed_from_config for the dominant "resource block deleted, module call
+// preserved" shape and avoids issue #201's rename false-pair, where current
+// module name "network" would otherwise be applied to prior rows that lived
+// under prior module name "vpc".
 //
 // 1→N projection: when the prefix map records multiple callers for the
 // same callee (the ADR's "two `module {}` blocks pointing at the same
@@ -65,8 +62,12 @@ func (l PostgresDriftEvidenceLoader) loadPriorConfigAddresses(
 	ctx context.Context,
 	scopeID string,
 	currentGenerationID string,
-	prefixMap modulePrefixMap,
+	currentPrefixMap modulePrefixMap,
+	recorder unresolvedRecorder,
 ) (map[string]struct{}, error) {
+	if recorder == nil {
+		recorder = nopUnresolvedRecorder{}
+	}
 	depth := l.effectivePriorConfigDepth()
 	rows, err := l.DB.QueryContext(ctx, listPriorConfigAddressesQuery, scopeID, currentGenerationID, depth)
 	if err != nil {
@@ -74,22 +75,58 @@ func (l PostgresDriftEvidenceLoader) loadPriorConfigAddresses(
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := map[string]struct{}{}
+	type priorConfigGroup struct {
+		generationID string
+		entries      []map[string]any
+	}
+	groupsByGeneration := map[string]*priorConfigGroup{}
+	var generationOrder []string
 	for rows.Next() {
+		var generationID string
 		var raw []byte
-		if err := rows.Scan(&raw); err != nil {
+		if err := rows.Scan(&generationID, &raw); err != nil {
 			return nil, fmt.Errorf("scan prior config terraform_resources: %w", err)
 		}
 		entries, err := decodeJSONArray(raw, "prior_terraform_resources")
 		if err != nil {
 			return nil, err
 		}
-		for _, entry := range entries {
-			collectPriorConfigAddresses(entry, prefixMap, out)
+		generationID = strings.TrimSpace(generationID)
+		if generationID == "" {
+			continue
 		}
+		group, ok := groupsByGeneration[generationID]
+		if !ok {
+			group = &priorConfigGroup{generationID: generationID}
+			groupsByGeneration[generationID] = group
+			generationOrder = append(generationOrder, generationID)
+		}
+		group.entries = append(group.entries, entries...)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate prior config terraform_resources: %w", err)
+	}
+
+	out := map[string]struct{}{}
+	seenModuleRename := map[string]struct{}{}
+	for _, generationID := range generationOrder {
+		group := groupsByGeneration[generationID]
+		priorPrefixMap, err := l.buildModulePrefixMap(ctx, scopeID, group.generationID, recorder)
+		if err != nil {
+			return nil, fmt.Errorf("build prior config module prefix map for generation %q: %w", group.generationID, err)
+		}
+		for _, entry := range group.entries {
+			recordModuleRenameIfPrefixChanged(
+				ctx,
+				recorder,
+				group.generationID,
+				entry,
+				currentPrefixMap,
+				priorPrefixMap,
+				seenModuleRename,
+			)
+			collectPriorConfigAddresses(entry, priorPrefixMap, out)
+		}
 	}
 	return out, nil
 }
@@ -121,4 +158,59 @@ func collectPriorConfigAddresses(
 		}
 		out[row.Address] = struct{}{}
 	}
+}
+
+// recordModuleRenameIfPrefixChanged emits one module_renamed signal per
+// prior-generation file path whose prior module prefix set differs from the
+// current generation's prefix set. The signal is intentionally path-scoped,
+// not resource-scoped, so a module containing many resources does not inflate
+// the counter.
+func recordModuleRenameIfPrefixChanged(
+	ctx context.Context,
+	recorder unresolvedRecorder,
+	generationID string,
+	entry map[string]any,
+	currentPrefixMap modulePrefixMap,
+	priorPrefixMap modulePrefixMap,
+	seen map[string]struct{},
+) {
+	entryPath := strings.TrimSpace(coerceJSONString(entry["path"]))
+	currentPrefixes := currentPrefixMap.modulePrefixForPath(entryPath)
+	priorPrefixes := priorPrefixMap.modulePrefixForPath(entryPath)
+	if len(currentPrefixes) == 0 || len(priorPrefixes) == 0 {
+		return
+	}
+	if samePrefixSet(currentPrefixes, priorPrefixes) {
+		return
+	}
+	key := generationID + "\x00" + entryPath + "\x00" +
+		canonicalPrefixSetKey(currentPrefixes) + "\x00" +
+		canonicalPrefixSetKey(priorPrefixes)
+	if _, ok := seen[key]; ok {
+		return
+	}
+	seen[key] = struct{}{}
+	recorder.record(ctx, unresolvedReasonModuleRenamed)
+}
+
+func samePrefixSet(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	leftCopy := append([]string(nil), left...)
+	rightCopy := append([]string(nil), right...)
+	sort.Strings(leftCopy)
+	sort.Strings(rightCopy)
+	for i := range leftCopy {
+		if leftCopy[i] != rightCopy[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func canonicalPrefixSetKey(prefixes []string) string {
+	copyPrefixes := append([]string(nil), prefixes...)
+	sort.Strings(copyPrefixes)
+	return strings.Join(copyPrefixes, ",")
 }

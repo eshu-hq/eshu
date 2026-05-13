@@ -1,0 +1,327 @@
+# docker-compose.tier2-tfstate-v25.yaml
+#
+# Overlay for scripts/verify_tfstate_drift_compose_tier2_v25.sh (issue #209).
+# Layers on top of docker-compose.yaml (NOT on top of the v1 Tier-2 overlay)
+# to bring up the same set of services as Tier-2 v1 plus a dual-instance
+# collector configuration that the v2.5 verifier drives in two passes.
+#
+# Key differences from docker-compose.tier2-tfstate.yaml:
+#
+#   * Fixture mount points use the v25/repos_gen{1,2} trees. The verifier
+#     swaps which generation is active between passes by changing the
+#     ESHU_TIER2_V25_REPOS_DIR env var and recreating the affected
+#     containers. The default ESHU_TIER2_V25_REPOS_DIR=./tests/fixtures/
+#     tfstate_drift_tier2/v25/repos_gen1 binds gen-1 at compose `up`.
+#   * ESHU_COLLECTOR_INSTANCES_JSON declares TWO terraform_state collector
+#     instances:
+#       - tier2-v25-terraform-state-gen1 (enabled at startup; serves Pass 1)
+#       - tier2-v25-terraform-state-gen2 (claims_enabled=false at startup;
+#         the verifier flips this on for Pass 2 via env overlay)
+#     Two instances bypass the per-RunID idempotency at
+#     `go/internal/coordinator/tfstate_scheduler.go:129` so Pass 2 plans
+#     fresh work items against the same backend candidates the gen-2
+#     collector should read.
+#   * Two minio-init one-shot services: minio-init-gen1 runs at compose
+#     `up`; minio-init-gen2 is `profiles: ["gen2"]` and the verifier
+#     activates it via `docker compose --profile gen2 run --rm
+#     minio-init-gen2` between collector passes.
+#   * MinIO network aliases include eshu-drift-c.minio and
+#     eshu-drift-f.minio so the AWS SDK virtual-hosted addressing resolves
+#     for the two new buckets.
+#
+# COMPOSE_PROJECT_NAME conventionally distinguishes this overlay from Tier-1
+# and Tier-2 v1; the verifier sets eshu-tfstate-drift-tier2-v25-209-$$.
+
+x-collector-instances-v25: &tier2_v25_collector_instances
+  # local_repos entries are canonical repository IDs the Git collector emits
+  # for filesystem-mode repos. The canonical ID is
+  # `repository:r_<first 8 hex chars of sha1(localPath)>` where localPath is
+  # the in-container mount path. Recompute these whenever fixture folder
+  # names or the container mount root change:
+  #
+  #   printf '/data/repos/drift-c-tf-config' | sha1sum | head -c8
+  #   printf '/data/repos/drift-f-tf-config' | sha1sum | head -c8
+  #
+  # The values below are placeholders; the v2.5 verifier MUST recompute and
+  # substitute the real hashes before exporting this env var. See
+  # scripts/verify_tfstate_drift_compose_tier2_v25.sh for the substitution.
+  ESHU_COLLECTOR_INSTANCES_JSON: |
+    [
+      {
+        "instance_id": "tier2-v25-terraform-state-gen1",
+        "collector_kind": "terraform_state",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": ${ESHU_TIER2_V25_GEN1_CLAIMS:-true},
+        "bootstrap": true,
+        "configuration": {
+          "discovery": {
+            "graph": true,
+            "local_repos": [
+              "${ESHU_TIER2_V25_REPO_C_ID:-repository:r_PLACEHOLDC}",
+              "${ESHU_TIER2_V25_REPO_F_ID:-repository:r_PLACEHOLDF}"
+            ]
+          }
+        }
+      },
+      {
+        "instance_id": "tier2-v25-terraform-state-gen2",
+        "collector_kind": "terraform_state",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": ${ESHU_TIER2_V25_GEN2_CLAIMS:-false},
+        "bootstrap": true,
+        "configuration": {
+          "discovery": {
+            "graph": true,
+            "local_repos": [
+              "${ESHU_TIER2_V25_REPO_C_ID:-repository:r_PLACEHOLDC}",
+              "${ESHU_TIER2_V25_REPO_F_ID:-repository:r_PLACEHOLDF}"
+            ]
+          }
+        }
+      }
+    ]
+
+services:
+  # Honor a caller-controlled pull policy so a locally-built NornicDB image
+  # (e.g. for testing an upstream commit or a maintainer patch) is used
+  # without Docker Compose trying to pull a non-existent registry tag. When
+  # NORNICDB_PULL_POLICY is unset, compose v2 falls back to its default
+  # "missing" semantics — pull only when the tagged image isn't already in
+  # the local daemon — so the published timothyswt/nornicdb-amd64-cpu image
+  # still works without operator intervention. Set NORNICDB_PULL_POLICY=never
+  # alongside NORNICDB_IMAGE=<local-tag> to pin a locally-built image.
+  nornicdb:
+    pull_policy: ${NORNICDB_PULL_POLICY:-missing}
+
+  bootstrap-index:
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ${ESHU_TIER2_V25_REPOS_DIR:-./tests/fixtures/tfstate_drift_tier2/v25/repos_gen1}:/fixtures:ro
+      - ${ESHU_ESHUIGNORE_PATH:-/dev/null}:/tmp/eshuignore-source:ro
+
+  ingester:
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ${ESHU_TIER2_V25_REPOS_DIR:-./tests/fixtures/tfstate_drift_tier2/v25/repos_gen1}:/fixtures:ro
+      - ${ESHU_ESHUIGNORE_PATH:-/dev/null}:/tmp/eshuignore-source:ro
+
+  resolution-engine:
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ${ESHU_TIER2_V25_REPOS_DIR:-./tests/fixtures/tfstate_drift_tier2/v25/repos_gen1}:/fixtures:ro
+
+  eshu:
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./:/app-src
+      - ${ESHU_TIER2_V25_REPOS_DIR:-./tests/fixtures/tfstate_drift_tier2/v25/repos_gen1}:/fixtures:ro
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 5s
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_DOMAIN: minio
+    ports:
+      - "${MINIO_PORT:-39000}:9000"
+      - "${MINIO_CONSOLE_PORT:-39001}:9001"
+    networks:
+      default:
+        aliases:
+          - eshu-drift-c.minio
+          - eshu-drift-f.minio
+
+  minio-init-gen1:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      STATE_DIR: /state
+      no_proxy: "*"
+      NO_PROXY: "*"
+      HTTPS_PROXY: ""
+      https_proxy: ""
+      HTTP_PROXY: ""
+      http_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+    volumes:
+      - ./tests/fixtures/tfstate_drift_tier2/v25/state_gen1:/state:ro
+      - ./tests/fixtures/tfstate_drift_tier2/v25/minio-init-gen1.sh:/init.sh:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
+
+  minio-init-gen2:
+    # profiles gate so this one-shot does NOT run at compose `up`. The v2.5
+    # verifier activates it between collector passes with:
+    #   docker compose --profile gen2 run --rm minio-init-gen2
+    profiles: ["gen2"]
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      STATE_DIR: /state
+      no_proxy: "*"
+      NO_PROXY: "*"
+      HTTPS_PROXY: ""
+      https_proxy: ""
+      HTTP_PROXY: ""
+      http_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+    volumes:
+      - ./tests/fixtures/tfstate_drift_tier2/v25/state_gen2:/state:ro
+      - ./tests/fixtures/tfstate_drift_tier2/v25/minio-init-gen2.sh:/init.sh:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
+
+  workflow-coordinator:
+    profiles: []
+    ports:
+      - "${ESHU_WORKFLOW_COORDINATOR_HTTP_PORT:-38082}:8080"
+      - "${ESHU_WORKFLOW_COORDINATOR_METRICS_PORT:-31469}:9464"
+    environment:
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: active
+      ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED: "true"
+      <<: *tier2_v25_collector_instances
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  collector-terraform-state-gen1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-terraform-state"]
+    ports:
+      - "${ESHU_COLLECTOR_TFSTATE_GEN1_METRICS_PORT:-31470}:9464"
+    environment:
+      ESHU_GRAPH_BACKEND: nornicdb
+      DEFAULT_DATABASE: nornic
+      ESHU_NEO4J_DATABASE: nornic
+      NEO4J_DATABASE: nornic
+      NEO4J_URI: bolt://nornicdb:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_TFSTATE_COLLECTOR_INSTANCE_ID: tier2-v25-terraform-state-gen1
+      ESHU_TFSTATE_COLLECTOR_OWNER_ID: tier2-v25-worker-gen1
+      ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL: 2s
+      ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL: 60s
+      ESHU_TFSTATE_COLLECTOR_HEARTBEAT: 10s
+      ESHU_TFSTATE_REDACTION_KEY: tier2-v25-tfstate-drift-redaction-key-32b
+      ESHU_TFSTATE_REDACTION_RULESET_VERSION: tier2-v25-tfstate-schema-v1
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL_S3: http://minio:9000
+      no_proxy: "*"
+      NO_PROXY: "*"
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+      <<: *tier2_v25_collector_instances
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      minio-init-gen1:
+        condition: service_completed_successfully
+
+  collector-terraform-state-gen2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-terraform-state"]
+    ports:
+      - "${ESHU_COLLECTOR_TFSTATE_GEN2_METRICS_PORT:-31471}:9464"
+    environment:
+      ESHU_GRAPH_BACKEND: nornicdb
+      DEFAULT_DATABASE: nornic
+      ESHU_NEO4J_DATABASE: nornic
+      NEO4J_DATABASE: nornic
+      NEO4J_URI: bolt://nornicdb:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_TFSTATE_COLLECTOR_INSTANCE_ID: tier2-v25-terraform-state-gen2
+      ESHU_TFSTATE_COLLECTOR_OWNER_ID: tier2-v25-worker-gen2
+      ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL: 2s
+      ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL: 60s
+      ESHU_TFSTATE_COLLECTOR_HEARTBEAT: 10s
+      ESHU_TFSTATE_REDACTION_KEY: tier2-v25-tfstate-drift-redaction-key-32b
+      ESHU_TFSTATE_REDACTION_RULESET_VERSION: tier2-v25-tfstate-schema-v1
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL_S3: http://minio:9000
+      no_proxy: "*"
+      NO_PROXY: "*"
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+      <<: *tier2_v25_collector_instances
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      minio-init-gen1:
+        condition: service_completed_successfully

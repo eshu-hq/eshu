@@ -107,6 +107,7 @@ tier2_wait_for_terraform_state_work_items() {
 # as immediate failures because they will never drain on their own.
 tier2_wait_for_terraform_state_work_drained() {
 	local timeout_seconds="${1:-180}"
+	local minimum_completed="${2:-3}"
 	local deadline=$((SECONDS + timeout_seconds))
 	local active="" terminal="" completed=""
 	while ((SECONDS < deadline)); do
@@ -137,7 +138,7 @@ tier2_wait_for_terraform_state_work_drained() {
 			"${COMPOSE_CMD[@]}" logs --tail=200 collector-terraform-state >&2 || true
 			return 1
 		fi
-		if [[ "$active" == "0" && -n "$completed" && "$completed" -ge 3 ]]; then
+		if [[ "$active" == "0" && -n "$completed" && "$completed" -ge "$minimum_completed" ]]; then
 			echo "  workflow_work_items completed=$completed active=$active terminal=$terminal"
 			return 0
 		fi

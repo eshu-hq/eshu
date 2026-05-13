@@ -17,6 +17,39 @@ distribution, and effect on the surrounding system. Optimize in this order:
 correctness, then query selectivity and write safety, then backend-specific
 performance.
 
+## Mandatory Pre-Implementation Discipline
+
+Before designing or merging a Cypher statement that lives in a hot path
+(canonical writer, reducer projection, query handler, materialization job),
+both of these must be answered explicitly:
+
+1. **Research first.** Read the relevant backend behavior in source before
+   writing the query. For Neo4j: the Cypher manual for the pinned version
+   and the changelog up to the latest release. For NornicDB: the relevant
+   files under `pkg/cypher/` and `pkg/storage/` in the Eshu fork at
+   `/Users/asanabria/os-repos/NornicDB-New` (NOT the older `NornicDB`
+   sibling). Always read
+   `docs/docs/reference/nornicdb-pitfalls.md` for known traps. If your
+   query uses a pattern you haven't validated against the pinned binary,
+   that's research debt — close it with a focused test or `curl`-against-
+   Bolt-HTTP probe in an isolated, uniquely-named Compose stack.
+
+2. **Benchmark first.** Capture a baseline before and an after measurement
+   against the pinned backend binary on the same inputs. Preferred shapes:
+   focused Go benchmark (`*_bench_test.go` against the writer), Compose
+   stage timing (structured-log `duration_seconds` from small/medium/large
+   fixtures), or a manual reproducer with wall time and result-row count.
+   Record backend+version, schema state (`eshu-bootstrap-data-plane` MUST
+   precede indexing for production-profile evidence), input cardinality at
+   every anchor, index/constraint state, and plan or statement summary.
+   Unmeasured Cypher in a hot path is a regression-shaped surprise.
+
+For the long-form workflow, backend research locations, anti-patterns, and
+the measurement protocol, see
+`docs/docs/reference/cypher-performance.md`. Pure correctness fixes can
+trade a full bench for a "no measurable regression" check on the same input
+shape, but must state that decision explicitly in the PR.
+
 ## Workflow
 
 1. Understand the model first.

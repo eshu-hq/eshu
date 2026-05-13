@@ -164,7 +164,7 @@ func (l PostgresDriftEvidenceLoader) LoadDriftEvidence(
 
 	var priorConfigAddresses map[string]struct{}
 	if hasStateOnlyAddress(configByAddress, stateByAddress) {
-		priorConfigAddresses, err = l.loadPriorConfigAddresses(ctx, configScopeID, configGenerationID, prefixMap)
+		priorConfigAddresses, err = l.loadPriorConfigAddresses(ctx, configScopeID, configGenerationID, prefixMap, recorder)
 		if err != nil {
 			return nil, err
 		}

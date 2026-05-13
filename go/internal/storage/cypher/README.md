@@ -306,15 +306,26 @@ adapter seam.
   `repository` phase runs the normal id-based MERGE. Keeping this in a separate
   `PhaseGroupExecutor` phase lets NornicDB validate the unique `path` after the
   delete commits and before the new id owns that path.
-- `RetryingExecutor.ExecuteGroup` does not retry; the inner `ExecuteWrite`
-  session call already handles transient errors for the group path
-  (`retrying_executor.go:87`).
+- `RetryingExecutor.ExecuteGroup` retries on commit-time UNIQUE conflicts
+  when every statement in the group is MERGE-shaped, sharing the same
+  `runWithRetry` loop as `Execute` (`retrying_executor.go:52`). Driver-
+  level `session.ExecuteWrite` continues to handle Neo.TransientError.*
+  codes for the group path; the Eshu retry layer adds coverage for
+  Neo.ClientError.Transaction.TransactionCommitFailed when the message
+  classifies as a NornicDB commit-time UNIQUE conflict. Mixed groups
+  containing non-MERGE statements are not retried, preserving
+  idempotency safety.
 - `ExecuteOnlyExecutor` intentionally hides `GroupExecutor`. Use it when the
   caller must not hold a large atomic transaction (e.g., during source-local
   ingestion that runs concurrently with canonical projection).
 - `isNornicDBMergeUniqueConflict` treats commit-time unique constraint
   violations on MERGE Cypher as retryable because a concurrent writer may have
-  created the intended node between match and commit (`retrying_executor.go:129`).
+  created the intended node between match and commit
+  (`retrying_executor.go:212`). `isNornicDBCommitTimeUniqueConflict`
+  matches both the older `failed to commit implicit transaction:...`
+  wrapping and the v1.0.45+ `commit failed: constraint violation:...` /
+  `TransactionCommitFailed` wrapping so the classifier stays current
+  across pinned binaries (`retrying_executor.go:227`).
 - Backend dialect differences (Cypher syntax, transaction shape, constraint
   behavior) belong in documented seams here or in `cmd/` wiring. Do not add
   product-specific branches in callers, and do not create a separate writer

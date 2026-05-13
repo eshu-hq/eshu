@@ -119,6 +119,14 @@ gauge when a shared-acceptance observer is available.
 | `WebhookTriggerDecisions` | `eshu_dp_webhook_trigger_decisions_total` |
 | `WebhookStoreOperations` | `eshu_dp_webhook_store_operations_total` |
 
+`DriftUnresolvedModuleCalls` uses
+`MetricDimensionDriftUnresolvedModuleReason` with the bounded reasons
+`external_registry`, `external_git`, `external_archive`, `cross_repo_local`,
+`cycle_detected`, `depth_exceeded`, and `module_renamed`. The first six
+classify module calls the drift loader cannot resolve locally; `module_renamed`
+classifies prior-config projection where the same callee path has different
+module prefixes across generations.
+
 #### Histograms (Float64 unless noted)
 
 | Field | Metric name | Custom buckets |
