@@ -79,8 +79,8 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFiles(
 	commitSHA string,
 	isDependency bool,
 	goPackageTargets parser.GoPackageSemanticRoots,
-) ([]shape.File, []map[string]any, error) {
-	if shapeFiles, parsedFiles, used, err := s.trySCIPSnapshot(
+) ([]shape.File, []map[string]any, []parseLanguageSummary, error) {
+	if shapeFiles, parsedFiles, languageSummary, used, err := s.trySCIPSnapshot(
 		ctx,
 		repoPath,
 		fileSet,
@@ -89,9 +89,9 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFiles(
 		isDependency,
 		goPackageTargets,
 	); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	} else if used {
-		return shapeFiles, parsedFiles, nil
+		return shapeFiles, parsedFiles, languageSummary, nil
 	}
 
 	if s.ParseWorkers <= 1 {
@@ -108,12 +108,13 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 	commitSHA string,
 	isDependency bool,
 	goPackageTargets parser.GoPackageSemanticRoots,
-) ([]shape.File, []map[string]any, error) {
+) ([]shape.File, []map[string]any, []parseLanguageSummary, error) {
 	shapeFiles := make([]shape.File, 0, len(fileSet.Files))
 	parsedFiles := make([]map[string]any, 0, len(fileSet.Files))
+	languageStats := newParseLanguageStats()
 	for _, filePath := range fileSet.Files {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		startTime := time.Now()
@@ -155,9 +156,10 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 		relativePath = filepath.ToSlash(filepath.Clean(relativePath))
 		shapeFiles = append(shapeFiles, shapeFileFromParsed(parsed, relativePath, string(body), commitSHA))
 		parsedFiles = append(parsedFiles, parsed)
+		language := snapshotPayloadString(parsed, "language", "lang")
+		languageStats.record(language, duration)
 
 		if s.Instruments != nil {
-			language := snapshotPayloadString(parsed, "language", "lang")
 			s.Instruments.FileParseDuration.Record(ctx, duration, metric.WithAttributes(
 				attribute.String("language", language),
 			))
@@ -166,7 +168,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 			))
 		}
 	}
-	return shapeFiles, parsedFiles, nil
+	return shapeFiles, parsedFiles, languageStats.summaries(), nil
 }
 
 func fileParseDurationSeconds(startedAt time.Time) float64 {
@@ -177,6 +179,8 @@ type parseResult struct {
 	index     int
 	shapeFile shape.File
 	parsed    map[string]any
+	language  string
+	duration  float64
 	skipped   bool
 }
 
@@ -188,10 +192,10 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 	commitSHA string,
 	isDependency bool,
 	goPackageTargets parser.GoPackageSemanticRoots,
-) ([]shape.File, []map[string]any, error) {
+) ([]shape.File, []map[string]any, []parseLanguageSummary, error) {
 	fileCount := len(fileSet.Files)
 	if fileCount == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	// Create cancellable context for workers (only cancel on context error, not parse errors)
@@ -256,9 +260,9 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 					continue
 				}
 				relativePath = filepath.ToSlash(filepath.Clean(relativePath))
+				language := snapshotPayloadString(parsed, "language", "lang")
 
 				if s.Instruments != nil {
-					language := snapshotPayloadString(parsed, "language", "lang")
 					s.Instruments.FileParseDuration.Record(workerCtx, duration, metric.WithAttributes(
 						attribute.String("language", language),
 					))
@@ -271,6 +275,8 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 					index:     job.index,
 					shapeFile: shapeFileFromParsed(parsed, relativePath, string(body), commitSHA),
 					parsed:    parsed,
+					language:  language,
+					duration:  duration,
 					skipped:   false,
 				}
 			}
@@ -297,7 +303,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 
 	// Check for context error
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Sort by original index to preserve deterministic order
@@ -308,14 +314,16 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 	// Extract successful results in original order
 	shapeFiles := make([]shape.File, 0, fileCount)
 	parsedFiles := make([]map[string]any, 0, fileCount)
+	languageStats := newParseLanguageStats()
 	for _, result := range resultSlice {
 		if !result.skipped {
 			shapeFiles = append(shapeFiles, result.shapeFile)
 			parsedFiles = append(parsedFiles, result.parsed)
+			languageStats.record(result.language, result.duration)
 		}
 	}
 
-	return shapeFiles, parsedFiles, nil
+	return shapeFiles, parsedFiles, languageStats.summaries(), nil
 }
 
 func (s NativeRepositorySnapshotter) trySCIPSnapshot(
@@ -326,24 +334,24 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 	commitSHA string,
 	isDependency bool,
 	goPackageTargets parser.GoPackageSemanticRoots,
-) ([]shape.File, []map[string]any, bool, error) {
+) ([]shape.File, []map[string]any, []parseLanguageSummary, bool, error) {
 	config := s.scipConfig()
 	if !config.Enabled {
-		return nil, nil, false, nil
+		return nil, nil, nil, false, nil
 	}
 
 	language := parser.DetectSCIPProjectLanguage(fileSet.Files, config.Languages)
 	if language == "" {
-		return nil, nil, false, nil
+		return nil, nil, nil, false, nil
 	}
 	indexer := s.scipIndexer(config)
 	if !indexer.IsAvailable(language) {
-		return nil, nil, false, nil
+		return nil, nil, nil, false, nil
 	}
 
 	outputDir, err := os.MkdirTemp("", "eshu-scip-*")
 	if err != nil {
-		return nil, nil, false, err
+		return nil, nil, nil, false, err
 	}
 	defer func() {
 		_ = os.RemoveAll(outputDir)
@@ -351,11 +359,11 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 
 	indexPath, err := indexer.Run(ctx, repoPath, language, outputDir)
 	if err != nil {
-		return nil, nil, false, nil
+		return nil, nil, nil, false, nil
 	}
 	result, err := s.scipParser(config).Parse(indexPath, repoPath)
 	if err != nil {
-		return nil, nil, false, nil
+		return nil, nil, nil, false, nil
 	}
 
 	selectedFiles := make(map[string]struct{}, len(fileSet.Files))
@@ -372,36 +380,40 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 
 	shapeFiles := make([]shape.File, 0, len(orderedFiles))
 	parsedFiles := make([]map[string]any, 0, len(orderedFiles))
+	languageStats := newParseLanguageStats()
 	for _, filePath := range orderedFiles {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, false, err
+			return nil, nil, nil, false, err
 		}
 
 		parsed := clonePayload(result.Files[filePath])
+		startTime := time.Now()
 		supplement, err := engine.ParsePath(repoPath, filePath, isDependency, snapshotParserOptions(filePath, goPackageTargets))
+		duration := fileParseDurationSeconds(startTime)
 		if err != nil {
-			return nil, nil, false, nil
+			return nil, nil, nil, false, nil
 		}
 		mergeSCIPSupplement(parsed, supplement)
 		parsed["repo_path"] = repoPath
 
 		body, err := os.ReadFile(filePath)
 		if err != nil {
-			return nil, nil, false, nil
+			return nil, nil, nil, false, nil
 		}
 		relativePath, err := filepath.Rel(repoPath, filePath)
 		if err != nil {
-			return nil, nil, false, err
+			return nil, nil, nil, false, err
 		}
 		relativePath = filepath.ToSlash(filepath.Clean(relativePath))
 		shapeFiles = append(shapeFiles, shapeFileFromParsed(parsed, relativePath, string(body), commitSHA))
 		parsedFiles = append(parsedFiles, parsed)
+		languageStats.record(snapshotPayloadString(parsed, "language", "lang"), duration)
 	}
 
 	if len(parsedFiles) == 0 {
-		return nil, nil, false, nil
+		return nil, nil, nil, false, nil
 	}
-	return shapeFiles, parsedFiles, true, nil
+	return shapeFiles, parsedFiles, languageStats.summaries(), true, nil
 }
 
 func mergeSCIPSupplement(parsed map[string]any, supplement map[string]any) {

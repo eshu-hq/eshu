@@ -124,6 +124,10 @@ func ImportedDirectMethodCallRoots(
 		if node.Kind() != "call_expression" {
 			return
 		}
+		functionNode := node.ChildByFieldName("function")
+		if functionNode == nil || functionNode.Kind() != "selector_expression" {
+			return
+		}
 		variableTypes := variableTypeIndex.ForCall(node)
 		key := goImportedDirectMethodCallKey(node, source, importAliases, variableTypes, interfaceMethodReturns)
 		if key != "" {
@@ -158,6 +162,10 @@ func ImportedDirectMethodCallRootsWithInterfaceReturns(
 	roots := make(shared.GoDirectMethodCallRoots)
 	walkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "call_expression" {
+			return
+		}
+		functionNode := node.ChildByFieldName("function")
+		if functionNode == nil || functionNode.Kind() != "selector_expression" {
 			return
 		}
 		variableTypes := variableTypeIndex.ForCall(node)

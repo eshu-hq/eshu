@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
-# capture-cpu-profile.sh — event-driven dual-side CPU profile capture for
-# an `eshu graph start` run.
+# capture-cpu-profile.sh — event-driven CPU profile capture for an `eshu graph
+# start` run.
 #
 # Waits for a log marker that signals "interesting phase begins" in the
 # run log, sleeps briefly to let the workers ramp into steady state, then
-# captures matched-wall-clock CPU profiles from the ingester pprof endpoint
-# and the NornicDB pprof endpoint in parallel. After the CPU window closes,
+# captures CPU profiles from the ingester pprof endpoint and, when configured,
+# the NornicDB pprof endpoint in parallel. After the CPU window closes, it
 # snapshots heap, allocs, and goroutine state on the NornicDB side, and a
 # goroutine snapshot on the ingester side.
 #
 # Usage:
-#   capture-cpu-profile.sh <RUN_DIR> <INGESTER_PPROF> <NORNICDB_PPROF>
+#   capture-cpu-profile.sh <RUN_DIR> <INGESTER_PPROF> [NORNICDB_PPROF|-]
 #
 #   RUN_DIR         directory containing run.log; profiles/ subdir is created
 #                   if missing
 #   INGESTER_PPROF  host:port for the ingester's pprof endpoint (e.g.
 #                   127.0.0.1:53210 or :0-assigned port discovered from
 #                   the run.log "pprof server listening" line)
-#   NORNICDB_PPROF  host:port for the NornicDB pprof endpoint set via
+#   NORNICDB_PPROF  optional host:port for the NornicDB pprof endpoint set via
 #                   NORNICDB_PPROF_ENABLED=true NORNICDB_PPROF_LISTEN=...
+#                   pass "-" or omit it for ingester-only parse profiling
 #
 # Tuning via env vars:
 #   PPROF_LOG_MARKER   ripgrep pattern that signals "begin capturing"
@@ -39,10 +40,10 @@
 #   watcher.log              human-readable timestamps for each step
 #   ingester-cpu-${PPROF_CPU_S}s.pb.gz
 #   ingester-goroutines.txt
-#   nornicdb-cpu-${PPROF_CPU_S}s.pb.gz
-#   nornicdb-heap.pb.gz
-#   nornicdb-allocs.pb.gz
-#   nornicdb-goroutines.txt
+#   nornicdb-cpu-${PPROF_CPU_S}s.pb.gz (when NORNICDB_PPROF is provided)
+#   nornicdb-heap.pb.gz              (when NORNICDB_PPROF is provided)
+#   nornicdb-allocs.pb.gz            (when NORNICDB_PPROF is provided)
+#   nornicdb-goroutines.txt          (when NORNICDB_PPROF is provided)
 #
 # Exit codes:
 #   0 — capture completed (profiles may still be empty if the pprof endpoint
@@ -52,14 +53,18 @@
 
 set -euo pipefail
 
-if [ "$#" -ne 3 ]; then
-  echo "usage: $0 <RUN_DIR> <INGESTER_PPROF> <NORNICDB_PPROF>" >&2
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+  echo "usage: $0 <RUN_DIR> <INGESTER_PPROF> [NORNICDB_PPROF|-]" >&2
   exit 2
 fi
 
 RUN_DIR="$1"
 INGESTER_PPROF="$2"
-NORNICDB_PPROF="$3"
+NORNICDB_PPROF="${3:-}"
+CAPTURE_NORNICDB=1
+if [ -z "$NORNICDB_PPROF" ] || [ "$NORNICDB_PPROF" = "-" ]; then
+  CAPTURE_NORNICDB=0
+fi
 
 PPROF_LOG_MARKER="${PPROF_LOG_MARKER:-canonical phase group completed.*phase=files}"
 PPROF_SLEEP_S="${PPROF_SLEEP_S:-5}"
@@ -74,9 +79,13 @@ WATCHER_LOG="$PROFILE_DIR/watcher.log"
 ts() { date -u +%FT%TZ; }
 
 {
-  echo "[$(ts)] dual-side watcher started"
+  if [ "$CAPTURE_NORNICDB" -eq 1 ]; then
+    echo "[$(ts)] profile watcher started (ingester + nornicdb)"
+  else
+    echo "[$(ts)] profile watcher started (ingester only)"
+  fi
   echo "[$(ts)]   RUN_DIR=$RUN_DIR"
-  echo "[$(ts)]   INGESTER_PPROF=$INGESTER_PPROF NORNICDB_PPROF=$NORNICDB_PPROF"
+  echo "[$(ts)]   INGESTER_PPROF=$INGESTER_PPROF NORNICDB_PPROF=${NORNICDB_PPROF:-<disabled>}"
   echo "[$(ts)]   PPROF_LOG_MARKER='$PPROF_LOG_MARKER' PPROF_SLEEP_S=$PPROF_SLEEP_S PPROF_CPU_S=$PPROF_CPU_S"
 } > "$WATCHER_LOG"
 
@@ -99,10 +108,13 @@ fi
 echo "[$(ts)] marker matched; sleeping ${PPROF_SLEEP_S}s for workers to reach steady state" >> "$WATCHER_LOG"
 sleep "$PPROF_SLEEP_S"
 
-echo "[$(ts)] starting ${PPROF_CPU_S}s CPU profiles (parallel: ingester + nornicdb)" >> "$WATCHER_LOG"
+if [ "$CAPTURE_NORNICDB" -eq 1 ]; then
+  echo "[$(ts)] starting ${PPROF_CPU_S}s CPU profiles (parallel: ingester + nornicdb)" >> "$WATCHER_LOG"
+else
+  echo "[$(ts)] starting ${PPROF_CPU_S}s CPU profile (ingester only)" >> "$WATCHER_LOG"
+fi
 
 INGESTER_CPU="$PROFILE_DIR/ingester-cpu-${PPROF_CPU_S}s.pb.gz"
-NORNICDB_CPU="$PROFILE_DIR/nornicdb-cpu-${PPROF_CPU_S}s.pb.gz"
 
 # curl exits non-zero when the pprof endpoint dies mid-capture (e.g. the
 # eshu stack tore down before the seconds= window closed). We want to
@@ -110,29 +122,38 @@ NORNICDB_CPU="$PROFILE_DIR/nornicdb-cpu-${PPROF_CPU_S}s.pb.gz"
 # allow these specific commands to continue on failure under `set -e`.
 curl -sS -o "$INGESTER_CPU" "http://${INGESTER_PPROF}/debug/pprof/profile?seconds=${PPROF_CPU_S}" &
 ING_PID=$!
-curl -sS -o "$NORNICDB_CPU" "http://${NORNICDB_PPROF}/debug/pprof/profile?seconds=${PPROF_CPU_S}" &
-NDB_PID=$!
+if [ "$CAPTURE_NORNICDB" -eq 1 ]; then
+  NORNICDB_CPU="$PROFILE_DIR/nornicdb-cpu-${PPROF_CPU_S}s.pb.gz"
+  curl -sS -o "$NORNICDB_CPU" "http://${NORNICDB_PPROF}/debug/pprof/profile?seconds=${PPROF_CPU_S}" &
+  NDB_PID=$!
+fi
 
 ING_RC=0
 wait "$ING_PID" || ING_RC=$?
 ING_BYTES=$(stat -f%z "$INGESTER_CPU" 2>/dev/null || stat -c%s "$INGESTER_CPU" 2>/dev/null || echo 0)
 echo "[$(ts)] ingester CPU captured rc=$ING_RC bytes=$ING_BYTES" >> "$WATCHER_LOG"
 
-NDB_RC=0
-wait "$NDB_PID" || NDB_RC=$?
-NDB_BYTES=$(stat -f%z "$NORNICDB_CPU" 2>/dev/null || stat -c%s "$NORNICDB_CPU" 2>/dev/null || echo 0)
-echo "[$(ts)] nornicdb CPU captured rc=$NDB_RC bytes=$NDB_BYTES" >> "$WATCHER_LOG"
+if [ "$CAPTURE_NORNICDB" -eq 1 ]; then
+  NDB_RC=0
+  wait "$NDB_PID" || NDB_RC=$?
+  NDB_BYTES=$(stat -f%z "$NORNICDB_CPU" 2>/dev/null || stat -c%s "$NORNICDB_CPU" 2>/dev/null || echo 0)
+  echo "[$(ts)] nornicdb CPU captured rc=$NDB_RC bytes=$NDB_BYTES" >> "$WATCHER_LOG"
+else
+  echo "[$(ts)] nornicdb CPU skipped" >> "$WATCHER_LOG"
+fi
 
 # Heap, allocs, goroutine snapshots after the CPU window closes. These are
 # one-shot reads (no seconds= parameter) so they finish quickly. We tolerate
 # curl failure here too — the eshu stack may have already torn down.
-for kind in heap allocs; do
-  curl -sS -o "$PROFILE_DIR/nornicdb-${kind}.pb.gz" "http://${NORNICDB_PPROF}/debug/pprof/${kind}" 2>/dev/null || true
-  echo "[$(ts)] nornicdb $kind captured" >> "$WATCHER_LOG"
-done
+if [ "$CAPTURE_NORNICDB" -eq 1 ]; then
+  for kind in heap allocs; do
+    curl -sS -o "$PROFILE_DIR/nornicdb-${kind}.pb.gz" "http://${NORNICDB_PPROF}/debug/pprof/${kind}" 2>/dev/null || true
+    echo "[$(ts)] nornicdb $kind captured" >> "$WATCHER_LOG"
+  done
 
-curl -sS -o "$PROFILE_DIR/nornicdb-goroutines.txt" "http://${NORNICDB_PPROF}/debug/pprof/goroutine?debug=2" 2>/dev/null || true
-echo "[$(ts)] nornicdb goroutines captured" >> "$WATCHER_LOG"
+  curl -sS -o "$PROFILE_DIR/nornicdb-goroutines.txt" "http://${NORNICDB_PPROF}/debug/pprof/goroutine?debug=2" 2>/dev/null || true
+  echo "[$(ts)] nornicdb goroutines captured" >> "$WATCHER_LOG"
+fi
 
 curl -sS -o "$PROFILE_DIR/ingester-goroutines.txt" "http://${INGESTER_PPROF}/debug/pprof/goroutine?debug=2" 2>/dev/null || true
 echo "[$(ts)] ingester goroutines captured" >> "$WATCHER_LOG"

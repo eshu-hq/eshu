@@ -9,7 +9,7 @@
 3. `go/internal/collector/git_source.go` — `GitSource.startStream`, the
    two-lane scheduling design, and the large-repo semaphore lifecycle
 4. `go/internal/collector/git_snapshot_native.go` — `NativeRepositorySnapshotter.SnapshotRepository`;
-   the four snapshot stages and the two-phase memory design
+   the five snapshot stages and the two-phase memory design
 5. `go/internal/collector/git_selection_config.go` — `RepoSyncConfig` and
    `LoadRepoSyncConfig`; env var names and defaults
 6. `go/internal/telemetry/instruments.go` and `contract.go` — metric and span

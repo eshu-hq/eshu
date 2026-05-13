@@ -64,6 +64,10 @@ Utility helpers such as `IntValue`, `LastPathSegment`, and
 `DedupeNonEmptyStrings` are intentionally small. Keep language-specific parsing
 rules out of this package so shared does not become a second parser package.
 
+`WalkNamed` uses one tree-sitter cursor per traversal and visits only named
+direct children recursively. That preserves source-order parser behavior while
+avoiding per-node `NamedChildren` slice allocation in repo-scale Go pre-scans.
+
 ## Related docs
 
 - `docs/plans/2026-05-09-parser-language-layout.md`

@@ -180,10 +180,15 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Int("import_symbol_count", len(importsMap)),
 		slog.Int("pre_scan_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
 	)
+	goPackageSemanticPreScanStartedAt := time.Now()
 	goPackageTargets, err := engine.PreScanGoPackageSemanticRoots(repoPath, fileSet.Files)
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan go package interface params for %q: %w", repoPath, err)
 	}
+	s.logSnapshotStageTiming(ctx, repoPath, "go_package_semantic_prescan", goPackageSemanticPreScanStartedAt,
+		slog.Int("file_count", len(fileSet.Files)),
+		slog.Int("go_package_target_count", len(goPackageTargets)),
+	)
 
 	repoMetadata, err := repositoryidentity.MetadataFor(
 		filepath.Base(repoPath),
@@ -194,7 +199,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		return RepositorySnapshot{}, fmt.Errorf("repository metadata for %q: %w", repoPath, err)
 	}
 	parseStartedAt := time.Now()
-	shapeFiles, parsedFiles, err := s.buildParsedRepositoryFiles(
+	shapeFiles, parsedFiles, languageParseSummary, err := s.buildParsedRepositoryFiles(
 		ctx,
 		repoPath,
 		fileSet,
@@ -211,6 +216,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Int("parsed_file_count", len(parsedFiles)),
 		slog.Int("skipped_file_count", len(fileSet.Files)-len(parsedFiles)),
 		slog.Int("parse_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
+		slog.Any("language_parse_summary", languageParseSummary),
 	)
 
 	materializeStartedAt := time.Now()

@@ -86,10 +86,26 @@ func WalkNamed(node *tree_sitter.Node, visit func(*tree_sitter.Node)) {
 
 	cursor := node.Walk()
 	defer cursor.Close()
+	walkNamedChildren(cursor, visit)
+}
 
-	for _, child := range node.NamedChildren(cursor) {
-		child := child
-		WalkNamed(&child, visit)
+// walkNamedChildren streams named direct children through one cursor instead
+// of allocating a NamedChildren slice and a new cursor for every visited node.
+func walkNamedChildren(cursor *tree_sitter.TreeCursor, visit func(*tree_sitter.Node)) {
+	if !cursor.GotoFirstChild() {
+		return
+	}
+	defer cursor.GotoParent()
+
+	for {
+		child := cursor.Node()
+		if child.IsNamed() {
+			visit(child)
+			walkNamedChildren(cursor, visit)
+		}
+		if !cursor.GotoNextSibling() {
+			return
+		}
 	}
 }
 

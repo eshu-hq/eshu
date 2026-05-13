@@ -18,12 +18,12 @@ import (
 // ingester producing zero fact_records after 80+ CPU minutes even though
 // per-file Parse completed in under a second).
 //
-// The index walks the file once to classify each binding as either
-// package-scope (no enclosing function) or scope-local (enclosing function
-// id), caches the per-scope list lazily on first access, and answers each
-// call_expression query by copying the package-scope map and replaying the
-// scope's bindings up to the call's start byte — pure Go work without further
-// cgo tree-sitter calls beyond the one-time classification walk.
+// The index walks package-scope declarations once, skips function bodies for
+// that package-level pass, caches per-scope function binding lists lazily on
+// first access, and answers each call_expression query by copying the
+// package-scope map and replaying the scope's bindings up to the call's start
+// byte. That keeps top-level imports cheap while preserving local shadowing for
+// selector calls that still need scoped receiver evidence.
 type goImportedVariableTypeIndex struct {
 	packageVars   map[string]string
 	scopeBindings map[uintptr][]goImportedScopedBinding

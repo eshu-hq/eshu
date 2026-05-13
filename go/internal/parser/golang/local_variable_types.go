@@ -57,13 +57,10 @@ func goKnownImportedVariableTypes(
 	root *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
-	lookup *goParentLookup,
+	_ *goParentLookup,
 ) map[string]string {
 	variableTypes := make(map[string]string)
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if goEnclosingFunctionScope(node, lookup) != nil {
-			return
-		}
+	walkPackageScopeImportedVariableDeclarations(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "var_spec":
 			goRecordImportedVarSpecTypes(node, source, importAliases, variableTypes)
@@ -72,6 +69,33 @@ func goKnownImportedVariableTypes(
 		}
 	})
 	return variableTypes
+}
+
+// walkPackageScopeImportedVariableDeclarations visits named package-scope
+// declarations while skipping function bodies. Package-scope imported-variable
+// discovery only needs top-level declarations, so asking every node whether it
+// has an enclosing function burns ancestor checks on large Go repos.
+func walkPackageScopeImportedVariableDeclarations(root *tree_sitter.Node, visit func(*tree_sitter.Node)) {
+	if root == nil {
+		return
+	}
+	var walk func(*tree_sitter.Node)
+	walk = func(current *tree_sitter.Node) {
+		if current == nil {
+			return
+		}
+		if current != root && isNestedDefinition(current.Kind()) {
+			return
+		}
+		visit(current)
+		cursor := current.Walk()
+		defer cursor.Close()
+		for _, child := range current.NamedChildren(cursor) {
+			child := child
+			walk(&child)
+		}
+	}
+	walk(root)
 }
 
 func goRecordImportedParameterTypes(
