@@ -137,6 +137,53 @@ func TestNewImageReferenceEnvelopeRequiresDigest(t *testing.T) {
 	}
 }
 
+func TestNewDNSRecordEnvelopePreservesAliasAndZoneEvidence(t *testing.T) {
+	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
+	boundary.ServiceKind = ServiceRoute53
+	envelope, err := NewDNSRecordEnvelope(DNSRecordObservation{
+		Boundary:          boundary,
+		HostedZoneID:      "/hostedzone/Z123",
+		HostedZoneName:    "example.com.",
+		HostedZonePrivate: true,
+		RecordName:        "api.example.com.",
+		RecordType:        "A",
+		AliasTarget: &DNSAliasTarget{
+			DNSName:              "dualstack.api-123.us-east-1.elb.amazonaws.com.",
+			HostedZoneID:         "Z35SXDOTRQ7X7K",
+			EvaluateTargetHealth: true,
+		},
+		RoutingPolicy: DNSRoutingPolicy{
+			HealthCheckID: "hc-123",
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewDNSRecordEnvelope returned error: %v", err)
+	}
+	if envelope.FactKind != facts.AWSDNSRecordFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.AWSDNSRecordFactKind)
+	}
+	if envelope.SchemaVersion != facts.AWSDNSRecordSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.AWSDNSRecordSchemaVersion)
+	}
+	assertPayloadString(t, envelope.Payload, "hosted_zone_id", "/hostedzone/Z123")
+	assertPayloadString(t, envelope.Payload, "record_name", "api.example.com.")
+	assertPayloadString(t, envelope.Payload, "normalized_record_name", "api.example.com")
+	assertPayloadString(t, envelope.Payload, "record_type", "A")
+	aliasTarget, ok := envelope.Payload["alias_target"].(map[string]any)
+	if !ok {
+		t.Fatalf("alias_target = %#v, want map", envelope.Payload["alias_target"])
+	}
+	if got, _ := aliasTarget["dns_name"].(string); got != "dualstack.api-123.us-east-1.elb.amazonaws.com." {
+		t.Fatalf("alias_target.dns_name = %q", got)
+	}
+	if got, _ := aliasTarget["normalized_dns_name"].(string); got != "dualstack.api-123.us-east-1.elb.amazonaws.com" {
+		t.Fatalf("alias_target.normalized_dns_name = %q", got)
+	}
+	if got, _ := envelope.Payload["hosted_zone_private"].(bool); !got {
+		t.Fatalf("hosted_zone_private = %v, want true", got)
+	}
+}
+
 func testBoundary(observedAt time.Time) Boundary {
 	return Boundary{
 		AccountID:           "123456789012",

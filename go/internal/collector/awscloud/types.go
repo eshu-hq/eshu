@@ -17,6 +17,8 @@ const (
 	// ServiceELBv2 identifies the regional Elastic Load Balancing v2 service
 	// scan slice.
 	ServiceELBv2 = "elbv2"
+	// ServiceRoute53 identifies the global Amazon Route 53 service scan slice.
+	ServiceRoute53 = "route53"
 )
 
 const (
@@ -49,6 +51,8 @@ const (
 	ResourceTypeELBv2TargetGroup = "aws_elbv2_target_group"
 	// ResourceTypeELBv2Rule identifies an ELBv2 listener rule.
 	ResourceTypeELBv2Rule = "aws_elbv2_rule"
+	// ResourceTypeRoute53HostedZone identifies a Route 53 hosted zone.
+	ResourceTypeRoute53HostedZone = "aws_route53_hosted_zone"
 )
 
 const (
@@ -137,6 +141,51 @@ type ImageReferenceObservation struct {
 	ArtifactMediaType string
 	SourceURI         string
 	SourceRecordID    string
+}
+
+// DNSRecordObservation describes one Route 53 DNS record reported by AWS.
+type DNSRecordObservation struct {
+	Boundary          Boundary
+	HostedZoneID      string
+	HostedZoneName    string
+	HostedZonePrivate bool
+	RecordName        string
+	RecordType        string
+	SetIdentifier     string
+	TTL               *int64
+	Values            []string
+	AliasTarget       *DNSAliasTarget
+	RoutingPolicy     DNSRoutingPolicy
+	SourceURI         string
+	SourceRecordID    string
+}
+
+// DNSAliasTarget captures Route 53 alias target evidence without inferring
+// ownership of the target resource.
+type DNSAliasTarget struct {
+	DNSName              string
+	HostedZoneID         string
+	EvaluateTargetHealth bool
+}
+
+// DNSRoutingPolicy captures non-secret Route 53 routing policy selectors.
+type DNSRoutingPolicy struct {
+	Weight                  *int64
+	Region                  string
+	Failover                string
+	HealthCheckID           string
+	MultiValueAnswer        *bool
+	TrafficPolicyInstanceID string
+	GeoLocation             DNSGeoLocation
+	CIDRCollectionID        string
+	CIDRLocationName        string
+}
+
+// DNSGeoLocation captures Route 53 geolocation routing selectors.
+type DNSGeoLocation struct {
+	ContinentCode   string
+	CountryCode     string
+	SubdivisionCode string
 }
 
 // WarningObservation describes one non-fatal AWS scan warning.

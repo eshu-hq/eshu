@@ -37,16 +37,19 @@ See `doc.go` for the godoc contract.
 - `ServiceECS` - ECS service-kind value for regional workload placement scans.
 - `ServiceELBv2` - ELBv2 service-kind value for regional routing topology
   scans.
+- `ServiceRoute53` - Route 53 service-kind value for global DNS scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
 - `RelationshipObservation` - one AWS relationship ready for envelope
   emission.
 - `ImageReferenceObservation` - one ECR image digest and tag reference.
+- `DNSRecordObservation` - one Route 53 DNS record observation.
 - `WarningObservation` - one non-fatal AWS scan condition.
 - `NewResourceEnvelope` - builds an `aws_resource` fact.
 - `NewRelationshipEnvelope` - builds an `aws_relationship` fact.
 - `NewImageReferenceEnvelope` - builds an `aws_image_reference` fact.
+- `NewDNSRecordEnvelope` - builds an `aws_dns_record` fact.
 - `NewWarningEnvelope` - builds an `aws_warning` fact.
 
 Envelope builders validate account, region, service kind, scope, generation,
@@ -69,9 +72,9 @@ scan duration histograms, and warning/failure counters at that boundary.
 
 - AWS observations are reported source evidence. Do not claim canonical
   workload, deployment, or graph truth here.
-- IAM is a global AWS service, but the boundary still carries a region label so
-  claims stay shaped like `(collector_instance_id, account_id, region,
-  service_kind)`.
+- IAM and Route 53 are global AWS services, but the boundary still carries a
+  region label so claims stay shaped like `(collector_instance_id, account_id,
+  region, service_kind)`.
 - `FencingToken` is copied onto each fact envelope so stale workers cannot
   silently overwrite a newer generation.
 - Credential material, bearer tokens, session tokens, and presigned query

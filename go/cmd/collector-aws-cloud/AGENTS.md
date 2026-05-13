@@ -21,13 +21,15 @@
   service pagination belongs in service `awssdk` adapters.
 - Keep ELBv2 target health out of stable AWS collector facts; target health is
   live status, not routing topology.
+- Keep Route 53 DNS names, hosted-zone IDs, and record values out of metric
+  labels.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 
 ## Common Changes
 
 - Add a new AWS service by extending target validation, adding scanner package
-  tests, adding a service `awssdk` adapter, and branching in
+  tests, adding a service `awssdk` adapter, package docs, and branching in
   `awsruntime.DefaultScannerFactory.Scanner`.
 - Add new command configuration with config tests first.
 - Add SDK pagination in the service adapter so spans and AWS API counters stay

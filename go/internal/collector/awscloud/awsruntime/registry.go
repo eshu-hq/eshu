@@ -15,6 +15,8 @@ import (
 	elbv2awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2/awssdk"
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
 	iamawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/awssdk"
+	route53service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53"
+	route53awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53/awssdk"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -56,6 +58,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceELBv2:
 		return elbv2service.Scanner{
 			Client: elbv2awssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceRoute53:
+		return route53service.Scanner{
+			Client: route53awssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{
