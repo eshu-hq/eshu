@@ -71,6 +71,50 @@ func TestMapRulePreservesTypedConditionsAndForwardTargets(t *testing.T) {
 	}
 }
 
+func TestMapTargetGroupPreservesHealthCheckConfiguration(t *testing.T) {
+	targetGroup := mapTargetGroup(awselbv2types.TargetGroup{
+		HealthCheckEnabled:         aws.Bool(true),
+		HealthCheckIntervalSeconds: aws.Int32(30),
+		HealthCheckPath:            aws.String("/healthz"),
+		HealthCheckPort:            aws.String("traffic-port"),
+		HealthCheckProtocol:        awselbv2types.ProtocolEnumHttp,
+		HealthCheckTimeoutSeconds:  aws.Int32(5),
+		HealthyThresholdCount:      aws.Int32(5),
+		LoadBalancerArns:           []string{"load-balancer-arn"},
+		Matcher:                    &awselbv2types.Matcher{HttpCode: aws.String("200-399")},
+		Port:                       aws.Int32(8080),
+		Protocol:                   awselbv2types.ProtocolEnumHttp,
+		TargetGroupArn:             aws.String("target-group-arn"),
+		TargetGroupName:            aws.String("api"),
+		TargetType:                 awselbv2types.TargetTypeEnumIp,
+		UnhealthyThresholdCount:    aws.Int32(2),
+		VpcId:                      aws.String("vpc-123"),
+	}, nil)
+
+	if targetGroup.HealthCheck.Protocol != "HTTP" {
+		t.Fatalf("health check protocol = %q, want HTTP", targetGroup.HealthCheck.Protocol)
+	}
+	if targetGroup.HealthCheck.Path != "/healthz" {
+		t.Fatalf("health check path = %q, want /healthz", targetGroup.HealthCheck.Path)
+	}
+	if targetGroup.HealthCheck.Port != "traffic-port" {
+		t.Fatalf("health check port = %q, want traffic-port", targetGroup.HealthCheck.Port)
+	}
+	if targetGroup.HealthCheck.IntervalSeconds != 30 {
+		t.Fatalf("health check interval = %d, want 30", targetGroup.HealthCheck.IntervalSeconds)
+	}
+	if targetGroup.HealthCheck.Matcher != "200-399" {
+		t.Fatalf("health check matcher = %q, want 200-399", targetGroup.HealthCheck.Matcher)
+	}
+
+	grpcTargetGroup := mapTargetGroup(awselbv2types.TargetGroup{
+		Matcher: &awselbv2types.Matcher{GrpcCode: aws.String("0-99")},
+	}, nil)
+	if grpcTargetGroup.HealthCheck.Matcher != "0-99" {
+		t.Fatalf("grpc health check matcher = %q, want 0-99", grpcTargetGroup.HealthCheck.Matcher)
+	}
+}
+
 func TestChunkStringsSplitsDescribeTagsLimit(t *testing.T) {
 	values := make([]string, 21)
 	for index := range values {

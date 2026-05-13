@@ -105,6 +105,7 @@ func TestScannerEmitsRoutingTopologyWithoutTargetHealth(t *testing.T) {
 	rule := assertResourceType(t, envelopes, awscloud.ResourceTypeELBv2Rule)
 	assertRuleConditions(t, rule)
 	targetGroup := assertResourceType(t, envelopes, awscloud.ResourceTypeELBv2TargetGroup)
+	assertHealthCheck(t, targetGroup)
 	assertNoTargetHealth(t, targetGroup)
 	assertRelationship(t, envelopes, awscloud.RelationshipELBv2LoadBalancerHasListener)
 	assertRelationship(t, envelopes, awscloud.RelationshipELBv2ListenerHasRule)
@@ -231,6 +232,27 @@ func assertNoTargetHealth(t *testing.T, envelope facts.Envelope) {
 		if strings.Contains(strings.ToLower(key), "target_health") {
 			t.Fatalf("target health leaked into attributes: %#v", attributes)
 		}
+	}
+}
+
+func assertHealthCheck(t *testing.T, envelope facts.Envelope) {
+	t.Helper()
+	attributes, ok := envelope.Payload["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("attributes = %#v, want map", envelope.Payload["attributes"])
+	}
+	healthCheck, ok := attributes["health_check"].(map[string]any)
+	if !ok {
+		t.Fatalf("health_check = %#v, want map", attributes["health_check"])
+	}
+	if got, _ := healthCheck["protocol"].(string); got != "HTTP" {
+		t.Fatalf("health_check.protocol = %q, want HTTP", got)
+	}
+	if got, _ := healthCheck["path"].(string); got != "/healthz" {
+		t.Fatalf("health_check.path = %q, want /healthz", got)
+	}
+	if got, _ := healthCheck["interval_seconds"].(int32); got != 30 {
+		t.Fatalf("health_check.interval_seconds = %d, want 30", got)
 	}
 }
 
