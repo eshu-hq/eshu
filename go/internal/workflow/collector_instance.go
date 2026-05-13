@@ -36,11 +36,13 @@ func (d DesiredCollectorInstance) Validate() error {
 	if err := validateJSONDocument("configuration", d.Configuration); err != nil {
 		return err
 	}
-	if d.CollectorKind == scope.CollectorOCIRegistry && d.ClaimsEnabled {
-		return fmt.Errorf("oci_registry collector instances are config-driven and must not enable claims")
-	}
 	if d.CollectorKind == scope.CollectorTerraformState {
 		if err := ValidateTerraformStateCollectorConfiguration(d.Configuration); err != nil {
+			return err
+		}
+	}
+	if d.CollectorKind == scope.CollectorOCIRegistry {
+		if err := ValidateOCIRegistryCollectorConfiguration(d.Configuration); err != nil {
 			return err
 		}
 	}
@@ -78,8 +80,10 @@ func (i CollectorInstance) Validate() error {
 	if err := validateJSONDocument("configuration", i.Configuration); err != nil {
 		return err
 	}
-	if i.CollectorKind == scope.CollectorOCIRegistry && i.ClaimsEnabled {
-		return fmt.Errorf("oci_registry collector instances are config-driven and must not enable claims")
+	if i.CollectorKind == scope.CollectorOCIRegistry {
+		if err := ValidateOCIRegistryCollectorConfiguration(i.Configuration); err != nil {
+			return err
+		}
 	}
 	if err := validateTime("last_observed_at", i.LastObservedAt); err != nil {
 		return err

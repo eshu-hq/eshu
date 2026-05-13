@@ -74,7 +74,7 @@ result into the same `oci_registry` fact builders.
 
 ## Decision
 
-Add a future collector family named `oci_registry`.
+Add a collector family named `oci_registry`.
 
 The collector owns:
 
@@ -222,17 +222,20 @@ Required query capabilities after implementation:
 
 ## Operational Model
 
-The initial collector runs as a configured-target Go runtime:
+The collector can run in two modes:
 
-- configuration declares registry instances and repository allowlists
-- the collector polls those configured repository targets on a bounded interval
+- legacy local configured-target mode reads `ESHU_OCI_REGISTRY_TARGETS_JSON`
+  and polls repository targets on a bounded interval
+- claim-aware mode reads `ESHU_COLLECTOR_INSTANCES_JSON`, requires a
+  claim-enabled `oci_registry` collector instance, and lets the workflow
+  coordinator enqueue one bounded work item per configured repository target
 - scans emit durable facts into Postgres; the projector then promotes
   digest-addressed image truth into the graph
 - the runtime mounts `/healthz`, `/readyz`, `/admin/status`, and `/metrics`
 
 The workflow contract registers `oci_registry` as a fact-only collector family
-for now. Claim-driven scheduling stays disabled until repository scan
-partitioning, lease ownership, and retry semantics have live proof.
+with claim-driven repository target scheduling. It still declares no reducer
+phase requirements until the graph promotion contract lands.
 
 Required status fields:
 
@@ -325,6 +328,8 @@ the descriptor and emit a warning instead of dropping evidence.
 7. Add DSL joins to Git/CI, AWS ECR, Kubernetes live image refs, SBOMs, and
    vulnerability facts.
 8. Add claim-driven workflow scheduling after live configured-target proof.
+   This is implemented for bounded repository targets; graph promotion remains
+   a separate follow-up.
 
 ## Acceptance Criteria
 

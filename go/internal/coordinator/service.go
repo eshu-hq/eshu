@@ -28,6 +28,12 @@ type TerraformStatePlanner interface {
 	PlanTerraformStateWork(context.Context, TerraformStatePlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// OCIRegistryPlanner plans OCI registry workflow rows from collector instance
+// configuration.
+type OCIRegistryPlanner interface {
+	PlanOCIRegistryWork(context.Context, OCIRegistryPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // Service is the dark-deployed workflow coordinator runner.
 type Service struct {
 	Config                Config
@@ -35,6 +41,7 @@ type Service struct {
 	Metrics               Metrics
 	Logger                *slog.Logger
 	TerraformStatePlanner TerraformStatePlanner
+	OCIRegistryPlanner    OCIRegistryPlanner
 	Clock                 func() time.Time
 }
 
@@ -149,6 +156,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
+	if err := s.scheduleOCIRegistryWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
 	s.recordReconcile(ctx, ReconcileObservation{
 		Outcome:      reconcileOutcomeSuccess,
 		Duration:     time.Since(startedAt),
@@ -164,6 +180,63 @@ func (s Service) runReconcile(ctx context.Context) error {
 		)
 	}
 	return nil
+}
+
+func (s Service) scheduleOCIRegistryWork(
+	ctx context.Context,
+	observedAt time.Time,
+	instances []workflow.CollectorInstance,
+) error {
+	if s.Config.DeploymentMode != deploymentModeActive || !s.Config.ClaimsEnabled {
+		return nil
+	}
+	for _, instance := range instances {
+		if !shouldScheduleOCIRegistry(instance) {
+			continue
+		}
+		if s.OCIRegistryPlanner == nil {
+			return fmt.Errorf("OCI registry planner is required for active oci_registry collectors")
+		}
+		run, items, err := s.OCIRegistryPlanner.PlanOCIRegistryWork(ctx, OCIRegistryPlanRequest{
+			Instance:   instance,
+			ObservedAt: observedAt,
+			PlanKey:    s.ociRegistryPlanKey(instance, observedAt),
+		})
+		if err != nil {
+			return fmt.Errorf("plan OCI registry work for %q: %w", instance.InstanceID, err)
+		}
+		if len(items) == 0 {
+			continue
+		}
+		if err := s.Store.CreateRun(ctx, run); err != nil {
+			return fmt.Errorf("create OCI registry workflow run for %q: %w", instance.InstanceID, err)
+		}
+		if err := s.Store.EnqueueWorkItems(ctx, items); err != nil {
+			return fmt.Errorf("enqueue OCI registry work items for %q: %w", instance.InstanceID, err)
+		}
+	}
+	return nil
+}
+
+func shouldScheduleOCIRegistry(instance workflow.CollectorInstance) bool {
+	return instance.CollectorKind == scope.CollectorOCIRegistry &&
+		instance.Enabled &&
+		instance.ClaimsEnabled
+}
+
+func (s Service) ociRegistryPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
+	if instance.Bootstrap {
+		return "bootstrap"
+	}
+	interval := s.Config.ReconcileInterval
+	if interval <= 0 {
+		interval = defaultReconcileInterval
+	}
+	prefix := strings.TrimSpace(string(instance.Mode))
+	if prefix == "" {
+		prefix = "schedule"
+	}
+	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
 }
 
 func (s Service) scheduleTerraformStateWork(

@@ -4,11 +4,11 @@
 
 `eshu-workflow-coordinator` reconciles the declarative set of collector
 instances against the durable store and, in active mode, reaps expired
-work-item claims and recomputes workflow-run state. It exposes the shared
-admin/status contract during its dark rollout so operators can validate the
-control plane before active mode is enabled. Trigger normalization and permanent
-claim ownership are not part of this binary today; the truth they will
-eventually publish is still owned by other components.
+work-item claims, plans supported collector work, and recomputes workflow-run
+state. It exposes the shared admin/status contract during its dark rollout so
+operators can validate the control plane before active mode is enabled.
+Trigger normalization is not part of this binary today; provider-trigger truth
+is still owned by source-specific components.
 
 ## Where this fits in the pipeline
 
@@ -33,7 +33,7 @@ flowchart TB
   D --> E["coordinator.Service{Config, Store, Metrics, Logger}"]
   E --> F["NewHostedWithStatusServer\nmount /healthz /readyz /metrics /admin/status"]
   F --> G["service.Run(ctx)"]
-  G --> H["runReconcile\n(always, every ReconcileInterval)"]
+  G --> H["runReconcile\n(always, every ReconcileInterval)\nplans tfstate + OCI registry in active mode"]
   G --> I{"DeploymentMode == active?"}
   I -- yes --> J["runReapExpiredClaims\n(every ReapInterval)"]
   I -- yes --> K["runWorkflowReconciliation\n(on reconcile tick)"]
@@ -52,7 +52,8 @@ flowchart TB
    `eshu_dp_workflow_coordinator_` prefix.
 5. `NewWorkflowControlStore` wraps the connection as the `Store`
    implementation.
-6. `coordinator.Service` is wired with all four dependencies and handed to
+6. `coordinator.Service` is wired with all dependencies, including
+   Terraform-state and OCI registry planners, and handed to
    `NewHostedWithStatusServer`, which mounts the admin surface.
 7. `NotifyContext` installs SIGINT/SIGTERM shutdown; `Service.Run` blocks
    until the context is cancelled.
@@ -79,7 +80,7 @@ for the full list. Key env vars:
 - ESHU_COLLECTOR_INSTANCES_JSON — JSON array of collector instance objects
 
 Compose exposes the optional metrics port `19469`. Helm keeps deployment mode
-`dark` and claims disabled in this branch.
+`dark` and claims disabled by default.
 
 ## Exported surface
 
@@ -125,6 +126,9 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED=true, and supply at least one
   enabled claim-capable collector instance in ESHU_COLLECTOR_INSTANCES_JSON.
   `Config.Validate` rejects active mode without these conditions.
+- Active mode plans Terraform-state and OCI registry work today. Other
+  collector families can be reconciled as durable instances but do not get
+  workflow work rows until they define a planner.
 - The binary does not reconcile canonical graph truth. It is a control plane on
   top of `eshu-reducer` and `eshu-ingester`.
 - Shutdown is signal-driven (SIGINT or SIGTERM). `NewHostedWithStatusServer`
@@ -146,8 +150,9 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   collector instance fails `Config.Validate` at startup.
 - Heartbeat interval must be strictly less than claim lease TTL; violated
   configurations exit with a validation error.
-- The coordinator does not normalize triggers, schedule workflow runs, or
-  permanently own claims today.
+- The coordinator plans Terraform-state and OCI registry work in active mode,
+  but it still does not permanently own claims. Claim ownership stays with the
+  collectors that heartbeat and complete the claimed work items.
 
 ## Related docs
 

@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
+	"time"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsecr "github.com/aws/aws-sdk-go-v2/service/ecr"
@@ -19,9 +23,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/harbor"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/jfrog"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ociruntime"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+var fallbackClaimSequence uint64
 
 func buildCollectorService(
 	ctx context.Context,
@@ -52,6 +59,53 @@ func buildCollectorService(
 		Instruments:  instruments,
 		Logger:       logger,
 	}, nil
+}
+
+func buildClaimedService(
+	database postgres.ExecQueryer,
+	getenv func(string) string,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (collector.ClaimedService, error) {
+	config, err := loadClaimedRuntimeConfig(getenv)
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
+	committer := postgres.NewIngestionStore(database)
+	committer.Logger = logger
+	return collector.ClaimedService{
+		ControlStore: postgres.NewWorkflowControlStore(database),
+		Source: ociruntime.ClaimedSource{
+			Source: ociruntime.Source{
+				Config:        config.OCI,
+				ClientFactory: providerFactory{},
+				Tracer:        tracer,
+				Instruments:   instruments,
+				Logger:        logger,
+			},
+		},
+		Committer:           committer,
+		CollectorKind:       scope.CollectorOCIRegistry,
+		CollectorInstanceID: config.Instance.InstanceID,
+		OwnerID:             config.OwnerID,
+		ClaimIDFunc:         newClaimID,
+		PollInterval:        config.PollInterval,
+		ClaimLeaseTTL:       config.ClaimLeaseTTL,
+		HeartbeatInterval:   config.HeartbeatInterval,
+		Clock:               time.Now,
+		Tracer:              tracer,
+		Instruments:         instruments,
+	}, nil
+}
+
+func newClaimID() string {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err == nil {
+		return "oci-registry-claim-" + hex.EncodeToString(raw[:])
+	}
+	next := atomic.AddUint64(&fallbackClaimSequence, 1)
+	return fmt.Sprintf("oci-registry-claim-fallback-%d-%d", time.Now().UTC().UnixNano(), next)
 }
 
 type providerFactory struct{}

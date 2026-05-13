@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 func TestSourceNextEmitsCollectedGenerationForRegistryTarget(t *testing.T) {
@@ -138,6 +139,67 @@ func TestSourceNextComputesDigestAndWarnsWhenManifestDigestHeaderIsMissing(t *te
 		}
 	}
 	t.Fatalf("fact kinds = %v, want warning fact", kinds)
+}
+
+func TestClaimedSourceNextClaimedScansMatchingTargetWithClaimGeneration(t *testing.T) {
+	observedAt := time.Date(2026, 5, 13, 15, 30, 0, 0, time.UTC)
+	client := &stubRegistryClient{
+		tags: []string{"latest"},
+		manifest: distribution.ManifestResponse{
+			Digest:    testManifestDigest,
+			MediaType: ociregistry.MediaTypeOCIImageManifest,
+			Body:      testManifestBody(t),
+			SizeBytes: 512,
+		},
+	}
+	source := ClaimedSource{
+		Source: Source{
+			Config: Config{
+				CollectorInstanceID: "oci-runtime-test",
+				Targets: []TargetConfig{{
+					Provider:   ociregistry.ProviderDockerHub,
+					Registry:   "registry-1.docker.io",
+					Repository: "library/busybox",
+					References: []string{"latest"},
+					TagLimit:   1,
+				}},
+			},
+			ClientFactory: ClientFactoryFunc(func(context.Context, TargetConfig) (RegistryClient, error) {
+				return client, nil
+			}),
+			Clock: func() time.Time { return observedAt },
+		},
+	}
+	item := workflow.WorkItem{
+		WorkItemID:          "oci-item-1",
+		RunID:               "oci-run-1",
+		CollectorKind:       scope.CollectorOCIRegistry,
+		CollectorInstanceID: "oci-runtime-test",
+		SourceSystem:        string(scope.CollectorOCIRegistry),
+		ScopeID:             "oci-registry://registry-1.docker.io/library/busybox",
+		AcceptanceUnitID:    "oci-registry://registry-1.docker.io/library/busybox",
+		SourceRunID:         "oci-generation-1",
+		GenerationID:        "oci-generation-1",
+		CurrentFencingToken: 9,
+		Status:              workflow.WorkItemStatusClaimed,
+		CreatedAt:           observedAt,
+		UpdatedAt:           observedAt,
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	if got, want := collected.Generation.GenerationID, item.GenerationID; got != want {
+		t.Fatalf("GenerationID = %q, want %q", got, want)
+	}
+	envelopes := drainFacts(t, collected)
+	if got, want := envelopes[0].FencingToken, int64(9); got != want {
+		t.Fatalf("first envelope FencingToken = %d, want %d", got, want)
+	}
 }
 
 const (

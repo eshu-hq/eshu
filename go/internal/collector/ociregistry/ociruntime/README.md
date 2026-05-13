@@ -11,7 +11,7 @@ shared collector service.
 
 ```mermaid
 flowchart LR
-  A["collector.Service"] --> B["Source.Next"]
+  A["collector.Service or collector.ClaimedService"] --> B["Source.Next / ClaimedSource.NextClaimed"]
   B --> C["ClientFactory"]
   C --> D["Distribution API"]
   D --> E["tag / manifest / referrer responses"]
@@ -25,6 +25,9 @@ flowchart LR
 - `RegistryClient` is the Distribution API contract used by scans.
 - `ClientFactory` and `ClientFactoryFunc` create provider-specific clients.
 - `Source` implements `collector.Source` for OCI registry targets.
+- `ClaimedSource` implements `collector.ClaimedSource` by resolving a
+  workflow `scope_id` to exactly one configured target and using the claimed
+  generation ID for idempotent retries.
 
 Internal manifest helpers parse OCI and Docker-compatible response bodies,
 classify media families, and compute digest fallback values from exact manifest
@@ -55,6 +58,8 @@ digests. Those values are high cardinality and may describe private topology.
 ## Invariants
 
 - Tags are mutable observations; digest identity wins.
+- Claimed scans must match one configured target by normalized `scope_id`; an
+  unmatched claim releases without emitting facts.
 - Referrers API absence emits a warning fact instead of false negative truth.
 - Missing Docker-Content-Digest headers emit warning evidence. When manifest
   bytes are present, the runtime computes the OCI digest from those exact bytes

@@ -75,16 +75,30 @@ func run(parent context.Context) error {
 		Instruments: instruments,
 		StoreName:   "collector_oci_registry",
 	}
-	runner, err := buildCollectorService(
-		parent,
-		storeDB,
-		os.Getenv,
-		tracer,
-		instruments,
-		logger,
-	)
-	if err != nil {
-		return err
+	var runner app.Runner
+	if os.Getenv(envCollectorInstances) != "" {
+		runner, err = buildClaimedService(
+			storeDB,
+			os.Getenv,
+			tracer,
+			instruments,
+			logger,
+		)
+		if err != nil {
+			return err
+		}
+	} else {
+		runner, err = buildCollectorService(
+			parent,
+			storeDB,
+			os.Getenv,
+			tracer,
+			instruments,
+			logger,
+		)
+		if err != nil {
+			return err
+		}
 	}
 	service, err := app.NewHostedWithStatusServer(
 		"collector-oci-registry",

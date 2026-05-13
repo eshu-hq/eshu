@@ -15,12 +15,18 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/harbor"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/jfrog"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ociruntime"
+	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 const (
 	envCollectorInstanceID = "ESHU_OCI_REGISTRY_COLLECTOR_INSTANCE_ID"
 	envPollInterval        = "ESHU_OCI_REGISTRY_POLL_INTERVAL"
 	envTargetsJSON         = "ESHU_OCI_REGISTRY_TARGETS_JSON"
+	envClaimLeaseTTL       = "ESHU_OCI_REGISTRY_CLAIM_LEASE_TTL"
+	envHeartbeatInterval   = "ESHU_OCI_REGISTRY_HEARTBEAT_INTERVAL"
+	envOwnerID             = "ESHU_OCI_REGISTRY_COLLECTOR_OWNER_ID"
+	envCollectorInstances  = "ESHU_COLLECTOR_INSTANCES_JSON"
 )
 
 type targetJSON struct {
@@ -42,6 +48,19 @@ type targetJSON struct {
 	BearerTokenEnv string   `json:"bearer_token_env"`
 	AWSProfile     string   `json:"aws_profile"`
 	FencingToken   int64    `json:"fencing_token"`
+}
+
+type claimedRuntimeConfig struct {
+	Instance          workflow.DesiredCollectorInstance
+	OwnerID           string
+	PollInterval      time.Duration
+	ClaimLeaseTTL     time.Duration
+	HeartbeatInterval time.Duration
+	OCI               ociruntime.Config
+}
+
+type ociRuntimeConfiguration struct {
+	Targets []targetJSON `json:"targets"`
 }
 
 func loadRuntimeConfig(getenv func(string) string) (ociruntime.Config, error) {
@@ -72,6 +91,116 @@ func loadRuntimeConfig(getenv func(string) string) (ociruntime.Config, error) {
 	return ociruntime.Config{
 		CollectorInstanceID: collectorID,
 		PollInterval:        pollInterval,
+		Targets:             targets,
+	}, nil
+}
+
+func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig, error) {
+	instances, err := workflow.ParseDesiredCollectorInstancesJSON(getenv(envCollectorInstances))
+	if err != nil {
+		return claimedRuntimeConfig{}, fmt.Errorf("parse %s: %w", envCollectorInstances, err)
+	}
+	instance, err := selectOCIRegistryInstance(instances, getenv(envCollectorInstanceID))
+	if err != nil {
+		return claimedRuntimeConfig{}, err
+	}
+	if err := validateOCIRegistryInstance(instance); err != nil {
+		return claimedRuntimeConfig{}, err
+	}
+	ociConfig, err := parseOCIRegistryRuntimeConfiguration(instance, getenv)
+	if err != nil {
+		return claimedRuntimeConfig{}, err
+	}
+	pollInterval, err := envDuration(getenv, envPollInterval, time.Second)
+	if err != nil {
+		return claimedRuntimeConfig{}, err
+	}
+	claimLeaseTTL, err := envDuration(getenv, envClaimLeaseTTL, workflow.DefaultClaimLeaseTTL())
+	if err != nil {
+		return claimedRuntimeConfig{}, err
+	}
+	heartbeatInterval, err := envDuration(getenv, envHeartbeatInterval, workflow.DefaultHeartbeatInterval())
+	if err != nil {
+		return claimedRuntimeConfig{}, err
+	}
+	if heartbeatInterval >= claimLeaseTTL {
+		return claimedRuntimeConfig{}, fmt.Errorf("OCI registry collector heartbeat interval must be less than claim lease TTL")
+	}
+	return claimedRuntimeConfig{
+		Instance:          instance,
+		OwnerID:           ownerID(getenv),
+		PollInterval:      pollInterval,
+		ClaimLeaseTTL:     claimLeaseTTL,
+		HeartbeatInterval: heartbeatInterval,
+		OCI:               ociConfig,
+	}, nil
+}
+
+func selectOCIRegistryInstance(
+	instances []workflow.DesiredCollectorInstance,
+	requestedInstanceID string,
+) (workflow.DesiredCollectorInstance, error) {
+	requestedInstanceID = strings.TrimSpace(requestedInstanceID)
+	var matches []workflow.DesiredCollectorInstance
+	for _, instance := range instances {
+		if instance.CollectorKind != scope.CollectorOCIRegistry {
+			continue
+		}
+		if requestedInstanceID != "" && instance.InstanceID != requestedInstanceID {
+			continue
+		}
+		matches = append(matches, instance)
+	}
+	switch len(matches) {
+	case 0:
+		if requestedInstanceID != "" {
+			return workflow.DesiredCollectorInstance{}, fmt.Errorf("OCI registry collector instance %q not found", requestedInstanceID)
+		}
+		return workflow.DesiredCollectorInstance{}, fmt.Errorf("no OCI registry collector instance configured")
+	case 1:
+		return matches[0], nil
+	default:
+		return workflow.DesiredCollectorInstance{}, fmt.Errorf("multiple OCI registry collector instances configured; set %s", envCollectorInstanceID)
+	}
+}
+
+func validateOCIRegistryInstance(instance workflow.DesiredCollectorInstance) error {
+	if err := instance.Validate(); err != nil {
+		return fmt.Errorf("OCI registry collector instance: %w", err)
+	}
+	if instance.CollectorKind != scope.CollectorOCIRegistry {
+		return fmt.Errorf("OCI registry collector requires collector_kind %q", scope.CollectorOCIRegistry)
+	}
+	if !instance.Enabled {
+		return fmt.Errorf("OCI registry collector requires enabled collector instance")
+	}
+	if !instance.ClaimsEnabled {
+		return fmt.Errorf("OCI registry collector requires claim-enabled collector instance")
+	}
+	return nil
+}
+
+func parseOCIRegistryRuntimeConfiguration(
+	instance workflow.DesiredCollectorInstance,
+	getenv func(string) string,
+) (ociruntime.Config, error) {
+	var decoded ociRuntimeConfiguration
+	if err := json.Unmarshal([]byte(instance.Configuration), &decoded); err != nil {
+		return ociruntime.Config{}, fmt.Errorf("decode OCI registry collector configuration: %w", err)
+	}
+	if len(decoded.Targets) == 0 {
+		return ociruntime.Config{}, fmt.Errorf("OCI registry collector configuration requires targets")
+	}
+	targets := make([]ociruntime.TargetConfig, 0, len(decoded.Targets))
+	for i, target := range decoded.Targets {
+		mapped, err := mapTarget(target, getenv)
+		if err != nil {
+			return ociruntime.Config{}, fmt.Errorf("targets[%d]: %w", i, err)
+		}
+		targets = append(targets, mapped)
+	}
+	return ociruntime.Config{
+		CollectorInstanceID: instance.InstanceID,
 		Targets:             targets,
 	}, nil
 }
@@ -175,6 +304,30 @@ func parsePollInterval(raw string) (time.Duration, error) {
 		return 0, fmt.Errorf("%s must be positive", envPollInterval)
 	}
 	return value, nil
+}
+
+func envDuration(getenv func(string) string, key string, fallback time.Duration) (time.Duration, error) {
+	raw := strings.TrimSpace(getenv(key))
+	if raw == "" {
+		return fallback, nil
+	}
+	value, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
+	}
+	if value <= 0 {
+		return 0, fmt.Errorf("%s must be positive", key)
+	}
+	return value, nil
+}
+
+func ownerID(getenv func(string) string) string {
+	for _, key := range []string{envOwnerID, "HOSTNAME"} {
+		if value := strings.TrimSpace(getenv(key)); value != "" {
+			return value
+		}
+	}
+	return "collector-oci-registry"
 }
 
 func firstNonBlank(values ...string) string {

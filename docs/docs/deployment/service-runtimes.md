@@ -146,12 +146,15 @@ through central STS AssumeRole or local workload identity, and commits reported
 AWS facts through the shared ingestion boundary. The first scanner slice covers
 IAM roles, managed policies, instance profiles, and trust relationships.
 
-`collector-oci-registry` scans configured OCI registry repositories from
-`ESHU_OCI_REGISTRY_TARGETS_JSON`, supports JFrog Docker/OCI, ECR, Docker Hub,
-and GHCR client wiring, and commits digest-addressed registry facts through the
-shared ingestion boundary. It exposes `oci_registry.scan` and
-`oci_registry.api_call` spans plus the `eshu_dp_oci_registry_*` metric family
-documented in the telemetry reference.
+`collector-oci-registry` scans configured OCI registry repositories. In the
+legacy local mode it reads `ESHU_OCI_REGISTRY_TARGETS_JSON`; when
+`ESHU_COLLECTOR_INSTANCES_JSON` is present it selects a claim-enabled
+`oci_registry` instance and claims one workflow work item per configured
+repository target. It supports JFrog Docker/OCI, ECR, Docker Hub, GHCR, Harbor,
+Google Artifact Registry, and Azure Container Registry client wiring, and
+commits digest-addressed registry facts through the shared ingestion boundary.
+It exposes `oci_registry.scan` and `oci_registry.api_call` spans plus the
+`eshu_dp_oci_registry_*` metric family documented in the telemetry reference.
 
 ## Admin Contract
 

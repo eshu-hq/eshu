@@ -136,11 +136,12 @@ S3 seeds must include bucket, key, and region; any S3 seed also requires
 `aws.role_arn`. This keeps unsafe or incomplete state-reader config out of the
 durable `collector_instances` table.
 
-`oci_registry` collector instances are config/poll driven. They are registered
-in the collector contract table so workflow progress and readiness code knows
-the family, but they do not declare reducer phase requirements until registry
-facts have a graph projection contract. Claim scheduling must stay disabled for
-OCI registry instances.
+`oci_registry` collector instances are claim-capable. The coordinator plans one
+bounded work item per configured registry repository target, and the
+`collector-oci-registry` runtime resolves each claimed `scope_id` back to a
+configured target before scanning. OCI registry instances still declare no
+reducer phase requirements until registry facts have a graph projection
+contract.
 
 **Defaults**:
 - `DefaultClaimLeaseTTL()` — 60s

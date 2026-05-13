@@ -99,3 +99,76 @@ func TestLoadRuntimeConfigMapsHarborGARAndACRTargets(t *testing.T) {
 		t.Fatalf("ACR Repository = %q, want %q", got, want)
 	}
 }
+
+func TestLoadClaimedRuntimeConfigSelectsClaimEnabledOCIInstance(t *testing.T) {
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"collector-oci-registry",
+			"collector_kind":"oci_registry",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"targets":[{
+					"provider":"dockerhub",
+					"registry":"docker.io",
+					"repository":"busybox",
+					"references":["latest"],
+					"tag_limit":1,
+					"username_env":"DOCKERHUB_USER",
+					"password_env":"DOCKERHUB_TOKEN"
+				}]
+			}
+		}]`,
+		envOwnerID:        "oci-owner-a",
+		"DOCKERHUB_USER":  "docker-user",
+		"DOCKERHUB_TOKEN": "docker-token",
+	}
+
+	config, err := loadClaimedRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadClaimedRuntimeConfig() error = %v", err)
+	}
+	if got, want := config.Instance.InstanceID, "collector-oci-registry"; got != want {
+		t.Fatalf("InstanceID = %q, want %q", got, want)
+	}
+	if got, want := config.OwnerID, "oci-owner-a"; got != want {
+		t.Fatalf("OwnerID = %q, want %q", got, want)
+	}
+	if got, want := config.OCI.CollectorInstanceID, "collector-oci-registry"; got != want {
+		t.Fatalf("OCI CollectorInstanceID = %q, want %q", got, want)
+	}
+	target := config.OCI.Targets[0]
+	if got, want := target.Provider, ociregistry.ProviderDockerHub; got != want {
+		t.Fatalf("Provider = %q, want %q", got, want)
+	}
+	if got, want := target.Registry, "docker.io"; got != want {
+		t.Fatalf("Registry = %q, want %q", got, want)
+	}
+	if got, want := target.Repository, "library/busybox"; got != want {
+		t.Fatalf("Repository = %q, want %q", got, want)
+	}
+	if got, want := target.Username, "docker-user"; got != want {
+		t.Fatalf("Username = %q, want %q", got, want)
+	}
+	if got, want := target.Password, "docker-token"; got != want {
+		t.Fatalf("Password = %q, want %q", got, want)
+	}
+}
+
+func TestLoadClaimedRuntimeConfigRejectsClaimsDisabledOCIInstance(t *testing.T) {
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"collector-oci-registry",
+			"collector_kind":"oci_registry",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":false,
+			"configuration":{"targets":[{"provider":"dockerhub","registry":"registry-1.docker.io","repository":"library/busybox"}]}
+		}]`,
+	}
+
+	if _, err := loadClaimedRuntimeConfig(func(key string) string { return env[key] }); err == nil {
+		t.Fatal("loadClaimedRuntimeConfig() error = nil, want non-nil")
+	}
+}
