@@ -77,6 +77,7 @@ type Instruments struct {
 	AWSAPICalls                               metric.Int64Counter
 	AWSThrottles                              metric.Int64Counter
 	AWSAssumeRoleFailed                       metric.Int64Counter
+	AWSBudgetExhausted                        metric.Int64Counter
 	AWSCheckpointEvents                       metric.Int64Counter
 	AWSResourcesEmitted                       metric.Int64Counter
 	AWSRelationshipsEmitted                   metric.Int64Counter
@@ -546,6 +547,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWSAssumeRoleFailed counter: %w", err)
+	}
+
+	inst.AWSBudgetExhausted, err = meter.Int64Counter(
+		"eshu_dp_aws_budget_exhausted_total",
+		metric.WithDescription("Total AWS service scans that yielded after exhausting the configured API budget by service, account, and region"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSBudgetExhausted counter: %w", err)
 	}
 
 	inst.AWSCheckpointEvents, err = meter.Int64Counter(

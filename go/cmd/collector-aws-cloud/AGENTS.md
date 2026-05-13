@@ -5,11 +5,13 @@
 1. `README.md` - command purpose, configuration, and invariants.
 2. `config.go` - collector instance selection and target-scope parsing.
 3. `service.go` - claim-aware runner and runtime wiring.
-4. `go/internal/collector/awscloud/awsruntime/README.md` - claim runtime
+4. `status_committer.go` - commit-side AWS scan status updates after fenced
+   fact persistence.
+5. `go/internal/collector/awscloud/awsruntime/README.md` - claim runtime
    contract.
-5. Service `awssdk` README files under
+6. Service `awssdk` README files under
    `go/internal/collector/awscloud/services/` - SDK adapter contracts.
-6. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - security and
+7. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - security and
    runtime requirements.
 
 ## Invariants
@@ -30,6 +32,8 @@
   and security groups are reported join evidence only.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
+- Preserve the split between scanner-side status in `awsruntime` and
+  commit-side status in `status_committer.go`.
 
 ## Common Changes
 

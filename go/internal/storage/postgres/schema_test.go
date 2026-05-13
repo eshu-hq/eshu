@@ -13,8 +13,8 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if len(defs) != 18 {
-		t.Fatalf("BootstrapDefinitions() len = %d, want 18", len(defs))
+	if len(defs) != 19 {
+		t.Fatalf("BootstrapDefinitions() len = %d, want 19", len(defs))
 	}
 
 	wantNames := []string{
@@ -36,6 +36,7 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 		"iac_reachability",
 		"webhook_refresh_triggers",
 		"aws_pagination_checkpoints",
+		"aws_scan_status",
 	}
 	for i, want := range wantNames {
 		if defs[i].Name != want {

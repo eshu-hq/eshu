@@ -115,6 +115,8 @@ gauge when a shared-acceptance observer is available.
 | `AWSAPICalls` | `eshu_dp_aws_api_calls_total` |
 | `AWSThrottles` | `eshu_dp_aws_throttle_total` |
 | `AWSAssumeRoleFailed` | `eshu_dp_aws_assumerole_failed_total` |
+| `AWSBudgetExhausted` | `eshu_dp_aws_budget_exhausted_total` |
+| `AWSCheckpointEvents` | `eshu_dp_aws_pagination_checkpoint_events_total` |
 | `AWSResourcesEmitted` | `eshu_dp_aws_resources_emitted_total` |
 | `AWSRelationshipsEmitted` | `eshu_dp_aws_relationships_emitted_total` |
 | `AWSTagObservationsEmitted` | `eshu_dp_aws_tag_observations_emitted_total` |

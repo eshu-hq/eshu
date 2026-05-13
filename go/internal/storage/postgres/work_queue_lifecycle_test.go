@@ -185,6 +185,7 @@ func isWorkflowCoordinatorStatusQuery(query string) bool {
 		strings.Contains(query, "JOIN workflow_work_items") ||
 		strings.Contains(query, "FROM workflow_run_completeness") ||
 		strings.Contains(query, "FROM workflow_claims") ||
+		strings.Contains(query, "FROM aws_scan_status") ||
 		isTerraformStateAdminQuery(query)
 }
 

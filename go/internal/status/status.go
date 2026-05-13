@@ -97,6 +97,12 @@ type RawSnapshot struct {
 	LatestQueueFailure    *QueueFailureSnapshot
 	Coordinator           *CoordinatorSnapshot
 	RegistryCollectors    []RegistryCollectorSnapshot
+	AWSCloudScans         []AWSCloudScanStatus
+	// AWSCloudScansTruncated reports that the reader returned the configured
+	// row cap instead of every AWS scan tuple.
+	AWSCloudScansTruncated bool
+	// AWSCloudScanLimit is the row cap used when AWSCloudScansTruncated is true.
+	AWSCloudScanLimit int
 	// TerraformStateLastSerials carries the most recent observed serial per
 	// active state_snapshot scope, keyed by safe_locator_hash. Empty when the
 	// reader does not surface tfstate evidence.
@@ -138,22 +144,25 @@ type StageSummary struct {
 
 // Report is the operator-facing summary rendered by CLI and future admin APIs.
 type Report struct {
-	AsOf                  time.Time
-	Health                HealthSummary
-	FlowSummaries         []FlowSummary
-	Queue                 QueueSnapshot
-	RetryPolicies         []RetryPolicySummary
-	ScopeActivity         ScopeActivitySnapshot
-	GenerationHistory     GenerationHistorySnapshot
-	GenerationTransitions []GenerationTransitionSnapshot
-	ScopeTotals           map[string]int
-	GenerationTotals      map[string]int
-	StageSummaries        []StageSummary
-	DomainBacklogs        []DomainBacklog
-	QueueBlockages        []QueueBlockage
-	LatestQueueFailure    *QueueFailureSnapshot
-	Coordinator           *CoordinatorSnapshot
-	RegistryCollectors    []RegistryCollectorSnapshot
+	AsOf                   time.Time
+	Health                 HealthSummary
+	FlowSummaries          []FlowSummary
+	Queue                  QueueSnapshot
+	RetryPolicies          []RetryPolicySummary
+	ScopeActivity          ScopeActivitySnapshot
+	GenerationHistory      GenerationHistorySnapshot
+	GenerationTransitions  []GenerationTransitionSnapshot
+	ScopeTotals            map[string]int
+	GenerationTotals       map[string]int
+	StageSummaries         []StageSummary
+	DomainBacklogs         []DomainBacklog
+	QueueBlockages         []QueueBlockage
+	LatestQueueFailure     *QueueFailureSnapshot
+	Coordinator            *CoordinatorSnapshot
+	RegistryCollectors     []RegistryCollectorSnapshot
+	AWSCloudScans          []AWSCloudScanStatus
+	AWSCloudScansTruncated bool
+	AWSCloudScanLimit      int
 	// TerraformState carries the operator-facing tfstate admin status section
 	// derived from RawSnapshot.TerraformStateLastSerials and
 	// RawSnapshot.TerraformStateRecentWarnings. Empty when the reader did not
@@ -221,22 +230,25 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 	flowSummaries := buildFlowSummaries(scopeTotals, generationTotals, stageSummaries, raw.Queue, domainBacklogs)
 
 	return Report{
-		AsOf:                  raw.AsOf,
-		Health:                evaluateHealth(raw.Queue, generationTotals, domainBacklogs, opts),
-		FlowSummaries:         flowSummaries,
-		Queue:                 raw.Queue,
-		RetryPolicies:         cloneRetryPolicies(raw.RetryPolicies),
-		ScopeActivity:         scopeActivity,
-		GenerationHistory:     generationHistory,
-		GenerationTransitions: cloneGenerationTransitions(raw.GenerationTransitions),
-		ScopeTotals:           scopeTotals,
-		GenerationTotals:      generationTotals,
-		StageSummaries:        stageSummaries,
-		DomainBacklogs:        domainBacklogs,
-		QueueBlockages:        cloneQueueBlockages(raw.QueueBlockages),
-		LatestQueueFailure:    cloneQueueFailure(raw.LatestQueueFailure),
-		Coordinator:           cloneCoordinatorSnapshot(raw.Coordinator),
-		RegistryCollectors:    cloneRegistryCollectorSnapshots(raw.RegistryCollectors),
+		AsOf:                   raw.AsOf,
+		Health:                 evaluateHealth(raw.Queue, generationTotals, domainBacklogs, opts),
+		FlowSummaries:          flowSummaries,
+		Queue:                  raw.Queue,
+		RetryPolicies:          cloneRetryPolicies(raw.RetryPolicies),
+		ScopeActivity:          scopeActivity,
+		GenerationHistory:      generationHistory,
+		GenerationTransitions:  cloneGenerationTransitions(raw.GenerationTransitions),
+		ScopeTotals:            scopeTotals,
+		GenerationTotals:       generationTotals,
+		StageSummaries:         stageSummaries,
+		DomainBacklogs:         domainBacklogs,
+		QueueBlockages:         cloneQueueBlockages(raw.QueueBlockages),
+		LatestQueueFailure:     cloneQueueFailure(raw.LatestQueueFailure),
+		Coordinator:            cloneCoordinatorSnapshot(raw.Coordinator),
+		RegistryCollectors:     cloneRegistryCollectorSnapshots(raw.RegistryCollectors),
+		AWSCloudScans:          cloneAWSCloudScanStatuses(raw.AWSCloudScans),
+		AWSCloudScansTruncated: raw.AWSCloudScansTruncated,
+		AWSCloudScanLimit:      raw.AWSCloudScanLimit,
 		TerraformState: TerraformStateReport{
 			LastSerials:    SortTerraformStateSerials(raw.TerraformStateLastSerials),
 			RecentWarnings: SortTerraformStateWarnings(raw.TerraformStateRecentWarnings),
@@ -293,6 +305,10 @@ func RenderText(report Report) string {
 	lines = append(lines, renderQueueBlockageLines(report.QueueBlockages)...)
 	lines = append(lines, renderCoordinatorLines(report.Coordinator)...)
 	lines = append(lines, renderRegistryCollectorLines(report.RegistryCollectors)...)
+	lines = append(lines, renderAWSCloudScanLines(report.AWSCloudScans)...)
+	if report.AWSCloudScansTruncated {
+		lines = append(lines, fmt.Sprintf("AWS cloud scans truncated: limit=%d", report.AWSCloudScanLimit))
+	}
 	lines = append(lines, renderFlowLines(report.FlowSummaries)...)
 	if len(report.StageSummaries) > 0 {
 		lines = append(lines, "Stages:")

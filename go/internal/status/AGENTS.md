@@ -14,7 +14,9 @@
    field name here is part of the operator contract
 6. `go/internal/status/coordinator.go` — `CoordinatorSnapshot`,
    `CollectorInstanceSummary`; how the workflow coordinator state plugs in
-7. `docs/docs/reference/http-api.md` and `docs/docs/reference/cli-reference.md`
+7. `go/internal/status/aws_cloud.go` — AWS cloud scanner status text and JSON
+   projection support
+8. `docs/docs/reference/http-api.md` and `docs/docs/reference/cli-reference.md`
    — the documented operator contract this package backs
 
 ## Invariants this package enforces
@@ -42,6 +44,9 @@
 - **`CoordinatorSnapshot` is optional.** Nil-check before rendering. A nil
   coordinator simply means the workflow coordinator is not wired for this
   runtime.
+- **AWS cloud scan status separates scanner state from commit state.** Preserve
+  both fields so operators can tell scanner/API problems apart from fact commit
+  problems.
 
 ## Common changes and how to scope them
 

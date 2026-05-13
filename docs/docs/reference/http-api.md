@@ -170,7 +170,12 @@ whether the latest published Go checkpoint is finished.
   scope, 24-hour recent completed generation, last-completed,
   retryable/terminal failure, and bounded failure-class counts without registry
   hosts, repository paths, package names, tags, digests, account IDs, metadata
-  URLs, or credentials.
+  URLs, or credentials. The same shape includes `aws_cloud_scans` for AWS cloud
+  collector runtimes. That section reports per `(collector_instance_id,
+  account_id, region, service_kind)` scanner status, commit status, API call
+  count, throttle count, warning count, and budget/credential flags. When the
+  result reaches the configured row cap, the payload sets
+  `aws_cloud_scans_truncated` and reports that cap in `aws_cloud_scan_limit`.
 - `GET /api/v0/status/index` returns the current checkpoint summary.
 - `GET /api/v0/index-status` returns the same checkpoint summary.
 - `GET /api/v0/status/ingesters` is the canonical ingester-status list route.

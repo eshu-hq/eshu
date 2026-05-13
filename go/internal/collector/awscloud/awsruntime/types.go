@@ -21,7 +21,10 @@ const (
 
 	// WarningAssumeRoleFailed is emitted when claim-scoped credential
 	// acquisition fails before a service scan can start.
-	WarningAssumeRoleFailed = "assumerole_failed"
+	WarningAssumeRoleFailed = awscloud.WarningAssumeRoleFailed
+	// WarningBudgetExhausted is emitted when a service scan yields after
+	// exhausting its configured API budget.
+	WarningBudgetExhausted = awscloud.WarningBudgetExhausted
 )
 
 // CredentialMode identifies how the runtime obtains AWS credentials for one
@@ -91,3 +94,9 @@ type ServiceScanner interface {
 
 // CheckpointStore persists AWS pagination progress for long service scans.
 type CheckpointStore = checkpoint.Store
+
+// ScanStatusStore persists per-claim AWS scan status for admin reports.
+type ScanStatusStore interface {
+	StartAWSScan(context.Context, awscloud.ScanStatusStart) error
+	ObserveAWSScan(context.Context, awscloud.ScanStatusObservation) error
+}

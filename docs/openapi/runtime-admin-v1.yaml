@@ -465,6 +465,76 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RegistryFailureClassCount"
+    AWSCloudScanSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - collector_instance_id
+        - account_id
+        - region
+        - service_kind
+        - status
+        - commit_status
+        - api_call_count
+        - throttle_count
+        - warning_count
+        - resource_count
+        - relationship_count
+        - tag_observation_count
+        - budget_exhausted
+        - credential_failed
+      properties:
+        collector_instance_id:
+          type: string
+        account_id:
+          type: string
+        region:
+          type: string
+        service_kind:
+          type: string
+        status:
+          type: string
+          enum: [running, succeeded, partial, failed, credential_failed]
+        commit_status:
+          type: string
+          enum: [pending, committed, failed]
+        failure_class:
+          type: string
+        failure_message:
+          description: Bounded, redacted failure detail. It must not contain raw
+            AWS ARNs, request IDs, access keys, or unbounded SDK payloads.
+          type: string
+        api_call_count:
+          type: integer
+        throttle_count:
+          type: integer
+        warning_count:
+          type: integer
+        resource_count:
+          type: integer
+        relationship_count:
+          type: integer
+        tag_observation_count:
+          type: integer
+        budget_exhausted:
+          type: boolean
+        credential_failed:
+          type: boolean
+        last_started_at:
+          type: string
+          format: date-time
+        last_observed_at:
+          type: string
+          format: date-time
+        last_completed_at:
+          type: string
+          format: date-time
+        last_successful_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     TagTaxonomySummary:
       type: object
       additionalProperties: false
@@ -557,5 +627,22 @@ components:
             or credential values.
           items:
             $ref: "#/components/schemas/RegistryCollectorSummary"
+        aws_cloud_scans:
+          type: array
+          description: >
+            Per AWS collector tuple scanner and fact-commit status. Rows carry
+            account IDs, regions, and service kinds because those are the AWS
+            claim boundary; they must not include ARNs, resource names, tags,
+            page tokens, or raw AWS error payloads.
+          items:
+            $ref: "#/components/schemas/AWSCloudScanSummary"
+        aws_cloud_scans_truncated:
+          type: boolean
+          description: >
+            True when the runtime returned only the configured AWS scan-status
+            row cap instead of every collector/account/region/service tuple.
+        aws_cloud_scan_limit:
+          type: integer
+          description: Configured AWS scan-status row cap when truncated.
         tag_taxonomy:
           $ref: "#/components/schemas/TagTaxonomySummary"

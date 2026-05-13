@@ -176,8 +176,8 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	if len(queryer.queries) != 17 {
-		t.Fatalf("QueryContext() call count = %d, want 17", len(queryer.queries))
+	if len(queryer.queries) != 18 {
+		t.Fatalf("QueryContext() call count = %d, want 18", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",
@@ -188,6 +188,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"FROM fact_work_items",
 		"inflight.conflict_domain",
 		"failure_details",
+		"FROM aws_scan_status",
 	} {
 		joined := strings.Join(queryer.queries, "\n")
 		if !strings.Contains(joined, want) {

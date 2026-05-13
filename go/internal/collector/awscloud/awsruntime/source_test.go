@@ -246,6 +246,65 @@ func TestClaimedSourceRecordsEmissionCounters(t *testing.T) {
 	}
 }
 
+func TestClaimedSourceRecordsScanStatusWithAPICallStats(t *testing.T) {
+	now := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
+	item := awsWorkItem(now)
+	statusStore := &stubScanStatusStore{}
+	source := ClaimedSource{
+		Config: Config{
+			CollectorInstanceID: item.CollectorInstanceID,
+			Targets: []TargetScope{{
+				AccountID:       "123456789012",
+				AllowedRegions:  []string{"us-east-1"},
+				AllowedServices: []string{awscloud.ServiceIAM},
+				Credentials: CredentialConfig{
+					Mode: CredentialModeLocalWorkloadIdentity,
+				},
+			}},
+		},
+		Credentials: &stubCredentialProvider{lease: &stubCredentialLease{}},
+		Scanners: &stubScannerFactory{scanner: stubScanner{
+			apiEvents: []stubAPICallEvent{
+				{operation: "ListRoles", result: "success"},
+				{operation: "ListPolicies", result: "error", throttled: true},
+			},
+			envelopes: []facts.Envelope{
+				{FactKind: facts.AWSResourceFactKind},
+				{FactKind: facts.AWSWarningFactKind, Payload: map[string]any{"warning_kind": WarningBudgetExhausted}},
+			},
+		}},
+		Clock:      func() time.Time { return now },
+		ScanStatus: statusStore,
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	if got := drainFacts(t, collected.Facts); len(got) != 2 {
+		t.Fatalf("fact count = %d, want 2", len(got))
+	}
+	if len(statusStore.starts) != 1 {
+		t.Fatalf("StartAWSScan calls = %d, want 1", len(statusStore.starts))
+	}
+	if len(statusStore.observations) != 1 {
+		t.Fatalf("ObserveAWSScan calls = %d, want 1", len(statusStore.observations))
+	}
+	observation := statusStore.observations[0]
+	if observation.Status != awscloud.ScanStatusPartial {
+		t.Fatalf("status = %q, want partial", observation.Status)
+	}
+	if observation.APICallCount != 2 || observation.ThrottleCount != 1 {
+		t.Fatalf("api/throttle counts = %d/%d, want 2/1", observation.APICallCount, observation.ThrottleCount)
+	}
+	if !observation.BudgetExhausted || observation.FailureClass != "budget_exhausted" {
+		t.Fatalf("budget status = exhausted:%t class:%q, want exhausted budget_exhausted", observation.BudgetExhausted, observation.FailureClass)
+	}
+}
+
 func awsWorkItem(now time.Time) workflow.WorkItem {
 	return workflow.WorkItem{
 		WorkItemID:          "aws:collector-1:run-1:123456789012:us-east-1:iam",
@@ -362,9 +421,39 @@ func (f *stubScannerFactory) Scanner(
 
 type stubScanner struct {
 	envelopes []facts.Envelope
+	apiEvents []stubAPICallEvent
 	err       error
 }
 
-func (s stubScanner) Scan(context.Context, awscloud.Boundary) ([]facts.Envelope, error) {
+func (s stubScanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+	for _, event := range s.apiEvents {
+		awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+			Boundary:  boundary,
+			Operation: event.operation,
+			Result:    event.result,
+			Throttled: event.throttled,
+		})
+	}
 	return s.envelopes, s.err
+}
+
+type stubAPICallEvent struct {
+	operation string
+	result    string
+	throttled bool
+}
+
+type stubScanStatusStore struct {
+	starts       []awscloud.ScanStatusStart
+	observations []awscloud.ScanStatusObservation
+}
+
+func (s *stubScanStatusStore) StartAWSScan(_ context.Context, start awscloud.ScanStatusStart) error {
+	s.starts = append(s.starts, start)
+	return nil
+}
+
+func (s *stubScanStatusStore) ObserveAWSScan(_ context.Context, observation awscloud.ScanStatusObservation) error {
+	s.observations = append(s.observations, observation)
+	return nil
 }

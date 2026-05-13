@@ -12,43 +12,49 @@ import (
 // RenderJSON returns a stable machine-readable projection of the report.
 func RenderJSON(report Report) ([]byte, error) {
 	payload := struct {
-		Version               string                     `json:"version"`
-		AsOf                  string                     `json:"as_of"`
-		Health                HealthSummary              `json:"health"`
-		Coordinator           *coordinatorSnapshotJSON   `json:"coordinator,omitempty"`
-		Flow                  []flowSummaryJSON          `json:"flow"`
-		Queue                 queueJSON                  `json:"queue"`
-		LatestFailure         *queueFailureJSON          `json:"latest_failure,omitempty"`
-		RetryPolicies         []retryPolicyJSON          `json:"retry_policies"`
-		RegistryCollectors    []registryCollectorJSON    `json:"registry_collectors,omitempty"`
-		ScopeActivity         scopeActivityJSON          `json:"scope_activity"`
-		GenerationHistory     generationHistoryJSON      `json:"generation_history"`
-		GenerationTransitions []generationTransitionJSON `json:"generation_transitions"`
-		Scopes                map[string]int             `json:"scopes"`
-		Generations           map[string]int             `json:"generations"`
-		Stages                []StageSummary             `json:"stages"`
-		Domains               []domainBacklogJSON        `json:"domains"`
-		QueueBlockages        []queueBlockageJSON        `json:"queue_blockages"`
-		TerraformState        *terraformStateJSON        `json:"terraform_state,omitempty"`
+		Version                string                     `json:"version"`
+		AsOf                   string                     `json:"as_of"`
+		Health                 HealthSummary              `json:"health"`
+		Coordinator            *coordinatorSnapshotJSON   `json:"coordinator,omitempty"`
+		Flow                   []flowSummaryJSON          `json:"flow"`
+		Queue                  queueJSON                  `json:"queue"`
+		LatestFailure          *queueFailureJSON          `json:"latest_failure,omitempty"`
+		RetryPolicies          []retryPolicyJSON          `json:"retry_policies"`
+		RegistryCollectors     []registryCollectorJSON    `json:"registry_collectors,omitempty"`
+		AWSCloudScans          []awsCloudScanJSON         `json:"aws_cloud_scans,omitempty"`
+		AWSCloudScansTruncated bool                       `json:"aws_cloud_scans_truncated,omitempty"`
+		AWSCloudScanLimit      int                        `json:"aws_cloud_scan_limit,omitempty"`
+		ScopeActivity          scopeActivityJSON          `json:"scope_activity"`
+		GenerationHistory      generationHistoryJSON      `json:"generation_history"`
+		GenerationTransitions  []generationTransitionJSON `json:"generation_transitions"`
+		Scopes                 map[string]int             `json:"scopes"`
+		Generations            map[string]int             `json:"generations"`
+		Stages                 []StageSummary             `json:"stages"`
+		Domains                []domainBacklogJSON        `json:"domains"`
+		QueueBlockages         []queueBlockageJSON        `json:"queue_blockages"`
+		TerraformState         *terraformStateJSON        `json:"terraform_state,omitempty"`
 	}{
-		Version:               buildinfo.AppVersion(),
-		AsOf:                  report.AsOf.UTC().Format(time.RFC3339),
-		Health:                report.Health,
-		Coordinator:           coordinatorJSON(report.Coordinator),
-		Flow:                  flowSummariesJSON(report.FlowSummaries),
-		Queue:                 queueJSONFromReport(report.Queue),
-		LatestFailure:         queueFailureJSONFromReport(report.LatestQueueFailure),
-		RetryPolicies:         retryPoliciesJSON(report.RetryPolicies),
-		RegistryCollectors:    registryCollectorsJSON(report.RegistryCollectors),
-		ScopeActivity:         scopeActivityJSONFromReport(report.ScopeActivity),
-		GenerationHistory:     generationHistoryJSONFromReport(report.GenerationHistory),
-		GenerationTransitions: generationTransitionsJSON(report.GenerationTransitions),
-		Scopes:                cloneCounts(report.ScopeTotals),
-		Generations:           cloneCounts(report.GenerationTotals),
-		Stages:                slices.Clone(report.StageSummaries),
-		Domains:               domainBacklogsJSON(report.DomainBacklogs),
-		QueueBlockages:        queueBlockagesJSON(report.QueueBlockages),
-		TerraformState:        terraformStateReportJSON(report.TerraformState),
+		Version:                buildinfo.AppVersion(),
+		AsOf:                   report.AsOf.UTC().Format(time.RFC3339),
+		Health:                 report.Health,
+		Coordinator:            coordinatorJSON(report.Coordinator),
+		Flow:                   flowSummariesJSON(report.FlowSummaries),
+		Queue:                  queueJSONFromReport(report.Queue),
+		LatestFailure:          queueFailureJSONFromReport(report.LatestQueueFailure),
+		RetryPolicies:          retryPoliciesJSON(report.RetryPolicies),
+		RegistryCollectors:     registryCollectorsJSON(report.RegistryCollectors),
+		AWSCloudScans:          awsCloudScansJSON(report.AWSCloudScans),
+		AWSCloudScansTruncated: report.AWSCloudScansTruncated,
+		AWSCloudScanLimit:      awsCloudScanLimitJSON(report),
+		ScopeActivity:          scopeActivityJSONFromReport(report.ScopeActivity),
+		GenerationHistory:      generationHistoryJSONFromReport(report.GenerationHistory),
+		GenerationTransitions:  generationTransitionsJSON(report.GenerationTransitions),
+		Scopes:                 cloneCounts(report.ScopeTotals),
+		Generations:            cloneCounts(report.GenerationTotals),
+		Stages:                 slices.Clone(report.StageSummaries),
+		Domains:                domainBacklogsJSON(report.DomainBacklogs),
+		QueueBlockages:         queueBlockagesJSON(report.QueueBlockages),
+		TerraformState:         terraformStateReportJSON(report.TerraformState),
 	}
 
 	return json.MarshalIndent(payload, "", "  ")
@@ -134,6 +140,30 @@ type registryCollectorJSON struct {
 	RetryableFailures          int              `json:"retryable_failures"`
 	TerminalFailures           int              `json:"terminal_failures"`
 	FailureClassCounts         []namedCountJSON `json:"failure_class_counts,omitempty"`
+}
+
+type awsCloudScanJSON struct {
+	CollectorInstanceID string `json:"collector_instance_id"`
+	AccountID           string `json:"account_id"`
+	Region              string `json:"region"`
+	ServiceKind         string `json:"service_kind"`
+	Status              string `json:"status"`
+	CommitStatus        string `json:"commit_status"`
+	FailureClass        string `json:"failure_class,omitempty"`
+	FailureMessage      string `json:"failure_message,omitempty"`
+	APICallCount        int    `json:"api_call_count"`
+	ThrottleCount       int    `json:"throttle_count"`
+	WarningCount        int    `json:"warning_count"`
+	ResourceCount       int    `json:"resource_count"`
+	RelationshipCount   int    `json:"relationship_count"`
+	TagObservationCount int    `json:"tag_observation_count"`
+	BudgetExhausted     bool   `json:"budget_exhausted"`
+	CredentialFailed    bool   `json:"credential_failed"`
+	LastStartedAt       string `json:"last_started_at,omitempty"`
+	LastObservedAt      string `json:"last_observed_at,omitempty"`
+	LastCompletedAt     string `json:"last_completed_at,omitempty"`
+	LastSuccessfulAt    string `json:"last_successful_at,omitempty"`
+	UpdatedAt           string `json:"updated_at,omitempty"`
 }
 
 type domainBacklogJSON struct {
@@ -287,6 +317,43 @@ func registryCollectorsJSON(rows []RegistryCollectorSnapshot) []registryCollecto
 		})
 	}
 	return projected
+}
+
+func awsCloudScansJSON(rows []AWSCloudScanStatus) []awsCloudScanJSON {
+	projected := make([]awsCloudScanJSON, 0, len(rows))
+	for _, row := range rows {
+		projected = append(projected, awsCloudScanJSON{
+			CollectorInstanceID: row.CollectorInstanceID,
+			AccountID:           row.AccountID,
+			Region:              row.Region,
+			ServiceKind:         row.ServiceKind,
+			Status:              row.Status,
+			CommitStatus:        row.CommitStatus,
+			FailureClass:        row.FailureClass,
+			FailureMessage:      row.FailureMessage,
+			APICallCount:        row.APICallCount,
+			ThrottleCount:       row.ThrottleCount,
+			WarningCount:        row.WarningCount,
+			ResourceCount:       row.ResourceCount,
+			RelationshipCount:   row.RelationshipCount,
+			TagObservationCount: row.TagObservationCount,
+			BudgetExhausted:     row.BudgetExhausted,
+			CredentialFailed:    row.CredentialFailed,
+			LastStartedAt:       nullableRFC3339Value(row.LastStartedAt),
+			LastObservedAt:      nullableRFC3339Value(row.LastObservedAt),
+			LastCompletedAt:     nullableRFC3339Value(row.LastCompletedAt),
+			LastSuccessfulAt:    nullableRFC3339Value(row.LastSuccessfulAt),
+			UpdatedAt:           nullableRFC3339Value(row.UpdatedAt),
+		})
+	}
+	return projected
+}
+
+func awsCloudScanLimitJSON(report Report) int {
+	if !report.AWSCloudScansTruncated {
+		return 0
+	}
+	return report.AWSCloudScanLimit
 }
 
 func nullableRFC3339String(value time.Time) *string {

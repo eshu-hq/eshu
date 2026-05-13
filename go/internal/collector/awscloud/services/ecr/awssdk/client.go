@@ -329,6 +329,13 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 	if err != nil {
 		result = "error"
 	}
+	throttled := isThrottleError(err)
+	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+		Boundary:  c.boundary,
+		Operation: operation,
+		Result:    result,
+		Throttled: throttled,
+	})
 	if c.instruments != nil {
 		attrs := metric.WithAttributes(
 			telemetry.AttrService(c.boundary.ServiceKind),
@@ -338,7 +345,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 			telemetry.AttrResult(result),
 		)
 		c.instruments.AWSAPICalls.Add(ctx, 1, attrs)
-		if isThrottleError(err) {
+		if throttled {
 			c.instruments.AWSThrottles.Add(ctx, 1, metric.WithAttributes(
 				telemetry.AttrService(c.boundary.ServiceKind),
 				telemetry.AttrAccount(c.boundary.AccountID),

@@ -79,6 +79,9 @@ See `doc.go` for the godoc contract. Key types and functions:
   counts for configured instances, active scopes, recent completed generations,
   last completed timestamp, retryable/terminal failures, and failure classes
   without private registry object names
+- `AWSCloudScanStatus` — per AWS `(collector_instance_id, account_id, region,
+  service_kind)` scanner status, commit status, API call count, throttle count,
+  warning count, and budget/credential flags
 - `TerraformStateLocatorSerial` — most recent observed serial per
   Terraform-state scope, keyed by safe locator hash so the report never carries
   raw bucket names, S3 keys, or local paths
@@ -114,7 +117,7 @@ states (in priority order):
 - `RenderText(report)` — compact multi-line text for CLI and plain-text admin
   endpoints; includes health, queue, retry policies, scope activity, generation
   history, stage summaries, domain backlogs, queue blockages, coordinator state,
-  and flow lanes
+  registry collector state, AWS cloud scan state, and flow lanes
 - `RenderJSON(report)` — stable JSON payload for machine-readable consumption;
   field names are part of the operator contract
 - `NewHTTPHandler(reader, opts)` — returns an `http.Handler` that serves `GET`
@@ -165,6 +168,10 @@ strings.
 - **`CoordinatorSnapshot` is optional.** When the workflow coordinator is not
   wired, `RawSnapshot.Coordinator` is nil and `Report.Coordinator` is nil.
   Callers must nil-check before rendering coordinator lines.
+- **AWS cloud status separates scan and commit.** `AWSCloudScanStatus.Status`
+  describes scanner-side outcome such as `partial`, `credential_failed`, or
+  `failed`; `CommitStatus` describes whether the fenced fact transaction later
+  committed.
 - **`BuildReport` is a pure function.** It can be called in tests without any
   storage dependency. Use it to unit-test health logic, flow summaries, and
   domain backlog ordering.

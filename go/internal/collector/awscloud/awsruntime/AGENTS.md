@@ -8,9 +8,10 @@
 4. `registry.go` - production service scanner registry.
 5. `source.go` - claim validation, target authorization, checkpoint expiry, and generation
    construction.
-6. `../checkpoint/README.md` - durable pagination checkpoint contract.
-7. `../README.md` - shared AWS fact-envelope contract.
-8. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - runtime and
+6. `scan_status.go` - scanner-side durable status projection.
+7. `../checkpoint/README.md` - durable pagination checkpoint contract.
+8. `../README.md` - shared AWS fact-envelope contract.
+9. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - runtime and
    credential requirements.
 
 ## Invariants
@@ -23,6 +24,9 @@
   boundary and warning fact.
 - Expire pagination checkpoints for prior generations before building service
   scanners.
+- Record AWS scan status after claim start and after scanner completion when a
+  scan-status store is configured. Scanner status is not the same as durable
+  fact commit status.
 - Release credential leases even when scanner construction or service scanning
   fails.
 - Keep resource ARNs, policy JSON, tags, account names, and raw error payloads
