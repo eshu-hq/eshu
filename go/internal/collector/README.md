@@ -156,6 +156,13 @@ it.
 - `SnapshotSCIPConfig` — `Enabled`, `Languages`, `Indexer`, `Parser`
 - `DiscoveryAdvisoryReport` — operator-facing JSON summary of discovery and
   materialization shape per snapshot run
+- `RegistryFailure` — bounded registry collector error type that carries
+  `FailureClass` and `FailureDetails` for workflow status without exposing
+  private registry hosts, repositories, packages, tags, digests, accounts,
+  paths, or credential references
+- `RegistryHTTPFailure` and `RegistryTransportFailure` — helpers used by
+  registry runtimes to classify auth denied, not found, rate limited,
+  retryable, canceled, and terminal registry failures
 - `ClaimedService` — wraps `Service` with a `ClaimControlStore` for
   workflow-coordinator-gated collection
 - `FactsFromSlice` — test helper: builds a `CollectedGeneration` from a

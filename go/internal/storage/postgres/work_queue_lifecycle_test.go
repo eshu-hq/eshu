@@ -182,6 +182,7 @@ func isWorkflowCoordinatorStatusQuery(query string) bool {
 	return strings.Contains(query, "FROM collector_instances") ||
 		strings.Contains(query, "FROM workflow_runs") ||
 		strings.Contains(query, "FROM workflow_work_items") ||
+		strings.Contains(query, "JOIN workflow_work_items") ||
 		strings.Contains(query, "FROM workflow_run_completeness") ||
 		strings.Contains(query, "FROM workflow_claims") ||
 		isTerraformStateAdminQuery(query)

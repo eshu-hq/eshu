@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry"
 )
 
@@ -51,16 +52,28 @@ func (p HTTPMetadataProvider) FetchMetadata(ctx context.Context, target TargetCo
 	startedAt := time.Now()
 	response, err := client.Do(request)
 	if err != nil {
-		return MetadataDocument{}, fmt.Errorf("request package metadata: %w", err)
+		return MetadataDocument{}, collector.RegistryTransportFailure(
+			target.Base.Provider,
+			string(target.Base.Ecosystem),
+			"fetch_metadata",
+			err,
+		)
 	}
 	defer func() {
 		_ = response.Body.Close()
 	}()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		var cause error
 		if response.StatusCode == http.StatusTooManyRequests {
-			return MetadataDocument{}, ErrRateLimited
+			cause = ErrRateLimited
 		}
-		return MetadataDocument{}, fmt.Errorf("request package metadata returned status %d", response.StatusCode)
+		return MetadataDocument{}, collector.RegistryHTTPFailure(
+			target.Base.Provider,
+			string(target.Base.Ecosystem),
+			"fetch_metadata",
+			response.StatusCode,
+			cause,
+		)
 	}
 	body, err := readBoundedMetadata(response.Body)
 	if err != nil {

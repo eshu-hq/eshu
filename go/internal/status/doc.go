@@ -14,4 +14,6 @@
 // section, surfaced under Report.TerraformState, exposes per-locator state
 // serial advance and recent warning_fact rows grouped by warning_kind so
 // operators can confirm tfstate liveness without scanning the fact stream.
+// RegistryCollectorSnapshot rows expose aggregate OCI and package-registry
+// runtime liveness and bounded failure classes without registry object names.
 package status

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
 )
 
@@ -76,7 +77,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 // Ping validates that the base endpoint speaks the OCI Distribution API or
 // returns a Distribution-compatible auth challenge.
 func (c *Client) Ping(ctx context.Context) error {
-	resp, err := c.do(ctx, http.MethodGet, "/v2/", nil)
+	resp, err := c.do(ctx, "ping", http.MethodGet, "/v2/", nil)
 	if err != nil {
 		return err
 	}
@@ -88,19 +89,19 @@ func (c *Client) Ping(ctx context.Context) error {
 		(resp.Header.Get("Docker-Distribution-Api-Version") != "" || resp.Header.Get("WWW-Authenticate") != "") {
 		return nil
 	}
-	return statusError(http.MethodGet, "/v2/", resp.StatusCode)
+	return statusError("ping", resp.StatusCode)
 }
 
 // ListTags returns the registry-reported tags for one repository.
 func (c *Client) ListTags(ctx context.Context, repository string) ([]string, error) {
 	endpoint := "/v2/" + repositoryPath(repository) + "/tags/list"
-	resp, err := c.do(ctx, http.MethodGet, endpoint, nil)
+	resp, err := c.do(ctx, "list_tags", http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer closeBody(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, statusError(http.MethodGet, endpoint, resp.StatusCode)
+		return nil, statusError("list_tags", resp.StatusCode)
 	}
 	var decoded struct {
 		Tags []string `json:"tags"`
@@ -114,7 +115,7 @@ func (c *Client) ListTags(ctx context.Context, repository string) ([]string, err
 // GetManifest returns a manifest or image index by tag or digest reference.
 func (c *Client) GetManifest(ctx context.Context, repository, reference string) (ManifestResponse, error) {
 	endpoint := "/v2/" + repositoryPath(repository) + "/manifests/" + url.PathEscape(strings.TrimSpace(reference))
-	resp, err := c.do(ctx, http.MethodGet, endpoint, map[string]string{
+	resp, err := c.do(ctx, "get_manifest", http.MethodGet, endpoint, map[string]string{
 		"Accept": strings.Join([]string{
 			ociregistry.MediaTypeOCIImageManifest,
 			ociregistry.MediaTypeOCIImageIndex,
@@ -127,7 +128,7 @@ func (c *Client) GetManifest(ctx context.Context, repository, reference string) 
 	}
 	defer closeBody(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return ManifestResponse{}, statusError(http.MethodGet, endpoint, resp.StatusCode)
+		return ManifestResponse{}, statusError("get_manifest", resp.StatusCode)
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -144,16 +145,16 @@ func (c *Client) GetManifest(ctx context.Context, repository, reference string) 
 // ListReferrers returns descriptors attached to one subject digest.
 func (c *Client) ListReferrers(ctx context.Context, repository, digest string) (ReferrersResponse, error) {
 	endpoint := "/v2/" + repositoryPath(repository) + "/referrers/" + url.PathEscape(strings.TrimSpace(digest))
-	resp, err := c.do(ctx, http.MethodGet, endpoint, map[string]string{"Accept": ociregistry.MediaTypeOCIImageIndex})
+	resp, err := c.do(ctx, "list_referrers", http.MethodGet, endpoint, map[string]string{"Accept": ociregistry.MediaTypeOCIImageIndex})
 	if err != nil {
 		return ReferrersResponse{}, err
 	}
 	defer closeBody(resp.Body)
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed {
-		return ReferrersResponse{}, statusError(http.MethodGet, endpoint, resp.StatusCode)
+		return ReferrersResponse{}, statusError("list_referrers", resp.StatusCode)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return ReferrersResponse{}, statusError(http.MethodGet, endpoint, resp.StatusCode)
+		return ReferrersResponse{}, statusError("list_referrers", resp.StatusCode)
 	}
 	var decoded struct {
 		Manifests []struct {
@@ -180,7 +181,13 @@ func (c *Client) ListReferrers(ctx context.Context, repository, digest string) (
 	return ReferrersResponse{Referrers: referrers}, nil
 }
 
-func (c *Client) do(ctx context.Context, method, endpoint string, headers map[string]string) (*http.Response, error) {
+func (c *Client) do(
+	ctx context.Context,
+	operation string,
+	method string,
+	endpoint string,
+	headers map[string]string,
+) (*http.Response, error) {
 	requestURL := c.resolve(endpoint)
 	req, err := http.NewRequestWithContext(ctx, method, requestURL.String(), nil)
 	if err != nil {
@@ -196,7 +203,7 @@ func (c *Client) do(ctx context.Context, method, endpoint string, headers map[st
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("OCI %s %s: %w", method, requestURL.Path, err)
+		return nil, collector.RegistryTransportFailure("oci", "", operation, err)
 	}
 	return resp, nil
 }
@@ -223,6 +230,6 @@ func closeBody(body io.Closer) {
 	_ = body.Close()
 }
 
-func statusError(method, endpoint string, statusCode int) error {
-	return fmt.Errorf("OCI %s %s returned status class %d", method, endpoint, statusCode/100)
+func statusError(operation string, statusCode int) error {
+	return collector.RegistryHTTPFailure("oci", "", operation, statusCode, nil)
 }

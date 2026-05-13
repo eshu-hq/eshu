@@ -446,3 +446,48 @@ func TestRenderJSONNormalizesCoordinatorSnapshot(t *testing.T) {
 		t.Fatalf("RenderJSON() = %s, want zero deactivated_at omitted", payload)
 	}
 }
+
+func TestRenderStatusIncludesRegistryCollectors(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 13, 14, 30, 0, 0, time.UTC)
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: now,
+			RegistryCollectors: []status.RegistryCollectorSnapshot{{
+				CollectorKind:        "oci_registry",
+				ConfiguredInstances:  1,
+				ActiveScopes:         2,
+				CompletedGenerations: 4,
+				LastCompletedAt:      now.Add(-2 * time.Minute),
+				RetryableFailures:    1,
+				FailureClassCounts: []status.NamedCount{{
+					Name:  "registry_rate_limited",
+					Count: 1,
+				}},
+			}},
+		},
+		status.DefaultOptions(),
+	)
+
+	payload, err := status.RenderJSON(report)
+	if err != nil {
+		t.Fatalf("RenderJSON() error = %v, want nil", err)
+	}
+	body := string(payload)
+	for _, want := range []string{
+		"\"registry_collectors\"",
+		"\"collector_kind\": \"oci_registry\"",
+		"\"active_scopes\": 2",
+		"\"name\": \"registry_rate_limited\"",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("RenderJSON() = %s, want %q", payload, want)
+		}
+	}
+	text := status.RenderText(report)
+	if !strings.Contains(text, "Registry collectors:") ||
+		!strings.Contains(text, "failure_classes=registry_rate_limited=1") {
+		t.Fatalf("RenderText() = %s, want registry collector summary", text)
+	}
+}

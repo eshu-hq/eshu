@@ -3,7 +3,9 @@ package ociruntime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -202,6 +204,42 @@ func TestClaimedSourceNextClaimedScansMatchingTargetWithClaimGeneration(t *testi
 	}
 }
 
+func TestSourceNextDoesNotLeakReferenceWhenManifestFetchFails(t *testing.T) {
+	t.Parallel()
+
+	client := &stubRegistryClient{
+		tags:        []string{"private-prod"},
+		manifestErr: collector.RegistryHTTPFailure("oci", "", "get_manifest", 404, nil),
+	}
+	source := Source{
+		Config: Config{
+			CollectorInstanceID: "oci-runtime-test",
+			Targets: []TargetConfig{{
+				Provider:   ociregistry.ProviderGHCR,
+				Registry:   "ghcr.io",
+				Repository: "secret/team-api",
+				TagLimit:   1,
+			}},
+		},
+		ClientFactory: ClientFactoryFunc(func(context.Context, TargetConfig) (RegistryClient, error) {
+			return client, nil
+		}),
+	}
+
+	_, _, err := source.Next(context.Background())
+	if err == nil {
+		t.Fatal("Next() error = nil, want manifest fetch failure")
+	}
+	if got := failureClass(err); got != collector.RegistryFailureNotFound {
+		t.Fatalf("FailureClass() = %q, want %q; error = %v", got, collector.RegistryFailureNotFound, err)
+	}
+	for _, leaked := range []string{"private-prod", "secret/team-api", "ghcr.io"} {
+		if strings.Contains(err.Error(), leaked) {
+			t.Fatalf("Next() error leaked %q: %q", leaked, err.Error())
+		}
+	}
+}
+
 func TestClaimedSourceNextClaimedRejectsDuplicateMatchingTargets(t *testing.T) {
 	observedAt := time.Date(2026, 5, 13, 15, 30, 0, 0, time.UTC)
 	source := ClaimedSource{
@@ -259,9 +297,10 @@ const (
 )
 
 type stubRegistryClient struct {
-	tags      []string
-	manifest  distribution.ManifestResponse
-	referrers distribution.ReferrersResponse
+	tags        []string
+	manifest    distribution.ManifestResponse
+	manifestErr error
+	referrers   distribution.ReferrersResponse
 }
 
 func (s *stubRegistryClient) Ping(context.Context) error { return nil }
@@ -271,11 +310,24 @@ func (s *stubRegistryClient) ListTags(context.Context, string) ([]string, error)
 }
 
 func (s *stubRegistryClient) GetManifest(context.Context, string, string) (distribution.ManifestResponse, error) {
+	if s.manifestErr != nil {
+		return distribution.ManifestResponse{}, s.manifestErr
+	}
 	return s.manifest, nil
 }
 
 func (s *stubRegistryClient) ListReferrers(context.Context, string, string) (distribution.ReferrersResponse, error) {
 	return s.referrers, nil
+}
+
+func failureClass(err error) string {
+	var classified interface {
+		FailureClass() string
+	}
+	if errors.As(err, &classified) {
+		return classified.FailureClass()
+	}
+	return ""
 }
 
 func testManifestBody(t *testing.T) []byte {

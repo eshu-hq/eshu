@@ -69,6 +69,15 @@ The binary exposes the shared hosted runtime with `/healthz`, `/readyz`,
 Package names, feed URLs, versions, and artifact paths stay out of metric
 labels.
 
+`/admin/status` also includes package-registry rows in `registry_collectors`.
+Those rows show configured instance count, active scope count, completed
+generation count, last completed timestamp, retryable and terminal failure
+counts, and bounded failure classes such as `registry_auth_denied`,
+`registry_not_found`, `registry_rate_limited`, `registry_retryable_failure`,
+`registry_canceled`, and `registry_terminal_failure`. Status messages and
+details keep package names, private feed URLs, metadata paths, credential
+environment variable names, and credential values out of the operator payload.
+
 ## Related Docs
 
 - [Package registry ADR](../../../docs/docs/adrs/2026-05-12-package-registry-collector.md)

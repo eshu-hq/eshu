@@ -428,6 +428,12 @@ eshu index-status --profile qa
 
 Treat `eshu index-status` as the latest checkpoint-completeness view. Use the
 runtime health/admin/status surfaces for liveness and stage progress instead.
+For OCI and package-registry collectors, `/admin/status?format=json` includes
+`registry_collectors` aggregate rows with configured instances, active scopes,
+completed generations, last completed timestamps, retryable/terminal failures,
+and bounded failure classes. It intentionally omits registry hosts, repository
+paths, package names, tags, digests, account IDs, metadata URLs, and
+credentials.
 
 Queue a full workspace rebuild on a deployed ingester:
 
