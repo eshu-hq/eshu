@@ -218,7 +218,7 @@ func loadAWSRedactionKeyIfNeeded(
 	}
 	value := strings.TrimSpace(getenv("ESHU_AWS_REDACTION_KEY"))
 	if value == "" {
-		return redact.Key{}, fmt.Errorf("ESHU_AWS_REDACTION_KEY is required when ecs service scans are enabled")
+		return redact.Key{}, fmt.Errorf("ESHU_AWS_REDACTION_KEY is required when ecs or lambda service scans are enabled")
 	}
 	key, err := redact.NewKey([]byte(value))
 	if err != nil {
@@ -230,7 +230,8 @@ func loadAWSRedactionKeyIfNeeded(
 func awsConfigNeedsRedactionKey(config awsruntime.Config) bool {
 	for _, target := range config.Targets {
 		for _, service := range target.AllowedServices {
-			if strings.TrimSpace(service) == awscloud.ServiceECS {
+			switch strings.TrimSpace(service) {
+			case awscloud.ServiceECS, awscloud.ServiceLambda:
 				return true
 			}
 		}

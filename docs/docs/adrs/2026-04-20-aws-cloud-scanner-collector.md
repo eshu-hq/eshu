@@ -21,7 +21,7 @@
 **Current disposition:** Architecture gate closed; IAM-first scanner runtime
 slice merged; ECR scanner slice merged; ECS scanner slice merged; ELBv2 scanner
 slice merged; Route 53 scanner slice merged; EC2 network-topology scanner slice
-implemented in this PR pending merge.
+merged; Lambda scanner slice implemented in this PR pending merge.
 
 Gate issue #48 is the start point for AWS collector work. The architecture
 workflow plan now maps to the current Eshu issue set (#51 epic, #42 runtime,
@@ -38,11 +38,15 @@ ELBv2 load balancers, listeners, target groups, rules, and stable routing
 relationships so ECS target group bindings can resolve toward load balancer
 hostnames. The DNS slice added Route 53 hosted zones and A/AAAA/CNAME/ALIAS
 `aws_dns_record` facts so later reducers can join public and private names to
-cloud routing targets without inferring ownership in the collector. The current
-EC2 slice adds VPC, subnet, security-group, security-group-rule, and ENI
+cloud routing targets without inferring ownership in the collector. The EC2
+slice added VPC, subnet, security-group, security-group-rule, and ENI
 network-topology facts without emitting EC2 instance inventory. It also
-preserves ECS task ENI attachment IDs from `DescribeTasks` so reducers can join
-task evidence to EC2 subnet and VPC topology later.
+preserved ECS task ENI attachment IDs from `DescribeTasks` so reducers can join
+task evidence to EC2 subnet and VPC topology later. The current Lambda slice
+adds function, alias, and event-source mapping facts; redacts function
+environment values; preserves image URI evidence for ECR joins; and emits
+reported relationships to execution roles, subnets, and security groups for
+later reducer-owned correlation.
 
 ## Status Review (2026-05-10)
 

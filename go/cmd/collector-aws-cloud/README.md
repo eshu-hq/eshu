@@ -41,9 +41,9 @@ the environment/configuration it accepts:
   than the lease TTL.
 - `ESHU_AWS_COLLECTOR_OWNER_ID` - optional owner ID override; defaults to
   `HOSTNAME`, then `collector-aws-cloud`.
-- `ESHU_AWS_REDACTION_KEY` - required when any target scope enables `ecs`.
-  The ECS scanner uses it to produce deterministic HMAC-SHA256 markers for task
-  definition environment values before persistence.
+- `ESHU_AWS_REDACTION_KEY` - required when any target scope enables `ecs` or
+  `lambda`. The ECS and Lambda scanners use it to produce deterministic
+  HMAC-SHA256 markers for environment values before persistence.
 
 Instance configuration uses:
 
@@ -53,7 +53,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "route53"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "route53"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -105,7 +105,8 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   service `awssdk` adapters; command tests should not mock the full AWS SDK
   surface.
 - Credential leases are released after scanner construction and service scan.
-- ECS targets require `ESHU_AWS_REDACTION_KEY`; IAM and ECR targets do not.
+- ECS and Lambda targets require `ESHU_AWS_REDACTION_KEY`; IAM and ECR targets
+  do not.
 - ELBv2 targets emit stable routing topology and intentionally exclude target
   health status.
 - Route 53 targets emit hosted-zone resources and A/AAAA/CNAME/ALIAS DNS record
@@ -114,6 +115,9 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
 - EC2 targets emit VPC, subnet, security-group, security-group-rule, and ENI
   network-topology facts. They intentionally do not emit EC2 instance
   inventory.
+- Lambda targets emit function, alias, event-source mapping, image URI,
+  execution-role, subnet, and security-group evidence. They intentionally do
+  not fetch function code or persist presigned package download URLs.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 

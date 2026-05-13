@@ -39,6 +39,7 @@ See `doc.go` for the godoc contract.
 - `ServiceELBv2` - ELBv2 service-kind value for regional routing topology
   scans.
 - `ServiceRoute53` - Route 53 service-kind value for global DNS scans.
+- `ServiceLambda` - Lambda service-kind value for regional function scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -85,6 +86,9 @@ scan duration histograms, and warning/failure counters at that boundary.
   Resource ARNs, names, tags, URLs, and policy JSON are not metric labels.
 - EC2 instance inventory stays out of EC2 network-topology facts. ENI
   attachment target ARNs are reported metadata, not instance resource facts.
+- Lambda function environment values must be redacted before persistence.
+  Container image URIs, alias routing, event-source ARNs, execution roles, and
+  VPC subnet/security-group IDs are reported join evidence only.
 
 ## Related docs
 

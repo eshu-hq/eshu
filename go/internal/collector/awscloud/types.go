@@ -22,6 +22,8 @@ const (
 	ServiceELBv2 = "elbv2"
 	// ServiceRoute53 identifies the global Amazon Route 53 service scan slice.
 	ServiceRoute53 = "route53"
+	// ServiceLambda identifies the regional AWS Lambda service scan slice.
+	ServiceLambda = "lambda"
 )
 
 const (
@@ -66,6 +68,13 @@ const (
 	ResourceTypeELBv2Rule = "aws_elbv2_rule"
 	// ResourceTypeRoute53HostedZone identifies a Route 53 hosted zone.
 	ResourceTypeRoute53HostedZone = "aws_route53_hosted_zone"
+	// ResourceTypeLambdaFunction identifies a Lambda function.
+	ResourceTypeLambdaFunction = "aws_lambda_function"
+	// ResourceTypeLambdaAlias identifies a Lambda alias.
+	ResourceTypeLambdaAlias = "aws_lambda_alias"
+	// ResourceTypeLambdaEventSourceMapping identifies a Lambda event source
+	// mapping.
+	ResourceTypeLambdaEventSourceMapping = "aws_lambda_event_source_mapping"
 )
 
 const (
@@ -116,6 +125,22 @@ const (
 	// RelationshipELBv2TargetGroupAttachedToLoadBalancer records target group
 	// attachment to a load balancer.
 	RelationshipELBv2TargetGroupAttachedToLoadBalancer = "elbv2_target_group_attached_to_load_balancer"
+	// RelationshipLambdaAliasTargetsFunction records alias routing to a Lambda
+	// function version.
+	RelationshipLambdaAliasTargetsFunction = "lambda_alias_targets_function"
+	// RelationshipLambdaEventSourceMappingTargetsFunction records an event
+	// source mapping target function.
+	RelationshipLambdaEventSourceMappingTargetsFunction = "lambda_event_source_mapping_targets_function"
+	// RelationshipLambdaFunctionUsesImage records a Lambda container image URI.
+	RelationshipLambdaFunctionUsesImage = "lambda_function_uses_image"
+	// RelationshipLambdaFunctionUsesExecutionRole records a Lambda execution
+	// role.
+	RelationshipLambdaFunctionUsesExecutionRole = "lambda_function_uses_execution_role"
+	// RelationshipLambdaFunctionUsesSubnet records Lambda VPC subnet placement.
+	RelationshipLambdaFunctionUsesSubnet = "lambda_function_uses_subnet"
+	// RelationshipLambdaFunctionUsesSecurityGroup records Lambda VPC security
+	// group attachment.
+	RelationshipLambdaFunctionUsesSecurityGroup = "lambda_function_uses_security_group"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by

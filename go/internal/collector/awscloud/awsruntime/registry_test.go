@@ -135,6 +135,30 @@ func TestDefaultScannerFactoryBuildsECSScanner(t *testing.T) {
 	}
 }
 
+func TestDefaultScannerFactoryBuildsLambdaScanner(t *testing.T) {
+	key, err := redact.NewKey([]byte("aws-redaction-key"))
+	if err != nil {
+		t.Fatalf("NewKey() error = %v", err)
+	}
+	factory := DefaultScannerFactory{RedactionKey: key}
+	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
+	scanner, err := factory.Scanner(context.Background(), Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceLambda,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceLambda,
+	}, lease)
+	if err != nil {
+		t.Fatalf("Scanner() error = %v", err)
+	}
+	if scanner == nil {
+		t.Fatalf("Scanner() = nil, want Lambda scanner")
+	}
+}
+
 func TestDefaultScannerFactoryRequiresRedactionKeyForECS(t *testing.T) {
 	factory := DefaultScannerFactory{}
 	_, err := factory.Scanner(context.Background(), Target{
@@ -148,6 +172,25 @@ func TestDefaultScannerFactoryRequiresRedactionKeyForECS(t *testing.T) {
 	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want missing ECS redaction key")
+	}
+	if !strings.Contains(err.Error(), "redaction key") {
+		t.Fatalf("Scanner() error = %q, want redaction key", err)
+	}
+}
+
+func TestDefaultScannerFactoryRequiresRedactionKeyForLambda(t *testing.T) {
+	factory := DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceLambda,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceLambda,
+	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
+	if err == nil {
+		t.Fatalf("Scanner() error = nil, want missing Lambda redaction key")
 	}
 	if !strings.Contains(err.Error(), "redaction key") {
 		t.Fatalf("Scanner() error = %q, want redaction key", err)
