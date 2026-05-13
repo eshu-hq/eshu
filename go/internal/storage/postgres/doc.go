@@ -9,15 +9,16 @@
 // stale-generation coalescing, terminal-failure supersession, live-generation
 // supersession, expired-lease priority, duplicate-lease reclaim, idempotency
 // keys, and partial-failure behavior documented on each helper; queue and
-// status writes are retry-safe by design and must stay that way. Supersession
-// of projector rows and their scope generations must remain atomic. Schema and
-// queue contract changes require migration and a matching update to the
-// recovery and status surfaces. Status readers include pending shared
-// projection intents and lease-only active shared-projection lanes in domain
-// backlog aggregates because those rows gate whether reducer-owned graph edges
-// are ready for query truth, and ReducerGraphDrain gives local NornicDB code-call
-// projection a read-only view of reducer graph-domain backlog before it starts
-// its edge write lane.
+// status writes are retry-safe by design and must stay that way. ReducerQueue
+// lifecycle methods and helper methods are split across sibling files, but
+// share the same lease, retry, and scan contract. Supersession of projector
+// rows and their scope generations must remain atomic. Schema and queue
+// contract changes require migration and a matching update to the recovery and
+// status surfaces. Status readers include pending shared projection intents and
+// lease-only active shared-projection lanes in domain backlog aggregates because
+// those rows gate whether reducer-owned graph edges are ready for query truth,
+// and ReducerGraphDrain gives local NornicDB code-call projection a read-only
+// view of reducer graph-domain backlog before it starts its edge write lane.
 // FactStore kind-filtered reads use bounded, stable keyset pages and scan the
 // same facts.Envelope metadata shape as full fact loads. Payload value filters
 // are available only for top-level payload fields that are part of a reducer
