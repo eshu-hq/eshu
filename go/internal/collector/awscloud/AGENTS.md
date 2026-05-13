@@ -28,6 +28,9 @@
 - Redact Lambda function environment values before persistence; preserve image
   URI, alias, event-source, execution-role, subnet, and security-group evidence
   without inferring workload truth.
+- Preserve EKS OIDC provider, node group, add-on, IAM role, subnet, and
+  security group evidence without inferring Kubernetes workload or ownership
+  truth.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target

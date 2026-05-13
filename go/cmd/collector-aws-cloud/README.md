@@ -53,7 +53,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "route53"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",

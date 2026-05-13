@@ -3,8 +3,9 @@
 //
 // The package owns AWS source observations up to durable fact envelopes. It
 // does not call AWS APIs directly, schedule workflow claims, or write graph
-// truth. Service-specific scanners convert AWS API data into these contracts,
-// then the shared collector and reducer paths persist and materialize them.
-// Sensitive service fields, including ECS and Lambda environment values, must
-// be redacted before callers build envelopes.
+// truth. Service-specific scanners, including IAM, EC2, ECR, ECS, EKS, ELBv2,
+// Lambda, and Route 53 slices, convert AWS API data into these contracts before
+// the shared collector and reducer paths persist and materialize them.
+// Sensitive service fields, including ECS and Lambda environment values, must be
+// redacted before callers build envelopes.
 package awscloud

@@ -40,6 +40,8 @@ See `doc.go` for the godoc contract.
   scans.
 - `ServiceRoute53` - Route 53 service-kind value for global DNS scans.
 - `ServiceLambda` - Lambda service-kind value for regional function scans.
+- `ServiceEKS` - EKS service-kind value for regional Kubernetes control-plane
+  scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -89,6 +91,9 @@ scan duration histograms, and warning/failure counters at that boundary.
 - Lambda function environment values must be redacted before persistence.
   Container image URIs, alias routing, event-source ARNs, execution roles, and
   VPC subnet/security-group IDs are reported join evidence only.
+- EKS OIDC provider, node group, add-on, IAM role, subnet, and security group
+  facts are reported join evidence only. They do not prove Kubernetes workload
+  or deployment ownership truth.
 
 ## Related docs
 
