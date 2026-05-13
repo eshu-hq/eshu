@@ -7,6 +7,73 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
+	t.Parallel()
+
+	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
+	ecrBoundary := boundary
+	ecrBoundary.ServiceKind = ServiceECR
+	route53Boundary := boundary
+	route53Boundary.ServiceKind = ServiceRoute53
+	builders := map[string]func() (facts.Envelope, error){
+		facts.AWSResourceFactKind: func() (facts.Envelope, error) {
+			return NewResourceEnvelope(ResourceObservation{
+				Boundary:     boundary,
+				ARN:          "arn:aws:iam::123456789012:role/eshu-runtime",
+				ResourceType: ResourceTypeIAMRole,
+			})
+		},
+		facts.AWSRelationshipFactKind: func() (facts.Envelope, error) {
+			return NewRelationshipEnvelope(RelationshipObservation{
+				Boundary:         boundary,
+				RelationshipType: RelationshipIAMRoleAttachedPolicy,
+				SourceARN:        "arn:aws:iam::123456789012:role/eshu-runtime",
+				TargetARN:        "arn:aws:iam::aws:policy/ReadOnlyAccess",
+			})
+		},
+		facts.AWSImageReferenceFactKind: func() (facts.Envelope, error) {
+			return NewImageReferenceEnvelope(ImageReferenceObservation{
+				Boundary:       ecrBoundary,
+				RepositoryName: "team/api",
+				ImageDigest:    "sha256:image",
+			})
+		},
+		facts.AWSDNSRecordFactKind: func() (facts.Envelope, error) {
+			return NewDNSRecordEnvelope(DNSRecordObservation{
+				Boundary:     route53Boundary,
+				HostedZoneID: "/hostedzone/Z123",
+				RecordName:   "api.example.com.",
+				RecordType:   "A",
+			})
+		},
+		facts.AWSWarningFactKind: func() (facts.Envelope, error) {
+			return NewWarningEnvelope(WarningObservation{
+				Boundary:    boundary,
+				WarningKind: WarningAssumeRoleFailed,
+			})
+		},
+	}
+
+	for factKind, build := range builders {
+		envelope, err := build()
+		if err != nil {
+			t.Fatalf("%s builder returned error: %v", factKind, err)
+		}
+		if envelope.FactKind != factKind {
+			t.Fatalf("%s builder FactKind = %q", factKind, envelope.FactKind)
+		}
+		if envelope.CollectorKind != CollectorKind {
+			t.Fatalf("%s CollectorKind = %q, want %q", factKind, envelope.CollectorKind, CollectorKind)
+		}
+		if envelope.SourceConfidence != facts.SourceConfidenceReported {
+			t.Fatalf("%s SourceConfidence = %q, want %q", factKind, envelope.SourceConfidence, facts.SourceConfidenceReported)
+		}
+		if envelope.SourceRef.SourceSystem != CollectorKind {
+			t.Fatalf("%s SourceRef.SourceSystem = %q, want %q", factKind, envelope.SourceRef.SourceSystem, CollectorKind)
+		}
+	}
+}
+
 func TestNewResourceEnvelopeCarriesAWSProvenance(t *testing.T) {
 	observedAt := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
 	envelope, err := NewResourceEnvelope(ResourceObservation{
