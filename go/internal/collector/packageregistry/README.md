@@ -73,6 +73,9 @@ See `doc.go` for the godoc contract.
 - `ParseArtifactoryPackageMetadata` — parses one Artifactory package-feed
   wrapper by delegating to the package-native parser and appending provider
   repository topology as hosting evidence.
+- `ParseArtifactoryPackageMetadataWithRegistry` — parses the same wrapper with
+  the caller's parser registry so runtime-owned parser registrations stay in
+  force.
 - `ParseGenericPackageMetadata` — parses one provider-specific generic package
   fixture into observations, including JFrog-style advisory and event streams
   when present.

@@ -53,8 +53,8 @@ must stay out of metrics.
   item. Unknown scope IDs fail the claim instead of falling back to another
   target.
 - `document_format` defaults to `native`. `artifactory_package` is allowed only
-  as a wrapper around package-native metadata; Artifactory repository topology
-  remains hosting evidence.
+  as a wrapper around package-native metadata and uses the same parser registry
+  as native metadata; Artifactory repository topology remains hosting evidence.
 - `collector_instance_id`, `generation_id`, and `fencing_token` come from the
   workflow claim path and are copied into every emitted fact.
 - Advisory and registry-event observations are bounded by the same configured

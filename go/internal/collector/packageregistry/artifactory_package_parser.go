@@ -6,9 +6,21 @@ import (
 	"strings"
 )
 
+var defaultArtifactoryPackageMetadataParserRegistry = DefaultMetadataParserRegistry()
+
 // ParseArtifactoryPackageMetadata parses an Artifactory package-feed wrapper
 // while preserving package-native metadata semantics.
 func ParseArtifactoryPackageMetadata(ctx MetadataParserContext, document []byte) (ParsedMetadata, error) {
+	return ParseArtifactoryPackageMetadataWithRegistry(ctx, document, defaultArtifactoryPackageMetadataParserRegistry)
+}
+
+// ParseArtifactoryPackageMetadataWithRegistry parses an Artifactory
+// package-feed wrapper with the caller's ecosystem parser registry.
+func ParseArtifactoryPackageMetadataWithRegistry(
+	ctx MetadataParserContext,
+	document []byte,
+	registry MetadataParserRegistry,
+) (ParsedMetadata, error) {
 	var wrapper artifactoryPackageMetadata
 	if err := json.Unmarshal(document, &wrapper); err != nil {
 		return ParsedMetadata{}, fmt.Errorf("parse artifactory package metadata: %w", err)
@@ -20,7 +32,7 @@ func ParseArtifactoryPackageMetadata(ctx MetadataParserContext, document []byte)
 	if err != nil {
 		return ParsedMetadata{}, err
 	}
-	parsed, err := DefaultMetadataParserRegistry().Parse(ctx, nativeDocument)
+	parsed, err := registry.Parse(ctx, nativeDocument)
 	if err != nil {
 		return ParsedMetadata{}, err
 	}

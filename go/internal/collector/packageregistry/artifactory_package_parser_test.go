@@ -66,6 +66,43 @@ func TestParseArtifactoryPackageMetadataWrapsNativeNPMAndHosting(t *testing.T) {
 	}
 }
 
+func TestParseArtifactoryPackageMetadataWithRegistryUsesProvidedParser(t *testing.T) {
+	t.Parallel()
+
+	var registry MetadataParserRegistry
+	if err := registry.Register(EcosystemNPM, func(ctx MetadataParserContext, document []byte) (ParsedMetadata, error) {
+		return ParsedMetadata{
+			Packages: []PackageObservation{
+				packageObservation(ctx, PackageIdentity{
+					Ecosystem: EcosystemNPM,
+					Registry:  ctx.Registry,
+					RawName:   "custom-parser-package",
+				}),
+			},
+		}, nil
+	}); err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+
+	metadata, err := ParseArtifactoryPackageMetadataWithRegistry(
+		parserTestContext(EcosystemNPM, "https://artifactory.example.com/artifactory/api/npm/npm-local/"),
+		[]byte(`{
+			"provider": "jfrog",
+			"repository": "npm-local",
+			"package_type": "npm",
+			"metadata": {"name": "default-parser-package", "versions": {}}
+		}`),
+		registry,
+	)
+	if err != nil {
+		t.Fatalf("ParseArtifactoryPackageMetadataWithRegistry() error = %v", err)
+	}
+
+	if got := metadata.Packages[0].Identity.RawName; got != "custom-parser-package" {
+		t.Fatalf("package raw name = %q, want custom parser output", got)
+	}
+}
+
 func TestParseArtifactoryPackageMetadataRejectsMismatchedPackageType(t *testing.T) {
 	t.Parallel()
 

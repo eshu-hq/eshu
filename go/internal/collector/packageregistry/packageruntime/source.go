@@ -285,7 +285,7 @@ func (s *ClaimedSource) parseMetadata(
 	case "", DocumentFormatNative:
 		return s.parserRegistry.Parse(ctx, document)
 	case DocumentFormatArtifactoryPackage:
-		return packageregistry.ParseArtifactoryPackageMetadata(ctx, document)
+		return packageregistry.ParseArtifactoryPackageMetadataWithRegistry(ctx, document, s.parserRegistry)
 	default:
 		return packageregistry.ParsedMetadata{}, fmt.Errorf("unsupported package registry document_format %q", target.DocumentFormat)
 	}

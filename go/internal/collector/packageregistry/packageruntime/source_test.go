@@ -206,6 +206,73 @@ func TestClaimedSourceParsesArtifactoryPackageDocumentFormat(t *testing.T) {
 	}
 }
 
+func TestClaimedSourceArtifactoryPackageUsesConfiguredParserRegistry(t *testing.T) {
+	t.Parallel()
+
+	source := newTestClaimedSource(t, TargetConfig{
+		Base: packageregistry.TargetConfig{
+			Provider:     "jfrog",
+			Ecosystem:    packageregistry.EcosystemNPM,
+			Registry:     "https://artifactory.example.com/artifactory/api/npm/npm-local",
+			ScopeID:      "package-registry://jfrog/npm/@scope/pkg",
+			Packages:     []string{"@scope/pkg"},
+			PackageLimit: 1,
+			VersionLimit: 2,
+		},
+		DocumentFormat: DocumentFormatArtifactoryPackage,
+	}, staticMetadataProvider{
+		document: []byte(`{
+			"provider":"jfrog",
+			"repository":"npm-local",
+			"package_type":"npm",
+			"metadata":{"name":"default-parser-package","versions":{}}
+		}`),
+	})
+	var registry packageregistry.MetadataParserRegistry
+	if err := registry.Register(packageregistry.EcosystemNPM, func(ctx packageregistry.MetadataParserContext, document []byte) (packageregistry.ParsedMetadata, error) {
+		identity := packageregistry.PackageIdentity{
+			Ecosystem: packageregistry.EcosystemNPM,
+			Registry:  ctx.Registry,
+			RawName:   "@scope/pkg",
+		}
+		return packageregistry.ParsedMetadata{
+			Packages: []packageregistry.PackageObservation{
+				{
+					Identity:            identity,
+					ScopeID:             ctx.ScopeID,
+					GenerationID:        ctx.GenerationID,
+					CollectorInstanceID: ctx.CollectorInstanceID,
+					FencingToken:        ctx.FencingToken,
+					ObservedAt:          ctx.ObservedAt,
+					Visibility:          packageregistry.VisibilityUnknown,
+					SourceURI:           ctx.SourceURI,
+				},
+			},
+		}, nil
+	}); err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	source.parserRegistry = registry
+
+	collected, ok, err := source.NextClaimed(context.Background(), testPackageRegistryWorkItemForScope("package-registry://jfrog/npm/@scope/pkg"))
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	var sawCustomPackage bool
+	for envelope := range collected.Facts {
+		if envelope.FactKind == facts.PackageRegistryPackageFactKind &&
+			envelope.Payload["raw_name"] == "@scope/pkg" {
+			sawCustomPackage = true
+		}
+	}
+	if !sawCustomPackage {
+		t.Fatal("collected facts did not include package emitted by configured parser registry")
+	}
+}
+
 func TestClaimedSourceRejectsMetadataForUnexpectedPackage(t *testing.T) {
 	t.Parallel()
 

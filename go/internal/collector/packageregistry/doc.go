@@ -8,8 +8,10 @@
 // metadata into observations, including source-native advisory hints and
 // registry events, then emits reported-confidence facts through the package,
 // version, dependency, artifact, source-hint, vulnerability-hint,
-// registry-event, hosting, and warning envelope builders. The packageruntime
-// subpackage owns the
+// registry-event, hosting, and warning envelope builders. Artifactory wrapper
+// parsing can use a caller-supplied MetadataParserRegistry so runtime-owned
+// ecosystem registrations remain in force. The packageruntime subpackage owns
+// the
 // claim-driven HTTP metadata fetch path and returns these facts through the
 // shared collector commit boundary.
 // NormalizePackageIdentity keeps ecosystem identity rules separate so package
