@@ -116,8 +116,10 @@ once per call_expression, var_spec, composite_literal, and return_statement —
 so a naive implementation that re-walks the full tree per query becomes
 O(call_sites × tree_size) per file. `goParentLookup` builds the child-to-parent
 map once per parse; `goVariableTypeIndex` and `goImportedVariableTypeIndex`
-build per-scope binding lists lazily on first use and answer position-filtered
-queries in pure Go map and slice work. The scope walkers stop at nested
+scan package-scope imported variable declarations without descending into
+function bodies, build per-scope binding lists lazily on first use, and answer
+position-filtered queries in pure Go map and slice work. The scope walkers stop
+at nested
 function_declaration / method_declaration / func_literal subtrees so a
 binding declared inside an inner closure does not leak into the outer
 function's binding table. Imported direct-method pre-scans skip
