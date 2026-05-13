@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -56,24 +58,63 @@ func (p awsCredentialProvider) Acquire(
 		if err != nil {
 			return nil, fmt.Errorf("assume AWS role: %w", err)
 		}
-		cfg.Credentials = aws.NewCredentialsCache(aws.CredentialsProviderFunc(func(context.Context) (aws.Credentials, error) {
-			return credentials, nil
-		}))
-		return &awsCredentialLease{config: cfg, credentials: credentials}, nil
+		credentialProvider := newClaimCredentialProvider(credentials)
+		credentialCache := aws.NewCredentialsCache(credentialProvider)
+		cfg.Credentials = credentialCache
+		return &awsCredentialLease{
+			config:             cfg,
+			credentialProvider: credentialProvider,
+			credentialCache:    credentialCache,
+		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported AWS credential mode %q", target.Credentials.Mode)
 	}
 }
 
 type awsCredentialLease struct {
-	config      aws.Config
-	credentials aws.Credentials
+	config             aws.Config
+	credentialProvider *claimCredentialProvider
+	credentialCache    *aws.CredentialsCache
 }
 
 func (l *awsCredentialLease) Release() error {
-	l.credentials = aws.Credentials{}
+	if l.credentialCache != nil {
+		l.credentialCache.Invalidate()
+	}
+	if l.credentialProvider != nil {
+		l.credentialProvider.Release()
+	}
 	l.config.Credentials = aws.AnonymousCredentials{}
 	return nil
+}
+
+type claimCredentialProvider struct {
+	mu          sync.Mutex
+	credentials aws.Credentials
+	released    bool
+}
+
+func newClaimCredentialProvider(credentials aws.Credentials) *claimCredentialProvider {
+	return &claimCredentialProvider{credentials: credentials}
+}
+
+func (p *claimCredentialProvider) Retrieve(context.Context) (aws.Credentials, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.released {
+		return aws.Credentials{}, errors.New("AWS credential lease has been released")
+	}
+	if !p.credentials.HasKeys() {
+		return aws.Credentials{}, errors.New("AWS credential lease has no credentials")
+	}
+	return p.credentials, nil
+}
+
+func (p *claimCredentialProvider) Release() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.credentials = aws.Credentials{}
+	p.released = true
 }
 
 func roleSessionName(target awsruntime.Target) string {

@@ -208,8 +208,8 @@ func validateBoundary(boundary Boundary) error {
 		return fmt.Errorf("aws observation requires generation_id")
 	case strings.TrimSpace(boundary.CollectorInstanceID) == "":
 		return fmt.Errorf("aws observation requires collector_instance_id")
-	case boundary.FencingToken < 0:
-		return fmt.Errorf("aws observation fencing_token must not be negative")
+	case boundary.FencingToken <= 0:
+		return fmt.Errorf("aws observation fencing_token must be positive")
 	default:
 		return nil
 	}

@@ -41,7 +41,7 @@ type claimTarget struct {
 func (s ClaimedSource) NextClaimed(
 	ctx context.Context,
 	item workflow.WorkItem,
-) (collector.CollectedGeneration, bool, error) {
+) (collected collector.CollectedGeneration, found bool, err error) {
 	if err := s.validate(item); err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
@@ -87,7 +87,11 @@ func (s ClaimedSource) NextClaimed(
 		s.recordAssumeRoleFailure(ctx, target)
 		return collector.FactsFromSlice(scopeValue, generationValue, []facts.Envelope{envelope}), true, nil
 	}
-	defer lease.Release()
+	defer func() {
+		if releaseErr := lease.Release(); releaseErr != nil && err == nil {
+			err = fmt.Errorf("release AWS credential lease: %w", releaseErr)
+		}
+	}()
 
 	scanner, err := s.Scanners.Scanner(ctx, target, boundary, lease)
 	if err != nil {

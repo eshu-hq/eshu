@@ -85,6 +85,15 @@ func testBoundary() awscloud.Boundary {
 	}
 }
 
+func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
+	boundary := testBoundary()
+	boundary.ServiceKind = "ec2"
+	_, err := Scanner{Client: fakeClient{}}.Scan(context.Background(), boundary)
+	if err == nil {
+		t.Fatalf("Scan() error = nil, want service kind mismatch")
+	}
+}
+
 type fakeClient struct {
 	roles    []Role
 	policies []Policy

@@ -252,20 +252,39 @@ func trustPrincipals(document map[string]any) []iamservice.TrustPrincipal {
 		if !ok {
 			continue
 		}
-		principalMap, ok := statementMap["Principal"].(map[string]any)
-		if !ok {
-			continue
+		principals = append(principals, trustPrincipalEntries(statementMap["Principal"])...)
+	}
+	return principals
+}
+
+func trustPrincipalEntries(value any) []iamservice.TrustPrincipal {
+	switch typed := value.(type) {
+	case string:
+		identifier := strings.TrimSpace(typed)
+		if identifier == "" {
+			return nil
 		}
-		for principalType, value := range principalMap {
-			for _, identifier := range principalIdentifiers(value) {
+		return []iamservice.TrustPrincipal{{Type: "AWS", Identifier: identifier}}
+	case []any:
+		var principals []iamservice.TrustPrincipal
+		for _, item := range typed {
+			principals = append(principals, trustPrincipalEntries(item)...)
+		}
+		return principals
+	case map[string]any:
+		var principals []iamservice.TrustPrincipal
+		for principalType, candidate := range typed {
+			for _, identifier := range principalIdentifiers(candidate) {
 				principals = append(principals, iamservice.TrustPrincipal{
 					Type:       principalType,
 					Identifier: identifier,
 				})
 			}
 		}
+		return principals
+	default:
+		return nil
 	}
-	return principals
 }
 
 func principalIdentifiers(value any) []string {

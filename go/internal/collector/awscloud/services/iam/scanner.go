@@ -28,7 +28,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	if s.Client == nil {
 		return nil, fmt.Errorf("iam scanner client is required")
 	}
-	boundary.ServiceKind = awscloud.ServiceIAM
+	switch strings.TrimSpace(boundary.ServiceKind) {
+	case "":
+		boundary.ServiceKind = awscloud.ServiceIAM
+	case awscloud.ServiceIAM:
+	default:
+		return nil, fmt.Errorf("iam scanner received service_kind %q", boundary.ServiceKind)
+	}
 	roles, err := s.Client.ListRoles(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list IAM roles: %w", err)

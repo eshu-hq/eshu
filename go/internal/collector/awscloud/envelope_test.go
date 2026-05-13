@@ -57,6 +57,19 @@ func TestNewRelationshipEnvelopeRequiresSourceAndTarget(t *testing.T) {
 	}
 }
 
+func TestNewResourceEnvelopeRequiresPositiveFencingToken(t *testing.T) {
+	boundary := testBoundary(time.Now())
+	boundary.FencingToken = 0
+	_, err := NewResourceEnvelope(ResourceObservation{
+		Boundary:     boundary,
+		ARN:          "arn:aws:iam::123456789012:role/app",
+		ResourceType: ResourceTypeIAMRole,
+	})
+	if err == nil {
+		t.Fatalf("NewResourceEnvelope() error = nil, want fencing token error")
+	}
+}
+
 func TestNewWarningEnvelopeUsesGenerationScopedIdentity(t *testing.T) {
 	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
 	first, err := NewWarningEnvelope(WarningObservation{
