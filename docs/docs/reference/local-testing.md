@@ -124,6 +124,37 @@ Artifactory `/artifactory/api/docker/<repository-key>` route. When
 `ESHU_JFROG_OCI_REFERENCE` is set, the smoke resolves the manifest after
 listing tags.
 
+JFrog Artifactory package-feed validation exercises the package-registry
+runtime against one explicit metadata document. The URL must return an
+`artifactory_package` wrapper with package-native metadata and repository
+topology. The smoke fetches that document through `HTTPMetadataProvider`,
+parses it through the configured package-native parser, and requires package,
+version, artifact, and repository-hosting fact envelopes:
+
+```bash
+set -a
+source /path/to/local/private/env
+set +a
+
+export ESHU_JFROG_PACKAGE_LIVE=1
+export ESHU_JFROG_PACKAGE_METADATA_URL="${ESHU_JFROG_PACKAGE_METADATA_URL:?set an Artifactory package metadata wrapper URL}"
+export ESHU_JFROG_PACKAGE_ECOSYSTEM="${ESHU_JFROG_PACKAGE_ECOSYSTEM:-npm}"
+export ESHU_JFROG_PACKAGE_NAME="${ESHU_JFROG_PACKAGE_NAME:?set the package name in the metadata document}"
+export ESHU_JFROG_PACKAGE_NAMESPACE="${ESHU_JFROG_PACKAGE_NAMESPACE:-}"
+export ESHU_JFROG_PACKAGE_REGISTRY="${ESHU_JFROG_PACKAGE_REGISTRY:-${JFROG_PACKAGE_REGISTRY:-${JFROG_URL:-${JFROG_BASE_URL:-}}}}"
+export ESHU_JFROG_PACKAGE_USERNAME="${ESHU_JFROG_PACKAGE_USERNAME:-${JFROG_USERNAME:-${JFROG_USER:-}}}"
+export ESHU_JFROG_PACKAGE_PASSWORD="${ESHU_JFROG_PACKAGE_PASSWORD:-${JFROG_PASSWORD:-}}"
+export ESHU_JFROG_PACKAGE_BEARER_TOKEN="${ESHU_JFROG_PACKAGE_BEARER_TOKEN:-${JFROG_ACCESS_TOKEN:-${JFROG_BEARER_TOKEN:-}}}"
+
+cd go
+go test ./internal/collector/packageregistry/packageruntime -run TestLiveJFrogPackageFeed -count=1 -v
+```
+
+The package smoke is read-only and skips unless `ESHU_JFROG_PACKAGE_LIVE=1`.
+It strips query strings and fragments from emitted source references and fails
+if configured credential material appears in errors, source refs, or fact
+payloads.
+
 Amazon ECR private-registry validation uses AWS shared config plus explicit
 repository coordinates:
 
