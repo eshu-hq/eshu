@@ -135,8 +135,8 @@ services:
       ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
       ESHU_HOME: /data/.eshu
       ESHU_REPOS_DIR: /data/repos
-      ESHU_REPO_SOURCE_MODE: filesystem
-      ESHU_FILESYSTEM_ROOT: /fixtures
+      ESHU_REPO_SOURCE_MODE: ${ESHU_REPO_SOURCE_MODE:-filesystem}
+      ESHU_FILESYSTEM_ROOT: ${ESHU_FILESYSTEM_ROOT:-/fixtures}
       ESHU_FILESYSTEM_DIRECT: ${ESHU_FILESYSTEM_DIRECT:-}
       ESHU_GIT_AUTH_METHOD: none
       ESHU_REPOSITORY_RULES_JSON: ${ESHU_REPOSITORY_RULES_JSON:-[]}
@@ -184,8 +184,8 @@ services:
       ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
       ESHU_HOME: /data/.eshu
       ESHU_REPOS_DIR: /data/repos
-      ESHU_REPO_SOURCE_MODE: filesystem
-      ESHU_FILESYSTEM_ROOT: /fixtures
+      ESHU_REPO_SOURCE_MODE: ${ESHU_REPO_SOURCE_MODE:-filesystem}
+      ESHU_FILESYSTEM_ROOT: ${ESHU_FILESYSTEM_ROOT:-/fixtures}
       ESHU_GIT_AUTH_METHOD: none
       ESHU_REPOSITORY_RULES_JSON: ${ESHU_REPOSITORY_RULES_JSON:-[]}
       ESHU_API_KEY: ${ESHU_API_KEY:-}
@@ -233,8 +233,8 @@ services:
       ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
       ESHU_HOME: /data/.eshu
       ESHU_REPOS_DIR: /data/repos
-      ESHU_REPO_SOURCE_MODE: filesystem
-      ESHU_FILESYSTEM_ROOT: /fixtures
+      ESHU_REPO_SOURCE_MODE: ${ESHU_REPO_SOURCE_MODE:-filesystem}
+      ESHU_FILESYSTEM_ROOT: ${ESHU_FILESYSTEM_ROOT:-/fixtures}
       ESHU_GIT_AUTH_METHOD: none
       ESHU_REPOSITORY_RULES_JSON: ${ESHU_REPOSITORY_RULES_JSON:-[]}
       ESHU_MCP_TRANSPORT: http
@@ -286,8 +286,8 @@ services:
       ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
       ESHU_HOME: /data/.eshu
       ESHU_REPOS_DIR: /data/repos
-      ESHU_REPO_SOURCE_MODE: filesystem
-      ESHU_FILESYSTEM_ROOT: /fixtures
+      ESHU_REPO_SOURCE_MODE: ${ESHU_REPO_SOURCE_MODE:-filesystem}
+      ESHU_FILESYSTEM_ROOT: ${ESHU_FILESYSTEM_ROOT:-/fixtures}
       ESHU_FILESYSTEM_DIRECT: ${ESHU_FILESYSTEM_DIRECT:-}
       ESHU_GIT_AUTH_METHOD: none
       ESHU_REPOSITORY_RULES_JSON: ${ESHU_REPOSITORY_RULES_JSON:-[]}
@@ -299,6 +299,9 @@ services:
       ESHU_PARSE_WORKERS: ${ESHU_PARSE_WORKERS:-}
       ESHU_LARGE_REPO_FILE_THRESHOLD: ${ESHU_LARGE_REPO_FILE_THRESHOLD:-}
       ESHU_LARGE_REPO_MAX_CONCURRENT: ${ESHU_LARGE_REPO_MAX_CONCURRENT:-1}
+      ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED: ${ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED:-false}
+      ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER: ${ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER:-ingester}
+      ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT: ${ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT:-100}
       GOMEMLIMIT: ${GOMEMLIMIT:-}
     volumes:
       - type: volume
@@ -374,7 +377,7 @@ services:
       HOME: /tmp
       ESHU_REPOS_DIR: /data/repos
       ESHU_REPO_SOURCE_MODE: filesystem
-      ESHU_FILESYSTEM_ROOT: /fixtures
+      ESHU_FILESYSTEM_ROOT: ${ESHU_FILESYSTEM_ROOT:-/fixtures}
       ESHU_GIT_AUTH_METHOD: none
       ESHU_REPOSITORY_RULES_JSON: ${ESHU_REPOSITORY_RULES_JSON:-[]}
       ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
@@ -399,6 +402,39 @@ services:
       db-migrate:
         condition: service_completed_successfully
       workspace-setup:
+        condition: service_completed_successfully
+
+  webhook-listener:
+    profiles:
+      - webhook-listener
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/eshu-webhook-listener"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "${ESHU_WEBHOOK_LISTENER_HTTP_PORT:-18083}:8080"
+    environment:
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_WEBHOOK_GITHUB_SECRET: ${ESHU_WEBHOOK_GITHUB_SECRET:-}
+      ESHU_WEBHOOK_GITLAB_TOKEN: ${ESHU_WEBHOOK_GITLAB_TOKEN:-}
+      ESHU_WEBHOOK_BITBUCKET_SECRET: ${ESHU_WEBHOOK_BITBUCKET_SECRET:-}
+      ESHU_WEBHOOK_GITHUB_PATH: ${ESHU_WEBHOOK_GITHUB_PATH:-/webhooks/github}
+      ESHU_WEBHOOK_GITLAB_PATH: ${ESHU_WEBHOOK_GITLAB_PATH:-/webhooks/gitlab}
+      ESHU_WEBHOOK_BITBUCKET_PATH: ${ESHU_WEBHOOK_BITBUCKET_PATH:-/webhooks/bitbucket}
+      ESHU_WEBHOOK_DEFAULT_BRANCH: ${ESHU_WEBHOOK_DEFAULT_BRANCH:-main}
+      ESHU_WEBHOOK_MAX_BODY_BYTES: ${ESHU_WEBHOOK_MAX_BODY_BYTES:-1048576}
+    depends_on:
+      db-migrate:
         condition: service_completed_successfully
 
 volumes:

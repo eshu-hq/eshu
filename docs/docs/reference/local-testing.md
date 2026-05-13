@@ -344,6 +344,7 @@ state, so parallel runs will collide.
 ./scripts/verify_projector_runtime_compose.sh
 ./scripts/verify_reducer_runtime_compose.sh
 ./scripts/verify_incremental_refresh_compose.sh
+./scripts/verify_webhook_refresh_compose.sh
 ./scripts/verify_relationship_platform_compose.sh
 ./scripts/verify_admin_refinalize_compose.sh
 ./scripts/verify_graph_analysis_compose.sh
@@ -460,6 +461,23 @@ bash scripts/verify_tfstate_drift_compose.sh &
 bash scripts/verify_tfstate_drift_compose_tier2.sh &
 wait
 ```
+
+## Webhook Refresh Compose Proof
+
+Use this gate when touching `go/cmd/webhook-listener`,
+`go/internal/webhook`, `WebhookTriggerStore`, or the ingester webhook-trigger
+handoff path.
+
+```bash
+bash scripts/verify_webhook_refresh_compose.sh
+```
+
+The verifier creates a local bare Git remote, seeds the managed workspace
+checkout, indexes the first generation, advances the remote default branch,
+sends a signed GitHub `push` webhook to `eshu-webhook-listener`, and verifies
+the queued trigger is handed off through the ingester to a new generation whose
+content is visible through the HTTP API. It uses local Compose only; no live
+GitHub webhook or public network endpoint is required.
 
 ## Runtime Tree Hygiene
 
