@@ -63,6 +63,8 @@ func TestServeOpenAPI(t *testing.T) {
 		"/api/v0/documentation/findings",
 		"/api/v0/documentation/findings/{finding_id}/evidence-packet",
 		"/api/v0/documentation/evidence-packets/{packet_id}/freshness",
+		"/api/v0/package-registry/packages",
+		"/api/v0/package-registry/versions",
 		"/api/v0/code/search",
 		"/api/v0/code/call-chain",
 		"/api/v0/code/language-query",
@@ -564,6 +566,29 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		!containsValue(enumValues, "sql_index") ||
 		!containsValue(enumValues, "sql_column") {
 		t.Fatalf("language-query entity_type enum = %#v, want content-backed entity types", enumValues)
+	}
+}
+
+func TestOpenAPISpecPackageRegistryPublishedAtIsDateTime(t *testing.T) {
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	versionsPath := mustMapField(t, paths, "/api/v0/package-registry/versions")
+	versionsGet := mustMapField(t, versionsPath, "get")
+	responses := mustMapField(t, versionsGet, "responses")
+	okResponse := mustMapField(t, responses, "200")
+	content := mustMapField(t, mustMapField(t, okResponse, "content"), "application/json")
+	schema := mustMapField(t, content, "schema")
+	properties := mustMapField(t, schema, "properties")
+	versions := mustMapField(t, properties, "versions")
+	items := mustMapField(t, versions, "items")
+	versionProperties := mustMapField(t, items, "properties")
+	publishedAt := mustMapField(t, versionProperties, "published_at")
+	if got, want := publishedAt["format"], "date-time"; got != want {
+		t.Fatalf("published_at format = %#v, want %#v", got, want)
 	}
 }
 

@@ -141,6 +141,56 @@ func ecosystemTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "list_package_registry_packages",
+			Description: "List package registry package identities by package_id or ecosystem/name without inferring repository ownership.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"package_id": map[string]any{
+						"type":        "string",
+						"description": "Exact Package.uid lookup.",
+					},
+					"ecosystem": map[string]any{
+						"type":        "string",
+						"description": "Package ecosystem scope such as npm, maven, pypi, go, cargo, or nuget.",
+					},
+					"name": map[string]any{
+						"type":        "string",
+						"description": "Normalized package name. Requires ecosystem when package_id is absent.",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum packages to return.",
+						"default":     50,
+						"minimum":     1,
+						"maximum":     200,
+					},
+				},
+				"required": []string{"limit"},
+			},
+		},
+		{
+			Name:        "list_package_registry_versions",
+			Description: "List package registry version identities for one Package.uid without inferring repository ownership.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"package_id": map[string]any{
+						"type":        "string",
+						"description": "Package.uid to anchor the version lookup.",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum versions to return.",
+						"default":     50,
+						"minimum":     1,
+						"maximum":     200,
+					},
+				},
+				"required": []string{"package_id", "limit"},
+			},
+		},
+		{
 			Name:        "get_repo_story",
 			Description: "Get a structured story for a repository. Accepts a repository selector such as canonical ID, name, repo slug, or indexed path.",
 			InputSchema: map[string]any{

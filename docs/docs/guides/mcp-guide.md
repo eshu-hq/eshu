@@ -177,6 +177,7 @@ assumptions from a partial code snapshot.
 | "Find complex functions" | `find_most_complex_functions` |
 | "What's dead code?" | `find_dead_code` |
 | "Which IaC artifacts look unused?" | `find_dead_iac` |
+| "Which registry packages or versions are indexed?" | `list_package_registry_packages`, `list_package_registry_versions` |
 
 ## Story-first responses
 
@@ -269,8 +270,10 @@ For programming prompts, keep using the code-query tools directly:
 - `find_most_complex_functions`
 - `find_dead_code`
 - `find_dead_iac`
+- `list_package_registry_packages`
+- `list_package_registry_versions`
 
-Those remain the primary public contract for callers/callees/class hierarchy/import/complexity/dead-code and dead-IaC questions. The story tools are for end-to-end narratives, not a replacement for the code tools.
+Those remain the primary public contract for callers/callees/class hierarchy/import/complexity/dead-code, dead-IaC, and package registry identity questions. The story tools are for end-to-end narratives, not a replacement for the focused query tools.
 
 ## Repository access handoff
 

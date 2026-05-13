@@ -70,6 +70,62 @@ func TestResolveRouteMapsRelationshipEvidenceToDrilldownPath(t *testing.T) {
 	}
 }
 
+func TestResolveRouteMapsPackageRegistryPackagesToBoundedQuery(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("list_package_registry_packages", map[string]any{
+		"package_id": "package:npm:@eshu/core-api",
+		"ecosystem":  "npm",
+		"name":       "core-api",
+		"limit":      float64(25),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "GET"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/package-registry/packages"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	for key, want := range map[string]string{
+		"package_id": "package:npm:@eshu/core-api",
+		"ecosystem":  "npm",
+		"name":       "core-api",
+		"limit":      "25",
+	} {
+		if got := route.query[key]; got != want {
+			t.Fatalf("route.query[%s] = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
+func TestResolveRouteMapsPackageRegistryVersionsToPackageScope(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("list_package_registry_versions", map[string]any{
+		"package_id": "package:npm:@eshu/core-api",
+		"limit":      float64(50),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "GET"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/package-registry/versions"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	for key, want := range map[string]string{
+		"package_id": "package:npm:@eshu/core-api",
+		"limit":      "50",
+	} {
+		if got := route.query[key]; got != want {
+			t.Fatalf("route.query[%s] = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
 func TestResolveRouteMapsSearchFileContentPatternAndRepoIDs(t *testing.T) {
 	t.Parallel()
 

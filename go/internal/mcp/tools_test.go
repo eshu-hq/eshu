@@ -7,7 +7,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 41
+	expectedCount := 43
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -32,6 +32,8 @@ func TestReadOnlyTools(t *testing.T) {
 		"find_dead_iac",
 		"get_ecosystem_overview",
 		"get_relationship_evidence",
+		"list_package_registry_packages",
+		"list_package_registry_versions",
 		"resolve_entity",
 		"get_file_content",
 		"list_ingesters",
@@ -58,8 +60,8 @@ func TestCodebaseTools(t *testing.T) {
 
 func TestEcosystemTools(t *testing.T) {
 	tools := ecosystemTools()
-	if len(tools) != 14 {
-		t.Errorf("Expected 14 ecosystem tools, got %d", len(tools))
+	if len(tools) != 16 {
+		t.Errorf("Expected 16 ecosystem tools, got %d", len(tools))
 	}
 }
 

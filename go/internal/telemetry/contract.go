@@ -161,6 +161,8 @@ const (
 	SpanQueryDocumentationPacketFreshness = "query.documentation_packet_freshness"
 	SpanQueryDeadIaC                      = "query.dead_iac"
 	SpanQueryInfraResourceSearch          = "query.infra_resource_search"
+	SpanQueryPackageRegistryPackages      = "query.package_registry_packages"
+	SpanQueryPackageRegistryVersions      = "query.package_registry_versions"
 	SpanTerraformStateClaimProcess        = "tfstate.collector.claim.process"
 	SpanTerraformStateDiscoveryResolve    = "tfstate.discovery.resolve"
 	SpanTerraformStateSourceOpen          = "tfstate.source.open"
@@ -344,6 +346,8 @@ var spanNames = []string{
 	SpanQueryDocumentationPacketFreshness,
 	SpanQueryDeadIaC,
 	SpanQueryInfraResourceSearch,
+	SpanQueryPackageRegistryPackages,
+	SpanQueryPackageRegistryVersions,
 	SpanTerraformStateClaimProcess,
 	SpanTerraformStateDiscoveryResolve,
 	SpanTerraformStateSourceOpen,

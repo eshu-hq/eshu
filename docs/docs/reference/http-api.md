@@ -263,6 +263,23 @@ updater check a saved packet before publishing a diff. If the packet is stale,
 the updater should fetch the latest packet and restart planning from the new
 snapshot.
 
+### Package Registry Identity
+
+Package registry routes expose the graph identity materialized from
+`package_registry.package` and `package_registry.package_version` facts. They do
+not report repository ownership or publication truth yet; source repository
+hints remain provenance-only until reducer correlation admits them.
+
+`GET /api/v0/package-registry/packages` lists package identities. The caller
+must provide `limit` and either `package_id` or `ecosystem`. `name` may narrow
+an ecosystem-scoped lookup. Responses include package identity fields,
+`version_count`, `truncated`, and the requested `limit`.
+
+`GET /api/v0/package-registry/versions` lists versions for one package. The
+caller must provide `package_id` and `limit`. Responses include version
+identity, publication timestamp when present, yank/unlist/deprecation flags,
+`truncated`, and the requested `limit`.
+
 ## Context API
 
 ### Resolve fuzzy input into canonical entities
