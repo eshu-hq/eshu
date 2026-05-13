@@ -140,7 +140,7 @@ export ESHU_JFROG_PACKAGE_LIVE=1
 export ESHU_JFROG_PACKAGE_METADATA_URL="${ESHU_JFROG_PACKAGE_METADATA_URL:?set an Artifactory package metadata wrapper URL}"
 export ESHU_JFROG_PACKAGE_ECOSYSTEM="${ESHU_JFROG_PACKAGE_ECOSYSTEM:-npm}"
 export ESHU_JFROG_PACKAGE_NAME="${ESHU_JFROG_PACKAGE_NAME:?set the package name in the metadata document}"
-export ESHU_JFROG_PACKAGE_NAMESPACE="${ESHU_JFROG_PACKAGE_NAMESPACE:-}"
+export ESHU_JFROG_PACKAGE_NAMESPACE="${ESHU_JFROG_PACKAGE_NAMESPACE:-}" # required for Maven groupId
 export ESHU_JFROG_PACKAGE_REGISTRY="${ESHU_JFROG_PACKAGE_REGISTRY:-${JFROG_PACKAGE_REGISTRY:-${JFROG_URL:-${JFROG_BASE_URL:-}}}}"
 export ESHU_JFROG_PACKAGE_USERNAME="${ESHU_JFROG_PACKAGE_USERNAME:-${JFROG_USERNAME:-${JFROG_USER:-}}}"
 export ESHU_JFROG_PACKAGE_PASSWORD="${ESHU_JFROG_PACKAGE_PASSWORD:-${JFROG_PASSWORD:-}}"
@@ -153,7 +153,9 @@ go test ./internal/collector/packageregistry/packageruntime -run TestLiveJFrogPa
 The package smoke is read-only and skips unless `ESHU_JFROG_PACKAGE_LIVE=1`.
 It strips query strings and fragments from emitted source references and fails
 if configured credential material appears in errors, source refs, or fact
-payloads.
+payloads. For Maven, set `ESHU_JFROG_PACKAGE_NAMESPACE` to the package
+`groupId`, for example `org.example`, and `ESHU_JFROG_PACKAGE_NAME` to the
+artifact ID.
 
 Amazon ECR private-registry validation uses AWS shared config plus explicit
 repository coordinates:
