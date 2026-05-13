@@ -251,11 +251,15 @@ func taskObservation(boundary awscloud.Boundary, task Task) awscloud.ResourceObs
 			"desired_status":      strings.TrimSpace(task.DesiredStatus),
 			"group":               strings.TrimSpace(task.Group),
 			"launch_type":         strings.TrimSpace(task.LaunchType),
+			"network_interfaces":  taskNetworkInterfaceMaps(task.NetworkInterfaces),
 			"started_at":          timeOrNil(task.StartedAt),
 			"task_definition_arn": strings.TrimSpace(task.TaskDefinitionARN),
 		},
-		CorrelationAnchors: []string{taskARN, strings.TrimSpace(task.TaskDefinitionARN)},
-		SourceRecordID:     taskARN,
+		CorrelationAnchors: append(
+			[]string{taskARN, strings.TrimSpace(task.TaskDefinitionARN)},
+			taskNetworkInterfaceIDs(task.NetworkInterfaces)...,
+		),
+		SourceRecordID: taskARN,
 	}
 }
 
@@ -264,7 +268,15 @@ func taskEnvelopes(boundary awscloud.Boundary, task Task) ([]facts.Envelope, err
 	if err != nil {
 		return nil, err
 	}
-	return []facts.Envelope{resource}, nil
+	envelopes := []facts.Envelope{resource}
+	for _, observation := range taskNetworkInterfaceRelationships(boundary, task) {
+		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, relationship)
+	}
+	return envelopes, nil
 }
 
 func serviceTaskDefinitionRelationship(boundary awscloud.Boundary, service Service) awscloud.RelationshipObservation {
@@ -393,6 +405,35 @@ func taskContainerMaps(containers []TaskContainer) []map[string]string {
 			"name":         strings.TrimSpace(container.Name),
 			"runtime_id":   strings.TrimSpace(container.RuntimeID),
 		})
+	}
+	return output
+}
+
+func taskNetworkInterfaceMaps(networkInterfaces []TaskNetworkInterface) []map[string]any {
+	if len(networkInterfaces) == 0 {
+		return nil
+	}
+	output := make([]map[string]any, 0, len(networkInterfaces))
+	for _, networkInterface := range networkInterfaces {
+		output = append(output, map[string]any{
+			"mac_address":          strings.TrimSpace(networkInterface.MACAddress),
+			"network_interface_id": strings.TrimSpace(networkInterface.NetworkInterfaceID),
+			"private_ipv4_address": strings.TrimSpace(networkInterface.PrivateIPv4Address),
+			"subnet_id":            strings.TrimSpace(networkInterface.SubnetID),
+		})
+	}
+	return output
+}
+
+func taskNetworkInterfaceIDs(networkInterfaces []TaskNetworkInterface) []string {
+	if len(networkInterfaces) == 0 {
+		return nil
+	}
+	var output []string
+	for _, networkInterface := range networkInterfaces {
+		if id := strings.TrimSpace(networkInterface.NetworkInterfaceID); id != "" {
+			output = append(output, id)
+		}
 	}
 	return output
 }

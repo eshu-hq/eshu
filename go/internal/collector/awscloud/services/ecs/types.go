@@ -103,6 +103,7 @@ type Task struct {
 	Group             string
 	StartedAt         time.Time
 	Containers        []TaskContainer
+	NetworkInterfaces []TaskNetworkInterface
 }
 
 // TaskContainer is the scanner-owned representation of a container on a
@@ -112,4 +113,12 @@ type TaskContainer struct {
 	Image       string
 	ImageDigest string
 	RuntimeID   string
+}
+
+// TaskNetworkInterface is one ENI attachment reported on an ECS task.
+type TaskNetworkInterface struct {
+	NetworkInterfaceID string
+	SubnetID           string
+	PrivateIPv4Address string
+	MACAddress         string
 }

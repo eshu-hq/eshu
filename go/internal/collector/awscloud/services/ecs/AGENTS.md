@@ -20,6 +20,8 @@
   cross the scanner boundary.
 - Preserve ECS secret `value_from` references and never attempt to resolve or
   read secret values.
+- Preserve ECS task ENI IDs from task describe responses so EC2 topology can join tasks
+  to subnets and VPCs later.
 - Keep task-definition env values, secret refs, resource ARNs, tags, and image
   refs out of metric labels.
 

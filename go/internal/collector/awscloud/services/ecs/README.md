@@ -32,8 +32,9 @@ See `doc.go` for the godoc contract.
 - `Scanner` - emits ECS resource and relationship envelopes for one boundary.
 - `Cluster`, `Service`, `TaskDefinition`, and `Task` - scanner-owned ECS
   resource representations.
-- `Container`, `EnvironmentVariable`, `SecretReference`, `LoadBalancer`, and
-  `TaskContainer` - scanner-owned nested ECS records.
+- `Container`, `EnvironmentVariable`, `SecretReference`, `LoadBalancer`,
+  `TaskContainer`, and `TaskNetworkInterface` - scanner-owned nested ECS
+  records.
 
 ## Dependencies
 
@@ -58,8 +59,11 @@ throttles, and pagination spans.
   `redacted:hmac-sha256:` markers before persistence.
 - ECS secret `value_from` references are preserved because they are ARNs or
   provider references, not secret values.
-- ECS service-to-task-definition, task-definition-to-image, and
-  service-to-load-balancer bindings are emitted as `aws_relationship` facts.
+- ECS service-to-task-definition, task-definition-to-image,
+  service-to-load-balancer, and task-to-ENI bindings are emitted as
+  `aws_relationship` facts.
+- ECS task ENI details are reported attachment evidence used by later reducers
+  to join tasks to EC2 subnet and VPC topology.
 - Container images are relationship targets, not `aws_resource` facts in this
   package.
 - The scanner stops on client errors. Runtime adapters decide whether an AWS

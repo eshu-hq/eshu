@@ -35,6 +35,7 @@ See `doc.go` for the godoc contract.
 - `ServiceIAM` - IAM service-kind value for global IAM scans.
 - `ServiceECR` - ECR service-kind value for regional image scans.
 - `ServiceECS` - ECS service-kind value for regional workload placement scans.
+- `ServiceEC2` - EC2 service-kind value for regional network topology scans.
 - `ServiceELBv2` - ELBv2 service-kind value for regional routing topology
   scans.
 - `ServiceRoute53` - Route 53 service-kind value for global DNS scans.
@@ -82,6 +83,8 @@ scan duration histograms, and warning/failure counters at that boundary.
   metric labels.
 - Account IDs, regions, and service kinds are acceptable claim dimensions.
   Resource ARNs, names, tags, URLs, and policy JSON are not metric labels.
+- EC2 instance inventory stays out of EC2 network-topology facts. ENI
+  attachment target ARNs are reported metadata, not instance resource facts.
 
 ## Related docs
 

@@ -17,6 +17,7 @@
   calls.
 - Batch ECS describe APIs at documented limits: clusters `100`, services `10`,
   and tasks `100`.
+- Preserve ElasticNetworkInterface attachment details from `DescribeTasks`.
 - Do not log or label task-definition environment values, secret references,
   resource ARNs, tags, or image refs.
 - Do not read secret values. ECS `Secret.ValueFrom` is a reference and should

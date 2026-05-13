@@ -23,6 +23,8 @@
   live status, not routing topology.
 - Keep Route 53 DNS names, hosted-zone IDs, and record values out of metric
   labels.
+- Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target
+  evidence is metadata only.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 
