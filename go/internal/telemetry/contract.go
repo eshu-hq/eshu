@@ -78,9 +78,9 @@ const (
 	// reasons the drift loader could not resolve a Terraform module call's
 	// source to a local directory under the same repo snapshot:
 	// external_registry, external_git, external_archive, cross_repo_local,
-	// cycle_detected, depth_exceeded. The string value is "reason" — same
-	// short label as MetricDimensionReason but the constant exists so the
-	// drift counter's semantic dimension is anchored to this contract and
+	// cycle_detected, depth_exceeded, module_renamed. The string value is
+	// "reason" — same short label as MetricDimensionReason but the constant
+	// exists so the drift counter's semantic dimension is anchored to this contract and
 	// future contributors can find every counter that uses it via
 	// grep-by-constant. Referenced from
 	// go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go.

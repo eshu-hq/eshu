@@ -50,8 +50,11 @@ func TestPostgresDriftEvidenceLoaderPriorConfigDeclarationActivatesRemovedFromCo
 			)}},
 			// 7. prior-config addresses walk. The prior gen DID declare this address.
 			{rows: [][]any{{
+				"gen-a1",
 				fixturePriorConfigAddressesArray(fixtureConfigParserRow("aws_iam_policy", "legacy")),
 			}}},
+			// 8. prior-generation terraform_modules walk: no module calls in this fixture.
+			{rows: [][]any{}},
 		},
 	}
 	loader := PostgresDriftEvidenceLoader{DB: db, PriorConfigDepth: 10}
@@ -158,8 +161,11 @@ func TestPostgresDriftEvidenceLoaderPriorConfigOutsideDepthWindowLeavesFlagFalse
 			)}},
 			// prior-config walk with depth=1: most recent prior gen has no entry for this address.
 			{rows: [][]any{{
+				"gen-a1",
 				fixturePriorConfigAddressesArray(fixtureConfigParserRow("aws_iam_role", "unrelated")),
 			}}},
+			// prior-generation terraform_modules walk: no module calls in this fixture.
+			{rows: [][]any{}},
 		},
 	}
 	loader := PostgresDriftEvidenceLoader{DB: db, PriorConfigDepth: 1}
@@ -176,5 +182,42 @@ func TestPostgresDriftEvidenceLoaderPriorConfigOutsideDepthWindowLeavesFlagFalse
 	}
 	if rows[0].State.PreviouslyDeclaredInConfig {
 		t.Fatalf("row.State.PreviouslyDeclaredInConfig = true, want false (address only in N+1 deeper, outside depth window)")
+	}
+}
+
+func TestRecordModuleRenameIfPrefixChangedRecordsOncePerPath(t *testing.T) {
+	t.Parallel()
+
+	recorder := &fakeUnresolvedRecorder{}
+	seen := map[string]struct{}{}
+	entry := map[string]any{"path": "modules/vpc/main.tf"}
+	currentPrefixMap := modulePrefixMap{"modules/vpc": []string{"module.network"}}
+	priorPrefixMap := modulePrefixMap{"modules/vpc": []string{"module.vpc"}}
+
+	recordModuleRenameIfPrefixChanged(
+		context.Background(),
+		recorder,
+		"gen-a1",
+		entry,
+		currentPrefixMap,
+		priorPrefixMap,
+		seen,
+	)
+	recordModuleRenameIfPrefixChanged(
+		context.Background(),
+		recorder,
+		"gen-a1",
+		entry,
+		currentPrefixMap,
+		priorPrefixMap,
+		seen,
+	)
+
+	reasons := recorder.reasons()
+	if got, want := len(reasons), 1; got != want {
+		t.Fatalf("recorded reason count = %d, want %d: %v", got, want, reasons)
+	}
+	if got, want := reasons[0], unresolvedReasonModuleRenamed; got != want {
+		t.Fatalf("recorded reason = %q, want %q", got, want)
 	}
 }

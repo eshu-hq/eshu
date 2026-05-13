@@ -257,6 +257,7 @@ intent. Reasons at launch:
 - `cross_repo_local`
 - `cycle_detected`
 - `depth_exceeded`
+- `module_renamed`
 
 ### Cross-Repo Modules — Explicitly Out Of Scope
 
@@ -322,7 +323,8 @@ plan must produce tests for every row:
 | Resource declared at the **repo root** (no `module {}` involvement) | Negative (baseline) | Address stays `<type>.<name>` exactly as today. Regression guard: existing root-module tests must continue to pass byte-identically. |
 | State address contains `[index:N]` or `[key:<hash>]`, config side has matching unindexed declaration | Ambiguous | Out of scope for this ADR; existing behavior unchanged. |
 | `terraform_modules` fact missing entirely for a repo that uses module blocks (parser bug, fact deletion) | Ambiguous | Loader degrades gracefully — no prefix map, every nested resource falls back to `added_in_state`. This is also the fallback for "repo has no modules at all," which is the common case. |
-| Prior-config walk (`#191`) interacts with module-prefixed addresses | Positive | `loadPriorConfigAddresses` must also apply the module-prefix map; otherwise `removed_from_config` would lose its module-nested half. The implementation plan covers this. |
+| Prior-config walk (`#191`) interacts with module-prefixed addresses | Positive | `loadPriorConfigAddresses` must apply the module-prefix map for each prior generation; otherwise `removed_from_config` would lose its module-nested half. |
+| Module block renamed across generations (`module.vpc` -> `module.network`) while the callee path persists | Ambiguous | Current config projects to the current module name, but prior-config projection uses the prior generation's module name so the old state address is still marked `PreviouslyDeclaredInConfig`. Counter reason `module_renamed` increments once per prior generation and callee path. |
 | Same address resolves via two different callees with conflicting attributes (one callee says `tags.env=prod`, another says `tags.env=stage`) | Ambiguous | Each prefixed address is its own keyspace entry; no merge happens. State-side has the prefix that distinguishes them. |
 
 ## Consequences
@@ -364,10 +366,12 @@ plan must produce tests for every row:
   `./modules/vpc/main.tf`. The resolver must walk the inner call too,
   not flatten on the outermost only. The test matrix above covers this
   through the nested-module case.
-- **Prior-config interaction.** `loadPriorConfigAddresses` must also
-  apply the module-prefix map; otherwise `removed_from_config` regresses
-  on module-nested addresses. The implementation plan includes a
-  regression test that exercises both walks at once.
+- **Prior-config interaction.** `loadPriorConfigAddresses` must apply a
+  module-prefix map built from each prior generation before projecting
+  that generation's resources; otherwise `removed_from_config` regresses
+  on module-nested addresses and module renames create false pairs. The
+  implementation includes regression tests for the preserved-module and
+  renamed-module shapes.
 - **Performance.** A pathological repo with hundreds of `module {}`
   blocks and thousands of `.tf` files would build a large prefix map.
   Bounded by repo-scale fact counts that already drive
@@ -381,7 +385,7 @@ These must be resolved before the implementation plan can be written.
 
 1. **Should the new fallback counter
    `eshu_dp_drift_unresolved_module_calls_total{reason}` be one counter
-   with six reasons, or six independent counters?** This ADR proposes
+   with seven reasons, or independent counters?** This ADR proposes
    one counter with a reason label, matching the existing
    `eshu_dp_correlation_drift_detected_total{drift_kind}` shape.
    Operator workflows already filter on `reason`/`drift_kind` labels.

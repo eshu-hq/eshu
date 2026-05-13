@@ -114,10 +114,10 @@
   lives in the loader's emission loop, not here, so future readers cannot
   mistake the row builder for the projection seam.
   Note: `loadPriorConfigAddresses` (see below) also calls
-  `configRowFromParserEntry` (through `collectPriorConfigAddresses`) and
-  applies the SAME prefix map. Splitting the prefix application between the
-  two walks would silently regress `removed_from_config` on module-nested
-  addresses.
+  `configRowFromParserEntry` (through `collectPriorConfigAddresses`) with a
+  generation-appropriate prefix map. Current config uses the current map;
+  prior config uses a prior-generation map so module renames do not silently
+  regress `removed_from_config` on module-nested addresses.
 
 - **Module-aware drift joining** → edit
   `tfstate_drift_evidence_module_prefix.go`. `buildModulePrefixMap` walks
@@ -130,6 +130,9 @@
   `added_in_state` and increment
   `eshu_dp_drift_unresolved_module_calls_total{reason}` through
   `loggingUnresolvedRecorder` (a thin wrapper over `*telemetry.Instruments`).
+  Prior-config module rename detection records `reason="module_renamed"` on
+  the same counter once per prior generation and callee path when the prior
+  and current prefix sets differ.
   Depth bound is `maxModulePrefixDepth = 10`, hard-coded with no env
   override — see the constant's doc comment. Cycles are broken by the
   per-expansion `visited` set tracked in `walkModulePrefixChain`.
@@ -140,10 +143,11 @@
   `PostgresDriftEvidenceLoader.PriorConfigDepth` (default 10, set from
   `ESHU_DRIFT_PRIOR_CONFIG_DEPTH`). It returns the address set that
   `mergeDriftRows` uses to set `PreviouslyDeclaredInConfig` on state-only
-  addresses. The walk applies the module-prefix map built from the CURRENT
-  generation's `terraform_modules` facts so module-nested removed-block
-  detection still fires; cross-generation prefix walking (a module {} block
-  renamed across generations) is a v1 limitation tracked in a follow-up.
+  addresses. The walk groups rows by prior generation, builds a module-prefix
+  map from each prior generation's `terraform_modules` facts, and then
+  projects prior `terraform_resources` entries with that generation's module
+  names. Current-generation and prior-generation prefix differences emit the
+  `module_renamed` telemetry reason so operators can size rename frequency.
   When changing depth semantics, also update the `defaultPriorConfigDepth`
   constant in the same file and the `parsePriorConfigDepth` helper in
   `go/cmd/reducer/config.go`.

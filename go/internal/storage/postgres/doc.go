@@ -52,10 +52,11 @@
 // repeated blocks (e.g. versioning, server_side_encryption_configuration)
 // produce paths that match the parser's config-side dot-path form;
 // tfstate_drift_evidence_prior_config.go provides loadPriorConfigAddresses,
-// which walks prior repo-snapshot generations and returns the address set
-// used by mergeDriftRows to set PreviouslyDeclaredInConfig=true on
-// state-only addresses — activating removed_from_config classification as
-// of issue #168. The dot-path encoding produced by coerceJSONString and
+// which walks prior repo-snapshot generations, builds one module-prefix map
+// per prior generation, and returns the address set used by mergeDriftRows to
+// set PreviouslyDeclaredInConfig=true on state-only addresses — activating
+// removed_from_config classification as of issue #168. The dot-path encoding
+// produced by coerceJSONString and
 // flattenStateAttributes must stay byte-identical to ctyValueToDriftString
 // in go/internal/parser/hcl/terraform_resource_attributes.go; the
 // classifier's value-equality check depends on both sides agreeing at the
@@ -79,8 +80,10 @@
 // shape `module.<name>[.module.<name>...].<type>.<name>`. Local sources only
 // in v1; registry, git, archive, and cross-repo sources fall back to
 // added_in_state with a per-call increment of
-// eshu_dp_drift_unresolved_module_calls_total{reason}. The module-prefix
-// helpers normalize forward-slash paths exclusively (path package, not
+// eshu_dp_drift_unresolved_module_calls_total{reason}. Module renames across
+// generations increment that counter with reason module_renamed once per prior
+// generation and callee path. The module-prefix helpers normalize
+// forward-slash paths exclusively (path package, not
 // path/filepath) because terraform_modules.path is a Postgres-stored string,
 // not a live filesystem path.
 // WebhookTriggerStore persists provider webhook trigger decisions in
