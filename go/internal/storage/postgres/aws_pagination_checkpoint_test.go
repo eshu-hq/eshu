@@ -8,8 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/checkpoint"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func TestAWSPaginationCheckpointSchemaSQL(t *testing.T) {
@@ -93,6 +98,65 @@ func TestAWSPaginationCheckpointStoreExpireStaleScopesByGeneration(t *testing.T)
 	}
 }
 
+func TestAWSPaginationCheckpointStoreRecordsStableEventKinds(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	db := &awsCheckpointStoreTestDB{
+		execResults: []sql.Result{
+			awsCheckpointRowsResult{rowsAffected: 1},
+			awsCheckpointRowsResult{rowsAffected: 1},
+		},
+	}
+	store := NewAWSPaginationCheckpointStore(db)
+	store.Instruments = instruments
+
+	if err := store.Complete(context.Background(), testAWSCheckpointKey()); err != nil {
+		t.Fatalf("Complete() error = %v, want nil", err)
+	}
+	if _, err := store.ExpireStale(context.Background(), testAWSCheckpointScope()); err != nil {
+		t.Fatalf("ExpireStale() error = %v, want nil", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	assertAWSCheckpointCounter(t, rm, map[string]string{
+		telemetry.MetricDimensionService:   awscloud.ServiceECR,
+		telemetry.MetricDimensionAccount:   "123456789012",
+		telemetry.MetricDimensionRegion:    "us-east-1",
+		telemetry.MetricDimensionOperation: "DescribeImages",
+		telemetry.MetricDimensionEventKind: "complete",
+		telemetry.MetricDimensionResult:    "success",
+	})
+	assertAWSCheckpointCounter(t, rm, map[string]string{
+		telemetry.MetricDimensionService:   awscloud.ServiceECR,
+		telemetry.MetricDimensionAccount:   "123456789012",
+		telemetry.MetricDimensionRegion:    "us-east-1",
+		telemetry.MetricDimensionOperation: "all",
+		telemetry.MetricDimensionEventKind: "expiry",
+		telemetry.MetricDimensionResult:    "success",
+	})
+}
+
+func TestAWSPaginationCheckpointStoreRecordEventAllowsPartialInstruments(t *testing.T) {
+	t.Parallel()
+
+	store := AWSPaginationCheckpointStore{Instruments: &telemetry.Instruments{}}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("recordEvent() panic = %v, want nil", recovered)
+		}
+	}()
+	store.recordEvent(context.Background(), testAWSCheckpointScope(), "DescribeImages", "save", "success")
+}
+
 func testAWSCheckpointKey() checkpoint.Key {
 	return checkpoint.Key{
 		Scope: checkpoint.Scope{
@@ -142,3 +206,41 @@ type awsCheckpointRowsResult struct {
 
 func (r awsCheckpointRowsResult) LastInsertId() (int64, error) { return 0, nil }
 func (r awsCheckpointRowsResult) RowsAffected() (int64, error) { return r.rowsAffected, nil }
+
+func assertAWSCheckpointCounter(
+	t *testing.T,
+	rm metricdata.ResourceMetrics,
+	wantAttrs map[string]string,
+) {
+	t.Helper()
+
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, metricRecord := range scopeMetrics.Metrics {
+			if metricRecord.Name != "eshu_dp_aws_pagination_checkpoint_events_total" {
+				continue
+			}
+			sum, ok := metricRecord.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("metric data = %T, want metricdata.Sum[int64]", metricRecord.Data)
+			}
+			for _, dp := range sum.DataPoints {
+				if awsCheckpointAttrsMatch(dp.Attributes.ToSlice(), wantAttrs) && dp.Value == 1 {
+					return
+				}
+			}
+		}
+	}
+	t.Fatalf("checkpoint counter with attrs %v not found", wantAttrs)
+}
+
+func awsCheckpointAttrsMatch(actual []attribute.KeyValue, want map[string]string) bool {
+	if len(actual) != len(want) {
+		return false
+	}
+	for _, attr := range actual {
+		if want[string(attr.Key)] != attr.Value.AsString() {
+			return false
+		}
+	}
+	return true
+}

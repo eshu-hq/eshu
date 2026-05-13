@@ -468,8 +468,9 @@ from in-memory pagination to resumable pagination.
 
 Checkpoint observability uses
 `eshu_dp_aws_pagination_checkpoint_events_total{service,account,region,operation,event_kind,result}`.
-Resource parents, ARNs, page tokens, repository names, and hosted-zone IDs are
-not metric labels.
+The event-kind taxonomy is `load`, `save`, `resume`, `expiry`, `complete`, and
+`failure`. Resource parents, ARNs, page tokens, repository names, and
+hosted-zone IDs are not metric labels.
 
 ---
 

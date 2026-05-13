@@ -550,7 +550,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.AWSCheckpointEvents, err = meter.Int64Counter(
 		"eshu_dp_aws_pagination_checkpoint_events_total",
-		metric.WithDescription("Total AWS pagination checkpoint load, save, resume, expiry, and failure events by service, account, region, operation, event kind, and result"),
+		metric.WithDescription("Total AWS pagination checkpoint load, save, resume, expiry, completion, and failure events by service, account, region, operation, event kind, and result"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWSCheckpointEvents counter: %w", err)

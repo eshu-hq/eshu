@@ -431,7 +431,7 @@ log streams.
 | `eshu_dp_aws_api_calls_total` | AWS API calls by operation outcome | `service`, `account`, `region`, `operation`, `result` |
 | `eshu_dp_aws_throttle_total` | AWS throttle-shaped service errors | `service`, `account`, `region` |
 | `eshu_dp_aws_assumerole_failed_total` | AWS claim credential acquisition failures | `account` |
-| `eshu_dp_aws_pagination_checkpoint_events_total` | AWS pagination checkpoint load, save, resume, expiry, and failure events | `service`, `account`, `region`, `operation`, `event_kind`, `result` |
+| `eshu_dp_aws_pagination_checkpoint_events_total` | AWS pagination checkpoint load, save, resume, expiry, completion, and failure events | `service`, `account`, `region`, `operation`, `event_kind`, `result` |
 | `eshu_dp_aws_resources_emitted_total` | AWS resource facts emitted by service scanner | `service`, `account`, `region`, `resource_type` |
 | `eshu_dp_aws_relationships_emitted_total` | AWS relationship facts emitted by service scanner | `service`, `account`, `region` |
 | `eshu_dp_aws_tag_observations_emitted_total` | AWS tag observation facts emitted by service scanner | `service`, `account`, `region` |

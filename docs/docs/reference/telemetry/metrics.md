@@ -228,7 +228,7 @@ collector/projector/reducer path.
 - Type: Counter
 - Labels: `service`, `account`, `region`, `operation`, `event_kind`, `result`
 - Meaning: Durable AWS pagination checkpoint loads, saves, resumes, expiries,
-  and failures.
+  completions, and failures.
 - Use it for: Confirming long scans are resuming from Postgres without putting
   page tokens, ARNs, repository names, or resource parents into labels.
 

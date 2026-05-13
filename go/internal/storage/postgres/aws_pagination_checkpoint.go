@@ -249,7 +249,7 @@ func (s AWSPaginationCheckpointStore) Complete(ctx context.Context, key checkpoi
 		s.recordEvent(ctx, key.Scope, key.Operation, "failure", "stale_fence")
 		return err
 	}
-	s.recordEvent(ctx, key.Scope, key.Operation, "save", "complete")
+	s.recordEvent(ctx, key.Scope, key.Operation, "complete", "success")
 	return nil
 }
 
@@ -283,7 +283,7 @@ func (s AWSPaginationCheckpointStore) ExpireStale(ctx context.Context, scope che
 		return 0, fmt.Errorf("expire stale AWS pagination checkpoints: %w", err)
 	}
 	if rowsAffected > 0 {
-		s.recordEvent(ctx, scope, "all", "expire", "success")
+		s.recordEvent(ctx, scope, "all", "expiry", "success")
 	}
 	return rowsAffected, nil
 }
@@ -348,7 +348,7 @@ func (s AWSPaginationCheckpointStore) recordEvent(
 	eventKind string,
 	result string,
 ) {
-	if s.Instruments == nil {
+	if s.Instruments == nil || s.Instruments.AWSCheckpointEvents == nil {
 		return
 	}
 	if strings.TrimSpace(scope.ServiceKind) == "" {
