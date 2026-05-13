@@ -34,15 +34,22 @@ type OCIRegistryPlanner interface {
 	PlanOCIRegistryWork(context.Context, OCIRegistryPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// PackageRegistryPlanner plans package-registry workflow rows from collector
+// instance configuration.
+type PackageRegistryPlanner interface {
+	PlanPackageRegistryWork(context.Context, PackageRegistryPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // Service is the dark-deployed workflow coordinator runner.
 type Service struct {
-	Config                Config
-	Store                 Store
-	Metrics               Metrics
-	Logger                *slog.Logger
-	TerraformStatePlanner TerraformStatePlanner
-	OCIRegistryPlanner    OCIRegistryPlanner
-	Clock                 func() time.Time
+	Config                 Config
+	Store                  Store
+	Metrics                Metrics
+	Logger                 *slog.Logger
+	TerraformStatePlanner  TerraformStatePlanner
+	OCIRegistryPlanner     OCIRegistryPlanner
+	PackageRegistryPlanner PackageRegistryPlanner
+	Clock                  func() time.Time
 }
 
 // Run periodically reconciles declarative collector instance state and, in
@@ -165,6 +172,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
+	if err := s.schedulePackageRegistryWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
 	s.recordReconcile(ctx, ReconcileObservation{
 		Outcome:      reconcileOutcomeSuccess,
 		Duration:     time.Since(startedAt),
@@ -180,6 +196,63 @@ func (s Service) runReconcile(ctx context.Context) error {
 		)
 	}
 	return nil
+}
+
+func (s Service) schedulePackageRegistryWork(
+	ctx context.Context,
+	observedAt time.Time,
+	instances []workflow.CollectorInstance,
+) error {
+	if s.Config.DeploymentMode != deploymentModeActive || !s.Config.ClaimsEnabled {
+		return nil
+	}
+	for _, instance := range instances {
+		if !shouldSchedulePackageRegistry(instance) {
+			continue
+		}
+		if s.PackageRegistryPlanner == nil {
+			return fmt.Errorf("package registry planner is required for active package_registry collectors")
+		}
+		run, items, err := s.PackageRegistryPlanner.PlanPackageRegistryWork(ctx, PackageRegistryPlanRequest{
+			Instance:   instance,
+			ObservedAt: observedAt,
+			PlanKey:    s.packageRegistryPlanKey(instance, observedAt),
+		})
+		if err != nil {
+			return fmt.Errorf("plan package registry work for %q: %w", instance.InstanceID, err)
+		}
+		if len(items) == 0 {
+			continue
+		}
+		if err := s.Store.CreateRun(ctx, run); err != nil {
+			return fmt.Errorf("create package registry workflow run for %q: %w", instance.InstanceID, err)
+		}
+		if err := s.Store.EnqueueWorkItems(ctx, items); err != nil {
+			return fmt.Errorf("enqueue package registry work items for %q: %w", instance.InstanceID, err)
+		}
+	}
+	return nil
+}
+
+func shouldSchedulePackageRegistry(instance workflow.CollectorInstance) bool {
+	return instance.CollectorKind == scope.CollectorPackageRegistry &&
+		instance.Enabled &&
+		instance.ClaimsEnabled
+}
+
+func (s Service) packageRegistryPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
+	if instance.Bootstrap {
+		return "bootstrap"
+	}
+	interval := s.Config.ReconcileInterval
+	if interval <= 0 {
+		interval = defaultReconcileInterval
+	}
+	prefix := strings.TrimSpace(string(instance.Mode))
+	if prefix == "" {
+		prefix = "schedule"
+	}
+	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
 }
 
 func (s Service) scheduleOCIRegistryWork(

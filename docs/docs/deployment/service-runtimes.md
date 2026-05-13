@@ -64,6 +64,7 @@ Current platform reality:
 | Ingester | repo sync, parsing, fact emission, workspace ownership | `/usr/local/bin/eshu-ingester` | workspace PVC + Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `StatefulSet` |
 | Webhook Listener | public provider webhook intake and durable refresh triggers | `/usr/local/bin/eshu-webhook-listener` | Postgres trigger table only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | OCI Registry Collector | OCI registry scan, tag observation, manifest/referrer fact emission | `/usr/local/bin/eshu-collector-oci-registry` | Postgres fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
+| Package Registry Collector | package metadata fetch, parser routing, package/version/dependency fact emission | `/usr/local/bin/eshu-collector-package-registry` | Postgres workflow + fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
 | AWS Cloud Collector | AWS IAM-first cloud observation and fact emission | `/usr/local/bin/eshu-collector-aws-cloud` | Postgres workflow + fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
 | Workflow Coordinator | scheduling, trigger intake, claims, completeness, run orchestration | `/usr/local/bin/eshu-workflow-coordinator` | Postgres + graph backend | internal admin/status service plus `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Resolution Engine | queue draining, projection, retries, replay, recovery | `/usr/local/bin/eshu-reducer` | Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
@@ -124,6 +125,7 @@ expose the shared `/healthz`, `/readyz`, optional `/metrics`, and optional
 - `collector-git`: `go run ./cmd/collector-git`
 - `collector-aws-cloud`: `go run ./cmd/collector-aws-cloud`
 - `collector-oci-registry`: `go run ./cmd/collector-oci-registry`
+- `collector-package-registry`: `go run ./cmd/collector-package-registry`
 - `collector-terraform-state`: `go run ./cmd/collector-terraform-state`
 - `projector`: `go run ./cmd/projector`
 - `reducer`: `go run ./cmd/reducer`
@@ -156,6 +158,15 @@ Google Artifact Registry, and Azure Container Registry client wiring, and
 commits digest-addressed registry facts through the shared ingestion boundary.
 It exposes `oci_registry.scan` and `oci_registry.api_call` spans plus the
 `eshu_dp_oci_registry_*` metric family documented in the telemetry reference.
+
+`collector-package-registry` is claim-driven. It selects one enabled
+`package_registry` collector instance from `ESHU_COLLECTOR_INSTANCES_JSON`,
+claims one workflow work item per configured target, fetches the target's
+explicit `metadata_url`, parses npm, PyPI, Go module, Maven, NuGet, or generic
+metadata, and commits reported package-registry facts through the shared
+ingestion boundary. It exposes `package_registry.observe` and
+`package_registry.fetch` spans plus the `eshu_dp_package_registry_*` metric
+family documented in the telemetry reference.
 
 ## Admin Contract
 

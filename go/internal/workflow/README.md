@@ -143,6 +143,13 @@ configured target before scanning. OCI registry instances still declare no
 reducer phase requirements until registry facts have a graph projection
 contract.
 
+`package_registry` collector instances are claim-capable. The coordinator plans
+one bounded work item per configured package/feed target, and the
+`collector-package-registry` runtime resolves each claimed `scope_id` back to a
+configured metadata endpoint before parsing package-native evidence. Package
+registry instances are fact-only until reducer correlation and graph projection
+contracts land.
+
 **Defaults**:
 - `DefaultClaimLeaseTTL()` — 60s
 - `DefaultHeartbeatInterval()` — 20s

@@ -72,6 +72,11 @@ func TestIngestionScopeValidateAllowsAdditionalCollectorKinds(t *testing.T) {
 			sourceSystem:  "oci_registry",
 			collectorKind: CollectorOCIRegistry,
 		},
+		{
+			name:          "package_registry",
+			sourceSystem:  "package_registry",
+			collectorKind: CollectorPackageRegistry,
+		},
 	}
 
 	for _, tt := range tests {
@@ -159,6 +164,14 @@ func TestIngestionScopeValidateAllowsAdditionalScopeKinds(t *testing.T) {
 			scopeKind:     KindContainerRegistryRepository,
 			collectorKind: CollectorOCIRegistry,
 			partitionKey:  "docker.io/library/busybox",
+		},
+		{
+			name:          "package_registry",
+			sourceSystem:  "package_registry",
+			scopeID:       "package-registry-jfrog-generic-team-api",
+			scopeKind:     KindPackageRegistry,
+			collectorKind: CollectorPackageRegistry,
+			partitionKey:  "jfrog:generic",
 		},
 	}
 

@@ -10,9 +10,11 @@
    var names, and the `withDefaults` application order
 4. `go/internal/coordinator/metrics.go` — `otelMetrics`, `NewMetrics`, and the
    type-assertion pattern for `RecordReap`/`RecordRunReconciliation`
-5. `go/internal/workflow/service.go` (does not exist — `Store` is defined in
+5. `go/internal/coordinator/package_registry_scheduler.go` — bounded
+   `package_registry` work-item planning
+6. `go/internal/workflow/service.go` (does not exist — `Store` is defined in
    `service.go` here; the workflow contracts are in `internal/workflow`)
-6. `go/internal/telemetry/instruments.go` and `contract.go` — before adding
+7. `go/internal/telemetry/instruments.go` and `contract.go` — before adding
    metric or span names
 
 ## Invariants this package enforces

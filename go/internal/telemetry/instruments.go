@@ -70,6 +70,10 @@ type Instruments struct {
 	OCIRegistryTagsObserved                   metric.Int64Counter
 	OCIRegistryManifestsObserved              metric.Int64Counter
 	OCIRegistryReferrersObserved              metric.Int64Counter
+	PackageRegistryRequests                   metric.Int64Counter
+	PackageRegistryFactsEmitted               metric.Int64Counter
+	PackageRegistryRateLimited                metric.Int64Counter
+	PackageRegistryParseFailures              metric.Int64Counter
 	AWSAPICalls                               metric.Int64Counter
 	AWSThrottles                              metric.Int64Counter
 	AWSAssumeRoleFailed                       metric.Int64Counter
@@ -179,6 +183,8 @@ type Instruments struct {
 	TerraformStateSnapshotBytes          metric.Int64Histogram
 	TerraformStateParseDuration          metric.Float64Histogram
 	OCIRegistryScanDuration              metric.Float64Histogram
+	PackageRegistryObserveDuration       metric.Float64Histogram
+	PackageRegistryGenerationLag         metric.Float64Histogram
 	AWSScanDuration                      metric.Float64Histogram
 	ScopeAssignDuration                  metric.Float64Histogram
 	FactEmitDuration                     metric.Float64Histogram
@@ -485,6 +491,38 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register OCIRegistryReferrersObserved counter: %w", err)
 	}
 
+	inst.PackageRegistryRequests, err = meter.Int64Counter(
+		"eshu_dp_package_registry_requests_total",
+		metric.WithDescription("Total package registry metadata requests by ecosystem and status class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageRegistryRequests counter: %w", err)
+	}
+
+	inst.PackageRegistryFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_package_registry_facts_emitted_total",
+		metric.WithDescription("Total package registry facts emitted by ecosystem and fact kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageRegistryFactsEmitted counter: %w", err)
+	}
+
+	inst.PackageRegistryRateLimited, err = meter.Int64Counter(
+		"eshu_dp_package_registry_rate_limited_total",
+		metric.WithDescription("Total package registry metadata requests that were rate limited by ecosystem"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageRegistryRateLimited counter: %w", err)
+	}
+
+	inst.PackageRegistryParseFailures, err = meter.Int64Counter(
+		"eshu_dp_package_registry_parse_failures_total",
+		metric.WithDescription("Total package registry metadata parse failures by ecosystem and document type"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageRegistryParseFailures counter: %w", err)
+	}
+
 	inst.AWSAPICalls, err = meter.Int64Counter(
 		"eshu_dp_aws_api_calls_total",
 		metric.WithDescription("Total AWS API calls by service, account, region, operation, and result"),
@@ -672,6 +710,27 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register OCIRegistryScanDuration histogram: %w", err)
+	}
+
+	packageRegistryBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.PackageRegistryObserveDuration, err = meter.Float64Histogram(
+		"eshu_dp_package_registry_observe_duration_seconds",
+		metric.WithDescription("Package registry target observation duration"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(packageRegistryBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageRegistryObserveDuration histogram: %w", err)
+	}
+
+	inst.PackageRegistryGenerationLag, err = meter.Float64Histogram(
+		"eshu_dp_package_registry_generation_lag_seconds",
+		metric.WithDescription("Package registry metadata generation lag from source observation to collector processing"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(collectorBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageRegistryGenerationLag histogram: %w", err)
 	}
 
 	awsScanBuckets := []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}

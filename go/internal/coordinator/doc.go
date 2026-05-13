@@ -9,8 +9,8 @@
 // least one claim-capable collector instance.
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from the
-// resolved discovery candidates. OCIRegistryWorkPlanner plans one bounded work
-// item per configured registry repository target without opening registry
-// connections. Both planners produce workflow rows only; claim ownership and
-// fact emission stay with the collector runtimes.
+// resolved discovery candidates. OCIRegistryWorkPlanner and
+// PackageRegistryWorkPlanner each plan one bounded work item per configured
+// target without opening provider connections. Planners produce workflow rows
+// only; claim ownership and fact emission stay with the collector runtimes.
 package coordinator

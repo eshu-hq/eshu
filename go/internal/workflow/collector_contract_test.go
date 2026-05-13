@@ -185,6 +185,24 @@ func TestCollectorContractForOCIRegistryHasNoOperationalKeyspaces(t *testing.T) 
 	}
 }
 
+func TestCollectorContractForPackageRegistryHasNoOperationalKeyspaces(t *testing.T) {
+	t.Parallel()
+
+	contract, ok := CollectorContractFor(scope.CollectorPackageRegistry)
+	if !ok {
+		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorPackageRegistry)
+	}
+	if contract.CollectorKind != scope.CollectorPackageRegistry {
+		t.Fatalf("CollectorKind = %q, want %q", contract.CollectorKind, scope.CollectorPackageRegistry)
+	}
+	if len(contract.CanonicalKeyspaces) != 0 {
+		t.Fatalf("CanonicalKeyspaces = %#v, want empty for fact-only package registry slice", contract.CanonicalKeyspaces)
+	}
+	if len(contract.RequiredPhases) != 0 {
+		t.Fatalf("RequiredPhases = %#v, want empty for fact-only package registry slice", contract.RequiredPhases)
+	}
+}
+
 func TestCollectorContractForReturnsClonedSlices(t *testing.T) {
 	t.Parallel()
 

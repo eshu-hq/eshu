@@ -37,6 +37,12 @@ type TargetConfig struct {
 }
 
 func (c RuntimeConfig) validated() (RuntimeConfig, error) {
+	return c.Validate()
+}
+
+// Validate normalizes runtime defaults and rejects unbounded
+// package-registry targets before any collector opens a registry connection.
+func (c RuntimeConfig) Validate() (RuntimeConfig, error) {
 	collectorID := strings.TrimSpace(c.CollectorInstanceID)
 	if collectorID == "" {
 		return RuntimeConfig{}, fmt.Errorf("collector instance ID is required")
@@ -54,7 +60,7 @@ func (c RuntimeConfig) validated() (RuntimeConfig, error) {
 
 	targets := make([]TargetConfig, 0, len(c.Targets))
 	for i, target := range c.Targets {
-		validated, err := target.validated()
+		validated, err := target.Validate()
 		if err != nil {
 			return RuntimeConfig{}, fmt.Errorf("target %d: %w", i, err)
 		}
@@ -68,6 +74,12 @@ func (c RuntimeConfig) validated() (RuntimeConfig, error) {
 }
 
 func (t TargetConfig) validated() (TargetConfig, error) {
+	return t.Validate()
+}
+
+// Validate normalizes a single bounded package-registry feed or package
+// target.
+func (t TargetConfig) Validate() (TargetConfig, error) {
 	provider := strings.TrimSpace(t.Provider)
 	if provider == "" {
 		return TargetConfig{}, fmt.Errorf("provider is required")

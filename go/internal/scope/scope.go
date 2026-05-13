@@ -26,6 +26,8 @@ const (
 	KindDocumentationSource ScopeKind = "documentation_source"
 	// KindContainerRegistryRepository represents an OCI registry repository.
 	KindContainerRegistryRepository ScopeKind = "container_registry_repository"
+	// KindPackageRegistry represents a package registry target scope.
+	KindPackageRegistry ScopeKind = "package_registry"
 )
 
 // CollectorKind identifies the collector family that owns the scope.
@@ -44,6 +46,8 @@ const (
 	CollectorDocumentation CollectorKind = "documentation"
 	// CollectorOCIRegistry represents the OCI registry collector.
 	CollectorOCIRegistry CollectorKind = "oci_registry"
+	// CollectorPackageRegistry represents the package registry collector.
+	CollectorPackageRegistry CollectorKind = "package_registry"
 )
 
 // TriggerKind identifies how a generation was produced.
