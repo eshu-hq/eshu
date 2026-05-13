@@ -21,8 +21,8 @@
 **Current disposition:** Architecture gate closed; IAM-first scanner runtime
 slice merged; ECR scanner slice merged; ECS scanner slice merged; ELBv2 scanner
 slice merged; Route 53 scanner slice merged; EC2 network-topology scanner slice
-merged; Lambda scanner slice merged; EKS scanner slice implemented in this PR
-pending merge.
+merged; Lambda scanner slice merged; EKS scanner slice merged; durable
+pagination checkpoint slice implemented in this PR pending merge.
 
 Gate issue #48 is the start point for AWS collector work. The architecture
 workflow plan now maps to the current Eshu issue set (#51 epic, #42 runtime,
@@ -442,6 +442,35 @@ The scanner applies redaction analogous to the state collector:
 Cloud scanner redaction and state collector redaction share the same library
 (`go/internal/redact`) so the policy stays unified.
 
+### Durable Pagination Checkpoints
+
+Long AWS service scans persist retry-safe page markers in Postgres table
+`aws_scan_pagination_checkpoints`. Each row is scoped by collector instance,
+account, region, service kind, resource parent, operation, generation, and the
+workflow fencing token. The primary key omits generation so a new workflow
+generation can replace or expire stale operation state for the same logical
+service scan.
+
+The current commit boundary is still whole-generation ingestion: service
+scanners return facts, and the shared collector committer persists those facts
+after scanning completes. Because of that, checkpoint values represent the page
+token that is safe to retry next, not the token after uncommitted facts. A crash
+may re-read the last API page, but deterministic fact identity prevents durable
+duplicates and avoids skipping pages whose facts may not have committed.
+
+At claim start, `collector-aws-cloud` deletes prior-generation checkpoint rows
+for the same `(collector_instance_id, account_id, region, service_kind)` scope.
+Writes use the workflow fencing token so an expired worker cannot overwrite or
+delete checkpoint state written by a newer claim. ECR image pagination is the
+first service consumer; ECS, ELBv2, Lambda, Route 53, EC2, and EKS should reuse
+the same `checkpoint.Store` seam as their higher-cardinality operations move
+from in-memory pagination to resumable pagination.
+
+Checkpoint observability uses
+`eshu_dp_aws_pagination_checkpoint_events_total{service,account,region,operation,event_kind,result}`.
+Resource parents, ARNs, page tokens, repository names, and hosted-zone IDs are
+not metric labels.
+
 ---
 
 ## Architecture
@@ -471,6 +500,7 @@ go/
         worker.go               # per-claim worker
         credentials.go          # STS AssumeRole and claim-scoped lifecycle
         throttle.go             # per-service token buckets
+        checkpoint/             # durable pagination checkpoint contract
         pagination.go           # shared pagination + pacing
         facts.go                # fact envelope builders
         redact.go               # thin wrapper over go/internal/redact

@@ -2,6 +2,7 @@
 // contract.
 //
 // The package owns ECR repository and image pagination, lifecycle policy reads,
-// repository tag reads, AWS API telemetry, and throttle detection. Scanner
-// packages own fact selection and do not import the AWS SDK directly.
+// repository tag reads, optional durable image pagination checkpoints, AWS API
+// telemetry, and throttle detection. Scanner packages own fact selection and do
+// not import the AWS SDK directly.
 package awssdk

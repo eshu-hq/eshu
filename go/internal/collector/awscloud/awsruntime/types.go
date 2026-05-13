@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/checkpoint"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -87,3 +88,6 @@ type ScannerFactory interface {
 type ServiceScanner interface {
 	Scan(context.Context, awscloud.Boundary) ([]facts.Envelope, error)
 }
+
+// CheckpointStore persists AWS pagination progress for long service scans.
+type CheckpointStore = checkpoint.Store

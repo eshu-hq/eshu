@@ -21,6 +21,8 @@
    collector aggregates
 7. `go/internal/storage/postgres/schema.go` — `BootstrapDefinitions`,
    `ApplyDefinitions`; DDL ordering and idempotency rules
+8. `go/internal/storage/postgres/aws_pagination_checkpoint.go` — AWS
+   checkpoint fencing and stale-generation expiry
 
 ## Invariants this package enforces
 
@@ -78,6 +80,9 @@
 - **Schema ordering** — tables with foreign key constraints must appear after
   their referenced tables in `bootstrapDefinitions`. Current FK dependencies:
   `graph_projection_phase_state` → `ingestion_scopes` + `scope_generations`.
+- **AWS checkpoint fencing** — `AWSPaginationCheckpointStore.Save` must keep the
+  `fencing_token <= EXCLUDED.fencing_token` conflict guard. A stale AWS worker
+  must not overwrite page state from a newer claim.
 
 ## Common changes and how to scope them
 
@@ -86,6 +91,12 @@
   returning idempotent DDL; register it in `BootstrapDefinitions` in `schema.go`
   with the correct position in the slice; wrap with `InstrumentedDB` in `cmd/`
   wiring for observability.
+
+- **Change AWS checkpoint persistence** → edit
+  `aws_pagination_checkpoint.go`; keep the primary key scoped to collector
+  instance, account, region, service, resource parent, and operation; keep
+  generation as invalidation state; and keep resource parents and page tokens
+  out of telemetry labels.
 
 - **State-attribute decoding or flattening** → edit
   `tfstate_drift_evidence_state_row.go`. `stateRowFromCollectorPayload`

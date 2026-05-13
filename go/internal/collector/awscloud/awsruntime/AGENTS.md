@@ -6,10 +6,11 @@
 2. `types.go` - target, credential, scanner, and config contracts.
 3. `credentials.go` - AWS SDK config, STS AssumeRole, and lease release.
 4. `registry.go` - production service scanner registry.
-5. `source.go` - claim validation, target authorization, and generation
+5. `source.go` - claim validation, target authorization, checkpoint expiry, and generation
    construction.
-6. `../README.md` - shared AWS fact-envelope contract.
-7. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - runtime and
+6. `../checkpoint/README.md` - durable pagination checkpoint contract.
+7. `../README.md` - shared AWS fact-envelope contract.
+8. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - runtime and
    credential requirements.
 
 ## Invariants
@@ -20,6 +21,8 @@
 - Pass STS external ID when configured.
 - Preserve claim fencing by copying `CurrentFencingToken` into every AWS
   boundary and warning fact.
+- Expire pagination checkpoints for prior generations before building service
+  scanners.
 - Release credential leases even when scanner construction or service scanning
   fails.
 - Keep resource ARNs, policy JSON, tags, account names, and raw error payloads

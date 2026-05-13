@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/checkpoint"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -29,6 +30,7 @@ type ClaimedSource struct {
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
 	Limiter     *AccountLimiter
+	Checkpoints CheckpointStore
 }
 
 type claimTarget struct {
@@ -69,6 +71,9 @@ func (s ClaimedSource) NextClaimed(
 	if err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
+	if err := s.expireStaleCheckpoints(ctx, boundary); err != nil {
+		return collector.CollectedGeneration{}, false, err
+	}
 
 	lease, err := s.acquireCredentials(ctx, target, item.LeaseExpiresAt.UTC())
 	if err != nil {
@@ -102,6 +107,17 @@ func (s ClaimedSource) NextClaimed(
 		return collector.CollectedGeneration{}, false, err
 	}
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), true, nil
+}
+
+func (s ClaimedSource) expireStaleCheckpoints(ctx context.Context, boundary awscloud.Boundary) error {
+	if s.Checkpoints == nil {
+		return nil
+	}
+	_, err := s.Checkpoints.ExpireStale(ctx, checkpoint.ScopeFromBoundary(boundary))
+	if err != nil {
+		return fmt.Errorf("expire stale AWS pagination checkpoints: %w", err)
+	}
+	return nil
 }
 
 func (s ClaimedSource) acquireAccountSlot(ctx context.Context, target Target) (func(), error) {
