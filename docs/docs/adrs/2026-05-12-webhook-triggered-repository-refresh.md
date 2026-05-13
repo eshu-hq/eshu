@@ -453,3 +453,9 @@ The remaining production acceptance gap is an end-to-end Compose or cluster
 proof that follows one accepted provider delivery through targeted Git refresh,
 new generation persistence, projector completion, and API/MCP truth on the new
 active generation.
+
+Issue #211 now has a local Compose verifier at
+`scripts/verify_webhook_refresh_compose.sh`. The verifier creates a local bare
+Git remote, seeds the managed checkout, sends a signed GitHub default-branch
+push to `eshu-webhook-listener`, and asserts the trigger reaches `handed_off`
+before the refreshed content is visible through the HTTP API.

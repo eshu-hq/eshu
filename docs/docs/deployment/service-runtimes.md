@@ -604,6 +604,8 @@ Compose exposes direct runtime scrape endpoints you can curl:
 - API: `http://localhost:19464/metrics`
 - Ingester: `http://localhost:19465/metrics`
 - Resolution Engine: `http://localhost:19466/metrics`
+- Webhook Listener: `http://localhost:${ESHU_WEBHOOK_LISTENER_HTTP_PORT:-18083}/metrics`
+  when the optional `webhook-listener` profile is enabled
 - Workflow Coordinator: `http://localhost:19469/metrics` when the optional
   profile is enabled
 
