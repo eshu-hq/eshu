@@ -6,7 +6,8 @@
 2. `identity.go` — ecosystem-specific identity normalization
 3. `runtime_config.go`, `parser_registry.go` — bounded target config and
    ecosystem parser registration
-4. `metadata_parsers.go`, `metadata_parser_helpers.go` — local fixture parsing
+4. `metadata_parsers.go`, `gomod_parser.go`, `maven_parser.go`,
+   `nuget_parser.go`, `metadata_parser_helpers.go` — local fixture parsing
    into observation structs
 5. `envelope.go`, `version.go`, `dependency.go`, `artifact.go`,
    `source_hint.go`, `repository_hosting.go`, `warning.go` — durable

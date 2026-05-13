@@ -21,6 +21,9 @@ func DefaultMetadataParserRegistry() MetadataParserRegistry {
 	registry := MetadataParserRegistry{}
 	mustRegisterParser(&registry, EcosystemNPM, ParseNPMPackumentMetadata)
 	mustRegisterParser(&registry, EcosystemPyPI, ParsePyPIProjectMetadata)
+	mustRegisterParser(&registry, EcosystemGoModule, ParseGoModuleProxyMetadata)
+	mustRegisterParser(&registry, EcosystemMaven, ParseMavenPackageMetadata)
+	mustRegisterParser(&registry, EcosystemNuGet, ParseNuGetPackageMetadata)
 	mustRegisterParser(&registry, EcosystemGeneric, ParseGenericPackageMetadata)
 	return registry
 }

@@ -4,8 +4,8 @@
 
 `collector-oci-registry` scans configured OCI Distribution-compatible registry
 repositories and emits `oci_registry` facts through the shared collector commit
-boundary. It covers the initial JFrog Artifactory Docker/OCI, ECR, Docker Hub,
-and GHCR runtime lane.
+boundary. It covers the JFrog Artifactory Docker/OCI, ECR, Docker Hub, GHCR,
+Harbor, Google Artifact Registry, and Azure Container Registry runtime lane.
 
 ## Ownership Boundary
 
@@ -41,11 +41,14 @@ Optional values:
 
 Each target JSON object supports:
 
-- `provider`: `jfrog`, `ecr`, `dockerhub`, or `ghcr`
+- `provider`: `jfrog`, `ecr`, `dockerhub`, `ghcr`, `harbor`,
+  `google_artifact_registry`, or `azure_container_registry`
 - `repository`
 - `references` or `tag_limit`
-- provider fields such as `base_url` and `repository_key` for JFrog, or
-  `registry_host`, `registry_id`, `region`, and `aws_profile` for ECR
+- provider fields such as `base_url` and `repository_key` for JFrog,
+  `base_url` for Harbor, `registry_host` for Google Artifact Registry or Azure
+  Container Registry, or `registry_host`, `registry_id`, `region`, and
+  `aws_profile` for ECR
 - credential indirection fields: `username_env`, `password_env`,
   `bearer_token_env`
 
@@ -84,6 +87,9 @@ metric labels.
   signatures, or attestations.
 - Provider adapters may change auth or endpoint shape, but fact identity stays
   provider-neutral.
+- Harbor, Google Artifact Registry, and Azure Container Registry adapters only
+  normalize endpoint/auth shape; registry reads still go through the shared
+  OCI Distribution client.
 
 ## Related Docs
 

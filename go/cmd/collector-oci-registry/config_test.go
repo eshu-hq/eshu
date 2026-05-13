@@ -65,3 +65,37 @@ func TestLoadRuntimeConfigDefaultsDockerHubRegistry(t *testing.T) {
 		t.Fatalf("Repository = %q, want %q", got, want)
 	}
 }
+
+func TestLoadRuntimeConfigMapsHarborGARAndACRTargets(t *testing.T) {
+	env := map[string]string{
+		envCollectorInstanceID: "oci-registry-test",
+		envTargetsJSON: `[
+			{"provider":"harbor","base_url":"https://harbor.example.com","repository":"Project/API","references":["latest"]},
+			{"provider":"google_artifact_registry","registry_host":"us-west1-docker.pkg.dev","repository":"example-project/team-api/service","references":["sha256:abc"]},
+			{"provider":"azure_container_registry","registry_host":"example.azurecr.io","repository":"Samples/Artifact","references":["readme"]}
+		]`,
+	}
+
+	config, err := loadRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v", err)
+	}
+	if got, want := len(config.Targets), 3; got != want {
+		t.Fatalf("len(Targets) = %d, want %d", got, want)
+	}
+	if got, want := config.Targets[0].Registry, "https://harbor.example.com"; got != want {
+		t.Fatalf("Harbor Registry = %q, want %q", got, want)
+	}
+	if got, want := config.Targets[0].Repository, "project/api"; got != want {
+		t.Fatalf("Harbor Repository = %q, want %q", got, want)
+	}
+	if got, want := config.Targets[1].Registry, "https://us-west1-docker.pkg.dev"; got != want {
+		t.Fatalf("GAR Registry = %q, want %q", got, want)
+	}
+	if got, want := config.Targets[2].Registry, "https://example.azurecr.io"; got != want {
+		t.Fatalf("ACR Registry = %q, want %q", got, want)
+	}
+	if got, want := config.Targets[2].Repository, "samples/artifact"; got != want {
+		t.Fatalf("ACR Repository = %q, want %q", got, want)
+	}
+}

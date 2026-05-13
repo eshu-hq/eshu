@@ -5,8 +5,10 @@
 1. `README.md` — package purpose, exported surface, and invariants
 2. `identity.go` — repository and descriptor identity normalization
 3. `envelope.go`, `warning.go` — durable fact-envelope construction
-4. `ociruntime/README.md` — runtime scan orchestration and telemetry
-5. `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md` —
+4. Provider package README files under `dockerhub`, `ghcr`, `jfrog`, `ecr`,
+   `harbor`, `gar`, and `acr` before changing provider normalization
+5. `ociruntime/README.md` — runtime scan orchestration and telemetry
+6. `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md` —
    source-truth boundary and implementation slices
 
 ## Invariants
@@ -23,7 +25,8 @@
 
 ## Common Changes
 
-- Add a new provider by extending `Provider` and identity tests.
+- Add a new provider by extending `Provider`, adding a provider subpackage with
+  endpoint/auth normalization tests, and wiring `cmd/collector-oci-registry`.
 - Add a new fact envelope builder only after `internal/facts` exposes the fact
   kind and schema version. Keep source confidence explicit.
 - Add live registry calls in `ociruntime` or a provider subpackage, not in

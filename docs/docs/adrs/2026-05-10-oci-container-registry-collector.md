@@ -64,7 +64,9 @@ where the provider changes authentication or URL shape.
 | Amazon ECR private registry | Supported live-validation target | `ecr` maps account/region registry hosts and converts `GetAuthorizationToken` output into Distribution basic auth. |
 | Docker Hub | Supported live-validation target | `dockerhub` maps `docker.io` identity to `registry-1.docker.io`, adds `library/` for official images, and obtains pull tokens from Docker's token service. |
 | GHCR | Supported live-validation target | `ghcr` validates owner/image names and obtains repository-scoped pull tokens from GitHub Container Registry. |
-| Harbor, Google Artifact Registry, Azure Container Registry | Future adapters | Add only when a provider needs auth, pagination, hostname, or warning-class behavior beyond the Distribution baseline. |
+| Harbor | Supported adapter | `harbor` validates HTTPS Harbor endpoints, normalizes project/image paths, and delegates robot-account or token credentials to the Distribution client. |
+| Google Artifact Registry | Supported adapter | `gar` validates `LOCATION-docker.pkg.dev` hosts, preserves project/repository/image paths, and delegates resolved helper/token credentials to the Distribution client. |
+| Azure Container Registry | Supported adapter | `acr` validates `<registry>.azurecr.io` hosts, normalizes repository paths, and delegates Azure-issued token or basic-compatible credentials to the Distribution client. |
 
 Provider adapters must not change fact identity. They can normalize endpoint
 shape, obtain credentials, classify provider-specific warnings, and pass the
@@ -314,7 +316,8 @@ the descriptor and emit a warning instead of dropping evidence.
    and warning fact schemas.
 3. Implement repository scan, tag listing, manifest resolution, digest
    verification, and fact emission.
-4. Add provider adapters for one OCI-compatible baseline and ECR.
+4. Add provider adapters for one OCI-compatible baseline, ECR, Harbor, Google
+   Artifact Registry, and Azure Container Registry.
 5. Add projector scaffolding for `ContainerImage`, `ContainerImageIndex`,
    `ContainerImageDescriptor`, and mutable tag observations.
 6. Add deployment trace enrichment for Kubernetes image references using
@@ -358,3 +361,13 @@ the descriptor and emit a warning instead of dropping evidence.
   https://docs.jfrog.com/artifactory/docs/docker-repositories
 - JFrog Docker repository catalog API:
   https://docs.jfrog.com/artifactory/reference/listDockerRepositories
+- Harbor robot accounts and OCI client authentication:
+  https://goharbor.io/docs/2.12.0/administration/robot-accounts/
+- Google Artifact Registry Docker repository and image names:
+  https://cloud.google.com/artifact-registry/docs/docker/names
+- Google Artifact Registry Docker authentication:
+  https://cloud.google.com/artifact-registry/docs/docker/authentication
+- Azure Container Registry authentication:
+  https://learn.microsoft.com/en-us/azure/container-registry/container-registry-authentication
+- Azure Container Registry OCI artifact management:
+  https://learn.microsoft.com/en-us/azure/container-registry/container-registry-manage-artifact

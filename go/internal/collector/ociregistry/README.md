@@ -16,9 +16,10 @@ Docker/OCI repositories use this lane. JFrog package feeds use
 
 This package owns local identity rules and fact-envelope construction only.
 Distribution HTTP clients, Docker Hub and GHCR token mapping, JFrog
-repository-key mapping, and ECR token conversion live in provider subpackages.
-`ociruntime` owns runtime scan orchestration and telemetry. Workflow claims,
-graph writes, reducer correlation, and query surfaces belong to later
+repository-key mapping, ECR token conversion, and Harbor, Google Artifact
+Registry, and Azure Container Registry endpoint normalization live in provider
+subpackages. `ociruntime` owns runtime scan orchestration and telemetry.
+Workflow claims, graph writes, reducer correlation, and query surfaces belong to later
 collector, reducer, storage, and query slices.
 
 ```mermaid
@@ -80,6 +81,9 @@ the resolved digest. `FactID` includes `scope_id` and `generation_id`, while
 | `ghcr` | GitHub Container Registry repository validation and pull-token-backed live smoke tests. |
 | `jfrog` | Artifactory Docker/OCI repository-key mapping and opt-in live smoke tests. |
 | `ecr` | Amazon ECR host mapping, auth-token conversion, and opt-in live smoke tests. |
+| `harbor` | Harbor registry endpoint and project/repository normalization with opt-in live smoke tests. |
+| `gar` | Google Artifact Registry location-scoped docker.pkg.dev host and repository-path normalization with opt-in live smoke tests. |
+| `acr` | Azure Container Registry `<registry>.azurecr.io` host and repository-path normalization with opt-in live smoke tests. |
 
 ## Telemetry
 
@@ -106,6 +110,9 @@ The runtime also emits `oci_registry.scan` and `oci_registry.api_call` spans.
   tag and manifest reads.
 - JFrog Docker/OCI repositories use this package; JFrog npm, Maven, PyPI,
   NuGet, Go, and Generic repositories use `packageregistry`.
+- Harbor, GAR, and ACR adapters only normalize provider endpoint shape and
+  credential plumbing; they delegate OCI behavior to the shared Distribution
+  client.
 - Credentials and sensitive query parameters must not enter payloads or source
   references.
 - Unknown OCI annotation values are redacted unless explicitly allowlisted.

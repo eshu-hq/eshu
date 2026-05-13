@@ -25,7 +25,7 @@ later collector, reducer, storage, and query slices.
 
 ```mermaid
 flowchart LR
-  A["Registry/feed response"] --> B["ParseNPMPackumentMetadata / ParsePyPIProjectMetadata / ParseGenericPackageMetadata"]
+  A["Registry/feed response"] --> B["ParseNPMPackumentMetadata / ParsePyPIProjectMetadata / ParseGoModuleProxyMetadata / ParseMavenPackageMetadata / ParseNuGetPackageMetadata / ParseGenericPackageMetadata"]
   B --> C["NormalizePackageIdentity"]
   C --> D["MetadataParserRegistry / RuntimeConfig"]
   D --> E["NewPackageEnvelope"]
@@ -50,8 +50,8 @@ See `doc.go` for the godoc contract.
 - `MetadataParser` — one ecosystem-native metadata parser function.
 - `MetadataParserRegistry` — explicit ecosystem parser registry for future
   runtime sources.
-- `DefaultMetadataParserRegistry` — registry containing the npm, PyPI, and
-  Generic fixture parsers implemented today.
+- `DefaultMetadataParserRegistry` — registry containing npm, PyPI, Go module,
+  Maven, NuGet, and Generic fixture parsers.
 - `ParsedMetadata` — package, version, dependency, artifact, source-hint,
   hosting, and warning observations produced from one metadata document.
 - `NormalizePackageIdentity` — ecosystem normalization for npm, PyPI, Go
@@ -59,6 +59,12 @@ See `doc.go` for the godoc contract.
 - `ParseNPMPackumentMetadata` — parses one npm packument fixture into
   observations.
 - `ParsePyPIProjectMetadata` — parses one PyPI JSON API fixture into
+  observations.
+- `ParseGoModuleProxyMetadata` — parses one offline GOPROXY `.info`, `.mod`,
+  zip URL, and checksum bundle into observations.
+- `ParseMavenPackageMetadata` — parses one Maven POM XML fixture into
+  observations.
+- `ParseNuGetPackageMetadata` — parses one NuGet nuspec XML fixture into
   observations.
 - `ParseGenericPackageMetadata` — parses one provider-specific generic package
   fixture into observations.

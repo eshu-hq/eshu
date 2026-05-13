@@ -17,6 +17,12 @@ const (
 	ProviderGHCR Provider = "ghcr"
 	// ProviderJFrog identifies JFrog Artifactory Docker/OCI repositories.
 	ProviderJFrog Provider = "jfrog"
+	// ProviderHarbor identifies Harbor OCI registry repositories.
+	ProviderHarbor Provider = "harbor"
+	// ProviderGoogleArtifactRegistry identifies Google Artifact Registry Docker repositories.
+	ProviderGoogleArtifactRegistry Provider = "google_artifact_registry"
+	// ProviderAzureContainerRegistry identifies Azure Container Registry repositories.
+	ProviderAzureContainerRegistry Provider = "azure_container_registry"
 )
 
 // Visibility describes source-reported repository visibility.
