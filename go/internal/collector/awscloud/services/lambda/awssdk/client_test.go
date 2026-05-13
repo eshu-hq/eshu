@@ -1,12 +1,16 @@
 package awssdk
 
 import (
+	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awslambda "github.com/aws/aws-sdk-go-v2/service/lambda"
 	awslambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
+
+	lambdaservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda"
 )
 
 func TestMapFunctionPreservesImageURIAndTagsWithoutLocation(t *testing.T) {
@@ -110,4 +114,148 @@ func TestMapEventSourceMappingPreservesFunctionAndSource(t *testing.T) {
 	if mapping.BatchSize != 10 {
 		t.Fatalf("BatchSize = %d, want 10", mapping.BatchSize)
 	}
+}
+
+func TestListFunctionsSkipsEntriesWithoutIdentifier(t *testing.T) {
+	client := &fakeAPIClient{
+		functions:            []awslambdatypes.FunctionConfiguration{{}},
+		failBlankGetFunction: true,
+	}
+	adapter := Client{client: client}
+
+	functions, err := adapter.ListFunctions(context.Background())
+	if err != nil {
+		t.Fatalf("ListFunctions() error = %v", err)
+	}
+	if len(functions) != 0 {
+		t.Fatalf("functions = %#v, want none", functions)
+	}
+	if client.getFunctionCalls != 0 {
+		t.Fatalf("GetFunction calls = %d, want 0", client.getFunctionCalls)
+	}
+}
+
+func TestListAliasesUsesFunctionNameFallbackAndSkipsMissingIdentifier(t *testing.T) {
+	client := &fakeAPIClient{
+		aliases: []awslambdatypes.AliasConfiguration{{
+			AliasArn: aws.String("arn:aws:lambda:us-east-1:123456789012:function:api:prod"),
+			Name:     aws.String("prod"),
+		}},
+		failBlankListAliases: true,
+	}
+	adapter := Client{client: client}
+
+	aliases, err := adapter.ListAliases(context.Background(), lambdaserviceFunction("api"))
+	if err != nil {
+		t.Fatalf("ListAliases() error = %v", err)
+	}
+	if len(aliases) != 1 {
+		t.Fatalf("alias count = %d, want 1", len(aliases))
+	}
+	if got := client.aliasInputs[0]; got != "api" {
+		t.Fatalf("ListAliases FunctionName = %q, want api", got)
+	}
+
+	aliases, err = adapter.ListAliases(context.Background(), lambdaserviceFunction(""))
+	if err != nil {
+		t.Fatalf("ListAliases(blank) error = %v", err)
+	}
+	if len(aliases) != 0 {
+		t.Fatalf("blank aliases = %#v, want none", aliases)
+	}
+}
+
+func TestListEventSourceMappingsUsesFunctionNameFallbackAndSkipsMissingIdentifier(t *testing.T) {
+	client := &fakeAPIClient{
+		mappings: []awslambdatypes.EventSourceMappingConfiguration{{
+			FunctionArn: aws.String("arn:aws:lambda:us-east-1:123456789012:function:api"),
+			UUID:        aws.String("mapping-1"),
+		}},
+		failBlankListMappings: true,
+	}
+	adapter := Client{client: client}
+
+	mappings, err := adapter.ListEventSourceMappings(context.Background(), lambdaserviceFunction("api"))
+	if err != nil {
+		t.Fatalf("ListEventSourceMappings() error = %v", err)
+	}
+	if len(mappings) != 1 {
+		t.Fatalf("mapping count = %d, want 1", len(mappings))
+	}
+	if got := client.mappingInputs[0]; got != "api" {
+		t.Fatalf("ListEventSourceMappings FunctionName = %q, want api", got)
+	}
+
+	mappings, err = adapter.ListEventSourceMappings(context.Background(), lambdaserviceFunction(""))
+	if err != nil {
+		t.Fatalf("ListEventSourceMappings(blank) error = %v", err)
+	}
+	if len(mappings) != 0 {
+		t.Fatalf("blank mappings = %#v, want none", mappings)
+	}
+}
+
+func lambdaserviceFunction(name string) lambdaservice.Function {
+	return lambdaservice.Function{Name: name}
+}
+
+type fakeAPIClient struct {
+	functions             []awslambdatypes.FunctionConfiguration
+	aliases               []awslambdatypes.AliasConfiguration
+	mappings              []awslambdatypes.EventSourceMappingConfiguration
+	getFunctionCalls      int
+	aliasInputs           []string
+	mappingInputs         []string
+	failBlankGetFunction  bool
+	failBlankListAliases  bool
+	failBlankListMappings bool
+}
+
+func (c *fakeAPIClient) ListFunctions(
+	context.Context,
+	*awslambda.ListFunctionsInput,
+	...func(*awslambda.Options),
+) (*awslambda.ListFunctionsOutput, error) {
+	return &awslambda.ListFunctionsOutput{Functions: c.functions}, nil
+}
+
+func (c *fakeAPIClient) GetFunction(
+	_ context.Context,
+	input *awslambda.GetFunctionInput,
+	_ ...func(*awslambda.Options),
+) (*awslambda.GetFunctionOutput, error) {
+	c.getFunctionCalls++
+	if c.failBlankGetFunction && aws.ToString(input.FunctionName) == "" {
+		return nil, fmt.Errorf("blank function name")
+	}
+	return &awslambda.GetFunctionOutput{Configuration: &awslambdatypes.FunctionConfiguration{
+		FunctionArn:  input.FunctionName,
+		FunctionName: input.FunctionName,
+	}}, nil
+}
+
+func (c *fakeAPIClient) ListAliases(
+	_ context.Context,
+	input *awslambda.ListAliasesInput,
+	_ ...func(*awslambda.Options),
+) (*awslambda.ListAliasesOutput, error) {
+	functionName := aws.ToString(input.FunctionName)
+	c.aliasInputs = append(c.aliasInputs, functionName)
+	if c.failBlankListAliases && functionName == "" {
+		return nil, fmt.Errorf("blank function name")
+	}
+	return &awslambda.ListAliasesOutput{Aliases: c.aliases}, nil
+}
+
+func (c *fakeAPIClient) ListEventSourceMappings(
+	_ context.Context,
+	input *awslambda.ListEventSourceMappingsInput,
+	_ ...func(*awslambda.Options),
+) (*awslambda.ListEventSourceMappingsOutput, error) {
+	functionName := aws.ToString(input.FunctionName)
+	c.mappingInputs = append(c.mappingInputs, functionName)
+	if c.failBlankListMappings && functionName == "" {
+		return nil, fmt.Errorf("blank function name")
+	}
+	return &awslambda.ListEventSourceMappingsOutput{EventSourceMappings: c.mappings}, nil
 }

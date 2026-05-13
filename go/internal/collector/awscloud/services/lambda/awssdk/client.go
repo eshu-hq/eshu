@@ -68,9 +68,9 @@ func (c *Client) ListFunctions(ctx context.Context) ([]lambdaservice.Function, e
 	}
 	functions := make([]lambdaservice.Function, 0, len(listed))
 	for _, configuration := range listed {
-		functionName := aws.ToString(configuration.FunctionArn)
-		if strings.TrimSpace(functionName) == "" {
-			functionName = aws.ToString(configuration.FunctionName)
+		functionName := firstNonEmpty(aws.ToString(configuration.FunctionArn), aws.ToString(configuration.FunctionName))
+		if functionName == "" {
+			continue
 		}
 		var output *awslambda.GetFunctionOutput
 		err := c.recordAPICall(ctx, "GetFunction", func(callCtx context.Context) error {
@@ -99,9 +99,12 @@ func (c *Client) ListAliases(
 	ctx context.Context,
 	function lambdaservice.Function,
 ) ([]lambdaservice.Alias, error) {
-	functionARN := strings.TrimSpace(function.ARN)
+	functionIdentifier := firstNonEmpty(function.ARN, function.Name)
+	if functionIdentifier == "" {
+		return nil, nil
+	}
 	paginator := awslambda.NewListAliasesPaginator(c.client, &awslambda.ListAliasesInput{
-		FunctionName: aws.String(functionARN),
+		FunctionName: aws.String(functionIdentifier),
 	})
 	var aliases []lambdaservice.Alias
 	for paginator.HasMorePages() {
@@ -115,7 +118,7 @@ func (c *Client) ListAliases(
 			return nil, err
 		}
 		for _, alias := range page.Aliases {
-			aliases = append(aliases, mapAlias(functionARN, alias))
+			aliases = append(aliases, mapAlias(functionIdentifier, alias))
 		}
 	}
 	return aliases, nil
@@ -127,9 +130,13 @@ func (c *Client) ListEventSourceMappings(
 	ctx context.Context,
 	function lambdaservice.Function,
 ) ([]lambdaservice.EventSourceMapping, error) {
+	functionIdentifier := firstNonEmpty(function.ARN, function.Name)
+	if functionIdentifier == "" {
+		return nil, nil
+	}
 	paginator := awslambda.NewListEventSourceMappingsPaginator(
 		c.client,
-		&awslambda.ListEventSourceMappingsInput{FunctionName: aws.String(strings.TrimSpace(function.ARN))},
+		&awslambda.ListEventSourceMappingsInput{FunctionName: aws.String(functionIdentifier)},
 	)
 	var mappings []lambdaservice.EventSourceMapping
 	for paginator.HasMorePages() {
@@ -295,6 +302,15 @@ func cloneStrings(input []string) []string {
 	output := make([]string, len(input))
 	copy(output, input)
 	return output
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func parseLambdaTime(value string) time.Time {

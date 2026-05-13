@@ -51,8 +51,8 @@ API call counters, throttle counters, and pagination spans.
 - Function environment values are always replaced with keyed HMAC-SHA256
   markers before fact emission.
 - The AWS Lambda GetFunction API returns presigned package download URLs. Those URLs must not be
-  persisted; only image URI, resolved image URI, repository type, and KMS
-  metadata are safe scanner evidence.
+  persisted; only image URI, resolved image URI, and KMS metadata are safe
+  scanner evidence.
 - Lambda aliases and event-source mappings remain reported AWS evidence. They
   do not prove deployable-unit, workload, or ownership truth until reducer
   correlation admits them.
