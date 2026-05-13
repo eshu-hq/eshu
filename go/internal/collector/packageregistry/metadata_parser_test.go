@@ -157,6 +157,13 @@ func TestParseGenericPackageMetadataBuildsAdvisoriesAndEvents(t *testing.T) {
 			"summary": "reported at https://user:secret@jfrog.example/private?api_key=secret",
 			"published_at": "2026-05-11T09:00:00Z",
 			"modified_at": "2026-05-12T10:00:00Z"
+		}, {
+			"advisory_id": "JFSA-2026-0001",
+			"advisory_source": "jfrog-xray",
+			"vulnerability_id": "CVE-2026-1111",
+			"source_severity": "medium",
+			"affected_range": ">=2026.05.01 <2026.05.10",
+			"fixed_version": "2026.05.10"
 		}],
 		"events": [{
 			"event_key": "storage:42",
@@ -165,6 +172,12 @@ func TestParseGenericPackageMetadataBuildsAdvisoriesAndEvents(t *testing.T) {
 			"actor": "build-bot",
 			"message": "published from https://user:secret@jfrog.example/build?token=secret",
 			"occurred_at": "2026-05-12T11:00:00Z"
+		}, {
+			"event_key": "storage:42",
+			"event_type": "promote",
+			"artifact_key": "team/tool/2026.05.12/tool-darwin-arm64.tar.gz",
+			"actor": "release-bot",
+			"occurred_at": "2026-05-12T12:00:00Z"
 		}]
 	}`))
 	if err != nil {
@@ -172,11 +185,11 @@ func TestParseGenericPackageMetadataBuildsAdvisoriesAndEvents(t *testing.T) {
 	}
 
 	requireObservationCounts(t, metadata, 1, 1, 0, 0, 0)
-	if len(metadata.Vulnerables) != 1 {
-		t.Fatalf("vulnerability hints = %d, want 1", len(metadata.Vulnerables))
+	if len(metadata.Vulnerables) != 2 {
+		t.Fatalf("vulnerability hints = %d, want 2", len(metadata.Vulnerables))
 	}
-	if len(metadata.Events) != 1 {
-		t.Fatalf("registry events = %d, want 1", len(metadata.Events))
+	if len(metadata.Events) != 2 {
+		t.Fatalf("registry events = %d, want 2", len(metadata.Events))
 	}
 
 	vulnerability := metadata.Vulnerables[0]
@@ -219,6 +232,12 @@ func TestParseGenericPackageMetadataBuildsAdvisoriesAndEvents(t *testing.T) {
 	if got := vulnerability.ScopeID; got != "generic://scope" {
 		t.Fatalf("vulnerability scope id = %q", got)
 	}
+	if got := metadata.Vulnerables[1].AffectedRange; got != ">=2026.05.01 <2026.05.10" {
+		t.Fatalf("second affected range = %q", got)
+	}
+	if got := metadata.Vulnerables[1].SourceSeverity; got != "medium" {
+		t.Fatalf("second source severity = %q", got)
+	}
 
 	event := metadata.Events[0]
 	if got := event.Package.RawName; got != "team/tool" {
@@ -247,6 +266,12 @@ func TestParseGenericPackageMetadataBuildsAdvisoriesAndEvents(t *testing.T) {
 	}
 	if got := event.ScopeID; got != "generic://scope" {
 		t.Fatalf("event scope id = %q", got)
+	}
+	if got := metadata.Events[1].EventType; got != "promote" {
+		t.Fatalf("second event type = %q", got)
+	}
+	if got := metadata.Events[1].ArtifactKey; got != "team/tool/2026.05.12/tool-darwin-arm64.tar.gz" {
+		t.Fatalf("second event artifact key = %q", got)
 	}
 }
 

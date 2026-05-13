@@ -146,7 +146,6 @@ func genericVulnerabilityHints(
 ) []VulnerabilityHintObservation {
 	vulnerabilities := append([]genericVulnerability{}, metadata.Vulnerabilities...)
 	vulnerabilities = append(vulnerabilities, metadata.Advisories...)
-	seen := map[string]bool{}
 	observations := make([]VulnerabilityHintObservation, 0, len(vulnerabilities))
 	for _, vulnerability := range vulnerabilities {
 		advisoryID := firstNonBlank(vulnerability.AdvisoryID, vulnerability.VulnerabilityID)
@@ -154,11 +153,6 @@ func genericVulnerabilityHints(
 		if advisoryID == "" || advisorySource == "" {
 			continue
 		}
-		key := advisorySource + "\x00" + advisoryID + "\x00" + strings.TrimSpace(vulnerability.VulnerabilityID)
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
 		observations = append(observations, VulnerabilityHintObservation{
 			Package:             identity,
 			Version:             strings.TrimSpace(version),
@@ -189,15 +183,13 @@ func genericRegistryEvents(
 	version string,
 	events []genericRegistryEvent,
 ) []RegistryEventObservation {
-	seen := map[string]bool{}
 	observations := make([]RegistryEventObservation, 0, len(events))
 	for _, event := range events {
 		eventKey := strings.TrimSpace(event.EventKey)
 		eventType := strings.TrimSpace(event.EventType)
-		if eventKey == "" || eventType == "" || seen[eventKey] {
+		if eventKey == "" || eventType == "" {
 			continue
 		}
-		seen[eventKey] = true
 		observations = append(observations, RegistryEventObservation{
 			Package:             identity,
 			Version:             strings.TrimSpace(version),
