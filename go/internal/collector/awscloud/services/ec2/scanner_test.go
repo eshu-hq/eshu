@@ -118,6 +118,9 @@ func TestScannerEmitsNetworkTopologyWithoutInstanceFacts(t *testing.T) {
 	assertRelationship(t, envelopes, awscloud.RelationshipEC2NetworkInterfaceInVPC)
 	assertRelationship(t, envelopes, awscloud.RelationshipEC2NetworkInterfaceUsesSecurityGroup)
 	attached := assertRelationship(t, envelopes, awscloud.RelationshipEC2NetworkInterfaceAttachedToResource)
+	if got := attached.Payload["target_resource_id"]; got != "i-1234567890abcdef0" {
+		t.Fatalf("attached target_resource_id = %#v", got)
+	}
 	if got := attached.Payload["target_arn"]; got != "arn:aws:ec2:us-east-1:123456789012:instance/i-1234567890abcdef0" {
 		t.Fatalf("attached target_arn = %#v", got)
 	}

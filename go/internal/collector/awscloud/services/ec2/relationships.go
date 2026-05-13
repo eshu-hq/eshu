@@ -125,7 +125,7 @@ func attachmentRelationship(
 	}
 	networkInterfaceID := strings.TrimSpace(networkInterface.ID)
 	targetARN := strings.TrimSpace(networkInterface.Attachment.AttachedResourceARN)
-	targetID := firstNonEmpty(targetARN, strings.TrimSpace(networkInterface.Attachment.InstanceID))
+	targetID := firstNonEmpty(strings.TrimSpace(networkInterface.Attachment.InstanceID), targetARN)
 	if networkInterfaceID == "" || targetID == "" {
 		return awscloud.RelationshipObservation{}
 	}
