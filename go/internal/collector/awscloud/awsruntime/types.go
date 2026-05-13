@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -66,6 +68,13 @@ type CredentialProvider interface {
 // CredentialLease releases claim-scoped credential state after a scan.
 type CredentialLease interface {
 	Release() error
+}
+
+// AWSConfigLease exposes the AWS SDK configuration that backs a credential
+// lease. Scanner factories use it to build service-specific AWS SDK clients.
+type AWSConfigLease interface {
+	CredentialLease
+	AWSConfig() aws.Config
 }
 
 // ScannerFactory builds a service scanner for one authorized target and

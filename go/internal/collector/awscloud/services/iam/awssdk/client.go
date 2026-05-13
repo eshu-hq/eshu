@@ -1,4 +1,4 @@
-package main
+package awssdk
 
 import (
 	"context"
@@ -15,19 +15,36 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-type iamClient struct {
+// Client adapts AWS SDK IAM pagination into scanner-owned IAM records.
+type Client struct {
 	client      *awsiam.Client
-	target      awsruntime.Target
+	boundary    awscloud.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
-func (c *iamClient) ListRoles(ctx context.Context) ([]iamservice.Role, error) {
+// NewClient builds an IAM SDK adapter for one claimed AWS boundary.
+func NewClient(
+	config aws.Config,
+	boundary awscloud.Boundary,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+) *Client {
+	return &Client{
+		client:      awsiam.NewFromConfig(config),
+		boundary:    boundary,
+		tracer:      tracer,
+		instruments: instruments,
+	}
+}
+
+// ListRoles returns all IAM roles visible to the configured AWS credentials.
+func (c *Client) ListRoles(ctx context.Context) ([]iamservice.Role, error) {
 	paginator := awsiam.NewListRolesPaginator(c.client, &awsiam.ListRolesInput{})
 	var roles []iamservice.Role
 	for paginator.HasMorePages() {
@@ -51,7 +68,9 @@ func (c *iamClient) ListRoles(ctx context.Context) ([]iamservice.Role, error) {
 	return roles, nil
 }
 
-func (c *iamClient) ListPolicies(ctx context.Context) ([]iamservice.Policy, error) {
+// ListPolicies returns customer-managed IAM policies visible to the configured
+// AWS credentials.
+func (c *Client) ListPolicies(ctx context.Context) ([]iamservice.Policy, error) {
 	paginator := awsiam.NewListPoliciesPaginator(c.client, &awsiam.ListPoliciesInput{
 		Scope: awsiamtypes.PolicyScopeTypeLocal,
 	})
@@ -79,7 +98,9 @@ func (c *iamClient) ListPolicies(ctx context.Context) ([]iamservice.Policy, erro
 	return policies, nil
 }
 
-func (c *iamClient) ListInstanceProfiles(ctx context.Context) ([]iamservice.InstanceProfile, error) {
+// ListInstanceProfiles returns IAM instance profiles visible to the configured
+// AWS credentials.
+func (c *Client) ListInstanceProfiles(ctx context.Context) ([]iamservice.InstanceProfile, error) {
 	paginator := awsiam.NewListInstanceProfilesPaginator(c.client, &awsiam.ListInstanceProfilesInput{})
 	var profiles []iamservice.InstanceProfile
 	for paginator.HasMorePages() {
@@ -108,7 +129,7 @@ func (c *iamClient) ListInstanceProfiles(ctx context.Context) ([]iamservice.Inst
 	return profiles, nil
 }
 
-func (c *iamClient) mapRole(ctx context.Context, role awsiamtypes.Role) (iamservice.Role, error) {
+func (c *Client) mapRole(ctx context.Context, role awsiamtypes.Role) (iamservice.Role, error) {
 	roleName := aws.ToString(role.RoleName)
 	trustPolicy, trustPrincipals, err := parseTrustPolicy(aws.ToString(role.AssumeRolePolicyDocument))
 	if err != nil {
@@ -133,7 +154,7 @@ func (c *iamClient) mapRole(ctx context.Context, role awsiamtypes.Role) (iamserv
 	}, nil
 }
 
-func (c *iamClient) listAttachedRolePolicies(ctx context.Context, roleName string) ([]string, error) {
+func (c *Client) listAttachedRolePolicies(ctx context.Context, roleName string) ([]string, error) {
 	paginator := awsiam.NewListAttachedRolePoliciesPaginator(c.client, &awsiam.ListAttachedRolePoliciesInput{
 		RoleName: aws.String(roleName),
 	})
@@ -155,7 +176,7 @@ func (c *iamClient) listAttachedRolePolicies(ctx context.Context, roleName strin
 	return policyARNs, nil
 }
 
-func (c *iamClient) listRolePolicies(ctx context.Context, roleName string) ([]string, error) {
+func (c *Client) listRolePolicies(ctx context.Context, roleName string) ([]string, error) {
 	paginator := awsiam.NewListRolePoliciesPaginator(c.client, &awsiam.ListRolePoliciesInput{
 		RoleName: aws.String(roleName),
 	})
@@ -175,14 +196,14 @@ func (c *iamClient) listRolePolicies(ctx context.Context, roleName string) ([]st
 	return names, nil
 }
 
-func (c *iamClient) recordAPICall(ctx context.Context, operation string, call func(context.Context) error) error {
+func (c *Client) recordAPICall(ctx context.Context, operation string, call func(context.Context) error) error {
 	if c.tracer != nil {
 		var span trace.Span
 		ctx, span = c.tracer.Start(ctx, telemetry.SpanAWSServicePaginationPage)
 		span.SetAttributes(
-			telemetry.AttrService(c.target.ServiceKind),
-			telemetry.AttrAccount(c.target.AccountID),
-			telemetry.AttrRegion(c.target.Region),
+			telemetry.AttrService(c.boundary.ServiceKind),
+			telemetry.AttrAccount(c.boundary.AccountID),
+			telemetry.AttrRegion(c.boundary.Region),
 			telemetry.AttrOperation(operation),
 		)
 		defer span.End()
@@ -194,18 +215,18 @@ func (c *iamClient) recordAPICall(ctx context.Context, operation string, call fu
 	}
 	if c.instruments != nil {
 		attrs := metric.WithAttributes(
-			telemetry.AttrService(c.target.ServiceKind),
-			telemetry.AttrAccount(c.target.AccountID),
-			telemetry.AttrRegion(c.target.Region),
+			telemetry.AttrService(c.boundary.ServiceKind),
+			telemetry.AttrAccount(c.boundary.AccountID),
+			telemetry.AttrRegion(c.boundary.Region),
 			telemetry.AttrOperation(operation),
 			telemetry.AttrResult(result),
 		)
 		c.instruments.AWSAPICalls.Add(ctx, 1, attrs)
 		if isThrottleError(err) {
 			c.instruments.AWSThrottles.Add(ctx, 1, metric.WithAttributes(
-				telemetry.AttrService(c.target.ServiceKind),
-				telemetry.AttrAccount(c.target.AccountID),
-				telemetry.AttrRegion(c.target.Region),
+				telemetry.AttrService(c.boundary.ServiceKind),
+				telemetry.AttrAccount(c.boundary.AccountID),
+				telemetry.AttrRegion(c.boundary.Region),
 			))
 		}
 	}

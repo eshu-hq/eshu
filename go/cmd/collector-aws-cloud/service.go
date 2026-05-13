@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -9,14 +8,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	awsiam "github.com/aws/aws-sdk-go-v2/service/iam"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
-	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -46,8 +42,8 @@ func buildClaimedService(
 		ControlStore: postgres.NewWorkflowControlStore(database),
 		Source: awsruntime.ClaimedSource{
 			Config:      config.AWS,
-			Credentials: awsCredentialProvider{},
-			Scanners:    scannerFactory{Tracer: tracer, Instruments: instruments},
+			Credentials: awsruntime.SDKCredentialProvider{},
+			Scanners:    awsruntime.DefaultScannerFactory{Tracer: tracer, Instruments: instruments},
 			Tracer:      tracer,
 			Instruments: instruments,
 			Limiter:     limiter,
@@ -64,34 +60,6 @@ func buildClaimedService(
 		Tracer:              tracer,
 		Instruments:         instruments,
 	}, nil
-}
-
-type scannerFactory struct {
-	Tracer      trace.Tracer
-	Instruments *telemetry.Instruments
-}
-
-func (f scannerFactory) Scanner(
-	_ context.Context,
-	target awsruntime.Target,
-	_ awscloud.Boundary,
-	lease awsruntime.CredentialLease,
-) (awsruntime.ServiceScanner, error) {
-	awsLease, ok := lease.(*awsCredentialLease)
-	if !ok {
-		return nil, fmt.Errorf("unsupported AWS credential lease %T", lease)
-	}
-	switch target.ServiceKind {
-	case awscloud.ServiceIAM:
-		return iamservice.Scanner{Client: &iamClient{
-			client:      awsiam.NewFromConfig(awsLease.config),
-			target:      target,
-			tracer:      f.Tracer,
-			instruments: f.Instruments,
-		}}, nil
-	default:
-		return nil, fmt.Errorf("unsupported AWS service_kind %q", target.ServiceKind)
-	}
 }
 
 func newClaimID() string {

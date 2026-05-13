@@ -10,19 +10,21 @@ through the shared ingestion store.
 
 ## Ownership boundary
 
-This command owns process startup, environment parsing, AWS SDK wiring,
-credential acquisition, and service scanner selection. It does not plan AWS
-work items, persist workflow rows directly, materialize graph truth, or infer
-workload ownership.
+This command owns process startup, environment parsing, telemetry registration,
+and claim-aware runner wiring. It does not own AWS
+credential acquisition, service scanner selection, SDK pagination, workflow row
+persistence, graph writes, reducer admission, or workload ownership inference.
 
 ```mermaid
 flowchart LR
   A["ESHU_COLLECTOR_INSTANCES_JSON"] --> B["loadRuntimeConfig"]
   B --> C["collector.ClaimedService"]
   C --> D["awsruntime.ClaimedSource"]
-  D --> E["STS / workload identity"]
-  E --> F["IAM SDK adapter"]
-  F --> G["Postgres ingestion store"]
+  D --> E["awsruntime.SDKCredentialProvider"]
+  D --> F["awsruntime.DefaultScannerFactory"]
+  E --> F
+  F --> H["services/iam/awssdk"]
+  H --> G["Postgres ingestion store"]
 ```
 
 ## Exported surface
@@ -66,12 +68,10 @@ chain. Static credential fields are rejected during config parsing.
 ## Dependencies
 
 - `internal/collector` for the claim-aware collector runner.
-- `internal/collector/awscloud/awsruntime` for claim parsing and collected
-  generation construction.
-- `internal/collector/awscloud/services/iam` for IAM scanner contracts.
+- `internal/collector/awscloud/awsruntime` for claim parsing, credentials,
+  scanner registry, and collected generation construction.
 - `internal/storage/postgres` for workflow claims, ingestion commits, and
   status.
-- AWS SDK for Go v2 `config`, `sts`, and `iam` packages.
 
 ## Telemetry
 
@@ -95,9 +95,9 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   configuration.
 - `central_assume_role` must include `role_arn`; `external_id` is passed to STS
   when configured.
-- `awsconfig.LoadDefaultConfig` always receives `aws.RetryModeAdaptive`.
-- IAM service mapping stays behind `services/iam.Client`; tests should not mock
-  the full AWS SDK surface.
+- AWS SDK configuration and IAM pagination live under `awsruntime` and
+  `services/iam/awssdk`; command tests should not mock the full AWS SDK
+  surface.
 - Credential leases are released after scanner construction and service scan.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.

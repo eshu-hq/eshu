@@ -1,4 +1,4 @@
-package main
+package awsruntime
 
 import (
 	"context"
@@ -19,12 +19,12 @@ func TestCredentialLeaseReleaseInvalidatesCopiedConfigCredentials(t *testing.T) 
 	}
 	provider := newClaimCredentialProvider(credentials)
 	cache := aws.NewCredentialsCache(provider)
-	lease := &awsCredentialLease{
+	lease := &SDKCredentialLease{
 		config:             aws.Config{Credentials: cache},
 		credentialProvider: provider,
 		credentialCache:    cache,
 	}
-	copiedConfig := lease.config
+	copiedConfig := lease.AWSConfig()
 	if _, err := copiedConfig.Credentials.Retrieve(context.Background()); err != nil {
 		t.Fatalf("Retrieve() before release error = %v", err)
 	}

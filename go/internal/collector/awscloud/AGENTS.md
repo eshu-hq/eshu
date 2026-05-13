@@ -29,8 +29,8 @@
 ## Common Changes
 
 - Add a new AWS service by adding service constants here, a service package
-  under `services/`, scanner tests, and runtime wiring in the AWS collector
-  command.
+  under `services/`, scanner tests, a service `awssdk` adapter, and a branch in
+  `awsruntime.DefaultScannerFactory`.
 - Add a new fact envelope only after `internal/facts` exposes the fact kind and
   schema version.
 - Add redaction or credential rules at the runtime boundary unless the value is

@@ -1,4 +1,4 @@
-package main
+package awsruntime
 
 import (
 	"context"
@@ -12,17 +12,17 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 )
 
-type awsCredentialProvider struct{}
+// SDKCredentialProvider acquires AWS SDK credentials for one claimed target.
+type SDKCredentialProvider struct{}
 
-func (p awsCredentialProvider) Acquire(
+// Acquire implements CredentialProvider.
+func (p SDKCredentialProvider) Acquire(
 	ctx context.Context,
-	target awsruntime.Target,
+	target Target,
 	leaseExpiresAt time.Time,
-) (awsruntime.CredentialLease, error) {
+) (CredentialLease, error) {
 	cfg, err := awsconfig.LoadDefaultConfig(
 		ctx,
 		awsconfig.WithRegion(target.Region),
@@ -32,9 +32,9 @@ func (p awsCredentialProvider) Acquire(
 		return nil, fmt.Errorf("load AWS config: %w", err)
 	}
 	switch target.Credentials.Mode {
-	case awsruntime.CredentialModeLocalWorkloadIdentity:
-		return &awsCredentialLease{config: cfg}, nil
-	case awsruntime.CredentialModeCentralAssumeRole:
+	case CredentialModeLocalWorkloadIdentity:
+		return &SDKCredentialLease{config: cfg}, nil
+	case CredentialModeCentralAssumeRole:
 		provider := stscreds.NewAssumeRoleProvider(
 			sts.NewFromConfig(cfg),
 			target.Credentials.RoleARN,
@@ -61,7 +61,7 @@ func (p awsCredentialProvider) Acquire(
 		credentialProvider := newClaimCredentialProvider(credentials)
 		credentialCache := aws.NewCredentialsCache(credentialProvider)
 		cfg.Credentials = credentialCache
-		return &awsCredentialLease{
+		return &SDKCredentialLease{
 			config:             cfg,
 			credentialProvider: credentialProvider,
 			credentialCache:    credentialCache,
@@ -71,13 +71,20 @@ func (p awsCredentialProvider) Acquire(
 	}
 }
 
-type awsCredentialLease struct {
+// SDKCredentialLease releases AWS SDK credential material after a claim scan.
+type SDKCredentialLease struct {
 	config             aws.Config
 	credentialProvider *claimCredentialProvider
 	credentialCache    *aws.CredentialsCache
 }
 
-func (l *awsCredentialLease) Release() error {
+// AWSConfig returns a copy of the AWS SDK config for service adapters.
+func (l *SDKCredentialLease) AWSConfig() aws.Config {
+	return l.config
+}
+
+// Release implements CredentialLease.
+func (l *SDKCredentialLease) Release() error {
 	if l.credentialCache != nil {
 		l.credentialCache.Invalidate()
 	}
@@ -117,7 +124,7 @@ func (p *claimCredentialProvider) Release() {
 	p.released = true
 }
 
-func roleSessionName(target awsruntime.Target) string {
+func roleSessionName(target Target) string {
 	account := strings.TrimSpace(target.AccountID)
 	service := strings.TrimSpace(target.ServiceKind)
 	if account == "" {
