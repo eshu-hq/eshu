@@ -17,6 +17,8 @@ import (
 	elbv2awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2/awssdk"
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
 	iamawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/awssdk"
+	lambdaservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda"
+	lambdaawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda/awssdk"
 	route53service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53"
 	route53awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53/awssdk"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -72,6 +74,14 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{
 			Client: iamawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceLambda:
+		if f.RedactionKey.IsZero() {
+			return nil, fmt.Errorf("lambda scanner redaction key is required")
+		}
+		return lambdaservice.Scanner{
+			Client:       lambdaawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+			RedactionKey: f.RedactionKey,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported AWS service_kind %q", target.ServiceKind)

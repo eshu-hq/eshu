@@ -25,6 +25,9 @@
   or resource names in metric labels.
 - Redact ECS task-definition environment values before persistence; preserve
   secret `value_from` references without resolving them.
+- Redact Lambda function environment values before persistence; preserve image
+  URI, alias, event-source, execution-role, subnet, and security-group evidence
+  without inferring workload truth.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target

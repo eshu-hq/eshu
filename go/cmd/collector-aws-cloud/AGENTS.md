@@ -15,8 +15,8 @@
 ## Invariants
 
 - Do not accept static AWS credential fields.
-- Require `ESHU_AWS_REDACTION_KEY` when ECS is enabled so task-definition
-  environment values cannot cross persistence boundaries in plaintext.
+- Require `ESHU_AWS_REDACTION_KEY` when ECS or Lambda is enabled so environment
+  values cannot cross persistence boundaries in plaintext.
 - Keep this command process-only. AWS credentials belong in `awsruntime`; AWS
   service pagination belongs in service `awssdk` adapters.
 - Keep ELBv2 target health out of stable AWS collector facts; target health is
@@ -25,6 +25,9 @@
   labels.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target
   evidence is metadata only.
+- Keep Lambda function code and presigned package download URLs out of facts.
+  Lambda image URIs, aliases, event-source mappings, execution roles, subnets,
+  and security groups are reported join evidence only.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 

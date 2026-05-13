@@ -45,7 +45,7 @@ See `doc.go` for the godoc contract.
 - `SDKCredentialProvider` - production credential provider using workload
   identity or STS AssumeRole.
 - `DefaultScannerFactory` - production service registry for AWS scanners. ECS
-  scanners receive the command-provided redaction key for task-definition
+  and Lambda scanners receive the command-provided redaction key for
   environment values.
 - `ScannerFactory` - creates a service scanner for one target and lease.
 - `ServiceScanner` - scans one service claim into fact envelopes.
@@ -59,7 +59,8 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/ecr`,
   `internal/collector/awscloud/services/ec2`,
   `internal/collector/awscloud/services/ecs`,
-  `internal/collector/awscloud/services/elbv2`, and
+  `internal/collector/awscloud/services/elbv2`,
+  `internal/collector/awscloud/services/lambda`, and
   `internal/collector/awscloud/services/route53` plus their `awssdk` adapters
   for production service scanners.
 - `internal/facts` for warning fact types.
@@ -98,7 +99,7 @@ pagination spans. The command registers the instruments:
   configured STS external IDs.
 - `DefaultScannerFactory` is the only production registry for service scanners;
   add full-scan services there instead of branching in the command.
-- ECS service scans require a non-empty redaction key because task-definition
+- ECS and Lambda service scans require a non-empty redaction key because
   environment values are treated as sensitive even when the variable name looks
   harmless.
 - EC2 service scans collect network topology only. They do not emit EC2
@@ -109,6 +110,9 @@ pagination spans. The command registers the instruments:
   the claimed generation.
 - Route 53 alias targets are reported DNS evidence only; do not infer workload
   or deployable-unit truth in the runtime.
+- Lambda aliases, event-source mappings, image URIs, execution roles, subnets,
+  and security groups are reported join evidence only; do not infer workload or
+  deployable-unit truth in the runtime.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 
