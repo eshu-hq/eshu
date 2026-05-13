@@ -5,9 +5,10 @@
 1. `README.md` - package purpose, telemetry, and invariants.
 2. `client.go` - ECR SDK pagination, mapping, and telemetry.
 3. `../scanner.go` - scanner-owned ECR fact selection.
-4. `../README.md` - ECR scanner contract.
-5. `../../../README.md` - AWS cloud envelope contract.
-6. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
+4. `../../../checkpoint/README.md` - durable pagination checkpoint contract.
+5. `../README.md` - ECR scanner contract.
+6. `../../../README.md` - AWS cloud envelope contract.
+7. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
    service coverage and runtime requirements.
 
 ## Invariants
@@ -15,6 +16,9 @@
 - Keep ECR SDK calls here, not in `cmd/collector-aws-cloud` or the scanner
   package.
 - Wrap each AWS paginator page or point read in `recordAPICall`.
+- Save only retry-safe `DescribeImages` page tokens unless a future committer
+  hook proves next-token advancement happens after durable fact commit.
+- Keep checkpoint resource parents and page tokens out of metric labels.
 - Keep metric labels bounded to service, account, region, operation, and
   result.
 - Treat missing lifecycle policies as empty results, not scan failures.

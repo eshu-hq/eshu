@@ -12,7 +12,7 @@ shared collector commit path.
 
 This package owns claim parsing, target authorization, credential lease
 coordination, per-account concurrency, production scanner selection, and AWS
-collected-generation construction. It does not own AWS service response
+pagination checkpoint invalidation. It does not own AWS service response
 mapping, fact-envelope identity, workflow row persistence, graph writes,
 reducer admission, or query behavior.
 
@@ -22,6 +22,7 @@ flowchart LR
   B --> C["Target authorization"]
   C --> D["AccountLimiter.Acquire"]
   D --> E["CredentialProvider.Acquire"]
+  B --> I["CheckpointStore.ExpireStale"]
   E --> H["DefaultScannerFactory.Scanner"]
   H --> F["ServiceScanner.Scan"]
   F --> G["collector.CollectedGeneration"]
@@ -49,12 +50,16 @@ See `doc.go` for the godoc contract.
   environment values.
 - `ScannerFactory` - creates a service scanner for one target and lease.
 - `ServiceScanner` - scans one service claim into fact envelopes.
+- `CheckpointStore` - durable pagination checkpoint store used by long service
+  scans.
 - `ClaimedSource` - implements the collector claimed-source contract.
 
 ## Dependencies
 
 - `internal/collector` for `CollectedGeneration` and `FactsFromSlice`.
 - `internal/collector/awscloud` for claim boundaries and warning envelopes.
+- `internal/collector/awscloud/checkpoint` for durable pagination checkpoint
+  scope and store contracts.
 - `internal/collector/awscloud/services/iam`,
   `internal/collector/awscloud/services/ecr`,
   `internal/collector/awscloud/services/ec2`,
@@ -79,6 +84,7 @@ pagination spans. The command registers the instruments:
 - `eshu_dp_aws_throttle_total`
 - `eshu_dp_aws_claim_concurrency`
 - `eshu_dp_aws_assumerole_failed_total`
+- `eshu_dp_aws_pagination_checkpoint_events_total`
 - `eshu_dp_aws_resources_emitted_total`
 - `eshu_dp_aws_relationships_emitted_total`
 - `eshu_dp_aws_tag_observations_emitted_total`
@@ -109,6 +115,8 @@ pagination spans. The command registers the instruments:
   `max_concurrent_claims` is unset.
 - STS or workload-identity failures emit an `assumerole_failed` warning fact for
   the claimed generation.
+- Stale pagination checkpoints are expired at claim start for the current
+  workflow generation before credentials are acquired.
 - Route 53 alias targets are reported DNS evidence only; do not infer workload
   or deployable-unit truth in the runtime.
 - Lambda aliases, event-source mappings, image URIs, execution roles, subnets,

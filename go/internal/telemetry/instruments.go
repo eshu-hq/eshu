@@ -77,6 +77,7 @@ type Instruments struct {
 	AWSAPICalls                               metric.Int64Counter
 	AWSThrottles                              metric.Int64Counter
 	AWSAssumeRoleFailed                       metric.Int64Counter
+	AWSCheckpointEvents                       metric.Int64Counter
 	AWSResourcesEmitted                       metric.Int64Counter
 	AWSRelationshipsEmitted                   metric.Int64Counter
 	AWSTagObservationsEmitted                 metric.Int64Counter
@@ -545,6 +546,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWSAssumeRoleFailed counter: %w", err)
+	}
+
+	inst.AWSCheckpointEvents, err = meter.Int64Counter(
+		"eshu_dp_aws_pagination_checkpoint_events_total",
+		metric.WithDescription("Total AWS pagination checkpoint load, save, resume, expiry, completion, and failure events by service, account, region, operation, event kind, and result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSCheckpointEvents counter: %w", err)
 	}
 
 	inst.AWSResourcesEmitted, err = meter.Int64Counter(

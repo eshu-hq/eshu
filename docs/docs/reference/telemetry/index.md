@@ -172,11 +172,14 @@ For shared-write debugging specifically:
 ### AWS Cloud Collector
 
 - Metrics answer AWS API call volume, throttling, scan duration, active
-  per-account claim concurrency, credential failures, and emitted resource
-  counts.
+  per-account claim concurrency, credential failures, pagination checkpoint
+  health, and emitted resource counts.
 - `eshu_dp_aws_api_calls_total` is labeled by service, account, region,
   operation, and result.
 - `eshu_dp_aws_throttle_total` is labeled by service, account, and region.
+- `eshu_dp_aws_pagination_checkpoint_events_total` is labeled by service,
+  account, region, operation, event kind, and result. Page tokens, ARNs, and
+  resource parents stay out of metric labels.
 - `eshu_dp_aws_resources_emitted_total` is labeled by service, account, region,
   and resource type. Resource ARNs, tags, image digests, lifecycle policy JSON,
   and raw AWS error payloads stay out of metric labels.
@@ -428,6 +431,7 @@ log streams.
 | `eshu_dp_aws_api_calls_total` | AWS API calls by operation outcome | `service`, `account`, `region`, `operation`, `result` |
 | `eshu_dp_aws_throttle_total` | AWS throttle-shaped service errors | `service`, `account`, `region` |
 | `eshu_dp_aws_assumerole_failed_total` | AWS claim credential acquisition failures | `account` |
+| `eshu_dp_aws_pagination_checkpoint_events_total` | AWS pagination checkpoint load, save, resume, expiry, completion, and failure events | `service`, `account`, `region`, `operation`, `event_kind`, `result` |
 | `eshu_dp_aws_resources_emitted_total` | AWS resource facts emitted by service scanner | `service`, `account`, `region`, `resource_type` |
 | `eshu_dp_aws_relationships_emitted_total` | AWS relationship facts emitted by service scanner | `service`, `account`, `region` |
 | `eshu_dp_aws_tag_observations_emitted_total` | AWS tag observation facts emitted by service scanner | `service`, `account`, `region` |

@@ -270,6 +270,14 @@ compatibility handoff cannot complete.
   `MaxTerraformStateRecentWarnings` recent warning facts grouped by
   `warning_kind`.
 
+**AWS pagination checkpoints**
+
+- `AWSPaginationCheckpointStore` / `NewAWSPaginationCheckpointStore` — persists
+  claim-fenced AWS page tokens in `aws_scan_pagination_checkpoints`.
+  `Save` rejects older fencing tokens, `ExpireStale` removes prior-generation
+  rows for one AWS claim boundary, and `Complete` deletes operation state after
+  a terminal page.
+
 **Decision store**
 
 - `DecisionStore` / `NewDecisionStore` — upserts `projection_decisions` and
@@ -428,6 +436,9 @@ compatibility handoff cannot complete.
   `InstrumentedDB`
 - Spans: `postgres.exec` and `postgres.query` from `InstrumentedDB`; carry
   `db.system=postgresql`, `db.operation`, and `pcg.store` attributes
+- `AWSPaginationCheckpointStore` records AWS checkpoint load, save, resume,
+  expiry, and failure events through
+  `eshu_dp_aws_pagination_checkpoint_events_total`.
 
 To add instrumentation to a store, wrap the `ExecQueryer` passed to its
 constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.

@@ -32,6 +32,7 @@ import (
 type DefaultScannerFactory struct {
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
+	Checkpoints CheckpointStore
 	// RedactionKey produces ECS task-definition environment value markers.
 	// It is required only when building ECS scanners.
 	RedactionKey redact.Key
@@ -59,7 +60,13 @@ func (f DefaultScannerFactory) Scanner(
 		}, nil
 	case awscloud.ServiceECR:
 		return ecrservice.Scanner{
-			Client: ecrawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+			Client: ecrawssdk.NewClientWithCheckpoints(
+				configLease.AWSConfig(),
+				boundary,
+				f.Tracer,
+				f.Instruments,
+				f.Checkpoints,
+			),
 		}, nil
 	case awscloud.ServiceEC2:
 		return ec2service.Scanner{

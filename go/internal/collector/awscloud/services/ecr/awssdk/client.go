@@ -3,6 +3,8 @@ package awssdk
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -13,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/checkpoint"
 	ecrservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecr"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -30,6 +33,7 @@ type Client struct {
 	boundary    awscloud.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
+	checkpoints checkpoint.Store
 }
 
 // NewClient builds an ECR SDK adapter for one claimed AWS boundary.
@@ -39,11 +43,24 @@ func NewClient(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
+	return NewClientWithCheckpoints(config, boundary, tracer, instruments, nil)
+}
+
+// NewClientWithCheckpoints builds an ECR SDK adapter with optional durable
+// pagination checkpoints.
+func NewClientWithCheckpoints(
+	config aws.Config,
+	boundary awscloud.Boundary,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	checkpoints checkpoint.Store,
+) *Client {
 	return &Client{
 		client:      awsecr.NewFromConfig(config),
 		boundary:    boundary,
 		tracer:      tracer,
 		instruments: instruments,
+		checkpoints: checkpoints,
 	}
 }
 
@@ -75,15 +92,27 @@ func (c *Client) ListRepositories(ctx context.Context) ([]ecrservice.Repository,
 
 // ListImages returns all image details for one ECR repository.
 func (c *Client) ListImages(ctx context.Context, repository ecrservice.Repository) ([]ecrservice.Image, error) {
+	checkpointKey := c.imageCheckpointKey(repository)
+	pageToken, pageNumber, err := c.loadImageCheckpoint(ctx, checkpointKey)
+	if err != nil {
+		return nil, err
+	}
 	input := &awsecr.DescribeImagesInput{
 		RepositoryName: aws.String(repository.Name),
 	}
 	if strings.TrimSpace(repository.RegistryID) != "" {
 		input.RegistryId = aws.String(repository.RegistryID)
 	}
+	if pageToken != "" {
+		input.NextToken = aws.String(pageToken)
+	}
 	paginator := awsecr.NewDescribeImagesPaginator(c.client, input)
 	var images []ecrservice.Image
+	seenImages := make(map[string]struct{})
 	for paginator.HasMorePages() {
+		if err := c.saveImageCheckpoint(ctx, checkpointKey, pageToken, pageNumber); err != nil {
+			return nil, err
+		}
 		var page *awsecr.DescribeImagesOutput
 		err := c.recordAPICall(ctx, "DescribeImages", func(callCtx context.Context) error {
 			var err error
@@ -94,10 +123,63 @@ func (c *Client) ListImages(ctx context.Context, repository ecrservice.Repositor
 			return nil, err
 		}
 		for _, image := range page.ImageDetails {
-			images = append(images, mapImageDetail(repository.ARN, image))
+			mapped := mapImageDetail(repository.ARN, image)
+			key := imageDedupeKey(mapped)
+			if _, ok := seenImages[key]; ok {
+				continue
+			}
+			seenImages[key] = struct{}{}
+			images = append(images, mapped)
+		}
+		pageToken = aws.ToString(page.NextToken)
+		pageNumber++
+		if pageToken == "" {
+			if err := c.completeImageCheckpoint(ctx, checkpointKey); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return images, nil
+}
+
+func (c *Client) imageCheckpointKey(repository ecrservice.Repository) checkpoint.Key {
+	return checkpoint.Key{
+		Scope:          checkpoint.ScopeFromBoundary(c.boundary),
+		ResourceParent: firstNonEmpty(repository.ARN, repository.URI, repository.Name),
+		Operation:      "DescribeImages",
+	}
+}
+
+func (c *Client) loadImageCheckpoint(ctx context.Context, key checkpoint.Key) (string, int, error) {
+	if c.checkpoints == nil {
+		return "", 0, nil
+	}
+	value, ok, err := c.checkpoints.Load(ctx, key)
+	if err != nil {
+		return "", 0, fmt.Errorf("load ECR image pagination checkpoint: %w", err)
+	}
+	if !ok {
+		return "", 0, nil
+	}
+	return strings.TrimSpace(value.PageToken), value.PageNumber, nil
+}
+
+func (c *Client) saveImageCheckpoint(ctx context.Context, key checkpoint.Key, pageToken string, pageNumber int) error {
+	if c.checkpoints == nil {
+		return nil
+	}
+	return c.checkpoints.Save(ctx, checkpoint.Checkpoint{
+		Key:        key,
+		PageToken:  strings.TrimSpace(pageToken),
+		PageNumber: pageNumber,
+	})
+}
+
+func (c *Client) completeImageCheckpoint(ctx context.Context, key checkpoint.Key) error {
+	if c.checkpoints == nil {
+		return nil
+	}
+	return c.checkpoints.Complete(ctx, key)
 }
 
 // GetLifecyclePolicy returns the lifecycle policy for one repository. A
@@ -215,6 +297,19 @@ func cloneStrings(input []string) []string {
 	output := make([]string, len(input))
 	copy(output, input)
 	return output
+}
+
+func imageDedupeKey(image ecrservice.Image) string {
+	tags := cloneStrings(image.Tags)
+	sort.Strings(tags)
+	parts := []string{
+		strings.TrimSpace(image.RepositoryARN),
+		strings.TrimSpace(image.RepositoryName),
+		strings.TrimSpace(image.RegistryID),
+		strings.TrimSpace(image.ImageDigest),
+		strings.Join(tags, "\x00"),
+	}
+	return strings.Join(parts, "\x00")
 }
 
 func (c *Client) recordAPICall(ctx context.Context, operation string, call func(context.Context) error) error {

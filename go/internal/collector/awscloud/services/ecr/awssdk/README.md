@@ -4,8 +4,9 @@
 
 `internal/collector/awscloud/services/ecr/awssdk` adapts AWS SDK for Go v2 ECR
 responses to the scanner-owned `ecr.Client` contract. It owns ECR API
-pagination, repository tag reads, lifecycle policy reads, throttle
-classification, and per-call AWS API telemetry.
+pagination, durable image pagination checkpoint use, repository tag reads,
+lifecycle policy reads, throttle classification, and per-call AWS API
+telemetry.
 
 ## Ownership boundary
 
@@ -30,11 +31,14 @@ See `doc.go` for the godoc contract.
 
 - `Client` - AWS SDK-backed implementation of `ecr.Client`.
 - `NewClient` - builds a `Client` for one claimed AWS boundary.
+- `NewClientWithCheckpoints` - builds a `Client` with a durable checkpoint
+  store for long `DescribeImages` scans.
 
 ## Dependencies
 
 - `internal/collector/awscloud` for account, region, and service boundary
   labels.
+- `internal/collector/awscloud/checkpoint` for claim-fenced page resume state.
 - `internal/collector/awscloud/services/ecr` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `ecr` and Smithy error contracts.
@@ -55,6 +59,11 @@ payloads stay out of metric labels.
 
 - `DescribeImages` is used for image pagination because it returns digest, tag,
   pushed-at, size, and media-type metadata in one paged source.
+- `DescribeImages` checkpoints store the retry-safe page token before each
+  page read. A crash may re-read the last page, but it must not skip image
+  facts whose generation transaction may not have committed.
+- Repeated image pages are deduped in memory before returning scanner-owned
+  image records.
 - `LifecyclePolicyNotFoundException` is a valid empty policy result.
 - `ListTagsForResource` is called per repository because `DescribeRepositories`
   does not return repository tags.
