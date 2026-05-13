@@ -3,7 +3,12 @@ import type {
   DeploymentGraphLink,
   DeploymentGraphNode
 } from "./mockData";
-import type { ContextResponse, DeploymentEvidenceArtifact, StoryResponse } from "./repository";
+import type {
+  ContextConsumer,
+  ContextResponse,
+  DeploymentEvidenceArtifact,
+  StoryResponse
+} from "./repository";
 
 interface EvidenceGroup {
   readonly artifacts: readonly DeploymentEvidenceArtifact[];
@@ -38,7 +43,8 @@ export function deploymentGraphFromStory(
   });
 
   const evidenceGroups = groupDeploymentEvidence(context?.deployment_evidence?.artifacts ?? []);
-  for (const [index, group] of evidenceGroups.entries()) {
+  const graphGroups = evidenceGroups.length > 0 ? evidenceGroups : groupConsumerEvidence(context);
+  for (const [index, group] of graphGroups.entries()) {
     const lane = `${group.family}:${group.sourceRepo}`;
     const evidenceID = `evidence:${group.family}:${group.sourceRepo}`;
     addNode(nodes, {
@@ -150,6 +156,48 @@ function groupDeploymentEvidence(
     const [family, sourceRepo] = key.split(":");
     return { artifacts, family, sourceRepo };
   });
+}
+
+function groupConsumerEvidence(context: ContextResponse | undefined): readonly EvidenceGroup[] {
+  const consumers = [...(context?.consumers ?? []), ...(context?.consumer_repositories ?? [])]
+    .filter(isDeploymentConsumer);
+  return consumers.map((consumer) => ({
+    artifacts: [consumerArtifact(consumer)],
+    family: consumerFamily(consumer),
+    sourceRepo: consumerName(consumer)
+  }));
+}
+
+function consumerArtifact(consumer: ContextConsumer): DeploymentEvidenceArtifact {
+  return {
+    artifact_family: consumerFamily(consumer),
+    evidence_kind: consumer.evidence_kinds?.[0],
+    path: consumer.sample_paths?.[0],
+    relationship_type: consumer.consumer_kinds?.[0],
+    source_repo_name: consumerName(consumer)
+  };
+}
+
+function isDeploymentConsumer(consumer: ContextConsumer): boolean {
+  const name = consumerName(consumer).toLowerCase();
+  const paths = (consumer.sample_paths ?? []).join(" ").toLowerCase();
+  return name.includes("argocd") ||
+    name.includes("helm") ||
+    paths.includes("applicationsets/") ||
+    paths.includes("charts/");
+}
+
+function consumerName(consumer: ContextConsumer): string {
+  return nonEmpty(consumer.repo_name, consumer.repository, consumer.name, consumer.id);
+}
+
+function consumerFamily(consumer: ContextConsumer): string {
+  const name = consumerName(consumer).toLowerCase();
+  const paths = (consumer.sample_paths ?? []).join(" ").toLowerCase();
+  if (name.includes("argocd") || paths.includes("applicationsets/")) {
+    return "argocd";
+  }
+  return "helm";
 }
 
 function primaryBuildPath(story: StoryResponse) {

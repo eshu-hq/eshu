@@ -31,7 +31,10 @@ export function App(): React.JSX.Element {
       return;
     }
 
-    const client = new EshuApiClient({ baseUrl: environment.apiBaseUrl });
+    const client = new EshuApiClient({
+      apiKey: environment.apiKey,
+      baseUrl: environment.apiBaseUrl
+    });
     void client
       .getJson<{ readonly status?: string }>("/api/v0/index-status")
       .then((status) => {
@@ -44,13 +47,14 @@ export function App(): React.JSX.Element {
       .catch(() => {
         setRuntime(unavailableRuntime);
       });
-  }, [environment.apiBaseUrl, environment.mode]);
+  }, [environment.apiBaseUrl, environment.apiKey, environment.mode]);
 
   return (
     <div className="console-shell">
-      <header className="console-header">
+      <aside className="console-sidebar">
         <a className="console-brand" href="/">
-          Eshu Console
+          <span>Eshu</span>
+          <span>Context graph console</span>
         </a>
         <nav className="console-nav" aria-label="Console">
           <NavLink to="/">Story</NavLink>
@@ -58,8 +62,8 @@ export function App(): React.JSX.Element {
           <NavLink to="/catalog">Catalog</NavLink>
           <NavLink to="/findings">Findings</NavLink>
         </nav>
-      </header>
-      <StatusStrip environment={environment} runtime={runtime} />
+        <StatusStrip environment={environment} runtime={runtime} />
+      </aside>
       <main>
         <Routes>
           <Route element={<HomePage />} path="/" />

@@ -281,4 +281,76 @@ describe("workspace story adapter", () => {
     ]);
     expect(story?.deploymentGraph.nodes.map((node) => node.label)).not.toContain("push");
   });
+
+  it("uses service consumer repositories as deployment evidence when artifact rows are absent", async () => {
+    const client = new EshuApiClient({
+      baseUrl: "http://localhost:8080",
+      fetcher: async (input: RequestInfo | URL): Promise<Response> => {
+        const path = new URL(new Request(input).url).pathname;
+        if (path === "/api/v0/services/boats-chatgpt-app/context") {
+          return Response.json({
+            consumer_repositories: [
+              {
+                consumer_kinds: ["service_reference_consumer"],
+                evidence_kinds: ["repository_reference"],
+                repo_name: "iac-eks-argocd",
+                sample_paths: [
+                  "applicationsets/devops/core-mcps/boats-search-mcp.yaml"
+                ]
+              },
+              {
+                consumer_kinds: ["service_reference_consumer"],
+                evidence_kinds: ["repository_reference"],
+                repo_name: "helm-charts",
+                sample_paths: ["charts/boats-chatgpt-app/Chart.yaml"]
+              }
+            ],
+            deployment_evidence: {
+              artifacts: []
+            }
+          });
+        }
+        if (path.endsWith("/context")) {
+          return Response.json({});
+        }
+        return Response.json({
+          deployment_overview: {
+            workload_count: 1,
+            workloads: ["boats-chatgpt-app"]
+          },
+          drilldowns: {
+            context_path: "/api/v0/repositories/repository:r_boats/context"
+          },
+          repository: {
+            id: "repository:r_boats",
+            name: "boats-chatgpt-app"
+          },
+          subject: {
+            id: "repository:r_boats",
+            name: "boats-chatgpt-app",
+            type: "repository"
+          }
+        });
+      }
+    });
+
+    const story = await loadWorkspaceStory({
+      client,
+      entityId: "repository:r_boats",
+      entityKind: "repositories",
+      mode: "private"
+    });
+
+    expect(story?.story).toContain("iac-eks-argocd and helm-charts reference it");
+    expect(story?.evidence).toContainEqual(
+      expect.objectContaining({
+        source: "iac-eks-argocd",
+        title: "Deployed by ArgoCD"
+      })
+    );
+    expect(story?.deploymentGraph.nodes.map((node) => node.label)).toContain("iac-eks-argocd");
+    expect(story?.deploymentGraph.nodes.map((node) => node.label)).toContain("ArgoCD ApplicationSet");
+    expect(story?.deploymentGraph.nodes.map((node) => node.label)).toContain("helm-charts");
+    expect(story?.deploymentGraph.nodes.map((node) => node.label)).toContain("Helm chart/values");
+  });
 });

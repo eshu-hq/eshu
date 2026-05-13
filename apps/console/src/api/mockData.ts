@@ -29,7 +29,8 @@ export interface DeploymentGraphNode {
     | "trigger"
     | "artifact"
     | "environment"
-    | "evidence";
+    | "evidence"
+    | "relationship";
   readonly label: string;
   readonly lane?: string;
 }
@@ -67,8 +68,24 @@ export interface WorkspaceStory {
 }
 
 export interface DashboardMetric {
+  readonly detail?: string;
   readonly label: string;
   readonly value: string;
+}
+
+export interface DashboardRelationshipSummary {
+  readonly count: number;
+  readonly detail: string;
+  readonly layer?: "canonical" | "topology";
+  readonly verb: string;
+}
+
+export interface DashboardSnapshot {
+  readonly evidence: readonly EvidenceRow[];
+  readonly graph: DeploymentGraph;
+  readonly metrics: readonly DashboardMetric[];
+  readonly relationships: readonly DashboardRelationshipSummary[];
+  readonly story: string;
 }
 
 export interface CatalogRow {
@@ -212,6 +229,35 @@ export const demoDashboardMetrics: readonly DashboardMetric[] = [
   { label: "Graph readiness", value: "ready" },
   { label: "Configured collectors", value: "git, docs, registry preview" }
 ];
+
+export const demoDashboardSnapshot: DashboardSnapshot = {
+  evidence: [
+    {
+      basis: "DISCOVERS_CONFIG_IN",
+      category: "deployment",
+      detailPath: "deploy/argocd/checkout.yaml",
+      source: "gitops-control-plane",
+      summary: "ArgoCD discovers checkout-service configuration from deploy/argocd.",
+      title: "Controller discovery"
+    }
+  ],
+  graph: demoWorkspaceStories[0].deploymentGraph,
+  metrics: demoDashboardMetrics,
+  relationships: [
+    {
+      count: 1,
+      detail: "Controller-driven GitOps evidence",
+      verb: "DISCOVERS_CONFIG_IN"
+    },
+    {
+      count: 1,
+      detail: "Deployment source evidence",
+      verb: "DEPLOYS_FROM"
+    }
+  ],
+  story:
+    "Demo workspace shows controller and deploy-source evidence as typed relationships."
+};
 
 export const demoCatalogRows: readonly CatalogRow[] = [
   {

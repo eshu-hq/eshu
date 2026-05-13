@@ -56,6 +56,46 @@ describe("EshuApiClient", () => {
     expect(payload.repositories[0]?.name).toBe("mobius-tools");
   });
 
+  it("sends a bearer token when the local API requires auth", async () => {
+    const calls: Request[] = [];
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const request = new Request(input, init);
+      calls.push(request);
+      return Response.json({ status: "healthy" });
+    };
+
+    const client = new EshuApiClient({
+      apiKey: "local-compose-token",
+      baseUrl: "/eshu-api/",
+      fetcher
+    });
+
+    await client.getJson("/api/v0/index-status");
+
+    expect(calls[0]?.headers.get("Authorization")).toBe(
+      "Bearer local-compose-token"
+    );
+  });
+
+  it("omits authorization when no token is configured", async () => {
+    const calls: Request[] = [];
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const request = new Request(input, init);
+      calls.push(request);
+      return Response.json({ status: "healthy" });
+    };
+
+    const client = new EshuApiClient({
+      apiKey: " ",
+      baseUrl: "/eshu-api/",
+      fetcher
+    });
+
+    await client.getJson("/api/v0/index-status");
+
+    expect(calls[0]?.headers.has("Authorization")).toBe(false);
+  });
+
   it("binds the browser fetch implementation when no custom fetcher is provided", async () => {
     const calls: Request[] = [];
     vi.stubGlobal(

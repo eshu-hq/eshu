@@ -16,7 +16,10 @@ export function CatalogPage(): React.JSX.Element {
     const environment = loadConsoleEnvironment();
     const client =
       environment.mode === "private"
-        ? new EshuApiClient({ baseUrl: environment.apiBaseUrl })
+        ? new EshuApiClient({
+          apiKey: environment.apiKey,
+          baseUrl: environment.apiBaseUrl
+        })
         : undefined;
     void loadCatalogRows({ client, mode: environment.mode })
       .then((loadedRows) => {
@@ -41,8 +44,10 @@ export function CatalogPage(): React.JSX.Element {
 
   return (
     <section className="page-shell">
-      <h1>Catalog</h1>
-      <p>Browse indexed repositories and open the workspace behind each one.</p>
+      <div className="page-intro">
+        <h1>Catalog</h1>
+        <p>Browse indexed repositories and open the workspace behind each one.</p>
+      </div>
       {loadState === "loading" ? <p className="inline-state">Loading live data.</p> : null}
       {loadState === "unavailable" ? (
         <p className="inline-state">Local Eshu API unavailable.</p>
@@ -59,19 +64,6 @@ export function CatalogPage(): React.JSX.Element {
         </label>
         <strong>{filteredRows.length} shown</strong>
       </div>
-      <section className="catalog-graph" aria-label="Repository graph">
-        <h2>Repository graph</h2>
-        <div>
-          {filteredRows.slice(0, 8).map((row) => (
-            <Link
-              key={`${row.kind}:${row.id}`}
-              to={`/workspace/${row.kind}/${encodeURIComponent(row.id)}`}
-            >
-              {row.name}
-            </Link>
-          ))}
-        </div>
-      </section>
       <table className="data-table">
         <thead>
           <tr>

@@ -34,10 +34,13 @@ interface RepositoryRecord {
 
 interface IndexStatusResponse {
   readonly queue?: {
+    readonly dead_letter?: number;
+    readonly in_flight?: number;
     readonly outstanding?: number;
     readonly pending?: number;
     readonly succeeded?: number;
   };
+  readonly reasons?: readonly string[];
   readonly repository_count?: number;
   readonly status?: string;
 }
@@ -80,18 +83,62 @@ export async function loadDashboardMetrics({
   const status = await requiredClient(client).getJson<IndexStatusResponse>(
     "/api/v0/index-status"
   );
+  const repositories = await loadRepositories(requiredClient(client));
   const queue = status.queue ?? {};
+  const outstanding = queue.outstanding ?? queue.pending ?? 0;
+  const inFlight = queue.in_flight ?? 0;
+  const pending = queue.pending ?? 0;
+  const deadLetters = queue.dead_letter ?? 0;
   return [
-    { label: "Index status", value: nonEmpty(status.status, "unknown") },
     {
-      label: "Repositories",
+      detail: nonEmpty(status.reasons?.join("; "), "No runtime status reasons reported."),
+      label: "Index status",
+      value: nonEmpty(status.status, "unknown")
+    },
+    {
+      detail: "Repository count reported by the graph status endpoint.",
+      label: "Graph repositories",
       value: String(status.repository_count ?? 0)
     },
     {
-      label: "Queue outstanding",
-      value: String(queue.outstanding ?? queue.pending ?? 0)
+      detail: "Repositories available through catalog drilldown.",
+      label: "Catalog repositories",
+      value: String(repositories.length)
     },
     {
+      detail:
+        outstanding === 0
+          ? "No queued work is waiting on reducers or projectors."
+          : `${outstanding} work item(s) still need reducer or projector attention.`,
+      label: "Queue outstanding",
+      value: String(outstanding)
+    },
+    {
+      detail:
+        inFlight === 0
+          ? "No reducer or projector work is currently claimed."
+          : `${inFlight} work item(s) are actively claimed by a worker.`,
+      label: "In flight",
+      value: String(inFlight)
+    },
+    {
+      detail:
+        pending === 0
+          ? "No unclaimed work is waiting in the queue."
+          : `${pending} work item(s) are waiting to be claimed.`,
+      label: "Pending work",
+      value: String(pending)
+    },
+    {
+      detail:
+        deadLetters === 0
+          ? "No work items are dead-lettered."
+          : `${deadLetters} dead-lettered work item(s).`,
+      label: "Dead letters",
+      value: String(deadLetters)
+    },
+    {
+      detail: "Work items completed by the current local run.",
       label: "Succeeded work",
       value: String(queue.succeeded ?? 0)
     }

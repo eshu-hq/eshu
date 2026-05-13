@@ -17,7 +17,10 @@ export function HomePage(): React.JSX.Element {
     const environment = loadConsoleEnvironment();
     const client =
       environment.mode === "private"
-        ? new EshuApiClient({ baseUrl: environment.apiBaseUrl })
+        ? new EshuApiClient({
+          apiKey: environment.apiKey,
+          baseUrl: environment.apiBaseUrl
+        })
         : undefined;
     void loadSearchCandidates({ client, mode: environment.mode })
       .then((loadedCandidates) => {
@@ -32,13 +35,14 @@ export function HomePage(): React.JSX.Element {
 
   return (
     <section className="home-page">
-      <p className="eyebrow">Eshu Console</p>
-      <h1>Ask or search your engineering estate</h1>
-      <p>
+      <div className="page-intro">
+        <h1>Story</h1>
+        <p>
         Search for a repository, service, or workload to open a read-only
         workspace with story, evidence, deployment, code, findings, and
         freshness.
-      </p>
+        </p>
+      </div>
       {loadState === "unavailable" ? (
         <p className="inline-state">Local Eshu API unavailable.</p>
       ) : null}

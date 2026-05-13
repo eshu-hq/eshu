@@ -15,7 +15,10 @@ export function FindingsPage(): React.JSX.Element {
     const environment = loadConsoleEnvironment();
     const client =
       environment.mode === "private"
-        ? new EshuApiClient({ baseUrl: environment.apiBaseUrl })
+        ? new EshuApiClient({
+          apiKey: environment.apiKey,
+          baseUrl: environment.apiBaseUrl
+        })
         : undefined;
     void loadFindingRows({ client, mode: environment.mode })
       .then((loadedRows) => {
@@ -42,8 +45,10 @@ export function FindingsPage(): React.JSX.Element {
 
   return (
     <section className="page-shell">
-      <h1>Findings</h1>
-      <p>Search cleanup candidates by repo, symbol, file, or finding type.</p>
+      <div className="page-intro">
+        <h1>Findings</h1>
+        <p>Search cleanup candidates by repo, symbol, file, or finding type.</p>
+      </div>
       {loadState === "loading" ? <p className="inline-state">Loading live data.</p> : null}
       {loadState === "unavailable" ? (
         <p className="inline-state">Local Eshu API unavailable.</p>

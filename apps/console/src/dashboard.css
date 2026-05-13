@@ -1,0 +1,110 @@
+.dashboard-atlas,
+.relationship-evidence {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 18px;
+  padding: 18px;
+}
+
+.dashboard-atlas {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(280px, 0.38fr) minmax(0, 1fr);
+}
+
+.dashboard-atlas-copy {
+  align-content: start;
+  display: grid;
+  gap: 14px;
+}
+
+.dashboard-atlas-copy p {
+  margin-top: 0;
+}
+
+.relationship-summary-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.relationship-summary-section {
+  display: grid;
+  gap: 8px;
+}
+
+.relationship-summary-section h3 {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin: 0;
+}
+
+.relationship-summary {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--relation);
+  border-radius: 7px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.relationship-summary strong {
+  color: var(--text);
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.relationship-summary span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.relationship-summary b {
+  color: var(--relation);
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.relationship-summary-empty {
+  border-left-color: var(--line);
+}
+
+.relationship-summary-empty strong,
+.relationship-summary-empty b {
+  color: var(--subtle);
+}
+
+.relationship-evidence-list {
+  display: grid;
+  gap: 10px;
+}
+
+.relationship-evidence-row {
+  align-items: start;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.62fr);
+  padding: 14px;
+}
+
+.relationship-evidence-row p {
+  margin-top: 5px;
+}
+
+.relationship-evidence-row dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .dashboard-atlas,
+  .relationship-evidence-row {
+    grid-template-columns: 1fr;
+  }
+}

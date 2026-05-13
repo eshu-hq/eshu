@@ -26,7 +26,10 @@ export function WorkspacePage(): React.JSX.Element {
     const environment = loadConsoleEnvironment();
     const client =
       environment.mode === "private"
-        ? new EshuApiClient({ baseUrl: environment.apiBaseUrl })
+        ? new EshuApiClient({
+          apiKey: environment.apiKey,
+          baseUrl: environment.apiBaseUrl
+        })
         : undefined;
     void loadWorkspaceStory({
       client,
@@ -64,26 +67,36 @@ export function WorkspacePage(): React.JSX.Element {
 
   return (
     <section className="workspace-page">
-      <div className="workspace-hero">
+      <div className="workspace-summary">
         <div>
-          <p className="eyebrow">{story.kind}</p>
           <h1>{story.title}</h1>
+          <p className="entity-kind">{story.kind}</p>
           <p>{story.story}</p>
-          <div className="overview-strip">
-            {story.overviewStats.map((stat) => (
-              <span key={stat.label} title={stat.detail}>
-                <strong>{stat.value}</strong>
-                {stat.label}
-              </span>
-            ))}
-          </div>
         </div>
-        <aside className="truth-panel" aria-label="Truth and freshness">
-          <span>{story.truth.level}</span>
-          <span>{story.truth.freshness.state}</span>
-          <span>{story.truth.profile}</span>
-        </aside>
+        <dl className="truth-list" aria-label="Truth and freshness">
+          <div>
+            <dt>Truth</dt>
+            <dd>{story.truth.level}</dd>
+          </div>
+          <div>
+            <dt>Freshness</dt>
+            <dd>{story.truth.freshness.state}</dd>
+          </div>
+          <div>
+            <dt>Profile</dt>
+            <dd>{story.truth.profile}</dd>
+          </div>
+        </dl>
       </div>
+
+      <dl className="overview-list">
+        {story.overviewStats.map((stat) => (
+          <div key={stat.label} title={stat.detail}>
+            <dt>{stat.label}</dt>
+            <dd>{stat.value}</dd>
+          </div>
+        ))}
+      </dl>
 
       <div className="workspace-grid">
         <section className="workspace-panel-wide">
@@ -98,22 +111,24 @@ export function WorkspacePage(): React.JSX.Element {
           <h2>Evidence story</h2>
           <EvidenceGrid rows={story.evidence} />
         </section>
-        <section>
-          <h2>Findings</h2>
-          <ul>
-            {story.findings.map((finding) => (
-              <li key={finding}>{finding}</li>
-            ))}
-          </ul>
-        </section>
-        <section>
-          <h2>Limitations</h2>
-          <ul>
-            {story.limitations.map((limitation) => (
-              <li key={limitation}>{limitation}</li>
-            ))}
-          </ul>
-        </section>
+        <div className="workspace-columns">
+          <section>
+            <h2>Findings</h2>
+            <ul>
+              {story.findings.map((finding) => (
+                <li key={finding}>{finding}</li>
+              ))}
+            </ul>
+          </section>
+          <section>
+            <h2>Limitations</h2>
+            <ul>
+              {story.limitations.map((limitation) => (
+                <li key={limitation}>{limitation}</li>
+              ))}
+            </ul>
+          </section>
+        </div>
       </div>
     </section>
   );

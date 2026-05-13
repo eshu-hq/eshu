@@ -9,29 +9,32 @@ export type EshuFetcher = (
 ) => Promise<Response>;
 
 export interface EshuApiClientOptions {
+  readonly apiKey?: string;
   readonly baseUrl: string;
   readonly fetcher?: EshuFetcher;
 }
 
 export class EshuApiClient {
+  private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly fetcher: EshuFetcher;
 
   constructor(options: EshuApiClientOptions) {
+    this.apiKey = options.apiKey?.trim() ?? "";
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
     this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
   }
 
   async get<TData>(path: string): Promise<EshuEnvelope<TData>> {
     const response = await this.fetcher(this.url(path), {
-      headers: envelopeHeaders()
+      headers: this.headers()
     });
     return this.parse<TData>(response);
   }
 
   async getJson<TData>(path: string): Promise<TData> {
     const response = await this.fetcher(this.url(path), {
-      headers: envelopeHeaders()
+      headers: this.headers()
     });
     return this.parseJson<TData>(response);
   }
@@ -40,7 +43,7 @@ export class EshuApiClient {
     const response = await this.fetcher(this.url(path), {
       body: JSON.stringify(body),
       headers: {
-        ...envelopeHeaders(),
+        ...this.headers(),
         "Content-Type": "application/json"
       },
       method: "POST"
@@ -52,7 +55,7 @@ export class EshuApiClient {
     const response = await this.fetcher(this.url(path), {
       body: JSON.stringify(body),
       headers: {
-        ...envelopeHeaders(),
+        ...this.headers(),
         "Content-Type": "application/json"
       },
       method: "POST"
@@ -63,6 +66,16 @@ export class EshuApiClient {
   private url(path: string): string {
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
     return new URL(cleanPath, absoluteBaseUrl(this.baseUrl)).toString();
+  }
+
+  private headers(): HeadersInit {
+    if (this.apiKey.length === 0) {
+      return envelopeHeaders();
+    }
+    return {
+      ...envelopeHeaders(),
+      Authorization: `Bearer ${this.apiKey}`
+    };
   }
 
   private async parse<TData>(response: Response): Promise<EshuEnvelope<TData>> {

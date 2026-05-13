@@ -11,6 +11,7 @@ describe("console environment config", () => {
 
   it("defaults to the local Eshu API proxy", () => {
     expect(loadConsoleEnvironment()).toEqual({
+      apiKey: "",
       apiBaseUrl: "/eshu-api/",
       mode: "private",
       recentApiBaseUrls: []
@@ -19,6 +20,7 @@ describe("console environment config", () => {
 
   it("persists private API endpoints and recent environments", () => {
     saveConsoleEnvironment({
+      apiKey: " local-compose-token ",
       apiBaseUrl: "http://localhost:8080",
       mode: "private",
       recentApiBaseUrls: ["https://eshu.internal"]
@@ -28,6 +30,7 @@ describe("console environment config", () => {
       "localhost"
     );
     expect(loadConsoleEnvironment()).toEqual({
+      apiKey: "local-compose-token",
       apiBaseUrl: "http://localhost:8080",
       mode: "private",
       recentApiBaseUrls: ["http://localhost:8080", "https://eshu.internal"]

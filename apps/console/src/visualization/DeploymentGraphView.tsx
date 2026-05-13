@@ -3,13 +3,17 @@ import { useMemo, useState } from "react";
 import type { DeploymentGraph, DeploymentGraphNode } from "../api/mockData";
 
 interface DeploymentGraphViewProps {
+  readonly ariaLabel?: string;
+  readonly detailTitle?: string;
   readonly graph: DeploymentGraph;
 }
 
-const graphWidth = 820;
+const graphWidth = 680;
 const graphHeight = 430;
 
 export function DeploymentGraphView({
+  ariaLabel = "Deployment evidence graph",
+  detailTitle = "Evidence nodes",
   graph
 }: DeploymentGraphViewProps): React.JSX.Element {
   const [selectedNode, setSelectedNode] = useState<DeploymentGraphNode | undefined>(
@@ -21,7 +25,7 @@ export function DeploymentGraphView({
   return (
     <div className="deployment-graph">
       <svg
-        aria-label="Deployment evidence graph"
+        aria-label={ariaLabel}
         className="deployment-graph-svg"
         role="img"
         viewBox={`0 0 ${graphWidth} ${graphHeight}`}
@@ -30,25 +34,53 @@ export function DeploymentGraphView({
           <path className="deployment-link" d={link.path} key={link.key} />
         ))}
         {layout.nodes.map((node) => (
-          <g className={`deployment-node deployment-node-${node.kind}`} key={node.id}>
-            <circle cx={node.x} cy={node.y} r="18" />
-            <text x={node.x} y={node.y + 38}>
-              {displayLabel(node.label)}
+          <g
+            className={`deployment-node deployment-node-${node.kind}`}
+            key={node.id}
+            onClick={() => setSelectedNode(node)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setSelectedNode(node);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            <title>{node.label}</title>
+            <rect
+              height={node.height}
+              rx="8"
+              width={node.width}
+              x={node.x - node.width / 2}
+              y={node.y - node.height / 2}
+            />
+            <text x={node.x} y={node.y - labelYOffset(node.label)}>
+              {labelLines(node.label).map((lineText, index) => (
+                <tspan
+                  dy={index === 0 ? 0 : 15}
+                  key={`${node.id}:${index}:${lineText}`}
+                  x={node.x}
+                >
+                  {lineText}
+                </tspan>
+              ))}
             </text>
           </g>
         ))}
       </svg>
-      <div className="graph-drilldown">
-        <h3>Drill down</h3>
+      <div className="graph-detail">
+        <h3>{detailTitle}</h3>
         <div className="graph-node-buttons">
           {graph.nodes.map((node) => (
             <button
+              aria-pressed={selected?.id === node.id}
               key={node.id}
               onClick={() => setSelectedNode(node)}
               type="button"
             >
               <span>{node.label}</span>
-              <small>{node.kind}</small>
+              <span className="node-kind">{node.kind}</span>
             </button>
           ))}
         </div>
@@ -66,6 +98,8 @@ export function DeploymentGraphView({
 }
 
 interface LayoutNode extends DeploymentGraphNode {
+  readonly height: number;
+  readonly width: number;
   readonly x: number;
   readonly y: number;
 }
@@ -93,6 +127,8 @@ function layoutGraph(graph: DeploymentGraph): {
     .padding(0.5);
   const nodes = graph.nodes.map((node, index) => ({
     ...node,
+    height: nodeHeight(node.label),
+    width: nodeWidth(node.label),
     x: x(node.id) ?? 80,
     y: index % 2 === 0 ? 96 : 176
   }));
@@ -131,6 +167,8 @@ function semanticLayout(
     .padding(0.4);
   const nodes = graph.nodes.map((node) => ({
     ...node,
+    height: nodeHeight(node.label),
+    width: nodeWidth(node.label),
     x: columnX(node.column ?? 0),
     y: laneScale(node.lane ?? "") ?? 96
   }));
@@ -156,13 +194,53 @@ function semanticLayout(
 }
 
 function columnX(column: number): number {
-  const columns = [92, 295, 500, 685];
-  return columns[column] ?? 685;
+  const columns = [92, 304, 520, 604];
+  return columns[column] ?? 604;
 }
 
-function displayLabel(label: string): string {
-  if (label.length <= 20) {
-    return label;
+function labelLines(label: string): readonly string[] {
+  const tokens = label.split(/\s+/).flatMap((word) => splitLongWord(word));
+  const lines: string[] = [];
+  let current = "";
+  for (const token of tokens) {
+    const joiner = current.endsWith("-") || token === "/" ? "" : " ";
+    const candidate = current.length === 0 ? token : `${current}${joiner}${token}`;
+    if (candidate.length <= 16) {
+      current = candidate;
+      continue;
+    }
+    if (current.length > 0) {
+      lines.push(current);
+    }
+    current = token;
   }
-  return `${label.slice(0, 17)}...`;
+  if (current.length > 0) {
+    lines.push(current);
+  }
+  return lines.length === 0 ? [label] : lines;
+}
+
+function splitLongWord(word: string): readonly string[] {
+  if (word.length <= 18) {
+    return [word];
+  }
+  return word
+    .replaceAll("/", "/ ")
+    .replaceAll("-", "- ")
+    .replaceAll("_", "_ ")
+    .split(/\s+/)
+    .filter((token) => token.length > 0);
+}
+
+function labelYOffset(label: string): number {
+  return ((labelLines(label).length - 1) * 17) / 2 - 6;
+}
+
+function nodeHeight(label: string): number {
+  return Math.max(54, 26 + labelLines(label).length * 17);
+}
+
+function nodeWidth(label: string): number {
+  const longest = Math.max(...labelLines(label).map((lineText) => lineText.length), 10);
+  return Math.min(190, Math.max(124, longest * 8 + 32));
 }

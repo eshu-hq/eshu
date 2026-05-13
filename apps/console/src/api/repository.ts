@@ -88,9 +88,14 @@ export interface ContextResponse {
   readonly repository?: StoryRepository;
 }
 
-interface ContextConsumer {
+export interface ContextConsumer {
+  readonly consumer_kinds?: readonly string[];
+  readonly evidence_kinds?: readonly string[];
   readonly id?: string;
   readonly name?: string;
+  readonly repo_name?: string;
+  readonly repository?: string;
+  readonly sample_paths?: readonly string[];
 }
 
 export interface DeploymentEvidenceArtifact {
@@ -260,7 +265,7 @@ function deploymentEvidenceRows(context: ContextResponse | undefined): readonly 
     const key = `${artifact.artifact_family}:${sourceRepo}:${artifact.relationship_type}`;
     grouped.set(key, [...(grouped.get(key) ?? []), artifact]);
   }
-  return Array.from(grouped.values()).slice(0, 5).map((group) => {
+  const artifactRows = Array.from(grouped.values()).slice(0, 5).map((group) => {
     const sample = group[0];
     const sourceRepo = nonEmpty(sample.source_repo_name, sample.source_location?.repo_name);
     const path = nonEmpty(sample.source_location?.path, sample.path, sample.name);
@@ -271,6 +276,26 @@ function deploymentEvidenceRows(context: ContextResponse | undefined): readonly 
       detailPath: path,
       source: sourceRepo,
       summary: deploymentEvidenceSummary(family, sourceRepo, group.length, path),
+      title: family === "argocd" ? "Deployed by ArgoCD" : "Deployed from Helm"
+    };
+  });
+  if (artifactRows.length > 0) {
+    return artifactRows;
+  }
+  return consumerEvidenceRows(context);
+}
+
+function consumerEvidenceRows(context: ContextResponse | undefined): readonly EvidenceRow[] {
+  return deploymentConsumers(context).slice(0, 5).map((consumer) => {
+    const sourceRepo = consumerName(consumer);
+    const family = consumerFamily(consumer);
+    const path = consumer.sample_paths?.[0] ?? "";
+    return {
+      basis: consumer.evidence_kinds?.[0] ?? "consumer_repository",
+      category: "deployment",
+      detailPath: path,
+      source: sourceRepo,
+      summary: deploymentEvidenceSummary(family, sourceRepo, consumer.sample_paths?.length ?? 1, path),
       title: family === "argocd" ? "Deployed by ArgoCD" : "Deployed from Helm"
     };
   });
@@ -336,7 +361,7 @@ function humanStory(story: StoryResponse, context: ContextResponse | undefined, 
   const languages = story.support_overview?.languages ?? [];
   const infraFamilies = story.infrastructure_overview?.families ??
     story.deployment_overview?.infrastructure_families ?? [];
-  const consumers = context?.consumers?.map((consumer) => consumer.name).filter(isPresent) ?? [];
+  const consumers = deploymentConsumers(context).map(consumerName).filter(isPresent);
   const parts = [`${repoName} is an indexed ${story.subject === undefined ? "entity" : "repository"}.`];
   if (files > 0) {
     parts.push(`${repoName} contains ${files} indexed files${languages.length > 0 ? ` across ${joinHuman(languages)}` : ""}.`);
@@ -345,9 +370,35 @@ function humanStory(story: StoryResponse, context: ContextResponse | undefined, 
     parts.push(`Eshu found ${joinHuman(infraFamilies)} infrastructure evidence.`);
   }
   if (consumers.length > 0) {
-    parts.push(`${joinHuman(consumers)} references it through deployment evidence.`);
+    const verb = consumers.length === 1 ? "references" : "reference";
+    parts.push(`${joinHuman(consumers)} ${verb} it through deployment evidence.`);
   }
   return parts.join(" ");
+}
+
+function deploymentConsumers(context: ContextResponse | undefined): readonly ContextConsumer[] {
+  const candidates = [...(context?.consumers ?? []), ...(context?.consumer_repositories ?? [])];
+  return candidates.filter((consumer) => {
+    const name = consumerName(consumer).toLowerCase();
+    const paths = (consumer.sample_paths ?? []).join(" ").toLowerCase();
+    return name.includes("argocd") ||
+      name.includes("helm") ||
+      paths.includes("applicationsets/") ||
+      paths.includes("charts/");
+  });
+}
+
+function consumerName(consumer: ContextConsumer): string {
+  return nonEmpty(consumer.repo_name, consumer.repository, consumer.name, consumer.id);
+}
+
+function consumerFamily(consumer: ContextConsumer): string {
+  const name = consumerName(consumer).toLowerCase();
+  const paths = (consumer.sample_paths ?? []).join(" ").toLowerCase();
+  if (name.includes("argocd") || paths.includes("applicationsets/")) {
+    return "argocd";
+  }
+  return "helm";
 }
 
 function fileCount(story: StoryResponse, context: ContextResponse | undefined): number {

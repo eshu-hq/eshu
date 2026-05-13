@@ -8,9 +8,9 @@ export function EvidenceGrid({ rows }: EvidenceGridProps): React.JSX.Element {
   return (
     <div className="evidence-story-list">
       {rows.map((row) => (
-        <article className="evidence-story" key={`${row.source}:${row.basis}:${row.title}`}>
+        <article className="evidence-row" key={`${row.source}:${row.basis}:${row.title}`}>
           <div>
-            <span>{row.category ?? row.source}</span>
+            <p className="evidence-category">{row.category ?? row.source}</p>
             <h3>{row.title ?? row.source}</h3>
             <p>{row.summary}</p>
           </div>

@@ -5,6 +5,7 @@ import {
   loadFindingRows,
   loadSearchCandidates
 } from "./liveData";
+import { loadDashboardSnapshot } from "./dashboardSnapshot";
 
 function clientFor(routes: Record<string, unknown>): EshuApiClient {
   return new EshuApiClient({
@@ -56,14 +57,186 @@ describe("live Eshu data adapters", () => {
           queue: { outstanding: 0, succeeded: 201 },
           repository_count: 23,
           status: "healthy"
+        },
+        "/api/v0/repositories": repositoriesResponse
+      }),
+      mode: "private"
+    });
+
+    expect(metrics).toContainEqual({
+      detail: "No runtime status reasons reported.",
+      label: "Index status",
+      value: "healthy"
+    });
+    expect(metrics).toContainEqual({
+      detail: "Repository count reported by the graph status endpoint.",
+      label: "Graph repositories",
+      value: "23"
+    });
+    expect(metrics).toContainEqual({
+      detail: "Repositories available through catalog drilldown.",
+      label: "Catalog repositories",
+      value: "2"
+    });
+    expect(metrics).toContainEqual({
+      detail: "No queued work is waiting on reducers or projectors.",
+      label: "Queue outstanding",
+      value: "0"
+    });
+  });
+
+  it("keeps degraded graph status separate from queryable catalog data", async () => {
+    const metrics = await loadDashboardMetrics({
+      client: clientFor({
+        "/api/v0/index-status": {
+          queue: { dead_letter: 4, in_flight: 1, outstanding: 1, succeeded: 209 },
+          reasons: ["4 work items are dead-lettered"],
+          repository_count: 0,
+          status: "degraded"
+        },
+        "/api/v0/repositories": repositoriesResponse
+      }),
+      mode: "private"
+    });
+
+    expect(metrics).toContainEqual({
+      detail: "4 work items are dead-lettered",
+      label: "Index status",
+      value: "degraded"
+    });
+    expect(metrics).toContainEqual({
+      detail: "Repository count reported by the graph status endpoint.",
+      label: "Graph repositories",
+      value: "0"
+    });
+    expect(metrics).toContainEqual({
+      detail: "Repositories available through catalog drilldown.",
+      label: "Catalog repositories",
+      value: "2"
+    });
+    expect(metrics).toContainEqual({
+      detail: "4 dead-lettered work item(s).",
+      label: "Dead letters",
+      value: "4"
+    });
+  });
+
+  it("builds the dashboard relationship graph from typed deployment evidence", async () => {
+    const snapshot = await loadDashboardSnapshot({
+      client: clientFor({
+        "/api/v0/index-status": {
+          queue: { outstanding: 0, succeeded: 245 },
+          repository_count: 2,
+          status: "healthy"
+        },
+        "/api/v0/repositories": repositoriesResponse,
+        "/api/v0/repositories/repository%3Ar_1/story": {
+          drilldowns: { context_path: "/api/v0/repositories/repository:r_1/context" },
+          repository: { name: "mobius-tools" }
+        },
+        "/api/v0/repositories/repository%3Ar_1/context": {},
+        "/api/v0/repositories/repository%3Ar_2/story": {
+          deployment_overview: { workloads: ["iac-eks-pcg"] },
+          drilldowns: { context_path: "/api/v0/repositories/repository:r_2/context" },
+          repository: { name: "iac-eks-pcg" }
+        },
+        "/api/v0/repositories/repository%3Ar_2/context": {
+          deployment_evidence: {
+            artifacts: [
+              {
+                artifact_family: "argocd",
+                name: "iac-eks-pcg",
+                relationship_type: "DISCOVERS_CONFIG_IN",
+                source_location: {
+                  path: "applicationsets/devops/core-mcps/platformcontextgraph.yaml",
+                  repo_name: "iac-eks-argocd"
+                },
+                source_repo_name: "iac-eks-argocd",
+                target_repo_name: "iac-eks-pcg"
+              }
+            ]
+          }
+        },
+        "/api/v0/repositories/repository:r_2/context": {
+          deployment_evidence: {
+            artifacts: [
+              {
+                artifact_family: "argocd",
+                name: "iac-eks-pcg",
+                relationship_type: "DISCOVERS_CONFIG_IN",
+                source_location: {
+                  path: "applicationsets/devops/core-mcps/platformcontextgraph.yaml",
+                  repo_name: "iac-eks-argocd"
+                },
+                source_repo_name: "iac-eks-argocd",
+                target_repo_name: "iac-eks-pcg"
+              }
+            ]
+          }
+        },
+        "/api/v0/services/iac-eks-pcg/context": {
+          deployment_evidence: {
+            artifacts: [
+              {
+                artifact_family: "helm",
+                name: "iac-eks-pcg",
+                relationship_type: "DEPLOYS_FROM",
+                source_location: {
+                  path: "charts/platformcontextgraph/values.yaml",
+                  repo_name: "helm-charts"
+                },
+                source_repo_name: "helm-charts",
+                target_repo_name: "iac-eks-pcg"
+              }
+            ]
+          }
         }
       }),
       mode: "private"
     });
 
-    expect(metrics).toContainEqual({ label: "Index status", value: "healthy" });
-    expect(metrics).toContainEqual({ label: "Repositories", value: "23" });
-    expect(metrics).toContainEqual({ label: "Queue outstanding", value: "0" });
+    expect(snapshot.relationships).toContainEqual({
+      count: 1,
+      detail: "Controller discovers configuration",
+      layer: "canonical",
+      verb: "DISCOVERS_CONFIG_IN"
+    });
+    expect(snapshot.relationships).toContainEqual({
+      count: 1,
+      detail: "Service deploys from source",
+      layer: "canonical",
+      verb: "DEPLOYS_FROM"
+    });
+    expect(snapshot.relationships).toContainEqual({
+      count: 0,
+      detail: "Runtime placement",
+      layer: "canonical",
+      verb: "RUNS_ON"
+    });
+    expect(snapshot.relationships).toContainEqual({
+      count: 0,
+      detail: "Config read permission or config source",
+      layer: "canonical",
+      verb: "READS_CONFIG_FROM"
+    });
+    expect(snapshot.relationships).toContainEqual({
+      count: 0,
+      detail: "Repository defines workload",
+      layer: "topology",
+      verb: "DEFINES"
+    });
+    expect(snapshot.relationships).toContainEqual({
+      count: 0,
+      detail: "Deployment source context",
+      layer: "topology",
+      verb: "DEPLOYMENT_SOURCE"
+    });
+    expect(snapshot.graph.nodes.map((node) => node.label)).toEqual(
+      expect.arrayContaining(["iac-eks-argocd", "DISCOVERS_CONFIG_IN", "iac-eks-pcg"])
+    );
+    expect(snapshot.evidence[0]?.summary).toContain(
+      "iac-eks-argocd DISCOVERS_CONFIG_IN iac-eks-pcg"
+    );
   });
 
   it("loads catalog rows from live repositories", async () => {

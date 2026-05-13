@@ -10,9 +10,7 @@ describe("App shell", () => {
       </MemoryRouter>
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Ask or search your engineering estate" })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Story" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Story" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",

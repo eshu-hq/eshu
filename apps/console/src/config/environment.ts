@@ -1,6 +1,7 @@
 export type ConsoleMode = "demo" | "private";
 
 export interface ConsoleEnvironment {
+  readonly apiKey: string;
   readonly apiBaseUrl: string;
   readonly mode: ConsoleMode;
   readonly recentApiBaseUrls: readonly string[];
@@ -11,6 +12,7 @@ export const consoleStorageKeys = {
 } as const;
 
 const defaultEnvironment: ConsoleEnvironment = {
+  apiKey: import.meta.env.VITE_ESHU_API_KEY?.trim() ?? "",
   apiBaseUrl: "/eshu-api/",
   mode: "private",
   recentApiBaseUrls: []
@@ -44,6 +46,9 @@ function normalizeEnvironment(
   const apiBaseUrl = typeof environment.apiBaseUrl === "string"
     ? environment.apiBaseUrl.trim()
     : "";
+  const apiKey = typeof environment.apiKey === "string"
+    ? environment.apiKey.trim()
+    : "";
   const mode: ConsoleMode = environment.mode === "private" ? "private" : "demo";
   const savedRecent = Array.isArray(environment.recentApiBaseUrls)
     ? environment.recentApiBaseUrls.filter(isNonEmptyString)
@@ -52,6 +57,7 @@ function normalizeEnvironment(
     .slice(0, 5);
 
   return {
+    apiKey,
     apiBaseUrl,
     mode,
     recentApiBaseUrls

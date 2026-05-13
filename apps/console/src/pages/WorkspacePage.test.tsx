@@ -54,9 +54,10 @@ describe("WorkspacePage", () => {
     expect(screen.getByText("exact")).toBeInTheDocument();
     expect(screen.getByText("fresh")).toBeInTheDocument();
     expect(screen.getByText("Deployment graph")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /cd-helm/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /cd-helm/i }).length).toBeGreaterThan(0);
     expect(screen.getByText("Evidence story")).toBeInTheDocument();
     expect(screen.getByText("41 indexed files across 2 language families")).toBeInTheDocument();
-    expect(screen.getAllByText("Drill down")).toHaveLength(2);
+    expect(screen.getByText("Evidence nodes")).toBeInTheDocument();
+    expect(screen.getAllByText("Drill down")).toHaveLength(1);
   });
 });

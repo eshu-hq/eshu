@@ -21,10 +21,24 @@ export function StatusStrip({
 
   return (
     <aside className="status-strip" aria-label="Connected Eshu environment">
-      <span>{environmentLabel}</span>
-      <span>{runtime.health}</span>
-      <span>{runtime.profile}</span>
-      <span>{runtime.freshnessState}</span>
+      <dl>
+        <div>
+          <dt>API</dt>
+          <dd>{environmentLabel}</dd>
+        </div>
+        <div>
+          <dt>Health</dt>
+          <dd>{runtime.health}</dd>
+        </div>
+        <div>
+          <dt>Profile</dt>
+          <dd>{runtime.profile}</dd>
+        </div>
+        <div>
+          <dt>Freshness</dt>
+          <dd>{runtime.freshnessState}</dd>
+        </div>
+      </dl>
     </aside>
   );
 }

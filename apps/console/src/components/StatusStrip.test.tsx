@@ -6,6 +6,7 @@ describe("StatusStrip", () => {
     render(
       <StatusStrip
         environment={{
+          apiKey: "",
           apiBaseUrl: "",
           mode: "demo",
           recentApiBaseUrls: []
