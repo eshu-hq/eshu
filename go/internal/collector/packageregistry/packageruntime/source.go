@@ -20,6 +20,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
+const (
+	// DocumentFormatNative routes metadata directly to the ecosystem parser.
+	DocumentFormatNative = "native"
+	// DocumentFormatArtifactoryPackage routes metadata through the Artifactory
+	// package wrapper before package-native parsing.
+	DocumentFormatArtifactoryPackage = "artifactory_package"
+)
+
 // MetadataProvider fetches one bounded package metadata document for a target.
 type MetadataProvider interface {
 	FetchMetadata(context.Context, TargetConfig) (MetadataDocument, error)
@@ -46,11 +54,12 @@ type SourceConfig struct {
 // TargetConfig couples shared package-registry identity with runtime-only
 // provider material such as metadata endpoints and resolved credentials.
 type TargetConfig struct {
-	Base        packageregistry.TargetConfig
-	MetadataURL string
-	Username    string
-	Password    string
-	BearerToken string
+	Base           packageregistry.TargetConfig
+	MetadataURL    string
+	DocumentFormat string
+	Username       string
+	Password       string
+	BearerToken    string
 }
 
 // ClaimedSource implements collector.ClaimedSource for package registries.
@@ -86,6 +95,11 @@ func NewClaimedSource(config SourceConfig) (*ClaimedSource, error) {
 		target := config.Targets[i]
 		target.Base = base
 		target.MetadataURL = strings.TrimRight(strings.TrimSpace(target.MetadataURL), "/")
+		documentFormat, err := normalizeDocumentFormat(target.DocumentFormat)
+		if err != nil {
+			return nil, fmt.Errorf("target %d: %w", i, err)
+		}
+		target.DocumentFormat = documentFormat
 		if _, exists := targets[base.ScopeID]; exists {
 			return nil, fmt.Errorf("duplicate package registry target scope_id %q", base.ScopeID)
 		}
@@ -220,7 +234,7 @@ func (s *ClaimedSource) collectDocument(
 		SourceURI:           sourceURI,
 		Visibility:          target.Base.Visibility,
 	}
-	parsed, err := s.parserRegistry.Parse(parserCtx, document.Body)
+	parsed, err := s.parseMetadata(parserCtx, target, document.Body)
 	if err != nil {
 		if s.instruments != nil {
 			s.instruments.PackageRegistryParseFailures.Add(ctx, 1, metric.WithAttributes(
@@ -260,6 +274,21 @@ func (s *ClaimedSource) collectDocument(
 		TriggerKind:  scope.TriggerKindSnapshot,
 	}
 	return collector.FactsFromSlice(ingestionScope, generation, envs), nil
+}
+
+func (s *ClaimedSource) parseMetadata(
+	ctx packageregistry.MetadataParserContext,
+	target TargetConfig,
+	document []byte,
+) (packageregistry.ParsedMetadata, error) {
+	switch target.DocumentFormat {
+	case "", DocumentFormatNative:
+		return s.parserRegistry.Parse(ctx, document)
+	case DocumentFormatArtifactoryPackage:
+		return packageregistry.ParseArtifactoryPackageMetadataWithRegistry(ctx, document, s.parserRegistry)
+	default:
+		return packageregistry.ParsedMetadata{}, fmt.Errorf("unsupported package registry document_format %q", target.DocumentFormat)
+	}
 }
 
 func (s *ClaimedSource) recordObserve(ctx context.Context, target TargetConfig, result string, startedAt time.Time) {
@@ -394,4 +423,17 @@ func firstNonBlank(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func normalizeDocumentFormat(format string) (string, error) {
+	normalized := strings.TrimSpace(format)
+	if normalized == "" {
+		return DocumentFormatNative, nil
+	}
+	switch normalized {
+	case DocumentFormatNative, DocumentFormatArtifactoryPackage:
+		return normalized, nil
+	default:
+		return "", fmt.Errorf("unsupported package registry document_format %q", normalized)
+	}
 }

@@ -47,6 +47,8 @@ Each selected instance's `configuration.targets` array supports:
 - `scope_id`
 - `packages`, `package_limit`, and `version_limit`
 - `metadata_url`
+- `document_format`: optional, defaults to `native`; use `artifactory_package`
+  when the response is an Artifactory wrapper around package-native metadata
 - credential indirection fields: `username_env`, `password_env`,
   `bearer_token_env`
 

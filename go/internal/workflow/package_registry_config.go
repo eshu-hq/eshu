@@ -17,17 +17,18 @@ type packageRegistryCollectorConfiguration struct {
 }
 
 type packageRegistryTargetConfiguration struct {
-	Provider     string   `json:"provider"`
-	Ecosystem    string   `json:"ecosystem"`
-	Registry     string   `json:"registry"`
-	ScopeID      string   `json:"scope_id"`
-	Namespace    string   `json:"namespace"`
-	Packages     []string `json:"packages"`
-	PackageLimit int      `json:"package_limit"`
-	VersionLimit int      `json:"version_limit"`
-	Visibility   string   `json:"visibility"`
-	SourceURI    string   `json:"source_uri"`
-	MetadataURL  string   `json:"metadata_url"`
+	Provider       string   `json:"provider"`
+	Ecosystem      string   `json:"ecosystem"`
+	Registry       string   `json:"registry"`
+	ScopeID        string   `json:"scope_id"`
+	Namespace      string   `json:"namespace"`
+	Packages       []string `json:"packages"`
+	PackageLimit   int      `json:"package_limit"`
+	VersionLimit   int      `json:"version_limit"`
+	Visibility     string   `json:"visibility"`
+	SourceURI      string   `json:"source_uri"`
+	MetadataURL    string   `json:"metadata_url"`
+	DocumentFormat string   `json:"document_format"`
 }
 
 // ValidatePackageRegistryCollectorConfiguration checks the claim-planned
@@ -71,6 +72,9 @@ func validatePackageRegistryTargetConfiguration(target packageRegistryTargetConf
 	if err := validatePackageRegistryURL("metadata_url", target.MetadataURL, true); err != nil {
 		return err
 	}
+	if err := validatePackageRegistryDocumentFormat(target.DocumentFormat); err != nil {
+		return err
+	}
 	for i, pkg := range target.Packages {
 		if strings.TrimSpace(pkg) == "" {
 			return fmt.Errorf("packages[%d] must not be blank", i)
@@ -87,6 +91,15 @@ func validatePackageRegistryEcosystem(raw string) error {
 		return fmt.Errorf("ecosystem is required")
 	default:
 		return fmt.Errorf("unsupported ecosystem %q", strings.TrimSpace(raw))
+	}
+}
+
+func validatePackageRegistryDocumentFormat(raw string) error {
+	switch strings.TrimSpace(raw) {
+	case "", "native", "artifactory_package":
+		return nil
+	default:
+		return fmt.Errorf("unsupported document_format %q", strings.TrimSpace(raw))
 	}
 }
 

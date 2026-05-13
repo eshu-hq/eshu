@@ -146,9 +146,11 @@ contract.
 `package_registry` collector instances are claim-capable. The coordinator plans
 one bounded work item per configured package/feed target, and the
 `collector-package-registry` runtime resolves each claimed `scope_id` back to a
-configured metadata endpoint before parsing package-native evidence. Package
-registry instances are fact-only until reducer correlation and graph projection
-contracts land.
+configured metadata endpoint before parsing package-native evidence. Targets
+may opt into `document_format=artifactory_package` when the response is a
+JFrog wrapper around native metadata; unknown document formats are rejected
+before planning. Package registry instances are fact-only until reducer
+correlation and graph projection contracts land.
 
 **Defaults**:
 - `DefaultClaimLeaseTTL()` — 60s

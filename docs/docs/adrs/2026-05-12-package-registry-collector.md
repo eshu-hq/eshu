@@ -349,7 +349,10 @@ run both Neo4j and NornicDB conformance for the statement shape.
    referrers, warnings, and redaction.
 4. **JFrog package lane:** implement Artifactory package-feed observation using
    package-native contracts first, with Artifactory repository topology emitted
-   only as provider hosting evidence.
+   only as provider hosting evidence. The first implementation slice adds the
+   `artifactory_package` document wrapper so JFrog feed metadata can delegate to
+   npm, PyPI, Go module, Maven, NuGet, or Generic parsers while adding
+   repository type and upstream details as `repository_hosting` facts.
 5. **Reducer correlation lane:** add tests for exact, derived, ambiguous,
    unresolved, stale, and rejected package-source correlations before any
    canonical package ownership or consumption edges are promoted. The first

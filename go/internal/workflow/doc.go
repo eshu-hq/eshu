@@ -14,6 +14,6 @@
 // seeds, or local repo limits, and S3 seeds require bucket, key, region, and an
 // AWS role ARN. OCI registry collector instances validate bounded repository
 // targets, and package registry collector instances validate bounded package
-// metadata targets, so the coordinator can plan claimable work items without
-// opening provider connections.
+// metadata targets and known document formats, so the coordinator can plan
+// claimable work items without opening provider connections.
 package workflow
