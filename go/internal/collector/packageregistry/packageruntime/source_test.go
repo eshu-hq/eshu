@@ -2,6 +2,7 @@ package packageruntime
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,6 +97,135 @@ func TestClaimedSourceParsesMetadataIntoPackageRegistryFacts(t *testing.T) {
 		if gotKinds[wantKind] == 0 {
 			t.Fatalf("fact kinds = %#v, missing %q", gotKinds, wantKind)
 		}
+	}
+}
+
+func TestClaimedSourceRejectsMetadataForUnexpectedPackage(t *testing.T) {
+	t.Parallel()
+
+	source := newTestClaimedSource(t, TargetConfig{
+		Base: packageregistry.TargetConfig{
+			Provider:     "jfrog",
+			Ecosystem:    packageregistry.EcosystemGeneric,
+			Registry:     "https://artifactory.example.com",
+			ScopeID:      "package-registry://jfrog/generic/team-api",
+			Packages:     []string{"team-api"},
+			PackageLimit: 1,
+			VersionLimit: 2,
+		},
+	}, staticMetadataProvider{
+		document: []byte(`{"name":"other-api","version":"1.0.0"}`),
+	})
+
+	_, _, err := source.NextClaimed(context.Background(), testPackageRegistryWorkItem())
+	if err == nil {
+		t.Fatal("NextClaimed() error = nil, want configured package mismatch")
+	}
+	if got := err.Error(); !strings.Contains(got, "configured packages") {
+		t.Fatalf("NextClaimed() error = %q, want configured package mismatch", got)
+	}
+}
+
+func TestClaimedSourceRejectsMetadataOverVersionLimit(t *testing.T) {
+	t.Parallel()
+
+	source := newTestClaimedSource(t, TargetConfig{
+		Base: packageregistry.TargetConfig{
+			Provider:     "npm",
+			Ecosystem:    packageregistry.EcosystemNPM,
+			Registry:     "https://registry.npmjs.org",
+			ScopeID:      "package-registry://npm/npm/@scope/pkg",
+			Packages:     []string{"@scope/pkg"},
+			PackageLimit: 1,
+			VersionLimit: 1,
+		},
+	}, staticMetadataProvider{
+		document: []byte(`{
+			"name":"@scope/pkg",
+			"versions":{
+				"1.0.0":{"dist":{"tarball":"https://registry.npmjs.org/@scope/pkg/-/pkg-1.0.0.tgz"}},
+				"1.1.0":{"dist":{"tarball":"https://registry.npmjs.org/@scope/pkg/-/pkg-1.1.0.tgz"}}
+			}
+		}`),
+	})
+
+	_, _, err := source.NextClaimed(context.Background(), testPackageRegistryWorkItemForScope("package-registry://npm/npm/@scope/pkg"))
+	if err == nil {
+		t.Fatal("NextClaimed() error = nil, want version_limit rejection")
+	}
+	if got := err.Error(); !strings.Contains(got, "version_limit") {
+		t.Fatalf("NextClaimed() error = %q, want version_limit rejection", got)
+	}
+}
+
+func TestClaimedSourceSanitizesSourceURIBeforeFactEmission(t *testing.T) {
+	t.Parallel()
+
+	source := newTestClaimedSource(t, TargetConfig{
+		Base: packageregistry.TargetConfig{
+			Provider:     "jfrog",
+			Ecosystem:    packageregistry.EcosystemGeneric,
+			Registry:     "https://artifactory.example.com",
+			ScopeID:      "package-registry://jfrog/generic/team-api",
+			Packages:     []string{"team-api"},
+			PackageLimit: 1,
+			VersionLimit: 2,
+		},
+	}, staticMetadataProvider{
+		document:  []byte(`{"name":"team-api","version":"1.2.3"}`),
+		sourceURI: "https://artifactory.example.com/api/storage/generic/team-api?token=secret&safe=1#metadata",
+	})
+
+	collected, ok, err := source.NextClaimed(context.Background(), testPackageRegistryWorkItem())
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	for envelope := range collected.Facts {
+		if strings.Contains(envelope.SourceRef.SourceURI, "secret") ||
+			strings.Contains(envelope.SourceRef.SourceURI, "?") ||
+			strings.Contains(envelope.SourceRef.SourceURI, "#") {
+			t.Fatalf("SourceRef.SourceURI = %q, want sanitized source URI", envelope.SourceRef.SourceURI)
+		}
+	}
+}
+
+func newTestClaimedSource(
+	t *testing.T,
+	target TargetConfig,
+	provider staticMetadataProvider,
+) *ClaimedSource {
+	t.Helper()
+
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "collector-package-registry",
+		Targets:             []TargetConfig{target},
+		Provider:            provider,
+		Now: func() time.Time {
+			return time.Date(2026, time.May, 13, 18, 0, 0, 0, time.UTC)
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v", err)
+	}
+	return source
+}
+
+func testPackageRegistryWorkItem() workflow.WorkItem {
+	return testPackageRegistryWorkItemForScope("package-registry://jfrog/generic/team-api")
+}
+
+func testPackageRegistryWorkItemForScope(scopeID string) workflow.WorkItem {
+	return workflow.WorkItem{
+		WorkItemID:          "package-registry-work-item-1",
+		CollectorKind:       scope.CollectorPackageRegistry,
+		CollectorInstanceID: "collector-package-registry",
+		ScopeID:             scopeID,
+		GenerationID:        "package_registry:generation-1",
+		SourceRunID:         "package_registry:generation-1",
+		CurrentFencingToken: 42,
 	}
 }
 

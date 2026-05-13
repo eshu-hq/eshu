@@ -208,7 +208,7 @@ func (s *ClaimedSource) collectDocument(
 	if observedAt.IsZero() {
 		observedAt = s.now().UTC()
 	}
-	sourceURI := firstNonBlank(document.SourceURI, target.Base.SourceURI, target.MetadataURL)
+	sourceURI := safeSourceURI(firstNonBlank(document.SourceURI, target.Base.SourceURI, target.MetadataURL))
 	parserCtx := packageregistry.MetadataParserContext{
 		Ecosystem:           target.Base.Ecosystem,
 		Registry:            target.Base.Registry,
@@ -229,6 +229,10 @@ func (s *ClaimedSource) collectDocument(
 			))
 		}
 		return collector.CollectedGeneration{}, fmt.Errorf("parse package registry %s metadata: %w", target.Base.Ecosystem, err)
+	}
+	parsed, err = boundedParsedMetadata(target.Base, parsed)
+	if err != nil {
+		return collector.CollectedGeneration{}, err
 	}
 	envs, err := envelopesFromParsedMetadata(parsed)
 	if err != nil {

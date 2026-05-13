@@ -8,9 +8,16 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry"
 )
 
-const maxMetadataDocumentBytes = 20 << 20
+const (
+	maxMetadataDocumentBytes    = 20 << 20
+	defaultMetadataFetchTimeout = 30 * time.Second
+	jsonMetadataAcceptHeader    = "application/json, application/xml;q=0.5, text/xml;q=0.4, */*;q=0.1"
+	xmlMetadataAcceptHeader     = "application/xml, text/xml;q=0.9, application/json;q=0.5, */*;q=0.1"
+)
 
 // ErrRateLimited marks provider responses that should be visible as rate limit
 // telemetry without leaking feed URLs or credentials.
@@ -29,15 +36,12 @@ func (p HTTPMetadataProvider) FetchMetadata(ctx context.Context, target TargetCo
 	if metadataURL == "" {
 		return MetadataDocument{}, fmt.Errorf("metadata_url is required")
 	}
-	client := p.Client
-	if client == nil {
-		client = http.DefaultClient
-	}
+	client := p.httpClient()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL, nil)
 	if err != nil {
 		return MetadataDocument{}, fmt.Errorf("build package metadata request: %w", err)
 	}
-	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Accept", metadataAcceptHeader(target.Base.Ecosystem))
 	if strings.TrimSpace(target.BearerToken) != "" {
 		request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(target.BearerToken))
 	} else if strings.TrimSpace(target.Username) != "" || target.Password != "" {
@@ -64,10 +68,26 @@ func (p HTTPMetadataProvider) FetchMetadata(ctx context.Context, target TargetCo
 	}
 	return MetadataDocument{
 		Body:         body,
-		SourceURI:    metadataURL,
+		SourceURI:    safeSourceURI(metadataURL),
 		DocumentType: string(target.Base.Ecosystem),
 		ObservedAt:   startedAt.UTC(),
 	}, nil
+}
+
+func (p HTTPMetadataProvider) httpClient() *http.Client {
+	if p.Client != nil {
+		return p.Client
+	}
+	return &http.Client{Timeout: defaultMetadataFetchTimeout}
+}
+
+func metadataAcceptHeader(ecosystem packageregistry.Ecosystem) string {
+	switch ecosystem {
+	case packageregistry.EcosystemMaven, packageregistry.EcosystemNuGet:
+		return xmlMetadataAcceptHeader
+	default:
+		return jsonMetadataAcceptHeader
+	}
 }
 
 func readBoundedMetadata(reader io.Reader) ([]byte, error) {

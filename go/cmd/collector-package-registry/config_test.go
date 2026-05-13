@@ -62,7 +62,8 @@ func TestLoadClaimedRuntimeConfigRejectsClaimsDisabledInstance(t *testing.T) {
 				"ecosystem":"generic",
 				"registry":"https://artifactory.example.com",
 				"scope_id":"package-registry://jfrog/generic/team-api",
-				"packages":["team-api"]
+				"packages":["team-api"],
+				"metadata_url":"https://artifactory.example.com/api/storage/generic/team-api"
 			}]}
 		}]`,
 	}

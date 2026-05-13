@@ -68,10 +68,8 @@ func validatePackageRegistryTargetConfiguration(target packageRegistryTargetConf
 	if target.VersionLimit < 0 || target.VersionLimit > maxPackageRegistryVersionLimit {
 		return fmt.Errorf("version_limit must be between 0 and %d", maxPackageRegistryVersionLimit)
 	}
-	if strings.TrimSpace(target.MetadataURL) != "" {
-		if err := validatePackageRegistryURL("metadata_url", target.MetadataURL, true); err != nil {
-			return err
-		}
+	if err := validatePackageRegistryURL("metadata_url", target.MetadataURL, true); err != nil {
+		return err
 	}
 	for i, pkg := range target.Packages {
 		if strings.TrimSpace(pkg) == "" {

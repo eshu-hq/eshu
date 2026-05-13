@@ -79,8 +79,8 @@ func TestPackageRegistryWorkPlannerRejectsDuplicateScopeTargets(t *testing.T) {
 		Enabled:       true,
 		ClaimsEnabled: true,
 		Configuration: `{"targets":[
-			{"provider":"jfrog","ecosystem":"generic","registry":"https://artifactory.example.com","scope_id":"package-registry://jfrog/generic/team-api","packages":["team-api"]},
-			{"provider":"jfrog","ecosystem":"generic","registry":"https://artifactory.example.com","scope_id":"package-registry://jfrog/generic/team-api","packages":["team-api-copy"]}
+			{"provider":"jfrog","ecosystem":"generic","registry":"https://artifactory.example.com","scope_id":"package-registry://jfrog/generic/team-api","packages":["team-api"],"metadata_url":"https://artifactory.example.com/api/storage/generic/team-api"},
+			{"provider":"jfrog","ecosystem":"generic","registry":"https://artifactory.example.com","scope_id":"package-registry://jfrog/generic/team-api","packages":["team-api-copy"],"metadata_url":"https://artifactory.example.com/api/storage/generic/team-api-copy"}
 		]}`,
 		LastObservedAt: observedAt,
 		CreatedAt:      observedAt,
