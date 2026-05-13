@@ -27,6 +27,8 @@
 - Keep ECR lifecycle policy JSON and image digests out of metric labels.
 - Keep ECS task-definition environment values out of persisted payloads unless
   they are replaced by `internal/redact` markers.
+- Keep ELBv2 target health out of service scans; it is live/noisy status, not
+  stable routing topology.
 
 ## Common Changes
 

@@ -57,8 +57,9 @@ See `doc.go` for the godoc contract.
 - `internal/collector/awscloud` for claim boundaries and warning envelopes.
 - `internal/collector/awscloud/services/iam`,
   `internal/collector/awscloud/services/ecr`, and
-  `internal/collector/awscloud/services/ecs` plus their `awssdk` adapters for
-  production service scanners.
+  `internal/collector/awscloud/services/ecs`, and
+  `internal/collector/awscloud/services/elbv2` plus their `awssdk` adapters
+  for production service scanners.
 - `internal/facts` for warning fact types.
 - `internal/scope` for AWS scope and collector identity.
 - `internal/workflow` for durable work item claims.
