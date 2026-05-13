@@ -89,6 +89,12 @@ func TestScannerEmitsECSResourcesWithRedactedTaskDefinitionEnvironment(t *testin
 					LastStatus:        "RUNNING",
 					DesiredStatus:     "RUNNING",
 					LaunchType:        "FARGATE",
+					NetworkInterfaces: []TaskNetworkInterface{{
+						NetworkInterfaceID: "eni-123",
+						SubnetID:           "subnet-123",
+						PrivateIPv4Address: "10.0.1.10",
+						MACAddress:         "02:00:00:00:00:01",
+					}},
 				},
 			},
 		},
@@ -103,17 +109,19 @@ func TestScannerEmitsECSResourcesWithRedactedTaskDefinitionEnvironment(t *testin
 	if counts[facts.AWSResourceFactKind] != 5 {
 		t.Fatalf("aws_resource count = %d, want 5", counts[facts.AWSResourceFactKind])
 	}
-	if counts[facts.AWSRelationshipFactKind] != 4 {
-		t.Fatalf("aws_relationship count = %d, want 4", counts[facts.AWSRelationshipFactKind])
+	if counts[facts.AWSRelationshipFactKind] != 5 {
+		t.Fatalf("aws_relationship count = %d, want 5", counts[facts.AWSRelationshipFactKind])
 	}
 	assertResourceType(t, envelopes, awscloud.ResourceTypeECSCluster)
 	assertResourceType(t, envelopes, awscloud.ResourceTypeECSService)
 	taskDefinition := assertResourceType(t, envelopes, awscloud.ResourceTypeECSTaskDefinition)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeECSTask)
+	task := assertResourceType(t, envelopes, awscloud.ResourceTypeECSTask)
 	assertTaskDefinitionRedaction(t, taskDefinition)
+	assertTaskNetworkInterfaces(t, task)
 	assertRelationship(t, envelopes, awscloud.RelationshipECSServiceUsesTaskDefinition)
 	assertRelationship(t, envelopes, awscloud.RelationshipECSTaskDefinitionUsesImage)
 	assertRelationship(t, envelopes, awscloud.RelationshipECSServiceTargetsLoadBalancer)
+	assertRelationship(t, envelopes, awscloud.RelationshipECSTaskUsesNetworkInterface)
 }
 
 func TestScannerRequiresRedactionKey(t *testing.T) {
@@ -296,5 +304,23 @@ func assertTaskDefinitionRedaction(t *testing.T, envelope facts.Envelope) {
 	}
 	if got := secrets[0]["value_from"]; got != "arn:aws:secretsmanager:us-east-1:123456789012:secret:api-token" {
 		t.Fatalf("secret value_from = %q, want ARN preserved", got)
+	}
+}
+
+func assertTaskNetworkInterfaces(t *testing.T, envelope facts.Envelope) {
+	t.Helper()
+	attributes, ok := envelope.Payload["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("attributes = %#v, want map", envelope.Payload["attributes"])
+	}
+	networkInterfaces, ok := attributes["network_interfaces"].([]map[string]any)
+	if !ok || len(networkInterfaces) != 1 {
+		t.Fatalf("network_interfaces = %#v, want one ENI", attributes["network_interfaces"])
+	}
+	if got, _ := networkInterfaces[0]["network_interface_id"].(string); got != "eni-123" {
+		t.Fatalf("network_interface_id = %q, want eni-123", got)
+	}
+	if got, _ := networkInterfaces[0]["subnet_id"].(string); got != "subnet-123" {
+		t.Fatalf("subnet_id = %q, want subnet-123", got)
 	}
 }

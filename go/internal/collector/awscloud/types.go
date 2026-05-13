@@ -14,6 +14,9 @@ const (
 	// ServiceECS identifies the regional Amazon Elastic Container Service
 	// service scan slice.
 	ServiceECS = "ecs"
+	// ServiceEC2 identifies the regional Amazon Elastic Compute Cloud network
+	// topology scan slice.
+	ServiceEC2 = "ec2"
 	// ServiceELBv2 identifies the regional Elastic Load Balancing v2 service
 	// scan slice.
 	ServiceELBv2 = "elbv2"
@@ -43,6 +46,16 @@ const (
 	ResourceTypeECSTaskDefinition = "aws_ecs_task_definition"
 	// ResourceTypeECSTask identifies an ECS task.
 	ResourceTypeECSTask = "aws_ecs_task"
+	// ResourceTypeEC2VPC identifies an EC2 VPC.
+	ResourceTypeEC2VPC = "aws_ec2_vpc"
+	// ResourceTypeEC2Subnet identifies an EC2 subnet.
+	ResourceTypeEC2Subnet = "aws_ec2_subnet"
+	// ResourceTypeEC2SecurityGroup identifies an EC2 security group.
+	ResourceTypeEC2SecurityGroup = "aws_ec2_security_group"
+	// ResourceTypeEC2SecurityGroupRule identifies an EC2 security group rule.
+	ResourceTypeEC2SecurityGroupRule = "aws_ec2_security_group_rule"
+	// ResourceTypeEC2NetworkInterface identifies an EC2 network interface.
+	ResourceTypeEC2NetworkInterface = "aws_ec2_network_interface"
 	// ResourceTypeELBv2LoadBalancer identifies an ELBv2 load balancer.
 	ResourceTypeELBv2LoadBalancer = "aws_elbv2_load_balancer"
 	// ResourceTypeELBv2Listener identifies an ELBv2 listener.
@@ -71,6 +84,27 @@ const (
 	// RelationshipECSServiceTargetsLoadBalancer records an ECS service load
 	// balancer or target group binding.
 	RelationshipECSServiceTargetsLoadBalancer = "ecs_service_targets_load_balancer"
+	// RelationshipECSTaskUsesNetworkInterface records an ECS task ENI
+	// attachment reported by DescribeTasks.
+	RelationshipECSTaskUsesNetworkInterface = "ecs_task_uses_network_interface"
+	// RelationshipEC2SubnetInVPC records subnet membership in a VPC.
+	RelationshipEC2SubnetInVPC = "ec2_subnet_in_vpc"
+	// RelationshipEC2SecurityGroupInVPC records security group membership in a
+	// VPC.
+	RelationshipEC2SecurityGroupInVPC = "ec2_security_group_in_vpc"
+	// RelationshipEC2SecurityGroupHasRule records a security group child rule.
+	RelationshipEC2SecurityGroupHasRule = "ec2_security_group_has_rule"
+	// RelationshipEC2NetworkInterfaceInSubnet records ENI placement in a
+	// subnet.
+	RelationshipEC2NetworkInterfaceInSubnet = "ec2_network_interface_in_subnet"
+	// RelationshipEC2NetworkInterfaceInVPC records ENI placement in a VPC.
+	RelationshipEC2NetworkInterfaceInVPC = "ec2_network_interface_in_vpc"
+	// RelationshipEC2NetworkInterfaceUsesSecurityGroup records security group
+	// attachment to an ENI.
+	RelationshipEC2NetworkInterfaceUsesSecurityGroup = "ec2_network_interface_uses_security_group"
+	// RelationshipEC2NetworkInterfaceAttachedToResource records ENI attachment
+	// evidence without emitting the attached resource as an inventory fact.
+	RelationshipEC2NetworkInterfaceAttachedToResource = "ec2_network_interface_attached_to_resource"
 	// RelationshipELBv2LoadBalancerHasListener records listener membership on a
 	// load balancer.
 	RelationshipELBv2LoadBalancerHasListener = "elbv2_load_balancer_has_listener"

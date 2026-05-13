@@ -284,6 +284,7 @@ func mapTask(task awsecstypes.Task) ecsservice.Task {
 		Group:             aws.ToString(task.Group),
 		StartedAt:         aws.ToTime(task.StartedAt),
 		Containers:        mapTaskContainers(task.Containers),
+		NetworkInterfaces: mapTaskNetworkInterfaces(task.Attachments),
 	}
 }
 
@@ -362,6 +363,38 @@ func mapTaskContainers(containers []awsecstypes.Container) []ecsservice.TaskCont
 		})
 	}
 	return output
+}
+
+func mapTaskNetworkInterfaces(attachments []awsecstypes.Attachment) []ecsservice.TaskNetworkInterface {
+	if len(attachments) == 0 {
+		return nil
+	}
+	var output []ecsservice.TaskNetworkInterface
+	for _, attachment := range attachments {
+		if strings.TrimSpace(aws.ToString(attachment.Type)) != "ElasticNetworkInterface" {
+			continue
+		}
+		networkInterface := ecsservice.TaskNetworkInterface{
+			NetworkInterfaceID: attachmentDetail(attachment, "networkInterfaceId"),
+			SubnetID:           attachmentDetail(attachment, "subnetId"),
+			PrivateIPv4Address: attachmentDetail(attachment, "privateIPv4Address"),
+			MACAddress:         attachmentDetail(attachment, "macAddress"),
+		}
+		if strings.TrimSpace(networkInterface.NetworkInterfaceID) == "" {
+			continue
+		}
+		output = append(output, networkInterface)
+	}
+	return output
+}
+
+func attachmentDetail(attachment awsecstypes.Attachment, key string) string {
+	for _, detail := range attachment.Details {
+		if strings.TrimSpace(aws.ToString(detail.Name)) == key {
+			return aws.ToString(detail.Value)
+		}
+	}
+	return ""
 }
 
 func mapCompatibilities(values []awsecstypes.Compatibility) []string {

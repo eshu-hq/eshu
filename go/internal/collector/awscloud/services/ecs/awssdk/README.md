@@ -63,6 +63,8 @@ references are never metric labels.
   `10`, and tasks `100`.
 - `DescribeTaskDefinition` includes tags but maps only the scanner-owned fields
   used by this slice.
+- `DescribeTasks` maps ElasticNetworkInterface attachment details so task facts
+  can join to EC2 ENI, subnet, and VPC topology.
 - Environment values are passed to the scanner-owned type and redacted by the
   scanner before persistence. Do not log or label them here.
 - Secret `ValueFrom` fields are references and are preserved for the scanner.

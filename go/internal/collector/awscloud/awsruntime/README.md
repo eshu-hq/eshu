@@ -57,6 +57,7 @@ See `doc.go` for the godoc contract.
 - `internal/collector/awscloud` for claim boundaries and warning envelopes.
 - `internal/collector/awscloud/services/iam`,
   `internal/collector/awscloud/services/ecr`,
+  `internal/collector/awscloud/services/ec2`,
   `internal/collector/awscloud/services/ecs`,
   `internal/collector/awscloud/services/elbv2`, and
   `internal/collector/awscloud/services/route53` plus their `awssdk` adapters
@@ -100,6 +101,8 @@ pagination spans. The command registers the instruments:
 - ECS service scans require a non-empty redaction key because task-definition
   environment values are treated as sensitive even when the variable name looks
   harmless.
+- EC2 service scans collect network topology only. They do not emit EC2
+  instance inventory facts.
 - Target scopes default to one active claim per account when
   `max_concurrent_claims` is unset.
 - STS or workload-identity failures emit an `assumerole_failed` warning fact for

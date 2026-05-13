@@ -53,7 +53,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "elbv2", "route53"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "route53"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -111,6 +111,9 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
 - Route 53 targets emit hosted-zone resources and A/AAAA/CNAME/ALIAS DNS record
   facts. Use a global region label such as `aws-global` when scheduling Route
   53 claims.
+- EC2 targets emit VPC, subnet, security-group, security-group-rule, and ENI
+  network-topology facts. They intentionally do not emit EC2 instance
+  inventory.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 

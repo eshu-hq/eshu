@@ -27,6 +27,8 @@
   secret `value_from` references without resolving them.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
+- Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target
+  ARNs are metadata only.
 - Keep AWS SDK calls out of this package. Runtime adapters own SDK pagination,
   retries, throttling, and credential loading.
 

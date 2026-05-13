@@ -53,6 +53,33 @@ func TestMapTaskDefinitionPreservesSecretReferencesAndEnvValuesForScannerRedacti
 	}
 }
 
+func TestMapTaskPreservesNetworkInterfaceAttachmentDetails(t *testing.T) {
+	task := mapTask(awsecstypes.Task{
+		Attachments: []awsecstypes.Attachment{{
+			Type:   aws.String("ElasticNetworkInterface"),
+			Status: aws.String("ATTACHED"),
+			Details: []awsecstypes.KeyValuePair{
+				{Name: aws.String("networkInterfaceId"), Value: aws.String("eni-123")},
+				{Name: aws.String("subnetId"), Value: aws.String("subnet-123")},
+				{Name: aws.String("privateIPv4Address"), Value: aws.String("10.0.1.10")},
+				{Name: aws.String("macAddress"), Value: aws.String("02:00:00:00:00:01")},
+			},
+		}},
+		TaskArn: aws.String("arn:aws:ecs:us-east-1:123456789012:task/prod/task-1"),
+	})
+
+	if len(task.NetworkInterfaces) != 1 {
+		t.Fatalf("network interface count = %d, want 1", len(task.NetworkInterfaces))
+	}
+	networkInterface := task.NetworkInterfaces[0]
+	if networkInterface.NetworkInterfaceID != "eni-123" {
+		t.Fatalf("network interface ID = %q", networkInterface.NetworkInterfaceID)
+	}
+	if networkInterface.SubnetID != "subnet-123" {
+		t.Fatalf("subnet ID = %q", networkInterface.SubnetID)
+	}
+}
+
 func TestChunkStringsSplitsAPILimits(t *testing.T) {
 	values := []string{"a", "b", "c"}
 	chunks := chunkStrings(values, 2)

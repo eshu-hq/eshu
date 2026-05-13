@@ -53,3 +53,36 @@ func taskDefinitionImageRelationships(
 	}
 	return observations
 }
+
+func taskNetworkInterfaceRelationships(
+	boundary awscloud.Boundary,
+	task Task,
+) []awscloud.RelationshipObservation {
+	taskARN := strings.TrimSpace(task.ARN)
+	if taskARN == "" {
+		return nil
+	}
+	var observations []awscloud.RelationshipObservation
+	for _, networkInterface := range task.NetworkInterfaces {
+		networkInterfaceID := strings.TrimSpace(networkInterface.NetworkInterfaceID)
+		if networkInterfaceID == "" {
+			continue
+		}
+		observations = append(observations, awscloud.RelationshipObservation{
+			Boundary:         boundary,
+			RelationshipType: awscloud.RelationshipECSTaskUsesNetworkInterface,
+			SourceResourceID: taskARN,
+			SourceARN:        taskARN,
+			TargetResourceID: networkInterfaceID,
+			TargetType:       awscloud.ResourceTypeEC2NetworkInterface,
+			Attributes: map[string]any{
+				"mac_address":          strings.TrimSpace(networkInterface.MACAddress),
+				"network_interface_id": networkInterfaceID,
+				"private_ipv4_address": strings.TrimSpace(networkInterface.PrivateIPv4Address),
+				"subnet_id":            strings.TrimSpace(networkInterface.SubnetID),
+			},
+			SourceRecordID: taskARN + "#network-interface#" + networkInterfaceID,
+		})
+	}
+	return observations
+}

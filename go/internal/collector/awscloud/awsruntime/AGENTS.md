@@ -31,6 +31,8 @@
   stable routing topology.
 - Keep Route 53 DNS names, hosted-zone IDs, and record values out of metric
   labels.
+- Keep EC2 instance inventory out of EC2 service scans; collect ENI attachment
+  metadata only.
 
 ## Common Changes
 

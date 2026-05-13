@@ -7,6 +7,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	ec2service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ec2"
+	ec2awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ec2/awssdk"
 	ecrservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecr"
 	ecrawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecr/awssdk"
 	ecsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecs"
@@ -54,6 +56,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceECR:
 		return ecrservice.Scanner{
 			Client: ecrawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceEC2:
+		return ec2service.Scanner{
+			Client: ec2awssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceELBv2:
 		return elbv2service.Scanner{
