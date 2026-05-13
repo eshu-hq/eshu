@@ -120,8 +120,11 @@ build per-scope binding lists lazily on first use and answer position-filtered
 queries in pure Go map and slice work. The scope walkers stop at nested
 function_declaration / method_declaration / func_literal subtrees so a
 binding declared inside an inner closure does not leak into the outer
-function's binding table. Do not re-introduce per-call full-tree walks in
-`dead_code_semantic_roots.go` or `package_interface_prescan.go`.
+function's binding table. Imported direct-method pre-scans skip
+`goImportedVariableTypeIndex.ForCall` for bare function calls because only
+selector calls can produce imported receiver roots or fmt Stringer roots. Do
+not re-introduce per-call full-tree walks in `dead_code_semantic_roots.go` or
+`package_interface_prescan.go`.
 
 Before the amortization landed (#161), `engine.PreScanGoPackageSemanticRoots`
 saturated CPU for 80+ minutes on Terraform's 1927-file checkout without

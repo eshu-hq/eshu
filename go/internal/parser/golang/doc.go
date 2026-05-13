@@ -28,8 +28,10 @@
 // parent Engine uses before full parsing; same-repo exported interface
 // contracts carry package interface method names instead of unbounded exported
 // method roots. Package-level generic constraints and local interface return
-// signatures are combined by the parent parser before full parsing. Helper
-// functions preserve the parent parser's branch-counting
+// signatures are combined by the parent parser before full parsing. Imported
+// direct-method pre-scans only query scoped imported-variable types for selector
+// calls, since bare function calls cannot produce imported receiver roots.
+// Helper functions preserve the parent parser's branch-counting
 // contract for cyclomatic complexity, including range loops. The package uses
 // shared helper contracts instead of parent parser helpers, so language-owned
 // adapters do not create dispatcher import cycles.
