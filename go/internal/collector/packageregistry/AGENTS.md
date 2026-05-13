@@ -10,8 +10,8 @@
    `nuget_parser.go`, `metadata_parser_helpers.go` — local fixture parsing
    into observation structs
 5. `envelope.go`, `version.go`, `dependency.go`, `artifact.go`,
-   `source_hint.go`, `repository_hosting.go`, `warning.go` — durable
-   fact-envelope construction
+   `source_hint.go`, `vulnerability_hint.go`, `registry_event.go`,
+   `repository_hosting.go`, `warning.go` — durable fact-envelope construction
 6. `docs/docs/adrs/2026-05-12-package-registry-collector.md` — source-truth
    boundary and implementation slices
 7. `packageruntime/README.md` — claim-driven metadata fetch and commit flow

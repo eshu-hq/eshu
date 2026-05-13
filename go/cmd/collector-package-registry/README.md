@@ -4,8 +4,9 @@
 
 `collector-package-registry` runs the claim-aware `package_registry` collector.
 It fetches explicit package metadata documents from configured registry targets
-and emits package, version, dependency, artifact, source-hint, hosting, and
-warning facts through the shared collector commit boundary.
+and emits package, version, dependency, artifact, source-hint,
+vulnerability-hint, registry-event, hosting, and warning facts through the
+shared collector commit boundary.
 
 ## Ownership Boundary
 

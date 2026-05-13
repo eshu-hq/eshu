@@ -65,6 +65,34 @@ func boundedParsedMetadata(
 	if err != nil {
 		return packageregistry.ParsedMetadata{}, err
 	}
+	bounded.Vulnerables, err = boundPackageVersionObservations(
+		parsed.Vulnerables,
+		func(observation packageregistry.VulnerabilityHintObservation) packageregistry.PackageIdentity {
+			return observation.Package
+		},
+		func(observation packageregistry.VulnerabilityHintObservation) string {
+			return observation.Version
+		},
+		allowedPackages,
+		allowedVersions,
+	)
+	if err != nil {
+		return packageregistry.ParsedMetadata{}, err
+	}
+	bounded.Events, err = boundPackageVersionObservations(
+		parsed.Events,
+		func(observation packageregistry.RegistryEventObservation) packageregistry.PackageIdentity {
+			return observation.Package
+		},
+		func(observation packageregistry.RegistryEventObservation) string {
+			return observation.Version
+		},
+		allowedPackages,
+		allowedVersions,
+	)
+	if err != nil {
+		return packageregistry.ParsedMetadata{}, err
+	}
 	bounded.Warnings, err = boundWarnings(parsed.Warnings, allowedPackages, allowedVersions)
 	if err != nil {
 		return packageregistry.ParsedMetadata{}, err

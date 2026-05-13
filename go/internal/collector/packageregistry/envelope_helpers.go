@@ -97,6 +97,22 @@ func packageVersionID(identity PackageIdentity, version, noun string) (Normalize
 	return normalized, trimmedVersion, normalized.PackageID + "@" + trimmedVersion, nil
 }
 
+func optionalPackageVersionID(
+	identity PackageIdentity,
+	version string,
+) (NormalizedPackageIdentity, string, string, error) {
+	normalized, err := NormalizePackageIdentity(identity)
+	if err != nil {
+		return NormalizedPackageIdentity{}, "", "", err
+	}
+	trimmedVersion := strings.TrimSpace(version)
+	versionID := ""
+	if trimmedVersion != "" {
+		versionID = normalized.PackageID + "@" + trimmedVersion
+	}
+	return normalized, trimmedVersion, versionID, nil
+}
+
 func sanitizeURL(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {

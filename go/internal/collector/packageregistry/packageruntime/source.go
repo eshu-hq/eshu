@@ -310,7 +310,8 @@ func (s *ClaimedSource) recordGenerationLag(
 func envelopesFromParsedMetadata(parsed packageregistry.ParsedMetadata) ([]facts.Envelope, error) {
 	envs := make([]facts.Envelope, 0,
 		len(parsed.Packages)+len(parsed.Versions)+len(parsed.Dependencies)+
-			len(parsed.Artifacts)+len(parsed.SourceHints)+len(parsed.Hosting)+len(parsed.Warnings),
+			len(parsed.Artifacts)+len(parsed.SourceHints)+len(parsed.Vulnerables)+
+			len(parsed.Events)+len(parsed.Hosting)+len(parsed.Warnings),
 	)
 	var err error
 	for _, observation := range parsed.Packages {
@@ -343,6 +344,20 @@ func envelopesFromParsedMetadata(parsed packageregistry.ParsedMetadata) ([]facts
 	}
 	for _, observation := range parsed.SourceHints {
 		envelope, buildErr := packageregistry.NewSourceHintEnvelope(observation)
+		envs, err = appendEnvelope(envs, envelope, buildErr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, observation := range parsed.Vulnerables {
+		envelope, buildErr := packageregistry.NewVulnerabilityHintEnvelope(observation)
+		envs, err = appendEnvelope(envs, envelope, buildErr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, observation := range parsed.Events {
+		envelope, buildErr := packageregistry.NewRegistryEventEnvelope(observation)
 		envs, err = appendEnvelope(envs, envelope, buildErr)
 		if err != nil {
 			return nil, err

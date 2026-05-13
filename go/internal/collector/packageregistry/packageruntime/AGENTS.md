@@ -19,6 +19,8 @@
   credential env names in metric labels.
 - Always copy the workflow `GenerationID` and fencing token into emitted fact
   observations.
+- Keep advisory and registry-event observations inside the same package and
+  version bounds as dependency, artifact, and source-hint observations.
 - Treat metadata as reported evidence only. Reducers own any later graph truth.
 
 ## Common Changes

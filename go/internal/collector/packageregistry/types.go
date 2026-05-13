@@ -79,6 +79,8 @@ type ParsedMetadata struct {
 	Dependencies []PackageDependencyObservation
 	Artifacts    []PackageArtifactObservation
 	SourceHints  []SourceHintObservation
+	Vulnerables  []VulnerabilityHintObservation
+	Events       []RegistryEventObservation
 	Hosting      []RepositoryHostingObservation
 	Warnings     []WarningObservation
 }
@@ -166,6 +168,49 @@ type SourceHintObservation struct {
 	RawURL              string
 	NormalizedURL       string
 	ConfidenceReason    string
+	ScopeID             string
+	GenerationID        string
+	CollectorInstanceID string
+	FencingToken        int64
+	ObservedAt          time.Time
+	SourceURI           string
+}
+
+// VulnerabilityHintObservation is advisory metadata reported directly by a
+// package registry. Severity policy and CVE/OSV normalization belong to later
+// vulnerability-intelligence consumers.
+type VulnerabilityHintObservation struct {
+	Package             PackageIdentity
+	Version             string
+	AdvisoryID          string
+	AdvisorySource      string
+	VulnerabilityID     string
+	SourceSeverity      string
+	AffectedRange       string
+	FixedVersion        string
+	URL                 string
+	Summary             string
+	PublishedAt         time.Time
+	ModifiedAt          time.Time
+	ScopeID             string
+	GenerationID        string
+	CollectorInstanceID string
+	FencingToken        int64
+	ObservedAt          time.Time
+	SourceURI           string
+}
+
+// RegistryEventObservation is one source-reported package registry event such
+// as publish, delete, unlist, deprecate, yank, relist, or metadata mutation.
+type RegistryEventObservation struct {
+	Package             PackageIdentity
+	Version             string
+	EventKey            string
+	EventType           string
+	ArtifactKey         string
+	Actor               string
+	Message             string
+	OccurredAt          time.Time
 	ScopeID             string
 	GenerationID        string
 	CollectorInstanceID string
