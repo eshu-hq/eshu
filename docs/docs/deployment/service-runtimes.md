@@ -151,8 +151,10 @@ repositories, ECR lifecycle policies, ECR image references, ECS clusters, ECS
 services, redacted ECS task definitions, ECS tasks, and ECS service
 relationships, ELBv2 load balancers, listeners, listener rules, target groups,
 routing relationships, Route 53 hosted zones, A/AAAA/CNAME/ALIAS DNS record
-facts, EC2 VPC/subnet/security-group/ENI network topology facts, and Lambda
-function/alias/event-source mapping facts with redacted environment values.
+facts, EC2 VPC/subnet/security-group/ENI network topology facts, Lambda
+function/alias/event-source mapping facts with redacted environment values, and
+EKS cluster/node group/add-on/OIDC provider facts with IAM role and EC2 network
+join evidence.
 
 `collector-oci-registry` scans configured OCI registry repositories. In the
 legacy local mode it reads `ESHU_OCI_REGISTRY_TARGETS_JSON`; when

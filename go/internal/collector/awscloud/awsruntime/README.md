@@ -59,6 +59,7 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/ecr`,
   `internal/collector/awscloud/services/ec2`,
   `internal/collector/awscloud/services/ecs`,
+  `internal/collector/awscloud/services/eks`,
   `internal/collector/awscloud/services/elbv2`,
   `internal/collector/awscloud/services/lambda`, and
   `internal/collector/awscloud/services/route53` plus their `awssdk` adapters
@@ -113,6 +114,9 @@ pagination spans. The command registers the instruments:
 - Lambda aliases, event-source mappings, image URIs, execution roles, subnets,
   and security groups are reported join evidence only; do not infer workload or
   deployable-unit truth in the runtime.
+- EKS clusters, OIDC providers, node groups, add-ons, IAM roles, subnets, and
+  security groups are reported join evidence only; do not infer Kubernetes
+  workload or deployable-unit truth in the runtime.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

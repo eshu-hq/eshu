@@ -13,6 +13,8 @@ import (
 	ecrawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecr/awssdk"
 	ecsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecs"
 	ecsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecs/awssdk"
+	eksservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eks"
+	eksawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eks/awssdk"
 	elbv2service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2"
 	elbv2awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2/awssdk"
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
@@ -62,6 +64,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceEC2:
 		return ec2service.Scanner{
 			Client: ec2awssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceEKS:
+		return eksservice.Scanner{
+			Client: eksawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceELBv2:
 		return elbv2service.Scanner{
