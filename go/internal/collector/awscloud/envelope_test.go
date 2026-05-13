@@ -74,7 +74,7 @@ func TestNewWarningEnvelopeUsesGenerationScopedIdentity(t *testing.T) {
 	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
 	first, err := NewWarningEnvelope(WarningObservation{
 		Boundary:    boundary,
-		WarningKind: "assumerole_failed",
+		WarningKind: WarningAssumeRoleFailed,
 		ErrorClass:  "access_denied",
 	})
 	if err != nil {
@@ -82,7 +82,7 @@ func TestNewWarningEnvelopeUsesGenerationScopedIdentity(t *testing.T) {
 	}
 	second, err := NewWarningEnvelope(WarningObservation{
 		Boundary:    boundary,
-		WarningKind: "assumerole_failed",
+		WarningKind: WarningAssumeRoleFailed,
 		ErrorClass:  "access_denied",
 		Message:     "different redacted detail",
 	})

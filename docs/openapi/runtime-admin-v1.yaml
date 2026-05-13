@@ -501,6 +501,8 @@ components:
         failure_class:
           type: string
         failure_message:
+          description: Bounded, redacted failure detail. It must not contain raw
+            AWS ARNs, request IDs, access keys, or unbounded SDK payloads.
           type: string
         api_call_count:
           type: integer
@@ -634,5 +636,13 @@ components:
             page tokens, or raw AWS error payloads.
           items:
             $ref: "#/components/schemas/AWSCloudScanSummary"
+        aws_cloud_scans_truncated:
+          type: boolean
+          description: >
+            True when the runtime returned only the configured AWS scan-status
+            row cap instead of every collector/account/region/service tuple.
+        aws_cloud_scan_limit:
+          type: integer
+          description: Configured AWS scan-status row cap when truncated.
         tag_taxonomy:
           $ref: "#/components/schemas/TagTaxonomySummary"

@@ -438,6 +438,8 @@ For AWS cloud collectors, `/admin/status?format=json` includes
 `aws_cloud_scans` rows keyed by collector instance, account, region, and
 service. Those rows separate scanner status from fact commit status and include
 API call counts, throttle counts, warning counts, and budget/credential flags.
+When the row cap is reached, JSON sets `aws_cloud_scans_truncated` and reports
+the cap in `aws_cloud_scan_limit`; text output includes the same limit line.
 
 Queue a full workspace rebuild on a deployed ingester:
 

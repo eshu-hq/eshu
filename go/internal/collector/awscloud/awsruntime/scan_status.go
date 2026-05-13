@@ -48,7 +48,7 @@ func (s ClaimedSource) observeScanStatus(
 	} else if scanErr != nil {
 		statusValue = awscloud.ScanStatusFailed
 		failureClass = awsScanFailureClass(apiStats)
-		failureMessage = scanErr.Error()
+		failureMessage = awscloud.SanitizeScanStatusMessage(scanErr.Error())
 	}
 	if factStats.BudgetExhausted && s.Instruments != nil && s.Instruments.AWSBudgetExhausted != nil {
 		s.Instruments.AWSBudgetExhausted.Add(ctx, 1, metric.WithAttributes(

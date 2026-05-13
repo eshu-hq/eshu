@@ -1,6 +1,16 @@
 package awscloud
 
-import "time"
+import (
+	"regexp"
+	"strings"
+	"time"
+)
+
+const (
+	// MaxScanStatusMessageLength bounds persisted operator-facing AWS scan
+	// failure details so raw SDK payloads cannot dominate status rows.
+	MaxScanStatusMessageLength = 240
+)
 
 const (
 	// ScanStatusRunning means a worker has started the AWS service claim.
@@ -34,6 +44,32 @@ const (
 	// account credentials.
 	WarningAssumeRoleFailed = "assumerole_failed"
 )
+
+var (
+	scanStatusARNPattern       = regexp.MustCompile(`arn:aws[a-zA-Z-]*:[^\s]+`)
+	scanStatusAccountPattern   = regexp.MustCompile(`\b\d{12}\b`)
+	scanStatusAccessKeyPattern = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
+	scanStatusUUIDPattern      = regexp.MustCompile(`\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b`)
+	scanStatusWhitespace       = regexp.MustCompile(`\s+`)
+)
+
+// SanitizeScanStatusMessage redacts common AWS identifiers and bounds failure
+// detail before it is persisted to scan-status rows.
+func SanitizeScanStatusMessage(message string) string {
+	sanitized := strings.TrimSpace(message)
+	if sanitized == "" {
+		return ""
+	}
+	sanitized = scanStatusARNPattern.ReplaceAllString(sanitized, "[redacted-aws-arn]")
+	sanitized = scanStatusAccountPattern.ReplaceAllString(sanitized, "[redacted-account]")
+	sanitized = scanStatusAccessKeyPattern.ReplaceAllString(sanitized, "[redacted-access-key]")
+	sanitized = scanStatusUUIDPattern.ReplaceAllString(sanitized, "[redacted-request-id]")
+	sanitized = scanStatusWhitespace.ReplaceAllString(sanitized, " ")
+	if len(sanitized) <= MaxScanStatusMessageLength {
+		return sanitized
+	}
+	return sanitized[:MaxScanStatusMessageLength-3] + "..."
+}
 
 // ScanStatusStart marks the start of one claim-scoped AWS service scan.
 type ScanStatusStart struct {

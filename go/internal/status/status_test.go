@@ -514,6 +514,8 @@ func TestRenderStatusIncludesAWSCloudScans(t *testing.T) {
 				BudgetExhausted:     true,
 				LastCompletedAt:     now.Add(-2 * time.Minute),
 			}},
+			AWSCloudScansTruncated: true,
+			AWSCloudScanLimit:      1000,
 		},
 		status.DefaultOptions(),
 	)
@@ -530,6 +532,8 @@ func TestRenderStatusIncludesAWSCloudScans(t *testing.T) {
 		"\"commit_status\": \"committed\"",
 		"\"throttle_count\": 3",
 		"\"budget_exhausted\": true",
+		"\"aws_cloud_scans_truncated\": true",
+		"\"aws_cloud_scan_limit\": 1000",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("RenderJSON() = %s, want %q", payload, want)
@@ -540,7 +544,8 @@ func TestRenderStatusIncludesAWSCloudScans(t *testing.T) {
 	if !strings.Contains(text, "AWS cloud scans:") ||
 		!strings.Contains(text, "123456789012/us-east-1/ecr status=partial commit=committed") ||
 		!strings.Contains(text, "api_calls=51 throttles=3 warnings=1") ||
-		!strings.Contains(text, "failure=budget_exhausted") {
+		!strings.Contains(text, "failure=budget_exhausted") ||
+		!strings.Contains(text, "AWS cloud scans truncated: limit=1000") {
 		t.Fatalf("RenderText() = %s, want AWS cloud scan summary", text)
 	}
 }

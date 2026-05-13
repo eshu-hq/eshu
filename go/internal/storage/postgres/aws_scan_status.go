@@ -85,24 +85,54 @@ ON CONFLICT (collector_instance_id, account_id, region, service_kind) DO UPDATE 
     scope_id = EXCLUDED.scope_id,
     generation_id = EXCLUDED.generation_id,
     fencing_token = EXCLUDED.fencing_token,
-    status = EXCLUDED.status,
-    commit_status = EXCLUDED.commit_status,
-    failure_class = '',
-    failure_message = '',
-    api_call_count = 0,
-    throttle_count = 0,
-    warning_count = 0,
-    resource_count = 0,
-    relationship_count = 0,
-    tag_observation_count = 0,
-    budget_exhausted = FALSE,
-    credential_failed = FALSE,
+    status = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.status ELSE EXCLUDED.status END,
+    commit_status = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.commit_status ELSE EXCLUDED.commit_status END,
+    failure_class = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.failure_class ELSE '' END,
+    failure_message = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.failure_message ELSE '' END,
+    api_call_count = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.api_call_count ELSE 0 END,
+    throttle_count = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.throttle_count ELSE 0 END,
+    warning_count = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.warning_count ELSE 0 END,
+    resource_count = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.resource_count ELSE 0 END,
+    relationship_count = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.relationship_count ELSE 0 END,
+    tag_observation_count = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.tag_observation_count ELSE 0 END,
+    budget_exhausted = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.budget_exhausted ELSE FALSE END,
+    credential_failed = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.credential_failed ELSE FALSE END,
     last_started_at = EXCLUDED.last_started_at,
-    last_observed_at = NULL,
+    last_observed_at = CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        THEN aws_scan_status.last_observed_at ELSE NULL END,
     last_completed_at = aws_scan_status.last_completed_at,
     last_successful_at = aws_scan_status.last_successful_at,
     updated_at = EXCLUDED.updated_at
-WHERE aws_scan_status.fencing_token <= EXCLUDED.fencing_token
+WHERE aws_scan_status.fencing_token < EXCLUDED.fencing_token
+   OR (
+        aws_scan_status.generation_id = EXCLUDED.generation_id
+        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+   )
 `
 
 const observeAWSScanStatusQuery = `
@@ -126,8 +156,7 @@ WHERE collector_instance_id = $1
   AND region = $3
   AND service_kind = $4
   AND generation_id = $5
-  AND fencing_token <= $6
-  AND fencing_token = $7
+  AND fencing_token = $6
 `
 
 const commitAWSScanStatusQuery = `
@@ -144,8 +173,7 @@ WHERE collector_instance_id = $1
   AND region = $3
   AND service_kind = $4
   AND generation_id = $5
-  AND fencing_token <= $6
-  AND fencing_token = $7
+  AND fencing_token = $6
 `
 
 // AWSScanStatusStore persists per-tuple AWS scan status for admin surfaces.
@@ -240,10 +268,9 @@ func (s AWSScanStatusStore) ObserveAWSScan(ctx context.Context, observation awsc
 		observation.Boundary.ServiceKind,
 		observation.Boundary.GenerationID,
 		observation.Boundary.FencingToken,
-		observation.Boundary.FencingToken,
 		strings.TrimSpace(observation.Status),
 		strings.TrimSpace(observation.FailureClass),
-		strings.TrimSpace(observation.FailureMessage),
+		awscloud.SanitizeScanStatusMessage(observation.FailureMessage),
 		observation.APICallCount,
 		observation.ThrottleCount,
 		observation.WarningCount,
@@ -281,10 +308,9 @@ func (s AWSScanStatusStore) CommitAWSScan(ctx context.Context, commit awscloud.S
 		commit.Boundary.ServiceKind,
 		commit.Boundary.GenerationID,
 		commit.Boundary.FencingToken,
-		commit.Boundary.FencingToken,
 		strings.TrimSpace(commit.CommitStatus),
 		strings.TrimSpace(commit.FailureClass),
-		strings.TrimSpace(commit.FailureMessage),
+		awscloud.SanitizeScanStatusMessage(commit.FailureMessage),
 		completedAt,
 	)
 	if err != nil {

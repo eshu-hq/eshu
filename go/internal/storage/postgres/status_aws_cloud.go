@@ -34,13 +34,15 @@ SELECT
     updated_at
 FROM aws_scan_status
 ORDER BY collector_instance_id ASC, account_id ASC, region ASC, service_kind ASC
-LIMIT 200
+LIMIT $1
 `
 
-func readAWSCloudScanStatuses(ctx context.Context, queryer Queryer) ([]statuspkg.AWSCloudScanStatus, error) {
-	rows, err := queryer.QueryContext(ctx, awsCloudScanStatusQuery)
+const awsCloudScanStatusLimit = 1000
+
+func readAWSCloudScanStatuses(ctx context.Context, queryer Queryer) ([]statuspkg.AWSCloudScanStatus, bool, error) {
+	rows, err := queryer.QueryContext(ctx, awsCloudScanStatusQuery, awsCloudScanStatusLimit+1)
 	if err != nil {
-		return nil, fmt.Errorf("list AWS cloud scan statuses: %w", err)
+		return nil, false, fmt.Errorf("list AWS cloud scan statuses: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -74,7 +76,7 @@ func readAWSCloudScanStatuses(ctx context.Context, queryer Queryer) ([]statuspkg
 			&lastSuccessfulAt,
 			&row.UpdatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("list AWS cloud scan statuses: %w", err)
+			return nil, false, fmt.Errorf("list AWS cloud scan statuses: %w", err)
 		}
 		row.LastStartedAt = nullableTimeUTC(lastStartedAt)
 		row.LastObservedAt = nullableTimeUTC(lastObservedAt)
@@ -84,9 +86,12 @@ func readAWSCloudScanStatuses(ctx context.Context, queryer Queryer) ([]statuspkg
 		output = append(output, row)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list AWS cloud scan statuses: %w", err)
+		return nil, false, fmt.Errorf("list AWS cloud scan statuses: %w", err)
 	}
-	return output, nil
+	if len(output) > awsCloudScanStatusLimit {
+		return output[:awsCloudScanStatusLimit], true, nil
+	}
+	return output, false, nil
 }
 
 func nullableTimeUTC(value sql.NullTime) time.Time {

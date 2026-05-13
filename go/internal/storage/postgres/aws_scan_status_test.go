@@ -53,10 +53,52 @@ func TestAWSScanStatusStoreUsesFenceGuard(t *testing.T) {
 	for _, want := range []string{
 		"INSERT INTO aws_scan_status",
 		"ON CONFLICT (collector_instance_id, account_id, region, service_kind) DO UPDATE SET",
-		"WHERE aws_scan_status.fencing_token <= EXCLUDED.fencing_token",
+		"CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id",
+		"aws_scan_status.fencing_token < EXCLUDED.fencing_token",
+		"aws_scan_status.fencing_token = EXCLUDED.fencing_token",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("StartAWSScan() query missing %q:\n%s", want, query)
+		}
+	}
+}
+
+func TestAWSScanStatusStoreUsesExactFenceForObserveAndCommit(t *testing.T) {
+	t.Parallel()
+
+	db := &awsScanStatusTestDB{
+		execResults: []sql.Result{
+			awsCheckpointRowsResult{rowsAffected: 1},
+			awsCheckpointRowsResult{rowsAffected: 1},
+		},
+	}
+	store := NewAWSScanStatusStore(db)
+	observedAt := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
+	boundary := awsScanStatusBoundary(observedAt)
+	if err := store.ObserveAWSScan(context.Background(), awscloud.ScanStatusObservation{
+		Boundary:   boundary,
+		Status:     awscloud.ScanStatusSucceeded,
+		ObservedAt: observedAt,
+	}); err != nil {
+		t.Fatalf("ObserveAWSScan() error = %v, want nil", err)
+	}
+	if err := store.CommitAWSScan(context.Background(), awscloud.ScanStatusCommit{
+		Boundary:     boundary,
+		CommitStatus: awscloud.ScanCommitCommitted,
+		CompletedAt:  observedAt,
+	}); err != nil {
+		t.Fatalf("CommitAWSScan() error = %v, want nil", err)
+	}
+
+	for _, exec := range db.execs {
+		if strings.Contains(exec.query, "fencing_token <=") {
+			t.Fatalf("query uses range fence guard, want exact fence:\n%s", exec.query)
+		}
+		if !strings.Contains(exec.query, "AND fencing_token = $6") {
+			t.Fatalf("query missing exact fence guard:\n%s", exec.query)
+		}
+		if len(exec.args) != 18 && len(exec.args) != 10 {
+			t.Fatalf("arg count = %d, want 18 for observe or 10 for commit", len(exec.args))
 		}
 	}
 }

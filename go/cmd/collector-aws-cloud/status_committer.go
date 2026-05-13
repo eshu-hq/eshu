@@ -98,10 +98,7 @@ func (c awsStatusCommitter) recordCommitOutcome(
 	}
 	boundary, boundaryErr := c.boundary(scopeValue, generation, mutation)
 	if boundaryErr != nil {
-		if commitErr != nil {
-			return commitErr
-		}
-		return boundaryErr
+		return commitErr
 	}
 	statusValue := awscloud.ScanCommitCommitted
 	failureClass := ""
@@ -109,7 +106,7 @@ func (c awsStatusCommitter) recordCommitOutcome(
 	if commitErr != nil {
 		statusValue = awscloud.ScanCommitFailed
 		failureClass = "commit_failure"
-		failureMessage = commitErr.Error()
+		failureMessage = awscloud.SanitizeScanStatusMessage(commitErr.Error())
 	}
 	statusErr := c.statusStore.CommitAWSScan(ctx, awscloud.ScanStatusCommit{
 		Boundary:       boundary,
