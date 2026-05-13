@@ -73,10 +73,8 @@ func (s Scanner) hostedZoneEnvelopes(
 
 func hostedZoneObservation(boundary awscloud.Boundary, hostedZone HostedZone) awscloud.ResourceObservation {
 	hostedZoneID := strings.TrimSpace(hostedZone.ID)
-	hostedZoneARN := route53HostedZoneARN(hostedZoneID)
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
-		ARN:          hostedZoneARN,
 		ResourceID:   hostedZoneID,
 		ResourceType: awscloud.ResourceTypeRoute53HostedZone,
 		Name:         hostedZone.Name,
@@ -88,14 +86,13 @@ func hostedZoneObservation(boundary awscloud.Boundary, hostedZone HostedZone) aw
 			"normalized_name":           normalizedDNSName(hostedZone.Name),
 			"private_zone":              hostedZone.Private,
 			"record_set_count":          hostedZone.ResourceRecordSetCount,
-			"route53_hosted_zone_arn":   hostedZoneARN,
 			"route53_hosted_zone_id":    hostedZoneID,
 			"source_identity_family":    "route53_hosted_zone",
 			"source_identity_version":   "1.0.0",
 			"zone_visibility_evidence":  zoneVisibility(hostedZone.Private),
 			"zone_visibility_is_direct": true,
 		},
-		CorrelationAnchors: []string{hostedZoneID, hostedZoneARN, hostedZone.Name, normalizedDNSName(hostedZone.Name)},
+		CorrelationAnchors: []string{hostedZoneID, hostedZone.Name, normalizedDNSName(hostedZone.Name)},
 		SourceRecordID:     hostedZoneID,
 	}
 }
@@ -178,14 +175,6 @@ func sourceRecordID(hostedZoneID string, record RecordSet) string {
 		parts = append(parts, strings.TrimSpace(record.SetIdentifier))
 	}
 	return strings.Join(parts, "#")
-}
-
-func route53HostedZoneARN(hostedZoneID string) string {
-	trimmed := strings.TrimPrefix(strings.TrimSpace(hostedZoneID), "/hostedzone/")
-	if trimmed == "" {
-		return ""
-	}
-	return "arn:aws:route53:::hostedzone/" + trimmed
 }
 
 func normalizedDNSName(input string) string {

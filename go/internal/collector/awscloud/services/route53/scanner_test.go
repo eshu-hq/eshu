@@ -12,6 +12,8 @@ import (
 
 func TestScannerEmitsHostedZonesAndDNSRecords(t *testing.T) {
 	ttl := int64(60)
+	weight := int64(100)
+	multiValueAnswer := true
 	client := fakeClient{
 		hostedZones: []HostedZone{{
 			ID:                     "/hostedzone/Z123",
@@ -43,6 +45,21 @@ func TestScannerEmitsHostedZonesAndDNSRecords(t *testing.T) {
 						HostedZoneID:         "Z35SXDOTRQ7X7K",
 						EvaluateTargetHealth: true,
 					},
+					Weight:                  &weight,
+					Region:                  "us-east-1",
+					Failover:                "PRIMARY",
+					HealthCheckID:           "hc-123",
+					MultiValueAnswer:        &multiValueAnswer,
+					TrafficPolicyInstanceID: "tp-123",
+					GeoLocation: GeoLocation{
+						ContinentCode:   "NA",
+						CountryCode:     "US",
+						SubdivisionCode: "CA",
+					},
+					CIDRRouting: CIDRRouting{
+						CollectionID: "cidr-123",
+						LocationName: "default",
+					},
 				},
 				{
 					Name:   "mail.example.com.",
@@ -68,6 +85,7 @@ func TestScannerEmitsHostedZonesAndDNSRecords(t *testing.T) {
 	}
 
 	hostedZone := assertResourceType(t, envelopes, awscloud.ResourceTypeRoute53HostedZone)
+	assertPayloadString(t, hostedZone, "arn", "")
 	assertAttribute(t, hostedZone, "private_zone", false)
 	assertAttribute(t, hostedZone, "record_set_count", int64(4))
 	assertNoDNSRecord(t, envelopes, "mail.example.com.", "MX")
@@ -84,6 +102,7 @@ func TestScannerEmitsHostedZonesAndDNSRecords(t *testing.T) {
 	if got, _ := aliasTarget["normalized_dns_name"].(string); got != "dualstack.api-123.us-east-1.elb.amazonaws.com" {
 		t.Fatalf("alias normalized_dns_name = %q", got)
 	}
+	assertRoutingPolicy(t, aliasRecord)
 
 	cname := assertDNSRecord(t, envelopes, "app.example.com.", "CNAME")
 	values, ok := cname.Payload["values"].([]string)
@@ -220,5 +239,43 @@ func assertPayloadBool(t *testing.T, envelope facts.Envelope, key string, want b
 	got, ok := envelope.Payload[key].(bool)
 	if !ok || got != want {
 		t.Fatalf("payload[%q] = %#v, want %v", key, envelope.Payload[key], want)
+	}
+}
+
+func assertPayloadString(t *testing.T, envelope facts.Envelope, key string, want string) {
+	t.Helper()
+	got, ok := envelope.Payload[key].(string)
+	if !ok || got != want {
+		t.Fatalf("payload[%q] = %#v, want %q", key, envelope.Payload[key], want)
+	}
+}
+
+func assertRoutingPolicy(t *testing.T, envelope facts.Envelope) {
+	t.Helper()
+	routingPolicy, ok := envelope.Payload["routing_policy"].(map[string]any)
+	if !ok {
+		t.Fatalf("routing_policy = %#v, want map", envelope.Payload["routing_policy"])
+	}
+	assertMapValue(t, routingPolicy, "weight", int64(100))
+	assertMapValue(t, routingPolicy, "region", "us-east-1")
+	assertMapValue(t, routingPolicy, "failover", "PRIMARY")
+	assertMapValue(t, routingPolicy, "health_check_id", "hc-123")
+	assertMapValue(t, routingPolicy, "multi_value_answer", true)
+	assertMapValue(t, routingPolicy, "traffic_policy_instance_id", "tp-123")
+	assertMapValue(t, routingPolicy, "cidr_collection_id", "cidr-123")
+	assertMapValue(t, routingPolicy, "cidr_location_name", "default")
+	geoLocation, ok := routingPolicy["geo_location"].(map[string]any)
+	if !ok {
+		t.Fatalf("geo_location = %#v, want map", routingPolicy["geo_location"])
+	}
+	assertMapValue(t, geoLocation, "continent_code", "NA")
+	assertMapValue(t, geoLocation, "country_code", "US")
+	assertMapValue(t, geoLocation, "subdivision_code", "CA")
+}
+
+func assertMapValue(t *testing.T, values map[string]any, key string, want any) {
+	t.Helper()
+	if values[key] != want {
+		t.Fatalf("%s = %#v, want %#v", key, values[key], want)
 	}
 }

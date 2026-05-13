@@ -72,6 +72,8 @@ func TestListHostedZonesPaginatesAndMapsTags(t *testing.T) {
 }
 
 func TestListResourceRecordSetsPaginatesAndMapsAlias(t *testing.T) {
+	weight := int64(100)
+	multiValueAnswer := true
 	api := &fakeAPIClient{
 		recordPages: []*awsroute53.ListResourceRecordSetsOutput{
 			{
@@ -83,6 +85,21 @@ func TestListResourceRecordSetsPaginatesAndMapsAlias(t *testing.T) {
 						HostedZoneId:         aws.String("Z35SXDOTRQ7X7K"),
 						EvaluateTargetHealth: true,
 					},
+					CidrRoutingConfig: &awsroute53types.CidrRoutingConfig{
+						CollectionId: aws.String("cidr-123"),
+						LocationName: aws.String("default"),
+					},
+					Failover: awsroute53types.ResourceRecordSetFailoverPrimary,
+					GeoLocation: &awsroute53types.GeoLocation{
+						ContinentCode:   aws.String("NA"),
+						CountryCode:     aws.String("US"),
+						SubdivisionCode: aws.String("CA"),
+					},
+					HealthCheckId:           aws.String("hc-123"),
+					MultiValueAnswer:        &multiValueAnswer,
+					Region:                  awsroute53types.ResourceRecordSetRegionUsEast1,
+					TrafficPolicyInstanceId: aws.String("tp-123"),
+					Weight:                  &weight,
 				}},
 				IsTruncated:    true,
 				NextRecordName: aws.String("api.example.com."),
@@ -114,6 +131,30 @@ func TestListResourceRecordSetsPaginatesAndMapsAlias(t *testing.T) {
 	}
 	if got := records[0].AliasTarget.HostedZoneID; got != "Z35SXDOTRQ7X7K" {
 		t.Fatalf("alias hosted zone = %q", got)
+	}
+	if got := records[0].Weight; got == nil || *got != 100 {
+		t.Fatalf("weight = %#v, want 100", got)
+	}
+	if got := records[0].Region; got != "us-east-1" {
+		t.Fatalf("region = %q, want us-east-1", got)
+	}
+	if got := records[0].Failover; got != "PRIMARY" {
+		t.Fatalf("failover = %q, want PRIMARY", got)
+	}
+	if got := records[0].HealthCheckID; got != "hc-123" {
+		t.Fatalf("health check id = %q, want hc-123", got)
+	}
+	if got := records[0].MultiValueAnswer; got == nil || !*got {
+		t.Fatalf("multi value answer = %#v, want true", got)
+	}
+	if got := records[0].TrafficPolicyInstanceID; got != "tp-123" {
+		t.Fatalf("traffic policy instance id = %q, want tp-123", got)
+	}
+	if got := records[0].GeoLocation.CountryCode; got != "US" {
+		t.Fatalf("geo country = %q, want US", got)
+	}
+	if got := records[0].CIDRRouting.CollectionID; got != "cidr-123" {
+		t.Fatalf("cidr collection = %q, want cidr-123", got)
 	}
 	if got := records[1].Values[0]; got != "2001:db8::1" {
 		t.Fatalf("AAAA value = %q", got)

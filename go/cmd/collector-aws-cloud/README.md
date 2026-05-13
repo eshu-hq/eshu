@@ -52,7 +52,7 @@ Instance configuration uses:
   "target_scopes": [
     {
       "account_id": "123456789012",
-      "allowed_regions": ["us-east-1"],
+      "allowed_regions": ["us-east-1", "aws-global"],
       "allowed_services": ["iam", "ecr", "ecs", "elbv2", "route53"],
       "max_concurrent_claims": 1,
       "credentials": {
