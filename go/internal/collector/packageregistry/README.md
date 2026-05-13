@@ -13,7 +13,8 @@ This package implements the first slices of
 stable package identity, bounded runtime target configuration, local metadata
 fixture parsers, parser registration, and reported-confidence fact envelopes
 for package, version, dependency, artifact, source-hint, hosting, and warning
-evidence.
+evidence. It also provides advisory and registry-event envelope builders for
+later parsers that expose source-native advisory or event streams.
 
 ## Ownership boundary
 
@@ -89,6 +90,16 @@ See `doc.go` for the godoc contract.
   ready for envelope emission.
 - `NewSourceHintEnvelope` — builds a `package_registry.source_hint` fact with
   `source_confidence=reported`.
+- `VulnerabilityHintObservation` — one registry-reported advisory ready for
+  envelope emission without assigning severity policy.
+- `NewVulnerabilityHintEnvelope` — builds a
+  `package_registry.vulnerability_hint` fact with
+  `source_confidence=reported`.
+- `RegistryEventObservation` — one source-reported publish, delete, unlist,
+  deprecate, yank, relist, or metadata mutation event ready for envelope
+  emission.
+- `NewRegistryEventEnvelope` — builds a `package_registry.registry_event` fact
+  with `source_confidence=reported`.
 - `RepositoryHostingObservation` — one provider/feed topology record ready for
   envelope emission.
 - `NewRepositoryHostingEnvelope` — builds a

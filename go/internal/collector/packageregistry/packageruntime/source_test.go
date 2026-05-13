@@ -100,6 +100,57 @@ func TestClaimedSourceParsesMetadataIntoPackageRegistryFacts(t *testing.T) {
 	}
 }
 
+func TestEnvelopesFromParsedMetadataIncludesAdvisoriesAndEvents(t *testing.T) {
+	t.Parallel()
+
+	basePackage := packageregistry.PackageIdentity{
+		Ecosystem: packageregistry.EcosystemNPM,
+		Registry:  "registry.npmjs.org",
+		RawName:   "left-pad",
+	}
+	parsed := packageregistry.ParsedMetadata{
+		Vulnerables: []packageregistry.VulnerabilityHintObservation{
+			{
+				Package:             basePackage,
+				AdvisoryID:          "GHSA-left-pad",
+				AdvisorySource:      "npm-audit",
+				ScopeID:             "npm://registry.npmjs.org/left-pad",
+				GenerationID:        "etag:advisory",
+				CollectorInstanceID: "public-npm",
+				ObservedAt:          time.Date(2026, 5, 13, 18, 0, 0, 0, time.UTC),
+			},
+		},
+		Events: []packageregistry.RegistryEventObservation{
+			{
+				Package:             basePackage,
+				EventKey:            "serial:44",
+				EventType:           "publish",
+				ScopeID:             "npm://registry.npmjs.org/left-pad",
+				GenerationID:        "etag:event",
+				CollectorInstanceID: "public-npm",
+				ObservedAt:          time.Date(2026, 5, 13, 18, 0, 0, 0, time.UTC),
+			},
+		},
+	}
+
+	envs, err := envelopesFromParsedMetadata(parsed)
+	if err != nil {
+		t.Fatalf("envelopesFromParsedMetadata() error = %v", err)
+	}
+	gotKinds := map[string]bool{}
+	for _, envelope := range envs {
+		gotKinds[envelope.FactKind] = true
+	}
+	for _, wantKind := range []string{
+		facts.PackageRegistryVulnerabilityHintFactKind,
+		facts.PackageRegistryRegistryEventFactKind,
+	} {
+		if !gotKinds[wantKind] {
+			t.Fatalf("fact kinds = %#v, missing %q", gotKinds, wantKind)
+		}
+	}
+}
+
 func TestClaimedSourceRejectsMetadataForUnexpectedPackage(t *testing.T) {
 	t.Parallel()
 

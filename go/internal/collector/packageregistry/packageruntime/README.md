@@ -15,7 +15,7 @@ flowchart LR
   A["workflow.WorkItem"] --> B["ClaimedSource.NextClaimed"]
   B --> C["MetadataProvider.FetchMetadata"]
   C --> D["MetadataParserRegistry.Parse"]
-  D --> E["New*Envelope"]
+  D --> E["New*Envelope\nincluding advisories + events"]
   E --> F["collector.CollectedGeneration"]
   F --> G["Postgres commit with claim fencing"]
 ```
@@ -53,6 +53,8 @@ must stay out of metrics.
   target.
 - `collector_instance_id`, `generation_id`, and `fencing_token` come from the
   workflow claim path and are copied into every emitted fact.
+- Advisory and registry-event observations are bounded by the same configured
+  package and version limits as dependencies, artifacts, and source hints.
 - Credentials stay in `TargetConfig` runtime fields. They must not be copied to
   facts, logs, metric labels, or docs.
 - `HTTPMetadataProvider` accepts one explicit metadata URL per target; it does

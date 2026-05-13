@@ -341,8 +341,8 @@ run both Neo4j and NornicDB conformance for the statement shape.
    adapter switch. Implemented follow-up adds `collector-package-registry`,
    workflow coordinator planning for `package_registry` work items,
    claim-fenced metadata fetch from explicit `metadata_url` targets, runtime
-   credential env resolution, and the `eshu_dp_package_registry_*` telemetry
-   family.
+   credential env resolution, advisory and registry-event fact envelope
+   builders, and the `eshu_dp_package_registry_*` telemetry family.
 3. **OCI live lane:** use the existing OCI registry ADR to implement ECR and
    JFrog Docker/OCI observation for repositories, tags, manifests, indexes,
    referrers, warnings, and redaction.
