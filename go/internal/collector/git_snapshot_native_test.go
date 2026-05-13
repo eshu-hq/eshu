@@ -213,6 +213,12 @@ func TestNativeRepositorySnapshotterLogsSnapshotStageTimings(t *testing.T) {
 		filepath.Join(repoRoot, "app.py"),
 		"def handler():\n    return 1\n",
 	)
+	writeCollectorTestFile(
+		t,
+		filepath.Join(repoRoot, "main.tf"),
+		`resource "aws_s3_bucket" "logs" {}
+`,
+	)
 
 	engine, err := parser.DefaultEngine()
 	if err != nil {
@@ -241,6 +247,12 @@ func TestNativeRepositorySnapshotterLogsSnapshotStageTimings(t *testing.T) {
 		`"duration_seconds":`,
 		`"pre_scan_workers":2`,
 		`"parse_workers":2`,
+		`"language_parse_summary":`,
+		`"language":"hcl"`,
+		`"language":"python"`,
+		`"file_count":1`,
+		`"total_duration_seconds":`,
+		`"avg_duration_seconds":`,
 	} {
 		if !strings.Contains(logOutput, want) {
 			t.Fatalf("snapshot stage logs missing %s in %s", want, logOutput)

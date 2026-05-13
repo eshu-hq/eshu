@@ -477,15 +477,16 @@ Capture a profile while reproducing the slow path on the same host as the
 runtime; loopback-only binding means `kubectl port-forward` (in a deployment)
 or just running the binary locally (for dogfood) is the typical access path.
 
-### Dual-Side CPU Capture During A Phase
+### CPU Capture During A Phase
 
-For perf investigations that need matched CPU profiles from both the
-ingester and a co-running NornicDB child process, `scripts/capture-cpu-profile.sh`
-takes a run directory (containing `run.log`; profiles land in `$RUN_DIR/profiles/`)
-plus the two pprof endpoints, waits for a configurable log marker, then
-fires parallel `curl pprof/profile?seconds=N` requests against both
-endpoints inside the same wall-clock window. Heap, allocs, and
-goroutine snapshots follow once the CPU window closes.
+For perf investigations that need a CPU profile from the ingester, or matched
+profiles from both the ingester and a co-running NornicDB child process,
+`scripts/capture-cpu-profile.sh` takes a run directory (containing `run.log`;
+profiles land in `$RUN_DIR/profiles/`) plus the ingester pprof endpoint and an
+optional NornicDB pprof endpoint. It waits for a configurable log marker, then
+fires `curl pprof/profile?seconds=N` requests inside the same wall-clock
+window. When a NornicDB endpoint is provided, heap, allocs, and goroutine
+snapshots follow once the CPU window closes.
 
 ```bash
 # In one shell, start the stack with both pprof endpoints enabled
@@ -505,6 +506,14 @@ PPROF_CPU_S=20 PPROF_SLEEP_S=5 \
   scripts/capture-cpu-profile.sh /tmp/run-X "$INGESTER_PPROF" 127.0.0.1:19091
 ```
 
+For ingester-only parser profiling, omit the third argument or pass `-` and
+trigger from the stage before the parse window:
+
+```bash
+PPROF_LOG_MARKER='"stage":"pre_scan"' PPROF_CPU_S=30 PPROF_SLEEP_S=0 \
+  scripts/capture-cpu-profile.sh /tmp/run-X "$INGESTER_PPROF" -
+```
+
 Defaults match the post-Path-D K8s entities-phase shape (~28s entities-phase
 wall): marker is `canonical phase group completed.*phase=files`, sleep 5s,
 20s CPU window. Earlier versions of this harness used 20s sleep / 60s window
@@ -516,8 +525,9 @@ trigger line.
 Profiles land in `$RUN_DIR/profiles/`:
 
 - `ingester-cpu-${PPROF_CPU_S}s.pb.gz`
-- `nornicdb-cpu-${PPROF_CPU_S}s.pb.gz`
-- `nornicdb-{heap,allocs}.pb.gz` + `*goroutines.txt` snapshots
+- `nornicdb-cpu-${PPROF_CPU_S}s.pb.gz` when a NornicDB endpoint is provided
+- `nornicdb-{heap,allocs}.pb.gz` plus `*goroutines.txt` snapshots when a
+  NornicDB endpoint is provided
 - `watcher.log` (timestamps, per-side curl exit codes, byte counts)
 
 If the CPU profile is zero bytes after the run, check `watcher.log` for the

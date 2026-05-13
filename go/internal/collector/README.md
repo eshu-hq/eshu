@@ -199,9 +199,11 @@ it.
   `eshu_dp_large_repo_classifications_total` (labeled `repo_size_tier`),
   `eshu_dp_large_repo_semaphore_wait_seconds`
 - Log events: `collector stream started`, `collector snapshot stage completed`
-  (stages: `discovery`, `pre_scan`, `parse`, `materialize`), `collector snapshot
-  completed`, `collector commit succeeded / failed`, `collector stream completed /
-  failed`, `large repository queued`, `large repo semaphore acquired / released`
+  (stages: `discovery`, `pre_scan`, `parse`, `materialize`; the `parse` stage
+  includes bounded `language_parse_summary` rows with file count and parse
+  duration totals per language), `collector snapshot completed`,
+  `collector commit succeeded / failed`, `collector stream completed / failed`,
+  `large repository queued`, `large repo semaphore acquired / released`
 
 ## Operational notes
 

@@ -135,7 +135,9 @@ For shared-write debugging specifically:
   per-repo progress. For a slow single repository, start with
   `collector snapshot stage completed` records for `discovery`, `pre_scan`,
   `parse`, and `materialize` before changing parser workers, NornicDB batch
-  sizes, or graph-write timeouts.
+  sizes, or graph-write timeouts. The `parse` record includes
+  `language_parse_summary`, a bounded per-language file count and parse-duration
+  summary for attributing repo-scale parse cost without logging file paths.
 
 ### Webhook Listener
 

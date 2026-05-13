@@ -194,7 +194,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		return RepositorySnapshot{}, fmt.Errorf("repository metadata for %q: %w", repoPath, err)
 	}
 	parseStartedAt := time.Now()
-	shapeFiles, parsedFiles, err := s.buildParsedRepositoryFiles(
+	shapeFiles, parsedFiles, languageParseSummary, err := s.buildParsedRepositoryFiles(
 		ctx,
 		repoPath,
 		fileSet,
@@ -211,6 +211,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Int("parsed_file_count", len(parsedFiles)),
 		slog.Int("skipped_file_count", len(fileSet.Files)-len(parsedFiles)),
 		slog.Int("parse_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
+		slog.Any("language_parse_summary", languageParseSummary),
 	)
 
 	materializeStartedAt := time.Now()
