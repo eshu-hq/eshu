@@ -41,6 +41,55 @@ func codebaseTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "find_symbol",
+			Description: "Find exact or fuzzy symbol definitions with bounded, paged results and source handles.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"symbol": map[string]any{
+						"type":        "string",
+						"description": "Symbol name to locate",
+					},
+					"match_mode": map[string]any{
+						"type":        "string",
+						"description": "Symbol match mode",
+						"enum":        []string{"exact", "fuzzy"},
+						"default":     "exact",
+					},
+					"repo_id": map[string]any{
+						"type":        "string",
+						"description": "Optional canonical repository identifier to scope the lookup",
+					},
+					"language": map[string]any{
+						"type":        "string",
+						"description": "Optional language filter",
+					},
+					"entity_type": map[string]any{
+						"type":        "string",
+						"description": "Optional single entity type filter",
+					},
+					"entity_types": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Optional entity type filters such as function, class, component, or module",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum definitions to return",
+						"default":     25,
+						"maximum":     200,
+					},
+					"offset": map[string]any{
+						"type":        "integer",
+						"description": "Zero-based result offset for paging",
+						"default":     0,
+						"maximum":     10000,
+					},
+				},
+				"required": []string{"symbol"},
+			},
+		},
+		{
 			Name:        "analyze_code_relationships",
 			Description: "Analyze code relationships like 'who calls this function' or 'class hierarchy'. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_importers, who_modifies, class_hierarchy, overrides, dead_code, call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.",
 			InputSchema: map[string]any{

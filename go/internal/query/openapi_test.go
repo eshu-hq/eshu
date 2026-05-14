@@ -313,6 +313,21 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatalf("CodeSearchResult.semantic_profile.type = %#v, want %#v", got, want)
 	}
 
+	symbolSearchPath := mustMapField(t, paths, "/api/v0/code/symbols/search")
+	symbolSearchPost := mustMapField(t, symbolSearchPath, "post")
+	symbolSearchResponses := mustMapField(t, symbolSearchPost, "responses")
+	symbolSearchOK := mustMapField(t, symbolSearchResponses, "200")
+	symbolSearchContent := mustMapField(t, mustMapField(t, symbolSearchOK, "content"), "application/json")
+	symbolSearchSchema := mustMapField(t, symbolSearchContent, "schema")
+	if got, want := symbolSearchSchema["$ref"], "#/components/schemas/SymbolSearchResponse"; got != want {
+		t.Fatalf("code/symbols/search schema ref = %#v, want %#v", got, want)
+	}
+	symbolSearchResultSchema := mustMapField(t, schemas, "SymbolSearchResult")
+	symbolSearchResultProperties := mustMapField(t, symbolSearchResultSchema, "properties")
+	if _, ok := symbolSearchResultProperties["source_handle"]; !ok {
+		t.Fatal("SymbolSearchResult missing source_handle")
+	}
+
 	callChainPath := mustMapField(t, paths, "/api/v0/code/call-chain")
 	callChainPost := mustMapField(t, callChainPath, "post")
 	callChainBody := mustMapField(t, mustMapField(t, callChainPost, "requestBody"), "content")

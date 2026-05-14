@@ -273,6 +273,7 @@ That lets clients answer:
 For programming prompts, keep using the code-query tools directly:
 
 - `find_code`
+- `find_symbol`
 - `analyze_code_relationships`
 - `calculate_cyclomatic_complexity`
 - `find_most_complex_functions`

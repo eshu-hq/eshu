@@ -144,6 +144,12 @@ var capabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     &truthDerived,
 		ProductionMax:         &truthDerived,
 	},
+	"code_search.symbol_lookup": {
+		LocalLightweightMax:   &truthExact,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+	},
 	"code_search.variable_lookup": {
 		LocalLightweightMax:   &truthDerived,
 		LocalAuthoritativeMax: &truthExact,

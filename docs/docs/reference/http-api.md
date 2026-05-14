@@ -574,6 +574,7 @@ next.
 Use these routes when you only need code relationships and do not need the full code-to-cloud graph.
 
 - `POST /api/v0/code/search`
+- `POST /api/v0/code/symbols/search`
 - `POST /api/v0/code/relationships`
 - `POST /api/v0/code/dead-code`
 - `POST /api/v0/code/complexity`
@@ -618,6 +619,25 @@ Example code-only workflow:
   "limit": 10
 }
 ```
+
+Example symbol-definition workflow:
+
+`POST /api/v0/code/symbols/search`
+
+```json
+{
+  "symbol": "process_payment",
+  "repo_id": "payments",
+  "match_mode": "exact",
+  "entity_types": ["function"],
+  "limit": 25,
+  "offset": 0
+}
+```
+
+The symbol route returns definition-shaped results with `source_handle`,
+`classification=definition`, `match_kind`, `truncated`, and `ambiguity` so MCP
+callers can page or disambiguate without guessing.
 
 Example dead-code workflow:
 

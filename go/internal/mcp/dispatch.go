@@ -213,6 +213,17 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"query": str(args, "query"), "repo_id": str(args, "repo_id"),
 			"limit": intOr(args, "limit", 10), "exact": boolOr(args, "exact", false),
 		}}, nil
+	case "find_symbol":
+		return &route{method: "POST", path: "/api/v0/code/symbols/search", body: map[string]any{
+			"symbol":       str(args, "symbol"),
+			"match_mode":   str(args, "match_mode"),
+			"repo_id":      str(args, "repo_id"),
+			"language":     str(args, "language"),
+			"entity_type":  str(args, "entity_type"),
+			"entity_types": stringSlice(args, "entity_types"),
+			"limit":        intOr(args, "limit", 25),
+			"offset":       intOr(args, "offset", 0),
+		}}, nil
 	case "analyze_code_relationships":
 		body := map[string]any{
 			"entity_id":  str(args, "target"),

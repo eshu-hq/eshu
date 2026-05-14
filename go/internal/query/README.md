@@ -234,7 +234,7 @@ The response is written with `WriteSuccess` when the caller sends
 `Accept: application/eshu.envelope+json`; this wraps the payload in a
 `ResponseEnvelope` containing `data`, `truth` (`TruthEnvelope`), and `error`
 fields. Without that header, `WriteJSON` emits the legacy payload directly.
-`BuildTruthEnvelope` (`contract.go:432`) constructs the `TruthEnvelope`; it
+`BuildTruthEnvelope` (`contract.go:445`) constructs the `TruthEnvelope`; it
 panics if the capability string is not in `capabilityMatrix`.
 Repository runtime artifacts parse Dockerfile stage metadata through
 `buildDockerfileRuntimeArtifacts`, including base image, base tag, build
@@ -278,8 +278,8 @@ Elixir, PHP, and Groovy parser-backed roots. Its language filter examples includ
   (`handler.go:110`)
 - `RepositoryHandler` — `GET /api/v0/repositories*` routes (`repository.go:21`)
 - `EntityHandler` — entity resolution, workload/service context routes, service dossier stories, and service investigation coverage (`entity.go:11`, `service_story_handler.go:9`, `service_investigation.go:17`)
-- `CodeHandler` — code search, relationships, dead-code, complexity, call-chain
-  (`code.go:11`)
+- `CodeHandler` — code search, symbol lookup, relationships, dead-code,
+  complexity, call-chain (`code.go:11`)
 - `ContentHandler` — file and entity content reads (`content_handler.go:11`)
 - `InfraHandler` — infrastructure resource and relationship routes (`infra.go:12`)
   including Terraform backend, import, moved, removed, check, and lockfile
@@ -316,13 +316,13 @@ Elixir, PHP, and Groovy parser-backed roots. Its language filter examples includ
   helpers (`handler.go`)
 - `AuthMiddleware` — bearer-token middleware used by `cmd/api` (`auth.go:30`)
 - `BuildTruthEnvelope` — builds a `TruthEnvelope` from profile, capability, and
-  basis; panics on unknown capability (`contract.go:432`)
+  basis; panics on unknown capability (`contract.go:445`)
 - `ParseQueryProfile`, `NormalizeQueryProfile`, `ParseGraphBackend` — input
   validation helpers (`contract.go`)
 
 **OpenAPI**
 
-- `OpenAPISpec()` — concatenates eleven `openapi_paths_*.go` fragments and
+- `OpenAPISpec()` — concatenates twelve `openapi_paths_*.go` fragments and
   `openAPIComponents` into one JSON string (`openapi.go:49`)
 - `ServeOpenAPI`, `ServeSwaggerUI`, `ServeReDoc` — HTTP handlers for
   `/api/v0/openapi.json`, `/api/v0/docs`, `/api/v0/redoc` (`openapi.go`)
@@ -398,7 +398,7 @@ wired in `cmd/api/wiring.go`, not here.
   `truth.profiles.required` in the response envelope for the minimum profile,
   then verify the ESHU_QUERY_PROFILE env var in the running API.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
-  a capability string not in `capabilityMatrix` (`contract.go:432`). Add missing
+  a capability string not in `capabilityMatrix` (`contract.go:445`). Add missing
   capability IDs to `capabilityMatrix` before shipping new handlers.
 - `code_quality.dead_code` is a derived query unless the language maturity row
   says otherwise. Handler changes must preserve `classification`,
@@ -462,7 +462,7 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 ## Gotchas / invariants
 
 - `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
-  (`contract.go:432`). All capability strings used in handlers must be registered
+  (`contract.go:445`). All capability strings used in handlers must be registered
   in that map before the handler can be called safely.
 - The unexported `capabilityUnsupported` returns true when `maxTruthLevel` returns
   `nil` for the current profile; a nil max-truth means the capability is

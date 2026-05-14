@@ -51,6 +51,12 @@ tool surface:
 - The MCP cookbook no longer recommends raw graph-wide source-code Cypher for
   hardcoded-secret prompts. Issue #292 remains the first-class security prompt
   work item.
+- `find_symbol` is the first-class MCP symbol-definition lookup for issue #287.
+  It routes to `POST /api/v0/code/symbols/search`, defaults to exact matching,
+  accepts optional `repo_id`, `language`, and entity-type filters, caps `limit`
+  at 200, caps `offset` at 10000, probes one extra row for `truncated`, returns
+  `source_handle` and `ambiguity`, and uses the content index before graph
+  fallback to avoid a graph-wide Cypher read on normal cold calls.
 
 ## Prompt-Family Audit
 
@@ -59,7 +65,7 @@ tool surface:
 | Cross-repo service story, onboarding, runbooks | `get_service_story`, `investigate_service` | One-call dossier path from #284; keep using story first | #285 parent epic |
 | Exact file/source evidence | `get_file_content`, `get_file_lines`, `get_entity_content` | Already scoped by repo/path or entity ID | None from this PR |
 | Content evidence search | `search_file_content`, `search_entity_content` | Bounded, paged, multi-repo query is single PostgreSQL call | None from this PR |
-| Symbol discovery and implementation lookup | `find_code`, `execute_language_query` | Existing bounded routes; raw Cypher examples now diagnostics-only | #287 |
+| Symbol discovery and implementation lookup | `find_symbol`, `find_code`, `execute_language_query` | First-class definition lookup is bounded, paged, source-handle backed, and no longer requires raw Cypher for "where is this implemented?" prompts | #287 |
 | Callers, callees, imports, call chains | `analyze_code_relationships`, `find_function_call_chain` | Existing depth caps and profile gates; direct relationship pagination still belongs in story-grade tooling | #288 |
 | Dead code and code quality | `find_dead_code`, `find_most_complex_functions` | Existing bounded routes; raw Cypher examples now show limits | #289, #290 |
 | Class hierarchy and overrides | `analyze_code_relationships`, `execute_language_query` | Current fallback remains diagnostics-heavy for some shapes | #291 |
@@ -79,6 +85,9 @@ The changed read paths are cold-call bounded:
 - content search has limit/offset, deterministic ordering, one-row truncation
   probes, a max offset to keep broad cold calls bounded, and a single
   multi-repo SQL query for explicit repo sets;
+- symbol lookup has exact/fuzzy match modes, deterministic ordering,
+  limit/offset, one-row truncation probes, source handles, and ambiguity
+  metadata from one content-index query;
 - infrastructure search has a max limit and truncation probe.
 
 No-Regression Evidence: focused tests cover MCP search-content paging schema and
@@ -87,16 +96,22 @@ YAML sync, single-query explicit multi-repo content search with offset, and
 infrastructure search limit/truncation behavior. Review follow-up regressions
 also cover max-offset rejection, client-side paging contract errors as HTTP
 400, token-scanned Cypher LIMIT detection, OpenAPI response paging metadata,
-and MCP offset schema bounds:
+MCP offset schema bounds, and the first-class symbol lookup route/tool contract:
 `go test ./internal/mcp ./internal/query -run 'TestResolveRouteMapsSearchFileContentPatternAndRepoIDs|TestResolveRouteMapsSearchEntityContentSingleRepoID|TestSearchContentToolsAdvertisePagingContract|TestSearchContentToolsAdvertiseMaxOffset|TestContentHandlerSearchFilesUsesSinglePagedQueryForExplicitRepoIDs|TestContentHandlerSearchFilesRejectsUnsupportedPagedFallbackAsBadRequest|TestContentHandlerSearchEntitiesRejectsUnsupportedPagedFallbackAsBadRequest|TestContentHandlerSearchRejectsOffsetAboveBound|TestHandleCypherQueryAddsBoundedLimitAndEnvelope|TestHandleCypherQueryRejectsExplicitLimitAboveRequestedLimit|TestHandleCypherQueryIgnoresLimitInsideStringLiteral|TestOpenAPISpec_ContentEntitySchemasExposeMetadata|TestCapabilityMatrixMatchesYAMLContract|TestSearchInfraResourcesProbesOneExtraRowForTruncation' -count=1`.
+
+No-Regression Evidence: symbol lookup focused proof:
+`go test ./internal/query -run 'TestCodeHandlerFindSymbolReturnsBoundedContentDefinitions|TestCodeHandlerFindSymbolRejectsHugeOffset|TestCodeHandlerFindSymbolRejectsGraphOnlyOffset|TestOpenAPI' -count=1` and
+`go test ./internal/mcp -run 'TestFindSymbolToolAdvertisesBoundedLookupContract|TestResolveRouteMapsFindSymbol|TestReadOnlyTools|TestCodebaseTools' -count=1`.
 
 Observability Evidence: the changed paths continue through existing
 `postgres.query` and `neo4j.query` spans with `db.operation` values
 `search_file_content_in_repos`, `search_entity_content_in_repos`,
 `search_file_content_page`, `search_entity_content_page`, and
-`searchInfraResources`' existing graph query span. Direct Cypher now uses the
-canonical response envelope with `truth.capability=graph_query.read_only_cypher`
-so MCP callers can distinguish diagnostics from first-class prompt tools.
+`search_symbols`; infrastructure lookup continues through `searchInfraResources`'
+existing graph query span. Direct Cypher now uses the canonical response
+envelope with `truth.capability=graph_query.read_only_cypher`; symbol lookup
+uses `truth.capability=code_search.symbol_lookup` so MCP callers can distinguish
+diagnostics from first-class prompt tools.
 
 ## Consequences
 
