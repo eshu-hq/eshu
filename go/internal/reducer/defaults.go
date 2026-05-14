@@ -88,6 +88,14 @@ type DefaultHandlers struct {
 	TerraformBackendResolver *tfstatebackend.Resolver
 	DriftEvidenceLoader      DriftEvidenceLoader
 	DriftLogger              *slog.Logger
+
+	// AWS cloud-runtime drift adapters (issue #39). Both must be non-nil for
+	// the registry to register DomainAWSCloudRuntimeDrift; missing either one
+	// would either drop evidence before publication or admit findings with no
+	// durable truth surface.
+	AWSCloudRuntimeDriftEvidenceLoader AWSCloudRuntimeDriftEvidenceLoader
+	AWSCloudRuntimeDriftWriter         AWSCloudRuntimeDriftFindingWriter
+	AWSCloudRuntimeDriftLogger         *slog.Logger
 }
 
 // NewDefaultRegistry constructs the canonical reducer catalog for the default
@@ -218,6 +226,17 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			Instruments: handlers.Instruments,
 		}
 		definitions = append(definitions, packageSource)
+	}
+	if handlers.AWSCloudRuntimeDriftEvidenceLoader != nil &&
+		handlers.AWSCloudRuntimeDriftWriter != nil {
+		awsRuntimeDrift := awsCloudRuntimeDriftDomainDefinition()
+		awsRuntimeDrift.Handler = AWSCloudRuntimeDriftHandler{
+			EvidenceLoader: handlers.AWSCloudRuntimeDriftEvidenceLoader,
+			Writer:         handlers.AWSCloudRuntimeDriftWriter,
+			Instruments:    handlers.Instruments,
+			Logger:         handlers.AWSCloudRuntimeDriftLogger,
+		}
+		definitions = append(definitions, awsRuntimeDrift)
 	}
 	if handlers.DeployableUnitCorrelationHandler != nil {
 		definitions = append(definitions, DomainDefinition{

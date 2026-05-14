@@ -48,8 +48,8 @@ flowchart TB
 
 All reducer domains are declared in `domain.go` and registered via
 `NewDefaultRuntime` / `NewDefaultRegistry` in `defaults.go`. Each domain has an
-`OwnershipShape` enforcing cross-source, cross-scope, and either canonical-write
-or bounded counter-emission requirements.
+`OwnershipShape` enforcing cross-source, cross-scope, and either durable
+canonical-write or bounded counter-emission requirements.
 
 | Domain constant | Summary |
 | --- | --- |
@@ -66,16 +66,17 @@ or bounded counter-emission requirements.
 | `DomainSQLRelationshipMaterialization` | Materialize canonical SQL relationship edges |
 | `DomainInheritanceMaterialization` | Materialize inheritance, override, and alias edges |
 | `DomainPackageSourceCorrelation` | Classify package-registry source hints against active repository remotes without ownership promotion |
+| `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan and unmanaged drift findings as canonical reducer facts |
 
 ## Intent lifecycle
 
-`Intent` (declared in `intent.go:104`) carries the durable queue contract.
+`Intent` (declared in `intent.go:117`) carries the durable queue contract.
 States: `pending` → `claimed` → `running` → `succeeded` / `failed`.
 
 - `IntentStatusPending`, `IntentStatusClaimed`, `IntentStatusRunning`,
-  `IntentStatusSucceeded`, `IntentStatusFailed` — `intent.go:51–61`.
+  `IntentStatusSucceeded`, `IntentStatusFailed` — `intent.go:65–74`.
 - `ResultStatusSucceeded`, `ResultStatusFailed`, `ResultStatusSuperseded` —
-  `intent.go:69–75`.
+  `intent.go:81–87`.
 - `ResultStatusSuperseded` short-circuits execution when
   `GenerationCheck` confirms a newer generation is active for the scope.
 
@@ -326,9 +327,9 @@ Core interfaces:
 
 Key construction functions:
 
-- `NewDefaultRuntime(DefaultHandlers)` — `defaults.go:102` — one-call wiring
+- `NewDefaultRuntime(DefaultHandlers)` — `defaults.go:121` — one-call wiring
   for the standard domain catalog.
-- `NewDefaultRegistry(DefaultHandlers)` — `defaults.go:86` — registry only.
+- `NewDefaultRegistry(DefaultHandlers)` — `defaults.go:105` — registry only.
 - `NewRuntime(Registry)` — `runtime.go:63` — bare runtime over a custom registry.
 - `LoadSharedProjectionConfig(getenv)` — `shared_projection_runner.go:476`.
 - `BuildSharedProjectionIntent(input)` — `shared_projection.go:53` — stable
@@ -348,7 +349,7 @@ In-memory runtime types used by focused reducer tests:
 Domain and intent helpers:
 
 - `ParseDomain(raw)` — `domain.go:24`.
-- `IsRetryable(err)` — `intent.go:93`.
+- `IsRetryable(err)` — `intent.go:106`.
 - `GraphProjectionPhaseRepairsFromStates` — `graph_projection_phase_repair.go:45`.
 - `ExtractOverlayEnvironments` — `projection.go:207`.
 - `InferWorkloadKind`, `InferWorkloadClassification` — `projection.go:152, 169`.
@@ -387,6 +388,10 @@ Key metrics (all prefixed `eshu_dp_`):
 - `package_source_correlations_total` — package source-correlation decisions by
   bounded outcome (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`,
   `rejected`) and reducer domain.
+- `correlation_rule_matches_total`, `correlation_orphan_detected_total`, and
+  `correlation_unmanaged_detected_total` — AWS runtime drift rule execution and
+  admitted orphan/unmanaged findings. ARNs stay in structured logs and fact
+  evidence, not metric labels.
 
 Log phase attributes: `telemetry.PhaseReduction` (main loop),
 `telemetry.PhaseShared` (shared projection and repair runner).
@@ -395,7 +400,12 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
 
 - **All reducer domains must be cross-source, cross-scope, and truth-emitting**
   — enforced by `OwnershipShape.Validate`; domains either write canonical graph
-  truth or emit bounded counters such as `package_source_correlation`.
+  truth, publish durable reducer facts such as `aws_cloud_runtime_drift`, or
+  emit bounded counters such as `package_source_correlation`.
+- **AWS runtime drift publication is graph-neutral for this slice** —
+  `AWSCloudRuntimeDriftHandler` writes `reducer_aws_cloud_runtime_drift_finding`
+  facts through `PostgresAWSCloudRuntimeDriftWriter`; graph nodes and MCP/API
+  read models need their own frozen shape before Cypher lands.
 - **Projection must be idempotent** — queue retries, duplicate claims, and
   partial graph writes must converge on the same truth.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`

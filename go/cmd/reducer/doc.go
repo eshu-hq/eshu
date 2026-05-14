@@ -17,7 +17,9 @@
 // over InstrumentedDB children, plus the runtime *telemetry.Instruments
 // handle so the module-aware join in issue #169 can increment
 // eshu_dp_drift_unresolved_module_calls_total when a module call's source
-// resolves to a registry, git URL, archive, or cross-repo path),
+// resolves to a registry, git URL, archive, or cross-repo path; the AWS runtime
+// drift durable fact writer is wired for issue #39, but its evidence loader
+// remains disabled until the cross-source ARN join shape lands),
 // and hosts it
 // through app.NewHostedWithStatusServer so it exposes the shared `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. NornicDB reducer
