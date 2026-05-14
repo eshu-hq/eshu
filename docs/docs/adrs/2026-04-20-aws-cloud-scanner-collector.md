@@ -50,6 +50,49 @@ environment values; preserves image URI evidence for ECR joins; and emits
 reported relationships to execution roles, subnets, and security groups for
 later reducer-owned correlation.
 
+## Status Review (2026-05-14)
+
+**Current disposition:** Phase 2 service expansion started with the SQS
+metadata-only slice for issue #38. The new `sqs` service scans queue metadata,
+queue tags, safe queue attributes, and reported dead-letter queue relationships
+from redrive policy fields. It deliberately does not call `ReceiveMessage`,
+does not mutate queues, and does not request or persist the SQS `Policy`
+attribute.
+
+Collector Performance Evidence: `go test ./internal/collector/awscloud/services/sqs/...`
+covers the bounded SQS call shape: one paginated ListQueues stream, one
+GetQueueAttributes metadata read per discovered queue, one ListQueueTags read
+per discovered queue, no message reads, no queue mutations, and no downstream
+graph writes in the collector. This slice did not run against a live AWS
+account; the performance contract is the bounded O(queue count) SDK call shape
+and existing workflow claim/account concurrency limits.
+
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+covers SQS queue metadata fact emission, dead-letter queue relationship
+emission, omission of queue policy/message payload fields, SDK pagination, tag
+reads, runtime scanner registration, and the command config path that confirms
+SQS does not require an environment-value redaction key.
+
+Collector Observability Evidence: SQS uses the existing AWS collector
+`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
+labels stay bounded to service, account, region, operation, result, and status;
+queue URLs, ARNs, tags, redrive values, and raw AWS error payloads stay out of
+metric labels.
+
+No-Observability-Change: the existing AWS collector telemetry contract already
+diagnoses the SQS path through `aws.service.scan`,
+`aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status`; no new metric
+or span name is needed for this metadata-only scanner.
+
+Collector Deployment Evidence: SQS runs inside the existing hosted
+`collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
+the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
+surfaces apply without a separate deployment.
+
 ## Status Review (2026-05-10)
 
 **Current disposition:** Design accepted; deployment model amended.
@@ -254,7 +297,9 @@ Phase 2 (explicit non-goal for launch but planned):
 
 - RDS, DynamoDB (data-plane resources)
 - S3 (bucket metadata only; never object contents)
-- SQS, SNS, EventBridge (messaging surface)
+- SNS, EventBridge (messaging surface)
+- SQS queue metadata (implemented 2026-05-14; message bodies and queue policy
+  JSON remain out of scope)
 - CloudFront, API Gateway (edge surface)
 - Secrets Manager, SSM Parameter Store (metadata only; values never read)
 - CloudWatch Logs (group metadata only; log contents never read)
@@ -738,7 +783,8 @@ behind schedule.
 
 ### Phase 4: Phase 2 Service Expansion
 
-- RDS, DynamoDB, S3 (metadata), SQS, SNS, EventBridge
+- RDS, DynamoDB, S3 (metadata), SNS, EventBridge
+- SQS queue metadata (implemented 2026-05-14)
 - CloudFront, API Gateway
 - Secrets Manager, SSM Parameter Store (metadata)
 - CloudWatch Logs (group metadata)
@@ -848,9 +894,9 @@ collector for drift rules, on Git collector for code joins.
 
 ### Chunk E: Phase 2 Services
 
-**Scope:** RDS, DynamoDB, S3 metadata, SQS, SNS, EventBridge, CloudFront,
-API Gateway, Secrets Manager metadata, SSM metadata, CloudWatch Logs
-metadata.
+**Scope:** SQS queue metadata, then RDS, DynamoDB, S3 metadata, SNS,
+EventBridge, CloudFront, API Gateway, Secrets Manager metadata, SSM metadata,
+and CloudWatch Logs metadata.
 
 ### Chunk F: Optional Freshness Layer
 

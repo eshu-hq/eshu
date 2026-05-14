@@ -40,6 +40,8 @@
   labels.
 - Keep EC2 instance inventory out of EC2 service scans; collect ENI attachment
   metadata only.
+- Keep SQS queue scans metadata-only. Do not wire ReceiveMessage, queue
+  mutations, or queue policy persistence through the runtime registry.
 
 ## Common Changes
 

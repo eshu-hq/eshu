@@ -35,6 +35,9 @@
 - Preserve EKS OIDC provider, node group, add-on, IAM role, subnet, and
   security group evidence without inferring Kubernetes workload or ownership
   truth.
+- Keep SQS message bodies and queue policy JSON out of facts. Redrive metadata
+  is allowed only as reported queue attributes and dead-letter queue
+  relationship evidence.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target
