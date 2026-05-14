@@ -73,7 +73,7 @@ func (c *Client) listV2Stages(ctx context.Context, apiID string) ([]apigatewayse
 	var token *string
 	for {
 		var page *awsapigatewayv2.GetStagesOutput
-		err := c.recordAPICall(ctx, "GetStagesV2", func(callCtx context.Context) error {
+		err := c.recordAPICall(ctx, "GetStages", func(callCtx context.Context) error {
 			var err error
 			page, err = c.v2.GetStages(callCtx, &awsapigatewayv2.GetStagesInput{
 				ApiId:      aws.String(apiID),
@@ -133,7 +133,7 @@ func (c *Client) listV2Domains(ctx context.Context) ([]apigatewayservice.DomainN
 	var token *string
 	for {
 		var page *awsapigatewayv2.GetDomainNamesOutput
-		err := c.recordAPICall(ctx, "GetDomainNamesV2", func(callCtx context.Context) error {
+		err := c.recordAPICall(ctx, "GetDomainNames", func(callCtx context.Context) error {
 			var err error
 			page, err = c.v2.GetDomainNames(callCtx, &awsapigatewayv2.GetDomainNamesInput{
 				MaxResults: aws.String(v2PageLimit),

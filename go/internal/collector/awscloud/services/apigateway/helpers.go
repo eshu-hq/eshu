@@ -3,6 +3,8 @@ package apigateway
 import (
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
 func cloneStringMap(input map[string]string) map[string]string {
@@ -86,7 +88,7 @@ func domainResourceID(domain DomainName) string {
 
 func apiResourceType(apiKind string) string {
 	if apiKind == APIKindV2 {
-		return "aws_apigatewayv2_api"
+		return awscloud.ResourceTypeAPIGatewayV2API
 	}
-	return "aws_apigateway_rest_api"
+	return awscloud.ResourceTypeAPIGatewayRESTAPI
 }

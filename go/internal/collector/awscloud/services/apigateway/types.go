@@ -41,7 +41,6 @@ type RESTAPI struct {
 	Tags                      map[string]string
 	Stages                    []Stage
 	Integrations              []Integration
-	Policy                    string
 }
 
 // V2API is the metadata-only scanner view of an API Gateway HTTP or WebSocket
@@ -81,30 +80,26 @@ type Stage struct {
 	AutoDeploy           *bool
 	APIGatewayManaged    *bool
 	Tags                 map[string]string
-	StageVariables       map[string]string
 }
 
 // DomainName is the metadata-only scanner view of an API Gateway custom domain.
 // Policy JSON and mutual TLS truststore URIs are intentionally excluded from
 // emitted facts.
 type DomainName struct {
-	APIKind           string
-	Name              string
-	ARN               string
-	Status            string
-	EndpointTypes     []string
-	RegionalDomain    string
-	RegionalZoneID    string
-	DistributionName  string
-	DistributionZone  string
-	CertificateARNs   []string
-	SecurityPolicy    string
-	APIMappingSelect  string
-	Tags              map[string]string
-	Mappings          []Mapping
-	ManagementPolicy  string
-	ExecuteAPIPolicy  string
-	MutualTLSTrustURI string
+	APIKind          string
+	Name             string
+	ARN              string
+	Status           string
+	EndpointTypes    []string
+	RegionalDomain   string
+	RegionalZoneID   string
+	DistributionName string
+	DistributionZone string
+	CertificateARNs  []string
+	SecurityPolicy   string
+	APIMappingSelect string
+	Tags             map[string]string
+	Mappings         []Mapping
 }
 
 // Mapping is custom-domain routing metadata for a REST base path mapping or v2
@@ -134,5 +129,4 @@ type Integration struct {
 	PayloadFormatVersion string
 	TimeoutMillis        int32
 	APIGatewayManaged    *bool
-	CredentialsARN       string
 }

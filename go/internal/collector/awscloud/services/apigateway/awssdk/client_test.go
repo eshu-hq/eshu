@@ -167,29 +167,14 @@ func TestClientSnapshotReadsRESTAndV2MetadataOnly(t *testing.T) {
 		t.Fatalf("len(RESTAPIs) = %d, want %d", got, want)
 	}
 	restAPI := snapshot.RESTAPIs[0]
-	if restAPI.Policy != "" {
-		t.Fatalf("REST policy persisted = %q, want empty", restAPI.Policy)
-	}
 	if got, want := len(restAPI.Stages), 1; got != want {
 		t.Fatalf("len(REST stages) = %d, want %d", got, want)
-	}
-	if restAPI.Stages[0].StageVariables != nil {
-		t.Fatalf("REST stage variables persisted = %#v, want nil", restAPI.Stages[0].StageVariables)
 	}
 	if got, want := restAPI.Integrations[0].URI, "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/"+lambdaARN+"/invocations"; got != want {
 		t.Fatalf("REST integration URI = %q, want %q", got, want)
 	}
-	if restAPI.Integrations[0].CredentialsARN != "" {
-		t.Fatalf("REST integration credentials persisted = %q, want empty", restAPI.Integrations[0].CredentialsARN)
-	}
 	if got, want := len(snapshot.V2APIs), 1; got != want {
 		t.Fatalf("len(V2APIs) = %d, want %d", got, want)
-	}
-	if snapshot.V2APIs[0].Stages[0].StageVariables != nil {
-		t.Fatalf("v2 stage variables persisted = %#v, want nil", snapshot.V2APIs[0].Stages[0].StageVariables)
-	}
-	if snapshot.V2APIs[0].Integrations[0].CredentialsARN != "" {
-		t.Fatalf("v2 integration credentials persisted = %q, want empty", snapshot.V2APIs[0].Integrations[0].CredentialsARN)
 	}
 	if got, want := len(snapshot.Domains), 2; got != want {
 		t.Fatalf("len(Domains) = %d, want %d", got, want)

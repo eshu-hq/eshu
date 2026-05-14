@@ -92,19 +92,16 @@ func TestScannerEmitsAPIGatewayMetadataOnlyFactsAndRelationships(t *testing.T) {
 			}},
 		}},
 		Domains: []DomainName{{
-			APIKind:           APIKindREST,
-			Name:              "api.example.com",
-			ARN:               "arn:aws:apigateway:us-east-1::/domainnames/api.example.com",
-			Status:            "AVAILABLE",
-			EndpointTypes:     []string{"REGIONAL"},
-			RegionalDomain:    "d-abc.execute-api.us-east-1.amazonaws.com",
-			RegionalZoneID:    "Z1UJRXOUMOOFQ8",
-			CertificateARNs:   []string{certificateARN},
-			SecurityPolicy:    "TLS_1_2",
-			ManagementPolicy:  "should-not-persist",
-			ExecuteAPIPolicy:  "should-not-persist",
-			MutualTLSTrustURI: "s3://private/truststore.pem",
-			Tags:              map[string]string{"Domain": "orders"},
+			APIKind:         APIKindREST,
+			Name:            "api.example.com",
+			ARN:             "arn:aws:apigateway:us-east-1::/domainnames/api.example.com",
+			Status:          "AVAILABLE",
+			EndpointTypes:   []string{"REGIONAL"},
+			RegionalDomain:  "d-abc.execute-api.us-east-1.amazonaws.com",
+			RegionalZoneID:  "Z1UJRXOUMOOFQ8",
+			CertificateARNs: []string{certificateARN},
+			SecurityPolicy:  "TLS_1_2",
+			Tags:            map[string]string{"Domain": "orders"},
 			Mappings: []Mapping{{
 				APIKind: APIKindREST,
 				Domain:  "api.example.com",
@@ -180,6 +177,104 @@ func TestScannerEmitsAPIGatewayMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayDomainUsesACMCertificate, certificateARN)
 	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayStageLogsToResource, logGroupARN)
 	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayAPIIntegratesWithResource, lambdaARN)
+}
+
+func TestScannerAggregatesRelationshipAttributesForStableKeys(t *testing.T) {
+	apiID := "a1b2c3d4"
+	lambdaARN := "arn:aws:lambda:us-east-1:123456789012:function:orders"
+	client := fakeClient{snapshot: Snapshot{
+		RESTAPIs: []RESTAPI{{
+			ID:   apiID,
+			Name: "orders-rest",
+			Integrations: []Integration{{
+				APIKind:      APIKindREST,
+				APIID:        apiID,
+				ResourceID:   "res-2",
+				ResourcePath: "/orders/{id}",
+				Method:       "GET",
+				Type:         "AWS_PROXY",
+				URI:          "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/" + lambdaARN + "/invocations",
+			}, {
+				APIKind:      APIKindREST,
+				APIID:        apiID,
+				ResourceID:   "res-1",
+				ResourcePath: "/orders",
+				Method:       "POST",
+				Type:         "AWS_PROXY",
+				URI:          "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/" + lambdaARN + "/invocations",
+			}},
+		}},
+		Domains: []DomainName{{
+			APIKind: APIKindREST,
+			Name:    "api.example.com",
+			Mappings: []Mapping{{
+				APIKind: APIKindREST,
+				Domain:  "api.example.com",
+				Key:     "admin",
+				APIID:   apiID,
+				Stage:   "admin",
+			}, {
+				APIKind: APIKindREST,
+				Domain:  "api.example.com",
+				Key:     "(none)",
+				APIID:   apiID,
+				Stage:   "prod",
+			}},
+		}},
+	}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+
+	mapping := singleRelationshipByTypeAndTarget(
+		t,
+		envelopes,
+		awscloud.RelationshipAPIGatewayDomainMapsToAPI,
+		apiID,
+	)
+	assertAttribute(t, relationshipAttributesOf(t, mapping), "mappings", []map[string]any{{
+		"api_kind": "rest",
+		"domain":   "api.example.com",
+		"key":      "(none)",
+		"stage":    "prod",
+	}, {
+		"api_kind": "rest",
+		"domain":   "api.example.com",
+		"key":      "admin",
+		"stage":    "admin",
+	}})
+
+	integration := singleRelationshipByTypeAndTarget(
+		t,
+		envelopes,
+		awscloud.RelationshipAPIGatewayAPIIntegratesWithResource,
+		lambdaARN,
+	)
+	assertAttribute(t, relationshipAttributesOf(t, integration), "integrations", []map[string]any{{
+		"api_gateway_managed": nil,
+		"api_kind":            "rest",
+		"connection_id":       "",
+		"connection_type":     "",
+		"integration_id":      "",
+		"integration_type":    "AWS_PROXY",
+		"method":              "POST",
+		"resource_id":         "res-1",
+		"resource_path":       "/orders",
+		"timeout_millis":      int32(0),
+	}, {
+		"api_gateway_managed": nil,
+		"api_kind":            "rest",
+		"connection_id":       "",
+		"connection_type":     "",
+		"integration_id":      "",
+		"integration_type":    "AWS_PROXY",
+		"method":              "GET",
+		"resource_id":         "res-2",
+		"resource_path":       "/orders/{id}",
+		"timeout_millis":      int32(0),
+	}})
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
@@ -265,11 +360,43 @@ func assertRelationshipTarget(
 	t.Fatalf("missing relationship %q to %q in %#v", relationshipType, targetResourceID, envelopes)
 }
 
+func singleRelationshipByTypeAndTarget(
+	t *testing.T,
+	envelopes []facts.Envelope,
+	relationshipType string,
+	targetResourceID string,
+) facts.Envelope {
+	t.Helper()
+	var matches []facts.Envelope
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSRelationshipFactKind {
+			continue
+		}
+		if envelope.Payload["relationship_type"] == relationshipType &&
+			envelope.Payload["target_resource_id"] == targetResourceID {
+			matches = append(matches, envelope)
+		}
+	}
+	if len(matches) != 1 {
+		t.Fatalf("relationship %q to %q count = %d, want 1 in %#v", relationshipType, targetResourceID, len(matches), envelopes)
+	}
+	return matches[0]
+}
+
 func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {
 	t.Helper()
 	attributes, ok := envelope.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("attributes = %#v, want map", envelope.Payload["attributes"])
+	}
+	return attributes
+}
+
+func relationshipAttributesOf(t *testing.T, envelope facts.Envelope) map[string]any {
+	t.Helper()
+	attributes, ok := envelope.Payload["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("relationship attributes = %#v, want map", envelope.Payload["attributes"])
 	}
 	return attributes
 }
