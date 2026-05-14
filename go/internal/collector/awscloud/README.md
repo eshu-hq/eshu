@@ -54,6 +54,9 @@ See `doc.go` for the godoc contract.
   group metadata scans.
 - `ServiceCloudFront` - CloudFront service-kind value for global distribution
   metadata scans.
+- `ServiceAPIGateway` - API Gateway service-kind value for regional REST,
+  HTTP, WebSocket, stage, custom-domain, mapping, and integration metadata
+  scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -157,6 +160,12 @@ request.
   collector fact contract. Distribution metadata, aliases, origins, cache
   behavior selectors, viewer certificate selectors, tags, and directly reported
   ACM certificate and WAF web ACL relationships are reported evidence only.
+- API Gateway facts are metadata only. API execution, exports, API keys,
+  authorizer secrets, policy JSON, integration credentials, stage variable
+  values, request templates, response templates, payloads, and mutations stay
+  outside the AWS collector fact contract. API identities, stages, custom
+  domains, mappings, access-log destinations, ACM certificate dependencies, and
+  ARN-addressable integration targets are reported evidence only.
 
 ## Related docs
 

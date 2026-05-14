@@ -66,6 +66,11 @@
   header values, and mutations out of facts. Distribution metadata, tags, and
   directly reported ACM certificate and WAF web ACL edges are reported metadata
   only.
+- Keep API Gateway execution, exports, API keys, authorizer secrets, policy
+  JSON, integration credentials, stage variable values, template bodies,
+  payloads, and mutations out of facts. API Gateway API, stage, domain, mapping,
+  certificate, access-log destination, and ARN-addressable integration edges are
+  reported metadata only.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target

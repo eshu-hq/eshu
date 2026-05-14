@@ -63,7 +63,8 @@ See `doc.go` for the godoc contract.
 - `internal/collector/awscloud` for claim boundaries and warning envelopes.
 - `internal/collector/awscloud/checkpoint` for durable pagination checkpoint
   scope and store contracts.
-- `internal/collector/awscloud/services/iam`,
+- `internal/collector/awscloud/services/apigateway`,
+  `internal/collector/awscloud/services/iam`,
   `internal/collector/awscloud/services/ecr`,
   `internal/collector/awscloud/services/ec2`,
   `internal/collector/awscloud/services/ecs`,
@@ -175,6 +176,10 @@ pagination spans. The command registers the instruments:
   object reads, origin payload reads, distribution config payload persistence,
   policy-document persistence, certificate body reads, private-key handling,
   origin custom header value persistence, or mutation APIs.
+- API Gateway scanners must stay metadata-only. The runtime registry wires the
+  API Gateway SDK adapter, but it must not broaden the service contract to API
+  execution, export, API key, authorizer secret, policy JSON, integration
+  credential, stage variable, template body, payload, or mutation APIs.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

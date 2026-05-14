@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "dynamodb", "cloudwatchlogs", "cloudfront"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -156,6 +156,12 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   objects, origin payloads, distribution config payloads, policy documents,
   certificate bodies, private keys, origin custom header values, or mutate
   CloudFront resources.
+- API Gateway targets emit REST, HTTP, WebSocket, stage, custom-domain,
+  mapping, access-log destination, ACM certificate, and ARN-addressable
+  integration metadata. They intentionally do not execute APIs, export APIs,
+  read API keys, read authorizer secrets, persist policy JSON, persist
+  integration credentials, persist stage variable values, persist template
+  bodies, read payloads, or mutate API Gateway resources.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan
