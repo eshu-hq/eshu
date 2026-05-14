@@ -109,11 +109,11 @@ func boundedReadOnlyCypher(query string, requestedLimit int) (string, int, error
 	limit := normalizeCypherResultLimit(requestedLimit)
 	query = strings.TrimSpace(query)
 	query = strings.TrimSuffix(query, ";")
-	if containsLimitClause(query) {
-		queryLimit, err := explicitCypherLimit(query)
-		if err != nil {
-			return "", 0, err
-		}
+	queryLimit, hasLimit, err := explicitCypherLimit(query)
+	if err != nil {
+		return "", 0, err
+	}
+	if hasLimit {
 		if queryLimit > limit {
 			return "", 0, fmt.Errorf("query LIMIT %d exceeds requested limit %d", queryLimit, limit)
 		}
@@ -132,28 +132,121 @@ func normalizeCypherResultLimit(limit int) int {
 	return limit
 }
 
-func containsLimitClause(query string) bool {
-	upper := strings.ToUpper(query)
-	return strings.Contains(" "+upper+" ", " LIMIT ")
+func explicitCypherLimit(query string) (int, bool, error) {
+	for i := 0; i < len(query); {
+		switch {
+		case isCypherSpace(query[i]):
+			i++
+		case startsCypherLineComment(query, i):
+			i = skipCypherLineComment(query, i)
+		case startsCypherBlockComment(query, i):
+			i = skipCypherBlockComment(query, i)
+		case query[i] == '\'' || query[i] == '"' || query[i] == '`':
+			i = skipCypherQuoted(query, i)
+		case isCypherIdentifierChar(query[i]):
+			start := i
+			for i < len(query) && isCypherIdentifierChar(query[i]) {
+				i++
+			}
+			if !strings.EqualFold(query[start:i], "LIMIT") {
+				continue
+			}
+			valueStart := skipCypherTrivia(query, i)
+			valueEnd := valueStart
+			for valueEnd < len(query) &&
+				!isCypherSpace(query[valueEnd]) &&
+				!startsCypherLineComment(query, valueEnd) &&
+				!startsCypherBlockComment(query, valueEnd) {
+				valueEnd++
+			}
+			if valueEnd == valueStart {
+				return 0, true, fmt.Errorf("query LIMIT must include an integer row cap")
+			}
+			raw := strings.TrimRight(query[valueStart:valueEnd], ";")
+			limit, err := strconv.Atoi(raw)
+			if err != nil || limit <= 0 {
+				return 0, true, fmt.Errorf("query LIMIT must be a positive integer")
+			}
+			return limit, true, nil
+		default:
+			i++
+		}
+	}
+	return 0, false, nil
 }
 
-func explicitCypherLimit(query string) (int, error) {
-	fields := strings.Fields(query)
-	for i, field := range fields {
-		if !strings.EqualFold(field, "LIMIT") {
+func skipCypherTrivia(query string, index int) int {
+	for index < len(query) {
+		switch {
+		case isCypherSpace(query[index]):
+			index++
+		case startsCypherLineComment(query, index):
+			index = skipCypherLineComment(query, index)
+		case startsCypherBlockComment(query, index):
+			index = skipCypherBlockComment(query, index)
+		default:
+			return index
+		}
+	}
+	return index
+}
+
+func skipCypherQuoted(query string, index int) int {
+	quote := query[index]
+	index++
+	for index < len(query) {
+		if query[index] == '\\' && quote != '`' {
+			index += 2
 			continue
 		}
-		if i+1 >= len(fields) {
-			return 0, fmt.Errorf("query LIMIT must include an integer row cap")
+		if query[index] == quote {
+			if quote != '`' && index+1 < len(query) && query[index+1] == quote {
+				index += 2
+				continue
+			}
+			return index + 1
 		}
-		raw := strings.TrimRight(fields[i+1], ";")
-		limit, err := strconv.Atoi(raw)
-		if err != nil || limit <= 0 {
-			return 0, fmt.Errorf("query LIMIT must be a positive integer")
-		}
-		return limit, nil
+		index++
 	}
-	return 0, fmt.Errorf("query LIMIT clause not found")
+	return index
+}
+
+func startsCypherLineComment(query string, index int) bool {
+	return index+1 < len(query) && query[index] == '/' && query[index+1] == '/'
+}
+
+func skipCypherLineComment(query string, index int) int {
+	index += 2
+	for index < len(query) && query[index] != '\n' && query[index] != '\r' {
+		index++
+	}
+	return index
+}
+
+func startsCypherBlockComment(query string, index int) bool {
+	return index+1 < len(query) && query[index] == '/' && query[index+1] == '*'
+}
+
+func skipCypherBlockComment(query string, index int) int {
+	index += 2
+	for index+1 < len(query) {
+		if query[index] == '*' && query[index+1] == '/' {
+			return index + 2
+		}
+		index++
+	}
+	return len(query)
+}
+
+func isCypherIdentifierChar(ch byte) bool {
+	return ch == '_' ||
+		(ch >= '0' && ch <= '9') ||
+		(ch >= 'A' && ch <= 'Z') ||
+		(ch >= 'a' && ch <= 'z')
+}
+
+func isCypherSpace(ch byte) bool {
+	return ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t' || ch == '\f'
 }
 
 // handleVisualizeQuery returns a Neo4j Browser URL for the given Cypher query.

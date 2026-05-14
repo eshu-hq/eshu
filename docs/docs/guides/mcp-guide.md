@@ -298,8 +298,10 @@ Read responses include `source_backend` so you know where the answer came from. 
 `search_file_content` and `search_entity_content` require the PostgreSQL content store — they do not fall back to workspace scanning.
 
 Both content-search tools are paged. Set `limit` and `offset`; responses include
-`truncated`, `limit`, and `offset`. When you pass multiple `repo_ids`, the server
-uses one scoped PostgreSQL query instead of one request per repository.
+`truncated`, `limit`, and `offset`. `offset` is capped at 10000 so broad cold
+searches stay bounded; narrow the repository or pattern before paging beyond
+that window. When you pass multiple `repo_ids`, the server uses one scoped
+PostgreSQL query instead of one request per repository.
 
 For documentation and runbook generation, expect the story layer to prefer Postgres-backed content evidence whenever it needs exact docs, README, runbook, overlay, or config references. If content is missing, story responses should expose limitations instead of implying the docs do not exist.
 

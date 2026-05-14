@@ -229,6 +229,10 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	if _, ok := searchRequestProperties["pattern"]; !ok {
 		t.Fatal("content/entities/search schema missing pattern property")
 	}
+	offsetSchema := mustMapField(t, searchRequestProperties, "offset")
+	if got, want := int(offsetSchema["maximum"].(float64)), contentSearchMaxOffset; got != want {
+		t.Fatalf("content/entities/search offset maximum = %d, want %d", got, want)
+	}
 	searchRequestRequirements, ok := searchRequestSchema["anyOf"].([]any)
 	if !ok || len(searchRequestRequirements) != 2 {
 		t.Fatalf("content/entities/search schema anyOf = %#v, want 2 pattern requirement variants", searchRequestSchema["anyOf"])
@@ -244,6 +248,13 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 
 	components := mustMapField(t, spec, "components")
 	schemas := mustMapField(t, components, "schemas")
+	entitySearchSchema := mustMapField(t, schemas, "EntityContentSearchResponse")
+	entitySearchProperties := mustMapField(t, entitySearchSchema, "properties")
+	for _, property := range []string{"results", "count", "limit", "offset", "truncated", "source_backend"} {
+		if _, ok := entitySearchProperties[property]; !ok {
+			t.Fatalf("EntityContentSearchResponse missing property %q", property)
+		}
+	}
 	entitySchema := mustMapField(t, schemas, "EntityContent")
 	entityProperties := mustMapField(t, entitySchema, "properties")
 	metadata := mustMapField(t, entityProperties, "metadata")

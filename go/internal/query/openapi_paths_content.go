@@ -139,7 +139,7 @@ const openAPIPathsContent = `
                     "description": "Alias for query used by MCP content-search tools."
                   },
                   "limit": {"type": "integer", "default": 50, "maximum": 200},
-                  "offset": {"type": "integer", "default": 0}
+                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}
                 }
               }
             }
@@ -197,7 +197,7 @@ const openAPIPathsContent = `
                     "description": "Alias for query used by MCP content-search tools."
                   },
                   "limit": {"type": "integer", "default": 50, "maximum": 200},
-                  "offset": {"type": "integer", "default": 0}
+                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}
                 }
               }
             }

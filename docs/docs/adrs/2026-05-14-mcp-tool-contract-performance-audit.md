@@ -42,7 +42,8 @@ tool surface:
   `graph_query.read_only_cypher`.
 - `search_file_content` and `search_entity_content` advertise `limit` and
   `offset` through MCP. Their backing HTTP handlers cap `limit` at 200, probe
-  one extra row, return `truncated`, and support deterministic paging.
+  one extra row, cap `offset` at 10000, return `truncated`, and support
+  deterministic paging.
 - Explicit multi-repo content searches now use one scoped PostgreSQL query over
   the requested repo IDs instead of one sequential query per repo.
 - `find_infra_resources` now advertises `limit` through MCP, caps it at 200,
@@ -76,14 +77,18 @@ The changed read paths are cold-call bounded:
 - direct Cypher has a timeout, query length limit, write-keyword rejection, row
   cap, and canonical truth envelope;
 - content search has limit/offset, deterministic ordering, one-row truncation
-  probes, and a single multi-repo SQL query for explicit repo sets;
+  probes, a max offset to keep broad cold calls bounded, and a single
+  multi-repo SQL query for explicit repo sets;
 - infrastructure search has a max limit and truncation probe.
 
 No-Regression Evidence: focused tests cover MCP search-content paging schema and
 dispatch, server-added Cypher limits plus envelope truth, the capability matrix
 YAML sync, single-query explicit multi-repo content search with offset, and
-infrastructure search limit/truncation behavior:
-`go test ./internal/mcp ./internal/query -run 'TestResolveRouteMapsSearchFileContentPatternAndRepoIDs|TestResolveRouteMapsSearchEntityContentSingleRepoID|TestSearchContentToolsAdvertisePagingContract|TestContentHandlerSearchFilesUsesSinglePagedQueryForExplicitRepoIDs|TestHandleCypherQueryAddsBoundedLimitAndEnvelope|TestHandleCypherQueryRejectsExplicitLimitAboveRequestedLimit|TestCapabilityMatrixMatchesYAMLContract|TestSearchInfraResourcesProbesOneExtraRowForTruncation' -count=1`.
+infrastructure search limit/truncation behavior. Review follow-up regressions
+also cover max-offset rejection, client-side paging contract errors as HTTP
+400, token-scanned Cypher LIMIT detection, OpenAPI response paging metadata,
+and MCP offset schema bounds:
+`go test ./internal/mcp ./internal/query -run 'TestResolveRouteMapsSearchFileContentPatternAndRepoIDs|TestResolveRouteMapsSearchEntityContentSingleRepoID|TestSearchContentToolsAdvertisePagingContract|TestSearchContentToolsAdvertiseMaxOffset|TestContentHandlerSearchFilesUsesSinglePagedQueryForExplicitRepoIDs|TestContentHandlerSearchFilesRejectsUnsupportedPagedFallbackAsBadRequest|TestContentHandlerSearchEntitiesRejectsUnsupportedPagedFallbackAsBadRequest|TestContentHandlerSearchRejectsOffsetAboveBound|TestHandleCypherQueryAddsBoundedLimitAndEnvelope|TestHandleCypherQueryRejectsExplicitLimitAboveRequestedLimit|TestHandleCypherQueryIgnoresLimitInsideStringLiteral|TestOpenAPISpec_ContentEntitySchemasExposeMetadata|TestCapabilityMatrixMatchesYAMLContract|TestSearchInfraResourcesProbesOneExtraRowForTruncation' -count=1`.
 
 Observability Evidence: the changed paths continue through existing
 `postgres.query` and `neo4j.query` spans with `db.operation` values

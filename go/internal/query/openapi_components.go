@@ -133,7 +133,16 @@ const openAPIComponents = `  "components": {
             "type": "array",
             "items": {"$ref": "#/components/schemas/EntityContent"}
           },
-          "count": {"type": "integer"}
+          "matches": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/EntityContent"},
+            "description": "Compatibility alias for results."
+          },
+          "count": {"type": "integer"},
+          "limit": {"type": "integer"},
+          "offset": {"type": "integer"},
+          "truncated": {"type": "boolean"},
+          "source_backend": {"type": "string"}
         }
       },
       "CodeSearchResult": {

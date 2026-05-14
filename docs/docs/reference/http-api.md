@@ -852,8 +852,9 @@ Example file-content search:
 ```
 
 Content search is bounded at the PostgreSQL query boundary. `limit` defaults to
-50 and is capped at 200. `offset` pages the same deterministic order. Explicit
-`repo_ids` searches run as one scoped query rather than one query per
+50 and is capped at 200. `offset` pages the same deterministic order and is
+capped at 10000 so broad cold searches cannot drift into unbounded scans.
+Explicit `repo_ids` searches run as one scoped query rather than one query per
 repository. Responses include `limit`, `offset`, and `truncated` so MCP and
 automation clients can fetch another page only when the server says one exists.
 

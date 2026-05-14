@@ -180,6 +180,34 @@ func TestHandleCypherQueryRejectsExplicitLimitAboveRequestedLimit(t *testing.T) 
 	}
 }
 
+func TestHandleCypherQueryIgnoresLimitInsideStringLiteral(t *testing.T) {
+	t.Parallel()
+
+	stub := fakeGraphReader{
+		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			if !strings.Contains(cypher, "LIMIT 3") {
+				t.Fatalf("cypher = %q, want appended LIMIT 3 probe", cypher)
+			}
+			if len(params) != 0 {
+				t.Fatalf("params = %#v, want none for direct cypher", params)
+			}
+			return []map[string]any{{"name": "LIMIT"}}, nil
+		},
+	}
+	h := &CodeHandler{Neo4j: stub}
+
+	body := `{"cypher_query": "MATCH (n) WHERE n.name = 'LIMIT' RETURN n.name AS name", "limit": 2}`
+	req := httptest.NewRequest("POST", "/api/v0/code/cypher", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	h.handleCypherQuery(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+}
+
 func TestHandleVisualizeQuery_ReturnsURL(t *testing.T) {
 	h := &CodeHandler{Neo4j: &stubGraphReader{}}
 

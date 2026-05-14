@@ -10,6 +10,12 @@ import (
 const (
 	contentSearchDefaultLimit = 50
 	contentSearchMaxLimit     = 200
+	contentSearchMaxOffset    = 10000
+)
+
+var (
+	errUnsupportedPagedFileSearch   = errors.New("content store does not support paged file search")
+	errUnsupportedPagedEntitySearch = errors.New("content store does not support paged entity search")
 )
 
 // ContentHandler serves HTTP endpoints for reading file and entity content
@@ -162,6 +168,10 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 
 	results, truncated, err := h.searchFilesByScope(r.Context(), req)
 	if err != nil {
+		if errors.Is(err, errUnsupportedPagedFileSearch) {
+			WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -190,6 +200,10 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 
 	results, truncated, err := h.searchEntitiesByScope(r.Context(), req)
 	if err != nil {
+		if errors.Is(err, errUnsupportedPagedEntitySearch) {
+			WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -217,6 +231,9 @@ func readContentSearchRequest(r *http.Request) (contentSearchRequest, error) {
 func (req contentSearchRequest) validate() error {
 	if req.pattern() == "" {
 		return errors.New("query is required")
+	}
+	if req.Offset > contentSearchMaxOffset {
+		return fmt.Errorf("offset exceeds maximum of %d", contentSearchMaxOffset)
 	}
 	return nil
 }
@@ -318,7 +335,7 @@ func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSear
 		return trimFileContentSearchPage(results, req.limit()), len(results) > req.limit(), nil
 	}
 	if req.offset() > 0 {
-		return nil, false, fmt.Errorf("content store does not support paged file search")
+		return nil, false, errUnsupportedPagedFileSearch
 	}
 	probeLimit := req.limit() + 1
 	if repoID := req.repoID(); repoID != "" {
@@ -353,7 +370,7 @@ func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentS
 		return trimEntityContentSearchPage(results, req.limit()), len(results) > req.limit(), nil
 	}
 	if req.offset() > 0 {
-		return nil, false, fmt.Errorf("content store does not support paged entity search")
+		return nil, false, errUnsupportedPagedEntitySearch
 	}
 	probeLimit := req.limit() + 1
 	if repoID := req.repoID(); repoID != "" {
