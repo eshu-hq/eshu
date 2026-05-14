@@ -75,25 +75,6 @@ func contentTools() []ToolDefinition {
 						"items":       map[string]any{"type": "string"},
 						"description": "Filter by repository selectors: canonical IDs, names, repo slugs, or indexed paths",
 					},
-					"languages": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Filter by programming languages",
-					},
-					"artifact_types": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Filter by artifact types",
-					},
-					"template_dialects": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Filter by template dialects",
-					},
-					"iac_relevant": map[string]any{
-						"type":        "boolean",
-						"description": "Filter for infrastructure-as-code relevant content",
-					},
 					"limit": map[string]any{
 						"type":        "integer",
 						"description": "Maximum search results to return",
@@ -122,34 +103,10 @@ func contentTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Search pattern or regular expression",
 					},
-					"entity_types": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Filter by entity types",
-					},
 					"repo_ids": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
 						"description": "Filter by repository selectors: canonical IDs, names, repo slugs, or indexed paths",
-					},
-					"languages": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Filter by programming languages",
-					},
-					"artifact_types": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Filter by artifact types",
-					},
-					"template_dialects": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Filter by template dialects",
-					},
-					"iac_relevant": map[string]any{
-						"type":        "boolean",
-						"description": "Filter for infrastructure-as-code relevant content",
 					},
 					"limit": map[string]any{
 						"type":        "integer",

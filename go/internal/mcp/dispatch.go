@@ -81,94 +81,6 @@ type route struct {
 	query  map[string]string
 }
 
-func str(args map[string]any, key string) string {
-	v, _ := args[key].(string)
-	return v
-}
-
-func intOr(args map[string]any, key string, def int) int {
-	switch v := args[key].(type) {
-	case int:
-		return v
-	case int64:
-		return int(v)
-	case float64:
-		return int(v)
-	default:
-		return def
-	}
-}
-
-func boolOr(args map[string]any, key string, def bool) bool {
-	v, ok := args[key].(bool)
-	if !ok {
-		return def
-	}
-	return v
-}
-
-func resolveEntityBody(args map[string]any) map[string]any {
-	body := map[string]any{}
-
-	if name := str(args, "name"); name != "" {
-		body["name"] = name
-	} else if query := str(args, "query"); query != "" {
-		body["name"] = query
-	}
-	if kind := str(args, "type"); kind != "" {
-		body["type"] = kind
-	} else if kinds := stringSlice(args, "types"); len(kinds) > 0 {
-		body["type"] = firstString(kinds)
-	}
-	if repoID := str(args, "repo_id"); repoID != "" {
-		body["repo_id"] = repoID
-	}
-
-	return body
-}
-
-func contentSearchBody(args map[string]any) map[string]any {
-	body := map[string]any{
-		"query":  str(args, "query"),
-		"limit":  intOr(args, "limit", 10),
-		"offset": intOr(args, "offset", 0),
-	}
-	if body["query"] == "" {
-		body["query"] = str(args, "pattern")
-	}
-
-	repoIDs := stringSlice(args, "repo_ids")
-	switch len(repoIDs) {
-	case 0:
-		if repoID := str(args, "repo_id"); repoID != "" {
-			body["repo_id"] = repoID
-		}
-	case 1:
-		if repoID := firstString(repoIDs); repoID != "" {
-			body["repo_id"] = repoID
-		}
-	default:
-		body["repo_ids"] = repoIDs
-	}
-
-	return body
-}
-
-func parseMaxDepth(args map[string]any, defaultDepth int) int {
-	if depth, ok := args["max_depth"].(float64); ok {
-		return int(depth)
-	}
-	contextValue := str(args, "context")
-	if contextValue == "" {
-		return defaultDepth
-	}
-	depth, err := strconv.Atoi(strings.TrimSpace(contextValue))
-	if err != nil {
-		return defaultDepth
-	}
-	return depth
-}
-
 // resolveRoute maps a tool name and its arguments to an internal HTTP route.
 func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	switch toolName {
@@ -325,11 +237,12 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/code/bundles", body: map[string]any{
 			"query":       str(args, "query"),
 			"unique_only": boolOr(args, "unique_only", false),
+			"limit":       intOr(args, "limit", 50),
 		}}, nil
 
 	// ── Repositories ──
 	case "list_indexed_repositories":
-		return &route{method: "GET", path: "/api/v0/repositories"}, nil
+		return &route{method: "GET", path: "/api/v0/repositories", query: paginationQuery(args, 100)}, nil
 	case "get_repository_stats":
 		repoID := str(args, "repo_id")
 		if repoID == "" {

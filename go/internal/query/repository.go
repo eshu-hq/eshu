@@ -42,13 +42,11 @@ func (h *RepositoryHandler) profile() QueryProfile {
 	return NormalizeQueryProfile(string(h.Profile))
 }
 
-// listRepositories returns all indexed repositories.
+// listRepositories returns a bounded page of indexed repositories.
 func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Request) {
+	page := repositoryListPageFromRequest(r)
 	if h == nil {
-		WriteJSON(w, http.StatusOK, map[string]any{
-			"repositories": []map[string]any{},
-			"count":        0,
-		})
+		WriteSuccess(w, r, http.StatusOK, repositoryListResponse([]map[string]any{}, page, false), nil)
 		return
 	}
 	if h.Neo4j == nil {
@@ -57,23 +55,27 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 			return
 		}
-		WriteJSON(w, http.StatusOK, map[string]any{
-			"repositories": repos,
-			"count":        len(repos),
-		})
+		repos, truncated := pageRepositoryMaps(repos, page)
+		WriteSuccess(w, r, http.StatusOK, repositoryListResponse(repos, page, truncated), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisContentIndex, "resolved from bounded repository content catalog"))
 		return
 	}
 
 	cypher := fmt.Sprintf(`
 		MATCH (r:Repository)
 		RETURN %s, coalesce(r.is_dependency, false) as is_dependency
-		ORDER BY r.name
+		ORDER BY r.name, r.id
+		SKIP $offset
+		LIMIT $limit
 	`, RepoProjection("r"))
 
-	rows, err := h.Neo4j.Run(r.Context(), cypher, nil)
+	rows, err := h.Neo4j.Run(r.Context(), cypher, map[string]any{"offset": page.Offset, "limit": page.Limit + 1})
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
+	}
+	truncated := len(rows) > page.Limit
+	if truncated {
+		rows = rows[:page.Limit]
 	}
 
 	repos := make([]map[string]any, 0, len(rows))
@@ -91,10 +93,7 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 		repos = append(repos, repo)
 	}
 
-	WriteJSON(w, http.StatusOK, map[string]any{
-		"repositories": repos,
-		"count":        len(repos),
-	})
+	WriteSuccess(w, r, http.StatusOK, repositoryListResponse(repos, page, truncated), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 }
 
 func (h *RepositoryHandler) listRepositoriesFromContent(ctx context.Context) ([]map[string]any, error) {

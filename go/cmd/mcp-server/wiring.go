@@ -136,6 +136,7 @@ func newMCPQueryRouter(
 		},
 		Content: &query.ContentHandler{
 			Content: contentReader,
+			Profile: queryProfile,
 		},
 		Infra: &query.InfraHandler{
 			Neo4j:   neo4jReader,

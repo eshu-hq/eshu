@@ -350,11 +350,6 @@ func codebaseTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Optional canonical repository identifier",
 					},
-					"scope": map[string]any{
-						"type":        "string",
-						"description": "Search scope",
-						"default":     "auto",
-					},
 				},
 				"required": []string{},
 			},
@@ -409,6 +404,7 @@ func codebaseTools() []ToolDefinition {
 						"description": "Return only unique bundles",
 						"default":     false,
 					},
+					"limit": map[string]any{"type": "integer", "description": "Maximum bundles to return", "default": 50, "minimum": 1, "maximum": 200},
 				},
 				"required": []string{},
 			},
@@ -417,9 +413,12 @@ func codebaseTools() []ToolDefinition {
 			Name:        "list_indexed_repositories",
 			Description: "List all indexed repositories.",
 			InputSchema: map[string]any{
-				"type":       "object",
-				"properties": map[string]any{},
-				"required":   []string{},
+				"type": "object",
+				"properties": map[string]any{
+					"limit":  map[string]any{"type": "integer", "description": "Maximum repositories to return", "default": 100, "minimum": 1, "maximum": 500},
+					"offset": map[string]any{"type": "integer", "description": "Zero-based result offset for paging", "default": 0, "minimum": 0, "maximum": 10000},
+				},
+				"required": []string{},
 			},
 		},
 		{

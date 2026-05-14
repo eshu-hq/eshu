@@ -17,28 +17,16 @@ func contextTools() []ToolDefinition {
 						"items":       map[string]any{"type": "string"},
 						"description": "Filter by entity types",
 					},
-					"kinds": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Filter by entity kinds",
-					},
-					"environment": map[string]any{
-						"type":        "string",
-						"description": "Optional environment context",
-					},
 					"repo_id": map[string]any{
 						"type":        "string",
 						"description": "Optional repository selector to scope the search: canonical ID, name, repo slug, or indexed path",
-					},
-					"exact": map[string]any{
-						"type":        "boolean",
-						"description": "Whether to perform exact matching",
-						"default":     false,
 					},
 					"limit": map[string]any{
 						"type":        "integer",
 						"description": "Maximum number of results",
 						"default":     10,
+						"minimum":     1,
+						"maximum":     100,
 					},
 				},
 				"required": []string{"query"},

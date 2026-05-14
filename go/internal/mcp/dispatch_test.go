@@ -40,6 +40,33 @@ func TestResolveRouteMapsResolveEntityQueryToName(t *testing.T) {
 	if _, exists := body["types"]; exists {
 		t.Fatalf("body should not contain types, got %#v", body["types"])
 	}
+	if got, want := body["limit"], 5; got != want {
+		t.Fatalf("body[limit] = %#v, want %#v", got, want)
+	}
+}
+
+func TestResolveRouteMapsListIndexedRepositoriesToBoundedQuery(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("list_indexed_repositories", map[string]any{
+		"limit":  float64(25),
+		"offset": float64(50),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "GET"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/repositories"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	if got, want := route.query["limit"], "25"; got != want {
+		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)
+	}
+	if got, want := route.query["offset"], "50"; got != want {
+		t.Fatalf("route.query[offset] = %#v, want %#v", got, want)
+	}
 }
 
 func TestResolveRouteMapsQualifiedServiceIDToServicePath(t *testing.T) {
@@ -371,6 +398,25 @@ func TestResolveRouteMapsFindMostComplexFunctionsWithoutEntitySelector(t *testin
 	}
 	if _, exists := body["function_name"]; exists {
 		t.Fatalf("body should not contain function_name, got %#v", body["function_name"])
+	}
+}
+
+func TestResolveRouteMapsSearchRegistryBundlesLimit(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("search_registry_bundles", map[string]any{
+		"query": "api",
+		"limit": float64(25),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	body, ok := route.body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+	}
+	if got, want := body["limit"], 25; got != want {
+		t.Fatalf("body[limit] = %#v, want %#v", got, want)
 	}
 }
 

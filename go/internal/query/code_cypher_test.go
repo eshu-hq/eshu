@@ -248,16 +248,26 @@ func TestHandleVisualizeQuery_RejectsMutations(t *testing.T) {
 }
 
 func TestHandleSearchBundles_ReturnsResults(t *testing.T) {
-	stub := &stubGraphReader{
-		rows: []map[string]any{
-			{"name": "my-repo", "repo_id": "abc123"},
+	stub := fakeGraphReader{
+		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			if !strings.Contains(cypher, "ORDER BY r.name, r.repo_id LIMIT $limit") {
+				t.Fatalf("cypher = %q, want deterministic bounded bundle query", cypher)
+			}
+			if got, want := params["limit"], 2; got != want {
+				t.Fatalf("params[limit] = %#v, want %#v", got, want)
+			}
+			return []map[string]any{
+				{"name": "my-repo", "repo_id": "abc123"},
+				{"name": "my-repo-two", "repo_id": "def456"},
+			}, nil
 		},
 	}
 	h := &CodeHandler{Neo4j: stub}
 
-	body := `{"query": "my-repo"}`
+	body := `{"query": "my-repo", "limit": 1}`
 	req := httptest.NewRequest("POST", "/api/v0/code/bundles", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 
 	h.handleSearchBundles(w, req)
@@ -266,13 +276,20 @@ func TestHandleSearchBundles_ReturnsResults(t *testing.T) {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
 
-	var resp map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
+	}
+	resp, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map", envelope.Data)
 	}
 	bundles, ok := resp["bundles"].([]any)
 	if !ok || len(bundles) != 1 {
 		t.Errorf("expected 1 bundle, got %v", resp["bundles"])
+	}
+	if got, want := resp["truncated"], true; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
 	}
 }
 
@@ -353,7 +370,7 @@ func TestHandleComplexityListsMostComplexFunctionsWhenSelectorOmitted(t *testing
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
 				}
-				if got, want := params["limit"], 2; got != want {
+				if got, want := params["limit"], 3; got != want {
 					t.Fatalf("params[limit] = %#v, want %#v", got, want)
 				}
 				return []map[string]any{

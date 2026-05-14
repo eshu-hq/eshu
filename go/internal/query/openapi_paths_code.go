@@ -445,7 +445,7 @@ const openAPIPathsCode = `
       "post": {
         "tags": ["code"],
         "summary": "Get complexity metrics",
-        "description": "Returns relationship-based complexity metrics for an entity.",
+        "description": "Returns relationship-based complexity metrics for an entity or a bounded list of the most complex functions.",
         "operationId": "getComplexity",
         "requestBody": {
           "required": true,
@@ -453,10 +453,11 @@ const openAPIPathsCode = `
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["entity_id"],
                 "properties": {
                   "entity_id": {"type": "string"},
-                  "repo_id": {"type": "string"}
+                  "function_name": {"type": "string"},
+                  "repo_id": {"type": "string"},
+                  "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100}
                 }
               }
             }
@@ -482,7 +483,10 @@ const openAPIPathsCode = `
                     "metadata": {"type": "object", "additionalProperties": true},
                     "outgoing_count": {"type": "integer"},
                     "incoming_count": {"type": "integer"},
-                    "total_relationships": {"type": "integer"}
+                    "total_relationships": {"type": "integer"},
+                    "results": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"}
                   }
                 }
               }

@@ -51,6 +51,7 @@ nav:
     - Overview: mcp/index.md
     - MCP Guide: guides/mcp-guide.md
     - MCP Reference: reference/mcp-reference.md
+    - MCP Tool Contract Matrix: reference/mcp-tool-contract-matrix.md
     - MCP Cookbook: reference/mcp-cookbook.md
   - Deploy to Kubernetes:
     - Overview: deploy/kubernetes/index.md

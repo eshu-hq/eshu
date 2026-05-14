@@ -4,6 +4,9 @@ This page lists all available **MCP Tools** that your AI assistant (Cursor, Clau
 
 When you ask a question in natural language, the AI selects one of these tools behind the scenes.
 
+For the bounded-call, envelope, pagination, and diagnostics-only contract for
+each tool, see the [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md).
+
 For documentation-oriented answers, use a simple orchestration rule:
 
 - start with story or context when the user wants explanation, onboarding, support guidance, or deployment narrative
@@ -160,7 +163,7 @@ Tools for runtime health, completeness, and repository inventory.
 | **`get_index_status`** | Show the latest checkpointed completeness state. | "Is indexing complete right now?" |
 | **`list_ingesters`** | Show the latest persisted status for all configured ingesters. | "What ingesters are configured and what state are they in?" |
 | **`get_ingester_status`** | Show detailed status for one ingester runtime, including retry timing and repo progress counts. | "What is the repository ingester doing right now?" |
-| **`list_indexed_repositories`** | Show what projects are currently indexed. | "What repos are indexed?" |
+| **`list_indexed_repositories`** | Show a bounded page of currently indexed projects with `limit`, `offset`, and `truncated`. | "What repos are indexed?" |
 | **`get_repository_stats`** | Show counts of files, classes, and other repository stats, optionally scoped by repository selector. | "Show stats for the backend repo." |
 
 ## Bundles & Registry

@@ -26,3 +26,27 @@ func TestSearchContentToolsAdvertiseMaxOffset(t *testing.T) {
 		}
 	}
 }
+
+func TestSearchContentToolsDoNotAdvertiseUnsupportedFilters(t *testing.T) {
+	t.Parallel()
+
+	unsupported := []string{"languages", "artifact_types", "template_dialects", "iac_relevant", "entity_types"}
+	for _, tool := range contentTools() {
+		if tool.Name != "search_file_content" && tool.Name != "search_entity_content" {
+			continue
+		}
+		schema, ok := tool.InputSchema.(map[string]any)
+		if !ok {
+			t.Fatalf("%s InputSchema type = %T, want map", tool.Name, tool.InputSchema)
+		}
+		properties, ok := schema["properties"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s properties type = %T, want map", tool.Name, schema["properties"])
+		}
+		for _, field := range unsupported {
+			if _, ok := properties[field]; ok {
+				t.Fatalf("%s advertises unsupported filter %s", tool.Name, field)
+			}
+		}
+	}
+}

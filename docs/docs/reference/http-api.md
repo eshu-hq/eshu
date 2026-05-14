@@ -301,12 +301,16 @@ Use this before context lookups when the caller has a fuzzy name, alias, or part
 
 ```json
 {
-  "query": "payments prod rds",
-  "types": ["workload", "cloud_resource"],
-  "environment": "prod",
+  "name": "payments-api",
+  "type": "workload",
+  "repo_id": "payments",
   "limit": 5
 }
 ```
+
+Responses include `entities`, `count`, the normalized `limit`, and
+`truncated` so MCP clients can page or disambiguate before calling context
+tools.
 
 ### Get canonical entity context
 
@@ -587,6 +591,10 @@ canonical repository ID, repository name, repo slug, or indexed path. The
 server resolves that selector to the canonical repository ID before querying.
 Results should still be interpreted using canonical `repo_id + relative_path`,
 not absolute server-local paths.
+
+`POST /api/v0/code/complexity` accepts `entity_id` or `function_name` for a
+single function. When neither selector is present it returns a bounded,
+deterministically ordered `results` list with `limit` and `truncated`.
 
 `POST /api/v0/code/relationships` prefers `entity_id` when the caller already
 has a canonical entity. It also accepts `name` for fallback lookup, plus
@@ -1000,6 +1008,9 @@ Repository routes accept a repository selector in the `{id}` path segment. The
 selector may be the canonical repository ID, repository name, repo slug, or
 indexed path. The server resolves that selector to the canonical repository ID
 before querying.
+
+`GET /api/v0/repositories` accepts `limit` and `offset` query parameters and
+returns `truncated=true` when more indexed repositories are available.
 
 Repository responses should be treated as:
 
