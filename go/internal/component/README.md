@@ -42,10 +42,8 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
 
 ## Exported surface
 
-- `Manifest`, `Metadata`, `Spec`, `Artifact`, `FactFamily`,
-  `ConsumerContracts`, and `Telemetry` model the component manifest contract.
-  Each `FactFamily` declares supported schema versions and the non-unknown
-  source-confidence values the component emits.
+- `Manifest`, `Metadata`, `Spec`, `Artifact`, `EmittedFact`,
+  `ConsumerContract`, and `Telemetry` model the component manifest contract.
 - `LoadManifest(path)` loads and validates a manifest from disk.
 - `Policy` and `VerificationResult` implement local trust checks.
 - `NewRegistry(home)` creates a file-backed installed component registry.
@@ -65,9 +63,6 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
 - Registry writes are atomic so a partial write cannot corrupt
   `registry.json`.
 - Component manifests must pin artifact images by digest.
-- Component manifests must declare source-confidence values per emitted fact
-  family. `unknown` remains a storage compatibility fallback, not component
-  output.
 - Unknown or unsupported package behavior must remain inert at install time.
 
 ## Tests

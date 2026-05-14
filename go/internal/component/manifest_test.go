@@ -22,9 +22,6 @@ func TestLoadManifestAcceptsValidComponentPackage(t *testing.T) {
 	if got, want := manifest.Spec.ComponentType, ComponentTypeCollector; got != want {
 		t.Fatalf("Spec.ComponentType = %q, want %q", got, want)
 	}
-	if got, want := manifest.Spec.EmittedFacts[0].SourceConfidence, []string{"reported"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("Spec.EmittedFacts[0].SourceConfidence = %v, want %v", got, want)
-	}
 }
 
 func TestManifestValidateRejectsMissingRequiredIdentity(t *testing.T) {
@@ -117,51 +114,6 @@ func TestManifestValidateRequiresDigestPinnedArtifacts(t *testing.T) {
 	}
 }
 
-func TestManifestValidateRequiresFactSourceConfidence(t *testing.T) {
-	t.Parallel()
-
-	manifest := validManifest()
-	manifest.Spec.EmittedFacts[0].SourceConfidence = nil
-
-	err := manifest.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want missing source confidence error")
-	}
-	if !strings.Contains(err.Error(), "sourceConfidence") {
-		t.Fatalf("Validate() error = %v, want sourceConfidence error", err)
-	}
-}
-
-func TestManifestValidateRejectsUnsupportedFactSourceConfidence(t *testing.T) {
-	t.Parallel()
-
-	manifest := validManifest()
-	manifest.Spec.EmittedFacts[0].SourceConfidence = []string{"guessed"}
-
-	err := manifest.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want unsupported source confidence error")
-	}
-	if !strings.Contains(err.Error(), "source_confidence") {
-		t.Fatalf("Validate() error = %v, want source_confidence validation error", err)
-	}
-}
-
-func TestManifestValidateRejectsUnknownFactSourceConfidence(t *testing.T) {
-	t.Parallel()
-
-	manifest := validManifest()
-	manifest.Spec.EmittedFacts[0].SourceConfidence = []string{"unknown"}
-
-	err := manifest.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want unknown source confidence error")
-	}
-	if !strings.Contains(err.Error(), "unknown") {
-		t.Fatalf("Validate() error = %v, want unknown source confidence error", err)
-	}
-}
-
 func writeManifest(t *testing.T, body string) string {
 	t.Helper()
 
@@ -194,9 +146,8 @@ func validManifest() Manifest {
 			},
 			EmittedFacts: []FactFamily{
 				{
-					Kind:             "dev.eshu.aws.cloud_resource",
-					SchemaVersions:   []string{"1.0.0"},
-					SourceConfidence: []string{"reported"},
+					Kind:           "dev.eshu.aws.cloud_resource",
+					SchemaVersions: []string{"1.0.0"},
 				},
 			},
 			ConsumerContracts: ConsumerContracts{
@@ -231,8 +182,6 @@ spec:
     - kind: dev.eshu.aws.cloud_resource
       schemaVersions:
         - 1.0.0
-      sourceConfidence:
-        - reported
   consumerContracts:
     reducer:
       phases:

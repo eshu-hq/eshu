@@ -146,7 +146,6 @@ Every component package ships with a manifest declaring:
 | `metadata.version` | Component semver. |
 | `spec.compatibleCore` | Range of Eshu core versions this component targets. |
 | `spec.emittedFacts` | List of fact kinds + supported `schema_version` set per kind. |
-| `spec.emittedFacts[].sourceConfidence` | Source-confidence values each fact family emits. `unknown` is not allowed for component output. |
 | `spec.consumerContracts` | Downstream reducer or query consumer contract the component expects. |
 
 Plugins introducing a new fact kind MUST also declare the consumer contract
@@ -174,32 +173,12 @@ spec:
   emittedFacts:
     - kind: com.example.cloud-snapshot.resource
       schemaVersions: ["1.2.0"]
-      sourceConfidence: ["reported"]
     - kind: com.example.cloud-snapshot.relationship
       schemaVersions: ["1.0.0"]
-      sourceConfidence: ["reported"]
   consumerContracts:
     reducer:
       phases: ["resource_correlation"]
 ```
-
-## Core AWS Cloud Fact Families
-
-AWS cloud scanner facts use `collector_kind: "aws"` and
-`source_confidence: "reported"` because the AWS APIs report live account
-state. The facts package currently defines:
-
-| Fact kind | Purpose |
-| --- | --- |
-| `aws_resource` | One AWS resource reported by a service API. |
-| `aws_relationship` | One relationship reported by AWS APIs. |
-| `aws_tag_observation` | One raw AWS tag observation when split out for correlation indexing. |
-| `aws_dns_record` | One Route 53 DNS record observation. |
-| `aws_image_reference` | One ECR image digest/tag reference. |
-| `aws_warning` | One non-fatal AWS scanner warning. |
-
-Reducers must corroborate workload, deployment, ownership, and environment truth
-before AWS evidence is promoted into canonical graph answers.
 
 ## Trust model
 

@@ -131,8 +131,6 @@ spec:
     - kind: dev.eshu.aws.cloud_resource
       schemaVersions:
         - 1.0.0
-      sourceConfidence:
-        - reported
   consumerContracts:
     reducer:
       phases:
@@ -147,11 +145,6 @@ or malformed digests are rejected.
 `compatibleCore` is checked during verification. Release builds compare the
 manifest range against the running Eshu core version. Local source builds that
 report `dev` still parse the range but do not enforce a release comparison.
-
-Each `emittedFacts` entry must declare `sourceConfidence`. Allowed values are
-`observed`, `reported`, `inferred`, and `derived`. `unknown` is reserved for
-old stored rows and system fallback data; component manifests cannot declare it
-as normal emitted output.
 
 ## Current Limits
 

@@ -10,8 +10,6 @@ import (
 
 	"golang.org/x/mod/semver"
 	"gopkg.in/yaml.v3"
-
-	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 const (
@@ -61,12 +59,10 @@ type Artifact struct {
 	Image    string `yaml:"image" json:"image"`
 }
 
-// FactFamily declares one emitted fact kind, schema versions, and source
-// confidence values.
+// FactFamily declares one emitted fact kind and its schema versions.
 type FactFamily struct {
-	Kind             string   `yaml:"kind" json:"kind"`
-	SchemaVersions   []string `yaml:"schemaVersions" json:"schemaVersions"`
-	SourceConfidence []string `yaml:"sourceConfidence" json:"sourceConfidence"`
+	Kind           string   `yaml:"kind" json:"kind"`
+	SchemaVersions []string `yaml:"schemaVersions" json:"schemaVersions"`
 }
 
 // ConsumerContracts declares downstream runtime contracts required by the
@@ -176,21 +172,6 @@ func (f FactFamily) Validate() error {
 	for _, version := range f.SchemaVersions {
 		if strings.TrimSpace(version) == "" {
 			return fmt.Errorf("fact kind %q has an empty schema version", f.Kind)
-		}
-	}
-	if len(f.SourceConfidence) == 0 {
-		return fmt.Errorf("fact kind %q must declare at least one sourceConfidence value", f.Kind)
-	}
-	for _, confidence := range f.SourceConfidence {
-		trimmed := strings.TrimSpace(confidence)
-		if trimmed == "" {
-			return fmt.Errorf("fact kind %q has an empty sourceConfidence value", f.Kind)
-		}
-		if err := facts.ValidateSourceConfidence(trimmed); err != nil {
-			return fmt.Errorf("fact kind %q sourceConfidence: %w", f.Kind, err)
-		}
-		if trimmed == facts.SourceConfidenceUnknown {
-			return fmt.Errorf("fact kind %q sourceConfidence must not declare unknown for new component output", f.Kind)
 		}
 	}
 	return nil

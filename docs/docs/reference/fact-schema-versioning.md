@@ -105,22 +105,6 @@ A plugin manifest must declare:
 - source confidence values used by each fact family
 - minimum compatible Eshu core version
 
-Each declared fact family uses `sourceConfidence` in the manifest. For example,
-an AWS package that emits live API evidence declares:
-
-```yaml
-emittedFacts:
-  - kind: dev.eshu.aws.cloud_resource
-    schemaVersions:
-      - 1.0.0
-    sourceConfidence:
-      - reported
-```
-
-`unknown` must not be declared by component packages. It exists only so older
-stored rows and system fallback rows can be read safely while operators migrate
-or reindex.
-
 ## Runtime Behavior
 
 At plugin load time, Eshu must:
@@ -155,10 +139,6 @@ When facts already exist in durable storage:
   migration window
 - incompatible schema changes require an explicit migration or reindex path
 - silent in-place reinterpretation of old facts is not allowed
-- rows with `source_confidence=unknown` must be handled as compatibility debt:
-  either re-emit them from the owning collector with an explicit confidence
-  value or run an operator-visible migration that proves the source family
-  before updating the value
 
 The migration window should be explicit and operator-visible. Completion may be
 driven by:
