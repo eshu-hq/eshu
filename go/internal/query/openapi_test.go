@@ -313,6 +313,31 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatalf("CodeSearchResult.semantic_profile.type = %#v, want %#v", got, want)
 	}
 
+	symbolSearchPath := mustMapField(t, paths, "/api/v0/code/symbols/search")
+	symbolSearchPost := mustMapField(t, symbolSearchPath, "post")
+	symbolSearchBody := mustMapField(t, mustMapField(t, symbolSearchPost, "requestBody"), "content")
+	symbolSearchJSON := mustMapField(t, symbolSearchBody, "application/json")
+	symbolSearchRequest := mustMapField(t, symbolSearchJSON, "schema")
+	if _, ok := symbolSearchRequest["required"]; ok {
+		t.Fatal("symbol search request should not require only symbol when query alias is documented")
+	}
+	anyOf, ok := symbolSearchRequest["anyOf"].([]any)
+	if !ok || len(anyOf) != 2 {
+		t.Fatalf("symbol search request anyOf = %#v, want symbol/query alternatives", symbolSearchRequest["anyOf"])
+	}
+	symbolSearchResponses := mustMapField(t, symbolSearchPost, "responses")
+	symbolSearchOK := mustMapField(t, symbolSearchResponses, "200")
+	symbolSearchContent := mustMapField(t, mustMapField(t, symbolSearchOK, "content"), "application/json")
+	symbolSearchSchema := mustMapField(t, symbolSearchContent, "schema")
+	if got, want := symbolSearchSchema["$ref"], "#/components/schemas/SymbolSearchResponse"; got != want {
+		t.Fatalf("code/symbols/search schema ref = %#v, want %#v", got, want)
+	}
+	symbolSearchResultSchema := mustMapField(t, schemas, "SymbolSearchResult")
+	symbolSearchResultProperties := mustMapField(t, symbolSearchResultSchema, "properties")
+	if _, ok := symbolSearchResultProperties["source_handle"]; !ok {
+		t.Fatal("SymbolSearchResult missing source_handle")
+	}
+
 	callChainPath := mustMapField(t, paths, "/api/v0/code/call-chain")
 	callChainPost := mustMapField(t, callChainPath, "post")
 	callChainBody := mustMapField(t, mustMapField(t, callChainPost, "requestBody"), "content")

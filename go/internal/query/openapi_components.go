@@ -188,6 +188,54 @@ const openAPIComponents = `  "components": {
           }
         }
       },
+      "SymbolSearchResult": {
+        "type": "object",
+        "properties": {
+          "entity_id": {"type": "string"},
+          "name": {"type": "string"},
+          "entity_name": {"type": "string"},
+          "entity_type": {"type": "string"},
+          "file_path": {"type": "string"},
+          "relative_path": {"type": "string"},
+          "repo_id": {"type": "string"},
+          "language": {"type": "string"},
+          "start_line": {"type": "integer"},
+          "end_line": {"type": "integer"},
+          "classification": {"type": "string", "enum": ["definition"]},
+          "match_kind": {"type": "string", "enum": ["exact", "fuzzy"]},
+          "rank": {"type": "integer"},
+          "source_handle": {"type": "object", "additionalProperties": true},
+          "metadata": {"type": "object", "additionalProperties": true},
+          "semantic_summary": {"type": "string"},
+          "semantic_profile": {"type": "object", "additionalProperties": true}
+        }
+      },
+      "SymbolSearchResponse": {
+        "type": "object",
+        "properties": {
+          "symbol": {"type": "string"},
+          "query": {"type": "string"},
+          "match_mode": {"type": "string"},
+          "repo_id": {"type": "string"},
+          "language": {"type": "string"},
+          "entity_types": {"type": "array", "items": {"type": "string"}},
+          "limit": {"type": "integer"},
+          "offset": {"type": "integer"},
+          "count": {"type": "integer"},
+          "truncated": {"type": "boolean"},
+          "source_backend": {"type": "string"},
+          "ambiguity": {"type": "object", "additionalProperties": true},
+          "results": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/SymbolSearchResult"}
+          },
+          "matches": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/SymbolSearchResult"},
+            "description": "Compatibility alias for results."
+          }
+        }
+      },
       "LanguageQueryResponse": {
         "type": "object",
         "properties": {

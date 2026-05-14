@@ -40,7 +40,7 @@
   detection for all tools.
 
 - **`normalizeQualifiedIdentifier` for service paths** — uses `Cut` at
-  `dispatch.go:168` to split on `:` and return the tail. Service tools must
+  `dispatch.go:138` to split on `:` and return the tail. Service tools must
   apply this helper; missing it produces paths like
   `/api/v0/services/workload:name/context` which no handler matches.
 

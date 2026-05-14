@@ -60,10 +60,10 @@ needs a deeper proof point.
 
 > "Where is the function `foo` defined?"
 
-**Tool:** `find_code`
+**Tool:** `find_symbol`
 
 ```json
-{ "query": "foo" }
+{ "symbol": "foo", "match_mode": "exact", "limit": 25 }
 ```
 
 ### Find all imports of a module

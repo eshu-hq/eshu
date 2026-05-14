@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 44
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 46
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,11 +59,11 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 45 tools from five source files.
+`ReadOnlyTools` assembles 46 tools from five source files.
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 14 | `tools_codebase.go` |
+| `codebaseTools` | 15 | `tools_codebase.go` |
 | `ecosystemTools` | 16 | `tools_ecosystem.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 5 | `tools_content.go` |
@@ -74,6 +74,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:207`):
 | Tool | HTTP method | Path |
 |---|---|---|
 | `find_code` | POST | `/api/v0/code/search` |
+| `find_symbol` | POST | `/api/v0/code/symbols/search` |
 | `analyze_code_relationships` | POST | `/api/v0/code/relationships` |
 | `find_dead_iac` | POST | `/api/v0/iac/dead` |
 | `find_unmanaged_resources` | POST | `/api/v0/iac/unmanaged-resources` |
@@ -96,7 +97,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:207`):
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 45 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 46 tool definitions |
 
 ## SSE session model
 
