@@ -53,8 +53,8 @@ later reducer-owned correlation.
 ## Status Review (2026-05-14)
 
 **Current disposition:** Phase 2 service expansion now includes SQS, SNS,
-EventBridge, S3, RDS, DynamoDB, CloudWatch Logs, and CloudFront metadata-only
-slices for issue #38. The `sqs` service scans queue metadata, queue tags, safe queue
+EventBridge, S3, RDS, DynamoDB, CloudWatch Logs, CloudFront, and API Gateway
+metadata-only slices for issue #38. The `sqs` service scans queue metadata, queue tags, safe queue
 attributes, and reported dead-letter queue relationships from redrive policy
 fields. The `sns` service scans topic metadata, topic tags, safe topic
 attributes, and reported delivery relationships only when the subscription
@@ -76,7 +76,10 @@ properties, deletion protection, bearer-token authentication state, and directly
 reported KMS key relationships. The `cloudfront` service scans distribution
 metadata, tags, aliases, origins, cache behavior selectors, viewer certificate
 selectors, status/enabled flags, and directly reported ACM certificate and WAF
-web ACL relationships. These slices
+web ACL relationships. The `apigateway` service scans REST, HTTP, and
+WebSocket API identities, stages, custom domains, base path/API mappings, tags,
+access-log destinations, ACM certificate dependencies, and ARN-addressable
+integration targets. These slices
 deliberately do not call message, event payload, object, database, snapshot,
 log-content, Performance Insights sample, schema, table, Insights query, log
 stream payload, export payload, or mutation APIs; do not persist
@@ -87,7 +90,10 @@ configuration, analytics configuration, metrics configuration, RDS database
 names, master usernames, secrets, snapshots, log payloads, schemas, tables, or
 row data, DynamoDB item values, table scan results, query results, stream
 records, backup/export payloads, resource policies, PartiQL output, or
-CloudWatch Logs subscription payloads.
+CloudWatch Logs subscription payloads; and do not persist API Gateway API keys,
+authorizer secrets, policy JSON, integration credentials, stage variable
+values, request templates, response templates, or API request/response
+payloads.
 
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/cloudfront/...`
 covers the bounded CloudFront call shape: paginated ListDistributions with
@@ -122,6 +128,45 @@ diagnoses the CloudFront path through `aws.service.scan`,
 or span name is needed for this metadata-only scanner.
 
 Collector Deployment Evidence: CloudFront runs inside the existing hosted
+`collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
+the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
+surfaces apply without a separate deployment.
+
+Collector Performance Evidence: `go test ./internal/collector/awscloud/services/apigateway/...`
+covers the bounded API Gateway call shape: paginated GetRestApis,
+GetResources with embed=methods, GetDomainNames, GetBasePathMappings, GetApis,
+GetStages, GetIntegrations, and GetApiMappings with page sizes capped at 100
+where the AWS API exposes a page-size knob. The collector does not call API
+execution, export, API key, authorizer secret, policy body, payload, template
+body, credential, or mutation APIs, and it does not write graph data directly.
+This slice did not run against a live AWS account; the performance contract is
+the bounded O(api count + stage count + domain mapping count + integration
+count) SDK call shape and existing workflow claim/account concurrency limits.
+
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+covers API Gateway REST and v2 metadata fact emission, stage facts, custom
+domain facts, domain-to-API mapping relationships, ACM certificate
+relationships, access-log destination relationships, ARN-addressable
+integration relationships, SDK pagination, runtime scanner registration, and
+the command config path that confirms API Gateway does not require an
+environment-value redaction key.
+
+Collector Observability Evidence: API Gateway uses the existing AWS collector
+`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
+labels stay bounded to service, account, region, operation, result, and status;
+API IDs, stage names, domain names, mapping keys, integration IDs, ARNs, tags,
+and raw AWS error payloads stay out of metric labels.
+
+No-Observability-Change: the existing AWS collector telemetry contract already
+diagnoses the API Gateway path through `aws.service.scan`,
+`aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status`; no new metric
+or span name is needed for this metadata-only scanner.
+
+Collector Deployment Evidence: API Gateway runs inside the existing hosted
 `collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
 the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
 surfaces apply without a separate deployment.
@@ -606,7 +651,10 @@ Phase 2 (explicit non-goal for launch but planned):
 - CloudFront metadata (implemented 2026-05-14; object contents, origin
   payloads, distribution config payloads, policy documents, certificate bodies,
   private keys, origin custom header values, and mutations remain out of scope)
-- API Gateway (edge surface)
+- API Gateway metadata (implemented 2026-05-14; API execution, exports, API
+  keys, authorizer secrets, policy JSON, integration credentials, stage
+  variable values, request templates, response templates, payloads, and
+  mutations remain out of scope)
 - Secrets Manager, SSM Parameter Store (metadata only; values never read)
 - CloudWatch Logs (implemented 2026-05-14; log events, log stream payloads,
   Insights query results, export payloads, resource policies, subscription
@@ -1099,7 +1147,7 @@ behind schedule.
 - SNS topic metadata (implemented 2026-05-14)
 - EventBridge metadata (implemented 2026-05-14)
 - CloudFront metadata (implemented 2026-05-14)
-- API Gateway
+- API Gateway metadata (implemented 2026-05-14)
 - Secrets Manager, SSM Parameter Store (metadata)
 - CloudWatch Logs group metadata (implemented 2026-05-14)
 
@@ -1210,8 +1258,8 @@ collector for drift rules, on Git collector for code joins.
 
 **Scope:** SQS queue metadata, SNS topic metadata, EventBridge metadata, S3
 bucket metadata, RDS metadata, DynamoDB metadata, CloudWatch Logs group
-metadata, and CloudFront metadata are implemented. Remaining scope: API
-Gateway, Secrets Manager metadata, and SSM metadata.
+metadata, CloudFront metadata, and API Gateway metadata are implemented.
+Remaining scope: Secrets Manager metadata and SSM metadata.
 
 ### Chunk F: Optional Freshness Layer
 

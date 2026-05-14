@@ -57,6 +57,10 @@
   payloads, policy documents, certificate bodies, private keys, origin custom
   header values, and mutations out of facts. The command may enable
   `cloudfront`, but the SDK adapter owns safe metadata mapping.
+- Keep API Gateway execution, exports, API keys, authorizer secrets, policy
+  JSON, integration credentials, stage variable values, template bodies,
+  payloads, and mutations out of facts. The command may enable `apigateway`,
+  but the SDK adapter owns safe REST and v2 metadata mapping.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 - Preserve the split between scanner-side status in `awsruntime` and
