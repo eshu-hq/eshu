@@ -12,7 +12,7 @@ a clear drilldown path when more data is available.
 | `find_symbol` | repository selector optional; symbol name required | `limit` | yes | prompt-ready for exact or fuzzy symbol lookup |
 | `investigate_code_topic` | topic plus optional repository selectors | `limit` | yes | prompt-ready for topic summaries with handles |
 | `get_code_relationship_story` | canonical `entity_id` or name plus optional repo | singleton story | yes | prompt-ready after target is resolved |
-| `analyze_code_relationships` | `entity_id` or exact name plus direction | `limit` | yes | prompt-ready after target is resolved |
+| `analyze_code_relationships` | exact target plus relationship query type; callers/callees/importers route through relationship story | `limit`, `offset`, and `max_depth` for transitive aliases | yes | compatibility prompt alias for relationship-story and call-chain routes; class hierarchy/overrides remain tracked by #291 |
 | `find_dead_code` | repository selector optional; authoritative profile required | `limit` | yes | prompt-ready for bounded candidate scans |
 | `find_dead_iac` | repository selector required or explicit broader scan | `limit` | yes | prompt-ready for bounded IaC candidate scans |
 | `find_unmanaged_resources` | repository selector optional; authoritative profile required | `limit` | yes | prompt-ready for bounded IaC management scans |
@@ -27,7 +27,7 @@ a clear drilldown path when more data is available.
 | `find_function_call_chain` | start and end names required | `max_depth` | yes | prompt-ready when both endpoints are known |
 | `get_ecosystem_overview` | explicit whole-index ecosystem overview | singleton summary | yes | prompt-ready |
 | `trace_deployment_chain` | service name required | singleton trace | yes | prompt-ready after service is resolved |
-| `find_blast_radius` | target id required | bounded graph traversal | yes | prompt-ready after target is resolved |
+| `find_blast_radius` | target id required | `limit` | yes | prompt-ready after target is resolved; returns `truncated` |
 | `find_infra_resources` | query plus optional category | `limit` | yes | prompt-ready for bounded infra search |
 | `analyze_infra_relationships` | target plus relationship type | bounded graph read | yes | prompt-ready after target is resolved |
 | `get_repo_summary` | repository selector required | singleton summary | yes | prompt-ready |
@@ -37,11 +37,11 @@ a clear drilldown path when more data is available.
 | `list_package_registry_versions` | package id required | `limit` | yes | prompt-ready |
 | `get_repo_story` | repository selector required | singleton story | yes | prompt-ready |
 | `get_repository_coverage` | repository selector required | singleton coverage | yes | prompt-ready |
-| `trace_resource_to_code` | resource id or selector required | bounded graph traversal | yes | prompt-ready |
+| `trace_resource_to_code` | resource id or selector required | `max_depth` and `limit` | yes | prompt-ready; returns `truncated` |
 | `explain_dependency_path` | source and target required | bounded path search | yes | prompt-ready |
-| `find_change_surface` | changed path or entity scope required | bounded graph/content read | yes | prompt-ready |
+| `find_change_surface` | entity scope required | `limit` | yes | legacy entity-scoped path; prefer `investigate_change_surface` for code-topic and changed-path prompts |
 | `investigate_change_surface` | changed path, topic, or entity scope required | bounded investigation | yes | prompt-ready |
-| `compare_environments` | workload or service plus two environments | bounded comparison | yes | prompt-ready |
+| `compare_environments` | workload plus two environments | per-environment `limit` | yes | prompt-ready; reports side-specific truncation coverage |
 | `resolve_entity` | name/query plus optional repository selector and type | `limit` | yes | prompt-ready for disambiguation before drilldowns |
 | `get_entity_context` | canonical entity id required | singleton context | partial | usable after `resolve_entity`; envelope hardening remains follow-up |
 | `get_workload_context` | canonical workload id required | singleton context | partial | usable after workload resolution; envelope hardening remains follow-up |
@@ -58,6 +58,6 @@ a clear drilldown path when more data is available.
 | `get_ingester_status` | ingester id required | singleton status | yes | prompt-ready for runtime diagnostics |
 | `get_index_status` | optional repository selector | singleton status | yes | prompt-ready for runtime diagnostics |
 
-No-Regression Evidence: `go test ./internal/mcp ./internal/query -count=1` exercises the MCP dispatch contracts, query envelope negotiation, bounded list behavior, and content-search schema truth for the changed surfaces.
+No-Regression Evidence: `go test ./internal/mcp ./internal/query -count=1` exercises the MCP dispatch contracts, query envelope negotiation, bounded list behavior, and content-search schema truth for the changed surfaces. Issue #301 additionally covers legacy impact and environment-comparison no-cache bounds with `go test ./internal/query -run 'TestFindBlastRadiusUsesRequestedLimitAndReportsTruncation|TestTraceResourceToCodeUsesRequestedLimitAndReportsTruncation|TestFindChangeSurfaceUsesRequestedLimitAndReportsTruncation|TestCompareEnvironmentsBoundsResourceReadsAndReportsTruncation' -count=1` and `go test ./internal/mcp -run 'TestNoCachePromptToolsAdvertiseBounds|TestNoCachePromptRoutesPassBounds|TestResolveRouteMapsAnalyzeCodeRelationships' -count=1`.
 
 Observability Evidence: this PR changes read contracts only; existing MCP `dispatch tool` debug logs, HTTP response envelopes, query handler errors, and bounded `limit`/`truncated` response fields diagnose whether a prompt call was scoped, complete, or needs a follow-up page.

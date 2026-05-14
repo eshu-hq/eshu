@@ -136,6 +136,9 @@
 // Infrastructure reads expose Terraform backend, import, moved, removed, check,
 // and lockfile-provider evidence as first-class entity types once parser and
 // projector support exists.
+// Legacy impact and environment-comparison reads expose explicit list limits
+// and truncation metadata so prompt-facing MCP calls do not depend on cache
+// warmth or silently incomplete graph scans.
 // Repository runtime artifacts surface Dockerfile base image, base tag, build
 // platform, copy-from, command, port, and environment evidence from parser
 // metadata. Deployment trace image references can include projected OCI registry

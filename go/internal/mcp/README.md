@@ -77,7 +77,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `find_symbol` | POST | `/api/v0/code/symbols/search` |
 | `investigate_code_topic` | POST | `/api/v0/code/topics/investigate` |
 | `get_code_relationship_story` | POST | `/api/v0/code/relationships/story` |
-| `analyze_code_relationships` | POST | `/api/v0/code/relationships` |
+| `analyze_code_relationships` | POST | `/api/v0/code/relationships/story` for callers/callees/importers; `/api/v0/code/relationships` for unresolved compatibility fallbacks |
 | `find_dead_iac` | POST | `/api/v0/iac/dead` |
 | `find_unmanaged_resources` | POST | `/api/v0/iac/unmanaged-resources` |
 | `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |

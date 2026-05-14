@@ -108,12 +108,23 @@ The changed read paths are cold-call bounded:
   touching the graph, returns ambiguity candidates without guessing, reads
   direct edges with entity-anchored ordered pagination, and limits transitive
   CALLS traversal by depth plus result-window size;
+- `analyze_code_relationships` MCP compatibility aliases for callers, callees,
+  transitive callers/callees, and importers now route through relationship
+  story so prompt clients get the same limit, offset, depth, truncation, and
+  ambiguity contract instead of the older broad relationship response;
 - topic investigation derives at most 16 search terms from `topic` and `intent`,
   pushes repository and language scope into a single scored PostgreSQL query,
   orders by score and stable repo-relative path, probes one extra row for
   `truncated`, and returns exact follow-up calls instead of expanding
   relationships or source bodies in the first response;
 - infrastructure search has a max limit and truncation probe.
+- legacy impact tools `find_blast_radius`, `find_change_surface`, and
+  `trace_resource_to_code` now accept `limit`, cap it at 200, execute graph
+  reads with `LIMIT limit+1`, use deterministic ordering for listed rows, and
+  return `truncated`;
+- environment comparison accepts `limit`, caps it at 200, reads at most
+  `limit+1` cloud resources per environment, and returns top-level plus
+  side-specific truncation coverage so a limited diff is visible.
 
 No-Regression Evidence: focused tests cover MCP search-content paging schema and
 dispatch, server-added Cypher limits plus envelope truth, the capability matrix
@@ -130,7 +141,7 @@ No-Regression Evidence: symbol lookup focused proof:
 
 No-Regression Evidence: relationship story focused proof:
 `go test ./internal/query -run 'TestHandleRelationshipStory|TestNornicDBRelationshipStory|TestCapability|TestOpenAPI' -count=1` and
-`go test ./internal/mcp -run 'TestResolveRouteMapsCodeRelationshipStory|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute' -count=1`.
+`go test ./internal/mcp -run 'TestResolveRouteMapsCodeRelationshipStory|TestResolveRouteMapsAnalyzeCodeRelationships|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute' -count=1`.
 
 No-Regression Evidence: code topic investigation focused proof:
 `go test ./internal/query -run 'TestHandleCodeTopicInvestigation|TestContentReaderInvestigateCodeTopic|TestOpenAPI|TestCapabilityMatrix' -count=1` and
@@ -198,6 +209,24 @@ fields, spans, metrics, logs, or status surfaces. The existing
 `query.change_surface_investigation` span, `neo4j.query` child spans, response
 `target_resolution.status`, `coverage.query_shape`, `limit`, `offset`,
 `max_depth`, and `truncated` fields remain the operator diagnosis path.
+
+No-Regression Evidence: issue #301 focused proof for legacy impact and
+environment-comparison no-cache bounds:
+`go test ./internal/query -run 'TestFindBlastRadiusUsesRequestedLimitAndReportsTruncation|TestTraceResourceToCodeUsesRequestedLimitAndReportsTruncation|TestFindChangeSurfaceUsesRequestedLimitAndReportsTruncation|TestCompareEnvironmentsBoundsResourceReadsAndReportsTruncation' -count=1`
+and
+`go test ./internal/mcp -run 'TestNoCachePromptToolsAdvertiseBounds|TestNoCachePromptRoutesPassBounds|TestResolveRouteMapsAnalyzeCodeRelationships' -count=1`.
+These tests fail on the pre-change code because the graph queries either used
+hardcoded limits without truncation metadata or did not advertise/pass a
+normalized MCP `limit`. After the fix, the handlers pass `limit+1` to the graph,
+trim to `limit`, surface truncation in the response, and route relationship
+compatibility aliases through the bounded relationship-story contract.
+
+Observability Evidence: these routes continue through `neo4j.query` spans for
+graph reads and canonical MCP envelope negotiation. The response contracts now
+include `limit` and `truncated`; environment comparison also includes
+`coverage.left_truncated` and `coverage.right_truncated`, so operators and MCP
+callers can tell whether latency or incomplete answers came from the bounded
+graph read window rather than cache warmth.
 
 ## Consequences
 
