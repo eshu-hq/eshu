@@ -60,6 +60,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-oci-registry-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "eshu.terraformStateCollectorFullname" -}}
+{{- printf "%s-terraform-state-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.awsCloudCollectorFullname" -}}
+{{- printf "%s-aws-cloud-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.packageRegistryCollectorFullname" -}}
+{{- printf "%s-package-registry-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "eshu.apiMetricsServiceName" -}}
 {{- printf "%s-api-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -90,6 +102,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "eshu.ociRegistryCollectorMetricsServiceName" -}}
 {{- printf "%s-oci-registry-collector-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.terraformStateCollectorMetricsServiceName" -}}
+{{- printf "%s-terraform-state-collector-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.awsCloudCollectorMetricsServiceName" -}}
+{{- printf "%s-aws-cloud-collector-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.packageRegistryCollectorMetricsServiceName" -}}
+{{- printf "%s-package-registry-collector-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "eshu.apiSelectorLabels" -}}
@@ -130,6 +154,21 @@ app.kubernetes.io/component: confluence-collector
 {{- define "eshu.ociRegistryCollectorSelectorLabels" -}}
 {{- include "eshu.selectorLabels" . }}
 app.kubernetes.io/component: oci-registry-collector
+{{- end -}}
+
+{{- define "eshu.terraformStateCollectorSelectorLabels" -}}
+{{- include "eshu.selectorLabels" . }}
+app.kubernetes.io/component: terraform-state-collector
+{{- end -}}
+
+{{- define "eshu.awsCloudCollectorSelectorLabels" -}}
+{{- include "eshu.selectorLabels" . }}
+app.kubernetes.io/component: aws-cloud-collector
+{{- end -}}
+
+{{- define "eshu.packageRegistryCollectorSelectorLabels" -}}
+{{- include "eshu.selectorLabels" . }}
+app.kubernetes.io/component: package-registry-collector
 {{- end -}}
 
 {{- define "eshu.serviceAccountName" -}}
@@ -265,6 +304,7 @@ app.kubernetes.io/component: oci-registry-collector
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
+
 
 {{- define "eshu.renderContentStoreEnv" -}}
 {{- if .Values.contentStore.dsn }}

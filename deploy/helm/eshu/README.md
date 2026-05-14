@@ -1,8 +1,9 @@
 # Eshu Helm Chart
 
 This chart deploys Eshu as separate API, MCP, ingester,
-workflow-coordinator, resolution-engine, optional documentation collector, and
-optional OCI registry collector workloads with:
+workflow-coordinator, resolution-engine, optional documentation collector,
+optional OCI registry collector, and optional claim-driven collector workloads
+with:
 
 - External Bolt-compatible graph backend and Postgres connectivity
 - NornicDB as the default graph adapter through the Bolt-compatible graph
@@ -16,8 +17,9 @@ optional OCI registry collector workloads with:
 - A stateless Resolution Engine `Deployment` for facts queue projection
 - An optional Confluence collector `Deployment` that stores documentation sections in Postgres
 - An optional OCI registry collector `Deployment` that stores digest-addressed image facts in Postgres
+- Optional Terraform-state, AWS cloud, and Package Registry collector `Deployment`s that claim durable workflow work and emit facts to Postgres
 - An optional public webhook listener `Deployment` that stores GitHub/GitLab/Bitbucket refresh triggers in Postgres
-- Optional Prometheus scrape endpoints and `ServiceMonitor` resources for API, MCP, ingester, workflow-coordinator, resolution-engine, Confluence collector, OCI registry collector, and webhook listener
+- Optional Prometheus scrape endpoints and `ServiceMonitor` resources for API, MCP, ingester, workflow-coordinator, resolution-engine, Confluence collector, OCI registry collector, Terraform-state collector, AWS cloud collector, Package Registry collector, and webhook listener
 - Flexible service exposure (ClusterIP, LoadBalancer, Ingress, Gateway API)
 - Hardened defaults such as public API docs disabled unless explicitly re-enabled
 

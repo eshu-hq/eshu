@@ -193,7 +193,7 @@ advisory report.
 | `ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL` | workflow default | workflow coordinator | Collector claim heartbeat interval. | Keep below claim TTL; lower for faster liveness signal. |
 | `ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_LIMIT` | workflow default | workflow coordinator | Max expired claims reaped per cycle. | Raise only if expired-claim backlog grows. |
 | `ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_REQUEUE_DELAY` | workflow default | workflow coordinator | Delay before requeueing expired work. | Tune to avoid immediate flapping after collector loss. |
-| `ESHU_COLLECTOR_INSTANCES_JSON` | unset | workflow coordinator, collector-terraform-state, collector-aws-cloud | Desired collector instance list. | Set from deployment config, not ad hoc shell sessions. Claim-driven runtimes select their enabled claim-capable instance from this list. |
+| `ESHU_COLLECTOR_INSTANCES_JSON` | unset | workflow coordinator, collector-terraform-state, collector-aws-cloud, collector-package-registry, collector-oci-registry claim-aware mode | Desired collector instance list. | Set from deployment config, not ad hoc shell sessions. Claim-driven runtimes select their enabled claim-capable instance from this list. |
 
 Active coordinator mode is intentionally guarded. The process rejects
 `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE=active` unless

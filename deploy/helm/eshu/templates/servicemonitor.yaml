@@ -180,4 +180,73 @@ spec:
       interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
       scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
 {{- end }}
+---
+{{- if .Values.terraformStateCollector.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.terraformStateCollectorMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: terraform-state-collector
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: terraform-state-collector
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
+---
+{{- if .Values.awsCloudCollector.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.awsCloudCollectorMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: aws-cloud-collector
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: aws-cloud-collector
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
+---
+{{- if .Values.packageRegistryCollector.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.packageRegistryCollectorMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: package-registry-collector
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: package-registry-collector
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
 {{- end }}
