@@ -125,18 +125,18 @@ func resourceRowsByStoryKey(rows []map[string]any) map[string]map[string]any {
 }
 
 func resourceStoryKey(row map[string]any) string {
-	if id := compareStringVal(row, "id"); id != "" {
-		return "id:" + id
-	}
 	parts := []string{
 		strings.ToLower(compareStringVal(row, "provider")),
 		strings.ToLower(compareStringVal(row, "kind")),
 		strings.ToLower(compareStringVal(row, "name")),
 	}
-	if strings.Join(parts, "|") == "||" {
-		return ""
+	if strings.Join(parts, "|") != "||" {
+		return "descriptor:" + strings.Join(parts, "|")
 	}
-	return "descriptor:" + strings.Join(parts, "|")
+	if id := compareStringVal(row, "id"); id != "" {
+		return "id:" + id
+	}
+	return ""
 }
 
 func sharedEnvironmentResource(left, right map[string]any, leftEnv, rightEnv string) map[string]any {
