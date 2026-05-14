@@ -259,7 +259,6 @@ Elixir, PHP, and Groovy parser-backed roots. Its language filter examples includ
 `csharp` is normalized to `c_sharp` before candidate scanning.
 
 ## Exported surface
-
 **Ports and adapters**
 
 - `GraphQuery` — read-only graph port: `Run` and `RunSingle`; implemented by
@@ -278,8 +277,7 @@ Elixir, PHP, and Groovy parser-backed roots. Its language filter examples includ
 - `APIRouter` — top-level mux; call `Mount` to register all routes
   (`handler.go:110`)
 - `RepositoryHandler` — `GET /api/v0/repositories*` routes (`repository.go:21`)
-- `EntityHandler` — entity resolution, workload/service context routes, and
-  service dossier stories (`entity.go:11`, `service_story_handler.go:9`)
+- `EntityHandler` — entity resolution, workload/service context routes, service dossier stories, and service investigation coverage (`entity.go:11`, `service_story_handler.go:9`, `service_investigation.go:17`)
 - `CodeHandler` — code search, relationships, dead-code, complexity, call-chain
   (`code.go:11`)
 - `ContentHandler` — file and entity content reads (`content_handler.go:11`)

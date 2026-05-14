@@ -23,6 +23,7 @@ func (h *EntityHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/workloads/{workload_id}/story", h.getWorkloadStory)
 	mux.HandleFunc("GET /api/v0/services/{service_name}/context", h.getServiceContext)
 	mux.HandleFunc("GET /api/v0/services/{service_name}/story", h.getServiceStory)
+	mux.HandleFunc("GET /api/v0/investigations/services/{service_name}", h.investigateService)
 }
 
 func (h *EntityHandler) profile() QueryProfile {

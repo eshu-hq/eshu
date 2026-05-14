@@ -412,6 +412,7 @@ Service story responses are shaped around:
 - `upstream_dependencies`
 - `downstream_consumers`
 - `evidence_graph`
+- `investigation`
 - `deployment_overview`
 - `documentation_overview`
 - `support_overview`
@@ -513,7 +514,7 @@ For documentation generation, use this HTTP flow:
 
 1. call a story route first
 2. if it is a repository story, read `story_sections`, `deployment_overview`, `gitops_overview`, `documentation_overview`, `support_overview`, `coverage_summary`, and `limitations`
-3. if it is a service story, read the dossier fields directly and only call `trace_deployment_chain` for deeper deployment debugging
+3. if it is a service story, read the dossier fields and embedded `investigation` packet directly, then only call `trace_deployment_chain` for deeper deployment debugging
 4. if it is a workload story, pair it with `trace_deployment_chain` before you expect deployment overviews
 5. only then call content routes for exact file or snippet evidence
 

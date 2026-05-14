@@ -21,6 +21,7 @@ func buildServiceStoryResponse(serviceName string, workloadContext map[string]an
 		}
 	}
 	enrichServiceStoryDossierResponse(response, workloadContext)
+	response["investigation"] = buildServiceInvestigationPacket(serviceName, workloadContext, serviceInvestigationOptions{})
 	return response
 }
 

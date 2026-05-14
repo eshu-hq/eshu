@@ -34,7 +34,7 @@
   the `Authorization` header from the original MCP request to the internal
   handler. If the handler requires auth, it must arrive via this path.
 
-- **`Accept` header always set** — `dispatch.go:44` sets
+- **`Accept` header always set** — `dispatch.go:42` sets
   `Accept: application/eshu.envelope+json`. Handlers gating on this header
   will return the canonical envelope. Removing this header breaks envelope
   detection for all tools.
@@ -93,7 +93,7 @@
   `truth` metadata → the handler is not returning the three-key envelope shape
   (`data`, `truth`, `error`); `Envelope` in `dispatchResult` stays nil and the
   response takes the plain-JSON path; check `parseCanonicalEnvelope`
-  (`dispatch.go:85`) and the handler's response contract.
+  (`dispatch_envelope.go:15`) and the handler's response contract.
 
 - Symptom: SSE client receives no response after `POST /mcp/message` →
   the session channel (`sseSession.ch`) may be full (capacity 64); check the

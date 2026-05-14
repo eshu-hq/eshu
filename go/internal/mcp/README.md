@@ -37,12 +37,12 @@ flowchart LR
 flowchart TB
     hm["handleMessage()\nserver.go:333"]
     parse["json.Unmarshal params\nmcpToolCallParams"]
-    dt["dispatchTool()\ndispatch.go:20"]
-    rr["resolveRoute(toolName, args)\ndispatch.go:237"]
+    dt["dispatchTool()\ndispatch.go:18"]
+    rr["resolveRoute(toolName, args)\ndispatch.go:207"]
     req["http.NewRequestWithContext\nmethod + path + body + auth"]
     rec["httptest.NewRecorder"]
     serve["handler.ServeHTTP(rec, req)"]
-    pce["parseCanonicalEnvelope(body)\ndispatch.go:85"]
+    pce["parseCanonicalEnvelope(body)\ndispatch_envelope.go:15"]
     envelope["mcpToolResult with\ntext summary + resource block"]
     plain["mcpToolResult with\ntext JSON block"]
 
@@ -59,17 +59,17 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 44 tools from five source files.
+`ReadOnlyTools` assembles 45 tools from five source files.
 
 | Group | Count | Source file |
 |---|---|---|
 | `codebaseTools` | 14 | `tools_codebase.go` |
 | `ecosystemTools` | 16 | `tools_ecosystem.go` |
-| `contextTools` | 6 | `tools_context.go` |
+| `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 5 | `tools_content.go` |
 | `runtimeTools` | 3 | `tools_runtime.go` |
 
-Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:237`):
+Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:207`):
 
 | Tool | HTTP method | Path |
 |---|---|---|
@@ -83,6 +83,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:237`):
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
 | `get_service_story` | GET | `/api/v0/services/{service_name}/story` |
+| `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
 | `get_file_content` | POST | `/api/v0/content/files/read` |
 | `list_ingesters` | GET | `/api/v0/status/ingesters` |
 
@@ -95,7 +96,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:237`):
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 44 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 45 tool definitions |
 
 ## SSE session model
 
@@ -125,7 +126,7 @@ HTTP method, and path (`dispatch.go:26`).
 ## Operational notes
 
 The `Accept: application/eshu.envelope+json` header is always set on internal
-dispatch requests (`dispatch.go:44`). Handlers that check this header will
+dispatch requests (`dispatch.go:42`). Handlers that check this header will
 return the canonical envelope shape.
 
 `normalizeQualifiedIdentifier` strips the `workload:` prefix from service
@@ -148,10 +149,10 @@ element and sets `repo_id` rather than `repo_ids`.
 ## Gotchas / invariants
 
 - Every tool name returned by `ReadOnlyTools` must have a matching `case` in
-  `resolveRoute` (`dispatch.go:237`). A test in `tools_test.go` calls
+  `resolveRoute` (`dispatch.go:207`). A test in `tools_test.go` calls
   `resolveRoute` for every tool and fails if any returns an error.
 
-- `parseCanonicalEnvelope` (`dispatch.go:85`) requires all three keys `data`,
+- `parseCanonicalEnvelope` (`dispatch_envelope.go:15`) requires all three keys `data`,
   `truth`, and `error` to be present in the response JSON. A partial envelope
   falls back to the plain JSON path.
 

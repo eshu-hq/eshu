@@ -134,5 +134,31 @@ func contextTools() []ToolDefinition {
 				"required": []string{"workload_id"},
 			},
 		},
+		{
+			Name:        "investigate_service",
+			Description: "Plan a service investigation across related repositories, deployment sources, indexed docs, and evidence drilldowns.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"service_name": map[string]any{
+						"type":        "string",
+						"description": "Service name or canonical workload identifier to investigate",
+					},
+					"environment": map[string]any{
+						"type":        "string",
+						"description": "Optional environment context",
+					},
+					"intent": map[string]any{
+						"type":        "string",
+						"description": "Optional investigation intent such as runbook, onboarding, or incident",
+					},
+					"question": map[string]any{
+						"type":        "string",
+						"description": "Optional user question to preserve in the investigation packet",
+					},
+				},
+				"required": []string{"service_name"},
+			},
+		},
 	}
 }

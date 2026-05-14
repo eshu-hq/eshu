@@ -203,6 +203,10 @@ func sampleServiceDossierContext() map[string]any {
 				{"path": "/v3/items/{id}", "methods": []string{"get", "delete"}, "operation_ids": []string{"getItem", "deleteItem"}, "spec_path": "specs/index.yaml"},
 			},
 		},
+		"documentation_overview": map[string]any{
+			"repo_slug":        "example/sample-service-api",
+			"docs_route_count": 2,
+		},
 		"dependencies": []map[string]any{
 			{"type": "READS_CONFIG_FROM", "target_name": "config-service", "target_id": "repo-config"},
 		},

@@ -28,6 +28,7 @@ func TestOpenAPISpecServiceStoryExposesDossierFields(t *testing.T) {
 		"downstream_consumers",
 		"evidence_graph",
 		"result_limits",
+		"investigation",
 	} {
 		if _, ok := serviceStorySchema[field]; !ok {
 			t.Fatalf("services/{service_name}/story response schema missing %s", field)

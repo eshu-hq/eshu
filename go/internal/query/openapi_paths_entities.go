@@ -194,6 +194,7 @@ const openAPIPathsEntities = `
                     "downstream_consumers": {"type": "object"},
                     "evidence_graph": {"type": "object"},
                     "result_limits": {"type": "object"},
+                    "investigation": {"type": "object"},
                     "deployment_overview": {"type": "object"},
                     "hostnames": {"type": "array", "items": {"type": "object"}},
                     "entrypoints": {"type": "array", "items": {"type": "object"}},

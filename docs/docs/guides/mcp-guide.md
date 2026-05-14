@@ -154,9 +154,11 @@ The assistant greps imports in the current file, maybe finds a few Python packag
 
 The assistant calls `get_service_story payment-service` and gets back the
 service dossier: identity, API surface, deployment lanes, upstream dependencies,
-downstream consumers, evidence graph, and drill-down handles to fetch raw
-context only when needed. It answers with evidence from the graph, not
-hallucinated assumptions from a partial code snapshot.
+downstream consumers, evidence graph, investigation coverage, and drill-down
+handles to fetch raw context only when needed. If the user wants coverage before
+the answer, the assistant starts with `investigate_service payment-service`.
+Either way, it answers with evidence from the graph, not hallucinated
+assumptions from a partial code snapshot.
 
 ## What MCP tools answer
 
@@ -171,6 +173,7 @@ hallucinated assumptions from a partial code snapshot.
 | "Why does this deployment or dependency edge exist?" | `get_relationship_evidence` with the `resolved_id` from `deployment_evidence` |
 | "Tell me the Internet-to-cloud-to-code story for this repo" | `get_repo_story` |
 | "Tell me the deployment story for this workload or service" | `get_workload_story`, `get_service_story` |
+| "Which repos, deployment sources, and docs should I scan before explaining this service?" | `investigate_service` |
 | "Explain this service, then cite the relevant files and docs" | `get_service_story`, then optional content reads from its drill-down handles |
 | "Create support or onboarding documentation for this repo or service" | `get_repo_story`, `get_service_story`, `get_workload_story` |
 | "Show me the source of this file" | `get_file_content` |
@@ -189,14 +192,16 @@ story surfaces:
 - `get_repo_story`
 - `get_workload_story`
 - `get_service_story`
+- `investigate_service`
 
 Use it this way:
 
 1. start with `story`
-2. for service questions, treat `get_service_story` as the one-call dossier path and read `service_identity`, `api_surface`, `deployment_lanes`, `upstream_dependencies`, `downstream_consumers`, and `evidence_graph`
+2. for service questions, treat `get_service_story` as the one-call dossier path and read `service_identity`, `api_surface`, `deployment_lanes`, `upstream_dependencies`, `downstream_consumers`, `evidence_graph`, and `investigation`
 3. for deeper deployment debugging, use `trace_deployment_chain` and then read `controller_overview`, `runtime_overview`, or `deployment_fact_summary`
 4. if the answer needs exact file or docs evidence, follow with Postgres-backed content reads or search
-5. use `drilldowns` or `resolved_id` handles to move into `get_repo_context`, `get_workload_context`, `get_service_context`, content reads, `get_relationship_evidence`, or lower-level relationship tools
+5. use `investigate_service` when the caller asks what Eshu scanned, which repos have evidence, or which call should happen next
+6. use `drilldowns` or `resolved_id` handles to move into `get_repo_context`, `get_workload_context`, `get_service_context`, content reads, `get_relationship_evidence`, or lower-level relationship tools
 
 This keeps answers concise without hiding the underlying evidence.
 

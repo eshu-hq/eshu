@@ -12,8 +12,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-
-	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 // dispatchTool routes an MCP tool call to the appropriate internal HTTP endpoint.
@@ -74,34 +72,6 @@ func dispatchTool(ctx context.Context, handler http.Handler, toolName string, ar
 		return &dispatchResult{Value: rec.Body.String()}, nil
 	}
 	return &dispatchResult{Value: result}, nil
-}
-
-type dispatchResult struct {
-	Value    any
-	Envelope *query.ResponseEnvelope
-	IsError  bool
-}
-
-func parseCanonicalEnvelope(body []byte) (*query.ResponseEnvelope, bool) {
-	var top map[string]json.RawMessage
-	if err := json.Unmarshal(body, &top); err != nil {
-		return nil, false
-	}
-	if _, ok := top["data"]; !ok {
-		return nil, false
-	}
-	if _, ok := top["truth"]; !ok {
-		return nil, false
-	}
-	if _, ok := top["error"]; !ok {
-		return nil, false
-	}
-
-	var envelope query.ResponseEnvelope
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return nil, false
-	}
-	return &envelope, true
 }
 
 type route struct {
@@ -427,6 +397,12 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			q["environment"] = env
 		}
 		return &route{method: "GET", path: "/api/v0/services/" + url.PathEscape(normalizeQualifiedIdentifier(str(args, "workload_id"))) + "/story", query: q}, nil
+	case "investigate_service":
+		return &route{method: "GET", path: "/api/v0/investigations/services/" + url.PathEscape(normalizeQualifiedIdentifier(str(args, "service_name"))), query: map[string]string{
+			"environment": str(args, "environment"),
+			"intent":      str(args, "intent"),
+			"question":    str(args, "question"),
+		}}, nil
 
 	// ── Content ──
 	case "get_file_content":
