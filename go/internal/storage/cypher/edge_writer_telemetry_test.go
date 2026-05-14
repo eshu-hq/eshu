@@ -51,14 +51,17 @@ func TestEdgeWriterWriteEdgesLogsSharedWriteShape(t *testing.T) {
 	if got, want := entry["execution_mode"], "group"; got != want {
 		t.Fatalf("execution_mode = %v, want %v", got, want)
 	}
-	if got, want := entry["input_rows"], float64(3); got != want {
-		t.Fatalf("input_rows = %v, want %v", got, want)
+	if got, want := entry["input_intents"], float64(3); got != want {
+		t.Fatalf("input_intents = %v, want %v", got, want)
 	}
-	if got, want := entry["written_rows"], float64(3); got != want {
-		t.Fatalf("written_rows = %v, want %v", got, want)
+	if got, want := entry["accepted_intents"], float64(3); got != want {
+		t.Fatalf("accepted_intents = %v, want %v", got, want)
 	}
-	if got, want := entry["skipped_rows"], float64(0); got != want {
-		t.Fatalf("skipped_rows = %v, want %v", got, want)
+	if got, want := entry["skipped_intents"], float64(0); got != want {
+		t.Fatalf("skipped_intents = %v, want %v", got, want)
+	}
+	if got, want := entry["executed_rows"], float64(3); got != want {
+		t.Fatalf("executed_rows = %v, want %v", got, want)
 	}
 	if got, want := entry["route_count"], float64(1); got != want {
 		t.Fatalf("route_count = %v, want %v", got, want)
@@ -68,6 +71,55 @@ func TestEdgeWriterWriteEdgesLogsSharedWriteShape(t *testing.T) {
 	}
 	if got, want := entry["batch_size"], float64(2); got != want {
 		t.Fatalf("batch_size = %v, want %v", got, want)
+	}
+}
+
+func TestEdgeWriterWriteEdgesLogsDerivedRowsSeparately(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	executor := &recordingGroupExecutor{}
+	writer := NewEdgeWriter(executor, 10)
+	writer.Logger = logger
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "repo-a",
+			GenerationID: "gen-a",
+			Payload: map[string]any{
+				"repo_id":           "repo-a",
+				"target_repo_id":    "repo-b",
+				"relationship_type": "DEPENDS_ON",
+				"resolved_id":       "resolved-a",
+				"evidence_artifacts": []map[string]any{
+					{"evidence_kind": "manifest", "path": "package.json", "matched_value": "repo-b"},
+					{"evidence_kind": "workflow", "path": ".github/workflows/build.yml", "matched_value": "repo-b"},
+				},
+			},
+		},
+	}
+
+	if err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
+		t.Fatalf("WriteEdges() error = %v", err)
+	}
+
+	var entry map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(logs.Bytes()), &entry); err != nil {
+		t.Fatalf("unmarshal log entry: %v\nlogs:\n%s", err, logs.String())
+	}
+	if got, want := entry["input_intents"], float64(1); got != want {
+		t.Fatalf("input_intents = %v, want %v", got, want)
+	}
+	if got, want := entry["accepted_intents"], float64(1); got != want {
+		t.Fatalf("accepted_intents = %v, want %v", got, want)
+	}
+	if got, want := entry["skipped_intents"], float64(0); got != want {
+		t.Fatalf("skipped_intents = %v, want %v", got, want)
+	}
+	if got, want := entry["executed_rows"], float64(3); got != want {
+		t.Fatalf("executed_rows = %v, want %v", got, want)
 	}
 }
 
@@ -120,6 +172,22 @@ func TestEdgeWriterWriteEdgesLogsCodeCallRouteSummaries(t *testing.T) {
 		if !strings.Contains(summary, want) {
 			t.Fatalf("statement summary = %q, want fragment %q", summary, want)
 		}
+	}
+}
+
+func TestSharedEdgeStatementSummariesAvoidsNoSummaryAllocation(t *testing.T) {
+	stmts := []Statement{
+		{Parameters: map[string]any{"rows": []map[string]any{{"id": "a"}}}},
+		{Parameters: map[string]any{"rows": []map[string]any{{"id": "b"}}}},
+	}
+
+	if summaries := sharedEdgeStatementSummaries(stmts); summaries != nil {
+		t.Fatalf("sharedEdgeStatementSummaries() = %#v, want nil", summaries)
+	}
+	if allocs := testing.AllocsPerRun(1000, func() {
+		_ = sharedEdgeStatementSummaries(stmts)
+	}); allocs != 0 {
+		t.Fatalf("sharedEdgeStatementSummaries() allocations = %v, want 0", allocs)
 	}
 }
 

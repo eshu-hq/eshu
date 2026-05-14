@@ -19,10 +19,10 @@ func (w *EdgeWriter) logSharedEdgeWrite(
 		"domain", domain,
 		"evidence_source", evidenceSource,
 		"execution_mode", executionMode,
-		"input_rows", inputRows,
-		"written_rows", statementRowCount(stmts),
-		"total_written_rows", writtenRows,
-		"skipped_rows", inputRows - writtenRows,
+		"input_intents", inputRows,
+		"accepted_intents", writtenRows,
+		"skipped_intents", inputRows - writtenRows,
+		"executed_rows", statementRowCount(stmts),
 		"route_count", routeCount,
 		"statement_count", len(stmts),
 		"batch_size", batchSize,
@@ -47,7 +47,7 @@ func statementRowCount(stmts []Statement) int {
 }
 
 func sharedEdgeStatementSummaries(stmts []Statement) []string {
-	summaries := make([]string, 0, len(stmts))
+	var summaries []string
 	for _, stmt := range stmts {
 		summary, ok := stmt.Parameters[StatementMetadataSummaryKey].(string)
 		if !ok || summary == "" {
