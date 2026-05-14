@@ -68,3 +68,20 @@ Do not retry the same unbounded call and hope for a better result.
 - Runtime modes with different performance profiles must be explicit opt-in.
 - Results should explain truth level without sounding less confident than the
   actual envelope supports.
+
+## Evidence Gate For New Tools
+
+When adding or changing an MCP/API tool that introduces graph Cypher, a
+graph-backed query handler, broad traversal, queue-backed materialization, or a
+new runtime stage, run:
+
+```bash
+scripts/test-verify-performance-evidence.sh
+scripts/verify-performance-evidence.sh
+```
+
+Add tracked `Performance Evidence:`, `Benchmark Evidence:`, or
+`No-Regression Evidence:` plus `Observability Evidence:` or
+`No-Observability-Change:` to a docs/ADR/package note. Name the scope, limit,
+timeout, result cardinality, backend/query shape, and the metric/span/log/status
+signal that proves the tool is bounded and diagnosable.

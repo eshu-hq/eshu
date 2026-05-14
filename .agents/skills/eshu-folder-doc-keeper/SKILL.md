@@ -9,6 +9,17 @@ Keep `README.md` and `doc.go` in every `go/` directory aligned with the code.
 The two files share a directory but not an audience — write each for who reads
 it, not by copy-pasting between them.
 
+CI now enforces the package-doc baseline for changed Go packages:
+
+```bash
+scripts/test-verify-package-docs.sh
+scripts/verify-package-docs.sh
+```
+
+Any changed package under `go/internal` or `go/cmd` must have `doc.go`,
+`README.md`, and `AGENTS.md`. This applies to new collectors, reducers,
+runtime commands, and helper packages before they land.
+
 ## Why both files
 
 `doc.go` is the package contract for godoc consumers. `go doc ./internal/foo`
@@ -144,7 +155,7 @@ Without a marker, ask which directory or domain to update, then run steps
 
 ## Scaffolding a new package
 
-When creating a `README.md` and `doc.go` for a directory that has neither:
+When creating package docs for a directory that has neither:
 
 1. Read every `.go` file in the directory (not its subdirectories) to build a
    faithful summary. Do not guess.
@@ -154,8 +165,12 @@ When creating a `README.md` and `doc.go` for a directory that has neither:
 4. Identify telemetry call sites, also scoped to this directory:
    `rg --max-depth 1 'telemetry\.|tracer\.Start' <dir>`.
 5. Fill the templates from `references/templates.md`.
-6. Run the humanizer pass.
-7. From `go/`, verify with `go vet ./<package>` and `go doc ./<package>`.
+6. Create a package-local `AGENTS.md` with read-first files, invariants, common
+   changes, failure modes, anti-patterns, and what not to change without ADR
+   review.
+7. Run the humanizer pass.
+8. From `go/`, verify with `go vet ./<package>` and `go doc ./<package>`.
+9. Run `scripts/verify-package-docs.sh` from the repo root.
 
 ## When to push back
 

@@ -309,6 +309,8 @@ until the report proves the input shape is already correct.
 | Recovery, replay, or repair controls | `cd go && go test ./internal/recovery ./internal/runtime ./internal/status -count=1` |
 | Facts-first telemetry or queue scaling | `cd go && go test ./internal/telemetry ./internal/runtime ./internal/projector ./internal/reducer -count=1` |
 | Admin replay flow | `cd go && go test ./internal/query ./internal/recovery ./internal/runtime -count=1` |
+| Hot-path Cypher, graph write, queue, worker, lease, batching, or concurrency behavior | `scripts/test-verify-performance-evidence.sh` and `scripts/verify-performance-evidence.sh` |
+| New or changed Go package under `go/internal` or `go/cmd` | `scripts/test-verify-package-docs.sh` and `scripts/verify-package-docs.sh` |
 | Go source, comments, package contracts, or generated docs | `cd go && golangci-lint run ./...` |
 | Repo hygiene gates | `git diff --check` |
 

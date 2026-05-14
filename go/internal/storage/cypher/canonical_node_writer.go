@@ -112,7 +112,7 @@ func (w *CanonicalNodeWriter) WithBatchedEntityContainmentInEntityUpsert() *Cano
 // Write executes all canonical writes in strict phase order:
 //
 //	A: retract stale nodes
-//	B: repository_cleanup
+//	B: repository_cleanup (skipped for first-generation scopes)
 //	C: repository
 //	D: directories (depth-ordered)
 //	E: files

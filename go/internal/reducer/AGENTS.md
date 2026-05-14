@@ -49,6 +49,14 @@ before touching any file in this directory.
   as incoming reachability for stored routines.
 - **All canonical graph writes go through `internal/storage/cypher`** — no
   handler may call a Neo4j or NornicDB driver directly.
+- **`JavaScript` dynamic-call alias parsing is indexed once per function** —
+  `buildCodeEntityIndex` caches static alias metadata
+  (`code_call_materialization_index.go:45`) and
+  `resolveDynamicJavaScriptCalleeEntityID` reuses that cache
+  (`code_call_materialization_dynamic_javascript.go:41`). Do not move that
+  work back into the per-call loop; generated JS bundles make that
+  multiplicative. Cache negative scans too; a source with no static aliases
+  must not be sent through the regex pass once per call.
 
 ## Common changes
 
@@ -112,6 +120,11 @@ before touching any file in this directory.
 - **Heartbeat lease failure**: `lease_heartbeat_failure` in logs means the
   lease expired mid-execution; the intent will be re-claimed. Root cause is
   usually slow graph writes or Postgres saturation.
+- **Slow `code_call_materialization` extraction**: if the completion log shows
+  high `extract_duration_seconds` with low fact count, inspect large
+  JavaScript `function_calls` arrays and run
+  BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls before changing
+  graph or queue code.
 
 ## Anti-patterns
 

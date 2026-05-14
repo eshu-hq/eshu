@@ -132,6 +132,34 @@ Required capabilities:
 For deployed services, prefer environment or chart/config-driven tuning over
 hard-coded values.
 
+## Evidence And Documentation Gates
+
+New collector packages must be concrete before they land. CI enforces two
+guardrails:
+
+- `scripts/verify-package-docs.sh` fails changed Go packages under
+  `go/internal` or `go/cmd` unless the package has `doc.go`, `README.md`, and
+  `AGENTS.md`.
+- `scripts/verify-performance-evidence.sh` fails collector changes that add
+  Cypher, graph writes, worker claims, leases, batching, goroutines, channels,
+  queue behavior, or runtime stages without tracked benchmark and observability
+  evidence.
+
+Use these markers in the changed ADR, reference doc, or package README:
+
+```text
+Performance Evidence: <baseline, after measurement, input shape, backend,
+queue or row counts, and result>
+
+Observability Evidence: <metrics, spans, logs, status fields, pprof, or
+queue/domain counters that let an operator diagnose this collector>
+```
+
+For a correctness-only change, use `No-Regression Evidence:` instead of
+`Performance Evidence:`. If existing telemetry already covers the path, use
+`No-Observability-Change:` and name the existing signals. Do not land "covered
+by logs" without naming the log event, metric, span, or status field.
+
 ## Implementation Sequence
 
 Follow this order so the collector lands on stable boundaries:

@@ -55,7 +55,9 @@
   version identity, and `HAS_VERSION`. Do not join to `Repository` or create
   ownership/publication edges from registry source URLs.
 - **Identity cleanup** — repository upserts must keep cleanup before MERGE and
-  in a separate phase group. Directory and File writers must not restore
+  in a separate phase group for non-first-generation scopes. First-generation
+  scopes skip repository cleanup because there is no prior repository identity
+  for that source-local scope. Directory and File writers must not restore
   current-directory or current-file `DETACH DELETE` cleanup.
 - **Entity cleanup anchors** — stale entity retractions and current-generation
   `Class`/`Function` containment cleanup must use label-specific anchors. Do
@@ -69,6 +71,10 @@
   `MATCH (f:File {path: row.path})`; missing files use a `WHERE NOT EXISTS`
   guard before MERGE so existing `File.path` rows avoid the MERGE
   unique-conflict path.
+- **Code-call logs need route clues** — code-call edge statements should keep
+  bounded summaries with relationship type, source label, target label, and row
+  count. Do not add file paths, entity IDs, or symbols to metric labels or
+  shared-edge summaries.
 
 ## Common changes and how to scope them
 

@@ -76,6 +76,13 @@ language focus, file count, entity count, fact count, terminal state, and stage
 durations for collector stream, fact commit, projector fact load, canonical
 write, reducer domains, shared projections, and dead-code query latency.
 
+For hot-path PRs, the evidence note must use the markers consumed by
+`scripts/verify-performance-evidence.sh`: `Performance Evidence:`,
+`Benchmark Evidence:`, or `No-Regression Evidence:` plus either
+`Observability Evidence:` or `No-Observability-Change:`. This keeps the
+benchmark and operator-signal proof in versioned docs where future agents can
+find it.
+
 Tier 3 and Tier 4 runs are allowed to exceed the Tier 1 one-minute local target,
 but only with stage evidence that explains why. If a Tier 3 run spends most of
 its time in one write shape or one reducer domain, the next action should target
@@ -211,10 +218,11 @@ The following targets remain open until their own perf gates land:
 - **Idle and active memory budgets** for the combined Eshu host + graph
   backend footprint.
 - **Full-corpus `local_authoritative` drain gate** — latest accepted remote
-  run drained `896` repositories and `8458` queue rows in about `14m33s` with
-  `0` pending, in-flight, retrying, failed, or dead-letter rows. Local
-  developer runs now size snapshot, parse, projector, and NornicDB reducer
-  workers from host CPU count unless explicit env vars are present.
+  run drained `896` repositories and `8347` fact queue rows in `14m13.6s`,
+  with `344148` `code_calls` shared-projection rows drained and `0` pending,
+  in-flight, retrying, failed, or dead-letter rows. Local developer runs now
+  size snapshot, parse, projector, and NornicDB reducer workers from host CPU
+  count unless explicit env vars are present.
 - **Active-repo transitive-caller and active-repo call-chain** — current
   evidence is synthetic only; active-repo numbers are required before
   promoting the matrix entries past `derived`.

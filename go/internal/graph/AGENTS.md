@@ -29,6 +29,9 @@
   must be split before calling.
 - **Module index not constraint** — `schema.go:57` uses `CREATE INDEX` for
   `Module` nodes. Do not convert it to a uniqueness constraint.
+- **File has two stable identities** — `schema.go:36` keeps `File.path` as the
+  canonical merge key, while `schema.go:147` includes `File` so shared
+  code-call projection can match file endpoints by repo-scoped `uid`.
 - **OCI image truth is digest-first** — `ContainerImage`, `ContainerImageIndex`,
   and `ContainerImageDescriptor` labels get `uid` constraints and digest
   indexes. `ContainerImageTagObservation` keeps a separate `image_ref` index for

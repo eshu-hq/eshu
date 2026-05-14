@@ -378,11 +378,12 @@ still slow at one row, check schema preconditions before tuning workers:
 NornicDB needs the matching `<Label>.uid` uniqueness constraint to use its
 schema-backed merge lookup instead of a generic label scan.
 File-phase writes have the same rule. Eshu's NornicDB schema includes explicit
-property indexes for `Repository.id`, `Directory.path`, and `File.path` because
-NornicDB's `MERGE` lookup path checks property indexes before falling back to a
-label scan. If `phase=files` chunks grow steadily slower as the graph grows,
-verify these indexes were created before changing file batch sizes or write
-timeouts.
+property indexes for `Repository.id`, `Directory.path`, `File.path`, and every
+`uid`-constrained label, including `File.uid`, because NornicDB's `MERGE` and
+`MATCH` lookup path checks property indexes before falling back to a label scan.
+If `phase=files` chunks or shared code-call file endpoint writes grow steadily
+slower as the graph grows, verify these indexes were created before changing
+file batch sizes, code-call batch sizes, or write timeouts.
 
 Watch future heavy write families such as call edges, infra edges, and other
 shared reducer domains. If they need different treatment, add phase metadata

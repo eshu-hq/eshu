@@ -28,6 +28,16 @@
   `service_test.go:TestBuildClaimedServiceWiresRedactionRules` for the
   regression guard.
 
+## Common Changes
+
+- Run `scripts/verify-package-docs.sh` whenever the change adds or edits a Go
+  package under this command or `go/internal/collector/terraformstate`.
+- Run `scripts/verify-performance-evidence.sh` whenever the change touches
+  claims, leases, worker fanout, batching, parser volume, S3 pagination, queue
+  pressure, or downstream graph/materialization cost. The PR must include
+  tracked Performance Evidence and Observability Evidence markers or
+  the corresponding no-regression/no-observability-change markers.
+
 ## Anti-patterns
 
 - Running Terraform-state collection inside `workflow-coordinator`.

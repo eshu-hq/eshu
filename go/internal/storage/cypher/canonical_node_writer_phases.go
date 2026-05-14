@@ -39,21 +39,26 @@ func (w *CanonicalNodeWriter) buildRepositoryCleanupStatements(mat projector.Can
 	if mat.Repository == nil {
 		return nil
 	}
+	if mat.FirstGeneration {
+		return nil
+	}
 	r := mat.Repository
 	return []Statement{
 		{
 			Operation: OperationCanonicalRetract,
 			Cypher:    canonicalNodeRepositoryIDCleanupCypher,
 			Parameters: map[string]any{
-				"repo_id": r.RepoID,
+				"repo_id":                   r.RepoID,
+				StatementMetadataSummaryKey: "repository_cleanup lookup=id",
 			},
 		},
 		{
 			Operation: OperationCanonicalRetract,
 			Cypher:    canonicalNodeRepositoryPathCleanupCypher,
 			Parameters: map[string]any{
-				"repo_id": r.RepoID,
-				"path":    r.Path,
+				"repo_id":                   r.RepoID,
+				"path":                      r.Path,
+				StatementMetadataSummaryKey: "repository_cleanup lookup=path_conflict",
 			},
 		},
 	}

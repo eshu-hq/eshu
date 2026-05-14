@@ -118,6 +118,51 @@ is not load-bearing for the decision. Correctness-only changes still need a
 "no measurable regression" check against the same input shape, but the
 threshold is lower.
 
+## CI evidence gate
+
+Hot-path Cypher and graph-write changes must leave benchmark evidence in the
+repo, not only in PR text. CI runs `scripts/verify-performance-evidence.sh`
+against the PR diff. The gate is path-based and content-based, so it catches
+new collector packages that introduce Cypher strings, graph writes, worker
+claims, leases, batching, or concurrency knobs even when the package did not
+exist before.
+
+For a hot-path change, update an ADR, reference page, or package README changed
+in the same PR with one benchmark marker:
+
+- `Performance Evidence:` for before/after runtime proof.
+- `Benchmark Evidence:` for focused `go test -bench` or equivalent microbench
+  proof.
+- `No-Regression Evidence:` for correctness-only query changes where the same
+  input shape showed no measurable regression.
+
+Also include one observability marker:
+
+- `Observability Evidence:` when the change added or used metrics, spans, logs,
+  status output, profiles, or queue/domain counters that prove operators can
+  diagnose the path.
+- `No-Observability-Change:` when existing signals already cover the changed
+  path. Name those signals explicitly.
+
+Good evidence note:
+
+```text
+Performance Evidence: focused writer benchmark on NornicDB v1.0.45 with
+50,000 File rows moved from 820ms to 310ms; full corpus stayed drained at
+896/896 repositories with 0 open queue rows.
+
+Observability Evidence: existing eshu_dp_canonical_phase_duration_seconds
+and shared-edge summaries expose the phase, row count, and relationship
+route; no new metric labels were added.
+```
+
+Bad evidence note:
+
+```text
+Performance Evidence: looks faster locally.
+Observability Evidence: logs are probably enough.
+```
+
 ## Anti-patterns
 
 These show up in PRs that skipped the pre-implementation discipline. If you

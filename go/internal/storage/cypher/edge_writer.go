@@ -133,10 +133,14 @@ func (w *EdgeWriter) WriteEdges(
 	var stmts []Statement
 	bs := w.batchSizeForDomain(domain)
 	for _, cypher := range routeOrder {
-		stmts = append(stmts, buildBatchedStatements(cypher, routedRows[cypher], bs)...)
+		routeStatements := buildBatchedStatements(cypher, routedRows[cypher], bs)
+		annotateEdgeStatementSummaries(domain, cypher, routeStatements)
+		stmts = append(stmts, routeStatements...)
 	}
 	for _, cypher := range artifactRouteOrder {
-		stmts = append(stmts, buildBatchedStatements(cypher, artifactRows[cypher], bs)...)
+		routeStatements := buildBatchedStatements(cypher, artifactRows[cypher], bs)
+		annotateEdgeStatementSummaries(domain, cypher, routeStatements)
+		stmts = append(stmts, routeStatements...)
 	}
 
 	// Prefer atomic grouped execution; fall back to sequential.

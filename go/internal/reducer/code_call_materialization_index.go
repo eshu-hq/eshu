@@ -9,38 +9,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-type codeEntityIndex struct {
-	entitiesByPathLine  map[string]string
-	spansByPath         map[string][]codeFunctionSpan
-	containersByPath    map[string][]codeFunctionSpan
-	uniqueNameByPath    map[string]map[string]string
-	uniqueNameByRepo    map[string]map[string]string
-	uniqueNameByRepoDir map[string]map[string]map[string]string
-	constructorByPath   map[string]map[string]string
-	goMethodReturnTypes map[string]map[string]string
-	entityFileByID      map[string]string
-	entityTypeByID      map[string]string
-}
-
-type codeFunctionSpan struct {
-	startLine int
-	endLine   int
-	entityID  string
-	names     []string
-}
-
 func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 	index := codeEntityIndex{
-		entitiesByPathLine:  make(map[string]string),
-		spansByPath:         make(map[string][]codeFunctionSpan),
-		containersByPath:    make(map[string][]codeFunctionSpan),
-		uniqueNameByPath:    make(map[string]map[string]string),
-		uniqueNameByRepo:    make(map[string]map[string]string),
-		uniqueNameByRepoDir: make(map[string]map[string]map[string]string),
-		constructorByPath:   make(map[string]map[string]string),
-		goMethodReturnTypes: make(map[string]map[string]string),
-		entityFileByID:      make(map[string]string),
-		entityTypeByID:      make(map[string]string),
+		entitiesByPathLine:      make(map[string]string),
+		spansByPath:             make(map[string][]codeFunctionSpan),
+		containersByPath:        make(map[string][]codeFunctionSpan),
+		uniqueNameByPath:        make(map[string]map[string]string),
+		uniqueNameByRepo:        make(map[string]map[string]string),
+		uniqueNameByRepoDir:     make(map[string]map[string]map[string]string),
+		constructorByPath:       make(map[string]map[string]string),
+		goMethodReturnTypes:     make(map[string]map[string]string),
+		entityFileByID:          make(map[string]string),
+		entityTypeByID:          make(map[string]string),
+		javaScriptAliasesByPath: make(map[string][]javaScriptStaticAliasSpan),
 	}
 	nameCandidates := make(map[string]map[string]map[string]struct{})
 	repoNameCandidates := make(map[string]map[string]map[string]struct{})
@@ -61,15 +42,30 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 		rawPath := anyToString(fileData["path"])
 		repositoryID := payloadStr(env.Payload, "repo_id")
 		preferredPath := codeCallPreferredPath(rawPath, relativePath)
+		// JavaScript alias parsing is cached once per function source because
+		// generated bundles can carry thousands of dynamic call records.
+		shouldCacheJavaScriptAliases := codeCallJavaScriptSourceFile(fileData, rawPath, relativePath)
 		for _, item := range mapSlice(fileData["functions"]) {
 			entityID := anyToString(item["uid"])
 			startLine := codeCallInt(item["line_number"], item["start_line"])
 			endLine := codeCallInt(item["end_line"])
-			if entityID == "" || startLine <= 0 {
+			if startLine <= 0 {
 				continue
 			}
 			if endLine < startLine {
 				endLine = startLine
+			}
+			if shouldCacheJavaScriptAliases {
+				cacheJavaScriptStaticAliasSpan(
+					index,
+					codeCallPathKeys(rawPath, relativePath),
+					startLine,
+					endLine,
+					anyToString(item["source"]),
+				)
+			}
+			if entityID == "" {
+				continue
 			}
 			if preferredPath != "" {
 				index.entityFileByID[entityID] = preferredPath
@@ -181,6 +177,15 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 			return spans[i].startLine < spans[j].startLine
 		})
 		index.containersByPath[pathKey] = spans
+	}
+	for pathKey, spans := range index.javaScriptAliasesByPath {
+		sort.Slice(spans, func(i, j int) bool {
+			if spans[i].startLine == spans[j].startLine {
+				return spans[i].endLine < spans[j].endLine
+			}
+			return spans[i].startLine < spans[j].startLine
+		})
+		index.javaScriptAliasesByPath[pathKey] = spans
 	}
 	for pathKey, names := range nameCandidates {
 		index.uniqueNameByPath[pathKey] = make(map[string]string, len(names))

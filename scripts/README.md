@@ -23,3 +23,15 @@ listeners, so the check is safe in local scripts and container probes.
 The `verify_*_compose.sh` scripts are developer and DevOps proof lanes. They
 start their own Compose project, choose ports, and tear the stack down unless
 `ESHU_KEEP_COMPOSE_STACK=true` is set.
+
+`verify-performance-evidence.sh` is the CI tripwire for hot-path runtime
+changes. It inspects the actual PR diff, including brand-new collector
+packages, and fails when changed Go code introduces Cypher, graph writes,
+worker claims, leases, batching, or concurrency behavior without a tracked
+docs/ADR/package note containing both benchmark evidence and observability
+evidence markers.
+
+`verify-package-docs.sh` is the CI tripwire for package-local AI guidance. Any
+changed Go package under `go/internal` or `go/cmd` must already have `doc.go`,
+`README.md`, and `AGENTS.md`; new collectors and runtime packages cannot land
+without the code-level context future agents and reviewers need.

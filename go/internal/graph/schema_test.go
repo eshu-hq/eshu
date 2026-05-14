@@ -111,6 +111,7 @@ func TestSchemaStatementsForBackendAddsNornicDBUIDLookupIndexes(t *testing.T) {
 	}
 
 	expected := []string{
+		"CREATE INDEX nornicdb_file_uid_lookup IF NOT EXISTS FOR (n:File) ON (n.uid)",
 		"CREATE INDEX nornicdb_function_uid_lookup IF NOT EXISTS FOR (n:Function) ON (n.uid)",
 		"CREATE INDEX nornicdb_type_alias_uid_lookup IF NOT EXISTS FOR (n:TypeAlias) ON (n.uid)",
 		"CREATE INDEX nornicdb_variable_uid_lookup IF NOT EXISTS FOR (n:Variable) ON (n.uid)",
@@ -207,6 +208,7 @@ func TestSchemaStatementsContainsUIDConstraints(t *testing.T) {
 	stmts := SchemaStatements()
 
 	expected := []string{
+		"CREATE CONSTRAINT file_uid_unique IF NOT EXISTS FOR (n:File) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT function_uid_unique IF NOT EXISTS FOR (n:Function) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT class_uid_unique IF NOT EXISTS FOR (n:Class) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT variable_uid_unique IF NOT EXISTS FOR (n:Variable) REQUIRE n.uid IS UNIQUE",

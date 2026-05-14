@@ -1,6 +1,9 @@
 package cypher
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 var codeCallEndpointLabels = map[string]struct{}{
 	"Class":     {},
@@ -102,4 +105,63 @@ SET rel.confidence = 0.95,
     rel.reason = 'Parser and symbol analysis resolved a code reference edge',
     rel.evidence_source = row.evidence_source,
     rel.call_kind = row.call_kind`, sourceLabel, targetLabel)
+}
+
+func annotateEdgeStatementSummaries(domain string, cypher string, stmts []Statement) {
+	for index := range stmts {
+		rowCount, _ := statementRowsCount(stmts[index])
+		summary := edgeStatementSummary(domain, cypher, rowCount)
+		if summary == "" {
+			continue
+		}
+		if stmts[index].Parameters == nil {
+			stmts[index].Parameters = make(map[string]any)
+		}
+		stmts[index].Parameters[StatementMetadataSummaryKey] = summary
+	}
+}
+
+func edgeStatementSummary(domain string, cypher string, rowCount int) string {
+	if domain != "code_calls" {
+		return ""
+	}
+	relationship := codeCallRelationshipSummary(cypher)
+	source := codeCallEndpointSummary(cypher, "source")
+	target := codeCallEndpointSummary(cypher, "target")
+	return fmt.Sprintf(
+		"domain=code_calls relationship=%s source=%s target=%s rows=%d",
+		relationship,
+		source,
+		target,
+		rowCount,
+	)
+}
+
+func codeCallRelationshipSummary(cypher string) string {
+	switch {
+	case strings.Contains(cypher, "rel:REFERENCES"):
+		return "REFERENCES"
+	case strings.Contains(cypher, "rel:USES_METACLASS"):
+		return "USES_METACLASS"
+	default:
+		return "CALLS"
+	}
+}
+
+func codeCallEndpointSummary(cypher string, endpoint string) string {
+	marker := "MATCH (" + endpoint + ":"
+	start := strings.Index(cypher, marker)
+	if start < 0 {
+		return "unknown"
+	}
+	start += len(marker)
+	remainder := cypher[start:]
+	end := strings.Index(remainder, " ")
+	if end < 0 {
+		end = strings.Index(remainder, "{")
+	}
+	if end < 0 {
+		return "unknown"
+	}
+	return remainder[:end]
 }

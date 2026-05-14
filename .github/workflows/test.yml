@@ -28,6 +28,19 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v5.0.0
 
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Verify hot-path evidence
+        run: |
+          scripts/test-verify-performance-evidence.sh
+          scripts/verify-performance-evidence.sh
+
+      - name: Verify package docs
+        run: |
+          scripts/test-verify-package-docs.sh
+          scripts/verify-package-docs.sh
+
       - name: Install golangci-lint
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
 

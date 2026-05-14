@@ -90,6 +90,14 @@
   later bounded collector slice; do not materialize package graph truth from
   collector code.
 
+- **Add a new collector family or service scanner** → create package-local
+  `doc.go`, `README.md`, and `AGENTS.md` in the same PR; run
+  `scripts/verify-package-docs.sh`. If the collector adds worker claims,
+  leases, fanout, batching, queue behavior, or downstream Cypher/materialization
+  pressure, also run `scripts/verify-performance-evidence.sh` and add
+  Performance Evidence plus Observability Evidence markers to a tracked
+  docs/ADR/package note.
+
 ## Failure modes and how to debug
 
 - Symptom: `eshu_dp_repos_snapshotted_total{status="failed"}` rising →

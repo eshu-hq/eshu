@@ -1159,8 +1159,16 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 
 	// Every uid constraint label in schema must appear in entityTypeLabelMap.
 	sort.Strings(schemaLabels)
+	// File has a uid constraint for code-call endpoint matching, but files are
+	// projected by the file phase rather than parsed content-entity facts.
+	sourceLocalNonEntityLabels := map[string]struct{}{
+		"File": {},
+	}
 	var missing []string
 	for _, label := range schemaLabels {
+		if _, ok := sourceLocalNonEntityLabels[label]; ok {
+			continue
+		}
 		if _, ok := mapLabels[label]; !ok {
 			missing = append(missing, label)
 		}
