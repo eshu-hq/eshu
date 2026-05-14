@@ -250,10 +250,10 @@ func (h *ImpactHandler) resolveChangeSurfaceTarget(
 		"candidates":  changeSurfaceCandidateMaps(candidates),
 		"truncated":   truncated,
 	}
-	switch {
-	case totalCandidates == 0:
+	switch totalCandidates {
+	case 0:
 		return nil, resolution, nil
-	case totalCandidates == 1:
+	case 1:
 		resolution["status"] = "resolved"
 		resolution["selected"] = candidates[0].Map()
 		return &candidates[0], resolution, nil
