@@ -15,6 +15,8 @@ Evidence used for this pass:
 - `go/internal/query/service_story_dossier.go`
 - `go/internal/query/service_investigation.go`
 - `go/internal/query/repository_story.go`
+- `go/internal/query/impact_change_surface_investigation.go`
+- `go/internal/query/impact_change_surface_response.go`
 
 ## Design Rule
 
@@ -126,6 +128,32 @@ Code relationship design rule: this belongs inside code drilldown, not the
 initial service story. It becomes visible after a route, function, or code-topic
 selection.
 
+## `investigate_change_surface`
+
+Primary user question: what could break, need review, or need follow-up if I
+change this service, workload, infrastructure resource, topic, module, or file
+set?
+
+| Field | Meaning | Human question | UI treatment | Drilldown |
+| --- | --- | --- | --- | --- |
+| `scope` | Normalized request context: target, target type, repo, environment, changed paths, topic, depth, and paging. | What change question did Eshu answer? | Compact query header and editable filter chips. | Rerun with adjusted target, paths, topic, depth, or limit. |
+| `target_resolution` | Whether the requested graph target was resolved, ambiguous, missing, or not requested. | Did Eshu understand what I meant? | Pre-graph resolution banner; candidate picker when ambiguous. | Candidate rerun by selected ID/type. |
+| `code_surface` | Topic and changed-path evidence from content: changed files, matched files, touched symbols, evidence groups, and source backends. | What code surface is actually touched? | Left rail or first panel in change-review mode, grouped by file and symbol. | File lines, code relationship story, or topic investigation. |
+| `code_surface.coverage` | Content query shape and returned symbol/path bounds. | Is the code evidence complete or capped? | Small trust marker beside the code surface. | Pagination or narrowed topic/path query. |
+| `direct_impact` | First-hop impacted graph nodes from the resolved target or touched surface. | What is immediately affected? | Inner ring of the impact graph with readable labels. | Node detail rail, service/repo/workload story. |
+| `transitive_impact` | Deeper affected graph nodes by depth. | What might be affected downstream? | Expandable outer graph rings grouped by depth. | Depth filter, relationship edge evidence, find-change-surface follow-up. |
+| `impact_summary` | Direct, transitive, and total impact counts. | How big is the blast radius? | Section stat strip and graph legend. | Count opens filtered result list. |
+| `coverage` | Overall query shape, depth, limits, truncation, and returned counts. | How much should I trust this impact view? | Persistent coverage/gap strip. | Explain query shape and truncation. |
+| `recommended_next_calls` | Follow-up MCP calls, often code-topic, code-relationship, or focused change-surface queries. | What should I ask next to prove this? | Action rail with plain-language labels. | Prefill and run the next call. |
+| `source_backend` | Whether the answer came from graph, content, or hybrid sources. | What kind of proof backs this? | Small provenance label, not primary content. | Backend-specific evidence detail. |
+
+Change-surface design rule: this is the console's review lens. It should reuse
+the service atlas visual grammar, but the center of gravity changes from "what
+is this service?" to "what does this change touch?" Code surface anchors the
+left side, impact depth rings anchor the graph, and target-resolution state
+must appear before any graph so humans know whether the blast radius is based
+on a precise target, an ambiguous match, or content-only evidence.
+
 ## Product Decision
 
 The Eshu Console story model should become:
@@ -136,6 +164,9 @@ The Eshu Console story model should become:
 4. Proof handles from `resolved_id`, source paths, and recommended next calls.
 5. Coverage/gap strip from `truth`, `coverage_summary`, `result_limits`, and
    `raw_context_limits`.
+6. Change-review lens from `investigate_change_surface` when the entry question
+   is about a service, topic, resource, module, or changed file set.
 
 Dashboard and catalog should become entry points into this story model. The
-service atlas is where users understand the answer.
+service atlas is where users understand the answer; the change-review lens is
+where users understand the blast radius before they merge or deploy.
