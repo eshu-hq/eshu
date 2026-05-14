@@ -130,7 +130,7 @@ func TestBootstrapDefinitionsIncludeActiveRepositoryFactIndex(t *testing.T) {
 	}
 	for _, want := range []string{
 		"fact_records_active_repository_idx",
-		"ON fact_records (generation_id, observed_at ASC, fact_id ASC)",
+		"ON fact_records (observed_at ASC, fact_id ASC, generation_id)",
 		"WHERE fact_kind = 'repository'",
 		"AND source_system = 'git'",
 	} {

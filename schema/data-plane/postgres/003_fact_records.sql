@@ -37,7 +37,7 @@ CREATE INDEX IF NOT EXISTS fact_records_stable_key_idx
     ON fact_records (stable_fact_key, generation_id);
 
 CREATE INDEX IF NOT EXISTS fact_records_active_repository_idx
-    ON fact_records (generation_id, observed_at ASC, fact_id ASC)
+    ON fact_records (observed_at ASC, fact_id ASC, generation_id)
     WHERE fact_kind = 'repository'
       AND source_system = 'git';
 
