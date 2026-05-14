@@ -38,6 +38,7 @@ type resolveEntityRequest struct {
 	Name   string `json:"name"`
 	Type   string `json:"type"`
 	RepoID string `json:"repo_id"`
+	Limit  int    `json:"limit"`
 }
 
 const serviceLookupWhereClause = "w.name = $service_name OR w.id = $service_name"
@@ -54,6 +55,7 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "name is required")
 		return
 	}
+	limit := normalizeResolveEntityLimit(req.Limit)
 	if req.RepoID != "" {
 		resolvedRepoID, err := resolveRepositorySelectorExact(r.Context(), h.Neo4j, h.Content, req.RepoID)
 		if err != nil {
@@ -98,8 +100,9 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		       e.end_line as end_line,
 ` + graphSemanticMetadataProjection() + `
 		ORDER BY e.name
-		LIMIT 20
+		LIMIT $limit
 	`
+	params["limit"] = limit + 1
 
 	var rows []map[string]any
 	var err error
@@ -129,7 +132,7 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		}
 		entities = append(entities, entity)
 	}
-	entities, err = h.enrichEntityResultsWithContentMetadata(r.Context(), entities, req.RepoID, req.Name, 20)
+	entities, err = h.enrichEntityResultsWithContentMetadata(r.Context(), entities, req.RepoID, req.Name, limit+1)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich entities: %v", err))
 		return
@@ -141,20 +144,18 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
 		return
 	}
-	entities = normalizeResolvedEntities(entities, 20)
+	entities = normalizeResolvedEntities(entities, limit+1)
+	entities, truncated := trimResolvedEntityPage(entities, limit)
 	if len(entities) == 0 {
-		entities, err = h.resolveEntityFromContent(r.Context(), req.Name, req.Type, req.RepoID, 20)
+		entities, err = h.resolveEntityFromContent(r.Context(), req.Name, req.Type, req.RepoID, limit+1)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve content entities: %v", err))
 			return
 		}
+		entities, truncated = trimResolvedEntityPage(entities, limit)
 	}
 
-	WriteJSON(w, http.StatusOK, map[string]any{
-		"entities": entities,
-		"matches":  entities,
-		"count":    len(entities),
-	})
+	WriteSuccess(w, r, http.StatusOK, resolvedEntityResponse(entities, limit, truncated), BuildTruthEnvelope(h.profile(), "code_search.fuzzy_symbol", TruthBasisHybrid, "resolved from bounded graph and content entity resolution"))
 }
 
 // getEntityContext retrieves the context for a specific entity.

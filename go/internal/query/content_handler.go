@@ -22,6 +22,14 @@ var (
 // from the Postgres content store.
 type ContentHandler struct {
 	Content ContentStore
+	Profile QueryProfile
+}
+
+func (h *ContentHandler) profile() QueryProfile {
+	if h == nil {
+		return ProfileProduction
+	}
+	return NormalizeQueryProfile(string(h.Profile))
 }
 
 // Mount registers content query routes on the given mux.
@@ -71,7 +79,7 @@ func (h *ContentHandler) readFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, fc)
+	WriteSuccess(w, r, http.StatusOK, fc, BuildTruthEnvelope(h.profile(), "code_search.content_search", TruthBasisContentIndex, "resolved from exact file content lookup"))
 }
 
 // readFileLines reads a line range from a file.
@@ -114,7 +122,7 @@ func (h *ContentHandler) readFileLines(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, fc)
+	WriteSuccess(w, r, http.StatusOK, fc, BuildTruthEnvelope(h.profile(), "code_search.content_search", TruthBasisContentIndex, "resolved from exact file line lookup"))
 }
 
 // readEntity reads entity content by entity_id.
@@ -144,7 +152,7 @@ func (h *ContentHandler) readEntity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, ec)
+	WriteSuccess(w, r, http.StatusOK, ec, BuildTruthEnvelope(h.profile(), "code_search.content_search", TruthBasisContentIndex, "resolved from exact entity content lookup"))
 }
 
 // searchFiles searches file content by pattern.
@@ -176,7 +184,7 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, contentSearchResponse(results, req, truncated))
+	WriteSuccess(w, r, http.StatusOK, contentSearchResponse(results, req, truncated), BuildTruthEnvelope(h.profile(), "code_search.content_search", TruthBasisContentIndex, "resolved from bounded file content search"))
 }
 
 // searchEntities searches entity source cache by pattern.
@@ -208,7 +216,7 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, contentSearchResponse(results, req, truncated))
+	WriteSuccess(w, r, http.StatusOK, contentSearchResponse(results, req, truncated), BuildTruthEnvelope(h.profile(), "code_search.content_search", TruthBasisContentIndex, "resolved from bounded entity content search"))
 }
 
 type contentSearchRequest struct {

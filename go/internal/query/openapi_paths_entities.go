@@ -17,7 +17,8 @@ const openAPIPathsEntities = `
                 "properties": {
                   "name": {"type": "string", "description": "Entity name to search for"},
                   "type": {"type": "string", "description": "Optional entity type filter"},
-                  "repo_id": {"type": "string", "description": "Optional repository ID filter"}
+                  "repo_id": {"type": "string", "description": "Optional repository ID filter"},
+                  "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100}
                 }
               }
             }
@@ -35,7 +36,9 @@ const openAPIPathsEntities = `
                       "type": "array",
                       "items": {"$ref": "#/components/schemas/EntityRef"}
                     },
-                    "count": {"type": "integer"}
+                    "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"}
                   }
                 }
               }

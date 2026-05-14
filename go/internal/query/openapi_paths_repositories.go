@@ -28,8 +28,12 @@ const openAPIPathsRepositories = `
       "get": {
         "tags": ["repositories"],
         "summary": "List repositories",
-        "description": "Returns all indexed repositories.",
+        "description": "Returns a bounded page of indexed repositories.",
         "operationId": "listRepositories",
+        "parameters": [
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 100, "minimum": 1, "maximum": 500}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}}
+        ],
         "responses": {
           "200": {
             "description": "List of repositories",
@@ -42,7 +46,10 @@ const openAPIPathsRepositories = `
                       "type": "array",
                       "items": {"$ref": "#/components/schemas/Repository"}
                     },
-                    "count": {"type": "integer"}
+                    "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "offset": {"type": "integer"},
+                    "truncated": {"type": "boolean"}
                   }
                 }
               }

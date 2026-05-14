@@ -301,12 +301,18 @@ func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.EntityID == "" && req.FunctionName == "" {
-		results, err := h.listMostComplexFunctions(ctx, req.RepoID, req.Limit)
+		results, limit, truncated, err := h.listMostComplexFunctions(ctx, req.RepoID, req.Limit)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		WriteSuccess(w, r, http.StatusOK, map[string]any{"repo_id": req.RepoID, "results": results}, BuildTruthEnvelope(h.profile(), "code_quality.complexity", TruthBasisHybrid, "resolved from graph-derived complexity metrics"))
+		WriteSuccess(w, r, http.StatusOK, map[string]any{
+			"repo_id":    req.RepoID,
+			"results":    results,
+			"limit":      limit,
+			"truncated":  truncated,
+			"result_key": "entity_id",
+		}, BuildTruthEnvelope(h.profile(), "code_quality.complexity", TruthBasisHybrid, "resolved from graph-derived complexity metrics"))
 		return
 	}
 

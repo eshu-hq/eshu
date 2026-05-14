@@ -282,6 +282,7 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 	var req struct {
 		Query      string `json:"query"`
 		UniqueOnly bool   `json:"unique_only"`
+		Limit      int    `json:"limit"`
 	}
 	if err := ReadJSON(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
@@ -289,7 +290,14 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 	}
 
 	cypher := `MATCH (r:Repository) WHERE r.name IS NOT NULL`
-	params := map[string]any{}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	params := map[string]any{"limit": limit + 1}
 
 	if req.Query != "" {
 		cypher += ` AND toLower(r.name) CONTAINS toLower($query)`
@@ -297,9 +305,9 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 	}
 
 	if req.UniqueOnly {
-		cypher += ` RETURN DISTINCT r.name AS name, r.repo_id AS repo_id ORDER BY r.name LIMIT 100`
+		cypher += ` RETURN DISTINCT r.name AS name, r.repo_id AS repo_id ORDER BY r.name, r.repo_id LIMIT $limit`
 	} else {
-		cypher += ` RETURN r.name AS name, r.repo_id AS repo_id ORDER BY r.name LIMIT 100`
+		cypher += ` RETURN r.name AS name, r.repo_id AS repo_id ORDER BY r.name, r.repo_id LIMIT $limit`
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), cypherQueryTimeout)
@@ -311,7 +319,17 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, map[string]any{"bundles": rows})
+	truncated := len(rows) > limit
+	if truncated {
+		rows = rows[:limit]
+	}
+
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"bundles":   rows,
+		"count":     len(rows),
+		"limit":     limit,
+		"truncated": truncated,
+	}, BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository bundle catalog"))
 }
 
 func (h *CodeHandler) lookupComplexityRowByName(ctx context.Context, functionName, repoID string) (map[string]any, error) {
@@ -344,16 +362,14 @@ func (h *CodeHandler) lookupComplexityRowByName(ctx context.Context, functionNam
 	return h.runComplexityQuery(ctx, cypher, params)
 }
 
-func (h *CodeHandler) listMostComplexFunctions(ctx context.Context, repoID string, limit int) ([]map[string]any, error) {
-	if limit <= 0 {
-		limit = 10
-	}
+func (h *CodeHandler) listMostComplexFunctions(ctx context.Context, repoID string, limit int) ([]map[string]any, int, bool, error) {
+	limit = normalizeComplexityListLimit(limit)
 	cypher := `
 		MATCH (e:Function)
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
 		WHERE coalesce(e.cyclomatic_complexity, 0) > 0
 	`
-	params := map[string]any{"limit": limit}
+	params := map[string]any{"limit": limit + 1}
 	if repoID != "" {
 		cypher += " AND repo.id = $repo_id"
 		params["repo_id"] = repoID
@@ -367,12 +383,12 @@ func (h *CodeHandler) listMostComplexFunctions(ctx context.Context, repoID strin
 		       e.end_line as end_line,
 ` + graphSemanticMetadataProjection() + `,
 		       coalesce(e.cyclomatic_complexity, 0) as complexity
-		ORDER BY complexity DESC, e.name
+		ORDER BY complexity DESC, e.name, e.id
 		LIMIT $limit
 	`
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
-		return nil, err
+		return nil, 0, false, err
 	}
 	results := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
@@ -394,5 +410,6 @@ func (h *CodeHandler) listMostComplexFunctions(ctx context.Context, repoID strin
 		}
 		results = append(results, result)
 	}
-	return results, nil
+	results, truncated := trimComplexityResults(results, limit)
+	return results, limit, truncated, nil
 }
