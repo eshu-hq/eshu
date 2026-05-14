@@ -77,7 +77,7 @@ func (s AWSCloudRuntimeDriftFindingStore) ListActiveFindings(
 	if err != nil {
 		return nil, fmt.Errorf("list active AWS runtime drift findings: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var findings []AWSCloudRuntimeDriftFindingRow
 	for rows.Next() {
@@ -119,7 +119,7 @@ func (s AWSCloudRuntimeDriftFindingStore) CountActiveFindings(
 	if err != nil {
 		return 0, fmt.Errorf("count active AWS runtime drift findings: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		return 0, nil
 	}
