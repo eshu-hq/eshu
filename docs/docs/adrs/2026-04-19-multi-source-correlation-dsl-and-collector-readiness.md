@@ -43,11 +43,25 @@ Admitted orphan/unmanaged candidates now publish durable
 candidate-derived fact IDs. This makes the finding truth durable without
 freezing a Cypher node, MCP tool, or HTTP read model shape before the ADR does.
 
+The current loader/enqueue slice wires the runtime path end to end without
+adding graph read models. Projector emits one `aws_cloud_runtime_drift` reducer
+intent per AWS generation containing `aws_resource` facts. The reducer binary
+now wires `PostgresAWSCloudRuntimeDriftEvidenceLoader`, which loads only that
+AWS generation, joins active Terraform state by the current AWS ARN allowlist,
+resolves each state backend to the owning config snapshot, and treats config as
+absent only when that owner is known and the Terraform address is missing.
+Unknown or ambiguous backend ownership suppresses unmanaged classification for
+that ARN instead of creating a false positive.
+
 No-Regression Evidence: focused Go tests cover positive, negative, and
 ambiguous orphan/unmanaged cases; candidate construction validates ARN-primary
 correlation keys and raw tag evidence; telemetry tests assert the counters do
 not carry ARNs in labels; reducer tests cover publication of admitted orphan
-and unmanaged findings plus one durable fact per admitted candidate.
+and unmanaged findings plus one durable fact per admitted candidate. The
+loader/enqueue slice adds focused tests for projector intent emission, bounded
+AWS ARN state joining, cloud-only orphan rows, cloud+state unmanaged rows,
+cloud+state+config suppression rows, and reducer binary wiring. Focused gate:
+`go test ./internal/projector ./internal/storage/postgres ./internal/reducer ./cmd/reducer`.
 
 Observability Evidence: `eshu_dp_correlation_rule_matches_total{pack, rule}`,
 `eshu_dp_correlation_orphan_detected_total{pack, rule}`, and
@@ -56,7 +70,11 @@ separate rule execution from admitted AWS runtime findings while keeping ARNs,
 Terraform addresses, and tag values out of metric label space. The reducer
 service also emits normal per-domain `reducer_run_duration_seconds`,
 `reducer_executions_total`, queue-wait metrics, and structured admitted-finding
-logs with `drift.arn` for operator drilldown.
+logs with `drift.arn` for operator drilldown. The loader slice adds
+`reducer.aws_runtime_drift_evidence_load` around the ARN join and relies on
+`eshu_dp_postgres_query_duration_seconds` child query spans plus WARN logs with
+`failure_class=aws_resource_payload_decode` or
+`failure_class=state_resource_payload_decode` for corrupt evidence rows.
 
 ## Context
 

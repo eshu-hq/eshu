@@ -72,6 +72,8 @@ func TestSpanNames(t *testing.T) {
 		"reducer_intent.enqueue",
 		"reducer.run",
 		"reducer.batch_claim",
+		"reducer.drift_evidence_load",
+		"reducer.aws_runtime_drift_evidence_load",
 		"canonical.write",
 		"canonical.projection",
 		"canonical.retract",

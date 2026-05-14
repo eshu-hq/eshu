@@ -299,9 +299,18 @@ func buildReducerService(
 			Instruments: instruments,
 		},
 		DriftLogger: logger,
-		// AWS runtime drift has a durable fact writer in this slice. The
-		// evidence loader/enqueue path is intentionally left unwired until the
-		// active ADR freezes the cross-source join and query shape.
+		// AWS runtime drift joins current AWS resource facts to active
+		// Terraform-state resources by ARN, then resolves the state backend to
+		// the owning config snapshot before classifying unmanaged resources.
+		AWSCloudRuntimeDriftEvidenceLoader: postgres.PostgresAWSCloudRuntimeDriftEvidenceLoader{
+			DB: database,
+			ConfigResolver: tfstatebackend.NewResolver(
+				postgres.PostgresTerraformBackendQuery{DB: database},
+			),
+			Tracer:      tracer,
+			Logger:      logger,
+			Instruments: instruments,
+		},
 		AWSCloudRuntimeDriftWriter: reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
 		AWSCloudRuntimeDriftLogger: logger,
 	})

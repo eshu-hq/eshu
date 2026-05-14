@@ -13,6 +13,9 @@
 // OCI registry projection keeps digest-addressed manifests, indexes, and
 // descriptors as canonical identity while treating tags as mutable weak
 // observations that can enrich queries but do not mint image identity.
+// AWS resource observations stay source-local until buildAWSCloudRuntimeDriftReducerIntent
+// emits one aws_cloud_runtime_drift reducer intent for the AWS scope
+// generation; the reducer owns ARN joins and unmanaged/orphan admission.
 // EntityTypeLabel keeps parser/content entity labels, including Terraform
 // backend/import/refactor/check and lockfile-provider labels, aligned with graph
 // schema support.

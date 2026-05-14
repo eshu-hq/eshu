@@ -44,11 +44,17 @@
   `package_source_correlation_intents.go` may enqueue the reducer classifier,
   but that intent is counter-only until reducer admission grows stronger
   provenance.
+- **AWS runtime drift stays reducer-owned** —
+  `aws_cloud_runtime_drift_intents.go` may enqueue one reducer intent when an
+  AWS generation contains `aws_resource` facts, but the projector must not join
+  AWS resources to Terraform state or config. ARN matching, backend ownership,
+  and orphan/unmanaged admission belong in `internal/reducer` and
+  `internal/storage/postgres`.
 - **Directory sort order** — `buildDirectoryChain` sorts by `Depth` ascending so
   parent directories exist before children during graph writes
   (`canonical_builder.go:191`).
 - **ReducerIntent stable ordering** — `intents` are sorted by `Domain`,
-  `EntityKey`, then `FactID` before enqueue (`runtime.go:373`). Do not remove
+  `EntityKey`, then `FactID` before enqueue (`runtime.go:382`). Do not remove
   this sort.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.

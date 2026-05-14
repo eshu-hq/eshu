@@ -149,6 +149,11 @@ provenance-only until reducer correlation proves ownership or consumption.
 When a generation contains source hints, `buildPackageSourceCorrelationReducerIntent`
 emits one `package_source_correlation` reducer intent for the scope so the
 reducer can classify all hints against active repository facts once.
+AWS cloud facts follow the same source-local rule. The projector does not join
+AWS resources to Terraform state; when a generation contains one or more
+`aws_resource` facts, `buildAWSCloudRuntimeDriftReducerIntent` emits one
+`aws_cloud_runtime_drift` reducer intent for the AWS scope/generation so the
+reducer can run the bounded ARN join after source-local projection succeeds.
 
 ## Telemetry
 
@@ -243,7 +248,7 @@ backend-specific adapters.
   by `Depth` so parent nodes exist before children during ordered writes
   (`canonical_builder.go:191`).
 - `ReducerIntent` values are sorted by `Domain`, `EntityKey`, and `FactID`
-  before enqueue to produce a stable queue order (`runtime.go:373`).
+  before enqueue to produce a stable queue order (`runtime.go:382`).
 
 ## Related docs
 

@@ -66,6 +66,15 @@
 // active state_snapshot:* scope and records
 // eshu_dp_correlation_drift_intents_enqueued_total for enqueue-volume
 // diagnostics.
+// PostgresAWSCloudRuntimeDriftEvidenceLoader serves the reducer's AWS
+// runtime drift handler: it loads current aws_resource facts for one AWS
+// scope generation, joins only active terraform_state_resource facts whose
+// attributes.arn is in that AWS allowlist, resolves each state_snapshot
+// backend to the owning config snapshot, and reuses the Terraform
+// config-resource loader to decide whether a state-backed resource is truly
+// absent from config. Unresolved or ambiguous backend ownership suppresses
+// unmanaged classification for that state-backed ARN because config absence is
+// not proven.
 //
 // State-only addresses absent from the prior-config address set keep
 // PreviouslyDeclaredInConfig=false and surface as added_in_state — the
