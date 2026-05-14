@@ -88,6 +88,19 @@ docker compose exec -T postgres \
 Stop the collector with Ctrl-C after the first successful sync unless you are
 testing repeated polling.
 
+For a fixture-backed performance and observability proof without live
+Atlassian traffic:
+
+```bash
+cd go
+go test ./internal/collector/confluence \
+  -run 'TestSourceRecordsBoundedConfluenceMetrics|TestHTTPClientRecordsBoundedRequestMetrics' \
+  -count=1 -v
+```
+
+Record the page count, visible document count, emitted section/link counts,
+wall time, and HTTP GET count in the changed package README or ADR.
+
 ## OCI Registry Live Smokes
 
 Use these only for maintainer/operator validation against real registries. They
@@ -310,6 +323,7 @@ until the report proves the input shape is already correct.
 | Facts-first telemetry or queue scaling | `cd go && go test ./internal/telemetry ./internal/runtime ./internal/projector ./internal/reducer -count=1` |
 | Admin replay flow | `cd go && go test ./internal/query ./internal/recovery ./internal/runtime -count=1` |
 | Hot-path Cypher, graph write, queue, worker, lease, batching, or concurrency behavior | `scripts/test-verify-performance-evidence.sh` and `scripts/verify-performance-evidence.sh` |
+| New or changed collector family, provider, scanner, or hosted collector runtime | `scripts/test-verify-collector-authoring-gate.sh` and `scripts/verify-collector-authoring-gate.sh` |
 | New or changed Go package under `go/internal` or `go/cmd` | `scripts/test-verify-package-docs.sh` and `scripts/verify-package-docs.sh` |
 | Go source, comments, package contracts, or generated docs | `cd go && golangci-lint run ./...` |
 | Repo hygiene gates | `git diff --check` |
@@ -327,6 +341,45 @@ go test ./internal/parser ./internal/collector/discovery ./internal/content/shap
   ./internal/runtime ./internal/app ./internal/telemetry \
   ./internal/storage/cypher ./internal/storage/neo4j ./internal/storage/postgres \
   ./internal/projector ./internal/reducer ./cmd/reducer -count=1
+```
+
+## Collector Performance Gates
+
+Use these focused checks when changing collector families or expanding a source
+provider. The tracked evidence note must name input size, fact count, wall
+time, remote/API budget, and the telemetry that proves the source stage is
+diagnosable.
+
+```bash
+# Terraform-state parser memory and throughput.
+cd go
+go test ./internal/collector/terraformstate -count=1 -run TestParseStream_PeakMemoryGate
+go test -bench=BenchmarkParseStream_LargeState -benchmem -run=^$ \
+  ./internal/collector/terraformstate
+
+# AWS claim scan counters, emitted fact counts, API stats, and budget status.
+cd go
+go test ./internal/collector/awscloud/awsruntime \
+  -run 'TestClaimedSourceRecordsEmissionCounters|TestClaimedSourceRecordsScanStatusWithAPICallStats' \
+  -count=1 -v
+
+# OCI registry target scan, manifest/referrer fact shape, and bounded labels.
+cd go
+go test ./internal/collector/ociregistry/ociruntime \
+  -run 'TestSourceNextEmitsCollectedGenerationForRegistryTarget|TestClaimedSourceNextClaimedScansMatchingTargetWithClaimGeneration' \
+  -count=1 -v
+
+# Package-registry metadata fetch, parser bounds, fact emission, and URL scrubbing.
+cd go
+go test ./internal/collector/packageregistry/packageruntime \
+  -run 'TestClaimedSourceParsesMetadataIntoPackageRegistryFacts|TestClaimedSourceRejectsMetadataOverVersionLimit|TestClaimedSourceSanitizesSourceURIBeforeFactEmission' \
+  -count=1 -v
+
+# Confluence source-stage metrics and high-cardinality label guard.
+cd go
+go test ./internal/collector/confluence \
+  -run 'TestSourceRecordsBoundedConfluenceMetrics|TestHTTPClientRecordsBoundedRequestMetrics' \
+  -count=1 -v
 ```
 
 ## Local-Authoritative Gates

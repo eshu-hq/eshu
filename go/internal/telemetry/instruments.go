@@ -75,6 +75,12 @@ type Instruments struct {
 	PackageRegistryRateLimited                metric.Int64Counter
 	PackageRegistryParseFailures              metric.Int64Counter
 	PackageSourceCorrelations                 metric.Int64Counter
+	ConfluenceHTTPRequests                    metric.Int64Counter
+	ConfluencePermissionDeniedPages           metric.Int64Counter
+	ConfluenceDocumentsObserved               metric.Int64Counter
+	ConfluenceSectionsEmitted                 metric.Int64Counter
+	ConfluenceLinksEmitted                    metric.Int64Counter
+	ConfluenceSyncFailures                    metric.Int64Counter
 	AWSAPICalls                               metric.Int64Counter
 	AWSThrottles                              metric.Int64Counter
 	AWSAssumeRoleFailed                       metric.Int64Counter
@@ -196,6 +202,7 @@ type Instruments struct {
 	OCIRegistryScanDuration              metric.Float64Histogram
 	PackageRegistryObserveDuration       metric.Float64Histogram
 	PackageRegistryGenerationLag         metric.Float64Histogram
+	ConfluenceFetchDuration              metric.Float64Histogram
 	AWSScanDuration                      metric.Float64Histogram
 	ScopeAssignDuration                  metric.Float64Histogram
 	FactEmitDuration                     metric.Float64Histogram
@@ -542,6 +549,54 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register PackageSourceCorrelations counter: %w", err)
 	}
 
+	inst.ConfluenceHTTPRequests, err = meter.Int64Counter(
+		"eshu_dp_confluence_http_requests_total",
+		metric.WithDescription("Total Confluence HTTP GET requests by bounded operation, result, and status class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ConfluenceHTTPRequests counter: %w", err)
+	}
+
+	inst.ConfluencePermissionDeniedPages, err = meter.Int64Counter(
+		"eshu_dp_confluence_permission_denied_pages_total",
+		metric.WithDescription("Total Confluence pages skipped because the read-only credential could not view them"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ConfluencePermissionDeniedPages counter: %w", err)
+	}
+
+	inst.ConfluenceDocumentsObserved, err = meter.Int64Counter(
+		"eshu_dp_confluence_documents_observed_total",
+		metric.WithDescription("Total Confluence documentation documents observed by bounded result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ConfluenceDocumentsObserved counter: %w", err)
+	}
+
+	inst.ConfluenceSectionsEmitted, err = meter.Int64Counter(
+		"eshu_dp_confluence_sections_emitted_total",
+		metric.WithDescription("Total Confluence documentation sections emitted by bounded result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ConfluenceSectionsEmitted counter: %w", err)
+	}
+
+	inst.ConfluenceLinksEmitted, err = meter.Int64Counter(
+		"eshu_dp_confluence_links_emitted_total",
+		metric.WithDescription("Total Confluence documentation links emitted by bounded result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ConfluenceLinksEmitted counter: %w", err)
+	}
+
+	inst.ConfluenceSyncFailures, err = meter.Int64Counter(
+		"eshu_dp_confluence_sync_failures_total",
+		metric.WithDescription("Total failed Confluence sync attempts by bounded failure class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ConfluenceSyncFailures counter: %w", err)
+	}
+
 	inst.AWSAPICalls, err = meter.Int64Counter(
 		"eshu_dp_aws_api_calls_total",
 		metric.WithDescription("Total AWS API calls by service, account, region, operation, and result"),
@@ -782,6 +837,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PackageRegistryGenerationLag histogram: %w", err)
+	}
+
+	confluenceFetchBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.ConfluenceFetchDuration, err = meter.Float64Histogram(
+		"eshu_dp_confluence_fetch_duration_seconds",
+		metric.WithDescription("Confluence HTTP GET duration by bounded operation and result"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(confluenceFetchBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ConfluenceFetchDuration histogram: %w", err)
 	}
 
 	awsScanBuckets := []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}
@@ -1615,9 +1681,19 @@ func AttrStatus(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionStatus, v)
 }
 
+// AttrFailureClass returns a failure_class attribute for metric recording.
+func AttrFailureClass(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionFailureClass, v)
+}
+
 // AttrOperation returns an operation attribute for metric recording.
 func AttrOperation(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOperation, v)
+}
+
+// AttrStatusClass returns a status_class attribute for metric recording.
+func AttrStatusClass(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionStatusClass, v)
 }
 
 // AttrService returns a service attribute for cloud-provider metrics.

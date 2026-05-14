@@ -21,6 +21,9 @@
   `collector.Service` and `postgres.NewIngestionStore`.
 - **Operator visibility** - keep the hosted status server and Prometheus
   handler wired into `app.NewHostedWithStatusServer`.
+- **Telemetry wiring** - pass shared `telemetry.Instruments` into both
+  `confluence.NewHTTPClient` and `confluence.Source` so source-stage metrics
+  show up on `/metrics`.
 
 ## Common Changes And How To Scope Them
 
@@ -30,7 +33,8 @@
   permission gaps, stale revisions, and duplicate titles before changing
   `internal/collector/confluence`.
 - **Change telemetry** - verify emitted collector metrics keep
-  `collector_kind=documentation` and `source_system=confluence`.
+  `collector_kind=documentation` and `source_system=confluence`; verify
+  Confluence-specific labels remain bounded in `internal/collector/confluence`.
 
 ## Anti-Patterns
 

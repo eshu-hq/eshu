@@ -11,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/metric"
 )
 
 const defaultHTTPTimeout = 30 * time.Second
@@ -34,6 +37,7 @@ type HTTPClientConfig struct {
 	APIToken    string
 	BearerToken string
 	Client      *http.Client
+	Instruments *telemetry.Instruments
 }
 
 // HTTPClient is a read-only Confluence Cloud REST API v2 client.
@@ -43,6 +47,7 @@ type HTTPClient struct {
 	apiToken    string
 	bearerToken string
 	client      *http.Client
+	instruments *telemetry.Instruments
 }
 
 // NewHTTPClient creates a read-only Confluence HTTP client.
@@ -71,6 +76,7 @@ func NewHTTPClient(config HTTPClientConfig) (*HTTPClient, error) {
 		apiToken:    config.APIToken,
 		bearerToken: config.BearerToken,
 		client:      client,
+		instruments: config.Instruments,
 	}, nil
 }
 
@@ -148,11 +154,19 @@ func (c *HTTPClient) GetPage(ctx context.Context, id string) (Page, error) {
 
 func (c *HTTPClient) getJSON(ctx context.Context, endpoint string, query url.Values, target any) error {
 	requestURL := c.resolve(endpoint)
+	operation := confluenceOperation(requestURL.Path)
 	if query != nil {
 		requestURL.RawQuery = query.Encode()
 	}
+	startedAt := time.Now()
+	statusClass := "transport_error"
+	result := "network_error"
+	defer func() {
+		c.recordRequest(ctx, operation, result, statusClass, time.Since(startedAt))
+	}()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), nil)
 	if err != nil {
+		result = "request_build_error"
 		return fmt.Errorf("build confluence request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
@@ -169,16 +183,46 @@ func (c *HTTPClient) getJSON(ctx context.Context, endpoint string, query url.Val
 	defer func() {
 		_ = resp.Body.Close()
 	}()
+	statusClass = httpStatusClass(resp.StatusCode)
 	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusNotFound {
+		result = "permission_denied"
 		return ErrPermissionDenied
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		result = "status_error"
 		return fmt.Errorf("confluence GET %s returned status %d", requestURL.Path, resp.StatusCode)
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
+		result = "decode_error"
 		return fmt.Errorf("decode confluence response: %w", err)
 	}
+	result = "success"
 	return nil
+}
+
+func (c *HTTPClient) recordRequest(
+	ctx context.Context,
+	operation string,
+	result string,
+	statusClass string,
+	duration time.Duration,
+) {
+	if c.instruments == nil {
+		return
+	}
+	if c.instruments.ConfluenceHTTPRequests != nil {
+		c.instruments.ConfluenceHTTPRequests.Add(ctx, 1, metric.WithAttributes(
+			telemetry.AttrOperation(operation),
+			telemetry.AttrResult(result),
+			telemetry.AttrStatusClass(statusClass),
+		))
+	}
+	if c.instruments.ConfluenceFetchDuration != nil {
+		c.instruments.ConfluenceFetchDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(
+			telemetry.AttrOperation(operation),
+			telemetry.AttrResult(result),
+		))
+	}
 }
 
 func (c *HTTPClient) resolve(endpoint string) url.URL {
@@ -221,4 +265,27 @@ func cleanURLPath(value string) string {
 		return "/"
 	}
 	return path.Clean("/" + strings.TrimPrefix(value, "/"))
+}
+
+func confluenceOperation(requestPath string) string {
+	cleaned := cleanURLPath(requestPath)
+	switch {
+	case strings.HasSuffix(cleaned, "/descendants"):
+		return "list_page_tree"
+	case strings.HasSuffix(cleaned, "/pages"):
+		return "list_pages"
+	case strings.Contains(cleaned, "/pages/"):
+		return "fetch_page"
+	case strings.Contains(cleaned, "/spaces/"):
+		return "get_space"
+	default:
+		return "unknown"
+	}
+}
+
+func httpStatusClass(statusCode int) string {
+	if statusCode < 100 {
+		return "unknown"
+	}
+	return strconv.Itoa(statusCode/100) + "xx"
 }

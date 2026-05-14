@@ -241,6 +241,27 @@ For shared-write debugging specifically:
   timeouts such as context deadlines remain `registry_retryable_failure` so
   they stay in the retryable incident bucket.
 
+### Confluence Collector
+
+- Metrics answer Confluence HTTP GET volume, page-list and page-fetch latency,
+  permission gaps, emitted documentation document/section/link volume, and
+  bounded sync failure classes.
+- `eshu_dp_confluence_http_requests_total` is labeled by bounded operation,
+  result, and status class. Page IDs, titles, URLs, paths, excerpts, and body
+  content stay out of metric labels.
+- `eshu_dp_confluence_fetch_duration_seconds` is labeled by bounded operation
+  and result so operators can distinguish slow space listing, descendant
+  traversal, and page body fetches.
+- `eshu_dp_confluence_permission_denied_pages_total` increments when a page
+  tree child or enriched page is skipped because the read-only credential
+  cannot view it.
+- `eshu_dp_confluence_documents_observed_total`,
+  `eshu_dp_confluence_sections_emitted_total`, and
+  `eshu_dp_confluence_links_emitted_total` expose source-stage volume after
+  normalization.
+- `eshu_dp_confluence_sync_failures_total` is labeled by `failure_class` for
+  configuration, source-read, and fact-build failures.
+
 ### Resolution Engine
 
 - Metrics answer claim latency, worker activity, stage duration, stage output

@@ -5,11 +5,13 @@
 1. `go/internal/collector/confluence/README.md` - package purpose, flow, and
    invariants
 2. `go/internal/collector/confluence/source.go` - `Source.Next`, generation
-   construction, partial-sync handling, and fact envelope creation
-3. `go/internal/collector/confluence/client.go` - read-only HTTP client and
+   construction, and fact envelope creation
+3. `go/internal/collector/confluence/source_collect.go` - page collection,
+   enrichment, and partial-sync handling
+4. `go/internal/collector/confluence/client.go` - read-only HTTP client and
    permission-gap behavior
-4. `go/internal/collector/confluence/config.go` - env config validation
-5. `go/internal/facts/documentation.go` - source-neutral documentation fact
+5. `go/internal/collector/confluence/config.go` - env config validation
+6. `go/internal/facts/documentation.go` - source-neutral documentation fact
    schema
 
 ## Invariants This Package Enforces
@@ -22,6 +24,9 @@
   Confluence-specific fact kinds.
 - **Partial-sync visibility** - permission gaps must increment
   `failure_count` and set `sync_status=partial`.
+- **Bounded source metrics** - Confluence metrics may use `operation`,
+  `result`, `status_class`, and `failure_class` only. Page IDs, titles, URLs,
+  paths, body text, and excerpts stay out of metric labels.
 - **Stable identity** - page identity must be based on Confluence page ID, not
   title, so duplicate titles remain distinct.
 
@@ -36,6 +41,8 @@
   revisions before changing `latestCurrentPages`.
 - **Change client behavior** - keep HTTP tests proving read-only methods and
   permission-gap mapping.
+- **Change telemetry** - update `metrics_test.go`, telemetry docs, and
+  collector evidence markers before changing metric names or labels.
 
 ## Anti-Patterns
 
