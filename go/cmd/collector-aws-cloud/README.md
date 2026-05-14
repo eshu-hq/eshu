@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -137,6 +137,12 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   mutate buckets, persist bucket policy JSON, persist ACL grants, persist
   replication rules, persist lifecycle rules, persist notification
   configuration, or persist inventory, analytics, or metrics configuration.
+- RDS targets emit DB instance, DB cluster, and DB subnet group metadata plus
+  reported cluster membership, subnet group, security group, KMS key, monitoring
+  role, IAM role, parameter group, and option group relationships. They
+  intentionally do not connect to databases, read snapshots, read log contents,
+  read Performance Insights samples, discover schemas or tables, or mutate RDS
+  resources.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan

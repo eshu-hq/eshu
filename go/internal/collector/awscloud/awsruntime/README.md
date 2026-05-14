@@ -74,7 +74,8 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/route53`,
   `internal/collector/awscloud/services/sqs`,
   `internal/collector/awscloud/services/sns`, and
-  `internal/collector/awscloud/services/s3` plus their `awssdk` adapters for
+  `internal/collector/awscloud/services/s3`,
+  `internal/collector/awscloud/services/rds` plus their `awssdk` adapters for
   production service scanners.
 - `internal/facts` for warning fact types.
 - `internal/scope` for AWS scope and collector identity.
@@ -152,6 +153,11 @@ pagination spans. The command registers the instruments:
   adapter, but it must not broaden the service contract to object inventory,
   bucket policy persistence, ACL grant persistence, replication persistence,
   lifecycle persistence, notification persistence, or mutation APIs.
+- RDS scanners must stay metadata-only. The runtime registry wires the RDS SDK
+  adapter, but it must not broaden the service contract to database
+  connections, database names, master usernames, secrets, snapshots, log
+  contents, Performance Insights samples, schemas, tables, row data, or
+  mutation APIs.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

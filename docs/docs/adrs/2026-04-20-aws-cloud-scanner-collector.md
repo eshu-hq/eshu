@@ -53,21 +53,27 @@ later reducer-owned correlation.
 ## Status Review (2026-05-14)
 
 **Current disposition:** Phase 2 service expansion now includes SQS, SNS,
-EventBridge, and S3 metadata-only slices for issue #38. The `sqs` service scans
-queue metadata, queue tags, safe queue attributes, and reported dead-letter
-queue relationships from redrive policy fields. The `sns` service scans topic
-metadata, topic tags, safe topic attributes, and reported delivery
+EventBridge, S3, and RDS metadata-only slices for issue #38. The `sqs` service
+scans queue metadata, queue tags, safe queue attributes, and reported
+dead-letter queue relationships from redrive policy fields. The `sns` service
+scans topic metadata, topic tags, safe topic attributes, and reported delivery
 relationships only when the subscription endpoint is ARN-addressable. The
 `eventbridge` service scans event bus metadata, rule metadata, tags, rule-to-bus
 relationships, and reported target relationships only when the target is
 ARN-addressable. The `s3` service scans bucket tags, versioning, default
 encryption, public-access-block status, policy public/not-public status,
-ownership controls, website status, and server-access-log target metadata.
-These slices deliberately do not call message, event payload, or object APIs, do
-not mutate resources, do not persist SQS/SNS/EventBridge/S3 policy JSON, and do
-not persist raw non-ARN SNS endpoints, EventBridge targets, S3 object inventory,
-ACL grants, replication rules, lifecycle rules, notification configuration,
-inventory configuration, analytics configuration, or metrics configuration.
+ownership controls, website status, and server-access-log target metadata. The
+`rds` service scans DB instance, DB cluster, and DB subnet group metadata plus
+directly reported cluster membership, subnet group, security group, KMS key,
+monitoring role, IAM role, parameter group, and option group relationships.
+These slices deliberately do not call message, event payload, object, database,
+snapshot, log-content, Performance Insights sample, schema, table, or mutation
+APIs; do not persist SQS/SNS/EventBridge/S3 policy JSON; do not persist raw
+non-ARN SNS endpoints, EventBridge targets, S3 object inventory, ACL grants,
+replication rules, lifecycle rules, notification configuration, inventory
+configuration, analytics configuration, metrics configuration, RDS database
+names, master usernames, secrets, snapshots, log payloads, schemas, tables, or
+row data.
 
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/sqs/...`
 covers the bounded SQS call shape: one paginated ListQueues stream, one
@@ -209,6 +215,44 @@ diagnoses the S3 path through `aws.service.scan`,
 or span name is needed for this metadata-only scanner.
 
 Collector Deployment Evidence: S3 runs inside the existing hosted
+`collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
+the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
+surfaces apply without a separate deployment.
+
+Collector Performance Evidence: `go test ./internal/collector/awscloud/services/rds/...`
+covers the bounded RDS call shape: paginated DescribeDBInstances,
+DescribeDBClusters, DescribeDBSubnetGroups, and ListTagsForResource for
+ARN-addressable resources; no database connections, snapshot reads, log-content
+reads, Performance Insights sample reads, schema/table reads, mutations, or
+downstream graph writes in the collector. This slice did not run against a live
+AWS account; the performance contract is the bounded O(instance count + cluster
+count + subnet group count) SDK call shape and existing workflow claim/account
+concurrency limits.
+
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+covers RDS DB instance, DB cluster, and DB subnet group metadata fact emission,
+direct dependency relationship emission, omission of database name, master
+username, secret, snapshot, log, Performance Insights sample, schema, table,
+and row-data fields, SDK pagination, tag reads, runtime scanner registration,
+and the command config path that confirms RDS does not require an
+environment-value redaction key.
+
+Collector Observability Evidence: RDS uses the existing AWS collector
+`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
+labels stay bounded to service, account, region, operation, result, and status;
+RDS endpoints, ARNs, tags, KMS key IDs, subnet group names, parameter group
+names, option group names, and raw AWS error payloads stay out of metric labels.
+
+No-Observability-Change: the existing AWS collector telemetry contract already
+diagnoses the RDS path through `aws.service.scan`,
+`aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status`; no new metric
+or span name is needed for this metadata-only scanner.
+
+Collector Deployment Evidence: RDS runs inside the existing hosted
 `collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
 the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
 surfaces apply without a separate deployment.
@@ -415,7 +459,10 @@ slice:
 
 Phase 2 (explicit non-goal for launch but planned):
 
-- RDS, DynamoDB (data-plane resources)
+- RDS metadata (implemented 2026-05-14; database connections, database names,
+  master usernames, secrets, snapshots, log contents, Performance Insights
+  samples, schemas, tables, row data, and mutations remain out of scope)
+- DynamoDB metadata (data-plane resources)
 - S3 bucket metadata (implemented 2026-05-14; object inventory, object keys,
   bucket policy JSON, ACL grants, replication rules, lifecycle rules,
   notification configuration, inventory configuration, analytics configuration,
@@ -605,7 +652,8 @@ Some AWS resources leak secrets through attributes:
 
 - Lambda function environment variables
 - ECS task definition container environment variables and secrets fields
-- RDS master credentials (when returned)
+- RDS database names and master usernames are identity-adjacent database fields
+  and stay out of scanner facts
 
 The scanner applies redaction analogous to the state collector:
 
@@ -912,7 +960,8 @@ behind schedule.
 
 ### Phase 4: Phase 2 Service Expansion
 
-- RDS, DynamoDB
+- RDS metadata (implemented 2026-05-14)
+- DynamoDB
 - S3 metadata (implemented 2026-05-14)
 - SQS queue metadata (implemented 2026-05-14)
 - SNS topic metadata (implemented 2026-05-14)
@@ -1026,10 +1075,10 @@ collector for drift rules, on Git collector for code joins.
 
 ### Chunk E: Phase 2 Services
 
-**Scope:** SQS queue metadata, SNS topic metadata, EventBridge metadata, and S3
-bucket metadata are implemented. Remaining scope: RDS, DynamoDB, CloudFront,
-API Gateway, Secrets Manager metadata, SSM metadata, and CloudWatch Logs
-metadata.
+**Scope:** SQS queue metadata, SNS topic metadata, EventBridge metadata, S3
+bucket metadata, and RDS metadata are implemented. Remaining scope: DynamoDB,
+CloudFront, API Gateway, Secrets Manager metadata, SSM metadata, and CloudWatch
+Logs metadata.
 
 ### Chunk F: Optional Freshness Layer
 

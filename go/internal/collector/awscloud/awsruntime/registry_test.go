@@ -171,6 +171,26 @@ func TestDefaultScannerFactoryBuildsS3Scanner(t *testing.T) {
 	}
 }
 
+func TestDefaultScannerFactoryBuildsRDSScanner(t *testing.T) {
+	factory := DefaultScannerFactory{}
+	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
+	scanner, err := factory.Scanner(context.Background(), Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceRDS,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceRDS,
+	}, lease)
+	if err != nil {
+		t.Fatalf("Scanner() error = %v", err)
+	}
+	if scanner == nil {
+		t.Fatalf("Scanner() = nil, want RDS scanner")
+	}
+}
+
 func TestDefaultScannerFactoryBuildsELBv2Scanner(t *testing.T) {
 	factory := DefaultScannerFactory{}
 	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
