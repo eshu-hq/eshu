@@ -14,6 +14,9 @@ satisfy structural admission requirements.
   `attribute_drift`, `removed_from_state`, `removed_from_config`),
   builds cross-scope correlation candidates, and exposes the per-resource-type
   attribute allowlist consulted during attribute_drift.
+- `cloudruntime/` — AWS cloud-runtime drift (issue #39). Classifies
+  ARN-keyed AWS observations against Terraform state and Terraform config,
+  then builds candidates for orphaned and unmanaged resource findings.
 
 ## Why this tree exists
 

@@ -8,8 +8,9 @@
 // documentation extraction counters, Terraform-state collector spans, webhook
 // listener spans, OCI registry collector spans, and the safe_locator_hash and
 // warning_kind dimensions used by the tfstate output, module, warning emission,
-// correlation drift-match, drift-admission, drift-intent enqueue, webhook, and
-// OCI registry counters. Webhook listener intake registers provider,
+// correlation drift-match, drift-admission, drift-intent enqueue, AWS
+// cloud-runtime orphan and unmanaged resource, webhook, and OCI registry
+// counters. Webhook listener intake registers provider,
 // event_kind, decision, status, SpanWebhookHandle, and SpanWebhookStore. OCI
 // registry intake registers operation, media_family, artifact_family,
 // SpanOCIRegistryScan, and SpanOCIRegistryAPICall. The reducer drift handler uses

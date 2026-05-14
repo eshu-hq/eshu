@@ -2,10 +2,11 @@
 
 ## Purpose
 
-`correlation/rules` defines the declarative rule-pack schema and the eleven
+`correlation/rules` defines the declarative rule-pack schema and the thirteen
 first-party rule packs Eshu ships for container, IaC, and CI/CD correlation
-families. The engine consumes these packs verbatim; the rules package owns no
-evaluation logic, only schema definition and pack constructors.
+families, plus Terraform config-vs-state and AWS cloud-runtime drift. The
+engine consumes these packs verbatim; the rules package owns no evaluation
+logic, only schema definition and pack constructors.
 
 ## Where this fits in the pipeline
 
@@ -64,6 +65,10 @@ First-party pack constructors (one per file):
 - `TerraformConfigRulePack` — pack name `terraform_config`,
   `MinAdmissionConfidence` 0.91
 - `TerragruntRulePack` — pack name `terragrunt`, `MinAdmissionConfidence` 0.76
+- `TerraformConfigStateDriftRulePack` — pack name
+  `terraform_config_state_drift`, `MinAdmissionConfidence` 0.80
+- `AWSCloudRuntimeDriftRulePack` — pack name `aws_cloud_runtime_drift`,
+  `MinAdmissionConfidence` 0.85
 
 Aggregated entry points (in `container_rulepacks.go`):
 
@@ -73,7 +78,9 @@ Aggregated entry points (in `container_rulepacks.go`):
   `TerraformConfigRulePack`, `CloudFormationRulePack` (9 packs; excludes
   `TerragruntRulePack` and `AnsibleRulePack`).
 - `FirstPartyRulePacks()` — returns all 11 shipped packs; adds
-  `TerragruntRulePack` and `AnsibleRulePack` to the container slice.
+  `TerragruntRulePack`, `AnsibleRulePack`,
+  `TerraformConfigStateDriftRulePack`, and
+  `AWSCloudRuntimeDriftRulePack` to the container slice.
 
 See `doc.go` for the godoc contract.
 

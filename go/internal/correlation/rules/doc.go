@@ -6,5 +6,7 @@
 // kinds drawn from `RuleKind`. Every pack must pass `RulePack.Validate`
 // before evaluation; the engine relies on the schema invariants enforced
 // here (non-negative priority, bounded match count, required selectors)
-// when ordering rules and counting matches.
+// when ordering rules and counting matches. First-party packs include
+// language, container, deployment, Terraform config/state drift, and AWS
+// cloud-runtime drift rules.
 package rules

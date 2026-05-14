@@ -370,13 +370,17 @@ collector/projector/reducer path.
 
 ### `eshu_dp_correlation_rule_matches_total`
 ### `eshu_dp_correlation_drift_detected_total`
+### `eshu_dp_correlation_orphan_detected_total`
+### `eshu_dp_correlation_unmanaged_detected_total`
 
 - Type: Counters
 - Labels:
   `eshu_dp_correlation_rule_matches_total` carries `pack` and `rule`.
   `eshu_dp_correlation_drift_detected_total` carries `pack`, `rule`, and
   `drift_kind`.
-  All three label values are bounded: `pack` is a frozen string from the
+  `eshu_dp_correlation_orphan_detected_total` and
+  `eshu_dp_correlation_unmanaged_detected_total` carry `pack` and `rule`.
+  These label values are bounded: `pack` is a frozen string from the
   rule-pack registry, `rule` is one of the rule names declared by that
   pack, `drift_kind` is the closed enum
   `{added_in_state, added_in_config, attribute_drift, removed_from_state,
@@ -391,10 +395,15 @@ collector/projector/reducer path.
   `eshu_dp_correlation_drift_detected_total` advances per
   admitted drift candidate, with `drift_kind` set by the classifier in
   `go/internal/correlation/drift/tfconfigstate`.
+  `eshu_dp_correlation_orphan_detected_total` advances when AWS reports an
+  ARN with no Terraform-state backing. `eshu_dp_correlation_unmanaged_detected_total`
+  advances when AWS and Terraform state agree on an ARN but current Terraform
+  config has no declaration.
 - Use them for: Detecting Terraform config-vs-state drift volume per
   drift kind, alerting on `attribute_drift` spikes that imply manual
-  cloud edits, and confirming that the rule pack is being exercised
-  after state-snapshot scope generations roll forward.
+  cloud edits, finding AWS resources outside Terraform-state coverage, finding
+  state-backed resources no longer declared in config, and confirming that the
+  rule pack is being exercised after source generations roll forward.
 
 ### `eshu_dp_correlation_drift_intents_enqueued_total`
 

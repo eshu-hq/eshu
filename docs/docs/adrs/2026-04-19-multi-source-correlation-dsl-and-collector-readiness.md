@@ -25,6 +25,27 @@ The `ScopeKind` and `CollectorKind` enums already carry the future source
 boundaries, but those values are still contracts without the scanner runtimes
 behind them.
 
+## Status Review (2026-05-14)
+
+**Current disposition:** Phase 3 cloud observation joins started.
+
+Issue #39 now has a first AWS cloud-runtime drift slice: the
+`aws_cloud_runtime_drift` first-party rule pack, the ARN-keyed
+`cloudruntime` classifier, and bounded orphan/unmanaged counters. The slice is
+intentionally reducer-neutral and graph-neutral: it proves the candidate shape
+and metrics without writing Cypher or publishing canonical graph truth.
+
+No-Regression Evidence: focused Go tests cover positive, negative, and
+ambiguous orphan/unmanaged cases; candidate construction validates ARN-primary
+correlation keys and raw tag evidence; telemetry tests assert the new counters
+do not carry ARNs in labels.
+
+Observability Evidence: `eshu_dp_correlation_rule_matches_total{pack, rule}`,
+`eshu_dp_correlation_orphan_detected_total{pack, rule}`, and
+`eshu_dp_correlation_unmanaged_detected_total{pack, rule}` let operators
+separate rule execution from admitted AWS runtime findings while keeping ARNs,
+Terraform addresses, and tag values out of metric label space.
+
 ## Context
 
 Eshu is about to expand beyond Git-only ingestion. The next
