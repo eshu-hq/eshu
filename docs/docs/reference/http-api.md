@@ -576,6 +576,7 @@ Use these routes when you only need code relationships and do not need the full 
 - `POST /api/v0/code/search`
 - `POST /api/v0/code/symbols/search`
 - `POST /api/v0/code/relationships`
+- `POST /api/v0/code/relationships/story`
 - `POST /api/v0/code/dead-code`
 - `POST /api/v0/code/complexity`
 
@@ -638,6 +639,30 @@ Example symbol-definition workflow:
 The symbol route returns definition-shaped results with `source_handle`,
 `classification=definition`, `match_kind`, `truncated`, and `ambiguity` so MCP
 callers can page or disambiguate without guessing.
+
+Example relationship-story workflow:
+
+`POST /api/v0/code/relationships/story`
+
+```json
+{
+  "target": "process_payment",
+  "repo_id": "payments",
+  "direction": "incoming",
+  "relationship_type": "CALLS",
+  "limit": 25,
+  "offset": 0
+}
+```
+
+The relationship-story route resolves one symbol first. If the name matches
+multiple entities, it returns `target_resolution.status=ambiguous` with bounded
+candidates instead of querying the graph and guessing. Resolved requests use an
+entity-anchored, ordered, paged relationship read and return `coverage.truncated`
+plus `source_handle` fields. Set `include_transitive=true` with
+`direction=incoming` or `direction=outgoing` for bounded CALLS traversal; the
+server caps `max_depth` at 10, requires `offset=0` for traversal mode, and
+stops when the requested relationship window is full.
 
 Example dead-code workflow:
 

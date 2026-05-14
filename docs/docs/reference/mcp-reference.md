@@ -49,6 +49,7 @@ These are the most commonly used tools for understanding code.
 | :--- | :--- | :--- |
 | **`find_code`** | Search for code by name or fuzzy text. | "Where is the `User` class defined?" |
 | **`find_symbol`** | Find exact or fuzzy symbol definitions with `source_handle`, `truncated`, and `ambiguity` metadata. | "Where is `process_payment` implemented?" |
+| **`get_code_relationship_story`** | Resolve one symbol or entity id, return ambiguity candidates, then fetch bounded callers, callees, imports, or transitive CALLS edges with truncation metadata. | "Who calls `process_payment`, and show me if the name is ambiguous." |
 | **`analyze_code_relationships`** | The swiss-army knife for call graphs and dependencies. | "Find all callers of `process_payment`." |
 | **`calculate_cyclomatic_complexity`** | Measure function complexity. | "What is the complexity of `main`?" |
 | **`find_most_complex_functions`** | List the hardest-to-maintain functions. | "Show me the 5 most complex functions." |

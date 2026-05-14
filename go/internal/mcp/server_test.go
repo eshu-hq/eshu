@@ -88,8 +88,8 @@ func TestHandleHTTPMessage_ToolsList(t *testing.T) {
 	if !ok {
 		t.Fatal("missing tools array")
 	}
-	if len(tools) != 46 {
-		t.Errorf("expected 46 tools, got %d", len(tools))
+	if len(tools) != 47 {
+		t.Errorf("expected 47 tools, got %d", len(tools))
 	}
 }
 

@@ -70,10 +70,10 @@ needs a deeper proof point.
 
 > "Where is the `math` module imported?"
 
-**Tool:** `analyze_code_relationships`
+**Tool:** `get_code_relationship_story`
 
 ```json
-{ "query_type": "find_importers", "target": "math" }
+{ "target": "math", "relationship_type": "IMPORTS", "direction": "incoming", "limit": 25 }
 ```
 
 ### Find functions with a decorator
@@ -114,54 +114,55 @@ needs a deeper proof point.
 
 > "Find all calls to the `helper` function."
 
-**Tool:** `analyze_code_relationships`
+**Tool:** `get_code_relationship_story`
 
 ```json
-{ "query_type": "find_callers", "target": "helper" }
+{ "target": "helper", "relationship_type": "CALLS", "direction": "incoming", "limit": 25 }
 ```
 
-This now maps to the Go `code/relationships` route using `name=helper`,
-`direction=incoming`, and `relationship_type=CALLS`.
+This maps to the Go `code/relationships/story` route. The route resolves
+`helper` first, returns bounded ambiguity candidates if more than one entity
+matches, and only queries the graph after it has an entity anchor.
 
 ### Find what a function calls
 
 > "What functions are called inside `foo`?"
 
-**Tool:** `analyze_code_relationships`
+**Tool:** `get_code_relationship_story`
 
 ```json
-{ "query_type": "find_callees", "target": "foo" }
+{ "target": "foo", "relationship_type": "CALLS", "direction": "outgoing", "limit": 25 }
 ```
 
-This now maps to the Go `code/relationships` route using `name=foo`,
-`direction=outgoing`, and `relationship_type=CALLS`.
+Use `offset` to page beyond the first bounded relationship window.
 
 ### Find indirect callers
 
 > "Show me all functions that eventually call `helper`."
 
-**Tool:** `analyze_code_relationships`
+**Tool:** `get_code_relationship_story`
 
 ```json
-{ "query_type": "find_all_callers", "target": "helper", "max_depth": 7 }
+{ "target": "helper", "relationship_type": "CALLS", "direction": "incoming", "include_transitive": true, "max_depth": 7, "limit": 50 }
 ```
 
-This now maps to the Go `code/relationships` route using `name=helper`,
-`direction=incoming`, `relationship_type=CALLS`, `transitive=true`, and the
-provided `max_depth`.
+Transitive story reads are bounded breadth-first traversals. They stop at
+`max_depth` or when the requested `limit` window is full. Traversal mode does
+not support nonzero `offset`; narrow the target or lower `max_depth` before
+asking for another page.
 
 ### Find indirect callees
 
 > "Show me all functions eventually called by `foo`."
 
-**Tool:** `analyze_code_relationships`
+**Tool:** `get_code_relationship_story`
 
 ```json
-{ "query_type": "find_all_callees", "target": "foo", "max_depth": 7 }
+{ "target": "foo", "relationship_type": "CALLS", "direction": "outgoing", "include_transitive": true, "max_depth": 7, "limit": 50 }
 ```
 
-This maps to the same route with `direction=outgoing`,
-`relationship_type=CALLS`, `transitive=true`, and the provided `max_depth`.
+Pass `entity_id` instead of `target` when an earlier symbol lookup already
+selected the exact function.
 
 ### Find the call chain between two functions
 

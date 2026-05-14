@@ -199,6 +199,12 @@ var capabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
 	},
+	"call_graph.relationship_story": {
+		LocalLightweightMax:   &truthDerived,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+	},
 	"call_graph.transitive_callers": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,

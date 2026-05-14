@@ -228,6 +228,63 @@ const openAPIPathsCode = `
         }
       }
     },
+    "/api/v0/code/relationships/story": {
+      "post": {
+        "tags": ["code"],
+        "summary": "Get a bounded code relationship story",
+        "description": "Resolves one target symbol or entity id, returns ambiguity candidates instead of guessing, and reads direct or bounded transitive relationships with deterministic pagination.",
+        "operationId": "getCodeRelationshipStory",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "anyOf": [
+                  {"required": ["target"]},
+                  {"required": ["entity_id"]}
+                ],
+                "properties": {
+                  "target": {"type": "string", "description": "Symbol name to resolve when entity_id is omitted."},
+                  "name": {"type": "string", "description": "Alias for target."},
+                  "entity_id": {"type": "string", "description": "Canonical entity id to anchor the relationship query."},
+                  "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path) for name resolution."},
+                  "language": {"type": "string", "description": "Optional language filter for name resolution."},
+                  "direction": {"type": "string", "enum": ["incoming", "outgoing", "both"], "default": "both"},
+                  "relationship_type": {"type": "string", "enum": ["CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES"], "default": "CALLS"},
+                  "include_transitive": {"type": "boolean", "description": "When true, follows CALLS edges with bounded breadth-first traversal.", "default": false},
+                  "max_depth": {"type": "integer", "description": "Maximum transitive CALLS depth (default 5, max 10).", "default": 5, "maximum": 10},
+                  "limit": {"type": "integer", "description": "Maximum relationship rows or ambiguity candidates (default 25, max 200).", "default": 25, "maximum": 200},
+                  "offset": {"type": "integer", "description": "Zero-based direct relationship offset.", "default": 0, "maximum": 10000}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Relationship story",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "target_resolution": {"type": "object", "additionalProperties": true},
+                    "scope": {"type": "object", "additionalProperties": true},
+                    "relationships": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
+                    "summary": {"type": "object", "additionalProperties": true},
+                    "coverage": {"type": "object", "additionalProperties": true},
+                    "source_backend": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/code/call-chain": {
       "post": {
         "tags": ["code"],

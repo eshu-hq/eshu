@@ -152,6 +152,48 @@ func TestResolveRouteMapsPackageRegistryPackagesToBoundedQuery(t *testing.T) {
 	}
 }
 
+func TestResolveRouteMapsCodeRelationshipStoryToBoundedBody(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("get_code_relationship_story", map[string]any{
+		"target":             "process_payment",
+		"repo_id":            "repo-1",
+		"relationship_type":  "CALLS",
+		"direction":          "incoming",
+		"include_transitive": true,
+		"max_depth":          float64(4),
+		"limit":              float64(25),
+		"offset":             float64(50),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "POST"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/code/relationships/story"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	body, ok := route.body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+	}
+	for key, want := range map[string]any{
+		"target":             "process_payment",
+		"repo_id":            "repo-1",
+		"relationship_type":  "CALLS",
+		"direction":          "incoming",
+		"include_transitive": true,
+		"max_depth":          4,
+		"limit":              25,
+		"offset":             50,
+	} {
+		if got := body[key]; got != want {
+			t.Fatalf("body[%s] = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
 func TestResolveRouteMapsPackageRegistryVersionsToPackageScope(t *testing.T) {
 	t.Parallel()
 

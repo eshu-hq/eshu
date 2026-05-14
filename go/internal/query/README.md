@@ -278,8 +278,8 @@ Elixir, PHP, and Groovy parser-backed roots. Its language filter examples includ
   (`handler.go:110`)
 - `RepositoryHandler` — `GET /api/v0/repositories*` routes (`repository.go:21`)
 - `EntityHandler` — entity resolution, workload/service context routes, service dossier stories, and service investigation coverage (`entity.go:11`, `service_story_handler.go:9`, `service_investigation.go:17`)
-- `CodeHandler` — code search, symbol lookup, relationships, dead-code,
-  complexity, call-chain (`code.go:11`)
+- `CodeHandler` — code search, symbol lookup, relationships, relationship
+  stories, dead-code, complexity, call-chain (`code.go:11`)
 - `ContentHandler` — file and entity content reads (`content_handler.go:11`)
 - `InfraHandler` — infrastructure resource and relationship routes (`infra.go:12`)
   including Terraform backend, import, moved, removed, check, and lockfile

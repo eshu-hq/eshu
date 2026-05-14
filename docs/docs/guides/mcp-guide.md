@@ -164,7 +164,7 @@ assumptions from a partial code snapshot.
 
 | Question pattern | MCP tool |
 |-----------------|----------|
-| "Who calls this function?" | `analyze_code_relationships` |
+| "Who calls this function?" | `get_code_relationship_story` |
 | "What breaks if I change this service?" | `find_blast_radius` |
 | "How is this deployed?" | `trace_deployment_chain` |
 | "What provisions this database?" | `trace_resource_to_code` |
@@ -274,6 +274,7 @@ For programming prompts, keep using the code-query tools directly:
 
 - `find_code`
 - `find_symbol`
+- `get_code_relationship_story`
 - `analyze_code_relationships`
 - `calculate_cyclomatic_complexity`
 - `find_most_complex_functions`
@@ -283,7 +284,7 @@ For programming prompts, keep using the code-query tools directly:
 - `list_package_registry_packages`
 - `list_package_registry_versions`
 
-Those remain the primary public contract for callers/callees/class hierarchy/import/complexity/dead-code, dead-IaC, and package registry identity questions. The story tools are for end-to-end narratives, not a replacement for the focused query tools.
+Those remain the primary public contract for callers/callees/class hierarchy/import/complexity/dead-code, dead-IaC, and package registry identity questions. Use `get_code_relationship_story` first for one-symbol caller, callee, import, and bounded transitive CALLS prompts because it returns ambiguity and truncation metadata in one response. The service and repository story tools are for end-to-end narratives, not a replacement for the focused query tools.
 
 ## Repository access handoff
 
