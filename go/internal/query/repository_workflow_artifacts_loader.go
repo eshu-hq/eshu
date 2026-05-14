@@ -48,20 +48,18 @@ func loadRepositoryWorkflowArtifacts(
 		}
 	}
 
-	contentFiles := make([]FileContent, 0, len(candidates))
-	for _, file := range candidates {
+	hydratedCandidates, err := hydrateRepositoryCandidateFiles(ctx, reader, repoID, candidates, isGitHubActionsWorkflowFile)
+	if err != nil {
+		return nil, fmt.Errorf("hydrate workflow artifact files: %w", err)
+	}
+
+	contentFiles := make([]FileContent, 0, len(hydratedCandidates))
+	for _, file := range hydratedCandidates {
 		if !isGitHubActionsWorkflowFile(file) {
 			continue
 		}
 		if strings.TrimSpace(file.Content) == "" {
-			fileContent, err := reader.GetFileContent(ctx, repoID, file.RelativePath)
-			if err != nil {
-				return nil, fmt.Errorf("get workflow artifact file %q: %w", file.RelativePath, err)
-			}
-			if fileContent == nil {
-				continue
-			}
-			file = *fileContent
+			continue
 		}
 		contentFiles = append(contentFiles, file)
 	}

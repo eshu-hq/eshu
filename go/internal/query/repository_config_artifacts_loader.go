@@ -73,22 +73,12 @@ func loadRepositoryControllerArtifacts(
 		}
 	}
 
-	contentFiles := make([]FileContent, 0, len(candidates))
-	for _, file := range candidates {
-		if isPotentialControllerArtifact(file) {
-			if strings.TrimSpace(file.Content) == "" {
-				fileContent, err := reader.GetFileContent(ctx, repoID, file.RelativePath)
-				if err != nil {
-					return nil, fmt.Errorf("get controller artifact file %q: %w", file.RelativePath, err)
-				}
-				if fileContent == nil {
-					continue
-				}
-				file = *fileContent
-			}
-		}
-		contentFiles = append(contentFiles, file)
+	hydratedCandidates, err := hydrateRepositoryCandidateFiles(ctx, reader, repoID, candidates, isPotentialControllerArtifact)
+	if err != nil {
+		return nil, fmt.Errorf("hydrate controller artifact files: %w", err)
 	}
+
+	contentFiles := append([]FileContent(nil), hydratedCandidates...)
 
 	return buildRepositoryControllerArtifacts(repoName, contentFiles), nil
 }
@@ -154,23 +144,20 @@ func loadRepositoryConfigArtifactsForSources(
 			}
 		}
 
-		contentFiles := make([]FileContent, 0, len(files))
-		for _, file := range files {
+		hydratedFiles, err := hydrateRepositoryCandidateFiles(ctx, reader, source.RepoID, files, isConfigArtifactCandidate)
+		if err != nil {
+			return nil, fmt.Errorf("hydrate config artifact files for %q: %w", source.RepoID, err)
+		}
+
+		contentFiles := make([]FileContent, 0, len(hydratedFiles))
+		for _, file := range hydratedFiles {
 			if !isConfigArtifactCandidate(file) {
 				continue
 			}
-			if file.Content != "" {
-				contentFiles = append(contentFiles, file)
+			if strings.TrimSpace(file.Content) == "" {
 				continue
 			}
-			fileContent, err := reader.GetFileContent(ctx, source.RepoID, file.RelativePath)
-			if err != nil {
-				return nil, fmt.Errorf("get config artifact file %q from %q: %w", file.RelativePath, source.RepoID, err)
-			}
-			if fileContent == nil {
-				continue
-			}
-			contentFiles = append(contentFiles, *fileContent)
+			contentFiles = append(contentFiles, file)
 		}
 
 		artifacts := buildRepositoryConfigArtifacts(source.RepoName, contentFiles)

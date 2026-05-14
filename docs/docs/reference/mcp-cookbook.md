@@ -10,9 +10,47 @@ If you want shorter, role-based prompts before you drop into tool names and JSON
 - [Call graph analysis](#call-graph-analysis)
 - [Code quality](#code-quality)
 - [Class hierarchy](#class-hierarchy)
+- [Service dossier](#service-dossier)
 - [Repository management](#repository-management)
 - [Advanced Cypher queries](#advanced-cypher-queries)
 - [Security analysis](#security-analysis)
+
+---
+
+## Service Dossier
+
+### Explain a service in one call
+
+> "Tell me what `payments-api` is, how it is deployed, what it depends on, and who consumes it."
+
+**Tool:** `get_service_story`
+
+```json
+{ "workload_id": "payments-api" }
+```
+
+Read `service_identity`, `api_surface`, `deployment_lanes`,
+`upstream_dependencies`, `downstream_consumers`, `evidence_graph`, and
+`investigation` first. Only call `get_relationship_evidence` or content tools
+when the answer needs the exact source behind a `resolved_id` or file handle.
+
+### Investigate coverage before answering
+
+> "Scan the related repos, deployment sources, and indexed docs for `payments-api`, then tell me what you found."
+
+**Tool:** `investigate_service`
+
+```json
+{
+  "service_name": "payments-api",
+  "intent": "onboarding"
+}
+```
+
+Read `repositories_considered`, `repositories_with_evidence`,
+`evidence_families_found`, `coverage_summary`, `investigation_findings`, and
+`recommended_next_calls`. Use those next-call handles only when the final answer
+needs a deeper proof point.
 
 ---
 

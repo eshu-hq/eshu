@@ -316,63 +316,39 @@ func (h *EntityHandler) fetchWorkloadInstances(ctx context.Context, whereClause 
 	return instances, nil
 }
 
-// fetchWorkloadPlatformRows anchors each platform lookup by exact instance id
-// so NornicDB can preserve relationship properties and avoid workload-wide
-// relationship expansion shapes on service read paths.
+// fetchWorkloadPlatformRows anchors platform lookup by exact instance ids so
+// NornicDB can use indexed WorkloadInstance ids without one Bolt round trip per
+// instance.
 func (h *EntityHandler) fetchWorkloadPlatformRows(ctx context.Context, instances []map[string]any) ([]map[string]any, error) {
 	if h == nil || h.Neo4j == nil || len(instances) == 0 {
 		return nil, nil
 	}
-	const platformCypherTemplate = `
-		MATCH (i:WorkloadInstance {id: %s})-[runsOn:RUNS_ON]->(p:Platform)
+	instanceIDs := make([]string, 0, len(instances))
+	for _, instance := range instances {
+		if instanceID := StringVal(instance, "instance_id"); instanceID != "" {
+			instanceIDs = append(instanceIDs, instanceID)
+		}
+	}
+	instanceIDs = sortedUniqueStrings(instanceIDs)
+	if len(instanceIDs) == 0 {
+		return nil, nil
+	}
+	const platformCypher = `
+		MATCH (i:WorkloadInstance)-[runsOn:RUNS_ON]->(p:Platform)
+		WHERE i.id IN $instance_ids
 		RETURN i.id as instance_id,
 		       p.name as platform_name,
 		       p.kind as platform_kind,
 		       runsOn.confidence as platform_confidence,
 		       runsOn.reason as platform_reason,
 		       properties(runsOn) as platform_edge
-		ORDER BY platform_name
+		ORDER BY instance_id, platform_name
 	`
-	rows := make([]map[string]any, 0, len(instances))
-	for _, instance := range instances {
-		instanceID := StringVal(instance, "instance_id")
-		if instanceID == "" {
-			continue
-		}
-		instanceRows, err := h.Neo4j.Run(ctx, fmt.Sprintf(platformCypherTemplate, cypherStringLiteral(instanceID)), nil)
-		if err != nil {
-			return nil, err
-		}
-		rows = append(rows, instanceRows...)
+	rows, err := h.Neo4j.Run(ctx, platformCypher, map[string]any{"instance_ids": instanceIDs})
+	if err != nil {
+		return nil, err
 	}
 	return rows, nil
-}
-
-// cypherStringLiteral returns a single-quoted Cypher string literal for values
-// that already came from graph truth and must be used in backend-sensitive
-// exact-id read anchors.
-func cypherStringLiteral(value string) string {
-	var b strings.Builder
-	b.Grow(len(value) + 2)
-	b.WriteByte('\'')
-	for _, r := range value {
-		switch r {
-		case '\\':
-			b.WriteString(`\\`)
-		case '\'':
-			b.WriteString(`\'`)
-		case '\n':
-			b.WriteString(`\n`)
-		case '\r':
-			b.WriteString(`\r`)
-		case '\t':
-			b.WriteString(`\t`)
-		default:
-			b.WriteRune(r)
-		}
-	}
-	b.WriteByte('\'')
-	return b.String()
 }
 
 // platformEdgeConfidence preserves edge confidence when a backend can return

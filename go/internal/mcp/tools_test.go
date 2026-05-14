@@ -7,7 +7,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 44
+	expectedCount := 45
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -33,6 +33,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"find_unmanaged_resources",
 		"get_ecosystem_overview",
 		"get_relationship_evidence",
+		"investigate_service",
 		"list_package_registry_packages",
 		"list_package_registry_versions",
 		"resolve_entity",
@@ -68,8 +69,8 @@ func TestEcosystemTools(t *testing.T) {
 
 func TestContextTools(t *testing.T) {
 	tools := contextTools()
-	if len(tools) != 6 {
-		t.Errorf("Expected 6 context tools, got %d", len(tools))
+	if len(tools) != 7 {
+		t.Errorf("Expected 7 context tools, got %d", len(tools))
 	}
 }
 

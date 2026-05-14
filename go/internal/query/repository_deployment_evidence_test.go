@@ -387,10 +387,12 @@ func TestQueryRepoDeploymentEvidenceIncomingUsesArtifactFirstBoundary(t *testing
 
 type recordingDeploymentEvidenceGraphReader struct {
 	cypherCalls []string
+	params      []map[string]any
 }
 
-func (r *recordingDeploymentEvidenceGraphReader) Run(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+func (r *recordingDeploymentEvidenceGraphReader) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 	r.cypherCalls = append(r.cypherCalls, cypher)
+	r.params = append(r.params, params)
 	return nil, nil
 }
 

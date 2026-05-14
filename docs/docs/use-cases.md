@@ -75,9 +75,10 @@ To understand a specific connection:
 
 Story-first documentation now works the same way. Start with `get_service_story`,
 `get_workload_story`, or `get_repo_story`, read the high-level `story`, then use
-`gitops_overview`, `documentation_overview`, and `support_overview` to shape an
-onboarding doc, deployment explainer, or support guide. Only after that should a
-client call content routes for exact README, runbook, values, or manifest evidence.
+the structured dossier fields such as `investigation`, `gitops_overview`,
+`documentation_overview`, and `support_overview` to shape an onboarding doc,
+deployment explainer, or support guide. Only after that should a client call
+content routes for exact README, runbook, values, or manifest evidence.
 
 When the answer spans code, GitOps, and runtime systems, the best prompt is not
 just "explain this service." It is "scan all related repositories, deployment
@@ -85,8 +86,11 @@ sources, and indexed documentation for this service, then explain it." That
 explicitly tells Eshu to use its cross-repo graph and content-store strengths
 instead of behaving like a repo-local assistant.
 
-For that exact workflow, prefer `investigate_service` first. It is designed for
-the cases where a user should not need to know:
+For that exact workflow, prefer `investigate_service` first when you need to
+inspect coverage before writing the final answer. `get_service_story` embeds the
+same investigation packet for the normal one-call story path, but
+`investigate_service` is designed for the cases where a user should not need to
+know:
 
 - which Terraform stack to search
 - whether the app repo `.github/` workflows matter
@@ -103,7 +107,7 @@ whether Eshu:
 This is the practical split to keep in mind:
 
 - use story/context routes when you want the canonical answer first
-- use investigation when you want widening, evidence inspection, and explicit coverage reporting
+- use investigation when you want widening, evidence inspection, and explicit coverage reporting before the answer
 - use `repo_id + relative_path` or `entity_id` for exact follow-up evidence, not server-local paths
 
 ## Comparing environments

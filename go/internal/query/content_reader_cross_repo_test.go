@@ -145,6 +145,36 @@ func TestContentReaderSearchFileReferenceAnyRepoUsesIndexedReferences(t *testing
 	}
 }
 
+func TestContentReaderSearchFileReferenceAnyRepoKeepsIndexAvailableWhenNoRows(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		{
+			columns: []string{"available"},
+			rows:    [][]driver.Value{{true}},
+		},
+		{
+			columns: []string{
+				"repo_id", "relative_path", "commit_sha", "content",
+				"content_hash", "line_count", "language", "artifact_type",
+			},
+			rows: [][]driver.Value{},
+		},
+	})
+
+	reader := NewContentReader(db)
+	results, available, err := reader.SearchFileReferenceAnyRepo(context.Background(), "hostname", "missing.example.test", 10)
+	if err != nil {
+		t.Fatalf("SearchFileReferenceAnyRepo() error = %v, want nil", err)
+	}
+	if !available {
+		t.Fatal("SearchFileReferenceAnyRepo() available = false, want true for empty indexed lookup")
+	}
+	if len(results) != 0 {
+		t.Fatalf("len(results) = %d, want 0", len(results))
+	}
+}
+
 func TestContentReaderSearchFileContentAnyRepoDefaultsLimit(t *testing.T) {
 	t.Parallel()
 

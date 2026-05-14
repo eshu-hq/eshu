@@ -10,6 +10,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+const frameworkRouteEvidenceLimit = 50
+
 // ListFrameworkRoutes queries fact_records for files with framework_semantics
 // route detection for a given repo_id.
 func (cr *ContentReader) ListFrameworkRoutes(ctx context.Context, repoID string) ([]FrameworkRouteEvidence, error) {
@@ -38,7 +40,8 @@ func (cr *ContentReader) ListFrameworkRoutes(ctx context.Context, repoID string)
 			  COALESCE(payload->'parsed_file_data'->'framework_semantics'->'frameworks', '[]'::jsonb)
 		  ) > 0
 		ORDER BY payload->>'relative_path'
-	`, repoID)
+		LIMIT $2
+	`, repoID, frameworkRouteEvidenceLimit)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("list framework routes: %w", err)

@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+const repositoryDeploymentEvidenceArtifactLimit = 50
+
 // queryRepoDeploymentEvidence reads compact graph evidence pointers for
 // repository relationships without embedding raw Postgres evidence payloads.
 func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content ContentStore, params map[string]any) (map[string]any, error) {
@@ -15,7 +17,7 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		return readModel, nil
 	}
 
-	outgoing := queryRepoDeploymentEvidenceDirection(ctx, reader, params, `
+	outgoing, outgoingTruncated := queryRepoDeploymentEvidenceDirection(ctx, reader, params, `
 		MATCH (r:Repository {id: $repo_id})-[source_rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(target:Repository)
 		RETURN 'outgoing' AS direction,
 		       artifact.id AS artifact_id,
@@ -42,7 +44,7 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		       target.name AS target_repo_name
 		ORDER BY path, artifact_id
 	`)
-	incoming := queryRepoDeploymentEvidenceDirection(ctx, reader, params, `
+	incoming, incomingTruncated := queryRepoDeploymentEvidenceDirection(ctx, reader, params, `
 		MATCH (artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})
 		WITH artifact, r
 		MATCH (source:Repository)-[:HAS_DEPLOYMENT_EVIDENCE]->(artifact)
@@ -75,15 +77,23 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 	if len(rows) == 0 {
 		return nil, nil
 	}
-	return buildGraphDeploymentEvidence(rows), nil
+	result := buildGraphDeploymentEvidence(rows)
+	result["artifact_limit"] = repositoryDeploymentEvidenceArtifactLimit
+	result["artifacts_truncated"] = outgoingTruncated || incomingTruncated
+	return result, nil
 }
 
-func queryRepoDeploymentEvidenceDirection(ctx context.Context, reader GraphQuery, params map[string]any, cypher string) []map[string]any {
-	rows, err := reader.Run(ctx, cypher, params)
+func queryRepoDeploymentEvidenceDirection(ctx context.Context, reader GraphQuery, params map[string]any, cypher string) ([]map[string]any, bool) {
+	queryParams := copyMap(params)
+	queryParams["limit"] = repositoryDeploymentEvidenceArtifactLimit + 1
+	rows, err := reader.Run(ctx, cypher+"\n\t\tLIMIT $limit", queryParams)
 	if err != nil || len(rows) == 0 {
-		return nil
+		return nil, false
 	}
-	return rows
+	if len(rows) > repositoryDeploymentEvidenceArtifactLimit {
+		return rows[:repositoryDeploymentEvidenceArtifactLimit], true
+	}
+	return rows, false
 }
 
 // buildGraphDeploymentEvidence converts EvidenceArtifact graph rows into the

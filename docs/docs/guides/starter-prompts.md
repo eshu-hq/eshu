@@ -34,6 +34,7 @@ flowchart TD
 Use this framing when you want Eshu to work as a code-to-cloud system, not just
 as a single-repo search tool:
 
+- "Investigate `<service>` in `<environment>` across related repositories, deployment sources, and indexed documentation, then explain it."
 - "Scan all related repositories, deployment sources, and indexed documentation involved in `<service>` in `<environment>`, then explain it."
 - "Using all linked repos and runtime context, build the story for `<service>`."
 - "Across every repository that contributes to `<service>`, trace the GitOps and runtime path."
@@ -180,8 +181,8 @@ Best additions:
 - Use exact names when you have them. Exact repo, workload, and resource names usually produce better results than broad descriptions.
 - Ask for evidence when you want proof. Prompts like "show the repos, manifests, and resources involved" steer the answer toward traceable output.
 - When the answer spans code, deployment, and runtime, explicitly ask Eshu to scan all related repositories first.
-- For documentation prompts, let Eshu tell the story first and ask for exact files second. That keeps the answer concise and portable.
-- Follow up in layers. Start with "trace the deployment chain," then ask "what repos define those resources?" and then "what breaks if I change this?"
+- For service documentation prompts, start with `investigate_service` when you need coverage before writing, or `get_service_story` when you want the one-call dossier first. The service story embeds the investigation packet and leaves exact file reads as citations.
+- Follow up in layers only when you need drill-down proof. Start with "show the service dossier," then ask "why does this edge exist?" or "show the exact file behind this handle."
 
 ## Good Follow-Ups
 

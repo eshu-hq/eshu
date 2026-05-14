@@ -13,6 +13,8 @@ import (
 type repositoryDeploymentEvidenceReadModel struct {
 	Available bool
 	Rows      []map[string]any
+	Limit     int
+	Truncated bool
 }
 
 type repositoryDeploymentEvidenceReadModelStore interface {
@@ -31,7 +33,10 @@ func loadRepositoryDeploymentEvidence(ctx context.Context, content ContentStore,
 	if !readModel.Available || len(readModel.Rows) == 0 {
 		return nil, nil
 	}
-	return buildGraphDeploymentEvidence(readModel.Rows), nil
+	result := buildGraphDeploymentEvidence(readModel.Rows)
+	result["artifact_limit"] = readModel.Limit
+	result["artifacts_truncated"] = readModel.Truncated
+	return result, nil
 }
 
 // repositoryDeploymentEvidence builds the deployment-evidence response rows
@@ -40,24 +45,34 @@ func (cr *ContentReader) repositoryDeploymentEvidence(ctx context.Context, repoI
 	if cr == nil || cr.db == nil || repoID == "" {
 		return repositoryDeploymentEvidenceReadModel{}, nil
 	}
-	rows, err := cr.db.QueryContext(ctx, repositoryDeploymentEvidenceReadModelSQL, repoID)
+	artifactLimit := repositoryDeploymentEvidenceArtifactLimit
+	rows, err := cr.db.QueryContext(ctx, repositoryDeploymentEvidenceReadModelSQL, repoID, artifactLimit+1)
 	if err != nil {
 		return repositoryDeploymentEvidenceReadModel{}, fmt.Errorf("query repository deployment evidence: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	result := make([]map[string]any, 0)
+	result := make([]map[string]any, 0, artifactLimit)
+	truncated := false
 	for rows.Next() {
 		artifacts, err := scanRepositoryDeploymentEvidenceRows(rows, repoID)
 		if err != nil {
 			return repositoryDeploymentEvidenceReadModel{}, err
+		}
+		if len(result)+len(artifacts) > artifactLimit {
+			remaining := artifactLimit - len(result)
+			if remaining > 0 {
+				result = append(result, artifacts[:remaining]...)
+			}
+			truncated = true
+			break
 		}
 		result = append(result, artifacts...)
 	}
 	if err := rows.Err(); err != nil {
 		return repositoryDeploymentEvidenceReadModel{}, fmt.Errorf("iterate repository deployment evidence: %w", err)
 	}
-	return repositoryDeploymentEvidenceReadModel{Available: true, Rows: result}, nil
+	return repositoryDeploymentEvidenceReadModel{Available: true, Rows: result, Limit: artifactLimit, Truncated: truncated}, nil
 }
 
 const repositoryDeploymentEvidenceReadModelSQL = `
@@ -104,6 +119,7 @@ LEFT JOIN LATERAL (
 	LIMIT 1
 ) AS target_scope ON true
 ORDER BY r.direction, r.relationship_type, source_name, target_name, r.resolved_id
+LIMIT $2
 `
 
 func scanRepositoryDeploymentEvidenceRows(rows *sql.Rows, repoID string) ([]map[string]any, error) {
