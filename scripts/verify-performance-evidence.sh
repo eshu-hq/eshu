@@ -55,6 +55,8 @@ is_hot_path_by_location() {
     go/internal/storage/cypher/*.go) return 0 ;;
     go/internal/storage/neo4j/*.go) return 0 ;;
     go/internal/storage/postgres/*.go) return 0 ;;
+    go/internal/collector/*.go) return 0 ;;
+    go/internal/collector/*/*.go) return 0 ;;
     go/internal/graph/*.go) return 0 ;;
     go/internal/projector/*.go) return 0 ;;
     go/internal/reducer/*.go) return 0 ;;
