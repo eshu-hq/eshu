@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 48
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 49
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -38,7 +38,7 @@ flowchart TB
     hm["handleMessage()\nserver.go:333"]
     parse["json.Unmarshal params\nmcpToolCallParams"]
     dt["dispatchTool()\ndispatch.go:18"]
-    rr["resolveRoute(toolName, args)\ndispatch.go:207"]
+    rr["resolveRoute(toolName, args)\ndispatch.go:173"]
     req["http.NewRequestWithContext\nmethod + path + body + auth"]
     rec["httptest.NewRecorder"]
     serve["handler.ServeHTTP(rec, req)"]
@@ -59,17 +59,17 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 48 tools from five source files.
+`ReadOnlyTools` assembles 49 tools from five source files.
 
 | Group | Count | Source file |
 |---|---|---|
 | `codebaseTools` | 17 | `tools_codebase.go` |
-| `ecosystemTools` | 16 | `tools_ecosystem.go` |
+| `ecosystemTools` | 17 | `tools_ecosystem.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 5 | `tools_content.go` |
 | `runtimeTools` | 3 | `tools_runtime.go` |
 
-Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:207`):
+Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 
 | Tool | HTTP method | Path |
 |---|---|---|
@@ -84,6 +84,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:207`):
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
 | `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
+| `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
 | `get_service_story` | GET | `/api/v0/services/{service_name}/story` |
 | `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
@@ -99,7 +100,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:207`):
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 47 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 49 tool definitions |
 
 ## SSE session model
 
@@ -147,12 +148,13 @@ element and sets `repo_id` rather than `repo_ids`.
   `tools_test.go` and `dispatch_test.go`. The `ReadOnlyTools` count test and
   the dispatch route test will both catch missing or mismatched entries.
 - **Add an argument helper**: add to `dispatch.go` near `str`, `intOr`,
-  `boolOr`, and `stringSlice`. Keep the helpers side-effect-free.
+  and `boolOr`, or to `dispatch_args.go` near `stringSlice` for shared slice or
+  identifier helpers. Keep the helpers side-effect-free.
 
 ## Gotchas / invariants
 
 - Every tool name returned by `ReadOnlyTools` must have a matching `case` in
-  `resolveRoute` (`dispatch.go:207`). A test in `tools_test.go` calls
+  `resolveRoute` (`dispatch.go:173`). A test in `tools_test.go` calls
   `resolveRoute` for every tool and fails if any returns an error.
 
 - `parseCanonicalEnvelope` (`dispatch_envelope.go:15`) requires all three keys `data`,

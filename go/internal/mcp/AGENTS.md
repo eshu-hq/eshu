@@ -7,8 +7,9 @@
 2. `go/internal/mcp/server.go` — `Server`, `NewServer`, `handleMessage`,
    `handleSSE`, `handleHTTPMessage`, and `RunHTTP`; understand the message
    dispatch switch before touching protocol handling
-3. `go/internal/mcp/dispatch.go` — `dispatchTool`, `resolveRoute`, and the
-   argument helpers; understand `parseCanonicalEnvelope` before touching
+3. `go/internal/mcp/dispatch.go` and `go/internal/mcp/dispatch_args.go` —
+   `dispatchTool`, `resolveRoute`, and argument helpers; understand
+   `parseCanonicalEnvelope` before touching
    response shaping
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
@@ -40,7 +41,7 @@
   detection for all tools.
 
 - **`normalizeQualifiedIdentifier` for service paths** — uses `Cut` at
-  `dispatch.go:138` to split on `:` and return the tail. Service tools must
+  `dispatch_args.go:33` to split on `:` and return the tail. Service tools must
   apply this helper; missing it produces paths like
   `/api/v0/services/workload:name/context` which no handler matches.
 
@@ -68,8 +69,9 @@
   contract; mismatches between schema and dispatch body produce silent wrong
   queries.
 
-- **Add a new argument helper** → add near `str`, `intOr`, `boolOr`,
-  `stringSlice` in `dispatch.go`. Write a focused unit test. Why: helpers are
+- **Add a new argument helper** → add near `stringSlice` in
+  `dispatch_args.go` or near `str`, `intOr`, and `boolOr` in `dispatch.go`.
+  Write a focused unit test. Why: helpers are
   shared by multiple tools; a type-assertion bug silently produces zero values.
 
 - **Change SSE keepalive interval** → edit the ticker duration in `handleSSE`.

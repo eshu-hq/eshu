@@ -107,41 +107,6 @@ func boolOr(args map[string]any, key string, def bool) bool {
 	return v
 }
 
-func stringSlice(args map[string]any, key string) []any {
-	raw, ok := args[key]
-	if !ok {
-		return nil
-	}
-	values, ok := raw.([]any)
-	if ok {
-		return values
-	}
-	stringValues, ok := raw.([]string)
-	if !ok {
-		return nil
-	}
-	result := make([]any, 0, len(stringValues))
-	for _, value := range stringValues {
-		result = append(result, value)
-	}
-	return result
-}
-
-func firstString(values []any) string {
-	if len(values) == 0 {
-		return ""
-	}
-	value, _ := values[0].(string)
-	return value
-}
-
-func normalizeQualifiedIdentifier(value string) string {
-	if head, tail, ok := strings.Cut(value, ":"); ok && head != "" && tail != "" {
-		return tail
-	}
-	return value
-}
-
 func resolveEntityBody(args map[string]any) map[string]any {
 	body := map[string]any{}
 
@@ -481,6 +446,22 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/impact/blast-radius", body: args}, nil
 	case "find_change_surface":
 		return &route{method: "POST", path: "/api/v0/impact/change-surface", body: args}, nil
+	case "investigate_change_surface":
+		return &route{method: "POST", path: "/api/v0/impact/change-surface/investigate", body: map[string]any{
+			"target":        str(args, "target"),
+			"target_type":   str(args, "target_type"),
+			"service_name":  str(args, "service_name"),
+			"workload_id":   str(args, "workload_id"),
+			"resource_id":   str(args, "resource_id"),
+			"module_id":     str(args, "module_id"),
+			"topic":         str(args, "topic"),
+			"repo_id":       str(args, "repo_id"),
+			"changed_paths": stringSlice(args, "changed_paths"),
+			"environment":   str(args, "environment"),
+			"max_depth":     intOr(args, "max_depth", 4),
+			"limit":         intOr(args, "limit", 25),
+			"offset":        intOr(args, "offset", 0),
+		}}, nil
 	case "trace_resource_to_code":
 		return &route{method: "POST", path: "/api/v0/impact/trace-resource-to-code", body: args}, nil
 	case "explain_dependency_path":

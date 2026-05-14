@@ -237,7 +237,7 @@ capabilities:
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 6000, max_scope_size: indexed_workspace, verification: [{compose_e2e: environment-compare}], notes: exact only when compared environments are fully indexed}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 8000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-environment-compare}], notes: exact only when compared environments are fully indexed}
   - capability: platform_impact.change_surface
-    tools: [find_change_surface]
+    tools: [find_change_surface, investigate_change_surface]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-change-surface}], notes: requires hybrid platform truth}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: hybrid graph plus infra truth from the local authoritative graph}

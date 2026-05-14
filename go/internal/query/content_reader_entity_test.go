@@ -169,6 +169,37 @@ func TestContentReaderListRepoEntitiesIncludesMetadata(t *testing.T) {
 	}
 }
 
+func TestContentReaderListRepoEntitiesByPathsIncludesMetadata(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		{
+			columns: []string{
+				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
+				"start_line", "end_line", "language", "source_cache", "metadata",
+			},
+			rows: [][]driver.Value{
+				{
+					"function-1", "repo-1", "src/auth.ts", "Function", "resolveAuth",
+					int64(10), int64(24), "typescript", "function resolveAuth() {}", []byte(`{"async":true}`),
+				},
+			},
+		},
+	})
+
+	reader := NewContentReader(db)
+	results, err := reader.ListRepoEntitiesByPaths(context.Background(), "repo-1", []string{"src/auth.ts"}, 10)
+	if err != nil {
+		t.Fatalf("ListRepoEntitiesByPaths() error = %v, want nil", err)
+	}
+	if got, want := len(results), 1; got != want {
+		t.Fatalf("len(results) = %d, want %d", got, want)
+	}
+	if got, want := results[0].Metadata["async"], true; got != want {
+		t.Fatalf("Metadata[async] = %#v, want %#v", got, want)
+	}
+}
+
 func TestContentReaderGetEntityContentRejectsInvalidMetadata(t *testing.T) {
 	t.Parallel()
 

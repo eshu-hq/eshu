@@ -16,10 +16,13 @@
 // SpanOCIRegistryScan, and SpanOCIRegistryAPICall. The reducer drift handlers use
 // SpanReducerDriftEvidenceLoad for config_state_drift and
 // SpanReducerAWSRuntimeDriftEvidenceLoad for aws_cloud_runtime_drift so traces
-// separate Terraform config-vs-state joins from AWS runtime ARN joins. Pipeline
-// stage, graph-backend, and failure-class names stay centralized here so
-// runtime packages can report comparable events without inventing local label
-// vocabularies. The drift loader's module-aware join (issue #169) registers
+// separate Terraform config-vs-state joins from AWS runtime ARN joins.
+// SpanQueryChangeSurfaceInvestigation names the prompt-facing change-surface
+// route that combines target resolution, content handles, and bounded graph
+// traversal. Pipeline stage, graph-backend, and failure-class names stay
+// centralized here so runtime packages can report comparable events without
+// inventing local label vocabularies. The drift loader's module-aware join
+// (issue #169) registers
 // the DriftUnresolvedModuleCalls counter and the
 // MetricDimensionDriftUnresolvedModuleReason dimension here so the closed
 // enum of unresolvable-module reasons (external_registry, external_git,

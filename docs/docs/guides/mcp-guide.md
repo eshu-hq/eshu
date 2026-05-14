@@ -165,7 +165,8 @@ assumptions from a partial code snapshot.
 | Question pattern | MCP tool |
 |-----------------|----------|
 | "Who calls this function?" | `get_code_relationship_story` |
-| "What breaks if I change this service?" | `find_blast_radius` |
+| "What breaks if I change this service?" | `investigate_change_surface` |
+| "What is the blast radius of a code-topic or changed-path edit?" | `investigate_change_surface` |
 | "How is this deployed?" | `trace_deployment_chain` |
 | "What provisions this database?" | `trace_resource_to_code` |
 | "Compare prod and staging" | `compare_environments` |

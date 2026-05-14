@@ -162,6 +162,26 @@ response envelope reports `truth.capability=code_search.topic_investigation`,
 `coverage.searched_term_count`, `limit`, `offset`, and `truncated`, so a slow or
 empty MCP answer can be diagnosed by scope, term expansion, and result window.
 
+No-Regression Evidence: change-surface investigation focused proof:
+`go test ./internal/query -run 'TestInvestigateChangeSurface|TestOpenAPI' -count=1`
+and
+`go test ./internal/mcp -run 'Test(ChangeSurfaceInvestigation|ResolveRouteMapsChangeSurface|ReadOnlyTools|EcosystemTools|EveryRegistered)' -count=1`.
+The new path keeps target resolution separate from traversal: ambiguous service
+or module names return candidates without running the graph expansion, resolved
+targets use exact label-scoped resolver templates, and the traversal uses a
+literal bounded `*1..max_depth`, deterministic `ORDER BY depth, impacted.name,
+impacted.id`, `LIMIT limit+1`, and a `truncated` response flag.
+
+Observability Evidence: change-surface investigation emits
+`query.change_surface_investigation` with `http.route` and `eshu.capability`.
+Graph work continues through `neo4j.query` spans; code-topic and changed-path
+work continue through existing Postgres content-store reads. The response
+envelope reports `truth.capability=platform_impact.change_surface`,
+`target_resolution.status`, `code_surface.coverage.query_shape`,
+`coverage.query_shape`, `max_depth`, `limit`, `offset`, and `truncated`, so MCP
+latency can be classified as target resolution, content lookup, or bounded
+graph traversal.
+
 ## Consequences
 
 The documented prompt path is stricter: story and focused tools are the primary
