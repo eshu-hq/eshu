@@ -22,6 +22,7 @@ func TestClientListQueuesReadsOnlyMetadataAttributesAndTags(t *testing.T) {
 			string(awssqstypes.QueueAttributeNameFifoQueue):          "false",
 			string(awssqstypes.QueueAttributeNameMaximumMessageSize): "262144",
 			string(awssqstypes.QueueAttributeNameRedrivePolicy):      `{"deadLetterTargetArn":"arn:aws:sqs:us-east-1:123456789012:orders-dlq","maxReceiveCount":10}`,
+			string(awssqstypes.QueueAttributeNameRedriveAllowPolicy): `{"redrivePermission":"byQueue","sourceQueueArns":["arn:aws:sqs:us-east-1:123456789012:orders-source"]}`,
 			string(awssqstypes.QueueAttributeNamePolicy):             `{"Statement":[{"Effect":"Allow"}]}`,
 		},
 		tags: map[string]string{"Environment": "prod"},
@@ -50,6 +51,15 @@ func TestClientListQueuesReadsOnlyMetadataAttributesAndTags(t *testing.T) {
 	}
 	if queue.Attributes.MaxReceiveCount != "10" {
 		t.Fatalf("MaxReceiveCount = %q, want 10", queue.Attributes.MaxReceiveCount)
+	}
+	if queue.Attributes.RedrivePermission != "byQueue" {
+		t.Fatalf("RedrivePermission = %q, want byQueue", queue.Attributes.RedrivePermission)
+	}
+	if got, want := queue.Attributes.RedriveSourceQueueARNs, []string{"arn:aws:sqs:us-east-1:123456789012:orders-source"}; !equalStrings(got, want) {
+		t.Fatalf("RedriveSourceQueueARNs = %#v, want %#v", got, want)
+	}
+	if !containsAttributeName(client.attributeNames, awssqstypes.QueueAttributeNameRedriveAllowPolicy) {
+		t.Fatalf("GetQueueAttributes did not request RedriveAllowPolicy")
 	}
 	for _, name := range client.attributeNames {
 		if name == awssqstypes.QueueAttributeNamePolicy {
@@ -94,6 +104,27 @@ func (f *fakeSQSAPI) ListQueueTags(
 	...func(*awssqs.Options),
 ) (*awssqs.ListQueueTagsOutput, error) {
 	return &awssqs.ListQueueTagsOutput{Tags: f.tags}, nil
+}
+
+func containsAttributeName(names []awssqstypes.QueueAttributeName, want awssqstypes.QueueAttributeName) bool {
+	for _, name := range names {
+		if name == want {
+			return true
+		}
+	}
+	return false
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 var _ apiClient = (*fakeSQSAPI)(nil)

@@ -28,6 +28,8 @@ func TestScannerEmitsQueueFactsMetadataOnlyAndDLQRelationship(t *testing.T) {
 			SQSManagedSSEEnabled:          true,
 			DeadLetterTargetARN:           dlqARN,
 			MaxReceiveCount:               "3",
+			RedrivePermission:             "byQueue",
+			RedriveSourceQueueARNs:        []string{"arn:aws:sqs:us-east-1:123456789012:orders-source"},
 		},
 	}}}
 
@@ -46,6 +48,12 @@ func TestScannerEmitsQueueFactsMetadataOnlyAndDLQRelationship(t *testing.T) {
 	}
 	if got, want := attributes["dead_letter_target_arn"], dlqARN; got != want {
 		t.Fatalf("dead_letter_target_arn = %#v, want %q", got, want)
+	}
+	if got, want := attributes["redrive_permission"], "byQueue"; got != want {
+		t.Fatalf("redrive_permission = %#v, want %q", got, want)
+	}
+	if got, want := attributes["redrive_source_queue_arns"], []string{"arn:aws:sqs:us-east-1:123456789012:orders-source"}; !equalStringSlices(got, want) {
+		t.Fatalf("redrive_source_queue_arns = %#v, want %#v", got, want)
 	}
 	if _, exists := attributes["policy"]; exists {
 		t.Fatalf("policy attribute persisted; SQS scanner must not store queue policy JSON")
@@ -124,4 +132,17 @@ func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {
 		t.Fatalf("attributes = %#v, want map", envelope.Payload["attributes"])
 	}
 	return attributes
+}
+
+func equalStringSlices(got any, want []string) bool {
+	values, ok := got.([]string)
+	if !ok || len(values) != len(want) {
+		return false
+	}
+	for i := range values {
+		if values[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }
