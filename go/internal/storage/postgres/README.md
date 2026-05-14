@@ -207,6 +207,10 @@ compatibility handoff cannot complete.
 - `FactStore` / `NewFactStore` — `UpsertFacts`, `LoadFacts`, `ListFacts`,
   `ListFactsByKind`, `ListFactsByKindAndPayloadValue`,
   `ListActiveRepositoryFacts`, `CountFacts`
+- `AWSCloudRuntimeDriftFindingStore` /
+  `NewAWSCloudRuntimeDriftFindingStore` — active-generation reads over
+  `reducer_aws_cloud_runtime_drift_finding` facts for the IaC management API;
+  callers must pass a bounded `AWSCloudRuntimeDriftFindingFilter`
 
 **Queue stores**
 

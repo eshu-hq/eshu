@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 43
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 44
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,11 +59,11 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 43 tools from five source files.
+`ReadOnlyTools` assembles 44 tools from five source files.
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 13 | `tools_codebase.go` |
+| `codebaseTools` | 14 | `tools_codebase.go` |
 | `ecosystemTools` | 16 | `tools_ecosystem.go` |
 | `contextTools` | 6 | `tools_context.go` |
 | `contentTools` | 5 | `tools_content.go` |
@@ -76,6 +76,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:237`):
 | `find_code` | POST | `/api/v0/code/search` |
 | `analyze_code_relationships` | POST | `/api/v0/code/relationships` |
 | `find_dead_iac` | POST | `/api/v0/iac/dead` |
+| `find_unmanaged_resources` | POST | `/api/v0/iac/unmanaged-resources` |
 | `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
 | `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |

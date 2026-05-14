@@ -142,8 +142,9 @@ or spans beyond the startup/connection events.
   (`wiring.go:55-59`).
 - Version probes are pre-startup checks. Keep `printMCPServerVersionFlag` at
   the top of `main` so MCP clients and containers can inspect the binary safely.
-- `IaCHandler.Reachability` must be non-nil; `newMCPQueryRouter` always
-  sets it to `NewPostgresIaCReachabilityStore` (`wiring.go:146`).
+- `IaCHandler.Reachability` and `IaCHandler.Management` must be non-nil;
+  `newMCPQueryRouter` always sets them to the Postgres-backed adapters
+  (`wiring.go:146`).
 
 ## Related docs
 

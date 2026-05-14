@@ -53,6 +53,15 @@ absent only when that owner is known and the Terraform address is missing.
 Unknown or ambiguous backend ownership suppresses unmanaged classification for
 that ARN instead of creating a false positive.
 
+The current read-model slice exposes those durable facts through bounded HTTP
+and MCP surfaces. `POST /api/v0/iac/unmanaged-resources` and the
+`find_unmanaged_resources` MCP tool require `scope_id` or `account_id`, read
+only `ingestion_scopes.active_generation_id` AWS drift facts, and return the
+ARN, AWS account, region, management status, missing evidence, reducer evidence
+atoms, and recommended next action. This remains fact-backed and graph-neutral;
+canonical graph projection stays deferred until this ADR freezes the node and
+edge contract.
+
 No-Regression Evidence: focused Go tests cover positive, negative, and
 ambiguous orphan/unmanaged cases; candidate construction validates ARN-primary
 correlation keys and raw tag evidence; telemetry tests assert the counters do
@@ -62,6 +71,10 @@ loader/enqueue slice adds focused tests for projector intent emission, bounded
 AWS ARN state joining, cloud-only orphan rows, cloud+state unmanaged rows,
 cloud+state+config suppression rows, and reducer binary wiring. Focused gate:
 `go test ./internal/projector ./internal/storage/postgres ./internal/reducer ./cmd/reducer`.
+The read-model slice adds scoped handler, OpenAPI, MCP dispatch, and active
+fact-read coverage. Focused gates: `go test ./internal/query`,
+`go test ./internal/storage/postgres -run 'TestAWSCloudRuntimeDriftFindingStore|TestInstrumentedDB'`,
+and `go test ./internal/mcp`.
 
 Observability Evidence: `eshu_dp_correlation_rule_matches_total{pack, rule}`,
 `eshu_dp_correlation_orphan_detected_total{pack, rule}`, and
@@ -74,7 +87,11 @@ logs with `drift.arn` for operator drilldown. The loader slice adds
 `reducer.aws_runtime_drift_evidence_load` around the ARN join and relies on
 `eshu_dp_postgres_query_duration_seconds` child query spans plus WARN logs with
 `failure_class=aws_resource_payload_decode` or
-`failure_class=state_resource_payload_decode` for corrupt evidence rows.
+`failure_class=state_resource_payload_decode` for corrupt evidence rows. The
+read-model slice adds `query.iac_unmanaged_resources` handler spans and wraps
+the Postgres fact read through `InstrumentedDB{StoreName: "iac_management"}`,
+so `postgres.query` spans and `eshu_dp_postgres_query_duration_seconds` expose
+the scoped active-fact read separately from other IaC routes.
 
 ## Context
 

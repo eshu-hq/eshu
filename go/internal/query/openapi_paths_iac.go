@@ -80,4 +80,95 @@ const openAPIPathsIaC = `
         }
       }
     },
+    "/api/v0/iac/unmanaged-resources": {
+      "post": {
+        "tags": ["iac"],
+        "summary": "Find unmanaged cloud resources",
+        "description": "Finds AWS cloud resources whose active reducer drift facts show no Terraform config owner or only Terraform state ownership. Requests must be bounded by scope_id or account_id.",
+        "operationId": "findUnmanagedResources",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope_id": {"type": "string", "description": "Exact AWS collector scope, for example aws:123456789012:us-east-1:lambda."},
+                  "account_id": {"type": "string", "description": "AWS account ID used to bound the active finding read."},
+                  "region": {"type": "string", "description": "Optional AWS region when account_id is supplied."},
+                  "finding_kinds": {
+                    "type": "array",
+                    "description": "Optional finding kinds: orphaned_cloud_resource or unmanaged_cloud_resource.",
+                    "items": {"type": "string"}
+                  },
+                  "limit": {"type": "integer", "description": "Maximum findings to return (default 100, max 500).", "default": 100},
+                  "offset": {"type": "integer", "description": "Zero-based result offset for paging findings.", "default": 0}
+                },
+                "anyOf": [
+                  {"required": ["scope_id"]},
+                  {"required": ["account_id"]}
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Unmanaged cloud resource findings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scope_id": {"type": "string"},
+                    "account_id": {"type": "string"},
+                    "region": {"type": "string"},
+                    "finding_kinds": {"type": "array", "items": {"type": "string"}},
+                    "findings_count": {"type": "integer"},
+                    "total_findings_count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "offset": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "next_offset": {"type": ["integer", "null"]},
+                    "truth_basis": {"type": "string"},
+                    "analysis_status": {"type": "string"},
+                    "graph_projection_note": {"type": "string"},
+                    "limitations": {"type": "array", "items": {"type": "string"}},
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {"type": "string"},
+                          "provider": {"type": "string"},
+                          "account_id": {"type": "string"},
+                          "region": {"type": "string"},
+                          "resource_type": {"type": "string"},
+                          "resource_id": {"type": "string"},
+                          "arn": {"type": "string"},
+                          "finding_kind": {"type": "string"},
+                          "management_status": {"type": "string"},
+                          "confidence": {"type": "number"},
+                          "scope_id": {"type": "string"},
+                          "generation_id": {"type": "string"},
+                          "source_system": {"type": "string"},
+                          "candidate_id": {"type": "string"},
+                          "recommended_action": {"type": "string"},
+                          "missing_evidence": {"type": "array", "items": {"type": "string"}},
+                          "evidence": {"type": "array", "items": {"type": "object"}}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
 `

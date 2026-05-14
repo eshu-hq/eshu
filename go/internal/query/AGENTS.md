@@ -17,8 +17,8 @@
    fragment.
 5. `go/internal/telemetry/contract.go` — span name constants
    (`SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
-   `SpanQueryInfraResourceSearch`) and log key conventions; check here before
-   adding new telemetry.
+   `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`) and log
+   key conventions; check here before adding new telemetry.
 
 ## Invariants this package enforces
 
@@ -31,14 +31,16 @@
 
 - **`BuildTruthEnvelope` panics on unknown capability** — every capability string
   passed to `BuildTruthEnvelope` must exist in `capabilityMatrix`
-  (`contract.go:412`). Add the capability to the map before the handler is
+  (`contract.go:432`). Add the capability to the map before the handler is
   callable.
 
 - **Port boundary** — no handler calls `neo4jdriver.DriverWithContext` or
-  `*sql.DB` directly. All graph reads go through `GraphQuery`; all content reads
-  go through `ContentStore`. Concrete adapters (`Neo4jReader`, `ContentReader`)
-  are the only types that touch drivers. Enforced structurally: handler structs
-  hold interface fields, not concrete types.
+  `*sql.DB` directly. All graph reads go through `GraphQuery`, content reads go
+  through `ContentStore`, and reducer fact reads go through query-local store
+  ports such as `IaCManagementStore`. Concrete adapters (`Neo4jReader`,
+  `ContentReader`, `PostgresIaCManagementStore`) are the only query types that
+  touch drivers. Enforced structurally: handler structs hold interface fields,
+  not concrete types.
 
 - **Envelope negotiation is stable** — `WriteSuccess` branches on
   `acceptsEnvelope(r)` (`handler.go:29`). MCP tool dispatch relies on the

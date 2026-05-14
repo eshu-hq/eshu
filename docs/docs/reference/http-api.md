@@ -725,6 +725,7 @@ when either condition is true.
 Use these routes when you need infrastructure-as-code cleanup candidates:
 
 - `POST /api/v0/iac/dead`
+- `POST /api/v0/iac/unmanaged-resources`
 
 The dead-IaC route requires an explicit `repo_id` or bounded `repo_ids` scope.
 When reducer-materialized reachability rows exist, the route returns those rows
@@ -756,6 +757,28 @@ Example dead-IaC workflow:
 The content fallback is intentionally bounded and derived. Exact cleanup
 support should prefer reducer-materialized IaC usage rows so operators can
 explain every finding from persisted evidence instead of broad graph anti-joins.
+
+The unmanaged-resource route reads active AWS runtime drift reducer facts. It
+requires `scope_id` or `account_id`; `region`, `finding_kinds`, `limit`, and
+`offset` narrow the page. Returned findings include the AWS ARN, account,
+region, `management_status`, `missing_evidence`, reducer evidence atoms, and a
+recommended next action. `orphaned_cloud_resource` means Eshu saw the cloud
+resource but no Terraform state or config owner. `unmanaged_cloud_resource`
+means Eshu saw cloud plus Terraform state evidence but no Terraform config
+owner. Raw tags remain provenance evidence and do not create environment or
+ownership truth.
+
+Example unmanaged-resource workflow:
+
+```json
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "finding_kinds": ["unmanaged_cloud_resource"],
+  "limit": 100,
+  "offset": 0
+}
+```
 
 ## Content API
 

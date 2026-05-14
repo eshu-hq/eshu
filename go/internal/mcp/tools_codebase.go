@@ -158,6 +158,43 @@ func codebaseTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "find_unmanaged_resources",
+			Description: "Find AWS cloud resources whose active reducer drift facts show no Terraform config owner or only Terraform state ownership.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"scope_id": map[string]any{
+						"type":        "string",
+						"description": "Exact AWS collector scope, for example aws:123456789012:us-east-1:lambda",
+					},
+					"account_id": map[string]any{
+						"type":        "string",
+						"description": "AWS account ID used to bound the active finding read",
+					},
+					"region": map[string]any{
+						"type":        "string",
+						"description": "Optional AWS region when account_id is supplied",
+					},
+					"finding_kinds": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Optional finding kinds: orphaned_cloud_resource or unmanaged_cloud_resource",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum unmanaged resource findings to return",
+						"default":     100,
+					},
+					"offset": map[string]any{
+						"type":        "integer",
+						"description": "Zero-based result offset for paging findings",
+						"default":     0,
+					},
+				},
+				"required": []string{},
+			},
+		},
+		{
 			Name:        "calculate_cyclomatic_complexity",
 			Description: "Calculate the cyclomatic complexity of a specific function to measure its complexity.",
 			InputSchema: map[string]any{

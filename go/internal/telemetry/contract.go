@@ -165,6 +165,7 @@ const (
 	SpanQueryDocumentationEvidencePacket  = "query.documentation_evidence_packet"
 	SpanQueryDocumentationPacketFreshness = "query.documentation_packet_freshness"
 	SpanQueryDeadIaC                      = "query.dead_iac"
+	SpanQueryIaCUnmanagedResources        = "query.iac_unmanaged_resources"
 	SpanQueryInfraResourceSearch          = "query.infra_resource_search"
 	SpanQueryPackageRegistryPackages      = "query.package_registry_packages"
 	SpanQueryPackageRegistryVersions      = "query.package_registry_versions"
@@ -354,6 +355,7 @@ var spanNames = []string{
 	SpanQueryDocumentationEvidencePacket,
 	SpanQueryDocumentationPacketFreshness,
 	SpanQueryDeadIaC,
+	SpanQueryIaCUnmanagedResources,
 	SpanQueryInfraResourceSearch,
 	SpanQueryPackageRegistryPackages,
 	SpanQueryPackageRegistryVersions,

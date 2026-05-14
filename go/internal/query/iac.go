@@ -16,18 +16,24 @@ const (
 	iacDeadFileLimit    = 10000
 	iacDeadDefaultLimit = 100
 	iacDeadMaxLimit     = 500
+
+	iacManagementCapability   = "iac_management.find_unmanaged_resources"
+	iacManagementDefaultLimit = 100
+	iacManagementMaxLimit     = 500
 )
 
 // IaCHandler serves infrastructure-as-code quality query routes.
 type IaCHandler struct {
 	Content      ContentStore
 	Reachability IaCReachabilityStore
+	Management   IaCManagementStore
 	Profile      QueryProfile
 }
 
 // Mount registers IaC quality routes on the given mux.
 func (h *IaCHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/iac/dead", h.handleDeadIaC)
+	mux.HandleFunc("POST /api/v0/iac/unmanaged-resources", h.handleUnmanagedCloudResources)
 }
 
 func (h *IaCHandler) profile() QueryProfile {

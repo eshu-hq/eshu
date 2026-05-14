@@ -144,6 +144,7 @@ func newMCPQueryRouter(
 		IaC: &query.IaCHandler{
 			Content:      contentReader,
 			Reachability: query.NewPostgresIaCReachabilityStore(db),
+			Management:   query.NewPostgresIaCManagementStore(db),
 			Profile:      queryProfile,
 		},
 		Impact: &query.ImpactHandler{

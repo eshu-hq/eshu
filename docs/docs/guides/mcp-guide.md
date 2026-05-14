@@ -177,6 +177,7 @@ assumptions from a partial code snapshot.
 | "Find complex functions" | `find_most_complex_functions` |
 | "What's dead code?" | `find_dead_code` |
 | "Which IaC artifacts look unused?" | `find_dead_iac` |
+| "Which AWS resources are unmanaged?" | `find_unmanaged_resources` |
 | "Which registry packages or versions are indexed?" | `list_package_registry_packages`, `list_package_registry_versions` |
 
 ## Story-first responses
@@ -270,6 +271,7 @@ For programming prompts, keep using the code-query tools directly:
 - `find_most_complex_functions`
 - `find_dead_code`
 - `find_dead_iac`
+- `find_unmanaged_resources`
 - `list_package_registry_packages`
 - `list_package_registry_versions`
 
