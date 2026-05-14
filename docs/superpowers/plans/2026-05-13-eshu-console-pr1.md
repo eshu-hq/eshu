@@ -279,6 +279,9 @@ Cover the newly hardened MCP/API contracts:
 - change-surface is only requested from a narrowed service, entity, file, or
   topic scope
 
+Progress: added resolver-first coverage for `resolve_entity` envelope
+normalization and traffic-graph node clicks before broad catalog facets.
+
 - [ ] **Step 2: Run focused tests and verify failures**
 
 Run:
@@ -297,6 +300,11 @@ Add a resolver boundary for graph clicks and search selections:
 - display names open a `resolve_entity` candidate picker first
 - ambiguous or truncated results show the exact `limit` and `truncated` state
 - selected candidates rerun the intended story or drilldown by canonical ID
+
+Initial slice: traffic-path graph nodes are keyboard/click reachable, call
+`POST /api/v0/entities/resolve` with `limit=10`, show candidate counts and
+truncation, and route repository/workload candidates to existing workspace
+stories while non-routable entities stay explicit.
 
 - [ ] **Step 4: Refactor catalog into faceted inventory**
 

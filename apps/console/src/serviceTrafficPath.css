@@ -40,6 +40,15 @@
   font-weight: 650;
 }
 
+.service-traffic-node {
+  cursor: pointer;
+}
+
+.service-traffic-node:focus-visible rect {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
 .service-traffic-detail {
   border-left: 1px solid var(--line);
   display: grid;
@@ -56,6 +65,56 @@
   color: var(--muted);
   font-size: 0.84rem;
   overflow-wrap: anywhere;
+}
+
+.service-traffic-warning {
+  color: var(--accent);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.service-traffic-candidates {
+  display: grid;
+  gap: 8px;
+}
+
+.service-traffic-candidate {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.service-traffic-candidate strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.service-traffic-candidate span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.service-traffic-candidate a,
+.service-traffic-candidate button {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  margin-top: 4px;
+  padding: 7px 8px;
+  text-align: left;
+  text-decoration: none;
+}
+
+.service-traffic-candidate button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 .service-traffic-options {
