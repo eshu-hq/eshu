@@ -1,0 +1,36 @@
+apps/console/src/api/changeSurface.test.ts
+  s_a259424f603ccc::t_5f842798d7a66e 1-106,143-257
+  s_a259424f603ccc::t_dee7e260e24355 107-142
+apps/console/src/pages/ServiceChangeSurfacePanel.test.tsx
+  s_a259424f603ccc::t_96a6cea85287a9 1-189
+apps/console/src/pages/ServiceChangeSurfacePanel.tsx
+  s_a259424f603ccc::t_e1b3f38e1818b6 1,163,286-288,304,356-357
+  s_a259424f603ccc::t_db874672b99510 81,87-106
+  s_a259424f603ccc::t_769a3fc53720b2 2-80,82-86,107-162,164-285,289-303,305-355,358-395
+apps/console/src/api/changeSurface.ts
+  s_a259424f603ccc::t_a4159394a9e36d 1-224,226-231,235-247,249-377
+  s_a259424f603ccc::t_4bfc858f0f6d2b 225,232-234,248
+apps/console/src/pages/ServiceSpotlightPanel.tsx
+  s_a259424f603ccc::t_eabd0669cc706b 11,53
+apps/console/src/serviceChangeSurface.css
+  s_a259424f603ccc::t_872acb5dd7e3b8 55-66
+  s_a259424f603ccc::t_354c3dbaa0bc7b 1-54,67-192
+apps/console/src/styles.css
+  s_a259424f603ccc::t_5c4dd91191bfed 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "96bfebeed5597f5d10dac1fcb0798989e13cba96",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
