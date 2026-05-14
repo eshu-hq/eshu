@@ -112,6 +112,7 @@ gauge when a shared-acceptance observer is available.
 | `PackageRegistryFactsEmitted` | `eshu_dp_package_registry_facts_emitted_total` |
 | `PackageRegistryRateLimited` | `eshu_dp_package_registry_rate_limited_total` |
 | `PackageRegistryParseFailures` | `eshu_dp_package_registry_parse_failures_total` |
+| `PackageSourceCorrelations` | `eshu_dp_package_source_correlations_total` |
 | `AWSAPICalls` | `eshu_dp_aws_api_calls_total` |
 | `AWSThrottles` | `eshu_dp_aws_throttle_total` |
 | `AWSAssumeRoleFailed` | `eshu_dp_aws_assumerole_failed_total` |

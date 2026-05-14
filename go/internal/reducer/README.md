@@ -46,10 +46,10 @@ flowchart TB
 
 ## Domain catalog
 
-All twelve reducer domains are declared in `domain.go` and registered via
+All reducer domains are declared in `domain.go` and registered via
 `NewDefaultRuntime` / `NewDefaultRegistry` in `defaults.go`. Each domain has an
-`OwnershipShape` enforcing cross-source, cross-scope, and canonical-write
-requirements.
+`OwnershipShape` enforcing cross-source, cross-scope, and either canonical-write
+or bounded counter-emission requirements.
 
 | Domain constant | Summary |
 | --- | --- |
@@ -65,6 +65,7 @@ requirements.
 | `DomainSemanticEntityMaterialization` | Materialize Annotation, Typedef, TypeAlias, Component semantic nodes |
 | `DomainSQLRelationshipMaterialization` | Materialize canonical SQL relationship edges |
 | `DomainInheritanceMaterialization` | Materialize inheritance, override, and alias edges |
+| `DomainPackageSourceCorrelation` | Classify package-registry source hints against active repository remotes without ownership promotion |
 
 ## Intent lifecycle
 
@@ -383,15 +384,18 @@ Key metrics (all prefixed `eshu_dp_`):
 - `shared_projection_processing_duration_seconds` — per-domain partition processing.
 - `shared_projection_step_duration_seconds` — per phase (retract, write, mark_completed).
 - `canonical_writes_total` — includes graph-projection repair writes.
+- `package_source_correlations_total` — package source-correlation decisions by
+  bounded outcome (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`,
+  `rejected`) and reducer domain.
 
 Log phase attributes: `telemetry.PhaseReduction` (main loop),
 `telemetry.PhaseShared` (shared projection and repair runner).
 
 ## Gotchas / invariants
 
-- **All reducer domains must be cross-source, cross-scope, and
-  canonical-write** — enforced by `OwnershipShape.Validate` at
-  registration (`registry.go:22–33`).
+- **All reducer domains must be cross-source, cross-scope, and truth-emitting**
+  — enforced by `OwnershipShape.Validate`; domains either write canonical graph
+  truth or emit bounded counters such as `package_source_correlation`.
 - **Projection must be idempotent** — queue retries, duplicate claims, and
   partial graph writes must converge on the same truth.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`

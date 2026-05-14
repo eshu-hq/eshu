@@ -16,8 +16,9 @@ before touching any file in this directory.
 
 ## Invariants (cite file:line)
 
-- **Every domain must be cross-source, cross-scope, and canonical-write** —
-  `registry.go:22–33` `OwnershipShape.Validate`; registration fails otherwise.
+- **Every domain must be cross-source, cross-scope, and truth-emitting** —
+  `registry.go:22` `OwnershipShape.Validate`; registration fails unless the
+  domain declares either canonical graph writes or bounded counter emission.
 - **Intent lifecycle is fixed: pending → claimed → running → succeeded/failed** —
   `intent.go:51–61`; do not invent additional states.
 - **Generation supersession short-circuits execution** — `runtime.go:336`
@@ -70,8 +71,9 @@ before touching any file in this directory.
 5. Wire the backend adapters in `cmd/reducer/main.go` `DefaultHandlers`.
 6. If the domain consumes `resolved_relationships`, add a post-Phase-3
    reopen in `bootstrap-index/main.go` after ReopenDeploymentMappingWorkItems.
-7. Add telemetry: at minimum a `telemetry.SpanReducerRun` span and
-   `eshu_dp_reducer_executions_total` counter.
+7. Add telemetry: at minimum the service-level `telemetry.SpanReducerRun` span
+   and `eshu_dp_reducer_executions_total` counter, plus a domain counter when
+   the domain is counter-emission truth such as package source correlation.
 8. Write a failing test first; confirm it fails for the right reason.
 
 ### Change reducer queue claim semantics

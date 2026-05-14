@@ -211,6 +211,14 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 		}
 		definitions = append(definitions, drift)
 	}
+	if handlers.FactLoader != nil {
+		packageSource := packageSourceCorrelationDomainDefinition()
+		packageSource.Handler = PackageSourceCorrelationHandler{
+			FactLoader:  handlers.FactLoader,
+			Instruments: handlers.Instruments,
+		}
+		definitions = append(definitions, packageSource)
+	}
 	if handlers.DeployableUnitCorrelationHandler != nil {
 		definitions = append(definitions, DomainDefinition{
 			Domain:  DomainDeployableUnitCorrelation,

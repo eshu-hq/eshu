@@ -115,6 +115,31 @@ func TestBootstrapDefinitionsIncludeFrameworkRouteFactIndex(t *testing.T) {
 	}
 }
 
+func TestBootstrapDefinitionsIncludeActiveRepositoryFactIndex(t *testing.T) {
+	t.Parallel()
+
+	var facts Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "fact_records" {
+			facts = def
+			break
+		}
+	}
+	if facts.Name == "" {
+		t.Fatal("fact_records definition missing")
+	}
+	for _, want := range []string{
+		"fact_records_active_repository_idx",
+		"ON fact_records (observed_at ASC, fact_id ASC, generation_id)",
+		"WHERE fact_kind = 'repository'",
+		"AND source_system = 'git'",
+	} {
+		if !strings.Contains(facts.SQL, want) {
+			t.Fatalf("fact_records SQL missing %q", want)
+		}
+	}
+}
+
 func TestBootstrapDefinitionsIncludeDocumentationFactIndexes(t *testing.T) {
 	t.Parallel()
 

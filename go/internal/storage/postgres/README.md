@@ -70,6 +70,9 @@ domains whose correctness contract is tied to `content_entity.entity_type`,
 such as inheritance and SQL relationships. Both paths select the full
 `facts.Envelope` column shape before calling the shared scanner, so filtered
 reads keep schema version, collector, fencing, and source-confidence metadata.
+`ListActiveRepositoryFacts` pages active Git repository facts through the
+partial `fact_records_active_repository_idx` index so package source
+correlation reads one row per active repository scope, not every fact row.
 
 `sanitizeJSONB` strips `\u0000` escape sequences and raw control bytes
 (`0x00–0x1F` except tab/newline/CR) from payloads before INSERT to prevent
@@ -190,7 +193,8 @@ compatibility handoff cannot complete.
 **Fact store**
 
 - `FactStore` / `NewFactStore` — `UpsertFacts`, `LoadFacts`, `ListFacts`,
-  `ListFactsByKind`, `ListFactsByKindAndPayloadValue`, `CountFacts`
+  `ListFactsByKind`, `ListFactsByKindAndPayloadValue`,
+  `ListActiveRepositoryFacts`, `CountFacts`
 
 **Queue stores**
 
