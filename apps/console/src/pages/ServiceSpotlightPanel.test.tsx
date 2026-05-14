@@ -33,6 +33,8 @@ describe("ServiceSpotlightPanel", () => {
     expect(screen.getByRole("img", { name: "api-node-boats traffic path" })).toBeInTheDocument();
     expect(screen.getAllByText("CloudFront distribution").length).toBeGreaterThan(1);
     expect(screen.getAllByText("origin-alb-primary").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("prod").length).toBeGreaterThan(1);
+    expect(screen.getByText("CloudFront distribution E123")).toBeInTheDocument();
 
     const laneMap = screen.getByLabelText("api-node-boats deployment lane map");
     expect(within(laneMap).getByText("api-node-boats")).toBeInTheDocument();
@@ -295,11 +297,14 @@ const spotlight: ServiceSpotlight = {
   trafficPaths: [
     {
       edge: "CloudFront distribution",
+      environment: "prod",
       evidenceKind: "aws_cloudfront_distribution",
       hostname: "api-node-boats.prod.bgrp.io",
       origin: "origin-alb-primary",
+      reason: "CloudFront distribution E123",
       runtime: "ECS bg-prod",
       sourceRepo: "terraform-stack-node10",
+      visibility: "public",
       workload: "api-node-boats"
     }
   ],

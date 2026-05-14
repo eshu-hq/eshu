@@ -66,10 +66,19 @@ export function ServiceTrafficPathPanel({
               <dd>{humanLabel(selected.evidenceKind)}</dd>
             </div>
             <div>
+              <dt>Environment</dt>
+              <dd>{selected.environment}</dd>
+            </div>
+            <div>
+              <dt>Visibility</dt>
+              <dd>{selected.visibility}</dd>
+            </div>
+            <div>
               <dt>Source</dt>
               <dd>{selected.sourceRepo}</dd>
             </div>
           </dl>
+          <p className="service-traffic-reason">{selected.reason}</p>
           {paths.length > 1 ? (
             <div className="service-traffic-options">
               {paths.map((path, index) => (

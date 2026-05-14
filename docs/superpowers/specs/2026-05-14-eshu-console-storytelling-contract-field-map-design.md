@@ -235,6 +235,20 @@ entrypoint, edge, controller, infrastructure source, runtime, workload, and
 source repository. Relationship verbs and confidence belong on selectable
 edges, not as tiny labels in the first view.
 
+## Stitch Design Checkpoint
+
+Stitch MCP produced two working mockup directions for this slice:
+
+- Service atlas: `projects/1430014333992672349/screens/44a4f2aa6c3b402f87b3a6d655d6d2be`
+- Resolver/change-review state: `projects/1430014333992672349/screens/f0ebd643587a4093b59a0265c7ae5769`
+
+Use the mockups as interaction direction, not a token source. The repo-owned
+`PRODUCT.md` and `DESIGN.md` remain the design system. The useful Stitch moves
+are the left story spine, central service atlas graph, right evidence or
+resolver rail, explicit trust and truncation state, and change-review as a
+mode. Do not import Stitch's Inter or JetBrains Mono choices, fake trust
+scores, pill-heavy badges, or clipped graph labels.
+
 ## Product Decision
 
 The Eshu Console story model should become:

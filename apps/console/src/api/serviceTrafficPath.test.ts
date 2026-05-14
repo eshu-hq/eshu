@@ -5,17 +5,15 @@ const lanes: readonly ServiceDeploymentLane[] = [
   {
     environments: ["bg-prod"],
     evidenceCount: 4,
-    evidenceKinds: ["terraform_task_definition"],
     label: "ECS lane",
-    platform: "ecs",
-    relationshipVerbs: ["DEPLOYS_TO"],
-    sourceRepos: ["terraform-stack-node10"],
-    targetLabel: "api-node-boats"
+    relationshipTypes: ["DEPLOYS_TO"],
+    resolvedCount: 1,
+    sourceRepos: ["terraform-stack-node10"]
   }
 ];
 
 describe("buildServiceTrafficPaths", () => {
-  it("uses bounded network path records before inferred edge evidence", () => {
+  it("uses bounded network path records from the service dossier before inferred edge evidence", () => {
     const paths = buildServiceTrafficPaths(
       {
         edge_runtime_evidence: {
@@ -29,13 +27,15 @@ describe("buildServiceTrafficPaths", () => {
         },
         network_paths: [
           {
-            edge: "CloudFront distribution",
-            evidence_kind: "network_path",
-            hostname: "api-node-boats.prod.bgrp.io",
-            origin: "origin-alb-primary",
-            runtime: "ECS bg-prod",
-            source_repo: "terraform-stack-node10",
-            workload: "api-node-boats"
+            environment: "prod",
+            from: "api-node-boats.prod.bgrp.io",
+            from_type: "hostname",
+            path_type: "hostname_to_runtime",
+            platform_kind: "ecs",
+            reason: "content_hostname_reference",
+            to: "bg-prod-ecs",
+            to_type: "runtime_platform",
+            visibility: "public"
           }
         ]
       },
@@ -45,12 +45,50 @@ describe("buildServiceTrafficPaths", () => {
 
     expect(paths).toEqual([
       {
-        edge: "CloudFront distribution",
-        evidenceKind: "network_path",
+        edge: "Public hostname",
+        environment: "prod",
+        evidenceKind: "hostname_to_runtime",
         hostname: "api-node-boats.prod.bgrp.io",
-        origin: "origin-alb-primary",
-        runtime: "ECS bg-prod",
+        origin: "runtime platform",
+        reason: "content_hostname_reference",
+        runtime: "bg-prod-ecs",
         sourceRepo: "terraform-stack-node10",
+        visibility: "public",
+        workload: "api-node-boats"
+      }
+    ]);
+  });
+
+  it("turns API Gateway custom-domain edge evidence into a traffic path", () => {
+    const paths = buildServiceTrafficPaths(
+      {
+        edge_runtime_evidence: {
+          api_gateway_domains: [
+            {
+              api_kind: "v2",
+              api_mappings: [{ api_id: "api-123", stage: "prod" }],
+              certificate_arns: ["arn:aws:acm:us-east-1:123:certificate/cert-1"],
+              domain_name: "api-node-boats.prod.bgrp.io",
+              regional_domain_name: "d-api.execute-api.us-east-1.amazonaws.com"
+            }
+          ]
+        }
+      },
+      "api-node-boats",
+      lanes
+    );
+
+    expect(paths).toEqual([
+      {
+        edge: "API Gateway v2",
+        environment: "prod",
+        evidenceKind: "aws_apigateway_domain_name",
+        hostname: "api-node-boats.prod.bgrp.io",
+        origin: "d-api.execute-api.us-east-1.amazonaws.com",
+        reason: "custom domain maps to API api-123",
+        runtime: "bg-prod",
+        sourceRepo: "terraform-stack-node10",
+        visibility: "public",
         workload: "api-node-boats"
       }
     ]);
@@ -77,11 +115,14 @@ describe("buildServiceTrafficPaths", () => {
     expect(paths).toEqual([
       {
         edge: "E123",
+        environment: "bg-prod",
         evidenceKind: "aws_cloudfront_distribution",
         hostname: "api-node-boats.prod.bgrp.io",
         origin: "origin-alb-primary",
+        reason: "CloudFront distribution E123",
         runtime: "bg-prod",
         sourceRepo: "terraform-stack-node10",
+        visibility: "public",
         workload: "api-node-boats"
       }
     ]);

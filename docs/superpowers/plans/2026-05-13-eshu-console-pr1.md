@@ -231,6 +231,31 @@ Expected: pass.
 
 ## Task 6: Latest MCP Contract Refactor
 
+Status after rebasing on `origin/main` with the MCP contract work through
+`a572782`:
+
+- Done: service dossier fields are preferred over raw context fallbacks for the
+  service spotlight.
+- Done: catalog repository inventory shows visible `limit`, `offset`, and
+  `truncated` paging state.
+- Done: change-surface no longer auto-runs as a broad page-load probe; it is a
+  scoped review action.
+- Done: traffic paths consume the current `network_paths` shape from
+  `get_service_story` (`from`, `from_type`, `to`, `to_type`, `platform_kind`,
+  `environment`, `reason`, `visibility`) and map API Gateway or CloudFront edge
+  records as edge evidence, not deployment ownership.
+- Next: add resolver-first graph drilldowns and a true faceted catalog.
+
+Stitch design checkpoint:
+
+- Project `1430014333992672349`
+- Service atlas screen `44a4f2aa6c3b402f87b3a6d655d6d2be`
+- Resolver/change-review screen `f0ebd643587a4093b59a0265c7ae5769`
+- Adopt: left story spine, central atlas graph, right evidence/resolver rail,
+  visible trust/limit/truncation state, and change-review as an explicit mode.
+- Do not adopt blindly: Inter or JetBrains font changes, pill-heavy statuses,
+  fake trust scores, or any graph labels that require clipping.
+
 **Files:**
 
 - Modify: `apps/console/src/api/repository.ts`
@@ -282,7 +307,7 @@ Move catalog from a repository-only table to bounded facets:
 - evidence families, freshness, language, and deployment-family filters
 - visible paging state for `limit`, `offset`, and `truncated`
 
-- [ ] **Step 5: Add edge-aware service traffic story**
+- [x] **Step 5: Add edge-aware service traffic story**
 
 Represent public traffic as a readable path:
 
@@ -291,10 +316,11 @@ hostname -> CDN/edge -> origin/load balancer -> runtime target -> workload -> so
 ```
 
 CloudFront distribution aliases, origins, cache behaviors, viewer certificates,
-ACM links, and WAF links are edge evidence only unless a reducer produces
-explicit workload ownership or deployment correlation.
+ACM links, WAF links, and API Gateway custom domains are edge evidence only
+unless a reducer produces explicit workload ownership or deployment
+correlation.
 
-- [ ] **Step 6: Re-scope change-surface UI**
+- [x] **Step 6: Re-scope change-surface UI**
 
 Change-surface should appear as a review lens after the page has a narrowed
 scope. Do not fire broad service-name impact probes as the primary page load.

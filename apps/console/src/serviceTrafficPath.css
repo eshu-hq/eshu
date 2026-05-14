@@ -52,6 +52,12 @@
   margin: 0;
 }
 
+.service-traffic-reason {
+  color: var(--muted);
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
 .service-traffic-options {
   display: grid;
   gap: 8px;
