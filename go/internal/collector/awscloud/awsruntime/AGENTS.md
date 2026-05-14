@@ -56,6 +56,9 @@
   names, master usernames, secrets, snapshots, log contents, Performance
   Insights samples, schemas, tables, row data, or mutation APIs through the
   runtime registry.
+- Keep DynamoDB scans metadata-only. Do not wire item reads, table scans, table
+  queries, stream record reads, backup/export payload reads, resource-policy
+  persistence, PartiQL calls, or mutation APIs through the runtime registry.
 
 ## Common Changes
 

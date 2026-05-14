@@ -53,6 +53,10 @@
 - Keep RDS database connections, database names, master usernames, passwords,
   snapshots, log contents, Performance Insights samples, schemas, tables, and
   row data out of facts. RDS dependency edges are reported metadata only.
+- Keep DynamoDB item values, table scans, table queries, stream records,
+  backup/export payloads, resource policies, PartiQL output, and mutations out
+  of facts. DynamoDB table metadata and KMS dependency edges are reported
+  metadata only.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target

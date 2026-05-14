@@ -53,7 +53,7 @@ later reducer-owned correlation.
 ## Status Review (2026-05-14)
 
 **Current disposition:** Phase 2 service expansion now includes SQS, SNS,
-EventBridge, S3, and RDS metadata-only slices for issue #38. The `sqs` service
+EventBridge, S3, RDS, and DynamoDB metadata-only slices for issue #38. The `sqs` service
 scans queue metadata, queue tags, safe queue attributes, and reported
 dead-letter queue relationships from redrive policy fields. The `sns` service
 scans topic metadata, topic tags, safe topic attributes, and reported delivery
@@ -66,14 +66,19 @@ ownership controls, website status, and server-access-log target metadata. The
 `rds` service scans DB instance, DB cluster, and DB subnet group metadata plus
 directly reported cluster membership, subnet group, security group, KMS key,
 monitoring role, IAM role, parameter group, and option group relationships.
-These slices deliberately do not call message, event payload, object, database,
+The `dynamodb` service scans table metadata, tags, key schema, attribute
+definitions, capacity settings, table class, index metadata, TTL status,
+continuous backup status, stream settings, replicas, and directly reported KMS
+key relationships. These slices deliberately do not call message, event payload, object, database,
 snapshot, log-content, Performance Insights sample, schema, table, or mutation
 APIs; do not persist SQS/SNS/EventBridge/S3 policy JSON; do not persist raw
 non-ARN SNS endpoints, EventBridge targets, S3 object inventory, ACL grants,
 replication rules, lifecycle rules, notification configuration, inventory
 configuration, analytics configuration, metrics configuration, RDS database
 names, master usernames, secrets, snapshots, log payloads, schemas, tables, or
-row data.
+row data, DynamoDB item values, table scan results, query results, stream
+records, backup/export payloads, resource policies, PartiQL output, or mutation
+surfaces.
 
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/sqs/...`
 covers the bounded SQS call shape: one paginated ListQueues stream, one
@@ -253,6 +258,43 @@ diagnoses the RDS path through `aws.service.scan`,
 or span name is needed for this metadata-only scanner.
 
 Collector Deployment Evidence: RDS runs inside the existing hosted
+`collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
+the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
+surfaces apply without a separate deployment.
+
+Collector Performance Evidence: `go test ./internal/collector/awscloud/services/dynamodb/...`
+covers the bounded DynamoDB call shape: paginated ListTables with Limit=100,
+one DescribeTable metadata read per discovered table, one paginated
+ListTagsOfResource read per ARN-addressable table, one DescribeTimeToLive read
+per discovered table, and one DescribeContinuousBackups read per discovered
+table; no item reads, table scans, table queries, stream record reads,
+backup/export payload reads, resource-policy reads, PartiQL calls, mutations,
+or downstream graph writes in the collector. This slice did not run against a
+live AWS account; the performance contract is the bounded O(table count) SDK
+call shape and existing workflow claim/account concurrency limits.
+
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+covers DynamoDB table metadata fact emission, reported KMS relationship
+emission, omission of item/data-plane fields, SDK pagination, tag reads,
+runtime scanner registration, and the command config path that confirms
+DynamoDB does not require an environment-value redaction key.
+
+Collector Observability Evidence: DynamoDB uses the existing AWS collector
+`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
+labels stay bounded to service, account, region, operation, result, and status;
+table names, ARNs, tags, index names, TTL attribute names, KMS key IDs, and raw
+AWS error payloads stay out of metric labels.
+
+No-Observability-Change: the existing AWS collector telemetry contract already
+diagnoses the DynamoDB path through `aws.service.scan`,
+`aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status`; no new metric
+or span name is needed for this metadata-only scanner.
+
+Collector Deployment Evidence: DynamoDB runs inside the existing hosted
 `collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
 the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
 surfaces apply without a separate deployment.

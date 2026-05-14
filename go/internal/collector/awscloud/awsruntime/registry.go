@@ -7,6 +7,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	dynamodbservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/dynamodb"
+	dynamodbawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/dynamodb/awssdk"
 	ec2service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ec2"
 	ec2awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ec2/awssdk"
 	ecrservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecr"
@@ -113,6 +115,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceRDS:
 		return rdsservice.Scanner{
 			Client: rdsawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceDynamoDB:
+		return dynamodbservice.Scanner{
+			Client: dynamodbawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{
