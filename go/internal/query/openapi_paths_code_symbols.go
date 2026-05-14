@@ -13,7 +13,10 @@ const openAPIPathsCodeSymbols = `
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["symbol"],
+                "anyOf": [
+                  {"required": ["symbol"]},
+                  {"required": ["query"]}
+                ],
                 "properties": {
                   "symbol": {"type": "string", "description": "Symbol name to locate"},
                   "query": {"type": "string", "description": "Compatibility alias for symbol"},
@@ -39,6 +42,7 @@ const openAPIPathsCodeSymbols = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

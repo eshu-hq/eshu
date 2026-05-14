@@ -315,6 +315,16 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 
 	symbolSearchPath := mustMapField(t, paths, "/api/v0/code/symbols/search")
 	symbolSearchPost := mustMapField(t, symbolSearchPath, "post")
+	symbolSearchBody := mustMapField(t, mustMapField(t, symbolSearchPost, "requestBody"), "content")
+	symbolSearchJSON := mustMapField(t, symbolSearchBody, "application/json")
+	symbolSearchRequest := mustMapField(t, symbolSearchJSON, "schema")
+	if _, ok := symbolSearchRequest["required"]; ok {
+		t.Fatal("symbol search request should not require only symbol when query alias is documented")
+	}
+	anyOf, ok := symbolSearchRequest["anyOf"].([]any)
+	if !ok || len(anyOf) != 2 {
+		t.Fatalf("symbol search request anyOf = %#v, want symbol/query alternatives", symbolSearchRequest["anyOf"])
+	}
 	symbolSearchResponses := mustMapField(t, symbolSearchPost, "responses")
 	symbolSearchOK := mustMapField(t, symbolSearchResponses, "200")
 	symbolSearchContent := mustMapField(t, mustMapField(t, symbolSearchOK, "content"), "application/json")

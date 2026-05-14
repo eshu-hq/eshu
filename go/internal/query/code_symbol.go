@@ -14,7 +14,10 @@ const (
 	symbolSearchMaxOffset    = 10000
 )
 
-var errSymbolOffsetUnsupported = errors.New("symbol lookup offset pagination requires content-index search")
+var (
+	errSymbolBackendUnavailable = errors.New("symbol lookup backend is unavailable")
+	errSymbolOffsetUnsupported  = errors.New("symbol lookup offset pagination requires content-index search")
+)
 
 type symbolSearchRequest struct {
 	Symbol      string   `json:"symbol"`
@@ -77,6 +80,10 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		if errors.Is(err, errSymbolOffsetUnsupported) {
 			WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if errors.Is(err, errSymbolBackendUnavailable) {
+			WriteError(w, http.StatusServiceUnavailable, err.Error())
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -143,7 +150,7 @@ func (h *CodeHandler) symbolSearchResults(
 	}
 
 	if h == nil || h.Neo4j == nil {
-		return nil, "unavailable", TruthBasisContentIndex, nil
+		return nil, "", "", errSymbolBackendUnavailable
 	}
 	if req.Offset > 0 {
 		return nil, "", "", errSymbolOffsetUnsupported

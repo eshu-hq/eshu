@@ -93,8 +93,9 @@ func symbolSearchFilters(req symbolSearchRequest) ([]string, []any, int) {
 		nextArg++
 	}
 	if language := strings.TrimSpace(req.Language); language != "" {
-		parts := make([]string, 0, len(normalizedLanguageVariants(language)))
-		for _, variant := range normalizedLanguageVariants(language) {
+		languageVariants := normalizedLanguageVariants(language)
+		parts := make([]string, 0, len(languageVariants))
+		for _, variant := range languageVariants {
 			parts = append(parts, fmt.Sprintf("language = $%d", nextArg))
 			args = append(args, variant)
 			nextArg++
