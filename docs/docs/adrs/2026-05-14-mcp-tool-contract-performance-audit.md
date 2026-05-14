@@ -57,6 +57,15 @@ tool surface:
   at 200, caps `offset` at 10000, probes one extra row for `truncated`, returns
   `source_handle` and `ambiguity`, and uses the content index before graph
   fallback to avoid a graph-wide Cypher read on normal cold calls.
+- `get_code_relationship_story` is the first-class MCP path for issue #288.
+  It routes to `POST /api/v0/code/relationships/story`, resolves a target name
+  before graph traversal, returns bounded ambiguity candidates instead of
+  guessing, anchors graph reads by entity id, requires deterministic
+  `ORDER BY` plus `SKIP`/`LIMIT`, probes one extra row for `truncated`, and uses
+  a bounded breadth-first CALLS traversal when `include_transitive=true`. When
+  callers request both direct directions, rows are interleaved and the response
+  reports per-direction available, returned, and truncated counts so one busy
+  direction cannot hide the other without a visible coverage signal.
 
 ## Prompt-Family Audit
 
@@ -66,7 +75,7 @@ tool surface:
 | Exact file/source evidence | `get_file_content`, `get_file_lines`, `get_entity_content` | Already scoped by repo/path or entity ID | None from this PR |
 | Content evidence search | `search_file_content`, `search_entity_content` | Bounded, paged, multi-repo query is single PostgreSQL call | None from this PR |
 | Symbol discovery and implementation lookup | `find_symbol`, `find_code`, `execute_language_query` | First-class definition lookup is bounded, paged, source-handle backed, and no longer requires raw Cypher for "where is this implemented?" prompts | #287 |
-| Callers, callees, imports, call chains | `analyze_code_relationships`, `find_function_call_chain` | Existing depth caps and profile gates; direct relationship pagination still belongs in story-grade tooling | #288 |
+| Callers, callees, imports, call chains | `get_code_relationship_story`, `find_function_call_chain` | Relationship story is bounded, ambiguity-aware, entity-anchored, paged, and exposes optional bounded transitive CALLS traversal; call-chain keeps the dedicated endpoint | #288 |
 | Dead code and code quality | `find_dead_code`, `find_most_complex_functions` | Existing bounded routes; raw Cypher examples now show limits | #289, #290 |
 | Class hierarchy and overrides | `analyze_code_relationships`, `execute_language_query` | Current fallback remains diagnostics-heavy for some shapes | #291 |
 | Security hardcoded secrets | none first-class | Raw graph-wide Cypher removed from the recommended prompt path | #292 |
@@ -88,6 +97,10 @@ The changed read paths are cold-call bounded:
 - symbol lookup has exact/fuzzy match modes, deterministic ordering,
   limit/offset, one-row truncation probes, source handles, and ambiguity
   metadata from one content-index query;
+- relationship story resolves names with a bounded content-index lookup before
+  touching the graph, returns ambiguity candidates without guessing, reads
+  direct edges with entity-anchored ordered pagination, and limits transitive
+  CALLS traversal by depth plus result-window size;
 - infrastructure search has a max limit and truncation probe.
 
 No-Regression Evidence: focused tests cover MCP search-content paging schema and
@@ -103,6 +116,10 @@ No-Regression Evidence: symbol lookup focused proof:
 `go test ./internal/query -run 'TestCodeHandlerFindSymbolReturnsBoundedContentDefinitions|TestCodeHandlerFindSymbolRejectsHugeOffset|TestCodeHandlerFindSymbolRejectsGraphOnlyOffset|TestCodeHandlerFindSymbolRejectsMissingBackends|TestOpenAPI' -count=1` and
 `go test ./internal/mcp -run 'TestFindSymbolToolAdvertisesBoundedLookupContract|TestResolveRouteMapsFindSymbol|TestReadOnlyTools|TestCodebaseTools' -count=1`.
 
+No-Regression Evidence: relationship story focused proof:
+`go test ./internal/query -run 'TestHandleRelationshipStory|TestNornicDBRelationshipStory|TestCapability|TestOpenAPI' -count=1` and
+`go test ./internal/mcp -run 'TestResolveRouteMapsCodeRelationshipStory|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute' -count=1`.
+
 Observability Evidence: the changed paths continue through existing
 `postgres.query` and `neo4j.query` spans with `db.operation` values
 `search_file_content_in_repos`, `search_entity_content_in_repos`,
@@ -112,6 +129,14 @@ existing graph query span. Direct Cypher now uses the canonical response
 envelope with `truth.capability=graph_query.read_only_cypher`; symbol lookup
 uses `truth.capability=code_search.symbol_lookup` so MCP callers can distinguish
 diagnostics from first-class prompt tools.
+
+No-Observability-Change: relationship story uses the existing content-store and
+graph query instrumentation rather than adding a new worker or storage path.
+The response envelope reports `truth.capability=call_graph.relationship_story`,
+`source_backend`, `coverage.query_shape`, `coverage.truncated`, and the scoped
+`limit`/`offset`/`max_depth` values so MCP callers and operators can identify
+whether a slow answer came from target resolution, direct graph reads, or
+bounded transitive traversal.
 
 ## Consequences
 

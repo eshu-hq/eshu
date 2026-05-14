@@ -103,6 +103,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-direct-callees}], notes: graph sidecar serves authoritative CALLS edges}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 2000, max_scope_size: indexed_workspace, verification: [{compose_e2e: direct-callees}], notes: authoritative graph}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-direct-callees}], notes: authoritative graph}
+  - capability: call_graph.relationship_story
+    tools: [get_code_relationship_story]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded content-derived relationship story with ambiguity candidates}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded graph relationship story anchored by resolved entity id}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 2000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded graph relationship story anchored by resolved entity id}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-relationship-story}], notes: bounded graph relationship story anchored by resolved entity id}
   - capability: call_graph.transitive_callers
     tools: [analyze_code_relationships]
     profiles:

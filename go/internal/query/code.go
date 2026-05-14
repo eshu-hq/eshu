@@ -20,6 +20,7 @@ func (h *CodeHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/code/search", h.handleSearch)
 	mux.HandleFunc("POST /api/v0/code/symbols/search", h.handleSymbolSearch)
 	mux.HandleFunc("POST /api/v0/code/relationships", h.handleRelationships)
+	mux.HandleFunc("POST /api/v0/code/relationships/story", h.handleRelationshipStory)
 	mux.HandleFunc("POST /api/v0/code/dead-code", h.handleDeadCode)
 	mux.HandleFunc("POST /api/v0/code/complexity", h.handleComplexity)
 	mux.HandleFunc("POST /api/v0/code/call-chain", h.handleCallChain)

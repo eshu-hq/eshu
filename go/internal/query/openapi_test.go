@@ -338,6 +338,26 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatal("SymbolSearchResult missing source_handle")
 	}
 
+	relationshipStoryPath := mustMapField(t, paths, "/api/v0/code/relationships/story")
+	relationshipStoryPost := mustMapField(t, relationshipStoryPath, "post")
+	relationshipStoryBody := mustMapField(t, mustMapField(t, relationshipStoryPost, "requestBody"), "content")
+	relationshipStoryJSON := mustMapField(t, relationshipStoryBody, "application/json")
+	relationshipStorySchema := mustMapField(t, mustMapField(t, relationshipStoryJSON, "schema"), "properties")
+	for _, field := range []string{"target", "entity_id", "direction", "relationship_type", "include_transitive", "max_depth", "limit", "offset"} {
+		if _, ok := relationshipStorySchema[field]; !ok {
+			t.Fatalf("code/relationships/story request schema missing %s", field)
+		}
+	}
+	relationshipStoryResponses := mustMapField(t, relationshipStoryPost, "responses")
+	relationshipStoryOK := mustMapField(t, relationshipStoryResponses, "200")
+	relationshipStoryContent := mustMapField(t, mustMapField(t, relationshipStoryOK, "content"), "application/json")
+	relationshipStoryResponse := mustMapField(t, mustMapField(t, relationshipStoryContent, "schema"), "properties")
+	for _, field := range []string{"target_resolution", "relationships", "coverage"} {
+		if _, ok := relationshipStoryResponse[field]; !ok {
+			t.Fatalf("code/relationships/story response schema missing %s", field)
+		}
+	}
+
 	callChainPath := mustMapField(t, paths, "/api/v0/code/call-chain")
 	callChainPost := mustMapField(t, callChainPath, "post")
 	callChainBody := mustMapField(t, mustMapField(t, callChainPost, "requestBody"), "content")

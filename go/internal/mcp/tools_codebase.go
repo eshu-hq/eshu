@@ -90,6 +90,70 @@ func codebaseTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "get_code_relationship_story",
+			Description: "Get a bounded relationship story for one resolved code symbol, including ambiguity candidates, direct callers/callees/imports, optional transitive CALLS traversal, truncation, and source handles.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"target": map[string]any{
+						"type":        "string",
+						"description": "Symbol name to resolve when entity_id is not supplied.",
+					},
+					"entity_id": map[string]any{
+						"type":        "string",
+						"description": "Exact entity identifier to anchor the relationship query.",
+					},
+					"repo_id": map[string]any{
+						"type":        "string",
+						"description": "Optional canonical repository identifier to scope name resolution.",
+					},
+					"language": map[string]any{
+						"type":        "string",
+						"description": "Optional language filter for name resolution.",
+					},
+					"relationship_type": map[string]any{
+						"type":        "string",
+						"description": "Relationship type to follow.",
+						"enum":        []string{"CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES"},
+						"default":     "CALLS",
+					},
+					"direction": map[string]any{
+						"type":        "string",
+						"description": "Relationship direction from the target entity.",
+						"enum":        []string{"incoming", "outgoing", "both"},
+						"default":     "both",
+					},
+					"include_transitive": map[string]any{
+						"type":        "boolean",
+						"description": "When true, follow CALLS edges with bounded breadth-first traversal.",
+						"default":     false,
+					},
+					"max_depth": map[string]any{
+						"type":        "integer",
+						"description": "Maximum transitive CALLS depth.",
+						"default":     5,
+						"maximum":     10,
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum relationship rows or ambiguity candidates to return.",
+						"default":     25,
+						"maximum":     200,
+					},
+					"offset": map[string]any{
+						"type":        "integer",
+						"description": "Zero-based result offset for direct relationship paging.",
+						"default":     0,
+						"maximum":     10000,
+					},
+				},
+				"anyOf": []map[string]any{
+					{"required": []string{"target"}},
+					{"required": []string{"entity_id"}},
+				},
+			},
+		},
+		{
 			Name:        "analyze_code_relationships",
 			Description: "Analyze code relationships like 'who calls this function' or 'class hierarchy'. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_importers, who_modifies, class_hierarchy, overrides, dead_code, call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.",
 			InputSchema: map[string]any{
