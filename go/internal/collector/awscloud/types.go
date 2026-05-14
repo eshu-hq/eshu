@@ -54,6 +54,9 @@ const (
 	// ServiceAPIGateway identifies the regional Amazon API Gateway metadata scan
 	// slice covering REST, HTTP, and WebSocket APIs.
 	ServiceAPIGateway = "apigateway"
+	// ServiceSecretsManager identifies the regional AWS Secrets Manager
+	// metadata-only scan slice.
+	ServiceSecretsManager = "secretsmanager"
 )
 
 const (
@@ -151,6 +154,9 @@ const (
 	ResourceTypeAPIGatewayStage = "aws_apigateway_stage"
 	// ResourceTypeAPIGatewayDomainName identifies an API Gateway custom domain.
 	ResourceTypeAPIGatewayDomainName = "aws_apigateway_domain_name"
+	// ResourceTypeSecretsManagerSecret identifies a Secrets Manager secret
+	// metadata resource.
+	ResourceTypeSecretsManagerSecret = "aws_secretsmanager_secret"
 )
 
 const (
@@ -320,6 +326,12 @@ const (
 	// RelationshipAPIGatewayAPIIntegratesWithResource records API integration
 	// targets when AWS reports an ARN-addressable backend.
 	RelationshipAPIGatewayAPIIntegratesWithResource = "apigateway_api_integrates_with_resource"
+	// RelationshipSecretsManagerSecretUsesKMSKey records a secret's reported
+	// KMS key dependency.
+	RelationshipSecretsManagerSecretUsesKMSKey = "secretsmanager_secret_uses_kms_key"
+	// RelationshipSecretsManagerSecretUsesRotationLambda records a secret's
+	// reported rotation Lambda dependency.
+	RelationshipSecretsManagerSecretUsesRotationLambda = "secretsmanager_secret_uses_rotation_lambda"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by
