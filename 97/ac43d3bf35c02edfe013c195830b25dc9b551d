@@ -1,0 +1,20 @@
+go/internal/projector/canonical_builder_test.go
+  s_c8e18fa25bdd71::t_184882b87361c9 1162-1163
+  s_c8e18fa25bdd71::t_c9eebedeba5a74 1164-1166,1169-1171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "97ac43d3bf35c02edfe013c195830b25dc9b551d",
+  "prompts": {},
+  "sessions": {
+    "s_c8e18fa25bdd71": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e23b7-1ff1-7ff2-b1cd-9ade95ecd516",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
