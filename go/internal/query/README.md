@@ -234,7 +234,7 @@ The response is written with `WriteSuccess` when the caller sends
 `Accept: application/eshu.envelope+json`; this wraps the payload in a
 `ResponseEnvelope` containing `data`, `truth` (`TruthEnvelope`), and `error`
 fields. Without that header, `WriteJSON` emits the legacy payload directly.
-`BuildTruthEnvelope` (`contract.go:411`) constructs the `TruthEnvelope`; it
+`BuildTruthEnvelope` (`contract.go:432`) constructs the `TruthEnvelope`; it
 panics if the capability string is not in `capabilityMatrix`.
 Repository runtime artifacts parse Dockerfile stage metadata through
 `buildDockerfileRuntimeArtifacts`, including base image, base tag, build
@@ -286,7 +286,8 @@ Elixir, PHP, and Groovy parser-backed roots. Its language filter examples includ
 - `InfraHandler` — infrastructure resource and relationship routes (`infra.go:12`)
   including Terraform backend, import, moved, removed, check, and lockfile
   provider entity labels when they have been projected
-- `IaCHandler` — IaC quality dead-code routes (`iac.go:22`)
+- `IaCHandler` — IaC quality and AWS management routes (`iac.go:22`,
+  `iac_management.go:142`)
 - `ImpactHandler` — blast radius, change surface, deployment trace, dependency
   paths (`impact.go:11`)
 - `EvidenceHandler` — relationship evidence drilldown (`evidence.go:14`)
@@ -317,7 +318,7 @@ Elixir, PHP, and Groovy parser-backed roots. Its language filter examples includ
   helpers (`handler.go`)
 - `AuthMiddleware` — bearer-token middleware used by `cmd/api` (`auth.go:30`)
 - `BuildTruthEnvelope` — builds a `TruthEnvelope` from profile, capability, and
-  basis; panics on unknown capability (`contract.go:412`)
+  basis; panics on unknown capability (`contract.go:432`)
 - `ParseQueryProfile`, `NormalizeQueryProfile`, `ParseGraphBackend` — input
   validation helpers (`contract.go`)
 
@@ -346,11 +347,12 @@ See `doc.go` for the full godoc contract.
 - `internal/recovery` — `RecoveryService` port satisfied by `recovery.Handler`;
   wired into `AdminHandler.Recovery`
 - `internal/status` — `status.Reader` consumed by `StatusHandler.StatusReader`
-- `internal/storage/postgres` — status store and recovery store adapters;
-  query handlers never import concrete Postgres drivers directly — they go through
-  `ContentStore`
+- `internal/storage/postgres` — status, recovery, IaC reachability, and AWS
+  runtime drift finding adapters; query handlers never import concrete
+  Postgres drivers directly — they go through query package adapters and ports
 - `internal/telemetry` — `EventAttr`, `DefaultServiceNamespace`, span constants
-  `SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`, `SpanQueryInfraResourceSearch`
+  `SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
+  `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`
 
 Handlers depend on the `GraphQuery` and `ContentStore` ports, not on
 `neo4jdriver.DriverWithContext` or `*sql.DB` directly. `Neo4jReader` and
@@ -368,7 +370,9 @@ wired in `cmd/api/wiring.go`, not here.
   `telemetry.SpanQueryDocumentationPacketFreshness`
   (`query.documentation_packet_freshness`) on documentation truth evidence
   routes (`documentation.go`); `telemetry.SpanQueryDeadIaC` (`query.dead_iac`)
-  on IaC dead-code queries (`iac.go`); `telemetry.SpanQueryInfraResourceSearch`
+  on IaC dead-code queries (`iac.go`); `telemetry.SpanQueryIaCUnmanagedResources`
+  (`query.iac_unmanaged_resources`) on AWS management finding queries
+  (`iac_management.go`); `telemetry.SpanQueryInfraResourceSearch`
   (`query.infra_resource_search`) on infrastructure search (`infra.go`).
   Per-query spans `neo4j.query` and `postgres.query` on every graph and content
   read.
@@ -396,7 +400,7 @@ wired in `cmd/api/wiring.go`, not here.
   `truth.profiles.required` in the response envelope for the minimum profile,
   then verify the ESHU_QUERY_PROFILE env var in the running API.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
-  a capability string not in `capabilityMatrix` (`contract.go:412`). Add missing
+  a capability string not in `capabilityMatrix` (`contract.go:432`). Add missing
   capability IDs to `capabilityMatrix` before shipping new handlers.
 - `code_quality.dead_code` is a derived query unless the language maturity row
   says otherwise. Handler changes must preserve `classification`,
@@ -460,7 +464,7 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 ## Gotchas / invariants
 
 - `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
-  (`contract.go:412`). All capability strings used in handlers must be registered
+  (`contract.go:432`). All capability strings used in handlers must be registered
   in that map before the handler can be called safely.
 - The unexported `capabilityUnsupported` returns true when `maxTruthLevel` returns
   `nil` for the current profile; a nil max-truth means the capability is

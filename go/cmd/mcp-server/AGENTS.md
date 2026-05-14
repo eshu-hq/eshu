@@ -23,9 +23,9 @@
   and `ESHU_CONTENT_STORE_DSN` are empty. The `openQueryGraph` call is skipped
   when `ProfileLocalLightweight` is active or `ESHU_DISABLE_NEO4J` is true
   (`wiring.go:179`).
-- **IaC reachability always wired** — `newMCPQueryRouter` always sets
-  `IaCHandler.Reachability` to `query.NewPostgresIaCReachabilityStore(db)`
-  (`wiring.go:146`). Do not set it to nil.
+- **IaC stores always wired** — `newMCPQueryRouter` always sets
+  `IaCHandler.Reachability` and `IaCHandler.Management` to Postgres-backed
+  query adapters (`wiring.go:146`). Do not set either to nil.
 - **Auth on query routes** — `query.AuthMiddleware` wraps the `query.APIRouter`
   handler before it is passed to `mcp.NewServer`. The MCP transport endpoints
   (`/sse`, `/mcp/message`, `/health`) handle auth separately inside the MCP

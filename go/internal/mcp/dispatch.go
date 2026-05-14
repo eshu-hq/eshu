@@ -315,6 +315,15 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":             intOr(args, "limit", 100),
 			"offset":            intOr(args, "offset", 0),
 		}}, nil
+	case "find_unmanaged_resources":
+		return &route{method: "POST", path: "/api/v0/iac/unmanaged-resources", body: map[string]any{
+			"scope_id":      str(args, "scope_id"),
+			"account_id":    str(args, "account_id"),
+			"region":        str(args, "region"),
+			"finding_kinds": stringSlice(args, "finding_kinds"),
+			"limit":         intOr(args, "limit", 100),
+			"offset":        intOr(args, "offset", 0),
+		}}, nil
 	case "calculate_cyclomatic_complexity":
 		return &route{method: "POST", path: "/api/v0/code/complexity", body: map[string]any{
 			"function_name": str(args, "function_name"), "repo_id": str(args, "repo_id"),

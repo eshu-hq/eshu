@@ -71,6 +71,7 @@ func TestServeOpenAPI(t *testing.T) {
 		"/api/v0/content/files/read",
 		"/api/v0/infra/resources/search",
 		"/api/v0/iac/dead",
+		"/api/v0/iac/unmanaged-resources",
 		"/api/v0/impact/trace-deployment-chain",
 		"/api/v0/impact/blast-radius",
 		"/api/v0/status/pipeline",
@@ -389,6 +390,34 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	}
 	if _, ok := deadIaCResponse["next_offset"]; !ok {
 		t.Fatal("iac/dead response schema missing next_offset")
+	}
+
+	unmanagedPath := mustMapField(t, paths, "/api/v0/iac/unmanaged-resources")
+	unmanagedPost := mustMapField(t, unmanagedPath, "post")
+	unmanagedBody := mustMapField(t, mustMapField(t, unmanagedPost, "requestBody"), "content")
+	unmanagedJSON := mustMapField(t, unmanagedBody, "application/json")
+	unmanagedSchema := mustMapField(t, mustMapField(t, unmanagedJSON, "schema"), "properties")
+	if _, ok := unmanagedSchema["scope_id"]; !ok {
+		t.Fatal("iac/unmanaged-resources request schema missing scope_id")
+	}
+	if _, ok := unmanagedSchema["account_id"]; !ok {
+		t.Fatal("iac/unmanaged-resources request schema missing account_id")
+	}
+	if _, ok := unmanagedSchema["finding_kinds"]; !ok {
+		t.Fatal("iac/unmanaged-resources request schema missing finding_kinds")
+	}
+	unmanagedResponses := mustMapField(t, unmanagedPost, "responses")
+	unmanagedOK := mustMapField(t, unmanagedResponses, "200")
+	unmanagedContent := mustMapField(t, mustMapField(t, unmanagedOK, "content"), "application/json")
+	unmanagedResponse := mustMapField(t, mustMapField(t, unmanagedContent, "schema"), "properties")
+	if _, ok := unmanagedResponse["findings"]; !ok {
+		t.Fatal("iac/unmanaged-resources response schema missing findings")
+	}
+	if _, ok := unmanagedResponse["total_findings_count"]; !ok {
+		t.Fatal("iac/unmanaged-resources response schema missing total_findings_count")
+	}
+	if _, ok := unmanagedResponse["graph_projection_note"]; !ok {
+		t.Fatal("iac/unmanaged-resources response schema missing graph_projection_note")
 	}
 	if _, ok := deadIaCResponse["limitations"]; !ok {
 		t.Fatal("iac/dead response schema missing limitations")

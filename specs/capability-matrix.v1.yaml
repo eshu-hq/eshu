@@ -124,6 +124,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 10000, max_scope_size: bounded_repo_scope, verification: [{go_test: ./internal/query}], notes: bounded content-derived candidate scan; exact cleanup requires reducer-materialized usage rows}
       local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 10000, max_scope_size: bounded_repo_scope, verification: [{compose_e2e: dead-iac-reachability}], notes: bounded content-derived candidate scan; exact cleanup requires reducer-materialized usage rows}
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 10000, max_scope_size: bounded_repo_scope, verification: [{remote_validation: prod-dead-iac}], notes: bounded content-derived candidate scan; exact cleanup requires reducer-materialized usage rows}
+  - capability: iac_management.find_unmanaged_resources
+    tools: [find_unmanaged_resources]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: aws_account_or_scope, verification: [{integration_test: local-lightweight-unsupported-unmanaged-resources}], notes: requires reducer-materialized AWS runtime drift facts}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{go_test: ./internal/query}], notes: bounded active-generation read over reducer AWS runtime drift facts; graph projection remains a later ADR-shaped slice}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{compose_e2e: aws-runtime-drift-read-model}], notes: bounded active-generation read over reducer AWS runtime drift facts}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{remote_validation: prod-aws-runtime-drift-read-model}], notes: bounded active-generation read over reducer AWS runtime drift facts}
   - capability: platform_impact.deployment_chain
     tools: [trace_deployment_chain, find_infra_resources, analyze_infra_relationships]
     profiles:

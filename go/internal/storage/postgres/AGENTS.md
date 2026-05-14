@@ -97,13 +97,20 @@
   classification for that state-backed ARN; unknown config is not proof of
   absent config.
 
+- **AWS runtime drift finding reads stay active and scoped** —
+  `AWSCloudRuntimeDriftFindingStore` reads
+  `reducer_aws_cloud_runtime_drift_finding` rows through
+  `ingestion_scopes.active_generation_id`. Keep `scope_id` or AWS account scope
+  predicates in the query before adding more response fields; do not add
+  unbounded fact-table scans for management APIs.
+
 ## Common changes and how to scope them
 
 - **Add a new Postgres store** → implement against `ExecQueryer`; add a
   `New*Store(db ExecQueryer)` constructor; add a `*SchemaSQL()` function
-  returning idempotent DDL; register it in `BootstrapDefinitions` in `schema.go`
-  with the correct position in the slice; wrap with `InstrumentedDB` in `cmd/`
-  wiring for observability.
+  returning idempotent DDL when the store owns a table; register owned tables in
+  `BootstrapDefinitions` in `schema.go` with the correct position in the slice;
+  wrap with `InstrumentedDB` in `cmd/` wiring for observability.
 
 - **Change AWS checkpoint persistence** → edit
   `aws_pagination_checkpoint.go`; keep the primary key scoped to collector
