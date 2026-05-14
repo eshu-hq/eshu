@@ -134,6 +134,7 @@ All of these tools are available through MCP. Your AI assistant can call them di
 - "What provisions this database?" → `trace_resource_to_code`
 - "Explain how these two things connect" → `explain_dependency_path`
 - "What differs between prod and staging?" → `compare_environments`
+- "Where is this behavior implemented?" → `investigate_code_topic`
 
 See the [MCP Guide](guides/mcp-guide.md) for setup.
 See [Starter Prompts](guides/starter-prompts.md) for role-based prompt sets you can use right away.

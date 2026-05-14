@@ -40,6 +40,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: relational content search; graph sidecar unused for this capability}
       local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: relational content search}
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-content-search}], notes: relational content search}
+  - capability: code_search.topic_investigation
+    tools: [investigate_code_topic]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded content-index topic investigation with ranked files, symbols, coverage, and next-call handles}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded content-index topic investigation; relationship-story handles drill into graph only after entity anchors are chosen}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 1200, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded content-index topic investigation with deterministic ordering and truncation}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-topic-investigation}], notes: bounded content-index topic investigation; use follow-up source reads for exact citations}
   - capability: graph_query.read_only_cypher
     tools: [execute_cypher_query]
     profiles:

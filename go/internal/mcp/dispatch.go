@@ -224,6 +224,15 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":        intOr(args, "limit", 25),
 			"offset":       intOr(args, "offset", 0),
 		}}, nil
+	case "investigate_code_topic":
+		return &route{method: "POST", path: "/api/v0/code/topics/investigate", body: map[string]any{
+			"topic":    str(args, "topic"),
+			"intent":   str(args, "intent"),
+			"repo_id":  str(args, "repo_id"),
+			"language": str(args, "language"),
+			"limit":    intOr(args, "limit", 25),
+			"offset":   intOr(args, "offset", 0),
+		}}, nil
 	case "get_code_relationship_story":
 		return &route{method: "POST", path: "/api/v0/code/relationships/story", body: map[string]any{
 			"target":             str(args, "target"),

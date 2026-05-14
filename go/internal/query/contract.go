@@ -162,6 +162,12 @@ var capabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     &truthDerived,
 		ProductionMax:         &truthDerived,
 	},
+	"code_search.topic_investigation": {
+		LocalLightweightMax:   &truthDerived,
+		LocalAuthoritativeMax: &truthDerived,
+		LocalFullStackMax:     &truthDerived,
+		ProductionMax:         &truthDerived,
+	},
 	"graph_query.read_only_cypher": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,

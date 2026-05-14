@@ -167,6 +167,7 @@ const (
 	SpanQueryDeadIaC                      = "query.dead_iac"
 	SpanQueryIaCUnmanagedResources        = "query.iac_unmanaged_resources"
 	SpanQueryInfraResourceSearch          = "query.infra_resource_search"
+	SpanQueryCodeTopicInvestigation       = "query.code_topic_investigation"
 	SpanQueryPackageRegistryPackages      = "query.package_registry_packages"
 	SpanQueryPackageRegistryVersions      = "query.package_registry_versions"
 	SpanTerraformStateClaimProcess        = "tfstate.collector.claim.process"
@@ -357,6 +358,7 @@ var spanNames = []string{
 	SpanQueryDeadIaC,
 	SpanQueryIaCUnmanagedResources,
 	SpanQueryInfraResourceSearch,
+	SpanQueryCodeTopicInvestigation,
 	SpanQueryPackageRegistryPackages,
 	SpanQueryPackageRegistryVersions,
 	SpanTerraformStateClaimProcess,

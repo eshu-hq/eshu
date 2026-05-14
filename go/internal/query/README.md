@@ -227,6 +227,9 @@ Both backends instrument every query with an OTEL span (`neo4j.query`,
 `postgres.query`). Handlers that span multiple read stages use
 `startQueryHandlerSpan` (`handler_tracing.go:16`) with a stable span name from
 `telemetry.SpanQuery*` constants to attach route and capability attributes.
+Code topic investigation wraps the handler in
+`telemetry.SpanQueryCodeTopicInvestigation`; the content read emits a
+`postgres.query` span with `db.operation=investigate_code_topic`.
 Repository and service read paths additionally emit stage-start/stage-done log
 events via `repositoryQueryStageTimer` and `serviceQueryStageTimer`.
 
@@ -234,7 +237,7 @@ The response is written with `WriteSuccess` when the caller sends
 `Accept: application/eshu.envelope+json`; this wraps the payload in a
 `ResponseEnvelope` containing `data`, `truth` (`TruthEnvelope`), and `error`
 fields. Without that header, `WriteJSON` emits the legacy payload directly.
-`BuildTruthEnvelope` (`contract.go:445`) constructs the `TruthEnvelope`; it
+`BuildTruthEnvelope` (`contract.go:457`) constructs the `TruthEnvelope`; it
 panics if the capability string is not in `capabilityMatrix`.
 Repository runtime artifacts parse Dockerfile stage metadata through
 `buildDockerfileRuntimeArtifacts`, including base image, base tag, build
@@ -252,6 +255,11 @@ image (`impact_trace_deployment_oci.go:103`).
 Content-backed Argo CD relationship fallback reads `source_repos` for
 multi-source Applications and emits one `DEPLOYS_FROM` relationship per source
 repo while still accepting the older singular `source_repo` metadata field.
+Code topic investigation is the coverage-first path for broad behavior prompts
+such as repo sync authentication or workspace locking. It scores
+`content_entities` and `content_files` in one bounded query, returns ranked
+`repo_id + relative_path` evidence, matched symbols, coverage/truncation, and
+follow-up handles for `get_file_lines` and `get_code_relationship_story`.
 The OpenAPI fragment for `POST /api/v0/code/dead-code` names modeled language
 roots such as Go public-package exports plus C, C#, Dart, Haskell, Kotlin,
 Elixir, PHP, and Groovy parser-backed roots. Its language filter examples include
@@ -316,7 +324,7 @@ Elixir, PHP, and Groovy parser-backed roots. Its language filter examples includ
   helpers (`handler.go`)
 - `AuthMiddleware` — bearer-token middleware used by `cmd/api` (`auth.go:30`)
 - `BuildTruthEnvelope` — builds a `TruthEnvelope` from profile, capability, and
-  basis; panics on unknown capability (`contract.go:445`)
+  basis; panics on unknown capability (`contract.go:457`)
 - `ParseQueryProfile`, `NormalizeQueryProfile`, `ParseGraphBackend` — input
   validation helpers (`contract.go`)
 
@@ -350,7 +358,8 @@ See `doc.go` for the full godoc contract.
   Postgres drivers directly — they go through query package adapters and ports
 - `internal/telemetry` — `EventAttr`, `DefaultServiceNamespace`, span constants
   `SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
-  `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`
+  `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`,
+  `SpanQueryCodeTopicInvestigation`
 
 Handlers depend on the `GraphQuery` and `ContentStore` ports, not on
 `neo4jdriver.DriverWithContext` or `*sql.DB` directly. `Neo4jReader` and
@@ -367,7 +376,9 @@ wired in `cmd/api/wiring.go`, not here.
   (`query.documentation_evidence_packet`), and
   `telemetry.SpanQueryDocumentationPacketFreshness`
   (`query.documentation_packet_freshness`) on documentation truth evidence
-  routes (`documentation.go`); `telemetry.SpanQueryDeadIaC` (`query.dead_iac`)
+  routes (`documentation.go`); `telemetry.SpanQueryCodeTopicInvestigation`
+  (`query.code_topic_investigation`) on broad code-topic investigation
+  (`code_topic.go`); `telemetry.SpanQueryDeadIaC` (`query.dead_iac`)
   on IaC dead-code queries (`iac.go`); `telemetry.SpanQueryIaCUnmanagedResources`
   (`query.iac_unmanaged_resources`) on AWS management finding queries
   (`iac_management.go`); `telemetry.SpanQueryInfraResourceSearch`
@@ -398,7 +409,7 @@ wired in `cmd/api/wiring.go`, not here.
   `truth.profiles.required` in the response envelope for the minimum profile,
   then verify the ESHU_QUERY_PROFILE env var in the running API.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
-  a capability string not in `capabilityMatrix` (`contract.go:445`). Add missing
+  a capability string not in `capabilityMatrix` (`contract.go:457`). Add missing
   capability IDs to `capabilityMatrix` before shipping new handlers.
 - `code_quality.dead_code` is a derived query unless the language maturity row
   says otherwise. Handler changes must preserve `classification`,
@@ -462,7 +473,7 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 ## Gotchas / invariants
 
 - `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
-  (`contract.go:445`). All capability strings used in handlers must be registered
+  (`contract.go:457`). All capability strings used in handlers must be registered
   in that map before the handler can be called safely.
 - The unexported `capabilityUnsupported` returns true when `maxTruthLevel` returns
   `nil` for the current profile; a nil max-truth means the capability is
@@ -486,15 +497,3 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 - The OpenAPI spec is assembled from string fragments in Go source, not from
   runtime reflection. When a handler changes its request or response shape,
   update the matching `openapi_paths_*.go` fragment in the same PR.
-
-## Related docs
-
-- `docs/docs/reference/http-api.md` — canonical HTTP API contract; must stay in
-  lockstep with handler behavior and OpenAPI fragments
-- `docs/docs/architecture.md` — capability ports section and API service boundary
-- `docs/docs/adrs/2026-04-18-query-time-service-enrichment-gap.md` — service
-  enrichment patterns
-- `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md` — backend
-  selection and `ParseGraphBackend` defaults
-- `specs/capability-matrix.v1.yaml` — machine-readable capability matrix that
-  `capabilityMatrix` (contract.go) must match
