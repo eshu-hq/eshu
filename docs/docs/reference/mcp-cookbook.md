@@ -10,9 +10,29 @@ If you want shorter, role-based prompts before you drop into tool names and JSON
 - [Call graph analysis](#call-graph-analysis)
 - [Code quality](#code-quality)
 - [Class hierarchy](#class-hierarchy)
+- [Service dossier](#service-dossier)
 - [Repository management](#repository-management)
 - [Advanced Cypher queries](#advanced-cypher-queries)
 - [Security analysis](#security-analysis)
+
+---
+
+## Service Dossier
+
+### Explain a service in one call
+
+> "Tell me what `payments-api` is, how it is deployed, what it depends on, and who consumes it."
+
+**Tool:** `get_service_story`
+
+```json
+{ "workload_id": "payments-api" }
+```
+
+Read `service_identity`, `api_surface`, `deployment_lanes`,
+`upstream_dependencies`, `downstream_consumers`, and `evidence_graph` first.
+Only call `get_relationship_evidence` or content tools when the answer needs
+the exact source behind a `resolved_id` or file handle.
 
 ---
 

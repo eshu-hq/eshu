@@ -82,6 +82,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:237`):
 | `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
+| `get_service_story` | GET | `/api/v0/services/{service_name}/story` |
 | `get_file_content` | POST | `/api/v0/content/files/read` |
 | `list_ingesters` | GET | `/api/v0/status/ingesters` |
 
@@ -94,7 +95,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:237`):
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 43 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 44 tool definitions |
 
 ## SSE session model
 

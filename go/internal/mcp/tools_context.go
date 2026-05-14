@@ -118,7 +118,7 @@ func contextTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_service_story",
-			Description: "Alias for workload story that accepts service workload identifiers or plain service names.",
+			Description: "Get the one-call service dossier for a service: identity, API surface, deployment lanes, dependencies, consumers, and evidence graph.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

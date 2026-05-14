@@ -481,33 +481,3 @@ func (h *EntityHandler) getServiceContext(w http.ResponseWriter, r *http.Request
 
 	WriteSuccess(w, r, http.StatusOK, ctx, BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisHybrid, "resolved from service context and platform evidence"))
 }
-
-// getServiceStory retrieves a narrative summary for a service.
-func (h *EntityHandler) getServiceStory(w http.ResponseWriter, r *http.Request) {
-	serviceName := PathParam(r, "service_name")
-	if serviceName == "" {
-		WriteError(w, http.StatusBadRequest, "service_name is required")
-		return
-	}
-
-	ctx, err := h.fetchServiceWorkloadContext(r.Context(), serviceName, "service_story")
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
-		return
-	}
-
-	if ctx == nil {
-		WriteError(w, http.StatusNotFound, "service not found")
-		return
-	}
-	if err := enrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, serviceQueryEnrichmentOptions{
-		IncludeRelatedModuleUsage: true,
-		Logger:                    h.Logger,
-		Operation:                 "service_story",
-	}); err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich service story: %v", err))
-		return
-	}
-
-	WriteJSON(w, http.StatusOK, buildServiceStoryResponse(serviceName, ctx))
-}

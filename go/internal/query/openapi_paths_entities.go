@@ -171,7 +171,7 @@ const openAPIPathsEntities = `
       "get": {
         "tags": ["entities"],
         "summary": "Get service story",
-        "description": "Returns a narrative summary for the service.",
+        "description": "Returns the one-call service dossier for the service.",
         "operationId": "getServiceStory",
         "parameters": [
           {"$ref": "#/components/parameters/ServiceName"}
@@ -187,12 +187,18 @@ const openAPIPathsEntities = `
                     "service_name": {"type": "string"},
                     "story": {"type": "string"},
                     "story_sections": {"type": "array", "items": {"type": "object"}},
+                    "service_identity": {"type": "object"},
+                    "api_surface": {"type": "object"},
+                    "deployment_lanes": {"type": "array", "items": {"type": "object"}},
+                    "upstream_dependencies": {"type": "array", "items": {"type": "object"}},
+                    "downstream_consumers": {"type": "object"},
+                    "evidence_graph": {"type": "object"},
+                    "result_limits": {"type": "object"},
                     "deployment_overview": {"type": "object"},
                     "hostnames": {"type": "array", "items": {"type": "object"}},
                     "entrypoints": {"type": "array", "items": {"type": "object"}},
                     "network_paths": {"type": "array", "items": {"type": "object"}},
                     "observed_config_environments": {"type": "array", "items": {"type": "string"}},
-                    "api_surface": {"type": "object"},
                     "dependents": {"type": "array", "items": {"type": "object"}},
                     "consumer_repositories": {"type": "array", "items": {"type": "object"}},
                     "provisioning_source_chains": {"type": "array", "items": {"type": "object"}},

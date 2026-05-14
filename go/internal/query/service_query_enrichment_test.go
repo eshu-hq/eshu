@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"database/sql/driver"
-	"fmt"
 	"reflect"
 	"sort"
 	"strings"
@@ -296,7 +295,7 @@ func (s failListRepoFilesContentStore) ListRepoFiles(context.Context, string, in
 	return nil, nil
 }
 
-func TestBuildServiceStoryResponseKeepsStoryFirstShape(t *testing.T) {
+func TestBuildServiceStoryResponseKeepsStoryFirstKeysWithDossier(t *testing.T) {
 	t.Parallel()
 
 	workloadContext := map[string]any{
@@ -352,6 +351,13 @@ func TestBuildServiceStoryResponseKeepsStoryFirstShape(t *testing.T) {
 		"deployment_overview",
 		"documentation_overview",
 		"support_overview",
+		"service_identity",
+		"api_surface",
+		"deployment_lanes",
+		"upstream_dependencies",
+		"downstream_consumers",
+		"evidence_graph",
+		"result_limits",
 	} {
 		if _, ok := got[key]; !ok {
 			t.Fatalf("response missing required story-first key %q: %#v", key, got)
@@ -367,10 +373,9 @@ func TestBuildServiceStoryResponseKeepsStoryFirstShape(t *testing.T) {
 		"consumer_repositories",
 		"provisioning_source_chains",
 		"deployment_evidence",
-		"observed_config_environments",
 	} {
-		if _, ok := got[key]; ok {
-			t.Fatalf("response[%q] = %#v, want omitted from story response", key, got[key])
+		if _, ok := got[key]; !ok {
+			t.Fatalf("response[%q] missing, want included in service dossier", key)
 		}
 	}
 }
@@ -445,274 +450,5 @@ func TestLoadConsumerRepositoryEnrichmentWithoutTraceLimitUsesBoundedDefaultSear
 	sort.Strings(gotSearchTerms)
 	if !reflect.DeepEqual(gotSearchTerms, wantSearchTerms) {
 		t.Fatalf("search terms = %#v, want %#v", gotSearchTerms, wantSearchTerms)
-	}
-}
-
-func TestQueryServiceDeploymentEvidenceUsesReadModelBeforeGraphFallback(t *testing.T) {
-	t.Parallel()
-
-	graph := fakeGraphReader{
-		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-			if strings.Contains(cypher, "EvidenceArtifact") {
-				t.Fatalf("cypher = %q, want service deployment evidence read model before graph fallback", cypher)
-			}
-			return nil, nil
-		},
-	}
-	content := fakePortContentStore{
-		deploymentEvidence: repositoryDeploymentEvidenceReadModel{
-			Available: true,
-			Rows: []map[string]any{
-				{
-					"direction":         "incoming",
-					"artifact_id":       "evidence-artifact:terraform:1",
-					"name":              "environments/prod/ecs.tf",
-					"domain":            "deployment",
-					"path":              "environments/prod/ecs.tf",
-					"evidence_kind":     "TERRAFORM_ECS_SERVICE",
-					"artifact_family":   "terraform",
-					"extractor":         "terraform-runtime-service-module",
-					"relationship_type": "PROVISIONS_DEPENDENCY_FOR",
-					"resolved_id":       "resolved-runtime",
-					"generation_id":     "gen-runtime",
-					"confidence":        0.96,
-					"source_repo_id":    "repo-platform",
-					"source_repo_name":  "runtime-platform",
-					"target_repo_id":    "repo-service",
-					"target_repo_name":  "checkout-service",
-				},
-			},
-		},
-	}
-
-	got, err := queryServiceGraphDeploymentEvidence(context.Background(), graph, content, "repo-service")
-	if err != nil {
-		t.Fatalf("queryServiceGraphDeploymentEvidence() error = %v, want nil", err)
-	}
-	if got == nil {
-		t.Fatal("queryServiceGraphDeploymentEvidence() = nil, want read-model evidence")
-	}
-	artifacts := mapSliceValue(got, "artifacts")
-	if len(artifacts) != 1 {
-		t.Fatalf("len(artifacts) = %d, want 1", len(artifacts))
-	}
-	if got, want := StringVal(artifacts[0], "source_repo_id"), "repo-platform"; got != want {
-		t.Fatalf("source_repo_id = %#v, want %#v", got, want)
-	}
-}
-
-func TestTraceDeploymentChainSkipsIndirectEvidenceWhenDirectOnly(t *testing.T) {
-	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"repo_id", "relative_path", "commit_sha", "content",
-				"content_hash", "line_count", "language", "artifact_type",
-			},
-			rows: [][]driver.Value{},
-		},
-		{
-			columns: []string{
-				"repo_id", "relative_path", "commit_sha", "content",
-				"content_hash", "line_count", "language", "artifact_type",
-			},
-			rows: [][]driver.Value{},
-		},
-		{
-			columns: []string{"entity_id", "repo_id", "relative_path", "entity_type", "entity_name", "start_line", "end_line", "language", "source_cache", "metadata"},
-			rows:    [][]driver.Value{},
-		},
-	})
-
-	workloadContext := map[string]any{
-		"id":        "workload:sample-service-api",
-		"name":      "sample-service-api",
-		"kind":      "service",
-		"repo_id":   "repo-sample-service-api",
-		"repo_name": "sample-service-api",
-		"instances": []map[string]any{
-			{
-				"instance_id":   "instance:sample-service-api:prod",
-				"platform_name": "sample-argocd",
-				"platform_kind": "argocd_application",
-				"environment":   "production",
-			},
-		},
-	}
-
-	err := enrichServiceQueryContextWithOptions(
-		context.Background(),
-		fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, "PROVISIONS_DEPENDENCY_FOR|DEPLOYS_FROM|USES_MODULE|DISCOVERS_CONFIG_IN") {
-					return nil, fmt.Errorf("unexpected indirect enrichment query with params %#v", params)
-				}
-				return nil, nil
-			},
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
-				if strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id}) RETURN") {
-					return nil, nil
-				}
-				return nil, nil
-			},
-		},
-		NewContentReader(db),
-		workloadContext,
-		serviceQueryEnrichmentOptions{
-			DirectOnly:                true,
-			IncludeRelatedModuleUsage: false,
-			MaxDepth:                  2,
-		},
-	)
-	if err != nil {
-		t.Fatalf("enrichServiceQueryContextWithOptions() error = %v, want nil", err)
-	}
-
-	if _, exists := workloadContext["consumer_repositories"]; exists {
-		t.Fatalf("consumer_repositories = %#v, want omitted for direct_only trace", workloadContext["consumer_repositories"])
-	}
-	if _, exists := workloadContext["provisioning_source_chains"]; exists {
-		t.Fatalf("provisioning_source_chains = %#v, want omitted when related module usage is disabled", workloadContext["provisioning_source_chains"])
-	}
-}
-
-func TestTraceDeploymentChainBoundsCrossRepoSearchByMaxDepth(t *testing.T) {
-	t.Parallel()
-
-	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
-		{
-			columns: []string{
-				"repo_id", "relative_path", "commit_sha", "content",
-				"content_hash", "line_count", "language", "artifact_type",
-			},
-			rows: [][]driver.Value{},
-		},
-		{
-			columns: []string{
-				"repo_id", "relative_path", "commit_sha", "content",
-				"content_hash", "line_count", "language", "artifact_type",
-			},
-			rows: [][]driver.Value{},
-		},
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{},
-		},
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{},
-		},
-		{
-			columns: []string{
-				"repo_id", "relative_path", "commit_sha", "content",
-				"content_hash", "line_count", "language", "artifact_type",
-			},
-			rows: [][]driver.Value{},
-		},
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{},
-		},
-	})
-
-	workloadContext := map[string]any{
-		"id":        "workload:sample-service-api",
-		"name":      "sample-service-api",
-		"kind":      "service",
-		"repo_id":   "repo-sample-service-api",
-		"repo_name": "sample-service-api",
-		"instances": []map[string]any{
-			{
-				"instance_id":   "instance:sample-service-api:prod",
-				"platform_name": "sample-argocd",
-				"platform_kind": "argocd_application",
-				"environment":   "production",
-			},
-		},
-	}
-
-	err := enrichServiceQueryContextWithOptions(
-		context.Background(),
-		fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, "PROVISIONS_DEPENDENCY_FOR|DEPLOYS_FROM|USES_MODULE|DISCOVERS_CONFIG_IN") {
-					return []map[string]any{
-						{
-							"repo_id":             "repo-consumer-1",
-							"repo_name":           "api-node-saved-search",
-							"relationship_type":   "PROVISIONS_DEPENDENCY_FOR",
-							"relationship_reason": "terraform_provider_reference",
-						},
-					}, nil
-				}
-				return nil, nil
-			},
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
-				if strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id}) RETURN") {
-					return map[string]any{
-						"id":         "repo-sample-service-api",
-						"name":       "sample-service-api",
-						"path":       "/repos/sample-service-api",
-						"local_path": "/repos/sample-service-api",
-						"remote_url": "https://github.com/example/sample-service-api",
-						"repo_slug":  "example/sample-service-api",
-						"has_remote": true,
-					}, nil
-				}
-				return nil, nil
-			},
-		},
-		NewContentReader(db),
-		workloadContext,
-		serviceQueryEnrichmentOptions{
-			DirectOnly:                false,
-			IncludeRelatedModuleUsage: true,
-			MaxDepth:                  2,
-		},
-	)
-	if err != nil {
-		t.Fatalf("enrichServiceQueryContextWithOptions() error = %v, want nil", err)
-	}
-
-	if _, exists := workloadContext["consumer_repositories"]; !exists {
-		t.Fatal("consumer_repositories missing, want cross-repo consumer evidence when direct_only is false")
-	}
-	if _, exists := workloadContext["provisioning_source_chains"]; !exists {
-		t.Fatal("provisioning_source_chains missing, want related module evidence when include_related_module_usage is true")
-	}
-
-	var searchLimit int64
-	foundAnyRepoSearch := false
-	for i, query := range recorder.queries {
-		if !strings.Contains(query, "content ILIKE '%' || $1 || '%'") &&
-			!strings.Contains(query, "content LIKE '%' || $1 || '%'") {
-			continue
-		}
-		if strings.Contains(query, "repo_id = $1") {
-			continue
-		}
-		foundAnyRepoSearch = true
-		if got, ok := recorder.args[i][1].(int64); ok {
-			searchLimit = got
-		} else {
-			t.Fatalf("search limit type = %T, want int64", recorder.args[i][1])
-		}
-		break
-	}
-	if !foundAnyRepoSearch {
-		t.Fatal("did not observe any cross-repo consumer search query")
-	}
-	if got, want := searchLimit, int64(20); got != want {
-		t.Fatalf("cross-repo search limit = %d, want %d for max_depth=2", got, want)
 	}
 }

@@ -360,9 +360,12 @@ relationship evidence proves them.
 Use the story routes when the caller wants a structured narrative first and
 evidence second.
 
-Repository story responses now expose a structured narrative contract. Workload
-and service story responses stay narrative-first today. Use the deployment
-trace route when you need the richer deployment-mapping contract.
+Repository story responses expose a structured narrative contract. Service
+story responses expose the one-call service dossier contract so MCP harnesses
+and Console do not have to compose context, trace, relationship, and content
+tools for the normal service explainer path. Workload story responses remain
+narrative-first; use the deployment trace route when you need the richer
+deployment-mapping contract for generic workload questions.
 
 Repository story responses are shaped around:
 
@@ -393,11 +396,26 @@ also:
 - embed semantic coverage text into the top-level `story`
 - expose aggregated semantic counts in `semantic_overview`
 
-Workload and service story responses are still shaped around:
+Workload story responses are still shaped around:
 
 - `subject`
 - `story`
 - optional lightweight identifiers such as `subject`
+
+Service story responses are shaped around:
+
+- `service_identity`
+- `story`
+- `story_sections`
+- `api_surface`
+- `deployment_lanes`
+- `upstream_dependencies`
+- `downstream_consumers`
+- `evidence_graph`
+- `deployment_overview`
+- `documentation_overview`
+- `support_overview`
+- `result_limits`
 
 Deployment-oriented trace responses are shaped around:
 
@@ -495,8 +513,9 @@ For documentation generation, use this HTTP flow:
 
 1. call a story route first
 2. if it is a repository story, read `story_sections`, `deployment_overview`, `gitops_overview`, `documentation_overview`, `support_overview`, `coverage_summary`, and `limitations`
-3. if it is a workload or service story, pair it with `trace_deployment_chain` before you expect deployment overviews
-4. only then call content routes for exact file or snippet evidence
+3. if it is a service story, read the dossier fields directly and only call `trace_deployment_chain` for deeper deployment debugging
+4. if it is a workload story, pair it with `trace_deployment_chain` before you expect deployment overviews
+5. only then call content routes for exact file or snippet evidence
 
 For cross-repo documentation or support flows, phrase the caller intent the same
 way you would through MCP: tell Eshu to scan all related repositories,

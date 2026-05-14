@@ -278,8 +278,8 @@ Elixir, PHP, and Groovy parser-backed roots. Its language filter examples includ
 - `APIRouter` — top-level mux; call `Mount` to register all routes
   (`handler.go:110`)
 - `RepositoryHandler` — `GET /api/v0/repositories*` routes (`repository.go:21`)
-- `EntityHandler` — entity resolution and workload/service context routes
-  (`entity.go:11`)
+- `EntityHandler` — entity resolution, workload/service context routes, and
+  service dossier stories (`entity.go:11`, `service_story_handler.go:9`)
 - `CodeHandler` — code search, relationships, dead-code, complexity, call-chain
   (`code.go:11`)
 - `ContentHandler` — file and entity content reads (`content_handler.go:11`)

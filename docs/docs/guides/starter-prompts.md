@@ -180,8 +180,8 @@ Best additions:
 - Use exact names when you have them. Exact repo, workload, and resource names usually produce better results than broad descriptions.
 - Ask for evidence when you want proof. Prompts like "show the repos, manifests, and resources involved" steer the answer toward traceable output.
 - When the answer spans code, deployment, and runtime, explicitly ask Eshu to scan all related repositories first.
-- For documentation prompts, let Eshu tell the story first and ask for exact files second. That keeps the answer concise and portable.
-- Follow up in layers. Start with "trace the deployment chain," then ask "what repos define those resources?" and then "what breaks if I change this?"
+- For service documentation prompts, start with the service story. It now returns the dossier fields needed for the normal answer and leaves exact file reads as citations.
+- Follow up in layers only when you need drill-down proof. Start with "show the service dossier," then ask "why does this edge exist?" or "show the exact file behind this handle."
 
 ## Good Follow-Ups
 
