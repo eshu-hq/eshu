@@ -15,6 +15,20 @@ docker compose up --build
 The default stack uses NornicDB for graph storage and Postgres for relational
 state, facts, queues, status, content, and recovery data.
 
+The NornicDB service defaults to a pinned multi-arch Docker manifest:
+`timothyswt/nornicdb-cpu-bge@sha256:2e57f5af86ccea2ff67cfc479239c2266149bab909b175fb6a33c4b4c7ec85d7`.
+Leave `NORNICDB_PLATFORM` unset for normal local runs. Docker will select the
+`linux/arm64` image on Apple Silicon and the `linux/amd64` image on x86 hosts.
+
+When testing a local NornicDB main build, override the image and platform
+together:
+
+```bash
+NORNICDB_IMAGE=nornicdb-main-eshu:cb20824-arm64 \
+NORNICDB_PLATFORM=linux/arm64 \
+docker compose up --build bootstrap-index
+```
+
 It starts:
 
 - NornicDB
