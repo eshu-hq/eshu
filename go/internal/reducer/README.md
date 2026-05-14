@@ -143,8 +143,15 @@ such as `callback.call(...)` let `new Type()`, `value.method()`, type-only
 imports, callback returns, and function receiver dispatch resolve when parser
 evidence proves the local target. Static object registries are resolved only
 inside the containing function source, including destructured aliases and
-literal bracket keys; runtime-computed keys do not create edges. For package
-entrypoint, package bin, package
+literal bracket keys; runtime-computed keys do not create edges. `JavaScript`
+static alias metadata is cached on the code entity index
+(`code_call_materialization_index.go:45`) and reused during dynamic call
+resolution (`code_call_materialization_dynamic_javascript.go:41`), so
+generated bundles with thousands of call sites do not re-parse the same
+containing function source for every call.
+
+For package entrypoint, package bin,
+package
 export, and top-level JavaScript reference files, the repository scoped
 `File.uid` may be the caller so executable module bodies can make `main()`,
 constructor, member, function-value, and type-reference edges reachable without

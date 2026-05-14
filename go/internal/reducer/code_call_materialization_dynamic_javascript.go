@@ -1,6 +1,7 @@
 package reducer
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -14,6 +15,11 @@ var (
 	javaScriptStringMemberRe    = regexp.MustCompile(`\[\s*["']([^"']+)["']\s*\]`)
 	javaScriptVariableMemberRe  = regexp.MustCompile(`\[\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*\]`)
 )
+
+type javaScriptStaticAliasSet struct {
+	aliases       map[string]string
+	staticStrings map[string]string
+}
 
 // resolveDynamicJavaScriptCalleeEntityID handles static JavaScript patterns
 // that look dynamic in call metadata but have a literal same-file target.
@@ -31,18 +37,27 @@ func resolveDynamicJavaScriptCalleeEntityID(
 	if callLine <= 0 {
 		return ""
 	}
-	source := javaScriptContainingFunctionSource(fileData, callLine)
-	if strings.TrimSpace(source) == "" {
-		return ""
-	}
 
-	aliases, staticStrings := javaScriptStaticAliases(source)
-	for _, candidate := range javaScriptDynamicCallCandidates(call, staticStrings) {
+	// JavaScript alias metadata should normally come from the index; the
+	// fallback preserves direct helper tests that bypass index construction.
+	aliasSet, ok := javaScriptStaticAliasesForCall(index, rawPath, relativePath, callLine)
+	if !ok {
+		source := javaScriptContainingFunctionSource(fileData, callLine)
+		if strings.TrimSpace(source) == "" {
+			return ""
+		}
+		aliases, staticStrings := javaScriptStaticAliases(source)
+		aliasSet = javaScriptStaticAliasSet{
+			aliases:       aliases,
+			staticStrings: staticStrings,
+		}
+	}
+	for _, candidate := range javaScriptDynamicCallCandidates(call, aliasSet.staticStrings) {
 		if strings.ContainsAny(candidate, "[]") {
 			continue
 		}
 		target := candidate
-		if aliasTarget := aliases[candidate]; aliasTarget != "" {
+		if aliasTarget := aliasSet.aliases[candidate]; aliasTarget != "" {
 			target = aliasTarget
 		}
 		if entityID := resolveSameFileJavaScriptDynamicTarget(index, rawPath, relativePath, target); entityID != "" {
@@ -50,6 +65,50 @@ func resolveDynamicJavaScriptCalleeEntityID(
 		}
 	}
 	return ""
+}
+
+func codeCallJavaScriptSourceFile(fileData map[string]any, rawPath string, relativePath string) bool {
+	language := anyToString(fileData["language"])
+	if language == "" {
+		language = anyToString(fileData["lang"])
+	}
+	if codeCallJavaScriptFamily(language) {
+		return true
+	}
+	switch strings.ToLower(filepath.Ext(codeCallPreferredPath(rawPath, relativePath))) {
+	case ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts":
+		return true
+	default:
+		return false
+	}
+}
+
+func cacheJavaScriptStaticAliases(index codeEntityIndex, entityID string, source string) {
+	if entityID == "" || strings.TrimSpace(source) == "" {
+		return
+	}
+	aliases, staticStrings := javaScriptStaticAliases(source)
+	if len(aliases) == 0 && len(staticStrings) == 0 {
+		return
+	}
+	index.javaScriptAliasesByEntityID[entityID] = javaScriptStaticAliasSet{
+		aliases:       aliases,
+		staticStrings: staticStrings,
+	}
+}
+
+func javaScriptStaticAliasesForCall(
+	index codeEntityIndex,
+	rawPath string,
+	relativePath string,
+	line int,
+) (javaScriptStaticAliasSet, bool) {
+	span, ok := resolveContainingCodeFunctionSpan(index, rawPath, relativePath, line)
+	if !ok {
+		return javaScriptStaticAliasSet{}, false
+	}
+	aliasSet, ok := index.javaScriptAliasesByEntityID[span.entityID]
+	return aliasSet, ok
 }
 
 func javaScriptContainingFunctionSource(fileData map[string]any, line int) string {
