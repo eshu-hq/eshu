@@ -57,6 +57,8 @@ See `doc.go` for the godoc contract.
 - `ServiceAPIGateway` - API Gateway service-kind value for regional REST,
   HTTP, WebSocket, stage, custom-domain, mapping, and integration metadata
   scans.
+- `ServiceSecretsManager` - Secrets Manager service-kind value for regional
+  secret metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -166,6 +168,11 @@ request.
   outside the AWS collector fact contract. API identities, stages, custom
   domains, mappings, access-log destinations, ACM certificate dependencies, and
   ARN-addressable integration targets are reported evidence only.
+- Secrets Manager facts are metadata only. Secret values, version payloads,
+  resource policy JSON, external rotation partner metadata, external rotation
+  role ARNs, and mutations stay outside the AWS collector fact contract. Secret
+  metadata, tags, KMS key dependencies, and rotation Lambda dependencies are
+  reported evidence only.
 
 ## Related docs
 

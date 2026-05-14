@@ -67,6 +67,10 @@
   reads, distribution config payload persistence, policy-document persistence,
   certificate body reads, private-key handling, origin custom header value
   persistence, or mutation APIs through the runtime registry.
+- Keep Secrets Manager scans metadata-only. Do not wire secret value reads,
+  version payload reads, resource-policy persistence, external rotation partner
+  metadata persistence, external rotation role ARN persistence, or mutation APIs
+  through the runtime registry.
 
 ## Common Changes
 

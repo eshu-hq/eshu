@@ -37,6 +37,8 @@ import (
 	route53awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53/awssdk"
 	s3service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/s3"
 	s3awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/s3/awssdk"
+	secretsmanagerservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/secretsmanager"
+	secretsmanagerawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/secretsmanager/awssdk"
 	snsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sns"
 	snsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sns/awssdk"
 	sqsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sqs"
@@ -137,6 +139,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceAPIGateway:
 		return apigatewayservice.Scanner{
 			Client: apigatewayawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceSecretsManager:
+		return secretsmanagerservice.Scanner{
+			Client: secretsmanagerawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{

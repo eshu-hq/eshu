@@ -77,6 +77,7 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/lambda`,
   `internal/collector/awscloud/services/rds`,
   `internal/collector/awscloud/services/route53`,
+  `internal/collector/awscloud/services/secretsmanager`,
   `internal/collector/awscloud/services/sqs`,
   `internal/collector/awscloud/services/sns`, and
   `internal/collector/awscloud/services/s3` plus their `awssdk` adapters for
@@ -180,6 +181,10 @@ pagination spans. The command registers the instruments:
   API Gateway SDK adapter, but it must not broaden the service contract to API
   execution, export, API key, authorizer secret, policy JSON, integration
   credential, stage variable, template body, payload, or mutation APIs.
+- Secrets Manager scanners must stay metadata-only. The runtime registry wires
+  the Secrets Manager SDK adapter, but it must not broaden the service contract
+  to secret value reads, version payload reads, resource-policy persistence,
+  external rotation partner metadata persistence, or mutation APIs.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

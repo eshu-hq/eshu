@@ -71,6 +71,10 @@
   payloads, and mutations out of facts. API Gateway API, stage, domain, mapping,
   certificate, access-log destination, and ARN-addressable integration edges are
   reported metadata only.
+- Keep Secrets Manager secret values, version payloads, resource policy JSON,
+  external rotation partner metadata, external rotation role ARNs, and mutations
+  out of facts. Secret metadata, tags, KMS key dependencies, and rotation Lambda
+  dependencies are reported metadata only.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target
