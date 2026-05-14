@@ -86,7 +86,7 @@ func mapDefaultCacheBehavior(
 		CachePolicyID:           strings.TrimSpace(aws.ToString(behavior.CachePolicyId)),
 		OriginRequestPolicyID:   strings.TrimSpace(aws.ToString(behavior.OriginRequestPolicyId)),
 		ResponseHeadersPolicyID: strings.TrimSpace(aws.ToString(behavior.ResponseHeadersPolicyId)),
-		Compress:                aws.ToBool(behavior.Compress),
+		Compress:                cloneBool(behavior.Compress),
 	}
 }
 
@@ -107,7 +107,7 @@ func mapCacheBehaviors(
 			CachePolicyID:           strings.TrimSpace(aws.ToString(behavior.CachePolicyId)),
 			OriginRequestPolicyID:   strings.TrimSpace(aws.ToString(behavior.OriginRequestPolicyId)),
 			ResponseHeadersPolicyID: strings.TrimSpace(aws.ToString(behavior.ResponseHeadersPolicyId)),
-			Compress:                aws.ToBool(behavior.Compress),
+			Compress:                cloneBool(behavior.Compress),
 		})
 	}
 	return output
@@ -147,7 +147,7 @@ func mapViewerCertificate(
 	}
 	return cloudfrontservice.ViewerCertificate{
 		ACMCertificateARN:            strings.TrimSpace(aws.ToString(certificate.ACMCertificateArn)),
-		CloudFrontDefaultCertificate: aws.ToBool(certificate.CloudFrontDefaultCertificate),
+		CloudFrontDefaultCertificate: cloneBool(certificate.CloudFrontDefaultCertificate),
 		IAMCertificateID:             strings.TrimSpace(aws.ToString(certificate.IAMCertificateId)),
 		MinimumProtocolVersion:       string(certificate.MinimumProtocolVersion),
 		SSLSupportMethod:             string(certificate.SSLSupportMethod),
@@ -204,4 +204,12 @@ func cloneStrings(input []string) []string {
 		return nil
 	}
 	return output
+}
+
+func cloneBool(input *bool) *bool {
+	if input == nil {
+		return nil
+	}
+	value := *input
+	return &value
 }

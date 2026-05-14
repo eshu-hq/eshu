@@ -44,7 +44,7 @@ func TestScannerEmitsCloudFrontDistributionMetadataOnlyFactsAndRelationships(t *
 			CachePolicyID:           "cache-policy-1",
 			OriginRequestPolicyID:   "origin-request-policy-1",
 			ResponseHeadersPolicyID: "response-headers-policy-1",
-			Compress:                true,
+			Compress:                boolPtr(true),
 		},
 		CacheBehaviors: []CacheBehavior{{
 			PathPattern:             "/api/*",
@@ -55,11 +55,11 @@ func TestScannerEmitsCloudFrontDistributionMetadataOnlyFactsAndRelationships(t *
 			CachePolicyID:           "cache-policy-2",
 			OriginRequestPolicyID:   "origin-request-policy-2",
 			ResponseHeadersPolicyID: "response-headers-policy-2",
-			Compress:                false,
+			Compress:                boolPtr(false),
 		}},
 		ViewerCertificate: ViewerCertificate{
 			ACMCertificateARN:            certificateARN,
-			CloudFrontDefaultCertificate: false,
+			CloudFrontDefaultCertificate: boolPtr(false),
 			IAMCertificateID:             "iam-cert-1",
 			MinimumProtocolVersion:       "TLSv1.2_2021",
 			SSLSupportMethod:             "sni-only",
@@ -161,6 +161,10 @@ func TestScannerEmitsCloudFrontDistributionMetadataOnlyFactsAndRelationships(t *
 	}
 }
 
+func boolPtr(value bool) *bool {
+	return &value
+}
+
 func TestScannerDoesNotTreatClassicWAFIDAsARN(t *testing.T) {
 	client := fakeClient{distributions: []Distribution{{
 		ARN:      "arn:aws:cloudfront::123456789012:distribution/EDFDVBD632BHDS5",
@@ -179,6 +183,39 @@ func TestScannerDoesNotTreatClassicWAFIDAsARN(t *testing.T) {
 	if got := relationship.Payload["target_arn"]; got != "" {
 		t.Fatalf("target_arn = %#v, want empty for non-ARN WAF ID", got)
 	}
+}
+
+func TestScannerOmitsEmptyNestedCloudFrontSelectors(t *testing.T) {
+	client := fakeClient{distributions: []Distribution{{
+		ARN:      "arn:aws:cloudfront::123456789012:distribution/EDFDVBD632BHDS5",
+		ID:       "EDFDVBD632BHDS5",
+		Status:   "InProgress",
+		Origins:  []Origin{{ID: "origin-1"}},
+		Tags:     map[string]string{"Environment": "prod"},
+		Aliases:  nil,
+		WebACLID: "",
+		CacheBehaviors: []CacheBehavior{
+			{},
+			{PathPattern: "/api/*", TargetOriginID: "origin-1"},
+		},
+	}}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+
+	resource := resourceByType(t, envelopes, awscloud.ResourceTypeCloudFrontDistribution)
+	attributes := attributesOf(t, resource)
+	for _, absent := range []string{"default_cache_behavior", "viewer_certificate"} {
+		if got, exists := attributes[absent]; exists {
+			t.Fatalf("%s = %#v, want omitted for zero-value selector", absent, got)
+		}
+	}
+	assertAttribute(t, attributes, "cache_behaviors", []map[string]any{{
+		"path_pattern":     "/api/*",
+		"target_origin_id": "origin-1",
+	}})
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {

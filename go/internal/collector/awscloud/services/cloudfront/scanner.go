@@ -59,7 +59,7 @@ func distributionObservation(
 	distributionARN := strings.TrimSpace(distribution.ARN)
 	distributionID := distributionResourceID(distribution)
 	distributionName := firstNonEmpty(distribution.ID, distribution.DomainName, distributionARN)
-	return awscloud.ResourceObservation{
+	observation := awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          distributionARN,
 		ResourceID:   distributionID,
@@ -68,26 +68,33 @@ func distributionObservation(
 		State:        strings.TrimSpace(distribution.Status),
 		Tags:         cloneStringMap(distribution.Tags),
 		Attributes: map[string]any{
-			"id":                     strings.TrimSpace(distribution.ID),
-			"domain_name":            strings.TrimSpace(distribution.DomainName),
-			"status":                 strings.TrimSpace(distribution.Status),
-			"enabled":                distribution.Enabled,
-			"comment":                strings.TrimSpace(distribution.Comment),
-			"http_version":           strings.TrimSpace(distribution.HTTPVersion),
-			"ipv6_enabled":           distribution.IPV6Enabled,
-			"last_modified_time":     timeOrNil(distribution.LastModifiedTime),
-			"price_class":            strings.TrimSpace(distribution.PriceClass),
-			"staging":                distribution.Staging,
-			"aliases":                cloneStrings(distribution.Aliases),
-			"web_acl_id":             strings.TrimSpace(distribution.WebACLID),
-			"origins":                originAttributes(distribution.Origins),
-			"default_cache_behavior": cacheBehaviorAttributes(distribution.DefaultCacheBehavior, false),
-			"cache_behaviors":        cacheBehaviorsAttributes(distribution.CacheBehaviors),
-			"viewer_certificate":     viewerCertificateAttributes(distribution.ViewerCertificate),
+			"id":                 strings.TrimSpace(distribution.ID),
+			"domain_name":        strings.TrimSpace(distribution.DomainName),
+			"status":             strings.TrimSpace(distribution.Status),
+			"enabled":            distribution.Enabled,
+			"comment":            strings.TrimSpace(distribution.Comment),
+			"http_version":       strings.TrimSpace(distribution.HTTPVersion),
+			"ipv6_enabled":       distribution.IPV6Enabled,
+			"last_modified_time": timeOrNil(distribution.LastModifiedTime),
+			"price_class":        strings.TrimSpace(distribution.PriceClass),
+			"staging":            distribution.Staging,
+			"aliases":            cloneStrings(distribution.Aliases),
+			"web_acl_id":         strings.TrimSpace(distribution.WebACLID),
+			"origins":            originAttributes(distribution.Origins),
 		},
 		CorrelationAnchors: []string{distributionARN, distribution.ID, distribution.DomainName},
 		SourceRecordID:     distributionID,
 	}
+	if attributes := cacheBehaviorAttributes(distribution.DefaultCacheBehavior, false); attributes != nil {
+		observation.Attributes["default_cache_behavior"] = attributes
+	}
+	if attributes := cacheBehaviorsAttributes(distribution.CacheBehaviors); attributes != nil {
+		observation.Attributes["cache_behaviors"] = attributes
+	}
+	if attributes := viewerCertificateAttributes(distribution.ViewerCertificate); attributes != nil {
+		observation.Attributes["viewer_certificate"] = attributes
+	}
+	return observation
 }
 
 func distributionResourceID(distribution Distribution) string {
@@ -117,34 +124,94 @@ func cacheBehaviorsAttributes(behaviors []CacheBehavior) []map[string]any {
 	}
 	output := make([]map[string]any, 0, len(behaviors))
 	for _, behavior := range behaviors {
-		output = append(output, cacheBehaviorAttributes(behavior, true))
+		if attributes := cacheBehaviorAttributes(behavior, true); attributes != nil {
+			output = append(output, attributes)
+		}
+	}
+	if len(output) == 0 {
+		return nil
 	}
 	return output
 }
 
 func cacheBehaviorAttributes(behavior CacheBehavior, includePathPattern bool) map[string]any {
-	attributes := map[string]any{
-		"target_origin_id":           strings.TrimSpace(behavior.TargetOriginID),
-		"viewer_protocol_policy":     strings.TrimSpace(behavior.ViewerProtocolPolicy),
-		"allowed_methods":            cloneStrings(behavior.AllowedMethods),
-		"cached_methods":             cloneStrings(behavior.CachedMethods),
-		"cache_policy_id":            strings.TrimSpace(behavior.CachePolicyID),
-		"origin_request_policy_id":   strings.TrimSpace(behavior.OriginRequestPolicyID),
-		"response_headers_policy_id": strings.TrimSpace(behavior.ResponseHeadersPolicyID),
-		"compress":                   behavior.Compress,
+	if !hasCacheBehaviorData(behavior, includePathPattern) {
+		return nil
+	}
+	attributes := map[string]any{}
+	if value := strings.TrimSpace(behavior.TargetOriginID); value != "" {
+		attributes["target_origin_id"] = value
+	}
+	if value := strings.TrimSpace(behavior.ViewerProtocolPolicy); value != "" {
+		attributes["viewer_protocol_policy"] = value
+	}
+	if values := cloneStrings(behavior.AllowedMethods); values != nil {
+		attributes["allowed_methods"] = values
+	}
+	if values := cloneStrings(behavior.CachedMethods); values != nil {
+		attributes["cached_methods"] = values
+	}
+	if value := strings.TrimSpace(behavior.CachePolicyID); value != "" {
+		attributes["cache_policy_id"] = value
+	}
+	if value := strings.TrimSpace(behavior.OriginRequestPolicyID); value != "" {
+		attributes["origin_request_policy_id"] = value
+	}
+	if value := strings.TrimSpace(behavior.ResponseHeadersPolicyID); value != "" {
+		attributes["response_headers_policy_id"] = value
+	}
+	if behavior.Compress != nil {
+		attributes["compress"] = *behavior.Compress
 	}
 	if includePathPattern {
-		attributes["path_pattern"] = strings.TrimSpace(behavior.PathPattern)
+		if value := strings.TrimSpace(behavior.PathPattern); value != "" {
+			attributes["path_pattern"] = value
+		}
 	}
 	return attributes
 }
 
-func viewerCertificateAttributes(certificate ViewerCertificate) map[string]any {
-	return map[string]any{
-		"acm_certificate_arn":            strings.TrimSpace(certificate.ACMCertificateARN),
-		"cloudfront_default_certificate": certificate.CloudFrontDefaultCertificate,
-		"iam_certificate_id":             strings.TrimSpace(certificate.IAMCertificateID),
-		"minimum_protocol_version":       strings.TrimSpace(certificate.MinimumProtocolVersion),
-		"ssl_support_method":             strings.TrimSpace(certificate.SSLSupportMethod),
+func hasCacheBehaviorData(behavior CacheBehavior, includePathPattern bool) bool {
+	if includePathPattern && strings.TrimSpace(behavior.PathPattern) != "" {
+		return true
 	}
+	return strings.TrimSpace(behavior.TargetOriginID) != "" ||
+		strings.TrimSpace(behavior.ViewerProtocolPolicy) != "" ||
+		len(behavior.AllowedMethods) > 0 ||
+		len(behavior.CachedMethods) > 0 ||
+		strings.TrimSpace(behavior.CachePolicyID) != "" ||
+		strings.TrimSpace(behavior.OriginRequestPolicyID) != "" ||
+		strings.TrimSpace(behavior.ResponseHeadersPolicyID) != "" ||
+		behavior.Compress != nil
+}
+
+func viewerCertificateAttributes(certificate ViewerCertificate) map[string]any {
+	if !hasViewerCertificateData(certificate) {
+		return nil
+	}
+	attributes := map[string]any{}
+	if value := strings.TrimSpace(certificate.ACMCertificateARN); value != "" {
+		attributes["acm_certificate_arn"] = value
+	}
+	if certificate.CloudFrontDefaultCertificate != nil {
+		attributes["cloudfront_default_certificate"] = *certificate.CloudFrontDefaultCertificate
+	}
+	if value := strings.TrimSpace(certificate.IAMCertificateID); value != "" {
+		attributes["iam_certificate_id"] = value
+	}
+	if value := strings.TrimSpace(certificate.MinimumProtocolVersion); value != "" {
+		attributes["minimum_protocol_version"] = value
+	}
+	if value := strings.TrimSpace(certificate.SSLSupportMethod); value != "" {
+		attributes["ssl_support_method"] = value
+	}
+	return attributes
+}
+
+func hasViewerCertificateData(certificate ViewerCertificate) bool {
+	return strings.TrimSpace(certificate.ACMCertificateARN) != "" ||
+		certificate.CloudFrontDefaultCertificate != nil ||
+		strings.TrimSpace(certificate.IAMCertificateID) != "" ||
+		strings.TrimSpace(certificate.MinimumProtocolVersion) != "" ||
+		strings.TrimSpace(certificate.SSLSupportMethod) != ""
 }

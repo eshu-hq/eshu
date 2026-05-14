@@ -53,14 +53,14 @@ type CacheBehavior struct {
 	CachePolicyID           string
 	OriginRequestPolicyID   string
 	ResponseHeadersPolicyID string
-	Compress                bool
+	Compress                *bool
 }
 
 // ViewerCertificate captures CloudFront viewer TLS certificate selectors
 // without certificate bodies or private material.
 type ViewerCertificate struct {
 	ACMCertificateARN            string
-	CloudFrontDefaultCertificate bool
+	CloudFrontDefaultCertificate *bool
 	IAMCertificateID             string
 	MinimumProtocolVersion       string
 	SSLSupportMethod             string
