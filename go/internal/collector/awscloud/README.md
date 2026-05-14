@@ -48,6 +48,8 @@ See `doc.go` for the godoc contract.
   and rule metadata scans.
 - `ServiceS3` - S3 service-kind value for regional bucket metadata scans.
 - `ServiceRDS` - RDS service-kind value for regional database metadata scans.
+- `ServiceDynamoDB` - DynamoDB service-kind value for regional table metadata
+  scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -134,6 +136,11 @@ request.
   schemas, tables, and row data stay outside the AWS collector fact contract.
   DB instances, DB clusters, DB subnet groups, and directly reported dependency
   relationships are reported evidence only.
+- DynamoDB facts are metadata only. Item values, table scans, table queries,
+  stream records, backup/export payloads, resource policies, PartiQL output, and
+  mutations stay outside the AWS collector fact contract. Table metadata, tags,
+  indexes, TTL status, backup status, stream settings, replicas, and directly
+  reported KMS key relationships are reported evidence only.
 
 ## Related docs
 

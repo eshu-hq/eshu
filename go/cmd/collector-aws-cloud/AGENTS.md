@@ -45,6 +45,10 @@
   configuration, analytics configuration, and metrics configuration out of
   facts. The command may enable `s3`, but the SDK adapter owns safe bucket
   metadata mapping.
+- Keep DynamoDB item values, table scans, table queries, stream records,
+  backup/export payloads, resource policies, PartiQL output, and mutations out
+  of facts. The command may enable `dynamodb`, but the SDK adapter owns safe
+  table metadata mapping.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 - Preserve the split between scanner-side status in `awsruntime` and

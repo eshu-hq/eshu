@@ -42,6 +42,9 @@ const (
 	// ServiceRDS identifies the regional Amazon Relational Database Service
 	// metadata scan slice.
 	ServiceRDS = "rds"
+	// ServiceDynamoDB identifies the regional Amazon DynamoDB metadata scan
+	// slice.
+	ServiceDynamoDB = "dynamodb"
 )
 
 const (
@@ -122,6 +125,8 @@ const (
 	// ResourceTypeRDSDBSubnetGroup identifies an RDS DB subnet group metadata
 	// resource.
 	ResourceTypeRDSDBSubnetGroup = "aws_rds_db_subnet_group"
+	// ResourceTypeDynamoDBTable identifies a DynamoDB table metadata resource.
+	ResourceTypeDynamoDBTable = "aws_dynamodb_table"
 )
 
 const (
@@ -264,6 +269,9 @@ const (
 	// RelationshipRDSDBInstanceUsesOptionGroup records an RDS instance's
 	// reported option group dependency.
 	RelationshipRDSDBInstanceUsesOptionGroup = "rds_db_instance_uses_option_group"
+	// RelationshipDynamoDBTableUsesKMSKey records a DynamoDB table's reported
+	// server-side encryption KMS key dependency.
+	RelationshipDynamoDBTableUsesKMSKey = "dynamodb_table_uses_kms_key"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by

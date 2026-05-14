@@ -67,15 +67,16 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/ecr`,
   `internal/collector/awscloud/services/ec2`,
   `internal/collector/awscloud/services/ecs`,
+  `internal/collector/awscloud/services/dynamodb`,
   `internal/collector/awscloud/services/eventbridge`,
   `internal/collector/awscloud/services/eks`,
   `internal/collector/awscloud/services/elbv2`,
   `internal/collector/awscloud/services/lambda`,
+  `internal/collector/awscloud/services/rds`,
   `internal/collector/awscloud/services/route53`,
   `internal/collector/awscloud/services/sqs`,
   `internal/collector/awscloud/services/sns`, and
-  `internal/collector/awscloud/services/s3`,
-  `internal/collector/awscloud/services/rds` plus their `awssdk` adapters for
+  `internal/collector/awscloud/services/s3` plus their `awssdk` adapters for
   production service scanners.
 - `internal/facts` for warning fact types.
 - `internal/scope` for AWS scope and collector identity.
@@ -158,6 +159,10 @@ pagination spans. The command registers the instruments:
   connections, database names, master usernames, secrets, snapshots, log
   contents, Performance Insights samples, schemas, tables, row data, or
   mutation APIs.
+- DynamoDB scanners must stay metadata-only. The runtime registry wires the
+  DynamoDB SDK adapter, but it must not broaden the service contract to item
+  reads, table scans, table queries, stream record reads, backup/export payload
+  reads, resource-policy persistence, PartiQL calls, or mutation APIs.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 
