@@ -195,7 +195,7 @@ const openAPIPathsStatusAndCompare = `
       "post": {
         "tags": ["compare"],
         "summary": "Compare environments",
-        "description": "Compares a workload deployment across two environments.",
+        "description": "Compares a workload deployment across two environments and returns a prompt-ready story packet with shared resources, dedicated resources, evidence, limitations, and recommended next calls.",
         "operationId": "compareEnvironments",
         "requestBody": {
           "required": true,
@@ -228,6 +228,13 @@ const openAPIPathsStatusAndCompare = `
                     "changed": {"type": "object"},
                     "confidence": {"type": "number"},
                     "reason": {"type": "string"},
+                    "story": {"type": "string"},
+                    "summary": {"type": "object"},
+                    "shared": {"type": "object"},
+                    "dedicated": {"type": "object"},
+                    "evidence": {"type": "array", "items": {"type": "object"}},
+                    "limitations": {"type": "array", "items": {"type": "object"}},
+                    "recommended_next_calls": {"type": "array", "items": {"type": "object"}},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
                     "coverage": {"type": "object"}

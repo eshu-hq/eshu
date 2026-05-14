@@ -980,7 +980,13 @@ to call first.
 optional `limit` with default 50 and cap 200. The comparison reads at most
 `limit + 1` cloud resources per side, reports `coverage.left_truncated`,
 `coverage.right_truncated`, and top-level `truncated`, and keeps the diff honest
-when a workload has more dependencies than the first response includes.
+when a workload has more dependencies than the first response includes. The
+response also includes a prompt-ready `story`, `summary`, `shared`,
+`dedicated`, `evidence`, `limitations`, and `recommended_next_calls` packet so
+MCP callers can answer "what changed, what is shared, what is dedicated, and
+what evidence backs that" without making discovery calls first. The current
+contract is explicit that config and runtime-setting drift are not materialized
+by this route yet; those gaps appear under `limitations`.
 
 `POST /api/v0/infra/resources/search` accepts `query`, `category`, `kind`,
 `provider`, `resource_service`, `resource_category`, and `limit`. `limit`

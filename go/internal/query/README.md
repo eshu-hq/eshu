@@ -300,7 +300,8 @@ Elixir, PHP, and Groovy parser-backed roots. Its language filter examples includ
 - `DocumentationHandler` — documentation truth findings and evidence packets
   (`documentation.go`)
 - `StatusHandler` — pipeline and ingester status routes (`status.go:14`)
-- `CompareHandler` — environment comparison (`compare.go:12`)
+- `CompareHandler` — environment comparison (`compare.go:12`) with the
+  story-packet helpers in `compare_story.go`
 - `AdminHandler` — work-item inspection, replay, dead-letter, backfill, reindex
   (`admin.go:153`)
 
