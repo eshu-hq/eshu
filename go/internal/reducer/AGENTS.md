@@ -67,13 +67,17 @@ before touching any file in this directory.
 2. Write the handler struct satisfying the `Handler` interface.
 3. Add the handler to `implementedDefaultDomainDefinitions` in `defaults.go`.
 4. Add a `DomainDefinition` (with `OwnershipShape` and `TruthContract`) to
-   `DefaultDomainDefinitions` in `registry.go`.
+   `DefaultDomainDefinitions` in `registry.go` only when the domain is
+   unconditionally wired. Adapter-gated domains such as
+   `DomainAWSCloudRuntimeDrift` use an additive helper so the runtime cannot
+   register a domain that has no durable publication path.
 5. Wire the backend adapters in `cmd/reducer/main.go` `DefaultHandlers`.
 6. If the domain consumes `resolved_relationships`, add a post-Phase-3
    reopen in `bootstrap-index/main.go` after ReopenDeploymentMappingWorkItems.
 7. Add telemetry: at minimum the service-level `telemetry.SpanReducerRun` span
    and `eshu_dp_reducer_executions_total` counter, plus a domain counter when
-   the domain is counter-emission truth such as package source correlation.
+   the domain is counter-emission truth such as package source correlation or
+   AWS runtime drift.
 8. Write a failing test first; confirm it fails for the right reason.
 
 ### Change reducer queue claim semantics

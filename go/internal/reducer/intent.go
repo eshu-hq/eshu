@@ -52,6 +52,10 @@ const (
 	// DomainPackageSourceCorrelation classifies package-registry source hints
 	// against active repository remotes without promoting package ownership.
 	DomainPackageSourceCorrelation Domain = "package_source_correlation"
+	// DomainAWSCloudRuntimeDrift publishes admitted AWS runtime-vs-IaC drift
+	// findings as canonical reducer facts. The domain stays graph-neutral until
+	// the drift node and query shape are frozen.
+	DomainAWSCloudRuntimeDrift Domain = "aws_cloud_runtime_drift"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.

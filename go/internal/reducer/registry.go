@@ -333,3 +333,29 @@ func packageSourceCorrelationDomainDefinition() DomainDefinition {
 		},
 	}
 }
+
+// awsCloudRuntimeDriftDomainDefinition returns the additive definition for
+// AWS runtime drift publication. The domain consumes admitted
+// aws_cloud_runtime_drift candidates and writes durable reducer facts, but it
+// deliberately does not declare graph writes until the drift node and query
+// surface shape are frozen in the active ADR.
+func awsCloudRuntimeDriftDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainAWSCloudRuntimeDrift,
+		Summary: "publish admitted AWS runtime orphan and unmanaged drift findings as canonical reducer facts",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "aws_cloud_runtime_drift",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerAppliedDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}

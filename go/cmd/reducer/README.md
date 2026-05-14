@@ -54,7 +54,10 @@ flowchart TB
    `SpanReducerDriftEvidenceLoad`, surfaces decode-failure WARN logs,
    and increments
    `eshu_dp_drift_unresolved_module_calls_total` per unresolvable
-   `module {}` source per the issue #169 module-aware join),
+   `module {}` source per the issue #169 module-aware join; the AWS runtime
+   drift writer `PostgresAWSCloudRuntimeDriftWriter` is wired for issue #39,
+   while the evidence loader stays disabled until the ARN join and read model
+   shape are frozen),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
    the `postgres.NewReducerQueue`.

@@ -27,7 +27,8 @@ behind them.
 
 ## Status Review (2026-05-14)
 
-**Current disposition:** Phase 3 cloud observation joins started.
+**Current disposition:** Phase 3 cloud observation joins have candidate and
+publication slices in place.
 
 Issue #39 now has a first AWS cloud-runtime drift slice: the
 `aws_cloud_runtime_drift` first-party rule pack, the ARN-keyed
@@ -35,16 +36,27 @@ Issue #39 now has a first AWS cloud-runtime drift slice: the
 intentionally reducer-neutral and graph-neutral: it proves the candidate shape
 and metrics without writing Cypher or publishing canonical graph truth.
 
+The follow-up reducer slice adds `DomainAWSCloudRuntimeDrift`,
+`AWSCloudRuntimeDriftHandler`, and `PostgresAWSCloudRuntimeDriftWriter`.
+Admitted orphan/unmanaged candidates now publish durable
+`reducer_aws_cloud_runtime_drift_finding` fact records with idempotent
+candidate-derived fact IDs. This makes the finding truth durable without
+freezing a Cypher node, MCP tool, or HTTP read model shape before the ADR does.
+
 No-Regression Evidence: focused Go tests cover positive, negative, and
 ambiguous orphan/unmanaged cases; candidate construction validates ARN-primary
-correlation keys and raw tag evidence; telemetry tests assert the new counters
-do not carry ARNs in labels.
+correlation keys and raw tag evidence; telemetry tests assert the counters do
+not carry ARNs in labels; reducer tests cover publication of admitted orphan
+and unmanaged findings plus one durable fact per admitted candidate.
 
 Observability Evidence: `eshu_dp_correlation_rule_matches_total{pack, rule}`,
 `eshu_dp_correlation_orphan_detected_total{pack, rule}`, and
 `eshu_dp_correlation_unmanaged_detected_total{pack, rule}` let operators
 separate rule execution from admitted AWS runtime findings while keeping ARNs,
-Terraform addresses, and tag values out of metric label space.
+Terraform addresses, and tag values out of metric label space. The reducer
+service also emits normal per-domain `reducer_run_duration_seconds`,
+`reducer_executions_total`, queue-wait metrics, and structured admitted-finding
+logs with `drift.arn` for operator drilldown.
 
 ## Context
 

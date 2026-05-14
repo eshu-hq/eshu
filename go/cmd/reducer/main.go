@@ -299,6 +299,11 @@ func buildReducerService(
 			Instruments: instruments,
 		},
 		DriftLogger: logger,
+		// AWS runtime drift has a durable fact writer in this slice. The
+		// evidence loader/enqueue path is intentionally left unwired until the
+		// active ADR freezes the cross-source join and query shape.
+		AWSCloudRuntimeDriftWriter: reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
+		AWSCloudRuntimeDriftLogger: logger,
 	})
 	if err != nil {
 		return reducer.Service{}, err

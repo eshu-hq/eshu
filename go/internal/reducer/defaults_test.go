@@ -402,6 +402,38 @@ func TestImplementedDefaultDomainDefinitionsIncludesConfigStateDriftWhenAdapters
 	}
 }
 
+func TestImplementedDefaultDomainDefinitionsOmitsAWSCloudRuntimeDriftWithoutAdapters(t *testing.T) {
+	t.Parallel()
+
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{})
+	for _, def := range definitions {
+		if def.Domain == DomainAWSCloudRuntimeDrift {
+			t.Fatalf("aws_cloud_runtime_drift registered without adapters; want omitted to avoid silent intent drops")
+		}
+	}
+}
+
+func TestImplementedDefaultDomainDefinitionsIncludesAWSCloudRuntimeDriftWhenAdaptersPresent(t *testing.T) {
+	t.Parallel()
+
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
+		AWSCloudRuntimeDriftEvidenceLoader: &stubAWSCloudRuntimeDriftEvidenceLoader{},
+		AWSCloudRuntimeDriftWriter:         &stubAWSCloudRuntimeDriftFindingWriter{},
+	})
+	found := false
+	for _, def := range definitions {
+		if def.Domain == DomainAWSCloudRuntimeDrift {
+			found = true
+			if _, ok := def.Handler.(AWSCloudRuntimeDriftHandler); !ok {
+				t.Fatalf("aws_cloud_runtime_drift handler type = %T, want AWSCloudRuntimeDriftHandler", def.Handler)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("aws_cloud_runtime_drift not registered after wiring loader+writer")
+	}
+}
+
 // stubDriftEvidenceLoader is a no-op DriftEvidenceLoader used only to satisfy
 // the non-nil gate in implementedDefaultDomainDefinitions.
 type stubDriftEvidenceLoader struct{}
