@@ -113,19 +113,24 @@ func enrichServiceQueryContextWithOptions(
 	if graph != nil {
 		hostnames := serviceEvidenceHostnames(evidence)
 		traceLimit := boundedTraceEnrichmentLimit(opts.MaxDepth)
+		candidates := []provisioningRepositoryCandidate{}
+		if !opts.DirectOnly || opts.IncludeRelatedModuleUsage {
+			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_provisioning_candidates")
+			candidates, err = queryProvisioningRepositoryCandidates(ctx, graph, repoID, traceLimit)
+			timer.Done(ctx, slog.Int("row_count", len(candidates)))
+			if err != nil {
+				return fmt.Errorf("load graph provisioning candidates: %w", err)
+			}
+		}
 		if !opts.DirectOnly {
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_dependents")
-			dependentCandidates, err := queryProvisioningRepositoryCandidates(ctx, graph, repoID, traceLimit)
-			timer.Done(ctx, slog.Int("row_count", len(dependentCandidates)))
-			if err != nil {
-				return fmt.Errorf("load graph dependents: %w", err)
-			}
-			if dependents := buildGraphDependents(dependentCandidates); len(dependents) > 0 {
+			if dependents := buildGraphDependents(candidates); len(dependents) > 0 {
 				workloadContext["dependents"] = dependents
 			}
+			timer.Done(ctx, slog.Int("row_count", len(candidates)))
 
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "consumer_repository_enrichment")
-			consumers, err := loadConsumerRepositoryEnrichmentWithLimit(ctx, graph, content, repoID, serviceName, hostnames, traceLimit)
+			consumers, err := loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, repoID, serviceName, hostnames, traceLimit, candidates)
 			timer.Done(ctx, slog.Int("row_count", len(consumers)))
 			if err != nil {
 				return fmt.Errorf("load consumer repository enrichment: %w", err)
@@ -137,7 +142,7 @@ func enrichServiceQueryContextWithOptions(
 
 		if opts.IncludeRelatedModuleUsage {
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "provisioning_source_chains")
-			provisioningChains, err := loadProvisioningSourceChainsWithLimit(ctx, graph, content, repoID, traceLimit)
+			provisioningChains, err := loadProvisioningSourceChainsFromCandidates(ctx, content, candidates)
 			timer.Done(ctx, slog.Int("row_count", len(provisioningChains)))
 			if err != nil {
 				return fmt.Errorf("load provisioning source chains: %w", err)

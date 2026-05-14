@@ -132,6 +132,32 @@ context arrays at `serviceStoryItemLimit`, deduplicating deployment evidence
 previews by durable relationship handle, and reporting truncation/coverage
 metadata instead of returning every preview row.
 
+The current service-story path was audited before merge because MCP does not
+have a cache layer. The request is sequential only where a later read depends on
+the earlier result: workload lookup must resolve `repo_id` and workload
+instances first, consumer evidence needs service evidence hostnames, and
+deployment fallback must know whether graph/read-model deployment evidence
+already exists. The audit found two unnecessary graph costs and this PR removes
+both:
+
+- provisioning repository candidates are now queried once per service
+  enrichment and reused for graph dependents, consumer enrichment, and
+  provisioning source chains instead of running the same bounded traversal three
+  times;
+- workload-instance platform evidence is now fetched with one indexed
+  `WorkloadInstance.id IN $instance_ids` graph read instead of one Bolt query
+  per instance.
+
+The audit also found follow-up query-boundary risks that remain outside this
+PR's service-dossier contract: graph API-surface rows are scoped but not
+detail-limited at the Cypher boundary, framework-route facts are repo-scoped but
+not row-limited in SQL, durable deployment-evidence read-model rows are scoped
+but not capped before JSON preview decoding, and consumer evidence can fall back
+to cross-repo `LIKE`/`ILIKE` content search when `content_file_references` is
+unavailable. Those are tracked by issue #301 and the broader prompt coverage
+hardening issue #300 so they can receive focused count/truncation contracts
+without silently hiding evidence in this PR.
+
 No-Regression Evidence: focused Go tests exercise the dossier shape, empty
 section preservation, envelope-backed HTTP response, MCP envelope dispatch, and
 OpenAPI service story schema. Continuation tests cover the embedded
@@ -141,12 +167,20 @@ investigation schema. Review-thread tests cover aggregate API count fallbacks,
 `spec_paths` fallback behavior, raw payload caps, nested API-surface caps,
 relationship-preview deduplication, graph-dependent evidence nodes, and
 downstream truncation metadata that matches the independently capped sections.
+Focused performance-shape tests prove the removed duplicate work:
+`TestEnrichServiceQueryContextQueriesProvisioningCandidatesOnce` fails on the
+old three-traversal service enrichment and passes with one candidate query, and
+`TestFetchWorkloadPlatformRowsBatchesExactInstanceIDs` proves one indexed
+platform lookup for multiple workload instances.
 
-No-Observability-Change: the existing service query stage logs emitted by
+Observability Evidence: the existing service query stage logs emitted by
 `startServiceQueryStage` still expose lookup, graph API surface, deployment
-evidence, consumer enrichment, provisioning chains, documentation overview, and
-overview assembly for `operation=service_story` and
-`operation=service_investigation`.
+evidence, graph provisioning candidates, consumer enrichment, provisioning
+chains, documentation overview, and overview assembly for
+`operation=service_story` and `operation=service_investigation`. Existing
+`neo4j.query` and `postgres.query` spans expose the backing Cypher and SQL
+statements, so a slow MCP answer can be split into service lookup, graph read,
+Postgres content read, and response assembly time without adding a cache layer.
 
 ## Consequences
 
