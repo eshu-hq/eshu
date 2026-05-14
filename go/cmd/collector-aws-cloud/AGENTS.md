@@ -30,6 +30,8 @@
 - Keep Lambda function code and presigned package download URLs out of facts.
   Lambda image URIs, aliases, event-source mappings, execution roles, subnets,
   and security groups are reported join evidence only.
+- Keep SQS message bodies and queue policy JSON out of facts. The command may
+  enable `sqs`, but the SDK adapter owns the safe metadata allowlist.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 - Preserve the split between scanner-side status in `awsruntime` and

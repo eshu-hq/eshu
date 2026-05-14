@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -120,6 +120,9 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
 - Lambda targets emit function, alias, event-source mapping, image URI,
   execution-role, subnet, and security-group evidence. They intentionally do
   not fetch function code or persist presigned package download URLs.
+- SQS targets emit queue metadata and reported dead-letter queue relationships.
+  They intentionally do not read messages, mutate queues, or persist queue
+  policy JSON.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan

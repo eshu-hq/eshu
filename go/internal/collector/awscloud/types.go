@@ -27,6 +27,9 @@ const (
 	// ServiceEKS identifies the regional Amazon Elastic Kubernetes Service scan
 	// slice.
 	ServiceEKS = "eks"
+	// ServiceSQS identifies the regional Amazon Simple Queue Service metadata
+	// scan slice.
+	ServiceSQS = "sqs"
 )
 
 const (
@@ -87,6 +90,8 @@ const (
 	// ResourceTypeEKSOIDCProvider identifies OIDC provider evidence associated
 	// with an EKS cluster.
 	ResourceTypeEKSOIDCProvider = "aws_eks_oidc_provider"
+	// ResourceTypeSQSQueue identifies an SQS queue metadata resource.
+	ResourceTypeSQSQueue = "aws_sqs_queue"
 )
 
 const (
@@ -178,6 +183,9 @@ const (
 	// RelationshipEKSAddonUsesIAMRole records the IAM role used by an EKS
 	// managed add-on.
 	RelationshipEKSAddonUsesIAMRole = "eks_addon_uses_iam_role"
+	// RelationshipSQSQueueUsesDeadLetterQueue records SQS redrive policy
+	// evidence from a source queue to its dead-letter queue.
+	RelationshipSQSQueueUsesDeadLetterQueue = "sqs_queue_uses_dead_letter_queue"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by

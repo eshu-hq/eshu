@@ -42,6 +42,7 @@ See `doc.go` for the godoc contract.
 - `ServiceLambda` - Lambda service-kind value for regional function scans.
 - `ServiceEKS` - EKS service-kind value for regional Kubernetes control-plane
   scans.
+- `ServiceSQS` - SQS service-kind value for regional queue metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -106,6 +107,10 @@ request.
 - EKS OIDC provider, node group, add-on, IAM role, subnet, and security group
   facts are reported join evidence only. They do not prove Kubernetes workload
   or deployment ownership truth.
+- SQS queue facts are metadata only. Queue messages and queue policy JSON stay
+  outside the AWS collector fact contract. Redrive policy values may emit
+  reported dead-letter queue relationship evidence when AWS provides both
+  queue ARNs.
 
 ## Related docs
 

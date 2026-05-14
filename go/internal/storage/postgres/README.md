@@ -177,6 +177,15 @@ the `state_snapshot:<backend_kind>:<locator_hash>` owner through
 matches. Missing or ambiguous backend ownership suppresses unmanaged
 classification rather than treating unknown config as absent.
 
+The AWS runtime drift findings reader uses the same bounded active fact read
+shape and only closes result sets with the package-standard checked defer
+pattern. No-Regression Evidence: `golangci-lint run ./...` catches unchecked
+result-set closes, and `go test ./internal/storage/postgres` keeps the
+Postgres store package compiling and exercising its existing storage contracts.
+No-Observability-Change: the SQL text, filters, row counts, status surfaces, and
+query instrumentation are unchanged; existing `InstrumentedDB` query spans and
+duration metrics remain the operator signal for this read path.
+
 ### Webhook refresh triggers
 
 `WebhookTriggerStore` persists provider webhook decisions in

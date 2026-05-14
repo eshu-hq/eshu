@@ -156,7 +156,8 @@ routing relationships, Route 53 hosted zones, A/AAAA/CNAME/ALIAS DNS record
 facts, EC2 VPC/subnet/security-group/ENI network topology facts, Lambda
 function/alias/event-source mapping facts with redacted environment values, and
 EKS cluster/node group/add-on/OIDC provider facts with IAM role and EC2 network
-join evidence.
+join evidence, plus SQS queue metadata and reported dead-letter queue
+relationship facts.
 
 `collector-oci-registry` scans configured OCI registry repositories. In the
 legacy local mode it reads `ESHU_OCI_REGISTRY_TARGETS_JSON`; when
