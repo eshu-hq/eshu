@@ -5,8 +5,9 @@
 // bounded scan-status accounting contracts. It does not call AWS APIs directly,
 // schedule workflow claims, or write graph truth. Service-specific scanners,
 // including IAM, EC2, ECR, ECS, EKS, ELBv2, Lambda, Route 53, SQS, SNS,
-// EventBridge, and S3 slices, convert AWS API data into these contracts before
-// the shared collector and reducer paths persist and materialize them.
+// EventBridge, S3, RDS, DynamoDB, and CloudWatch Logs slices, convert AWS API
+// data into these contracts before the shared collector and reducer paths
+// persist and materialize them.
 // Sensitive service fields, including ECS and Lambda environment values, must be
 // redacted before callers build envelopes.
 // SQS scans are limited to queue metadata and reported dead-letter queue
@@ -23,4 +24,16 @@
 // relationships; object inventory, bucket policy JSON, ACL grants,
 // replication, lifecycle, notifications, inventory, analytics, and metrics
 // configuration stay outside the contract.
+// RDS scans are limited to metadata and reported dependency relationships;
+// database connections, database names, master usernames, snapshots, log
+// contents, Performance Insights samples, schemas, tables, and row data stay
+// outside the contract.
+// DynamoDB scans are limited to table metadata and reported KMS relationships;
+// item values, table scans, table queries, stream records, backup/export
+// payloads, resource policies, PartiQL output, and mutations stay outside the
+// contract.
+// CloudWatch Logs scans are limited to log group metadata and reported KMS
+// relationships; log events, log stream payloads, Insights query results,
+// export payloads, resource policies, subscription payloads, and mutations stay
+// outside the contract.
 package awscloud

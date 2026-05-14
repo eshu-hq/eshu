@@ -45,6 +45,9 @@ const (
 	// ServiceDynamoDB identifies the regional Amazon DynamoDB metadata scan
 	// slice.
 	ServiceDynamoDB = "dynamodb"
+	// ServiceCloudWatchLogs identifies the regional Amazon CloudWatch Logs log
+	// group metadata scan slice.
+	ServiceCloudWatchLogs = "cloudwatchlogs"
 )
 
 const (
@@ -127,6 +130,9 @@ const (
 	ResourceTypeRDSDBSubnetGroup = "aws_rds_db_subnet_group"
 	// ResourceTypeDynamoDBTable identifies a DynamoDB table metadata resource.
 	ResourceTypeDynamoDBTable = "aws_dynamodb_table"
+	// ResourceTypeCloudWatchLogsLogGroup identifies a CloudWatch Logs log group
+	// metadata resource.
+	ResourceTypeCloudWatchLogsLogGroup = "aws_cloudwatch_logs_log_group"
 )
 
 const (
@@ -272,6 +278,9 @@ const (
 	// RelationshipDynamoDBTableUsesKMSKey records a DynamoDB table's reported
 	// server-side encryption KMS key dependency.
 	RelationshipDynamoDBTableUsesKMSKey = "dynamodb_table_uses_kms_key"
+	// RelationshipCloudWatchLogsLogGroupUsesKMSKey records a CloudWatch Logs
+	// log group's reported KMS key dependency.
+	RelationshipCloudWatchLogsLogGroupUsesKMSKey = "cloudwatch_logs_log_group_uses_kms_key"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by
