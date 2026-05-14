@@ -1,0 +1,141 @@
+# Eshu Console Storytelling Contract Field Map
+
+This checkpoint records the design decision that Eshu Console must design from
+MCP/API contract meaning, not from raw field availability.
+
+Evidence used for this pass:
+
+- `get_service_story` for `api-node-boats` on the remote full-corpus stack
+- `investigate_service` for `api-node-boats` on the remote full-corpus stack
+- `get_repo_story` for `api-node-boats` on the remote full-corpus stack
+- `investigate_code_topic` for `api-node-boats` route/deployment evidence
+- `docs/docs/reference/http-api.md`
+- `docs/docs/reference/relationship-mapping.md`
+- `go/internal/query/service_story_overview.go`
+- `go/internal/query/service_story_dossier.go`
+- `go/internal/query/service_investigation.go`
+- `go/internal/query/repository_story.go`
+
+## Design Rule
+
+Every story field must be assigned a product job before it appears in the UI.
+
+- Story fields answer the user in plain language.
+- Overview fields orient the user.
+- Graph fields show structure and relationships.
+- Evidence fields prove a selected claim.
+- Coverage and limit fields explain trust, gaps, and truncation.
+- Drilldown fields are handles, not primary content.
+
+The console should follow the visualization sequence: overview first, zoom and
+filter, then details on demand. For Eshu, overview means story plus first graph
+layer. Details mean source files, resolved relationship IDs, exact evidence,
+and code lines.
+
+## `get_service_story`
+
+Primary user question: what is this service, where does it run, who depends on
+it, what does it depend on, and what evidence proves it?
+
+| Field | Meaning | Human question | UI treatment | Drilldown |
+| --- | --- | --- | --- | --- |
+| `truth` envelope | Freshness, profile, basis, and capability for the whole answer. | Can I trust this answer right now? | Persistent trust strip. | Show reason in a detail rail. |
+| `service_identity` | Canonical workload and owning repository. | What am I looking at? | Page title and canonical identity. | Repository and service links. |
+| `story` | Concise backend narrative. | What is the answer in English? | Top story summary, split if it grows too long. | Sentence anchors to sections. |
+| `story_sections` | Ordered story index. | Which parts of the service story exist? | Story spine or section tabs. | Filter graph and rail by section. |
+| `deployment_overview` | Counts and grouped deployment/runtime summary. | How large is the deployment surface? | Summary strip and section header stats. | Counts open exact lists. |
+| `deployment_lanes` | Human grouping by deployment mechanism, such as `ecs_terraform` or `k8s_gitops`. | Is this single or multi-deployed? | Main lane map: service to lane to environment/source. | Lane, environment, source repo, or relationship type. |
+| `deployment_evidence` | Raw artifacts and proof rows behind lanes. | What files or artifacts prove deployment? | Hidden behind selected lane or edge rail. | File/source evidence and resolved IDs. |
+| `evidence_graph` | Durable relationship graph nodes and edges. | What is connected to what? | Interactive graph layer. | Edge to relationship evidence; node to repo/service. |
+| `api_surface` | Endpoints, methods, specs, source paths. | What API does this expose? | Endpoint table plus method distribution. | Route to code-topic or source lines. |
+| `entrypoints` | Hostnames, docs routes, and config-derived targets. | How do people or systems reach it? | Entrypoint cards grouped by public/internal/environment. | Entrypoint to network path or source file. |
+| `hostnames` | Hostname subset of entrypoints. | What public names exist? | Inside the entrypoints view, not as a peer block. | Hostname references and config. |
+| `network_paths` | Evidence-backed links from entrypoints to runtime targets. | How does traffic reach runtime? | Network path graph or expandable path rows. | Path to source evidence. |
+| `downstream_consumers` | Typed graph dependents plus content references. | Who uses or mentions this service? | Two buckets: typed dependents and content mentions. | Repository evidence paths. |
+| `dependents` | Graph-derived dependent repositories. | What is typed dependency truth? | Stronger-trust bucket inside consumers. | Relationship evidence. |
+| `consumer_repositories` | Content-based references, hostnames, and repo strings. | Who mentions it in code or config? | Weaker mention bucket inside consumers. | Sample paths and matched values. |
+| `upstream_dependencies` | Deployment, provisioning, and dependency rows. | What deploys, provisions, or configures it? | Group by verb and source family. | Resolved ID or source repo. |
+| `provisioning_source_chains` | Terraform/provisioning chain rows. | Which infrastructure chains shape this service? | Subgraph under deployment/provisioning lane. | Source repo/module drilldown. |
+| `documentation_overview` | Docs, specs, and remote metadata. | What docs/specs exist? | Compact docs/spec affordance. | Spec file or docs route. |
+| `support_overview` | Aggregate support context counts. | What support context exists? | Secondary summary only. | Relevant sections. |
+| `investigation` | Embedded investigation packet. | How complete is this answer and what next? | Coverage/gap rail. | Next MCP calls. |
+| `result_limits` | Limits and truncation for curated story fields. | Am I seeing all rows? | Showing-count and truncation badges. | Context route if needed. |
+| `raw_context_limits` | Limits for raw embedded context fields. | What raw data was capped? | Developer/audit detail only. | Context route. |
+
+Service story design rule: the service page should be an atlas. `deployment_lanes`
+drives the primary visual, `story_sections` drives navigation,
+`evidence_graph` is the proof layer, and raw evidence appears only after a
+selection.
+
+## `investigate_service`
+
+Primary user question: if I ask a broad service question, what did Eshu check,
+what did it find, and what should I ask next?
+
+| Field | Meaning | Human question | UI treatment | Drilldown |
+| --- | --- | --- | --- | --- |
+| `coverage_summary` | Completeness state, repository counts, limit, and truncation. | Is the investigation complete or partial? | Coverage status block or segmented ring. | State explanation. |
+| `evidence_families_found` | Evidence categories present. | What evidence types exist? | Checklist of families. | Family filters findings/repos. |
+| `repositories_considered` | Widened repository scope. | What repos did Eshu inspect? | Scope map/list grouped by role. | Repo story/context. |
+| `repositories_with_evidence` | Repositories with non-empty evidence families. | Which repos mattered? | Prioritized repo list. | Repo-specific evidence. |
+| `investigation_findings` | Family summaries and evidence paths. | What did Eshu find per family? | Story cards by family. | Evidence path drilldown. |
+| `recommended_next_calls` | MCP follow-up calls with reasons. | What should I ask next? | Action rail with plain labels. | Execute or prefill call arguments. |
+| `intent`, `question` | Caller context. | Why was this investigation run? | Small header context. | None. |
+
+Investigation design rule: this is an investigation workbench, not the normal
+service page. It should make partial evidence useful by showing exact gaps and
+next calls.
+
+## `get_repo_story`
+
+Primary user question: what is in this repository and what role does it play?
+
+| Field | Meaning | Human question | UI treatment | Drilldown |
+| --- | --- | --- | --- | --- |
+| `story` | Backend narrative for the repository. | What does this repo contain or do? | Shortened story with expandable full narrative. | Sections. |
+| `story_sections` | Ordered repository story index. | Which repo dimensions are known? | Section spine. | Filter overview. |
+| `deployment_overview` | Workloads, platforms, delivery paths, and direct/topology stories. | How does this repo deploy or participate in delivery? | Repository deployment map. | Delivery path/artifact. |
+| `relationship_overview` | Typed repository relationships. | What repos does this relate to? | Relationship graph/table. | Relationship evidence. |
+| `semantic_overview` | Parser-derived semantic signals. | What code semantics exist? | Small code intelligence block. | Symbol/code tools. |
+| `infrastructure_overview` | Infrastructure families and artifacts. | What infrastructure or config does it contain? | Infrastructure family chips and counts. | Artifact details. |
+| `documentation_overview` | Repository metadata and doc handles. | Where are docs/specs? | Docs/spec affordance. | File/spec. |
+| `gitops_overview` | GitOps signal summary. | Is it GitOps-shaped? | Badge plus target list. | GitOps details. |
+| `support_overview` | Dependency/language support counts. | What support context exists? | Secondary summary. | Package/support tools. |
+| `coverage_summary`, `limitations` | Coverage state and gaps. | What should I not over-trust? | Trust/gap strip. | Coverage route. |
+| `drilldowns` | Context, stats, and coverage paths. | Where do I go next? | Route handles behind buttons. | Fetch route. |
+
+Repository story design rule: repository story is not the same as service
+story. It should lead with repo role, codebase, delivery/artifacts, and
+relationship role. It should not pretend runtime truth is as strong as the
+service dossier.
+
+## `get_code_relationship_story`
+
+Primary user question: for this symbol or function, who calls it, what does it
+call, and is the answer ambiguous or truncated?
+
+| Field | Meaning | Human question | UI treatment | Drilldown |
+| --- | --- | --- | --- | --- |
+| `target_resolution` | Exact or ambiguous symbol resolution. | Which symbol did Eshu mean? | Resolution banner; candidate picker if ambiguous. | Candidate reruns by entity ID. |
+| `scope` | Repository, language, direction, relationship type, and depth. | What query am I looking at? | Query summary chips. | Edit/rerun controls. |
+| `relationships` | Direct or transitive code edges. | Who calls, uses, or imports this? | Call graph or caller/callee columns. | Source handles/file lines. |
+| `coverage` | Returned, available, and truncated counts by direction. | Is the graph complete? | Direction coverage bars. | Pagination. |
+| `source_handle` fields | File/entity handles for exact source. | Where is the code? | Inline source buttons. | `get_file_lines` or entity content. |
+
+Code relationship design rule: this belongs inside code drilldown, not the
+initial service story. It becomes visible after a route, function, or code-topic
+selection.
+
+## Product Decision
+
+The Eshu Console story model should become:
+
+1. Story spine from `story_sections`.
+2. Primary graph from the strongest field for the selected section.
+3. Plain-language right rail from the selected node, edge, lane, or gap.
+4. Proof handles from `resolved_id`, source paths, and recommended next calls.
+5. Coverage/gap strip from `truth`, `coverage_summary`, `result_limits`, and
+   `raw_context_limits`.
+
+Dashboard and catalog should become entry points into this story model. The
+service atlas is where users understand the answer.

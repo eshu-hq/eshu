@@ -1,4 +1,5 @@
 import type { EshuTruth } from "./envelope";
+import type { ServiceSpotlight } from "./serviceSpotlight";
 
 export type EntityKind = "repositories" | "workloads" | "services";
 
@@ -62,6 +63,7 @@ export interface WorkspaceStory {
   readonly kind: EntityKind;
   readonly limitations: readonly string[];
   readonly overviewStats: readonly OverviewStat[];
+  readonly serviceSpotlight?: ServiceSpotlight;
   readonly story: string;
   readonly title: string;
   readonly truth: EshuTruth;
@@ -85,7 +87,15 @@ export interface DashboardSnapshot {
   readonly graph: DeploymentGraph;
   readonly metrics: readonly DashboardMetric[];
   readonly relationships: readonly DashboardRelationshipSummary[];
+  readonly repositories?: readonly DashboardRepository[];
+  readonly serviceSpotlight?: ServiceSpotlight;
   readonly story: string;
+}
+
+export interface DashboardRepository {
+  readonly id?: string;
+  readonly name?: string;
+  readonly repo_slug?: string;
 }
 
 export interface CatalogRow {

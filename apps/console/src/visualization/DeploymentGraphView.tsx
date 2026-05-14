@@ -8,7 +8,7 @@ interface DeploymentGraphViewProps {
   readonly graph: DeploymentGraph;
 }
 
-const graphWidth = 680;
+const graphWidth = 840;
 const graphHeight = 430;
 
 export function DeploymentGraphView({
@@ -194,8 +194,8 @@ function semanticLayout(
 }
 
 function columnX(column: number): number {
-  const columns = [92, 304, 520, 604];
-  return columns[column] ?? 604;
+  const columns = [104, 340, 584, 720];
+  return columns[column] ?? 720;
 }
 
 function labelLines(label: string): readonly string[] {

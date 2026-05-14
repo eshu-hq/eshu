@@ -1,5 +1,7 @@
 @import "./dashboard.css";
+@import "./serviceSpotlight.css";
 @import "./tables.css";
+@import "./workspace.css";
 
 :root {
   color-scheme: light;

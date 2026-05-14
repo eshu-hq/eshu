@@ -292,6 +292,12 @@ var capabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
+	"platform_impact.catalog": {
+		LocalLightweightMax:   &truthDerived,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+	},
 	"platform_impact.blast_radius": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthDerived,

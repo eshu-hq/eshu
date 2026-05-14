@@ -3,6 +3,12 @@ import type { EshuTruth } from "./envelope";
 import { getDemoWorkspaceStory } from "./mockData";
 import type { EntityKind, EvidenceRow, OverviewStat, WorkspaceStory } from "./mockData";
 import { deploymentGraphFromStory } from "./deploymentGraph";
+import {
+  serviceContextFromStoryDossier,
+  type ServiceStoryDossierResponse
+} from "./serviceStoryDossier";
+import { serviceSpotlightFromContext } from "./serviceSpotlight";
+import type { ServiceContextResponse } from "./serviceSpotlight";
 import type { ConsoleMode } from "../config/environment";
 
 export interface StoryResponse {
@@ -33,6 +39,8 @@ export interface StoryResponse {
   };
   readonly story_sections?: readonly StorySection[];
   readonly story?: string;
+  readonly service_identity?: { readonly repo_name?: string; readonly service_name?: string };
+  readonly service_name?: string;
   readonly support_overview?: {
     readonly dependency_count?: number;
     readonly language_count?: number;
@@ -130,6 +138,8 @@ export interface LoadWorkspaceStoryOptions {
   readonly mode: ConsoleMode;
 }
 
+type WorkspaceContextResponse = ContextResponse & ServiceContextResponse;
+
 export async function loadWorkspaceStory({
   client,
   entityId,
@@ -145,8 +155,9 @@ export async function loadWorkspaceStory({
 
   const data = await client.getJson<StoryResponse>(storyPath(entityKind, entityId));
   const context = await loadContext(client, data, entityKind);
-  const serviceContext = await loadRepositoryWorkloadContext(client, data, entityKind);
+  const serviceContext = await loadServiceContext(client, data, entityKind, entityId);
   const deploymentContext = serviceContext ?? context;
+  const title = titleFromStory(data, entityId);
   return {
     deploymentGraph: deploymentGraphFromStory(data, deploymentContext),
     deploymentPath: deploymentPathFromStory(data),
@@ -155,18 +166,39 @@ export async function loadWorkspaceStory({
     id: entityId,
     kind: entityKind,
     limitations: data.limitations ?? [],
-    overviewStats: overviewStatsFromStory(data, context),
-    story: humanStory(data, deploymentContext, entityId),
-    title: titleFromSubject(data.subject, entityId),
+    overviewStats: overviewStatsFromStory(data, deploymentContext),
+    serviceSpotlight: serviceContext === undefined
+      ? undefined
+      : serviceSpotlightFromContext(
+        serviceContext,
+        data.deployment_overview?.workloads?.[0] ?? title
+      ),
+    story: humanStory(data, deploymentContext, title, entityKind),
+    title,
     truth: liveRepositoryTruth
   };
+}
+
+async function loadServiceContext(
+  client: EshuApiClient,
+  story: StoryResponse,
+  entityKind: EntityKind,
+  entityId: string
+): Promise<WorkspaceContextResponse | undefined> {
+  if (entityKind === "services" || entityKind === "workloads") {
+    return serviceContextFromStoryDossier(
+      story as ServiceStoryDossierResponse,
+      serviceNameFromStory(story, entityId)
+    ) as WorkspaceContextResponse;
+  }
+  return loadRepositoryWorkloadContext(client, story, entityKind);
 }
 
 async function loadRepositoryWorkloadContext(
   client: EshuApiClient,
   story: StoryResponse,
   entityKind: EntityKind
-): Promise<ContextResponse | undefined> {
+): Promise<WorkspaceContextResponse | undefined> {
   if (entityKind !== "repositories") {
     return undefined;
   }
@@ -175,11 +207,18 @@ async function loadRepositoryWorkloadContext(
     return undefined;
   }
   try {
-    return await client.getJson<ContextResponse>(
-      `/api/v0/services/${encodeURIComponent(workloadName)}/context`
+    const dossier = await client.getJson<ServiceStoryDossierResponse>(
+      `/api/v0/services/${encodeURIComponent(workloadName)}/story`
     );
+    return serviceContextFromStoryDossier(dossier, workloadName) as WorkspaceContextResponse;
   } catch {
-    return undefined;
+    try {
+      return await client.getJson<WorkspaceContextResponse>(
+        `/api/v0/services/${encodeURIComponent(workloadName)}/context`
+      );
+    } catch {
+      return undefined;
+    }
   }
 }
 
@@ -187,7 +226,7 @@ async function loadContext(
   client: EshuApiClient,
   story: StoryResponse,
   entityKind: EntityKind
-): Promise<ContextResponse | undefined> {
+): Promise<WorkspaceContextResponse | undefined> {
   if (entityKind !== "repositories") {
     return undefined;
   }
@@ -196,7 +235,7 @@ async function loadContext(
     return undefined;
   }
   try {
-    return await client.getJson<ContextResponse>(contextPath);
+    return await client.getJson<WorkspaceContextResponse>(contextPath);
   } catch {
     return undefined;
   }
@@ -230,6 +269,14 @@ function titleFromSubject(subject: StoryResponse["subject"], fallback: string): 
     return subject.name ?? subject.id ?? fallback;
   }
   return fallback;
+}
+
+function titleFromStory(story: StoryResponse, fallback: string): string {
+  return nonEmpty(story.service_identity?.service_name, story.service_name, titleFromSubject(story.subject, story.repository?.name ?? fallback));
+}
+
+function serviceNameFromStory(story: StoryResponse, fallback: string): string {
+  return nonEmpty(story.service_identity?.service_name, story.service_name, fallback);
 }
 
 function deploymentPathFromStory(story: StoryResponse): readonly string[] {
@@ -352,8 +399,8 @@ function overviewStatsFromStory(
   ];
 }
 
-function humanStory(story: StoryResponse, context: ContextResponse | undefined, fallback: string): string {
-  if (typeof story.subject === "string" && story.story !== undefined) {
+function humanStory(story: StoryResponse, context: ContextResponse | undefined, fallback: string, entityKind: EntityKind): string {
+  if (entityKind !== "repositories" && story.story !== undefined && story.story.trim().length > 0) {
     return story.story;
   }
   const repoName = titleFromSubject(story.subject, story.repository?.name ?? fallback);
@@ -408,18 +455,6 @@ function fileCount(story: StoryResponse, context: ContextResponse | undefined): 
   const codebase = story.story_sections?.find((section) => section.title === "codebase")?.summary;
   const match = codebase?.match(/^(\d+)/);
   return match === undefined ? 0 : Number(match[1]);
-}
-
-function dedupeEvidence(rows: readonly EvidenceRow[]): readonly EvidenceRow[] {
-  const seen = new Set<string>();
-  return rows.filter((row) => {
-    const key = `${row.title}:${row.source}:${row.detailPath}`;
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
 }
 
 function totalCount(counts: Record<string, number> | undefined): number {

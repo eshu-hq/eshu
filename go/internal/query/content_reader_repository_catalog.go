@@ -54,6 +54,55 @@ func (cr *ContentReader) ListRepositories(ctx context.Context) ([]RepositoryCata
 	return repositories, nil
 }
 
+// ListWorkloadIdentities returns workload handles from reducer read-model facts.
+func (cr *ContentReader) ListWorkloadIdentities(
+	ctx context.Context,
+	limit int,
+) ([]CatalogWorkloadIdentityEntry, bool, error) {
+	if cr == nil || cr.db == nil {
+		return nil, false, nil
+	}
+	if limit <= 0 {
+		return nil, false, nil
+	}
+
+	rows, err := cr.db.QueryContext(ctx, `
+		SELECT DISTINCT entity_key AS workload_name,
+		       coalesce(scope.payload->>'repo_id', scope.payload->>'id', scope.scope_id) AS repo_id,
+		       coalesce(scope.payload->>'name', scope.payload->>'repo_name', scope.payload->>'repo_slug', scope.scope_id) AS repo_name
+		FROM fact_records facts
+		JOIN ingestion_scopes scope ON scope.scope_id = facts.scope_id
+		CROSS JOIN jsonb_array_elements_text(coalesce(facts.payload->'entity_keys', '[]'::jsonb)) AS entity_key
+		WHERE scope.scope_kind = 'repository'
+		  AND facts.fact_kind = 'reducer_workload_identity'
+		  AND NOT facts.is_tombstone
+		ORDER BY workload_name, repo_name
+		LIMIT $1
+	`, limit+1)
+	if err != nil {
+		return nil, false, fmt.Errorf("list workload identities: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	identities := make([]CatalogWorkloadIdentityEntry, 0)
+	for rows.Next() {
+		var identity CatalogWorkloadIdentityEntry
+		if err := rows.Scan(&identity.Name, &identity.RepoID, &identity.RepoName); err != nil {
+			return nil, false, fmt.Errorf("scan workload identity catalog row: %w", err)
+		}
+		identity.Name = strings.TrimPrefix(identity.Name, "workload:")
+		identities = append(identities, identity)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, fmt.Errorf("iterate workload identity catalog rows: %w", err)
+	}
+	truncated := len(identities) > limit
+	if truncated {
+		identities = identities[:limit]
+	}
+	return identities, truncated, nil
+}
+
 // ResolveRepository resolves one repository selector from the relational catalog.
 func (cr *ContentReader) ResolveRepository(ctx context.Context, selector string) (*RepositoryCatalogEntry, error) {
 	matches, err := cr.MatchRepositories(ctx, selector)

@@ -1,5 +1,6 @@
 import { EshuApiClient } from "./client";
 import {
+  loadCatalogServiceRows,
   loadCatalogRows,
   loadDashboardMetrics,
   loadFindingRows,
@@ -245,12 +246,100 @@ describe("live Eshu data adapters", () => {
       mode: "private"
     });
 
-    expect(rows[0]).toEqual({
+    expect(rows).toContainEqual({
       coverage: "/Users/allen/repos/mobius/mobius-tools",
       freshness: "indexed",
       id: "repository:r_1",
       kind: "repositories",
       name: "mobius-tools"
+    });
+  });
+
+  it("prefers first-class catalog rows when the API exposes them", async () => {
+    const rows = await loadCatalogRows({
+      client: clientFor({
+        "/api/v0/catalog": {
+          repositories: [
+            {
+              id: "repository:r_1",
+              local_path: "/Users/allen/repos/mobius/api-node-boats",
+              name: "api-node-boats"
+            }
+          ],
+          services: [
+            {
+              environments: ["ecs-prod", "eks-prod"],
+              id: "workload:api-node-boats",
+              kind: "service",
+              name: "api-node-boats",
+              repo_name: "api-node-boats"
+            }
+          ],
+          workloads: [
+            {
+              environments: ["ecs-prod", "eks-prod"],
+              id: "workload:api-node-boats",
+              kind: "service",
+              name: "api-node-boats",
+              repo_name: "api-node-boats"
+            },
+            {
+              environments: ["prod"],
+              id: "workload:billing-sync",
+              kind: "cronjob",
+              name: "billing-sync",
+              repo_name: "api-node-boats"
+            }
+          ]
+        }
+      }),
+      mode: "private"
+    });
+
+    expect(rows).toContainEqual({
+      coverage: "/Users/allen/repos/mobius/api-node-boats",
+      freshness: "indexed",
+      id: "repository:r_1",
+      kind: "repositories",
+      name: "api-node-boats"
+    });
+    expect(rows).toContainEqual({
+      coverage: "api-node-boats across ecs-prod, eks-prod",
+      freshness: "graph",
+      id: "workload:api-node-boats",
+      kind: "services",
+      name: "api-node-boats"
+    });
+    expect(rows).toContainEqual({
+      coverage: "api-node-boats across prod",
+      freshness: "graph",
+      id: "workload:billing-sync",
+      kind: "workloads",
+      name: "billing-sync"
+    });
+    expect(rows.filter((row) => row.id === "workload:api-node-boats")).toHaveLength(1);
+  });
+
+  it("derives service catalog rows from repository stories", async () => {
+    const rows = await loadCatalogServiceRows({
+      client: clientFor({
+        "/api/v0/repositories": repositoriesResponse,
+        "/api/v0/repositories/repository%3Ar_1/story": {
+          deployment_overview: { workloads: [] }
+        },
+        "/api/v0/repositories/repository%3Ar_2/story": {
+          deployment_overview: { workloads: ["iac-eks-pcg"] }
+        }
+      }),
+      mode: "private"
+    });
+
+    expect(rows).toContainEqual({
+      coverage: "defined by iac-eks-pcg",
+      freshness: "story",
+      id: "iac-eks-pcg",
+      kind: "services",
+      name: "iac-eks-pcg"
     });
   });
 

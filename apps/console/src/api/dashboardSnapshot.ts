@@ -3,6 +3,7 @@ import { loadDashboardMetrics } from "./liveData";
 import { demoDashboardSnapshot } from "./mockData";
 import type {
   DashboardRelationshipSummary,
+  DashboardRepository,
   DashboardSnapshot,
   DeploymentGraph,
   DeploymentGraphLink,
@@ -25,7 +26,7 @@ interface RepositoryListResponse {
   readonly repositories?: readonly RepositoryRecord[];
 }
 
-interface RepositoryRecord {
+interface RepositoryRecord extends DashboardRepository {
   readonly id?: string;
   readonly name?: string;
   readonly repo_slug?: string;
@@ -121,6 +122,7 @@ export async function loadDashboardSnapshot({
     graph: relationshipGraphFromArtifacts(artifacts),
     metrics,
     relationships: relationshipSummaries(artifacts),
+    repositories,
     story: relationshipStory(artifacts, repositories.length)
   };
 }

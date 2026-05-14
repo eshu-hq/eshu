@@ -59,6 +59,55 @@ const openAPIPathsRepositories = `
         }
       }
     },
+    "/api/v0/catalog": {
+      "get": {
+        "tags": ["catalog"],
+        "summary": "List catalog entities",
+        "description": "Returns bounded repository, workload, and service handles for catalog navigation.",
+        "operationId": "listCatalog",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "integer", "default": 2000, "maximum": 5000},
+            "description": "Maximum rows returned per entity collection."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Catalog entity handles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "repositories": {
+                      "type": "array",
+                      "items": {"$ref": "#/components/schemas/Repository"}
+                    },
+                    "workloads": {
+                      "type": "array",
+                      "items": {"$ref": "#/components/schemas/CatalogWorkload"}
+                    },
+                    "services": {
+                      "type": "array",
+                      "items": {"$ref": "#/components/schemas/CatalogWorkload"}
+                    },
+                    "counts": {"type": "object"},
+                    "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "limitations": {"type": "array", "items": {"type": "string"}}
+                  }
+                }
+              }
+            }
+          },
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/repositories/{repo_id}/context": {
       "get": {
         "tags": ["repositories"],

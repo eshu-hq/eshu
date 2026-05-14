@@ -145,17 +145,29 @@ function groupDeploymentEvidence(
 ): readonly EvidenceGroup[] {
   const groups = new Map<string, DeploymentEvidenceArtifact[]>();
   for (const artifact of artifacts) {
-    if (artifact.artifact_family !== "argocd" && artifact.artifact_family !== "helm") {
+    const family = deploymentFamily(artifact);
+    if (family.length === 0) {
       continue;
     }
     const sourceRepo = nonEmpty(artifact.source_repo_name, artifact.source_location?.repo_name);
-    const key = `${artifact.artifact_family}:${sourceRepo}`;
+    const key = `${family}:${sourceRepo}`;
     groups.set(key, [...(groups.get(key) ?? []), artifact]);
   }
   return Array.from(groups.entries()).map(([key, artifacts]) => {
     const [family, sourceRepo] = key.split(":");
     return { artifacts, family, sourceRepo };
   });
+}
+
+function deploymentFamily(artifact: DeploymentEvidenceArtifact): string {
+  const family = nonEmpty(artifact.artifact_family).toLowerCase();
+  if (family === "argocd" || family === "helm") {
+    return family;
+  }
+  if (family === "terraform" || nonEmpty(artifact.evidence_kind).startsWith("TERRAFORM_")) {
+    return "terraform";
+  }
+  return "";
 }
 
 function groupConsumerEvidence(context: ContextResponse | undefined): readonly EvidenceGroup[] {
@@ -230,6 +242,9 @@ function evidenceLabel(family: string): string {
   }
   if (family === "helm") {
     return "Helm chart/values";
+  }
+  if (family === "terraform") {
+    return "Terraform ECS";
   }
   return family;
 }

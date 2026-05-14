@@ -2,14 +2,18 @@ import { useEffect, useState } from "react";
 import { EshuApiClient } from "../api/client";
 import { loadDashboardSnapshot } from "../api/dashboardSnapshot";
 import type { DashboardMetric, DashboardSnapshot, EvidenceRow } from "../api/mockData";
+import { loadServiceSpotlight } from "../api/serviceSpotlight";
+import type { ServiceSpotlight } from "../api/serviceSpotlight";
 import { loadConsoleEnvironment } from "../config/environment";
 import { DeploymentGraphView } from "../visualization/DeploymentGraphView";
+import { ServiceSpotlightPanel } from "./ServiceSpotlightPanel";
 
 export function DashboardPage(): React.JSX.Element {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | undefined>();
   const [metrics, setMetrics] = useState<readonly DashboardMetric[]>([]);
   const [selectedEvidence, setSelectedEvidence] = useState<EvidenceRow | undefined>();
   const [selectedMetric, setSelectedMetric] = useState<DashboardMetric | undefined>();
+  const [serviceSpotlight, setServiceSpotlight] = useState<ServiceSpotlight | undefined>();
   const [loadError, setLoadError] = useState<string>("");
   const [loadState, setLoadState] = useState<"loading" | "ready" | "unavailable">(
     "loading"
@@ -30,13 +34,20 @@ export function DashboardPage(): React.JSX.Element {
         setMetrics(loadedSnapshot.metrics);
         setSelectedEvidence(loadedSnapshot.evidence[0]);
         setSelectedMetric(loadedSnapshot.metrics[0]);
+        setServiceSpotlight(loadedSnapshot.serviceSpotlight);
         setLoadError("");
         setLoadState("ready");
+        if (client !== undefined && loadedSnapshot.repositories !== undefined) {
+          void loadServiceSpotlight(client, loadedSnapshot.repositories)
+            .then(setServiceSpotlight)
+            .catch(() => setServiceSpotlight(undefined));
+        }
       })
       .catch((error: unknown) => {
         setSnapshot(undefined);
         setMetrics([]);
         setSelectedEvidence(undefined);
+        setServiceSpotlight(undefined);
         setLoadError(errorMessage(error));
         setLoadState("unavailable");
       });
@@ -55,6 +66,9 @@ export function DashboardPage(): React.JSX.Element {
         </p>
       ) : null}
       {metrics.length > 0 ? <RunReadiness metrics={metrics} /> : null}
+      {serviceSpotlight !== undefined ? (
+        <ServiceSpotlightPanel spotlight={serviceSpotlight} />
+      ) : null}
       {snapshot !== undefined ? (
         <section className="dashboard-atlas" aria-label="Deployment relationship atlas">
           <div className="dashboard-atlas-copy">
