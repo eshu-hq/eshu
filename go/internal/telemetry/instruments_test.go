@@ -45,6 +45,8 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.PackageRegistryRateLimited, "PackageRegistryRateLimited counter should be registered")
 	assert.NotNil(t, inst.PackageRegistryParseFailures, "PackageRegistryParseFailures counter should be registered")
 	assert.NotNil(t, inst.CorrelationDriftIntentsEnqueued, "CorrelationDriftIntentsEnqueued counter should be registered")
+	assert.NotNil(t, inst.CorrelationOrphanDetected, "CorrelationOrphanDetected counter should be registered")
+	assert.NotNil(t, inst.CorrelationUnmanagedDetected, "CorrelationUnmanagedDetected counter should be registered")
 	assert.NotNil(t, inst.WebhookRequests, "WebhookRequests counter should be registered")
 	assert.NotNil(t, inst.WebhookTriggerDecisions, "WebhookTriggerDecisions counter should be registered")
 	assert.NotNil(t, inst.WebhookStoreOperations, "WebhookStoreOperations counter should be registered")

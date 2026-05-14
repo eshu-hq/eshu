@@ -124,6 +124,14 @@ type Instruments struct {
 	// (currently always "bootstrap_index"; reserved for a future ingester
 	// delta-trigger that would emit the same intent domain).
 	CorrelationDriftIntentsEnqueued metric.Int64Counter
+	// CorrelationOrphanDetected counts admitted AWS cloud-runtime candidates
+	// where an observed cloud resource has no Terraform-state backing for the
+	// same ARN. Labels: pack, rule.
+	CorrelationOrphanDetected metric.Int64Counter
+	// CorrelationUnmanagedDetected counts admitted AWS cloud-runtime candidates
+	// where AWS and Terraform state agree on an ARN but current Terraform
+	// config has no backing declaration. Labels: pack, rule.
+	CorrelationUnmanagedDetected metric.Int64Counter
 	// DriftUnresolvedModuleCalls counts Terraform module {} calls the drift
 	// loader could not resolve to a local-filesystem callee directory under
 	// the same repo snapshot. Each increment carries a `reason` label drawn
@@ -611,6 +619,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CorrelationDriftIntentsEnqueued counter: %w", err)
+	}
+
+	inst.CorrelationOrphanDetected, err = meter.Int64Counter(
+		"eshu_dp_correlation_orphan_detected_total",
+		metric.WithDescription("Total admitted cloud-runtime orphan candidates by pack and rule"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CorrelationOrphanDetected counter: %w", err)
+	}
+
+	inst.CorrelationUnmanagedDetected, err = meter.Int64Counter(
+		"eshu_dp_correlation_unmanaged_detected_total",
+		metric.WithDescription("Total admitted cloud-runtime unmanaged candidates by pack and rule"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CorrelationUnmanagedDetected counter: %w", err)
 	}
 
 	inst.DriftUnresolvedModuleCalls, err = meter.Int64Counter(

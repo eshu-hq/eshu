@@ -32,5 +32,6 @@ func FirstPartyRulePacks() []RulePack {
 		AnsibleRulePack(),
 		CloudFormationRulePack(),
 		TerraformConfigStateDriftRulePack(),
+		AWSCloudRuntimeDriftRulePack(),
 	}
 }
