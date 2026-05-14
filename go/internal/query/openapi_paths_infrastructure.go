@@ -27,7 +27,7 @@ const openAPIPathsInfrastructure = `
                     "type": "string",
                     "enum": ["k8s", "terraform", "argocd", "crossplane", "helm"]
                   },
-                  "limit": {"type": "integer", "default": 50}
+                  "limit": {"type": "integer", "default": 50, "maximum": 200}
                 }
               }
             }
@@ -42,7 +42,9 @@ const openAPIPathsInfrastructure = `
                   "type": "object",
                   "properties": {
                     "results": {"type": "array", "items": {"type": "object"}},
-                    "count": {"type": "integer"}
+                    "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"}
                   }
                 }
               }

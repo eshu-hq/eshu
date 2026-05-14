@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -15,6 +16,9 @@ const (
 
 	// cypherMaxQueryLength rejects excessively long query strings.
 	cypherMaxQueryLength = 4096
+
+	// cypherDefaultResultRows is the default returned row window.
+	cypherDefaultResultRows = 100
 
 	// cypherMaxResultRows caps the number of rows returned to prevent memory exhaustion.
 	cypherMaxResultRows = 1000
@@ -59,6 +63,7 @@ func validateReadOnlyCypher(cypher string) error {
 func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CypherQuery string `json:"cypher_query"`
+		Limit       int    `json:"limit"`
 	}
 	if err := ReadJSON(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
@@ -70,7 +75,8 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := validateReadOnlyCypher(req.CypherQuery); err != nil {
+	cypher, limit, err := boundedReadOnlyCypher(req.CypherQuery, req.Limit)
+	if err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -78,20 +84,169 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 	ctx, cancel := context.WithTimeout(r.Context(), cypherQueryTimeout)
 	defer cancel()
 
-	rows, err := h.Neo4j.Run(ctx, req.CypherQuery, nil)
+	rows, err := h.Neo4j.Run(ctx, cypher, nil)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	if len(rows) > cypherMaxResultRows {
-		rows = rows[:cypherMaxResultRows]
+	truncated := len(rows) > limit
+	if truncated {
+		rows = rows[:limit]
 	}
 
-	WriteJSON(w, http.StatusOK, map[string]any{
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"results":   rows,
-		"truncated": len(rows) == cypherMaxResultRows,
-	})
+		"limit":     limit,
+		"truncated": truncated,
+	}, BuildTruthEnvelope(h.profile(), "graph_query.read_only_cypher", TruthBasisAuthoritativeGraph, "resolved from bounded read-only graph query"))
+}
+
+func boundedReadOnlyCypher(query string, requestedLimit int) (string, int, error) {
+	if err := validateReadOnlyCypher(query); err != nil {
+		return "", 0, err
+	}
+	limit := normalizeCypherResultLimit(requestedLimit)
+	query = strings.TrimSpace(query)
+	query = strings.TrimSuffix(query, ";")
+	queryLimit, hasLimit, err := explicitCypherLimit(query)
+	if err != nil {
+		return "", 0, err
+	}
+	if hasLimit {
+		if queryLimit > limit {
+			return "", 0, fmt.Errorf("query LIMIT %d exceeds requested limit %d", queryLimit, limit)
+		}
+		return query, limit, nil
+	}
+	return fmt.Sprintf("%s\nLIMIT %d", query, limit+1), limit, nil
+}
+
+func normalizeCypherResultLimit(limit int) int {
+	if limit <= 0 {
+		return cypherDefaultResultRows
+	}
+	if limit > cypherMaxResultRows {
+		return cypherMaxResultRows
+	}
+	return limit
+}
+
+func explicitCypherLimit(query string) (int, bool, error) {
+	for i := 0; i < len(query); {
+		switch {
+		case isCypherSpace(query[i]):
+			i++
+		case startsCypherLineComment(query, i):
+			i = skipCypherLineComment(query, i)
+		case startsCypherBlockComment(query, i):
+			i = skipCypherBlockComment(query, i)
+		case query[i] == '\'' || query[i] == '"' || query[i] == '`':
+			i = skipCypherQuoted(query, i)
+		case isCypherIdentifierChar(query[i]):
+			start := i
+			for i < len(query) && isCypherIdentifierChar(query[i]) {
+				i++
+			}
+			if !strings.EqualFold(query[start:i], "LIMIT") {
+				continue
+			}
+			valueStart := skipCypherTrivia(query, i)
+			valueEnd := valueStart
+			for valueEnd < len(query) &&
+				!isCypherSpace(query[valueEnd]) &&
+				!startsCypherLineComment(query, valueEnd) &&
+				!startsCypherBlockComment(query, valueEnd) {
+				valueEnd++
+			}
+			if valueEnd == valueStart {
+				return 0, true, fmt.Errorf("query LIMIT must include an integer row cap")
+			}
+			raw := strings.TrimRight(query[valueStart:valueEnd], ";")
+			limit, err := strconv.Atoi(raw)
+			if err != nil || limit <= 0 {
+				return 0, true, fmt.Errorf("query LIMIT must be a positive integer")
+			}
+			return limit, true, nil
+		default:
+			i++
+		}
+	}
+	return 0, false, nil
+}
+
+func skipCypherTrivia(query string, index int) int {
+	for index < len(query) {
+		switch {
+		case isCypherSpace(query[index]):
+			index++
+		case startsCypherLineComment(query, index):
+			index = skipCypherLineComment(query, index)
+		case startsCypherBlockComment(query, index):
+			index = skipCypherBlockComment(query, index)
+		default:
+			return index
+		}
+	}
+	return index
+}
+
+func skipCypherQuoted(query string, index int) int {
+	quote := query[index]
+	index++
+	for index < len(query) {
+		if query[index] == '\\' && quote != '`' {
+			index += 2
+			continue
+		}
+		if query[index] == quote {
+			if quote != '`' && index+1 < len(query) && query[index+1] == quote {
+				index += 2
+				continue
+			}
+			return index + 1
+		}
+		index++
+	}
+	return index
+}
+
+func startsCypherLineComment(query string, index int) bool {
+	return index+1 < len(query) && query[index] == '/' && query[index+1] == '/'
+}
+
+func skipCypherLineComment(query string, index int) int {
+	index += 2
+	for index < len(query) && query[index] != '\n' && query[index] != '\r' {
+		index++
+	}
+	return index
+}
+
+func startsCypherBlockComment(query string, index int) bool {
+	return index+1 < len(query) && query[index] == '/' && query[index+1] == '*'
+}
+
+func skipCypherBlockComment(query string, index int) int {
+	index += 2
+	for index+1 < len(query) {
+		if query[index] == '*' && query[index+1] == '/' {
+			return index + 2
+		}
+		index++
+	}
+	return len(query)
+}
+
+func isCypherIdentifierChar(ch byte) bool {
+	return ch == '_' ||
+		(ch >= '0' && ch <= '9') ||
+		(ch >= 'A' && ch <= 'Z') ||
+		(ch >= 'a' && ch <= 'z')
+}
+
+func isCypherSpace(ch byte) bool {
+	return ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t' || ch == '\f'
 }
 
 // handleVisualizeQuery returns a Neo4j Browser URL for the given Cypher query.

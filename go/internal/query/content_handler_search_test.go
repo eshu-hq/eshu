@@ -158,13 +158,16 @@ func TestContentHandlerSearchFilesBoundsExplicitMultiRepoSearch(t *testing.T) {
 	if got, want := len(recorder.args), 1; got != want {
 		t.Fatalf("len(recorder.args) = %d, want %d", got, want)
 	}
-	if got, want := recorder.args[0][0], "repo-1"; got != want {
-		t.Fatalf("first query repo_id = %#v, want %#v", got, want)
+	if !strings.Contains(recorder.queries[0], "repo_id = ANY") {
+		t.Fatalf("query = %q, want one multi-repo predicate", recorder.queries[0])
+	}
+	if got, want := recorder.args[0][0], "repo-1\x1frepo-2"; got != want {
+		t.Fatalf("query repo scope = %#v, want %#v", got, want)
 	}
 	if got, want := recorder.args[0][1], "renderApp"; got != want {
 		t.Fatalf("first query pattern = %#v, want %#v", got, want)
 	}
-	if got, want := numericDriverValue(t, recorder.args[0][2]), int64(1); got != want {
+	if got, want := numericDriverValue(t, recorder.args[0][2]), int64(2); got != want {
 		t.Fatalf("first query limit = %d, want %d", got, want)
 	}
 
@@ -213,13 +216,16 @@ func TestContentHandlerSearchEntitiesBoundsExplicitMultiRepoSearch(t *testing.T)
 	if got, want := len(recorder.args), 1; got != want {
 		t.Fatalf("len(recorder.args) = %d, want %d", got, want)
 	}
-	if got, want := recorder.args[0][0], "repo-1"; got != want {
-		t.Fatalf("first query repo_id = %#v, want %#v", got, want)
+	if !strings.Contains(recorder.queries[0], "repo_id = ANY") {
+		t.Fatalf("query = %q, want one multi-repo predicate", recorder.queries[0])
+	}
+	if got, want := recorder.args[0][0], "repo-1\x1frepo-2"; got != want {
+		t.Fatalf("query repo scope = %#v, want %#v", got, want)
 	}
 	if got, want := recorder.args[0][1], "renderApp"; got != want {
 		t.Fatalf("first query pattern = %#v, want %#v", got, want)
 	}
-	if got, want := numericDriverValue(t, recorder.args[0][2]), int64(1); got != want {
+	if got, want := numericDriverValue(t, recorder.args[0][2]), int64(2); got != want {
 		t.Fatalf("first query limit = %d, want %d", got, want)
 	}
 
@@ -229,6 +235,66 @@ func TestContentHandlerSearchEntitiesBoundsExplicitMultiRepoSearch(t *testing.T)
 	}
 	if got, want := int(resp["count"].(float64)), 1; got != want {
 		t.Fatalf("response count = %d, want %d", got, want)
+	}
+}
+
+func TestContentHandlerSearchFilesUsesSinglePagedQueryForExplicitRepoIDs(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentSearchDB(t, []contentSearchQueryResult{
+		{
+			columns: []string{
+				"repo_id", "relative_path", "commit_sha", "content",
+				"content_hash", "line_count", "language", "artifact_type",
+			},
+			rows: [][]driver.Value{
+				{"repo-2", "src/two.ts", "", "", "hash-2", int64(14), "typescript", "source"},
+			},
+		},
+	})
+	handler := &ContentHandler{Content: NewContentReader(db)}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/content/files/search",
+		bytes.NewBufferString(`{"pattern":"renderApp","repo_ids":["repo-1","repo-2"],"limit":10,"offset":20}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	if got, want := len(recorder.args), 1; got != want {
+		t.Fatalf("len(recorder.args) = %d, want %d", got, want)
+	}
+	if !strings.Contains(recorder.queries[0], "repo_id = ANY") {
+		t.Fatalf("query = %q, want one indexed multi-repo predicate", recorder.queries[0])
+	}
+	if got, want := recorder.args[0][1], "renderApp"; got != want {
+		t.Fatalf("pattern arg = %#v, want %#v", got, want)
+	}
+	if got, want := numericDriverValue(t, recorder.args[0][2]), int64(11); got != want {
+		t.Fatalf("limit probe arg = %d, want %d", got, want)
+	}
+	if got, want := numericDriverValue(t, recorder.args[0][3]), int64(20); got != want {
+		t.Fatalf("offset arg = %d, want %d", got, want)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if got, want := int(resp["limit"].(float64)), 10; got != want {
+		t.Fatalf("response limit = %d, want %d", got, want)
+	}
+	if got, want := int(resp["offset"].(float64)), 20; got != want {
+		t.Fatalf("response offset = %d, want %d", got, want)
+	}
+	if got, want := resp["truncated"], false; got != want {
+		t.Fatalf("response truncated = %#v, want %#v", got, want)
 	}
 }
 
@@ -269,14 +335,17 @@ func TestContentHandlerSearchFilesUsesAnyRepoWhenRepoScopeOmitted(t *testing.T) 
 	if len(recorder.args) != 1 {
 		t.Fatalf("len(recorder.args) = %d, want 1", len(recorder.args))
 	}
-	if got, want := len(recorder.args[0]), 2; got != want {
+	if got, want := len(recorder.args[0]), 3; got != want {
 		t.Fatalf("len(query args) = %d, want %d", got, want)
 	}
 	if got, want := recorder.args[0][0], "renderApp"; got != want {
 		t.Fatalf("query arg pattern = %#v, want %#v", got, want)
 	}
-	if got, want := numericDriverValue(t, recorder.args[0][1]), int64(10); got != want {
+	if got, want := numericDriverValue(t, recorder.args[0][1]), int64(11); got != want {
 		t.Fatalf("query arg limit = %d, want %d", got, want)
+	}
+	if got, want := numericDriverValue(t, recorder.args[0][2]), int64(0); got != want {
+		t.Fatalf("query arg offset = %d, want %d", got, want)
 	}
 	if strings.Contains(recorder.queries[0], "repo_id =") {
 		t.Fatalf("query = %q, want any-repo search without repo filter", recorder.queries[0])
@@ -393,14 +462,17 @@ func TestContentHandlerSearchEntitiesUsesAnyRepoWhenRepoScopeOmitted(t *testing.
 	if len(recorder.args) != 1 {
 		t.Fatalf("len(recorder.args) = %d, want 1", len(recorder.args))
 	}
-	if got, want := len(recorder.args[0]), 2; got != want {
+	if got, want := len(recorder.args[0]), 3; got != want {
 		t.Fatalf("len(query args) = %d, want %d", got, want)
 	}
 	if got, want := recorder.args[0][0], "renderApp"; got != want {
 		t.Fatalf("query arg pattern = %#v, want %#v", got, want)
 	}
-	if got, want := numericDriverValue(t, recorder.args[0][1]), int64(10); got != want {
+	if got, want := numericDriverValue(t, recorder.args[0][1]), int64(11); got != want {
 		t.Fatalf("query arg limit = %d, want %d", got, want)
+	}
+	if got, want := numericDriverValue(t, recorder.args[0][2]), int64(0); got != want {
+		t.Fatalf("query arg offset = %d, want %d", got, want)
 	}
 	if strings.Contains(recorder.queries[0], "repo_id =") {
 		t.Fatalf("query = %q, want any-repo search without repo filter", recorder.queries[0])

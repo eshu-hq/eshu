@@ -297,6 +297,12 @@ Read responses include `source_backend` so you know where the answer came from. 
 
 `search_file_content` and `search_entity_content` require the PostgreSQL content store — they do not fall back to workspace scanning.
 
+Both content-search tools are paged. Set `limit` and `offset`; responses include
+`truncated`, `limit`, and `offset`. `offset` is capped at 10000 so broad cold
+searches stay bounded; narrow the repository or pattern before paging beyond
+that window. When you pass multiple `repo_ids`, the server uses one scoped
+PostgreSQL query instead of one request per repository.
+
 For documentation and runbook generation, expect the story layer to prefer Postgres-backed content evidence whenever it needs exact docs, README, runbook, overlay, or config references. If content is missing, story responses should expose limitations instead of implying the docs do not exist.
 
 ## Prompt-suite guardrails
@@ -306,6 +312,7 @@ Prompt-suite coverage should stay portable and auth-safe:
 - use repo-relative identifiers and paths, not server-local filesystem paths
 - prefer story and context tools before raw content search when the user asks for explanation or documentation
 - use Postgres-backed content reads and search as evidence fetchers after the story identifies the right artifacts
+- page broad content searches with `limit` and `offset`; do not repeat the same broad search hoping a warm cache makes it cheaper
 - prefer structured MCP or HTTP tools before any expert fallback
 - do not treat raw Cypher as a generic fallback for prompt or story tests
 - only ask for a local checkout path when a workflow truly needs the user's machine

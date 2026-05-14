@@ -131,14 +131,15 @@ const openAPIPathsContent = `
                   "repo_ids": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional alias for repo_id. At most one repository is currently supported."
+                    "description": "Optional repository selector list. Explicit multi-repo search is executed as one bounded PostgreSQL query."
                   },
                   "query": {"type": "string"},
                   "pattern": {
                     "type": "string",
                     "description": "Alias for query used by MCP content-search tools."
                   },
-                  "limit": {"type": "integer", "default": 50}
+                  "limit": {"type": "integer", "default": 50, "maximum": 200},
+                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}
                 }
               }
             }
@@ -153,7 +154,10 @@ const openAPIPathsContent = `
                   "type": "object",
                   "properties": {
                     "results": {"type": "array", "items": {"$ref": "#/components/schemas/FileContent"}},
-                    "count": {"type": "integer"}
+                    "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "offset": {"type": "integer"},
+                    "truncated": {"type": "boolean"}
                   }
                 }
               }
@@ -185,14 +189,15 @@ const openAPIPathsContent = `
                   "repo_ids": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional alias for repo_id. At most one repository is currently supported."
+                    "description": "Optional repository selector list. Explicit multi-repo search is executed as one bounded PostgreSQL query."
                   },
                   "query": {"type": "string"},
                   "pattern": {
                     "type": "string",
                     "description": "Alias for query used by MCP content-search tools."
                   },
-                  "limit": {"type": "integer", "default": 50}
+                  "limit": {"type": "integer", "default": 50, "maximum": 200},
+                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}
                 }
               }
             }

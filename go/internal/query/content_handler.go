@@ -3,7 +3,19 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+)
+
+const (
+	contentSearchDefaultLimit = 50
+	contentSearchMaxLimit     = 200
+	contentSearchMaxOffset    = 10000
+)
+
+var (
+	errUnsupportedPagedFileSearch   = errors.New("content store does not support paged file search")
+	errUnsupportedPagedEntitySearch = errors.New("content store does not support paged entity search")
 )
 
 // ContentHandler serves HTTP endpoints for reading file and entity content
@@ -154,13 +166,17 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	results, err := h.searchFilesByScope(r.Context(), req)
+	results, truncated, err := h.searchFilesByScope(r.Context(), req)
 	if err != nil {
+		if errors.Is(err, errUnsupportedPagedFileSearch) {
+			WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, contentSearchResponse(results))
+	WriteJSON(w, http.StatusOK, contentSearchResponse(results, req, truncated))
 }
 
 // searchEntities searches entity source cache by pattern.
@@ -182,13 +198,17 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	results, err := h.searchEntitiesByScope(r.Context(), req)
+	results, truncated, err := h.searchEntitiesByScope(r.Context(), req)
 	if err != nil {
+		if errors.Is(err, errUnsupportedPagedEntitySearch) {
+			WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, contentSearchResponse(results))
+	WriteJSON(w, http.StatusOK, contentSearchResponse(results, req, truncated))
 }
 
 type contentSearchRequest struct {
@@ -197,6 +217,7 @@ type contentSearchRequest struct {
 	Query   string   `json:"query"`
 	Pattern string   `json:"pattern"`
 	Limit   int      `json:"limit"`
+	Offset  int      `json:"offset"`
 }
 
 func readContentSearchRequest(r *http.Request) (contentSearchRequest, error) {
@@ -210,6 +231,9 @@ func readContentSearchRequest(r *http.Request) (contentSearchRequest, error) {
 func (req contentSearchRequest) validate() error {
 	if req.pattern() == "" {
 		return errors.New("query is required")
+	}
+	if req.Offset > contentSearchMaxOffset {
+		return fmt.Errorf("offset exceeds maximum of %d", contentSearchMaxOffset)
 	}
 	return nil
 }
@@ -232,10 +256,20 @@ func (req contentSearchRequest) pattern() string {
 }
 
 func (req contentSearchRequest) limit() int {
-	if req.Limit > 0 {
-		return req.Limit
+	if req.Limit <= 0 {
+		return contentSearchDefaultLimit
 	}
-	return 50
+	if req.Limit > contentSearchMaxLimit {
+		return contentSearchMaxLimit
+	}
+	return req.Limit
+}
+
+func (req contentSearchRequest) offset() int {
+	if req.Offset < 0 {
+		return 0
+	}
+	return req.Offset
 }
 
 func (req contentSearchRequest) explicitRepoIDs() []string {
@@ -292,51 +326,77 @@ func (h *ContentHandler) normalizeContentSearchRequest(ctx context.Context, req 
 	return req, nil
 }
 
-func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSearchRequest) ([]FileContent, error) {
+func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSearchRequest) ([]FileContent, bool, error) {
+	if searcher, ok := h.Content.(pagedContentSearcher); ok {
+		results, err := searcher.searchFiles(ctx, req)
+		if err != nil {
+			return nil, false, err
+		}
+		return trimFileContentSearchPage(results, req.limit()), len(results) > req.limit(), nil
+	}
+	if req.offset() > 0 {
+		return nil, false, errUnsupportedPagedFileSearch
+	}
+	probeLimit := req.limit() + 1
 	if repoID := req.repoID(); repoID != "" {
-		return h.Content.SearchFileContent(ctx, repoID, req.pattern(), req.limit())
+		results, err := h.Content.SearchFileContent(ctx, repoID, req.pattern(), probeLimit)
+		return trimFileContentSearchPage(results, req.limit()), len(results) > req.limit(), err
 	}
 	if repoIDs := req.explicitRepoIDs(); len(repoIDs) > 0 {
-		results := make([]FileContent, 0, req.limit())
+		results := make([]FileContent, 0, probeLimit)
 		for _, repoID := range repoIDs {
-			remaining := req.limit() - len(results)
+			remaining := probeLimit - len(results)
 			if remaining <= 0 {
 				break
 			}
 			rows, err := h.Content.SearchFileContent(ctx, repoID, req.pattern(), remaining)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			results = append(results, rows...)
 		}
-		return results, nil
+		return trimFileContentSearchPage(results, req.limit()), len(results) > req.limit(), nil
 	}
-	return h.Content.SearchFileContentAnyRepo(ctx, req.pattern(), req.limit())
+	results, err := h.Content.SearchFileContentAnyRepo(ctx, req.pattern(), probeLimit)
+	return trimFileContentSearchPage(results, req.limit()), len(results) > req.limit(), err
 }
 
-func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentSearchRequest) ([]EntityContent, error) {
+func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentSearchRequest) ([]EntityContent, bool, error) {
+	if searcher, ok := h.Content.(pagedContentSearcher); ok {
+		results, err := searcher.searchEntities(ctx, req)
+		if err != nil {
+			return nil, false, err
+		}
+		return trimEntityContentSearchPage(results, req.limit()), len(results) > req.limit(), nil
+	}
+	if req.offset() > 0 {
+		return nil, false, errUnsupportedPagedEntitySearch
+	}
+	probeLimit := req.limit() + 1
 	if repoID := req.repoID(); repoID != "" {
-		return h.Content.SearchEntityContent(ctx, repoID, req.pattern(), req.limit())
+		results, err := h.Content.SearchEntityContent(ctx, repoID, req.pattern(), probeLimit)
+		return trimEntityContentSearchPage(results, req.limit()), len(results) > req.limit(), err
 	}
 	if repoIDs := req.explicitRepoIDs(); len(repoIDs) > 0 {
-		results := make([]EntityContent, 0, req.limit())
+		results := make([]EntityContent, 0, probeLimit)
 		for _, repoID := range repoIDs {
-			remaining := req.limit() - len(results)
+			remaining := probeLimit - len(results)
 			if remaining <= 0 {
 				break
 			}
 			rows, err := h.Content.SearchEntityContent(ctx, repoID, req.pattern(), remaining)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			results = append(results, rows...)
 		}
-		return results, nil
+		return trimEntityContentSearchPage(results, req.limit()), len(results) > req.limit(), nil
 	}
-	return h.Content.SearchEntityContentAnyRepo(ctx, req.pattern(), req.limit())
+	results, err := h.Content.SearchEntityContentAnyRepo(ctx, req.pattern(), probeLimit)
+	return trimEntityContentSearchPage(results, req.limit()), len(results) > req.limit(), err
 }
 
-func contentSearchResponse(results any) map[string]any {
+func contentSearchResponse(results any, req contentSearchRequest, truncated bool) map[string]any {
 	count := 0
 	switch typed := results.(type) {
 	case []FileContent:
@@ -348,6 +408,23 @@ func contentSearchResponse(results any) map[string]any {
 		"results":        results,
 		"matches":        results,
 		"count":          count,
+		"limit":          req.limit(),
+		"offset":         req.offset(),
+		"truncated":      truncated,
 		"source_backend": "postgres_content_store",
 	}
+}
+
+func trimFileContentSearchPage(results []FileContent, limit int) []FileContent {
+	if len(results) <= limit {
+		return results
+	}
+	return results[:limit]
+}
+
+func trimEntityContentSearchPage(results []EntityContent, limit int) []EntityContent {
+	if len(results) <= limit {
+		return results
+	}
+	return results[:limit]
 }

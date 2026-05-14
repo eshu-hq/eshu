@@ -84,6 +84,47 @@ func TestSearchInfraResourcesUsesInfrastructureLabelsForCategory(t *testing.T) {
 	}
 }
 
+func TestSearchInfraResourcesProbesOneExtraRowForTruncation(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingInfraGraphReader{
+		runRows: []map[string]any{
+			{"id": "resource-1", "name": "one", "labels": []any{"K8sResource"}},
+			{"id": "resource-2", "name": "two", "labels": []any{"K8sResource"}},
+		},
+	}
+	handler := &InfraHandler{Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/infra/resources/search",
+		bytes.NewBufferString(`{"query":"resource","category":"k8s","limit":1}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := reader.lastParams["limit"], 2; got != want {
+		t.Fatalf("params[limit] = %#v, want %#v", got, want)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := int(resp["count"].(float64)), 1; got != want {
+		t.Fatalf("count = %d, want %d", got, want)
+	}
+	if got, want := resp["truncated"], true; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+}
+
 func TestSearchInfraResourcesFiltersTerraformClassification(t *testing.T) {
 	t.Parallel()
 

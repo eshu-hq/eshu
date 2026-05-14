@@ -164,8 +164,9 @@ func resolveEntityBody(args map[string]any) map[string]any {
 
 func contentSearchBody(args map[string]any) map[string]any {
 	body := map[string]any{
-		"query": str(args, "query"),
-		"limit": intOr(args, "limit", 10),
+		"query":  str(args, "query"),
+		"limit":  intOr(args, "limit", 10),
+		"offset": intOr(args, "offset", 0),
 	}
 	if body["query"] == "" {
 		body["query"] = str(args, "pattern")
@@ -316,6 +317,7 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	case "execute_cypher_query":
 		return &route{method: "POST", path: "/api/v0/code/cypher", body: map[string]any{
 			"cypher_query": str(args, "cypher_query"),
+			"limit":        intOr(args, "limit", 100),
 		}}, nil
 	case "visualize_graph_query":
 		return &route{method: "POST", path: "/api/v0/code/visualize", body: map[string]any{
@@ -423,7 +425,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	// ── Infra ──
 	case "find_infra_resources":
 		return &route{method: "POST", path: "/api/v0/infra/resources/search", body: map[string]any{
-			"query": str(args, "query"), "category": str(args, "category"),
+			"query":    str(args, "query"),
+			"category": str(args, "category"),
+			"limit":    intOr(args, "limit", 50),
 		}}, nil
 	case "analyze_infra_relationships":
 		return &route{method: "POST", path: "/api/v0/infra/relationships", body: map[string]any{
