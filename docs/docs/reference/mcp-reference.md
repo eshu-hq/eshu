@@ -49,6 +49,7 @@ These are the most commonly used tools for understanding code.
 | :--- | :--- | :--- |
 | **`find_code`** | Search for code by name or fuzzy text. | "Where is the `User` class defined?" |
 | **`find_symbol`** | Find exact or fuzzy symbol definitions with `source_handle`, `truncated`, and `ambiguity` metadata. | "Where is `process_payment` implemented?" |
+| **`investigate_code_topic`** | Investigate broad behavior or implementation topics with ranked files, symbols, coverage, truncation, and exact next-call handles. | "Find the code paths responsible for repo sync authentication." |
 | **`get_code_relationship_story`** | Resolve one symbol or entity id, return ambiguity candidates, then fetch bounded callers, callees, imports, or transitive CALLS edges with truncation metadata. | "Who calls `process_payment`, and show me if the name is ambiguous." |
 | **`analyze_code_relationships`** | The swiss-army knife for call graphs and dependencies. | "Find all callers of `process_payment`." |
 | **`calculate_cyclomatic_complexity`** | Measure function complexity. | "What is the complexity of `main`?" |
@@ -139,7 +140,8 @@ This keeps the contract portable across ArgoCD, Flux, Terraform, CloudFormation,
 
 Tools for portable source retrieval and indexed content search.
 
-Use these after story or context determines which files, snippets, or docs matter most.
+Use these after story, context, or `investigate_code_topic` determines which
+files, snippets, or docs matter most.
 
 | Tool Name | Description | Natural Language Example |
 | :--- | :--- | :--- |

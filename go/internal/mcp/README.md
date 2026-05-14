@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 47
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 48
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,11 +59,11 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 47 tools from five source files.
+`ReadOnlyTools` assembles 48 tools from five source files.
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 16 | `tools_codebase.go` |
+| `codebaseTools` | 17 | `tools_codebase.go` |
 | `ecosystemTools` | 16 | `tools_ecosystem.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 5 | `tools_content.go` |
@@ -75,6 +75,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:207`):
 |---|---|---|
 | `find_code` | POST | `/api/v0/code/search` |
 | `find_symbol` | POST | `/api/v0/code/symbols/search` |
+| `investigate_code_topic` | POST | `/api/v0/code/topics/investigate` |
 | `get_code_relationship_story` | POST | `/api/v0/code/relationships/story` |
 | `analyze_code_relationships` | POST | `/api/v0/code/relationships` |
 | `find_dead_iac` | POST | `/api/v0/iac/dead` |

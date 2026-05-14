@@ -6,6 +6,7 @@ If you want shorter, role-based prompts before you drop into tool names and JSON
 
 ## Contents
 
+- [Code topic investigation](#code-topic-investigation)
 - [Finding code](#finding-code)
 - [Call graph analysis](#call-graph-analysis)
 - [Code quality](#code-quality)
@@ -51,6 +52,49 @@ Read `repositories_considered`, `repositories_with_evidence`,
 `evidence_families_found`, `coverage_summary`, `investigation_findings`, and
 `recommended_next_calls`. Use those next-call handles only when the final answer
 needs a deeper proof point.
+
+---
+
+## Code Topic Investigation
+
+### Find code paths for a behavior
+
+> "Find the code paths responsible for repo sync authentication and explain how GitHub App auth is resolved."
+
+**Tool:** `investigate_code_topic`
+
+```json
+{
+  "topic": "repo sync authentication and GitHub App auth resolution",
+  "repo_id": "eshu",
+  "intent": "explain_auth_flow",
+  "limit": 25
+}
+```
+
+Read `evidence_groups`, `matched_symbols`, `coverage`, and
+`recommended_next_calls` before answering. Use `get_file_lines` or
+`get_code_relationship_story` only for the exact files or symbols returned in
+the first packet.
+
+### Find all code involved in a subsystem
+
+> "Find all code involved in clone, fetch, default-branch resolution, and workspace locking."
+
+**Tool:** `investigate_code_topic`
+
+```json
+{
+  "topic": "clone fetch default branch resolution workspace locking",
+  "repo_id": "eshu",
+  "intent": "implementation_map",
+  "limit": 50
+}
+```
+
+Use `offset` when `truncated` is true. If the response is empty or ambiguous,
+read `coverage.searched_terms` and `recommended_next_calls`; do not fall back to
+raw Cypher or repeat broad content searches without narrowing the topic.
 
 ---
 

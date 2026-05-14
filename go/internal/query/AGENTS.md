@@ -17,8 +17,9 @@
    fragment.
 5. `go/internal/telemetry/contract.go` — span name constants
    (`SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
-   `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`) and log
-   key conventions; check here before adding new telemetry.
+   `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`,
+   `SpanQueryCodeTopicInvestigation`) and log key conventions; check here
+   before adding new telemetry.
 
 ## Invariants this package enforces
 
@@ -31,7 +32,7 @@
 
 - **`BuildTruthEnvelope` panics on unknown capability** — every capability string
   passed to `BuildTruthEnvelope` must exist in `capabilityMatrix`
-  (`contract.go:445`). Add the capability to the map before the handler is
+  (`contract.go:457`). Add the capability to the map before the handler is
   callable.
 
 - **Port boundary** — no handler calls `neo4jdriver.DriverWithContext` or

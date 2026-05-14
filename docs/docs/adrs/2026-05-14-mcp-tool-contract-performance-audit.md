@@ -66,6 +66,12 @@ tool surface:
   callers request both direct directions, rows are interleaved and the response
   reports per-direction available, returned, and truncated counts so one busy
   direction cannot hide the other without a visible coverage signal.
+- `investigate_code_topic` is the first-class MCP path for issue #286. It routes
+  to `POST /api/v0/code/topics/investigate`, accepts a natural-language topic,
+  optional intent, repository selector, language, limit, and offset, derives a
+  bounded search-term set, and uses one scored content-index query to return
+  ranked files, symbols, coverage, truncation, call-graph handles, and exact
+  recommended next calls.
 
 ## Prompt-Family Audit
 
@@ -75,6 +81,7 @@ tool surface:
 | Exact file/source evidence | `get_file_content`, `get_file_lines`, `get_entity_content` | Already scoped by repo/path or entity ID | None from this PR |
 | Content evidence search | `search_file_content`, `search_entity_content` | Bounded, paged, multi-repo query is single PostgreSQL call | None from this PR |
 | Symbol discovery and implementation lookup | `find_symbol`, `find_code`, `execute_language_query` | First-class definition lookup is bounded, paged, source-handle backed, and no longer requires raw Cypher for "where is this implemented?" prompts | #287 |
+| Broad code-topic and implementation investigation | `investigate_code_topic` | First-class content-index investigation returns ranked files, symbols, searched terms, coverage, truncation, and source/relationship follow-up handles without raw Cypher or client-side term guessing | #286 |
 | Callers, callees, imports, call chains | `get_code_relationship_story`, `find_function_call_chain` | Relationship story is bounded, ambiguity-aware, entity-anchored, paged, and exposes optional bounded transitive CALLS traversal; call-chain keeps the dedicated endpoint | #288 |
 | Dead code and code quality | `find_dead_code`, `find_most_complex_functions` | Existing bounded routes; raw Cypher examples now show limits | #289, #290 |
 | Class hierarchy and overrides | `analyze_code_relationships`, `execute_language_query` | Current fallback remains diagnostics-heavy for some shapes | #291 |
@@ -101,6 +108,11 @@ The changed read paths are cold-call bounded:
   touching the graph, returns ambiguity candidates without guessing, reads
   direct edges with entity-anchored ordered pagination, and limits transitive
   CALLS traversal by depth plus result-window size;
+- topic investigation derives at most 16 search terms from `topic` and `intent`,
+  pushes repository and language scope into a single scored PostgreSQL query,
+  orders by score and stable repo-relative path, probes one extra row for
+  `truncated`, and returns exact follow-up calls instead of expanding
+  relationships or source bodies in the first response;
 - infrastructure search has a max limit and truncation probe.
 
 No-Regression Evidence: focused tests cover MCP search-content paging schema and
@@ -120,6 +132,10 @@ No-Regression Evidence: relationship story focused proof:
 `go test ./internal/query -run 'TestHandleRelationshipStory|TestNornicDBRelationshipStory|TestCapability|TestOpenAPI' -count=1` and
 `go test ./internal/mcp -run 'TestResolveRouteMapsCodeRelationshipStory|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute' -count=1`.
 
+No-Regression Evidence: code topic investigation focused proof:
+`go test ./internal/query -run 'TestHandleCodeTopicInvestigation|TestContentReaderInvestigateCodeTopic|TestOpenAPI|TestCapabilityMatrix' -count=1` and
+`go test ./internal/mcp -run 'TestInvestigateCodeTopic|TestResolveRouteMapsInvestigateCodeTopic|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute' -count=1`.
+
 Observability Evidence: the changed paths continue through existing
 `postgres.query` and `neo4j.query` spans with `db.operation` values
 `search_file_content_in_repos`, `search_entity_content_in_repos`,
@@ -137,6 +153,14 @@ The response envelope reports `truth.capability=call_graph.relationship_story`,
 `limit`/`offset`/`max_depth` values so MCP callers and operators can identify
 whether a slow answer came from target resolution, direct graph reads, or
 bounded transitive traversal.
+
+Observability Evidence: code topic investigation emits
+`query.code_topic_investigation` with `http.route` and `eshu.capability`, then
+one child `postgres.query` span with `db.operation=investigate_code_topic`. The
+response envelope reports `truth.capability=code_search.topic_investigation`,
+`source_backend=postgres_content_store`, `coverage.query_shape`,
+`coverage.searched_term_count`, `limit`, `offset`, and `truncated`, so a slow or
+empty MCP answer can be diagnosed by scope, term expansion, and result window.
 
 ## Consequences
 

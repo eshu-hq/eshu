@@ -170,6 +170,7 @@ assumptions from a partial code snapshot.
 | "What provisions this database?" | `trace_resource_to_code` |
 | "Compare prod and staging" | `compare_environments` |
 | "What does this repo contain?" | `get_repo_context` |
+| "Find the code paths involved in this behavior" | `investigate_code_topic` |
 | "Why does this deployment or dependency edge exist?" | `get_relationship_evidence` with the `resolved_id` from `deployment_evidence` |
 | "Tell me the Internet-to-cloud-to-code story for this repo" | `get_repo_story` |
 | "Tell me the deployment story for this workload or service" | `get_workload_story`, `get_service_story` |
@@ -193,6 +194,7 @@ story surfaces:
 - `get_workload_story`
 - `get_service_story`
 - `investigate_service`
+- `investigate_code_topic`
 
 Use it this way:
 
@@ -204,6 +206,12 @@ Use it this way:
 6. use `drilldowns` or `resolved_id` handles to move into `get_repo_context`, `get_workload_context`, `get_service_context`, content reads, `get_relationship_evidence`, or lower-level relationship tools
 
 This keeps answers concise without hiding the underlying evidence.
+
+For broad programming prompts like "find all code involved in repo sync auth,"
+start with `investigate_code_topic`. It returns ranked `repo_id +
+relative_path` evidence groups, matched symbols, coverage/truncation metadata,
+and exact follow-up calls. Use `get_code_relationship_story`, `get_file_lines`,
+or `get_entity_content` only after that first packet identifies the anchor.
 
 For documentation-oriented answers, the orchestration order is:
 
@@ -314,6 +322,7 @@ Prompt-suite coverage should stay portable and auth-safe:
 - use repo-relative identifiers and paths, not server-local filesystem paths
 - prefer story and context tools before raw content search when the user asks for explanation or documentation
 - use Postgres-backed content reads and search as evidence fetchers after the story identifies the right artifacts
+- use `investigate_code_topic` before raw content search for broad code-topic or behavior prompts
 - page broad content searches with `limit` and `offset`; do not repeat the same broad search hoping a warm cache makes it cheaper
 - prefer structured MCP or HTTP tools before any expert fallback
 - do not treat raw Cypher as a generic fallback for prompt or story tests

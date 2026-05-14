@@ -338,6 +338,26 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatal("SymbolSearchResult missing source_handle")
 	}
 
+	topicInvestigationPath := mustMapField(t, paths, "/api/v0/code/topics/investigate")
+	topicInvestigationPost := mustMapField(t, topicInvestigationPath, "post")
+	topicInvestigationBody := mustMapField(t, mustMapField(t, topicInvestigationPost, "requestBody"), "content")
+	topicInvestigationJSON := mustMapField(t, topicInvestigationBody, "application/json")
+	topicInvestigationRequest := mustMapField(t, mustMapField(t, topicInvestigationJSON, "schema"), "properties")
+	for _, field := range []string{"topic", "intent", "repo_id", "language", "limit", "offset"} {
+		if _, ok := topicInvestigationRequest[field]; !ok {
+			t.Fatalf("code/topics/investigate request schema missing %s", field)
+		}
+	}
+	topicInvestigationResponses := mustMapField(t, topicInvestigationPost, "responses")
+	topicInvestigationOK := mustMapField(t, topicInvestigationResponses, "200")
+	topicInvestigationContent := mustMapField(t, mustMapField(t, topicInvestigationOK, "content"), "application/json")
+	topicInvestigationResponse := mustMapField(t, mustMapField(t, topicInvestigationContent, "schema"), "properties")
+	for _, field := range []string{"evidence_groups", "matched_symbols", "call_graph_handles", "recommended_next_calls", "coverage", "truncated"} {
+		if _, ok := topicInvestigationResponse[field]; !ok {
+			t.Fatalf("code/topics/investigate response schema missing %s", field)
+		}
+	}
+
 	relationshipStoryPath := mustMapField(t, paths, "/api/v0/code/relationships/story")
 	relationshipStoryPost := mustMapField(t, relationshipStoryPath, "post")
 	relationshipStoryBody := mustMapField(t, mustMapField(t, relationshipStoryPost, "requestBody"), "content")

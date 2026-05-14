@@ -575,6 +575,7 @@ Use these routes when you only need code relationships and do not need the full 
 
 - `POST /api/v0/code/search`
 - `POST /api/v0/code/symbols/search`
+- `POST /api/v0/code/topics/investigate`
 - `POST /api/v0/code/relationships`
 - `POST /api/v0/code/relationships/story`
 - `POST /api/v0/code/dead-code`
@@ -639,6 +640,28 @@ Example symbol-definition workflow:
 The symbol route returns definition-shaped results with `source_handle`,
 `classification=definition`, `match_kind`, `truncated`, and `ambiguity` so MCP
 callers can page or disambiguate without guessing.
+
+Example code-topic investigation workflow:
+
+`POST /api/v0/code/topics/investigate`
+
+```json
+{
+  "topic": "repo sync authentication and GitHub App auth resolution",
+  "repo_id": "eshu",
+  "intent": "explain_auth_flow",
+  "limit": 25,
+  "offset": 0
+}
+```
+
+Use this route before exact symbol lookup when the caller names a behavior
+instead of one known symbol. The response includes `searched_terms`,
+`matched_files`, `matched_symbols`, ranked `evidence_groups`,
+`call_graph_handles`, `recommended_next_calls`, `coverage`, `limit`, `offset`,
+and `truncated`. The query is content-index backed, ordered by score and stable
+repo-relative path, and returns exact follow-up calls such as `get_file_lines`
+or `get_code_relationship_story`.
 
 Example relationship-story workflow:
 
