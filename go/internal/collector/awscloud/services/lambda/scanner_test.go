@@ -33,6 +33,7 @@ func TestScannerEmitsLambdaFactsWithRedactedEnvironmentAndRelationships(t *testi
 			LastModified:     time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC),
 			Environment: map[string]string{
 				"DATABASE_URL": "postgres://user:password@example.internal/app",
+				"LOG_LEVEL":    "public-looking-but-still-runtime-config",
 			},
 			VPCConfig: VPCConfig{
 				VPCID:            "vpc-123",
@@ -84,16 +85,35 @@ func TestScannerEmitsLambdaFactsWithRedactedEnvironmentAndRelationships(t *testi
 	if !ok {
 		t.Fatalf("environment = %#v, want map", attributes["environment"])
 	}
-	redacted, ok := env["DATABASE_URL"].(map[string]string)
+	redacted, ok := env["DATABASE_URL"].(map[string]any)
 	if !ok {
 		t.Fatalf("redacted env value = %#v, want redaction map", env["DATABASE_URL"])
 	}
-	marker := redacted["marker"]
+	marker, ok := redacted["marker"].(string)
+	if !ok {
+		t.Fatalf("redacted env marker = %#v, want string", redacted["marker"])
+	}
 	if !strings.HasPrefix(marker, "redacted:hmac-sha256:") {
 		t.Fatalf("redacted env marker = %#v, want hmac-sha256 marker", marker)
 	}
 	if strings.Contains(marker, "postgres://") {
 		t.Fatalf("redacted env marker leaked raw value: %q", marker)
+	}
+	if got := redacted["ruleset_version"]; got != awscloud.RedactionPolicyVersion {
+		t.Fatalf("redacted env ruleset_version = %q, want %q", got, awscloud.RedactionPolicyVersion)
+	}
+	if got := redacted["reason"]; got != redact.ReasonKnownSensitiveKey {
+		t.Fatalf("redacted env reason = %q, want %q", got, redact.ReasonKnownSensitiveKey)
+	}
+	logLevel, ok := env["LOG_LEVEL"].(map[string]any)
+	if !ok {
+		t.Fatalf("LOG_LEVEL redacted env value = %#v, want redaction map", env["LOG_LEVEL"])
+	}
+	if got := logLevel["reason"]; got != redact.ReasonUnknownProviderSchema {
+		t.Fatalf("LOG_LEVEL reason = %q, want %q", got, redact.ReasonUnknownProviderSchema)
+	}
+	if got := logLevel["ruleset_version"]; got != awscloud.RedactionPolicyVersion {
+		t.Fatalf("LOG_LEVEL ruleset_version = %q, want %q", got, awscloud.RedactionPolicyVersion)
 	}
 	if got := attributes["image_uri"]; got != imageURI {
 		t.Fatalf("image_uri = %#v, want %q", got, imageURI)
