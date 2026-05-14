@@ -61,6 +61,11 @@
   export payloads, resource policies, subscription payloads, and mutations out
   of facts. CloudWatch Logs log group metadata and KMS dependency edges are
   reported metadata only.
+- Keep CloudFront object contents, origin payloads, distribution config
+  payloads, policy documents, certificate bodies, private keys, origin custom
+  header values, and mutations out of facts. Distribution metadata, tags, and
+  directly reported ACM certificate and WAF web ACL edges are reported metadata
+  only.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target
