@@ -182,6 +182,23 @@ envelope reports `truth.capability=platform_impact.change_surface`,
 latency can be classified as target resolution, content lookup, or bounded
 graph traversal.
 
+No-Regression Evidence: PR #325 is a staticcheck-only rewrite of
+`resolveChangeSurfaceTarget` from a condition switch to a tagged
+`switch totalCandidates`. Baseline failed with
+`golangci-lint run ./internal/query` on QF1002; after the rewrite,
+`golangci-lint run ./internal/query`, `golangci-lint run ./...`,
+`go test ./internal/query -run TestInvestigateChangeSurface -count=1`, and
+`go test ./...` passed against the same `origin/main` input shape. Candidate
+row counts and terminal queue counts are unchanged because the Cypher query,
+candidate slice, truncation check, and return branches for 0, 1, and many
+candidates are byte-equivalent in behavior.
+
+No-Observability-Change: PR #325 does not alter query execution, response
+fields, spans, metrics, logs, or status surfaces. The existing
+`query.change_surface_investigation` span, `neo4j.query` child spans, response
+`target_resolution.status`, `coverage.query_shape`, `limit`, `offset`,
+`max_depth`, and `truncated` fields remain the operator diagnosis path.
+
 ## Consequences
 
 The documented prompt path is stricter: story and focused tools are the primary
