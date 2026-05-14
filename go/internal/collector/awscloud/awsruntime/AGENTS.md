@@ -52,6 +52,10 @@
 - Keep S3 scans metadata-only. Do not wire object inventory, object keys, bucket
   policy JSON, ACL grants, replication, lifecycle, notification, inventory,
   analytics, metrics, or mutation APIs through the runtime registry.
+- Keep RDS scans metadata-only. Do not wire database connections, database
+  names, master usernames, secrets, snapshots, log contents, Performance
+  Insights samples, schemas, tables, row data, or mutation APIs through the
+  runtime registry.
 
 ## Common Changes
 

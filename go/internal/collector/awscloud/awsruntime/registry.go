@@ -23,6 +23,8 @@ import (
 	iamawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/awssdk"
 	lambdaservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda"
 	lambdaawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda/awssdk"
+	rdsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rds"
+	rdsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rds/awssdk"
 	route53service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53"
 	route53awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53/awssdk"
 	s3service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/s3"
@@ -107,6 +109,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceS3:
 		return s3service.Scanner{
 			Client: s3awssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceRDS:
+		return rdsservice.Scanner{
+			Client: rdsawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{

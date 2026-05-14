@@ -47,6 +47,7 @@ See `doc.go` for the godoc contract.
 - `ServiceEventBridge` - EventBridge service-kind value for regional event bus
   and rule metadata scans.
 - `ServiceS3` - S3 service-kind value for regional bucket metadata scans.
+- `ServiceRDS` - RDS service-kind value for regional database metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -128,6 +129,11 @@ request.
   inventory configuration, analytics configuration, and metrics configuration
   stay outside the AWS collector fact contract. Server-access-log target
   buckets may emit reported relationship evidence.
+- RDS facts are metadata only. Database connections, database names, master
+  usernames, passwords, snapshots, log contents, Performance Insights samples,
+  schemas, tables, and row data stay outside the AWS collector fact contract.
+  DB instances, DB clusters, DB subnet groups, and directly reported dependency
+  relationships are reported evidence only.
 
 ## Related docs
 
