@@ -43,6 +43,8 @@ import (
 	snsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sns/awssdk"
 	sqsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sqs"
 	sqsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sqs/awssdk"
+	ssmservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ssm"
+	ssmawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ssm/awssdk"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -143,6 +145,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceSecretsManager:
 		return secretsmanagerservice.Scanner{
 			Client: secretsmanagerawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceSSM:
+		return ssmservice.Scanner{
+			Client: ssmawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{

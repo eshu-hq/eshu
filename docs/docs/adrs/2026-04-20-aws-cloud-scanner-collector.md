@@ -54,11 +54,12 @@ later reducer-owned correlation.
 
 **Current disposition:** Phase 2 service expansion now includes SQS, SNS,
 EventBridge, S3, RDS, DynamoDB, CloudWatch Logs, CloudFront, API Gateway, and
-Secrets Manager metadata-only slices for issue #38. The `sqs` service scans queue metadata, queue tags, safe queue
-attributes, and reported dead-letter queue relationships from redrive policy
-fields. The `sns` service scans topic metadata, topic tags, safe topic
-attributes, and reported delivery relationships only when the subscription
-endpoint is ARN-addressable. The `eventbridge` service scans event bus
+Secrets Manager and SSM metadata-only slices for issue #38. The `sqs` service
+scans queue metadata, queue tags, safe queue attributes, and reported
+dead-letter queue relationships from redrive policy fields. The `sns` service
+scans topic metadata, topic tags, safe topic attributes, and reported delivery
+relationships only when the subscription endpoint is ARN-addressable. The
+`eventbridge` service scans event bus
 metadata, rule metadata, tags, rule-to-bus relationships, and reported target
 relationships only when the target is ARN-addressable. The `s3` service scans
 bucket tags, versioning, default encryption, public-access-block status, policy
@@ -82,10 +83,15 @@ access-log destinations, ACM certificate dependencies, and ARN-addressable
 integration targets. The `secretsmanager` service scans secret identity, tags,
 description presence, KMS key identifiers, rotation state, timestamps, primary
 region, owning service, type, safe rotation schedule fields, and directly
-reported KMS key and rotation Lambda relationships. These slices
+reported KMS key and rotation Lambda relationships. The `ssm` service scans
+Parameter Store identity, tags, type, tier, data type, KMS key identifiers,
+last-modified timestamp, safe presence flags for descriptions and allowed
+patterns, safe policy type/status metadata, and directly reported KMS key
+relationships. These slices
 deliberately do not call message, event payload, object, database, snapshot,
 log-content, Performance Insights sample, schema, table, Insights query, log
-stream payload, export payload, secret-value, secret-version, or mutation APIs;
+stream payload, export payload, secret-value, secret-version, parameter-value,
+parameter-history, decryption, or mutation APIs;
 do not persist
 SQS/SNS/EventBridge/S3/CloudWatch Logs policy JSON; do not persist raw non-ARN
 SNS endpoints, EventBridge targets, S3 object inventory, ACL grants,
@@ -99,7 +105,8 @@ authorizer secrets, policy JSON, integration credentials, stage variable
 values, request templates, response templates, or API request/response
 payloads; and do not persist Secrets Manager secret values, version payloads,
 resource policy JSON, external rotation partner metadata, or external rotation
-role ARNs.
+role ARNs; and do not persist SSM parameter values, history values, raw
+descriptions, raw allowed patterns, or raw policy JSON.
 
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/cloudfront/...`
 covers the bounded CloudFront call shape: paginated ListDistributions with
@@ -209,6 +216,41 @@ diagnoses the Secrets Manager path through `aws.service.scan`,
 or span name is needed for this metadata-only scanner.
 
 Collector Deployment Evidence: Secrets Manager runs inside the existing hosted
+`collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
+the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
+surfaces apply without a separate deployment.
+
+Collector Performance Evidence: `go test ./internal/collector/awscloud/services/ssm/...`
+covers the bounded SSM Parameter Store call shape: paginated
+DescribeParameters with MaxResults=50 and one ListTagsForResource read per
+parameter name. The collector does not call GetParameter, GetParameters,
+GetParametersByPath, GetParameterHistory, decryption, mutation APIs, or graph
+writes. This slice did not run against a live AWS account; the performance
+contract is the bounded O(parameter count) SDK call shape and existing workflow
+claim/account concurrency limits.
+
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+covers SSM parameter metadata fact emission, direct KMS relationship emission,
+omission of values/history/descriptions/allowed-patterns/policy JSON, SDK
+pagination, tag reads, runtime scanner registration, and the command config
+path that confirms SSM does not require an environment-value redaction key.
+
+Collector Observability Evidence: SSM uses the existing AWS collector
+`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
+labels stay bounded to service, account, region, operation, result, and status;
+parameter names, paths, ARNs, tags, KMS identifiers, and raw AWS error payloads
+stay out of metric labels.
+
+No-Observability-Change: the existing AWS collector telemetry contract already
+diagnoses the SSM path through `aws.service.scan`,
+`aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status`; no new metric
+or span name is needed for this metadata-only scanner.
+
+Collector Deployment Evidence: SSM runs inside the existing hosted
 `collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
 the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
 surfaces apply without a separate deployment.
@@ -700,7 +742,9 @@ Phase 2 (explicit non-goal for launch but planned):
 - Secrets Manager metadata (implemented 2026-05-14; secret values, version
   payloads, resource policy JSON, external rotation partner metadata, external
   rotation role ARNs, and mutations remain out of scope)
-- SSM Parameter Store (metadata only; values never read)
+- SSM Parameter Store metadata (implemented 2026-05-14; parameter values,
+  history values, raw descriptions, raw allowed patterns, raw policy JSON,
+  decryption, and mutations remain out of scope)
 - CloudWatch Logs (implemented 2026-05-14; log events, log stream payloads,
   Insights query results, export payloads, resource policies, subscription
   payloads, and mutations remain out of scope)
@@ -1194,7 +1238,7 @@ behind schedule.
 - CloudFront metadata (implemented 2026-05-14)
 - API Gateway metadata (implemented 2026-05-14)
 - Secrets Manager metadata (implemented 2026-05-14)
-- SSM Parameter Store metadata
+- SSM Parameter Store metadata (implemented 2026-05-14)
 - CloudWatch Logs group metadata (implemented 2026-05-14)
 
 ### Phase 5: Freshness Layer (Optional)
@@ -1304,8 +1348,8 @@ collector for drift rules, on Git collector for code joins.
 
 **Scope:** SQS queue metadata, SNS topic metadata, EventBridge metadata, S3
 bucket metadata, RDS metadata, DynamoDB metadata, CloudWatch Logs group
-metadata, CloudFront metadata, and API Gateway metadata are implemented.
-Remaining scope: Secrets Manager metadata and SSM metadata.
+metadata, CloudFront metadata, API Gateway metadata, Secrets Manager metadata,
+and SSM metadata are implemented.
 
 ### Chunk F: Optional Freshness Layer
 

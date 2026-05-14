@@ -6,7 +6,7 @@
 // schedule workflow claims, or write graph truth. Service-specific scanners,
 // including IAM, EC2, ECR, ECS, EKS, ELBv2, Lambda, Route 53, SQS, SNS,
 // EventBridge, S3, RDS, DynamoDB, CloudWatch Logs, CloudFront, API Gateway,
-// and Secrets Manager slices, convert AWS API data into these contracts before
+// Secrets Manager, and SSM slices, convert AWS API data into these contracts before
 // the shared collector and reducer paths persist and materialize them.
 // Sensitive service fields, including ECS and Lambda environment values, must be
 // redacted before callers build envelopes.
@@ -48,4 +48,8 @@
 // rotation Lambda relationships; secret values, version payloads, resource
 // policy JSON, external rotation partner metadata, and mutations stay outside
 // the contract.
+// SSM scans are limited to Parameter Store metadata and reported KMS
+// relationships; parameter values, history values, raw descriptions, raw
+// allowed patterns, raw policy JSON, decrypted content, and mutations stay
+// outside the contract.
 package awscloud

@@ -71,6 +71,10 @@
   version payload reads, resource-policy persistence, external rotation partner
   metadata persistence, external rotation role ARN persistence, or mutation APIs
   through the runtime registry.
+- Keep SSM scans metadata-only. Do not wire parameter value reads, history value
+  reads, raw description persistence, raw allowed-pattern persistence, raw
+  policy JSON persistence, decryption, or mutation APIs through the runtime
+  registry.
 
 ## Common Changes
 

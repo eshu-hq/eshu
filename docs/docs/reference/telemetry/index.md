@@ -211,7 +211,8 @@ For shared-write debugging specifically:
   resource parents stay out of metric labels.
 - `eshu_dp_aws_resources_emitted_total` is labeled by service, account, region,
   and resource type. Resource ARNs, tags, image digests, lifecycle policy JSON,
-  secret names, and raw AWS error payloads stay out of metric labels.
+  secret names, SSM parameter names, and raw AWS error payloads stay out of
+  metric labels.
 - `aws.service.pagination.page` spans wrap AWS paginator pages and point reads
   such as ECR lifecycle policy lookups.
 
