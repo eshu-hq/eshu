@@ -102,6 +102,8 @@ spec:
     - kind: dev.eshu.aws.cloud_resource
       schemaVersions:
         - 1.0.0
+      sourceConfidence:
+        - reported
   consumerContracts:
     reducer:
       phases:
