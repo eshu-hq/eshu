@@ -126,12 +126,21 @@ The investigation route uses the same scoped service lookup and enrichment path
 as service story. It packages existing context into coverage and next-call
 handles; it does not add unbounded graph traversal or content search.
 
+The query contract must not depend on a cache layer. This PR keeps the new MCP
+surface bounded by reusing the existing service-scoped query path, capping raw
+context arrays at `serviceStoryItemLimit`, deduplicating deployment evidence
+previews by durable relationship handle, and reporting truncation/coverage
+metadata instead of returning every preview row.
+
 No-Regression Evidence: focused Go tests exercise the dossier shape, empty
 section preservation, envelope-backed HTTP response, MCP envelope dispatch, and
 OpenAPI service story schema. Continuation tests cover the embedded
 investigation packet, the service investigation HTTP route, the
 `investigate_service` MCP dispatch route, tool registration, and OpenAPI
-investigation schema.
+investigation schema. Review-thread tests cover aggregate API count fallbacks,
+`spec_paths` fallback behavior, raw payload caps, nested API-surface caps,
+relationship-preview deduplication, graph-dependent evidence nodes, and
+downstream truncation metadata that matches the independently capped sections.
 
 No-Observability-Change: the existing service query stage logs emitted by
 `startServiceQueryStage` still expose lookup, graph API surface, deployment

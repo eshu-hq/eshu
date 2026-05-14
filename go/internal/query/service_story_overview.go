@@ -63,7 +63,7 @@ func buildServiceDeploymentOverview(workloadContext map[string]any) map[string]a
 		overview["network_path_count"] = len(networkPaths)
 	}
 	if apiSurface := mapValue(workloadContext, "api_surface"); len(apiSurface) > 0 {
-		overview["api_surface"] = apiSurface
+		overview["api_surface"] = buildServiceDossierAPISurface(workloadContext)
 	}
 	if dependents := mapSliceValue(workloadContext, "dependents"); len(dependents) > 0 {
 		overview["dependent_count"] = len(dependents)

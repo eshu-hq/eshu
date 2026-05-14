@@ -15,6 +15,7 @@ func enrichServiceStoryDossierResponse(response map[string]any, workloadContext 
 	response["downstream_consumers"] = buildServiceDownstreamConsumers(workloadContext)
 	response["evidence_graph"] = buildServiceEvidenceGraph(workloadContext)
 	response["result_limits"] = buildServiceResultLimits(workloadContext)
+	rawContextLimits := map[string]any{}
 	for _, key := range []string{
 		"hostnames",
 		"entrypoints",
@@ -27,8 +28,15 @@ func enrichServiceStoryDossierResponse(response map[string]any, workloadContext 
 		"limitations",
 	} {
 		if value, ok := workloadContext[key]; ok && value != nil {
-			response[key] = value
+			bounded, limit := boundedServiceStoryRawValue(value)
+			response[key] = bounded
+			if len(limit) > 0 {
+				rawContextLimits[key] = limit
+			}
 		}
+	}
+	if len(rawContextLimits) > 0 {
+		response["raw_context_limits"] = rawContextLimits
 	}
 }
 
@@ -72,7 +80,13 @@ func buildServiceDossierAPISurface(workloadContext map[string]any) map[string]an
 		apiSurface["method_count"] = 0
 	}
 	if _, ok := apiSurface["spec_count"]; !ok {
-		apiSurface["spec_count"] = len(StringSliceVal(apiSurface, "spec_files"))
+		apiSurface["spec_count"] = firstPositiveInt(apiSurface, "spec_files_count", "spec_path_count")
+		if apiSurface["spec_count"] == 0 {
+			apiSurface["spec_count"] = len(StringSliceVal(apiSurface, "spec_files"))
+		}
+		if apiSurface["spec_count"] == 0 {
+			apiSurface["spec_count"] = len(StringSliceVal(apiSurface, "spec_paths"))
+		}
 	}
 	return apiSurface
 }
@@ -140,12 +154,25 @@ func serviceLaneType(platformKind string, artifactFamily string) string {
 }
 
 func buildServiceUpstreamDependencies(workloadContext map[string]any) []map[string]any {
+	rows := serviceUpstreamDependencyRows(workloadContext)
+	sort.Slice(rows, func(i, j int) bool {
+		if StringVal(rows[i], "relationship_type") != StringVal(rows[j], "relationship_type") {
+			return StringVal(rows[i], "relationship_type") < StringVal(rows[j], "relationship_type")
+		}
+		return StringVal(rows[i], "source") < StringVal(rows[j], "source")
+	})
+	capped, _ := capMapRows(rows, serviceStoryItemLimit)
+	return capped
+}
+
+func serviceUpstreamDependencyRows(workloadContext map[string]any) []map[string]any {
 	rows := make([]map[string]any, 0)
+	seenArtifacts := map[string]map[string]any{}
 	for _, artifact := range serviceDeploymentArtifacts(workloadContext) {
 		if StringVal(artifact, "direction") == "outgoing" {
 			continue
 		}
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"source":            StringVal(artifact, "source_repo_name"),
 			"source_repo_id":    StringVal(artifact, "source_repo_id"),
 			"target":            StringVal(artifact, "target_repo_name"),
@@ -155,7 +182,14 @@ func buildServiceUpstreamDependencies(workloadContext map[string]any) []map[stri
 			"confidence":        relationshipFloatVal(artifact, "confidence"),
 			"evidence_count":    firstPositiveInt(artifact, "evidence_count"),
 			"rationale":         StringVal(artifact, "rationale"),
-		})
+		}
+		key := serviceRelationshipKey(row)
+		if existing := seenArtifacts[key]; existing != nil {
+			mergeServiceRelationshipRow(existing, row)
+			continue
+		}
+		seenArtifacts[key] = row
+		rows = append(rows, row)
 	}
 	for _, dependency := range mapSliceValue(workloadContext, "dependencies") {
 		rows = append(rows, map[string]any{
@@ -174,14 +208,7 @@ func buildServiceUpstreamDependencies(workloadContext map[string]any) []map[stri
 			"modules":           StringSliceVal(chain, "modules"),
 		})
 	}
-	sort.Slice(rows, func(i, j int) bool {
-		if StringVal(rows[i], "relationship_type") != StringVal(rows[j], "relationship_type") {
-			return StringVal(rows[i], "relationship_type") < StringVal(rows[j], "relationship_type")
-		}
-		return StringVal(rows[i], "source") < StringVal(rows[j], "source")
-	})
-	capped, _ := capMapRows(rows, serviceStoryItemLimit)
-	return capped
+	return rows
 }
 
 func buildServiceDownstreamConsumers(workloadContext map[string]any) map[string]any {
@@ -207,6 +234,9 @@ func buildServiceEvidenceGraph(workloadContext map[string]any) map[string]any {
 	for _, consumer := range mapSliceValue(workloadContext, "consumer_repositories") {
 		addEvidenceNode(nodes, StringVal(consumer, "repo_id"), StringVal(consumer, "repository"), "repository", "downstream")
 	}
+	for _, dependent := range mapSliceValue(workloadContext, "dependents") {
+		addEvidenceNode(nodes, StringVal(dependent, "repo_id"), StringVal(dependent, "repository"), "repository", "downstream")
+	}
 	edges, edgeCount, edgeTruncated := serviceEvidenceGraphEdges(workloadContext)
 	return map[string]any{
 		"nodes":      sortedEvidenceNodes(nodes),
@@ -218,12 +248,13 @@ func buildServiceEvidenceGraph(workloadContext map[string]any) map[string]any {
 
 func serviceEvidenceGraphEdges(workloadContext map[string]any) ([]map[string]any, int, bool) {
 	edges := make([]map[string]any, 0)
+	seenEdges := map[string]map[string]any{}
 	for _, artifact := range serviceDeploymentArtifacts(workloadContext) {
 		resolvedID := StringVal(artifact, "resolved_id")
 		if resolvedID == "" {
 			continue
 		}
-		edges = append(edges, map[string]any{
+		edge := map[string]any{
 			"id":                resolvedID,
 			"source":            StringVal(artifact, "source_repo_id"),
 			"target":            StringVal(artifact, "target_repo_id"),
@@ -232,7 +263,13 @@ func serviceEvidenceGraphEdges(workloadContext map[string]any) ([]map[string]any
 			"evidence_count":    firstPositiveInt(artifact, "evidence_count"),
 			"rationale":         StringVal(artifact, "rationale"),
 			"resolved_id":       resolvedID,
-		})
+		}
+		if existing := seenEdges[resolvedID]; existing != nil {
+			mergeServiceRelationshipRow(existing, edge)
+			continue
+		}
+		seenEdges[resolvedID] = edge
+		edges = append(edges, edge)
 	}
 	sort.Slice(edges, func(i, j int) bool {
 		if StringVal(edges[i], "relationship_type") != StringVal(edges[j], "relationship_type") {
@@ -245,10 +282,14 @@ func serviceEvidenceGraphEdges(workloadContext map[string]any) ([]map[string]any
 }
 
 func buildServiceResultLimits(workloadContext map[string]any) map[string]any {
-	endpointCount := len(mapSliceValue(mapValue(workloadContext, "api_surface"), "endpoints"))
-	upstreamCount := len(serviceDeploymentArtifacts(workloadContext)) +
-		len(mapSliceValue(workloadContext, "dependencies")) +
-		len(mapSliceValue(workloadContext, "provisioning_source_chains"))
+	apiSurface := buildServiceDossierAPISurface(workloadContext)
+	endpointCount := IntVal(apiSurface, "endpoint_count")
+	if endpointCount == 0 {
+		endpointCount = len(mapSliceValue(apiSurface, "endpoints"))
+	}
+	upstreamCount := len(serviceUpstreamDependencyRows(workloadContext))
+	dependentCount := len(mapSliceValue(workloadContext, "dependents"))
+	contentConsumerCount := len(mapSliceValue(workloadContext, "consumer_repositories"))
 	consumerCount := len(mapSliceValue(workloadContext, "dependents")) +
 		len(mapSliceValue(workloadContext, "consumer_repositories"))
 	return map[string]any{
@@ -257,7 +298,7 @@ func buildServiceResultLimits(workloadContext map[string]any) map[string]any {
 		"endpoint_count":       endpointCount,
 		"upstream_count":       upstreamCount,
 		"downstream_count":     consumerCount,
-		"truncated":            endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || consumerCount > serviceStoryItemLimit,
+		"truncated":            endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || dependentCount > serviceStoryItemLimit || contentConsumerCount > serviceStoryItemLimit,
 		"drilldown_basis":      "resolved_id",
 		"relationship_tool":    "get_relationship_evidence",
 		"service_context_path": "/api/v0/services/" + safeStr(workloadContext, "name") + "/context",
