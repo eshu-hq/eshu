@@ -46,6 +46,25 @@ func TestCanonicalNodeWriterReplacesRepositoryConflictsBeforeIDMerge(t *testing.
 	}
 }
 
+func TestCanonicalNodeWriterSkipsRepositoryCleanupForFirstGeneration(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
+	mat := projector.CanonicalMaterialization{
+		FirstGeneration: true,
+		Repository: &projector.RepositoryRow{
+			RepoID:    "repository:r_new",
+			Name:      "service",
+			Path:      "/repos/service",
+			LocalPath: "/repos/service",
+		},
+	}
+
+	if cleanup := writer.buildRepositoryCleanupStatements(mat); len(cleanup) != 0 {
+		t.Fatalf("repository cleanup statements = %d, want 0 for first generation", len(cleanup))
+	}
+}
+
 func TestCanonicalNodeWriterCommitsRepositoryPathCleanupBeforeRepositoryUpsert(t *testing.T) {
 	t.Parallel()
 

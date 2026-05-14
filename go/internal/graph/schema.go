@@ -144,6 +144,7 @@ var uidConstraintLabels = []string{
 	"DataOwner",
 	"DataQualityCheck",
 	"Enum",
+	"File",
 	"Function",
 	"HelmChart",
 	"HelmValues",

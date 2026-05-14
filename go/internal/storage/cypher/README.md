@@ -50,7 +50,9 @@ When it implements
 run sequentially.
 
 The `repository_cleanup` phase is the only replacement barrier left in the
-canonical node path. Directory rows use depth-ordered `MERGE` after the
+canonical node path, and it is skipped for first-generation scopes because no
+prior repository identity can exist for that source-local scope. Directory rows
+use depth-ordered `MERGE` after the
 repository is present. File rows update current nodes in place with
 `MATCH (f:File {path: row.path})`, then send only missing rows through a
 `WHERE NOT EXISTS { MATCH (:File {path: row.path}) }` guard before `MERGE`.
@@ -62,6 +64,12 @@ directories or files. Entity property filtering also keeps high-volume analysis
 metadata such as `dead_code_root_kinds` and `exactness_blockers` out of
 canonical graph rows; the dead-code API merges that evidence from the content
 store by entity ID.
+
+Code-call shared projection routes `CALLS`, `REFERENCES`, and `USES_METACLASS`
+through label-scoped batched edge statements when endpoint labels are known.
+Each code-call statement carries a bounded route summary with relationship,
+source label, target label, and row count so slow shared-edge logs can be tied
+back to the exact Cypher shape without exposing file paths or entity IDs.
 
 Terraform-state rows are written as `TerraformResource`, `TerraformModule`, and
 `TerraformOutput` nodes keyed by `uid`. The rows keep lineage, serial, provider

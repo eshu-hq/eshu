@@ -116,6 +116,9 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
 - `SourceLocalRecord` receives a `(scope_id, generation_id, record_id)`
   uniqueness constraint during schema setup; canonical source-local MERGE
   statements rely on it to avoid full label scans on large repositories.
+- `File` receives both the legacy `path` identity constraint and a `uid`
+  uniqueness constraint. Canonical file writes still MERGE by `path`, while
+  shared code-call projection reads file endpoints by repo-scoped `uid`.
 - OCI registry projection labels (`OciRegistryRepository`, `ContainerImage`,
   `ContainerImageIndex`, `ContainerImageDescriptor`, and
   `ContainerImageTagObservation`) receive `uid` constraints, and digest/tag-ref

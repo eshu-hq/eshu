@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -67,6 +68,58 @@ func TestEdgeWriterWriteEdgesLogsSharedWriteShape(t *testing.T) {
 	}
 	if got, want := entry["batch_size"], float64(2); got != want {
 		t.Fatalf("batch_size = %v, want %v", got, want)
+	}
+}
+
+func TestEdgeWriterWriteEdgesLogsCodeCallRouteSummaries(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	executor := &recordingGroupExecutor{}
+	writer := NewEdgeWriter(executor, 10)
+	writer.Logger = logger
+	writer.CodeCallGroupBatchSize = 1
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"caller_entity_id":   "repo-a:src/app.ts",
+				"caller_entity_type": "File",
+				"callee_entity_id":   "entity:component",
+				"callee_entity_type": "Function",
+			},
+		},
+	}
+
+	if err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
+		t.Fatalf("WriteEdges() error = %v", err)
+	}
+
+	var entry map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(logs.Bytes()), &entry); err != nil {
+		t.Fatalf("unmarshal log entry: %v\nlogs:\n%s", err, logs.String())
+	}
+	rawSummaries, ok := entry["statement_summaries"].([]any)
+	if !ok || len(rawSummaries) != 1 {
+		t.Fatalf("statement_summaries = %#v, want one route summary", entry["statement_summaries"])
+	}
+	summary, ok := rawSummaries[0].(string)
+	if !ok {
+		t.Fatalf("statement summary type = %T, want string", rawSummaries[0])
+	}
+	for _, want := range []string{
+		"domain=code_calls",
+		"relationship=CALLS",
+		"source=File",
+		"target=Function",
+		"rows=1",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("statement summary = %q, want fragment %q", summary, want)
+		}
 	}
 }
 
