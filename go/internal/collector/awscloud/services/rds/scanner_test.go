@@ -197,6 +197,40 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	}
 }
 
+func TestScannerDoesNotTreatFallbackTargetIDsAsARNs(t *testing.T) {
+	client := fakeClient{
+		instances: []DBInstance{{
+			ARN:               "arn:aws:rds:us-east-1:123456789012:db:orders-writer",
+			Identifier:        "orders-writer",
+			ClusterIdentifier: "orders",
+			DBSubnetGroupName: "orders-db",
+		}},
+		clusters: []DBCluster{{
+			Identifier:        "orders",
+			ResourceID:        "cluster-ORDERS",
+			DBSubnetGroupName: "orders-db",
+		}},
+		subnetGroups: []DBSubnetGroup{{
+			Name: "orders-db",
+		}},
+	}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	for _, relationshipType := range []string{
+		awscloud.RelationshipRDSDBInstanceMemberOfCluster,
+		awscloud.RelationshipRDSDBInstanceInSubnetGroup,
+		awscloud.RelationshipRDSDBClusterInSubnetGroup,
+	} {
+		relationship := relationshipByType(t, envelopes, relationshipType)
+		if got := relationship.Payload["target_arn"]; got != "" {
+			t.Fatalf("%s target_arn = %#v, want empty for fallback target identity", relationshipType, got)
+		}
+	}
+}
+
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
 	boundary.ServiceKind = awscloud.ServiceS3

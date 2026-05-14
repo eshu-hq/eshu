@@ -29,7 +29,7 @@ func instanceRelationships(
 			sourceID,
 			strings.TrimSpace(instance.ARN),
 			targetID,
-			targetID,
+			targetARNFor(targetID),
 			awscloud.ResourceTypeRDSDBCluster,
 			map[string]any{
 				"cluster_identifier": clusterIdentifier,
@@ -44,7 +44,7 @@ func instanceRelationships(
 			sourceID,
 			strings.TrimSpace(instance.ARN),
 			targetID,
-			targetID,
+			targetARNFor(targetID),
 			awscloud.ResourceTypeRDSDBSubnetGroup,
 			map[string]any{"db_subnet_group_name": strings.TrimSpace(instance.DBSubnetGroupName)},
 		))
@@ -121,7 +121,7 @@ func clusterRelationships(
 			sourceID,
 			strings.TrimSpace(cluster.ARN),
 			targetID,
-			targetID,
+			targetARNFor(targetID),
 			awscloud.ResourceTypeRDSDBSubnetGroup,
 			map[string]any{"db_subnet_group_name": strings.TrimSpace(cluster.DBSubnetGroupName)},
 		))
@@ -242,6 +242,14 @@ func securityGroupARN(boundary awscloud.Boundary, groupID string) string {
 		return groupID
 	}
 	return "arn:aws:ec2:" + boundary.Region + ":" + boundary.AccountID + ":security-group/" + groupID
+}
+
+func targetARNFor(targetID string) string {
+	targetID = strings.TrimSpace(targetID)
+	if strings.HasPrefix(targetID, "arn:") {
+		return targetID
+	}
+	return ""
 }
 
 func clusterIdentityMap(clusters []DBCluster) map[string]string {
