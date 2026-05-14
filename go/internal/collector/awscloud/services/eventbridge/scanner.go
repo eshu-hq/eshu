@@ -110,7 +110,6 @@ func ruleObservation(boundary awscloud.Boundary, rule Rule) awscloud.ResourceObs
 			"managed_by":          strings.TrimSpace(rule.ManagedBy),
 			"role_arn":            strings.TrimSpace(rule.RoleARN),
 			"schedule_expression": strings.TrimSpace(rule.ScheduleExpression),
-			"state":               strings.TrimSpace(rule.State),
 		},
 		CorrelationAnchors: []string{ruleARN, rule.Name, joinNonEmpty("/", rule.EventBusName, rule.Name)},
 		SourceRecordID:     resourceID,
@@ -168,7 +167,7 @@ func ruleTargetRelationship(
 			"role_arn":                     strings.TrimSpace(target.RoleARN),
 			"target_id":                    strings.TrimSpace(target.ID),
 		},
-		SourceRecordID: firstNonEmpty(target.ID, ruleID+"->"+targetARN),
+		SourceRecordID: ruleID + "->" + firstNonEmpty(target.ID, targetARN),
 	}, true
 }
 

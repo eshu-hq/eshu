@@ -63,6 +63,12 @@ func TestScannerEmitsEventBridgeMetadataOnlyFactsAndRelationships(t *testing.T) 
 	if got, want := ruleAttributes["event_pattern"], `{"source":["orders"]}`; got != want {
 		t.Fatalf("event_pattern = %#v, want %q", got, want)
 	}
+	if got, want := rule.Payload["state"], "ENABLED"; got != want {
+		t.Fatalf("rule state = %#v, want %q", got, want)
+	}
+	if _, exists := ruleAttributes["state"]; exists {
+		t.Fatalf("state attribute duplicated; rule state belongs in the top-level resource state field")
+	}
 	for _, forbidden := range []string{"input", "input_path", "input_transformer", "http_parameters"} {
 		if _, exists := ruleAttributes[forbidden]; exists {
 			t.Fatalf("%s attribute persisted; EventBridge scanner must not store target payload fields", forbidden)
@@ -110,6 +116,48 @@ func TestScannerSkipsNonARNTargets(t *testing.T) {
 	}
 	if got := countRelationships(envelopes, awscloud.RelationshipEventBridgeRuleTargetsResource); got != 0 {
 		t.Fatalf("target relationship count = %d, want 0 for non-ARN target", got)
+	}
+}
+
+func TestScannerUsesRuleQualifiedSourceRecordIDForTargets(t *testing.T) {
+	firstRuleARN := "arn:aws:events:us-east-1:123456789012:rule/orders/first-rule"
+	secondRuleARN := "arn:aws:events:us-east-1:123456789012:rule/orders/second-rule"
+	client := fakeClient{buses: []EventBus{{
+		ARN:  "arn:aws:events:us-east-1:123456789012:event-bus/orders",
+		Name: "orders",
+		Rules: []Rule{{
+			ARN:          firstRuleARN,
+			Name:         "first-rule",
+			EventBusName: "orders",
+			Targets: []Target{{
+				ID:  "shared-target-id",
+				ARN: "arn:aws:lambda:us-east-1:123456789012:function:first",
+			}},
+		}, {
+			ARN:          secondRuleARN,
+			Name:         "second-rule",
+			EventBusName: "orders",
+			Targets: []Target{{
+				ID:  "shared-target-id",
+				ARN: "arn:aws:lambda:us-east-1:123456789012:function:second",
+			}},
+		}},
+	}}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	recordIDs := relationshipSourceRecordIDs(envelopes, awscloud.RelationshipEventBridgeRuleTargetsResource)
+	want := map[string]bool{
+		firstRuleARN + "->shared-target-id":  true,
+		secondRuleARN + "->shared-target-id": true,
+	}
+	for _, recordID := range recordIDs {
+		delete(want, recordID)
+	}
+	if len(want) != 0 {
+		t.Fatalf("target relationship SourceRecordIDs = %#v, missing %#v", recordIDs, want)
 	}
 }
 
@@ -183,6 +231,20 @@ func countRelationships(envelopes []facts.Envelope, relationshipType string) int
 		}
 	}
 	return count
+}
+
+func relationshipSourceRecordIDs(envelopes []facts.Envelope, relationshipType string) []string {
+	var recordIDs []string
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSRelationshipFactKind {
+			continue
+		}
+		if got, _ := envelope.Payload["relationship_type"].(string); got != relationshipType {
+			continue
+		}
+		recordIDs = append(recordIDs, envelope.SourceRef.SourceRecordID)
+	}
+	return recordIDs
 }
 
 func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {
