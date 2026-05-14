@@ -1,0 +1,30 @@
+apps/console/src/pages/DashboardPage.tsx
+  s_a259424f603ccc::t_87354e3263271d 11,31,39,57,63-67,80-82,86-97,188-207,209-248,256,258,260-265,272-280,282-292,295,314-352
+  s_a259424f603ccc::t_9a57dc04e9665b 208,393-397
+.impeccable/design.json
+  s_a259424f603ccc::t_c8bf461e29c6f1 1-251
+PRODUCT.md
+  s_a259424f603ccc::t_85770de4c1b0ec 1-92
+DESIGN.md
+  s_a259424f603ccc::t_4400584db1ee76 1-304
+apps/console/src/pages/DashboardPage.test.tsx
+  s_a259424f603ccc::t_347fdaec58d79b 97-101
+apps/console/src/dashboard.css
+  s_a259424f603ccc::t_9293a3dce469fa 2-4,28-47,50-51,54-95,100,106,109-115,117-120,123-127,132,136,138,141-144,152-158,170-186,197-213,216-217,221-223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d811834ccc494a4f82f53560b2d8f5c26a49f3cf",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
