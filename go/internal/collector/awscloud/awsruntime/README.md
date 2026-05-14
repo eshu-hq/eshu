@@ -67,17 +67,17 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/ecr`,
   `internal/collector/awscloud/services/ec2`,
   `internal/collector/awscloud/services/ecs`,
+  `internal/collector/awscloud/services/dynamodb`,
   `internal/collector/awscloud/services/eventbridge`,
   `internal/collector/awscloud/services/eks`,
   `internal/collector/awscloud/services/elbv2`,
   `internal/collector/awscloud/services/lambda`,
+  `internal/collector/awscloud/services/rds`,
   `internal/collector/awscloud/services/route53`,
   `internal/collector/awscloud/services/sqs`,
   `internal/collector/awscloud/services/sns`, and
-  `internal/collector/awscloud/services/s3`,
-  `internal/collector/awscloud/services/rds`, and
-  `internal/collector/awscloud/services/dynamodb` plus their `awssdk` adapters
-  for production service scanners.
+  `internal/collector/awscloud/services/s3` plus their `awssdk` adapters for
+  production service scanners.
 - `internal/facts` for warning fact types.
 - `internal/scope` for AWS scope and collector identity.
 - `internal/workflow` for durable work item claims.
