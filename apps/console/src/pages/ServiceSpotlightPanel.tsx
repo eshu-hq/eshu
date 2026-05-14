@@ -8,6 +8,7 @@ import type {
   ServiceSpotlight
 } from "../api/serviceSpotlight";
 import { ServiceDeploymentLaneMap } from "../visualization/ServiceDeploymentLaneMap";
+import { ServiceChangeSurfacePanel } from "./ServiceChangeSurfacePanel";
 import { ServiceCodeInvestigationPanel } from "./ServiceCodeInvestigationPanel";
 import { ServiceInvestigationPanel } from "./ServiceInvestigationPanel";
 
@@ -49,6 +50,7 @@ export function ServiceSpotlightPanel({
 
       <EntryPointStrip hostnames={spotlight.hostnames} />
       <ServiceInvestigationPanel investigation={spotlight.investigation} />
+      <ServiceChangeSurfacePanel spotlight={spotlight} />
       <ServiceCodeInvestigationPanel spotlight={spotlight} />
 
       <div className="service-operating-grid">
