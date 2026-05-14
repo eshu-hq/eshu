@@ -50,6 +50,8 @@ See `doc.go` for the godoc contract.
 - `ServiceRDS` - RDS service-kind value for regional database metadata scans.
 - `ServiceDynamoDB` - DynamoDB service-kind value for regional table metadata
   scans.
+- `ServiceCloudWatchLogs` - CloudWatch Logs service-kind value for regional log
+  group metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -141,6 +143,12 @@ request.
   mutations stay outside the AWS collector fact contract. Table metadata, tags,
   indexes, TTL status, backup status, stream settings, replicas, and directly
   reported KMS key relationships are reported evidence only.
+- CloudWatch Logs facts are metadata only. Log events, log stream payloads,
+  Insights query results, export payloads, resource policies, subscription
+  payloads, and mutations stay outside the AWS collector fact contract. Log
+  group metadata, tags, data protection status, inherited properties, deletion
+  protection, bearer-token authentication state, and directly reported KMS key
+  relationships are reported evidence only.
 
 ## Related docs
 

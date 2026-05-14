@@ -53,32 +53,38 @@ later reducer-owned correlation.
 ## Status Review (2026-05-14)
 
 **Current disposition:** Phase 2 service expansion now includes SQS, SNS,
-EventBridge, S3, RDS, and DynamoDB metadata-only slices for issue #38. The `sqs` service
-scans queue metadata, queue tags, safe queue attributes, and reported
-dead-letter queue relationships from redrive policy fields. The `sns` service
-scans topic metadata, topic tags, safe topic attributes, and reported delivery
-relationships only when the subscription endpoint is ARN-addressable. The
-`eventbridge` service scans event bus metadata, rule metadata, tags, rule-to-bus
-relationships, and reported target relationships only when the target is
-ARN-addressable. The `s3` service scans bucket tags, versioning, default
-encryption, public-access-block status, policy public/not-public status,
-ownership controls, website status, and server-access-log target metadata. The
-`rds` service scans DB instance, DB cluster, and DB subnet group metadata plus
-directly reported cluster membership, subnet group, security group, KMS key,
-monitoring role, IAM role, parameter group, and option group relationships.
-The `dynamodb` service scans table metadata, tags, key schema, attribute
-definitions, capacity settings, table class, index metadata, TTL status,
-continuous backup status, stream settings, replicas, and directly reported KMS
-key relationships. These slices deliberately do not call message, event payload, object, database,
-snapshot, log-content, Performance Insights sample, schema, table, or mutation
-APIs; do not persist SQS/SNS/EventBridge/S3 policy JSON; do not persist raw
-non-ARN SNS endpoints, EventBridge targets, S3 object inventory, ACL grants,
+EventBridge, S3, RDS, DynamoDB, and CloudWatch Logs metadata-only slices for
+issue #38. The `sqs` service scans queue metadata, queue tags, safe queue
+attributes, and reported dead-letter queue relationships from redrive policy
+fields. The `sns` service scans topic metadata, topic tags, safe topic
+attributes, and reported delivery relationships only when the subscription
+endpoint is ARN-addressable. The `eventbridge` service scans event bus
+metadata, rule metadata, tags, rule-to-bus relationships, and reported target
+relationships only when the target is ARN-addressable. The `s3` service scans
+bucket tags, versioning, default encryption, public-access-block status, policy
+public/not-public status, ownership controls, website status, and
+server-access-log target metadata. The `rds` service scans DB instance, DB
+cluster, and DB subnet group metadata plus directly reported cluster
+membership, subnet group, security group, KMS key, monitoring role, IAM role,
+parameter group, and option group relationships. The `dynamodb` service scans
+table metadata, tags, key schema, attribute definitions, capacity settings,
+table class, index metadata, TTL status, continuous backup status, stream
+settings, replicas, and directly reported KMS key relationships. The
+`cloudwatchlogs` service scans log group metadata, tags, retention, stored byte
+count, metric filter count, log group class, data protection status, inherited
+properties, deletion protection, bearer-token authentication state, and directly
+reported KMS key relationships. These slices
+deliberately do not call message, event payload, object, database, snapshot,
+log-content, Performance Insights sample, schema, table, Insights query, log
+stream payload, export payload, or mutation APIs; do not persist
+SQS/SNS/EventBridge/S3/CloudWatch Logs policy JSON; do not persist raw non-ARN
+SNS endpoints, EventBridge targets, S3 object inventory, ACL grants,
 replication rules, lifecycle rules, notification configuration, inventory
 configuration, analytics configuration, metrics configuration, RDS database
 names, master usernames, secrets, snapshots, log payloads, schemas, tables, or
 row data, DynamoDB item values, table scan results, query results, stream
-records, backup/export payloads, resource policies, PartiQL output, or mutation
-surfaces.
+records, backup/export payloads, resource policies, PartiQL output, or
+CloudWatch Logs subscription payloads.
 
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/sqs/...`
 covers the bounded SQS call shape: one paginated ListQueues stream, one
@@ -299,6 +305,43 @@ Collector Deployment Evidence: DynamoDB runs inside the existing hosted
 the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
 surfaces apply without a separate deployment.
 
+Collector Performance Evidence: `go test ./internal/collector/awscloud/services/cloudwatchlogs/...`
+covers the bounded CloudWatch Logs call shape: paginated DescribeLogGroups with
+Limit=50 and one ListTagsForResource read per ARN-addressable log group; no
+DescribeLogStreams, GetLogEvents, FilterLogEvents, Insights query calls,
+resource-policy reads, export payload reads, subscription payload reads,
+mutations, or downstream graph writes in the collector. This slice did not run
+against a live AWS account; the performance contract is the bounded O(log group
+count) SDK call shape and existing workflow claim/account concurrency limits.
+
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+covers CloudWatch Logs log group metadata fact emission, reported KMS
+relationship emission, omission of log event/data-plane fields, SDK
+pagination, tag reads, runtime scanner registration, and the command config
+path that confirms CloudWatch Logs does not require an environment-value
+redaction key.
+
+Collector Observability Evidence: CloudWatch Logs uses the existing AWS
+collector `aws.service.pagination.page` span plus
+`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
+`eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
+labels stay bounded to service, account, region, operation, result, and status;
+log group names, ARNs, tags, KMS key IDs, and raw AWS error payloads stay out
+of metric labels.
+
+No-Observability-Change: the existing AWS collector telemetry contract already
+diagnoses the CloudWatch Logs path through `aws.service.scan`,
+`aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status`; no new metric
+or span name is needed for this metadata-only scanner.
+
+Collector Deployment Evidence: CloudWatch Logs runs inside the existing hosted
+`collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
+the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
+surfaces apply without a separate deployment.
+
 ## Status Review (2026-05-10)
 
 **Current disposition:** Design accepted; deployment model amended.
@@ -504,7 +547,9 @@ Phase 2 (explicit non-goal for launch but planned):
 - RDS metadata (implemented 2026-05-14; database connections, database names,
   master usernames, secrets, snapshots, log contents, Performance Insights
   samples, schemas, tables, row data, and mutations remain out of scope)
-- DynamoDB metadata (data-plane resources)
+- DynamoDB metadata (implemented 2026-05-14; item values, table scans, table
+  queries, stream records, backup/export payloads, resource policies, PartiQL
+  output, and mutations remain out of scope)
 - S3 bucket metadata (implemented 2026-05-14; object inventory, object keys,
   bucket policy JSON, ACL grants, replication rules, lifecycle rules,
   notification configuration, inventory configuration, analytics configuration,
@@ -520,7 +565,9 @@ Phase 2 (explicit non-goal for launch but planned):
   JSON remain out of scope)
 - CloudFront, API Gateway (edge surface)
 - Secrets Manager, SSM Parameter Store (metadata only; values never read)
-- CloudWatch Logs (group metadata only; log contents never read)
+- CloudWatch Logs (implemented 2026-05-14; log events, log stream payloads,
+  Insights query results, export payloads, resource policies, subscription
+  payloads, and mutations remain out of scope)
 
 Phase 3+ covers additional services on operator demand.
 
@@ -1003,14 +1050,14 @@ behind schedule.
 ### Phase 4: Phase 2 Service Expansion
 
 - RDS metadata (implemented 2026-05-14)
-- DynamoDB
+- DynamoDB metadata (implemented 2026-05-14)
 - S3 metadata (implemented 2026-05-14)
 - SQS queue metadata (implemented 2026-05-14)
 - SNS topic metadata (implemented 2026-05-14)
 - EventBridge metadata (implemented 2026-05-14)
 - CloudFront, API Gateway
 - Secrets Manager, SSM Parameter Store (metadata)
-- CloudWatch Logs (group metadata)
+- CloudWatch Logs group metadata (implemented 2026-05-14)
 
 ### Phase 5: Freshness Layer (Optional)
 
@@ -1118,9 +1165,9 @@ collector for drift rules, on Git collector for code joins.
 ### Chunk E: Phase 2 Services
 
 **Scope:** SQS queue metadata, SNS topic metadata, EventBridge metadata, S3
-bucket metadata, and RDS metadata are implemented. Remaining scope: DynamoDB,
-CloudFront, API Gateway, Secrets Manager metadata, SSM metadata, and CloudWatch
-Logs metadata.
+bucket metadata, RDS metadata, DynamoDB metadata, and CloudWatch Logs group
+metadata are implemented. Remaining scope: CloudFront, API Gateway, Secrets
+Manager metadata, and SSM metadata.
 
 ### Chunk F: Optional Freshness Layer
 

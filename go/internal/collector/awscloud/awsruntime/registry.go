@@ -7,6 +7,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	cloudwatchlogsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatchlogs"
+	cloudwatchlogsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatchlogs/awssdk"
 	dynamodbservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/dynamodb"
 	dynamodbawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/dynamodb/awssdk"
 	ec2service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ec2"
@@ -119,6 +121,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceDynamoDB:
 		return dynamodbservice.Scanner{
 			Client: dynamodbawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceCloudWatchLogs:
+		return cloudwatchlogsservice.Scanner{
+			Client: cloudwatchlogsawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{

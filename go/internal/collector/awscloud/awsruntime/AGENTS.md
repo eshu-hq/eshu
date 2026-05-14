@@ -59,6 +59,10 @@
 - Keep DynamoDB scans metadata-only. Do not wire item reads, table scans, table
   queries, stream record reads, backup/export payload reads, resource-policy
   persistence, PartiQL calls, or mutation APIs through the runtime registry.
+- Keep CloudWatch Logs scans metadata-only. Do not wire log event reads, log
+  stream payload reads, Insights query calls, export payload reads,
+  resource-policy persistence, subscription payload reads, or mutation APIs
+  through the runtime registry.
 
 ## Common Changes
 

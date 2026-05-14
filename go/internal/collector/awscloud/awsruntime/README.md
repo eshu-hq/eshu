@@ -67,6 +67,7 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/ecr`,
   `internal/collector/awscloud/services/ec2`,
   `internal/collector/awscloud/services/ecs`,
+  `internal/collector/awscloud/services/cloudwatchlogs`,
   `internal/collector/awscloud/services/dynamodb`,
   `internal/collector/awscloud/services/eventbridge`,
   `internal/collector/awscloud/services/eks`,
@@ -163,6 +164,11 @@ pagination spans. The command registers the instruments:
   DynamoDB SDK adapter, but it must not broaden the service contract to item
   reads, table scans, table queries, stream record reads, backup/export payload
   reads, resource-policy persistence, PartiQL calls, or mutation APIs.
+- CloudWatch Logs scanners must stay metadata-only. The runtime registry wires
+  the CloudWatch Logs SDK adapter, but it must not broaden the service contract
+  to log event reads, log stream payload reads, Insights query calls, export
+  payload reads, resource-policy persistence, subscription payload reads, or
+  mutation APIs.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

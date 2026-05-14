@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "dynamodb"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "dynamodb", "cloudwatchlogs"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -147,6 +147,10 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   relationships. They intentionally do not read items, scan or query tables,
   read stream records, fetch backup/export payloads, fetch resource policies,
   run PartiQL, or mutate DynamoDB resources.
+- CloudWatch Logs targets emit log group metadata plus directly reported KMS
+  key relationships. They intentionally do not read log events, log stream
+  payloads, run Insights queries, fetch export payloads, persist resource
+  policies or subscription payloads, or mutate CloudWatch Logs resources.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan
