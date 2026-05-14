@@ -48,6 +48,9 @@ const (
 	// ServiceCloudWatchLogs identifies the regional Amazon CloudWatch Logs log
 	// group metadata scan slice.
 	ServiceCloudWatchLogs = "cloudwatchlogs"
+	// ServiceCloudFront identifies the global Amazon CloudFront metadata scan
+	// slice.
+	ServiceCloudFront = "cloudfront"
 )
 
 const (
@@ -133,6 +136,9 @@ const (
 	// ResourceTypeCloudWatchLogsLogGroup identifies a CloudWatch Logs log group
 	// metadata resource.
 	ResourceTypeCloudWatchLogsLogGroup = "aws_cloudwatch_logs_log_group"
+	// ResourceTypeCloudFrontDistribution identifies a CloudFront distribution
+	// metadata resource.
+	ResourceTypeCloudFrontDistribution = "aws_cloudfront_distribution"
 )
 
 const (
@@ -281,6 +287,12 @@ const (
 	// RelationshipCloudWatchLogsLogGroupUsesKMSKey records a CloudWatch Logs
 	// log group's reported KMS key dependency.
 	RelationshipCloudWatchLogsLogGroupUsesKMSKey = "cloudwatch_logs_log_group_uses_kms_key"
+	// RelationshipCloudFrontDistributionUsesACMCertificate records a
+	// CloudFront distribution's reported ACM certificate dependency.
+	RelationshipCloudFrontDistributionUsesACMCertificate = "cloudfront_distribution_uses_acm_certificate"
+	// RelationshipCloudFrontDistributionUsesWAFWebACL records a CloudFront
+	// distribution's reported WAF web ACL dependency.
+	RelationshipCloudFrontDistributionUsesWAFWebACL = "cloudfront_distribution_uses_waf_web_acl"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by

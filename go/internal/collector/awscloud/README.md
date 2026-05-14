@@ -52,6 +52,8 @@ See `doc.go` for the godoc contract.
   scans.
 - `ServiceCloudWatchLogs` - CloudWatch Logs service-kind value for regional log
   group metadata scans.
+- `ServiceCloudFront` - CloudFront service-kind value for global distribution
+  metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -149,6 +151,12 @@ request.
   group metadata, tags, data protection status, inherited properties, deletion
   protection, bearer-token authentication state, and directly reported KMS key
   relationships are reported evidence only.
+- CloudFront facts are metadata only. Object contents, origin payloads,
+  distribution config payloads, policy documents, certificate bodies, private
+  keys, origin custom header values, and mutations stay outside the AWS
+  collector fact contract. Distribution metadata, aliases, origins, cache
+  behavior selectors, viewer certificate selectors, tags, and directly reported
+  ACM certificate and WAF web ACL relationships are reported evidence only.
 
 ## Related docs
 

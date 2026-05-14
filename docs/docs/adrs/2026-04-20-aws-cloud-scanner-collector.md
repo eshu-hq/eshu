@@ -53,8 +53,8 @@ later reducer-owned correlation.
 ## Status Review (2026-05-14)
 
 **Current disposition:** Phase 2 service expansion now includes SQS, SNS,
-EventBridge, S3, RDS, DynamoDB, and CloudWatch Logs metadata-only slices for
-issue #38. The `sqs` service scans queue metadata, queue tags, safe queue
+EventBridge, S3, RDS, DynamoDB, CloudWatch Logs, and CloudFront metadata-only
+slices for issue #38. The `sqs` service scans queue metadata, queue tags, safe queue
 attributes, and reported dead-letter queue relationships from redrive policy
 fields. The `sns` service scans topic metadata, topic tags, safe topic
 attributes, and reported delivery relationships only when the subscription
@@ -73,7 +73,10 @@ settings, replicas, and directly reported KMS key relationships. The
 `cloudwatchlogs` service scans log group metadata, tags, retention, stored byte
 count, metric filter count, log group class, data protection status, inherited
 properties, deletion protection, bearer-token authentication state, and directly
-reported KMS key relationships. These slices
+reported KMS key relationships. The `cloudfront` service scans distribution
+metadata, tags, aliases, origins, cache behavior selectors, viewer certificate
+selectors, status/enabled flags, and directly reported ACM certificate and WAF
+web ACL relationships. These slices
 deliberately do not call message, event payload, object, database, snapshot,
 log-content, Performance Insights sample, schema, table, Insights query, log
 stream payload, export payload, or mutation APIs; do not persist
@@ -85,6 +88,43 @@ names, master usernames, secrets, snapshots, log payloads, schemas, tables, or
 row data, DynamoDB item values, table scan results, query results, stream
 records, backup/export payloads, resource policies, PartiQL output, or
 CloudWatch Logs subscription payloads.
+
+Collector Performance Evidence: `go test ./internal/collector/awscloud/services/cloudfront/...`
+covers the bounded CloudFront call shape: paginated ListDistributions with
+MaxItems=100 and one ListTagsForResource read per ARN-addressable
+distribution; no object reads, origin payload reads, GetDistributionConfig
+calls, policy-document reads, certificate body reads, private-key handling,
+mutations, or downstream graph writes in the collector. This slice did not run
+against a live AWS account; the performance contract is the bounded
+O(distribution count) SDK call shape and existing workflow claim/account
+concurrency limits.
+
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+covers CloudFront distribution metadata fact emission, reported ACM certificate
+and WAF web ACL relationship emission, omission of secret-bearing origin header
+values and data-plane fields, SDK pagination, tag reads, runtime scanner
+registration, and the command config path that confirms CloudFront does not
+require an environment-value redaction key.
+
+Collector Observability Evidence: CloudFront uses the existing AWS collector
+`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
+labels stay bounded to service, account, region, operation, result, and status;
+distribution IDs, ARNs, aliases, tags, certificate identifiers, WAF IDs, and
+raw AWS error payloads stay out of metric labels.
+
+No-Observability-Change: the existing AWS collector telemetry contract already
+diagnoses the CloudFront path through `aws.service.scan`,
+`aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status`; no new metric
+or span name is needed for this metadata-only scanner.
+
+Collector Deployment Evidence: CloudFront runs inside the existing hosted
+`collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
+the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
+surfaces apply without a separate deployment.
 
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/sqs/...`
 covers the bounded SQS call shape: one paginated ListQueues stream, one
@@ -563,7 +603,10 @@ Phase 2 (explicit non-goal for launch but planned):
   scope)
 - SQS queue metadata (implemented 2026-05-14; message bodies and queue policy
   JSON remain out of scope)
-- CloudFront, API Gateway (edge surface)
+- CloudFront metadata (implemented 2026-05-14; object contents, origin
+  payloads, distribution config payloads, policy documents, certificate bodies,
+  private keys, origin custom header values, and mutations remain out of scope)
+- API Gateway (edge surface)
 - Secrets Manager, SSM Parameter Store (metadata only; values never read)
 - CloudWatch Logs (implemented 2026-05-14; log events, log stream payloads,
   Insights query results, export payloads, resource policies, subscription
@@ -1055,7 +1098,8 @@ behind schedule.
 - SQS queue metadata (implemented 2026-05-14)
 - SNS topic metadata (implemented 2026-05-14)
 - EventBridge metadata (implemented 2026-05-14)
-- CloudFront, API Gateway
+- CloudFront metadata (implemented 2026-05-14)
+- API Gateway
 - Secrets Manager, SSM Parameter Store (metadata)
 - CloudWatch Logs group metadata (implemented 2026-05-14)
 
@@ -1165,9 +1209,9 @@ collector for drift rules, on Git collector for code joins.
 ### Chunk E: Phase 2 Services
 
 **Scope:** SQS queue metadata, SNS topic metadata, EventBridge metadata, S3
-bucket metadata, RDS metadata, DynamoDB metadata, and CloudWatch Logs group
-metadata are implemented. Remaining scope: CloudFront, API Gateway, Secrets
-Manager metadata, and SSM metadata.
+bucket metadata, RDS metadata, DynamoDB metadata, CloudWatch Logs group
+metadata, and CloudFront metadata are implemented. Remaining scope: API
+Gateway, Secrets Manager metadata, and SSM metadata.
 
 ### Chunk F: Optional Freshness Layer
 

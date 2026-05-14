@@ -165,7 +165,9 @@ instance, DB cluster, and DB subnet group metadata with reported cluster
 membership, subnet group, security group, KMS key, monitoring role, IAM role,
 parameter group, and option group relationship facts, plus DynamoDB table
 metadata with reported server-side encryption KMS key relationship facts, plus
-CloudWatch Logs log group metadata with reported KMS key relationship facts.
+CloudWatch Logs log group metadata with reported KMS key relationship facts,
+plus CloudFront distribution metadata with reported ACM certificate and WAF web
+ACL relationship facts.
 
 `collector-oci-registry` scans configured OCI registry repositories. In the
 legacy local mode it reads `ESHU_OCI_REGISTRY_TARGETS_JSON`; when

@@ -63,6 +63,10 @@
   stream payload reads, Insights query calls, export payload reads,
   resource-policy persistence, subscription payload reads, or mutation APIs
   through the runtime registry.
+- Keep CloudFront scans metadata-only. Do not wire object reads, origin payload
+  reads, distribution config payload persistence, policy-document persistence,
+  certificate body reads, private-key handling, origin custom header value
+  persistence, or mutation APIs through the runtime registry.
 
 ## Common Changes
 

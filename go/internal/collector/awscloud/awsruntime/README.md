@@ -68,6 +68,7 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/ec2`,
   `internal/collector/awscloud/services/ecs`,
   `internal/collector/awscloud/services/cloudwatchlogs`,
+  `internal/collector/awscloud/services/cloudfront`,
   `internal/collector/awscloud/services/dynamodb`,
   `internal/collector/awscloud/services/eventbridge`,
   `internal/collector/awscloud/services/eks`,
@@ -169,6 +170,11 @@ pagination spans. The command registers the instruments:
   to log event reads, log stream payload reads, Insights query calls, export
   payload reads, resource-policy persistence, subscription payload reads, or
   mutation APIs.
+- CloudFront scanners must stay metadata-only. The runtime registry wires the
+  CloudFront SDK adapter, but it must not broaden the service contract to
+  object reads, origin payload reads, distribution config payload persistence,
+  policy-document persistence, certificate body reads, private-key handling,
+  origin custom header value persistence, or mutation APIs.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

@@ -53,6 +53,10 @@
   export payloads, resource policies, subscription payloads, and mutations out
   of facts. The command may enable `cloudwatchlogs`, but the SDK adapter owns
   safe log group metadata mapping.
+- Keep CloudFront object contents, origin payloads, distribution config
+  payloads, policy documents, certificate bodies, private keys, origin custom
+  header values, and mutations out of facts. The command may enable
+  `cloudfront`, but the SDK adapter owns safe metadata mapping.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 - Preserve the split between scanner-side status in `awsruntime` and
