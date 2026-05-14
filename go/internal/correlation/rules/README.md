@@ -77,7 +77,7 @@ Aggregated entry points (in `container_rulepacks.go`):
   `JenkinsRulePack`, `HelmRulePack`, `ArgoCDRulePack`, `KustomizeRulePack`,
   `TerraformConfigRulePack`, `CloudFormationRulePack` (9 packs; excludes
   `TerragruntRulePack` and `AnsibleRulePack`).
-- `FirstPartyRulePacks()` — returns all 11 shipped packs; adds
+- `FirstPartyRulePacks()` — returns all 13 shipped packs; adds
   `TerragruntRulePack`, `AnsibleRulePack`,
   `TerraformConfigStateDriftRulePack`, and
   `AWSCloudRuntimeDriftRulePack` to the container slice.
