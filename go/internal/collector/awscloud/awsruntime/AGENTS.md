@@ -45,6 +45,10 @@
 - Keep SNS topic scans metadata-only. Do not wire Publish, subscription
   mutations, topic policy persistence, data-protection-policy persistence, or
   raw non-ARN endpoint persistence through the runtime registry.
+- Keep EventBridge scans metadata-only. Do not wire PutEvents, rule or target
+  mutations, event bus policy persistence, target input payload persistence,
+  input-transformer persistence, HTTP-parameter persistence, or raw non-ARN
+  target persistence through the runtime registry.
 
 ## Common Changes
 

@@ -41,6 +41,10 @@
 - Keep SNS message payloads, topic policy JSON, delivery-policy JSON,
   data-protection-policy JSON, and raw non-ARN subscription endpoints out of
   facts. ARN subscription endpoints may be reported relationship evidence.
+- Keep EventBridge event payloads, mutation APIs, event bus policy JSON, target
+  input fields, target transformers, HTTP target parameters, and raw non-ARN
+  targets out of facts. ARN target endpoints may be reported relationship
+  evidence.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target
