@@ -215,22 +215,10 @@ func (s Scanner) redactedEnvironment(environment map[string]string) map[string]a
 		if name == "" {
 			continue
 		}
-		output[name] = redactionMap(redact.String(
-			value,
-			redact.ReasonKnownSensitiveKey,
-			"lambda.environment."+name,
-			s.RedactionKey,
-		))
+		source := "lambda.function.environment." + name
+		output[name] = awscloud.RedactString(value, source, s.RedactionKey)
 	}
 	return output
-}
-
-func redactionMap(value redact.Value) map[string]string {
-	return map[string]string{
-		"marker": value.Marker,
-		"reason": value.Reason,
-		"source": value.Source,
-	}
 }
 
 func aliasEnvelopes(

@@ -298,6 +298,12 @@ func assertTaskDefinitionRedaction(t *testing.T, envelope facts.Envelope) {
 	if !ok || !strings.HasPrefix(marker, "redacted:hmac-sha256:") {
 		t.Fatalf("environment marker = %#v, want HMAC redaction marker", value["marker"])
 	}
+	if got := value["ruleset_version"]; got != awscloud.RedactionPolicyVersion {
+		t.Fatalf("environment ruleset_version = %#v, want %q", got, awscloud.RedactionPolicyVersion)
+	}
+	if got := value["reason"]; got != redact.ReasonKnownSensitiveKey {
+		t.Fatalf("environment reason = %#v, want %q", got, redact.ReasonKnownSensitiveKey)
+	}
 	secrets, ok := containers[0]["secrets"].([]map[string]string)
 	if !ok || len(secrets) != 1 {
 		t.Fatalf("secrets = %#v, want one secret reference", containers[0]["secrets"])

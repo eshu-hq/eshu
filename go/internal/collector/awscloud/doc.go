@@ -9,7 +9,7 @@
 // Secrets Manager, and SSM slices, convert AWS API data into these contracts before
 // the shared collector and reducer paths persist and materialize them.
 // Sensitive service fields, including ECS and Lambda environment values, must be
-// redacted before callers build envelopes.
+// redacted through the package redaction policy before callers build envelopes.
 // SQS scans are limited to queue metadata and reported dead-letter queue
 // relationships; message bodies and queue policy JSON stay outside the
 // contract.

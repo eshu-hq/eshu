@@ -108,6 +108,27 @@ resource policy JSON, external rotation partner metadata, or external rotation
 role ARNs; and do not persist SSM parameter values, history values, raw
 descriptions, raw allowed patterns, or raw policy JSON.
 
+The AWS redaction close-out adds a versioned launch policy,
+`aws-launch-2026-05-14`, in `go/internal/collector/awscloud`. ECS
+task-definition and Lambda function environment values now share the same
+`go/internal/redact` path and persist marker, reason, source, and
+ruleset-version metadata. Known sensitive key names such as `DATABASE_URL`,
+`PASSWORD`, `TOKEN`, access keys, client secrets, private keys, and connection
+strings receive `known_sensitive_key`; other environment values fail closed as
+`unknown_provider_schema` until a narrower provider schema exists.
+
+No-Regression Evidence: `go test ./internal/collector/awscloud ./internal/collector/awscloud/services/ecs ./internal/collector/awscloud/services/lambda ./internal/storage/postgres`
+covers the AWS redaction policy helper, ECS and Lambda scanner payloads, and a
+scanner-to-Postgres fake transaction proof that raw Lambda environment values
+do not appear in persisted fact arguments.
+
+No-Observability-Change: the redaction close-out changes fact payload
+classification metadata only. The existing AWS collector diagnostics still
+cover the runtime path through `aws.service.scan`,
+`eshu_dp_aws_resources_emitted_total`, `eshu_dp_aws_relationships_emitted_total`,
+and `aws_scan_status`; no new metric or span name is needed for redacted scalar
+construction.
+
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/cloudfront/...`
 covers the bounded CloudFront call shape: paginated ListDistributions with
 MaxItems=100 and one ListTagsForResource read per ARN-addressable
@@ -920,19 +941,26 @@ The collector also emits:
 Some AWS resources leak secrets through attributes:
 
 - Lambda function environment variables
-- ECS task definition container environment variables and secrets fields
+- ECS task definition container environment variables
+- ECS task definition secret `value_from` references, which are preserved as
+  references and never resolved to secret values
 - RDS database names and master usernames are identity-adjacent database fields
   and stay out of scanner facts
 
 The scanner applies redaction analogous to the state collector:
 
 - env var values replaced with deterministic `go/internal/redact` markers
-- secret references (ARN) preserved as ARN (not a leak)
-- attribute keys on a shared sensitive-key list redacted by default
+- each redacted value carries marker, reason, source, and the
+  `aws-launch-2026-05-14` ruleset version
+- known sensitive env var keys use `known_sensitive_key`
+- other env var keys fail closed as `unknown_provider_schema`
+- secret references (ARN or provider reference) preserved as references, not
+  secret values
 - telemetry never carries plaintext values
 
 Cloud scanner redaction and state collector redaction share the same library
-(`go/internal/redact`) so the policy stays unified.
+(`go/internal/redact`) so the marker implementation stays unified while AWS
+owns its provider-specific key policy.
 
 ### Durable Pagination Checkpoints
 

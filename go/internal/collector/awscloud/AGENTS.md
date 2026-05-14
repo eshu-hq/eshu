@@ -7,12 +7,14 @@
    contracts.
 3. `apicall.go` and `scan_status.go` - bounded API-call accounting and
    durable scan-status contracts.
-4. `envelope.go` - durable fact-envelope construction and validation.
-5. Service package docs under `services/` before changing scanner-specific
+4. `redaction.go` - AWS launch sensitive-key/provider policy and shared
+   redaction payload helper.
+5. `envelope.go` - durable fact-envelope construction and validation.
+6. Service package docs under `services/` before changing scanner-specific
    behavior.
-6. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
+7. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
    source-truth, claim, and credential contract.
-7. `docs/docs/guides/collector-authoring.md` - general collector fact
+8. `docs/docs/guides/collector-authoring.md` - general collector fact
    contract.
 
 ## Invariants
@@ -27,11 +29,14 @@
   or resource names in metric labels.
 - Keep `APICallEvent` low-cardinality. It may carry service, account, region,
   operation, result, and throttle state only.
-- Redact ECS task-definition environment values before persistence; preserve
-  secret `value_from` references without resolving them.
-- Redact Lambda function environment values before persistence; preserve image
-  URI, alias, event-source, execution-role, subnet, and security-group evidence
-  without inferring workload truth.
+- Redact ECS task-definition environment values through `RedactString` before
+  persistence; preserve secret `value_from` references without resolving them.
+- Redact Lambda function environment values through `RedactString` before
+  persistence; preserve image URI, alias, event-source, execution-role, subnet,
+  and security-group evidence without inferring workload truth.
+- Keep the AWS redaction payload versioned with `RedactionPolicyVersion`.
+  Unknown environment keys fail closed as `unknown_provider_schema`; known
+  sensitive key names use `known_sensitive_key`.
 - Preserve EKS OIDC provider, node group, add-on, IAM role, subnet, and
   security group evidence without inferring Kubernetes workload or ownership
   truth.

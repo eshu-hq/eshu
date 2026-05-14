@@ -328,7 +328,7 @@ func (s Scanner) containerMaps(taskDefinition TaskDefinition) []map[string]any {
 	output := make([]map[string]any, 0, len(taskDefinition.Containers))
 	for _, container := range taskDefinition.Containers {
 		output = append(output, map[string]any{
-			"environment": environmentVariableMaps(taskDefinition, container, s.RedactionKey),
+			"environment": environmentVariableMaps(container, s.RedactionKey),
 			"essential":   container.Essential,
 			"image":       strings.TrimSpace(container.Image),
 			"name":        strings.TrimSpace(container.Name),
@@ -339,7 +339,6 @@ func (s Scanner) containerMaps(taskDefinition TaskDefinition) []map[string]any {
 }
 
 func environmentVariableMaps(
-	taskDefinition TaskDefinition,
 	container Container,
 	key redact.Key,
 ) []map[string]any {
@@ -348,16 +347,10 @@ func environmentVariableMaps(
 	}
 	output := make([]map[string]any, 0, len(container.Environment))
 	for _, variable := range container.Environment {
-		source := strings.TrimSpace(taskDefinition.ARN) + ".container." +
-			strings.TrimSpace(container.Name) + ".environment." + strings.TrimSpace(variable.Name)
+		source := "ecs.task_definition.container.environment." + strings.TrimSpace(variable.Name)
 		output = append(output, map[string]any{
-			"name": strings.TrimSpace(variable.Name),
-			"value": redactionMap(redact.String(
-				variable.Value,
-				redact.ReasonKnownSensitiveKey,
-				source,
-				key,
-			)),
+			"name":  strings.TrimSpace(variable.Name),
+			"value": awscloud.RedactString(variable.Value, source, key),
 		})
 	}
 	return output
@@ -436,14 +429,6 @@ func taskNetworkInterfaceIDs(networkInterfaces []TaskNetworkInterface) []string 
 		}
 	}
 	return output
-}
-
-func redactionMap(value redact.Value) map[string]any {
-	return map[string]any{
-		"marker": value.Marker,
-		"reason": value.Reason,
-		"source": value.Source,
-	}
 }
 
 func cloneStrings(input []string) []string {

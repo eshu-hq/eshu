@@ -75,6 +75,10 @@ See `doc.go` for the godoc contract.
   before a single durable scan-status update.
 - `ScanStatusStart`, `ScanStatusObservation`, and `ScanStatusCommit` -
   scanner-side and commit-side status records for admin visibility.
+- `RedactionPolicyVersion` - AWS launch sensitive-key/provider policy version
+  attached to redacted fact values.
+- `RedactString` - shared AWS scalar redaction helper backed by
+  `internal/redact`.
 - `NewResourceEnvelope` - builds an `aws_resource` fact.
 - `NewRelationshipEnvelope` - builds an `aws_relationship` fact.
 - `NewImageReferenceEnvelope` - builds an `aws_image_reference` fact.
@@ -90,6 +94,8 @@ collector instance, and fencing token boundaries before emitting facts.
 
 - `internal/facts` for durable AWS fact constants, `Envelope`, `Ref`,
   reported source confidence, and stable ID generation.
+- `internal/redact` for HMAC-backed scalar markers and versioned
+  sensitive-key classification.
 
 ## Telemetry
 
@@ -119,7 +125,9 @@ request.
   raw AWS error text to `APICallEvent`.
 - EC2 instance inventory stays out of EC2 network-topology facts. ENI
   attachment target ARNs are reported metadata, not instance resource facts.
-- Lambda function environment values must be redacted before persistence.
+- Lambda function environment values must be redacted before persistence with
+  `RedactString`; the payload keeps the redaction marker, reason, source, and
+  `RedactionPolicyVersion`.
   Container image URIs, alias routing, event-source ARNs, execution roles, and
   VPC subnet/security-group IDs are reported join evidence only.
 - EKS OIDC provider, node group, add-on, IAM role, subnet, and security group
@@ -175,6 +183,9 @@ request.
   role ARNs, and mutations stay outside the AWS collector fact contract. Secret
   metadata, tags, KMS key dependencies, and rotation Lambda dependencies are
   reported evidence only.
+- ECS task-definition environment values must be redacted before persistence
+  with `RedactString`. Secret `value_from` references are preserved as
+  references, not resolved secret values.
 - SSM facts are metadata only. Parameter values, history values, raw
   descriptions, raw allowed patterns, raw policy JSON, decrypted content, and
   mutations stay outside the AWS collector fact contract. Parameter metadata,
