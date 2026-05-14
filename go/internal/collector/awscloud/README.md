@@ -46,6 +46,7 @@ See `doc.go` for the godoc contract.
 - `ServiceSNS` - SNS service-kind value for regional topic metadata scans.
 - `ServiceEventBridge` - EventBridge service-kind value for regional event bus
   and rule metadata scans.
+- `ServiceS3` - S3 service-kind value for regional bucket metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -122,6 +123,11 @@ request.
   policy JSON, target payload fields, target input transformers, HTTP target
   parameters, and raw non-ARN targets stay outside the AWS collector fact
   contract. ARN target endpoints may emit reported relationship evidence.
+- S3 bucket facts are metadata only. Object inventory, bucket policy JSON, ACL
+  grants, replication rules, lifecycle rules, notification configuration,
+  inventory configuration, analytics configuration, and metrics configuration
+  stay outside the AWS collector fact contract. Server-access-log target
+  buckets may emit reported relationship evidence.
 
 ## Related docs
 

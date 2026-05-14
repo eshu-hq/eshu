@@ -52,17 +52,22 @@ later reducer-owned correlation.
 
 ## Status Review (2026-05-14)
 
-**Current disposition:** Phase 2 service expansion now includes SQS, SNS, and
-EventBridge metadata-only slices for issue #38. The `sqs` service scans queue
-metadata, queue tags, safe queue attributes, and reported dead-letter queue
-relationships from redrive policy fields. The `sns` service scans topic
+**Current disposition:** Phase 2 service expansion now includes SQS, SNS,
+EventBridge, and S3 metadata-only slices for issue #38. The `sqs` service scans
+queue metadata, queue tags, safe queue attributes, and reported dead-letter
+queue relationships from redrive policy fields. The `sns` service scans topic
 metadata, topic tags, safe topic attributes, and reported delivery
 relationships only when the subscription endpoint is ARN-addressable. The
 `eventbridge` service scans event bus metadata, rule metadata, tags, rule-to-bus
 relationships, and reported target relationships only when the target is
-ARN-addressable. These slices deliberately do not call message or event payload
-APIs, do not mutate resources, do not persist SQS/SNS/EventBridge policy JSON,
-and do not persist raw non-ARN SNS endpoints or EventBridge targets.
+ARN-addressable. The `s3` service scans bucket tags, versioning, default
+encryption, public-access-block status, policy public/not-public status,
+ownership controls, website status, and server-access-log target metadata.
+These slices deliberately do not call message, event payload, or object APIs, do
+not mutate resources, do not persist SQS/SNS/EventBridge/S3 policy JSON, and do
+not persist raw non-ARN SNS endpoints, EventBridge targets, S3 object inventory,
+ACL grants, replication rules, lifecycle rules, notification configuration,
+inventory configuration, analytics configuration, or metrics configuration.
 
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/sqs/...`
 covers the bounded SQS call shape: one paginated ListQueues stream, one
@@ -166,6 +171,43 @@ diagnoses the EventBridge path through `aws.service.scan`,
 or span name is needed for this metadata-only scanner.
 
 Collector Deployment Evidence: EventBridge runs inside the existing hosted
+`collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
+the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
+surfaces apply without a separate deployment.
+
+Collector Performance Evidence: `go test ./internal/collector/awscloud/services/s3/...`
+covers the bounded S3 call shape: paginated ListBuckets plus HeadBucket,
+GetBucketTagging, GetBucketVersioning, GetBucketEncryption,
+GetPublicAccessBlock, GetBucketPolicyStatus, GetBucketOwnershipControls,
+GetBucketWebsite, and GetBucketLogging per discovered bucket; no object
+inventory calls, no bucket policy JSON reads, no ACL grant reads, no mutations,
+and no downstream graph writes in the collector. This slice did not run against
+a live AWS account; the performance contract is the bounded O(bucket count) SDK
+call shape and existing workflow claim/account concurrency limits.
+
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+covers S3 bucket metadata fact emission, server-access-log target relationship
+emission, omission of object inventory, object key, policy JSON, ACL grant,
+replication, lifecycle, notification, inventory, analytics, and metrics fields,
+SDK point reads, runtime scanner registration, and the command config path that
+confirms S3 does not require an environment-value redaction key.
+
+Collector Observability Evidence: S3 uses the existing AWS collector
+`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
+labels stay bounded to service, account, region, operation, result, and status;
+bucket names, bucket ARNs, tags, prefixes, KMS key IDs, and raw AWS error
+payloads stay out of metric labels.
+
+No-Observability-Change: the existing AWS collector telemetry contract already
+diagnoses the S3 path through `aws.service.scan`,
+`aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status`; no new metric
+or span name is needed for this metadata-only scanner.
+
+Collector Deployment Evidence: S3 runs inside the existing hosted
 `collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
 the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
 surfaces apply without a separate deployment.
@@ -373,7 +415,10 @@ slice:
 Phase 2 (explicit non-goal for launch but planned):
 
 - RDS, DynamoDB (data-plane resources)
-- S3 (bucket metadata only; never object contents)
+- S3 bucket metadata (implemented 2026-05-14; object inventory, object keys,
+  bucket policy JSON, ACL grants, replication rules, lifecycle rules,
+  notification configuration, inventory configuration, analytics configuration,
+  and metrics configuration remain out of scope)
 - SNS topic metadata (implemented 2026-05-14; message payloads, topic policy
   JSON, data-protection-policy JSON, and raw non-ARN subscription endpoints
   remain out of scope)
@@ -866,7 +911,8 @@ behind schedule.
 
 ### Phase 4: Phase 2 Service Expansion
 
-- RDS, DynamoDB, S3 (metadata)
+- RDS, DynamoDB
+- S3 metadata (implemented 2026-05-14)
 - SQS queue metadata (implemented 2026-05-14)
 - SNS topic metadata (implemented 2026-05-14)
 - EventBridge metadata (implemented 2026-05-14)
@@ -979,9 +1025,10 @@ collector for drift rules, on Git collector for code joins.
 
 ### Chunk E: Phase 2 Services
 
-**Scope:** SQS queue metadata, SNS topic metadata, and EventBridge metadata are
-implemented. Remaining scope: RDS, DynamoDB, S3 metadata, CloudFront, API
-Gateway, Secrets Manager metadata, SSM metadata, and CloudWatch Logs metadata.
+**Scope:** SQS queue metadata, SNS topic metadata, EventBridge metadata, and S3
+bucket metadata are implemented. Remaining scope: RDS, DynamoDB, CloudFront,
+API Gateway, Secrets Manager metadata, SSM metadata, and CloudWatch Logs
+metadata.
 
 ### Chunk F: Optional Freshness Layer
 

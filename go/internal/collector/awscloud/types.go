@@ -36,6 +36,9 @@ const (
 	// ServiceEventBridge identifies the regional Amazon EventBridge metadata
 	// scan slice.
 	ServiceEventBridge = "eventbridge"
+	// ServiceS3 identifies the regional Amazon Simple Storage Service bucket
+	// metadata scan slice.
+	ServiceS3 = "s3"
 )
 
 const (
@@ -106,6 +109,8 @@ const (
 	// ResourceTypeEventBridgeRule identifies an EventBridge rule metadata
 	// resource.
 	ResourceTypeEventBridgeRule = "aws_eventbridge_rule"
+	// ResourceTypeS3Bucket identifies an S3 bucket metadata resource.
+	ResourceTypeS3Bucket = "aws_s3_bucket"
 )
 
 const (
@@ -209,6 +214,9 @@ const (
 	// RelationshipEventBridgeRuleTargetsResource records EventBridge rule target
 	// evidence when the target is ARN-addressable.
 	RelationshipEventBridgeRuleTargetsResource = "eventbridge_rule_targets_resource"
+	// RelationshipS3BucketLogsToBucket records S3 server-access-log delivery
+	// metadata from a source bucket to its target bucket.
+	RelationshipS3BucketLogsToBucket = "s3_bucket_logs_to_bucket"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by
