@@ -957,6 +957,12 @@ MCP answers.
 
 These routes are for tracing shared infrastructure, blast radius, dependency explanation, and environment drift.
 
+The legacy entity-scoped impact routes `POST /api/v0/impact/blast-radius`,
+`POST /api/v0/impact/change-surface`, and
+`POST /api/v0/impact/trace-resource-to-code` accept `limit` with default 50 and
+cap 200. They probe one extra graph row and return `truncated` so MCP and
+Console callers can narrow or page instead of relying on a warm cache.
+
 `POST /api/v0/impact/change-surface/investigate` is the prompt-facing change
 surface route. It accepts one graph target family (`target` + `target_type`,
 `service_name`, `workload_id`, `resource_id`, or `module_id`) and/or a code
@@ -969,6 +975,12 @@ topics and changed paths return `code_surface` file/symbol handles,
 `recommended_next_calls`, and coverage metadata so MCP clients can answer
 blast-radius and behavior-change prompts without guessing which discovery tool
 to call first.
+
+`POST /api/v0/compare/environments` accepts `workload_id`, `left`, `right`, and
+optional `limit` with default 50 and cap 200. The comparison reads at most
+`limit + 1` cloud resources per side, reports `coverage.left_truncated`,
+`coverage.right_truncated`, and top-level `truncated`, and keeps the diff honest
+when a workload has more dependencies than the first response includes.
 
 `POST /api/v0/infra/resources/search` accepts `query`, `category`, `kind`,
 `provider`, `resource_service`, `resource_category`, and `limit`. `limit`

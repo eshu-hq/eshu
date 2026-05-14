@@ -106,7 +106,8 @@ const openAPIPathsImpact = `
                     "type": "string",
                     "enum": ["repository", "terraform_module", "crossplane_xrd", "sql_table"],
                     "description": "Type of target entity"
-                  }
+                  },
+                  "limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}
                 }
               }
             }
@@ -123,7 +124,9 @@ const openAPIPathsImpact = `
                     "target": {"type": "string"},
                     "target_type": {"type": "string"},
                     "affected": {"type": "array", "items": {"type": "object"}},
-                    "affected_count": {"type": "integer"}
+                    "affected_count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"}
                   }
                 }
               }
@@ -149,7 +152,8 @@ const openAPIPathsImpact = `
                 "required": ["target"],
                 "properties": {
                   "target": {"type": "string", "description": "Target entity ID"},
-                  "environment": {"type": "string", "description": "Optional environment filter"}
+                  "environment": {"type": "string", "description": "Optional environment filter"},
+                  "limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}
                 }
               }
             }
@@ -166,6 +170,8 @@ const openAPIPathsImpact = `
                     "target": {"type": "object"},
                     "impacted": {"type": "array", "items": {"type": "object"}},
                     "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
                     "environment": {"type": "string"}
                   }
                 }
@@ -268,7 +274,8 @@ const openAPIPathsImpact = `
                 "properties": {
                   "start": {"type": "string", "description": "Starting entity ID"},
                   "environment": {"type": "string"},
-                  "max_depth": {"type": "integer", "default": 8, "minimum": 1, "maximum": 20}
+                  "max_depth": {"type": "integer", "default": 8, "minimum": 1, "maximum": 20},
+                  "limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}
                 }
               }
             }
@@ -285,6 +292,8 @@ const openAPIPathsImpact = `
                     "start": {"type": "object"},
                     "paths": {"type": "array", "items": {"type": "object"}},
                     "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
                     "environment": {"type": "string"}
                   }
                 }

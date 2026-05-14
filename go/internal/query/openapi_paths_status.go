@@ -207,7 +207,8 @@ const openAPIPathsStatusAndCompare = `
                 "properties": {
                   "workload_id": {"type": "string"},
                   "left": {"type": "string", "description": "Left environment name"},
-                  "right": {"type": "string", "description": "Right environment name"}
+                  "right": {"type": "string", "description": "Right environment name"},
+                  "limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}
                 }
               }
             }
@@ -226,7 +227,10 @@ const openAPIPathsStatusAndCompare = `
                     "right": {"type": "object"},
                     "changed": {"type": "object"},
                     "confidence": {"type": "number"},
-                    "reason": {"type": "string"}
+                    "reason": {"type": "string"},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "coverage": {"type": "object"}
                   }
                 }
               }

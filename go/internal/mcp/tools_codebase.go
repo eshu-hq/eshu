@@ -157,50 +157,7 @@ func codebaseTools() []ToolDefinition {
 		{
 			Name:        "analyze_code_relationships",
 			Description: "Analyze code relationships like 'who calls this function' or 'class hierarchy'. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_importers, who_modifies, class_hierarchy, overrides, dead_code, call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"query_type": map[string]any{
-						"type":        "string",
-						"description": "Type of relationship analysis to perform",
-						"enum": []string{
-							"find_callers",
-							"find_callees",
-							"find_all_callers",
-							"find_all_callees",
-							"find_importers",
-							"who_modifies",
-							"class_hierarchy",
-							"overrides",
-							"dead_code",
-							"call_chain",
-							"module_deps",
-							"variable_scope",
-							"find_complexity",
-							"find_functions_by_argument",
-							"find_functions_by_decorator",
-						},
-					},
-					"target": map[string]any{
-						"type":        "string",
-						"description": "Target entity to analyze",
-					},
-					"context": map[string]any{
-						"type":        "string",
-						"description": "Optional context for the analysis",
-					},
-					"repo_id": map[string]any{
-						"type":        "string",
-						"description": "Optional canonical repository identifier",
-					},
-					"scope": map[string]any{
-						"type":        "string",
-						"description": "Analysis scope",
-						"default":     "auto",
-					},
-				},
-				"required": []string{"query_type", "target"},
-			},
+			InputSchema: analyzeCodeRelationshipsSchema(),
 		},
 		{
 			Name:        "find_dead_code",

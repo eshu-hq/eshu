@@ -52,8 +52,15 @@ func ecosystemTools() []ToolDefinition {
 					"target_type": map[string]any{
 						"type":        "string",
 						"description": "Type of the target entity",
-						"enum":        []string{"repository", "terraform_module", "crossplane_xrd"},
+						"enum":        []string{"repository", "terraform_module", "crossplane_xrd", "sql_table"},
 						"default":     "repository",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum affected rows to return",
+						"default":     50,
+						"minimum":     1,
+						"maximum":     200,
 					},
 				},
 				"required": []string{"target"},
@@ -244,6 +251,13 @@ func ecosystemTools() []ToolDefinition {
 						"description": "Maximum traversal depth",
 						"default":     8,
 					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum repository paths to return",
+						"default":     50,
+						"minimum":     1,
+						"maximum":     200,
+					},
 				},
 				"required": []string{"start"},
 			},
@@ -283,6 +297,13 @@ func ecosystemTools() []ToolDefinition {
 					"environment": map[string]any{
 						"type":        "string",
 						"description": "Optional environment context",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum impacted rows to return",
+						"default":     50,
+						"minimum":     1,
+						"maximum":     200,
 					},
 				},
 				"required": []string{"target"},
@@ -378,6 +399,13 @@ func ecosystemTools() []ToolDefinition {
 					"right": map[string]any{
 						"type":        "string",
 						"description": "Second environment to compare",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum cloud resources to read per environment",
+						"default":     50,
+						"minimum":     1,
+						"maximum":     200,
 					},
 				},
 				"required": []string{"workload_id", "left", "right"},

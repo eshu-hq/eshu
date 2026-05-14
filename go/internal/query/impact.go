@@ -53,6 +53,7 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 	var req struct {
 		Target     string `json:"target"`
 		TargetType string `json:"target_type"`
+		Limit      int    `json:"limit"`
 	}
 	if err := ReadJSON(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
@@ -68,8 +69,9 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	limit := normalizeImpactListLimit(req.Limit)
 	var cypher string
-	params := map[string]any{"target_name": req.Target}
+	params := map[string]any{"target_name": req.Target, "limit": limit + 1}
 
 	switch req.TargetType {
 	case "repository":
@@ -77,19 +79,25 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 			OPTIONAL MATCH path = (source)<-[rels*1..5]-(affected:Repository)
 			WHERE all(rel IN rels WHERE type(rel) = 'DEPENDS_ON')
 			OPTIONAL MATCH (affected)<-[:CONTAINS]-(tier:Tier)
-			RETURN DISTINCT affected.name as repo, tier.name as tier, tier.risk_level as risk, length(path) as hops ORDER BY hops`
+			RETURN DISTINCT affected.name as repo, tier.name as tier, tier.risk_level as risk, length(path) as hops
+			ORDER BY hops, repo
+			LIMIT $limit`
 	case "terraform_module":
 		cypher = `MATCH (mod:TerraformModule) WHERE mod.name CONTAINS $target_name OR mod.source CONTAINS $target_name
 			MATCH (f:File)-[:CONTAINS]->(mod) MATCH (repo:Repository)-[:REPO_CONTAINS]->(f)
 			OPTIONAL MATCH path = (repo)<-[rels*0..5]-(affected:Repository) WHERE all(rel IN rels WHERE type(rel) = 'DEPENDS_ON')
 			OPTIONAL MATCH (affected)<-[:CONTAINS]-(tier:Tier)
-			RETURN DISTINCT affected.name as repo, tier.name as tier, tier.risk_level as risk`
+			RETURN DISTINCT affected.name as repo, tier.name as tier, tier.risk_level as risk
+			ORDER BY repo
+			LIMIT $limit`
 	case "crossplane_xrd":
 		cypher = `MATCH (xrd:CrossplaneXRD) WHERE xrd.kind CONTAINS $target_name OR xrd.name CONTAINS $target_name
 			OPTIONAL MATCH (claim:CrossplaneClaim)-[:SATISFIED_BY]->(xrd)
 			MATCH (f:File)-[:CONTAINS]->(claim) MATCH (repo:Repository)-[:REPO_CONTAINS]->(f)
 			OPTIONAL MATCH (affected)<-[:CONTAINS]-(tier:Tier)
-			RETURN DISTINCT repo.name as repo, tier.name as tier, claim.name as claim`
+			RETURN DISTINCT repo.name as repo, tier.name as tier, claim.name as claim
+			ORDER BY repo, claim
+			LIMIT $limit`
 	case "sql_table":
 		cypher = `CALL { MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
 				MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(table) RETURN DISTINCT repo, 0 as hops UNION
@@ -107,7 +115,9 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 				  AND EXISTS { MATCH (sql_node)-[:READS_FROM|TRIGGERS_ON|INDEXES]->(table) }
 				RETURN DISTINCT repo, 1 as hops }
 			OPTIONAL MATCH (repo)<-[:CONTAINS]-(tier:Tier)
-			RETURN DISTINCT repo.name as repo, repo.id as repo_id, tier.name as tier, tier.risk_level as risk, hops ORDER BY hops, repo`
+			RETURN DISTINCT repo.name as repo, repo.id as repo_id, tier.name as tier, tier.risk_level as risk, hops
+			ORDER BY hops, repo
+			LIMIT $limit`
 	default:
 		WriteError(w, http.StatusBadRequest, "unsupported target_type: "+req.TargetType)
 		return
@@ -119,6 +129,7 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	rows, truncated := trimImpactRows(rows, limit)
 	affected := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		entry := map[string]any{"repo": StringVal(row, "repo")}
@@ -139,86 +150,14 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 		}
 		affected = append(affected, entry)
 	}
-	WriteSuccess(w, r, http.StatusOK, map[string]any{"target": req.Target, "target_type": req.TargetType, "affected": affected, "affected_count": len(affected)}, BuildTruthEnvelope(h.profile(), "platform_impact.blast_radius", TruthBasisHybrid, "resolved from platform graph impact analysis"))
-}
-
-// findChangeSurface analyzes the change surface for a target entity.
-// POST /api/v0/impact/change-surface
-// Body: {"target": "entity-id", "environment": "production"}
-func (h *ImpactHandler) findChangeSurface(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.profile(), "platform_impact.change_surface") {
-		WriteContractError(
-			w,
-			r,
-			http.StatusNotImplemented,
-			"change surface analysis requires authoritative platform truth",
-			"unsupported_capability",
-			"platform_impact.change_surface",
-			h.profile(),
-			requiredProfile("platform_impact.change_surface"),
-		)
-		return
-	}
-
-	var req struct {
-		Target      string `json:"target"`
-		Environment string `json:"environment"`
-	}
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	if req.Target == "" {
-		WriteError(w, http.StatusBadRequest, "target is required")
-		return
-	}
-
-	cypher := `MATCH (start) WHERE start.id = $target_id
-		OPTIONAL MATCH path = (start)-[rels*1..8]->(impacted)
-		WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])
-		UNWIND relationships(path) as rel
-		WITH impacted, rel, startNode(rel) as hop_from, endNode(rel) as hop_to, length(path) as depth
-		RETURN DISTINCT impacted.id as id, impacted.name as name, labels(impacted) as labels, impacted.environment as environment,
-			type(rel) as rel_type, rel.confidence as confidence, rel.reason as reason, depth
-		ORDER BY depth, impacted.name LIMIT 100`
-
-	params := map[string]any{"target_id": req.Target}
-	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	targetRow, err := h.Neo4j.RunSingle(r.Context(), "MATCH (n) WHERE n.id = $id RETURN n.id as id, n.name as name", map[string]any{"id": req.Target})
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	target := map[string]any{"id": req.Target, "name": StringVal(targetRow, "name")}
-	impacted := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		env := StringVal(row, "environment")
-		if req.Environment != "" && env != "" && env != req.Environment {
-			continue
-		}
-		entry := map[string]any{"id": StringVal(row, "id"), "name": StringVal(row, "name"), "labels": StringSliceVal(row, "labels"), "depth": IntVal(row, "depth")}
-		if env != "" {
-			entry["environment"] = env
-		}
-		if conf, ok := row["confidence"].(float64); ok {
-			entry["confidence"] = conf
-		}
-		if reason := StringVal(row, "reason"); reason != "" {
-			entry["reason"] = reason
-		}
-		impacted = append(impacted, entry)
-	}
-	resp := map[string]any{"target": target, "impacted": impacted, "count": len(impacted)}
-	if req.Environment != "" {
-		resp["environment"] = req.Environment
-	}
-	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.change_surface", TruthBasisHybrid, "resolved from graph and impact relationships"))
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"target":         req.Target,
+		"target_type":    req.TargetType,
+		"affected":       affected,
+		"affected_count": len(affected),
+		"limit":          limit,
+		"truncated":      truncated,
+	}, BuildTruthEnvelope(h.profile(), "platform_impact.blast_radius", TruthBasisHybrid, "resolved from platform graph impact analysis"))
 }
 
 // traceResourceToCode traces a resource back to its code repository.
@@ -243,6 +182,7 @@ func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Reque
 		Start       string `json:"start"`
 		Environment string `json:"environment"`
 		MaxDepth    int    `json:"max_depth"`
+		Limit       int    `json:"limit"`
 	}
 	if err := ReadJSON(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
@@ -264,14 +204,16 @@ func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Reque
 	if req.MaxDepth < 1 {
 		req.MaxDepth = 1
 	}
+	limit := normalizeImpactListLimit(req.Limit)
 
 	cypher := fmt.Sprintf(`MATCH (start) WHERE start.id = $start_id
 		OPTIONAL MATCH path = (start)-[rels*1..%d]->(repo:Repository)
 		WITH start, path, repo, length(path) as depth, [rel IN relationships(path) | {type: type(rel), confidence: rel.confidence, reason: rel.reason}] as hops
 		RETURN DISTINCT start.id as start_id, start.name as start_name, labels(start) as start_labels, repo.id as repo_id, repo.name as repo_name, depth, hops
-		ORDER BY depth LIMIT 50`, req.MaxDepth)
+		ORDER BY depth, repo_name, repo_id
+		LIMIT $limit`, req.MaxDepth)
 
-	params := map[string]any{"start_id": req.Start}
+	params := map[string]any{"start_id": req.Start, "limit": limit + 1}
 	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -289,6 +231,7 @@ func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Reque
 		}
 		start = map[string]any{"id": StringVal(startRow, "id"), "name": StringVal(startRow, "name"), "labels": StringSliceVal(startRow, "labels")}
 	}
+	rows, truncated := trimImpactRows(rows, limit)
 	paths := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		repoID := StringVal(row, "repo_id")
@@ -316,7 +259,7 @@ func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Reque
 		}
 		paths = append(paths, path)
 	}
-	resp := map[string]any{"start": start, "paths": paths, "count": len(paths)}
+	resp := map[string]any{"start": start, "paths": paths, "count": len(paths), "limit": limit, "truncated": truncated}
 	if req.Environment != "" {
 		resp["environment"] = req.Environment
 	}

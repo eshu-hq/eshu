@@ -128,6 +128,72 @@ func TestCompareEnvironmentsReturnsPresentSnapshotsFromMaterializedInstances(t *
 	}
 }
 
+func TestCompareEnvironmentsBoundsResourceReadsAndReportsTruncation(t *testing.T) {
+	t.Parallel()
+
+	handler := &CompareHandler{
+		Neo4j: fakeCompareGraphReader{
+			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+				switch {
+				case strings.Contains(cypher, "MATCH (w:Workload)"):
+					return map[string]any{
+						"id":      "workload:service-edge-api",
+						"name":    "service-edge-api",
+						"kind":    "service",
+						"repo_id": "repo-service-edge-api",
+					}, nil
+				case strings.Contains(cypher, "MATCH (i:WorkloadInstance)"):
+					env := params["environment"]
+					return map[string]any{
+						"id":          "instance:" + env.(string),
+						"name":        "service-edge-api-" + env.(string),
+						"kind":        "service",
+						"environment": env,
+						"workload_id": "workload:service-edge-api",
+					}, nil
+				}
+				return nil, nil
+			},
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if !strings.Contains(cypher, "LIMIT $limit") {
+					t.Fatalf("resource cypher = %q, want LIMIT $limit", cypher)
+				}
+				if !strings.Contains(cypher, "ORDER BY c.name, c.id") {
+					t.Fatalf("resource cypher = %q, want deterministic resource ordering", cypher)
+				}
+				if got, want := params["limit"], 2; got != want {
+					t.Fatalf("params[limit] = %#v, want %#v", got, want)
+				}
+				return []map[string]any{
+					{"id": "cloud:" + params["instance_id"].(string) + ":a", "name": "queue-a", "kind": "queue", "provider": "aws", "confidence": 1.0},
+					{"id": "cloud:" + params["instance_id"].(string) + ":b", "name": "queue-b", "kind": "queue", "provider": "aws", "confidence": 1.0},
+				}, nil
+			},
+		},
+	}
+
+	resp := executeCompareEnvironmentsRequest(t, handler, `{"workload_id":"workload:service-edge-api","left":"qa","right":"prod","limit":1}`)
+
+	if got, want := resp["limit"], float64(1); got != want {
+		t.Fatalf("limit = %#v, want %#v", got, want)
+	}
+	if got, want := resp["truncated"], true; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+	coverage := requireMap(t, resp, "coverage")
+	if got, want := coverage["left_truncated"], true; got != want {
+		t.Fatalf("coverage.left_truncated = %#v, want %#v", got, want)
+	}
+	if got, want := coverage["right_truncated"], true; got != want {
+		t.Fatalf("coverage.right_truncated = %#v, want %#v", got, want)
+	}
+	left := requireMap(t, resp, "left")
+	leftResources := requireMapSlice(t, left, "cloud_resources")
+	if len(leftResources) != 1 {
+		t.Fatalf("len(left.cloud_resources) = %d, want 1", len(leftResources))
+	}
+}
+
 func TestCompareEnvironmentsReturnsInferredSnapshotsFromServiceEvidence(t *testing.T) {
 	t.Parallel()
 

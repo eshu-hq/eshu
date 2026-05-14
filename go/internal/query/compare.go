@@ -32,6 +32,7 @@ type compareEnvironmentsRequest struct {
 	WorkloadID string `json:"workload_id"`
 	Left       string `json:"left"`
 	Right      string `json:"right"`
+	Limit      int    `json:"limit"`
 }
 
 // compareEnvironments handles POST /api/v0/compare/environments.
@@ -70,6 +71,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 	}
 
 	ctx := r.Context()
+	limit := normalizeImpactListLimit(req.Limit)
 
 	// Fetch workload
 	workload, err := h.fetchWorkload(ctx, req.WorkloadID)
@@ -111,12 +113,12 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	leftSnap, err := h.environmentSnapshot(ctx, workload, req.Left, serviceEvidence)
+	leftSnap, leftTruncated, err := h.environmentSnapshot(ctx, workload, req.Left, serviceEvidence, limit)
 	if err != nil {
 		writeCompareError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	rightSnap, err := h.environmentSnapshot(ctx, workload, req.Right, serviceEvidence)
+	rightSnap, rightTruncated, err := h.environmentSnapshot(ctx, workload, req.Right, serviceEvidence, limit)
 	if err != nil {
 		writeCompareError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -142,6 +144,12 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 		},
 		"confidence": confidence,
 		"reason":     reason,
+		"limit":      limit,
+		"truncated":  leftTruncated || rightTruncated,
+		"coverage": map[string]any{
+			"left_truncated":  leftTruncated,
+			"right_truncated": rightTruncated,
+		},
 	}
 
 	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.environment_compare", TruthBasisHybrid, "compared environment state from workload and cloud-resource evidence"))
@@ -174,7 +182,8 @@ func (h *CompareHandler) environmentSnapshot(
 	workload map[string]any,
 	environment string,
 	serviceEvidence ServiceQueryEvidence,
-) (map[string]any, error) {
+	limit int,
+) (map[string]any, bool, error) {
 	// Find the workload instance for this environment
 	instanceCypher := `
 		MATCH (i:WorkloadInstance)
@@ -190,7 +199,7 @@ func (h *CompareHandler) environmentSnapshot(
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if instanceRow == nil {
 		provenance := inferredEnvironmentProvenance(environment, serviceEvidence)
@@ -202,7 +211,7 @@ func (h *CompareHandler) environmentSnapshot(
 				"cloud_resources": []map[string]any{},
 				"provenance":      provenance,
 				"reason":          "environment inferred from service evidence; no materialized workload instance found",
-			}, nil
+			}, false, nil
 		}
 		return map[string]any{
 			"environment":     environment,
@@ -211,7 +220,7 @@ func (h *CompareHandler) environmentSnapshot(
 			"cloud_resources": []map[string]any{},
 			"provenance":      []map[string]any{},
 			"reason":          "no materialized workload instance or inferable service evidence found for environment",
-		}, nil
+		}, false, nil
 	}
 
 	instance := map[string]any{
@@ -229,16 +238,19 @@ func (h *CompareHandler) environmentSnapshot(
 		RETURN c.id as id, c.name as name, c.environment as environment,
 		       c.kind as kind, c.provider as provider,
 		       r.confidence as confidence, r.reason as reason
-		ORDER BY c.name
+		ORDER BY c.name, c.id
+		LIMIT $limit
 	`
 	resourceRows, err := h.Neo4j.Run(ctx, resourcesCypher, map[string]any{
 		"instance_id": compareStringVal(instanceRow, "id"),
+		"limit":       limit + 1,
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
+	resourceRows, truncated := trimImpactRows(resourceRows, limit)
 	cloudResources := make([]map[string]any, 0, len(resourceRows))
 	for _, row := range resourceRows {
 		cloudResources = append(cloudResources, map[string]any{
@@ -266,7 +278,7 @@ func (h *CompareHandler) environmentSnapshot(
 			},
 		},
 		"reason": "materialized workload instance found for environment",
-	}, nil
+	}, truncated, nil
 }
 
 // diffCloudResources computes added/removed resources between two snapshots.

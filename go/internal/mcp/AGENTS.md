@@ -104,7 +104,7 @@
 - Symptom: service tool (`get_service_context`, `get_service_story`) returns
   404 from the internal handler → a qualified identifier like `workload:name`
   was not stripped; verify `PathEscape` receives the stripped value at
-  `dispatch.go:402`.
+  `dispatch.go:282`.
 
 - Symptom: `find_dead_iac` returns empty results with a Postgres-backed
   reachability store → the IaC reachability field may not be wired in

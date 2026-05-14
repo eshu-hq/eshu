@@ -130,39 +130,15 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		}
 		switch str(args, "query_type") {
 		case "find_callers":
-			body = map[string]any{
-				"name":              str(args, "target"),
-				"direction":         "incoming",
-				"relationship_type": "CALLS",
-			}
+			return analyzeCodeRelationshipsStoryRoute(args, "incoming", "CALLS", false), nil
 		case "find_callees":
-			body = map[string]any{
-				"name":              str(args, "target"),
-				"direction":         "outgoing",
-				"relationship_type": "CALLS",
-			}
+			return analyzeCodeRelationshipsStoryRoute(args, "outgoing", "CALLS", false), nil
 		case "find_all_callers":
-			body = map[string]any{
-				"name":              str(args, "target"),
-				"direction":         "incoming",
-				"relationship_type": "CALLS",
-				"transitive":        true,
-				"max_depth":         parseMaxDepth(args, 5),
-			}
+			return analyzeCodeRelationshipsStoryRoute(args, "incoming", "CALLS", true), nil
 		case "find_all_callees":
-			body = map[string]any{
-				"name":              str(args, "target"),
-				"direction":         "outgoing",
-				"relationship_type": "CALLS",
-				"transitive":        true,
-				"max_depth":         parseMaxDepth(args, 5),
-			}
+			return analyzeCodeRelationshipsStoryRoute(args, "outgoing", "CALLS", true), nil
 		case "find_importers":
-			body = map[string]any{
-				"name":              str(args, "target"),
-				"direction":         "incoming",
-				"relationship_type": "IMPORTS",
-			}
+			return analyzeCodeRelationshipsStoryRoute(args, "incoming", "IMPORTS", false), nil
 		case "call_chain":
 			start, end, ok := strings.Cut(str(args, "target"), "->")
 			if !ok {
@@ -356,9 +332,17 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"include_related_module_usage": boolOr(args, "include_related_module_usage", false),
 		}}, nil
 	case "find_blast_radius":
-		return &route{method: "POST", path: "/api/v0/impact/blast-radius", body: args}, nil
+		return &route{method: "POST", path: "/api/v0/impact/blast-radius", body: map[string]any{
+			"target":      str(args, "target"),
+			"target_type": str(args, "target_type"),
+			"limit":       intOr(args, "limit", 50),
+		}}, nil
 	case "find_change_surface":
-		return &route{method: "POST", path: "/api/v0/impact/change-surface", body: args}, nil
+		return &route{method: "POST", path: "/api/v0/impact/change-surface", body: map[string]any{
+			"target":      str(args, "target"),
+			"environment": str(args, "environment"),
+			"limit":       intOr(args, "limit", 50),
+		}}, nil
 	case "investigate_change_surface":
 		return &route{method: "POST", path: "/api/v0/impact/change-surface/investigate", body: map[string]any{
 			"target":        str(args, "target"),
@@ -376,13 +360,23 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"offset":        intOr(args, "offset", 0),
 		}}, nil
 	case "trace_resource_to_code":
-		return &route{method: "POST", path: "/api/v0/impact/trace-resource-to-code", body: args}, nil
+		return &route{method: "POST", path: "/api/v0/impact/trace-resource-to-code", body: map[string]any{
+			"start":       str(args, "start"),
+			"environment": str(args, "environment"),
+			"max_depth":   intOr(args, "max_depth", 8),
+			"limit":       intOr(args, "limit", 50),
+		}}, nil
 	case "explain_dependency_path":
 		return &route{method: "POST", path: "/api/v0/impact/explain-dependency-path", body: args}, nil
 
 	// ── Compare ──
 	case "compare_environments":
-		return &route{method: "POST", path: "/api/v0/compare/environments", body: args}, nil
+		return &route{method: "POST", path: "/api/v0/compare/environments", body: map[string]any{
+			"workload_id": str(args, "workload_id"),
+			"left":        str(args, "left"),
+			"right":       str(args, "right"),
+			"limit":       intOr(args, "limit", 50),
+		}}, nil
 
 	// ── Status ──
 	case "list_ingesters":
