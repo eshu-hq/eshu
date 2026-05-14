@@ -60,9 +60,20 @@ func (h *CodeHandler) relationshipStoryGraphRows(
 		}
 		byDirection[result.direction] = result.rows
 	}
-	rows := append([]map[string]any{}, byDirection["incoming"]...)
-	rows = append(rows, byDirection["outgoing"]...)
-	return rows, nil
+	return interleaveRelationshipStoryDirections(byDirection["incoming"], byDirection["outgoing"]), nil
+}
+
+func interleaveRelationshipStoryDirections(incoming []map[string]any, outgoing []map[string]any) []map[string]any {
+	rows := make([]map[string]any, 0, len(incoming)+len(outgoing))
+	for index := 0; index < len(incoming) || index < len(outgoing); index++ {
+		if index < len(incoming) {
+			rows = append(rows, incoming[index])
+		}
+		if index < len(outgoing) {
+			rows = append(rows, outgoing[index])
+		}
+	}
+	return rows
 }
 
 func (h *CodeHandler) relationshipStoryTransitiveGraphRows(

@@ -62,7 +62,10 @@ tool surface:
   before graph traversal, returns bounded ambiguity candidates instead of
   guessing, anchors graph reads by entity id, requires deterministic
   `ORDER BY` plus `SKIP`/`LIMIT`, probes one extra row for `truncated`, and uses
-  a bounded breadth-first CALLS traversal when `include_transitive=true`.
+  a bounded breadth-first CALLS traversal when `include_transitive=true`. When
+  callers request both direct directions, rows are interleaved and the response
+  reports per-direction available, returned, and truncated counts so one busy
+  direction cannot hide the other without a visible coverage signal.
 
 ## Prompt-Family Audit
 
@@ -114,7 +117,7 @@ No-Regression Evidence: symbol lookup focused proof:
 `go test ./internal/mcp -run 'TestFindSymbolToolAdvertisesBoundedLookupContract|TestResolveRouteMapsFindSymbol|TestReadOnlyTools|TestCodebaseTools' -count=1`.
 
 No-Regression Evidence: relationship story focused proof:
-`go test ./internal/query -run 'TestHandleRelationshipStory|TestCapability|TestOpenAPI' -count=1` and
+`go test ./internal/query -run 'TestHandleRelationshipStory|TestNornicDBRelationshipStory|TestCapability|TestOpenAPI' -count=1` and
 `go test ./internal/mcp -run 'TestResolveRouteMapsCodeRelationshipStory|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute' -count=1`.
 
 Observability Evidence: the changed paths continue through existing

@@ -658,8 +658,10 @@ Example relationship-story workflow:
 The relationship-story route resolves one symbol first. If the name matches
 multiple entities, it returns `target_resolution.status=ambiguous` with bounded
 candidates instead of querying the graph and guessing. Resolved requests use an
-entity-anchored, ordered, paged relationship read and return `coverage.truncated`
-plus `source_handle` fields. Set `include_transitive=true` with
+entity-anchored, ordered, paged relationship read and return
+`coverage.truncated`, per-direction `available_by_direction`,
+`returned_by_direction`, and `truncated_by_direction`, plus `source_handle`
+fields. Direct reads report `max_depth=1`. Set `include_transitive=true` with
 `direction=incoming` or `direction=outgoing` for bounded CALLS traversal; the
 server caps `max_depth` at 10, requires `offset=0` for traversal mode, and
 stops when the requested relationship window is full.

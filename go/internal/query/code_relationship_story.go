@@ -120,7 +120,7 @@ func (r relationshipStoryRequest) validate() error {
 			return errors.New("include_transitive currently supports CALLS relationships only")
 		}
 		if direction, _ := r.normalizedDirection(); direction == "both" {
-			return errors.New("include_transitive requires direction incoming or outgoing")
+			return errors.New("set direction to incoming or outgoing when include_transitive is true")
 		}
 	}
 	return nil
@@ -179,6 +179,13 @@ func normalizedRelationshipStoryMaxDepth(maxDepth int) int {
 	}
 }
 
+func relationshipStoryEffectiveMaxDepth(req relationshipStoryRequest) int {
+	if !req.IncludeTransitive {
+		return 1
+	}
+	return normalizedRelationshipStoryMaxDepth(req.MaxDepth)
+}
+
 func (h *CodeHandler) writeRelationshipStory(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -209,11 +216,14 @@ func relationshipStoryData(
 	rows []map[string]any,
 ) map[string]any {
 	limit := req.normalizedLimit()
+	availableByDirection := relationshipStoryDirectionCounts(rows)
+	truncatedByDirection := relationshipStoryDirectionTruncation(availableByDirection, req, limit)
 	truncated := len(rows) > limit
 	if truncated {
 		rows = rows[:limit]
 	}
 	rows = relationshipStoryRowsWithHandles(rows)
+	returnedByDirection := relationshipStoryDirectionCounts(rows)
 	direction, _ := req.normalizedDirection()
 	relationshipType, _ := req.normalizedRelationshipType()
 	queryShape := "entity_anchor_one_hop"
@@ -229,22 +239,50 @@ func relationshipStoryData(
 			"relationship_type":  relationshipType,
 			"limit":              limit,
 			"offset":             req.Offset,
-			"max_depth":          normalizedRelationshipStoryMaxDepth(req.MaxDepth),
+			"max_depth":          relationshipStoryEffectiveMaxDepth(req),
 			"include_transitive": req.IncludeTransitive,
 		},
 		"relationships": rows,
 		"summary": map[string]any{
-			"relationship_count": len(rows),
-			"truncated":          truncated,
+			"relationship_count":    len(rows),
+			"returned_by_direction": returnedByDirection,
+			"truncated":             truncated,
 		},
 		"coverage": map[string]any{
-			"query_shape":        queryShape,
-			"directions":         relationshipStoryDirections(direction),
-			"relationship_types": []string{relationshipType},
-			"max_depth":          normalizedRelationshipStoryMaxDepth(req.MaxDepth),
-			"truncated":          truncated,
+			"query_shape":            queryShape,
+			"directions":             relationshipStoryDirections(direction),
+			"relationship_types":     []string{relationshipType},
+			"max_depth":              relationshipStoryEffectiveMaxDepth(req),
+			"available_by_direction": availableByDirection,
+			"returned_by_direction":  returnedByDirection,
+			"truncated_by_direction": truncatedByDirection,
+			"truncated":              truncated,
 		},
 	}
+}
+
+func relationshipStoryDirectionCounts(rows []map[string]any) map[string]int {
+	counts := map[string]int{"incoming": 0, "outgoing": 0}
+	for _, row := range rows {
+		direction := StringVal(row, "direction")
+		if direction == "incoming" || direction == "outgoing" {
+			counts[direction]++
+		}
+	}
+	return counts
+}
+
+func relationshipStoryDirectionTruncation(counts map[string]int, req relationshipStoryRequest, limit int) map[string]bool {
+	direction, _ := req.normalizedDirection()
+	truncated := map[string]bool{"incoming": false, "outgoing": false}
+	if req.IncludeTransitive {
+		truncated[direction] = counts[direction] > limit
+		return truncated
+	}
+	for _, current := range relationshipStoryDirections(direction) {
+		truncated[current] = counts[current] > limit
+	}
+	return truncated
 }
 
 func relationshipStoryRowsWithHandles(rows []map[string]any) []map[string]any {
