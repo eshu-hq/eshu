@@ -384,7 +384,7 @@ func ecosystemTools() []ToolDefinition {
 		},
 		{
 			Name:        "compare_environments",
-			Description: "Compare the dependency surface for a workload across two environments.",
+			Description: "Compare the dependency surface for a workload across two environments with shared, dedicated, evidence, limitation, and next-call story fields.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

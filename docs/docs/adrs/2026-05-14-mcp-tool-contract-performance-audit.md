@@ -87,7 +87,7 @@ tool surface:
 | Class hierarchy and overrides | `analyze_code_relationships`, `execute_language_query` | Current fallback remains diagnostics-heavy for some shapes | #291 |
 | Security hardcoded secrets | none first-class | Raw graph-wide Cypher removed from the recommended prompt path | #292 |
 | Deployment, GitOps, and resource tracing | `trace_deployment_chain`, `trace_resource_to_code`, story tools | Service story is one-call; low-level trace paths keep existing caps | #293, #294, #295 |
-| Environment comparison | `compare_environments` | Existing scoped workload/environment route | #296 |
+| Environment comparison | `compare_environments` | Scoped workload/environment route now returns a prompt-ready story packet with shared resources, dedicated resources, evidence, limitations, coverage, and exact next calls | #296 |
 | Package and registry prompts | `list_package_registry_packages`, `list_package_registry_versions` | Already require/cap `limit` and deterministic ordering | #297 |
 | Documentation/confluence prompts | story routes plus content evidence | Story-first guidance remains; exact docs use paged content search | #298 |
 | Raw Cypher cookbook prompts | `execute_cypher_query` | Diagnostics-only, timeout-bound, server-capped, envelope-backed | #299 |
@@ -123,8 +123,10 @@ The changed read paths are cold-call bounded:
   reads with `LIMIT limit+1`, use deterministic ordering for listed rows, and
   return `truncated`;
 - environment comparison accepts `limit`, caps it at 200, reads at most
-  `limit+1` cloud resources per environment, and returns top-level plus
-  side-specific truncation coverage so a limited diff is visible.
+  `limit+1` cloud resources per environment, returns top-level plus
+  side-specific truncation coverage so a limited diff is visible, and builds
+  shared/dedicated/story/evidence fields from the same bounded result set
+  instead of issuing follow-up graph reads.
 
 No-Regression Evidence: focused tests cover MCP search-content paging schema and
 dispatch, server-added Cypher limits plus envelope truth, the capability matrix
@@ -227,6 +229,22 @@ include `limit` and `truncated`; environment comparison also includes
 `coverage.left_truncated` and `coverage.right_truncated`, so operators and MCP
 callers can tell whether latency or incomplete answers came from the bounded
 graph read window rather than cache warmth.
+
+No-Regression Evidence: issue #296 focused proof for the environment comparison
+story contract:
+`go test ./internal/query -run 'TestCompareEnvironmentsReturnsStoryGradePacket|TestCompareEnvironmentsStoryReportsMissingEvidenceLimitations' -count=1`.
+The test fails on the pre-change code because the route returns only the raw
+snapshots and changed resources. After the fix, the route still performs the
+same bounded workload, instance, and `LIMIT limit+1` cloud-resource reads, then
+derives `story`, `summary`, `shared`, `dedicated`, `evidence`, `limitations`,
+`recommended_next_calls`, and expanded `coverage` from those rows.
+
+No-Observability-Change: issue #296 does not add new graph queries, workers,
+spans, metrics, logs, or cache paths. The existing `neo4j.query` spans continue
+to cover workload, instance, and cloud-resource reads, and the response now
+exposes `coverage.query_shape`, `coverage.comparison_basis`,
+`coverage.freshness_state`, side statuses, `limit`, and truncation flags so MCP
+callers can diagnose partial, unsupported, or paged answers from the payload.
 
 ## Consequences
 

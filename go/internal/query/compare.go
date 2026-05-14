@@ -82,26 +82,9 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 
 	// If workload not found, return missing response
 	if workload == nil {
-		resp := map[string]any{
-			"workload": nil,
-			"left": map[string]any{
-				"environment":     req.Left,
-				"status":          "missing",
-				"instance":        nil,
-				"cloud_resources": []any{},
-			},
-			"right": map[string]any{
-				"environment":     req.Right,
-				"status":          "missing",
-				"instance":        nil,
-				"cloud_resources": []any{},
-			},
-			"changed": map[string]any{
-				"cloud_resources": []any{},
-			},
-			"confidence": 0.0,
-			"reason":     "Workload '" + req.WorkloadID + "' not found",
-		}
+		leftSnap := missingEnvironmentSnapshot(req.Left)
+		rightSnap := missingEnvironmentSnapshot(req.Right)
+		resp := environmentCompareResponse(req, nil, leftSnap, rightSnap, nil, 0.0, "Workload '"+req.WorkloadID+"' not found", limit, false, false)
 		WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.environment_compare", TruthBasisHybrid, "compared environment state from workload and cloud-resource evidence"))
 		return
 	}
@@ -135,22 +118,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 	// Compute overall confidence
 	confidence, reason := computeConfidence(leftSnap, rightSnap, changed)
 
-	resp := map[string]any{
-		"workload": workload,
-		"left":     leftSnap,
-		"right":    rightSnap,
-		"changed": map[string]any{
-			"cloud_resources": changed,
-		},
-		"confidence": confidence,
-		"reason":     reason,
-		"limit":      limit,
-		"truncated":  leftTruncated || rightTruncated,
-		"coverage": map[string]any{
-			"left_truncated":  leftTruncated,
-			"right_truncated": rightTruncated,
-		},
-	}
+	resp := environmentCompareResponse(req, workload, leftSnap, rightSnap, changed, confidence, reason, limit, leftTruncated, rightTruncated)
 
 	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.environment_compare", TruthBasisHybrid, "compared environment state from workload and cloud-resource evidence"))
 }
