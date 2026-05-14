@@ -38,6 +38,9 @@
 - Keep SQS message bodies and queue policy JSON out of facts. Redrive metadata
   is allowed only as reported queue attributes and dead-letter queue
   relationship evidence.
+- Keep SNS message payloads, topic policy JSON, delivery-policy JSON,
+  data-protection-policy JSON, and raw non-ARN subscription endpoints out of
+  facts. ARN subscription endpoints may be reported relationship evidence.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target

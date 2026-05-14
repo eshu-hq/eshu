@@ -42,6 +42,9 @@
   metadata only.
 - Keep SQS queue scans metadata-only. Do not wire ReceiveMessage, queue
   mutations, or queue policy persistence through the runtime registry.
+- Keep SNS topic scans metadata-only. Do not wire Publish, subscription
+  mutations, topic policy persistence, data-protection-policy persistence, or
+  raw non-ARN endpoint persistence through the runtime registry.
 
 ## Common Changes
 
