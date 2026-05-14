@@ -372,6 +372,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 			intents = append(intents, intent)
 		}
 	}
+	if intent, ok := buildPackageSourceCorrelationReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
 
 	sort.SliceStable(intents, func(i, j int) bool {
 		left := intents[i]

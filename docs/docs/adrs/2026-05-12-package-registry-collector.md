@@ -366,17 +366,26 @@ run both Neo4j and NornicDB conformance for the statement shape.
    `remote_url` facts into exact, derived, ambiguous, unresolved, stale, and
    rejected decisions while forcing `CanonicalWrites=0` and
    `ProvenanceOnly=true` so registry metadata cannot become ownership truth by
-   itself.
-   No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildPackageSourceCorrelationDecisions'`
-   and `go test ./internal/reducer` pass on the reducer package with exact,
-   derived, ambiguous, unresolved, stale, and rejected package-source
-   correlation inputs; no graph backend is involved because this slice does not
-   execute Cypher or enqueue durable reducer work.
-   No-Observability-Change: this slice adds a pure deterministic classifier
-   that is not wired into a runtime handler yet. Existing package registry
-   collector metrics (`eshu_dp_package_registry_*`) and reducer queue/status
-   telemetry remain the operator surfaces; runtime counters for these
-   correlation outcomes land with the handler wiring slice.
+   itself. The runtime wiring sub-slice now queues one
+   `package_source_correlation` reducer intent for a package-registry scope
+   with source hints, loads active repository facts through Postgres, and emits
+   one bounded counter per classifier outcome while still returning
+   `CanonicalWrites=0`.
+   No-Regression Evidence: `go test ./internal/reducer -run
+   'TestPackageSourceCorrelationHandler|TestBuildPackageSourceCorrelationDecisions'`,
+   `go test ./internal/projector -run
+   TestBuildProjectionQueuesSinglePackageSourceCorrelationIntent`, and
+   `go test ./internal/storage/postgres -run
+   TestFactStoreListActiveRepositoryFactsUsesActiveGenerations` pass for the
+   reducer handler, projector intent, and active repository fact reader. The
+   package gate `go test ./internal/reducer ./internal/projector
+   ./internal/storage/postgres ./internal/telemetry ./cmd/reducer` also passes
+   after adding the partial active-repository fact index.
+   Observability Evidence: `eshu_dp_package_source_correlations_total{domain,outcome}`
+   reports exact, derived, ambiguous, unresolved, stale, and rejected outcomes
+   with no package names, source URLs, or repository names in metric labels;
+   existing reducer queue wait and execution metrics still expose stuck, slow,
+   failed, and superseded `package_source_correlation` intents.
 6. **Query lane:** expose package publication and consumption evidence only
    after graph truth and query truth agree for repo, service, and package
    surfaces. The first query sub-slice exposes bounded package/package-version

@@ -49,6 +49,9 @@ const (
 	// Design contract:
 	// docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-design.md
 	DomainConfigStateDrift Domain = "config_state_drift"
+	// DomainPackageSourceCorrelation classifies package-registry source hints
+	// against active repository remotes without promoting package ownership.
+	DomainPackageSourceCorrelation Domain = "package_source_correlation"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.

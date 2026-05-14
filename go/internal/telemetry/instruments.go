@@ -74,6 +74,7 @@ type Instruments struct {
 	PackageRegistryFactsEmitted               metric.Int64Counter
 	PackageRegistryRateLimited                metric.Int64Counter
 	PackageRegistryParseFailures              metric.Int64Counter
+	PackageSourceCorrelations                 metric.Int64Counter
 	AWSAPICalls                               metric.Int64Counter
 	AWSThrottles                              metric.Int64Counter
 	AWSAssumeRoleFailed                       metric.Int64Counter
@@ -523,6 +524,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PackageRegistryParseFailures counter: %w", err)
+	}
+
+	inst.PackageSourceCorrelations, err = meter.Int64Counter(
+		"eshu_dp_package_source_correlations_total",
+		metric.WithDescription("Total package source-correlation decisions by reducer domain and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageSourceCorrelations counter: %w", err)
 	}
 
 	inst.AWSAPICalls, err = meter.Int64Counter(

@@ -146,6 +146,9 @@ Package-registry facts are projected only for stable ecosystem identity:
 `PackageRegistryPackageRow` and `PackageRegistryVersionRow` create `Package`
 and `PackageVersion` nodes, while `package_registry.source_hint` remains
 provenance-only until reducer correlation proves ownership or consumption.
+When a generation contains source hints, `buildPackageSourceCorrelationReducerIntent`
+emits one `package_source_correlation` reducer intent for the scope so the
+reducer can classify all hints against active repository facts once.
 
 ## Telemetry
 
