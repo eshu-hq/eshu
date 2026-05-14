@@ -13,21 +13,25 @@ import (
 // OwnershipShape records whether a reducer domain owns cross-source and
 // cross-scope reconciliation and how it produces canonical truth. A valid
 // reducer domain MUST be cross-source, cross-scope, and produce canonical
-// truth via at least one of two surfaces: a graph write (CanonicalWrite) or a
-// metric counter + structured log emission (CounterEmit). CounterEmit was
-// added in chunk #43 to admit the terraform_config_state_drift domain, whose
-// v1 truth surface is bounded counter emission rather than canonical graph
-// nodes (graph projection of drift nodes lands in a follow-up chunk per the
-// design doc §10).
+// truth via at least one of two surfaces: a durable canonical write
+// (CanonicalWrite) or a metric counter + structured log emission (CounterEmit).
+// CanonicalWrite covers reducer-owned truth written to durable facts or graph
+// nodes; graph-neutral domains must document that boundary explicitly.
+// CounterEmit was added in chunk #43 to admit the terraform_config_state_drift
+// domain, whose v1 truth surface is bounded counter emission rather than
+// canonical graph nodes (graph projection of drift nodes lands in a follow-up
+// chunk per the design doc §10).
 type OwnershipShape struct {
-	CrossSource    bool
-	CrossScope     bool
+	CrossSource bool
+	CrossScope  bool
+	// CanonicalWrite marks a domain that persists canonical reducer-owned truth,
+	// either as durable fact rows or as graph nodes/edges.
 	CanonicalWrite bool
 	// CounterEmit marks a domain whose canonical truth contract is satisfied
 	// by emitting bounded metric counters and structured logs rather than
 	// writing canonical graph nodes. At least one of CanonicalWrite or
 	// CounterEmit MUST be true; both may be true for domains that emit
-	// counters alongside graph writes.
+	// counters alongside durable canonical writes.
 	CounterEmit bool
 }
 

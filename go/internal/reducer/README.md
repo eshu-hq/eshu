@@ -48,8 +48,8 @@ flowchart TB
 
 All reducer domains are declared in `domain.go` and registered via
 `NewDefaultRuntime` / `NewDefaultRegistry` in `defaults.go`. Each domain has an
-`OwnershipShape` enforcing cross-source, cross-scope, and either canonical-write
-or bounded counter-emission requirements.
+`OwnershipShape` enforcing cross-source, cross-scope, and either durable
+canonical-write or bounded counter-emission requirements.
 
 | Domain constant | Summary |
 | --- | --- |
@@ -74,9 +74,9 @@ or bounded counter-emission requirements.
 States: `pending` → `claimed` → `running` → `succeeded` / `failed`.
 
 - `IntentStatusPending`, `IntentStatusClaimed`, `IntentStatusRunning`,
-  `IntentStatusSucceeded`, `IntentStatusFailed` — `intent.go:51–61`.
+  `IntentStatusSucceeded`, `IntentStatusFailed` — `intent.go:65–74`.
 - `ResultStatusSucceeded`, `ResultStatusFailed`, `ResultStatusSuperseded` —
-  `intent.go:69–75`.
+  `intent.go:81–87`.
 - `ResultStatusSuperseded` short-circuits execution when
   `GenerationCheck` confirms a newer generation is active for the scope.
 
@@ -327,7 +327,7 @@ Core interfaces:
 
 Key construction functions:
 
-- `NewDefaultRuntime(DefaultHandlers)` — `defaults.go:102` — one-call wiring
+- `NewDefaultRuntime(DefaultHandlers)` — `defaults.go:121` — one-call wiring
   for the standard domain catalog.
 - `NewDefaultRegistry(DefaultHandlers)` — `defaults.go:105` — registry only.
 - `NewRuntime(Registry)` — `runtime.go:63` — bare runtime over a custom registry.

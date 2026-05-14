@@ -3,6 +3,7 @@ package reducer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -33,6 +34,7 @@ func (s *stubAWSCloudRuntimeDriftEvidenceLoader) LoadAWSCloudRuntimeDriftEvidenc
 
 type stubAWSCloudRuntimeDriftFindingWriter struct {
 	write AWSCloudRuntimeDriftWrite
+	err   error
 	calls int
 }
 
@@ -42,6 +44,9 @@ func (s *stubAWSCloudRuntimeDriftFindingWriter) WriteAWSCloudRuntimeDriftFinding
 ) (AWSCloudRuntimeDriftWriteResult, error) {
 	s.calls++
 	s.write = write
+	if s.err != nil {
+		return AWSCloudRuntimeDriftWriteResult{}, s.err
+	}
 	return AWSCloudRuntimeDriftWriteResult{
 		CanonicalWrites: len(write.Candidates),
 		EvidenceSummary: "wrote aws runtime drift findings",
@@ -157,6 +162,56 @@ func TestAWSCloudRuntimeDriftHandlerPublishesAdmittedFindings(t *testing.T) {
 	}
 }
 
+func TestAWSCloudRuntimeDriftHandlerDoesNotEmitFindingsBeforeDurableWrite(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := newAWSCloudRuntimeDriftInstruments(t)
+	loader := &stubAWSCloudRuntimeDriftEvidenceLoader{
+		rows: []cloudruntime.AddressedRow{{
+			ARN: "arn:aws:lambda:us-east-1:123456789012:function:orphan",
+			Cloud: &cloudruntime.ResourceRow{
+				ARN:          "arn:aws:lambda:us-east-1:123456789012:function:orphan",
+				ResourceType: "aws_lambda_function",
+				ScopeID:      "aws:123456789012:us-east-1",
+			},
+		}},
+	}
+	handler := AWSCloudRuntimeDriftHandler{
+		EvidenceLoader: loader,
+		Writer: &stubAWSCloudRuntimeDriftFindingWriter{
+			err: errors.New("database unavailable"),
+		},
+		Instruments: inst,
+	}
+
+	_, err := handler.Handle(context.Background(), Intent{
+		IntentID:        "intent-aws-drift",
+		ScopeID:         "aws:123456789012:us-east-1",
+		GenerationID:    "generation-aws",
+		SourceSystem:    "aws",
+		Domain:          DomainAWSCloudRuntimeDrift,
+		Cause:           "aws runtime facts observed",
+		RelatedScopeIDs: []string{"aws:123456789012:us-east-1"},
+	})
+	if err == nil {
+		t.Fatal("Handle() error = nil, want durable write error")
+	}
+
+	var rm metricdata.ResourceMetrics
+	if collectErr := reader.Collect(context.Background(), &rm); collectErr != nil {
+		t.Fatalf("Collect() error = %v", collectErr)
+	}
+	for _, name := range []string{
+		"eshu_dp_correlation_rule_matches_total",
+		"eshu_dp_correlation_orphan_detected_total",
+		"eshu_dp_correlation_unmanaged_detected_total",
+	} {
+		if got := counterTotal(rm, name); got != 0 {
+			t.Fatalf("%s total = %d, want 0 before durable write succeeds", name, got)
+		}
+	}
+}
+
 func TestAWSCloudRuntimeDriftHandlerRequiresAdapters(t *testing.T) {
 	t.Parallel()
 
@@ -190,6 +245,18 @@ func TestAWSCloudRuntimeDriftHandlerRejectsWrongDomain(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("Handle() error = nil, want wrong-domain error")
+	}
+}
+
+func TestPostgresAWSCloudRuntimeDriftWriterRequiresDatabase(t *testing.T) {
+	t.Parallel()
+
+	_, err := PostgresAWSCloudRuntimeDriftWriter{}.WriteAWSCloudRuntimeDriftFindings(
+		context.Background(),
+		AWSCloudRuntimeDriftWrite{IntentID: "intent-aws-drift"},
+	)
+	if err == nil {
+		t.Fatal("WriteAWSCloudRuntimeDriftFindings() error = nil, want missing database error")
 	}
 }
 

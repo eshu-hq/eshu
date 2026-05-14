@@ -96,9 +96,8 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) 
 		return Result{}, fmt.Errorf("evaluate aws cloud runtime drift rule pack: %w", err)
 	}
 
-	summary := cloudruntime.RecordEvaluation(ctx, h.Instruments, evaluation)
 	admitted := admittedAWSCloudRuntimeDriftCandidates(evaluation)
-	h.logAdmittedFindings(ctx, intent, admitted)
+	summary := summarizeAWSCloudRuntimeDriftCandidates(admitted)
 
 	writeResult, err := h.Writer.WriteAWSCloudRuntimeDriftFindings(ctx, AWSCloudRuntimeDriftWrite{
 		IntentID:     intent.IntentID,
@@ -112,6 +111,9 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) 
 	if err != nil {
 		return Result{}, fmt.Errorf("write aws cloud runtime drift findings: %w", err)
 	}
+
+	cloudruntime.RecordEvaluation(ctx, h.Instruments, evaluation)
+	h.logAdmittedFindings(ctx, intent, admitted)
 
 	return Result{
 		IntentID: intent.IntentID,
@@ -154,6 +156,19 @@ func awsCloudRuntimeDriftSummary(
 		summary.UnmanagedResources,
 		canonicalWrites,
 	)
+}
+
+func summarizeAWSCloudRuntimeDriftCandidates(candidates []model.Candidate) cloudruntime.Summary {
+	var summary cloudruntime.Summary
+	for _, candidate := range candidates {
+		switch cloudruntime.FindingKind(awsCloudRuntimeFindingKind(candidate)) {
+		case cloudruntime.FindingKindOrphanedCloudResource:
+			summary.OrphanedResources++
+		case cloudruntime.FindingKindUnmanagedCloudResource:
+			summary.UnmanagedResources++
+		}
+	}
+	return summary
 }
 
 func (h AWSCloudRuntimeDriftHandler) logAdmittedFindings(

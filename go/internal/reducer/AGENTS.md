@@ -17,10 +17,10 @@ before touching any file in this directory.
 ## Invariants (cite file:line)
 
 - **Every domain must be cross-source, cross-scope, and truth-emitting** —
-  `registry.go:22` `OwnershipShape.Validate`; registration fails unless the
-  domain declares either canonical graph writes or bounded counter emission.
+  `registry.go:53` `OwnershipShape.Validate`; registration fails unless the
+  domain declares either durable canonical writes or bounded counter emission.
 - **Intent lifecycle is fixed: pending → claimed → running → succeeded/failed** —
-  `intent.go:51–61`; do not invent additional states.
+  `intent.go:65–74`; do not invent additional states.
 - **Generation supersession short-circuits execution** — `runtime.go:336`
   checks `GenerationCheck` before dispatching to `Handler.Handle`; return
   `ResultStatusSuperseded` rather than projecting stale truth.
@@ -151,7 +151,7 @@ before touching any file in this directory.
 
 - The `deployment_mapping` Phase 3 reopen requirement.
 - The domain `OwnershipShape` invariants (cross-source, cross-scope,
-  canonical-write).
+  durable canonical write or bounded counter emission).
 - The heartbeat / lease / retry contract in `service.go`.
 - The `BuildSharedProjectionIntent` SHA256 identity function.
 - The `GraphProjectionPhaseRepairQueue` contract (removing it breaks
