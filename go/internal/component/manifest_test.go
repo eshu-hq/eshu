@@ -147,6 +147,21 @@ func TestManifestValidateRejectsUnsupportedFactSourceConfidence(t *testing.T) {
 	}
 }
 
+func TestManifestValidateRejectsNonCanonicalFactSourceConfidence(t *testing.T) {
+	t.Parallel()
+
+	manifest := validManifest()
+	manifest.Spec.EmittedFacts[0].SourceConfidence = []string{" reported "}
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want non-canonical source confidence error")
+	}
+	if !strings.Contains(err.Error(), "non-canonical") {
+		t.Fatalf("Validate() error = %v, want non-canonical sourceConfidence error", err)
+	}
+}
+
 func TestManifestValidateRejectsUnknownFactSourceConfidence(t *testing.T) {
 	t.Parallel()
 

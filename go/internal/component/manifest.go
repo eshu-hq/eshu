@@ -186,10 +186,13 @@ func (f FactFamily) Validate() error {
 		if trimmed == "" {
 			return fmt.Errorf("fact kind %q has an empty sourceConfidence value", f.Kind)
 		}
-		if err := facts.ValidateSourceConfidence(trimmed); err != nil {
+		if confidence != trimmed {
+			return fmt.Errorf("fact kind %q has non-canonical sourceConfidence value %q", f.Kind, confidence)
+		}
+		if err := facts.ValidateSourceConfidence(confidence); err != nil {
 			return fmt.Errorf("fact kind %q sourceConfidence: %w", f.Kind, err)
 		}
-		if trimmed == facts.SourceConfidenceUnknown {
+		if confidence == facts.SourceConfidenceUnknown {
 			return fmt.Errorf("fact kind %q sourceConfidence must not declare unknown for new component output", f.Kind)
 		}
 	}
