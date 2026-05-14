@@ -518,7 +518,7 @@ For documentation generation, use this HTTP flow:
 
 1. call a story route first
 2. if it is a repository story, read `story_sections`, `deployment_overview`, `gitops_overview`, `documentation_overview`, `support_overview`, `coverage_summary`, and `limitations`
-3. if it is a service story, read the dossier fields and embedded `investigation` packet directly, then only call `trace_deployment_chain` for deeper deployment debugging
+3. if it is a service story, read the dossier fields and embedded `investigation` packet directly, then call `investigate_deployment_config` for image tag, runtime setting, resource limit, values-layer, or read-first-file prompts
 4. if it is a workload story, pair it with `trace_deployment_chain` before you expect deployment overviews
 5. only then call content routes for exact file or snippet evidence
 
@@ -526,6 +526,28 @@ For cross-repo documentation or support flows, phrase the caller intent the same
 way you would through MCP: tell Eshu to scan all related repositories,
 deployment sources, and indexed documentation for the service or workload before asking
 for the final narrative.
+
+### Investigate deployment configuration influence
+
+`POST /api/v0/impact/deployment-config-influence`
+
+Use this route when the caller asks which repositories and files influence a
+service's image tag, runtime settings, resource limits, values layers, or
+rendered Kubernetes resources. Provide `service_name` or `workload_id`; add
+`environment` to scope the answer without dropping shared values layers that do
+not carry an explicit environment label.
+
+The response is story-first and bounded per section by `limit`:
+
+- `influencing_repositories`
+- `values_layers`
+- `image_tag_sources`
+- `runtime_setting_sources`
+- `resource_limit_sources`
+- `rendered_targets`
+- `read_first_files`
+- `recommended_next_calls`
+- `coverage.limit` and `coverage.truncated`
 
 ## Investigation API
 

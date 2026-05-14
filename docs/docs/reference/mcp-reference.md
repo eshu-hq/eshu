@@ -70,6 +70,7 @@ Use these tools when the user is asking for a narrative answer such as
 | **`get_workload_story`** | Return a narrative workload story using canonical workload identity, optionally scoped to one environment. Use `trace_deployment_chain` when you need the richer deployment-mapping fields such as `controller_overview` or `deployment_fact_summary`. | "Show me how payments-api is deployed in prod." |
 | **`get_service_story`** | Return the one-call service dossier for service-shaped prompts, including identity, API surface, deployment lanes, upstream dependencies, downstream consumers, evidence graph, bounded counts, and drill-down handles. | "What can you tell me about payments-api in QA?" |
 | **`investigate_service`** | Return the service investigation packet for coverage-first prompts, including repositories considered, repositories with evidence, evidence families found, coverage summary, findings, and recommended next calls. | "Scan the related repos and docs for payments-api before you explain it." |
+| **`investigate_deployment_config`** | Return a bounded service deployment configuration story with influencing repositories, values layers, image tag sources, runtime setting sources, resource limit sources, rendered targets, read-first file handles, and truncation coverage. | "Which repos and files influence the image tag and resource limits for payments-api in prod?" |
 | **`resolve_entity`** | Resolve fuzzy input into canonical entities before story or context calls, with an optional repository selector filter. | "What canonical entity matches `payments prod rds`?" |
 | **`get_entity_context`** | Fetch full context for one canonical entity id. | "Show me the context for this resolved entity." |
 | **`get_repo_context`** | Durable drill-down for repository details after the story answer. Accepts a repository selector: canonical ID, name, repo slug, or indexed path. | "Show me the full repo context behind that story." |
@@ -90,6 +91,12 @@ Use these tools when the user is asking for a narrative answer such as
 - `controller_driven_paths`
 - `delivery_paths`
 - `deployment_fact_summary`
+
+Use `investigate_deployment_config` when the prompt is about what to edit or
+read first for image tags, runtime settings, resource limits, Helm/Kustomize or
+ArgoCD values layers, and rendered Kubernetes targets. It returns portable
+`repo_id` plus `relative_path` handles instead of file bodies, so callers can
+page into exact snippets with `get_file_lines` only when needed.
 
 Repository and service deployment summaries may also expose grouped delivery-family fields inside
 `deployment_overview`:

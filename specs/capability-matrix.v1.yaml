@@ -166,6 +166,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: authoritative local graph topology from the same query handlers as full-stack}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{compose_e2e: deployment-chain}], notes: authoritative platform topology}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 6000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-deployment-chain}], notes: authoritative platform topology}
+  - capability: platform_impact.deployment_config_influence
+    tools: [investigate_deployment_config]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-deployment-config-influence}], notes: requires an authoritative platform graph}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded service deployment evidence packet with portable file handles}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{compose_e2e: deployment-config-influence}], notes: bounded service deployment evidence packet with portable file handles}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 6000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-deployment-config-influence}], notes: bounded service deployment evidence packet with portable file handles}
   - capability: platform_impact.context_overview
     tools: [get_repo_context, get_service_context, get_ecosystem_overview]
     profiles:

@@ -168,6 +168,7 @@ assumptions from a partial code snapshot.
 | "What breaks if I change this service?" | `investigate_change_surface` |
 | "What is the blast radius of a code-topic or changed-path edit?" | `investigate_change_surface` |
 | "How is this deployed?" | `trace_deployment_chain` |
+| "Which files influence image tags, runtime settings, or resource limits?" | `investigate_deployment_config` |
 | "What provisions this database?" | `trace_resource_to_code` |
 | "Compare prod and staging" | `compare_environments` |
 | "What does this repo contain?" | `get_repo_context` |
@@ -196,15 +197,17 @@ story surfaces:
 - `get_service_story`
 - `investigate_service`
 - `investigate_code_topic`
+- `investigate_deployment_config`
 
 Use it this way:
 
 1. start with `story`
 2. for service questions, treat `get_service_story` as the one-call dossier path and read `service_identity`, `api_surface`, `deployment_lanes`, `upstream_dependencies`, `downstream_consumers`, `evidence_graph`, and `investigation`
 3. for deeper deployment debugging, use `trace_deployment_chain` and then read `controller_overview`, `runtime_overview`, or `deployment_fact_summary`
-4. if the answer needs exact file or docs evidence, follow with Postgres-backed content reads or search
-5. use `investigate_service` when the caller asks what Eshu scanned, which repos have evidence, or which call should happen next
-6. use `drilldowns` or `resolved_id` handles to move into `get_repo_context`, `get_workload_context`, `get_service_context`, content reads, `get_relationship_evidence`, or lower-level relationship tools
+4. for image tags, runtime settings, resource limits, values layers, rendered targets, and "which files should I read first" prompts, use `investigate_deployment_config`
+5. if the answer needs exact file or docs evidence, follow with Postgres-backed content reads or search
+6. use `investigate_service` when the caller asks what Eshu scanned, which repos have evidence, or which call should happen next
+7. use `drilldowns` or `resolved_id` handles to move into `get_repo_context`, `get_workload_context`, `get_service_context`, content reads, `get_relationship_evidence`, or lower-level relationship tools
 
 This keeps answers concise without hiding the underlying evidence.
 

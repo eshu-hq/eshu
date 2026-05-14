@@ -70,6 +70,10 @@ Good substitutions:
 - "Explain how the API, ingester, and resolution-engine are split across code and deployment config."
 - "Show me the code-to-cloud path for changing resource limits on `eshu-hqgraph-resolution-engine`."
 
+For image tag, runtime setting, resource limit, values-layer, and read-first-file
+prompts, MCP clients should start with `investigate_deployment_config` and only
+call `get_file_lines` for the returned file handles that need exact snippets.
+
 ### Repo sync and ingest debugging
 
 - "Find the code paths responsible for repo sync authentication and explain how GitHub App auth is resolved."

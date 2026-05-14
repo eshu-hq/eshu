@@ -82,6 +82,7 @@ The same capability ID may back more than one surface or tool. Initial mapping:
 | `find_change_surface` | `platform_impact.change_surface` |
 | `investigate_change_surface` | `platform_impact.change_surface` |
 | `trace_deployment_chain` | `platform_impact.deployment_chain` |
+| `investigate_deployment_config` | `platform_impact.deployment_config_influence` |
 | `find_infra_resources` | `platform_impact.deployment_chain` |
 | `analyze_infra_relationships` | `platform_impact.deployment_chain` |
 | `get_repo_context` | `platform_impact.context_overview`, `relationship_evidence.drilldown` |

@@ -331,6 +331,13 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"max_depth":                    intOr(args, "max_depth", 8),
 			"include_related_module_usage": boolOr(args, "include_related_module_usage", false),
 		}}, nil
+	case "investigate_deployment_config":
+		return &route{method: "POST", path: "/api/v0/impact/deployment-config-influence", body: map[string]any{
+			"service_name": str(args, "service_name"),
+			"workload_id":  str(args, "workload_id"),
+			"environment":  str(args, "environment"),
+			"limit":        intOr(args, "limit", 25),
+		}}, nil
 	case "find_blast_radius":
 		return &route{method: "POST", path: "/api/v0/impact/blast-radius", body: map[string]any{
 			"target":      str(args, "target"),
