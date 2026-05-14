@@ -227,9 +227,9 @@ Both backends instrument every query with an OTEL span (`neo4j.query`,
 `postgres.query`). Handlers that span multiple read stages use
 `startQueryHandlerSpan` (`handler_tracing.go:16`) with a stable span name from
 `telemetry.SpanQuery*` constants to attach route and capability attributes.
-Code topic investigation wraps the handler in
-`telemetry.SpanQueryCodeTopicInvestigation`; the content read emits a
-`postgres.query` span with `db.operation=investigate_code_topic`.
+Code topic and change-surface investigations wrap handlers in their
+`telemetry.SpanQuery*` spans; content reads emit `postgres.query` spans with
+scoped `db.operation` values.
 Repository and service read paths additionally emit stage-start/stage-done log
 events via `repositoryQueryStageTimer` and `serviceQueryStageTimer`.
 
@@ -358,8 +358,7 @@ See `doc.go` for the full godoc contract.
   Postgres drivers directly — they go through query package adapters and ports
 - `internal/telemetry` — `EventAttr`, `DefaultServiceNamespace`, span constants
   `SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
-  `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`,
-  `SpanQueryCodeTopicInvestigation`
+  `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`, `SpanQueryChangeSurfaceInvestigation`
 
 Handlers depend on the `GraphQuery` and `ContentStore` ports, not on
 `neo4jdriver.DriverWithContext` or `*sql.DB` directly. `Neo4jReader` and
@@ -378,7 +377,8 @@ wired in `cmd/api/wiring.go`, not here.
   (`query.documentation_packet_freshness`) on documentation truth evidence
   routes (`documentation.go`); `telemetry.SpanQueryCodeTopicInvestigation`
   (`query.code_topic_investigation`) on broad code-topic investigation
-  (`code_topic.go`); `telemetry.SpanQueryDeadIaC` (`query.dead_iac`)
+  (`code_topic.go`); `telemetry.SpanQueryChangeSurfaceInvestigation`
+  (`query.change_surface_investigation`) on change-surface investigation; `telemetry.SpanQueryDeadIaC` (`query.dead_iac`)
   on IaC dead-code queries (`iac.go`); `telemetry.SpanQueryIaCUnmanagedResources`
   (`query.iac_unmanaged_resources`) on AWS management finding queries
   (`iac_management.go`); `telemetry.SpanQueryInfraResourceSearch`

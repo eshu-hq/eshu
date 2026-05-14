@@ -289,6 +289,79 @@ func ecosystemTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "investigate_change_surface",
+			Description: "Investigate the code, repository, workload, infrastructure, and transitive impact surface for a service, module, resource, code topic, or changed path set in one bounded call.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"target": map[string]any{
+						"type":        "string",
+						"description": "Optional canonical entity id or exact entity name to resolve before impact traversal.",
+					},
+					"target_type": map[string]any{
+						"type":        "string",
+						"description": "Optional target kind used to choose the exact resolver shape.",
+						"enum":        []string{"service", "workload", "workload_instance", "repository", "resource", "cloud_resource", "terraform_module", "module"},
+					},
+					"service_name": map[string]any{
+						"type":        "string",
+						"description": "Service or workload name to resolve as the graph impact anchor.",
+					},
+					"workload_id": map[string]any{
+						"type":        "string",
+						"description": "Canonical workload id to resolve as the graph impact anchor.",
+					},
+					"resource_id": map[string]any{
+						"type":        "string",
+						"description": "Canonical cloud resource id to resolve as the graph impact anchor.",
+					},
+					"module_id": map[string]any{
+						"type":        "string",
+						"description": "Terraform module uid or name to resolve as the graph impact anchor.",
+					},
+					"topic": map[string]any{
+						"type":        "string",
+						"description": "Natural-language code topic such as repo-sync auth behavior.",
+					},
+					"repo_id": map[string]any{
+						"type":        "string",
+						"description": "Repository selector for code-topic and changed-path scoping.",
+					},
+					"changed_paths": map[string]any{
+						"type":        "array",
+						"description": "Changed file paths to map to touched code symbols.",
+						"items":       map[string]any{"type": "string"},
+					},
+					"environment": map[string]any{
+						"type":        "string",
+						"description": "Optional environment filter for graph impact rows.",
+					},
+					"max_depth": map[string]any{
+						"type":        "integer",
+						"description": "Maximum graph traversal depth.",
+						"default":     4,
+						"minimum":     1,
+						"maximum":     8,
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum rows to return per surface.",
+						"default":     25,
+						"minimum":     1,
+						"maximum":     100,
+					},
+					"offset": map[string]any{
+						"type":        "integer",
+						"description": "Result offset for content-backed code investigation.",
+						"default":     0,
+						"minimum":     0,
+						"maximum":     10000,
+					},
+				},
+				"required": []string{},
+			},
+		},
+		{
 			Name:        "compare_environments",
 			Description: "Compare the dependency surface for a workload across two environments.",
 			InputSchema: map[string]any{

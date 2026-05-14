@@ -944,9 +944,23 @@ MCP answers.
 - `POST /api/v0/traces/resource-to-code`
 - `POST /api/v0/impact/explain-dependency-path`
 - `POST /api/v0/impact/change-surface`
+- `POST /api/v0/impact/change-surface/investigate`
 - `POST /api/v0/environments/compare`
 
 These routes are for tracing shared infrastructure, blast radius, dependency explanation, and environment drift.
+
+`POST /api/v0/impact/change-surface/investigate` is the prompt-facing change
+surface route. It accepts one graph target family (`target` + `target_type`,
+`service_name`, `workload_id`, `resource_id`, or `module_id`) and/or a code
+scope (`topic`, `repo_id`, `changed_paths`). The handler first resolves the
+target with exact, label-scoped graph lookups; ambiguous targets return
+`target_resolution.status=ambiguous` plus candidates and do not run traversal.
+Resolved targets use a bounded traversal with `max_depth` default 4, cap 8,
+`limit` default 25, cap 100, deterministic ordering, and `truncated`. Code
+topics and changed paths return `code_surface` file/symbol handles,
+`recommended_next_calls`, and coverage metadata so MCP clients can answer
+blast-radius and behavior-change prompts without guessing which discovery tool
+to call first.
 
 `POST /api/v0/infra/resources/search` accepts `query`, `category`, `kind`,
 `provider`, `resource_service`, `resource_category`, and `limit`. `limit`

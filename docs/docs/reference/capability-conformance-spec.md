@@ -80,6 +80,7 @@ The same capability ID may back more than one surface or tool. Initial mapping:
 | `find_most_complex_functions` | `code_quality.complexity` |
 | `find_blast_radius` | `platform_impact.blast_radius` |
 | `find_change_surface` | `platform_impact.change_surface` |
+| `investigate_change_surface` | `platform_impact.change_surface` |
 | `trace_deployment_chain` | `platform_impact.deployment_chain` |
 | `find_infra_resources` | `platform_impact.deployment_chain` |
 | `analyze_infra_relationships` | `platform_impact.deployment_chain` |

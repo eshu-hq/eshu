@@ -78,6 +78,11 @@ Good substitutions:
 - "Find all code involved in clone, fetch, default-branch resolution, and workspace locking."
 - "Explain the dependency path between the ingester runtime and GitHub App credentials."
 
+For behavior-change or changed-file scoping, MCP clients should start with
+`investigate_change_surface`; it accepts service/module/resource identifiers,
+natural-language code topics, and `repo_id` + `changed_paths` in one bounded
+call before drilling into file content or relationship evidence.
+
 ### Documentation and support
 
 - "Explain this service to a new engineer, then cite the repos, manifests, and files that matter most."

@@ -74,6 +74,7 @@ func TestServeOpenAPI(t *testing.T) {
 		"/api/v0/iac/unmanaged-resources",
 		"/api/v0/impact/trace-deployment-chain",
 		"/api/v0/impact/blast-radius",
+		"/api/v0/impact/change-surface/investigate",
 		"/api/v0/status/pipeline",
 		"/api/v0/compare/environments",
 		"/api/v0/openapi.json",
