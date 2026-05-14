@@ -1,0 +1,251 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-14T12:47:33Z",
+  "title": "Design System: Eshu Console",
+  "extensions": {
+    "colorMeta": {
+      "canvas-warm": {
+        "role": "neutral",
+        "displayName": "Warm Canvas",
+        "canonical": "oklch(0.94 0.015 78)",
+        "tonalRamp": [
+          "oklch(0.15 0.015 78)",
+          "oklch(0.28 0.015 78)",
+          "oklch(0.42 0.015 78)",
+          "oklch(0.56 0.015 78)",
+          "oklch(0.70 0.015 78)",
+          "oklch(0.82 0.015 78)",
+          "oklch(0.94 0.015 78)",
+          "oklch(0.97 0.010 78)"
+        ]
+      },
+      "sidebar-ink": {
+        "role": "neutral",
+        "displayName": "Slate Shell",
+        "canonical": "oklch(0.24 0.026 250)",
+        "tonalRamp": [
+          "oklch(0.15 0.026 250)",
+          "oklch(0.24 0.026 250)",
+          "oklch(0.34 0.026 250)",
+          "oklch(0.46 0.026 250)",
+          "oklch(0.58 0.022 250)",
+          "oklch(0.70 0.018 250)",
+          "oklch(0.82 0.014 250)",
+          "oklch(0.94 0.010 250)"
+        ]
+      },
+      "accent-amber": {
+        "role": "primary",
+        "displayName": "Signal Amber",
+        "canonical": "oklch(0.62 0.15 58)",
+        "tonalRamp": [
+          "oklch(0.18 0.08 58)",
+          "oklch(0.28 0.10 58)",
+          "oklch(0.40 0.13 58)",
+          "oklch(0.52 0.15 58)",
+          "oklch(0.62 0.15 58)",
+          "oklch(0.72 0.11 58)",
+          "oklch(0.84 0.07 58)",
+          "oklch(0.94 0.035 58)"
+        ]
+      },
+      "relationship-blue": {
+        "role": "primary",
+        "displayName": "Relationship Blue",
+        "canonical": "oklch(0.52 0.14 260)",
+        "tonalRamp": [
+          "oklch(0.18 0.08 260)",
+          "oklch(0.28 0.10 260)",
+          "oklch(0.40 0.13 260)",
+          "oklch(0.52 0.14 260)",
+          "oklch(0.64 0.11 260)",
+          "oklch(0.76 0.08 260)",
+          "oklch(0.86 0.045 260)",
+          "oklch(0.95 0.020 260)"
+        ]
+      },
+      "success-green": {
+        "role": "secondary",
+        "displayName": "Runtime Green",
+        "canonical": "oklch(0.52 0.13 150)",
+        "tonalRamp": [
+          "oklch(0.18 0.07 150)",
+          "oklch(0.28 0.09 150)",
+          "oklch(0.40 0.11 150)",
+          "oklch(0.52 0.13 150)",
+          "oklch(0.64 0.10 150)",
+          "oklch(0.76 0.07 150)",
+          "oklch(0.88 0.04 150)",
+          "oklch(0.95 0.02 150)"
+        ]
+      },
+      "danger-red": {
+        "role": "tertiary",
+        "displayName": "Failure Red",
+        "canonical": "oklch(0.55 0.17 27)",
+        "tonalRamp": [
+          "oklch(0.18 0.08 27)",
+          "oklch(0.30 0.11 27)",
+          "oklch(0.42 0.14 27)",
+          "oklch(0.55 0.17 27)",
+          "oklch(0.66 0.12 27)",
+          "oklch(0.78 0.08 27)",
+          "oklch(0.88 0.045 27)",
+          "oklch(0.95 0.020 27)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page titles and workspace entity names."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Compact brand and signature headings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Panel titles and section headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Evidence summaries, product copy, and readable explanation."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Truth metadata, status terms, and compact descriptors."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "state-fast",
+        "value": "150ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Fast hover, focus, and selected-state transitions."
+      },
+      {
+        "name": "state-standard",
+        "value": "220ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Reveal or drilldown state changes that need more clarity."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "console-collapse",
+        "value": "900px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Sidebar Navigation Link",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Primary navigation item inside the slate console shell.",
+      "html": "<a class=\"ds-nav-link\" href=\"#\">Dashboard</a>",
+      "css": ".ds-nav-link { display: block; background: transparent; border: 1px solid transparent; border-radius: 7px; color: oklch(0.78 0.025 250); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; font-weight: 650; padding: 9px 10px; text-decoration: none; } .ds-nav-link:hover, .ds-nav-link:focus-visible { background: oklch(0.32 0.045 250); border-color: oklch(0.44 0.04 250); color: oklch(0.98 0.006 78); outline: 2px solid color-mix(in oklch, oklch(0.62 0.15 58), transparent 55%); outline-offset: 2px; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "search-input",
+      "description": "Command-search field for repositories, services, and workloads.",
+      "html": "<label class=\"ds-search\"><span>Search Eshu</span><input placeholder=\"Search repos, services, workloads\" /></label>",
+      "css": ".ds-search { display: grid; gap: 8px; color: oklch(0.46 0.018 250); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; font-size: 0.88rem; font-weight: 650; } .ds-search input { background: oklch(0.998 0.003 78); border: 1px solid oklch(0.82 0.018 78); border-radius: 7px; color: oklch(0.25 0.018 250); min-height: 42px; padding: 0 12px; } .ds-search input:focus-visible { border-color: oklch(0.62 0.15 58); outline: 2px solid color-mix(in oklch, oklch(0.62 0.15 58), transparent 55%); outline-offset: 2px; }"
+    },
+    {
+      "name": "Product Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Flat tonal container for runtime summaries, ledgers, evidence, and catalog sections.",
+      "html": "<section class=\"ds-panel\"><h2>Runtime summary</h2><p>896 repositories indexed, zero queue items outstanding.</p></section>",
+      "css": ".ds-panel { background: oklch(0.985 0.006 78); border: 1px solid oklch(0.82 0.018 78); border-radius: 8px; color: oklch(0.25 0.018 250); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; padding: 16px; } .ds-panel h2 { font-size: 1rem; line-height: 1.25; margin: 0 0 14px; } .ds-panel p { color: oklch(0.46 0.018 250); line-height: 1.55; margin: 0; max-width: 65ch; }"
+    },
+    {
+      "name": "Ledger Row Button",
+      "kind": "button",
+      "refersTo": "row-button",
+      "description": "Compact interactive row for queue ledger, graph details, and evidence inspection.",
+      "html": "<button class=\"ds-row-button\"><span>Queue outstanding</span><strong>0</strong></button>",
+      "css": ".ds-row-button { background: oklch(0.998 0.003 78); border: 1px solid oklch(0.82 0.018 78); border-radius: 7px; color: oklch(0.25 0.018 250); cursor: pointer; display: grid; gap: 5px; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; padding: 11px 12px; text-align: left; width: 100%; } .ds-row-button strong { font-size: 1.2rem; } .ds-row-button:hover { background: oklch(0.965 0.012 78); } .ds-row-button:focus-visible { border-color: oklch(0.62 0.15 58); outline: 2px solid color-mix(in oklch, oklch(0.62 0.15 58), transparent 55%); outline-offset: 2px; }"
+    },
+    {
+      "name": "Relationship Graph Canvas",
+      "kind": "custom",
+      "refersTo": "graph-canvas",
+      "description": "Readable graph field for deployment and relationship evidence.",
+      "html": "<div class=\"ds-graph\"><svg viewBox=\"0 0 320 120\" role=\"img\" aria-label=\"Relationship graph preview\"><path class=\"ds-graph-edge\" d=\"M70 60 C130 60 130 60 190 60\"/><rect class=\"ds-graph-node\" x=\"20\" y=\"36\" width=\"96\" height=\"48\" rx=\"8\"/><rect class=\"ds-graph-node ds-graph-node-relationship\" x=\"180\" y=\"36\" width=\"120\" height=\"48\" rx=\"8\"/><text x=\"68\" y=\"66\">repo</text><text x=\"240\" y=\"66\">DEPLOYS</text></svg></div>",
+      "css": ".ds-graph { background: oklch(0.998 0.003 78); border: 1px solid oklch(0.82 0.018 78); border-radius: 8px; padding: 12px; } .ds-graph svg { display: block; width: 100%; } .ds-graph-edge { fill: none; stroke: color-mix(in oklch, oklch(0.52 0.14 260), oklch(0.82 0.018 78) 22%); stroke-linecap: round; stroke-width: 2.4; } .ds-graph-node { fill: oklch(0.985 0.006 78); stroke: oklch(0.82 0.018 78); stroke-width: 1.5; } .ds-graph-node-relationship { fill: color-mix(in oklch, oklch(0.52 0.14 260), oklch(0.985 0.006 78) 88%); stroke: oklch(0.52 0.14 260); } .ds-graph text { fill: oklch(0.25 0.018 250); font: 700 14px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; text-anchor: middle; }"
+    },
+    {
+      "name": "Evidence Row",
+      "kind": "custom",
+      "refersTo": "row-button",
+      "description": "Two-column evidence row that keeps summary and proof metadata together.",
+      "html": "<article class=\"ds-evidence-row\"><button><strong>DEPLOYS_FROM</strong><p>Helm values link this service to a deployment source.</p></button><dl><div><dt>Source</dt><dd>helm-charts</dd></div><div><dt>Path</dt><dd>values.yaml</dd></div></dl></article>",
+      "css": ".ds-evidence-row { align-items: start; background: oklch(0.998 0.003 78); border: 1px solid oklch(0.82 0.018 78); border-radius: 7px; color: oklch(0.25 0.018 250); display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(220px, 0.55fr); padding: 14px; } .ds-evidence-row button { background: transparent; border: 0; color: inherit; cursor: pointer; padding: 0; text-align: left; } .ds-evidence-row p { color: oklch(0.46 0.018 250); line-height: 1.45; margin: 5px 0 0; } .ds-evidence-row dl { display: grid; gap: 8px; margin: 0; } .ds-evidence-row dt { color: oklch(0.56 0.018 250); font-size: 0.75rem; font-weight: 650; } .ds-evidence-row dd { font-weight: 700; margin: 0; } .ds-evidence-row:focus-within { border-color: oklch(0.52 0.14 260); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Living Map Room",
+    "overview": "Eshu Console is a bright operating room for graph truth. It should feel like a living map room: warm enough for non-engineers to enter, precise enough for operators to trust, and vibrant enough that relationships, freshness, and evidence are visually alive.\n\nThe system rejects generic SaaS dashboard patterns, dark-card sameness, and decorative data theater. The console is not a homepage and not a database viewer. It is a working product surface where the story comes first, then the proof is immediately available.",
+    "keyCharacteristics": [
+      "Warm light canvas with cool technical structure.",
+      "Dense, scannable product UI with restrained but meaningful color.",
+      "Evidence-first surfaces that separate known, missing, inferred, and stale.",
+      "Readable graph labels and table alternatives for broad organizational use.",
+      "Flat tonal layering instead of decorative shadows or glass effects."
+    ],
+    "rules": [
+      {
+        "name": "The Vibrancy Serves Truth Rule",
+        "body": "Color is for relationship type, status, freshness, risk, and selection. Color is never filler.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Dark Default Rule",
+        "body": "Do not make the console dark by default. The product must feel bright, readable, and usable across the whole organization.",
+        "section": "colors"
+      },
+      {
+        "name": "The Label Legibility Rule",
+        "body": "Graph labels, relationship verbs, and table headers must stay readable before decoration is considered.",
+        "section": "typography"
+      },
+      {
+        "name": "The Plain Language First Rule",
+        "body": "Use plain-language summaries before exposing technical identifiers, but keep the identifiers available for drilldown.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal Layer Rule",
+        "body": "Use surface-paper, surface-raised, and field-porcelain to create hierarchy before introducing any shadow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The No Glass Rule",
+        "body": "Glassmorphism, decorative blur, and translucent panels are forbidden unless a future interaction needs a true overlay.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep the console light, vibrant, and readable by default.",
+      "Do use relationship-blue for graph relationships and selected evidence.",
+      "Do use accent-amber for focus and rare high-value emphasis.",
+      "Do show story and proof together: summary, graph, table, and drilldown.",
+      "Do label status, freshness, truth, and missing evidence in text as well as color.",
+      "Do keep charts and graphs readable for executives, support, finance, and engineers."
+    ],
+    "donts": [
+      "Don't use generic SaaS dashboard patterns with oversized metric cards and decorative gradients.",
+      "Don't use dark-card sameness where every panel looks equally important.",
+      "Don't ship unreadable relationship graphs with clipped names or unlabeled edges.",
+      "Don't create key/value evidence dumps that require users to reverse-engineer the story.",
+      "Don't use mock data or demo phrasing on real-data surfaces.",
+      "Don't use engineer-only terminology without plain-language context.",
+      "Don't add decorative UI that makes status, risk, freshness, or evidence harder to read.",
+      "Don't use side-stripe borders, gradient text, glassmorphism, nested cards, or modal-first drilldowns."
+    ]
+  }
+}

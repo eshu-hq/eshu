@@ -94,6 +94,11 @@ describe("DashboardPage", () => {
     expect(screen.getByText(/23 repositories indexed by graph status/i)).toBeInTheDocument();
     expect(screen.getByText("Queue ledger")).toBeInTheDocument();
     expect(await screen.findByText("Deployment relationship graph")).toBeInTheDocument();
+    expect(screen.getByLabelText("Run readiness")).toBeInTheDocument();
+    expect(screen.getByText("Relationship coverage")).toBeInTheDocument();
+    expect(screen.getByText("Evidence dossier")).toBeInTheDocument();
+    expect(screen.getAllByText("Observed").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Missing").length).toBeGreaterThan(0);
     expect(screen.getByText("Canonical verbs")).toBeInTheDocument();
     expect(screen.getByText("Runtime topology")).toBeInTheDocument();
     expect(screen.getAllByText("DISCOVERS_CONFIG_IN").length).toBeGreaterThan(0);

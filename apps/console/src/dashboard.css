@@ -1,5 +1,7 @@
 .dashboard-atlas,
-.relationship-evidence {
+.relationship-coverage,
+.relationship-evidence,
+.run-readiness {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -23,62 +25,135 @@
   margin-top: 0;
 }
 
-.relationship-summary-grid {
-  display: grid;
-  gap: 10px;
+.atlas-note {
+  color: var(--muted);
+  font-size: 0.95rem;
 }
 
-.relationship-summary-section {
+.run-readiness {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(280px, 0.42fr) minmax(0, 1fr);
+}
+
+.run-readiness p,
+.relationship-coverage p {
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.run-readiness dl {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  margin: 0;
+}
+
+.run-readiness dl div {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  min-height: 76px;
+  padding: 12px;
+}
+
+.run-readiness dt {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.run-readiness dd {
+  color: var(--text);
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.relationship-coverage {
+  display: grid;
+  gap: 16px;
+}
+
+.section-heading-row {
+  align-items: end;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.section-heading-row span {
+  color: var(--muted);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.coverage-group {
   display: grid;
   gap: 8px;
 }
 
-.relationship-summary-section h3 {
+.coverage-group h3 {
   color: var(--muted);
   font-size: 0.86rem;
   margin: 0;
 }
 
-.relationship-summary {
-  background: var(--field);
+.coverage-table {
   border: 1px solid var(--line);
-  border-left: 4px solid var(--relation);
   border-radius: 7px;
-  display: grid;
-  gap: 4px;
-  padding: 12px;
+  overflow: hidden;
 }
 
-.relationship-summary strong {
+.coverage-row {
+  align-items: center;
+  background: var(--field);
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(170px, 0.35fr) minmax(240px, 1fr) 72px 92px;
+  min-height: 54px;
+  padding: 10px 12px;
+}
+
+.coverage-row:last-child {
+  border-bottom: 0;
+}
+
+.coverage-row strong {
   color: var(--text);
-  font-size: 0.86rem;
   overflow-wrap: anywhere;
 }
 
-.relationship-summary span {
+.coverage-row span {
   color: var(--muted);
-  font-size: 0.84rem;
-  line-height: 1.4;
 }
 
-.relationship-summary b {
+.coverage-row b {
   color: var(--relation);
-  font-size: 1.55rem;
-  line-height: 1;
+  font-size: 1.1rem;
 }
 
-.relationship-summary-empty {
-  border-left-color: var(--line);
-}
-
-.relationship-summary-empty strong,
-.relationship-summary-empty b {
-  color: var(--subtle);
+.coverage-row em {
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 800;
 }
 
 .relationship-evidence-list {
   display: grid;
   gap: 10px;
+}
+
+.relationship-evidence-grid {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.38fr);
 }
 
 .relationship-evidence-row {
@@ -92,6 +167,23 @@
   padding: 14px;
 }
 
+.relationship-evidence-row-selected {
+  border-color: var(--relation);
+}
+
+.evidence-select {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.evidence-select strong {
+  color: var(--text);
+}
+
 .relationship-evidence-row p {
   margin-top: 5px;
 }
@@ -102,9 +194,33 @@
   margin: 0;
 }
 
+.evidence-dossier {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  position: sticky;
+  top: 90px;
+}
+
+.evidence-dossier dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
 @media (max-width: 900px) {
   .dashboard-atlas,
+  .relationship-evidence-grid,
+  .run-readiness,
   .relationship-evidence-row {
+    grid-template-columns: 1fr;
+  }
+
+  .run-readiness dl,
+  .coverage-row {
     grid-template-columns: 1fr;
   }
 }
