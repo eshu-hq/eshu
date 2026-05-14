@@ -44,6 +44,8 @@ See `doc.go` for the godoc contract.
   scans.
 - `ServiceSQS` - SQS service-kind value for regional queue metadata scans.
 - `ServiceSNS` - SNS service-kind value for regional topic metadata scans.
+- `ServiceEventBridge` - EventBridge service-kind value for regional event bus
+  and rule metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -116,6 +118,10 @@ request.
   delivery-policy JSON, data-protection-policy JSON, and raw non-ARN
   subscription endpoints stay outside the AWS collector fact contract. ARN
   subscription endpoints may emit reported delivery relationship evidence.
+- EventBridge facts are metadata only. PutEvents, resource mutations, event bus
+  policy JSON, target payload fields, target input transformers, HTTP target
+  parameters, and raw non-ARN targets stay outside the AWS collector fact
+  contract. ARN target endpoints may emit reported relationship evidence.
 
 ## Related docs
 

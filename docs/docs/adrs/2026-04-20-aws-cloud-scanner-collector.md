@@ -52,14 +52,17 @@ later reducer-owned correlation.
 
 ## Status Review (2026-05-14)
 
-**Current disposition:** Phase 2 service expansion now includes SQS and SNS
-metadata-only slices for issue #38. The `sqs` service scans queue metadata,
-queue tags, safe queue attributes, and reported dead-letter queue relationships
-from redrive policy fields. The new `sns` service scans topic metadata, topic
-tags, safe topic attributes, and reported delivery relationships only when the
-subscription endpoint is ARN-addressable. These slices deliberately do not call
-message payload APIs, do not mutate resources, do not persist SQS/SNS policy
-JSON, and do not persist raw non-ARN SNS subscription endpoints.
+**Current disposition:** Phase 2 service expansion now includes SQS, SNS, and
+EventBridge metadata-only slices for issue #38. The `sqs` service scans queue
+metadata, queue tags, safe queue attributes, and reported dead-letter queue
+relationships from redrive policy fields. The `sns` service scans topic
+metadata, topic tags, safe topic attributes, and reported delivery
+relationships only when the subscription endpoint is ARN-addressable. The
+`eventbridge` service scans event bus metadata, rule metadata, tags, rule-to-bus
+relationships, and reported target relationships only when the target is
+ARN-addressable. These slices deliberately do not call message or event payload
+APIs, do not mutate resources, do not persist SQS/SNS/EventBridge policy JSON,
+and do not persist raw non-ARN SNS endpoints or EventBridge targets.
 
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/sqs/...`
 covers the bounded SQS call shape: one paginated ListQueues stream, one
@@ -126,6 +129,43 @@ diagnoses the SNS path through `aws.service.scan`,
 or span name is needed for this metadata-only scanner.
 
 Collector Deployment Evidence: SNS runs inside the existing hosted
+`collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
+the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
+surfaces apply without a separate deployment.
+
+Collector Performance Evidence: `go test ./internal/collector/awscloud/services/eventbridge/...`
+covers the bounded EventBridge call shape: one paginated ListEventBuses stream,
+one ListTagsForResource read per event bus, one paginated ListRules stream per
+event bus, one DescribeRule metadata read per rule, one ListTagsForResource read
+per rule, one paginated ListTargetsByRule stream per rule, no PutEvents calls,
+no rule or target mutations, and no downstream graph writes in the collector.
+This slice did not run against a live AWS account; the performance contract is
+the bounded O(bus count + rule count + target count) SDK call shape and existing
+workflow claim/account concurrency limits.
+
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+covers EventBridge event bus metadata fact emission, rule metadata fact
+emission, rule-to-bus relationship emission, ARN-only target relationship
+emission, omission of event bus policy and target payload fields, SDK
+pagination, tag reads, runtime scanner registration, and the command config path
+that confirms EventBridge does not require an environment-value redaction key.
+
+Collector Observability Evidence: EventBridge uses the existing AWS collector
+`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
+labels stay bounded to service, account, region, operation, result, and status;
+event bus ARNs, rule ARNs, target ARNs, tags, event patterns, target payload
+fields, policy values, and raw AWS error payloads stay out of metric labels.
+
+No-Observability-Change: the existing AWS collector telemetry contract already
+diagnoses the EventBridge path through `aws.service.scan`,
+`aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status`; no new metric
+or span name is needed for this metadata-only scanner.
+
+Collector Deployment Evidence: EventBridge runs inside the existing hosted
 `collector-aws-cloud` runtime through `awsruntime.DefaultScannerFactory`, so
 the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
 surfaces apply without a separate deployment.
@@ -337,7 +377,10 @@ Phase 2 (explicit non-goal for launch but planned):
 - SNS topic metadata (implemented 2026-05-14; message payloads, topic policy
   JSON, data-protection-policy JSON, and raw non-ARN subscription endpoints
   remain out of scope)
-- EventBridge (messaging surface)
+- EventBridge metadata (implemented 2026-05-14; PutEvents, rule/target
+  mutations, event bus policy JSON, target input payload fields, input
+  transformers, HTTP target parameters, and raw non-ARN targets remain out of
+  scope)
 - SQS queue metadata (implemented 2026-05-14; message bodies and queue policy
   JSON remain out of scope)
 - CloudFront, API Gateway (edge surface)
@@ -823,9 +866,10 @@ behind schedule.
 
 ### Phase 4: Phase 2 Service Expansion
 
-- RDS, DynamoDB, S3 (metadata), EventBridge
+- RDS, DynamoDB, S3 (metadata)
 - SQS queue metadata (implemented 2026-05-14)
 - SNS topic metadata (implemented 2026-05-14)
+- EventBridge metadata (implemented 2026-05-14)
 - CloudFront, API Gateway
 - Secrets Manager, SSM Parameter Store (metadata)
 - CloudWatch Logs (group metadata)
@@ -935,9 +979,9 @@ collector for drift rules, on Git collector for code joins.
 
 ### Chunk E: Phase 2 Services
 
-**Scope:** SQS queue metadata and SNS topic metadata are implemented. Remaining
-scope: RDS, DynamoDB, S3 metadata, EventBridge, CloudFront, API Gateway,
-Secrets Manager metadata, SSM metadata, and CloudWatch Logs metadata.
+**Scope:** SQS queue metadata, SNS topic metadata, and EventBridge metadata are
+implemented. Remaining scope: RDS, DynamoDB, S3 metadata, CloudFront, API
+Gateway, Secrets Manager metadata, SSM metadata, and CloudWatch Logs metadata.
 
 ### Chunk F: Optional Freshness Layer
 

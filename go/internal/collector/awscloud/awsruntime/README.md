@@ -67,6 +67,7 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/ecr`,
   `internal/collector/awscloud/services/ec2`,
   `internal/collector/awscloud/services/ecs`,
+  `internal/collector/awscloud/services/eventbridge`,
   `internal/collector/awscloud/services/eks`,
   `internal/collector/awscloud/services/elbv2`,
   `internal/collector/awscloud/services/lambda`, and
@@ -141,6 +142,11 @@ pagination spans. The command registers the instruments:
   adapter, but it must not broaden the service contract to publishing,
   subscription mutations, policy persistence, data-protection-policy
   persistence, or raw non-ARN endpoint persistence.
+- EventBridge scanners must stay metadata-only. The runtime registry wires the
+  EventBridge SDK adapter, but it must not broaden the service contract to
+  PutEvents, rule/target mutations, event bus policy persistence, target input
+  payload persistence, input-transformer persistence, HTTP-parameter
+  persistence, or raw non-ARN target persistence.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

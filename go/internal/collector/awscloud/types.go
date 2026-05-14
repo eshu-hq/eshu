@@ -33,6 +33,9 @@ const (
 	// ServiceSNS identifies the regional Amazon Simple Notification Service
 	// metadata scan slice.
 	ServiceSNS = "sns"
+	// ServiceEventBridge identifies the regional Amazon EventBridge metadata
+	// scan slice.
+	ServiceEventBridge = "eventbridge"
 )
 
 const (
@@ -97,6 +100,12 @@ const (
 	ResourceTypeSQSQueue = "aws_sqs_queue"
 	// ResourceTypeSNSTopic identifies an SNS topic metadata resource.
 	ResourceTypeSNSTopic = "aws_sns_topic"
+	// ResourceTypeEventBridgeEventBus identifies an EventBridge event bus
+	// metadata resource.
+	ResourceTypeEventBridgeEventBus = "aws_eventbridge_event_bus"
+	// ResourceTypeEventBridgeRule identifies an EventBridge rule metadata
+	// resource.
+	ResourceTypeEventBridgeRule = "aws_eventbridge_rule"
 )
 
 const (
@@ -194,6 +203,12 @@ const (
 	// RelationshipSNSTopicDeliversToResource records SNS subscription
 	// evidence from a topic to an ARN-addressable subscriber.
 	RelationshipSNSTopicDeliversToResource = "sns_topic_delivers_to_resource"
+	// RelationshipEventBridgeRuleOnEventBus records EventBridge rule
+	// membership on an event bus.
+	RelationshipEventBridgeRuleOnEventBus = "eventbridge_rule_on_event_bus"
+	// RelationshipEventBridgeRuleTargetsResource records EventBridge rule target
+	// evidence when the target is ARN-addressable.
+	RelationshipEventBridgeRuleTargetsResource = "eventbridge_rule_targets_resource"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by

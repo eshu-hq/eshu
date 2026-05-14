@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -127,6 +127,11 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   relationships. They intentionally do not publish messages, mutate
   subscriptions, persist topic policy JSON, persist data-protection-policy JSON,
   or persist raw email, SMS, HTTP, or HTTPS subscription endpoints.
+- EventBridge targets emit event bus metadata, rule metadata, rule-to-bus
+  relationships, and ARN-addressable target relationships. They intentionally do
+  not put events, mutate rules or targets, persist event bus policy JSON,
+  persist target input payload fields, persist input transformers, persist HTTP
+  target parameters, or persist raw non-ARN target identities.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan

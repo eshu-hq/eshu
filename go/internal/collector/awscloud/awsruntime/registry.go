@@ -17,6 +17,8 @@ import (
 	eksawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eks/awssdk"
 	elbv2service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2"
 	elbv2awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2/awssdk"
+	eventbridgeservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eventbridge"
+	eventbridgeawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eventbridge/awssdk"
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
 	iamawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/awssdk"
 	lambdaservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda"
@@ -95,6 +97,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceSNS:
 		return snsservice.Scanner{
 			Client: snsawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceEventBridge:
+		return eventbridgeservice.Scanner{
+			Client: eventbridgeawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{

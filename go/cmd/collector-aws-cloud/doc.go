@@ -4,6 +4,6 @@
 // `(account, region, service_kind)` work items from the workflow store, obtains
 // claim-scoped AWS credentials, and commits reported AWS facts through the
 // shared ingestion store. ECS and Lambda targets require a redaction key before
-// scans can emit environment-derived facts; metadata-only services such as SQS
-// and SNS do not require that key.
+// scans can emit environment-derived facts; metadata-only services such as SQS,
+// SNS, and EventBridge do not require that key.
 package main
