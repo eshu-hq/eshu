@@ -52,6 +52,24 @@ Concurrency-sensitive paths MUST expose enough telemetry to answer:
 - whether stale or duplicate work committed
 - whether progress resumed after coordination
 
+## Repo Enforcement
+
+Concurrency changes are not complete with only a safety argument. If the diff
+touches workers, leases, queues, batching, channels, goroutines, retry loops, or
+claim behavior, run:
+
+```bash
+scripts/test-verify-performance-evidence.sh
+scripts/verify-performance-evidence.sh
+```
+
+The PR must include a tracked evidence note with one of `Performance Evidence:`,
+`Benchmark Evidence:`, or `No-Regression Evidence:` plus either
+`Observability Evidence:` or `No-Observability-Change:`. The note must name the
+conflict domain, worker/lease settings, before/after queue or row counts, and
+the metric/span/log/status signal that shows progress, blocking, retries, and
+failure class.
+
 ## Done Criteria
 
 - The actual conflict domain is named.

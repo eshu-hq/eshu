@@ -432,6 +432,51 @@ Record repository size signals, wall time, terminal queue state, indexed file
 count, fact count, stage timings, backend, and commit id whenever a run is used
 as performance evidence.
 
+### Hot-Path Evidence Gate
+
+For Cypher, graph writes, reducers, projectors, queues, workers, leases,
+batching, runtime stages, and collectors that fan out into any of those paths,
+the benchmark rule is concrete and CI-enforced.
+
+`scripts/verify-performance-evidence.sh` inspects changed Go files by path and
+content. It catches existing hot packages and brand-new collectors that add
+Cypher strings, graph writes, worker claims, leases, batch sizing, goroutines,
+channels, or concurrency primitives. A matching change MUST update a tracked
+docs/ADR/package note in the same PR with one benchmark marker and one
+observability marker:
+
+- `Performance Evidence:` for before/after runtime proof.
+- `Benchmark Evidence:` for focused `go test -bench` or equivalent microbench
+  proof.
+- `No-Regression Evidence:` for correctness-only changes with a same-shape
+  no-regression measurement.
+- `Observability Evidence:` when metrics, spans, structured logs, status
+  fields, pprof, or queue/domain counters prove the path is diagnosable.
+- `No-Observability-Change:` only when existing signals already cover the path;
+  name those exact signals.
+
+Good:
+
+```text
+Performance Evidence: NornicDB full corpus drained 896/896 repositories in
+14m13.6s with fact_work_items=8347/8347 succeeded, code_calls=344148/0 open,
+and failures/dead_letters=0.
+
+Observability Evidence: reducer queue wait, shared projection processing
+duration, and shared-edge summary logs expose domain, row count, relationship
+route, and failure class for this path.
+```
+
+Bad:
+
+```text
+Performance Evidence: seems faster on my machine.
+Observability Evidence: logs should show it.
+```
+
+PR text alone is not enough. The evidence must live in versioned repo files so
+the next agent, reviewer, or maintainer can find it without scraping GitHub.
+
 Do not lower graph-write timeouts, global batch sizes, or worker counts because
 one repository is noisy. First use `eshu index --discovery-report` and consider a
 repo-local `.eshu/discovery.json` or process-local discovery overlay.
@@ -597,6 +642,10 @@ Implementation rules:
   ones.
 - High-cardinality values such as file paths and fact IDs belong in spans or
   logs, not metric labels.
+- If a runtime PR does not add new telemetry, it still has to prove that was a
+  deliberate decision. Use `No-Observability-Change:` in the tracked evidence
+  note and name the existing metrics, spans, logs, status fields, or pprof
+  output that diagnose the changed path.
 
 ## Cypher Work
 

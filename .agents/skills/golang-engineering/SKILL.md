@@ -28,6 +28,12 @@ References:
 - MUST run focused Go tests before broader package tests.
 - MUST run `golangci-lint` when Go code changed unless the user explicitly
   narrows verification.
+- MUST run `scripts/verify-package-docs.sh` for Go package changes under
+  `go/internal` or `go/cmd`; new packages need `doc.go`, `README.md`, and
+  `AGENTS.md` before they land.
+- MUST run `scripts/verify-performance-evidence.sh` when Go changes touch
+  Cypher, graph writes, runtime stages, workers, queues, leases, batching, or
+  concurrency. New collectors are covered when they introduce those patterns.
 - MUST report exactly what passed and what was not run.
 
 ## Design Rules
@@ -49,6 +55,9 @@ References:
   assumption, concurrency rule, retry rule, or regression purpose.
 - Update package `README.md`, `doc.go`, and package `AGENTS.md` when code
   changes alter the package contract or contributor guidance.
+- For a new package, create all three package docs before merging:
+  `doc.go` for godoc, `README.md` for humans, and `AGENTS.md` for future AI
+  edits. CI enforces this with `scripts/verify-package-docs.sh`.
 - Prefer short comments that explain intent, invariant, or failure mode; do not
   add comments that only restate the identifier.
 

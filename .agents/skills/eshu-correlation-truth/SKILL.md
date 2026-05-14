@@ -87,6 +87,12 @@ Required layers:
 - Fresh compose rebuild/restart verification when fixture truth changed
 - Direct graph check of canonical nodes and edges
 - API/query checks for repo context, service context, and deployment trace
+- Performance and observability markers when the change touches hot-path graph,
+  reducer, queue, or materialization code. Run
+  `scripts/verify-performance-evidence.sh` and include
+  `Performance Evidence:`, `Benchmark Evidence:`, or
+  `No-Regression Evidence:` plus `Observability Evidence:` or
+  `No-Observability-Change:` in a tracked repo file.
 
 ### 5. Reconcile disagreements
 

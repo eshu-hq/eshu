@@ -36,6 +36,12 @@
 - Add a new AWS service by extending target validation, adding scanner package
   tests, adding a service `awssdk` adapter, package docs, and branching in
   `awsruntime.DefaultScannerFactory.Scanner`.
+- Run `scripts/verify-package-docs.sh` whenever the change adds or edits a Go
+  package under this command or `go/internal/collector/awscloud`.
+- Run `scripts/verify-performance-evidence.sh` whenever the change touches
+  claim concurrency, leases, worker fanout, batching, pagination pressure, or
+  downstream graph/materialization cost. The PR must include tracked
+  Performance Evidence and Observability Evidence markers.
 - Add new command configuration with config tests first.
 - Add SDK pagination in the service adapter so spans and AWS API counters stay
   complete.

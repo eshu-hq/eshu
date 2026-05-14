@@ -50,6 +50,22 @@ the measurement protocol, see
 trade a full bench for a "no measurable regression" check on the same input
 shape, but must state that decision explicitly in the PR.
 
+CI enforces this for the repo. Any PR that changes hot-path Cypher, graph
+writer code, schema, reducer/projector graph work, or a new collector package
+that contains Cypher-like query text must pass:
+
+```bash
+scripts/test-verify-performance-evidence.sh
+scripts/verify-performance-evidence.sh
+```
+
+Add the evidence to a tracked docs/ADR/package file changed in the PR. Use one
+benchmark marker (`Performance Evidence:`, `Benchmark Evidence:`, or
+`No-Regression Evidence:`) and one observability marker (`Observability
+Evidence:` or `No-Observability-Change:`). Name the exact query shape, backend,
+input cardinality, index/constraint state, before/after timing, and metrics or
+logs that prove the path can be diagnosed.
+
 ## Workflow
 
 1. Understand the model first.

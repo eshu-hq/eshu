@@ -13,6 +13,32 @@ path. If a service exposes `/admin/status`, treat that report as the fastest
 way to understand what stage is running, how much work is queued, and whether
 the reported state is live or inferred.
 
+## Change Gate
+
+Runtime-affecting PRs must say how the changed path is observable. CI enforces
+this for hot-path Cypher, graph-write, queue, worker, lease, batching, and
+concurrency changes through `scripts/verify-performance-evidence.sh`.
+
+Use one of these markers in the tracked evidence note:
+
+- `Observability Evidence:` when the PR adds or uses metrics, spans,
+  structured logs, status output, pprof captures, or queue/domain counters that
+  prove an operator can diagnose the path.
+- `No-Observability-Change:` when the existing signal set is already enough.
+  Name the existing metric, span, log key, status field, or profile output.
+
+Example:
+
+```text
+Observability Evidence: the existing reducer run duration, queue wait
+histogram, and shared-edge write summary logs expose domain, row count, route,
+and failure class for this path; no new metric label was needed.
+```
+
+Do not write "logs exist" or "covered by telemetry" without naming the actual
+signal. If a person cannot debug the path at 3 AM from the note, the evidence is
+not concrete enough.
+
 ## Start Here
 
 | If you are debugging | Start with | Then check |

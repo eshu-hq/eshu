@@ -85,6 +85,27 @@ For each runtime slice:
    commit id for every run used as performance evidence.
 8. Classify the result in the ADR.
 
+## Concrete Repo Gates
+
+Before finishing any hot-path runtime PR, run:
+
+```bash
+scripts/test-verify-performance-evidence.sh
+scripts/verify-performance-evidence.sh
+```
+
+The gate fails when changed Go files introduce or modify Cypher, graph writes,
+worker claims, leases, batching, goroutines, channels, queue behavior, or
+runtime stages without a tracked docs/ADR/package note containing:
+
+- `Performance Evidence:`, `Benchmark Evidence:`, or
+  `No-Regression Evidence:`
+- `Observability Evidence:` or `No-Observability-Change:`
+
+The note must name the measurement, backend/version, input shape, queue or row
+counts, and the metrics/spans/logs/status fields that let an operator diagnose
+the path. PR text alone is not durable evidence.
+
 ## Result Classification
 
 Every change must be labeled honestly:

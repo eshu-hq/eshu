@@ -43,6 +43,14 @@
 - Add a new AWS service by adding service constants here, a service package
   under `services/`, scanner tests, a service `awssdk` adapter, package docs,
   and a branch in `awsruntime.DefaultScannerFactory`.
+- For that new service package, include `doc.go`, `README.md`, and `AGENTS.md`
+  before merge and run `scripts/verify-package-docs.sh`.
+- If the service adds pagination fanout, claim concurrency, batch sizing,
+  queue pressure, or downstream graph/materialization pressure, run
+  `scripts/verify-performance-evidence.sh` and add tracked
+  Performance Evidence plus Observability Evidence markers naming the
+  input shape, queue/resource counts, and exact metrics/spans/logs/status
+  fields.
 - Add a new fact envelope only after `internal/facts` exposes the fact kind and
   schema version.
 - Add redaction or credential rules at the runtime boundary unless the value is
