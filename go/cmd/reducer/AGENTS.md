@@ -26,7 +26,7 @@ before touching any file in this directory.
   `config.go:135–148` `loadReducerProjectorDrainGate` returns `true` only
   when the backend is `GraphBackendNornicDB` AND the query profile is
   `local-authoritative`.
-- **Heartbeat renews at `LeaseDuration / 2`** — `main.go:322`
+- **Heartbeat renews at `LeaseDuration / 2`** — `main.go:341`
   `HeartbeatInterval: workQueue.LeaseDuration / 2`; do not set
   `ESHU_REDUCER_RETRY_DELAY` shorter than the lease TTL or claims will churn.
 - **Prior-config depth defaults to 10; invalid input WARNs and falls back** —

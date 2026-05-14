@@ -145,9 +145,13 @@ const (
 	// Operators reading a trace can tell which of those is slow without
 	// instrumenting each call site individually.
 	SpanReducerDriftEvidenceLoad = "reducer.drift_evidence_load"
-	SpanCanonicalWrite           = "canonical.write"
-	SpanCanonicalProjection      = "canonical.projection"
-	SpanCanonicalRetract         = "canonical.retract"
+	// SpanReducerAWSRuntimeDriftEvidenceLoad wraps the Postgres AWS runtime
+	// drift loader. Child Postgres query spans expose the AWS-resource scan,
+	// bounded active-state ARN join, and config-owner lookup per state scope.
+	SpanReducerAWSRuntimeDriftEvidenceLoad = "reducer.aws_runtime_drift_evidence_load"
+	SpanCanonicalWrite                     = "canonical.write"
+	SpanCanonicalProjection                = "canonical.projection"
+	SpanCanonicalRetract                   = "canonical.retract"
 
 	SpanEvidenceDiscovery                 = "ingestion.evidence_discovery"
 	SpanIaCReachabilityMaterialization    = "iac_reachability.materialize"
@@ -333,6 +337,8 @@ var spanNames = []string{
 	SpanReducerIntentEnqueue,
 	SpanReducerRun,
 	SpanReducerBatchClaim,
+	SpanReducerDriftEvidenceLoad,
+	SpanReducerAWSRuntimeDriftEvidenceLoad,
 	SpanCanonicalWrite,
 	SpanCanonicalProjection,
 	SpanCanonicalRetract,

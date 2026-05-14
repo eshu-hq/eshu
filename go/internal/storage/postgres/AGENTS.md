@@ -89,6 +89,13 @@
 - **AWS scan-status fencing** — `AWSScanStatusStore` mutations must keep their
   fencing guards. A stale AWS worker must not overwrite per-tuple status from a
   newer claim.
+- **AWS runtime drift joins stay bounded** —
+  `PostgresAWSCloudRuntimeDriftEvidenceLoader` must load AWS rows from one
+  `(scope_id, generation_id)` and must join Terraform state through the current
+  AWS ARN allowlist. Do not scan all active Terraform state to discover matches.
+  If backend ownership is missing or ambiguous, suppress unmanaged
+  classification for that state-backed ARN; unknown config is not proof of
+  absent config.
 
 ## Common changes and how to scope them
 

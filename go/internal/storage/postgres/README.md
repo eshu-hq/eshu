@@ -165,6 +165,18 @@ throttle, warning, and fact counts. The `collector-aws-cloud` command records a
 separate commit status after the fenced ingestion transaction so operators can
 distinguish scanner failures from commit failures.
 
+### AWS runtime drift evidence
+
+`PostgresAWSCloudRuntimeDriftEvidenceLoader` powers the
+`aws_cloud_runtime_drift` reducer domain. It first loads `aws_resource` facts for
+one AWS scope generation, then joins active `terraform_state_resource` facts by
+an ARN allowlist derived from that generation. For state-backed ARNs it resolves
+the `state_snapshot:<backend_kind>:<locator_hash>` owner through
+`tfstatebackend.Resolver`, loads the owning config snapshot's
+`terraform_resources`, and marks config present only when the Terraform address
+matches. Missing or ambiguous backend ownership suppresses unmanaged
+classification rather than treating unknown config as absent.
+
 ### Webhook refresh triggers
 
 `WebhookTriggerStore` persists provider webhook decisions in
@@ -206,6 +218,9 @@ compatibility handoff cannot complete.
   blockage queries for the status surface
 - `AWSScanStatusStore` / `NewAWSScanStatusStore` — per AWS tuple scanner and
   commit status for `/admin/status`
+- `PostgresAWSCloudRuntimeDriftEvidenceLoader` — bounded AWS resource →
+  active Terraform state → owned Terraform config join for the
+  `aws_cloud_runtime_drift` reducer domain
 
 **Content stores**
 

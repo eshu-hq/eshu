@@ -55,9 +55,10 @@ flowchart TB
    and increments
    `eshu_dp_drift_unresolved_module_calls_total` per unresolvable
    `module {}` source per the issue #169 module-aware join; the AWS runtime
-   drift writer `PostgresAWSCloudRuntimeDriftWriter` is wired for issue #39,
-   while the evidence loader stays disabled until the ARN join and read model
-   shape are frozen),
+   drift adapters `PostgresAWSCloudRuntimeDriftEvidenceLoader` and
+   `PostgresAWSCloudRuntimeDriftWriter` are wired for issue #39 so
+   `aws_resource` reducer intents can publish durable orphan/unmanaged
+   findings after the bounded ARN join),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
    the `postgres.NewReducerQueue`.

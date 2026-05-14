@@ -13,9 +13,10 @@
 // counters. Webhook listener intake registers provider,
 // event_kind, decision, status, SpanWebhookHandle, and SpanWebhookStore. OCI
 // registry intake registers operation, media_family, artifact_family,
-// SpanOCIRegistryScan, and SpanOCIRegistryAPICall. The reducer drift handler uses
-// SpanReducerDriftEvidenceLoad to bracket the three-query join the
-// PostgresDriftEvidenceLoader performs per config_state_drift intent. Pipeline
+// SpanOCIRegistryScan, and SpanOCIRegistryAPICall. The reducer drift handlers use
+// SpanReducerDriftEvidenceLoad for config_state_drift and
+// SpanReducerAWSRuntimeDriftEvidenceLoad for aws_cloud_runtime_drift so traces
+// separate Terraform config-vs-state joins from AWS runtime ARN joins. Pipeline
 // stage, graph-backend, and failure-class names stay centralized here so
 // runtime packages can report comparable events without inventing local label
 // vocabularies. The drift loader's module-aware join (issue #169) registers
