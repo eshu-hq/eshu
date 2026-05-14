@@ -7,7 +7,7 @@
 // observation, including EKS control-plane evidence and redaction-sensitive ECS
 // and Lambda fields, while reducers own canonical graph truth. The production
 // registry includes metadata-only adapters for SQS, SNS, EventBridge, S3, RDS,
-// DynamoDB, CloudWatch Logs, CloudFront, API Gateway, and Secrets Manager
+// DynamoDB, CloudWatch Logs, CloudFront, API Gateway, Secrets Manager, and SSM
 // without broadening those services into payload, policy, data-plane,
 // credential, or mutation APIs.
 package awsruntime

@@ -75,6 +75,10 @@
   external rotation partner metadata, external rotation role ARNs, and mutations
   out of facts. Secret metadata, tags, KMS key dependencies, and rotation Lambda
   dependencies are reported metadata only.
+- Keep SSM parameter values, history values, raw descriptions, raw allowed
+  patterns, raw policy JSON, decrypted content, and mutations out of facts.
+  Parameter metadata, tags, safe policy type/status metadata, and KMS key
+  dependencies are reported metadata only.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target

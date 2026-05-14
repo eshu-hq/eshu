@@ -59,6 +59,8 @@ See `doc.go` for the godoc contract.
   scans.
 - `ServiceSecretsManager` - Secrets Manager service-kind value for regional
   secret metadata scans.
+- `ServiceSSM` - SSM service-kind value for regional Parameter Store metadata
+  scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -173,6 +175,11 @@ request.
   role ARNs, and mutations stay outside the AWS collector fact contract. Secret
   metadata, tags, KMS key dependencies, and rotation Lambda dependencies are
   reported evidence only.
+- SSM facts are metadata only. Parameter values, history values, raw
+  descriptions, raw allowed patterns, raw policy JSON, decrypted content, and
+  mutations stay outside the AWS collector fact contract. Parameter metadata,
+  tags, safe policy type/status metadata, and KMS key dependencies are reported
+  evidence only.
 
 ## Related docs
 

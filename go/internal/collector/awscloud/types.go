@@ -57,6 +57,9 @@ const (
 	// ServiceSecretsManager identifies the regional AWS Secrets Manager
 	// metadata-only scan slice.
 	ServiceSecretsManager = "secretsmanager"
+	// ServiceSSM identifies the regional AWS Systems Manager Parameter Store
+	// metadata-only scan slice.
+	ServiceSSM = "ssm"
 )
 
 const (
@@ -157,6 +160,9 @@ const (
 	// ResourceTypeSecretsManagerSecret identifies a Secrets Manager secret
 	// metadata resource.
 	ResourceTypeSecretsManagerSecret = "aws_secretsmanager_secret"
+	// ResourceTypeSSMParameter identifies an SSM Parameter Store metadata
+	// resource.
+	ResourceTypeSSMParameter = "aws_ssm_parameter"
 )
 
 const (
@@ -332,6 +338,9 @@ const (
 	// RelationshipSecretsManagerSecretUsesRotationLambda records a secret's
 	// reported rotation Lambda dependency.
 	RelationshipSecretsManagerSecretUsesRotationLambda = "secretsmanager_secret_uses_rotation_lambda"
+	// RelationshipSSMParameterUsesKMSKey records an SSM SecureString
+	// parameter's reported KMS key dependency.
+	RelationshipSSMParameterUsesKMSKey = "ssm_parameter_uses_kms_key"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by

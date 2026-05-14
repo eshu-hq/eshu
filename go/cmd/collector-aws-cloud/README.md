@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -167,6 +167,10 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   values, read version payloads, persist resource policy JSON, persist external
   rotation partner metadata, persist external rotation role ARNs, or mutate
   Secrets Manager resources.
+- SSM targets emit Parameter Store metadata plus directly reported KMS key
+  relationships. They intentionally do not read parameter values, read history
+  values, persist raw descriptions, persist raw allowed patterns, persist raw
+  policy JSON, decrypt SecureString content, or mutate SSM resources.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan
