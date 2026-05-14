@@ -82,8 +82,37 @@ func (f fakePortContentStore) ListRepoFiles(context.Context, string, int) ([]Fil
 	return nil, nil
 }
 
-func (f fakePortContentStore) ListRepoEntities(context.Context, string, int) ([]EntityContent, error) {
+func (f fakePortContentStore) ListRepoEntities(_ context.Context, _ string, limit int) ([]EntityContent, error) {
+	if limit > 0 && limit < len(f.entities) {
+		return append([]EntityContent(nil), f.entities[:limit]...), nil
+	}
 	return append([]EntityContent(nil), f.entities...), nil
+}
+
+func (f fakePortContentStore) ListRepoEntitiesByPaths(
+	_ context.Context,
+	repoID string,
+	relativePaths []string,
+	limit int,
+) ([]EntityContent, error) {
+	pathSet := map[string]struct{}{}
+	for _, path := range relativePaths {
+		pathSet[path] = struct{}{}
+	}
+	results := make([]EntityContent, 0)
+	for _, entity := range f.entities {
+		if entity.RepoID != repoID {
+			continue
+		}
+		if _, ok := pathSet[entity.RelativePath]; !ok {
+			continue
+		}
+		results = append(results, entity)
+		if limit > 0 && len(results) >= limit {
+			break
+		}
+	}
+	return results, nil
 }
 
 func (f fakePortContentStore) SearchEntitiesByLanguageAndType(context.Context, string, string, string, string, int) ([]EntityContent, error) {

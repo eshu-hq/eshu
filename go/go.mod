@@ -29,6 +29,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/jackc/pgx/v5 v5.9.1
+	github.com/lib/pq v1.10.9
 	github.com/mattn/go-isatty v0.0.21
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/orneryd/nornicdb v1.0.45
@@ -159,7 +160,6 @@ require (
 	github.com/jupiterrider/ffi v0.6.0 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/lib/pq v1.10.9 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect

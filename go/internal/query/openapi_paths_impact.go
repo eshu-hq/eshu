@@ -189,6 +189,17 @@ const openAPIPathsImpact = `
             "application/json": {
               "schema": {
                 "type": "object",
+                "description": "Provide at least one target family: target, service_name, workload_id, resource_id, module_id, topic or query, or changed_paths with repo_id.",
+                "anyOf": [
+                  {"required": ["target"]},
+                  {"required": ["service_name"]},
+                  {"required": ["workload_id"]},
+                  {"required": ["resource_id"]},
+                  {"required": ["module_id"]},
+                  {"required": ["topic"]},
+                  {"required": ["query"]},
+                  {"required": ["changed_paths", "repo_id"]}
+                ],
                 "properties": {
                   "target": {"type": "string", "description": "Canonical entity id or exact entity name"},
                   "target_type": {"type": "string", "enum": ["service", "workload", "workload_instance", "repository", "resource", "cloud_resource", "terraform_module", "module"]},

@@ -17,7 +17,6 @@ const (
 	changeSurfaceInvestigationMaxOffset    = 10000
 	changeSurfaceInvestigationDefaultDepth = 4
 	changeSurfaceInvestigationMaxDepth     = 8
-	changeSurfacePathEntityProbeLimit      = 200
 )
 
 type changeSurfaceInvestigationRequest struct {

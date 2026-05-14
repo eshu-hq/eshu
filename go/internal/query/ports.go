@@ -26,6 +26,7 @@ type ContentStore interface {
 	SearchEntitiesReferencingComponent(ctx context.Context, repoID, componentName string, limit int) ([]EntityContent, error)
 	ListRepoFiles(ctx context.Context, repoID string, limit int) ([]FileContent, error)
 	ListRepoEntities(ctx context.Context, repoID string, limit int) ([]EntityContent, error)
+	ListRepoEntitiesByPaths(ctx context.Context, repoID string, relativePaths []string, limit int) ([]EntityContent, error)
 	SearchEntitiesByLanguageAndType(ctx context.Context, repoID, language, entityType, query string, limit int) ([]EntityContent, error)
 	ListFrameworkRoutes(ctx context.Context, repoID string) ([]FrameworkRouteEvidence, error)
 	RepositoryCoverage(ctx context.Context, repoID string) (RepositoryContentCoverage, error)

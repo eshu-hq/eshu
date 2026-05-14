@@ -33,6 +33,7 @@ LIMIT %d`, req.MaxDepth, req.Limit+1)
 	if err != nil {
 		return nil, false, fmt.Errorf("query change surface impact: %w", err)
 	}
+	rawTruncated := len(rows) > req.Limit
 	filtered := make([]map[string]any, 0, len(rows))
 	seen := map[string]struct{}{}
 	for _, row := range rows {
@@ -50,8 +51,8 @@ LIMIT %d`, req.MaxDepth, req.Limit+1)
 		seen[id] = struct{}{}
 		filtered = append(filtered, row)
 	}
-	truncated := len(filtered) > req.Limit
-	if truncated {
+	truncated := rawTruncated || len(filtered) > req.Limit
+	if len(filtered) > req.Limit {
 		filtered = filtered[:req.Limit]
 	}
 	return filtered, truncated, nil
@@ -85,14 +86,17 @@ func (h *ImpactHandler) changeSurfaceCodeSurface(
 			evidenceGroups = append(evidenceGroups, codeTopicEvidenceGroup(row, index+1))
 		}
 	}
+	pathSymbolsTruncated := false
 	if len(req.ChangedPaths) > 0 && h != nil && h.Content != nil {
-		pathSymbols, err := h.changeSurfacePathSymbols(ctx, req)
+		pathSymbols, symbolsTruncated, err := h.changeSurfacePathSymbols(ctx, req)
 		if err != nil {
 			return nil, err
 		}
 		symbols = appendUniqueSymbolMaps(symbols, pathSymbols)
+		pathSymbolsTruncated = symbolsTruncated
 		sourceBackends = append(sourceBackends, "postgres_content_store")
 	}
+	truncated = truncated || pathSymbolsTruncated
 
 	return map[string]any{
 		"topic":              req.Topic,
@@ -104,12 +108,13 @@ func (h *ImpactHandler) changeSurfaceCodeSurface(
 		"truncated":          truncated,
 		"source_backends":    uniqueStrings(sourceBackends),
 		"coverage": map[string]any{
-			"query_shape":        "content_topic_and_changed_path_surface",
-			"changed_path_count": len(req.ChangedPaths),
-			"returned_symbols":   len(symbols),
-			"limit":              req.Limit,
-			"offset":             req.Offset,
-			"truncated":          truncated,
+			"query_shape":         "content_topic_and_changed_path_surface",
+			"changed_path_count":  len(req.ChangedPaths),
+			"changed_path_lookup": "path_scoped",
+			"returned_symbols":    len(symbols),
+			"limit":               req.Limit,
+			"offset":              req.Offset,
+			"truncated":           truncated,
 		},
 	}, nil
 }
@@ -143,20 +148,13 @@ func (h *ImpactHandler) changeSurfaceTopicRows(
 func (h *ImpactHandler) changeSurfacePathSymbols(
 	ctx context.Context,
 	req changeSurfaceInvestigationRequest,
-) ([]map[string]any, error) {
-	entities, err := h.Content.ListRepoEntities(ctx, req.RepoID, changeSurfacePathEntityProbeLimit)
+) ([]map[string]any, bool, error) {
+	entities, err := h.Content.ListRepoEntitiesByPaths(ctx, req.RepoID, req.ChangedPaths, req.Limit+1)
 	if err != nil {
-		return nil, fmt.Errorf("list repo entities: %w", err)
-	}
-	pathSet := map[string]struct{}{}
-	for _, path := range req.ChangedPaths {
-		pathSet[path] = struct{}{}
+		return nil, false, fmt.Errorf("list repo entities by changed paths: %w", err)
 	}
 	symbols := make([]map[string]any, 0)
 	for _, entity := range entities {
-		if _, ok := pathSet[entity.RelativePath]; !ok {
-			continue
-		}
 		symbols = append(symbols, map[string]any{
 			"entity_id":     entity.EntityID,
 			"entity_name":   entity.EntityName,
@@ -173,11 +171,12 @@ func (h *ImpactHandler) changeSurfacePathSymbols(
 				"end_line":      entity.EndLine,
 			},
 		})
-		if len(symbols) >= req.Limit {
-			break
-		}
 	}
-	return symbols, nil
+	truncated := len(symbols) > req.Limit
+	if truncated {
+		symbols = symbols[:req.Limit]
+	}
+	return symbols, truncated, nil
 }
 
 func (h *ImpactHandler) changeSurfaceResponse(

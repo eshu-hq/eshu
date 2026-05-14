@@ -140,6 +140,45 @@ func TestInvestigateChangeSurfaceUsesBoundedTraversal(t *testing.T) {
 	}
 }
 
+func TestInvestigateChangeSurfaceMarksRawGraphTruncationBeforeEnvironmentFilter(t *testing.T) {
+	t.Parallel()
+
+	graph := &recordingChangeSurfaceGraph{runRows: [][]map[string]any{
+		{
+			{"id": "workload:orders-api", "name": "orders-api", "labels": []any{"Workload"}, "repo_id": "repo-api"},
+		},
+		{
+			{"id": "resource-staging", "name": "orders-staging", "labels": []any{"CloudResource"}, "depth": int64(1), "environment": "staging"},
+			{"id": "resource-prod-a", "name": "orders-prod-a", "labels": []any{"CloudResource"}, "depth": int64(1), "environment": "prod"},
+			{"id": "resource-prod-b", "name": "orders-prod-b", "labels": []any{"CloudResource"}, "depth": int64(2), "environment": "prod"},
+		},
+	}}
+	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/change-surface/investigate",
+		bytes.NewBufferString(`{"service_name":"orders-api","environment":"prod","limit":2}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	data := decodeChangeSurfaceData(t, w)
+	if got, want := data["truncated"], true; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+	coverage := data["coverage"].(map[string]any)
+	if got, want := coverage["truncated"], true; got != want {
+		t.Fatalf("coverage.truncated = %#v, want %#v", got, want)
+	}
+}
+
 func TestInvestigateChangeSurfaceAcceptsCodeTopicAndChangedPaths(t *testing.T) {
 	t.Parallel()
 
@@ -199,6 +238,67 @@ func TestInvestigateChangeSurfaceAcceptsCodeTopicAndChangedPaths(t *testing.T) {
 	nextCalls := data["recommended_next_calls"].([]any)
 	if got, want := len(nextCalls), 2; got < want {
 		t.Fatalf("recommended_next_calls = %d, want at least %d", got, want)
+	}
+}
+
+func TestInvestigateChangeSurfaceMapsChangedPathSymbolsPastRepoProbeWindow(t *testing.T) {
+	t.Parallel()
+
+	const staleRepoWideProbeLimit = 200
+
+	entities := make([]EntityContent, 0, staleRepoWideProbeLimit+1)
+	for i := 0; i < staleRepoWideProbeLimit; i++ {
+		entities = append(entities, EntityContent{
+			EntityID:     "entity-noise",
+			EntityName:   "noise",
+			EntityType:   "Function",
+			RepoID:       "repo-1",
+			RelativePath: "go/internal/noise.go",
+			Language:     "go",
+			StartLine:    i + 1,
+			EndLine:      i + 1,
+		})
+	}
+	entities = append(entities, EntityContent{
+		EntityID:     "entity-late-auth",
+		EntityName:   "resolveGitHubAppAuth",
+		EntityType:   "Function",
+		RepoID:       "repo-1",
+		RelativePath: "go/internal/collector/reposync/auth.go",
+		Language:     "go",
+		StartLine:    44,
+		EndLine:      88,
+	})
+
+	store := &topicInvestigationContentStore{
+		fakePortContentStore: fakePortContentStore{entities: entities},
+	}
+	handler := &ImpactHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	body := `{"repo_id":"repo-1","changed_paths":["go/internal/collector/reposync/auth.go"],"limit":10}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/change-surface/investigate", bytes.NewBufferString(body))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	data := decodeChangeSurfaceData(t, w)
+	codeSurface := data["code_surface"].(map[string]any)
+	symbols := codeSurface["touched_symbols"].([]any)
+	if got, want := len(symbols), 1; got != want {
+		t.Fatalf("touched symbol count = %d, want %d", got, want)
+	}
+	symbol := symbols[0].(map[string]any)
+	if got, want := symbol["entity_id"], "entity-late-auth"; got != want {
+		t.Fatalf("symbol.entity_id = %#v, want %#v", got, want)
+	}
+	coverage := codeSurface["coverage"].(map[string]any)
+	if got, want := coverage["changed_path_lookup"], "path_scoped"; got != want {
+		t.Fatalf("coverage.changed_path_lookup = %#v, want %#v", got, want)
 	}
 }
 
