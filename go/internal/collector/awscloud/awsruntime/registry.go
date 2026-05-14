@@ -25,6 +25,8 @@ import (
 	lambdaawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda/awssdk"
 	route53service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53"
 	route53awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53/awssdk"
+	s3service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/s3"
+	s3awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/s3/awssdk"
 	snsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sns"
 	snsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sns/awssdk"
 	sqsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sqs"
@@ -101,6 +103,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceEventBridge:
 		return eventbridgeservice.Scanner{
 			Client: eventbridgeawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceS3:
+		return s3service.Scanner{
+			Client: s3awssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{

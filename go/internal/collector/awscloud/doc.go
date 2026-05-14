@@ -4,9 +4,9 @@
 // The package owns AWS source observations up to durable fact envelopes and
 // bounded scan-status accounting contracts. It does not call AWS APIs directly,
 // schedule workflow claims, or write graph truth. Service-specific scanners,
-// including IAM, EC2, ECR, ECS, EKS, ELBv2, Lambda, Route 53, SQS, SNS, and
-// EventBridge slices, convert AWS API data into these contracts before the
-// shared collector and reducer paths persist and materialize them.
+// including IAM, EC2, ECR, ECS, EKS, ELBv2, Lambda, Route 53, SQS, SNS,
+// EventBridge, and S3 slices, convert AWS API data into these contracts before
+// the shared collector and reducer paths persist and materialize them.
 // Sensitive service fields, including ECS and Lambda environment values, must be
 // redacted before callers build envelopes.
 // SQS scans are limited to queue metadata and reported dead-letter queue
@@ -19,4 +19,8 @@
 // ARN-addressable target relationships; event payloads, event bus policy JSON,
 // target input payloads, input transformers, and HTTP parameters stay outside
 // the contract.
+// S3 scans are limited to bucket metadata and server-access-log target
+// relationships; object inventory, bucket policy JSON, ACL grants,
+// replication, lifecycle, notifications, inventory, analytics, and metrics
+// configuration stay outside the contract.
 package awscloud

@@ -49,6 +49,9 @@
   mutations, event bus policy persistence, target input payload persistence,
   input-transformer persistence, HTTP-parameter persistence, or raw non-ARN
   target persistence through the runtime registry.
+- Keep S3 scans metadata-only. Do not wire object inventory, object keys, bucket
+  policy JSON, ACL grants, replication, lifecycle, notification, inventory,
+  analytics, metrics, or mutation APIs through the runtime registry.
 
 ## Common Changes
 

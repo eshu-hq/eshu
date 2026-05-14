@@ -151,6 +151,26 @@ func TestDefaultScannerFactoryBuildsEventBridgeScanner(t *testing.T) {
 	}
 }
 
+func TestDefaultScannerFactoryBuildsS3Scanner(t *testing.T) {
+	factory := DefaultScannerFactory{}
+	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
+	scanner, err := factory.Scanner(context.Background(), Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceS3,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceS3,
+	}, lease)
+	if err != nil {
+		t.Fatalf("Scanner() error = %v", err)
+	}
+	if scanner == nil {
+		t.Fatalf("Scanner() = nil, want S3 scanner")
+	}
+}
+
 func TestDefaultScannerFactoryBuildsELBv2Scanner(t *testing.T) {
 	factory := DefaultScannerFactory{}
 	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
@@ -282,16 +302,16 @@ func TestDefaultScannerFactoryRejectsUnsupportedService(t *testing.T) {
 	_, err := factory.Scanner(context.Background(), Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: "s3",
+		ServiceKind: "unknown-service",
 	}, awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: "s3",
+		ServiceKind: "unknown-service",
 	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want unsupported service error")
 	}
-	if !strings.Contains(err.Error(), `unsupported AWS service_kind "s3"`) {
+	if !strings.Contains(err.Error(), `unsupported AWS service_kind "unknown-service"`) {
 		t.Fatalf("Scanner() error = %q, want unsupported service_kind", err)
 	}
 }

@@ -70,10 +70,11 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/eventbridge`,
   `internal/collector/awscloud/services/eks`,
   `internal/collector/awscloud/services/elbv2`,
-  `internal/collector/awscloud/services/lambda`, and
+  `internal/collector/awscloud/services/lambda`,
   `internal/collector/awscloud/services/route53`,
-  `internal/collector/awscloud/services/sqs`, and
-  `internal/collector/awscloud/services/sns` plus their `awssdk` adapters for
+  `internal/collector/awscloud/services/sqs`,
+  `internal/collector/awscloud/services/sns`, and
+  `internal/collector/awscloud/services/s3` plus their `awssdk` adapters for
   production service scanners.
 - `internal/facts` for warning fact types.
 - `internal/scope` for AWS scope and collector identity.
@@ -147,6 +148,10 @@ pagination spans. The command registers the instruments:
   PutEvents, rule/target mutations, event bus policy persistence, target input
   payload persistence, input-transformer persistence, HTTP-parameter
   persistence, or raw non-ARN target persistence.
+- S3 scanners must stay metadata-only. The runtime registry wires the S3 SDK
+  adapter, but it must not broaden the service contract to object inventory,
+  bucket policy persistence, ACL grant persistence, replication persistence,
+  lifecycle persistence, notification persistence, or mutation APIs.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

@@ -159,7 +159,8 @@ EKS cluster/node group/add-on/OIDC provider facts with IAM role and EC2 network
 join evidence, plus SQS queue metadata and reported dead-letter queue
 relationship facts, plus SNS topic metadata and ARN-addressable subscription
 relationship facts, plus EventBridge event bus/rule metadata, rule-to-bus
-relationships, and ARN-addressable target relationship facts.
+relationships, and ARN-addressable target relationship facts, plus S3 bucket
+metadata and server-access-log target bucket relationship facts.
 
 `collector-oci-registry` scans configured OCI registry repositories. In the
 legacy local mode it reads `ESHU_OCI_REGISTRY_TARGETS_JSON`; when

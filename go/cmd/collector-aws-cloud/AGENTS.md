@@ -40,6 +40,11 @@
   input transformers, HTTP target parameters, and raw non-ARN targets out of
   facts. The command may enable `eventbridge`, but the SDK adapter owns safe bus,
   rule, and target mapping.
+- Keep S3 object inventory, object keys, bucket policy JSON, ACL grants,
+  replication rules, lifecycle rules, notification configuration, inventory
+  configuration, analytics configuration, and metrics configuration out of
+  facts. The command may enable `s3`, but the SDK adapter owns safe bucket
+  metadata mapping.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 - Preserve the split between scanner-side status in `awsruntime` and

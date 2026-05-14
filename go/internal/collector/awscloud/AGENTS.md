@@ -45,6 +45,11 @@
   input fields, target transformers, HTTP target parameters, and raw non-ARN
   targets out of facts. ARN target endpoints may be reported relationship
   evidence.
+- Keep S3 object inventory, object keys, bucket policy JSON, ACL grants,
+  replication rules, lifecycle rules, notification configuration, inventory
+  configuration, analytics configuration, and metrics configuration out of
+  facts. Server-access-log target buckets may be reported relationship
+  evidence.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target
