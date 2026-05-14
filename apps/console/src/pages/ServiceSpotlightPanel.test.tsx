@@ -29,6 +29,10 @@ describe("ServiceSpotlightPanel", () => {
     expect(screen.getByText("38 endpoint(s) across 0 spec file(s)")).toBeInTheDocument();
     expect(screen.getByText("Service story")).toBeInTheDocument();
     expect(screen.getByText("retrieve the full one-call dossier")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Traffic path" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "api-node-boats traffic path" })).toBeInTheDocument();
+    expect(screen.getAllByText("CloudFront distribution").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("origin-alb-primary").length).toBeGreaterThan(1);
 
     const laneMap = screen.getByLabelText("api-node-boats deployment lane map");
     expect(within(laneMap).getByText("api-node-boats")).toBeInTheDocument();
@@ -54,7 +58,7 @@ describe("ServiceSpotlightPanel", () => {
     expect(screen.getByRole("heading", { name: "Upstream relationships" })).toBeInTheDocument();
     expect(screen.getByText("25 observed")).toBeInTheDocument();
     expect(screen.getByText("17 observed")).toBeInTheDocument();
-    expect(screen.getByText("api-node-boats.prod.bgrp.io")).toBeInTheDocument();
+    expect(screen.getAllByText("api-node-boats.prod.bgrp.io").length).toBeGreaterThan(1);
 
     const search = screen.getByRole("searchbox", { name: "Search API endpoints" });
     fireEvent.change(search, { target: { value: "listing" } });
@@ -286,6 +290,17 @@ const spotlight: ServiceSpotlight = {
       environment: "prod",
       hostname: "api-node-boats.prod.bgrp.io",
       path: "config/production.json"
+    }
+  ],
+  trafficPaths: [
+    {
+      edge: "CloudFront distribution",
+      evidenceKind: "aws_cloudfront_distribution",
+      hostname: "api-node-boats.prod.bgrp.io",
+      origin: "origin-alb-primary",
+      runtime: "ECS bg-prod",
+      sourceRepo: "terraform-stack-node10",
+      workload: "api-node-boats"
     }
   ],
   relationshipCounts: {

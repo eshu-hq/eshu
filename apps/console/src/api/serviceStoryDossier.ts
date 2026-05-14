@@ -4,8 +4,10 @@ export interface ServiceStoryDossierResponse {
   readonly api_surface?: ServiceContextResponse["api_surface"];
   readonly deployment_evidence?: ServiceContextResponse["deployment_evidence"];
   readonly deployment_lanes?: ServiceContextResponse["deployment_lanes"];
+  readonly edge_runtime_evidence?: ServiceContextResponse["edge_runtime_evidence"];
   readonly hostnames?: ServiceContextResponse["hostnames"];
   readonly investigation?: ServiceContextResponse["investigation"];
+  readonly network_paths?: ServiceContextResponse["network_paths"];
   readonly downstream_consumers?: {
     readonly content_consumer_count?: number;
     readonly content_consumers?: readonly ServiceStoryConsumer[];
@@ -76,6 +78,7 @@ export function serviceContextFromStoryDossier(
       artifacts: [...rawArtifacts, ...laneArtifacts]
     },
     deployment_lanes: story.deployment_lanes,
+    edge_runtime_evidence: story.edge_runtime_evidence,
     downstream_counts: {
       graphDependents: story.downstream_consumers?.graph_dependent_count,
       references: story.downstream_consumers?.content_consumer_count
@@ -89,6 +92,7 @@ export function serviceContextFromStoryDossier(
       instancesFromLane(lane)
     ),
     name: serviceName,
+    network_paths: story.network_paths,
     repo_name: nonEmpty(story.service_identity?.repo_name, serviceName),
     result_limits: story.result_limits
   };

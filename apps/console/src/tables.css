@@ -48,6 +48,23 @@
   font-weight: 650;
 }
 
+.catalog-page-state {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: end;
+}
+
+.catalog-page-state span,
+.catalog-page-state strong {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 7px 9px;
+}
+
 .data-table {
   border-collapse: collapse;
   width: 100%;

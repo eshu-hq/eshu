@@ -1,0 +1,80 @@
+.service-traffic-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.service-traffic-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 280px;
+}
+
+.service-traffic-svg {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 210px;
+  width: 100%;
+}
+
+.service-traffic-link {
+  stroke: var(--relation);
+  stroke-width: 2;
+}
+
+.service-traffic-node rect {
+  fill: var(--surface);
+  stroke: var(--line);
+}
+
+.service-traffic-node text {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 750;
+  text-anchor: middle;
+}
+
+.service-traffic-node-value {
+  fill: var(--muted);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.service-traffic-detail {
+  border-left: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  padding-left: 16px;
+}
+
+.service-traffic-detail h4,
+.service-traffic-detail p {
+  margin: 0;
+}
+
+.service-traffic-options {
+  display: grid;
+  gap: 8px;
+}
+
+.service-traffic-options button {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  .service-traffic-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .service-traffic-detail {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding-left: 0;
+    padding-top: 16px;
+  }
+}

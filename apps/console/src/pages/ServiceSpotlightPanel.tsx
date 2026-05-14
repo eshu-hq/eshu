@@ -11,6 +11,7 @@ import { ServiceDeploymentLaneMap } from "../visualization/ServiceDeploymentLane
 import { ServiceChangeSurfacePanel } from "./ServiceChangeSurfacePanel";
 import { ServiceCodeInvestigationPanel } from "./ServiceCodeInvestigationPanel";
 import { ServiceInvestigationPanel } from "./ServiceInvestigationPanel";
+import { ServiceTrafficPathPanel } from "./ServiceTrafficPathPanel";
 
 export function ServiceSpotlightPanel({
   spotlight
@@ -49,6 +50,7 @@ export function ServiceSpotlightPanel({
       </div>
 
       <EntryPointStrip hostnames={spotlight.hostnames} />
+      <ServiceTrafficPathPanel paths={spotlight.trafficPaths} serviceName={spotlight.name} />
       <ServiceInvestigationPanel investigation={spotlight.investigation} />
       <ServiceChangeSurfacePanel spotlight={spotlight} />
       <ServiceCodeInvestigationPanel spotlight={spotlight} />

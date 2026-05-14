@@ -1,5 +1,5 @@
 import { line, scalePoint } from "d3";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { EshuApiClient } from "../api/client";
 import {
   loadServiceChangeSurface,
@@ -21,39 +21,58 @@ export function ServiceChangeSurfacePanel({
   readonly spotlight: ServiceSpotlight;
 }): React.JSX.Element | null {
   const [investigation, setInvestigation] = useState<ChangeSurfaceInvestigation | undefined>();
+  const [loadState, setLoadState] = useState<"idle" | "loading" | "unavailable">("idle");
+  const environment = loadConsoleEnvironment();
 
-  useEffect(() => {
-    const environment = loadConsoleEnvironment();
-    if (environment.mode !== "private") {
-      return;
-    }
+  if (environment.mode !== "private") {
+    return null;
+  }
+
+  const runInvestigation = (): void => {
+    setLoadState("loading");
     const client = new EshuApiClient({
       apiKey: environment.apiKey,
       baseUrl: environment.apiBaseUrl
     });
-    let active = true;
     void loadServiceChangeSurface({
       client,
       repoName: spotlight.repoName,
       serviceName: spotlight.name
     })
       .then((loaded) => {
-        if (active) {
-          setInvestigation(loaded.empty ? undefined : loaded);
-        }
+        setInvestigation(loaded.empty ? undefined : loaded);
+        setLoadState(loaded.empty ? "unavailable" : "idle");
       })
       .catch(() => {
-        if (active) {
-          setInvestigation(undefined);
-        }
+        setInvestigation(undefined);
+        setLoadState("unavailable");
       });
-    return () => {
-      active = false;
-    };
-  }, [spotlight.name, spotlight.repoName]);
+  };
 
   if (investigation === undefined) {
-    return null;
+    return (
+      <section aria-label="Change surface" className="service-change-surface service-change-surface-empty">
+        <div className="service-change-surface-header">
+          <div>
+            <h2>Impact review</h2>
+            <p>
+              Start from this service scope when you want Eshu to review likely
+              code, dependency, and deployment blast radius.
+            </p>
+          </div>
+          <button
+            disabled={loadState === "loading"}
+            onClick={runInvestigation}
+            type="button"
+          >
+            {loadState === "loading" ? "Running impact review" : "Run scoped impact review"}
+          </button>
+        </div>
+        {loadState === "unavailable" ? (
+          <p className="inline-state">No scoped impact surface returned yet.</p>
+        ) : null}
+      </section>
+    );
   }
 
   return (

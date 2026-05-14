@@ -103,7 +103,10 @@ export interface CatalogRow {
   readonly freshness: string;
   readonly id: string;
   readonly kind: EntityKind;
+  readonly limit?: number;
   readonly name: string;
+  readonly offset?: number;
+  readonly truncated?: boolean;
 }
 
 export interface FindingRow {

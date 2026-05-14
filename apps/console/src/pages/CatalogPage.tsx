@@ -75,6 +75,7 @@ export function CatalogPage(): React.JSX.Element {
     });
   }, [activeKind, query, rows]);
   const counts = useMemo(() => catalogCounts(rows), [rows]);
+  const pageState = useMemo(() => catalogPageState(rows), [rows]);
 
   return (
     <section className="page-shell">
@@ -109,7 +110,11 @@ export function CatalogPage(): React.JSX.Element {
             value={query}
           />
         </label>
-        <strong>{filteredRows.length} shown</strong>
+        <div className="catalog-page-state" aria-label="Catalog paging state">
+          <span>Offset {pageState.offset}</span>
+          <span>Limit {pageState.limit}</span>
+          <strong>{pageState.truncated ? "More available" : `${filteredRows.length} shown`}</strong>
+        </div>
       </div>
       <table className="data-table">
         <thead>
@@ -140,6 +145,23 @@ export function CatalogPage(): React.JSX.Element {
       </table>
     </section>
   );
+}
+
+function catalogPageState(rows: readonly CatalogRow[]): {
+  readonly limit: number;
+  readonly offset: number;
+  readonly truncated: boolean;
+} {
+  const row = rows.find((candidate) =>
+    candidate.limit !== undefined ||
+    candidate.offset !== undefined ||
+    candidate.truncated !== undefined
+  );
+  return {
+    limit: row?.limit ?? rows.length,
+    offset: row?.offset ?? 0,
+    truncated: row?.truncated ?? false
+  };
 }
 
 interface CatalogCounts {

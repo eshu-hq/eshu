@@ -21,6 +21,8 @@ describe("CatalogPage", () => {
         if (path === "/api/v0/repositories") {
           return Response.json({
             count: 2,
+            limit: 2,
+            offset: 0,
             repositories: [
               {
                 id: "repository:r_1",
@@ -32,7 +34,8 @@ describe("CatalogPage", () => {
                 local_path: "/Users/allen/repos/mobius/iac-eks-pcg",
                 name: "iac-eks-pcg"
               }
-            ]
+            ],
+            truncated: true
           });
         }
         if (path === "/api/v0/repositories/repository%3Ar_2/story") {
@@ -57,6 +60,9 @@ describe("CatalogPage", () => {
     expect(screen.getAllByText("iac-eks-pcg").length).toBeGreaterThan(1);
     expect(screen.getByRole("button", { name: /services 1/i })).toBeInTheDocument();
     expect(screen.getAllByText("indexed")).toHaveLength(2);
+    expect(screen.getByText("Offset 0")).toBeInTheDocument();
+    expect(screen.getByText("Limit 2")).toBeInTheDocument();
+    expect(screen.getByText("More available")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /open mobius-tools workspace/i })
     ).toHaveAttribute("href", "/workspace/repositories/repository%3Ar_1");

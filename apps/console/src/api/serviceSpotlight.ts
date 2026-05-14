@@ -6,6 +6,11 @@ import {
   type ServiceInvestigationResponse
 } from "./serviceInvestigation";
 import { deploymentGraph } from "./serviceSpotlightGraph";
+import {
+  buildServiceTrafficPaths,
+  type ServiceTrafficPath,
+  type ServiceTrafficPathContext
+} from "./serviceTrafficPath";
 
 export interface ServiceSpotlight {
   readonly api: {
@@ -30,6 +35,7 @@ export interface ServiceSpotlight {
   };
   readonly repoName: string;
   readonly summary: string;
+  readonly trafficPaths?: readonly ServiceTrafficPath[];
 }
 
 export interface ServiceEndpoint {
@@ -78,7 +84,7 @@ interface RepositoryRecord {
   readonly repo_slug?: string;
 }
 
-export interface ServiceContextResponse {
+export interface ServiceContextResponse extends ServiceTrafficPathContext {
   readonly api_surface?: {
     readonly endpoint_count?: number;
     readonly endpoints?: readonly EndpointRecord[];
@@ -247,7 +253,8 @@ export function serviceSpotlightFromContext(
       lanes.length,
       relationshipCounts.upstream,
       relationshipCounts.downstream
-    )
+    ),
+    trafficPaths: buildServiceTrafficPaths(context, name, lanes)
   };
 }
 

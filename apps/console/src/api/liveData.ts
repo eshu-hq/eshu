@@ -25,12 +25,18 @@ interface CatalogServiceLoadOptions extends LiveLoadOptions {
 
 interface RepositoryListResponse {
   readonly count?: number;
+  readonly limit?: number;
+  readonly offset?: number;
   readonly repositories?: readonly RepositoryRecord[];
+  readonly truncated?: boolean;
 }
 
 interface CatalogResponse {
+  readonly limit?: number;
+  readonly offset?: number;
   readonly repositories?: readonly RepositoryRecord[];
   readonly services?: readonly CatalogWorkloadRecord[];
+  readonly truncated?: boolean;
   readonly workloads?: readonly CatalogWorkloadRecord[];
 }
 
@@ -46,10 +52,13 @@ interface CatalogWorkloadRecord {
 
 interface RepositoryRecord {
   readonly id?: string;
+  readonly limit?: number;
   readonly local_path?: string;
   readonly name?: string;
+  readonly offset?: number;
   readonly path?: string;
   readonly repo_slug?: string;
+  readonly truncated?: boolean;
 }
 
 interface RepositoryStoryResponse {
@@ -192,7 +201,10 @@ export async function loadCatalogRows({
     freshness: "indexed",
     id: nonEmpty(repository.id, repository.name),
     kind: "repositories" as const,
-    name: nonEmpty(repository.name, repository.id)
+    limit: repository.limit,
+    name: nonEmpty(repository.name, repository.id),
+    offset: repository.offset,
+    truncated: repository.truncated
   }));
 }
 
@@ -229,8 +241,15 @@ export async function loadFindingRows({
 }
 
 async function loadRepositories(client: EshuApiClient): Promise<readonly RepositoryRecord[]> {
-  const payload = await client.getJson<RepositoryListResponse>("/api/v0/repositories");
-  return payload.repositories ?? [];
+  const payload = await client.getJson<RepositoryListResponse>(
+    "/api/v0/repositories?limit=100&offset=0"
+  );
+  return (payload.repositories ?? []).map((repository) => ({
+    ...repository,
+    limit: payload.limit,
+    offset: payload.offset,
+    truncated: payload.truncated
+  }));
 }
 
 export async function loadCatalogServiceRows({
@@ -270,10 +289,13 @@ function hasCatalogCollections(catalog: CatalogResponse): boolean {
 }
 
 function mapCatalogRows(catalog: CatalogResponse): readonly CatalogRow[] {
-  return uniqueCatalogRows([
-    ...mapCatalogRepositoryRows(catalog.repositories ?? []),
-    ...mapCatalogWorkloadRows(catalog)
-  ]);
+  return withCatalogPage(
+    uniqueCatalogRows([
+      ...mapCatalogRepositoryRows(catalog.repositories ?? []),
+      ...mapCatalogWorkloadRows(catalog)
+    ]),
+    catalog
+  );
 }
 
 function mapCatalogRepositoryRows(
@@ -284,7 +306,10 @@ function mapCatalogRepositoryRows(
     freshness: "indexed",
     id: nonEmpty(repository.id, repository.name),
     kind: "repositories" as const,
-    name: nonEmpty(repository.name, repository.id)
+    limit: repository.limit,
+    name: nonEmpty(repository.name, repository.id),
+    offset: repository.offset,
+    truncated: repository.truncated
   }));
 }
 
@@ -410,6 +435,21 @@ function uniqueCatalogRows(rows: readonly CatalogRow[]): readonly CatalogRow[] {
     unique.push(row);
   }
   return unique;
+}
+
+function withCatalogPage(
+  rows: readonly CatalogRow[],
+  page: { readonly limit?: number; readonly offset?: number; readonly truncated?: boolean }
+): readonly CatalogRow[] {
+  if (page.limit === undefined && page.offset === undefined && page.truncated === undefined) {
+    return rows;
+  }
+  return rows.map((row) => ({
+    ...row,
+    limit: page.limit,
+    offset: page.offset,
+    truncated: page.truncated
+  }));
 }
 
 function repositoryDescription(repository: RepositoryRecord): string {
