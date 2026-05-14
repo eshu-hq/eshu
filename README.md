@@ -90,7 +90,9 @@ docker compose up --build
 ```
 
 The default Compose stack runs NornicDB, Postgres, API, MCP server, ingester,
-reducer, and bootstrap indexer. To run the same stack with Neo4j:
+reducer, and bootstrap indexer. Its NornicDB image is a pinned multi-arch
+manifest, so Docker selects ARM64 on Apple Silicon and AMD64 on x86 hosts
+unless you set `NORNICDB_PLATFORM` yourself. To run the same stack with Neo4j:
 
 ```bash
 docker compose -f docker-compose.neo4j.yml up --build

@@ -220,6 +220,9 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
 - `compose_defaults_test.go` enforces that `docker-compose.yaml` sets
   `ESHU_GRAPH_BACKEND=nornicdb` for all graph runtime services and that the
   telemetry overlay is never mixed into a run without an explicit base file.
+- `compose_nornicdb_image_test.go` enforces that the default NornicDB Compose
+  image is a pinned multi-arch manifest and that Compose does not force an
+  amd64 platform when the operator leaves the Compose platform override unset.
 
 ## Extension points
 
