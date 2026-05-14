@@ -55,7 +55,8 @@ before touching any file in this directory.
   `resolveDynamicJavaScriptCalleeEntityID` reuses that cache
   (`code_call_materialization_dynamic_javascript.go:41`). Do not move that
   work back into the per-call loop; generated JS bundles make that
-  multiplicative.
+  multiplicative. Cache negative scans too; a source with no static aliases
+  must not be sent through the regex pass once per call.
 
 ## Common changes
 

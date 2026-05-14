@@ -11,17 +11,17 @@ import (
 
 func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 	index := codeEntityIndex{
-		entitiesByPathLine:          make(map[string]string),
-		spansByPath:                 make(map[string][]codeFunctionSpan),
-		containersByPath:            make(map[string][]codeFunctionSpan),
-		uniqueNameByPath:            make(map[string]map[string]string),
-		uniqueNameByRepo:            make(map[string]map[string]string),
-		uniqueNameByRepoDir:         make(map[string]map[string]map[string]string),
-		constructorByPath:           make(map[string]map[string]string),
-		goMethodReturnTypes:         make(map[string]map[string]string),
-		entityFileByID:              make(map[string]string),
-		entityTypeByID:              make(map[string]string),
-		javaScriptAliasesByEntityID: make(map[string]javaScriptStaticAliasSet),
+		entitiesByPathLine:      make(map[string]string),
+		spansByPath:             make(map[string][]codeFunctionSpan),
+		containersByPath:        make(map[string][]codeFunctionSpan),
+		uniqueNameByPath:        make(map[string]map[string]string),
+		uniqueNameByRepo:        make(map[string]map[string]string),
+		uniqueNameByRepoDir:     make(map[string]map[string]map[string]string),
+		constructorByPath:       make(map[string]map[string]string),
+		goMethodReturnTypes:     make(map[string]map[string]string),
+		entityFileByID:          make(map[string]string),
+		entityTypeByID:          make(map[string]string),
+		javaScriptAliasesByPath: make(map[string][]javaScriptStaticAliasSpan),
 	}
 	nameCandidates := make(map[string]map[string]map[string]struct{})
 	repoNameCandidates := make(map[string]map[string]map[string]struct{})
@@ -49,19 +49,28 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 			entityID := anyToString(item["uid"])
 			startLine := codeCallInt(item["line_number"], item["start_line"])
 			endLine := codeCallInt(item["end_line"])
-			if entityID == "" || startLine <= 0 {
+			if startLine <= 0 {
 				continue
 			}
 			if endLine < startLine {
 				endLine = startLine
 			}
+			if shouldCacheJavaScriptAliases {
+				cacheJavaScriptStaticAliasSpan(
+					index,
+					codeCallPathKeys(rawPath, relativePath),
+					startLine,
+					endLine,
+					anyToString(item["source"]),
+				)
+			}
+			if entityID == "" {
+				continue
+			}
 			if preferredPath != "" {
 				index.entityFileByID[entityID] = preferredPath
 			}
 			index.entityTypeByID[entityID] = "Function"
-			if shouldCacheJavaScriptAliases {
-				cacheJavaScriptStaticAliases(index, entityID, anyToString(item["source"]))
-			}
 			for _, pathKey := range codeCallPathKeys(rawPath, relativePath) {
 				index.entitiesByPathLine[codeCallPathLineKey(pathKey, startLine)] = entityID
 				span := codeFunctionSpan{
@@ -168,6 +177,15 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 			return spans[i].startLine < spans[j].startLine
 		})
 		index.containersByPath[pathKey] = spans
+	}
+	for pathKey, spans := range index.javaScriptAliasesByPath {
+		sort.Slice(spans, func(i, j int) bool {
+			if spans[i].startLine == spans[j].startLine {
+				return spans[i].endLine < spans[j].endLine
+			}
+			return spans[i].startLine < spans[j].startLine
+		})
+		index.javaScriptAliasesByPath[pathKey] = spans
 	}
 	for pathKey, names := range nameCandidates {
 		index.uniqueNameByPath[pathKey] = make(map[string]string, len(names))

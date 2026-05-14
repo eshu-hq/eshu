@@ -99,6 +99,50 @@ func BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls(b *testing.B) {
 	}
 }
 
+func BenchmarkResolveDynamicJavaScriptCalleeAnonymousFunctionSource(b *testing.B) {
+	envelopes := largeJavaScriptDynamicCallEnvelopes(500)
+	fileData := envelopes[1].Payload["parsed_file_data"].(map[string]any)
+	functions := fileData["functions"].([]any)
+	functions[1].(map[string]any)["uid"] = ""
+	call := fileData["function_calls"].([]any)[0].(map[string]any)
+	index := buildCodeEntityIndex(envelopes)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		entityID := resolveDynamicJavaScriptCalleeEntityID(
+			index,
+			"bundle.js",
+			"bundle.js",
+			fileData,
+			call,
+		)
+		if entityID != "content-entity:target-func" {
+			b.Fatalf("entityID = %q, want content-entity:target-func", entityID)
+		}
+	}
+}
+
+func BenchmarkResolveDynamicJavaScriptCalleeNoAliasFunctionSource(b *testing.B) {
+	envelopes := largeJavaScriptNoAliasCallEnvelopes(500)
+	fileData := envelopes[1].Payload["parsed_file_data"].(map[string]any)
+	call := fileData["function_calls"].([]any)[0].(map[string]any)
+	index := buildCodeEntityIndex(envelopes)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		entityID := resolveDynamicJavaScriptCalleeEntityID(
+			index,
+			"bundle.js",
+			"bundle.js",
+			fileData,
+			call,
+		)
+		if entityID != "" {
+			b.Fatalf("entityID = %q, want empty", entityID)
+		}
+	}
+}
+
 func parsedDynamicJavaScriptCodeCallRows(
 	t *testing.T,
 	repoRoot string,
@@ -201,6 +245,57 @@ func largeJavaScriptDynamicCallEnvelopes(callCount int) []facts.Envelope {
 				"parsed_file_data": map[string]any{
 					"path":           "bundle.js",
 					"functions":      functions,
+					"function_calls": calls,
+				},
+			},
+			ObservedAt: time.Unix(0, 0).UTC(),
+		},
+	}
+}
+
+func largeJavaScriptNoAliasCallEnvelopes(callCount int) []facts.Envelope {
+	source := strings.Builder{}
+	source.WriteString("function run() {\n")
+	for i := 0; i < 1500; i++ {
+		source.WriteString("  external")
+		source.WriteString(strconv.Itoa(i))
+		source.WriteString("();\n")
+	}
+	source.WriteString("}\n")
+
+	calls := make([]any, 0, callCount)
+	for i := 0; i < callCount; i++ {
+		calls = append(calls, map[string]any{
+			"lang":        "javascript",
+			"name":        "missing",
+			"full_name":   "missing.call",
+			"line_number": 2,
+		})
+	}
+
+	return []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload: map[string]any{
+				"repo_id":     "repo-js",
+				"imports_map": map[string]any{},
+			},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-js",
+				"relative_path": "bundle.js",
+				"parsed_file_data": map[string]any{
+					"path": "bundle.js",
+					"functions": []any{
+						map[string]any{
+							"name":        "run",
+							"line_number": 1,
+							"end_line":    1502,
+							"source":      source.String(),
+						},
+					},
 					"function_calls": calls,
 				},
 			},

@@ -19,6 +19,7 @@ var (
 type javaScriptStaticAliasSet struct {
 	aliases       map[string]string
 	staticStrings map[string]string
+	scanned       bool
 }
 
 // resolveDynamicJavaScriptCalleeEntityID handles static JavaScript patterns
@@ -50,6 +51,7 @@ func resolveDynamicJavaScriptCalleeEntityID(
 		aliasSet = javaScriptStaticAliasSet{
 			aliases:       aliases,
 			staticStrings: staticStrings,
+			scanned:       true,
 		}
 	}
 	for _, candidate := range javaScriptDynamicCallCandidates(call, aliasSet.staticStrings) {
@@ -83,17 +85,34 @@ func codeCallJavaScriptSourceFile(fileData map[string]any, rawPath string, relat
 	}
 }
 
-func cacheJavaScriptStaticAliases(index codeEntityIndex, entityID string, source string) {
-	if entityID == "" || strings.TrimSpace(source) == "" {
+func cacheJavaScriptStaticAliasSpan(
+	index codeEntityIndex,
+	pathKeys []string,
+	startLine int,
+	endLine int,
+	source string,
+) {
+	if len(pathKeys) == 0 || startLine <= 0 || strings.TrimSpace(source) == "" {
 		return
 	}
 	aliases, staticStrings := javaScriptStaticAliases(source)
-	if len(aliases) == 0 && len(staticStrings) == 0 {
-		return
-	}
-	index.javaScriptAliasesByEntityID[entityID] = javaScriptStaticAliasSet{
+	aliasSet := javaScriptStaticAliasSet{
 		aliases:       aliases,
 		staticStrings: staticStrings,
+		scanned:       true,
+	}
+	for _, pathKey := range pathKeys {
+		if pathKey == "" {
+			continue
+		}
+		index.javaScriptAliasesByPath[pathKey] = append(
+			index.javaScriptAliasesByPath[pathKey],
+			javaScriptStaticAliasSpan{
+				startLine: startLine,
+				endLine:   endLine,
+				aliases:   aliasSet,
+			},
+		)
 	}
 }
 
@@ -103,12 +122,26 @@ func javaScriptStaticAliasesForCall(
 	relativePath string,
 	line int,
 ) (javaScriptStaticAliasSet, bool) {
-	span, ok := resolveContainingCodeFunctionSpan(index, rawPath, relativePath, line)
-	if !ok {
-		return javaScriptStaticAliasSet{}, false
+	var (
+		bestAlias javaScriptStaticAliasSet
+		bestWidth int
+	)
+	for _, pathKey := range codeCallPathKeys(rawPath, relativePath) {
+		for _, span := range index.javaScriptAliasesByPath[pathKey] {
+			if line < span.startLine || line > span.endLine {
+				continue
+			}
+			width := span.endLine - span.startLine
+			if !bestAlias.scanned || width < bestWidth {
+				bestAlias = span.aliases
+				bestWidth = width
+			}
+		}
+		if bestAlias.scanned {
+			return bestAlias, true
+		}
 	}
-	aliasSet, ok := index.javaScriptAliasesByEntityID[span.entityID]
-	return aliasSet, ok
+	return javaScriptStaticAliasSet{}, false
 }
 
 func javaScriptContainingFunctionSource(fileData map[string]any, line int) string {

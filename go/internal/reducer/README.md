@@ -148,10 +148,11 @@ static alias metadata is cached on the code entity index
 (`code_call_materialization_index.go:45`) and reused during dynamic call
 resolution (`code_call_materialization_dynamic_javascript.go:41`), so
 generated bundles with thousands of call sites do not re-parse the same
-containing function source for every call.
+containing function source for every call. Sources with no static aliases are
+cached too; a negative scan is still the proof that the reducer can skip the
+expensive regex pass on later calls in the same source span.
 
-For package entrypoint, package bin,
-package
+For package entrypoint, package bin, package
 export, and top-level JavaScript reference files, the repository scoped
 `File.uid` may be the caller so executable module bodies can make `main()`,
 constructor, member, function-value, and type-reference edges reachable without
