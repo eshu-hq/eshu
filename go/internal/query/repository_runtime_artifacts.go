@@ -89,23 +89,22 @@ func loadRepositoryRuntimeArtifacts(
 		}
 	}
 
-	contentFiles := make([]FileContent, 0, len(candidates))
-	for _, file := range candidates {
+	hydratedCandidates, err := hydrateRepositoryCandidateFiles(ctx, reader, repoID, candidates, func(file FileContent) bool {
+		return isDockerComposeArtifact(file) || isDockerfileArtifact(file)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("hydrate runtime artifact files: %w", err)
+	}
+
+	contentFiles := make([]FileContent, 0, len(hydratedCandidates))
+	for _, file := range hydratedCandidates {
 		if !isDockerComposeArtifact(file) && !isDockerfileArtifact(file) {
 			continue
 		}
-		if strings.TrimSpace(file.Content) != "" {
-			contentFiles = append(contentFiles, file)
+		if strings.TrimSpace(file.Content) == "" {
 			continue
 		}
-		fileContent, err := reader.GetFileContent(ctx, repoID, file.RelativePath)
-		if err != nil {
-			return nil, fmt.Errorf("get runtime artifact file %q: %w", file.RelativePath, err)
-		}
-		if fileContent == nil {
-			continue
-		}
-		contentFiles = append(contentFiles, *fileContent)
+		contentFiles = append(contentFiles, file)
 	}
 
 	return buildRepositoryRuntimeArtifacts(contentFiles), nil

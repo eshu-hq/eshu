@@ -23,24 +23,34 @@ func (f fakeWorkloadGraphReader) Run(ctx context.Context, cypher string, params 
 	if f.run != nil {
 		return f.run(ctx, cypher, params)
 	}
+	var (
+		bestRows []map[string]any
+		bestLen  int
+	)
 	for fragment, rows := range f.runByMatch {
-		if strings.Contains(cypher, fragment) {
-			return rows, nil
+		if strings.Contains(cypher, fragment) && len(fragment) > bestLen {
+			bestRows = rows
+			bestLen = len(fragment)
 		}
 	}
-	return nil, nil
+	return bestRows, nil
 }
 
 func (f fakeWorkloadGraphReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
 	if f.runSingle != nil {
 		return f.runSingle(ctx, cypher, params)
 	}
+	var (
+		bestRow map[string]any
+		bestLen int
+	)
 	for fragment, row := range f.runSingleByMatch {
-		if strings.Contains(cypher, fragment) {
-			return row, nil
+		if strings.Contains(cypher, fragment) && len(fragment) > bestLen {
+			bestRow = row
+			bestLen = len(fragment)
 		}
 	}
-	return nil, nil
+	return bestRow, nil
 }
 
 func TestGetWorkloadContextReturnsEnrichedResponse(t *testing.T) {
@@ -635,6 +645,9 @@ func TestGetServiceContextIncludesGraphDeploymentEvidenceWithoutContent(t *testi
 						"workload_id":     "workload:checkout-service",
 						"workload_name":   "checkout-service",
 					},
+				},
+				"RETURN count(endpoint) AS endpoint_count": {
+					{"endpoint_count": 1},
 				},
 			},
 		},

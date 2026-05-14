@@ -5,8 +5,26 @@ import (
 	"strings"
 )
 
+const repositoryAPISurfaceEndpointLimit = 50
+
 // queryRepoAPISurface reads API endpoint graph truth for repository context.
 func queryRepoAPISurface(ctx context.Context, reader GraphQuery, params map[string]any) map[string]any {
+	countRows, err := reader.Run(ctx, `
+		MATCH (r:Repository {id: $repo_id})-[:EXPOSES_ENDPOINT]->(endpoint:Endpoint)
+		RETURN count(endpoint) AS endpoint_count
+	`, params)
+	if err != nil {
+		return nil
+	}
+	endpointCount := 0
+	if len(countRows) > 0 {
+		endpointCount = IntVal(countRows[0], "endpoint_count")
+	}
+	if endpointCount == 0 {
+		return nil
+	}
+	detailParams := copyMap(params)
+	detailParams["limit"] = repositoryAPISurfaceEndpointLimit
 	rows, err := reader.Run(ctx, `
 		MATCH (r:Repository {id: $repo_id})-[:EXPOSES_ENDPOINT]->(endpoint:Endpoint)
 		RETURN endpoint.id AS endpoint_id,
@@ -21,15 +39,16 @@ func queryRepoAPISurface(ctx context.Context, reader GraphQuery, params map[stri
 		       endpoint.workload_id AS workload_id,
 		       endpoint.workload_name AS workload_name
 		ORDER BY path, endpoint_id
-	`, params)
+		LIMIT $limit
+	`, detailParams)
 	if err != nil || len(rows) == 0 {
 		return nil
 	}
-	return buildGraphAPISurface(rows)
+	return buildGraphAPISurface(rows, endpointCount)
 }
 
 // buildGraphAPISurface converts Endpoint nodes into the API surface contract.
-func buildGraphAPISurface(rows []map[string]any) map[string]any {
+func buildGraphAPISurface(rows []map[string]any, endpointCount int) map[string]any {
 	endpoints := make([]map[string]any, 0, len(rows))
 	var (
 		methodCount      int
@@ -72,7 +91,7 @@ func buildGraphAPISurface(rows []map[string]any) map[string]any {
 
 	result := map[string]any{
 		"truth_basis":        "graph",
-		"endpoint_count":     len(endpoints),
+		"endpoint_count":     endpointCount,
 		"method_count":       methodCount,
 		"operation_id_count": operationIDCount,
 		"endpoints":          endpoints,
@@ -80,6 +99,8 @@ func buildGraphAPISurface(rows []map[string]any) map[string]any {
 		"spec_paths":         uniqueSortedStrings(sourcePaths),
 		"spec_versions":      uniqueSortedStrings(specVersions),
 		"api_versions":       uniqueSortedStrings(apiVersions),
+		"detail_limit":       repositoryAPISurfaceEndpointLimit,
+		"detail_truncated":   endpointCount > len(endpoints),
 	}
 	if frameworks = uniqueSortedStrings(frameworks); len(frameworks) > 0 {
 		result["frameworks"] = frameworks

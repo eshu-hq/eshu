@@ -43,6 +43,9 @@ func TestGetRepositoryContextIncludesGraphAPISurface(t *testing.T) {
 						"workload_name":   "order-service",
 					},
 				},
+				"RETURN count(endpoint) AS endpoint_count": {
+					{"endpoint_count": 1},
+				},
 			},
 		},
 	}

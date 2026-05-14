@@ -137,8 +137,10 @@ have a cache layer. The request is sequential only where a later read depends on
 the earlier result: workload lookup must resolve `repo_id` and workload
 instances first, consumer evidence needs service evidence hostnames, and
 deployment fallback must know whether graph/read-model deployment evidence
-already exists. The audit found two unnecessary graph costs and this PR removes
-both:
+already exists. Sequential exact file hydration is not required, so the
+deployment-artifact fallback now uses bounded parallel exact-file reads.
+
+The audit found unnecessary graph costs and this PR removes them:
 
 - provisioning repository candidates are now queried once per service
   enrichment and reused for graph dependents, consumer enrichment, and
@@ -148,15 +150,22 @@ both:
   `WorkloadInstance.id IN $instance_ids` graph read instead of one Bolt query
   per instance.
 
-The audit also found follow-up query-boundary risks that remain outside this
-PR's service-dossier contract: graph API-surface rows are scoped but not
-detail-limited at the Cypher boundary, framework-route facts are repo-scoped but
-not row-limited in SQL, durable deployment-evidence read-model rows are scoped
-but not capped before JSON preview decoding, and consumer evidence can fall back
-to cross-repo `LIKE`/`ILIKE` content search when `content_file_references` is
-unavailable. Those are tracked by issue #301 and the broader prompt coverage
-hardening issue #300 so they can receive focused count/truncation contracts
-without silently hiding evidence in this PR.
+The audit also found query-boundary risks and this PR fixes the first-page
+contract rather than relying on response-only trimming:
+
+- graph API-surface detail rows are capped at the Cypher boundary while
+  preserving the aggregate endpoint count and `detail_truncated` metadata;
+- framework-route facts now include a SQL row limit;
+- graph and Postgres deployment-evidence reads now fetch a bounded first page
+  and return artifact limit/truncation metadata;
+- indexed consumer-reference lookups no longer fall back to cross-repo
+  `LIKE`/`ILIKE` content scans when the reference index is available but empty;
+- deployment-artifact fallback hydration now caps exact file reads and runs
+  them with bounded parallelism.
+
+Issue #301 remains useful for richer user-facing pagination and benchmarks
+across every documented prompt, but this PR no longer leaves the current
+service-story MCP path dependent on unbounded first-response reads.
 
 No-Regression Evidence: focused Go tests exercise the dossier shape, empty
 section preservation, envelope-backed HTTP response, MCP envelope dispatch, and
@@ -171,7 +180,17 @@ Focused performance-shape tests prove the removed duplicate work:
 `TestEnrichServiceQueryContextQueriesProvisioningCandidatesOnce` fails on the
 old three-traversal service enrichment and passes with one candidate query, and
 `TestFetchWorkloadPlatformRowsBatchesExactInstanceIDs` proves one indexed
-platform lookup for multiple workload instances.
+platform lookup for multiple workload instances. Additional focused tests prove
+query-boundary limits and broad-scan avoidance:
+`TestQueryRepoAPISurfaceBoundsEndpointRowsAndKeepsAggregateCount`,
+`TestContentReaderListFrameworkRoutesIsBoundedAtSQL`,
+`TestQueryRepoDeploymentEvidenceBoundsGraphDirections`,
+`TestContentReaderRepositoryDeploymentEvidenceIsBoundedAtSQL`,
+`TestContentReaderSearchFileReferenceAnyRepoKeepsIndexAvailableWhenNoRows`,
+`TestSearchConsumerEvidenceAnyRepoDoesNotFallbackWhenIndexedServiceEmpty`,
+`TestSearchConsumerEvidenceAnyRepoDoesNotFallbackWhenIndexedHostnameEmpty`,
+`TestHydrateRepositoryCandidateFilesStartsExactReadsConcurrently`, and
+`TestHydrateRepositoryCandidateFilesCapsExactReads`.
 
 Observability Evidence: the existing service query stage logs emitted by
 `startServiceQueryStage` still expose lookup, graph API surface, deployment

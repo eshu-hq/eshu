@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"fmt"
 )
 
 func loadDeploymentArtifactOverview(
@@ -72,27 +71,9 @@ func hydrateRepositoryArtifactFiles(
 		return files, nil
 	}
 
-	hydrated := make([]FileContent, 0, len(files))
-	for _, file := range files {
-		if !isDockerComposeArtifact(file) && !isGitHubActionsWorkflowFile(file) {
-			hydrated = append(hydrated, file)
-			continue
-		}
-		if file.Content != "" {
-			hydrated = append(hydrated, file)
-			continue
-		}
-
-		fileContent, err := content.GetFileContent(ctx, repoID, file.RelativePath)
-		if err != nil {
-			return nil, fmt.Errorf("get artifact file %q: %w", file.RelativePath, err)
-		}
-		if fileContent == nil {
-			continue
-		}
-		hydrated = append(hydrated, *fileContent)
-	}
-	return hydrated, nil
+	return hydrateRepositoryCandidateFiles(ctx, content, repoID, files, func(file FileContent) bool {
+		return isDockerComposeArtifact(file) || isGitHubActionsWorkflowFile(file)
+	})
 }
 
 func mergeArtifactOverview(overview map[string]any, artifacts map[string]any) map[string]any {

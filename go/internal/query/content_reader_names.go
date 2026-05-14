@@ -115,9 +115,6 @@ func (cr *ContentReader) SearchFileReferenceAnyRepo(
 		span.RecordError(err)
 		return results, true, err
 	}
-	if len(results) == 0 {
-		return nil, false, nil
-	}
 	return results, true, nil
 }
 

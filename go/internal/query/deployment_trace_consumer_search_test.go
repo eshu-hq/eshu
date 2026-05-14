@@ -86,7 +86,7 @@ func TestSearchConsumerEvidenceAnyRepoUsesIndexedServiceReferences(t *testing.T)
 	}
 }
 
-func TestSearchConsumerEvidenceAnyRepoFallsBackWhenIndexedServiceMissing(t *testing.T) {
+func TestSearchConsumerEvidenceAnyRepoDoesNotFallbackWhenIndexedServiceEmpty(t *testing.T) {
 	t.Parallel()
 
 	store := &indexedReferenceConsumerSearchContentStore{
@@ -108,11 +108,11 @@ func TestSearchConsumerEvidenceAnyRepoFallsBackWhenIndexedServiceMissing(t *test
 	if got, want := store.referenceCalls, 1; got != want {
 		t.Fatalf("referenceCalls = %d, want %d", got, want)
 	}
-	if got, want := store.exactCalls, 1; got != want {
+	if got, want := store.exactCalls, 0; got != want {
 		t.Fatalf("exactCalls = %d, want %d after empty indexed service lookup", got, want)
 	}
-	if _, ok := got["repo-consumer"]; !ok {
-		t.Fatalf("evidence repos = %#v, want repo-consumer", got)
+	if len(got) != 0 {
+		t.Fatalf("evidence repos = %#v, want no broad content fallback", got)
 	}
 }
 
@@ -146,7 +146,7 @@ func TestSearchConsumerEvidenceAnyRepoUsesIndexedHostnameReferences(t *testing.T
 	}
 }
 
-func TestSearchConsumerEvidenceAnyRepoFallsBackWhenIndexedHostnameMissing(t *testing.T) {
+func TestSearchConsumerEvidenceAnyRepoDoesNotFallbackWhenIndexedHostnameEmpty(t *testing.T) {
 	t.Parallel()
 
 	store := &indexedHostnameConsumerSearchContentStore{
@@ -168,11 +168,11 @@ func TestSearchConsumerEvidenceAnyRepoFallsBackWhenIndexedHostnameMissing(t *tes
 	if got, want := store.referenceCalls, 1; got != want {
 		t.Fatalf("referenceCalls = %d, want %d", got, want)
 	}
-	if got, want := store.exactCalls, 1; got != want {
+	if got, want := store.exactCalls, 0; got != want {
 		t.Fatalf("exactCalls = %d, want %d after empty indexed lookup", got, want)
 	}
-	if _, ok := got["repo-consumer"]; !ok {
-		t.Fatalf("evidence repos = %#v, want repo-consumer", got)
+	if len(got) != 0 {
+		t.Fatalf("evidence repos = %#v, want no broad content fallback", got)
 	}
 }
 
@@ -210,7 +210,7 @@ func (s *indexedReferenceConsumerSearchContentStore) SearchFileReferenceAnyRepo(
 	s.referenceCalls++
 	key := kind + ":" + value
 	rows := append([]FileContent(nil), s.referenceRows[key]...)
-	return rows, len(rows) > 0, nil
+	return rows, true, nil
 }
 
 func (s *indexedReferenceConsumerSearchContentStore) SearchFileContentAnyRepoExactCase(context.Context, string, int) ([]FileContent, error) {
@@ -235,7 +235,7 @@ func (s *indexedHostnameConsumerSearchContentStore) SearchFileReferenceAnyRepo(_
 		return nil, true, nil
 	}
 	rows := append([]FileContent(nil), s.referenceRows...)
-	return rows, len(rows) > 0, nil
+	return rows, true, nil
 }
 
 func (s *indexedHostnameConsumerSearchContentStore) SearchFileContentAnyRepoExactCase(context.Context, string, int) ([]FileContent, error) {
