@@ -44,6 +44,12 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.PackageRegistryFactsEmitted, "PackageRegistryFactsEmitted counter should be registered")
 	assert.NotNil(t, inst.PackageRegistryRateLimited, "PackageRegistryRateLimited counter should be registered")
 	assert.NotNil(t, inst.PackageRegistryParseFailures, "PackageRegistryParseFailures counter should be registered")
+	assert.NotNil(t, inst.ConfluenceHTTPRequests, "ConfluenceHTTPRequests counter should be registered")
+	assert.NotNil(t, inst.ConfluencePermissionDeniedPages, "ConfluencePermissionDeniedPages counter should be registered")
+	assert.NotNil(t, inst.ConfluenceDocumentsObserved, "ConfluenceDocumentsObserved counter should be registered")
+	assert.NotNil(t, inst.ConfluenceSectionsEmitted, "ConfluenceSectionsEmitted counter should be registered")
+	assert.NotNil(t, inst.ConfluenceLinksEmitted, "ConfluenceLinksEmitted counter should be registered")
+	assert.NotNil(t, inst.ConfluenceSyncFailures, "ConfluenceSyncFailures counter should be registered")
 	assert.NotNil(t, inst.CorrelationDriftIntentsEnqueued, "CorrelationDriftIntentsEnqueued counter should be registered")
 	assert.NotNil(t, inst.CorrelationOrphanDetected, "CorrelationOrphanDetected counter should be registered")
 	assert.NotNil(t, inst.CorrelationUnmanagedDetected, "CorrelationUnmanagedDetected counter should be registered")
@@ -89,6 +95,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.TerraformStateParseDuration, "TerraformStateParseDuration histogram should be registered")
 	assert.NotNil(t, inst.PackageRegistryObserveDuration, "PackageRegistryObserveDuration histogram should be registered")
 	assert.NotNil(t, inst.PackageRegistryGenerationLag, "PackageRegistryGenerationLag histogram should be registered")
+	assert.NotNil(t, inst.ConfluenceFetchDuration, "ConfluenceFetchDuration histogram should be registered")
 	assert.NotNil(t, inst.WebhookRequestDuration, "WebhookRequestDuration histogram should be registered")
 	assert.NotNil(t, inst.WebhookStoreDuration, "WebhookStoreDuration histogram should be registered")
 	assert.NotNil(t, inst.AWSScanDuration, "AWSScanDuration histogram should be registered")
@@ -202,6 +209,16 @@ func TestAttrHelpers(t *testing.T) {
 			name:     "AttrStatus",
 			attrFunc: func(v string) string { return string(AttrStatus(v).Key) },
 			wantKey:  MetricDimensionStatus,
+		},
+		{
+			name:     "AttrFailureClass",
+			attrFunc: func(v string) string { return string(AttrFailureClass(v).Key) },
+			wantKey:  MetricDimensionFailureClass,
+		},
+		{
+			name:     "AttrStatusClass",
+			attrFunc: func(v string) string { return string(AttrStatusClass(v).Key) },
+			wantKey:  MetricDimensionStatusClass,
 		},
 		{
 			name:     "AttrService",

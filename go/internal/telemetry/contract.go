@@ -58,6 +58,7 @@ const (
 	MetricDimensionArtifactFamily = "artifact_family"
 	MetricDimensionEcosystem      = "ecosystem"
 	MetricDimensionStatusClass    = "status_class"
+	MetricDimensionFailureClass   = "failure_class"
 	MetricDimensionFactKind       = "fact_kind"
 	MetricDimensionDocumentType   = "document_type"
 	// MetricDimensionSafeLocatorHash labels Terraform-state metrics with the
@@ -308,6 +309,8 @@ var metricDimensionKeys = []string{
 	MetricDimensionDecision,
 	MetricDimensionStatus,
 	MetricDimensionOperation,
+	MetricDimensionStatusClass,
+	MetricDimensionFailureClass,
 	MetricDimensionService,
 	MetricDimensionAccount,
 	MetricDimensionRegion,

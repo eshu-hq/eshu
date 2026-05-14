@@ -27,6 +27,7 @@ func buildCollectorService(
 		Email:       config.Email,
 		APIToken:    config.APIToken,
 		BearerToken: config.BearerToken,
+		Instruments: instruments,
 	})
 	if err != nil {
 		return collector.Service{}, err
@@ -37,9 +38,10 @@ func buildCollectorService(
 
 	return collector.Service{
 		Source: &confluencecollector.Source{
-			Client: client,
-			Config: config,
-			Logger: logger,
+			Client:      client,
+			Config:      config,
+			Logger:      logger,
+			Instruments: instruments,
 		},
 		Committer:    committer,
 		PollInterval: config.PollInterval,

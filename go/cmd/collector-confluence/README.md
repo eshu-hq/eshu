@@ -56,9 +56,24 @@ stored body content, or body excerpts.
 | --- | --- | --- | --- |
 | `collector.observe` | Span | `scope_id`, `source_system`, `collector_kind` when a generation is available | Shows the full Confluence collect and durable commit cycle in one trace. Use it to tell whether time is going to page listing, page body fetch/enrich work, documentation fact construction, or Postgres commit. |
 | `eshu_dp_collector_observe_duration_seconds` | Histogram | `scope_id`, `source_system`, `collector_kind` | Measures end-to-end collect and commit duration for one observed generation. Use it to alert on slow documentation syncs and compare Confluence collection cost with other collector kinds. |
+| `eshu_dp_confluence_http_requests_total` | Counter | `operation`, `result`, `status_class` | Counts bounded Confluence HTTP GET operations without page IDs, titles, URLs, or paths. Use it to separate permission failures, status errors, decode errors, and successful reads. |
+| `eshu_dp_confluence_fetch_duration_seconds` | Histogram | `operation`, `result` | Measures Confluence GET latency by source operation. Use it to tell whether a sync is slow in space listing, page-tree traversal, or page body fetch/enrich work. |
+| `eshu_dp_confluence_permission_denied_pages_total` | Counter | `operation` | Counts pages skipped because the read-only credential could not view them. Use it to diagnose partial syncs. |
+| `eshu_dp_confluence_documents_observed_total` | Counter | `result` | Counts visible current pages converted into documentation document facts. |
+| `eshu_dp_confluence_sections_emitted_total` | Counter | `result` | Counts documentation section facts emitted from Confluence storage bodies. |
+| `eshu_dp_confluence_links_emitted_total` | Counter | `result` | Counts documentation link facts emitted from Confluence storage bodies. |
+| `eshu_dp_confluence_sync_failures_total` | Counter | `failure_class` | Counts failed source syncs by bounded class before the shared commit path can hide the source-stage cause. |
 | `eshu_dp_facts_emitted_total` | Counter | `scope_id`, `source_system`, `collector_kind` | Counts documentation facts emitted by the Confluence generation before commit. Use it to confirm the collector is producing source, document, section, link, and optional documentation-truth facts. |
 | `eshu_dp_generation_fact_count` | Histogram | `scope_id`, `source_system`, `collector_kind` | Records fact volume per generation. Use it to spot unusually large Confluence spaces or unexpectedly small syncs after permission or config changes. |
 | `eshu_dp_facts_committed_total` | Counter | `scope_id`, `source_system`, `collector_kind` | Counts facts durably committed to Postgres after a successful write. Use it with `eshu_dp_facts_emitted_total` to separate collection output from commit failures or Postgres pressure. |
+
+## Collector Evidence
+
+Collector Performance Evidence: `cd go && go test ./internal/collector/confluence ./internal/telemetry ./cmd/collector-confluence -count=1` covered the fixture tree with three page IDs, two visible documents, two emitted sections, one emitted link, one permission gap, and the `httptest` HTTP path with two GETs. The focused run completed in 0.836s for `internal/collector/confluence`, 0.416s for `internal/telemetry`, and 1.269s for `cmd/collector-confluence`.
+
+Collector Observability Evidence: source-stage metrics now cover HTTP GET count and duration, permission-denied pages, document/section/link counts, and sync failure class. `TestSourceRecordsBoundedConfluenceMetrics`, `TestSourceRecordsSyncFailureClass`, and `TestHTTPClientRecordsBoundedRequestMetrics` prove the new Confluence metric labels are limited to `operation`, `result`, `status_class`, and `failure_class`.
+
+Collector Deployment Evidence: the command keeps the shared hosted runtime surface for `/healthz`, `/readyz`, `/metrics`, and `/admin/status`. Chart rendering and ServiceMonitor coverage remain validated by `scripts/verify_confluence_collector_helm.sh` for the deployed collector command, service, and scrape target.
 
 ## Invariants
 

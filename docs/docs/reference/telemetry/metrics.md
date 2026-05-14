@@ -301,6 +301,52 @@ collector/projector/reducer path.
   large or slow state files, and checking whether a new provider schema gap is
   causing more values to be redacted or dropped.
 
+### `eshu_dp_confluence_http_requests_total`
+
+- Type: Counter
+- Labels: `operation`, `result`, `status_class`
+- Meaning: Confluence HTTP GET requests by bounded source operation. Operations
+  include `get_space`, `list_pages`, `list_page_tree`, and `fetch_page`.
+- Use it for: Separating auth or permission failures from slow page listing and
+  page fetch work without putting page IDs, titles, URLs, or paths into labels.
+
+### `eshu_dp_confluence_fetch_duration_seconds`
+
+- Type: Histogram
+- Labels: `operation`, `result`
+- Meaning: Confluence HTTP GET duration by bounded source operation.
+- Use it for: Finding whether Confluence collection cost sits in page listing,
+  descendant traversal, or page body fetch/enrich work.
+
+### `eshu_dp_confluence_permission_denied_pages_total`
+
+- Type: Counter
+- Labels: `operation`
+- Meaning: Pages skipped because the read-only credential could not view them.
+- Use it for: Distinguishing partial documentation syncs caused by ACL gaps
+  from collector failures.
+
+### `eshu_dp_confluence_documents_observed_total`
+### `eshu_dp_confluence_sections_emitted_total`
+### `eshu_dp_confluence_links_emitted_total`
+
+- Type: Counters
+- Labels: `result`
+- Meaning: Source-stage Confluence document, section, and link volume after
+  source normalization and fact envelope construction.
+- Use them for: Detecting unexpectedly small syncs, oversized documentation
+  spaces, and link-extraction changes without exposing document titles,
+  excerpts, page IDs, URLs, or paths.
+
+### `eshu_dp_confluence_sync_failures_total`
+
+- Type: Counter
+- Labels: `failure_class`
+- Meaning: Failed Confluence sync attempts by bounded failure class such as
+  `configuration`, `source_read`, or `fact_build`.
+- Use it for: Alerting on broken source configuration, upstream read failures,
+  or fact-building regressions before the shared collector commit path runs.
+
 ### `eshu_dp_webhook_requests_total`
 
 - Type: Counter

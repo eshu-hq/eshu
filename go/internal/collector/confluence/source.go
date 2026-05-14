@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Source emits one Confluence documentation source generation at a time.
@@ -24,6 +25,7 @@ type Source struct {
 	Client          Client
 	Config          SourceConfig
 	Logger          *slog.Logger
+	Instruments     *telemetry.Instruments
 	TruthExtractor  *doctruth.Extractor
 	TruthClaimHints func(Page, facts.DocumentationSectionPayload) []doctruth.ClaimHint
 
@@ -32,12 +34,14 @@ type Source struct {
 
 func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool, error) {
 	if s.Client == nil {
+		s.recordSyncFailure(ctx, "configuration")
 		return collector.CollectedGeneration{}, false, errors.New("confluence client is required")
 	}
 	observedAt := s.Config.now()
 
 	pages, spaceValue, failureCount, err := s.collectPages(ctx)
 	if err != nil {
+		s.recordSyncFailure(ctx, "source_read")
 		return collector.CollectedGeneration{}, false, err
 	}
 	pages = latestCurrentPages(pages)
@@ -54,8 +58,10 @@ func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool,
 	}
 	envelopes, err := s.factEnvelopes(ctx, scopeValue, generationValue, spaceValue, pages, failureCount)
 	if err != nil {
+		s.recordSyncFailure(ctx, "fact_build")
 		return collector.CollectedGeneration{}, false, err
 	}
+	s.recordFactMetrics(ctx, envelopes)
 	if s.Logger != nil {
 		s.Logger.InfoContext(
 			ctx,
@@ -69,60 +75,6 @@ func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool,
 
 	s.drained = true
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), true, nil
-}
-
-func (s *Source) collectPages(ctx context.Context) ([]Page, Space, int, error) {
-	if s.Config.SpaceID != "" {
-		spaceValue, err := s.Client.GetSpace(ctx, s.Config.SpaceID)
-		if err != nil {
-			return nil, Space{}, 0, fmt.Errorf("get confluence space: %w", err)
-		}
-		pages, err := s.Client.ListSpacePages(ctx, s.Config.SpaceID, pageLimit(s.Config.PageLimit))
-		if err != nil {
-			return nil, Space{}, 0, fmt.Errorf("list confluence space pages: %w", err)
-		}
-		pages, failures, err := s.enrichPages(ctx, pages)
-		if err != nil {
-			return nil, Space{}, 0, err
-		}
-		return pages, spaceValue, failures, nil
-	}
-
-	ids, err := s.Client.ListPageTree(ctx, s.Config.RootPageID, pageLimit(s.Config.PageLimit))
-	if err != nil {
-		return nil, Space{}, 0, fmt.Errorf("list confluence page tree: %w", err)
-	}
-	pages := make([]Page, 0, len(ids))
-	failures := 0
-	for _, id := range ids {
-		page, err := s.Client.GetPage(ctx, id)
-		if err != nil {
-			if errors.Is(err, ErrPermissionDenied) {
-				failures++
-				continue
-			}
-			return nil, Space{}, 0, fmt.Errorf("get confluence page %q: %w", id, err)
-		}
-		pages = append(pages, page)
-	}
-	return pages, Space{ID: firstSpaceID(pages), Key: s.Config.SpaceKey}, failures, nil
-}
-
-func (s *Source) enrichPages(ctx context.Context, listedPages []Page) ([]Page, int, error) {
-	pages := make([]Page, 0, len(listedPages))
-	failures := 0
-	for _, listed := range listedPages {
-		page, err := s.Client.GetPage(ctx, listed.ID)
-		if err != nil {
-			if errors.Is(err, ErrPermissionDenied) {
-				failures++
-				continue
-			}
-			return nil, 0, fmt.Errorf("get confluence page %q: %w", listed.ID, err)
-		}
-		pages = append(pages, mergePageDetails(listed, page))
-	}
-	return pages, failures, nil
 }
 
 func (s *Source) ingestionScope(spaceValue Space) scope.IngestionScope {

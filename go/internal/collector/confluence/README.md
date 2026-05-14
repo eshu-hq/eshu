@@ -92,9 +92,17 @@ already gathered them from Eshu.
 
 - HTTP access is `GET` only and maps 403/404 responses to
   `ErrPermissionDenied`.
-- Sync logs and metrics report counts, status, and scope identifiers only. Page
-  titles, body content, and excerpts are not emitted as telemetry fields. The
-  shared `collector.observe` span and
+- Sync logs and metrics report counts, status, failure class, and bounded
+  source operations only. Page IDs, titles, URLs, paths, body content, and
+  excerpts are not emitted as metric labels. The Confluence-specific
+  `eshu_dp_confluence_http_requests_total`,
+  `eshu_dp_confluence_fetch_duration_seconds`,
+  `eshu_dp_confluence_permission_denied_pages_total`,
+  `eshu_dp_confluence_documents_observed_total`,
+  `eshu_dp_confluence_sections_emitted_total`,
+  `eshu_dp_confluence_links_emitted_total`, and
+  `eshu_dp_confluence_sync_failures_total` metrics expose source-stage cost
+  and partial-sync causes. The shared `collector.observe` span and
   `eshu_dp_collector_observe_duration_seconds` histogram include page
   collection, fact construction, and durable commit time; the
   `eshu_dp_facts_emitted_total`, `eshu_dp_generation_fact_count`, and

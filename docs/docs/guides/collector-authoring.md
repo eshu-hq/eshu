@@ -144,21 +144,36 @@ guardrails:
   Cypher, graph writes, worker claims, leases, batching, goroutines, channels,
   queue behavior, or runtime stages without tracked benchmark and observability
   evidence.
+- `scripts/verify-collector-authoring-gate.sh` fails changed collector source
+  packages unless they have package docs, package tests, collector performance
+  evidence, collector observability evidence, and a deployment or
+  ServiceMonitor decision note.
 
 Use these markers in the changed ADR, reference doc, or package README:
 
 ```text
-Performance Evidence: <baseline, after measurement, input shape, backend,
-queue or row counts, and result>
+Collector Performance Evidence: <baseline, after measurement, input shape, fact
+count, wall time, remote/API budget, backend where relevant, and result>
 
-Observability Evidence: <metrics, spans, logs, status fields, pprof, or
-queue/domain counters that let an operator diagnose this collector>
+Collector Observability Evidence: <source-stage metrics, spans, logs, status
+fields, pprof, or queue/domain counters that let an operator diagnose this
+collector>
+
+Collector Deployment Evidence: <health, readiness, metrics, ServiceMonitor, and
+admin/status proof, or a clear no-hosted-runtime decision>
 ```
 
 For a correctness-only change, use `No-Regression Evidence:` instead of
-`Performance Evidence:`. If existing telemetry already covers the path, use
-`No-Observability-Change:` and name the existing signals. Do not land "covered
-by logs" without naming the log event, metric, span, or status field.
+`Collector Performance Evidence:`. If existing telemetry already covers the
+path, use `No-Observability-Change:` and name the existing signals. Do not land
+"covered by logs" without naming the log event, metric, span, or status field.
+
+The collector observability bar is source-stage specific. New or expanded
+collectors need bounded API/request counters, rate-limit or throttle counters
+when the source has that failure mode, duration histograms, parse and
+fact-emission counters, and bounded failure counters. Hosted collectors also
+need proof for `/healthz`, `/readyz`, `/metrics`, ServiceMonitor rendering when
+charted, and admin/status visibility when claim-driven.
 
 ## Implementation Sequence
 

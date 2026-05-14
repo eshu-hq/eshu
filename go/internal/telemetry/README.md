@@ -113,6 +113,12 @@ gauge when a shared-acceptance observer is available.
 | `PackageRegistryRateLimited` | `eshu_dp_package_registry_rate_limited_total` |
 | `PackageRegistryParseFailures` | `eshu_dp_package_registry_parse_failures_total` |
 | `PackageSourceCorrelations` | `eshu_dp_package_source_correlations_total` |
+| `ConfluenceHTTPRequests` | `eshu_dp_confluence_http_requests_total` |
+| `ConfluencePermissionDeniedPages` | `eshu_dp_confluence_permission_denied_pages_total` |
+| `ConfluenceDocumentsObserved` | `eshu_dp_confluence_documents_observed_total` |
+| `ConfluenceSectionsEmitted` | `eshu_dp_confluence_sections_emitted_total` |
+| `ConfluenceLinksEmitted` | `eshu_dp_confluence_links_emitted_total` |
+| `ConfluenceSyncFailures` | `eshu_dp_confluence_sync_failures_total` |
 | `AWSAPICalls` | `eshu_dp_aws_api_calls_total` |
 | `AWSThrottles` | `eshu_dp_aws_throttle_total` |
 | `AWSAssumeRoleFailed` | `eshu_dp_aws_assumerole_failed_total` |
@@ -155,6 +161,7 @@ module prefixes across generations.
 | `OCIRegistryScanDuration` | `eshu_dp_oci_registry_scan_duration_seconds` | 0.05–120 s |
 | `PackageRegistryObserveDuration` | `eshu_dp_package_registry_observe_duration_seconds` | 0.01–60 s |
 | `PackageRegistryGenerationLag` | `eshu_dp_package_registry_generation_lag_seconds` | 0.01–60 s |
+| `ConfluenceFetchDuration` | `eshu_dp_confluence_fetch_duration_seconds` | 0.01–60 s |
 | `ScopeAssignDuration` | `eshu_dp_scope_assign_duration_seconds` | default |
 | `FactEmitDuration` | `eshu_dp_fact_emit_duration_seconds` | default |
 | `ProjectorRunDuration` | `eshu_dp_projector_run_duration_seconds` | 0.1–120 s |
