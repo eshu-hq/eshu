@@ -33,6 +33,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: relational content search; graph sidecar unused for this capability}
       local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: relational content search}
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-content-search}], notes: relational content search}
+  - capability: graph_query.read_only_cypher
+    tools: [execute_cypher_query]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}], notes: diagnostics-only read path requires graph}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: bounded_query_window, verification: [{go_test: ./internal/query}], notes: read-only Cypher capped by server-side LIMIT and timeout}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1500, max_scope_size: bounded_query_window, verification: [{go_test: ./internal/query}], notes: read-only Cypher capped by server-side LIMIT and timeout}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 2000, max_scope_size: bounded_query_window, verification: [{remote_validation: prod-read-only-cypher}], notes: diagnostics-only read path; prefer purpose-built tools for prompt contracts}
   - capability: symbol_graph.decorators
     tools: [execute_language_query]
     profiles:

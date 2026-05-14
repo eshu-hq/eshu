@@ -185,6 +185,7 @@ func TestResolveRouteMapsSearchFileContentPatternAndRepoIDs(t *testing.T) {
 		"pattern":  "sample-service-api",
 		"repo_ids": []any{"repo://sample-service", "repo://shared"},
 		"limit":    float64(25),
+		"offset":   float64(50),
 	})
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
@@ -198,6 +199,12 @@ func TestResolveRouteMapsSearchFileContentPatternAndRepoIDs(t *testing.T) {
 	}
 	if got, want := body["query"], "sample-service-api"; got != want {
 		t.Fatalf("body[query] = %#v, want %#v", got, want)
+	}
+	if got, want := body["limit"], 25; got != want {
+		t.Fatalf("body[limit] = %#v, want %#v", got, want)
+	}
+	if got, want := body["offset"], 50; got != want {
+		t.Fatalf("body[offset] = %#v, want %#v", got, want)
 	}
 	repoIDs, ok := body["repo_ids"].([]any)
 	if !ok {
@@ -229,11 +236,40 @@ func TestResolveRouteMapsSearchEntityContentSingleRepoID(t *testing.T) {
 	if got, want := body["query"], "sample-service-api"; got != want {
 		t.Fatalf("body[query] = %#v, want %#v", got, want)
 	}
+	if got, want := body["limit"], 10; got != want {
+		t.Fatalf("body[limit] = %#v, want %#v", got, want)
+	}
+	if got, want := body["offset"], 0; got != want {
+		t.Fatalf("body[offset] = %#v, want %#v", got, want)
+	}
 	if got, want := body["repo_id"], "repo://sample-service"; got != want {
 		t.Fatalf("body[repo_id] = %#v, want %#v", got, want)
 	}
 	if _, exists := body["repo_ids"]; exists {
 		t.Fatalf("body should not contain repo_ids, got %#v", body["repo_ids"])
+	}
+}
+
+func TestSearchContentToolsAdvertisePagingContract(t *testing.T) {
+	t.Parallel()
+
+	for _, tool := range contentTools() {
+		if tool.Name != "search_file_content" && tool.Name != "search_entity_content" {
+			continue
+		}
+		schema, ok := tool.InputSchema.(map[string]any)
+		if !ok {
+			t.Fatalf("%s InputSchema type = %T, want map", tool.Name, tool.InputSchema)
+		}
+		properties, ok := schema["properties"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s properties type = %T, want map", tool.Name, schema["properties"])
+		}
+		for _, field := range []string{"limit", "offset"} {
+			if _, ok := properties[field]; !ok {
+				t.Fatalf("%s missing %s in InputSchema", tool.Name, field)
+			}
+		}
 	}
 }
 

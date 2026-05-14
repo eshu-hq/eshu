@@ -113,6 +113,73 @@ func TestHandleCypherQuery_ExecutesReadOnlyQuery(t *testing.T) {
 	}
 }
 
+func TestHandleCypherQueryAddsBoundedLimitAndEnvelope(t *testing.T) {
+	t.Parallel()
+
+	stub := fakeGraphReader{
+		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			if !strings.Contains(cypher, "LIMIT 3") {
+				t.Fatalf("cypher = %q, want bounded LIMIT 3 probe", cypher)
+			}
+			if len(params) != 0 {
+				t.Fatalf("params = %#v, want none for direct cypher", params)
+			}
+			return []map[string]any{{"name": "a"}, {"name": "b"}, {"name": "c"}}, nil
+		},
+	}
+	h := &CodeHandler{Neo4j: stub}
+
+	body := `{"cypher_query": "MATCH (n) RETURN n.name AS name", "limit": 2}`
+	req := httptest.NewRequest("POST", "/api/v0/code/cypher", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+
+	h.handleCypherQuery(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("invalid envelope JSON: %v", err)
+	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map", envelope.Data)
+	}
+	results, ok := data["results"].([]any)
+	if !ok || len(results) != 2 {
+		t.Fatalf("results = %#v, want two trimmed rows", data["results"])
+	}
+	if got, want := data["truncated"], true; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+	if got, want := envelope.Truth.Capability, "graph_query.read_only_cypher"; got != want {
+		t.Fatalf("truth capability = %q, want %q", got, want)
+	}
+}
+
+func TestHandleCypherQueryRejectsExplicitLimitAboveRequestedLimit(t *testing.T) {
+	t.Parallel()
+
+	h := &CodeHandler{Neo4j: &stubGraphReader{}}
+	body := `{"cypher_query": "MATCH (n) RETURN n LIMIT 500", "limit": 25}`
+	req := httptest.NewRequest("POST", "/api/v0/code/cypher", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	h.handleCypherQuery(w, req)
+
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "exceeds requested limit") {
+		t.Fatalf("body = %s, want requested-limit rejection", w.Body.String())
+	}
+}
+
 func TestHandleVisualizeQuery_ReturnsURL(t *testing.T) {
 	h := &CodeHandler{Neo4j: &stubGraphReader{}}
 

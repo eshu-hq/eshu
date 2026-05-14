@@ -845,9 +845,25 @@ Example file-content search:
 ```json
 {
   "pattern": "shared-payments-prod",
-  "repo_ids": ["payments", "eshu-hq/eshu"]
+  "repo_ids": ["payments", "eshu-hq/eshu"],
+  "limit": 25,
+  "offset": 0
 }
 ```
+
+Content search is bounded at the PostgreSQL query boundary. `limit` defaults to
+50 and is capped at 200. `offset` pages the same deterministic order. Explicit
+`repo_ids` searches run as one scoped query rather than one query per
+repository. Responses include `limit`, `offset`, and `truncated` so MCP and
+automation clients can fetch another page only when the server says one exists.
+
+`POST /api/v0/code/cypher` is diagnostics-only. It accepts
+`cypher_query` plus optional `limit` (default 100, max 1000), rejects writes,
+uses a request timeout, appends a bounded `LIMIT` when the query omits one,
+rejects explicit query limits above the requested cap, and returns the standard
+Eshu envelope when requested. Use purpose-built code, story, impact, and content
+routes for prompt contracts; raw Cypher should not be the normal fallback for
+MCP answers.
 
 ## Infra API
 
@@ -862,7 +878,10 @@ Example file-content search:
 These routes are for tracing shared infrastructure, blast radius, dependency explanation, and environment drift.
 
 `POST /api/v0/infra/resources/search` accepts `query`, `category`, `kind`,
-`provider`, `resource_service`, `resource_category`, and `limit`. Terraform AWS
+`provider`, `resource_service`, `resource_category`, and `limit`. `limit`
+defaults to 50 and is capped at 200. The handler probes one extra row and
+returns `truncated` so callers know when to narrow the query or fetch a
+purpose-built drilldown. Terraform AWS
 resource and data-source nodes preserve provider classification in both graph
 and content-backed responses, so callers can narrow a search to families such
 as `provider=aws`, `resource_service=s3`, or `resource_category=storage`.

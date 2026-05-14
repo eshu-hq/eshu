@@ -75,6 +75,13 @@ func ecosystemTools() []ToolDefinition {
 						"enum":        []string{"k8s", "terraform", "argocd", "crossplane", "helm"},
 						"default":     "",
 					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum infrastructure resources to return",
+						"default":     50,
+						"minimum":     1,
+						"maximum":     200,
+					},
 				},
 				"required": []string{"query"},
 			},

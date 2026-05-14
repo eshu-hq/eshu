@@ -38,6 +38,48 @@ const openAPIPathsCode = `
         }
       }
     },
+    "/api/v0/code/cypher": {
+      "post": {
+        "tags": ["code"],
+        "summary": "Run bounded read-only Cypher",
+        "description": "Diagnostics-only graph query endpoint. Prefer purpose-built code, service, and impact routes for prompt contracts. Queries are read-only, timeout-bound, and server-capped.",
+        "operationId": "runReadOnlyCypher",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["cypher_query"],
+                "properties": {
+                  "cypher_query": {"type": "string"},
+                  "limit": {"type": "integer", "default": 100, "maximum": 1000}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bounded Cypher results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {"type": "array", "items": {"type": "object"}},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/code/language-query": {
       "post": {
         "tags": ["code"],

@@ -255,6 +255,13 @@ func codebaseTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Read-only Cypher query to execute",
 					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum rows to return when the query does not already include a LIMIT",
+						"default":     100,
+						"minimum":     1,
+						"maximum":     1000,
+					},
 				},
 				"required": []string{"cypher_query"},
 			},

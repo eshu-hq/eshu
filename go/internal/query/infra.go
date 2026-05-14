@@ -7,6 +7,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+const infraSearchMaxLimit = 200
+
 // InfraHandler serves HTTP endpoints for querying infrastructure resources
 // and relationships from the Neo4j canonical graph.
 type InfraHandler struct {
@@ -143,6 +145,9 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	if req.Limit <= 0 {
 		req.Limit = 50
 	}
+	if req.Limit > infraSearchMaxLimit {
+		req.Limit = infraSearchMaxLimit
+	}
 	kind := strings.TrimSpace(req.Kind)
 	provider := strings.TrimSpace(req.Provider)
 	resourceService := strings.TrimSpace(req.ResourceService)
@@ -206,7 +211,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	params := map[string]any{
 		"query":               req.Query,
 		"resource_type_query": req.Query,
-		"limit":               req.Limit,
+		"limit":               req.Limit + 1,
 	}
 	if kind != "" {
 		params["kind"] = kind
@@ -229,6 +234,9 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 
 	results := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
+		if len(results) >= req.Limit {
+			break
+		}
 		result := map[string]any{
 			"id":          StringVal(row, "id"),
 			"name":        StringVal(row, "name"),
@@ -252,8 +260,10 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	}
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"results": results,
-		"count":   len(results),
+		"results":   results,
+		"count":     len(results),
+		"limit":     req.Limit,
+		"truncated": len(rows) > req.Limit,
 	}, BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", TruthBasisHybrid, "resolved from infrastructure graph search"))
 }
 

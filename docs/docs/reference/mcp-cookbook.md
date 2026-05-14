@@ -103,7 +103,7 @@ needs a deeper proof point.
 **Tool:** `execute_cypher_query`
 
 ```json
-{ "cypher_query": "MATCH (c:Class) WHERE 'dataclass' IN c.decorators RETURN c.name, c.path" }
+{ "cypher_query": "MATCH (c:Class) WHERE 'dataclass' IN c.decorators RETURN c.name, c.path", "limit": 50 }
 ```
 
 ---
@@ -183,7 +183,8 @@ This maps to the same route with `direction=outgoing`,
 
 ```json
 {
-  "cypher_query": "MATCH (caller:Function)-[:CALLS]->(callee:Function {name: 'helper'}) WHERE caller.path ENDS WITH 'module_a.py' AND callee.path ENDS WITH 'module_b.py' RETURN caller.name"
+  "cypher_query": "MATCH (caller:Function)-[:CALLS]->(callee:Function {name: 'helper'}) WHERE caller.path ENDS WITH 'module_a.py' AND callee.path ENDS WITH 'module_b.py' RETURN caller.name",
+  "limit": 50
 }
 ```
 
@@ -195,7 +196,8 @@ This maps to the same route with `direction=outgoing`,
 
 ```json
 {
-  "cypher_query": "MATCH (f:Function)-[:CALLS]->(f2:Function) WHERE f.name = f2.name AND f.path = f2.path RETURN f.name, f.path"
+  "cypher_query": "MATCH (f:Function)-[:CALLS]->(f2:Function) WHERE f.name = f2.name AND f.path = f2.path RETURN f.name, f.path",
+  "limit": 50
 }
 ```
 
@@ -207,7 +209,8 @@ This maps to the same route with `direction=outgoing`,
 
 ```json
 {
-  "cypher_query": "MATCH (f:Function) OPTIONAL MATCH (f)-[:CALLS]->(callee:Function) OPTIONAL MATCH (caller:Function)-[:CALLS]->(f) WITH f, count(DISTINCT callee) AS calls_out, count(DISTINCT caller) AS calls_in ORDER BY (calls_out + calls_in) DESC LIMIT 5 RETURN f.name, f.path, calls_out, calls_in"
+  "cypher_query": "MATCH (f:Function) OPTIONAL MATCH (f)-[:CALLS]->(callee:Function) OPTIONAL MATCH (caller:Function)-[:CALLS]->(f) WITH f, count(DISTINCT callee) AS calls_out, count(DISTINCT caller) AS calls_in ORDER BY (calls_out + calls_in) DESC LIMIT 5 RETURN f.name, f.path, calls_out, calls_in",
+  "limit": 5
 }
 ```
 
@@ -269,7 +272,8 @@ heuristic path.
 
 ```json
 {
-  "cypher_query": "MATCH (f:Function) WHERE NOT (()-[:CALLS]->(f)) AND f.is_dependency = false RETURN f.name, f.path"
+  "cypher_query": "MATCH (f:Function) WHERE NOT (()-[:CALLS]->(f)) AND f.is_dependency = false RETURN f.name, f.path",
+  "limit": 100
 }
 ```
 
@@ -281,7 +285,8 @@ heuristic path.
 
 ```json
 {
-  "cypher_query": "MATCH (f:Function) WHERE f.end_line - f.line_number > 20 RETURN f.name, f.path, (f.end_line - f.line_number) AS lines"
+  "cypher_query": "MATCH (f:Function) WHERE f.end_line - f.line_number > 20 RETURN f.name, f.path, (f.end_line - f.line_number) AS lines",
+  "limit": 100
 }
 ```
 
@@ -293,7 +298,8 @@ heuristic path.
 
 ```json
 {
-  "cypher_query": "MATCH (f:Function) WHERE size(f.args) > 5 RETURN f.name, f.path, size(f.args) AS arg_count"
+  "cypher_query": "MATCH (f:Function) WHERE size(f.args) > 5 RETURN f.name, f.path, size(f.args) AS arg_count",
+  "limit": 100
 }
 ```
 
@@ -341,7 +347,8 @@ The response includes a list of methods and child classes.
 
 ```json
 {
-  "cypher_query": "MATCH (c:Class) OPTIONAL MATCH path = (c)-[:INHERITS*]->(parent:Class) RETURN c.name, c.path, length(path) AS depth ORDER BY depth DESC"
+  "cypher_query": "MATCH (c:Class) OPTIONAL MATCH path = (c)-[:INHERITS*]->(parent:Class) RETURN c.name, c.path, length(path) AS depth ORDER BY depth DESC",
+  "limit": 100
 }
 ```
 
@@ -353,7 +360,8 @@ The response includes a list of methods and child classes.
 
 ```json
 {
-  "cypher_query": "MATCH (c:Class)-[:INHERITS]->(p:Class), (c)-[:CONTAINS]->(m:Function), (p)-[:CONTAINS]->(m_parent:Function) WHERE m.name = m_parent.name RETURN m.name as method, c.name as child_class, p.name as parent_class"
+  "cypher_query": "MATCH (c:Class)-[:INHERITS]->(p:Class), (c)-[:CONTAINS]->(m:Function), (p)-[:CONTAINS]->(m_parent:Function) WHERE m.name = m_parent.name RETURN m.name as method, c.name as child_class, p.name as parent_class",
+  "limit": 100
 }
 ```
 
@@ -405,76 +413,81 @@ The response includes a list of methods and child classes.
 
 ## Advanced Cypher Queries
 
+`execute_cypher_query` is a diagnostics-only fallback. Prefer the named MCP
+tools above when they answer the question. When you do use raw Cypher, include a
+small `limit`; the server also appends a bounded `LIMIT` when the query omits
+one and returns `truncated` when the row window clips the result.
+
 ### Find all function definitions
 
 ```json
-{ "cypher_query": "MATCH (n:Function) RETURN n.name, n.path, n.line_number LIMIT 50" }
+{ "cypher_query": "MATCH (n:Function) RETURN n.name, n.path, n.line_number LIMIT 50", "limit": 50 }
 ```
 
 ### Find all classes
 
 ```json
-{ "cypher_query": "MATCH (n:Class) RETURN n.name, n.path, n.line_number LIMIT 50" }
+{ "cypher_query": "MATCH (n:Class) RETURN n.name, n.path, n.line_number LIMIT 50", "limit": 50 }
 ```
 
 ### Find functions in a specific file
 
 ```json
-{ "cypher_query": "MATCH (f:Function) WHERE f.path ENDS WITH 'module_a.py' RETURN f.name" }
+{ "cypher_query": "MATCH (f:Function) WHERE f.path ENDS WITH 'module_a.py' RETURN f.name", "limit": 50 }
 ```
 
 ### Find top-level elements in a file
 
 ```json
-{ "cypher_query": "MATCH (f:File)-[:CONTAINS]->(n) WHERE f.name = 'module_a.py' AND (n:Function OR n:Class) AND n.context IS NULL RETURN n.name" }
+{ "cypher_query": "MATCH (f:File)-[:CONTAINS]->(n) WHERE f.name = 'module_a.py' AND (n:Function OR n:Class) AND n.context IS NULL RETURN n.name", "limit": 50 }
 ```
 
 ### Find circular file imports
 
 ```json
-{ "cypher_query": "MATCH (f1:File)-[:IMPORTS]->(m2:Module), (f2:File)-[:IMPORTS]->(m1:Module) WHERE f1.name = m1.name + '.py' AND f2.name = m2.name + '.py' RETURN f1.name, f2.name" }
+{ "cypher_query": "MATCH (f1:File)-[:IMPORTS]->(m2:Module), (f2:File)-[:IMPORTS]->(m1:Module) WHERE f1.name = m1.name + '.py' AND f2.name = m2.name + '.py' RETURN f1.name, f2.name", "limit": 50 }
 ```
 
 ### Find documented functions
 
 ```json
-{ "cypher_query": "MATCH (f:Function) WHERE f.docstring IS NOT NULL AND f.docstring <> '' RETURN f.name, f.path LIMIT 50" }
+{ "cypher_query": "MATCH (f:Function) WHERE f.docstring IS NOT NULL AND f.docstring <> '' RETURN f.name, f.path LIMIT 50", "limit": 50 }
 ```
 
 ### Find decorated methods in a class
 
 ```json
-{ "cypher_query": "MATCH (c:Class {name: 'Child'})-[:CONTAINS]->(m:Function) WHERE m.decorators IS NOT NULL AND size(m.decorators) > 0 RETURN m.name" }
+{ "cypher_query": "MATCH (c:Class {name: 'Child'})-[:CONTAINS]->(m:Function) WHERE m.decorators IS NOT NULL AND size(m.decorators) > 0 RETURN m.name", "limit": 50 }
 ```
 
 ### Count functions per file
 
 ```json
-{ "cypher_query": "MATCH (f:Function) RETURN f.path, count(f) AS function_count ORDER BY function_count DESC" }
+{ "cypher_query": "MATCH (f:Function) RETURN f.path, count(f) AS function_count ORDER BY function_count DESC", "limit": 50 }
 ```
 
 ### Find classes with a specific method
 
 ```json
-{ "cypher_query": "MATCH (c:Class)-[:CONTAINS]->(m:Function {name: 'greet'}) RETURN c.name, c.path" }
+{ "cypher_query": "MATCH (c:Class)-[:CONTAINS]->(m:Function {name: 'greet'}) RETURN c.name, c.path", "limit": 50 }
 ```
 
 ### Find `super()` calls
 
 ```json
-{ "cypher_query": "MATCH (f:Function)-[r:CALLS]->() WHERE r.full_call_name STARTS WITH 'super(' RETURN f.name, f.path" }
+{ "cypher_query": "MATCH (f:Function)-[r:CALLS]->() WHERE r.full_call_name STARTS WITH 'super(' RETURN f.name, f.path", "limit": 50 }
 ```
 
 ### Find modules imported by a file
 
 ```json
-{ "cypher_query": "MATCH (f:File {name: 'module_a.py'})-[:IMPORTS]->(m:Module) RETURN m.name AS imported_module_name" }
+{ "cypher_query": "MATCH (f:File {name: 'module_a.py'})-[:IMPORTS]->(m:Module) RETURN m.name AS imported_module_name", "limit": 50 }
 ```
 
 ### Find all Python package imports
 
 ```json
-{ "cypher_query": "MATCH (f:File)-[:IMPORTS]->(m:Module) WHERE f.path ENDS WITH '.py' RETURN DISTINCT m.name" }
+{ "cypher_query": "MATCH (f:File)-[:IMPORTS]->(m:Module) WHERE f.path ENDS WITH '.py' RETURN DISTINCT m.name", "limit": 100 }
 ```
 
 ---
@@ -485,10 +498,8 @@ The response includes a list of methods and child classes.
 
 > "Find potential hardcoded passwords, API keys, or secrets."
 
-**Tool:** `execute_cypher_query`
+**Tool:** tracked follow-up issue #292
 
-```json
-{
-  "cypher_query": "WITH ['password', 'api_key', 'apikey', 'secret_token', 'token', 'auth', 'access_key', 'private_key', 'client_secret', 'sessionid', 'jwt'] AS keywords MATCH (f:Function) WHERE ANY(word IN keywords WHERE toLower(f.source_code) CONTAINS word) RETURN f.name, f.path"
-}
-```
+Do not use a raw graph-wide source-code Cypher scan for this prompt. Issue #292
+tracks the first-class bounded security tool that can scan indexed content with
+redaction, deterministic paging, and security-review evidence.

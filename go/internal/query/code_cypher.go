@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -15,6 +16,9 @@ const (
 
 	// cypherMaxQueryLength rejects excessively long query strings.
 	cypherMaxQueryLength = 4096
+
+	// cypherDefaultResultRows is the default returned row window.
+	cypherDefaultResultRows = 100
 
 	// cypherMaxResultRows caps the number of rows returned to prevent memory exhaustion.
 	cypherMaxResultRows = 1000
@@ -59,6 +63,7 @@ func validateReadOnlyCypher(cypher string) error {
 func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CypherQuery string `json:"cypher_query"`
+		Limit       int    `json:"limit"`
 	}
 	if err := ReadJSON(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
@@ -70,7 +75,8 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := validateReadOnlyCypher(req.CypherQuery); err != nil {
+	cypher, limit, err := boundedReadOnlyCypher(req.CypherQuery, req.Limit)
+	if err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -78,20 +84,76 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 	ctx, cancel := context.WithTimeout(r.Context(), cypherQueryTimeout)
 	defer cancel()
 
-	rows, err := h.Neo4j.Run(ctx, req.CypherQuery, nil)
+	rows, err := h.Neo4j.Run(ctx, cypher, nil)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	if len(rows) > cypherMaxResultRows {
-		rows = rows[:cypherMaxResultRows]
+	truncated := len(rows) > limit
+	if truncated {
+		rows = rows[:limit]
 	}
 
-	WriteJSON(w, http.StatusOK, map[string]any{
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"results":   rows,
-		"truncated": len(rows) == cypherMaxResultRows,
-	})
+		"limit":     limit,
+		"truncated": truncated,
+	}, BuildTruthEnvelope(h.profile(), "graph_query.read_only_cypher", TruthBasisAuthoritativeGraph, "resolved from bounded read-only graph query"))
+}
+
+func boundedReadOnlyCypher(query string, requestedLimit int) (string, int, error) {
+	if err := validateReadOnlyCypher(query); err != nil {
+		return "", 0, err
+	}
+	limit := normalizeCypherResultLimit(requestedLimit)
+	query = strings.TrimSpace(query)
+	query = strings.TrimSuffix(query, ";")
+	if containsLimitClause(query) {
+		queryLimit, err := explicitCypherLimit(query)
+		if err != nil {
+			return "", 0, err
+		}
+		if queryLimit > limit {
+			return "", 0, fmt.Errorf("query LIMIT %d exceeds requested limit %d", queryLimit, limit)
+		}
+		return query, limit, nil
+	}
+	return fmt.Sprintf("%s\nLIMIT %d", query, limit+1), limit, nil
+}
+
+func normalizeCypherResultLimit(limit int) int {
+	if limit <= 0 {
+		return cypherDefaultResultRows
+	}
+	if limit > cypherMaxResultRows {
+		return cypherMaxResultRows
+	}
+	return limit
+}
+
+func containsLimitClause(query string) bool {
+	upper := strings.ToUpper(query)
+	return strings.Contains(" "+upper+" ", " LIMIT ")
+}
+
+func explicitCypherLimit(query string) (int, error) {
+	fields := strings.Fields(query)
+	for i, field := range fields {
+		if !strings.EqualFold(field, "LIMIT") {
+			continue
+		}
+		if i+1 >= len(fields) {
+			return 0, fmt.Errorf("query LIMIT must include an integer row cap")
+		}
+		raw := strings.TrimRight(fields[i+1], ";")
+		limit, err := strconv.Atoi(raw)
+		if err != nil || limit <= 0 {
+			return 0, fmt.Errorf("query LIMIT must be a positive integer")
+		}
+		return limit, nil
+	}
+	return 0, fmt.Errorf("query LIMIT clause not found")
 }
 
 // handleVisualizeQuery returns a Neo4j Browser URL for the given Cypher query.
