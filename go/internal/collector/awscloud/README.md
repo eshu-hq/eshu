@@ -43,6 +43,7 @@ See `doc.go` for the godoc contract.
 - `ServiceEKS` - EKS service-kind value for regional Kubernetes control-plane
   scans.
 - `ServiceSQS` - SQS service-kind value for regional queue metadata scans.
+- `ServiceSNS` - SNS service-kind value for regional topic metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -111,6 +112,10 @@ request.
   outside the AWS collector fact contract. Redrive policy values may emit
   reported dead-letter queue relationship evidence when AWS provides both
   queue ARNs.
+- SNS topic facts are metadata only. Message payloads, topic policy JSON,
+  delivery-policy JSON, data-protection-policy JSON, and raw non-ARN
+  subscription endpoints stay outside the AWS collector fact contract. ARN
+  subscription endpoints may emit reported delivery relationship evidence.
 
 ## Related docs
 

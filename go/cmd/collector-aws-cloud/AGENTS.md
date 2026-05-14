@@ -32,6 +32,10 @@
   and security groups are reported join evidence only.
 - Keep SQS message bodies and queue policy JSON out of facts. The command may
   enable `sqs`, but the SDK adapter owns the safe metadata allowlist.
+- Keep SNS message payloads, topic policy JSON, delivery-policy JSON,
+  data-protection-policy JSON, and raw non-ARN endpoints out of facts. The
+  command may enable `sns`, but the SDK adapter owns safe topic and subscription
+  mapping.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 - Preserve the split between scanner-side status in `awsruntime` and

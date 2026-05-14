@@ -30,6 +30,9 @@ const (
 	// ServiceSQS identifies the regional Amazon Simple Queue Service metadata
 	// scan slice.
 	ServiceSQS = "sqs"
+	// ServiceSNS identifies the regional Amazon Simple Notification Service
+	// metadata scan slice.
+	ServiceSNS = "sns"
 )
 
 const (
@@ -92,6 +95,8 @@ const (
 	ResourceTypeEKSOIDCProvider = "aws_eks_oidc_provider"
 	// ResourceTypeSQSQueue identifies an SQS queue metadata resource.
 	ResourceTypeSQSQueue = "aws_sqs_queue"
+	// ResourceTypeSNSTopic identifies an SNS topic metadata resource.
+	ResourceTypeSNSTopic = "aws_sns_topic"
 )
 
 const (
@@ -186,6 +191,9 @@ const (
 	// RelationshipSQSQueueUsesDeadLetterQueue records SQS redrive policy
 	// evidence from a source queue to its dead-letter queue.
 	RelationshipSQSQueueUsesDeadLetterQueue = "sqs_queue_uses_dead_letter_queue"
+	// RelationshipSNSTopicDeliversToResource records SNS subscription
+	// evidence from a topic to an ARN-addressable subscriber.
+	RelationshipSNSTopicDeliversToResource = "sns_topic_delivers_to_resource"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by

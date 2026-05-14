@@ -157,6 +157,7 @@ facts, EC2 VPC/subnet/security-group/ENI network topology facts, Lambda
 function/alias/event-source mapping facts with redacted environment values, and
 EKS cluster/node group/add-on/OIDC provider facts with IAM role and EC2 network
 join evidence, plus SQS queue metadata and reported dead-letter queue
+relationship facts, plus SNS topic metadata and ARN-addressable subscription
 relationship facts.
 
 `collector-oci-registry` scans configured OCI registry repositories. In the
