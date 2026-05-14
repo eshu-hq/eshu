@@ -10,6 +10,7 @@ Evidence used for this pass:
 - `get_repo_story` for `api-node-boats` on the remote full-corpus stack
 - `investigate_code_topic` for `api-node-boats` route/deployment evidence
 - `docs/docs/reference/http-api.md`
+- `docs/docs/reference/mcp-tool-contract-matrix.md`
 - `docs/docs/reference/relationship-mapping.md`
 - `go/internal/query/service_story_overview.go`
 - `go/internal/query/service_story_dossier.go`
@@ -17,6 +18,7 @@ Evidence used for this pass:
 - `go/internal/query/repository_story.go`
 - `go/internal/query/impact_change_surface_investigation.go`
 - `go/internal/query/impact_change_surface_response.go`
+- `go/internal/collector/awscloud/services/cloudfront/README.md`
 
 ## Design Rule
 
@@ -33,6 +35,36 @@ The console should follow the visualization sequence: overview first, zoom and
 filter, then details on demand. For Eshu, overview means story plus first graph
 layer. Details mean source files, resolved relationship IDs, exact evidence,
 and code lines.
+
+## Rebase Contract Update
+
+The latest MCP contract work changes the console plan in four important ways.
+
+1. Prompt-ready tools now have an explicit bounded-call matrix. The UI should
+   treat `limit`, `offset`, `truncated`, and envelope truth as first-class
+   controls, not hidden response metadata.
+2. Entity-specific drilldowns should resolve before they expand. Use
+   `resolve_entity` as the visual disambiguation step for graph nodes, symbols,
+   workloads, and service-like names when the selected item is not already a
+   canonical ID.
+3. Inventory pages should prefer paged contracts such as
+   `list_indexed_repositories` instead of whole-index assumptions. Catalog
+   needs repository, service, workload, and evidence facets with visible paging
+   state.
+4. CloudFront runtime evidence introduces an edge layer between public
+   entrypoints and runtime targets. The service atlas should show
+   entrypoint -> CDN/edge -> origin or load balancer -> workload -> deployment
+   source when the evidence exists. CloudFront is safe control-plane metadata;
+   it must not be displayed as workload ownership unless a later reducer
+   explicitly correlates it.
+
+Change-surface remains part of the plan, but the console must use it
+conservatively. A remote proof showed exact service-name impact probes can
+become too broad when target resolution misses or falls into a full-graph path.
+Until the backend path is proven bounded on the full corpus, the UI should
+favor service-story, service-investigation, entity-resolution, and code-topic
+packets first, then use change-surface only from scoped selections such as a
+canonical entity ID, a selected file set, or a narrowed topic.
 
 ## `get_service_story`
 
@@ -53,6 +85,7 @@ it, what does it depend on, and what evidence proves it?
 | `entrypoints` | Hostnames, docs routes, and config-derived targets. | How do people or systems reach it? | Entrypoint cards grouped by public/internal/environment. | Entrypoint to network path or source file. |
 | `hostnames` | Hostname subset of entrypoints. | What public names exist? | Inside the entrypoints view, not as a peer block. | Hostname references and config. |
 | `network_paths` | Evidence-backed links from entrypoints to runtime targets. | How does traffic reach runtime? | Network path graph or expandable path rows. | Path to source evidence. |
+| `edge_runtime_evidence` | CDN or edge-control-plane signals such as CloudFront distributions, aliases, origins, cache behaviors, viewer certificates, and WAF or ACM links. | Is there an edge layer before the workload? | Edge layer between entrypoints and runtime in the service graph. | Distribution, alias, origin, certificate, or WAF evidence. |
 | `downstream_consumers` | Typed graph dependents plus content references. | Who uses or mentions this service? | Two buckets: typed dependents and content mentions. | Repository evidence paths. |
 | `dependents` | Graph-derived dependent repositories. | What is typed dependency truth? | Stronger-trust bucket inside consumers. | Relationship evidence. |
 | `consumer_repositories` | Content-based references, hostnames, and repo strings. | Who mentions it in code or config? | Weaker mention bucket inside consumers. | Sample paths and matched values. |
@@ -65,9 +98,9 @@ it, what does it depend on, and what evidence proves it?
 | `raw_context_limits` | Limits for raw embedded context fields. | What raw data was capped? | Developer/audit detail only. | Context route. |
 
 Service story design rule: the service page should be an atlas. `deployment_lanes`
-drives the primary visual, `story_sections` drives navigation,
-`evidence_graph` is the proof layer, and raw evidence appears only after a
-selection.
+drives the deployment visual, `entrypoints` and edge evidence drive the traffic
+visual, `story_sections` drives navigation, `evidence_graph` is the proof layer,
+and raw evidence appears only after a selection.
 
 ## `investigate_service`
 
@@ -87,6 +120,37 @@ what did it find, and what should I ask next?
 Investigation design rule: this is an investigation workbench, not the normal
 service page. It should make partial evidence useful by showing exact gaps and
 next calls.
+
+## `resolve_entity`
+
+Primary user question: which exact thing did Eshu think I meant?
+
+| Field | Meaning | Human question | UI treatment | Drilldown |
+| --- | --- | --- | --- | --- |
+| `entities` / `matches` | Ranked canonical entity candidates. | Which service, repo, workload, or symbol is this? | Candidate picker before graph expansion. | Rerun the selected story or drilldown by canonical ID. |
+| `count`, `limit`, `truncated` | Bounded resolution state. | Did the resolver return everything? | Result-count and truncation badge. | Narrow by repo, type, or exact name. |
+| candidate `id`, `name`, `type`, `repo_id` | Canonical handles and context. | Is this the right entity? | Compact rows with type and repository context. | Entity context, service story, repo story, or code story. |
+
+Resolution design rule: ambiguity should be visible before graph claims appear.
+If a node click has only a display name, the rail opens as a resolver picker.
+If it already has a canonical ID, the rail opens directly to the relevant
+story, context, or evidence packet.
+
+## Paged Inventory Contracts
+
+Primary user question: what can I browse, filter, and open without waiting for
+the whole graph?
+
+| Contract | Meaning | Human question | UI treatment | Drilldown |
+| --- | --- | --- | --- | --- |
+| `list_indexed_repositories` | Paged repository inventory with `limit`, `offset`, and `truncated`. | Which repos are indexed? | Catalog repository facet with paging. | Repo story/context. |
+| service and workload catalog rows | Graph-backed service and workload handles. | What services and workloads exist? | Catalog tabs or segmented facets. | Service/workload story. |
+| `get_ecosystem_overview` | Whole-index summary. | What does the corpus look like? | Dashboard overview graph and corpus health. | Catalog filtered by family. |
+| runtime status tools | Ingester and index health. | Is Eshu still building or fresh? | Operational status strip. | Runtime diagnostics. |
+
+Catalog design rule: catalog is a launch surface, not a table dump. It needs
+facets for repositories, services, workloads, evidence families, freshness,
+language, and deployment family. Every facet must keep paging state visible.
 
 ## `get_repo_story`
 
@@ -154,6 +218,23 @@ left side, impact depth rings anchor the graph, and target-resolution state
 must appear before any graph so humans know whether the blast radius is based
 on a precise target, an ambiguous match, or content-only evidence.
 
+## Trace And Deployment Fact Contracts
+
+Primary user question: how did Eshu decide this deployment path is real?
+
+| Field | Meaning | Human question | UI treatment | Drilldown |
+| --- | --- | --- | --- | --- |
+| `deployment_fact_summary` | Mapping mode, confidence reason, thresholds, limitations. | Why does Eshu believe this maps to deployment? | Confidence explainer beside the deployment graph. | Fact summary detail. |
+| `deployment_facts` | Normalized evidence-backed facts. | Which exact facts were emitted? | Fact timeline or grouped evidence rows after selection. | Relationship evidence or source file. |
+| `controller_overview` | Controller-family evidence such as ArgoCD, Flux, Jenkins, or automation controllers. | What automation drives delivery? | Controller lane in deployment graph. | Controller source. |
+| `runtime_overview` | Runtime/platform evidence such as EKS, Kubernetes, ECS, Lambda, or CDN edge. | Where does it actually run or route? | Runtime lane in deployment graph. | Runtime evidence. |
+| `limitations` | Standard missing-evidence codes. | What does Eshu not know yet? | Gap badges with plain explanations. | Recommended next calls. |
+
+Deployment fact design rule: deployment graphs should be readable as a story:
+entrypoint, edge, controller, infrastructure source, runtime, workload, and
+source repository. Relationship verbs and confidence belong on selectable
+edges, not as tiny labels in the first view.
+
 ## Product Decision
 
 The Eshu Console story model should become:
@@ -166,6 +247,12 @@ The Eshu Console story model should become:
    `raw_context_limits`.
 6. Change-review lens from `investigate_change_surface` when the entry question
    is about a service, topic, resource, module, or changed file set.
+7. Resolver-first drilldowns from `resolve_entity` before expanding ambiguous
+   names into graph claims.
+8. Edge-aware traffic graphs that place CloudFront/CDN evidence between
+   hostnames and runtime targets when present.
+9. Paged catalog and inventory views from prompt-ready bounded contracts, with
+   visible `limit`, `offset`, and `truncated` state.
 
 Dashboard and catalog should become entry points into this story model. The
 service atlas is where users understand the answer; the change-review lens is

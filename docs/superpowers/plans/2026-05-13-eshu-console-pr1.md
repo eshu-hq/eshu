@@ -229,7 +229,93 @@ Run: `npm run console:test -- DashboardPage CatalogPage FindingsPage`
 
 Expected: pass.
 
-## Task 6: Verification
+## Task 6: Latest MCP Contract Refactor
+
+**Files:**
+
+- Modify: `apps/console/src/api/repository.ts`
+- Modify: `apps/console/src/api/serviceSpotlight.ts`
+- Modify: `apps/console/src/api/changeSurface.ts`
+- Modify: `apps/console/src/pages/CatalogPage.tsx`
+- Modify: `apps/console/src/pages/DashboardPage.tsx`
+- Modify: `apps/console/src/pages/ServiceSpotlightPanel.tsx`
+- Modify: `apps/console/src/visualization/ServiceDeploymentLaneMap.tsx`
+- Modify: `docs/superpowers/specs/2026-05-14-eshu-console-storytelling-contract-field-map-design.md`
+
+- [ ] **Step 1: Write failing contract adapter tests**
+
+Cover the newly hardened MCP/API contracts:
+
+- service story uses the dossier fields before falling back to context rows
+- node clicks without canonical IDs use `resolve_entity` before graph expansion
+- catalog uses paged repository inventory and visible truncation state
+- CloudFront or CDN-style edge evidence is represented as traffic evidence, not
+  deployment ownership
+- change-surface is only requested from a narrowed service, entity, file, or
+  topic scope
+
+- [ ] **Step 2: Run focused tests and verify failures**
+
+Run:
+
+```bash
+npm run console:test -- repository serviceSpotlight changeSurface CatalogPage DashboardPage ServiceSpotlightPanel
+```
+
+Expected: fails until the adapters and screens consume the new contract shape.
+
+- [ ] **Step 3: Implement resolver-first drilldowns**
+
+Add a resolver boundary for graph clicks and search selections:
+
+- already-canonical IDs open the story/context/evidence rail directly
+- display names open a `resolve_entity` candidate picker first
+- ambiguous or truncated results show the exact `limit` and `truncated` state
+- selected candidates rerun the intended story or drilldown by canonical ID
+
+- [ ] **Step 4: Refactor catalog into faceted inventory**
+
+Move catalog from a repository-only table to bounded facets:
+
+- repositories from `list_indexed_repositories`
+- services and workloads from graph-backed catalog rows when available
+- evidence families, freshness, language, and deployment-family filters
+- visible paging state for `limit`, `offset`, and `truncated`
+
+- [ ] **Step 5: Add edge-aware service traffic story**
+
+Represent public traffic as a readable path:
+
+```text
+hostname -> CDN/edge -> origin/load balancer -> runtime target -> workload -> source repository
+```
+
+CloudFront distribution aliases, origins, cache behaviors, viewer certificates,
+ACM links, and WAF links are edge evidence only unless a reducer produces
+explicit workload ownership or deployment correlation.
+
+- [ ] **Step 6: Re-scope change-surface UI**
+
+Change-surface should appear as a review lens after the page has a narrowed
+scope. Do not fire broad service-name impact probes as the primary page load.
+Use service story, service investigation, entity resolution, and code topic
+packets first, then expose change-surface for selected entities, paths, topics,
+or dependency edges.
+
+- [ ] **Step 7: Run focused contract checks**
+
+Run:
+
+```bash
+npm run console:test -- repository serviceSpotlight changeSurface CatalogPage DashboardPage ServiceSpotlightPanel
+npm run console:typecheck
+go test ./internal/mcp ./internal/query -count=1
+```
+
+Expected: UI contract tests and backend MCP/query contract tests pass before
+the next remote redeploy.
+
+## Task 7: Verification
 
 **Files:**
 
