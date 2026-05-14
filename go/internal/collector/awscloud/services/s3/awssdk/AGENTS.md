@@ -15,6 +15,10 @@
 - Keep S3 SDK calls here, not in `cmd/collector-aws-cloud` or the scanner
   package.
 - Wrap each AWS list page or point read in `recordAPICall`.
+- Keep S3 claims regional. Do not treat `aws-global` as an unfiltered bucket
+  scan.
+- Keep ListBuckets paginated by setting MaxBuckets before relying on
+  ContinuationToken.
 - Keep metric labels bounded to service, account, region, operation, and
   result.
 - Persist only safe bucket control-plane metadata.

@@ -68,7 +68,8 @@ spans.
 ## Evidence
 
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/s3/...`
-covers the bounded S3 metadata path: paginated ListBuckets, HeadBucket,
+covers the bounded S3 metadata path: regional paginated ListBuckets with
+MaxBuckets set, HeadBucket,
 GetBucketTagging, GetBucketVersioning, GetBucketEncryption,
 GetPublicAccessBlock, GetBucketPolicyStatus, GetBucketOwnershipControls,
 GetBucketWebsite, and GetBucketLogging; no object inventory calls, no policy

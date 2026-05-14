@@ -3,6 +3,7 @@ package awssdk
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -16,6 +17,8 @@ import (
 	s3service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/s3"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+const listBucketsMaxBuckets int32 = 10000
 
 type apiClient interface {
 	ListBuckets(context.Context, *awss3.ListBucketsInput, ...func(*awss3.Options)) (*awss3.ListBucketsOutput, error)
@@ -59,6 +62,10 @@ func NewClient(
 // credentials. Optional missing bucket-control-plane configurations are mapped
 // to empty metadata so an unconfigured bucket does not fail the scan.
 func (c *Client) ListBuckets(ctx context.Context) ([]s3service.Bucket, error) {
+	region, err := s3ClaimRegion(c.boundary.Region)
+	if err != nil {
+		return nil, err
+	}
 	var buckets []s3service.Bucket
 	var continuationToken *string
 	for {
@@ -66,8 +73,9 @@ func (c *Client) ListBuckets(ctx context.Context) ([]s3service.Bucket, error) {
 		err := c.recordAPICall(ctx, "ListBuckets", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListBuckets(callCtx, &awss3.ListBucketsInput{
-				BucketRegion:      bucketRegion(c.boundary.Region),
+				BucketRegion:      aws.String(region),
 				ContinuationToken: continuationToken,
+				MaxBuckets:        aws.Int32(listBucketsMaxBuckets),
 			})
 			return err
 		})
@@ -95,12 +103,12 @@ func (c *Client) ListBuckets(ctx context.Context) ([]s3service.Bucket, error) {
 	return buckets, nil
 }
 
-func bucketRegion(region string) *string {
+func s3ClaimRegion(region string) (string, error) {
 	region = strings.TrimSpace(region)
 	if region == "" || region == "aws-global" {
-		return nil
+		return "", fmt.Errorf("s3 ListBuckets requires a regional boundary, got %q", region)
 	}
-	return aws.String(region)
+	return region, nil
 }
 
 func (c *Client) bucketMetadata(ctx context.Context, listed awss3types.Bucket) (s3service.Bucket, error) {

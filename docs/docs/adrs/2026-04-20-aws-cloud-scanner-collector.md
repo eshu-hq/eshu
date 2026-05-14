@@ -176,7 +176,8 @@ the already documented `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
 surfaces apply without a separate deployment.
 
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/s3/...`
-covers the bounded S3 call shape: paginated ListBuckets plus HeadBucket,
+covers the bounded S3 call shape: regional paginated ListBuckets with
+MaxBuckets set plus HeadBucket,
 GetBucketTagging, GetBucketVersioning, GetBucketEncryption,
 GetPublicAccessBlock, GetBucketPolicyStatus, GetBucketOwnershipControls,
 GetBucketWebsite, and GetBucketLogging per discovered bucket; no object

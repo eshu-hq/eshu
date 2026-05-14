@@ -54,8 +54,11 @@ payloads stay out of metric labels.
 
 ## Gotchas / invariants
 
-- ListBuckets discovers buckets for the claimed region. HeadBucket confirms the
-  bucket region when the list response omits it.
+- ListBuckets is only valid for regional S3 claims. The adapter rejects
+  `aws-global` so one claim cannot emit buckets from every region under a global
+  scope.
+- ListBuckets sets MaxBuckets so S3 returns continuation tokens for large bucket
+  sets. HeadBucket confirms the bucket region when the list response omits it.
 - Optional missing configurations such as missing tag sets, website
   configuration, public access block, ownership controls, and bucket policy
   status are mapped to empty metadata.
