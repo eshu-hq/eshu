@@ -266,8 +266,8 @@ Required metrics:
 - `eshu_dp_package_registry_rate_limited_total{ecosystem}`
 - `eshu_dp_package_registry_generation_lag_seconds{ecosystem}`
 - `eshu_dp_package_registry_parse_failures_total{ecosystem,document_type}`
-- reducer counters for exact, derived, ambiguous, unresolved, and rejected
-  package-source correlations
+- reducer counters for exact, derived, ambiguous, unresolved, stale, and
+  rejected package-source correlations
 
 Metric labels must stay low-cardinality. Do not put package names, module
 paths, URLs, registry hostnames, scopes, versions, artifact paths, or private
@@ -361,7 +361,22 @@ run both Neo4j and NornicDB conformance for the statement shape.
    canonical package ownership or consumption edges are promoted. The first
    graph-promotion sub-slice materializes `Package`/`PackageVersion` identity
    and keeps source hints provenance-only; ownership and consumption remain for
-   reducer admission.
+   reducer admission. The admission classifier sub-slice now classifies
+   `package_registry.source_hint` repository URLs against repository
+   `remote_url` facts into exact, derived, ambiguous, unresolved, stale, and
+   rejected decisions while forcing `CanonicalWrites=0` and
+   `ProvenanceOnly=true` so registry metadata cannot become ownership truth by
+   itself.
+   No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildPackageSourceCorrelationDecisions'`
+   and `go test ./internal/reducer` pass on the reducer package with exact,
+   derived, ambiguous, unresolved, stale, and rejected package-source
+   correlation inputs; no graph backend is involved because this slice does not
+   execute Cypher or enqueue durable reducer work.
+   No-Observability-Change: this slice adds a pure deterministic classifier
+   that is not wired into a runtime handler yet. Existing package registry
+   collector metrics (`eshu_dp_package_registry_*`) and reducer queue/status
+   telemetry remain the operator surfaces; runtime counters for these
+   correlation outcomes land with the handler wiring slice.
 6. **Query lane:** expose package publication and consumption evidence only
    after graph truth and query truth agree for repo, service, and package
    surfaces. The first query sub-slice exposes bounded package/package-version
