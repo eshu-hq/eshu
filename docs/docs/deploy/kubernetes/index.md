@@ -4,11 +4,11 @@ Use this path when Eshu will run as a shared service for a team.
 
 The Helm chart is the supported Kubernetes entry point. It renders separate
 workloads for the API, MCP server, ingester, optional workflow coordinator, and
-resolution engine. It can also render separate optional collectors for
-Confluence documentation, OCI registries, and public GitHub, GitLab, or
-Bitbucket default-branch refresh triggers. Every database-backed workload also
-runs the `eshu-bootstrap-data-plane` init container before the main process
-starts.
+resolution engine. It can also render optional collectors for Confluence
+documentation, OCI registries, Terraform state, AWS cloud facts, package
+registries, and public GitHub, GitLab, or Bitbucket default-branch refresh
+triggers. Every database-backed workload also runs the
+`eshu-bootstrap-data-plane` init container before the main process starts.
 
 ## What gets deployed
 
@@ -21,6 +21,9 @@ starts.
 | Confluence collector | `Deployment` | Optional documentation collector that writes section facts to Postgres. |
 | Webhook listener | `Deployment` | Optional public webhook intake that writes targeted refresh triggers to Postgres. |
 | OCI registry collector | `Deployment` | Optional registry scanner that writes digest-addressed image facts to Postgres. |
+| Terraform-state collector | `Deployment` | Optional claim-driven worker that reads exact Terraform state sources and writes redacted facts to Postgres. |
+| AWS cloud collector | `Deployment` | Optional claim-driven worker that observes AWS account/region/service work and writes reported cloud facts to Postgres. |
+| Package registry collector | `Deployment` | Optional claim-driven worker that fetches explicit package metadata targets and writes package-registry facts to Postgres. |
 | Resolution engine | `Deployment` | Drains queued projection work and writes canonical graph state. |
 | DB migrate | `initContainer` | Applies Postgres and graph schema DDL before each workload starts. |
 

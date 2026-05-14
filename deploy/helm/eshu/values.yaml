@@ -248,6 +248,90 @@ ociRegistryCollector:
       cpu: 1000m
       memory: 2Gi
 
+terraformStateCollector:
+  enabled: false
+  replicas: 1
+  revisionHistoryLimit: 3
+  instanceId: terraform-state-primary
+  pollInterval: 1s
+  claimLeaseTTL: ""
+  heartbeatInterval: ""
+  sourceMaxBytes: ""
+  collectorInstances: []
+  redaction:
+    secretName: ""
+    keyKey: redaction-key
+    rulesetVersion: ""
+    sensitiveKeys: ""
+  extraEnv: []
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+awsCloudCollector:
+  enabled: false
+  replicas: 1
+  revisionHistoryLimit: 3
+  instanceId: aws-cloud-primary
+  pollInterval: 1s
+  claimLeaseTTL: ""
+  heartbeatInterval: ""
+  collectorInstances: []
+  redaction:
+    secretName: ""
+    keyKey: redaction-key
+  extraEnv: []
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+packageRegistryCollector:
+  enabled: false
+  replicas: 1
+  revisionHistoryLimit: 3
+  instanceId: package-registry-primary
+  pollInterval: 1s
+  claimLeaseTTL: ""
+  heartbeatInterval: ""
+  collectorInstances: []
+  extraEnv: []
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
 exposure:
   ingress:
     enabled: false

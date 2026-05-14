@@ -27,6 +27,15 @@ The chart lives at `deploy/helm/eshu`.
 | `ociRegistryCollector.targets` | `[]` | OCI registry repositories to scan. Supports `jfrog`, `ecr`, `dockerhub`, and `ghcr`. |
 | `ociRegistryCollector.aws.region` | empty | Optional AWS region env for ECR targets; EKS should use IRSA through `serviceAccount.annotations`. |
 | `ociRegistryCollector.extraEnv` | `[]` | Extra env entries, usually Secret refs for JFrog, Docker Hub, or GHCR credentials named by target env indirection. |
+| `terraformStateCollector.enabled` | `false` | Deploy the claim-driven Terraform-state collector. |
+| `terraformStateCollector.collectorInstances` | `[]` | Desired `terraform_state` collector instances rendered to `ESHU_COLLECTOR_INSTANCES_JSON`. |
+| `terraformStateCollector.redaction.secretName` | empty | Secret containing `ESHU_TFSTATE_REDACTION_KEY`. Required when enabled. |
+| `awsCloudCollector.enabled` | `false` | Deploy the claim-driven AWS cloud collector. |
+| `awsCloudCollector.collectorInstances` | `[]` | Desired `aws` collector instances rendered to `ESHU_COLLECTOR_INSTANCES_JSON`. |
+| `awsCloudCollector.redaction.secretName` | empty | Optional secret containing `ESHU_AWS_REDACTION_KEY`; required by the binary when ECS or Lambda scans are enabled. |
+| `packageRegistryCollector.enabled` | `false` | Deploy the claim-driven package registry collector. |
+| `packageRegistryCollector.collectorInstances` | `[]` | Desired `package_registry` collector instances rendered to `ESHU_COLLECTOR_INSTANCES_JSON`. |
+| `packageRegistryCollector.extraEnv` | `[]` | Secret-backed env vars named by package-registry target credential indirection. |
 | `webhookListener.enabled` | `false` | Deploy the public GitHub/GitLab/Bitbucket webhook intake runtime. |
 | `webhookListener.github.enabled` | `false` | Enable the GitHub route. Requires `github.secretName`. |
 | `webhookListener.gitlab.enabled` | `false` | Enable the GitLab route. Requires `gitlab.secretName`. |
@@ -86,6 +95,10 @@ The OCI registry collector is off by default. When enabled, it scans configured
 registry repositories and writes digest-addressed image facts to Postgres. ECR
 on EKS should use IAM Roles for Service Accounts through
 `serviceAccount.annotations`; do not set `aws_profile` in Kubernetes values.
+This chart keeps OCI registry in explicit direct-target mode through
+`ociRegistryCollector.targets`. Claim-aware OCI mode remains a runtime feature
+for local or custom deployments that set `ESHU_COLLECTOR_INSTANCES_JSON`
+directly.
 
 ```yaml
 serviceAccount:
@@ -136,6 +149,106 @@ ociRegistryCollector:
 
 This collector currently proves registry-to-Postgres fact ingestion. Graph
 projection and API/MCP image-correlation answers are a separate promotion step.
+
+## Claim-driven collectors
+
+Terraform-state, AWS cloud, and Package Registry collectors are off by default.
+When enabled, each workload selects one claim-capable collector instance from
+its own `collectorInstances` value and polls for durable workflow work. The
+chart renders `ESHU_COLLECTOR_INSTANCES_JSON`, the instance selector, claim
+lease TTL, heartbeat interval, pod-name owner ID, Postgres env, OTEL env,
+Prometheus env, probes, metrics Service, ServiceMonitor, NetworkPolicy, and
+PodDisruptionBudget for each enabled collector.
+
+The workflow coordinator chart still remains dark-only in this branch. These
+collector deployments are ready to claim work created by an approved control
+plane path, but Helm values do not promote the coordinator to active claim
+ownership yet.
+
+Terraform-state uses secret-backed redaction. Do not put redaction keys or
+state credentials in values:
+
+```yaml
+terraformStateCollector:
+  enabled: true
+  instanceId: terraform-state-primary
+  redaction:
+    secretName: tfstate-redaction
+    keyKey: redaction-key
+    rulesetVersion: schema-v1
+  collectorInstances:
+    - instance_id: terraform-state-primary
+      collector_kind: terraform_state
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        target_scopes:
+          - target_scope_id: aws-prod
+            provider: aws
+            deployment_mode: central
+            credential_mode: local_workload_identity
+            allowed_regions: [us-east-1]
+            allowed_backends: [s3]
+```
+
+AWS on EKS should use workload identity, not static access keys:
+
+```yaml
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-collector
+
+awsCloudCollector:
+  enabled: true
+  instanceId: aws-primary
+  collectorInstances:
+    - instance_id: aws-primary
+      collector_kind: aws
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        target_scopes:
+          - account_id: "123456789012"
+            allowed_regions: [us-east-1]
+            allowed_services: [iam, ecr]
+            credentials:
+              mode: local_workload_identity
+```
+
+Package registry credentials use target-level env indirection plus Secret refs:
+
+```yaml
+packageRegistryCollector:
+  enabled: true
+  collectorInstances:
+    - instance_id: package-registry-primary
+      collector_kind: package_registry
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - provider: jfrog
+            ecosystem: npm
+            registry: https://artifacts.example.test
+            scope_id: npm://artifacts.example.test/team/app
+            metadata_url: https://artifacts.example.test/api/npm/team/app
+            username_env: PACKAGE_REGISTRY_USERNAME
+            password_env: PACKAGE_REGISTRY_PASSWORD
+  extraEnv:
+    - name: PACKAGE_REGISTRY_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: package-registry-credentials
+          key: username
+    - name: PACKAGE_REGISTRY_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: package-registry-credentials
+          key: password
+```
 
 ## Webhook listener
 

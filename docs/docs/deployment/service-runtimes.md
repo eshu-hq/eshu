@@ -115,12 +115,14 @@ overlay.
 The repo also has local verification runtimes that exercise the Go data plane
 directly.
 
-Most verification runtimes are not yet separate deployed Kubernetes workloads
-in the public chart. `collector-oci-registry` is the exception in this branch:
-it can run as an optional Helm `Deployment` when `ociRegistryCollector.enabled`
-is true. Only the long-running hosted variants that mount `go/internal/runtime`
-expose the shared `/healthz`, `/readyz`, optional `/metrics`, and optional
-`/admin/status` contract:
+The public chart can deploy several collector runtimes as optional Kubernetes
+workloads. `collector-oci-registry` uses explicit direct targets in Helm values.
+`collector-terraform-state`, `collector-aws-cloud`, and
+`collector-package-registry` are claim-driven workloads that receive
+`ESHU_COLLECTOR_INSTANCES_JSON` from their chart values and claim durable
+workflow work. Only the long-running hosted variants that mount
+`go/internal/runtime` expose the shared `/healthz`, `/readyz`, optional
+`/metrics`, and optional `/admin/status` contract:
 
 - `collector-git`: `go run ./cmd/collector-git`
 - `collector-aws-cloud`: `go run ./cmd/collector-aws-cloud`
@@ -480,6 +482,11 @@ The coordinator ships dark by default in this slice:
 - the shared `/admin/status` surface stays on so operators can validate the
   control plane before ownership is enabled
 
+The Helm chart can still render the claim-driven collector workloads. Those
+workloads select their own claim-capable instance JSON and are ready to consume
+work created by an approved active control-plane lane. The chart does not use
+collector deployment values to bypass the coordinator dark-mode guard.
+
 For proof runs, Compose may run the coordinator in active mode only when the
 operator sets both claim flags and an explicit claim-enabled collector instance.
 That proof path is for fenced claim validation, API/MCP truth checks, and
@@ -659,6 +666,9 @@ render `ServiceMonitor` resources for:
 - Webhook Listener
 - Confluence Collector
 - OCI Registry Collector
+- Terraform-state Collector
+- AWS Cloud Collector
+- Package Registry Collector
 
 `ServiceMonitor` does not apply to the bootstrap helper because it is not a
 steady-state Kubernetes service in the public chart.

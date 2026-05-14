@@ -13,6 +13,39 @@
 {{- if and .Values.ociRegistryCollector.enabled (not .Values.ociRegistryCollector.targets) -}}
 {{- fail "ociRegistryCollector.targets must contain at least one target when ociRegistryCollector.enabled=true" -}}
 {{- end -}}
+{{- if .Values.terraformStateCollector.enabled -}}
+{{- if not .Values.terraformStateCollector.instanceId -}}
+{{- fail "terraformStateCollector.instanceId is required when terraformStateCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.terraformStateCollector.collectorInstances -}}
+{{- fail "terraformStateCollector.collectorInstances must contain at least one instance when terraformStateCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.terraformStateCollector.redaction.secretName -}}
+{{- fail "terraformStateCollector.redaction.secretName is required when terraformStateCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.terraformStateCollector.redaction.keyKey -}}
+{{- fail "terraformStateCollector.redaction.keyKey is required when terraformStateCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.terraformStateCollector.redaction.rulesetVersion -}}
+{{- fail "terraformStateCollector.redaction.rulesetVersion is required when terraformStateCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.awsCloudCollector.enabled -}}
+{{- if not .Values.awsCloudCollector.instanceId -}}
+{{- fail "awsCloudCollector.instanceId is required when awsCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.awsCloudCollector.collectorInstances -}}
+{{- fail "awsCloudCollector.collectorInstances must contain at least one instance when awsCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.packageRegistryCollector.enabled -}}
+{{- if not .Values.packageRegistryCollector.instanceId -}}
+{{- fail "packageRegistryCollector.instanceId is required when packageRegistryCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.packageRegistryCollector.collectorInstances -}}
+{{- fail "packageRegistryCollector.collectorInstances must contain at least one instance when packageRegistryCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
 {{- if and .Values.workflowCoordinator.enabled (ne .Values.workflowCoordinator.deploymentMode "dark") -}}
 {{- fail "workflowCoordinator.deploymentMode must remain dark in this chart until coordinator-owned claims finish proof validation" -}}
 {{- end -}}

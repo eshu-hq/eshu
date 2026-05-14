@@ -37,6 +37,28 @@
         "postgres": { "$ref": "#/definitions/postgresConnectionTuning" },
         "neo4j": { "$ref": "#/definitions/neo4jConnectionTuning" }
       }
+    },
+    "collectorInstances": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "instance_id": { "type": "string" },
+          "collector_kind": { "type": "string" },
+          "mode": { "type": "string" },
+          "enabled": { "type": "boolean" },
+          "bootstrap": { "type": "boolean" },
+          "claims_enabled": { "type": "boolean" },
+          "display_name": { "type": "string" },
+          "configuration": {}
+        },
+        "required": ["instance_id", "collector_kind", "mode", "enabled", "claims_enabled"],
+        "additionalProperties": false
+      }
+    },
+    "secretEnv": {
+      "type": "array",
+      "items": { "type": "object" }
     }
   },
   "properties": {
@@ -322,6 +344,117 @@
           "then": {
             "properties": {
               "targets": { "minItems": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "terraformStateCollector": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "instanceId": { "type": "string" },
+        "pollInterval": { "type": "string" },
+        "claimLeaseTTL": { "type": "string" },
+        "heartbeatInterval": { "type": "string" },
+        "sourceMaxBytes": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "string" }
+          ]
+        },
+        "collectorInstances": { "$ref": "#/definitions/collectorInstances" },
+        "redaction": {
+          "type": "object",
+          "properties": {
+            "secretName": { "type": "string" },
+            "keyKey": { "type": "string" },
+            "rulesetVersion": { "type": "string" },
+            "sensitiveKeys": { "type": "string" }
+          }
+        },
+        "extraEnv": { "$ref": "#/definitions/secretEnv" },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } } },
+          "then": {
+            "properties": {
+              "collectorInstances": { "minItems": 1 },
+              "instanceId": { "minLength": 1 },
+              "redaction": {
+                "properties": {
+                  "secretName": { "minLength": 1 },
+                  "keyKey": { "minLength": 1 },
+                  "rulesetVersion": { "minLength": 1 }
+                },
+                "required": ["secretName", "keyKey", "rulesetVersion"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "awsCloudCollector": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "instanceId": { "type": "string" },
+        "pollInterval": { "type": "string" },
+        "claimLeaseTTL": { "type": "string" },
+        "heartbeatInterval": { "type": "string" },
+        "collectorInstances": { "$ref": "#/definitions/collectorInstances" },
+        "redaction": {
+          "type": "object",
+          "properties": {
+            "secretName": { "type": "string" },
+            "keyKey": { "type": "string" }
+          }
+        },
+        "extraEnv": { "$ref": "#/definitions/secretEnv" },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } } },
+          "then": {
+            "properties": {
+              "collectorInstances": { "minItems": 1 },
+              "instanceId": { "minLength": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "packageRegistryCollector": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "instanceId": { "type": "string" },
+        "pollInterval": { "type": "string" },
+        "claimLeaseTTL": { "type": "string" },
+        "heartbeatInterval": { "type": "string" },
+        "collectorInstances": { "$ref": "#/definitions/collectorInstances" },
+        "extraEnv": { "$ref": "#/definitions/secretEnv" },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } } },
+          "then": {
+            "properties": {
+              "collectorInstances": { "minItems": 1 },
+              "instanceId": { "minLength": 1 }
             }
           }
         }
