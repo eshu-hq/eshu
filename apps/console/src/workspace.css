@@ -203,6 +203,139 @@
   font-size: 0.86rem;
 }
 
+.catalog-coverage-strip {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.catalog-coverage-strip div {
+  background: color-mix(in oklch, var(--accent), var(--surface) 92%);
+  border-right: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+  min-height: 76px;
+  padding: 15px 16px;
+}
+
+.catalog-coverage-strip div:last-child {
+  border-right: 0;
+}
+
+.catalog-coverage-strip span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.catalog-coverage-strip strong {
+  color: var(--text);
+  font-size: clamp(1.08rem, 1.4vw, 1.34rem);
+  line-height: 1.15;
+}
+
+.catalog-workbench {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
+}
+
+.catalog-results {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.catalog-workbench-empty {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.catalog-row-scope {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 170px;
+}
+
+.catalog-row-scope span {
+  overflow-wrap: anywhere;
+}
+
+.catalog-row-scope button {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  font-weight: 720;
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+.catalog-row-scope button:hover,
+.catalog-dossier a:hover {
+  background: var(--surface-raised);
+}
+
+.catalog-dossier {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  position: sticky;
+  top: 88px;
+}
+
+.catalog-dossier h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.catalog-dossier dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.catalog-dossier div {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  padding-bottom: 10px;
+}
+
+.catalog-dossier div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.catalog-dossier dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.catalog-dossier dd {
+  color: var(--text);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.catalog-dossier a {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  font-weight: 760;
+  justify-self: start;
+  padding: 8px 10px;
+}
+
 .service-relationship-groups {
   display: grid;
   gap: 12px;
@@ -299,11 +432,26 @@
   }
 
   .workspace-page .workspace-summary,
+  .catalog-coverage-strip,
+  .catalog-workbench,
   .catalog-kind-tabs,
   .service-relationship-groups,
   .workspace-page .overview-list,
   .workspace-evidence-story .evidence-row {
     grid-template-columns: 1fr;
+  }
+
+  .catalog-coverage-strip div {
+    border-bottom: 1px solid var(--line);
+    border-right: 0;
+  }
+
+  .catalog-coverage-strip div:last-child {
+    border-bottom: 0;
+  }
+
+  .catalog-dossier {
+    position: static;
   }
 
   .catalog-kind-tabs button {

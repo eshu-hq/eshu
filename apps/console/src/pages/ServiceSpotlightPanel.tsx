@@ -1,17 +1,17 @@
 import { useMemo, useState } from "react";
 import type {
-  ServiceConsumer,
-  ServiceDependency,
   ServiceEndpoint,
   ServiceHostname,
   ServiceDeploymentLane,
   ServiceSpotlight
 } from "../api/serviceSpotlight";
-import { ServiceDeploymentLaneMap } from "../visualization/ServiceDeploymentLaneMap";
+import { ServiceEvidenceRail, ServiceTrustStrip } from "./ServiceAtlasEvidence";
 import { ServiceChangeSurfacePanel } from "./ServiceChangeSurfacePanel";
 import { ServiceCodeInvestigationPanel } from "./ServiceCodeInvestigationPanel";
 import { ServiceConfigInfluencePanel } from "./ServiceConfigInfluencePanel";
 import { ServiceInvestigationPanel } from "./ServiceInvestigationPanel";
+import { ServiceRelationshipExplorer } from "./ServiceRelationshipExplorer";
+import { ServiceRelationshipWorkbench } from "./ServiceRelationshipWorkbench";
 import { ServiceTrafficPathPanel } from "./ServiceTrafficPathPanel";
 
 export function ServiceSpotlightPanel({
@@ -20,10 +20,11 @@ export function ServiceSpotlightPanel({
   readonly spotlight: ServiceSpotlight;
 }): React.JSX.Element {
   return (
-    <section aria-label="Service intelligence" className="service-spotlight">
-      <div className="service-brief">
-        <div className="service-brief-copy">
+    <section aria-label="Service Atlas" className="service-spotlight service-atlas">
+      <div className="service-atlas-header">
+        <div className="service-atlas-copy">
           <span className="entity-kind">Service</span>
+          <h2>Service Atlas</h2>
           <h1>{spotlight.name}</h1>
           <p>{humanSummary(spotlight)}</p>
           <div className="service-storyline" aria-label="Service story highlights">
@@ -39,15 +40,22 @@ export function ServiceSpotlightPanel({
         <MetricList spotlight={spotlight} />
       </div>
 
-      <div className="service-deployment-board">
-        <section aria-label="Deployment story" className="service-panel service-map-panel">
-          <PanelHeading
-            detail={deploymentSentence(spotlight)}
-            title="Deployment"
-          />
-          <ServiceDeploymentLaneMap spotlight={spotlight} />
-        </section>
-        <LaneCards lanes={spotlight.lanes} />
+      <ServiceTrustStrip spotlight={spotlight} />
+
+      <div className="service-atlas-workbench">
+        <div className="service-atlas-workbench-main">
+          <div className="service-deployment-board">
+            <section aria-label="Deployment story" className="service-panel service-map-panel">
+              <PanelHeading
+                detail={relationshipMapSentence(spotlight)}
+                title="Service flow"
+              />
+              <ServiceRelationshipWorkbench spotlight={spotlight} />
+            </section>
+            <LaneCards lanes={spotlight.lanes} />
+          </div>
+        </div>
+        <ServiceEvidenceRail spotlight={spotlight} />
       </div>
 
       <EntryPointStrip hostnames={spotlight.hostnames} />
@@ -63,6 +71,7 @@ export function ServiceSpotlightPanel({
           endpoints={spotlight.api.endpoints}
         />
         <RelationshipList
+          clusters={spotlight.relationshipClusters}
           dependencies={spotlight.dependencies}
           graphDependents={spotlight.graphDependents}
           lanes={spotlight.lanes}
@@ -116,15 +125,12 @@ function StoryPill({
   );
 }
 
-function deploymentSentence(spotlight: ServiceSpotlight): string {
+function relationshipMapSentence(spotlight: ServiceSpotlight): string {
   const lanes = spotlight.lanes.map((lane) => lane.label).join(" and ");
-  const environments = [
-    ...new Set(spotlight.lanes.flatMap((lane) => lane.environments))
-  ];
-  if (lanes.length === 0 || environments.length === 0) {
-    return "Deployment evidence is still being gathered.";
+  if (lanes.length === 0) {
+    return "Drag the map and click relationships to inspect evidence as it arrives.";
   }
-  return `Runs in ${lanes} across ${environments.join(", ")}. Click a lane to inspect the source repos and relationship verbs.`;
+  return `Explore ${lanes} plus config dependencies. Drag nodes and click edges for proof.`;
 }
 
 function deploymentHeadline(spotlight: ServiceSpotlight): string {
@@ -205,119 +211,7 @@ function filterEndpoints(
   );
 }
 
-function RelationshipList({
-  dependencies,
-  graphDependents,
-  lanes,
-  references,
-  totals
-}: {
-  readonly dependencies: readonly ServiceDependency[];
-  readonly graphDependents: readonly ServiceConsumer[];
-  readonly lanes: readonly ServiceDeploymentLane[];
-  readonly references: readonly ServiceConsumer[];
-  readonly totals: ServiceSpotlight["relationshipCounts"];
-}): React.JSX.Element {
-  return (
-    <section aria-label="Service relationships" className="service-panel">
-      <PanelHeading
-        detail={`${totals.downstream} downstream, ${totals.upstream} upstream`}
-        title="Relationships"
-      />
-      <div className="service-relationship-groups">
-        <LaneSourceList lanes={lanes} />
-        <ConsumerList
-          consumers={references}
-          count={totals.references}
-          heading="Repos that mention it"
-        />
-        <ConsumerList
-          consumers={graphDependents}
-          count={totals.graphDependents}
-          heading="Typed dependents"
-        />
-        <DependencyList dependencies={dependencies} total={totals.upstream} />
-      </div>
-    </section>
-  );
-}
-
-function LaneSourceList({
-  lanes
-}: {
-  readonly lanes: readonly ServiceDeploymentLane[];
-}): React.JSX.Element {
-  return (
-    <div className="service-relationship-group service-relationship-group-wide">
-      <div className="service-relationship-group-heading">
-        <h4>What deploys or provisions it</h4>
-        <span>{lanes.length} lanes</span>
-      </div>
-      {lanes.map((lane) => (
-        <article key={lane.label}>
-          <strong>{lane.label}</strong>
-          <EvidenceLabels labels={lane.relationshipTypes} fallback="deployment evidence" />
-          <small>{lane.environments.join(", ") || "environment pending"}</small>
-          <p>{lane.sourceRepos.join(", ") || "Source repository not observed."}</p>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function ConsumerList({
-  consumers,
-  count,
-  heading
-}: {
-  readonly consumers: readonly ServiceConsumer[];
-  readonly count: number;
-  readonly heading: string;
-}): React.JSX.Element {
-  return (
-    <div className="service-relationship-group">
-      <div className="service-relationship-group-heading">
-        <h4>{heading}</h4>
-        <span>{count} observed</span>
-      </div>
-      {consumers.slice(0, 8).map((consumer, index) => (
-        <article key={`${heading}:${consumer.repository}:${index}`}>
-          <strong>{consumer.repository}</strong>
-          <EvidenceLabels labels={consumerLabels(consumer)} fallback="observed reference" />
-          <p>{consumer.samplePaths[0] ?? consumer.matchedValues[0] ?? "Evidence observed."}</p>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function consumerLabels(consumer: ServiceConsumer): readonly string[] {
-  return [...consumer.relationshipTypes, ...consumer.consumerKinds].map(prettyLabel);
-}
-
-function DependencyList({
-  dependencies,
-  total
-}: {
-  readonly dependencies: readonly ServiceDependency[];
-  readonly total: number;
-}): React.JSX.Element {
-  return (
-    <div className="service-relationship-group">
-      <div className="service-relationship-group-heading">
-        <h4>Upstream relationships</h4>
-        <span>{total} observed</span>
-      </div>
-      {dependencies.slice(0, 8).map((dependency, index) => (
-        <article key={`${dependency.type}:${dependency.targetName}:${index}`}>
-          <strong>{dependency.targetName}</strong>
-          <EvidenceLabels labels={[dependency.type]} fallback="relationship evidence" />
-          <p>{dependency.rationale}</p>
-        </article>
-      ))}
-    </div>
-  );
-}
+const RelationshipList = ServiceRelationshipExplorer;
 
 function LaneCards({
   lanes
@@ -364,10 +258,6 @@ function EvidenceLabels({
       ))}
     </div>
   );
-}
-
-function prettyLabel(label: string): string {
-  return label === label.toUpperCase() ? label : label.replace(/_/g, " ");
 }
 
 function EntryPointStrip({

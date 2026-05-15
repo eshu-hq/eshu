@@ -58,7 +58,6 @@
   display: block;
   font-size: 0.76rem;
   margin-bottom: 6px;
-  text-transform: uppercase;
 }
 
 .service-metrics {
@@ -173,7 +172,7 @@
 .service-entrypoints article span {
   background: color-mix(in oklch, var(--relation), var(--field) 88%);
   border: 1px solid color-mix(in oklch, var(--relation), var(--line) 62%);
-  border-radius: 999px;
+  border-radius: 7px;
   color: var(--relation);
   font-size: 0.78rem;
   font-weight: 760;
@@ -274,190 +273,6 @@
   overflow-wrap: anywhere;
 }
 
-.service-investigation {
-  background: color-mix(in oklch, var(--relation), var(--surface) 96%);
-  border: 1px solid color-mix(in oklch, var(--relation), var(--line) 72%);
-  border-radius: 8px;
-  display: grid;
-  gap: 16px;
-  padding: 16px;
-}
-
-.service-investigation-summary {
-  align-items: start;
-  display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.45fr);
-}
-
-.service-investigation-summary h2 {
-  font-size: 1.3rem;
-  margin: 4px 0 0;
-}
-
-.service-investigation-summary p {
-  max-width: 72ch;
-}
-
-.service-investigation-summary dl,
-.service-investigation-grid {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-}
-
-.service-investigation-summary dl {
-  grid-template-columns: 1fr;
-}
-
-.service-investigation-summary dl div,
-.service-investigation-grid section,
-.service-investigation-list article {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.service-investigation-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.service-investigation-grid h3 {
-  margin: 0 0 10px;
-}
-
-.service-investigation-list {
-  display: grid;
-  gap: 8px;
-}
-
-.service-investigation-list article {
-  display: grid;
-  gap: 5px;
-}
-
-.service-investigation-list strong,
-.service-investigation-list p,
-.service-investigation-list small {
-  overflow-wrap: anywhere;
-}
-
-.service-investigation-list p,
-.service-investigation-list small {
-  color: var(--muted);
-  margin: 0;
-}
-
-.service-code-investigation {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  display: grid;
-  gap: 18px;
-  padding: 18px;
-}
-
-.service-code-investigation-copy {
-  max-width: 75ch;
-}
-
-.service-code-investigation-copy h2 {
-  font-size: 1.25rem;
-  margin: 5px 0 8px;
-}
-
-.service-code-investigation-copy p,
-.service-code-investigation-grid p,
-.service-code-next-calls small {
-  color: var(--muted);
-  margin: 0;
-}
-
-.service-code-investigation-summary {
-  align-items: start;
-  display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(260px, 0.45fr) 1fr;
-}
-
-.service-code-investigation-summary dl {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 0;
-}
-
-.service-code-investigation-summary dl div,
-.service-code-investigation-grid article,
-.service-code-next-calls article {
-  background: var(--field);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 10px;
-}
-
-.service-code-investigation-summary dt {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.service-code-investigation-summary dd {
-  font-size: 1.2rem;
-  font-weight: 800;
-  margin: 2px 0 0;
-}
-
-.service-code-investigation-grid {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.service-code-investigation-grid article {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-.service-code-investigation-grid article div {
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
-}
-
-.service-code-investigation-grid strong,
-.service-code-investigation-grid p,
-.service-code-investigation-grid small,
-.service-code-next-calls strong,
-.service-code-next-calls small {
-  overflow-wrap: anywhere;
-}
-
-.service-code-investigation-grid span,
-.service-code-investigation-grid small {
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 650;
-}
-
-.service-code-next-calls {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: 180px repeat(3, minmax(0, 1fr));
-}
-
-.service-code-next-calls h3 {
-  font-size: 0.9rem;
-  margin: 0;
-}
-
-.service-code-next-calls article {
-  display: grid;
-  gap: 4px;
-}
-
 .service-operating-grid {
   grid-template-columns: minmax(0, 1fr) minmax(360px, 0.72fr);
 }
@@ -494,14 +309,101 @@
   overflow-wrap: anywhere;
 }
 
+.service-deployment-source-grid,
+.service-deployment-source-repos,
+.service-relationship-cluster-grid,
+.service-relationship-repos {
+  display: grid;
+  gap: 10px;
+}
+
+.service-deployment-source-grid,
+.service-deployment-source-repos,
+.service-relationship-cluster-grid {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.service-relationship-cluster {
+  align-content: start;
+}
+
+.service-relationship-cluster > .service-tech-row {
+  align-items: start;
+}
+
+.service-relationship-cluster > .service-tech-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.service-relationship-repo {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+}
+
+.service-relationship-repo span:last-child,
+.service-relationship-repo small {
+  overflow-wrap: anywhere;
+}
+
+.service-tech-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.service-tech-mark {
+  align-items: center;
+  background: color-mix(in oklch, var(--field), white 4%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 8px;
+}
+
+.service-tech-mark span {
+  font-size: 0.72rem;
+  font-weight: 790;
+  white-space: nowrap;
+}
+
+.service-tech-mark-terraform {
+  background: color-mix(in oklch, #7b61ff, var(--field) 84%);
+  border-color: color-mix(in oklch, #7b61ff, var(--line) 52%);
+}
+
+.service-tech-mark-argocd {
+  background: color-mix(in oklch, #ff7f50, var(--field) 84%);
+  border-color: color-mix(in oklch, #ff7f50, var(--line) 52%);
+}
+
+.service-tech-mark-helm {
+  background: color-mix(in oklch, #2e8df7, var(--field) 84%);
+  border-color: color-mix(in oklch, #2e8df7, var(--line) 52%);
+}
+
+.service-tech-mark-kubernetes {
+  background: color-mix(in oklch, #38bdf8, var(--field) 84%);
+  border-color: color-mix(in oklch, #38bdf8, var(--line) 52%);
+}
+
+.service-tech-mark-github_actions,
+.service-tech-mark-config {
+  background: color-mix(in oklch, var(--accent), var(--field) 84%);
+  border-color: color-mix(in oklch, var(--accent), var(--line) 52%);
+}
+
 @media (max-width: 900px) {
   .service-brief,
   .service-deployment-board,
-  .service-code-investigation-grid,
-  .service-code-investigation-summary,
-  .service-code-next-calls,
-  .service-investigation-grid,
-  .service-investigation-summary,
   .service-metrics,
   .service-operating-grid {
     grid-template-columns: 1fr;

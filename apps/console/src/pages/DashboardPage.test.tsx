@@ -10,6 +10,7 @@ describe("DashboardPage", () => {
         const path = new URL(new Request(input).url).pathname;
         if (path.endsWith("/api/v0/repositories")) {
           return Response.json({
+            count: 3,
             repositories: [
               { id: "repository:r_1", name: "mobius-tools" },
               { id: "repository:r_3", name: "hapi-phraseapp" },
@@ -235,12 +236,12 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Runtime topology")).toBeInTheDocument();
     expect(screen.getAllByText("DISCOVERS_CONFIG_IN").length).toBeGreaterThan(0);
     expect(screen.getAllByText("DEPLOYS_FROM").length).toBeGreaterThan(0);
-    expect(screen.getByText("RUNS_ON")).toBeInTheDocument();
-    expect(screen.getByText("READS_CONFIG_FROM")).toBeInTheDocument();
+    expect(screen.getAllByText("RUNS_ON").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("READS_CONFIG_FROM").length).toBeGreaterThan(0);
     expect(screen.getByText("PROVISIONS_PLATFORM")).toBeInTheDocument();
     expect(screen.getByText("DEPLOYMENT_SOURCE")).toBeInTheDocument();
     expect(
-      await screen.findByRole("heading", { name: "checkout-api" })
+      await screen.findByRole("heading", { level: 1, name: "checkout-api" })
     ).toBeInTheDocument();
     expect(screen.getAllByText("3 endpoints").length).toBeGreaterThan(0);
     expect(screen.getAllByText("/v1/orders").length).toBeGreaterThan(0);
@@ -267,6 +268,7 @@ describe("DashboardPage", () => {
         const path = new URL(new Request(input).url).pathname;
         if (path.endsWith("/api/v0/repositories")) {
           return Response.json({
+            count: 2,
             repositories: [
               { id: "repository:r_1", name: "boats-chatgpt-app" },
               { id: "repository:r_2", name: "iac-eks-pcg" }

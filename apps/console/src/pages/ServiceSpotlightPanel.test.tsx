@@ -19,7 +19,13 @@ describe("ServiceSpotlightPanel", () => {
   it("presents deployment lanes before raw evidence details", async () => {
     render(<ServiceSpotlightPanel spotlight={spotlight} />);
 
-    expect(screen.getByRole("heading", { name: "api-node-boats" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "api-node-boats" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Service Atlas" })).toBeInTheDocument();
+    expect(screen.getByText("Partial coverage")).toBeInTheDocument();
+    expect(screen.getByText("26 repositories")).toBeInTheDocument();
+    expect(screen.getByText("6 evidence families")).toBeInTheDocument();
+    expect(screen.getByText("Fresh truth")).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Evidence drilldown" })).toBeInTheDocument();
     expect(screen.getAllByText("38 endpoints").length).toBeGreaterThan(0);
     expect(screen.getByText("44 methods")).toBeInTheDocument();
     expect(screen.getAllByText("2 lanes").length).toBeGreaterThan(0);
@@ -30,9 +36,9 @@ describe("ServiceSpotlightPanel", () => {
     expect(screen.getByText("Partial")).toBeInTheDocument();
     expect(screen.getByText("26 with evidence of 26 checked")).toBeInTheDocument();
     expect(screen.getAllByText("API Surface").length).toBeGreaterThan(0);
-    expect(screen.getByText("38 endpoint(s) across 0 spec file(s)")).toBeInTheDocument();
+    expect(screen.getAllByText("38 endpoint(s) across 0 spec file(s)").length).toBeGreaterThan(0);
     expect(screen.getByText("Service story")).toBeInTheDocument();
-    expect(screen.getByText("retrieve the full one-call dossier")).toBeInTheDocument();
+    expect(screen.getAllByText("retrieve the full one-call dossier").length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Traffic path" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "api-node-boats traffic path" })).toBeInTheDocument();
     expect(screen.getAllByText("CloudFront distribution").length).toBeGreaterThan(1);
@@ -46,25 +52,41 @@ describe("ServiceSpotlightPanel", () => {
     expect(screen.getAllByText(/clusters\/bg-prod\/api-node-boats\/values.yaml/).length).toBeGreaterThan(0);
     expect(screen.getByText("get_file_lines from line 17")).toBeInTheDocument();
 
-    const laneMap = screen.getByLabelText("api-node-boats deployment lane map");
-    expect(within(laneMap).getByText("api-node-boats")).toBeInTheDocument();
-    expect(within(laneMap).getByRole("button", { name: /Kubernetes lane/i })).toBeInTheDocument();
-    expect(within(laneMap).getByRole("button", { name: /ECS lane/i })).toBeInTheDocument();
+    const relationshipMap = screen.getByRole("img", { name: "api-node-boats relationship map" });
+    expect(within(relationshipMap).getByText("api-node-boats")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deployment flow" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Config dependencies" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset view" })).toBeInTheDocument();
 
     expect(screen.getAllByText("bg-dev, bg-prod, bg-qa, ops-prod, ops-qa").length).toBeGreaterThan(0);
     expect(screen.getAllByText("7 items").length).toBeGreaterThan(0);
     expect(screen.getAllByText("DEPLOYS_FROM").length).toBeGreaterThan(0);
     expect(screen.queryByText("Lane evidence")).not.toBeInTheDocument();
+    expect(within(relationshipMap).getByText("terraform-stack-node10")).toBeInTheDocument();
+    expect(within(relationshipMap).getByText("iac-eks-argocd")).toBeInTheDocument();
+    expect(within(relationshipMap).queryByText("terraform-stack-boattrader")).not.toBeInTheDocument();
 
-    fireEvent.click(within(laneMap).getByRole("button", { name: /ECS lane/i }));
+    const deploymentSources = screen.getByRole("region", { name: "Deployment sources" });
+    expect(within(deploymentSources).getByRole("heading", { name: "Deployment sources" })).toBeInTheDocument();
+    expect(within(deploymentSources).queryByText("READS_CONFIG_FROM")).not.toBeInTheDocument();
+    expect(within(deploymentSources).queryByText("terraform-stack-boattrader")).not.toBeInTheDocument();
 
-    expect(screen.getAllByText("bg-dev, bg-prod, bg-qa").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("57 items").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("PROVISIONS_DEPENDENCY_FOR").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("READS_CONFIG_FROM").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("terraform-stack-node10").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Config dependencies" }));
 
-    expect(screen.getByRole("heading", { name: "What deploys or provisions it" })).toBeInTheDocument();
+    const configRelationshipMap = screen.getByRole("img", { name: "api-node-boats relationship map" });
+    expect(within(configRelationshipMap).getByText("terraform-stack-boattrader")).toBeInTheDocument();
+    expect(within(configRelationshipMap).getAllByText("READS_CONFIG_FROM").length).toBeGreaterThan(0);
+    expect(within(configRelationshipMap).queryByText("iac-eks-argocd")).not.toBeInTheDocument();
+
+    const dependencyGraph = screen.getByRole("region", { name: "Config and dependency graph" });
+    expect(within(dependencyGraph).getByRole("heading", { name: "Config and dependency graph" })).toBeInTheDocument();
+    expect(within(dependencyGraph).getByText("Runtime provisioning")).toBeInTheDocument();
+    expect(within(dependencyGraph).getByText("Configuration access")).toBeInTheDocument();
+    expect(within(dependencyGraph).getAllByText("Terraform resource").length).toBeGreaterThan(0);
+    expect(within(dependencyGraph).getByText("READS_CONFIG_FROM")).toBeInTheDocument();
+    expect(within(dependencyGraph).getByText("terraform-stack-boattrader")).toBeInTheDocument();
+
+    expect(screen.getAllByText("ArgoCD").length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Repos that mention it" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Typed dependents" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Upstream relationships" })).toBeInTheDocument();
@@ -238,37 +260,20 @@ const spotlight: ServiceSpotlight = {
   api: {
     endpointCount: 38,
     endpoints: [
-      {
-        methods: ["get"],
-        operationIds: ["getListing"],
-        path: "/getListing",
-        sourcePaths: ["specs/index.yaml"]
-      },
-      {
-        methods: ["get"],
-        operationIds: ["getVersion"],
-        path: "/_version",
-        sourcePaths: ["catalog-specs.yaml"]
-      },
-      {
-        methods: ["get"],
-        operationIds: ["getVersion"],
-        path: "/_version",
-        sourcePaths: ["openapi/catalog-specs.yaml"]
-      }
+      { methods: ["get"], operationIds: ["getListing"], path: "/getListing", sourcePaths: ["specs/index.yaml"] },
+      { methods: ["get"], operationIds: ["getVersion"], path: "/_version", sourcePaths: ["catalog-specs.yaml"] },
+      { methods: ["get"], operationIds: ["getVersion"], path: "/_version", sourcePaths: ["openapi/catalog-specs.yaml"] }
     ],
     methodCount: 44,
     sourcePaths: ["catalog-specs.yaml", "specs/index.yaml"]
   },
-  consumers: [
-    {
-      consumerKinds: ["service_reference_consumer"],
-      matchedValues: ["api-node-boats"],
-      relationshipTypes: [],
-      repository: "terraform-stack-node10",
-      samplePaths: ["environments/bg-prod/ecs.tf"]
-    }
-  ],
+  consumers: [{
+    consumerKinds: ["service_reference_consumer"],
+    matchedValues: ["api-node-boats"],
+    relationshipTypes: [],
+    repository: "terraform-stack-node10",
+    samplePaths: ["environments/bg-prod/ecs.tf"]
+  }],
   configInfluence: {
     coverage: {
       limit: 25,
@@ -276,39 +281,21 @@ const spotlight: ServiceSpotlight = {
       truncated: false
     },
     repositories: [
-      {
-        name: "api-node-boats",
-        roles: ["service_owner"]
-      },
-      {
-        name: "iac-eks-argocd",
-        roles: ["configuration_artifact", "deployment_source"]
-      }
+      { name: "api-node-boats", roles: ["service_owner"] },
+      { name: "iac-eks-argocd", roles: ["configuration_artifact", "deployment_source"] }
     ],
     sections: [
       {
         count: 1,
         items: [
-          {
-            evidenceKind: "helm_values_reference",
-            label: "values.yaml",
-            path: "clusters/bg-prod/api-node-boats/values.yaml",
-            repoName: "iac-eks-argocd",
-            value: "shared values"
-          }
+          { evidenceKind: "helm_values_reference", label: "values.yaml", path: "clusters/bg-prod/api-node-boats/values.yaml", repoName: "iac-eks-argocd", value: "shared values" }
         ],
         label: "Values layers"
       },
       {
         count: 1,
         items: [
-          {
-            evidenceKind: "helm_values_reference",
-            label: "image.tag",
-            path: "clusters/bg-prod/api-node-boats/values.yaml",
-            repoName: "iac-eks-argocd",
-            value: "ghcr.io/boats/api-node-boats:1.2.3"
-          }
+          { evidenceKind: "helm_values_reference", label: "image.tag", path: "clusters/bg-prod/api-node-boats/values.yaml", repoName: "iac-eks-argocd", value: "ghcr.io/boats/api-node-boats:1.2.3" }
         ],
         label: "Image tags"
       },
@@ -320,41 +307,21 @@ const spotlight: ServiceSpotlight = {
       {
         count: 1,
         items: [
-          {
-            evidenceKind: "kubernetes_resource_limit",
-            label: "resources.limits.cpu",
-            path: "charts/api-node-boats/templates/deployment.yaml",
-            repoName: "helm-charts",
-            value: "500m"
-          }
+          { evidenceKind: "kubernetes_resource_limit", label: "resources.limits.cpu", path: "charts/api-node-boats/templates/deployment.yaml", repoName: "helm-charts", value: "500m" }
         ],
         label: "Resource limits"
       },
       {
         count: 1,
         items: [
-          {
-            evidenceKind: "kubernetes_resource",
-            label: "Deployment",
-            path: "",
-            repoName: "",
-            value: "api-node-boats"
-          }
+          { evidenceKind: "kubernetes_resource", label: "Deployment", path: "", repoName: "", value: "api-node-boats" }
         ],
         label: "Rendered targets"
       },
       {
         count: 1,
         items: [
-          {
-            action: "get_file_lines",
-            evidenceKind: "helm_values_reference",
-            label: "values.yaml",
-            line: 17,
-            path: "clusters/bg-prod/api-node-boats/values.yaml",
-            repoName: "iac-eks-argocd",
-            value: ""
-          }
+          { action: "get_file_lines", evidenceKind: "helm_values_reference", label: "values.yaml", line: 17, path: "clusters/bg-prod/api-node-boats/values.yaml", repoName: "iac-eks-argocd", value: "" }
         ],
         label: "Read first"
       }
@@ -362,23 +329,19 @@ const spotlight: ServiceSpotlight = {
     serviceName: "api-node-boats",
     summary: "api-node-boats is influenced by 1 values layer and 1 image tag source."
   },
-  graphDependents: [
-    {
-      consumerKinds: ["graph_provisioning_consumer"],
-      matchedValues: ["api-node-boats"],
-      relationshipTypes: ["DEPLOYS_FROM"],
-      repository: "iac-eks-argocd",
-      samplePaths: []
-    }
-  ],
-  dependencies: [
-    {
-      evidenceCount: 4,
-      rationale: "Reusable workflow owns deployment logic.",
-      targetName: "core-engineering-automation",
-      type: "DEPLOYS_FROM"
-    }
-  ],
+  graphDependents: [{
+    consumerKinds: ["graph_provisioning_consumer"],
+    matchedValues: ["api-node-boats"],
+    relationshipTypes: ["DEPLOYS_FROM"],
+    repository: "iac-eks-argocd",
+    samplePaths: []
+  }],
+  dependencies: [{
+    evidenceCount: 4,
+    rationale: "Reusable workflow owns deployment logic.",
+    targetName: "core-engineering-automation",
+    type: "DEPLOYS_FROM"
+  }],
   deploymentGraph: { links: [], nodes: [] },
   lanes: [
     {
@@ -390,41 +353,96 @@ const spotlight: ServiceSpotlight = {
     },
     {
       environments: ["bg-dev", "bg-prod", "bg-qa"],
-      evidenceCount: 57,
+      evidenceCount: 1,
       label: "ECS",
-      relationshipTypes: ["PROVISIONS_DEPENDENCY_FOR", "READS_CONFIG_FROM"],
-      sourceRepos: ["terraform-stack-node10", "terraform-stack-helm"]
+      relationshipTypes: ["PROVISIONS_DEPENDENCY_FOR"],
+      sourceRepos: ["terraform-stack-node10"]
     }
   ],
   name: "api-node-boats",
-  hostnames: [
+  hostnames: [{ environment: "prod", hostname: "api-node-boats.prod.bgrp.io", path: "config/production.json" }],
+  trafficPaths: [{
+    edge: "CloudFront distribution",
+    environment: "prod",
+    evidenceKind: "aws_cloudfront_distribution",
+    hostname: "api-node-boats.prod.bgrp.io",
+    origin: "origin-alb-primary",
+    reason: "CloudFront distribution E123",
+    runtime: "ECS bg-prod",
+    sourceRepo: "terraform-stack-node10",
+    visibility: "public",
+    workload: "api-node-boats"
+  }],
+  relationshipCounts: { downstream: 42, graphDependents: 17, references: 25, upstream: 35 },
+  relationshipClusters: [
     {
-      environment: "prod",
-      hostname: "api-node-boats.prod.bgrp.io",
-      path: "config/production.json"
+      description: "Repos and artifacts that deploy this service into a runtime.",
+      evidenceCount: 7,
+      kind: "deployment",
+      label: "Deployment sources",
+      relationshipTypes: ["DEPLOYS_FROM"],
+      repositories: [
+        {
+          evidenceKinds: ["ARGOCD_APPLICATIONSET_DEPLOY_SOURCE"],
+          paths: ["applicationsets/api-node/kustomization.yaml"],
+          relationshipTypes: ["DEPLOYS_FROM"],
+          repository: "iac-eks-argocd",
+          technology: "argocd"
+        },
+        {
+          evidenceKinds: ["HELM_VALUES_REFERENCE"],
+          paths: ["argocd/api-node-boats/overlays/bg-qa/values.yaml"],
+          relationshipTypes: ["DEPLOYS_FROM"],
+          repository: "helm-charts",
+          technology: "helm"
+        }
+      ],
+      technology: "kubernetes"
+    },
+    {
+      description: "Infrastructure resources that provision runtime dependencies for this service.",
+      evidenceCount: 1,
+      kind: "runtime_provisioning",
+      label: "Runtime provisioning",
+      relationshipTypes: ["PROVISIONS_DEPENDENCY_FOR"],
+      repositories: [
+        {
+          evidenceKinds: ["TERRAFORM_ECS_SERVICE"],
+          paths: ["environments/bg-dev/ecs.tf"],
+          relationshipTypes: ["PROVISIONS_DEPENDENCY_FOR"],
+          repository: "terraform-stack-node10",
+          technology: "terraform"
+        }
+      ],
+      technology: "terraform"
+    },
+    {
+      description: "Repos that read, grant, or depend on this service's config such as SSM parameters.",
+      evidenceCount: 2,
+      kind: "configuration_access",
+      label: "Configuration access",
+      relationshipTypes: ["READS_CONFIG_FROM"],
+      repositories: [
+        {
+          evidenceKinds: ["TERRAFORM_IAM_PERMISSION"],
+          paths: ["environments/bg-dev/resources.tf"],
+          relationshipTypes: ["READS_CONFIG_FROM"],
+          repository: "terraform-stack-boattrader",
+          technology: "terraform"
+        },
+        {
+          evidenceKinds: ["TERRAFORM_IAM_PERMISSION"],
+          paths: ["environments/bg-dev/resources.tf"],
+          relationshipTypes: ["READS_CONFIG_FROM"],
+          repository: "terraform-stack-datax",
+          technology: "terraform"
+        }
+      ],
+      technology: "terraform"
     }
   ],
-  trafficPaths: [
-    {
-      edge: "CloudFront distribution",
-      environment: "prod",
-      evidenceKind: "aws_cloudfront_distribution",
-      hostname: "api-node-boats.prod.bgrp.io",
-      origin: "origin-alb-primary",
-      reason: "CloudFront distribution E123",
-      runtime: "ECS bg-prod",
-      sourceRepo: "terraform-stack-node10",
-      visibility: "public",
-      workload: "api-node-boats"
-    }
-  ],
-  relationshipCounts: {
-    downstream: 42,
-    graphDependents: 17,
-    references: 25,
-    upstream: 35
-  },
   repoName: "api-node-boats",
+  trust: { basis: "hybrid", freshness: "fresh", level: "derived", profile: "production" },
   investigation: {
     coverage: {
       reason: "evidence was found, but Eshu cannot prove exhaustive coverage",
@@ -433,28 +451,10 @@ const spotlight: ServiceSpotlight = {
       state: "partial",
       truncated: false
     },
-    evidenceFamilies: ["api_surface", "deployment_lanes", "downstream_consumers"],
-    findings: [
-      {
-        family: "api_surface",
-        path: "api_surface",
-        summary: "38 endpoint(s) across 0 spec file(s)"
-      }
-    ],
-    nextCalls: [
-      {
-        arguments: { workload_id: "api-node-boats" },
-        reason: "retrieve the full one-call dossier",
-        tool: "get_service_story"
-      }
-    ],
-    repositories: [
-      {
-        evidenceFamilies: ["api_surface", "deployment_lanes"],
-        name: "api-node-boats",
-        roles: ["service_owner"]
-      }
-    ]
+    evidenceFamilies: ["api_surface", "deployment_lanes", "documentation", "downstream_consumers", "support", "upstream_dependencies"],
+    findings: [{ family: "api_surface", path: "api_surface", summary: "38 endpoint(s) across 0 spec file(s)" }],
+    nextCalls: [{ arguments: { workload_id: "api-node-boats" }, reason: "retrieve the full one-call dossier", tool: "get_service_story" }],
+    repositories: [{ evidenceFamilies: ["api_surface", "deployment_lanes"], name: "api-node-boats", roles: ["service_owner"] }]
   },
   summary: "api-node-boats exposes 38 endpoint(s), runs through 2 deployment lane(s), has 35 upstream relationship(s), and 42 downstream relationship(s)."
 };

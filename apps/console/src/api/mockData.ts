@@ -100,13 +100,18 @@ export interface DashboardRepository {
 
 export interface CatalogRow {
   readonly coverage: string;
+  readonly environments?: readonly string[];
   readonly freshness: string;
   readonly id: string;
+  readonly instanceCount?: number;
   readonly kind: EntityKind;
   readonly limit?: number;
+  readonly materializationStatus?: string;
   readonly name: string;
   readonly offset?: number;
+  readonly ownerRepo?: string;
   readonly truncated?: boolean;
+  readonly workloadKind?: string;
 }
 
 export interface FindingRow {
@@ -282,9 +287,12 @@ export const demoCatalogRows: readonly CatalogRow[] = [
   },
   {
     coverage: "story, deployment, evidence",
+    environments: ["prod-us-east-1"],
     freshness: "fresh",
     id: "workload:checkout-service",
+    instanceCount: 1,
     kind: "workloads",
+    materializationStatus: "graph",
     name: "checkout-service"
   }
 ];

@@ -45,6 +45,7 @@ interface CatalogWorkloadRecord {
   readonly id?: string;
   readonly instance_count?: number;
   readonly kind?: string;
+  readonly materialization_status?: string;
   readonly name?: string;
   readonly repo_id?: string;
   readonly repo_name?: string;
@@ -121,7 +122,10 @@ export async function loadDashboardMetrics({
   const status = await requiredClient(client).getJson<IndexStatusResponse>(
     "/api/v0/index-status"
   );
-  const repositories = await loadRepositories(requiredClient(client));
+  const repositorySummary = await loadRepositorySummary(
+    requiredClient(client),
+    status.repository_count
+  );
   const queue = status.queue ?? {};
   const outstanding = queue.outstanding ?? queue.pending ?? 0;
   const inFlight = queue.in_flight ?? 0;
@@ -141,7 +145,7 @@ export async function loadDashboardMetrics({
     {
       detail: "Repositories available through catalog drilldown.",
       label: "Catalog repositories",
-      value: String(repositories.length)
+      value: String(repositorySummary.total)
     },
     {
       detail:
@@ -241,15 +245,25 @@ export async function loadFindingRows({
 }
 
 async function loadRepositories(client: EshuApiClient): Promise<readonly RepositoryRecord[]> {
-  const payload = await client.getJson<RepositoryListResponse>(
-    "/api/v0/repositories?limit=100&offset=0"
-  );
+  const payload = await loadRepositoryPage(client);
   return (payload.repositories ?? []).map((repository) => ({
     ...repository,
     limit: payload.limit,
     offset: payload.offset,
     truncated: payload.truncated
   }));
+}
+
+async function loadRepositorySummary(client: EshuApiClient, fallbackTotal?: number): Promise<{ readonly total: number }> {
+  const payload = await client.getJson<RepositoryListResponse>("/api/v0/repositories?limit=1&offset=0");
+  return { total: payload.count ?? fallbackTotal ?? payload.repositories?.length ?? 0 };
+}
+
+async function loadRepositoryPage(client: EshuApiClient): Promise<RepositoryListResponse> {
+  const payload = await client.getJson<RepositoryListResponse>(
+    "/api/v0/repositories?limit=100&offset=0"
+  );
+  return payload;
 }
 
 export async function loadCatalogServiceRows({
@@ -273,7 +287,7 @@ export async function loadCatalogServiceRows({
 
 async function loadCatalog(client: EshuApiClient): Promise<CatalogResponse | undefined> {
   try {
-    const catalog = await client.getJson<CatalogResponse>("/api/v0/catalog");
+    const catalog = await client.getJson<CatalogResponse>("/api/v0/catalog?limit=2000&offset=0");
     return hasCatalogCollections(catalog) ? catalog : undefined;
   } catch {
     return undefined;
@@ -330,16 +344,22 @@ function catalogRowFromWorkload(
   workload: CatalogWorkloadRecord,
   kind: "services" | "workloads"
 ): CatalogRow {
+  const environments = workload.environments ?? [];
   const environmentLabel =
-    workload.environments === undefined || workload.environments.length === 0
+    environments.length === 0
       ? ""
-      : ` across ${workload.environments.join(", ")}`;
+      : ` across ${environments.join(", ")}`;
   return {
     coverage: nonEmpty(workload.repo_name, workload.repo_id, "graph workload") + environmentLabel,
+    environments,
     freshness: "graph",
     id: nonEmpty(workload.id, workload.name),
+    instanceCount: workload.instance_count,
     kind,
-    name: nonEmpty(workload.name, workload.id)
+    materializationStatus: nonEmpty(workload.materialization_status, "graph"),
+    name: nonEmpty(workload.name, workload.id),
+    ownerRepo: nonEmpty(workload.repo_name, workload.repo_id),
+    workloadKind: nonEmpty(workload.kind)
   };
 }
 

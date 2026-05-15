@@ -7,6 +7,7 @@ describe("DeploymentGraphView", () => {
     const graph: DeploymentGraph = {
       links: [
         {
+          detail: "iac-eks-argocd owns the ApplicationSet source evidence.",
           label: "deploys from",
           source: "source:iac-eks-argocd",
           target: "evidence:argocd:iac-eks-argocd"
@@ -54,6 +55,17 @@ describe("DeploymentGraphView", () => {
 
     expect(
       screen.getByText(/applicationsets\/devops\/core-mcps\/boats-search-mcp\.yaml/i)
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(graphImage).getByRole("button", { name: /inspect deploys from relationship/i })
+    );
+
+    expect(screen.getByText("Selected relationship")).toBeInTheDocument();
+    expect(screen.getByText("source:iac-eks-argocd")).toBeInTheDocument();
+    expect(screen.getByText("evidence:argocd:iac-eks-argocd")).toBeInTheDocument();
+    expect(
+      screen.getByText("iac-eks-argocd owns the ApplicationSet source evidence.")
     ).toBeInTheDocument();
   });
 });

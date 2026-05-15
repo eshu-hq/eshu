@@ -8,12 +8,17 @@ import {
 } from "./liveData";
 import { loadDashboardSnapshot } from "./dashboardSnapshot";
 
-function clientFor(routes: Record<string, unknown>): EshuApiClient {
+function clientFor(
+  routes: Record<string, unknown>,
+  requests: string[] = []
+): EshuApiClient {
   return new EshuApiClient({
     baseUrl: "http://localhost:8080",
     fetcher: async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const request = new Request(input, init);
-      const body = routes[new URL(request.url).pathname];
+      const url = new URL(request.url);
+      requests.push(`${url.pathname}${url.search}`);
+      const body = routes[url.pathname];
       if (body === undefined) {
         return Response.json({ detail: "missing route" }, { status: 404 });
       }
@@ -84,6 +89,33 @@ describe("live Eshu data adapters", () => {
       label: "Queue outstanding",
       value: "0"
     });
+  });
+
+  it("uses catalog repository rows for paginated dashboard catalog totals", async () => {
+    const requests: string[] = [];
+    const metrics = await loadDashboardMetrics({
+      client: clientFor({
+        "/api/v0/index-status": {
+          queue: { outstanding: 0, succeeded: 8347 },
+          repository_count: 896,
+          status: "healthy"
+        },
+        "/api/v0/repositories": {
+          count: 896,
+          limit: 100,
+          repositories: repositoriesResponse.repositories
+        }
+      }, requests),
+      mode: "private"
+    });
+
+    expect(metrics).toContainEqual({
+      detail: "Repositories available through catalog drilldown.",
+      label: "Catalog repositories",
+      value: "896"
+    });
+    expect(requests).not.toContain("/api/v0/catalog?limit=2000&offset=0");
+    expect(requests).toContain("/api/v0/repositories?limit=1&offset=0");
   });
 
   it("keeps degraded graph status separate from queryable catalog data", async () => {
@@ -305,17 +337,27 @@ describe("live Eshu data adapters", () => {
     });
     expect(rows).toContainEqual({
       coverage: "api-node-boats across ecs-prod, eks-prod",
+      environments: ["ecs-prod", "eks-prod"],
       freshness: "graph",
       id: "workload:api-node-boats",
+      instanceCount: undefined,
       kind: "services",
-      name: "api-node-boats"
+      materializationStatus: "graph",
+      name: "api-node-boats",
+      ownerRepo: "api-node-boats",
+      workloadKind: "service"
     });
     expect(rows).toContainEqual({
       coverage: "api-node-boats across prod",
+      environments: ["prod"],
       freshness: "graph",
       id: "workload:billing-sync",
+      instanceCount: undefined,
       kind: "workloads",
-      name: "billing-sync"
+      materializationStatus: "graph",
+      name: "billing-sync",
+      ownerRepo: "api-node-boats",
+      workloadKind: "cronjob"
     });
     expect(rows.filter((row) => row.id === "workload:api-node-boats")).toHaveLength(1);
   });

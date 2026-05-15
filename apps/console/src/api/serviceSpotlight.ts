@@ -1,5 +1,7 @@
 import type { EshuApiClient } from "./client";
 import type { DeploymentConfigInfluence } from "./deploymentConfigInfluence";
+import { envelopePayload } from "./envelopePayload";
+import type { EshuTruth } from "./envelope";
 import type { DeploymentGraph } from "./mockData";
 import {
   normalizeServiceInvestigation,
@@ -12,6 +14,8 @@ import {
   type ServiceTrafficPath,
   type ServiceTrafficPathContext
 } from "./serviceTrafficPath";
+import { deploymentLanes } from "./serviceSpotlightLanes";
+import { relationshipClusters } from "./serviceSpotlightRelationships";
 
 export interface ServiceSpotlight {
   readonly api: {
@@ -36,8 +40,17 @@ export interface ServiceSpotlight {
     readonly upstream: number;
   };
   readonly repoName: string;
+  readonly relationshipClusters: readonly ServiceRelationshipCluster[];
   readonly summary: string;
   readonly trafficPaths?: readonly ServiceTrafficPath[];
+  readonly trust: ServiceSpotlightTrust;
+}
+
+export interface ServiceSpotlightTrust {
+  readonly basis: string;
+  readonly freshness: string;
+  readonly level: string;
+  readonly profile: string;
 }
 
 export interface ServiceEndpoint {
@@ -61,6 +74,33 @@ export interface ServiceDeploymentLane {
   readonly relationshipTypes: readonly string[];
   readonly resolvedCount: number;
   readonly sourceRepos: readonly string[];
+}
+
+export type ServiceTechnologyKind =
+  | "argocd"
+  | "config"
+  | "github_actions"
+  | "helm"
+  | "kubernetes"
+  | "repository"
+  | "terraform";
+
+export interface ServiceRelationshipRepository {
+  readonly evidenceKinds: readonly string[];
+  readonly paths: readonly string[];
+  readonly relationshipTypes: readonly string[];
+  readonly repository: string;
+  readonly technology: ServiceTechnologyKind;
+}
+
+export interface ServiceRelationshipCluster {
+  readonly description: string;
+  readonly evidenceCount: number;
+  readonly kind: string;
+  readonly label: string;
+  readonly relationshipTypes: readonly string[];
+  readonly repositories: readonly ServiceRelationshipRepository[];
+  readonly technology: ServiceTechnologyKind;
 }
 
 export interface ServiceDependency {
@@ -125,8 +165,9 @@ interface EndpointRecord {
   readonly source_paths?: readonly string[];
 }
 
-interface ConsumerRecord {
+export interface ConsumerRecord {
   readonly consumer_kinds?: readonly string[];
+  readonly evidence_kinds?: readonly string[];
   readonly graph_relationship_types?: readonly string[];
   readonly matched_values?: readonly string[];
   readonly repo_name?: string;
@@ -144,7 +185,7 @@ interface DependencyRecord {
   readonly type?: string;
 }
 
-interface DeploymentArtifactRecord {
+export interface DeploymentArtifactRecord {
   readonly artifact_family?: string;
   readonly evidence_kind?: string;
   readonly path?: string;
@@ -160,7 +201,7 @@ interface HostnameRecord {
   readonly relative_path?: string;
 }
 
-interface ServiceDeploymentLaneRecord {
+export interface ServiceDeploymentLaneRecord {
   readonly environments?: readonly string[];
   readonly lane_type?: string;
   readonly max_confidence?: number;
@@ -169,17 +210,17 @@ interface ServiceDeploymentLaneRecord {
   readonly source_repositories?: readonly string[];
 }
 
-interface InstanceRecord {
+export interface InstanceRecord {
   readonly environment?: string;
   readonly platforms?: readonly PlatformRecord[];
 }
 
-interface PlatformRecord {
+export interface PlatformRecord {
   readonly platform_kind?: string;
   readonly platform_name?: string;
 }
 
-interface ProvisioningRecord {
+export interface ProvisioningRecord {
   readonly repository?: string;
   readonly sample_paths?: readonly string[];
 }
@@ -202,10 +243,11 @@ async function loadCandidate(
   serviceName: string
 ): Promise<ServiceSpotlight | undefined> {
   try {
-    const context = await client.getJson<ServiceContextResponse>(
+    const response = await client.get<ServiceContextResponse>(
       `/api/v0/services/${encodeURIComponent(serviceName)}/context`
-    );
-    const spotlight = serviceSpotlightFromContext(context, serviceName);
+    ) as unknown;
+    const { data, truth } = envelopePayload<ServiceContextResponse>(response);
+    const spotlight = serviceSpotlightFromContext(data, serviceName, undefined, truth);
     return scoreSpotlight(spotlight) > 0 ? spotlight : undefined;
   } catch {
     return undefined;
@@ -215,7 +257,8 @@ async function loadCandidate(
 export function serviceSpotlightFromContext(
   context: ServiceContextResponse,
   fallbackName: string,
-  configInfluence?: DeploymentConfigInfluence
+  configInfluence?: DeploymentConfigInfluence,
+  truth?: EshuTruth
 ): ServiceSpotlight {
   const name = nonEmpty(context.name, fallbackName);
   const endpoints = endpointRows(context.api_surface?.endpoints ?? []);
@@ -250,6 +293,7 @@ export function serviceSpotlightFromContext(
     lanes,
     name,
     relationshipCounts,
+    relationshipClusters: relationshipClusters(context),
     repoName: nonEmpty(context.repo_name, name),
     summary: spotlightSummary(
       name,
@@ -258,7 +302,17 @@ export function serviceSpotlightFromContext(
       relationshipCounts.upstream,
       relationshipCounts.downstream
     ),
-    trafficPaths: buildServiceTrafficPaths(context, name, lanes)
+    trafficPaths: buildServiceTrafficPaths(context, name, lanes),
+    trust: spotlightTrust(truth)
+  };
+}
+
+function spotlightTrust(truth: EshuTruth | undefined): ServiceSpotlightTrust {
+  return {
+    basis: nonEmpty(truth?.basis, "unknown"),
+    freshness: nonEmpty(truth?.freshness.state, "unavailable"),
+    level: nonEmpty(truth?.level, "derived"),
+    profile: nonEmpty(truth?.profile, "local_authoritative")
   };
 }
 
@@ -304,112 +358,6 @@ function endpointRows(records: readonly EndpointRecord[]): readonly ServiceEndpo
     path: nonEmpty(record.path, "/"),
     sourcePaths: record.source_paths ?? []
   }));
-}
-
-function deploymentLanes(context: ServiceContextResponse): readonly ServiceDeploymentLane[] {
-  if ((context.deployment_lanes?.length ?? 0) > 0) {
-    return (context.deployment_lanes ?? []).map((lane) => ({
-      confidence: lane.max_confidence,
-      environments: lane.environments ?? [],
-      evidenceCount: lane.resolved_ids?.length ?? laneEvidenceCount(context, normalizedPlatform(lane.lane_type)),
-      label: laneLabel(normalizedPlatform(lane.lane_type)),
-      relationshipTypes: lane.relationship_types ?? [],
-      resolvedCount: lane.resolved_ids?.length ?? 0,
-      sourceRepos: lane.source_repositories ?? []
-    }));
-  }
-  const platforms = new Map<string, Set<string>>();
-  for (const instance of context.instances ?? []) {
-    for (const platform of instance.platforms ?? []) {
-      const kind = normalizedPlatform(platform.platform_kind);
-      if (kind.length === 0) {
-        continue;
-      }
-      const envs = platforms.get(kind) ?? new Set<string>();
-      envs.add(nonEmpty(instance.environment, platform.platform_name, "runtime"));
-      platforms.set(kind, envs);
-    }
-  }
-  return Array.from(platforms.entries()).map(([kind, environments]) => ({
-    environments: Array.from(environments),
-    evidenceCount: laneEvidenceCount(context, kind),
-    label: laneLabel(kind),
-    relationshipTypes: laneRelationshipTypes(context, kind),
-    resolvedCount: laneEvidenceCount(context, kind),
-    sourceRepos: laneSourceRepos(context, kind)
-  }));
-}
-
-function normalizedPlatform(kind: string | undefined): string {
-  const value = nonEmpty(kind).toLowerCase();
-  if (value.includes("ecs") && value.includes("terraform")) {
-    return "ecs_terraform";
-  }
-  if (value.includes("gitops")) {
-    return "k8s_gitops";
-  }
-  if (value.includes("ecs")) {
-    return "ecs";
-  }
-  if (value.includes("kubernetes") || value.includes("eks")) {
-    return "kubernetes";
-  }
-  return value;
-}
-
-function laneLabel(kind: string): string {
-  switch (kind) {
-    case "ecs_terraform":
-      return "ECS Terraform";
-    case "k8s_gitops":
-      return "Kubernetes GitOps";
-    case "ecs":
-      return "ECS";
-    case "kubernetes":
-      return "Kubernetes";
-    default:
-      return kind;
-  }
-}
-
-function laneEvidenceCount(context: ServiceContextResponse, kind: string): number {
-  const artifacts = context.deployment_evidence?.artifacts ?? [];
-  if (kind.includes("ecs")) {
-    return artifacts.filter((artifact) => nonEmpty(artifact.evidence_kind).startsWith("TERRAFORM_")).length;
-  }
-  return artifacts.filter((artifact) =>
-    ["argocd", "helm", "kustomize"].includes(nonEmpty(artifact.artifact_family).toLowerCase())
-  ).length;
-}
-
-function laneSourceRepos(context: ServiceContextResponse, kind: string): readonly string[] {
-  if (kind.includes("ecs")) {
-    return unique([
-      ...((context.deployment_evidence?.artifacts ?? [])
-        .filter((artifact) => nonEmpty(artifact.evidence_kind).startsWith("TERRAFORM_"))
-        .map((artifact) => nonEmpty(artifact.source_repo_name))),
-      ...((context.provisioning_source_chains ?? [])
-        .map((record) => nonEmpty(record.repository)))
-    ]);
-  }
-  return unique((context.deployment_evidence?.artifacts ?? [])
-    .filter((artifact) =>
-      ["argocd", "helm", "kustomize"].includes(nonEmpty(artifact.artifact_family).toLowerCase())
-    )
-    .map((artifact) => nonEmpty(artifact.source_repo_name)));
-}
-
-function laneRelationshipTypes(
-  context: ServiceContextResponse,
-  kind: string
-): readonly string[] {
-  const artifacts = context.deployment_evidence?.artifacts ?? [];
-  const families = kind.includes("ecs")
-    ? artifacts.filter((artifact) => nonEmpty(artifact.evidence_kind).startsWith("TERRAFORM_"))
-    : artifacts.filter((artifact) =>
-      ["argocd", "helm", "kustomize"].includes(nonEmpty(artifact.artifact_family).toLowerCase())
-    );
-  return unique(families.map((artifact) => nonEmpty(artifact.relationship_type)));
 }
 
 function dependencyRows(records: readonly DependencyRecord[]): readonly ServiceDependency[] {
