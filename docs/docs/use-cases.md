@@ -131,6 +131,7 @@ All of these tools are available through MCP. Your AI assistant can call them di
 
 - "What breaks if I change this?" → `find_blast_radius`
 - "How is this service deployed?" → `trace_deployment_chain`
+- "Which files influence image tags, runtime settings, or resource limits?" → `investigate_deployment_config`
 - "What provisions this database?" → `trace_resource_to_code`
 - "Explain how these two things connect" → `explain_dependency_path`
 - "What differs between prod and staging?" → `compare_environments`

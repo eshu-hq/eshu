@@ -195,6 +195,27 @@ envelope reports `truth.capability=platform_impact.change_surface`,
 latency can be classified as target resolution, content lookup, or bounded
 graph traversal.
 
+No-Regression Evidence: deployment configuration influence focused proof:
+`go test ./internal/query -run TestBuildDeploymentConfigInfluenceResponseReturnsPromptReadyFiles -count=1`
+and
+`go test ./internal/mcp -run 'Test(DeploymentConfigInfluenceToolContract|ResolveRouteMapsDeploymentConfigInfluenceToBoundedBody|ReadOnlyTools|EcosystemTools|EveryRegisteredToolHasDispatchRoute)' -count=1`.
+The new path reuses the existing service deployment-trace context and returns a
+bounded prompt packet rather than issuing a new unbounded content scan. Each
+section is capped by `limit`, reports `coverage.truncated`, keeps portable
+`repo_id` plus `relative_path` handles, and leaves exact file reads to
+`get_file_lines`.
+
+Observability Evidence: deployment configuration influence uses the existing
+MCP `dispatch tool` debug logs, HTTP response envelopes, service query timing
+logs, and graph `neo4j.query` spans from the underlying service trace reads.
+The response envelope reports
+`truth.capability=platform_impact.deployment_config_influence`, while
+`coverage.query_shape=deployment_config_influence_story`,
+`coverage.artifact_candidate_count`, `coverage.deployment_source_count`,
+`coverage.rendered_target_count`, `coverage.limit`, and `coverage.truncated`
+show whether a slow or incomplete answer came from service resolution, graph
+deployment evidence, or the bounded result window.
+
 No-Regression Evidence: PR #325 is a staticcheck-only rewrite of
 `resolveChangeSurfaceTarget` from a condition switch to a tagged
 `switch totalCandidates`. Baseline failed with

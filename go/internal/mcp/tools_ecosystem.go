@@ -40,6 +40,39 @@ func ecosystemTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "investigate_deployment_config",
+			Description: "Return a bounded story of the files, repositories, values layers, image tag sources, runtime settings, resource limits, and rendered targets that influence a service deployment.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"anyOf": []map[string]any{
+					{"required": []string{"service_name"}},
+					{"required": []string{"workload_id"}},
+				},
+				"properties": map[string]any{
+					"service_name": map[string]any{
+						"type":        "string",
+						"description": "Service name to investigate.",
+					},
+					"workload_id": map[string]any{
+						"type":        "string",
+						"description": "Canonical workload id to investigate when service_name is not enough.",
+					},
+					"environment": map[string]any{
+						"type":        "string",
+						"description": "Optional environment scope such as ops-qa or prod.",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum rows per response section.",
+						"default":     25,
+						"minimum":     1,
+						"maximum":     100,
+					},
+				},
+				"required": []string{},
+			},
+		},
+		{
 			Name:        "find_blast_radius",
 			Description: "Find all repos and resources affected by changing a target.",
 			InputSchema: map[string]any{

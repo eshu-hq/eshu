@@ -59,12 +59,12 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 49 tools from five source files.
+`ReadOnlyTools` assembles 50 tools from five source files.
 
 | Group | Count | Source file |
 |---|---|---|
 | `codebaseTools` | 17 | `tools_codebase.go` |
-| `ecosystemTools` | 17 | `tools_ecosystem.go` |
+| `ecosystemTools` | 18 | `tools_ecosystem.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 5 | `tools_content.go` |
 | `runtimeTools` | 3 | `tools_runtime.go` |
@@ -84,6 +84,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
 | `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
+| `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
 | `get_service_story` | GET | `/api/v0/services/{service_name}/story` |
@@ -100,7 +101,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 49 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 50 tool definitions |
 
 ## SSE session model
 
