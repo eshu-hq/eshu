@@ -10,6 +10,7 @@ import type {
 import { ServiceDeploymentLaneMap } from "../visualization/ServiceDeploymentLaneMap";
 import { ServiceChangeSurfacePanel } from "./ServiceChangeSurfacePanel";
 import { ServiceCodeInvestigationPanel } from "./ServiceCodeInvestigationPanel";
+import { ServiceConfigInfluencePanel } from "./ServiceConfigInfluencePanel";
 import { ServiceInvestigationPanel } from "./ServiceInvestigationPanel";
 import { ServiceTrafficPathPanel } from "./ServiceTrafficPathPanel";
 
@@ -51,6 +52,7 @@ export function ServiceSpotlightPanel({
 
       <EntryPointStrip hostnames={spotlight.hostnames} />
       <ServiceTrafficPathPanel paths={spotlight.trafficPaths} serviceName={spotlight.name} />
+      <ServiceConfigInfluencePanel influence={spotlight.configInfluence} />
       <ServiceInvestigationPanel investigation={spotlight.investigation} />
       <ServiceChangeSurfacePanel spotlight={spotlight} />
       <ServiceCodeInvestigationPanel spotlight={spotlight} />
@@ -161,8 +163,8 @@ function EndpointTable({
         />
       </label>
       <div className="service-endpoint-list">
-        {filteredEndpoints.map((endpoint) => (
-          <article key={`${endpoint.path}:${endpoint.methods.join(",")}`}>
+        {filteredEndpoints.map((endpoint, index) => (
+          <article key={endpointKey(endpoint, index)}>
             <div>
               <strong>{endpoint.path}</strong>
               <span>{endpoint.methods.join(", ") || "method pending"}</span>
@@ -173,6 +175,16 @@ function EndpointTable({
       </div>
     </section>
   );
+}
+
+function endpointKey(endpoint: ServiceEndpoint, index: number): string {
+  return [
+    endpoint.path,
+    endpoint.methods.join(","),
+    endpoint.operationIds.join(","),
+    endpoint.sourcePaths.join(","),
+    index
+  ].join(":");
 }
 
 function filterEndpoints(

@@ -4,11 +4,15 @@ import { ServiceSpotlightPanel } from "./ServiceSpotlightPanel";
 import type { ServiceSpotlight } from "../api/serviceSpotlight";
 
 describe("ServiceSpotlightPanel", () => {
+  let consoleError: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
+    consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal("fetch", emptyCodeTopicFetch());
   });
 
   afterEach(() => {
+    consoleError.mockRestore();
     vi.unstubAllGlobals();
   });
 
@@ -35,6 +39,12 @@ describe("ServiceSpotlightPanel", () => {
     expect(screen.getAllByText("origin-alb-primary").length).toBeGreaterThan(1);
     expect(screen.getAllByText("prod").length).toBeGreaterThan(1);
     expect(screen.getByText("CloudFront distribution E123")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Configuration influence" })).toBeInTheDocument();
+    expect(screen.getByText("image.tag")).toBeInTheDocument();
+    expect(screen.getByText("resources.limits.cpu")).toBeInTheDocument();
+    expect(screen.getAllByText("iac-eks-argocd").length).toBeGreaterThan(1);
+    expect(screen.getAllByText(/clusters\/bg-prod\/api-node-boats\/values.yaml/).length).toBeGreaterThan(0);
+    expect(screen.getByText("get_file_lines from line 17")).toBeInTheDocument();
 
     const laneMap = screen.getByLabelText("api-node-boats deployment lane map");
     expect(within(laneMap).getByText("api-node-boats")).toBeInTheDocument();
@@ -66,6 +76,7 @@ describe("ServiceSpotlightPanel", () => {
     fireEvent.change(search, { target: { value: "listing" } });
     expect(screen.getByText("/getListing")).toBeInTheDocument();
     expect(screen.queryByText("/_version")).not.toBeInTheDocument();
+    expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining("Encountered two children with the same key"));
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
   });
 
@@ -238,6 +249,12 @@ const spotlight: ServiceSpotlight = {
         operationIds: ["getVersion"],
         path: "/_version",
         sourcePaths: ["catalog-specs.yaml"]
+      },
+      {
+        methods: ["get"],
+        operationIds: ["getVersion"],
+        path: "/_version",
+        sourcePaths: ["openapi/catalog-specs.yaml"]
       }
     ],
     methodCount: 44,
@@ -252,6 +269,99 @@ const spotlight: ServiceSpotlight = {
       samplePaths: ["environments/bg-prod/ecs.tf"]
     }
   ],
+  configInfluence: {
+    coverage: {
+      limit: 25,
+      queryShape: "deployment_config_influence_story",
+      truncated: false
+    },
+    repositories: [
+      {
+        name: "api-node-boats",
+        roles: ["service_owner"]
+      },
+      {
+        name: "iac-eks-argocd",
+        roles: ["configuration_artifact", "deployment_source"]
+      }
+    ],
+    sections: [
+      {
+        count: 1,
+        items: [
+          {
+            evidenceKind: "helm_values_reference",
+            label: "values.yaml",
+            path: "clusters/bg-prod/api-node-boats/values.yaml",
+            repoName: "iac-eks-argocd",
+            value: "shared values"
+          }
+        ],
+        label: "Values layers"
+      },
+      {
+        count: 1,
+        items: [
+          {
+            evidenceKind: "helm_values_reference",
+            label: "image.tag",
+            path: "clusters/bg-prod/api-node-boats/values.yaml",
+            repoName: "iac-eks-argocd",
+            value: "ghcr.io/boats/api-node-boats:1.2.3"
+          }
+        ],
+        label: "Image tags"
+      },
+      {
+        count: 0,
+        items: [],
+        label: "Runtime settings"
+      },
+      {
+        count: 1,
+        items: [
+          {
+            evidenceKind: "kubernetes_resource_limit",
+            label: "resources.limits.cpu",
+            path: "charts/api-node-boats/templates/deployment.yaml",
+            repoName: "helm-charts",
+            value: "500m"
+          }
+        ],
+        label: "Resource limits"
+      },
+      {
+        count: 1,
+        items: [
+          {
+            evidenceKind: "kubernetes_resource",
+            label: "Deployment",
+            path: "",
+            repoName: "",
+            value: "api-node-boats"
+          }
+        ],
+        label: "Rendered targets"
+      },
+      {
+        count: 1,
+        items: [
+          {
+            action: "get_file_lines",
+            evidenceKind: "helm_values_reference",
+            label: "values.yaml",
+            line: 17,
+            path: "clusters/bg-prod/api-node-boats/values.yaml",
+            repoName: "iac-eks-argocd",
+            value: ""
+          }
+        ],
+        label: "Read first"
+      }
+    ],
+    serviceName: "api-node-boats",
+    summary: "api-node-boats is influenced by 1 values layer and 1 image tag source."
+  },
   graphDependents: [
     {
       consumerKinds: ["graph_provisioning_consumer"],

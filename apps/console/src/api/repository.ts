@@ -1,8 +1,10 @@
 import type { EshuApiClient } from "./client";
+import { loadDeploymentConfigInfluence, type DeploymentConfigInfluence } from "./deploymentConfigInfluence";
 import type { EshuTruth } from "./envelope";
 import { getDemoWorkspaceStory } from "./mockData";
 import type { EntityKind, EvidenceRow, OverviewStat, WorkspaceStory } from "./mockData";
 import { deploymentGraphFromStory } from "./deploymentGraph";
+import { deploymentEvidenceSummary, isPresent, joinHuman, nonEmpty } from "./repositoryText";
 import {
   serviceContextFromStoryDossier,
   type ServiceStoryDossierResponse
@@ -156,6 +158,12 @@ export async function loadWorkspaceStory({
   const data = await client.getJson<StoryResponse>(storyPath(entityKind, entityId));
   const context = await loadContext(client, data, entityKind);
   const serviceContext = await loadServiceContext(client, data, entityKind, entityId);
+  const configInfluence = await loadDeploymentConfigInfluenceForStory(
+    client,
+    data,
+    entityId,
+    serviceContext
+  );
   const deploymentContext = serviceContext ?? context;
   const title = titleFromStory(data, entityId);
   return {
@@ -171,12 +179,33 @@ export async function loadWorkspaceStory({
       ? undefined
       : serviceSpotlightFromContext(
         serviceContext,
-        data.deployment_overview?.workloads?.[0] ?? title
+        data.deployment_overview?.workloads?.[0] ?? title,
+        configInfluence
       ),
     story: humanStory(data, deploymentContext, title, entityKind),
     title,
     truth: liveRepositoryTruth
   };
+}
+
+async function loadDeploymentConfigInfluenceForStory(
+  client: EshuApiClient,
+  story: StoryResponse,
+  entityId: string,
+  serviceContext: WorkspaceContextResponse | undefined
+): Promise<DeploymentConfigInfluence | undefined> {
+  if (serviceContext === undefined) {
+    return undefined;
+  }
+  const serviceName = nonEmpty(serviceContext.name, serviceNameFromStory(story, entityId));
+  if (serviceName.length === 0) {
+    return undefined;
+  }
+  try {
+    return await loadDeploymentConfigInfluence(client, { serviceName });
+  } catch {
+    return undefined;
+  }
 }
 
 async function loadServiceContext(
@@ -462,36 +491,4 @@ function totalCount(counts: Record<string, number> | undefined): number {
     return 0;
   }
   return Object.values(counts).reduce((total, count) => total + count, 0);
-}
-
-function nonEmpty(...values: readonly (string | undefined)[]): string {
-  for (const value of values) {
-    if (value !== undefined && value.trim().length > 0) {
-      return value;
-    }
-  }
-  return "";
-}
-
-function deploymentEvidenceSummary(
-  family: string,
-  sourceRepo: string,
-  count: number,
-  path: string
-): string {
-  if (family === "argocd") {
-    return `${sourceRepo} has ${count} ArgoCD ApplicationSet evidence item(s), including ${path}.`;
-  }
-  return `${sourceRepo} has ${count} Helm chart or values evidence item(s), including ${path}.`;
-}
-
-function isPresent(value: string | undefined): value is string {
-  return value !== undefined && value.trim().length > 0;
-}
-
-function joinHuman(values: readonly string[]): string {
-  if (values.length <= 2) {
-    return values.join(" and ");
-  }
-  return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`;
 }

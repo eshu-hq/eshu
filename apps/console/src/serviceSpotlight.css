@@ -194,6 +194,86 @@
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
+.service-config-influence {
+  background: color-mix(in oklch, var(--accent), var(--surface) 95%);
+  border: 1px solid color-mix(in oklch, var(--accent), var(--line) 68%);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.service-config-influence .service-panel-heading p {
+  color: var(--muted);
+  margin: 6px 0 0;
+  max-width: 76ch;
+}
+
+.service-config-layout {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 0.28fr) minmax(0, 1fr);
+}
+
+.service-config-repositories,
+.service-config-section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.service-config-repositories h4,
+.service-config-section h4 {
+  margin: 0;
+}
+
+.service-config-repositories article,
+.service-config-section article {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.service-config-repositories article span,
+.service-config-section p,
+.service-config-section small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.service-config-sections {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.service-config-section > div,
+.service-config-section article > div {
+  align-items: start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.service-config-section > div span,
+.service-config-section article > div span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.service-config-section article strong,
+.service-config-section article span {
+  overflow-wrap: anywhere;
+}
+
 .service-investigation {
   background: color-mix(in oklch, var(--relation), var(--surface) 96%);
   border: 1px solid color-mix(in oklch, var(--relation), var(--line) 72%);

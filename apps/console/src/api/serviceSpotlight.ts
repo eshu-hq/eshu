@@ -1,4 +1,5 @@
 import type { EshuApiClient } from "./client";
+import type { DeploymentConfigInfluence } from "./deploymentConfigInfluence";
 import type { DeploymentGraph } from "./mockData";
 import {
   normalizeServiceInvestigation,
@@ -20,6 +21,7 @@ export interface ServiceSpotlight {
     readonly sourcePaths: readonly string[];
   };
   readonly consumers: readonly ServiceConsumer[];
+  readonly configInfluence?: DeploymentConfigInfluence;
   readonly dependencies: readonly ServiceDependency[];
   readonly deploymentGraph: DeploymentGraph;
   readonly graphDependents: readonly ServiceConsumer[];
@@ -212,7 +214,8 @@ async function loadCandidate(
 
 export function serviceSpotlightFromContext(
   context: ServiceContextResponse,
-  fallbackName: string
+  fallbackName: string,
+  configInfluence?: DeploymentConfigInfluence
 ): ServiceSpotlight {
   const name = nonEmpty(context.name, fallbackName);
   const endpoints = endpointRows(context.api_surface?.endpoints ?? []);
@@ -238,6 +241,7 @@ export function serviceSpotlightFromContext(
       sourcePaths: context.api_surface?.source_paths ?? []
     },
     consumers,
+    configInfluence,
     dependencies,
     deploymentGraph: deploymentGraph(name, lanes, dependencies, allConsumers),
     graphDependents,

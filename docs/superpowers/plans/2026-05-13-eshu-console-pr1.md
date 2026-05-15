@@ -232,7 +232,7 @@ Expected: pass.
 ## Task 6: Latest MCP Contract Refactor
 
 Status after rebasing on `origin/main` with the MCP contract work through
-`a572782`:
+`38ce6bf`:
 
 - Done: service dossier fields are preferred over raw context fallbacks for the
   service spotlight.
@@ -244,13 +244,19 @@ Status after rebasing on `origin/main` with the MCP contract work through
   `get_service_story` (`from`, `from_type`, `to`, `to_type`, `platform_kind`,
   `environment`, `reason`, `visibility`) and map API Gateway or CloudFront edge
   records as edge evidence, not deployment ownership.
-- Next: add resolver-first graph drilldowns and a true faceted catalog.
+- Done: resolver-first drilldowns are wired for traffic graph node selections.
+- Done: `investigate_deployment_config` is now represented as a service-page
+  configuration influence audit trail.
+- Next: add a true faceted catalog and make the atlas graph use the same
+  drilldown rail pattern as traffic/configuration.
 
 Stitch design checkpoint:
 
 - Project `1430014333992672349`
 - Service atlas screen `44a4f2aa6c3b402f87b3a6d655d6d2be`
 - Resolver/change-review screen `f0ebd643587a4093b59a0265c7ae5769`
+- Deployment-config influence refresh:
+  project `18138865204006205672`, screen `969e1e93c8734155b9360477340108a2`
 - Adopt: left story spine, central atlas graph, right evidence/resolver rail,
   visible trust/limit/truncation state, and change-review as an explicit mode.
 - Do not adopt blindly: Inter or JetBrains font changes, pill-heavy statuses,
@@ -260,10 +266,12 @@ Stitch design checkpoint:
 
 - Modify: `apps/console/src/api/repository.ts`
 - Modify: `apps/console/src/api/serviceSpotlight.ts`
+- Create: `apps/console/src/api/deploymentConfigInfluence.ts`
 - Modify: `apps/console/src/api/changeSurface.ts`
 - Modify: `apps/console/src/pages/CatalogPage.tsx`
 - Modify: `apps/console/src/pages/DashboardPage.tsx`
 - Modify: `apps/console/src/pages/ServiceSpotlightPanel.tsx`
+- Create: `apps/console/src/pages/ServiceConfigInfluencePanel.tsx`
 - Modify: `apps/console/src/visualization/ServiceDeploymentLaneMap.tsx`
 - Modify: `docs/superpowers/specs/2026-05-14-eshu-console-storytelling-contract-field-map-design.md`
 
@@ -278,9 +286,14 @@ Cover the newly hardened MCP/API contracts:
   deployment ownership
 - change-surface is only requested from a narrowed service, entity, file, or
   topic scope
+- deployment configuration influence normalizes values layers, image tags,
+  runtime settings, resource limits, rendered targets, repositories, and
+  read-first files into an audit trail
 
 Progress: added resolver-first coverage for `resolve_entity` envelope
 normalization and traffic-graph node clicks before broad catalog facets.
+Added deployment configuration influence adapter and panel coverage for the
+`investigate_deployment_config` contract.
 
 - [ ] **Step 2: Run focused tests and verify failures**
 
@@ -301,10 +314,22 @@ Add a resolver boundary for graph clicks and search selections:
 - ambiguous or truncated results show the exact `limit` and `truncated` state
 - selected candidates rerun the intended story or drilldown by canonical ID
 
-Initial slice: traffic-path graph nodes are keyboard/click reachable, call
+[x] Initial slice: traffic-path graph nodes are keyboard/click reachable, call
 `POST /api/v0/entities/resolve` with `limit=10`, show candidate counts and
 truncation, and route repository/workload candidates to existing workspace
 stories while non-routable entities stay explicit.
+
+- [x] **Step 3a: Add configuration influence audit trail**
+
+Use `POST /api/v0/impact/deployment-config-influence` through the MCP-aligned
+HTTP contract. Render the result as a service-page audit trail:
+
+- influencing repositories as service owner, deployment source, and
+  configuration artifact roles
+- values layers, image tags, runtime settings, resource limits, rendered
+  targets, and read-first files as separate sections
+- visible `limit` and `truncated` coverage state
+- `get_file_lines` handles kept visible for the right rail/follow-up flow
 
 - [ ] **Step 4: Refactor catalog into faceted inventory**
 

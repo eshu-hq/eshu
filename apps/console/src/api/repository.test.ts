@@ -43,7 +43,10 @@ describe("workspace story adapter", () => {
       mode: "private"
     });
 
-    expect(paths).toEqual(["/api/v0/services/workload%3Acheckout-service/story"]);
+    expect(paths).toEqual([
+      "/api/v0/services/workload%3Acheckout-service/story",
+      "/api/v0/impact/deployment-config-influence"
+    ]);
     expect(story?.story).toContain("ArgoCD");
   });
 
@@ -327,6 +330,45 @@ describe("workspace story adapter", () => {
             ]
           });
         }
+        if (path === "/api/v0/impact/deployment-config-influence") {
+          return Response.json({
+            coverage: {
+              limit: 25,
+              query_shape: "deployment_config_influence_story",
+              truncated: false
+            },
+            image_tag_sources: [
+              {
+                evidence_kind: "helm_values_reference",
+                matched_alias: "image.tag",
+                matched_value: "ghcr.io/boats/boats-chatgpt-app:1.2.3",
+                relative_path: "clusters/bg-prod/boats-chatgpt-app/values.yaml",
+                repo_name: "iac-eks-argocd"
+              }
+            ],
+            influencing_repositories: [
+              { repo_name: "boats-chatgpt-app", roles: ["service_owner"] },
+              { repo_name: "iac-eks-argocd", roles: ["deployment_source"] }
+            ],
+            read_first_files: [
+              {
+                evidence_kinds: ["helm_values_reference"],
+                next_call: "get_file_lines",
+                relative_path: "clusters/bg-prod/boats-chatgpt-app/values.yaml",
+                repo_name: "iac-eks-argocd"
+              }
+            ],
+            service_name: "boats-chatgpt-app",
+            story: "boats-chatgpt-app is influenced by 1 values layer.",
+            values_layers: [
+              {
+                evidence_kind: "helm_values_reference",
+                relative_path: "clusters/bg-prod/boats-chatgpt-app/values.yaml",
+                repo_name: "iac-eks-argocd"
+              }
+            ]
+          });
+        }
         if (path.endsWith("/context")) {
           return Response.json({ deployment_evidence: { artifacts: [] } });
         }
@@ -384,6 +426,10 @@ describe("workspace story adapter", () => {
     expect(story?.serviceSpotlight?.investigation.nextCalls[0]?.tool).toBe(
       "get_service_story"
     );
+    expect(story?.serviceSpotlight?.configInfluence?.sections[1].items[0]).toMatchObject({
+      label: "image.tag",
+      repoName: "iac-eks-argocd"
+    });
     expect(story?.serviceSpotlight?.consumers[0]?.repository).toBe(
       "terraform-stack-node10"
     );

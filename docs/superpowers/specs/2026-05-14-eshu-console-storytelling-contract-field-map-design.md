@@ -57,6 +57,11 @@ The latest MCP contract work changes the console plan in four important ways.
    source when the evidence exists. CloudFront is safe control-plane metadata;
    it must not be displayed as workload ownership unless a later reducer
    explicitly correlates it.
+5. Deployment configuration influence is now a prompt-ready story contract.
+   The UI should not bury image tags, runtime settings, resource limits, values
+   layers, rendered targets, and read-first files inside generic evidence rows.
+   These fields explain what a human should inspect or edit first when a
+   deployment looks wrong.
 
 Change-surface remains part of the plan, but the console must use it
 conservatively. A remote proof showed exact service-name impact probes can
@@ -101,6 +106,29 @@ Service story design rule: the service page should be an atlas. `deployment_lane
 drives the deployment visual, `entrypoints` and edge evidence drive the traffic
 visual, `story_sections` drives navigation, `evidence_graph` is the proof layer,
 and raw evidence appears only after a selection.
+
+## `investigate_deployment_config`
+
+Primary user question: which repositories and files influence this service's
+image tag, runtime settings, resource limits, values layers, or rendered
+targets?
+
+| Field | Meaning | Human question | UI treatment | Drilldown |
+| --- | --- | --- | --- | --- |
+| `story` | Plain-language summary of configuration influence. | What should I inspect first? | Configuration influence panel intro. | Section anchors. |
+| `influencing_repositories` | Service owner, deployment source, and configuration artifact repos. | Which repos shape this deployment? | Repository trail beside the audit sections. | Repo story or source file. |
+| `values_layers` | Helm, Kustomize, ArgoCD, Terraform, values, or application layers. | Which values layers can change runtime behavior? | Audit section grouped by repo/path. | `get_file_lines`. |
+| `image_tag_sources` | Image tag evidence or fallback image refs. | What image tag is being deployed? | Audit section with alias/value/path visible. | Source lines or relationship evidence. |
+| `runtime_setting_sources` | Env vars, replicas, probes, command, args, secrets, config references. | What runtime knobs shape behavior? | Audit section with setting name and source path. | Source lines. |
+| `resource_limit_sources` | CPU, memory, requests, and limits. | What resource limits apply? | Audit section with setting name and value. | Source lines. |
+| `rendered_targets` | Kubernetes resources and controller targets. | What runtime objects does this render to? | Target section tied back to deployment lanes. | Entity or deployment trace. |
+| `read_first_files` | Portable file handles and next calls. | What should I open first? | "Read first" section with `get_file_lines` affordances. | File lines. |
+| `recommended_next_calls` | Follow-up MCP calls. | What should I ask Eshu next? | Right rail action list. | Execute or prefill call. |
+| `coverage` | Query shape, per-section limit, truncation, artifact/source counts. | Am I seeing the whole influence set? | Coverage/truncation label in the panel header. | Narrow by env or rerun with paging. |
+
+Deployment configuration design rule: this is an audit trail, not a key/value
+dump. It belongs between deployment/traffic and lower-level evidence because it
+answers the operational question "what file or repo should I inspect first?"
 
 ## `investigate_service`
 
@@ -241,6 +269,8 @@ Stitch MCP produced two working mockup directions for this slice:
 
 - Service atlas: `projects/1430014333992672349/screens/44a4f2aa6c3b402f87b3a6d655d6d2be`
 - Resolver/change-review state: `projects/1430014333992672349/screens/f0ebd643587a4093b59a0265c7ae5769`
+- Deployment-config influence refresh:
+  `projects/18138865204006205672/screens/969e1e93c8734155b9360477340108a2`
 
 Use the mockups as interaction direction, not a token source. The repo-owned
 `PRODUCT.md` and `DESIGN.md` remain the design system. The useful Stitch moves
@@ -267,6 +297,8 @@ The Eshu Console story model should become:
    hostnames and runtime targets when present.
 9. Paged catalog and inventory views from prompt-ready bounded contracts, with
    visible `limit`, `offset`, and `truncated` state.
+10. Deployment configuration influence from `investigate_deployment_config`,
+    rendered as a repo/file audit trail with read-first handles.
 
 Dashboard and catalog should become entry points into this story model. The
 service atlas is where users understand the answer; the change-review lens is
