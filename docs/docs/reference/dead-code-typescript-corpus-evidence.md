@@ -27,6 +27,12 @@ Reproduction commands:
 git clone --depth 1 --filter=blob:none https://github.com/fastify/fastify.git /tmp/eshu-ts-corpus-336/fastify
 git clone --depth 1 --filter=blob:none https://github.com/taskforcesh/bullmq.git /tmp/eshu-ts-corpus-336/bullmq
 git clone --depth 1 --filter=blob:none https://github.com/nestjs/nest.git /tmp/eshu-ts-corpus-336/nest
+git -C /tmp/eshu-ts-corpus-336/fastify fetch --depth 1 origin 1c49974805e57a17f1616f422678317b1d35b73f
+git -C /tmp/eshu-ts-corpus-336/fastify checkout --detach 1c49974805e57a17f1616f422678317b1d35b73f
+git -C /tmp/eshu-ts-corpus-336/bullmq fetch --depth 1 origin ec2efcf4493479f9e7ecd0ae8a9000a831bb0084
+git -C /tmp/eshu-ts-corpus-336/bullmq checkout --detach ec2efcf4493479f9e7ecd0ae8a9000a831bb0084
+git -C /tmp/eshu-ts-corpus-336/nest fetch --depth 1 origin 983dd52c4927753be3421162fc43e4fde8d3fcde
+git -C /tmp/eshu-ts-corpus-336/nest checkout --detach 983dd52c4927753be3421162fc43e4fde8d3fcde
 rg --files /tmp/eshu-ts-corpus-336/fastify | rg '\.(mjs|cjs|js|jsx|ts|tsx)$' | wc -l
 rg -n 'route\s*\(\s*\{|handler\s*:' /tmp/eshu-ts-corpus-336/fastify --glob '*.{mjs,cjs,js,jsx,ts,tsx}' | wc -l
 rg --files /tmp/eshu-ts-corpus-336/bullmq | rg '\.(mjs|cjs|js|jsx|ts|tsx)$' | wc -l
@@ -56,11 +62,11 @@ Benchmark Evidence: on Apple M1 Max / darwin arm64, `go test
 'BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls|BenchmarkResolveDynamicJavaScriptCallee'
 -benchmem -count=1` measured the large dynamic-call benchmark at 8.729 ms/op,
 1,643,794 B/op, and 29,699 allocs/op on `origin/main`. A final isolated
-`-count=3` branch run measured the same benchmark at 8.601 ms/op, 8.604 ms/op,
-and 8.611 ms/op with 29,697 to 29,699 allocs/op. The dynamic JavaScript resolver
+`-count=3` branch run measured the same benchmark at 8.616 ms/op, 8.687 ms/op,
+and 8.640 ms/op with 29,699 to 29,700 allocs/op. The dynamic JavaScript resolver
 microbenchmarks stayed within run noise: anonymous-source fallback moved 1,484
-ns/op to about 1,473 to 1,476 ns/op, and no-alias fallback moved 1,179 ns/op to
-about 1,167 to 1,173 ns/op.
+ns/op to about 1,472 to 1,483 ns/op, and no-alias fallback moved 1,179 ns/op to
+about 1,166 to 1,197 ns/op.
 
 Observability Evidence: no new read-path query or worker stage was added. The
 existing code-call materialization completion log reports `fact_count`,

@@ -12,12 +12,19 @@ func javaScriptFunctionValueReferenceCalls(
 	source []byte,
 	lang string,
 	commonJSModuleAliases map[string]struct{},
+	fastifyBases map[string]struct{},
 ) []map[string]any {
 	if node == nil || node.Kind() != "call_expression" {
 		return nil
 	}
 	argumentsNode := node.ChildByFieldName("arguments")
-	return javaScriptFunctionValueReferenceCallsFromArguments(argumentsNode, source, lang, commonJSModuleAliases)
+	return javaScriptFunctionValueReferenceCallsFromArguments(
+		argumentsNode,
+		source,
+		lang,
+		commonJSModuleAliases,
+		javaScriptFunctionValueReferenceIsFastifyRouteCall(node, source, fastifyBases),
+	)
 }
 
 func javaScriptFunctionValueReferenceCallsFromArguments(
@@ -25,6 +32,7 @@ func javaScriptFunctionValueReferenceCallsFromArguments(
 	source []byte,
 	lang string,
 	commonJSModuleAliases map[string]struct{},
+	allowDirectHandlerValues bool,
 ) []map[string]any {
 	if argumentsNode == nil {
 		return nil
@@ -34,7 +42,12 @@ func javaScriptFunctionValueReferenceCallsFromArguments(
 	walkNamed(argumentsNode, func(child *tree_sitter.Node) {
 		if !javaScriptFunctionValueReferenceNode(child) ||
 			javaScriptFunctionValueReferenceIsCallCallee(child) ||
-			javaScriptFunctionValueReferenceIsNonFastifyHandlerValue(child, source) {
+			javaScriptFunctionValueReferenceShouldSkipHandlerValue(
+				child,
+				argumentsNode,
+				source,
+				allowDirectHandlerValues,
+			) {
 			return
 		}
 		if child.Parent() != nil && child.Parent().Kind() == "member_expression" {
@@ -96,7 +109,20 @@ func javaScriptReturnValueNode(node *tree_sitter.Node) *tree_sitter.Node {
 	return nil
 }
 
-func javaScriptFunctionValueReferenceIsNonFastifyHandlerValue(node *tree_sitter.Node, source []byte) bool {
+func javaScriptFunctionValueReferenceShouldSkipHandlerValue(
+	node *tree_sitter.Node,
+	argumentsNode *tree_sitter.Node,
+	source []byte,
+	allowDirectHandlerValues bool,
+) bool {
+	if !javaScriptFunctionValueReferenceIsHandlerValue(node, source) {
+		return false
+	}
+	return !allowDirectHandlerValues ||
+		!javaScriptFunctionValueReferenceIsDirectArgumentObjectValue(node, argumentsNode)
+}
+
+func javaScriptFunctionValueReferenceIsHandlerValue(node *tree_sitter.Node, source []byte) bool {
 	if node == nil {
 		return false
 	}
@@ -110,7 +136,45 @@ func javaScriptFunctionValueReferenceIsNonFastifyHandlerValue(node *tree_sitter.
 	if strings.Trim(strings.TrimSpace(nodeText(parent.ChildByFieldName("key"), source)), `"'`) != "handler" {
 		return false
 	}
-	return !javaScriptHasFastifyImport(string(source))
+	return true
+}
+
+func javaScriptFunctionValueReferenceIsDirectArgumentObjectValue(
+	node *tree_sitter.Node,
+	argumentsNode *tree_sitter.Node,
+) bool {
+	parent := node.Parent()
+	if parent == nil {
+		return false
+	}
+	objectNode := parent.Parent()
+	if objectNode == nil || objectNode.Kind() != "object" || argumentsNode == nil {
+		return false
+	}
+	cursor := argumentsNode.Walk()
+	defer cursor.Close()
+	for _, child := range argumentsNode.NamedChildren(cursor) {
+		child := child
+		if javaScriptNodeSameRange(&child, objectNode) {
+			return true
+		}
+	}
+	return false
+}
+
+func javaScriptFunctionValueReferenceIsFastifyRouteCall(
+	node *tree_sitter.Node,
+	source []byte,
+	fastifyBases map[string]struct{},
+) bool {
+	if len(fastifyBases) == 0 || node == nil || node.Kind() != "call_expression" {
+		return false
+	}
+	base, property, ok := javaScriptMemberBaseAndProperty(node.ChildByFieldName("function"), source)
+	if !ok || strings.ToLower(property) != "route" {
+		return false
+	}
+	return javaScriptNameSetContains(fastifyBases, base)
 }
 
 func javaScriptFunctionValueReferenceNode(node *tree_sitter.Node) bool {

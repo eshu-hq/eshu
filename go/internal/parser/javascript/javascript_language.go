@@ -49,6 +49,7 @@ func Parse(
 	}
 	scope := options.NormalizedVariableScope()
 	root := tree.RootNode()
+	sourceText := string(source)
 	reactAliases := javaScriptReactAliases(root, source, outputLanguage)
 	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source)
 	if len(deadCodeRoots.fileRootKinds) > 0 {
@@ -57,6 +58,7 @@ func Parse(
 	commonJSModuleAliases := javaScriptCommonJSModuleExportAliases(root, source)
 	tsConfigImports := NewTSConfigImportResolver(repoRoot, path)
 	newExpressionTypes := javaScriptNewExpressionVariableTypes(root, source)
+	fastifyBases := javaScriptFastifyRegistrationBases(root, source, sourceText)
 
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -231,7 +233,13 @@ func Parse(
 				}
 			}
 			appendBucket(payload, "function_calls", item)
-			for _, reference := range javaScriptFunctionValueReferenceCalls(node, source, outputLanguage, commonJSModuleAliases) {
+			for _, reference := range javaScriptFunctionValueReferenceCalls(
+				node,
+				source,
+				outputLanguage,
+				commonJSModuleAliases,
+				fastifyBases,
+			) {
 				appendBucket(payload, "function_calls", reference)
 			}
 		case "new_expression":
@@ -251,6 +259,7 @@ func Parse(
 				source,
 				outputLanguage,
 				commonJSModuleAliases,
+				false,
 			) {
 				appendBucket(payload, "function_calls", reference)
 			}
