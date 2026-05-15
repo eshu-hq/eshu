@@ -151,3 +151,81 @@ func TestAWSRuntimeDriftRowToIaCManagementExpandsReadModelFields(t *testing.T) {
 		t.Fatalf("MatchedTerraformStateAddress = %q, want empty", finding.MatchedTerraformStateAddress)
 	}
 }
+
+func TestAWSRuntimeDriftRowToIaCManagementRejectsUnknownPayloadStatus(t *testing.T) {
+	t.Parallel()
+
+	row := postgres.AWSCloudRuntimeDriftFindingRow{
+		FactID:           "fact:aws-cloud-runtime-drift:unknown-status",
+		ScopeID:          "aws:123456789012:us-east-1:lambda",
+		GenerationID:     "generation:aws-1",
+		SourceSystem:     "aws",
+		ARN:              "arn:aws:lambda:us-east-1:123456789012:function:payments-api",
+		FindingKind:      findingKindUnmanagedCloudResource,
+		ManagementStatus: "terraform_state_onyl",
+		Confidence:       0.87,
+		Evidence: []postgres.AWSCloudRuntimeDriftEvidenceRow{
+			{
+				ID:           "evidence:cloud",
+				SourceSystem: "aws",
+				EvidenceType: "aws_cloud_resource",
+				ScopeID:      "aws:123456789012:us-east-1:lambda",
+				Key:          "arn",
+				Value:        "arn:aws:lambda:us-east-1:123456789012:function:payments-api",
+				Confidence:   0.92,
+			},
+			{
+				ID:           "evidence:state",
+				SourceSystem: "terraform_state",
+				EvidenceType: "terraform_state_resource",
+				ScopeID:      "terraform_state:s3:prod",
+				Key:          "resource_address",
+				Value:        "module.app.aws_lambda_function.payments",
+				Confidence:   0.91,
+			},
+		},
+	}
+
+	finding := awsRuntimeDriftRowToIaCManagement(row)
+
+	if got, want := finding.ManagementStatus, managementStatusTerraformStateOnly; got != want {
+		t.Fatalf("ManagementStatus = %q, want fallback %q", got, want)
+	}
+}
+
+func TestAWSRuntimeDriftRowToIaCManagementMarksRawTagsProvenanceCaseInsensitively(t *testing.T) {
+	t.Parallel()
+
+	row := postgres.AWSCloudRuntimeDriftFindingRow{
+		FactID:       "fact:aws-cloud-runtime-drift:raw-tag-case",
+		ScopeID:      "aws:123456789012:us-east-1:s3",
+		GenerationID: "generation:aws-1",
+		SourceSystem: "aws",
+		ARN:          "arn:aws:s3:::payments-assets",
+		FindingKind:  findingKindOrphanedCloudResource,
+		Confidence:   0.87,
+		Evidence: []postgres.AWSCloudRuntimeDriftEvidenceRow{
+			{
+				ID:           "evidence:tag",
+				SourceSystem: "aws",
+				EvidenceType: "AWS_RAW_TAG",
+				ScopeID:      "aws:123456789012:us-east-1:s3",
+				Key:          "tag:service",
+				Value:        "payments",
+				Confidence:   1,
+			},
+		},
+	}
+
+	finding := awsRuntimeDriftRowToIaCManagement(row)
+
+	if got, want := finding.Tags, map[string]string{"service": "payments"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Tags = %#v, want %#v", got, want)
+	}
+	if got, want := len(finding.Evidence), 1; got != want {
+		t.Fatalf("Evidence len = %d, want %d", got, want)
+	}
+	if !finding.Evidence[0].ProvenanceOnly {
+		t.Fatal("Evidence[0].ProvenanceOnly = false, want true for AWS_RAW_TAG")
+	}
+}

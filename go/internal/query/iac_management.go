@@ -325,7 +325,8 @@ func awsRuntimeDriftRowToIaCManagement(
 	for _, atom := range row.Evidence {
 		statusInput.recordEvidence(atom.EvidenceType)
 		enrichment.recordEvidence(atom)
-		if strings.EqualFold(atom.EvidenceType, "aws_raw_tag") && strings.HasPrefix(atom.Key, "tag:") {
+		isRawTag := strings.EqualFold(atom.EvidenceType, "aws_raw_tag")
+		if isRawTag && strings.HasPrefix(atom.Key, "tag:") {
 			tags[strings.TrimPrefix(atom.Key, "tag:")] = atom.Value
 		}
 		evidence = append(evidence, IaCManagementEvidenceRow{
@@ -336,13 +337,13 @@ func awsRuntimeDriftRowToIaCManagement(
 			Key:            atom.Key,
 			Value:          atom.Value,
 			Confidence:     atom.Confidence,
-			ProvenanceOnly: atom.EvidenceType == "aws_raw_tag",
+			ProvenanceOnly: isRawTag,
 		})
 	}
 	if len(tags) == 0 {
 		tags = nil
 	}
-	status := iacFirstNonEmpty(row.ManagementStatus, deriveIaCManagementStatus(statusInput))
+	status := normalizeIaCManagementStatus(row.ManagementStatus, deriveIaCManagementStatus(statusInput))
 	missingEvidence := firstNonEmptySlice(row.MissingEvidence, missingEvidenceForManagementStatus(status))
 	warningFlags := iacMergeStringSets(
 		row.WarningFlags,

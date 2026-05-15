@@ -18,6 +18,17 @@ const (
 	managementStatusStaleIaCCandidate   = "stale_iac_candidate"
 )
 
+var allowedIaCManagementStatuses = map[string]struct{}{
+	managementStatusManagedByTerraform:  {},
+	managementStatusTerraformStateOnly:  {},
+	managementStatusTerraformConfigOnly: {},
+	managementStatusCloudOnly:           {},
+	managementStatusManagedByOtherIaC:   {},
+	managementStatusAmbiguous:           {},
+	managementStatusUnknown:             {},
+	managementStatusStaleIaCCandidate:   {},
+}
+
 type iacManagementStatusInput struct {
 	FindingKind                string
 	HasCloudEvidence           bool
@@ -94,6 +105,17 @@ func deriveIaCManagementStatus(input iacManagementStatusInput) string {
 	}
 	if input.HasCloudEvidence {
 		return managementStatusCloudOnly
+	}
+	return managementStatusUnknown
+}
+
+func normalizeIaCManagementStatus(raw string, fallback string) string {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	if _, ok := allowedIaCManagementStatuses[raw]; ok {
+		return raw
+	}
+	if _, ok := allowedIaCManagementStatuses[fallback]; ok {
+		return fallback
 	}
 	return managementStatusUnknown
 }
