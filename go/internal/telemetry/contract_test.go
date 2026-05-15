@@ -93,6 +93,7 @@ func TestSpanNames(t *testing.T) {
 		"query.infra_resource_search",
 		"query.code_topic_investigation",
 		"query.change_surface_investigation",
+		"query.resource_investigation",
 		"query.package_registry_packages",
 		"query.package_registry_versions",
 		"tfstate.collector.claim.process",
