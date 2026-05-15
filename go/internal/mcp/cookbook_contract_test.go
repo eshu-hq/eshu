@@ -44,6 +44,34 @@ func TestValidateDiagnosticCypherBlocksAcceptsMultilineJSONWithLimit(t *testing.
 	}
 }
 
+func TestMCPCookbookToolReferencesAreRegistered(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("../../../docs/docs/reference/mcp-cookbook.md")
+	if err != nil {
+		t.Fatalf("ReadFile(mcp-cookbook.md) error = %v, want nil", err)
+	}
+	registered := map[string]bool{}
+	for _, tool := range ReadOnlyTools() {
+		registered[tool.Name] = true
+	}
+	for _, tool := range cookbookToolReferences(string(raw)) {
+		if !registered[tool] {
+			t.Fatalf("mcp-cookbook.md references unregistered MCP tool %q", tool)
+		}
+	}
+}
+
+func cookbookToolReferences(markdown string) []string {
+	pattern := regexp.MustCompile(`\*\*Tool:\*\* ` + "`" + `([^` + "`" + `]+)` + "`")
+	matches := pattern.FindAllStringSubmatch(markdown, -1)
+	tools := make([]string, 0, len(matches))
+	for _, match := range matches {
+		tools = append(tools, match[1])
+	}
+	return tools
+}
+
 func validateDiagnosticCypherBlocks(markdown string) error {
 	for _, block := range jsonFenceBlocks(markdown) {
 		if !strings.Contains(block, `"cypher_query"`) {
