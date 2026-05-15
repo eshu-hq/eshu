@@ -88,6 +88,16 @@ func TestRunnerMapsTopicEvidenceGroupsAndFallbackTruth(t *testing.T) {
 		if got, want := r.URL.Path, "/api/v0/code/topics/investigate"; got != want {
 			t.Fatalf("path = %q, want %q", got, want)
 		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("Decode request body: %v", err)
+		}
+		if _, ok := body["query"]; ok {
+			t.Fatalf("body includes query key for topic request: %#v", body)
+		}
+		if got, want := body["topic"], "topic evidence"; got != want {
+			t.Fatalf("topic = %q, want %q", got, want)
+		}
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"data": map[string]any{
 				"evidence_groups": []map[string]any{
@@ -156,6 +166,37 @@ func TestRunnerRecordsUnsupportedCapability(t *testing.T) {
 	}
 }
 
+func TestRunnerRejectsUnexpectedSuccessPayloadShape(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"data":  map[string]any{"items": []map[string]any{{"handle": "file://repo-1/a.go"}}},
+			"truth": map[string]any{"level": "derived"},
+		})
+	}))
+	defer server.Close()
+
+	suite := Suite{Cases: []Case{
+		{
+			Case: semanticeval.Case{
+				ID:       "unexpected-shape",
+				Question: "what changed?",
+				Expected: []semanticeval.ExpectedHandle{
+					{Handle: "file://repo-1/a.go", Relevance: 3, Required: true, MaxTruth: semanticeval.TruthClassDerived},
+				},
+			},
+			CurrentPath: Request{Mode: ModeCodeSearch, Query: "changed", Limit: 10},
+		},
+	}}
+
+	_, err := Runner{BaseURL: server.URL, Timeout: time.Second}.Run(context.Background(), suite)
+	if err == nil {
+		t.Fatal("Run() error = nil, want unexpected payload shape error")
+	}
+	if !strings.Contains(err.Error(), "recognized result key") {
+		t.Fatalf("Run() error = %q, want recognized result key", err.Error())
+	}
+}
+
 func TestLoadSuiteJSONRejectsUnknownFieldsAndUnboundedLimits(t *testing.T) {
 	_, err := LoadSuiteJSON(strings.NewReader(`{"cases":[{"id":"unknown","question":"q","expected":[{"handle":"h","relevance":1,"required":true,"max_truth":"exact"}],"current_path":{"mode":"code_search","query":"q","extra":true}}]}`))
 	if err == nil {
@@ -169,8 +210,19 @@ func TestLoadSuiteJSONRejectsUnknownFieldsAndUnboundedLimits(t *testing.T) {
 	if err == nil {
 		t.Fatal("LoadSuiteJSON() error = nil, want limit error")
 	}
-	if !strings.Contains(err.Error(), "limit") {
-		t.Fatalf("LoadSuiteJSON() error = %q, want limit", err.Error())
+	if !strings.Contains(err.Error(), "between 0 and 50") {
+		t.Fatalf("LoadSuiteJSON() error = %q, want between 0 and 50", err.Error())
+	}
+}
+
+func TestLoadSuiteJSONReportsMalformedTrailingBytes(t *testing.T) {
+	input := `{"cases":[{"id":"malformed","question":"q","expected":[{"handle":"h","relevance":1,"required":true,"max_truth":"exact"}],"current_path":{"mode":"code_search","query":"q"}}]} {`
+	_, err := LoadSuiteJSON(strings.NewReader(input))
+	if err == nil {
+		t.Fatal("LoadSuiteJSON() error = nil, want malformed trailing bytes error")
+	}
+	if strings.Contains(err.Error(), "trailing values") {
+		t.Fatalf("LoadSuiteJSON() error = %q, want parse error", err.Error())
 	}
 }
 

@@ -30,22 +30,22 @@ func mapTruthLevel(truth *truthEnvelope) semanticeval.TruthClass {
 	}
 }
 
-func extractCandidates(data json.RawMessage, truth semanticeval.TruthClass) []semanticeval.Candidate {
+func extractCandidates(data json.RawMessage, truth semanticeval.TruthClass) ([]semanticeval.Candidate, error) {
 	if len(data) == 0 {
-		return nil
+		return nil, nil
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(data, &payload); err != nil {
-		return nil
+		return nil, fmt.Errorf("decode response data: %w", err)
 	}
 	for _, key := range rankedResultKeys {
 		rows, ok := payload[key].([]any)
 		if !ok {
 			continue
 		}
-		return candidatesFromRows(rows, truth)
+		return candidatesFromRows(rows, truth), nil
 	}
-	return nil
+	return nil, fmt.Errorf("response data does not include a recognized result key")
 }
 
 func candidatesFromRows(rows []any, truth semanticeval.TruthClass) []semanticeval.Candidate {

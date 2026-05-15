@@ -110,10 +110,10 @@ func (request Request) Validate() error {
 		return fmt.Errorf("unsupported mode %q", request.Mode)
 	}
 	if request.Limit < 0 || request.Limit > maxLimit {
-		return fmt.Errorf("limit must be between 1 and %d when set", maxLimit)
+		return fmt.Errorf("limit must be between 0 and %d", maxLimit)
 	}
 	if request.TimeoutMS < 0 || request.TimeoutMS > maxTimeoutMS {
-		return fmt.Errorf("timeout_ms must be between 1 and %d when set", maxTimeoutMS)
+		return fmt.Errorf("timeout_ms must be between 0 and %d", maxTimeoutMS)
 	}
 	return nil
 }
@@ -170,7 +170,6 @@ func (request Request) timeoutMS() int {
 func (request Request) body(evalCase Case) map[string]any {
 	query := request.queryText(evalCase)
 	body := map[string]any{
-		"query": query,
 		"limit": request.limit(),
 	}
 	if repoID := request.repoID(evalCase); repoID != "" {
@@ -181,6 +180,7 @@ func (request Request) body(evalCase Case) map[string]any {
 	}
 	switch request.Mode {
 	case ModeCodeSearch:
+		body["query"] = query
 		if request.Exact {
 			body["exact"] = true
 		}
@@ -206,8 +206,10 @@ func decodeStrictJSON(reader io.Reader, target any) error {
 		return err
 	}
 	var trailing struct{}
-	if err := decoder.Decode(&trailing); err != io.EOF {
+	if err := decoder.Decode(&trailing); err == nil {
 		return fmt.Errorf("json document contains trailing values")
+	} else if err != io.EOF {
+		return err
 	}
 	return nil
 }

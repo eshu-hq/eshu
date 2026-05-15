@@ -98,7 +98,9 @@ func (runner Runner) runCase(ctx context.Context, client HTTPClient, baseURL *ur
 	if err != nil {
 		return semanticeval.CaseResult{}, fmt.Errorf("case %q request failed: %w", evalCase.ID, err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 
 	var envelope responseEnvelope
 	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
@@ -120,7 +122,11 @@ func (runner Runner) runCase(ctx context.Context, client HTTPClient, baseURL *ur
 		return semanticeval.CaseResult{}, fmt.Errorf("case %q returned envelope error: %s", evalCase.ID, envelope.errorMessage())
 	}
 	truth := mapTruthLevel(envelope.Truth)
-	result.Candidates = extractCandidates(envelope.Data, truth)
+	candidates, err := extractCandidates(envelope.Data, truth)
+	if err != nil {
+		return semanticeval.CaseResult{}, fmt.Errorf("case %q extract candidates: %w", evalCase.ID, err)
+	}
+	result.Candidates = candidates
 	return result, nil
 }
 
