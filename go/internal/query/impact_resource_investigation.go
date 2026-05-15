@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -157,8 +158,12 @@ func (h *ImpactHandler) loadResourceInvestigationSections(
 	}()
 	wg.Wait()
 	close(errCh)
+	var sectionErrs []error
 	for err := range errCh {
-		return nil, false, nil, false, nil, false, err
+		sectionErrs = append(sectionErrs, err)
+	}
+	if len(sectionErrs) > 0 {
+		return nil, false, nil, false, nil, false, errors.Join(sectionErrs...)
 	}
 	return workloads, workloadsTruncated, incomingPaths, incomingTruncated, outgoingPaths, outgoingTruncated, nil
 }
@@ -242,6 +247,7 @@ func (h *ImpactHandler) resolveResourceInvestigationTarget(
 
 func resourceInvestigationResolverCypher(req resourceInvestigationRequest) string {
 	labelPredicate := resourceInvestigationLabelPredicate(req.ResourceType)
+	typePredicate := resourceInvestigationTypePredicate(req.ResourceType)
 	matchPredicate := `(
   n.id = $selector OR
   n.uid = $selector OR
@@ -267,6 +273,7 @@ func resourceInvestigationResolverCypher(req resourceInvestigationRequest) strin
 	return fmt.Sprintf(`MATCH (n)
 WHERE %s
   AND %s
+  AND %s
   AND ($environment = '' OR coalesce(n.environment, '') = '' OR n.environment = $environment)
 RETURN coalesce(n.id, n.uid, n.resource_id, n.name) AS id,
        n.name AS name,
@@ -281,7 +288,7 @@ RETURN coalesce(n.id, n.uid, n.resource_id, n.name) AS id,
        coalesce(n.kind, '') AS resource_kind,
        coalesce(n.resource_category, '') AS resource_class
 ORDER BY name, id
-LIMIT $limit`, labelPredicate, matchPredicate)
+LIMIT $limit`, labelPredicate, typePredicate, matchPredicate)
 }
 
 func resourceInvestigationLabelPredicate(resourceType string) string {
@@ -296,6 +303,27 @@ func resourceInvestigationLabelPredicate(resourceType string) string {
 		return "n:TerraformModule"
 	default:
 		return "(n:CloudResource OR n:K8sResource OR n:TerraformResource OR n:TerraformDataSource OR n:TerraformModule OR n:CloudFormationResource OR n:ArgoCDApplication OR n:ArgoCDApplicationSet OR n:CrossplaneClaim OR n:CrossplaneXRD OR n:HelmRelease)"
+	}
+}
+
+func resourceInvestigationTypePredicate(resourceType string) string {
+	resourceTypeExpr := "toLower(coalesce(n.resource_type, n.data_type, n.kind, n.resource_category, ''))"
+	switch resourceType {
+	case "queue":
+		return fmt.Sprintf("(%s CONTAINS 'queue' OR %s CONTAINS 'sqs')", resourceTypeExpr, resourceTypeExpr)
+	case "database", "db":
+		return fmt.Sprintf(
+			"(%s CONTAINS 'database' OR %s CONTAINS 'db' OR %s CONTAINS 'rds' OR %s CONTAINS 'sql' OR %s CONTAINS 'postgres' OR %s CONTAINS 'mysql' OR %s CONTAINS 'dynamodb')",
+			resourceTypeExpr,
+			resourceTypeExpr,
+			resourceTypeExpr,
+			resourceTypeExpr,
+			resourceTypeExpr,
+			resourceTypeExpr,
+			resourceTypeExpr,
+		)
+	default:
+		return "1 = 1"
 	}
 }
 
@@ -315,7 +343,7 @@ RETURN DISTINCT coalesce(workload.id, instance.workload_id, instance.id) AS work
        coalesce(instance.environment, resource.environment, '') AS environment,
        type(rel) AS relationship_type,
        coalesce(rel.reason, rel.evidence_type, '') AS relationship_reason,
-       coalesce(rel.confidence, '') AS confidence
+       rel.confidence AS confidence
 ORDER BY workload_name, workload_id, instance_id
 LIMIT $limit`
 	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{
@@ -329,15 +357,18 @@ LIMIT $limit`
 	rows, truncated := trimImpactRows(rows, req.Limit)
 	workloads := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		workloads = append(workloads, compactStringMap(map[string]any{
+		workload := compactStringMap(map[string]any{
 			"workload_id":         StringVal(row, "workload_id"),
 			"workload_name":       StringVal(row, "workload_name"),
 			"instance_id":         StringVal(row, "instance_id"),
 			"environment":         StringVal(row, "environment"),
 			"relationship_type":   StringVal(row, "relationship_type"),
 			"relationship_reason": StringVal(row, "relationship_reason"),
-			"confidence":          StringVal(row, "confidence"),
-		}))
+		})
+		if confidence := row["confidence"]; confidence != nil {
+			workload["confidence"] = confidence
+		}
+		workloads = append(workloads, workload)
 	}
 	return workloads, truncated, nil
 }

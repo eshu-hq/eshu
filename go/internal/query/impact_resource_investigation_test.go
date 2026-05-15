@@ -3,6 +3,7 @@ package query
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,6 +18,9 @@ type recordingResourceInvestigationGraph struct {
 	workloadRows []map[string]any
 	incomingRows []map[string]any
 	outgoingRows []map[string]any
+	workloadErr  error
+	incomingErr  error
+	outgoingErr  error
 }
 
 type resourceInvestigationRunCall struct {
@@ -34,10 +38,19 @@ func (g *recordingResourceInvestigationGraph) Run(
 	g.runCalls = append(g.runCalls, resourceInvestigationRunCall{cypher: cypher, params: params})
 	switch {
 	case strings.Contains(cypher, "MATCH (instance:WorkloadInstance)"):
+		if g.workloadErr != nil {
+			return nil, g.workloadErr
+		}
 		return g.workloadRows, nil
 	case strings.Contains(cypher, "<-[rels"):
+		if g.incomingErr != nil {
+			return nil, g.incomingErr
+		}
 		return g.incomingRows, nil
 	case strings.Contains(cypher, "-[rels"):
+		if g.outgoingErr != nil {
+			return nil, g.outgoingErr
+		}
 		return g.outgoingRows, nil
 	}
 	if len(g.runRows) == 0 {
@@ -112,6 +125,7 @@ func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 				"workload_id": "workload:orders-api", "workload_name": "orders-api",
 				"instance_id": "instance:orders-api:prod", "environment": "prod",
 				"relationship_type": "USES", "relationship_reason": "env DATABASE_URL",
+				"confidence": 0.95,
 			},
 			{
 				"workload_id": "workload:orders-worker", "workload_name": "orders-worker",
@@ -175,6 +189,10 @@ func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 	if got, want := len(workloads), 1; got != want {
 		t.Fatalf("workload count after limit = %d, want %d", got, want)
 	}
+	firstWorkload := workloads[0].(map[string]any)
+	if got, want := firstWorkload["confidence"], 0.95; got != want {
+		t.Fatalf("workload confidence = %#v, want numeric %#v", got, want)
+	}
 	repos := data["provisioning_paths"].([]any)
 	if got, want := len(repos), 2; got != want {
 		t.Fatalf("provisioning path count = %d, want %d", got, want)
@@ -186,5 +204,54 @@ func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 	coverage := data["coverage"].(map[string]any)
 	if got, want := coverage["query_shape"], "resolved_resource_investigation"; got != want {
 		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
+	}
+}
+
+func TestResourceInvestigationResolverNarrowsQueueAndDatabaseTypes(t *testing.T) {
+	t.Parallel()
+
+	queueCypher := resourceInvestigationResolverCypher(resourceInvestigationRequest{
+		Query:        "orders",
+		ResourceType: "queue",
+		Limit:        25,
+	})
+	for _, want := range []string{"CONTAINS 'queue'", "CONTAINS 'sqs'"} {
+		if !strings.Contains(queueCypher, want) {
+			t.Fatalf("queue resolver cypher missing %q: %s", want, queueCypher)
+		}
+	}
+
+	databaseCypher := resourceInvestigationResolverCypher(resourceInvestigationRequest{
+		Query:        "orders",
+		ResourceType: "database",
+		Limit:        25,
+	})
+	for _, want := range []string{"CONTAINS 'database'", "CONTAINS 'rds'", "CONTAINS 'postgres'"} {
+		if !strings.Contains(databaseCypher, want) {
+			t.Fatalf("database resolver cypher missing %q: %s", want, databaseCypher)
+		}
+	}
+}
+
+func TestLoadResourceInvestigationSectionsJoinsParallelErrors(t *testing.T) {
+	t.Parallel()
+
+	workloadErr := errors.New("workload query failed")
+	incomingErr := errors.New("incoming query failed")
+	handler := &ImpactHandler{Neo4j: &recordingResourceInvestigationGraph{
+		workloadErr: workloadErr,
+		incomingErr: incomingErr,
+	}}
+
+	_, _, _, _, _, _, err := handler.loadResourceInvestigationSections(
+		context.Background(),
+		resourceInvestigationRequest{Limit: 1, MaxDepth: 1},
+		"cloud:rds:orders",
+	)
+	if !errors.Is(err, workloadErr) {
+		t.Fatalf("joined error missing workload error: %v", err)
+	}
+	if !errors.Is(err, incomingErr) {
+		t.Fatalf("joined error missing incoming error: %v", err)
 	}
 }
