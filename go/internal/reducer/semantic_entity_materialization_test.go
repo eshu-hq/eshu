@@ -662,7 +662,7 @@ func TestSemanticEntityMaterializationHandlerRetractsWhenPriorGenerationExists(t
 	}
 }
 
-func TestSemanticEntityMaterializationHandlerSkipsRetractForRetriedFirstGeneration(t *testing.T) {
+func TestSemanticEntityMaterializationHandlerRetractsForRetriedFirstGeneration(t *testing.T) {
 	t.Parallel()
 
 	loader := &fakeSemanticEntityFactLoader{
@@ -707,8 +707,8 @@ func TestSemanticEntityMaterializationHandlerSkipsRetractForRetriedFirstGenerati
 	if got, want := len(writer.writes), 1; got != want {
 		t.Fatalf("writer writes = %d, want %d", got, want)
 	}
-	if !writer.writes[0].SkipRetract {
-		t.Fatal("writer SkipRetract = false, want true for retried first generation")
+	if writer.writes[0].SkipRetract {
+		t.Fatal("writer SkipRetract = true, want false for retried first generation")
 	}
 }
 

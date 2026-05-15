@@ -13,7 +13,7 @@ const replayFailedWorkItemsQuery = `
 WITH replayed AS (
     UPDATE fact_work_items
     SET status = 'pending',
-        attempt_count = 0,
+        attempt_count = GREATEST(attempt_count, 1),
         lease_owner = NULL,
         claim_until = NULL,
         visible_at = $1,
@@ -33,7 +33,7 @@ const replayFailedWorkItemsByScopeQuery = `
 WITH replayed AS (
     UPDATE fact_work_items
     SET status = 'pending',
-        attempt_count = 0,
+        attempt_count = GREATEST(attempt_count, 1),
         lease_owner = NULL,
         claim_until = NULL,
         visible_at = $1,
@@ -54,7 +54,7 @@ const replayFailedWorkItemsByClassQuery = `
 WITH replayed AS (
     UPDATE fact_work_items
     SET status = 'pending',
-        attempt_count = 0,
+        attempt_count = GREATEST(attempt_count, 1),
         lease_owner = NULL,
         claim_until = NULL,
         visible_at = $1,
@@ -75,7 +75,7 @@ const replayFailedWorkItemsByScopeAndClassQuery = `
 WITH replayed AS (
     UPDATE fact_work_items
     SET status = 'pending',
-        attempt_count = 0,
+        attempt_count = GREATEST(attempt_count, 1),
         lease_owner = NULL,
         claim_until = NULL,
         visible_at = $1,

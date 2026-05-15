@@ -363,6 +363,37 @@ responses use `materialization_status=identity_only`,
 evidence and delivery-family paths may still be present when parser or
 relationship evidence proves them.
 
+## Catalog API
+
+`GET /api/v0/catalog`
+
+The catalog route is the bounded navigation surface for Console and MCP clients
+that need entity handles before they choose a deeper story or context route.
+It returns:
+
+- `repositories` from indexed repository truth
+- `workloads` from canonical `Workload` graph nodes when a graph backend is
+  available
+- identity-only workload rows from the repository read model when workload
+  identity facts exist before full graph materialization catches up
+- `services`, which are workload rows whose normalized `kind` is `service`;
+  identity-only rows are service-addressable and include
+  `materialization_status=identity_only`
+- `counts`, `limit`, and `truncated` so callers can show totals without assuming
+  the response is exhaustive
+- `limitations` when the runtime can only return repository handles
+
+The optional `limit` query parameter caps each returned collection. The default
+is `2000` and the maximum accepted value is `5000`.
+
+No-Regression Evidence: The catalog route uses one bounded repository read, one
+bounded workload graph read, and one bounded workload-identity read with
+`LIMIT`, returning handles only rather than story payloads.
+
+No-Observability-Change: Graph reads continue through the query package
+`GraphQuery` port, so existing graph query duration and handler error paths
+cover this route.
+
 ## Story API
 
 Use the story routes when the caller wants a structured narrative first and
@@ -1076,6 +1107,7 @@ Example infrastructure search:
 
 ## Repository API
 
+- `GET /api/v0/catalog`
 - `GET /api/v0/repositories`
 - `GET /api/v0/repositories/{id}/context`
 - `GET /api/v0/repositories/{id}/story`

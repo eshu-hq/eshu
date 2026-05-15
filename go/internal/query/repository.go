@@ -28,6 +28,7 @@ type RepositoryHandler struct {
 
 // Mount registers all repository routes on the given mux.
 func (h *RepositoryHandler) Mount(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/v0/catalog", h.listCatalog)
 	mux.HandleFunc("GET /api/v0/repositories", h.listRepositories)
 	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/context", h.getRepositoryContext)
 	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/story", h.getRepositoryStory)

@@ -98,6 +98,50 @@ func TestWorkloadMaterializerWritesWorkloads(t *testing.T) {
 	}
 }
 
+func TestWorkloadMaterializerDeduplicatesWorkloadNodeRowsButKeepsDefinesEdges(t *testing.T) {
+	t.Parallel()
+
+	executor := &fakeNeo4jExecutor{}
+	m := NewWorkloadMaterializer(executor)
+
+	projection := &ProjectionResult{
+		WorkloadRows: []WorkloadRow{
+			{
+				RepoID:         "repo-1",
+				WorkloadID:     "workload:shared",
+				WorkloadKind:   "service",
+				WorkloadName:   "shared",
+				Classification: "service",
+				Confidence:     0.97,
+			},
+			{
+				RepoID:         "repo-2",
+				WorkloadID:     "workload:shared",
+				WorkloadKind:   "service",
+				WorkloadName:   "shared",
+				Classification: "service",
+				Confidence:     0.91,
+			},
+		},
+	}
+
+	result, err := m.Materialize(context.Background(), projection)
+	if err != nil {
+		t.Fatalf("Materialize() error = %v, want nil", err)
+	}
+	if got, want := result.WorkloadsWritten, 1; got != want {
+		t.Fatalf("WorkloadsWritten = %d, want %d deduplicated node write", got, want)
+	}
+	nodeRows := rowsForCypher(t, executor.calls, "MERGE (w:Workload {id: row.workload_id})")
+	if got, want := len(nodeRows), 1; got != want {
+		t.Fatalf("workload node rows = %d, want %d", got, want)
+	}
+	edgeRows := rowsForCypher(t, executor.calls, "MERGE (repo)-[rel:DEFINES]->(w)")
+	if got, want := len(edgeRows), 2; got != want {
+		t.Fatalf("workload defines edge rows = %d, want %d", got, want)
+	}
+}
+
 func TestWorkloadMaterializerWritesInstances(t *testing.T) {
 	t.Parallel()
 
@@ -240,6 +284,50 @@ func TestWorkloadMaterializerWritesRuntimePlatforms(t *testing.T) {
 	rows := executor.calls[1].Parameters["rows"].([]map[string]any)
 	if got, want := rows[0]["platform_confidence"], 0.9; got != want {
 		t.Fatalf("platform_confidence = %#v, want %#v", got, want)
+	}
+}
+
+func TestWorkloadMaterializerDeduplicatesRuntimePlatformNodeRowsButKeepsRunEdges(t *testing.T) {
+	t.Parallel()
+
+	executor := &fakeNeo4jExecutor{}
+	m := NewWorkloadMaterializer(executor)
+
+	projection := &ProjectionResult{
+		RuntimePlatformRows: []RuntimePlatformRow{
+			{
+				Environment:  "prod",
+				InstanceID:   "workload-instance:api:prod",
+				PlatformID:   "platform:kubernetes:none:prod:prod:none",
+				PlatformKind: "kubernetes",
+				PlatformName: "prod",
+				RepoID:       "repo-1",
+			},
+			{
+				Environment:  "prod",
+				InstanceID:   "workload-instance:worker:prod",
+				PlatformID:   "platform:kubernetes:none:prod:prod:none",
+				PlatformKind: "kubernetes",
+				PlatformName: "prod",
+				RepoID:       "repo-2",
+			},
+		},
+	}
+
+	result, err := m.Materialize(context.Background(), projection)
+	if err != nil {
+		t.Fatalf("Materialize() error = %v, want nil", err)
+	}
+	if got, want := result.RuntimePlatformsWritten, 1; got != want {
+		t.Fatalf("RuntimePlatformsWritten = %d, want %d deduplicated node write", got, want)
+	}
+	nodeRows := rowsForCypher(t, executor.calls, "MERGE (p:Platform {id: row.platform_id})")
+	if got, want := len(nodeRows), 1; got != want {
+		t.Fatalf("runtime platform node rows = %d, want %d", got, want)
+	}
+	edgeRows := rowsForCypher(t, executor.calls, "MERGE (i)-[rel:RUNS_ON]->(p)")
+	if got, want := len(edgeRows), 2; got != want {
+		t.Fatalf("runtime platform edge rows = %d, want %d", got, want)
 	}
 }
 
@@ -449,6 +537,23 @@ func containsCypher(calls []fakeExecutorCall, fragment string) bool {
 		}
 	}
 	return false
+}
+
+func rowsForCypher(t *testing.T, calls []fakeExecutorCall, fragment string) []map[string]any {
+	t.Helper()
+
+	for _, call := range calls {
+		if !contains(call.Cypher, fragment) {
+			continue
+		}
+		rows, ok := call.Parameters["rows"].([]map[string]any)
+		if !ok {
+			t.Fatalf("rows parameter for %q has type %T, want []map[string]any", fragment, call.Parameters["rows"])
+		}
+		return rows
+	}
+	t.Fatalf("missing cypher fragment %q", fragment)
+	return nil
 }
 
 func contains(s, substr string) bool {

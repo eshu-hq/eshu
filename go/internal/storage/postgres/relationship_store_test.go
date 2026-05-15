@@ -185,6 +185,27 @@ func TestRelationshipStoreUpsertAndGetResolved(t *testing.T) {
 	}
 }
 
+func TestRelationshipStoreResolvedUpsertIgnoresIdentityConflict(t *testing.T) {
+	t.Parallel()
+
+	required := []string{
+		"ON CONFLICT (",
+		"generation_id",
+		"COALESCE(source_entity_id, source_repo_id)",
+		"COALESCE(target_entity_id, target_repo_id)",
+		"relationship_type",
+		") DO NOTHING",
+	}
+	for _, fragment := range required {
+		if !strings.Contains(insertResolvedSQL, fragment) {
+			t.Fatalf("insertResolvedSQL missing %q for identity conflict handling: %s", fragment, insertResolvedSQL)
+		}
+	}
+	if strings.Contains(insertResolvedSQL, "ON CONFLICT (resolved_id) DO NOTHING") {
+		t.Fatalf("insertResolvedSQL only handles primary-key conflicts, not resolved_relationships_identity_idx: %s", insertResolvedSQL)
+	}
+}
+
 func TestRelationshipStoreActivateResolutionGenerationSupersedesOlderActiveGeneration(t *testing.T) {
 	t.Parallel()
 

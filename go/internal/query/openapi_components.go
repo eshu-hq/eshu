@@ -45,6 +45,19 @@ const openAPIComponents = `  "components": {
           "is_dependency": {"type": "boolean"}
         }
       },
+      "CatalogWorkload": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "kind": {"type": "string"},
+          "repo_id": {"type": "string"},
+          "repo_name": {"type": "string"},
+          "environments": {"type": "array", "items": {"type": "string"}},
+          "instance_count": {"type": "integer"},
+          "materialization_status": {"type": "string"}
+        }
+      },
       "RepositoryRef": {
         "type": "object",
         "properties": {

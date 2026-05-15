@@ -115,14 +115,15 @@ func (m *WorkloadMaterializer) Materialize(
 				"evidence_source":            EvidenceSourceWorkloads,
 			}
 		}
-		if err := m.executeBatched(ctx, batchWorkloadNodeUpsertCypher, rows); err != nil {
+		nodeRows := dedupeMaterializerRowsByString(rows, "workload_id")
+		if err := m.executeBatched(ctx, batchWorkloadNodeUpsertCypher, nodeRows); err != nil {
 			return result, fmt.Errorf("write workloads: %w", err)
 		}
 		if err := m.executeBatched(ctx, batchWorkloadDefinesEdgeUpsertCypher, rows); err != nil {
 			return result, fmt.Errorf("write workload defines edges: %w", err)
 		}
 		result.WorkloadWriteDuration = time.Since(stageStarted)
-		result.WorkloadsWritten = len(projection.WorkloadRows)
+		result.WorkloadsWritten = len(nodeRows)
 	}
 
 	// Batch instances
@@ -143,14 +144,15 @@ func (m *WorkloadMaterializer) Materialize(
 				"evidence_source":            EvidenceSourceWorkloads,
 			}
 		}
-		if err := m.executeBatched(ctx, batchWorkloadInstanceNodeUpsertCypher, rows); err != nil {
+		nodeRows := dedupeMaterializerRowsByString(rows, "instance_id")
+		if err := m.executeBatched(ctx, batchWorkloadInstanceNodeUpsertCypher, nodeRows); err != nil {
 			return result, fmt.Errorf("write instances: %w", err)
 		}
 		if err := m.executeBatched(ctx, batchWorkloadInstanceOfEdgeUpsertCypher, rows); err != nil {
 			return result, fmt.Errorf("write instance edges: %w", err)
 		}
 		result.InstanceWriteDuration = time.Since(stageStarted)
-		result.InstancesWritten = len(projection.InstanceRows)
+		result.InstancesWritten = len(nodeRows)
 	}
 
 	// Batch deployment sources
@@ -191,14 +193,15 @@ func (m *WorkloadMaterializer) Materialize(
 				"evidence_source":     EvidenceSourceWorkloads,
 			}
 		}
-		if err := m.executeBatched(ctx, batchRuntimePlatformNodeUpsertCypher, rows); err != nil {
+		nodeRows := dedupeMaterializerRowsByString(rows, "platform_id")
+		if err := m.executeBatched(ctx, batchRuntimePlatformNodeUpsertCypher, nodeRows); err != nil {
 			return result, fmt.Errorf("write runtime platforms: %w", err)
 		}
 		if err := m.executeBatched(ctx, batchRuntimePlatformRunsOnEdgeUpsertCypher, rows); err != nil {
 			return result, fmt.Errorf("write runtime platform edges: %w", err)
 		}
 		result.RuntimePlatformDuration = time.Since(stageStarted)
-		result.RuntimePlatformsWritten = len(projection.RuntimePlatformRows)
+		result.RuntimePlatformsWritten = len(nodeRows)
 	}
 
 	// Batch API endpoints.
@@ -221,7 +224,8 @@ func (m *WorkloadMaterializer) Materialize(
 				"evidence_source": EvidenceSourceWorkloads,
 			}
 		}
-		if err := m.executeBatched(ctx, batchAPIEndpointNodeUpsertCypher, rows); err != nil {
+		nodeRows := dedupeMaterializerRowsByString(rows, "endpoint_id")
+		if err := m.executeBatched(ctx, batchAPIEndpointNodeUpsertCypher, nodeRows); err != nil {
 			return result, fmt.Errorf("write api endpoints: %w", err)
 		}
 		if err := m.executeBatched(ctx, batchAPIEndpointRepoEdgeUpsertCypher, rows); err != nil {
@@ -231,7 +235,7 @@ func (m *WorkloadMaterializer) Materialize(
 			return result, fmt.Errorf("write api endpoint workload edges: %w", err)
 		}
 		result.EndpointWriteDuration = time.Since(stageStarted)
-		result.EndpointsWritten = len(projection.EndpointRows)
+		result.EndpointsWritten = len(nodeRows)
 	}
 
 	return result, nil
@@ -293,6 +297,27 @@ func runtimePlatformConfidence(confidence float64) float64 {
 		return 0.9
 	}
 	return confidence
+}
+
+func dedupeMaterializerRowsByString(rows []map[string]any, key string) []map[string]any {
+	if len(rows) < 2 {
+		return rows
+	}
+	seen := make(map[string]struct{}, len(rows))
+	deduped := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		value, _ := row[key].(string)
+		if value == "" {
+			deduped = append(deduped, row)
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		deduped = append(deduped, row)
+	}
+	return deduped
 }
 
 // Batched UNWIND Cypher templates for bulk operations.

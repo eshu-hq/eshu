@@ -54,6 +54,68 @@ func TestRecoveryStoreReplayFailedWorkItemsDefaultFilter(t *testing.T) {
 	}
 }
 
+func TestRecoveryStoreReplayFailedWorkItemsPreservesRetrySemantics(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		filter recovery.ReplayFilter
+	}{
+		{
+			name: "default",
+			filter: recovery.ReplayFilter{
+				Stage: recovery.StageReducer,
+			},
+		},
+		{
+			name: "by scope",
+			filter: recovery.ReplayFilter{
+				Stage:    recovery.StageReducer,
+				ScopeIDs: []string{"scope-1"},
+			},
+		},
+		{
+			name: "by class",
+			filter: recovery.ReplayFilter{
+				Stage:        recovery.StageReducer,
+				FailureClass: "transient_db",
+			},
+		},
+		{
+			name: "by scope and class",
+			filter: recovery.ReplayFilter{
+				Stage:        recovery.StageReducer,
+				ScopeIDs:     []string{"scope-1"},
+				FailureClass: "transient_db",
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := &fakeExecQueryer{
+				queryResponses: []queueFakeRows{
+					{rows: [][]any{{"item-1"}}},
+				},
+			}
+
+			store := NewRecoveryStore(db)
+			_, err := store.ReplayFailedWorkItems(
+				context.Background(),
+				testCase.filter,
+				time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC),
+			)
+			if err != nil {
+				t.Fatalf("ReplayFailedWorkItems() error = %v, want nil", err)
+			}
+
+			assertReplayQueryPreservesRetrySemantics(t, db.queries[0].query)
+		})
+	}
+}
+
 func TestRecoveryStoreReplayFailedWorkItemsByScopeFilter(t *testing.T) {
 	t.Parallel()
 
@@ -80,6 +142,17 @@ func TestRecoveryStoreReplayFailedWorkItemsByScopeFilter(t *testing.T) {
 	}
 	if !strings.Contains(db.queries[0].query, "scope_id = ANY") {
 		t.Fatal("scope filter query missing scope_id clause")
+	}
+}
+
+func assertReplayQueryPreservesRetrySemantics(t *testing.T, query string) {
+	t.Helper()
+
+	if strings.Contains(query, "attempt_count = 0") {
+		t.Fatalf("recovery replay query resets retry evidence:\n%s", query)
+	}
+	if !strings.Contains(query, "attempt_count = GREATEST(attempt_count, 1)") {
+		t.Fatalf("recovery replay query missing retry-preserving attempt_count:\n%s", query)
 	}
 }
 

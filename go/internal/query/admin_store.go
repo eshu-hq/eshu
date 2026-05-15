@@ -99,7 +99,7 @@ func (s *postgresAdminStore) ReplayFailedWorkItems(ctx context.Context, f Replay
 	now := s.time()
 	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 1, `
 SET status = 'pending',
-    attempt_count = 0,
+    attempt_count = GREATEST(work.attempt_count, 1),
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = $1,

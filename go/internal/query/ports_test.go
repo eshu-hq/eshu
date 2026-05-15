@@ -32,6 +32,7 @@ type fakePortContentStore struct {
 	documentationFreshnessErr   error
 	entities                    []EntityContent
 	repositories                []RepositoryCatalogEntry
+	workloadIdentities          []CatalogWorkloadIdentityEntry
 }
 
 func (f fakePortContentStore) GetFileContent(context.Context, string, string) (*FileContent, error) {
@@ -177,6 +178,13 @@ func (f fakePortContentStore) documentationEvidencePacketFreshness(
 
 func (f fakePortContentStore) ListRepositories(context.Context) ([]RepositoryCatalogEntry, error) {
 	return append([]RepositoryCatalogEntry(nil), f.repositories...), nil
+}
+
+func (f fakePortContentStore) ListWorkloadIdentities(
+	context.Context,
+	int,
+) ([]CatalogWorkloadIdentityEntry, bool, error) {
+	return append([]CatalogWorkloadIdentityEntry(nil), f.workloadIdentities...), false, nil
 }
 
 func (f fakePortContentStore) MatchRepositories(_ context.Context, selector string) ([]RepositoryCatalogEntry, error) {

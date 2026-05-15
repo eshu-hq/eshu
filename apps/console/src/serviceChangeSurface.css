@@ -1,0 +1,192 @@
+.service-change-surface {
+  background: color-mix(in oklch, var(--accent), var(--surface) 94%);
+  border: 1px solid color-mix(in oklch, var(--accent), var(--line) 70%);
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.service-change-surface-header {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.48fr);
+}
+
+.service-change-surface-header h2 {
+  font-size: 1.3rem;
+  margin: 0 0 8px;
+}
+
+.service-change-surface-header p {
+  margin: 0;
+  max-width: 76ch;
+}
+
+.service-change-surface-header dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.service-change-surface-header dl div,
+.change-surface-rail section,
+.change-surface-list article,
+.change-surface-detail {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.service-change-surface-header dd {
+  font-size: 1.08rem;
+}
+
+.service-change-surface-body {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.42fr);
+}
+
+.change-surface-resolution {
+  background: color-mix(in oklch, var(--accent), var(--field) 90%);
+  border: 1px solid color-mix(in oklch, var(--accent), var(--line) 58%);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.change-surface-resolution p {
+  margin: 5px 0 0;
+  max-width: 88ch;
+}
+
+.change-surface-map {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.change-surface-map-svg {
+  display: block;
+  min-height: 340px;
+  width: 100%;
+}
+
+.change-surface-ring {
+  fill: none;
+  stroke-width: 1;
+}
+
+.change-surface-ring-direct {
+  stroke: color-mix(in oklch, var(--relation), var(--line) 62%);
+}
+
+.change-surface-ring-transitive {
+  stroke: color-mix(in oklch, var(--accent), var(--line) 58%);
+}
+
+.change-surface-link {
+  fill: none;
+  stroke: color-mix(in oklch, var(--relation), var(--line) 35%);
+  stroke-width: 1.4;
+}
+
+.change-surface-root rect {
+  fill: color-mix(in oklch, var(--relation), var(--surface) 82%);
+  stroke: color-mix(in oklch, var(--relation), var(--line) 48%);
+}
+
+.change-surface-node rect {
+  fill: var(--surface);
+  stroke: color-mix(in oklch, var(--relation), var(--line) 54%);
+}
+
+.change-surface-node-selected rect {
+  fill: color-mix(in oklch, var(--accent), var(--surface) 86%);
+  stroke: var(--accent);
+  stroke-width: 1.8;
+}
+
+.change-surface-root text,
+.change-surface-node text {
+  dominant-baseline: middle;
+  fill: var(--text);
+  font-size: 0.78rem;
+  font-weight: 760;
+  pointer-events: none;
+  text-anchor: middle;
+}
+
+.change-surface-node {
+  cursor: pointer;
+  outline: none;
+}
+
+.change-surface-node:focus-visible rect {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.change-surface-detail {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.5fr);
+}
+
+.change-surface-detail h3,
+.change-surface-rail h3 {
+  margin: 0 0 8px;
+}
+
+.change-surface-detail p,
+.change-surface-list p,
+.change-surface-list small,
+.change-surface-rail p {
+  color: var(--muted);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.change-surface-detail dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.change-surface-rail {
+  display: grid;
+  gap: 10px;
+}
+
+.change-surface-list {
+  display: grid;
+  gap: 8px;
+}
+
+.change-surface-list article {
+  display: grid;
+  gap: 5px;
+}
+
+.change-surface-list strong {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .change-surface-detail,
+  .service-change-surface-body,
+  .service-change-surface-header,
+  .service-change-surface-header dl {
+    grid-template-columns: 1fr;
+  }
+}

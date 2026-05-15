@@ -251,7 +251,11 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 	s.recordWorkStage(projectCtx, work, "load_facts", loadStart, len(factsForGeneration), workerID)
 
 	projectStart := time.Now()
-	result, err := s.Runner.Project(projectCtx, work.Scope, work.Generation, factsForGeneration)
+	scopeValue := work.Scope
+	if work.AttemptCount > 1 {
+		scopeValue.PreviousGenerationExists = true
+	}
+	result, err := s.Runner.Project(projectCtx, scopeValue, work.Generation, factsForGeneration)
 	if err != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 			if s.recordSupersededWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, workerID) {

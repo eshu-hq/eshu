@@ -87,6 +87,54 @@ func TestServiceRunClaimsLoadsProjectsAndAcknowledges(t *testing.T) {
 	}
 }
 
+func TestServiceRunTreatsRetriedFirstGenerationAsCleanupRequired(t *testing.T) {
+	t.Parallel()
+
+	work := ScopeGenerationWork{
+		Scope: scope.IngestionScope{
+			ScopeID:       "scope-retry",
+			SourceSystem:  "git",
+			ScopeKind:     scope.KindRepository,
+			CollectorKind: scope.CollectorGit,
+			PartitionKey:  "repo-retry",
+		},
+		Generation: scope.ScopeGeneration{
+			ScopeID:      "scope-retry",
+			GenerationID: "generation-retry",
+			ObservedAt:   time.Date(2026, time.April, 12, 11, 30, 0, 0, time.UTC),
+			IngestedAt:   time.Date(2026, time.April, 12, 11, 31, 0, 0, time.UTC),
+			Status:       scope.GenerationStatusPending,
+			TriggerKind:  scope.TriggerKindSnapshot,
+		},
+		AttemptCount: 2,
+	}
+	runner := &stubProjectionRunner{
+		result: Result{
+			ScopeID:      "scope-retry",
+			GenerationID: "generation-retry",
+		},
+	}
+	service := Service{
+		PollInterval: 10 * time.Millisecond,
+		WorkSource:   &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+		FactStore:    &stubFactStore{},
+		Runner:       runner,
+		WorkSink:     &stubProjectorWorkSink{},
+		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
+	}
+
+	if err := service.Run(context.Background()); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !runner.lastScope.HasPriorGeneration() {
+		t.Fatal("runner scope HasPriorGeneration() = false, want true for retried first-generation work")
+	}
+	if work.Scope.HasPriorGeneration() {
+		t.Fatal("test setup invalid: original work scope should not report a prior generation")
+	}
+}
+
 func TestServiceRunLogsFactLoadAndProjectionStages(t *testing.T) {
 	t.Parallel()
 
@@ -451,11 +499,13 @@ type stubProjectionRunner struct {
 	failAfter                  int
 	blockFor                   time.Duration
 	waitForContextCancellation bool
+	lastScope                  scope.IngestionScope
 }
 
 func (s *stubProjectionRunner) Project(ctx context.Context, scopeValue scope.IngestionScope, generation scope.ScopeGeneration, inputFacts []facts.Envelope) (Result, error) {
 	s.mu.Lock()
 	s.runCalls++
+	s.lastScope = scopeValue
 	runCalls := s.runCalls
 	blockFor := s.blockFor
 	waitForContextCancellation := s.waitForContextCancellation
