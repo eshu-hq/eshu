@@ -13,6 +13,15 @@ import (
 type relationshipStoryContentStore struct {
 	fakePortContentStore
 	matches []EntityContent
+	entity  *EntityContent
+}
+
+func (s relationshipStoryContentStore) GetEntityContent(context.Context, string) (*EntityContent, error) {
+	if s.entity != nil {
+		entity := *s.entity
+		return &entity, nil
+	}
+	return nil, nil
 }
 
 func (s relationshipStoryContentStore) SearchEntitiesByName(

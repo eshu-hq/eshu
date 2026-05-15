@@ -162,7 +162,7 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 		       coalesce(anchor.id, anchor.uid) as target_id,
 		       anchor.name as target_name,
 		       length(path) as depth
-		ORDER BY depth, source.name, source_id
+		ORDER BY depth DESC, source.name, source_id
 		LIMIT $limit
 	`, maxDepth, anchorPattern), params
 	}
@@ -174,7 +174,7 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 		       coalesce(target.id, target.uid) as target_id,
 		       target.name as target_name,
 		       length(path) as depth
-		ORDER BY depth, target.name, target_id
+		ORDER BY depth DESC, target.name, target_id
 		LIMIT $limit
 	`, anchorPattern, maxDepth), params
 }

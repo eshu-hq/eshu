@@ -143,7 +143,11 @@ The changed read paths are cold-call bounded:
   transitive callers/callees, importers, class hierarchy, and overrides now
   route through relationship story so prompt clients get the same limit,
   offset, depth, truncation, and ambiguity contract instead of the older broad
-  relationship response;
+  relationship response. Class hierarchy target resolution filters to
+  inheritable entity types, method lists report `methods_truncated`, depth
+  summary reads prioritize the deepest bounded chains, and repo-scoped
+  override reads honor `language` while including every override-capable node
+  kind;
 - topic investigation derives at most 16 search terms from `topic` and `intent`,
   pushes repository and language scope into a single scored PostgreSQL query,
   orders by score and stable repo-relative path, probes one extra row for
@@ -187,14 +191,17 @@ No-Regression Evidence: relationship story focused proof:
 `go test ./internal/mcp -run 'TestResolveRouteMapsCodeRelationshipStory|TestResolveRouteMapsAnalyzeCodeRelationships|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute' -count=1`.
 
 No-Regression Evidence: class hierarchy and override story focused proof:
-`go test ./internal/query -run 'TestHandleRelationshipStoryReturnsClassHierarchyPacket|TestHandleRelationshipStoryListsOverridesWithoutTarget' -count=1`
+`go test ./internal/query -run 'TestHandleRelationshipStoryReturnsClassHierarchyPacket|TestHandleRelationshipStoryClassHierarchyFiltersTargetResolutionToClasses|TestHandleRelationshipStoryClassHierarchyRejectsNonClassEntityID|TestHandleRelationshipStoryListsOverridesWithoutTarget|TestRelationshipStoryOverrideRowsCypherHonorsLanguageAndOverrideNodeKinds|TestNornicDBRelationshipStoryInheritanceDepthCypherBoundsTraversal|TestOpenAPI|TestCapabilityMatrixMatchesYAMLContract' -count=1`
 and
-`go test ./internal/mcp -run 'TestResolveRouteMapsAnalyzeCodeRelationshipsClassHierarchyToStory|TestResolveRouteMapsAnalyzeCodeRelationshipsOverridesToStory' -count=1`.
+`go test ./internal/mcp -run 'TestAnalyzeCodeRelationshipsSchemaRequiresTargetExceptRepoScopedOverrides|TestResolveRouteMapsAnalyzeCodeRelationshipsClassHierarchyToStory|TestResolveRouteMapsAnalyzeCodeRelationshipsOverridesToStory|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute|TestToolContractMatrix' -count=1`.
 The class hierarchy path uses entity-anchored direct `INHERITS` reads, bounded
 `CONTAINS` method reads, and bounded `INHERITS*1..N` depth reads with
-deterministic ordering and `limit+1` truncation probes. The repo-scoped
-override path uses a repository-anchored `OVERRIDES` query when `repo_id` is
-known and rejects targetless override prompts without a repository scope.
+deterministic deepest-first ordering for depth summaries and `limit+1`
+truncation probes. The repo-scoped override path uses a repository-anchored
+`OVERRIDES` query when `repo_id` is known, applies optional `language` scope,
+includes `Function`, `Class`, `Interface`, `Trait`, `Struct`, `Enum`, and
+`Protocol` nodes, and rejects targetless override prompts without a repository
+scope.
 
 No-Regression Evidence: code topic investigation focused proof:
 `go test ./internal/query -run 'TestHandleCodeTopicInvestigation|TestContentReaderInvestigateCodeTopic|TestOpenAPI|TestCapabilityMatrix' -count=1` and

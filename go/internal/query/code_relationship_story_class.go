@@ -34,6 +34,7 @@ func (h *CodeHandler) handleRepoScopedOverrideStory(
 	data := relationshipStoryData(req, resolution, rows)
 	data["source_backend"] = sourceBackend
 	data["override_story"] = relationshipStoryOverrideData(req, rows)
+	markRelationshipStoryRepoOverrideCoverage(data)
 	WriteSuccess(
 		w,
 		r,
@@ -93,10 +94,11 @@ func (h *CodeHandler) relationshipStoryClassHierarchy(
 
 	parents, children := splitClassHierarchyRelationships(relationships)
 	return map[string]any{
-		"methods":       relationshipStoryMethodRowsWithHandles(methods, req.normalizedLimit()),
-		"parents":       relationshipStoryRowsWithHandles(limitRelationshipStoryRows(parents, req.normalizedLimit())),
-		"children":      relationshipStoryRowsWithHandles(limitRelationshipStoryRows(children, req.normalizedLimit())),
-		"depth_summary": relationshipStoryDepthSummary(ancestorDepthRows, descendantDepthRows, req.normalizedLimit()),
+		"methods":           relationshipStoryMethodRowsWithHandles(methods, req.normalizedLimit()),
+		"methods_truncated": len(methods) > req.normalizedLimit(),
+		"parents":           relationshipStoryRowsWithHandles(limitRelationshipStoryRows(parents, req.normalizedLimit())),
+		"children":          relationshipStoryRowsWithHandles(limitRelationshipStoryRows(children, req.normalizedLimit())),
+		"depth_summary":     relationshipStoryDepthSummary(ancestorDepthRows, descendantDepthRows, req.normalizedLimit()),
 	}, nil
 }
 
@@ -201,7 +203,7 @@ func relationshipStoryInheritanceDepthCypher(
 		       coalesce(target.id, target.uid) as target_id,
 		       target.name as target_name,
 		       length(path) as depth
-		ORDER BY depth, source.name, source_id
+		ORDER BY depth DESC, source.name, source_id
 		LIMIT $limit
 	`, maxDepth, predicate("target", "$entity_id")), params
 	}
@@ -214,7 +216,7 @@ func relationshipStoryInheritanceDepthCypher(
 		       coalesce(target.id, target.uid) as target_id,
 		       target.name as target_name,
 		       length(path) as depth
-		ORDER BY depth, target.name, target_id
+		ORDER BY depth DESC, target.name, target_id
 		LIMIT $limit
 	`, maxDepth, predicate("source", "$entity_id")), params
 }
@@ -303,22 +305,45 @@ func (h *CodeHandler) relationshipStoryOverrideRows(
 
 func relationshipStoryOverrideRowsCypher(req relationshipStoryRequest) (string, map[string]any) {
 	params := map[string]any{
-		"repo_id": strings.TrimSpace(req.RepoID),
-		"limit":   req.normalizedLimit() + 1,
-		"offset":  req.Offset,
+		"repo_id":         strings.TrimSpace(req.RepoID),
+		"limit":           req.normalizedLimit() + 1,
+		"offset":          req.Offset,
+		"override_labels": relationshipStoryOverrideNodeLabels(),
+	}
+	languagePredicate := ""
+	if language := strings.TrimSpace(req.Language); language != "" {
+		params["language"] = language
+		languagePredicate = `
+		  AND source.language = $language
+		  AND target.language = $language`
 	}
 	return `
-		MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(file:File)-[:CONTAINS]->(source:Function)-[rel:OVERRIDES]->(target:Function)
+		MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(file:File)-[:CONTAINS]->(source)-[rel:OVERRIDES]->(target)
+		WHERE any(label IN labels(source) WHERE label IN $override_labels)
+		  AND any(label IN labels(target) WHERE label IN $override_labels)` + languagePredicate + `
 		RETURN 'outgoing' as direction,
 		       type(rel) as type,
 		       rel.reason as reason,
 		       coalesce(source.id, source.uid) as source_id,
 		       source.name as source_name,
+		       labels(source) as source_labels,
 		       coalesce(target.id, target.uid) as target_id,
 		       target.name as target_name,
+		       labels(target) as target_labels,
 		       file.relative_path as file_path
 		ORDER BY source.name, target.name, source_id, target_id
 		SKIP $offset
 		LIMIT $limit
 	`, params
+}
+
+func relationshipStoryOverrideNodeLabels() []string {
+	return []string{"Function", "Class", "Interface", "Trait", "Struct", "Enum", "Protocol"}
+}
+
+func markRelationshipStoryRepoOverrideCoverage(data map[string]any) {
+	if coverage, ok := data["coverage"].(map[string]any); ok {
+		coverage["query_shape"] = "repo_anchor_override_story"
+		coverage["relationship_types"] = []string{"OVERRIDES"}
+	}
 }

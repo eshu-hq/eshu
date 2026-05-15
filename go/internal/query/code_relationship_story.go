@@ -81,6 +81,12 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 		h.writeRelationshipStory(w, r, req, resolution, nil, TruthBasisContentIndex)
 		return
 	}
+	if req.normalizedQueryType() == "class_hierarchy" && entity != nil &&
+		strings.TrimSpace(entity.EntityType) != "" &&
+		!relationshipStoryClassHierarchyEntityType(entity.EntityType) {
+		WriteError(w, http.StatusBadRequest, "class_hierarchy target must resolve to a class or inheritable entity")
+		return
+	}
 
 	relationships, sourceBackend, basis, err := h.relationshipStoryRelationships(r.Context(), req, entity)
 	if err != nil {
@@ -100,7 +106,7 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 			return
 		}
 		data["class_hierarchy"] = hierarchy
-		markRelationshipStoryClassHierarchyCoverage(data)
+		markRelationshipStoryClassHierarchyCoverage(data, req)
 	}
 	if req.normalizedQueryType() == "overrides" {
 		data["override_story"] = relationshipStoryOverrideData(req, relationships)
@@ -214,6 +220,9 @@ func normalizedRelationshipStoryMaxDepth(maxDepth int) int {
 }
 
 func relationshipStoryEffectiveMaxDepth(req relationshipStoryRequest) int {
+	if req.normalizedQueryType() == "class_hierarchy" {
+		return normalizedRelationshipStoryMaxDepth(req.MaxDepth)
+	}
 	if !req.IncludeTransitive {
 		return 1
 	}
@@ -295,13 +304,18 @@ func relationshipStoryData(
 	}
 }
 
-func markRelationshipStoryClassHierarchyCoverage(data map[string]any) {
+func markRelationshipStoryClassHierarchyCoverage(data map[string]any, req relationshipStoryRequest) {
+	maxDepth := normalizedRelationshipStoryMaxDepth(req.MaxDepth)
+	if scope, ok := data["scope"].(map[string]any); ok {
+		scope["max_depth"] = maxDepth
+	}
 	coverage, ok := data["coverage"].(map[string]any)
 	if !ok {
 		return
 	}
 	coverage["query_shape"] = "entity_anchor_class_hierarchy_story"
 	coverage["relationship_types"] = []string{"INHERITS", "CONTAINS"}
+	coverage["max_depth"] = maxDepth
 }
 
 func relationshipStoryDirectionCounts(rows []map[string]any) map[string]int {

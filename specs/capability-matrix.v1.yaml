@@ -69,7 +69,7 @@ capabilities:
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: durable semantic facts}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-argument-names}], notes: durable semantic facts}
   - capability: symbol_graph.class_methods
-    tools: [execute_language_query]
+    tools: [execute_language_query, analyze_code_relationships]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: semantic facts only}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-class-methods}], notes: graph sidecar serves durable semantic facts}

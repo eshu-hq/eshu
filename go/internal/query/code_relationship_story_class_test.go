@@ -54,6 +54,7 @@ func TestHandleRelationshipStoryReturnsClassHierarchyPacket(t *testing.T) {
 					return []map[string]any{
 						{"method_id": "method-run", "method_name": "run", "start_line": 12, "end_line": 19},
 						{"method_id": "method-stop", "method_name": "stop", "start_line": 21, "end_line": 23},
+						{"method_id": "method-extra", "method_name": "extra", "start_line": 25, "end_line": 27},
 					}, nil
 				default:
 					t.Fatalf("unexpected cypher = %q", cypher)
@@ -100,9 +101,104 @@ func TestHandleRelationshipStoryReturnsClassHierarchyPacket(t *testing.T) {
 	if got, want := depth["max_parent_depth"], float64(2); got != want {
 		t.Fatalf("depth_summary.max_parent_depth = %#v, want %#v", got, want)
 	}
+	if got, want := hierarchy["methods_truncated"], true; got != want {
+		t.Fatalf("class_hierarchy.methods_truncated = %#v, want %#v", got, want)
+	}
+	scope := resp["scope"].(map[string]any)
+	if got, want := scope["max_depth"], float64(4); got != want {
+		t.Fatalf("scope.max_depth = %#v, want %#v", got, want)
+	}
 	coverage := resp["coverage"].(map[string]any)
 	if got, want := coverage["query_shape"], "entity_anchor_class_hierarchy_story"; got != want {
 		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
+	}
+	if got, want := coverage["max_depth"], float64(4); got != want {
+		t.Fatalf("coverage.max_depth = %#v, want %#v", got, want)
+	}
+}
+
+func TestHandleRelationshipStoryClassHierarchyFiltersTargetResolutionToClasses(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{
+		Content: relationshipStoryContentStore{
+			matches: []EntityContent{
+				{
+					EntityID:     "function-base",
+					RepoID:       "repo-1",
+					RelativePath: "aaa.go",
+					EntityType:   "Function",
+					EntityName:   "Base",
+					Language:     "go",
+				},
+				{
+					EntityID:     "class-base",
+					RepoID:       "repo-1",
+					RelativePath: "zzz.go",
+					EntityType:   "Class",
+					EntityName:   "Base",
+					Language:     "go",
+				},
+			},
+		},
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if got, want := params["entity_id"], "class-base"; got != want {
+					t.Fatalf("params[entity_id] = %#v, want class-only resolution %#v for cypher %q", got, want, cypher)
+				}
+				return []map[string]any{}, nil
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/relationships/story",
+		bytes.NewBufferString(`{"query_type":"class_hierarchy","target":"Base","repo_id":"repo-1","limit":10}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+}
+
+func TestHandleRelationshipStoryClassHierarchyRejectsNonClassEntityID(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{
+		Content: relationshipStoryContentStore{
+			entity: &EntityContent{
+				EntityID:   "function-base",
+				EntityType: "Function",
+				EntityName: "Base",
+				RepoID:     "repo-1",
+				Language:   "go",
+			},
+		},
+		Neo4j: fakeGraphReader{
+			run: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+				t.Fatal("non-class class_hierarchy target must fail before graph query")
+				return nil, nil
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/relationships/story",
+		bytes.NewBufferString(`{"query_type":"class_hierarchy","entity_id":"function-base","limit":10}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 }
 
@@ -175,6 +271,10 @@ func TestHandleRelationshipStoryListsOverridesWithoutTarget(t *testing.T) {
 	if got, want := summary["truncated"], true; got != want {
 		t.Fatalf("summary.truncated = %#v, want %#v", got, want)
 	}
+	coverage := resp["coverage"].(map[string]any)
+	if got, want := coverage["query_shape"], "repo_anchor_override_story"; got != want {
+		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
+	}
 }
 
 func TestHandleRelationshipStoryRequiresRepoForTargetlessOverrides(t *testing.T) {
@@ -233,6 +333,33 @@ func TestNornicDBRelationshipStoryClassMethodsCypherUsesAnchoredClassPattern(t *
 	}
 }
 
+func TestRelationshipStoryOverrideRowsCypherHonorsLanguageAndOverrideNodeKinds(t *testing.T) {
+	t.Parallel()
+
+	cypher, params := relationshipStoryOverrideRowsCypher(relationshipStoryRequest{
+		RepoID:   "repo-1",
+		Language: "go",
+		Limit:    25,
+	})
+	for _, fragment := range []string{
+		"MATCH (repo:Repository {id: $repo_id})",
+		"-[rel:OVERRIDES]->",
+		"source.language = $language",
+		"target.language = $language",
+		"LIMIT $limit",
+	} {
+		if !strings.Contains(cypher, fragment) {
+			t.Fatalf("cypher = %q, want fragment %q", cypher, fragment)
+		}
+	}
+	if strings.Contains(cypher, "(source:Function)") || strings.Contains(cypher, "(target:Function)") {
+		t.Fatalf("cypher = %q, want override-capable node kinds beyond Function", cypher)
+	}
+	if got, want := params["language"], "go"; got != want {
+		t.Fatalf("params[language] = %#v, want %#v", got, want)
+	}
+}
+
 func TestNornicDBRelationshipStoryInheritanceDepthCypherBoundsTraversal(t *testing.T) {
 	t.Parallel()
 
@@ -244,7 +371,7 @@ func TestNornicDBRelationshipStoryInheritanceDepthCypherBoundsTraversal(t *testi
 	)
 	for _, fragment := range []string{
 		"MATCH path = (anchor:Class {uid: $entity_id})-[:INHERITS*1..4]->(target:Class)",
-		"ORDER BY depth, target.name, target_id",
+		"ORDER BY depth DESC, target.name, target_id",
 		"LIMIT $limit",
 	} {
 		if !strings.Contains(cypher, fragment) {

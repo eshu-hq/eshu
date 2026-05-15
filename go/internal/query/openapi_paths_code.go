@@ -238,7 +238,7 @@ const openAPIPathsCode = `
             "application/json": {
               "schema": {
                 "type": "object",
-                "anyOf": [{"required": ["target"]}, {"required": ["entity_id"]}, {"required": ["query_type", "repo_id"]}],
+                "anyOf": [{"required": ["target"]}, {"required": ["entity_id"]}, {"required": ["query_type", "repo_id"], "properties": {"query_type": {"enum": ["overrides"]}}}],
                 "properties": {
                   "query_type": {"type": "string", "enum": ["class_hierarchy", "overrides"], "description": "Optional story enrichment mode for class hierarchy or override prompts."},
                   "target": {"type": "string", "description": "Symbol name to resolve when entity_id is omitted."},

@@ -64,5 +64,18 @@ func analyzeCodeRelationshipsSchema() map[string]any {
 			},
 		},
 		"required": []string{"query_type"},
+		"anyOf": []map[string]any{
+			{
+				"required": []string{"query_type", "target"},
+			},
+			{
+				"required": []string{"query_type", "repo_id"},
+				"properties": map[string]any{
+					"query_type": map[string]any{
+						"enum": []string{"overrides"},
+					},
+				},
+			},
+		},
 	}
 }
