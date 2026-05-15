@@ -127,6 +127,13 @@ Best additions:
 - exact symbol name
 - environment, if the answer depends on deployment state
 
+For dead-code prompts, MCP clients should start with `investigate_dead_code`
+instead of raw Cypher or the lower-level candidate scan. It returns coverage,
+language maturity, exactness blockers, cleanup-ready/ambiguous/suppressed
+buckets, source handles, and next calls. JavaScript and TypeScript candidates
+stay ambiguous until the TypeScript precision corpus tracked by #336 proves
+cleanup safety.
+
 ### To understand deployments
 
 Use:

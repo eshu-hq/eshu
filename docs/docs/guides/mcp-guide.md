@@ -183,7 +183,7 @@ assumptions from a partial code snapshot.
 | "Show me the source of this file" | `get_file_content` |
 | "Search across indexed code" | `search_file_content` |
 | "Find complex functions" | `find_most_complex_functions` |
-| "What's dead code?" | `find_dead_code` |
+| "What's dead code?" | `investigate_dead_code` |
 | "Which IaC artifacts look unused?" | `find_dead_iac` |
 | "Which AWS resources are unmanaged?" | `find_unmanaged_resources` |
 | "Which registry packages or versions are indexed?" | `list_package_registry_packages`, `list_package_registry_versions` |
@@ -198,6 +198,7 @@ story surfaces:
 - `get_service_story`
 - `investigate_service`
 - `investigate_code_topic`
+- `investigate_dead_code`
 - `investigate_deployment_config`
 
 Use it this way:
@@ -291,13 +292,14 @@ For programming prompts, keep using the code-query tools directly:
 - `analyze_code_relationships`
 - `calculate_cyclomatic_complexity`
 - `find_most_complex_functions`
+- `investigate_dead_code`
 - `find_dead_code`
 - `find_dead_iac`
 - `find_unmanaged_resources`
 - `list_package_registry_packages`
 - `list_package_registry_versions`
 
-Those remain the primary public contract for callers/callees/class hierarchy/import/complexity/dead-code, dead-IaC, and package registry identity questions. Use `get_code_relationship_story` first for one-symbol caller, callee, import, and bounded transitive CALLS prompts because it returns ambiguity and truncation metadata in one response. The service and repository story tools are for end-to-end narratives, not a replacement for the focused query tools.
+Those remain the primary public contract for callers/callees/class hierarchy/import/complexity/dead-code, dead-IaC, and package registry identity questions. Use `investigate_dead_code` first for dead-code prompts because it returns coverage, language maturity, exactness blockers, source handles, and conservative ambiguous buckets for JavaScript/TypeScript precision risk. Use `get_code_relationship_story` first for one-symbol caller, callee, import, and bounded transitive CALLS prompts because it returns ambiguity and truncation metadata in one response. The service and repository story tools are for end-to-end narratives, not a replacement for the focused query tools.
 
 ## Repository access handoff
 

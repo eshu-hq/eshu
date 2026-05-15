@@ -260,11 +260,16 @@ such as repo sync authentication or workspace locking. It scores
 `content_entities` and `content_files` in one bounded query, returns ranked
 `repo_id + relative_path` evidence, matched symbols, coverage/truncation, and
 follow-up handles for `get_file_lines` and `get_code_relationship_story`.
-The OpenAPI fragment for `POST /api/v0/code/dead-code` names modeled language
-roots such as Go public-package exports plus C, C#, Dart, Haskell, Kotlin,
-Elixir, PHP, and Groovy parser-backed roots. Its language filter examples include
-`csharp`, `c`, `dart`, `haskell`, `kotlin`, `elixir`, `php`, `groovy`, and `sql`;
-`csharp` is normalized to `c_sharp` before candidate scanning.
+The OpenAPI fragments for `POST /api/v0/code/dead-code` and
+`POST /api/v0/code/dead-code/investigate` name modeled language roots such as
+Go public-package exports plus C, C#, Dart, Haskell, Kotlin, Elixir, PHP, and
+Groovy parser-backed roots. The investigation route reuses the same bounded
+candidate scan but returns coverage, candidate buckets, source handles, and
+recommended next calls for MCP clients. JavaScript and TypeScript candidates
+stay ambiguous in investigation mode until corpus precision evidence proves
+cleanup safety. Its language filter examples include `csharp`, `c`, `dart`,
+`haskell`, `kotlin`, `elixir`, `php`, `groovy`, and `sql`; `csharp` is
+normalized to `c_sharp` before candidate scanning.
 
 ## Exported surface
 **Ports and adapters**
@@ -359,7 +364,7 @@ See `doc.go` for the full godoc contract.
   Postgres drivers directly — they go through query package adapters and ports
 - `internal/telemetry` — `EventAttr`, `DefaultServiceNamespace`, span constants
   `SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
-  `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`, `SpanQueryChangeSurfaceInvestigation`
+  `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`, `SpanQueryDeadCodeInvestigation`, `SpanQueryChangeSurfaceInvestigation`
 
 Handlers depend on the `GraphQuery` and `ContentStore` ports, not on
 `neo4jdriver.DriverWithContext` or `*sql.DB` directly. `Neo4jReader` and
@@ -378,7 +383,9 @@ wired in `cmd/api/wiring.go`, not here.
   (`query.documentation_packet_freshness`) on documentation truth evidence
   routes (`documentation.go`); `telemetry.SpanQueryCodeTopicInvestigation`
   (`query.code_topic_investigation`) on broad code-topic investigation
-  (`code_topic.go`); `telemetry.SpanQueryChangeSurfaceInvestigation`
+  (`code_topic.go`); `telemetry.SpanQueryDeadCodeInvestigation`
+  (`query.dead_code_investigation`) on dead-code investigation
+  (`code_dead_code_investigation.go`); `telemetry.SpanQueryChangeSurfaceInvestigation`
   (`query.change_surface_investigation`) on change-surface investigation;
   `telemetry.SpanQueryResourceInvestigation`
   (`query.resource_investigation`) on resource investigation;

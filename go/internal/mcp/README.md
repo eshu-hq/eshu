@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 51
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 52
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,11 +59,11 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 51 tools from five source files.
+`ReadOnlyTools` assembles 52 tools from six source files.
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 17 | `tools_codebase.go` |
+| `codebaseTools` | 18 | `tools_codebase.go`, `tools_dead_code.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 5 | `tools_content.go` |
@@ -76,6 +76,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `find_code` | POST | `/api/v0/code/search` |
 | `find_symbol` | POST | `/api/v0/code/symbols/search` |
 | `investigate_code_topic` | POST | `/api/v0/code/topics/investigate` |
+| `investigate_dead_code` | POST | `/api/v0/code/dead-code/investigate` |
 | `get_code_relationship_story` | POST | `/api/v0/code/relationships/story` |
 | `analyze_code_relationships` | POST | `/api/v0/code/relationships/story` for callers/callees/importers; `/api/v0/code/relationships` for unresolved compatibility fallbacks |
 | `find_dead_iac` | POST | `/api/v0/iac/dead` |
@@ -102,7 +103,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 51 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 52 tool definitions |
 
 ## SSE session model
 

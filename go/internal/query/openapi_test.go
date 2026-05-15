@@ -66,6 +66,7 @@ func TestServeOpenAPI(t *testing.T) {
 		"/api/v0/package-registry/packages",
 		"/api/v0/package-registry/versions",
 		"/api/v0/code/search",
+		"/api/v0/code/dead-code/investigate",
 		"/api/v0/code/call-chain",
 		"/api/v0/code/language-query",
 		"/api/v0/content/files/read",

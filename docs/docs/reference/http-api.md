@@ -605,6 +605,7 @@ Use these routes when you only need code relationships and do not need the full 
 - `POST /api/v0/code/relationships`
 - `POST /api/v0/code/relationships/story`
 - `POST /api/v0/code/dead-code`
+- `POST /api/v0/code/dead-code/investigate`
 - `POST /api/v0/code/complexity`
 
 Public code-query requests accept a repository selector in the `repo_id` field
@@ -720,6 +721,28 @@ server caps `max_depth` at 10, requires `offset=0` for traversal mode, and
 stops when the requested relationship window is full.
 
 Example dead-code workflow:
+
+`POST /api/v0/code/dead-code/investigate`
+
+```json
+{
+  "repo_id": "payments",
+  "language": "typescript",
+  "limit": 100,
+  "offset": 0,
+  "exclude_decorated_with": ["@route", "@app.route"]
+}
+```
+
+Use investigation mode for prompts such as "What code is dead in this repo?"
+It returns `coverage`, `language_maturity`, `exactness_blockers`,
+`candidate_buckets.cleanup_ready`, `candidate_buckets.ambiguous`,
+`candidate_buckets.suppressed`, `source_handle`, and `recommended_next_calls`
+so MCP clients do not have to infer safety from the lower-level `analysis`
+object. JavaScript and TypeScript candidates stay in the ambiguous bucket until
+the TypeScript/JavaScript dead-code precision corpus proves cleanup safety.
+
+Lower-level candidate scan:
 
 `POST /api/v0/code/dead-code`
 

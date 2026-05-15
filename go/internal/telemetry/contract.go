@@ -168,6 +168,7 @@ const (
 	SpanQueryIaCUnmanagedResources        = "query.iac_unmanaged_resources"
 	SpanQueryInfraResourceSearch          = "query.infra_resource_search"
 	SpanQueryCodeTopicInvestigation       = "query.code_topic_investigation"
+	SpanQueryDeadCodeInvestigation        = "query.dead_code_investigation"
 	SpanQueryChangeSurfaceInvestigation   = "query.change_surface_investigation"
 	SpanQueryResourceInvestigation        = "query.resource_investigation"
 	SpanQueryPackageRegistryPackages      = "query.package_registry_packages"
@@ -361,6 +362,7 @@ var spanNames = []string{
 	SpanQueryIaCUnmanagedResources,
 	SpanQueryInfraResourceSearch,
 	SpanQueryCodeTopicInvestigation,
+	SpanQueryDeadCodeInvestigation,
 	SpanQueryChangeSurfaceInvestigation,
 	SpanQueryResourceInvestigation,
 	SpanQueryPackageRegistryPackages,

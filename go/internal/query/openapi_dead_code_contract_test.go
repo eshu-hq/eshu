@@ -35,3 +35,33 @@ func TestOpenAPIDeadCodeMentionsHaskellRootsAndLanguageFilter(t *testing.T) {
 		t.Fatalf("code/dead-code language description = %q, want haskell example", languageDescription)
 	}
 }
+
+func TestOpenAPIDeadCodeInvestigationDocumentsReturnedFields(t *testing.T) {
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	investigationPath := mustMapField(t, paths, "/api/v0/code/dead-code/investigate")
+	investigationPost := mustMapField(t, investigationPath, "post")
+	responses := mustMapField(t, investigationPost, "responses")
+	okResponse := mustMapField(t, responses, "200")
+	content := mustMapField(t, okResponse, "content")
+	responseJSON := mustMapField(t, content, "application/json")
+	properties := mustMapField(t, mustMapField(t, responseJSON, "schema"), "properties")
+
+	for _, field := range []string{
+		"display_truncated",
+		"candidate_scan_truncated",
+		"candidate_scan_limit",
+		"candidate_scan_pages",
+		"candidate_scan_rows",
+		"suppressed_truncated",
+		"next_offset",
+	} {
+		if _, ok := properties[field]; !ok {
+			t.Fatalf("dead-code investigation response schema missing %s", field)
+		}
+	}
+}
