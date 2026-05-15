@@ -20,6 +20,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainInheritanceMaterialization:     {},
 	DomainConfigStateDrift:               {},
 	DomainPackageSourceCorrelation:       {},
+	DomainContainerImageIdentity:         {},
 	DomainAWSCloudRuntimeDrift:           {},
 }
 

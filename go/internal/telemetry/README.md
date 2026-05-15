@@ -113,6 +113,7 @@ gauge when a shared-acceptance observer is available.
 | `PackageRegistryRateLimited` | `eshu_dp_package_registry_rate_limited_total` |
 | `PackageRegistryParseFailures` | `eshu_dp_package_registry_parse_failures_total` |
 | `PackageSourceCorrelations` | `eshu_dp_package_source_correlations_total` |
+| `ContainerImageIdentityDecisions` | `eshu_dp_container_image_identity_decisions_total` |
 | `ConfluenceHTTPRequests` | `eshu_dp_confluence_http_requests_total` |
 | `ConfluencePermissionDeniedPages` | `eshu_dp_confluence_permission_denied_pages_total` |
 | `ConfluenceDocumentsObserved` | `eshu_dp_confluence_documents_observed_total` |

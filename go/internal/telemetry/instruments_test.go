@@ -44,6 +44,8 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.PackageRegistryFactsEmitted, "PackageRegistryFactsEmitted counter should be registered")
 	assert.NotNil(t, inst.PackageRegistryRateLimited, "PackageRegistryRateLimited counter should be registered")
 	assert.NotNil(t, inst.PackageRegistryParseFailures, "PackageRegistryParseFailures counter should be registered")
+	assert.NotNil(t, inst.PackageSourceCorrelations, "PackageSourceCorrelations counter should be registered")
+	assert.NotNil(t, inst.ContainerImageIdentityDecisions, "ContainerImageIdentityDecisions counter should be registered")
 	assert.NotNil(t, inst.ConfluenceHTTPRequests, "ConfluenceHTTPRequests counter should be registered")
 	assert.NotNil(t, inst.ConfluencePermissionDeniedPages, "ConfluencePermissionDeniedPages counter should be registered")
 	assert.NotNil(t, inst.ConfluenceDocumentsObserved, "ConfluenceDocumentsObserved counter should be registered")

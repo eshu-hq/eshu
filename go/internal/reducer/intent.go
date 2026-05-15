@@ -52,6 +52,9 @@ const (
 	// DomainPackageSourceCorrelation classifies package-registry source hints
 	// against active repository remotes without promoting package ownership.
 	DomainPackageSourceCorrelation Domain = "package_source_correlation"
+	// DomainContainerImageIdentity joins Git, registry, and runtime image
+	// evidence into digest-keyed container image identity decisions.
+	DomainContainerImageIdentity Domain = "container_image_identity"
 	// DomainAWSCloudRuntimeDrift publishes admitted AWS runtime-vs-IaC drift
 	// findings as canonical reducer facts. The domain stays graph-neutral until
 	// the drift node and query shape are frozen.
