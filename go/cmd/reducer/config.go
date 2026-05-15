@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"runtime"
 	"strconv"
@@ -20,6 +21,7 @@ const (
 	reducerWorkersEnv                       = "ESHU_REDUCER_WORKERS"
 	reducerBatchClaimEnv                    = "ESHU_REDUCER_BATCH_CLAIM_SIZE"
 	reducerClaimDomainEnv                   = "ESHU_REDUCER_CLAIM_DOMAIN"
+	reducerClaimDomainsEnv                  = "ESHU_REDUCER_CLAIM_DOMAINS"
 	queryProfileEnv                         = "ESHU_QUERY_PROFILE"
 	reducerExpectedSourceLocalProjectorsEnv = "ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS"
 	reducerSemanticEntityClaimLimitEnv      = "ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT"
@@ -91,18 +93,54 @@ func loadReducerBatchClaimSize(getenv func(string) string, workers int, graphBac
 }
 
 func loadReducerClaimDomain(getenv func(string) string) (reducer.Domain, error) {
-	if getenv == nil {
-		getenv = func(string) string { return "" }
-	}
-	raw := strings.TrimSpace(getenv(reducerClaimDomainEnv))
-	if raw == "" {
-		return "", nil
-	}
-	domain, err := reducer.ParseDomain(raw)
+	domains, err := loadReducerClaimDomains(getenv)
 	if err != nil {
 		return "", err
 	}
-	return domain, nil
+	if len(domains) == 0 {
+		return "", nil
+	}
+	if len(domains) > 1 {
+		return "", fmt.Errorf("%s contains multiple domains; use %s-aware configuration", reducerClaimDomainsEnv, reducerClaimDomainsEnv)
+	}
+	return domains[0], nil
+}
+
+func loadReducerClaimDomains(getenv func(string) string) ([]reducer.Domain, error) {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	legacyRaw := strings.TrimSpace(getenv(reducerClaimDomainEnv))
+	raw := strings.TrimSpace(getenv(reducerClaimDomainsEnv))
+	if legacyRaw != "" && raw != "" {
+		return nil, fmt.Errorf("%s and %s cannot both be set", reducerClaimDomainEnv, reducerClaimDomainsEnv)
+	}
+	if raw == "" {
+		raw = legacyRaw
+	}
+	if raw == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(raw, ",")
+	domains := make([]reducer.Domain, 0, len(parts))
+	seen := make(map[reducer.Domain]struct{}, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			return nil, fmt.Errorf("%s contains an empty reducer domain", reducerClaimDomainsEnv)
+		}
+		domain, err := reducer.ParseDomain(value)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := seen[domain]; ok {
+			continue
+		}
+		seen[domain] = struct{}{}
+		domains = append(domains, domain)
+	}
+	return domains, nil
 }
 
 func loadReducerExpectedSourceLocalProjectors(getenv func(string) string) int {

@@ -44,6 +44,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-resolution-engine" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "eshu.resolutionEngineLaneFullname" -}}
+{{- printf "%s-resolution-engine-%s" (include "eshu.fullname" .root) .lane.name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "eshu.workflowCoordinatorFullname" -}}
 {{- printf "%s-workflow-coordinator" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -86,6 +90,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "eshu.resolutionEngineMetricsServiceName" -}}
 {{- printf "%s-resolution-engine-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.resolutionEngineLaneMetricsServiceName" -}}
+{{- printf "%s-resolution-engine-%s-metrics" (include "eshu.fullname" .root) .lane.name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "eshu.workflowCoordinatorMetricsServiceName" -}}
@@ -134,6 +142,12 @@ app.kubernetes.io/component: ingester
 {{- define "eshu.resolutionEngineSelectorLabels" -}}
 {{- include "eshu.selectorLabels" . }}
 app.kubernetes.io/component: resolution-engine
+{{- end -}}
+
+{{- define "eshu.resolutionEngineLaneSelectorLabels" -}}
+{{- include "eshu.selectorLabels" .root }}
+app.kubernetes.io/component: resolution-engine
+eshu.io/reducer-lane: {{ .lane.name | quote }}
 {{- end -}}
 
 {{- define "eshu.workflowCoordinatorSelectorLabels" -}}

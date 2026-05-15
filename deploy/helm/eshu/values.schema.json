@@ -144,6 +144,28 @@
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
         "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "lanes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+              },
+              "domains": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string" }
+              },
+              "replicas": { "type": "integer", "minimum": 0 },
+              "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+              "resources": { "type": "object" }
+            },
+            "required": ["name", "domains"],
+            "additionalProperties": false
+          }
+        },
         "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
         "resources": { "type": "object" }
       }

@@ -116,7 +116,8 @@ returns true and `attempt_count < MaxAttempts`, `Fail` transitions to
 
 ### Reducer queue
 
-`ReducerQueue.Claim` extends the projector model with domain filtering and
+`ReducerQueue.Claim` extends the projector model with single-domain legacy
+filtering and multi-domain allowlists for reducer deployment lanes, plus
 NornicDB-specific semantic gates. When the NornicDB gate is active (`$5 = true`),
 `semantic_entity_materialization` items are blocked while any source-local
 projection is in-flight, preventing cross-scope contention on NornicDB label

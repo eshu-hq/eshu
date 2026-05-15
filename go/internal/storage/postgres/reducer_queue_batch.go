@@ -16,7 +16,7 @@ WITH candidate AS (
       AND status IN ('pending', 'retrying', 'claimed', 'running')
       AND (visible_at IS NULL OR visible_at <= $1)
       AND (claim_until IS NULL OR claim_until <= $1)
-      AND ($2 = '' OR domain = $2)
+      AND ($2::text[] IS NULL OR domain = ANY($2::text[]))
       -- NornicDB local_authoritative first-generation runs must not let
       -- reducer graph writes contend with source-local canonical projection
       -- for the same scope. Unrelated scopes can continue draining.
@@ -110,7 +110,7 @@ WITH candidate AS (
             AND same.status IN ('pending', 'retrying', 'claimed', 'running')
             AND (same.visible_at IS NULL OR same.visible_at <= $1)
             AND (same.claim_until IS NULL OR same.claim_until <= $1)
-            AND ($2 = '' OR same.domain = $2)
+            AND ($2::text[] IS NULL OR same.domain = ANY($2::text[]))
           ORDER BY same.updated_at ASC, same.work_item_id ASC
           LIMIT 1
       )
@@ -165,7 +165,7 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducer.Inte
 		ctx,
 		claimReducerWorkBatchQuery,
 		now,
-		q.claimDomainFilter(),
+		q.claimDomainFilters(),
 		q.LeaseOwner,
 		now.Add(q.LeaseDuration),
 		q.RequireProjectorDrainBeforeClaim,

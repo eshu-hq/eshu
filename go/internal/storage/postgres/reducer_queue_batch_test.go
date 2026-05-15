@@ -343,8 +343,9 @@ func TestClaimBatchCanFilterByDomain(t *testing.T) {
 	if _, err := q.ClaimBatch(context.Background(), 5); err != nil {
 		t.Fatalf("ClaimBatch() error = %v", err)
 	}
-	if got, want := db.queries[0].args[1], string(reducer.DomainSQLRelationshipMaterialization); got != want {
-		t.Fatalf("domain filter arg = %v, want %v", got, want)
+	got, ok := db.queries[0].args[1].([]string)
+	if !ok || len(got) != 1 || got[0] != string(reducer.DomainSQLRelationshipMaterialization) {
+		t.Fatalf("domain filter arg = %#v, want [%q]", db.queries[0].args[1], reducer.DomainSQLRelationshipMaterialization)
 	}
 }
 

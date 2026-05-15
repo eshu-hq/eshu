@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log/slog"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -182,6 +183,80 @@ func TestLoadReducerClaimDomain_RejectsUnknownDomain(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("loadReducerClaimDomain() error = nil, want validation error")
+	}
+}
+
+func TestLoadReducerClaimDomains_ParsesPluralKnownDomains(t *testing.T) {
+	t.Parallel()
+
+	got, err := loadReducerClaimDomains(func(k string) string {
+		if k == reducerClaimDomainsEnv {
+			return strings.Join([]string{
+				string(reducer.DomainSQLRelationshipMaterialization),
+				string(reducer.DomainInheritanceMaterialization),
+			}, ",")
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("loadReducerClaimDomains() error = %v, want nil", err)
+	}
+	want := []reducer.Domain{
+		reducer.DomainSQLRelationshipMaterialization,
+		reducer.DomainInheritanceMaterialization,
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("loadReducerClaimDomains() = %#v, want %#v", got, want)
+	}
+}
+
+func TestLoadReducerClaimDomains_KeepsLegacySingleDomain(t *testing.T) {
+	t.Parallel()
+
+	got, err := loadReducerClaimDomains(func(k string) string {
+		if k == reducerClaimDomainEnv {
+			return string(reducer.DomainSQLRelationshipMaterialization)
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("loadReducerClaimDomains() error = %v, want nil", err)
+	}
+	want := []reducer.Domain{reducer.DomainSQLRelationshipMaterialization}
+	if !slices.Equal(got, want) {
+		t.Fatalf("loadReducerClaimDomains() = %#v, want %#v", got, want)
+	}
+}
+
+func TestLoadReducerClaimDomains_RejectsAmbiguousLegacyAndPlural(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadReducerClaimDomains(func(k string) string {
+		switch k {
+		case reducerClaimDomainEnv:
+			return string(reducer.DomainSQLRelationshipMaterialization)
+		case reducerClaimDomainsEnv:
+			return string(reducer.DomainInheritanceMaterialization)
+		default:
+			return ""
+		}
+	})
+	if err == nil {
+		t.Fatal("loadReducerClaimDomains() error = nil, want ambiguity error")
+	}
+}
+
+func TestLoadReducerClaimDomains_RejectsUnknownPluralDomain(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadReducerClaimDomains(func(k string) string {
+		if k == reducerClaimDomainsEnv {
+			return "not_a_domain"
+		}
+		return ""
+	})
+	if err == nil {
+		t.Fatal("loadReducerClaimDomains() error = nil, want validation error")
 	}
 }
 
