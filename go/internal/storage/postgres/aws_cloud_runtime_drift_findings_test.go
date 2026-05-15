@@ -113,3 +113,40 @@ func TestAWSCloudRuntimeDriftFindingStoreCountsActiveScopedFindings(t *testing.T
 		}
 	}
 }
+
+func TestAWSCloudRuntimeDriftFindingStoreRejectsUnboundedFilters(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	store := NewAWSCloudRuntimeDriftFindingStore(db)
+
+	if _, err := store.ListActiveFindings(context.Background(), AWSCloudRuntimeDriftFindingFilter{}); err == nil {
+		t.Fatal("ListActiveFindings() error = nil, want unbounded filter error")
+	}
+	if _, err := store.CountActiveFindings(context.Background(), AWSCloudRuntimeDriftFindingFilter{}); err == nil {
+		t.Fatal("CountActiveFindings() error = nil, want unbounded filter error")
+	}
+	if got := len(db.queries); got != 0 {
+		t.Fatalf("query count = %d, want 0", got)
+	}
+}
+
+func TestAWSCloudRuntimeDriftFindingStoreCapsLimit(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{}},
+	}
+	store := NewAWSCloudRuntimeDriftFindingStore(db)
+
+	_, err := store.ListActiveFindings(context.Background(), AWSCloudRuntimeDriftFindingFilter{
+		ScopeID: "aws:123456789012:us-east-1:lambda",
+		Limit:   5000,
+	})
+	if err != nil {
+		t.Fatalf("ListActiveFindings() error = %v, want nil", err)
+	}
+	if got, want := db.queries[0].args[2], 500; got != want {
+		t.Fatalf("limit arg = %#v, want %#v", got, want)
+	}
+}

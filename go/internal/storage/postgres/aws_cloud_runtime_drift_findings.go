@@ -12,7 +12,13 @@ import (
 // AWS runtime drift findings.
 const AWSCloudRuntimeDriftFindingFactKind = "reducer_aws_cloud_runtime_drift_finding"
 
-// AWSCloudRuntimeDriftFindingFilter bounds active AWS drift finding reads.
+const (
+	awsCloudRuntimeDriftFindingDefaultLimit = 100
+	awsCloudRuntimeDriftFindingMaxLimit     = 500
+)
+
+// AWSCloudRuntimeDriftFindingFilter bounds active AWS drift finding reads. The
+// store rejects filters without ScopeID or AccountID and caps list pages.
 type AWSCloudRuntimeDriftFindingFilter struct {
 	ScopeID      string
 	AccountID    string
@@ -72,6 +78,9 @@ func (s AWSCloudRuntimeDriftFindingStore) ListActiveFindings(
 		return nil, fmt.Errorf("aws cloud runtime drift finding store database is required")
 	}
 	filter = normalizeAWSCloudRuntimeDriftFindingFilter(filter)
+	if err := validateAWSCloudRuntimeDriftFindingFilter(filter); err != nil {
+		return nil, err
+	}
 	query, args := buildAWSCloudRuntimeDriftFindingQuery(false, filter)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -114,6 +123,9 @@ func (s AWSCloudRuntimeDriftFindingStore) CountActiveFindings(
 		return 0, fmt.Errorf("aws cloud runtime drift finding store database is required")
 	}
 	filter = normalizeAWSCloudRuntimeDriftFindingFilter(filter)
+	if err := validateAWSCloudRuntimeDriftFindingFilter(filter); err != nil {
+		return 0, err
+	}
 	query, args := buildAWSCloudRuntimeDriftFindingQuery(true, filter)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -225,12 +237,24 @@ func normalizeAWSCloudRuntimeDriftFindingFilter(
 	filter.Region = strings.TrimSpace(filter.Region)
 	filter.FindingKinds = cleanStringSet(filter.FindingKinds)
 	if filter.Limit <= 0 {
-		filter.Limit = 100
+		filter.Limit = awsCloudRuntimeDriftFindingDefaultLimit
+	}
+	if filter.Limit > awsCloudRuntimeDriftFindingMaxLimit {
+		filter.Limit = awsCloudRuntimeDriftFindingMaxLimit
 	}
 	if filter.Offset < 0 {
 		filter.Offset = 0
 	}
 	return filter
+}
+
+func validateAWSCloudRuntimeDriftFindingFilter(
+	filter AWSCloudRuntimeDriftFindingFilter,
+) error {
+	if filter.ScopeID == "" && filter.AccountID == "" {
+		return fmt.Errorf("aws cloud runtime drift finding filter requires scope_id or account_id")
+	}
+	return nil
 }
 
 func awsScopePrefix(accountID string, region string) string {
