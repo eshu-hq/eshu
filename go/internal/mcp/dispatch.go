@@ -115,6 +115,18 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":          intOr(args, "limit", 25),
 			"offset":         intOr(args, "offset", 0),
 		}}, nil
+	case "investigate_import_dependencies":
+		return &route{method: "POST", path: "/api/v0/code/imports/investigate", body: map[string]any{
+			"query_type":    str(args, "query_type"),
+			"repo_id":       str(args, "repo_id"),
+			"language":      str(args, "language"),
+			"source_file":   str(args, "source_file"),
+			"target_file":   str(args, "target_file"),
+			"source_module": str(args, "source_module"),
+			"target_module": str(args, "target_module"),
+			"limit":         intOr(args, "limit", 25),
+			"offset":        intOr(args, "offset", 0),
+		}}, nil
 	case "investigate_code_topic":
 		return &route{method: "POST", path: "/api/v0/code/topics/investigate", body: map[string]any{
 			"topic":    str(args, "topic"),

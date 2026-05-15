@@ -48,6 +48,7 @@ The initial capability families are:
 - `symbol_graph.argument_names`
 - `symbol_graph.class_methods`
 - `symbol_graph.imports`
+- `symbol_graph.import_dependencies`
 - `symbol_graph.inheritance`
 - `code_quality.complexity`
 - `call_graph.direct_callers`
@@ -92,6 +93,7 @@ The same capability ID may back more than one surface or tool. Initial mapping:
 | `get_service_context` | `platform_impact.context_overview` |
 | `get_ecosystem_overview` | `platform_impact.context_overview` |
 | `execute_language_query` | `symbol_graph.decorators`, `symbol_graph.argument_names`, `symbol_graph.class_methods`, `symbol_graph.imports`, `symbol_graph.inheritance` |
+| `investigate_import_dependencies` | `symbol_graph.import_dependencies` |
 | `trace_resource_to_code` | `platform_impact.resource_to_code` |
 | `investigate_resource` | `platform_impact.resource_investigation` |
 | `explain_dependency_path` | `platform_impact.dependency_path` |

@@ -90,6 +90,7 @@ func codebaseTools() []ToolDefinition {
 			},
 		},
 		structuralInventoryTool(),
+		importDependencyTool(),
 		codeTopicInvestigationTool(),
 		securityInvestigationTool(),
 		{

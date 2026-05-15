@@ -116,11 +116,14 @@ raw Cypher or repeat broad content searches without narrowing the topic.
 
 > "Where is the `math` module imported?"
 
-**Tool:** `get_code_relationship_story`
+**Tool:** `investigate_import_dependencies`
 
 ```json
-{ "target": "math", "relationship_type": "IMPORTS", "direction": "incoming", "limit": 25 }
+{ "query_type": "importers", "repo_id": "payments", "target_module": "math", "limit": 25 }
 ```
+
+Read rows from `dependencies`. The tool returns only one row key for each
+`query_type`, so clients should not guess between `results` and aliases.
 
 ### Find functions with a decorator
 
@@ -226,21 +229,21 @@ selected the exact function.
 
 > "Find functions in `module_a.py` that call `helper` in `module_b.py`."
 
-**Tool:** `get_code_relationship_story`
+**Tool:** `investigate_import_dependencies`
 
 ```json
 {
-  "target": "helper",
+  "query_type": "cross_module_calls",
   "repo_id": "payments",
-  "relationship_type": "CALLS",
-  "direction": "incoming",
+  "source_file": "src/module_a.py",
+  "target_file": "src/module_b.py",
   "limit": 25
 }
 ```
 
-Use returned source handles to inspect the caller and callee files. Exact
-file-pair and module-pair relationship filters are tracked in #361; until that
-lands, keep exact cross-module predicates out of normal prompt suites.
+Use returned source handles to inspect caller and callee files. Add
+`source_module` and `target_module` when the prompt names module symbols
+instead of file paths.
 
 ### Find recursive functions
 
@@ -505,12 +508,13 @@ the row window clips the result.
 
 ### Find cross-module calls
 
-Use `get_code_relationship_story` for normal caller/callee prompts. Exact
-module-pair filtering is tracked in #361.
+Use the named import-dependency tool for normal prompt flows.
 
 ```json
-{ "cypher_query": "MATCH (caller:Function)-[:CALLS]->(callee:Function {name: 'helper'}) WHERE caller.path ENDS WITH 'module_a.py' AND callee.path ENDS WITH 'module_b.py' RETURN caller.name", "limit": 50 }
+{ "tool": "investigate_import_dependencies", "arguments": { "query_type": "cross_module_calls", "repo_id": "payments", "source_file": "src/module_a.py", "target_file": "src/module_b.py", "limit": 50 } }
 ```
+
+Read rows from `cross_module_calls`.
 
 ### Find recursive functions
 
@@ -566,11 +570,11 @@ narrower entity type.
 
 ### Find circular file imports
 
-First-class import/dependency support is tracked in #361.
-
 ```json
-{ "cypher_query": "MATCH (f1:File)-[:IMPORTS]->(m2:Module), (f2:File)-[:IMPORTS]->(m1:Module) WHERE f1.name = m1.name + '.py' AND f2.name = m2.name + '.py' RETURN f1.name, f2.name", "limit": 50 }
+{ "tool": "investigate_import_dependencies", "arguments": { "query_type": "file_import_cycles", "repo_id": "payments", "language": "python", "limit": 50 } }
 ```
+
+Read rows from `cycles`.
 
 ### Find documented functions
 
@@ -607,19 +611,19 @@ This inventory kind always counts functions; do not pass a non-function
 
 ### Find modules imported by a file
 
-First-class import/dependency support is tracked in #361.
-
 ```json
-{ "cypher_query": "MATCH (f:File {name: 'module_a.py'})-[:IMPORTS]->(m:Module) RETURN m.name AS imported_module_name", "limit": 50 }
+{ "tool": "investigate_import_dependencies", "arguments": { "query_type": "imports_by_file", "repo_id": "payments", "source_file": "src/module_a.py", "limit": 50 } }
 ```
+
+Read rows from `dependencies`.
 
 ### Find all Python package imports
 
-First-class import/dependency support is tracked in #361.
-
 ```json
-{ "cypher_query": "MATCH (f:File)-[:IMPORTS]->(m:Module) WHERE f.path ENDS WITH '.py' RETURN DISTINCT m.name", "limit": 100 }
+{ "tool": "investigate_import_dependencies", "arguments": { "query_type": "package_imports", "repo_id": "payments", "language": "python", "limit": 100 } }
 ```
+
+Read rows from `modules`.
 
 ---
 

@@ -15,7 +15,9 @@
 // layer over bounded reducer rows, and sensitive evidence values are redacted
 // before HTTP or MCP callers see them.
 // Structural inventory uses bounded content-index reads for syntax and semantic
-// filters before callers drill into source or graph relationships.
+// filters before callers drill into source or graph relationships. Import
+// dependency investigation uses graph-backed repo/file/module anchors before it
+// expands IMPORTS or CALLS relationships for prompt-ready dependency answers.
 // Hardcoded-secret investigation returns redacted
 // content-index findings with suppression notes and never returns raw secret
 // values; suppression filtering and Go suppression notes share one rule table,

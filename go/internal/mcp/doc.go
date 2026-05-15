@@ -8,9 +8,10 @@
 // tools stay in this transport layer and delegate source hydration to the query
 // package rather than reading storage directly; the advertised citation schema
 // caps input at 500 handles. Structural inventory and security investigation
-// tools also stay transport-only and delegate inventory filtering or redacted
-// finding generation to the query package; their
-// tool definitions live in tools_structural_inventory.go and tools_security.go.
+// tools also stay transport-only and delegate inventory filtering, import
+// dependency investigation, or redacted finding generation to the query
+// package; their tool definitions live in tools_structural_inventory.go,
+// tools_import_dependencies.go, and tools_security.go.
 // Any change that alters request or response shape must update
 // the MCP guide, the HTTP API reference where the route is shared, and the
 // handler tests in the same change.

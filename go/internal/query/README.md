@@ -266,6 +266,12 @@ functions, decorated methods, classes with a method, `super()` calls, and
 function counts per file. `POST /api/v0/code/structure/inventory` keeps those
 prompts out of raw Cypher by applying repo/path/language/type filters before a
 deterministic `limit+1` page and returning source handles for drill-down reads.
+Import dependency investigation uses the graph as the first-call read model for
+imports by file, importers, package imports, direct Python file import cycles,
+and cross-module calls. `POST /api/v0/code/imports/investigate` requires a
+repository, file, or module scope anchor before expanding relationships,
+returns deterministic `limit+1` pages with `truncated` and `next_offset`, and
+includes source handles for follow-up file reads.
 The OpenAPI fragments for `POST /api/v0/code/dead-code` and
 `POST /api/v0/code/dead-code/investigate` name modeled language roots such as
 Go public-package exports plus C, C#, Dart, Haskell, Kotlin, Elixir, PHP, and
@@ -289,7 +295,7 @@ normalized to `c_sharp` before candidate scanning.
   (`content_reader.go:16`)
 - `PostgresIaCReachabilityStore` — reducer-materialized IaC cleanup findings
   (`iac_reachability_store.go`)
-- `IaCReachabilityStore` — port for IaC cleanup findings (`iac.go:62`)
+- `IaCReachabilityStore` — port for IaC cleanup findings (`iac.go:74`)
 
 **Handler structs**
 
@@ -297,9 +303,10 @@ normalized to `c_sharp` before candidate scanning.
   (`handler.go:110`)
 - `RepositoryHandler` — `GET /api/v0/repositories*` routes (`repository.go:21`)
 - `EntityHandler` — entity resolution, workload/service context routes, service dossier stories, and service investigation coverage (`entity.go:11`, `service_story_handler.go:9`, `service_investigation.go:17`)
-- `CodeHandler` — code search, symbol lookup, structural inventory,
-  relationships, relationship stories, redacted hardcoded-secret investigation in
-  `code_security_secrets.go`, dead-code, complexity, call-chain (`code.go:11`)
+- `CodeHandler` — code search, symbol lookup, structural inventory, import
+  dependency investigation, relationships, relationship stories, redacted
+  hardcoded-secret investigation in `code_security_secrets.go`, dead-code,
+  complexity, call-chain (`code.go:11`)
 - `ContentHandler` — file and entity content reads (`content_handler.go:11`)
 - `InfraHandler` — infrastructure resource and relationship routes (`infra.go:12`)
   including Terraform backend, import, moved, removed, check, and lockfile

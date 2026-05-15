@@ -649,6 +649,7 @@ Use these routes when you only need code relationships and do not need the full 
 - `POST /api/v0/code/structure/inventory`
 - `POST /api/v0/code/topics/investigate`
 - `POST /api/v0/code/security/secrets/investigate`
+- `POST /api/v0/code/imports/investigate`
 - `POST /api/v0/code/relationships`
 - `POST /api/v0/code/relationships/story`
 - `POST /api/v0/code/dead-code`
@@ -756,6 +757,34 @@ file or entity reads. Every request must include at least one scope filter:
 `function_count_by_file` always counts functions; if `entity_kind` is supplied
 there, it must be `function`. `top_level` defaults to Function/Class rows unless
 the caller supplies a narrower `entity_kind`.
+
+Example import-dependency workflow:
+
+`POST /api/v0/code/imports/investigate`
+
+```json
+{
+  "query_type": "imports_by_file",
+  "repo_id": "payments",
+  "source_file": "src/module_a.py",
+  "language": "python",
+  "limit": 25,
+  "offset": 0
+}
+```
+
+The import dependency route is the bounded graph path for prompts such as
+"find modules imported by this file", "find imports of this module", "list
+Python package imports", "find direct Python file import cycles", and "find
+cross-module calls". It requires at least one scope anchor: `repo_id`,
+`source_file`, `target_file`, `source_module`, or `target_module`. Responses
+include exactly one canonical row key for the selected `query_type`:
+`dependencies` for `imports_by_file`, `importers`, and `module_dependencies`;
+`modules` for `package_imports`; `cycles` for `file_import_cycles`; and
+`cross_module_calls` for `cross_module_calls`. The response also includes
+source handles where rows refer to files, `truncated`, `next_offset`, and
+`coverage.query_shape` so MCP clients can page instead of broadening to raw
+Cypher. `limit` and `offset` must be non-negative.
 
 Example code-topic investigation workflow:
 
