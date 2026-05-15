@@ -358,6 +358,9 @@ compatibility handoff cannot complete.
 - `WebhookTriggerStore` / `NewWebhookTriggerStore` —
   `StoreTrigger`, `ClaimQueuedTriggers`, `MarkTriggersHandedOff`,
   `MarkTriggersFailed`, and `WebhookTriggerSchemaSQL`
+- `AWSFreshnessStore` / `NewAWSFreshnessStore` —
+  coalesced AWS Config/EventBridge freshness triggers with
+  `AWSFreshnessSchemaSQL`
 
 **Schema bootstrap**
 
@@ -551,6 +554,9 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   claim.
 - `WebhookTriggerStore` treats webhook payloads as trigger evidence only. The
   Git collector must still fetch the repository before freshness becomes true.
+- `AWSFreshnessStore` treats AWS Config and EventBridge events as trigger
+  evidence only. The AWS collector must still scan the affected service tuple
+  before cloud inventory becomes fresh.
 - Schema definitions in `bootstrapDefinitions` are applied in slice order.
   Tables with foreign key constraints on other tables must appear after their
   dependencies.

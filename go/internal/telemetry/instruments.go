@@ -89,6 +89,7 @@ type Instruments struct {
 	AWSResourcesEmitted                       metric.Int64Counter
 	AWSRelationshipsEmitted                   metric.Int64Counter
 	AWSTagObservationsEmitted                 metric.Int64Counter
+	AWSFreshnessEvents                        metric.Int64Counter
 	// CorrelationRuleMatches counts rule-match outcomes recorded by
 	// engine.Evaluate.Results[i].MatchCounts, labeled by pack and rule.
 	// The engine populates MatchCounts for RuleKindMatch rules only
@@ -659,6 +660,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWSTagObservationsEmitted counter: %w", err)
+	}
+
+	inst.AWSFreshnessEvents, err = meter.Int64Counter(
+		"eshu_dp_aws_freshness_events_total",
+		metric.WithDescription("Total AWS freshness events by bounded kind and action"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSFreshnessEvents counter: %w", err)
 	}
 
 	inst.CorrelationRuleMatches, err = meter.Int64Counter(
@@ -1659,6 +1668,16 @@ func AttrResult(v string) attribute.KeyValue {
 // AttrReason returns a reason attribute for metric recording.
 func AttrReason(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionReason, v)
+}
+
+// AttrKind returns a kind attribute for metric recording.
+func AttrKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionKind, v)
+}
+
+// AttrAction returns an action attribute for metric recording.
+func AttrAction(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionAction, v)
 }
 
 // AttrProvider returns a provider attribute for metric recording.

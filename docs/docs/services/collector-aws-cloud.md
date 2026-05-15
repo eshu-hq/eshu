@@ -209,6 +209,19 @@ same release.
 The workflow coordinator chart remains dark-only in this branch, so production
 deployments need an approved control-plane path that creates AWS workflow work.
 
+## Freshness Layer
+
+The AWS freshness layer is a targeted wake-up path for AWS Config and
+EventBridge signals. It does not replace scheduled scans. Incoming provider
+events normalize into a concrete `(account_id, region, service_kind)` target,
+coalesce in `aws_freshness_triggers`, and then plan ordinary AWS workflow work
+items for the existing claim-driven collector.
+
+The scan boundary is deliberately service-sized. Even when the provider event
+names one resource, the collector rescans the affected service tuple so
+relationships, tags, and dependent metadata stay consistent with the normal
+snapshot path. Wildcard regions and services are rejected.
+
 ## Supported Scanner Families
 
 The production scanner registry currently covers:
