@@ -42,6 +42,18 @@ Before proposing or implementing a non-trivial change, MUST identify:
    timeouts, and more retries are diagnostics or temporary mitigations unless
    evidence proves they are the right architecture.
 
+## Replay And Retry Matrix
+
+For queue, recovery, replay, or dead-letter changes, tests MUST cover every
+owned dispatch variant, not one representative query or handler. Include:
+
+- duplicate delivery of already-succeeded work
+- stale state replay after partial projection
+- retry preserving transient failures without overwriting terminal state
+- dead-letter replay returning to the intended queue state
+- concurrent workers touching the same conflict domain
+- empty or already-drained queue state
+
 ## Observability
 
 Concurrency-sensitive paths MUST expose enough telemetry to answer:

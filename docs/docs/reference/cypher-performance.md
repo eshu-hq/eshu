@@ -44,11 +44,10 @@ For **Neo4j**:
 
 For **NornicDB** (Eshu's default backend):
 
-- The Eshu-maintained fork lives at `/Users/asanabria/os-repos/NornicDB-New`.
-  This is the source that the pinned `timothyswt/nornicdb-amd64-cpu:vX.Y.Z`
-  binary is built from. Do not read the older sibling at
-  `/Users/asanabria/os-repos/NornicDB` — it does not match the running
-  binary.
+- Use the current NornicDB-New checkout named by local config, repo docs, or
+  the user. This must be the source that produced the pinned
+  `timothyswt/nornicdb-amd64-cpu:vX.Y.Z` binary under test. Do not read an
+  older `NornicDB` sibling unless the run explicitly uses that source.
 - Read the relevant code under `pkg/cypher/` and `pkg/storage/` in
   NornicDB-New for the exact behavior of the feature you plan to use.
   Particularly: `pkg/cypher/merge.go`, `pkg/cypher/clauses.go`,
@@ -125,7 +124,9 @@ repo, not only in PR text. CI runs `scripts/verify-performance-evidence.sh`
 against the PR diff. The gate is path-based and content-based, so it catches
 new collector packages that introduce Cypher strings, graph writes, worker
 claims, leases, batching, or concurrency knobs even when the package did not
-exist before.
+exist before. It also catches Compose/Helm runtime config changes that touch
+graph backend, worker, batching, timeout, pprof, or NornicDB knobs because those
+settings can move full-corpus performance without changing Go code.
 
 For a hot-path change, update an ADR, reference page, or package README changed
 in the same PR with one benchmark marker:

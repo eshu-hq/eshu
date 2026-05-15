@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-performance-evidence.sh"
 
 tmp_root="$(mktemp -d)"
-trap 'rm -rf "${tmp_root}"' EXIT
+trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
 
 init_repo() {
   local name="$1"
@@ -102,5 +102,23 @@ printf '\n## Current Evidence\n\nPerformance Evidence: focused writer benchmark 
 git -C "${missing_observability_repo}" add .
 git -C "${missing_observability_repo}" commit -q -m 'hot change without observability evidence'
 expect_fail "${missing_observability_repo}"
+
+compose_runtime_repo="$(init_repo compose-runtime)"
+printf 'services:\n  nornicdb:\n    environment:\n      NORNICDB_EMBEDDING_ENABLED: "false"\n' \
+  >"${compose_runtime_repo}/docker-compose.yaml"
+git -C "${compose_runtime_repo}" add .
+git -C "${compose_runtime_repo}" commit -q -m 'runtime compose change'
+expect_fail "${compose_runtime_repo}"
+
+compose_runtime_removal_repo="$(init_repo compose-runtime-removal)"
+printf 'services:\n  nornicdb:\n    environment:\n      NORNICDB_EMBEDDING_ENABLED: "false"\n' \
+  >"${compose_runtime_removal_repo}/docker-compose.yaml"
+git -C "${compose_runtime_removal_repo}" add .
+git -C "${compose_runtime_removal_repo}" commit -q -m 'add runtime compose baseline'
+printf 'services:\n  nornicdb:\n    environment: {}\n' \
+  >"${compose_runtime_removal_repo}/docker-compose.yaml"
+git -C "${compose_runtime_removal_repo}" add .
+git -C "${compose_runtime_removal_repo}" commit -q -m 'remove runtime compose knob'
+expect_fail "${compose_runtime_removal_repo}"
 
 printf 'verify-performance-evidence tests passed\n'

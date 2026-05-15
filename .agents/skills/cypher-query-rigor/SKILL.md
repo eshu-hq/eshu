@@ -26,9 +26,9 @@ both of these must be answered explicitly:
 1. **Research first.** Read the relevant backend behavior in source before
    writing the query. For Neo4j: the Cypher manual for the pinned version
    and the changelog up to the latest release. For NornicDB: the relevant
-   files under `pkg/cypher/` and `pkg/storage/` in the Eshu fork at
-   `/Users/asanabria/os-repos/NornicDB-New` (NOT the older `NornicDB`
-   sibling). Always read
+   files under `pkg/cypher/` and `pkg/storage/` in the current NornicDB-New
+   checkout named by repo docs, session-local config, or the user (NOT an older
+   `NornicDB` sibling). Always read
    `docs/docs/reference/nornicdb-pitfalls.md` for known traps. If your
    query uses a pattern you haven't validated against the pinned binary,
    that's research debt — close it with a focused test or `curl`-against-
@@ -43,6 +43,12 @@ both of these must be answered explicitly:
    precede indexing for production-profile evidence), input cardinality at
    every anchor, index/constraint state, and plan or statement summary.
    Unmeasured Cypher in a hot path is a regression-shaped surprise.
+
+3. **Prove setup before query blame.** For remote or Compose NornicDB proof,
+   record the Eshu commit, NornicDB commit or image tag, effective container
+   environment, schema/bootstrap state, embeddings state, pprof state, worker
+   knobs, clean-volume state, and terminal queue counts before deciding a Cypher
+   shape is the bottleneck.
 
 For the long-form workflow, backend research locations, anti-patterns, and
 the measurement protocol, see
@@ -201,7 +207,8 @@ MERGE (s)-[:RUNS_IN]->(e)
   measured dialect adapters.
 - When a backend appears much slower, prove the setup first: schema applied,
   expected indexes present, same corpus, rebuilt binaries, same queue terminal
-  state, and API/MCP truth checks against the completed graph.
+  state, effective runtime knobs, embeddings state, pprof state, and API/MCP
+  truth checks against the completed graph.
 
 ## NornicDB Notes
 
