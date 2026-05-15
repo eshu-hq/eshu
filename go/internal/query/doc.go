@@ -18,6 +18,8 @@
 // filters before callers drill into source or graph relationships. Import
 // dependency investigation uses graph-backed repo/file/module anchors before it
 // expands IMPORTS or CALLS relationships for prompt-ready dependency answers.
+// Call graph metrics use repo-anchored graph reads for recursive-function and
+// hub-function prompt answers with bounded pages and source handles.
 // Hardcoded-secret investigation returns redacted
 // content-index findings with suppression notes and never returns raw secret
 // values; suppression filtering and Go suppression notes share one rule table,

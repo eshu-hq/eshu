@@ -145,6 +145,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded graph relationship story anchored by resolved entity id}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 2000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded graph relationship story anchored by resolved entity id}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-relationship-story}], notes: bounded graph relationship story anchored by resolved entity id}
+  - capability: call_graph.metrics
+    tools: [inspect_call_graph_metrics]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}], notes: call graph metric ranking requires authoritative CALLS graph}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: repo-anchored graph metrics for recursive and high-degree functions with bounded pages}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 3000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: repo-anchored graph metrics for recursive and high-degree functions with bounded pages}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-call-graph-metrics}], notes: repo-anchored graph metrics for recursive and high-degree functions with bounded pages}
   - capability: call_graph.transitive_callers
     tools: [analyze_code_relationships]
     profiles:

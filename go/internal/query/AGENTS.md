@@ -136,6 +136,12 @@
   return exactly one row key for each query type (`dependencies`, `modules`,
   `cycles`, or `cross_module_calls`) plus source handles for file drill-down.
 
+- **Change call graph metrics** → keep recursive-function and hub-function
+  prompts on `POST /api/v0/code/call-graph/metrics`. Require `repo_id` before
+  expanding `CALLS`, keep deterministic ordering plus `limit+1` truncation
+  probing, reject negative paging bounds, and return canonical `functions` rows
+  with source handles, call-degree counts, and recursion evidence.
+
 ## Failure modes and how to debug
 
 - Symptom: HTTP 501 with `error.code=unsupported_capability` → likely cause:

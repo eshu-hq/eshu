@@ -174,6 +174,63 @@ const openAPIPathsCodeSymbols = `
         }
       }
     },
+    "/api/v0/code/call-graph/metrics": {
+      "post": {
+        "tags": ["code"],
+        "summary": "Inspect call graph metrics",
+        "description": "Returns bounded graph-backed call graph metrics for recursive functions and highly connected hub functions. Requests require repo_id and use deterministic ordering, paging, truncation metadata, source handles, and one canonical functions row key.",
+        "operationId": "inspectCallGraphMetrics",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["repo_id"],
+                "properties": {
+                  "metric_type": {
+                    "type": "string",
+                    "enum": ["hub_functions", "recursive_functions"],
+                    "default": "hub_functions"
+                  },
+                  "repo_id": {"type": "string", "description": "Required repository selector (canonical ID, name, slug, or path)."},
+                  "language": {"type": "string", "description": "Optional language filter."},
+                  "limit": {"type": "integer", "default": 25, "minimum": 0, "maximum": 200},
+                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Call graph metric rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "metric_type": {"type": "string"},
+                    "scope": {"type": "object", "additionalProperties": true},
+                    "functions": {"type": "array", "description": "Canonical call graph metric rows.", "items": {"type": "object", "additionalProperties": true}},
+                    "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "offset": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "next_offset": {"type": "integer", "nullable": true},
+                    "source_backend": {"type": "string"},
+                    "coverage": {"type": "object", "additionalProperties": true}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/code/topics/investigate": {
       "post": {
         "tags": ["code"],

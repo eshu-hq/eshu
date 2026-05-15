@@ -249,19 +249,29 @@ instead of file paths.
 
 > "Find all functions that call themselves."
 
-There is not a first-class bounded recursion detector yet. Track that work in
-#360. Until then, do not put this prompt in normal MCP prompt suites. Operators
-can use the diagnostics-only Cypher example in
-[Diagnostic Cypher Queries](#diagnostic-cypher-queries) for local graph debugging.
+**Tool:** `inspect_call_graph_metrics`
+
+```json
+{ "metric_type": "recursive_functions", "repo_id": "payments", "language": "typescript", "limit": 50 }
+```
+
+Read rows from `functions`. `recursion_kind=self_call` means the function calls
+itself directly; `recursion_kind=mutual_call` means the returned partner function
+forms a two-function cycle. Use `offset` when `truncated` is true.
 
 ### Find hub functions (most connected)
 
 > "Find the functions that are most central to the codebase."
 
-There is not a first-class bounded call-graph centrality tool yet. Track that
-work in #360. Until then, do not put this prompt in normal MCP prompt suites.
-Operators can use the diagnostics-only Cypher example in
-[Diagnostic Cypher Queries](#diagnostic-cypher-queries) for local graph debugging.
+**Tool:** `inspect_call_graph_metrics`
+
+```json
+{ "metric_type": "hub_functions", "repo_id": "payments", "language": "go", "limit": 25 }
+```
+
+Read rows from `functions`. The rows include `incoming_calls`,
+`outgoing_calls`, and `total_degree`, ordered by total degree and then stable
+source position. Use `source_handle` to inspect the function file.
 
 ---
 
@@ -518,18 +528,14 @@ Read rows from `cross_module_calls`.
 
 ### Find recursive functions
 
-First-class support is tracked in #360.
-
 ```json
-{ "cypher_query": "MATCH (f:Function)-[:CALLS]->(f2:Function) WHERE f.name = f2.name AND f.path = f2.path RETURN f.name, f.path", "limit": 50 }
+{ "tool": "inspect_call_graph_metrics", "arguments": { "metric_type": "recursive_functions", "repo_id": "payments", "language": "typescript", "limit": 50 } }
 ```
 
 ### Find hub functions
 
-First-class support is tracked in #360.
-
 ```json
-{ "cypher_query": "MATCH (f:Function) OPTIONAL MATCH (f)-[:CALLS]->(callee:Function) OPTIONAL MATCH (caller:Function)-[:CALLS]->(f) WITH f, count(DISTINCT callee) AS calls_out, count(DISTINCT caller) AS calls_in ORDER BY (calls_out + calls_in) DESC RETURN f.name, f.path, calls_out, calls_in", "limit": 5 }
+{ "tool": "inspect_call_graph_metrics", "arguments": { "metric_type": "hub_functions", "repo_id": "payments", "language": "go", "limit": 5 } }
 ```
 
 ### Find functions that are never called

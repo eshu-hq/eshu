@@ -650,6 +650,7 @@ Use these routes when you only need code relationships and do not need the full 
 - `POST /api/v0/code/topics/investigate`
 - `POST /api/v0/code/security/secrets/investigate`
 - `POST /api/v0/code/imports/investigate`
+- `POST /api/v0/code/call-graph/metrics`
 - `POST /api/v0/code/relationships`
 - `POST /api/v0/code/relationships/story`
 - `POST /api/v0/code/dead-code`
@@ -785,6 +786,29 @@ include exactly one canonical row key for the selected `query_type`:
 source handles where rows refer to files, `truncated`, `next_offset`, and
 `coverage.query_shape` so MCP clients can page instead of broadening to raw
 Cypher. `limit` and `offset` must be non-negative.
+
+Example call-graph metrics workflow:
+
+`POST /api/v0/code/call-graph/metrics`
+
+```json
+{
+  "metric_type": "hub_functions",
+  "repo_id": "payments",
+  "language": "go",
+  "limit": 25,
+  "offset": 0
+}
+```
+
+The call-graph metrics route is the bounded graph path for prompts such as
+"find recursive functions" and "find hub functions". It requires `repo_id`,
+accepts `metric_type` values `hub_functions` and `recursive_functions`, and
+returns canonical `functions` rows with source handles, `incoming_calls`,
+`outgoing_calls`, `total_degree`, `truncated`, `next_offset`, and
+`coverage.query_shape`. Recursive rows add `recursion_kind` and
+`recursion_evidence` so MCP clients do not have to infer whether a row is a
+self-call or mutual recursion pair.
 
 Example code-topic investigation workflow:
 
