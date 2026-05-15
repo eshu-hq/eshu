@@ -127,6 +127,7 @@ gauge when a shared-acceptance observer is available.
 | `AWSResourcesEmitted` | `eshu_dp_aws_resources_emitted_total` |
 | `AWSRelationshipsEmitted` | `eshu_dp_aws_relationships_emitted_total` |
 | `AWSTagObservationsEmitted` | `eshu_dp_aws_tag_observations_emitted_total` |
+| `AWSFreshnessEvents` | `eshu_dp_aws_freshness_events_total` |
 | `CrossRepoEvidenceLoaded` | `eshu_dp_cross_repo_evidence_loaded_total` |
 | `CrossRepoEdgesResolved` | `eshu_dp_cross_repo_edges_resolved_total` |
 | `CorrelationRuleMatches` | `eshu_dp_correlation_rule_matches_total` |

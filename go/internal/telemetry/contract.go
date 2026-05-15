@@ -46,6 +46,8 @@ const (
 	MetricDimensionBackendKind    = "backend_kind"
 	MetricDimensionResult         = "result"
 	MetricDimensionReason         = "reason"
+	MetricDimensionKind           = "kind"
+	MetricDimensionAction         = "action"
 	MetricDimensionProvider       = "provider"
 	MetricDimensionEventKind      = "event_kind"
 	MetricDimensionDecision       = "decision"
@@ -313,6 +315,8 @@ var metricDimensionKeys = []string{
 	MetricDimensionBackendKind,
 	MetricDimensionResult,
 	MetricDimensionReason,
+	MetricDimensionKind,
+	MetricDimensionAction,
 	MetricDimensionProvider,
 	MetricDimensionEventKind,
 	MetricDimensionDecision,

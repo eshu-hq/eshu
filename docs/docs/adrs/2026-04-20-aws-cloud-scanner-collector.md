@@ -211,6 +211,48 @@ existing `aws.credentials.assume_role`, `aws.collector.claim.process`,
 `aws_scan_status` status rows. Invalid unsafe config now fails before the
 collector claims work, so no new runtime metric is needed.
 
+## Freshness Layer Start (2026-05-15)
+
+**Scope:** Starts issue #37 by adding the internal AWS freshness trigger
+contract, durable Postgres coalescing store, and coordinator planner that turns
+claimed AWS Config/EventBridge triggers into ordinary AWS collector work items.
+
+### External Contract Evidence
+
+AWS EventBridge service events can be best-effort or durable-at-least-once
+depending on the source, so Eshu must not assume every event arrives exactly
+once:
+<https://docs.aws.amazon.com/eventbridge/latest/ref/event-delivery-level.html>.
+EventBridge target delivery retries default to 24 hours and up to 185 attempts,
+and undelivered events are dropped without a dead-letter queue:
+<https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rule-retry-policy.html>.
+AWS Config creates configuration items when it detects supported recorded
+resource changes, and Config rules evaluate after change notifications:
+<https://docs.aws.amazon.com/config/latest/developerguide/config-item-table.html>
+and
+<https://docs.aws.amazon.com/config/latest/developerguide/evaluate-config_components.html>.
+
+### Design Decision
+
+Freshness events are wake-up signals only. The durable key coalesces by
+`(account_id, region, service_kind)` because the AWS collector's claim boundary
+is service-scoped. The planner rejects provider events that are outside the
+collector instance `target_scopes`, so EventBridge or Config input cannot widen
+AWS access. Scheduled scans remain authoritative and continue to repair missed,
+late, duplicate, or dropped provider events.
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/freshness
+./internal/storage/postgres ./internal/coordinator ./internal/telemetry
+-count=1` covers trigger validation, durable coalescing SQL, targeted workflow
+item planning, and telemetry registration without adding AWS API calls or graph
+writes.
+
+Observability Evidence: `eshu_dp_aws_freshness_events_total{kind,action}`
+records bounded AWS Config/EventBridge intake and handoff actions. The
+resulting AWS scans continue through existing `aws.collector.claim.process`,
+`aws.service.scan`, `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_resources_emitted_total`, and `aws_scan_status` signals.
+
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/cloudfront/...`
 covers the bounded CloudFront call shape: paginated ListDistributions with
 MaxItems=100 and one ListTagsForResource read per ARN-addressable
@@ -737,7 +779,7 @@ Rationale:
   queue with scope and generation identity.
 - **AWS Config** gives delta events but requires org-wide Config enablement,
   which the platform cannot assume across all customers. Config is useful
-  as an *optional* freshness source later; it is not the baseline.
+  as a configured freshness source; it is not the baseline authority.
 - **Third-party CMDBs** add licensing, vendor dependency, and opaque
   correctness models. The platform's accuracy-first priority demands we
   own the observation path.
@@ -866,7 +908,7 @@ Launch scan behavior:
   when the cloud API did not actually change observed state, but the scanner
   still *queries* the API each cycle; cache is for fact emission, not for
   call avoidance
-- EventBridge / AWS Config integration is a **phase 3** optional freshness
+- EventBridge / AWS Config integration is a **phase 3** freshness
   layer. When enabled, it converts cloud change events into coordinator run
   requests targeted at the affected `(account, region, service)` tuple.
   Baseline full scans remain.
@@ -1351,11 +1393,14 @@ behind schedule.
 - SSM Parameter Store metadata (implemented 2026-05-14)
 - CloudWatch Logs group metadata (implemented 2026-05-14)
 
-### Phase 5: Freshness Layer (Optional)
+### Phase 5: Freshness Layer
 
-- EventBridge / AWS Config integration for change-driven refreshes
-- retained only if it improves mean-time-to-observation without regressing
-  correctness or cost
+- Internal trigger contract, durable coalescing store, and workflow planner
+  started 2026-05-15
+- EventBridge / AWS Config ingress service and admin status projection remain
+  follow-up work
+- Baseline scheduled scans remain authoritative and repair missed, duplicate,
+  late, or dropped events
 
 ---
 
@@ -1461,10 +1506,12 @@ bucket metadata, RDS metadata, DynamoDB metadata, CloudWatch Logs group
 metadata, CloudFront metadata, API Gateway metadata, Secrets Manager metadata,
 and SSM metadata are implemented.
 
-### Chunk F: Optional Freshness Layer
+### Chunk F: Freshness Layer
 
-**Scope:** EventBridge / AWS Config integration. Defer entirely until phase
-2 services are stable and operator demand is real.
+**Scope:** EventBridge / AWS Config integration. The first slice adds the
+internal normalized trigger contract, `aws_freshness_triggers` coalescing
+store, and AWS workflow planner. Follow-up slices must add the provider ingress
+runtime, admin status projection, and deployment wiring.
 
 ---
 

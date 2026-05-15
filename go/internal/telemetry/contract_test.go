@@ -29,6 +29,8 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"backend_kind",
 		"result",
 		"reason",
+		"kind",
+		"action",
 		"provider",
 		"event_kind",
 		"decision",

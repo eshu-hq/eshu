@@ -213,6 +213,8 @@ For shared-write debugging specifically:
   and resource type. Resource ARNs, tags, image digests, lifecycle policy JSON,
   secret names, SSM parameter names, and raw AWS error payloads stay out of
   metric labels.
+- `eshu_dp_aws_freshness_events_total` is labeled by bounded `kind` and
+  `action` values for AWS Config and EventBridge freshness intake and handoff.
 - `aws.service.pagination.page` spans wrap AWS paginator pages and point reads
   such as ECR lifecycle policy lookups.
 
