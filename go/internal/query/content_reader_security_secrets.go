@@ -30,8 +30,9 @@ func (cr *ContentReader) investigateHardcodedSecrets(
 		where = "AND " + strings.Join(filters, " AND ")
 	}
 	kindFilterArg := nextArg + 1
-	limitArg := nextArg + 2
-	offsetArg := nextArg + 3
+	includeSuppressedArg := nextArg + 2
+	limitArg := nextArg + 3
+	offsetArg := nextArg + 4
 	query := fmt.Sprintf(`
 		WITH candidate_files AS (
 		  SELECT repo_id, relative_path, coalesce(language, '') AS language, content
@@ -54,7 +55,8 @@ func (cr *ContentReader) investigateHardcodedSecrets(
 		      WHEN lines.line_text ~* '(password|passwd|pwd)[[:space:]]*[:=]' THEN 'password_literal'
 		      WHEN lines.line_text ~* '(secret|client[_-]?secret|private[_-]?key|authorization)[[:space:]]*[:=]' THEN 'secret_literal'
 		      ELSE ''
-		    END AS finding_kind
+		    END AS finding_kind,
+		    (%s) AS suppressed
 		  FROM candidate_files f
 		  CROSS JOIN LATERAL regexp_split_to_table(f.content, E'\n')
 		    WITH ORDINALITY AS lines(line_text, line_number)
@@ -64,10 +66,11 @@ func (cr *ContentReader) investigateHardcodedSecrets(
 		FROM candidate_lines
 		WHERE finding_kind <> ''
 		  AND ($%d = '' OR finding_kind = ANY(string_to_array($%d, E'\x1f')))
+		  AND ($%d OR NOT suppressed)
 		ORDER BY repo_id, relative_path, line_number, finding_kind
 		LIMIT $%d OFFSET $%d
-	`, nextArg, where, nextArg, kindFilterArg, kindFilterArg, limitArg, offsetArg)
-	args = append(args, hardcodedSecretSQLPattern, strings.Join(req.FindingKinds, "\x1f"), req.Limit, req.Offset)
+	`, nextArg, where, hardcodedSecretSQLSuppressionPredicate(), nextArg, kindFilterArg, kindFilterArg, includeSuppressedArg, limitArg, offsetArg)
+	args = append(args, hardcodedSecretSQLPattern, strings.Join(req.FindingKinds, "\x1f"), req.IncludeSuppressed, req.Limit, req.Offset)
 
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -93,9 +96,6 @@ func (cr *ContentReader) investigateHardcodedSecrets(
 		row.Confidence, row.Severity = hardcodedSecretRisk(row.FindingKind)
 		row.Suppressions = hardcodedSecretSuppressions(row.RelativePath, row.LineText)
 		row.Suppressed = len(row.Suppressions) > 0
-		if row.Suppressed && !req.IncludeSuppressed {
-			continue
-		}
 		results = append(results, row)
 	}
 	if err := rows.Err(); err != nil {
@@ -133,17 +133,60 @@ func hardcodedSecretRisk(kind string) (string, string) {
 	}
 }
 
+type hardcodedSecretSuppressionRule struct {
+	reason        string
+	pathFragments []string
+	lineFragments []string
+}
+
+var hardcodedSecretSuppressionRules = []hardcodedSecretSuppressionRule{
+	{
+		reason:        "test_or_fixture_path",
+		pathFragments: []string{"_test.", "/testdata/", "/fixtures/", "/examples/"},
+	},
+	{
+		reason:        "placeholder_literal",
+		lineFragments: []string{"example", "dummy", "placeholder", "changeme"},
+	},
+}
+
 func hardcodedSecretSuppressions(relativePath, lineText string) []string {
 	path := strings.ToLower(relativePath)
 	line := strings.ToLower(lineText)
-	suppressions := make([]string, 0, 2)
-	if strings.Contains(path, "_test.") || strings.Contains(path, "/testdata/") ||
-		strings.Contains(path, "/fixtures/") || strings.Contains(path, "/examples/") {
-		suppressions = append(suppressions, "test_or_fixture_path")
-	}
-	if strings.Contains(line, "example") || strings.Contains(line, "dummy") ||
-		strings.Contains(line, "placeholder") || strings.Contains(line, "changeme") {
-		suppressions = append(suppressions, "placeholder_literal")
+	suppressions := make([]string, 0, len(hardcodedSecretSuppressionRules))
+	for _, rule := range hardcodedSecretSuppressionRules {
+		if containsAnyFragment(path, rule.pathFragments) || containsAnyFragment(line, rule.lineFragments) {
+			suppressions = append(suppressions, rule.reason)
+		}
 	}
 	return suppressions
+}
+
+func hardcodedSecretSQLSuppressionPredicate() string {
+	clauses := make([]string, 0, 8)
+	for _, rule := range hardcodedSecretSuppressionRules {
+		for _, fragment := range rule.pathFragments {
+			clauses = append(clauses, hardcodedSecretSQLContains("f.relative_path", fragment))
+		}
+		for _, fragment := range rule.lineFragments {
+			clauses = append(clauses, hardcodedSecretSQLContains("lines.line_text", fragment))
+		}
+	}
+	if len(clauses) == 0 {
+		return "false"
+	}
+	return strings.Join(clauses, " OR ")
+}
+
+func hardcodedSecretSQLContains(column, fragment string) string {
+	return fmt.Sprintf("strpos(lower(%s), '%s') > 0", column, strings.ReplaceAll(fragment, "'", "''"))
+}
+
+func containsAnyFragment(value string, fragments []string) bool {
+	for _, fragment := range fragments {
+		if strings.Contains(value, fragment) {
+			return true
+		}
+	}
+	return false
 }
