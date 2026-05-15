@@ -45,6 +45,37 @@ Remote/API facts for this release:
 
 Hidden internal runtime commands exist for service containers, but this page documents the public CLI surface.
 
+## Maintainer Evaluation Helpers
+
+`eshu-semantic-eval-currentpath` is a one-shot maintainer helper for the
+NornicDB semantic retrieval evaluation. It runs a checked-in current-path suite
+against an Eshu API and writes the observed run plus score report.
+
+```bash
+eshu-semantic-eval-currentpath \
+  --suite ./go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json \
+  --repo-id repository:r_example \
+  --base-url http://localhost:8080 \
+  --run-output /tmp/eshu-currentpath-run.json \
+  --report-output /tmp/eshu-currentpath-report.json
+```
+
+Flags:
+
+| Option | What it does |
+| :--- | :--- |
+| `--suite` | Required path to a current-path semantic eval suite. |
+| `--base-url` | Eshu API base URL. Defaults to `ESHU_API_URL`, then `http://localhost:8080`. |
+| `--repo-id` | Replaces `{repo_id}` placeholders in suite scopes and expected handles. |
+| `--run-output` | Optional path for observed candidate run JSON. |
+| `--report-output` | Optional path for score report JSON; stdout is used when omitted. |
+| `--k` | Top-K metric cutoff. Defaults to `10`. |
+| `--timeout` | Optional per-case HTTP request timeout override. |
+
+Use the canonical repository id returned by Eshu's repository catalog. Do not
+commit local run outputs unless they are scrubbed and intentionally used as ADR
+evidence.
+
 ## Global options
 
 These options apply at the root command level.
@@ -81,6 +112,7 @@ eshu-collector-confluence --version
 eshu-collector-terraform-state --version
 eshu-collector-aws-cloud --version
 eshu-admin-status --version
+eshu-semantic-eval-currentpath --version
 ```
 
 ### Runtime profile

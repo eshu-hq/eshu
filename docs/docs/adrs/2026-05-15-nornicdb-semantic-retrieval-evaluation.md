@@ -249,24 +249,33 @@ Initial implementation status:
   `/api/v0/content/files/search`, and `/api/v0/content/entities/search` into
   scorer-compatible ranked candidates without importing graph, storage, query
   handler, MCP, or reducer packages.
+- `go/cmd/semantic-eval-currentpath` owns the one-shot maintainer command for
+  running current-path suites against an Eshu API, replacing checked-in
+  `{repo_id}` placeholders, and writing observed run/report JSON.
 - `go/internal/semanticeval/testdata` provides a checked-in fixture contract for
   shaping current-path and future semantic/hybrid runs without touching runtime
   query behavior.
+- `go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json`
+  provides a checked-in 10-case public Eshu starter corpus for current-path
+  baseline collection. It is not the final 50-100 case corpus target.
 - `go/internal/semanticeval/README.md` and
   `go/internal/semanticeval/currentpath/README.md` document how to add eval cases
   while avoiding private code, secrets, customer names, and unredacted
   production incident text.
 
-No-Regression Evidence: `cd go && go test ./internal/semanticeval ./internal/semanticeval/currentpath -count=1`
-passes for the scoring package, checked-in fixture contract, bounded HTTP
-request construction, truth mapping, unsupported-capability handling, and
-candidate handle normalization.
+No-Regression Evidence: `cd go && go test ./cmd/semantic-eval-currentpath ./internal/semanticeval/... -count=1`
+passes for the scoring package, checked-in fixture contract, starter corpus
+contract, bounded HTTP request construction, truth mapping,
+unsupported-capability handling, candidate handle normalization, placeholder
+substitution, and report/run JSON writing.
 
 No-Observability-Change: this slice adds offline scoring and an opt-in
-current-path HTTP eval runner only. It does not add production runtime
+current-path HTTP eval runner/command only. It does not add production runtime
 projection, graph writes, queue work, MCP handlers, Postgres writes, or NornicDB
-calls. The first runtime-backed semantic retrieval slice must add the semantic
-projection and retrieval telemetry listed in
+calls. The command records per-case latency in the run JSON and relies on the
+target API's existing metrics, traces, structured logs, and response truth
+envelopes. The first runtime-backed semantic retrieval slice must add the
+semantic projection and retrieval telemetry listed in
 [Observability Requirements](#observability-requirements).
 
 ### Phase 1: Semantic Context Projection Design

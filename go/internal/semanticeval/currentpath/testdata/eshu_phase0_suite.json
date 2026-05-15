@@ -1,0 +1,94 @@
+{
+  "cases": [
+    {
+      "id": "semantic-eval-contract-doc",
+      "question": "Where is the semantic eval scoring contract documented?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/go/internal/semanticeval/README.md", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {"mode": "content_file_search", "query": "Semantic Eval scoring contract", "limit": 10}
+    },
+    {
+      "id": "currentpath-runner-contract-doc",
+      "question": "Where is the current-path semantic eval runner described?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/go/internal/semanticeval/currentpath/README.md", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {"mode": "content_file_search", "query": "Current-Path Semantic Eval Runner", "limit": 10}
+    },
+    {
+      "id": "semantic-retrieval-adr",
+      "question": "Where is the NornicDB semantic retrieval evaluation plan?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/docs/docs/adrs/2026-05-15-nornicdb-semantic-retrieval-evaluation.md", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {"mode": "content_file_search", "query": "NornicDB Semantic Retrieval Freshness Scoring Candidate Evidence Evaluation", "limit": 10}
+    },
+    {
+      "id": "service-runtime-ownership-doc",
+      "question": "Where does Eshu document service runtime ownership?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/docs/docs/deployment/service-runtimes.md", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {"mode": "content_file_search", "query": "Runtime Contract API MCP Ingester Reducer Bootstrap Index", "limit": 10}
+    },
+    {
+      "id": "telemetry-overview-doc",
+      "question": "Where are Eshu telemetry signals explained?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/docs/docs/reference/telemetry/index.md", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {"mode": "content_file_search", "query": "Telemetry Overview metrics traces logs", "limit": 10}
+    },
+    {
+      "id": "architecture-overview-doc",
+      "question": "Where is Eshu's system architecture overview?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/docs/docs/architecture.md", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {"mode": "content_file_search", "query": "System Architecture facts-first graph backend", "limit": 10}
+    },
+    {
+      "id": "truth-envelope-builder",
+      "question": "Where is API truth envelope construction implemented?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/go/internal/query/contract.go", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {"mode": "content_file_search", "query": "BuildTruthEnvelope TruthEnvelope", "limit": 10}
+    },
+    {
+      "id": "content-reader-implementation",
+      "question": "Where does the query layer read file and entity content?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/go/internal/query/content_reader.go", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {"mode": "content_file_search", "query": "ContentReader reads file and entity content", "limit": 10}
+    },
+    {
+      "id": "admin-status-binary-doc",
+      "question": "Where is the admin-status binary behavior documented?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/go/cmd/admin-status/README.md", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {"mode": "content_file_search", "query": "admin-status shared Eshu status report", "limit": 10}
+    },
+    {
+      "id": "package-registry-query-handler",
+      "question": "Where is the package registry query surface implemented?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/go/internal/query/package_registry.go", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {"mode": "content_file_search", "query": "package registry query surface", "limit": 10}
+    }
+  ]
+}
