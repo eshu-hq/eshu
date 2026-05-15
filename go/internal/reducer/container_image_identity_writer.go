@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
 const containerImageIdentityFactKind = "reducer_container_image_identity"
@@ -87,8 +88,8 @@ func containerImageIdentityStableFactKey(
 		"container_image_identity",
 		strings.TrimSpace(fmt.Sprint(identity["scope_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["generation_id"])),
-		strings.TrimSpace(fmt.Sprint(identity["digest"])),
 		strings.TrimSpace(fmt.Sprint(identity["image_ref"])),
+		strings.TrimSpace(fmt.Sprint(identity["outcome"])),
 	}, ":")
 }
 
@@ -107,7 +108,6 @@ func containerImageIdentityIdentity(
 		"scope_id":      strings.TrimSpace(write.ScopeID),
 		"generation_id": strings.TrimSpace(write.GenerationID),
 		"image_ref":     strings.TrimSpace(decision.ImageRef),
-		"digest":        strings.TrimSpace(decision.Digest),
 		"outcome":       string(decision.Outcome),
 	}
 }
@@ -134,6 +134,9 @@ func containerImageIdentityPayload(
 		"evidence_fact_ids": uniqueSortedStrings(decision.EvidenceFactIDs),
 		"identity_strength": decision.IdentityStrength,
 		"publication_kind":  containerImageIdentityFactKind,
-		"source_layers":     []string{"source_declaration", "registry_observation", "observed_resource"},
+		"source_layers": []string{
+			string(truth.LayerSourceDeclaration),
+			string(truth.LayerObservedResource),
+		},
 	}
 }

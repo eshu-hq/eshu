@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
 const testContainerDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -298,12 +300,121 @@ func TestPostgresContainerImageIdentityWriterPersistsCanonicalDecisions(t *testi
 	}
 }
 
+func TestPostgresContainerImageIdentityWriterUsesStableTagReferenceIdentity(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeWorkloadIdentityExecer{}
+	writer := PostgresContainerImageIdentityWriter{
+		DB: db,
+	}
+	write := ContainerImageIdentityWrite{
+		IntentID:     "intent-image-identity",
+		ScopeID:      "repo:team-api",
+		GenerationID: "generation-git",
+		SourceSystem: "git",
+		Cause:        "container image references observed",
+		Decisions: []ContainerImageIdentityDecision{
+			{
+				ImageRef:         "registry.example.com/team/api:prod",
+				Digest:           testContainerDigest,
+				RepositoryID:     "oci-registry://registry.example.com/team/api",
+				Outcome:          ContainerImageIdentityTagResolved,
+				Reason:           "tag resolved to one registry digest observation",
+				CanonicalWrites:  1,
+				IdentityStrength: "tag_observation_with_digest",
+			},
+		},
+	}
+	_, err := writer.WriteContainerImageIdentityDecisions(context.Background(), write)
+	if err != nil {
+		t.Fatalf("first WriteContainerImageIdentityDecisions() error = %v, want nil", err)
+	}
+	write.Decisions[0].Digest = testOtherContainerDigest
+	_, err = writer.WriteContainerImageIdentityDecisions(context.Background(), write)
+	if err != nil {
+		t.Fatalf("second WriteContainerImageIdentityDecisions() error = %v, want nil", err)
+	}
+	if got, want := len(db.execs), 2; got != want {
+		t.Fatalf("ExecContext calls = %d, want %d", got, want)
+	}
+	if got, want := db.execs[1].args[0], db.execs[0].args[0]; got != want {
+		t.Fatalf("fact_id changed after tag digest moved: first=%v second=%v", want, got)
+	}
+	if got, want := db.execs[1].args[4], db.execs[0].args[4]; got != want {
+		t.Fatalf("stable_fact_key changed after tag digest moved: first=%v second=%v", want, got)
+	}
+	firstPayload := unmarshalContainerImageIdentityPayload(t, db.execs[0].args[14])
+	secondPayload := unmarshalContainerImageIdentityPayload(t, db.execs[1].args[14])
+	if got, want := secondPayload["canonical_id"], firstPayload["canonical_id"]; got != want {
+		t.Fatalf("canonical_id changed after tag digest moved: first=%v second=%v", want, got)
+	}
+	if got, want := secondPayload["digest"], testOtherContainerDigest; got != want {
+		t.Fatalf("second payload digest = %#v, want %q", got, want)
+	}
+}
+
+func TestPostgresContainerImageIdentityWriterPublishesKnownTruthLayers(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeWorkloadIdentityExecer{}
+	writer := PostgresContainerImageIdentityWriter{
+		DB: db,
+	}
+	_, err := writer.WriteContainerImageIdentityDecisions(context.Background(), ContainerImageIdentityWrite{
+		IntentID:     "intent-image-identity",
+		ScopeID:      "repo:team-api",
+		GenerationID: "generation-git",
+		SourceSystem: "git",
+		Cause:        "container image references observed",
+		Decisions: []ContainerImageIdentityDecision{
+			{
+				ImageRef:         "registry.example.com/team/api:prod",
+				Digest:           testContainerDigest,
+				RepositoryID:     "oci-registry://registry.example.com/team/api",
+				Outcome:          ContainerImageIdentityTagResolved,
+				Reason:           "tag resolved to one registry digest observation",
+				CanonicalWrites:  1,
+				IdentityStrength: "tag_observation_with_digest",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want nil", err)
+	}
+	payload := unmarshalContainerImageIdentityPayload(t, db.execs[0].args[14])
+	layers, ok := payload["source_layers"].([]any)
+	if !ok {
+		t.Fatalf("payload source_layers = %T, want []any", payload["source_layers"])
+	}
+	if len(layers) == 0 {
+		t.Fatal("payload source_layers is empty, want known truth layers")
+	}
+	for _, raw := range layers {
+		if _, err := truth.ParseLayer(fmt.Sprint(raw)); err != nil {
+			t.Fatalf("source layer %q is not in truth model: %v", raw, err)
+		}
+	}
+}
+
 func decisionsByRef(decisions []ContainerImageIdentityDecision) map[string]ContainerImageIdentityDecision {
 	out := make(map[string]ContainerImageIdentityDecision, len(decisions))
 	for _, decision := range decisions {
 		out[decision.ImageRef] = decision
 	}
 	return out
+}
+
+func unmarshalContainerImageIdentityPayload(t *testing.T, raw any) map[string]any {
+	t.Helper()
+	payloadBytes, ok := raw.([]byte)
+	if !ok {
+		t.Fatalf("payload arg type = %T, want []byte", raw)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	return payload
 }
 
 func assertContainerImageDecision(
