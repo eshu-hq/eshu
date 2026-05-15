@@ -295,7 +295,7 @@ normalized to `c_sharp` before candidate scanning.
   (`content_reader.go:16`)
 - `PostgresIaCReachabilityStore` — reducer-materialized IaC cleanup findings
   (`iac_reachability_store.go`)
-- `IaCReachabilityStore` — port for IaC cleanup findings (`iac.go:62`)
+- `IaCReachabilityStore` — port for IaC cleanup findings (`iac.go:74`)
 
 **Handler structs**
 

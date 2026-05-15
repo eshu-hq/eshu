@@ -7,7 +7,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 59
+	expectedCount := 60
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -70,8 +70,8 @@ func TestReadOnlyTools(t *testing.T) {
 
 func TestCodebaseTools(t *testing.T) {
 	tools := codebaseTools()
-	if len(tools) != 24 {
-		t.Errorf("Expected 24 codebase tools, got %d", len(tools))
+	if len(tools) != 25 {
+		t.Errorf("Expected 25 codebase tools, got %d", len(tools))
 	}
 }
 
