@@ -1,6 +1,7 @@
 package semanticeval
 
 import (
+	"bytes"
 	"math"
 	"os"
 	"strings"
@@ -148,22 +149,20 @@ func TestLoadJSONRejectsTrailingValues(t *testing.T) {
 }
 
 func TestScoreCheckedInFixtureContract(t *testing.T) {
-	suiteFile, err := os.Open("testdata/suite.json")
+	suiteData, err := os.ReadFile("testdata/suite.json")
 	if err != nil {
-		t.Fatalf("os.Open suite fixture: %v", err)
+		t.Fatalf("os.ReadFile suite fixture: %v", err)
 	}
-	defer suiteFile.Close()
-	runFile, err := os.Open("testdata/current_run.json")
+	runData, err := os.ReadFile("testdata/current_run.json")
 	if err != nil {
-		t.Fatalf("os.Open run fixture: %v", err)
+		t.Fatalf("os.ReadFile run fixture: %v", err)
 	}
-	defer runFile.Close()
 
-	suite, err := LoadSuiteJSON(suiteFile)
+	suite, err := LoadSuiteJSON(bytes.NewReader(suiteData))
 	if err != nil {
 		t.Fatalf("LoadSuiteJSON() error = %v, want nil", err)
 	}
-	run, err := LoadRunJSON(runFile)
+	run, err := LoadRunJSON(bytes.NewReader(runData))
 	if err != nil {
 		t.Fatalf("LoadRunJSON() error = %v, want nil", err)
 	}
