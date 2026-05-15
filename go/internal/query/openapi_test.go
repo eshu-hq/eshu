@@ -497,6 +497,12 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	if _, ok := unmanagedResponse["graph_projection_note"]; !ok {
 		t.Fatal("iac/unmanaged-resources response schema missing graph_projection_note")
 	}
+	if _, ok := unmanagedResponse["story"]; !ok {
+		t.Fatal("iac/unmanaged-resources response schema missing story")
+	}
+	if _, ok := unmanagedResponse["finding_groups"]; !ok {
+		t.Fatal("iac/unmanaged-resources response schema missing finding_groups")
+	}
 	unmanagedFindings := mustMapField(t, unmanagedResponse, "findings")
 	unmanagedFindingItems := mustMapField(t, unmanagedFindings, "items")
 	unmanagedFindingProps := mustMapField(t, unmanagedFindingItems, "properties")
@@ -518,6 +524,37 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	}
 	if _, ok := deadIaCResponse["limitations"]; !ok {
 		t.Fatal("iac/dead response schema missing limitations")
+	}
+
+	statusPath := mustMapField(t, paths, "/api/v0/iac/management-status")
+	statusPost := mustMapField(t, statusPath, "post")
+	statusBody := mustMapField(t, mustMapField(t, statusPost, "requestBody"), "content")
+	statusJSON := mustMapField(t, statusBody, "application/json")
+	statusSchema := mustMapField(t, mustMapField(t, statusJSON, "schema"), "properties")
+	if _, ok := statusSchema["arn"]; !ok {
+		t.Fatal("iac/management-status request schema missing arn")
+	}
+	if _, ok := statusSchema["resource_id"]; !ok {
+		t.Fatal("iac/management-status request schema missing resource_id")
+	}
+	statusResponses := mustMapField(t, statusPost, "responses")
+	statusOK := mustMapField(t, statusResponses, "200")
+	statusResponse := mustMapField(t, mustMapField(t, mustMapField(t, statusOK, "content"), "application/json"), "schema")
+	statusProps := mustMapField(t, statusResponse, "properties")
+	if _, ok := statusProps["management_status"]; !ok {
+		t.Fatal("iac/management-status response schema missing management_status")
+	}
+	if _, ok := statusProps["story"]; !ok {
+		t.Fatal("iac/management-status response schema missing story")
+	}
+
+	explainPath := mustMapField(t, paths, "/api/v0/iac/management-status/explain")
+	explainPost := mustMapField(t, explainPath, "post")
+	explainResponses := mustMapField(t, explainPost, "responses")
+	explainOK := mustMapField(t, explainResponses, "200")
+	explainProps := mustMapField(t, mustMapField(t, mustMapField(t, mustMapField(t, explainOK, "content"), "application/json"), "schema"), "properties")
+	if _, ok := explainProps["evidence_groups"]; !ok {
+		t.Fatal("iac/management-status/explain response schema missing evidence_groups")
 	}
 
 	relationshipsPath := mustMapField(t, paths, "/api/v0/code/relationships")

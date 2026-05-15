@@ -956,6 +956,8 @@ Use these routes when you need infrastructure-as-code cleanup candidates:
 
 - `POST /api/v0/iac/dead`
 - `POST /api/v0/iac/unmanaged-resources`
+- `POST /api/v0/iac/management-status`
+- `POST /api/v0/iac/management-status/explain`
 
 The dead-IaC route requires an explicit `repo_id` or bounded `repo_ids` scope.
 When reducer-materialized reachability rows exist, the route returns those rows
@@ -998,6 +1000,14 @@ evidence atoms, and a recommended next action. Raw tags may appear in the
 `tags` map and evidence rows, but they remain provenance-only. They do not
 create environment, service, or ownership truth.
 
+The status and explain routes inspect one exact AWS stable resource identity.
+They require `scope_id` or `account_id` plus `arn` or `resource_id`; for AWS,
+`resource_id` should be the ARN. The status route returns the story, current
+management status, active finding if present, and limitations. The explain
+route returns the same finding with grouped cloud, Terraform state/config,
+management, and raw-tag evidence rows. Both routes force the page to one active
+finding and remain read-only.
+
 Management status values are deterministic:
 
 | Status | Promotion rule |
@@ -1027,6 +1037,16 @@ Example unmanaged-resource workflow:
   "finding_kinds": ["unmanaged_cloud_resource"],
   "limit": 100,
   "offset": 0
+}
+```
+
+Example status workflow:
+
+```json
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "arn": "arn:aws:lambda:us-east-1:123456789012:function:payments-api"
 }
 ```
 

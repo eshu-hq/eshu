@@ -18,6 +18,8 @@ a clear drilldown path when more data is available.
 | `investigate_hardcoded_secrets` | repository selector and language optional; finding kind filters optional | `limit` and `offset` | yes | prompt-ready redacted security investigation packet; returns suppression notes, source handles, and truncation coverage without raw secret values |
 | `find_dead_iac` | repository selector required or explicit broader scan | `limit` | yes | prompt-ready for bounded IaC candidate scans |
 | `find_unmanaged_resources` | repository selector optional; authoritative profile required | `limit` | yes | prompt-ready for bounded IaC management scans |
+| `get_iac_management_status` | AWS scope/account plus exact ARN | singleton | yes | story-first status for one AWS resource; read-only and no Terraform/cloud mutation |
+| `explain_iac_management_status` | AWS scope/account plus exact ARN | singleton | yes | grouped reducer evidence for one AWS resource; raw tags remain provenance-only |
 | `calculate_cyclomatic_complexity` | entity id, function name, or repository selector | singleton or `limit` | yes | prompt-ready; list calls return `truncated` |
 | `find_most_complex_functions` | optional repository selector | `limit` | yes | prompt-ready; deterministic ordering and `truncated` |
 | `inspect_code_quality` | optional repository selector plus optional language/function scope | `limit` and `offset` | yes | prompt-ready for complexity, long-function, high-argument, and refactoring-candidate prompts with source handles and `truncated` |

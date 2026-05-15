@@ -187,6 +187,8 @@ assumptions from a partial code snapshot.
 | "Find hardcoded secrets" | `investigate_hardcoded_secrets` |
 | "Which IaC artifacts look unused?" | `find_dead_iac` |
 | "Which AWS resources are unmanaged?" | `find_unmanaged_resources` |
+| "What owns this AWS resource?" | `get_iac_management_status` |
+| "Why is this AWS resource marked unmanaged, unknown, or ambiguous?" | `explain_iac_management_status` |
 | "Which registry packages or versions are indexed?" | `list_package_registry_packages`, `list_package_registry_versions` |
 
 ## Story-first responses
@@ -297,6 +299,8 @@ For programming prompts, keep using the code-query tools directly:
 - `find_dead_code`
 - `find_dead_iac`
 - `find_unmanaged_resources`
+- `get_iac_management_status`
+- `explain_iac_management_status`
 - `list_package_registry_packages`
 - `list_package_registry_versions`
 

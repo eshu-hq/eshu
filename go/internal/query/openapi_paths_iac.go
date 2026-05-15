@@ -96,6 +96,7 @@ const openAPIPathsIaC = `
                   "scope_id": {"type": "string", "description": "Exact AWS collector scope, for example aws:123456789012:us-east-1:lambda."},
                   "account_id": {"type": "string", "description": "AWS account ID used to bound the active finding read."},
                   "region": {"type": "string", "description": "Optional AWS region when account_id is supplied."},
+                  "arn": {"type": "string", "description": "Optional exact AWS ARN to inspect."},
                   "finding_kinds": {
                     "type": "array",
                     "description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource.",
@@ -123,6 +124,9 @@ const openAPIPathsIaC = `
                     "scope_id": {"type": "string"},
                     "account_id": {"type": "string"},
                     "region": {"type": "string"},
+                    "arn": {"type": "string"},
+                    "story": {"type": "string"},
+                    "finding_groups": {"type": "array", "items": {"type": "object"}},
                     "finding_kinds": {"type": "array", "items": {"type": "string"}},
                     "findings_count": {"type": "integer"},
                     "total_findings_count": {"type": "integer"},
@@ -180,6 +184,125 @@ const openAPIPathsIaC = `
                         }
                       }
                     }
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
+    "/api/v0/iac/management-status": {
+      "post": {
+        "tags": ["iac"],
+        "summary": "Get IaC management status for one cloud resource",
+        "description": "Returns the current read-only IaC management status for one exact AWS resource identity. Requests must be bounded by scope_id or account_id and by arn or resource_id.",
+        "operationId": "getIaCManagementStatus",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope_id": {"type": "string"},
+                  "account_id": {"type": "string"},
+                  "region": {"type": "string"},
+                  "arn": {"type": "string"},
+                  "resource_id": {"type": "string"},
+                  "finding_kinds": {"type": "array", "items": {"type": "string"}}
+                },
+                "anyOf": [
+                  {"required": ["scope_id", "arn"]},
+                  {"required": ["scope_id", "resource_id"]},
+                  {"required": ["account_id", "arn"]},
+                  {"required": ["account_id", "resource_id"]}
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "IaC management status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "story": {"type": "string"},
+                    "arn": {"type": "string"},
+                    "scope_id": {"type": "string"},
+                    "account_id": {"type": "string"},
+                    "region": {"type": "string"},
+                    "management_status": {"type": "string"},
+                    "analysis_status": {"type": "string"},
+                    "finding": {"type": ["object", "null"]},
+                    "total_findings_count": {"type": "integer"},
+                    "limitations": {"type": "array", "items": {"type": "string"}}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
+    "/api/v0/iac/management-status/explain": {
+      "post": {
+        "tags": ["iac"],
+        "summary": "Explain IaC management status evidence",
+        "description": "Explains one exact AWS IaC management status with grouped reducer evidence rows.",
+        "operationId": "explainIaCManagementStatus",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope_id": {"type": "string"},
+                  "account_id": {"type": "string"},
+                  "region": {"type": "string"},
+                  "arn": {"type": "string"},
+                  "resource_id": {"type": "string"},
+                  "finding_kinds": {"type": "array", "items": {"type": "string"}}
+                },
+                "anyOf": [
+                  {"required": ["scope_id", "arn"]},
+                  {"required": ["scope_id", "resource_id"]},
+                  {"required": ["account_id", "arn"]},
+                  {"required": ["account_id", "resource_id"]}
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "IaC management status explanation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "story": {"type": "string"},
+                    "arn": {"type": "string"},
+                    "scope_id": {"type": "string"},
+                    "account_id": {"type": "string"},
+                    "region": {"type": "string"},
+                    "finding": {"type": ["object", "null"]},
+                    "evidence_groups": {"type": "array", "items": {"type": "object"}},
+                    "total_findings_count": {"type": "integer"},
+                    "limitations": {"type": "array", "items": {"type": "string"}}
                   }
                 }
               }

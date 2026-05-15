@@ -32,6 +32,7 @@ type IaCManagementFilter struct {
 	ScopeID      string
 	AccountID    string
 	Region       string
+	ARN          string
 	FindingKinds []string
 	Limit        int
 	Offset       int
@@ -84,6 +85,8 @@ type iacManagementRequest struct {
 	ScopeID      string   `json:"scope_id"`
 	AccountID    string   `json:"account_id"`
 	Region       string   `json:"region"`
+	ARN          string   `json:"arn"`
+	ResourceID   string   `json:"resource_id"`
 	FindingKinds []string `json:"finding_kinds"`
 	Limit        int      `json:"limit"`
 	Offset       int      `json:"offset"`
@@ -119,6 +122,7 @@ func (s *PostgresIaCManagementStore) ListUnmanagedCloudResources(
 		ScopeID:      filter.ScopeID,
 		AccountID:    filter.AccountID,
 		Region:       filter.Region,
+		ARN:          filter.ARN,
 		FindingKinds: filter.FindingKinds,
 		Limit:        filter.Limit,
 		Offset:       filter.Offset,
@@ -146,6 +150,7 @@ func (s *PostgresIaCManagementStore) CountUnmanagedCloudResources(
 		ScopeID:      filter.ScopeID,
 		AccountID:    filter.AccountID,
 		Region:       filter.Region,
+		ARN:          filter.ARN,
 		FindingKinds: filter.FindingKinds,
 	})
 }
@@ -203,6 +208,9 @@ func (h *IaCHandler) handleUnmanagedCloudResources(w http.ResponseWriter, r *htt
 		"scope_id":              filter.ScopeID,
 		"account_id":            filter.AccountID,
 		"region":                filter.Region,
+		"arn":                   filter.ARN,
+		"story":                 iacManagementListStory(filter, findings, totalFindings),
+		"finding_groups":        iacManagementFindingGroups(findings),
 		"finding_kinds":         filter.FindingKinds,
 		"findings":              findings,
 		"findings_count":        len(findings),
@@ -232,6 +240,7 @@ func normalizeIaCManagementRequest(req iacManagementRequest) (IaCManagementFilte
 		ScopeID:   strings.TrimSpace(req.ScopeID),
 		AccountID: strings.TrimSpace(req.AccountID),
 		Region:    strings.TrimSpace(req.Region),
+		ARN:       strings.TrimSpace(iacFirstNonEmpty(req.ARN, req.ResourceID)),
 		Limit:     req.Limit,
 		Offset:    req.Offset,
 	}

@@ -412,6 +412,26 @@ Issue #130 matching-rule implementation note:
   continue to emit `drift.kind`; generic `correlation_rule_matches_total`
   remains the bounded rule-pack metric while ARNs stay out of metric labels.
 
+Issue #131 read-surface implementation note:
+
+- The API and MCP now expose exact read-only status and explanation surfaces for
+  one AWS stable identity: `POST /api/v0/iac/management-status`,
+  `POST /api/v0/iac/management-status/explain`, `get_iac_management_status`,
+  and `explain_iac_management_status`. Each call requires `scope_id` or
+  `account_id` plus `arn` or `resource_id`; for AWS, `resource_id` is the ARN.
+- The unmanaged-resource list response now starts with a story and grouped
+  finding summaries before the evidence-bearing finding rows. Exact status
+  calls force `limit=1` and use a Postgres payload ARN equality predicate, so a
+  broad account cannot turn one-resource inspection into a 500-row scan.
+- No-Regression Evidence: focused Go tests cover exact ARN storage predicates,
+  list/story/group response fields, exact status and grouped explanation
+  handlers, OpenAPI paths, MCP tool registration, and MCP dispatch bodies.
+- Observability Evidence: the exact status and explanation handlers emit
+  `query.iac_management_status` and `query.iac_management_explanation` spans;
+  the underlying Postgres reader remains instrumented through
+  `InstrumentedDB{StoreName: "iac_management"}` and keeps ARNs out of metric
+  labels.
+
 ### Phase 2: Query And MCP Tools
 
 - Add read-only API/MCP tools for unmanaged and ambiguous cloud resources.
