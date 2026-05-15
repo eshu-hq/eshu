@@ -30,6 +30,11 @@ change needs their domain:
 - MUST preserve correctness before performance. A fast wrong graph is a failure.
 - MUST NOT introduce unmeasured performance regressions. New capability cost is
   acceptable only when documented, bounded, and justified by correctness.
+- MUST write a performance impact declaration before implementation for
+  collectors, parsers, reducers, projectors, graph writes, queues, workers,
+  runtime Compose/Helm settings, NornicDB defaults, and graph-backed API/MCP
+  calls. Name the affected stage, expected cardinality, baseline or
+  known-normal band, proof ladder, and stop threshold.
 - Design MCP/API calls to be bounded before running them: scope first, limit
   required, timeout expected, and truncation explicit.
 - MUST rebuild binaries before runtime testing.
@@ -37,6 +42,8 @@ change needs their domain:
   then the 20-25 repo corpus, then full corpus.
 - MUST NOT increase worker defaults without evidence of safe conflict domains and
   backend headroom.
+- For remote or full-corpus proof, enable pprof and capture the effective
+  runtime environment from the containers before interpreting slowness.
 - Keep machine-specific hostnames, keys, paths, and IPs out of repo docs.
 
 ## Diagnostic Model
@@ -50,9 +57,18 @@ Separate these before proposing an optimization:
 - shared projection wait and processing time
 - conflict blocking or readiness wait
 - CPU idle, IO wait, and disk idle
+- ambient backend work such as embeddings, background indexing, or non-Eshu
+  runtime features
+- stale image, wrong branch, missing schema/bootstrap, or mismatched backend
+  build
 
 If CPU and disk are idle, suspect serialization, queue fences, query shape,
 backend lookup/validation behavior, or data shape before adding workers.
+
+Timeout-shaped failures are only evidence, not diagnosis. Classify the failure
+as timeout budget, query shape, missing schema/index, backend fallback,
+transaction validation, retry/idempotency behavior, stale image, or ambient
+backend work before patching.
 
 ## MCP/API Call Checklist
 
@@ -81,9 +97,16 @@ For each runtime slice:
 5. Run the small proof ladder before any full corpus run.
 6. Capture wall time, terminal queue state, shared projection completion, CPU
    idle, IO wait, disk idle, and relevant handler/stage sums.
-7. Record repository size signals, indexed file count, fact count, backend, and
+7. For full-corpus or remote proof, report collector stream complete,
+   projection/bootstrap complete, and queue-zero as separate timings. Also
+   record queue counts, retrying, dead letters, Eshu commit, NornicDB commit or
+   image tag, clean-volume state, schema/bootstrap state, pprof state, and
+   effective container runtime knobs.
+8. If a run is healthy but slower than the known-normal band by more than about
+   10% or 60 seconds, stop and profile before merge.
+9. Record repository size signals, indexed file count, fact count, backend, and
    commit id for every run used as performance evidence.
-8. Classify the result in the ADR.
+10. Classify the result in the ADR.
 
 ## Concrete Repo Gates
 

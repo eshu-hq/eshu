@@ -84,6 +84,33 @@ is_hot_path_by_content() {
     "$absolute"
 }
 
+is_runtime_config_file() {
+  local path="$1"
+  case "$path" in
+    docker-compose*.yml|docker-compose*.yaml) return 0 ;;
+    deploy/helm/eshu/**/*.yaml|deploy/helm/eshu/**/*.yml) return 0 ;;
+    deploy/helm/eshu/*.yaml|deploy/helm/eshu/*.yml) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_runtime_config_by_content() {
+  local path="$1"
+  local absolute="$repo_root/$path"
+  local pattern='\b(ESHU_GRAPH_BACKEND|ESHU_[A-Z0-9_]*(WORKER|WORKERS|BATCH|TIMEOUT|PPROF|NORNICDB)[A-Z0-9_]*|NORNICDB_[A-Z0-9_]*(EMBEDDING|PPROF|BATCH|TIMEOUT|WORKER|WORKERS)[A-Z0-9_]*)\b'
+
+  if [ -f "$absolute" ] && rg -q -e "$pattern" "$absolute"; then
+    return 0
+  fi
+  if git -C "$repo_root" diff --unified=0 "$base"...HEAD -- "$path" 2>/dev/null | rg -q -e "$pattern"; then
+    return 0
+  fi
+  if git -C "$repo_root" diff --unified=0 "$base" HEAD -- "$path" 2>/dev/null | rg -q -e "$pattern"; then
+    return 0
+  fi
+  return 1
+}
+
 is_evidence_file() {
   local path="$1"
   case "$path" in
@@ -104,8 +131,13 @@ for file in "${changed_files[@]}"; do
     evidence_files+=("$repo_root/$file")
   fi
 
-  is_go_runtime_file "$file" || continue
-  if is_hot_path_by_location "$file" || is_hot_path_by_content "$file"; then
+  if is_go_runtime_file "$file" \
+    && { is_hot_path_by_location "$file" || is_hot_path_by_content "$file"; }; then
+    hot_files+=("$file")
+    continue
+  fi
+
+  if is_runtime_config_file "$file" && is_runtime_config_by_content "$file"; then
     hot_files+=("$file")
   fi
 done
@@ -147,7 +179,8 @@ fi
   printf 'is safe. PR text alone is not enough because future agents need the evidence\n'
   printf 'in the repo.\n'
   printf '\nThis gate is content-based as well as path-based, so new collectors that add\n'
-  printf 'Cypher, worker claims, leases, batching, or concurrency knobs are covered.\n'
+  printf 'Cypher, worker claims, leases, batching, concurrency knobs, or runtime\n'
+  printf 'Compose/Helm settings are covered.\n'
 } >&2
 
 exit 1

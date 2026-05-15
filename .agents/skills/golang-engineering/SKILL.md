@@ -24,6 +24,9 @@ References:
   editing runtime, collector, reducer, storage, parser, query, or command code.
 - MUST write or update the failing test before implementation for bug fixes and
   parser/runtime behavior changes.
+- MUST cover every dispatch variant touched by a shared helper, constant family,
+  query builder, replay path, or retry classifier. Do not rely on one
+  representative case when the production code has multiple variants.
 - MUST run `gofmt` on changed Go files.
 - MUST run focused Go tests before broader package tests.
 - MUST run `golangci-lint` when Go code changed unless the user explicitly

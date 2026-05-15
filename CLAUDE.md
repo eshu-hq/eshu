@@ -65,6 +65,14 @@ introduce unmeasured performance regressions. New features MUST be designed for
 repo-scale inputs from the start, with bounded work, observable stages, and a
 clear path to faster execution after correctness is proven.
 
+Before implementation, any change that can affect runtime throughput MUST carry
+a performance impact declaration in the plan, PR body, or tracked evidence note.
+This applies to collectors, parsers, reducers, projectors, graph writes, queues,
+workers, runtime Compose/Helm settings, NornicDB defaults, and API/MCP graph
+queries. The declaration must name the affected stage, expected cardinality,
+known-normal timing or baseline, proof ladder, and stop threshold. If the
+expected cost or proof ladder is unclear, stop and ask before editing.
+
 ## Read These First
 
 Before changing runtime, deployment, ingestion, parsing, graph, queue, or
@@ -101,8 +109,8 @@ MERGE not finding existing nodes, re-projection conflicts), read
 `docs/docs/reference/nornicdb-pitfalls.md` BEFORE writing or proposing a
 NornicDB patch. That page captures known behaviors that have caught Eshu
 off guard, and the validation guidance there short-circuits speculative
-patching. Always validate the documented behavior against the
-NornicDB-New fork source (`/Users/asanabria/os-repos/NornicDB-New`) and
+patching. Always validate the documented behavior against the current
+NornicDB-New fork source named by local config, repo docs, or the user, plus
 the upstream changelog for the pinned binary tag before relying on the
 pitfall write-up — NornicDB evolves quickly and a documented behavior may
 already be fixed upstream.
@@ -163,6 +171,12 @@ Add specialized skills only when the change touches that surface:
 - `eshu-release` for open-source release, versioning, image, Helm chart, and
   GitHub Release work.
 - `skill-creator` for creating or updating skills.
+
+Project skills in `.agents/skills/` are the source of truth for Eshu. The
+`.claude/skills/` and `.codex/skills/` directories only symlink to those
+project-owned skills. Do not copy laptop-only skill content into the repo, and
+do not rely on older global Eshu skills when a project skill with the same name
+exists.
 
 ## Golden Rules
 
@@ -405,14 +419,17 @@ is pure documentation.
 
 Performance work must show measurable value:
 
-1. Capture a baseline with a benchmark, trace, metric sample, runtime status
+1. Write the performance impact declaration before implementation. Name the
+   stage, cardinality, expected hot path, existing baseline or known-normal
+   range, proof ladder, and stop threshold.
+2. Capture a baseline with a benchmark, trace, metric sample, runtime status
    report, or focused compose proof.
-2. Identify whether the bottleneck is algorithmic, allocation-heavy,
+3. Identify whether the bottleneck is algorithmic, allocation-heavy,
    concurrency-related, graph I/O, Postgres I/O, parser behavior, or input
    shape.
-3. Change the narrowest layer that owns the bottleneck.
-4. Capture after-data with the same measurement.
-5. Document material trade-offs, including memory, queue depth, and failure
+4. Change the narrowest layer that owns the bottleneck.
+5. Capture after-data with the same measurement.
+6. Document material trade-offs, including memory, queue depth, and failure
    behavior.
 
 Any runtime, parser, collector, reducer, graph, storage, or query change that
@@ -432,18 +449,33 @@ Record repository size signals, wall time, terminal queue state, indexed file
 count, fact count, stage timings, backend, and commit id whenever a run is used
 as performance evidence.
 
+For full-corpus or remote proof, report all three terminal timings separately:
+collector stream complete, projection/bootstrap complete, and queue-zero. Do
+not use one as a stand-in for another. Also record Eshu commit, NornicDB commit
+or image tag, clean-volume state, schema/bootstrap state, effective container
+environment for runtime knobs, pprof state, queue counts, retry counts, and dead
+letters. If a run is healthy but exceeds the known-normal band by more than
+about 10% or 60 seconds, stop and profile before merge.
+
+Timeout-shaped failures are not root cause by themselves. Before raising a
+timeout or reshaping a query, classify whether the evidence points to query
+shape, missing schema/index, backend fallback, transaction validation,
+queue/retry/idempotency behavior, stale images, ambient backend work such as
+embeddings, or a real timeout-budget contract.
+
 ### Hot-Path Evidence Gate
 
 For Cypher, graph writes, reducers, projectors, queues, workers, leases,
 batching, runtime stages, and collectors that fan out into any of those paths,
 the benchmark rule is concrete and CI-enforced.
 
-`scripts/verify-performance-evidence.sh` inspects changed Go files by path and
-content. It catches existing hot packages and brand-new collectors that add
-Cypher strings, graph writes, worker claims, leases, batch sizing, goroutines,
-channels, or concurrency primitives. A matching change MUST update a tracked
-docs/ADR/package note in the same PR with one benchmark marker and one
-observability marker:
+`scripts/verify-performance-evidence.sh` inspects changed Go and runtime config
+files by path and content. It catches existing hot packages, brand-new
+collectors that add Cypher strings, graph writes, worker claims, leases, batch
+sizing, goroutines, channels, or concurrency primitives, plus Compose/Helm
+changes that touch graph backend, worker, batching, timeout, pprof, or NornicDB
+runtime knobs. A matching change MUST update a tracked docs/ADR/package note in
+the same PR with one benchmark marker and one observability marker:
 
 - `Performance Evidence:` for before/after runtime proof.
 - `Benchmark Evidence:` for focused `go test -bench` or equivalent microbench
@@ -656,11 +688,12 @@ does with your query.
 
 Required reading before any non-trivial Cypher change:
 
-- `~/os-repos/NornicDB-New/docs/performance/hot-path-query-cookbook.md` —
+- the current NornicDB-New checkout's
+  `docs/performance/hot-path-query-cookbook.md` —
   identify which recognized hot-path shape your query matches, or note that
   none applies.
-- `~/os-repos/NornicDB-New/nornicdb-failing-query-shapes.md` — confirm your
-  shape is not on the known-bad list.
+- the current NornicDB-New checkout's `nornicdb-failing-query-shapes.md` —
+  confirm your shape is not on the known-bad list.
 - The relevant `pkg/cypher/*hotpath*_test.go` files in NornicDB-New — those
   tests are NornicDB's empirical contract for what shape engages which fast
   path.
@@ -681,8 +714,9 @@ When Eshu hits a NornicDB incompatibility such as Cypher parse rejection,
 rollback behavior, driver shape mismatch, or a missing procedure:
 
 1. Check upstream source before guessing:
-   - `/Users/allen/os-repos/NornicDB/`
-   - `/Users/allen/os-repos/NornicDB-eshu-bolt-rollback/`
+   - the current NornicDB-New checkout named by the user, local config, or
+     session-specific remote-test skill
+   - the pinned upstream release or branch that produced the image under test
 2. Decide from evidence:
    - if NornicDB supports it, fix Eshu
    - if NornicDB has a workaround, use a documented backend-dialect seam
@@ -860,10 +894,14 @@ Before saying work is complete:
 
 - repo docs read for the touched surface
 - relevant skill used
+- project skill used instead of a duplicate global skill when both exist
+- performance impact declaration written for runtime-affecting work
 - data/control flow understood end to end
 - tests written first for code changes
 - edge cases considered
 - telemetry added for runtime behavior
+- full-corpus evidence reports collector stream, projection complete, and
+  queue-zero separately when such a run was used
 - docs and active ADRs updated for contract changes
 - `AGENTS.md` and `CLAUDE.md` kept in lockstep if either changed
 - `golangci-lint run ./...` clean for Go changes

@@ -13,11 +13,10 @@ instead of rediscovering the same failure mode.
    read the matching section here.
 2. **Validate the behavior against the latest upstream NornicDB.** Source of
    truth in order:
-   - The Eshu-maintained NornicDB fork at
-     `/Users/asanabria/os-repos/NornicDB-New` — this is what the Compose image
-     `timothyswt/nornicdb-amd64-cpu:vX.Y.Z` is built from. **Do not** read the
-     older sibling at `/Users/asanabria/os-repos/NornicDB`; it does not match
-     the running binary.
+   - The current NornicDB-New checkout named by local config, repo docs, or the
+     user. It must be the source that built the Compose image
+     `timothyswt/nornicdb-amd64-cpu:vX.Y.Z` under test. **Do not** read an
+     older `NornicDB` sibling unless the run explicitly uses that source.
    - Upstream NornicDB documentation and release notes for the binary tag
      pinned in `docker-compose.yaml` (`NORNICDB_IMAGE`). NornicDB evolves
      quickly — a behavior documented here may have been fixed upstream by the
