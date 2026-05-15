@@ -53,7 +53,7 @@ visibility together before relaxing that guard.
 | AWS cloud | `go/cmd/collector-aws-cloud` and service scanners exist for the current AWS slice. | Optional `awsCloudCollector` deployment and isolated service account/IRSA values exist. | `DomainCloudAssetResolution` and `DomainAWSCloudRuntimeDrift` exist; AWS runtime drift is durable-fact only for now. | Live read-only AWS proof, #37 operator closeout, graph/read shape for drift findings, and active coordinator claim proof. |
 | AWS freshness | Implemented through `go/cmd/webhook-listener` and `go/internal/collector/awscloud/freshness`. | Webhook listener and `awsFreshness` ingress path are charted. | Freshness creates targeted AWS collector work; scheduled scans remain authoritative. | #37 remains open for live AWS EventBridge/AWS Config sample, dashboard visibility, and security sign-off. |
 | OCI registry | `go/cmd/collector-oci-registry` exists. | Optional `ociRegistryCollector` deployment exists. | No first-class container-image identity reducer is complete. | Add digest identity/read model joining Git image refs, AWS runtime refs, OCI manifests, and later SBOM/attestation. |
-| Package registry | `go/cmd/collector-package-registry` exists. | Optional `packageRegistryCollector` deployment exists. | `DomainPackageSourceCorrelation` classifies source hints with counters only; it does not promote package ownership. | Expand package ownership/usage correlation after EKS collector proof and image identity. |
+| Package registry | `go/cmd/collector-package-registry` exists. | Optional `packageRegistryCollector` deployment exists. | `DomainPackageSourceCorrelation` classifies source hints with counters only; it does not promote package ownership. Package-native dependency facts now project to bounded package dependency graph reads. | Expand package ownership/usage correlation after EKS collector proof and image identity. |
 | Confluence documentation | `go/cmd/collector-confluence` exists. | Optional `confluenceCollector` deployment exists. | Documentation facts remain evidence, not operational truth. | Useful for documentation drift later; not required for the AWS/IaC EKS proof path. |
 
 ## Design-Only Or Incomplete Collector Families
@@ -98,6 +98,8 @@ surfaces.
    Package source hints are currently classified without ownership promotion.
    Do not infer package ownership from weak registry metadata until exact,
    derived, ambiguous, unresolved, stale, and rejected cases are proven.
+   Package-native dependency edges are safe to expose separately because they
+   describe package metadata, not repository ownership or runtime consumption.
 
 5. Supply-chain impact.
    SBOM, attestation, vulnerability, package, OCI, cloud, and deployment facts

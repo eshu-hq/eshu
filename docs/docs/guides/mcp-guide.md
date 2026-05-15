@@ -192,7 +192,7 @@ assumptions from a partial code snapshot.
 | "What owns this AWS resource?" | `get_iac_management_status` |
 | "Why is this AWS resource marked unmanaged, unknown, or ambiguous?" | `explain_iac_management_status` |
 | "Draft Terraform import blocks for approved unmanaged AWS resources" | `propose_terraform_import_plan` |
-| "Which registry packages or versions are indexed?" | `list_package_registry_packages`, `list_package_registry_versions` |
+| "Which registry packages, versions, or package-native dependencies are indexed?" | `list_package_registry_packages`, `list_package_registry_versions`, `list_package_registry_dependencies` |
 
 The IaC management tools are evidence and planning inputs only. Read
 `safety_gate` before asking an assistant to draft Terraform import work. The
@@ -319,6 +319,7 @@ For programming prompts, keep using the code-query tools directly:
 - `propose_terraform_import_plan`
 - `list_package_registry_packages`
 - `list_package_registry_versions`
+- `list_package_registry_dependencies`
 
 Those remain the primary public contract for structural inventory, callers/callees/class hierarchy/import/complexity/dead-code, dead-IaC, and package registry identity questions. Use `inspect_code_inventory` first for functions/classes, dataclasses, documented functions, decorated methods, `super()` calls, and function counts per file. Use `investigate_import_dependencies` first for imports by file, module importers, package imports, direct Python file import cycles, and cross-module calls because it accepts file/module scope anchors, returns one canonical row key for the chosen query type, and returns truncation metadata. Use `inspect_call_graph_metrics` first for recursive-function and hub-function prompts because it requires a repository scope, returns canonical `functions` rows, and reports call-degree or recursion evidence without raw Cypher. Use `investigate_dead_code` first for dead-code prompts because it returns coverage, language maturity, exactness blockers, source handles, and conservative ambiguous buckets for JavaScript/TypeScript precision risk. Use `get_code_relationship_story` first for one-symbol caller, callee, import, and bounded transitive CALLS prompts because it returns ambiguity and truncation metadata in one response. The service and repository story tools are for end-to-end narratives, not a replacement for the focused query tools.
 

@@ -390,7 +390,27 @@ run both Neo4j and NornicDB conformance for the statement shape.
    after graph truth and query truth agree for repo, service, and package
    surfaces. The first query sub-slice exposes bounded package/package-version
    identity reads from the canonical graph and explicitly omits repository
-   ownership until reducer admission lands.
+   ownership until reducer admission lands. The package-dependency sub-slice
+   now materializes package-native dependency facts as `PackageDependency`
+   graph nodes plus `DECLARES_DEPENDENCY` and `DEPENDS_ON_PACKAGE` edges, then
+   exposes bounded HTTP/MCP reads by `package_id` or `version_id`. This does
+   not promote repository ownership, package publication ownership, or runtime
+   consumption truth.
+   No-Regression Evidence: `go test ./internal/projector -run
+   'TestBuildCanonicalMaterializationExtractsPackageRegistry'`, `go test
+   ./internal/storage/cypher -run
+   TestCanonicalNodeWriterBuildsPackageRegistryStatements`, `go test
+   ./internal/query -run
+   'TestPackageRegistryListDependencies|TestServeOpenAPI|TestCapabilityMatrixMatchesYAMLContract'`,
+   and `go test ./internal/mcp -run
+   'TestReadOnlyTools|TestResolveRouteMapsPackageRegistryDependencies|TestMCPToolContractMatrixCoversReadOnlyTools'`
+   pass for the projection, Cypher writer, HTTP/OpenAPI, capability matrix, and
+   MCP tool contracts.
+   Observability Evidence: package dependency reads run through
+   `SpanQueryPackageRegistryDependencies`; existing graph query instrumentation
+   on `Neo4jReader.Run` reports the bounded Cypher execution, while reducer
+   source-correlation counters continue to expose exact, derived, ambiguous,
+   unresolved, stale, and rejected ownership-candidate outcomes.
 7. **Provider expansion lane:** add fixture-backed adapters for public ecosystem
    registries, then live-gated adapters for GitHub, GitLab, Google, Azure,
    Nexus, and CodeArtifact.

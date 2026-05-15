@@ -155,6 +155,8 @@ var uidConstraintLabels = []string{
 	"Macro",
 	"Module",
 	"Package",
+	"PackageDependency",
+	"PackageRegistryPackageDependency",
 	"PackageRegistryPackage",
 	"PackageRegistryPackageVersion",
 	"PackageVersion",

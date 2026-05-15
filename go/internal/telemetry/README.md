@@ -232,6 +232,8 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`,
 `SpanQueryHardcodedSecretInvestigation`, `SpanQueryDeadCodeInvestigation`,
 `SpanQueryCallGraphMetrics`, `SpanQueryChangeSurfaceInvestigation`,
+`SpanQueryPackageRegistryPackages`, `SpanQueryPackageRegistryVersions`,
+`SpanQueryPackageRegistryDependencies`,
 `SpanTerraformStateClaimProcess`,
 `SpanTerraformStateDiscoveryResolve`, `SpanTerraformStateSourceOpen`,
 `SpanTerraformStateParserStream`, `SpanTerraformStateFactEmitBatch`,

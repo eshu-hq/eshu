@@ -61,6 +61,12 @@ are extracted via `StringVal`, `BoolVal`, `IntVal`, `StringSliceVal`
 (`neo4j.go:120`). `ContentReader` methods (`content_reader.go:44`,
 `content_reader_entity.go:13`) issue parametrized Postgres queries against
 `content_files` and `content_entities`.
+`PackageRegistryHandler` (`package_registry.go:21`) keeps package-registry
+reads graph-backed and bounded: package and version identity lookups require a
+package, ecosystem, or version anchor, and dependency lookup requires
+`package_id` or `version_id` plus `limit`. These routes return package-native
+dependency truth only; ownership, publication ownership, and runtime
+consumption stay out of the response until reducer admission owns those joins.
 Code dead-code queries add an analysis pass over graph rows so parser-provided
 `dead_code_root_kinds`, language maturity, test/generated exclusions, and
 candidate classifications are visible in the response body. Unsupported
@@ -237,7 +243,7 @@ The response is written with `WriteSuccess` when the caller sends
 `Accept: application/eshu.envelope+json`; this wraps the payload in a
 `ResponseEnvelope` containing `data`, `truth` (`TruthEnvelope`), and `error`
 fields. Without that header, `WriteJSON` emits the legacy payload directly.
-`BuildTruthEnvelope` (`contract.go:510`) constructs the `TruthEnvelope`; it
+`BuildTruthEnvelope` (`contract.go:524`) constructs the `TruthEnvelope`; it
 panics if the capability string is not in `capabilityMatrix`.
 Repository runtime artifacts parse Dockerfile stage metadata through
 `buildDockerfileRuntimeArtifacts`, including base image, base tag, build
@@ -364,7 +370,7 @@ normalized to `c_sharp` before candidate scanning.
   helpers (`handler.go`)
 - `AuthMiddleware` — bearer-token middleware used by `cmd/api` (`auth.go:30`)
 - `BuildTruthEnvelope` — builds a `TruthEnvelope` from profile, capability, and
-  basis; panics on unknown capability (`contract.go:510`)
+  basis; panics on unknown capability (`contract.go:524`)
 - `ParseQueryProfile`, `NormalizeQueryProfile`, `ParseGraphBackend` — input
   validation helpers (`contract.go`)
 
@@ -467,7 +473,7 @@ wired in `cmd/api/wiring.go`, not here.
   `truth.profiles.required` in the response envelope for the minimum profile,
   then verify the ESHU_QUERY_PROFILE env var in the running API.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
-  a capability string not in `capabilityMatrix` (`contract.go:510`). Add missing
+  a capability string not in `capabilityMatrix` (`contract.go:524`). Add missing
   capability IDs to `capabilityMatrix` before shipping new handlers.
 - `code_quality.dead_code` is a derived query unless the language maturity row
   says otherwise. Handler changes must preserve `classification`,
@@ -539,7 +545,7 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 ## Gotchas / invariants
 
 - `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
-  (`contract.go:510`). All capability strings used in handlers must be registered
+  (`contract.go:524`). All capability strings used in handlers must be registered
   in that map before the handler can be called safely.
 - The unexported `capabilityUnsupported` returns true when `maxTruthLevel` returns
   `nil` for the current profile; a nil max-truth means the capability is
