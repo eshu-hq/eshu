@@ -975,6 +975,7 @@ MCP answers.
 - `POST /api/v0/impact/explain-dependency-path`
 - `POST /api/v0/impact/change-surface`
 - `POST /api/v0/impact/change-surface/investigate`
+- `POST /api/v0/impact/resource-investigation`
 - `POST /api/v0/environments/compare`
 
 These routes are for tracing shared infrastructure, blast radius, dependency explanation, and environment drift.
@@ -997,6 +998,15 @@ topics and changed paths return `code_surface` file/symbol handles,
 `recommended_next_calls`, and coverage metadata so MCP clients can answer
 blast-radius and behavior-change prompts without guessing which discovery tool
 to call first.
+
+`POST /api/v0/impact/resource-investigation` is the prompt-facing
+resource-first route for questions such as "what provisions this database" and
+"which workloads depend on this queue." It accepts `query` or `resource_id`,
+optional `resource_type` and `environment`, `max_depth` default 4 and cap 8,
+and `limit` default 25 and cap 100. Ambiguous resources return
+`target_resolution.status=ambiguous` plus candidates before any traversal.
+Resolved resources return workload users, repository provenance paths, source
+handles, limitations, recommended next calls, and `coverage.truncated`.
 
 `POST /api/v0/compare/environments` accepts `workload_id`, `left`, `right`, and
 optional `limit` with default 50 and cap 200. The comparison reads at most

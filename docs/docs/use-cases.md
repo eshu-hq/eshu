@@ -24,15 +24,20 @@ eshu analyze find-change-surface --repo /path/to/repo --paths src/api/contracts.
 
 A database is unhealthy. Which services use it, and how are they deployed?
 
-`trace_resource_to_code` starts from a cloud resource and walks back through Terraform modules, repositories, and workloads:
+`investigate_resource` starts from a cloud resource, queue, database, Terraform
+resource, or Kubernetes object, resolves ambiguity first, then returns workload
+users, repository provenance paths, source handles, and next calls:
 
 ```
-→ trace_resource_to_code payment-db
+→ investigate_resource payment-db
   RDS instance: payment-db
   ← Terraform module: terraform-modules/rds (repo: infra-modules)
   ← Referenced by: payment-service/main.tf, billing-service/main.tf
   ← Workloads: payment-service (ArgoCD), billing-service (ArgoCD)
 ```
+
+Use `trace_resource_to_code` when you already have the canonical graph resource
+ID and only need repository paths.
 
 `trace_deployment_chain` goes the other direction — from a service name through controller/platform evidence, deployment-source repositories, and backing infrastructure evidence.
 
@@ -132,7 +137,8 @@ All of these tools are available through MCP. Your AI assistant can call them di
 - "What breaks if I change this?" → `find_blast_radius`
 - "How is this service deployed?" → `trace_deployment_chain`
 - "Which files influence image tags, runtime settings, or resource limits?" → `investigate_deployment_config`
-- "What provisions this database?" → `trace_resource_to_code`
+- "What provisions this database?" → `investigate_resource`
+- "Show me every workload that depends on this queue." → `investigate_resource`
 - "Explain how these two things connect" → `explain_dependency_path`
 - "What differs between prod and staging?" → `compare_environments`
 - "Where is this behavior implemented?" → `investigate_code_topic`

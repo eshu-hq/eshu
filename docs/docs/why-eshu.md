@@ -66,6 +66,7 @@ Key capabilities no other open source tool combines:
 - **`find_blast_radius`** — transitive dependency analysis across repos and infrastructure boundaries
 - **`trace_deployment_chain`** — follow a service through controller/platform evidence, deployment-source repositories, and backing infrastructure
 - **`investigate_deployment_config`** — identify the repos and files that influence image tags, runtime settings, resource limits, values layers, and rendered Kubernetes targets
+- **`investigate_resource`** — resolve a shared queue, database, cloud resource, Terraform resource, or Kubernetes object into workloads, provisioning repos, and source handles
 - **`trace_resource_to_code`** — trace a cloud resource back to the Terraform module and repository that owns it
 - **`compare_environments`** — diff the dependency surface of a workload between prod and staging
 - **`find_change_surface`** — see what is impacted before you merge
@@ -190,11 +191,11 @@ Before modifying a service, you need to understand callers, callees, dependencie
 
 ### Platform / DevOps / SRE
 
-Platform teams are constantly asked how workloads connect to infrastructure, what is shared, and what differs between environments. Eshu gives you — and the AI assistants your developers use — a real answer instead of tribal knowledge. `trace_deployment_chain` walks from controller/platform evidence through deployment-source repositories and backing infrastructure. `investigate_deployment_config` returns the read-first files for image tags, runtime settings, resource limits, values layers, and rendered Kubernetes targets. `compare_environments` diffs the dependency surface between prod and staging. `find_infra_resources` and `analyze_infra_relationships` show what workloads share a database, queue, or secret — before someone changes it.
+Platform teams are constantly asked how workloads connect to infrastructure, what is shared, and what differs between environments. Eshu gives you — and the AI assistants your developers use — a real answer instead of tribal knowledge. `trace_deployment_chain` walks from controller/platform evidence through deployment-source repositories and backing infrastructure. `investigate_deployment_config` returns the read-first files for image tags, runtime settings, resource limits, values layers, and rendered Kubernetes targets. `investigate_resource` shows what workloads share a database, queue, or secret and what repos provision it — before someone changes it. `compare_environments` diffs the dependency surface between prod and staging.
 
 ### Security & compliance
 
-When you need to audit what services access a shared database, trace dependencies across repo boundaries, or understand infrastructure exposure, Eshu gives you evidence from the graph instead of asking around. `trace_resource_to_code` follows a cloud resource back to the Terraform module and repository that owns it. `find_infra_resources` shows what workloads touch a shared resource. `search_file_content` finds references across indexed repos. `analyze_infra_relationships` maps infrastructure dependencies for audit and review.
+When you need to audit what services access a shared database, trace dependencies across repo boundaries, or understand infrastructure exposure, Eshu gives you evidence from the graph instead of asking around. `investigate_resource` resolves shared resources into workload users, repository provenance paths, and source handles. `trace_resource_to_code` follows a known cloud resource back to the Terraform module and repository that owns it. `search_file_content` finds references across indexed repos. `analyze_infra_relationships` maps infrastructure dependencies for audit and review.
 
 ### Architects & tech leads
 
@@ -232,7 +233,7 @@ to refactor the payment service's API contract.
 1. **Scope the change** — use the MCP tool `find_blast_radius` for `payment-service` to see downstream repos, shared Terraform modules, and Crossplane claims.
 2. **Understand the deployment** — use `trace_deployment_chain` to follow controller/platform evidence, deployment-source repositories, and backing resources.
 3. **Check environment differences** — use `compare_environments` to inspect drift between prod and staging.
-4. **Trace a shared resource** — use `trace_resource_to_code` to follow an RDS instance back to its Terraform module and consuming repositories.
+4. **Trace a shared resource** — use `investigate_resource` to follow an RDS instance back to its Terraform module, consuming workloads, and source handles.
 5. **Ship with confidence** — you know the blast radius before you open the PR, not after the page.
 
 ## Open Source

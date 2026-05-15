@@ -237,7 +237,7 @@ The response is written with `WriteSuccess` when the caller sends
 `Accept: application/eshu.envelope+json`; this wraps the payload in a
 `ResponseEnvelope` containing `data`, `truth` (`TruthEnvelope`), and `error`
 fields. Without that header, `WriteJSON` emits the legacy payload directly.
-`BuildTruthEnvelope` (`contract.go:457`) constructs the `TruthEnvelope`; it
+`BuildTruthEnvelope` (`contract.go:471`) constructs the `TruthEnvelope`; it
 panics if the capability string is not in `capabilityMatrix`.
 Repository runtime artifacts parse Dockerfile stage metadata through
 `buildDockerfileRuntimeArtifacts`, including base image, base tag, build
@@ -294,8 +294,8 @@ Elixir, PHP, and Groovy parser-backed roots. Its language filter examples includ
   provider entity labels when they have been projected
 - `IaCHandler` — IaC quality and AWS management routes (`iac.go:22`,
   `iac_management.go:142`)
-- `ImpactHandler` — blast radius, change surface, deployment trace, dependency
-  paths (`impact.go:11`)
+- `ImpactHandler` — blast radius, change surface, deployment trace, resource
+  investigation, dependency paths (`impact.go:11`)
 - `EvidenceHandler` — relationship evidence drilldown (`evidence.go:14`)
 - `DocumentationHandler` — documentation truth findings and evidence packets
   (`documentation.go`)
@@ -325,7 +325,7 @@ Elixir, PHP, and Groovy parser-backed roots. Its language filter examples includ
   helpers (`handler.go`)
 - `AuthMiddleware` — bearer-token middleware used by `cmd/api` (`auth.go:30`)
 - `BuildTruthEnvelope` — builds a `TruthEnvelope` from profile, capability, and
-  basis; panics on unknown capability (`contract.go:457`)
+  basis; panics on unknown capability (`contract.go:471`)
 - `ParseQueryProfile`, `NormalizeQueryProfile`, `ParseGraphBackend` — input
   validation helpers (`contract.go`)
 
@@ -379,7 +379,10 @@ wired in `cmd/api/wiring.go`, not here.
   routes (`documentation.go`); `telemetry.SpanQueryCodeTopicInvestigation`
   (`query.code_topic_investigation`) on broad code-topic investigation
   (`code_topic.go`); `telemetry.SpanQueryChangeSurfaceInvestigation`
-  (`query.change_surface_investigation`) on change-surface investigation; `telemetry.SpanQueryDeadIaC` (`query.dead_iac`)
+  (`query.change_surface_investigation`) on change-surface investigation;
+  `telemetry.SpanQueryResourceInvestigation`
+  (`query.resource_investigation`) on resource investigation;
+  `telemetry.SpanQueryDeadIaC` (`query.dead_iac`)
   on IaC dead-code queries (`iac.go`); `telemetry.SpanQueryIaCUnmanagedResources`
   (`query.iac_unmanaged_resources`) on AWS management finding queries
   (`iac_management.go`); `telemetry.SpanQueryInfraResourceSearch`
@@ -410,7 +413,7 @@ wired in `cmd/api/wiring.go`, not here.
   `truth.profiles.required` in the response envelope for the minimum profile,
   then verify the ESHU_QUERY_PROFILE env var in the running API.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
-  a capability string not in `capabilityMatrix` (`contract.go:457`). Add missing
+  a capability string not in `capabilityMatrix` (`contract.go:471`). Add missing
   capability IDs to `capabilityMatrix` before shipping new handlers.
 - `code_quality.dead_code` is a derived query unless the language maturity row
   says otherwise. Handler changes must preserve `classification`,
@@ -474,7 +477,7 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 ## Gotchas / invariants
 
 - `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
-  (`contract.go:457`). All capability strings used in handlers must be registered
+  (`contract.go:471`). All capability strings used in handlers must be registered
   in that map before the handler can be called safely.
 - The unexported `capabilityUnsupported` returns true when `maxTruthLevel` returns
   `nil` for the current profile; a nil max-truth means the capability is

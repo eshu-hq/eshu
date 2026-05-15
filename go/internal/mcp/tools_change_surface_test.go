@@ -111,6 +111,74 @@ func TestDeploymentConfigInfluenceToolContract(t *testing.T) {
 	}
 }
 
+func TestResourceInvestigationToolContract(t *testing.T) {
+	t.Parallel()
+
+	var tool *ToolDefinition
+	for _, candidate := range ecosystemTools() {
+		if candidate.Name == "investigate_resource" {
+			tool = &candidate
+			break
+		}
+	}
+	if tool == nil {
+		t.Fatal("investigate_resource tool is not registered")
+	}
+	schema := tool.InputSchema.(map[string]any)
+	properties := schema["properties"].(map[string]any)
+	for _, key := range []string{"query", "resource_id", "resource_type", "environment", "limit", "max_depth"} {
+		if _, ok := properties[key]; !ok {
+			t.Fatalf("tool schema missing %q", key)
+		}
+	}
+	limit := properties["limit"].(map[string]any)
+	if got, want := limit["maximum"], 100; got != want {
+		t.Fatalf("limit maximum = %#v, want %#v", got, want)
+	}
+	maxDepth := properties["max_depth"].(map[string]any)
+	if got, want := maxDepth["maximum"], 8; got != want {
+		t.Fatalf("max_depth maximum = %#v, want %#v", got, want)
+	}
+}
+
+func TestResolveRouteMapsResourceInvestigationToBoundedBody(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("investigate_resource", map[string]any{
+		"query":         "orders-db",
+		"resource_id":   "cloud:rds:orders-db",
+		"resource_type": "database",
+		"environment":   "prod",
+		"max_depth":     float64(3),
+		"limit":         float64(25),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "POST"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/impact/resource-investigation"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	body, ok := route.body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+	}
+	for key, want := range map[string]any{
+		"query":         "orders-db",
+		"resource_id":   "cloud:rds:orders-db",
+		"resource_type": "database",
+		"environment":   "prod",
+		"max_depth":     3,
+		"limit":         25,
+	} {
+		if got := body[key]; got != want {
+			t.Fatalf("body[%s] = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
 func TestResolveRouteMapsDeploymentConfigInfluenceToBoundedBody(t *testing.T) {
 	t.Parallel()
 

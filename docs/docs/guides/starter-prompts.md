@@ -74,6 +74,11 @@ For image tag, runtime setting, resource limit, values-layer, and read-first-fil
 prompts, MCP clients should start with `investigate_deployment_config` and only
 call `get_file_lines` for the returned file handles that need exact snippets.
 
+For queue, database, cloud-resource, Terraform-resource, and Kubernetes-object
+prompts, MCP clients should start with `investigate_resource`. Use
+`trace_resource_to_code` only after the resource is resolved and the caller needs
+the lower-level repository path.
+
 ### Repo sync and ingest debugging
 
 - "Find the code paths responsible for repo sync authentication and explain how GitHub App auth is resolved."
@@ -128,7 +133,7 @@ Use:
 
 - "Trace the deployment chain for `<service>`."
 - "What infrastructure does `<workload>` depend on?"
-- "Trace `<resource>` back to code."
+- "Trace `<resource>` back to code and show every workload that uses it."
 - "Show me the repos and manifests that define `<service>` in `<env>`."
 - "Trace `<service>` from ArgoCD values to rendered Kubernetes resources in `<env>`."
 
