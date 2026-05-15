@@ -82,6 +82,9 @@ func parseMaxDepth(args map[string]any, defaultDepth int) int {
 	if depth, ok := args["max_depth"].(float64); ok {
 		return int(depth)
 	}
+	if depth, ok := args["max_depth"].(int); ok {
+		return depth
+	}
 	contextValue := str(args, "context")
 	if contextValue == "" {
 		return defaultDepth

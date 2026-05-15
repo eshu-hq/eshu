@@ -69,6 +69,13 @@ tool surface:
   callers request both direct directions, rows are interleaved and the response
   reports per-direction available, returned, and truncated counts so one busy
   direction cannot hide the other without a visible coverage signal.
+- `analyze_code_relationships` now routes `class_hierarchy` and `overrides`
+  to the same story endpoint for issue #291. Class hierarchy requests return
+  class methods, direct parents, direct children, entity handles, and bounded
+  inheritance-depth metadata from entity-anchored graph reads. Override
+  requests return target-scoped override edges when a target is supplied, or a
+  repo-scoped bounded override list when the caller asks "find all overridden
+  methods" without pretending one method name was provided.
 - `investigate_code_topic` is the first-class MCP path for issue #286. It routes
   to `POST /api/v0/code/topics/investigate`, accepts a natural-language topic,
   optional intent, repository selector, language, limit, and offset, derives a
@@ -95,7 +102,7 @@ tool surface:
 | Broad code-topic and implementation investigation | `investigate_code_topic` | First-class content-index investigation returns ranked files, symbols, searched terms, coverage, truncation, and source/relationship follow-up handles without raw Cypher or client-side term guessing | #286 |
 | Callers, callees, imports, call chains | `get_code_relationship_story`, `find_function_call_chain` | Relationship story is bounded, ambiguity-aware, entity-anchored, paged, and exposes optional bounded transitive CALLS traversal; call-chain keeps the dedicated endpoint | #288 |
 | Dead code and code quality | `find_dead_code`, `find_most_complex_functions` | Existing bounded routes; raw Cypher examples now show limits | #289, #290 |
-| Class hierarchy and overrides | `analyze_code_relationships`, `execute_language_query` | Current fallback remains diagnostics-heavy for some shapes | #291 |
+| Class hierarchy and overrides | `analyze_code_relationships` | First-class relationship story path now returns class methods, direct parents/children, bounded inheritance-depth metadata, and target- or repo-scoped override rows without raw Cypher | None from this PR |
 | Security hardcoded secrets | `investigate_hardcoded_secrets` | First-class redacted content-index investigation with severity, confidence, suppression notes, source handles, paging, and truncation | #292 |
 | Deployment, GitOps, and resource tracing | `trace_deployment_chain`, `trace_resource_to_code`, story tools | Service story is one-call; low-level trace paths keep existing caps | #293, #294, #295 |
 | Environment comparison | `compare_environments` | Scoped workload/environment route now returns a prompt-ready story packet with shared resources, dedicated resources, evidence, limitations, coverage, and exact next calls | #296 |
@@ -104,6 +111,19 @@ tool surface:
 | Raw Cypher cookbook prompts | `execute_cypher_query` | Diagnostics-only, timeout-bound, server-capped, envelope-backed | #299 |
 
 ## Bounds And Observability
+
+Performance Impact Declaration: issue #291 changes the MCP relationship read
+surface only. The affected stage is the API/MCP relationship-story handler, not
+collection, parsing, projection, or reducer writes. Expected cardinality is one
+resolved class or method target plus at most `limit+1` direct relationship,
+method, and bounded depth rows; repo-scoped override prompts require `repo_id`
+and read at most `limit+1` override rows. The hot path is graph I/O through
+entity-anchored `INHERITS`, entity-anchored `CONTAINS`, bounded
+`INHERITS*1..N`, and repository-anchored `OVERRIDES`. The known-normal proof
+for this PR is focused no-regression coverage on the same handler family plus
+the performance-evidence gate; stop threshold is any unscoped targetless graph
+read, missing deterministic ordering, missing truncation signal, or failure to
+emit the existing `neo4j.query` spans and response coverage fields.
 
 The changed read paths are cold-call bounded:
 
@@ -120,9 +140,10 @@ The changed read paths are cold-call bounded:
   direct edges with entity-anchored ordered pagination, and limits transitive
   CALLS traversal by depth plus result-window size;
 - `analyze_code_relationships` MCP compatibility aliases for callers, callees,
-  transitive callers/callees, and importers now route through relationship
-  story so prompt clients get the same limit, offset, depth, truncation, and
-  ambiguity contract instead of the older broad relationship response;
+  transitive callers/callees, importers, class hierarchy, and overrides now
+  route through relationship story so prompt clients get the same limit,
+  offset, depth, truncation, and ambiguity contract instead of the older broad
+  relationship response;
 - topic investigation derives at most 16 search terms from `topic` and `intent`,
   pushes repository and language scope into a single scored PostgreSQL query,
   orders by score and stable repo-relative path, probes one extra row for
@@ -165,6 +186,16 @@ No-Regression Evidence: relationship story focused proof:
 `go test ./internal/query -run 'TestHandleRelationshipStory|TestNornicDBRelationshipStory|TestCapability|TestOpenAPI' -count=1` and
 `go test ./internal/mcp -run 'TestResolveRouteMapsCodeRelationshipStory|TestResolveRouteMapsAnalyzeCodeRelationships|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute' -count=1`.
 
+No-Regression Evidence: class hierarchy and override story focused proof:
+`go test ./internal/query -run 'TestHandleRelationshipStoryReturnsClassHierarchyPacket|TestHandleRelationshipStoryListsOverridesWithoutTarget' -count=1`
+and
+`go test ./internal/mcp -run 'TestResolveRouteMapsAnalyzeCodeRelationshipsClassHierarchyToStory|TestResolveRouteMapsAnalyzeCodeRelationshipsOverridesToStory' -count=1`.
+The class hierarchy path uses entity-anchored direct `INHERITS` reads, bounded
+`CONTAINS` method reads, and bounded `INHERITS*1..N` depth reads with
+deterministic ordering and `limit+1` truncation probes. The repo-scoped
+override path uses a repository-anchored `OVERRIDES` query when `repo_id` is
+known and rejects targetless override prompts without a repository scope.
+
 No-Regression Evidence: code topic investigation focused proof:
 `go test ./internal/query -run 'TestHandleCodeTopicInvestigation|TestContentReaderInvestigateCodeTopic|TestOpenAPI|TestCapabilityMatrix' -count=1` and
 `go test ./internal/mcp -run 'TestInvestigateCodeTopic|TestResolveRouteMapsInvestigateCodeTopic|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute' -count=1`.
@@ -186,6 +217,13 @@ The response envelope reports `truth.capability=call_graph.relationship_story`,
 `limit`/`offset`/`max_depth` values so MCP callers and operators can identify
 whether a slow answer came from target resolution, direct graph reads, or
 bounded transitive traversal.
+
+No-Observability-Change: class hierarchy and override story enrichment stays
+inside the existing relationship-story handler and graph reader. Operators use
+the existing `neo4j.query` spans plus response `source_backend`,
+`coverage.query_shape=entity_anchor_class_hierarchy_story`, `limit`, `offset`,
+`max_depth`, `class_hierarchy.depth_summary`, and `override_story.truncated`
+fields to diagnose slow, broad, or truncated MCP answers.
 
 Observability Evidence: code topic investigation emits
 `query.code_topic_investigation` with `http.route` and `eshu.capability`, then

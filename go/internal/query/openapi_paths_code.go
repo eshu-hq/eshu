@@ -238,11 +238,9 @@ const openAPIPathsCode = `
             "application/json": {
               "schema": {
                 "type": "object",
-                "anyOf": [
-                  {"required": ["target"]},
-                  {"required": ["entity_id"]}
-                ],
+                "anyOf": [{"required": ["target"]}, {"required": ["entity_id"]}, {"required": ["query_type", "repo_id"]}],
                 "properties": {
+                  "query_type": {"type": "string", "enum": ["class_hierarchy", "overrides"], "description": "Optional story enrichment mode for class hierarchy or override prompts."},
                   "target": {"type": "string", "description": "Symbol name to resolve when entity_id is omitted."},
                   "name": {"type": "string", "description": "Alias for target."},
                   "entity_id": {"type": "string", "description": "Canonical entity id to anchor the relationship query."},
@@ -251,7 +249,7 @@ const openAPIPathsCode = `
                   "direction": {"type": "string", "enum": ["incoming", "outgoing", "both"], "default": "both"},
                   "relationship_type": {"type": "string", "enum": ["CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES"], "default": "CALLS"},
                   "include_transitive": {"type": "boolean", "description": "When true, follows CALLS edges with bounded breadth-first traversal.", "default": false},
-                  "max_depth": {"type": "integer", "description": "Maximum transitive CALLS depth (default 5, max 10).", "default": 5, "maximum": 10},
+                  "max_depth": {"type": "integer", "description": "Maximum transitive CALLS or class hierarchy depth (default 5, max 10).", "default": 5, "maximum": 10},
                   "limit": {"type": "integer", "description": "Maximum relationship rows or ambiguity candidates (default 25, max 200).", "default": 25, "maximum": 200},
                   "offset": {"type": "integer", "description": "Zero-based direct relationship offset.", "default": 0, "maximum": 10000}
                 }
@@ -270,6 +268,8 @@ const openAPIPathsCode = `
                     "target_resolution": {"type": "object", "additionalProperties": true},
                     "scope": {"type": "object", "additionalProperties": true},
                     "relationships": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
+                    "class_hierarchy": {"type": "object", "additionalProperties": true},
+                    "override_story": {"type": "object", "additionalProperties": true},
                     "summary": {"type": "object", "additionalProperties": true},
                     "coverage": {"type": "object", "additionalProperties": true},
                     "source_backend": {"type": "string"}

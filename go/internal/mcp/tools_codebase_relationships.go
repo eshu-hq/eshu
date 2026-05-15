@@ -27,7 +27,7 @@ func analyzeCodeRelationshipsSchema() map[string]any {
 			},
 			"target": map[string]any{
 				"type":        "string",
-				"description": "Target entity to analyze",
+				"description": "Target entity to analyze. Optional for repo-scoped overrides queries.",
 			},
 			"context": map[string]any{
 				"type":        "string",
@@ -63,6 +63,6 @@ func analyzeCodeRelationshipsSchema() map[string]any {
 				"minimum":     0,
 			},
 		},
-		"required": []string{"query_type", "target"},
+		"required": []string{"query_type"},
 	}
 }

@@ -787,6 +787,15 @@ fields. Direct reads report `max_depth=1`. Set `include_transitive=true` with
 server caps `max_depth` at 10, requires `offset=0` for traversal mode, and
 stops when the requested relationship window is full.
 
+For class hierarchy prompts, send `query_type=class_hierarchy` with a target
+class or `entity_id`. The same endpoint returns `class_hierarchy.methods`,
+direct `parents`, direct `children`, and
+`class_hierarchy.depth_summary.max_parent_depth` /
+`max_child_depth` from bounded graph reads. For override prompts, send
+`query_type=overrides`. With a target, the endpoint returns target-scoped
+`OVERRIDES` edges; without a target, it returns a bounded repo-scoped
+`override_story.overrides` list when `repo_id` is supplied.
+
 Example dead-code workflow:
 
 `POST /api/v0/code/dead-code/investigate`

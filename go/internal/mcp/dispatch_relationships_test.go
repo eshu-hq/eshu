@@ -127,22 +127,66 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsImportersToStory(t *testing.T) 
 	}
 }
 
-func TestResolveRouteKeepsGenericAnalyzeCodeRelationshipsFallback(t *testing.T) {
+func TestResolveRouteMapsAnalyzeCodeRelationshipsClassHierarchyToStory(t *testing.T) {
 	t.Parallel()
 
 	route, err := resolveRoute("analyze_code_relationships", map[string]any{
 		"query_type": "class_hierarchy",
 		"target":     "PaymentProcessor",
+		"repo_id":    "repo-1",
+		"language":   "go",
+		"max_depth":  4,
 	})
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
+	if got, want := route.path, "/api/v0/code/relationships/story"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
 	body := requireRouteBody(t, route)
-	if got, want := body["entity_id"], "PaymentProcessor"; got != want {
-		t.Fatalf("body[entity_id] = %#v, want %#v", got, want)
+	if got, want := body["target"], "PaymentProcessor"; got != want {
+		t.Fatalf("body[target] = %#v, want %#v", got, want)
 	}
 	if got, want := body["query_type"], "class_hierarchy"; got != want {
 		t.Fatalf("body[query_type] = %#v, want %#v", got, want)
+	}
+	if got, want := body["relationship_type"], "INHERITS"; got != want {
+		t.Fatalf("body[relationship_type] = %#v, want %#v", got, want)
+	}
+	if got, want := body["language"], "go"; got != want {
+		t.Fatalf("body[language] = %#v, want %#v", got, want)
+	}
+	if got, want := body["max_depth"], 4; got != want {
+		t.Fatalf("body[max_depth] = %#v, want %#v", got, want)
+	}
+}
+
+func TestResolveRouteMapsAnalyzeCodeRelationshipsOverridesToStory(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("analyze_code_relationships", map[string]any{
+		"query_type": "overrides",
+		"repo_id":    "repo-1",
+		"limit":      50,
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.path, "/api/v0/code/relationships/story"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	body := requireRouteBody(t, route)
+	if got, want := body["query_type"], "overrides"; got != want {
+		t.Fatalf("body[query_type] = %#v, want %#v", got, want)
+	}
+	if got, want := body["relationship_type"], "OVERRIDES"; got != want {
+		t.Fatalf("body[relationship_type] = %#v, want %#v", got, want)
+	}
+	if got, want := body["repo_id"], "repo-1"; got != want {
+		t.Fatalf("body[repo_id] = %#v, want %#v", got, want)
+	}
+	if got, want := body["limit"], 50; got != want {
+		t.Fatalf("body[limit] = %#v, want %#v", got, want)
 	}
 }
 
