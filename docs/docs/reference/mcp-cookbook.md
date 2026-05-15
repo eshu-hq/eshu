@@ -448,25 +448,43 @@ ambiguity-aware.
 { "resolved_id": "resolved_abc123" }
 ```
 
-### Check job status
+### Check current indexing status
 
-> "What is the status of job `4cb9a60e-...`?"
+> "Is indexing complete right now?"
 
-**Tool:** `check_job_status`
-
-```json
-{ "job_id": "4cb9a60e-c1b1-43a7-9c94-c840771506bc" }
-```
-
-### List background jobs
-
-> "Show me all background jobs."
-
-**Tool:** `list_jobs`
+**Tool:** `get_index_status`
 
 ```json
 {}
 ```
+
+Read the returned status, freshness, and progress fields before answering. This
+is the current MCP path for index completeness; Eshu does not expose
+job-id-based MCP status tools.
+
+### List configured ingesters
+
+> "What ingesters are configured and what state are they in?"
+
+**Tool:** `list_ingesters`
+
+```json
+{}
+```
+
+### Inspect the repository ingester
+
+> "What is the repository ingester doing right now?"
+
+**Tool:** `get_ingester_status`
+
+```json
+{ "ingester": "repository" }
+```
+
+Use this when the user asks about repository sync, indexing progress, retry
+timing, or stale ingester state. It returns one runtime's persisted status
+instead of a background job list.
 
 ---
 
