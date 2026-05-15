@@ -454,6 +454,15 @@ In Kubernetes, size the Postgres connection pool to accommodate the total
 concurrent workers across all reducer replicas. Each worker holds one
 connection during claim/execute/ack.
 
+Helm can deploy domain-specific reducer lanes with `resolutionEngine.lanes`.
+When lanes are set, the chart renders one `Deployment` per lane and passes
+`ESHU_REDUCER_CLAIM_DOMAINS` to restrict queue claims to that lane's domain
+allowlist. This keeps optional domains such as AWS drift or OCI/package
+metadata out of installations that do not run those collectors, while preserving
+the same reducer binary and queue semantics. Size replicas, workers, and
+Postgres pools per lane; the total concurrent claim pressure is the sum of
+`replicas * ESHU_REDUCER_WORKERS` across all rendered lanes.
+
 ## Workflow Coordinator
 
 ### Responsibilities

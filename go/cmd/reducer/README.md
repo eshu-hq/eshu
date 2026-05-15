@@ -79,7 +79,11 @@ All env vars parsed in `config.go` and `neo4j_wiring.go`.
 | `ESHU_REDUCER_MAX_ATTEMPTS` | `5` | Terminal failure threshold |
 | `ESHU_REDUCER_WORKERS` | `NumCPU` NornicDB / `min(NumCPU,4)` Neo4j | Concurrent intent workers |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | `workers` NornicDB / `workers×4 (max 64)` Neo4j | Items per claim batch |
-| `ESHU_REDUCER_CLAIM_DOMAIN` | `""` (all domains) | Restrict claims to one `Domain` |
+| `ESHU_REDUCER_CLAIM_DOMAIN` | `""` (all domains) | Restrict claims to one `Domain`; kept for older single-lane deployments |
+| `ESHU_REDUCER_CLAIM_DOMAINS` | `""` (all domains) | Comma-separated `Domain` allowlist for a domain-specific reducer lane |
+
+Set only one claim-domain variable. The reducer fails startup when both are
+present so a global legacy value cannot silently override a Helm lane allowlist.
 
 ### Claim gating
 

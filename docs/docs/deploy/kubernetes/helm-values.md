@@ -13,6 +13,7 @@ The chart lives at `deploy/helm/eshu`.
 | `mcpServer.enabled` | `true` | Deploy the MCP runtime. |
 | `ingester.persistence.size` | `100Gi` | Workspace PVC size. |
 | `resolutionEngine.enabled` | `true` | Deploy the reducer runtime. |
+| `resolutionEngine.lanes` | `[]` | Optional domain-specific reducer deployments with independent replicas, resources, and claim allowlists. |
 | `workflowCoordinator.enabled` | `false` | Deploy dark-mode workflow coordinator. |
 | `workflowCoordinator.deploymentMode` | `dark` | Keep coordinator claim ownership dark. The chart rejects active mode in this branch. |
 | `workflowCoordinator.claimsEnabled` | `false` | Keep workflow claims off in Helm. Use Compose for active proof runs. |
@@ -57,6 +58,60 @@ supports Postgres pool settings and Bolt driver settings per workload.
 The workflow coordinator chart is deliberately dark-only right now. Do not use
 Helm values to promote coordinator-owned claims before the fenced claim,
 fairness, Git collector, and remote full-corpus proof gates pass.
+
+## Resolution engine lanes
+
+By default Helm renders one `resolution-engine` `Deployment` that can claim all
+reducer domains. Set `resolutionEngine.lanes` when an EKS installation wants
+separate reducer scaling lanes for different collector or graph-write domains.
+When lanes are configured, the chart does not render the undifferentiated
+deployment; it renders one deployment and metrics service per lane and sets
+`ESHU_REDUCER_CLAIM_DOMAINS` inside each pod.
+
+```yaml
+resolutionEngine:
+  lanes:
+    - name: code-graph
+      domains:
+        - sql_relationship_materialization
+        - inheritance_materialization
+      replicas: 3
+      resources:
+        requests:
+          cpu: 750m
+          memory: 1Gi
+    - name: cloud-drift
+      domains:
+        - aws_cloud_runtime_drift
+      replicas: 2
+```
+
+Use lanes to keep optional collector domains optional. For example, a cluster
+that runs only Git and Terraform can omit AWS, OCI, Package Registry, and
+Confluence lanes without leaving an all-domain reducer that competes for their
+work. The queue still enforces conflict keys and lease ownership; lanes only
+bound which domains a reducer replica can claim.
+
+Performance Impact Declaration: this changes reducer queue claims from one
+optional domain equality to an optional `ANY(text[])` allowlist. The affected
+stage is Postgres `fact_work_items` reducer claim selection over pending,
+retrying, claimed, and running reducer rows. Expected cardinality is unchanged
+per lane except that operators can split claim pressure by domain family.
+Stop threshold: if claim duration for the same queue shape regresses by more
+than 10% or queue age rises while workers are idle, profile the claim query and
+Postgres indexes before increasing replicas.
+
+No-Regression Evidence: `go test ./cmd/reducer ./internal/storage/postgres ./internal/runtime -run 'TestLoadReducerClaimDomains|TestBuildReducerServiceWiresReducerClaimDomains|TestReducerQueueClaimCanFilterByMultipleDomains|TestClaimBatchCanFilterByMultipleDomains|TestHelmResolutionEngineCanRenderDomainSpecificLanes' -count=1`
+and `go test ./...` passed on 2026-05-15 for the config parser, reducer service
+wiring, Postgres claim SQL contract, Helm lane render contract, and broader Go
+suite.
+
+No-Observability-Change: reducer lanes reuse existing reducer queue and runtime
+signals: `reducer.batch_claim` span, `eshu_dp_queue_claim_duration_seconds`,
+`eshu_dp_reducer_queue_wait_seconds`, `eshu_dp_queue_depth`,
+`eshu_dp_queue_oldest_age_seconds`, and `eshu_dp_reducer_executions_total`.
+No new metric label was added because lane name would be deployment topology,
+not a durable data-domain attribute.
 
 ## Confluence collector
 

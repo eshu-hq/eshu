@@ -10,11 +10,26 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-func (q ReducerQueue) claimDomainFilter() string {
-	if q.ClaimDomain == "" {
-		return ""
+func (q ReducerQueue) claimDomainFilters() []string {
+	domains := q.effectiveClaimDomains()
+	if len(domains) == 0 {
+		return nil
 	}
-	return string(q.ClaimDomain)
+	values := make([]string, 0, len(domains))
+	for _, domain := range domains {
+		values = append(values, string(domain))
+	}
+	return values
+}
+
+func (q ReducerQueue) effectiveClaimDomains() []reducer.Domain {
+	if len(q.ClaimDomains) > 0 {
+		return q.ClaimDomains
+	}
+	if q.ClaimDomain != "" {
+		return []reducer.Domain{q.ClaimDomain}
+	}
+	return nil
 }
 
 func (q ReducerQueue) semanticEntityClaimLimit() int {

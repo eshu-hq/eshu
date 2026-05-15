@@ -1,4 +1,9 @@
-{{- if .Values.resolutionEngine.enabled }}
+{{- $lanes := default (list) .Values.resolutionEngine.lanes -}}
+{{- $env := default (dict) .Values.env -}}
+{{- if and .Values.resolutionEngine.enabled (gt (len $lanes) 0) (or (hasKey $env "ESHU_REDUCER_CLAIM_DOMAIN") (hasKey $env "ESHU_REDUCER_CLAIM_DOMAINS")) -}}
+{{- fail "resolutionEngine.lanes cannot be combined with env.ESHU_REDUCER_CLAIM_DOMAIN or env.ESHU_REDUCER_CLAIM_DOMAINS; set domains on each lane" -}}
+{{- end -}}
+{{- if and .Values.resolutionEngine.enabled (eq (len $lanes) 0) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -77,4 +82,105 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+{{- end }}
+{{- if and .Values.resolutionEngine.enabled (gt (len $lanes) 0) }}
+{{- $root := . -}}
+{{- range $index, $lane := $lanes }}
+{{- $replicas := $root.Values.resolutionEngine.replicas -}}
+{{- if hasKey $lane "replicas" -}}
+{{- $replicas = $lane.replicas -}}
+{{- end -}}
+{{- $connectionTuning := $root.Values.resolutionEngine.connectionTuning -}}
+{{- if hasKey $lane "connectionTuning" -}}
+{{- $connectionTuning = $lane.connectionTuning -}}
+{{- end -}}
+{{- $resources := $root.Values.resolutionEngine.resources -}}
+{{- if hasKey $lane "resources" -}}
+{{- $resources = $lane.resources -}}
+{{- end -}}
+{{- if $index }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eshu.resolutionEngineLaneFullname" (dict "root" $root "lane" $lane) }}
+  labels:
+    {{- include "eshu.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: resolution-engine
+    eshu.io/reducer-lane: {{ $lane.name | quote }}
+spec:
+  replicas: {{ $replicas }}
+  revisionHistoryLimit: {{ $root.Values.resolutionEngine.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      {{- include "eshu.resolutionEngineLaneSelectorLabels" (dict "root" $root "lane" $lane) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "eshu.resolutionEngineLaneSelectorLabels" (dict "root" $root "lane" $lane) | nindent 8 }}
+        {{- with $root.Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $root.Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "eshu.serviceAccountName" $root }}
+      securityContext:
+        {{- toYaml $root.Values.podSecurityContext | nindent 8 }}
+      {{- with $root.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- include "eshu.renderDataPlaneBootstrapInitContainer" $root | nindent 8 }}
+      containers:
+        - name: resolution-engine
+          image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag }}"
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          command: ["/usr/local/bin/eshu-reducer"]
+          securityContext:
+            {{- toYaml $root.Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: ESHU_HOME
+              value: /tmp/.eshu
+            - name: HOME
+              value: /tmp
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: NEO4J_URI
+              value: {{ $root.Values.neo4j.uri | quote }}
+            - name: ESHU_REDUCER_CLAIM_DOMAINS
+              value: {{ join "," $lane.domains | quote }}
+            {{- include "eshu.renderContentStoreEnv" $root | nindent 12 }}
+            {{- include "eshu.renderConnectionTuningEnv" $connectionTuning | nindent 12 }}
+            {{- include "eshu.renderOtelEnv" (dict "Values" $root.Values "component" "resolution-engine") | nindent 12 }}
+            {{- include "eshu.renderPrometheusEnv" $root | nindent 12 }}
+            {{- include "eshu.renderNeo4jAuthEnv" $root | nindent 12 }}
+            {{- include "eshu.renderEnvMap" $root.Values.env | nindent 12 }}
+          ports:
+            {{- if $root.Values.observability.prometheus.enabled }}
+            - name: metrics
+              containerPort: {{ $root.Values.observability.prometheus.port }}
+              protocol: TCP
+            {{- end }}
+          resources:
+            {{- toYaml $resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
 {{- end }}

@@ -80,6 +80,16 @@ resolutionEngine:
   connectionTuning:
     neo4j:
       maxConnectionPoolSize: "150"
+  lanes:
+    - name: code-graph
+      domains:
+        - sql_relationship_materialization
+        - inheritance_materialization
+      replicas: 2
+    - name: cloud-drift
+      domains:
+        - aws_cloud_runtime_drift
+      replicas: 1
 
 confluenceCollector:
   enabled: true

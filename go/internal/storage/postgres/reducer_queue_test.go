@@ -336,8 +336,9 @@ func TestReducerQueueClaimCanFilterByDomain(t *testing.T) {
 		t.Fatal("Claim() claimed = true, want false from empty rows")
 	}
 
-	if got, want := db.queries[0].args[1], string(reducer.DomainSQLRelationshipMaterialization); got != want {
-		t.Fatalf("domain filter arg = %v, want %v", got, want)
+	got, ok := db.queries[0].args[1].([]string)
+	if !ok || len(got) != 1 || got[0] != string(reducer.DomainSQLRelationshipMaterialization) {
+		t.Fatalf("domain filter arg = %#v, want [%q]", db.queries[0].args[1], reducer.DomainSQLRelationshipMaterialization)
 	}
 }
 

@@ -1,4 +1,5 @@
-{{- if and .Values.resolutionEngine.enabled .Values.observability.prometheus.enabled }}
+{{- $lanes := default (list) .Values.resolutionEngine.lanes -}}
+{{- if and .Values.resolutionEngine.enabled .Values.observability.prometheus.enabled (eq (len $lanes) 0) }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -15,4 +16,29 @@ spec:
       port: {{ .Values.observability.prometheus.port }}
       targetPort: metrics
       protocol: TCP
+{{- end }}
+{{- if and .Values.resolutionEngine.enabled .Values.observability.prometheus.enabled (gt (len $lanes) 0) }}
+{{- $root := . -}}
+{{- range $index, $lane := $lanes }}
+{{- if $index }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eshu.resolutionEngineLaneMetricsServiceName" (dict "root" $root "lane" $lane) }}
+  labels:
+    {{- include "eshu.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: resolution-engine
+    eshu.io/reducer-lane: {{ $lane.name | quote }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "eshu.resolutionEngineLaneSelectorLabels" (dict "root" $root "lane" $lane) | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ $root.Values.observability.prometheus.port }}
+      targetPort: metrics
+      protocol: TCP
+{{- end }}
 {{- end }}

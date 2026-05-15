@@ -215,19 +215,19 @@ func buildReducerService(
 			"query_profile", string(query.ProfileLocalAuthoritative),
 		)
 	}
-	claimDomain, err := loadReducerClaimDomain(getenv)
+	claimDomains, err := loadReducerClaimDomains(getenv)
 	if err != nil {
-		return reducer.Service{}, fmt.Errorf("load reducer claim domain: %w", err)
+		return reducer.Service{}, fmt.Errorf("load reducer claim domains: %w", err)
 	}
-	if claimDomain != "" && logger != nil {
-		logger.Info("reducer claims restricted to domain",
-			"domain", string(claimDomain),
+	if len(claimDomains) > 0 && logger != nil {
+		logger.Info("reducer claims restricted to domains",
+			"domains", reducerDomainStrings(claimDomains),
 		)
 	}
 	workQueue := postgres.NewReducerQueue(database, "reducer", time.Minute)
 	workQueue.RetryDelay = retryCfg.RetryDelay
 	workQueue.MaxAttempts = retryCfg.MaxAttempts
-	workQueue.ClaimDomain = claimDomain
+	workQueue.ClaimDomains = claimDomains
 	workQueue.RequireProjectorDrainBeforeClaim = projectorDrainGate
 	workQueue.ExpectedSourceLocalProjectors = loadReducerExpectedSourceLocalProjectors(getenv)
 	workQueue.SemanticEntityClaimLimit = loadReducerSemanticEntityClaimLimit(getenv, graphBackend)
@@ -394,4 +394,12 @@ func buildReducerService(
 		Instruments:    instruments,
 		Logger:         logger,
 	}, nil
+}
+
+func reducerDomainStrings(domains []reducer.Domain) []string {
+	values := make([]string, 0, len(domains))
+	for _, domain := range domains {
+		values = append(values, string(domain))
+	}
+	return values
 }

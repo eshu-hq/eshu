@@ -36,7 +36,7 @@ WITH candidate AS (
       AND status IN ('pending', 'retrying', 'claimed', 'running')
       AND (visible_at IS NULL OR visible_at <= $1)
       AND (claim_until IS NULL OR claim_until <= $1)
-      AND ($2 = '' OR domain = $2)
+      AND ($2::text[] IS NULL OR domain = ANY($2::text[]))
       -- NornicDB local_authoritative first-generation runs must not let
       -- reducer graph writes contend with source-local canonical projection
       -- for the same scope. Unrelated scopes can continue draining.
@@ -200,9 +200,13 @@ type ReducerQueue struct {
 	MaxAttempts   int
 	Now           func() time.Time
 
-	// ClaimDomain optionally restricts this queue instance to one reducer
-	// domain. Empty keeps the default all-domain reducer behavior.
+	// ClaimDomain optionally restricts this queue instance to one reducer domain.
+	// Prefer ClaimDomains for new multi-domain reducer lanes.
 	ClaimDomain reducer.Domain
+
+	// ClaimDomains optionally restricts this queue instance to a reducer domain
+	// allowlist. Empty keeps the default all-domain reducer behavior.
+	ClaimDomains []reducer.Domain
 
 	// RequireProjectorDrainBeforeClaim keeps reducer graph writes from
 	// contending with same-scope source-local projection. It is intended for
@@ -340,7 +344,7 @@ func (q ReducerQueue) Claim(ctx context.Context) (reducer.Intent, bool, error) {
 		ctx,
 		claimReducerWorkQuery,
 		now,
-		q.claimDomainFilter(),
+		q.claimDomainFilters(),
 		q.LeaseOwner,
 		now.Add(q.LeaseDuration),
 		q.RequireProjectorDrainBeforeClaim,
@@ -441,8 +445,11 @@ func (q ReducerQueue) validateShared(side string) error {
 	if q.db == nil {
 		return fmt.Errorf("reducer queue database is required for %s", side)
 	}
-	if q.ClaimDomain != "" {
-		if err := q.ClaimDomain.Validate(); err != nil {
+	if q.ClaimDomain != "" && len(q.ClaimDomains) > 0 {
+		return fmt.Errorf("reducer queue claim domain and claim domains both set for %s", side)
+	}
+	for _, domain := range q.effectiveClaimDomains() {
+		if err := domain.Validate(); err != nil {
 			return fmt.Errorf("reducer queue claim domain invalid for %s: %w", side, err)
 		}
 	}

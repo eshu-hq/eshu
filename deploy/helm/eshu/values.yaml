@@ -101,6 +101,7 @@ resolutionEngine:
   enabled: true
   replicas: 1
   revisionHistoryLimit: 3
+  lanes: []
   connectionTuning:
     postgres:
       maxOpenConns: ""
