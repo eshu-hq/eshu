@@ -172,7 +172,7 @@
 .service-entrypoints article span {
   background: color-mix(in oklch, var(--relation), var(--field) 88%);
   border: 1px solid color-mix(in oklch, var(--relation), var(--line) 62%);
-  border-radius: 999px;
+  border-radius: 7px;
   color: var(--relation);
   font-size: 0.78rem;
   font-weight: 760;
@@ -307,6 +307,98 @@
   color: var(--muted);
   font-size: 0.82rem;
   overflow-wrap: anywhere;
+}
+
+.service-deployment-source-grid,
+.service-deployment-source-repos,
+.service-relationship-cluster-grid,
+.service-relationship-repos {
+  display: grid;
+  gap: 10px;
+}
+
+.service-deployment-source-grid,
+.service-deployment-source-repos,
+.service-relationship-cluster-grid {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.service-relationship-cluster {
+  align-content: start;
+}
+
+.service-relationship-cluster > .service-tech-row {
+  align-items: start;
+}
+
+.service-relationship-cluster > .service-tech-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.service-relationship-repo {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+}
+
+.service-relationship-repo span:last-child,
+.service-relationship-repo small {
+  overflow-wrap: anywhere;
+}
+
+.service-tech-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.service-tech-mark {
+  align-items: center;
+  background: color-mix(in oklch, var(--field), white 4%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 8px;
+}
+
+.service-tech-mark span {
+  font-size: 0.72rem;
+  font-weight: 790;
+  white-space: nowrap;
+}
+
+.service-tech-mark-terraform {
+  background: color-mix(in oklch, #7b61ff, var(--field) 84%);
+  border-color: color-mix(in oklch, #7b61ff, var(--line) 52%);
+}
+
+.service-tech-mark-argocd {
+  background: color-mix(in oklch, #ff7f50, var(--field) 84%);
+  border-color: color-mix(in oklch, #ff7f50, var(--line) 52%);
+}
+
+.service-tech-mark-helm {
+  background: color-mix(in oklch, #2e8df7, var(--field) 84%);
+  border-color: color-mix(in oklch, #2e8df7, var(--line) 52%);
+}
+
+.service-tech-mark-kubernetes {
+  background: color-mix(in oklch, #38bdf8, var(--field) 84%);
+  border-color: color-mix(in oklch, #38bdf8, var(--line) 52%);
+}
+
+.service-tech-mark-github_actions,
+.service-tech-mark-config {
+  background: color-mix(in oklch, var(--accent), var(--field) 84%);
+  border-color: color-mix(in oklch, var(--accent), var(--line) 52%);
 }
 
 @media (max-width: 900px) {

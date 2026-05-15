@@ -1,7 +1,9 @@
 @import "./dashboard.css";
+@import "./deploymentGraph.css";
 @import "./serviceAtlas.css";
 @import "./serviceChangeSurface.css";
 @import "./serviceInvestigation.css";
+@import "./serviceRelationshipWorkbench.css";
 @import "./serviceSpotlight.css";
 @import "./serviceTrafficPath.css";
 @import "./tables.css";
@@ -10,19 +12,28 @@
 :root {
   color-scheme: light;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --background: oklch(0.94 0.015 78);
-  --sidebar: oklch(0.24 0.026 250);
-  --surface: oklch(0.985 0.006 78);
-  --surface-raised: oklch(0.965 0.012 78);
-  --field: oklch(0.998 0.003 78);
-  --text: oklch(0.25 0.018 250);
-  --muted: oklch(0.46 0.018 250);
-  --subtle: oklch(0.56 0.018 250);
-  --line: oklch(0.82 0.018 78);
-  --accent: oklch(0.62 0.15 58);
-  --danger: oklch(0.55 0.17 27);
-  --success: oklch(0.52 0.13 150);
-  --relation: oklch(0.52 0.14 260);
+  --background: oklch(0.975 0.006 235);
+  --sidebar: oklch(0.965 0.007 245);
+  --surface: oklch(0.995 0.003 245);
+  --surface-raised: oklch(0.985 0.006 245);
+  --field: oklch(0.99 0.004 245);
+  --text: oklch(0.24 0.018 245);
+  --muted: oklch(0.47 0.018 245);
+  --subtle: oklch(0.6 0.016 245);
+  --line: oklch(0.86 0.012 245);
+  --accent: oklch(0.56 0.16 255);
+  --danger: oklch(0.58 0.18 25);
+  --success: oklch(0.58 0.14 153);
+  --warning: oklch(0.68 0.16 72);
+  --relation: oklch(0.56 0.16 255);
+  --graph-canvas: oklch(0.998 0.002 245);
+  --graph-grid-line: oklch(0.92 0.009 245);
+  --relationship-service: oklch(0.56 0.16 255);
+  --technology-terraform: oklch(0.56 0.16 294);
+  --technology-kubernetes: oklch(0.62 0.14 225);
+  --technology-helm: oklch(0.48 0.15 255);
+  --technology-argocd: oklch(0.68 0.16 48);
+  --technology-automation: oklch(0.55 0.07 280);
 }
 
 * {
@@ -57,7 +68,7 @@ button {
 
 .console-sidebar {
   background: var(--sidebar);
-  border-right: 1px solid oklch(0.36 0.035 250);
+  border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -73,7 +84,7 @@ button {
 }
 
 .console-brand span:first-child {
-  color: oklch(0.96 0.006 78);
+  color: var(--text);
   font-size: 1.12rem;
   font-weight: 800;
 }
@@ -81,11 +92,11 @@ button {
 .console-brand span:last-child,
 .console-sidebar .status-strip dt,
 .console-sidebar .console-nav a {
-  color: oklch(0.78 0.025 250);
+  color: var(--muted);
 }
 
 .console-sidebar .status-strip dd {
-  color: oklch(0.96 0.006 78);
+  color: var(--text);
 }
 
 .candidate-list span,
@@ -111,9 +122,9 @@ button {
 
 .console-nav a.active,
 .console-nav a:hover {
-  background: oklch(0.32 0.045 250);
-  border-color: oklch(0.44 0.04 250);
-  color: oklch(0.98 0.006 78);
+  background: color-mix(in oklch, var(--accent), var(--surface) 90%);
+  border-color: color-mix(in oklch, var(--accent), var(--line) 46%);
+  color: var(--text);
 }
 
 .status-strip {
@@ -353,104 +364,6 @@ a:focus-visible {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.deployment-graph {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.7fr);
-}
-
-.deployment-graph-svg {
-  background: var(--field);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  min-height: 420px;
-  width: 100%;
-}
-
-.deployment-link {
-  fill: none;
-  stroke: color-mix(in oklch, var(--relation), var(--line) 22%);
-  stroke-linecap: round;
-  stroke-width: 2.4;
-}
-
-.deployment-edge {
-  cursor: pointer;
-}
-
-.deployment-link-hitbox {
-  opacity: 0;
-  stroke: transparent;
-  stroke-width: 18;
-}
-
-.deployment-link-label-bg {
-  fill: color-mix(in oklch, var(--surface), var(--field) 35%);
-  stroke: color-mix(in oklch, var(--relation), var(--line) 40%);
-  stroke-width: 1;
-}
-
-.deployment-link-label {
-  fill: var(--text);
-  font-size: 11px;
-  font-weight: 760;
-  pointer-events: none;
-  text-anchor: middle;
-}
-
-.deployment-node rect {
-  fill: var(--surface);
-  stroke: var(--line);
-  stroke-width: 1.5;
-}
-
-.deployment-node-workflow rect,
-.deployment-node-evidence rect {
-  stroke: var(--accent);
-}
-
-.deployment-node-service rect {
-  stroke: var(--success);
-}
-
-.deployment-node-relationship rect {
-  fill: color-mix(in oklch, var(--relation), var(--surface) 88%);
-  stroke: var(--relation);
-}
-
-.deployment-node text {
-  fill: var(--text);
-  font-size: 14px;
-  font-weight: 700;
-  pointer-events: none;
-  text-anchor: middle;
-}
-
-.graph-detail {
-  border-left: 1px solid var(--line);
-  max-height: 430px;
-  overflow: auto;
-  padding-left: 16px;
-}
-
-.graph-node-buttons {
-  display: grid;
-  gap: 8px;
-}
-
-.graph-edge-buttons {
-  display: grid;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.graph-edge-buttons h4,
-.graph-selected-relationship h4 {
-  margin: 0;
-}
-
-.graph-node-buttons button,
-.graph-edge-buttons button,
 .evidence-row button,
 .row-button {
   background: var(--field);
@@ -460,68 +373,12 @@ a:focus-visible {
   padding: 8px 10px;
 }
 
-.graph-node-buttons button {
-  display: grid;
-  gap: 3px;
-  text-align: left;
-}
-
-.graph-edge-buttons button {
-  display: grid;
-  gap: 4px;
-  text-align: left;
-}
-
-.graph-edge-buttons button span:last-child {
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
-
-.graph-node-buttons button[aria-pressed="true"],
-.graph-edge-buttons button[aria-pressed="true"] {
-  border-color: var(--accent);
-}
-
-.graph-selected-relationship {
-  background: var(--field);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  display: grid;
-  gap: 10px;
-  margin-top: 14px;
-  padding: 12px;
-}
-
-.graph-selected-relationship dl {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-}
-
-.graph-selected-relationship div {
-  display: grid;
-  gap: 3px;
-}
-
-.graph-selected-relationship dt {
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: 760;
-}
-
-.graph-selected-relationship dd,
-.graph-selected-relationship p {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
 @media (max-width: 900px) {
   .console-shell,
   .workspace-summary,
   .workspace-columns,
-  .deployment-graph,
-  .dashboard-layout,
-  .evidence-row {
+    .dashboard-layout,
+    .evidence-row {
     grid-template-columns: 1fr;
   }
 
@@ -541,12 +398,5 @@ a:focus-visible {
   .summary-metrics,
   .overview-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .graph-detail {
-    border-left: 0;
-    border-top: 1px solid var(--line);
-    padding-left: 0;
-    padding-top: 16px;
   }
 }

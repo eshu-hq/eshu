@@ -1,0 +1,219 @@
+.relationship-workbench {
+  display: grid;
+  gap: 14px;
+}
+
+.relationship-workbench-toolbar,
+.relationship-map-controls,
+.relationship-mode-tabs {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.relationship-workbench-title {
+  display: grid;
+  gap: 4px;
+}
+
+.relationship-workbench-title h3,
+.relationship-workbench-title p,
+.relationship-inspector h4,
+.relationship-inspector p {
+  margin: 0;
+}
+
+.relationship-workbench-title p {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.relationship-mode-tabs {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  justify-content: start;
+  padding: 4px;
+}
+
+.relationship-mode-tabs button,
+.relationship-map-controls button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  font-weight: 720;
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+.relationship-mode-tabs button[aria-pressed="true"],
+.relationship-mode-tabs button:hover,
+.relationship-map-controls button:hover {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.relationship-workbench-grid {
+  align-items: stretch;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.32fr);
+}
+
+.relationship-map-shell,
+.relationship-inspector {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.relationship-map-shell {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.relationship-map-controls {
+  color: var(--muted);
+  font-size: 0.82rem;
+  justify-content: end;
+}
+
+.relationship-map-svg {
+  background: var(--graph-canvas);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 420px;
+  width: 100%;
+}
+
+.relationship-edge {
+  cursor: pointer;
+}
+
+.relationship-edge-hitbox {
+  fill: none;
+  pointer-events: stroke;
+  stroke: transparent;
+  stroke-width: 18;
+}
+
+.relationship-edge-path {
+  fill: none;
+  marker-end: url("#relationship-arrow");
+  stroke: var(--relation);
+  stroke-linecap: round;
+  stroke-width: 2.2;
+}
+
+.relationship-edge-configuration_access .relationship-edge-path,
+.relationship-edge-configuration_discovery .relationship-edge-path {
+  stroke-dasharray: 6 5;
+}
+
+.relationship-edge-runtime .relationship-edge-path {
+  stroke: var(--success);
+}
+
+.relationship-edge-selected .relationship-edge-path {
+  stroke-width: 4;
+}
+
+.relationship-edge-label-bg {
+  fill: var(--surface);
+  stroke: var(--line);
+}
+
+.relationship-edge-label {
+  fill: var(--text);
+  font-size: 0.72rem;
+  font-weight: 800;
+  pointer-events: none;
+  text-anchor: middle;
+}
+
+.relationship-node {
+  cursor: grab;
+}
+
+.relationship-node:active {
+  cursor: grabbing;
+}
+
+.relationship-node rect {
+  fill: var(--surface);
+  stroke: var(--line);
+  stroke-width: 1.2;
+}
+
+.relationship-node text {
+  fill: var(--text);
+  font-size: 0.78rem;
+  font-weight: 780;
+  pointer-events: none;
+}
+
+.relationship-node-kind-service rect,
+.relationship-node-selected rect {
+  stroke: var(--relationship-service);
+  stroke-width: 2.4;
+}
+
+.relationship-node-tech {
+  fill: var(--muted);
+}
+
+.relationship-node-terraform .relationship-node-tech {
+  fill: var(--technology-terraform);
+}
+
+.relationship-node-kubernetes .relationship-node-tech {
+  fill: var(--technology-kubernetes);
+}
+
+.relationship-node-helm .relationship-node-tech {
+  fill: var(--technology-helm);
+}
+
+.relationship-node-argocd .relationship-node-tech {
+  fill: var(--technology-argocd);
+}
+
+.relationship-node-github_actions .relationship-node-tech {
+  fill: var(--technology-automation);
+}
+
+.relationship-inspector {
+  align-content: start;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.relationship-inspector > span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 720;
+}
+
+.relationship-inspector dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+@media (max-width: 1100px) {
+  .relationship-workbench-grid,
+  .relationship-workbench-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .relationship-workbench-toolbar {
+    align-items: stretch;
+    display: grid;
+  }
+}
