@@ -5,14 +5,36 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 jobs:
-  deploy-docs:
+  build-docs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install MkDocs
+        run: |
+          pip install mkdocs mkdocs-material pymdown-extensions
+
+      - name: Build docs
+        working-directory: docs
+        run: mkdocs build --clean
+
+  deploy-docs:
+    needs: build-docs
+    if: vars.ESHU_GITHUB_PAGES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
