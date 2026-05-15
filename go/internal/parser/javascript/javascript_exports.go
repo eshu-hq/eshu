@@ -164,7 +164,7 @@ func javaScriptReExportSpecifiersFromText(
 }
 
 func javaScriptReExportSpecifierNames(raw string) (string, string) {
-	part := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "type "))
+	part := strings.TrimSpace(strings.TrimPrefix(javaScriptExportSpecifierWithoutLineComments(raw), "type "))
 	if part == "" || strings.Contains(part, "...") {
 		return "", ""
 	}
@@ -189,4 +189,15 @@ func javaScriptReExportSpecifierNames(raw string) (string, string) {
 		return "", ""
 	}
 	return left, right
+}
+
+func javaScriptExportSpecifierWithoutLineComments(raw string) string {
+	segments := make([]string, 0, 1)
+	for _, line := range strings.Split(raw, "\n") {
+		beforeComment, _, _ := strings.Cut(line, "//")
+		if trimmed := strings.TrimSpace(beforeComment); trimmed != "" {
+			segments = append(segments, trimmed)
+		}
+	}
+	return strings.TrimSpace(strings.Join(segments, " "))
 }

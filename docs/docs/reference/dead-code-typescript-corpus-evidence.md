@@ -49,6 +49,77 @@ This branch does not promote TypeScript or TSX candidates to cleanup-ready.
 Full command/API returned-candidate sampling and manual precision labeling
 remain part of issue #336 before TypeScript can claim exact cleanup safety.
 
+## Fastify Declaration API Sampling
+
+Issue #336 follow-up sampling used the same pinned Fastify checkout,
+`fastify/fastify@1c49974805e57a17f1616f422678317b1d35b73f`, through a fresh
+local-authoritative run on NornicDB `v1.0.44`.
+
+The baseline from `main@d13c863` returned five active TypeScript candidates
+from the bounded investigation API:
+
+```json
+{
+  "repo_id": "fastify",
+  "language": "typescript",
+  "limit": 25,
+  "offset": 0
+}
+```
+
+Manual labels:
+
+| Candidate | File | Baseline bucket | Label | Root cause |
+| --- | --- | --- | --- | --- |
+| `FastifyRequestContext` | `types/context.d.ts` | ambiguous | public API, not dead | `fastify.d.ts` imports then exports the type in a local `export type { ... }` block. |
+| `FastifyReplyContext` | `types/context.d.ts` | ambiguous | public API, not dead | Same local imported export clause; inline trailing comments hid one neighbor name. |
+| `FastifyRequest` | `types/request.d.ts` | ambiguous | public API, not dead | Same local imported export clause. |
+| `FastifyValidationResult` | `types/schema.d.ts` | ambiguous | public API dependency, not dead | Referenced from public schema compiler declarations. |
+| `ResolveFastifyRequestType` | `types/type-provider.d.ts` | ambiguous | public API dependency, not dead | Used by `FastifyRequest` as an imported generic default in the public declaration surface. |
+
+The parser now models:
+
+- package declaration entrypoints that import symbols and export them through
+  a local `export type { ... }` clause without a `from` source;
+- inline `//` comments inside multi-line export specifier lists;
+- imported type references used by public TypeScript declarations, bounded by
+  the package public surface and repository-local import resolution.
+
+Final API evidence from the same request after the parser fix:
+
+```json
+{
+  "bucket_counts": {
+    "ambiguous": 0,
+    "cleanup_ready": 0,
+    "suppressed": 50,
+    "suppressed_truncated": true
+  },
+  "coverage": {
+    "candidate_scan_rows": 403,
+    "candidate_scan_pages": 5,
+    "candidate_scan_limit": 2500,
+    "candidate_scan_truncated": false,
+    "file_count": 324,
+    "entity_count": 8274,
+    "language": "typescript",
+    "truncated": false
+  }
+}
+```
+
+Accuracy result: Fastify TypeScript precision for this sample is 5/5 false
+positive ambiguous candidates removed, with zero cleanup-ready TypeScript
+candidates emitted. TypeScript remains `derived`, not exact cleanup-safe truth.
+
+Performance Evidence: the final Fastify local-authoritative proof indexed 324
+files and 8,274 content entities with collector discovery at 0.0275 s,
+pre-scan at 1.4795 s, parse wall time at 1.3065 s, TypeScript cumulative parse
+time at 6.8418 s across 35 files, materialization at 0.0845 s, collector stream
+wall time at 2.9154 s, content write at 0.5262 s, and code-call projection at
+0.4243 s. Queue terminal state was pending=0, in_flight=0, retrying=0,
+dead_letter=0, failed=0.
+
 No-Regression Evidence: focused TDD failures for Fastify route-object handlers
 and constructor function-value references were added first. After the parser
 evidence fix, `go test ./internal/parser -run
