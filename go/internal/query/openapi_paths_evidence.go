@@ -78,6 +78,7 @@ const openAPIPathsEvidence = `
                   "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 50},
                   "handles": {
                     "type": "array",
+                    "maxItems": 500,
                     "items": {
                       "type": "object",
                       "properties": {

@@ -77,6 +77,7 @@ func contentTools() []ToolDefinition {
 					"handles": map[string]any{
 						"type":        "array",
 						"description": "Evidence handles returned by story, investigation, search, or drilldown tools.",
+						"maxItems":    500,
 						"items": map[string]any{
 							"type": "object",
 							"properties": map[string]any{

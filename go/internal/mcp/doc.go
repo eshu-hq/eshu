@@ -6,8 +6,9 @@
 // shared slice and identifier helpers in dispatch_args.go, build request bodies
 // for the underlying handler, and parse canonical response envelopes. Citation
 // tools stay in this transport layer and delegate source hydration to the query
-// package rather than reading storage directly. Any change that alters request
-// or response shape must update
+// package rather than reading storage directly; the advertised citation schema
+// caps input at 500 handles. Any change that alters request or response shape
+// must update
 // the MCP guide, the HTTP API reference where the route is shared, and the
 // handler tests in the same change.
 package mcp

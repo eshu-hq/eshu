@@ -140,7 +140,8 @@
 // and truncation metadata so prompt-facing MCP calls do not depend on cache
 // warmth or silently incomplete graph scans.
 // Evidence citation packets hydrate bounded file and entity handles from the
-// content store without graph traversal so story, investigation, and
+// content store without graph traversal, reject input arrays above 500 handles,
+// and hydrate at most 50 citations per call so story, investigation, and
 // documentation prompts can cite source, docs, manifests, and deployment proof.
 // Repository runtime artifacts surface Dockerfile base image, base tag, build
 // platform, copy-from, command, port, and environment evidence from parser

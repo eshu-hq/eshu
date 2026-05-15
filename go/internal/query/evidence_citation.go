@@ -16,6 +16,7 @@ const (
 	evidenceCitationCapability      = "evidence_citation.packet"
 	evidenceCitationDefaultLimit    = 10
 	evidenceCitationMaxLimit        = 50
+	evidenceCitationMaxInputHandles = 500
 	evidenceCitationMaxExcerptLines = 40
 )
 
@@ -84,6 +85,17 @@ type evidenceCitationFileLookup struct {
 type evidenceCitationFileKey struct {
 	repoID       string
 	relativePath string
+}
+
+type evidenceCitationHandleKey struct {
+	kind           string
+	repoID         string
+	relativePath   string
+	entityID       string
+	evidenceFamily string
+	reason         string
+	startLine      int
+	endLine        int
 }
 
 type evidenceCitationFileStore interface {
@@ -186,29 +198,31 @@ func normalizeEvidenceCitationRequest(
 	if limit > evidenceCitationMaxLimit {
 		limit = evidenceCitationMaxLimit
 	}
+	if len(req.Handles) > evidenceCitationMaxInputHandles {
+		return nil, limit, false, fmt.Errorf("handles exceeds maximum of %d", evidenceCitationMaxInputHandles)
+	}
 
-	handles := make([]evidenceCitationHandle, 0, len(req.Handles))
-	seen := make(map[string]struct{}, len(req.Handles))
+	handles := make([]evidenceCitationHandle, 0, min(len(req.Handles), limit+1))
+	seen := make(map[evidenceCitationHandleKey]struct{}, min(len(req.Handles), limit+1))
 	for _, handle := range req.Handles {
 		normalized, ok := normalizeEvidenceCitationHandle(handle)
 		if !ok {
 			return nil, limit, false, fmt.Errorf("each handle must include either repo_id plus relative_path or entity_id")
 		}
-		key := normalized.Kind + "\x00" + normalized.RepoID + "\x00" + normalized.RelativePath + "\x00" + normalized.EntityID
+		key := normalized.evidenceCitationHandleKey()
 		if _, exists := seen[key]; exists {
 			continue
 		}
 		seen[key] = struct{}{}
 		handles = append(handles, normalized)
+		if len(handles) > limit {
+			return handles[:limit], limit, true, nil
+		}
 	}
 	if len(handles) == 0 {
 		return nil, limit, false, fmt.Errorf("at least one evidence handle is required")
 	}
-	truncated := len(handles) > limit
-	if truncated {
-		handles = handles[:limit]
-	}
-	return handles, limit, truncated, nil
+	return handles, limit, false, nil
 }
 
 func normalizeEvidenceCitationHandle(handle evidenceCitationHandle) (evidenceCitationHandle, bool) {
@@ -232,6 +246,19 @@ func normalizeEvidenceCitationHandle(handle evidenceCitationHandle) (evidenceCit
 		return handle, handle.EntityID != ""
 	default:
 		return evidenceCitationHandle{}, false
+	}
+}
+
+func (handle evidenceCitationHandle) evidenceCitationHandleKey() evidenceCitationHandleKey {
+	return evidenceCitationHandleKey{
+		kind:           handle.Kind,
+		repoID:         handle.RepoID,
+		relativePath:   handle.RelativePath,
+		entityID:       handle.EntityID,
+		evidenceFamily: handle.EvidenceFamily,
+		reason:         handle.Reason,
+		startLine:      handle.StartLine,
+		endLine:        handle.EndLine,
 	}
 }
 
@@ -362,14 +389,14 @@ func boundedLineExcerpt(content string, startLine, endLine int) (string, int, in
 	if startLine < 1 {
 		startLine = 1
 	}
+	if startLine > len(lines) {
+		return "", 0, 0
+	}
 	if endLine < startLine || endLine > len(lines) {
 		endLine = len(lines)
 	}
 	if endLine-startLine+1 > evidenceCitationMaxExcerptLines {
 		endLine = startLine + evidenceCitationMaxExcerptLines - 1
-	}
-	if startLine > len(lines) {
-		return "", startLine, startLine - 1
 	}
 	return strings.Join(lines[startLine-1:endLine], "\n"), startLine, endLine
 }

@@ -87,7 +87,7 @@ has already returned file or entity handles.
 
 | Tool Name | Description | Natural Language Example |
 | :--- | :--- | :--- |
-| **`build_evidence_citation_packet`** | Hydrate bounded file and entity handles into ranked source, documentation, manifest, and deployment citations. Accepts `repo_id + relative_path` file handles or `entity_id` handles, optional line ranges, `evidence_family`, `reason`, and `limit` up to 50. Returns bounded excerpts, missing handles, truncation coverage, and recommended next calls without graph traversal. | "Show me the source and docs evidence behind this explanation." |
+| **`build_evidence_citation_packet`** | Hydrate bounded file and entity handles into ranked source, documentation, manifest, and deployment citations. Accepts up to 500 input handles using `repo_id + relative_path` file handles or `entity_id` handles, optional line ranges, `evidence_family`, `reason`, and `limit` up to 50. Returns bounded excerpts, missing handles, truncation coverage, and recommended next calls without graph traversal. | "Show me the source and docs evidence behind this explanation." |
 
 `trace_deployment_chain` now exposes the deployment-mapping fields that callers should use for deployment-specific answers:
 

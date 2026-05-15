@@ -75,9 +75,11 @@ tool surface:
 - `build_evidence_citation_packet` is the first-class MCP path for issue #298.
   It routes to `POST /api/v0/evidence/citations`, accepts only explicit file
   and entity handles from story, investigation, search, or drilldown responses,
-  caps each packet at 50 handles, batch-hydrates files and entities from the
-  Postgres content store, returns bounded excerpts, missing handles, citation
-  family, reason, and truncation coverage, and avoids graph traversal.
+  rejects arrays above 500 handles, caps each packet at 50 hydrated citations,
+  preserves distinct ranges and reasons for the same file or entity,
+  batch-hydrates files and entities from the Postgres content store, returns
+  bounded excerpts, missing handles, citation family, reason, and truncation
+  coverage, and avoids graph traversal.
 
 ## Prompt-Family Audit
 
@@ -123,11 +125,11 @@ The changed read paths are cold-call bounded:
   orders by score and stable repo-relative path, probes one extra row for
   `truncated`, and returns exact follow-up calls instead of expanding
   relationships or source bodies in the first response;
-- evidence citation packets hydrate at most 50 explicit file/entity handles per
-  call, use one PostgreSQL content-file read for file handles plus one
-  PostgreSQL entity read for entity handles, trim excerpts in memory after the
-  bounded fetch, return missing-handle coverage, and never default to whole-graph
-  discovery;
+- evidence citation packets reject input arrays above 500 handles, hydrate at
+  most 50 explicit file/entity handles per call, use one PostgreSQL content-file
+  read for file handles plus one PostgreSQL entity read for entity handles, trim
+  excerpts in memory after the bounded fetch, return missing-handle coverage,
+  and never default to whole-graph discovery;
 - infrastructure search has a max limit and truncation probe.
 - legacy impact tools `find_blast_radius`, `find_change_surface`, and
   `trace_resource_to_code` now accept `limit`, cap it at 200, execute graph

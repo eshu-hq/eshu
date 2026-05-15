@@ -324,11 +324,12 @@ For documentation and runbook generation, expect the story layer to prefer Postg
 
 Use `build_evidence_citation_packet` when the prompt asks for proof behind an
 answer. It accepts only explicit file or entity handles, caps each packet at 50
-handles, hydrates files and entities from the content store in batches, returns
-bounded excerpts plus missing-handle coverage, and avoids graph calls. Use
-`get_file_content`, `get_file_lines`, or search only when the user needs a
-single raw source body or when the previous story/investigation response did
-not already identify the handles.
+hydrated citations, rejects arrays above 500 input handles, hydrates files and
+entities from the content store in batches, returns bounded excerpts plus
+missing-handle coverage, and avoids graph calls. Use `get_file_content`,
+`get_file_lines`, or search only when the user needs a single raw source body or
+when the previous story/investigation response did not already identify the
+handles.
 
 ## Prompt-suite guardrails
 

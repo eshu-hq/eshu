@@ -302,7 +302,8 @@ normalized to `c_sharp` before candidate scanning.
 - `ImpactHandler` — blast radius, change surface, deployment trace, resource
   investigation, dependency paths (`impact.go:11`)
 - `EvidenceHandler` — relationship evidence drilldown and bounded citation
-  packet hydration (`evidence.go`, `evidence_citation.go`)
+  packet hydration; citation packets reject more than 500 input handles and
+  hydrate at most 50 citations per call (`evidence.go`, `evidence_citation.go`)
 - `DocumentationHandler` — documentation truth findings and evidence packets
   (`documentation.go`)
 - `StatusHandler` — pipeline and ingester status routes (`status.go:14`)

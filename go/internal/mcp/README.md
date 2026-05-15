@@ -87,6 +87,11 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
+
+`build_evidence_citation_packet` keeps MCP as transport only: dispatch forwards
+the caller's bounded handle array to the HTTP evidence route. The advertised
+schema caps input at 500 handles and the query handler hydrates at most 50
+citations per packet.
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |

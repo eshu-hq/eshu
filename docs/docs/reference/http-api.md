@@ -257,10 +257,11 @@ in every graph-facing response.
 handles into a reusable citation packet. Send handles from story,
 investigation, search, or drill-down responses using `repo_id + relative_path`
 for files or `entity_id` for entities, plus optional `start_line`, `end_line`,
-`evidence_family`, and `reason`. The response ranks resolved citations, returns
-bounded excerpts, reports missing handles, and includes `coverage.truncated` so
-callers can request another packet when they need more proof. The route reads
-only the Postgres content store; it does not traverse the graph.
+`evidence_family`, and `reason`. The route accepts at most 500 input handles,
+hydrates at most 50 citations per packet, preserves distinct line ranges and
+reasons for the same file, and includes `coverage.truncated` so callers can
+request another packet when they need more proof. The route reads only the
+Postgres content store; it does not traverse the graph.
 
 ### Documentation Truth Evidence
 
