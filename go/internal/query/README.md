@@ -305,7 +305,10 @@ normalized to `c_sharp` before candidate scanning.
     state/config handles, other-IaC ownership hints, service and environment
     candidates, dependency paths, warning flags, missing evidence, and
     provenance evidence atoms. Raw tag evidence remains provenance-only and
-    does not promote ownership, service, or environment truth.
+    does not promote ownership, service, or environment truth. Sensitive
+    tag/evidence values are redacted before the row leaves the query layer, and
+    `safety_gate` names review-required findings plus refused follow-up actions
+    such as Terraform import-plan generation.
 - `ImpactHandler` — blast radius, change surface, deployment trace, resource
   investigation, dependency paths (`impact.go:11`)
 - `EvidenceHandler` — relationship evidence drilldown and bounded citation

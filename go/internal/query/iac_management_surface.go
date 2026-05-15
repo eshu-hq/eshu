@@ -44,9 +44,11 @@ func (h *IaCHandler) handleIaCManagementStatus(w http.ResponseWriter, r *http.Re
 
 	status := managementStatusUnknown
 	analysisStatus := "no_active_management_finding"
+	safetyGate := iacManagementEmptySafetyGate()
 	if finding != nil {
 		status = finding.ManagementStatus
 		analysisStatus = "active_management_finding"
+		safetyGate = finding.SafetyGate
 	}
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"story":                iacManagementStatusStory(filter, finding),
@@ -57,6 +59,7 @@ func (h *IaCHandler) handleIaCManagementStatus(w http.ResponseWriter, r *http.Re
 		"management_status":    status,
 		"analysis_status":      analysisStatus,
 		"finding":              finding,
+		"safety_gate":          safetyGate,
 		"total_findings_count": total,
 		"limitations":          iacManagementStatusLimitations(finding),
 	}, BuildTruthEnvelope(
@@ -94,6 +97,7 @@ func (h *IaCHandler) handleIaCManagementExplanation(w http.ResponseWriter, r *ht
 		"region":               filter.Region,
 		"finding":              finding,
 		"evidence_groups":      iacManagementEvidenceGroups(finding),
+		"safety_gate":          iacManagementSafetyGateForExactFinding(finding),
 		"total_findings_count": total,
 		"limitations":          iacManagementStatusLimitations(finding),
 	}, BuildTruthEnvelope(
@@ -162,7 +166,16 @@ func (h *IaCHandler) loadExactIaCManagementFinding(
 	if len(rows) == 0 {
 		return nil, total, nil
 	}
-	return &rows[0], total, nil
+	finding := rows[0]
+	normalizeIaCManagementFindingSafety(&finding)
+	return &finding, total, nil
+}
+
+func iacManagementSafetyGateForExactFinding(finding *IaCManagementFindingRow) IaCManagementSafetyGate {
+	if finding == nil {
+		return iacManagementEmptySafetyGate()
+	}
+	return finding.SafetyGate
 }
 
 func iacManagementListStory(filter IaCManagementFilter, findings []IaCManagementFindingRow, total int) string {

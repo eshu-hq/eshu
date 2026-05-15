@@ -3,7 +3,7 @@ package mcp
 func iacManagementStatusTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "get_iac_management_status",
-		Description: "Get the current read-only IaC management status for one AWS stable resource identity.",
+		Description: "Get the current read-only IaC management status and safety gate for one AWS stable resource identity.",
 		InputSchema: iacManagementStatusSchema(),
 	}
 }
@@ -11,7 +11,7 @@ func iacManagementStatusTool() ToolDefinition {
 func iacManagementExplanationTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "explain_iac_management_status",
-		Description: "Explain one AWS IaC management status with grouped cloud, Terraform, raw-tag, and management evidence.",
+		Description: "Explain one AWS IaC management status with grouped cloud, Terraform, raw-tag, management evidence, redaction, and safety gate details.",
 		InputSchema: iacManagementStatusSchema(),
 	}
 }

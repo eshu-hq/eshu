@@ -191,6 +191,14 @@ assumptions from a partial code snapshot.
 | "Why is this AWS resource marked unmanaged, unknown, or ambiguous?" | `explain_iac_management_status` |
 | "Which registry packages or versions are indexed?" | `list_package_registry_packages`, `list_package_registry_versions` |
 
+The IaC management tools are evidence and planning inputs only. Read
+`safety_gate` before asking an assistant to draft Terraform import work:
+security-sensitive resources, ambiguous ownership, stale evidence, and
+insufficient coverage return `security_review_required` and refuse the
+`terraform_import_plan` follow-up action. Sensitive evidence values are
+returned as `[REDACTED]`; MCP callers should not expect secret-like tag,
+environment, parameter, password, token, or credential values.
+
 ## Story-first responses
 
 For repository, service, and deployment questions, Eshu now exposes dedicated
