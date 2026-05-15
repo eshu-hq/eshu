@@ -50,6 +50,7 @@ Good substitutions:
 - "Who calls `process_payment` across all indexed repos?"
 - "Show me the most complex functions in `payments-service`."
 - "What code is dead in `api-gateway`?"
+- "Find potential hardcoded passwords, API keys, or secrets in `api-gateway`."
 - "Find the implementation of `PaymentProvider` across indexed repos."
 - "Investigate repo sync authentication in `eshu`, then show the files, symbols, and code paths involved."
 - "Explain the dependency path between `checkout-service` and `shared-auth-lib`."
@@ -133,6 +134,12 @@ language maturity, exactness blockers, cleanup-ready/ambiguous/suppressed
 buckets, source handles, and next calls. JavaScript and TypeScript candidates
 stay ambiguous until the TypeScript precision corpus tracked by #336 proves
 cleanup safety.
+
+For hardcoded-secret prompts, MCP clients should start with
+`investigate_hardcoded_secrets`. It scans indexed content, returns redacted
+findings only, reports finding kind, confidence, severity, suppression notes,
+source handles, limit/offset, and `truncated` so the caller can page without
+raw Cypher or leaking secret values.
 
 ### To understand deployments
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`telemetry` owns Eshu's OpenTelemetry contract: metric instruments, span names,
+`telemetry` owns Eshu's frozen Go data-plane OpenTelemetry contract: metric instruments, span names,
 structured log keys, pipeline phase constants, attribute helpers, OTEL provider
 initialization, and the trace-injecting `slog` handler. Every runtime-affecting
 package in the data plane imports this package and nothing imports it back.
@@ -210,7 +210,10 @@ module prefixes across generations.
 
 ### Span name constants
 
-Defined in `contract.go`. Use `telemetry.SpanXxx` rather than string literals.
+Defined in `contract.go` and small companion files such as
+`contract_query_spans.go`. Use `telemetry.SpanXxx` rather than string literals;
+new query routes such as hardcoded-secret investigation register their span name
+here before handlers use it.
 
 Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`,
 `SpanFactEmit`, `SpanProjectorRun`, `SpanReducerIntentEnqueue`, `SpanReducerRun`,
@@ -225,7 +228,8 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanQueryDocumentationEvidencePacket`, `SpanQueryDocumentationPacketFreshness`,
 `SpanQueryDeadIaC`, `SpanQueryIaCUnmanagedResources`,
 `SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`,
-`SpanQueryDeadCodeInvestigation`, `SpanQueryChangeSurfaceInvestigation`,
+`SpanQueryHardcodedSecretInvestigation`, `SpanQueryDeadCodeInvestigation`,
+`SpanQueryChangeSurfaceInvestigation`,
 `SpanTerraformStateClaimProcess`,
 `SpanTerraformStateDiscoveryResolve`, `SpanTerraformStateSourceOpen`,
 `SpanTerraformStateParserStream`, `SpanTerraformStateFactEmitBatch`,

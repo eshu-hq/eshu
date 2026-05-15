@@ -647,6 +647,7 @@ Use these routes when you only need code relationships and do not need the full 
 - `POST /api/v0/code/search`
 - `POST /api/v0/code/symbols/search`
 - `POST /api/v0/code/topics/investigate`
+- `POST /api/v0/code/security/secrets/investigate`
 - `POST /api/v0/code/relationships`
 - `POST /api/v0/code/relationships/story`
 - `POST /api/v0/code/dead-code`
@@ -738,6 +739,27 @@ instead of one known symbol. The response includes `searched_terms`,
 and `truncated`. The query is content-index backed, ordered by score and stable
 repo-relative path, and returns exact follow-up calls such as `get_file_lines`
 or `get_code_relationship_story`.
+
+Example hardcoded-secret investigation workflow:
+
+`POST /api/v0/code/security/secrets/investigate`
+
+```json
+{
+  "repo_id": "payments",
+  "finding_kinds": ["api_token", "password_literal"],
+  "include_suppressed": false,
+  "limit": 25,
+  "offset": 0
+}
+```
+
+Use this route for prompts like "Find potential hardcoded passwords, API keys,
+or secrets." The response returns redacted excerpts only, finding kind,
+confidence, severity, suppression notes for test/fixture/example candidates,
+source handles, `coverage`, `limit`, `offset`, and `truncated`. It is backed by
+the indexed Postgres content store, not raw Cypher or graph-wide source-code
+queries.
 
 Example relationship-story workflow:
 

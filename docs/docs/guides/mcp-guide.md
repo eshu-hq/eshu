@@ -184,6 +184,7 @@ assumptions from a partial code snapshot.
 | "Search across indexed code" | `search_file_content` |
 | "Find complex functions" | `find_most_complex_functions` |
 | "What's dead code?" | `investigate_dead_code` |
+| "Find hardcoded secrets" | `investigate_hardcoded_secrets` |
 | "Which IaC artifacts look unused?" | `find_dead_iac` |
 | "Which AWS resources are unmanaged?" | `find_unmanaged_resources` |
 | "Which registry packages or versions are indexed?" | `list_package_registry_packages`, `list_package_registry_versions` |

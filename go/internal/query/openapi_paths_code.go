@@ -3,8 +3,7 @@ package query
 const openAPIPathsCode = `
     "/api/v0/code/search": {
       "post": {
-        "tags": ["code"],
-        "summary": "Search code entities",
+        "tags": ["code"], "summary": "Search code entities",
         "description": "Searches code entities by name pattern or content.",
         "operationId": "searchCode",
         "requestBody": {
@@ -40,8 +39,7 @@ const openAPIPathsCode = `
     },
     "/api/v0/code/cypher": {
       "post": {
-        "tags": ["code"],
-        "summary": "Run bounded read-only Cypher",
+        "tags": ["code"], "summary": "Run bounded read-only Cypher",
         "description": "Diagnostics-only graph query endpoint. Prefer purpose-built code, service, and impact routes for prompt contracts. Queries are read-only, timeout-bound, and server-capped.",
         "operationId": "runReadOnlyCypher",
         "requestBody": {

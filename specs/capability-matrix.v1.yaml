@@ -96,6 +96,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: parser-derived metric; graph sidecar unused}
       local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 1500, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: parser-derived metric}
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 2000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-complexity}], notes: parser-derived metric}
+  - capability: security.hardcoded_secrets
+    tools: [investigate_hardcoded_secrets]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1200, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded content-index secret candidate investigation with redacted findings}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1200, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded content-index secret candidate investigation; graph sidecar unused}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 1800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded content-index secret candidate investigation with deterministic ordering and truncation}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 2500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-hardcoded-secrets}], notes: bounded redacted secret candidate investigation; use citations only for exact redacted context}
   - capability: call_graph.direct_callers
     tools: [analyze_code_relationships]
     profiles:

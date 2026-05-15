@@ -15,6 +15,7 @@ a clear drilldown path when more data is available.
 | `analyze_code_relationships` | exact target plus relationship query type; callers/callees/importers route through relationship story | `limit`, `offset`, and `max_depth` for transitive aliases | yes | compatibility prompt alias for relationship-story and call-chain routes; class hierarchy/overrides remain tracked by #291 |
 | `find_dead_code` | repository selector optional; authoritative profile required | `limit` | yes | prompt-ready for bounded candidate scans |
 | `investigate_dead_code` | repository selector optional; authoritative profile required; reports coverage and language maturity | `limit` and `offset` | yes | prompt-ready investigation packet; JavaScript/TypeScript candidates stay ambiguous until corpus precision is proven |
+| `investigate_hardcoded_secrets` | repository selector and language optional; finding kind filters optional | `limit` and `offset` | yes | prompt-ready redacted security investigation packet; returns suppression notes, source handles, and truncation coverage without raw secret values |
 | `find_dead_iac` | repository selector required or explicit broader scan | `limit` | yes | prompt-ready for bounded IaC candidate scans |
 | `find_unmanaged_resources` | repository selector optional; authoritative profile required | `limit` | yes | prompt-ready for bounded IaC management scans |
 | `calculate_cyclomatic_complexity` | entity id, function name, or repository selector | singleton or `limit` | yes | prompt-ready; list calls return `truncated` |

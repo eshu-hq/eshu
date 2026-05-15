@@ -90,6 +90,7 @@ func codebaseTools() []ToolDefinition {
 			},
 		},
 		codeTopicInvestigationTool(),
+		securityInvestigationTool(),
 		{
 			Name:        "get_code_relationship_story",
 			Description: "Get a bounded relationship story for one resolved code symbol, including ambiguity candidates, direct callers/callees/imports, optional transitive CALLS traversal, truncation, and source handles.",
