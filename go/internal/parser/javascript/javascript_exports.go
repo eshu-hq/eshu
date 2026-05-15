@@ -209,7 +209,7 @@ func javaScriptExportSpecifierWithoutBlockComments(raw string) string {
 		if i+1 < len(raw) && raw[i] == '/' && raw[i+1] == '*' {
 			cleaned.WriteByte(' ')
 			i += 2
-			for i+1 < len(raw) && !(raw[i] == '*' && raw[i+1] == '/') {
+			for i+1 < len(raw) && (raw[i] != '*' || raw[i+1] != '/') {
 				i++
 			}
 			if i+1 >= len(raw) {
