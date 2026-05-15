@@ -6,6 +6,8 @@ When you ask a question in natural language, the AI selects one of these tools b
 
 For the bounded-call, envelope, pagination, and diagnostics-only contract for
 each tool, see the [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md).
+For the current prompt-family audit and remaining prompt coverage gaps, see
+the [MCP Prompt Surface Audit](mcp-prompt-surface-audit.md).
 
 For documentation-oriented answers, use a simple orchestration rule:
 

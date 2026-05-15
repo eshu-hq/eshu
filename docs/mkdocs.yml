@@ -52,6 +52,7 @@ nav:
     - MCP Guide: guides/mcp-guide.md
     - MCP Reference: reference/mcp-reference.md
     - MCP Tool Contract Matrix: reference/mcp-tool-contract-matrix.md
+    - MCP Prompt Surface Audit: reference/mcp-prompt-surface-audit.md
     - MCP Cookbook: reference/mcp-cookbook.md
   - Deploy to Kubernetes:
     - Overview: deploy/kubernetes/index.md
