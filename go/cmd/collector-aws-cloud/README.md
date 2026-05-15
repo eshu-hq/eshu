@@ -68,6 +68,9 @@ Instance configuration uses:
 
 `local_workload_identity` is also valid and uses the local AWS SDK credential
 chain. Static credential fields are rejected during config parsing.
+`central_assume_role` requires an external ID, and the role ARN's account must
+match the target `account_id`. `local_workload_identity` must not set
+`role_arn` or `external_id`.
 
 ## Dependencies
 
@@ -102,8 +105,12 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
 
 - The command never accepts static access-key fields in collector instance
   configuration.
-- `central_assume_role` must include `role_arn`; `external_id` is passed to STS
-  when configured.
+- `central_assume_role` must include `role_arn` and `external_id`; the role ARN
+  account must match the target `account_id`.
+- `local_workload_identity` rejects `role_arn` and `external_id` so local and
+  central credential routing cannot be mixed.
+- Wildcard regions or services are rejected; `allowed_services` must name a
+  shipped AWS scanner family.
 - AWS SDK configuration and service pagination live under `awsruntime` and
   service `awssdk` adapters; command tests should not mock the full AWS SDK
   surface.

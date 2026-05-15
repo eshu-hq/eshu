@@ -19,7 +19,10 @@
 - Authorize `(account_id, region, service_kind)` before acquiring credentials.
 - Keep static AWS credentials out of this package and out of tests.
 - Preserve `aws.RetryModeAdaptive` on every loaded AWS SDK config.
-- Pass STS external ID when configured.
+- Pass the command-validated STS external ID for central AssumeRole targets.
+- Keep the command-side credential guard intact: central scopes require a
+  same-account role ARN and external ID, while local workload identity scopes
+  reject AssumeRole routing fields.
 - Preserve claim fencing by copying `CurrentFencingToken` into every AWS
   boundary and warning fact.
 - Expire pagination checkpoints for prior generations before building service

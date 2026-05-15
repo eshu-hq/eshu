@@ -167,46 +167,172 @@ func mapTargetScope(target awsTargetScopeConfiguration) (awsruntime.TargetScope,
 	if accountID == "" {
 		return awsruntime.TargetScope{}, fmt.Errorf("account_id is required")
 	}
-	if len(target.AllowedRegions) == 0 {
-		return awsruntime.TargetScope{}, fmt.Errorf("allowed_regions is required")
+	if !isAWSAccountID(accountID) {
+		return awsruntime.TargetScope{}, fmt.Errorf("account_id must be a 12 digit AWS account ID")
 	}
-	if len(target.AllowedServices) == 0 {
-		return awsruntime.TargetScope{}, fmt.Errorf("allowed_services is required")
+	allowedRegions, err := validateAllowedRegions(target.AllowedRegions)
+	if err != nil {
+		return awsruntime.TargetScope{}, err
 	}
-	credentials, err := mapCredentialConfig(target.Credentials)
+	allowedServices, err := validateAllowedServices(target.AllowedServices)
+	if err != nil {
+		return awsruntime.TargetScope{}, err
+	}
+	if target.MaxConcurrentClaims < 0 {
+		return awsruntime.TargetScope{}, fmt.Errorf("max_concurrent_claims must be zero or positive")
+	}
+	credentials, err := mapCredentialConfig(target.Credentials, accountID)
 	if err != nil {
 		return awsruntime.TargetScope{}, err
 	}
 	return awsruntime.TargetScope{
 		AccountID:           accountID,
-		AllowedRegions:      trimStrings(target.AllowedRegions),
-		AllowedServices:     trimStrings(target.AllowedServices),
+		AllowedRegions:      allowedRegions,
+		AllowedServices:     allowedServices,
 		MaxConcurrentClaims: target.MaxConcurrentClaims,
 		Credentials:         credentials,
 	}, nil
 }
 
-func mapCredentialConfig(config awsCredentialConfiguration) (awsruntime.CredentialConfig, error) {
+func mapCredentialConfig(
+	config awsCredentialConfiguration,
+	accountID string,
+) (awsruntime.CredentialConfig, error) {
 	if strings.TrimSpace(config.AccessKeyID) != "" ||
 		strings.TrimSpace(config.SecretAccessKey) != "" ||
 		strings.TrimSpace(config.SessionToken) != "" {
 		return awsruntime.CredentialConfig{}, fmt.Errorf("static AWS credential fields are not allowed")
 	}
 	mode := awsruntime.CredentialMode(strings.TrimSpace(config.Mode))
+	roleARN := strings.TrimSpace(config.RoleARN)
+	externalID := strings.TrimSpace(config.ExternalID)
 	switch mode {
 	case awsruntime.CredentialModeCentralAssumeRole:
-		if strings.TrimSpace(config.RoleARN) == "" {
+		if roleARN == "" {
 			return awsruntime.CredentialConfig{}, fmt.Errorf("central_assume_role credentials require role_arn")
 		}
+		roleAccountID, err := accountIDFromIAMRoleARN(roleARN)
+		if err != nil {
+			return awsruntime.CredentialConfig{}, err
+		}
+		if roleAccountID != accountID {
+			return awsruntime.CredentialConfig{}, fmt.Errorf("central_assume_role role_arn account %q must match account_id %q", roleAccountID, accountID)
+		}
+		if externalID == "" {
+			return awsruntime.CredentialConfig{}, fmt.Errorf("central_assume_role credentials require external_id")
+		}
 	case awsruntime.CredentialModeLocalWorkloadIdentity:
+		if roleARN != "" || externalID != "" {
+			return awsruntime.CredentialConfig{}, fmt.Errorf("local_workload_identity credentials must not set role_arn or external_id")
+		}
 	default:
 		return awsruntime.CredentialConfig{}, fmt.Errorf("unsupported AWS credential mode %q", config.Mode)
 	}
 	return awsruntime.CredentialConfig{
 		Mode:       mode,
-		RoleARN:    strings.TrimSpace(config.RoleARN),
-		ExternalID: strings.TrimSpace(config.ExternalID),
+		RoleARN:    roleARN,
+		ExternalID: externalID,
 	}, nil
+}
+
+func validateAllowedRegions(values []string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, fmt.Errorf("allowed_regions is required")
+	}
+	regions := make([]string, 0, len(values))
+	for _, value := range values {
+		region := strings.TrimSpace(value)
+		switch region {
+		case "":
+			return nil, fmt.Errorf("allowed_regions must not contain empty entries")
+		case "*":
+			return nil, fmt.Errorf("allowed_regions must not contain wildcard entries")
+		default:
+			regions = append(regions, region)
+		}
+	}
+	return regions, nil
+}
+
+// validateAllowedServices rejects broad or unknown scanner names before any
+// workflow claim can acquire AWS credentials.
+func validateAllowedServices(values []string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, fmt.Errorf("allowed_services is required")
+	}
+	services := make([]string, 0, len(values))
+	for _, value := range values {
+		service := strings.TrimSpace(value)
+		switch {
+		case service == "":
+			return nil, fmt.Errorf("allowed_services must not contain empty entries")
+		case service == "*":
+			return nil, fmt.Errorf("allowed_services must not contain wildcard entries")
+		case !isSupportedAWSService(service):
+			return nil, fmt.Errorf("unsupported allowed service %q", service)
+		default:
+			services = append(services, service)
+		}
+	}
+	return services, nil
+}
+
+// isSupportedAWSService mirrors the production scanner registry at the config
+// boundary so unsafe target scopes fail during startup instead of at claim time.
+func isSupportedAWSService(service string) bool {
+	switch service {
+	case awscloud.ServiceIAM,
+		awscloud.ServiceECR,
+		awscloud.ServiceECS,
+		awscloud.ServiceEC2,
+		awscloud.ServiceELBv2,
+		awscloud.ServiceRoute53,
+		awscloud.ServiceLambda,
+		awscloud.ServiceEKS,
+		awscloud.ServiceSQS,
+		awscloud.ServiceSNS,
+		awscloud.ServiceEventBridge,
+		awscloud.ServiceS3,
+		awscloud.ServiceRDS,
+		awscloud.ServiceDynamoDB,
+		awscloud.ServiceCloudWatchLogs,
+		awscloud.ServiceCloudFront,
+		awscloud.ServiceAPIGateway,
+		awscloud.ServiceSecretsManager,
+		awscloud.ServiceSSM:
+		return true
+	default:
+		return false
+	}
+}
+
+// accountIDFromIAMRoleARN extracts the account segment from a role ARN and
+// rejects non-role ARNs so target scopes cannot point at a different account.
+func accountIDFromIAMRoleARN(roleARN string) (string, error) {
+	parts := strings.SplitN(strings.TrimSpace(roleARN), ":", 6)
+	if len(parts) != 6 ||
+		parts[0] != "arn" ||
+		strings.TrimSpace(parts[1]) == "" ||
+		parts[2] != "iam" ||
+		parts[3] != "" ||
+		!isAWSAccountID(parts[4]) ||
+		!strings.HasPrefix(parts[5], "role/") ||
+		strings.TrimSpace(strings.TrimPrefix(parts[5], "role/")) == "" {
+		return "", fmt.Errorf("central_assume_role credentials require role_arn to be an IAM role ARN")
+	}
+	return parts[4], nil
+}
+
+func isAWSAccountID(value string) bool {
+	if len(value) != 12 {
+		return false
+	}
+	for _, digit := range value {
+		if digit < '0' || digit > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func loadAWSRedactionKeyIfNeeded(
@@ -261,15 +387,4 @@ func ownerID(getenv func(string) string) string {
 		}
 	}
 	return "collector-aws-cloud"
-}
-
-func trimStrings(values []string) []string {
-	trimmed := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			trimmed = append(trimmed, value)
-		}
-	}
-	return trimmed
 }

@@ -179,6 +179,17 @@ app.kubernetes.io/component: package-registry-collector
 {{- end -}}
 {{- end -}}
 
+{{- define "eshu.awsCloudCollectorServiceAccountName" -}}
+{{- $serviceAccount := default dict .Values.awsCloudCollector.serviceAccount -}}
+{{- if $serviceAccount.name -}}
+{{- $serviceAccount.name -}}
+{{- else if $serviceAccount.create -}}
+{{- include "eshu.awsCloudCollectorFullname" . -}}
+{{- else -}}
+{{- include "eshu.serviceAccountName" . -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "eshu.dataClaimName" -}}
 {{- if .Values.ingester.persistence.existingClaim -}}
 {{- .Values.ingester.persistence.existingClaim -}}

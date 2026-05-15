@@ -149,6 +149,64 @@ ociRegistryCollector:
 	requireHelmManifest(t, manifests, "ServiceMonitor", "eshu-oci-registry-collector-metrics")
 }
 
+func TestHelmAWSCloudCollectorUsesDedicatedServiceAccount(t *testing.T) {
+	t.Parallel()
+
+	valuesPath := filepath.Join(t.TempDir(), "aws-values.yaml")
+	values := []byte(`
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-shared
+contentStore:
+  dsn: postgresql://eshu:secret@postgres:5432/eshu
+neo4j:
+  auth:
+    secretName: ""
+awsCloudCollector:
+  enabled: true
+  instanceId: aws-primary
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-collector
+  collectorInstances:
+    - instance_id: aws-primary
+      collector_kind: aws
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        target_scopes:
+          - account_id: "123456789012"
+            allowed_regions: [us-east-1]
+            allowed_services: [iam]
+            credentials:
+              mode: local_workload_identity
+`)
+	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+		t.Fatalf("write AWS collector values: %v", err)
+	}
+
+	manifests := renderHelmChart(t, "-f", valuesPath)
+	deployment := requireHelmManifest(t, manifests, "Deployment", "eshu-aws-cloud-collector")
+	podSpec := helmPodSpec(t, deployment)
+	if got, want := helmString(podSpec["serviceAccountName"]), "eshu-aws-cloud-collector"; got != want {
+		t.Fatalf("aws collector serviceAccountName = %q, want %q", got, want)
+	}
+
+	awsServiceAccount := requireHelmManifest(t, manifests, "ServiceAccount", "eshu-aws-cloud-collector")
+	awsAnnotations := helmMap(helmMap(awsServiceAccount["metadata"])["annotations"])
+	if got, want := helmString(awsAnnotations["eks.amazonaws.com/role-arn"]), "arn:aws:iam::123456789012:role/eshu-aws-collector"; got != want {
+		t.Fatalf("AWS collector IRSA annotation = %q, want %q", got, want)
+	}
+
+	sharedServiceAccount := requireHelmManifest(t, manifests, "ServiceAccount", "eshu")
+	sharedAnnotations := helmMap(helmMap(sharedServiceAccount["metadata"])["annotations"])
+	if got, want := helmString(sharedAnnotations["eks.amazonaws.com/role-arn"]), "arn:aws:iam::123456789012:role/eshu-shared"; got != want {
+		t.Fatalf("shared IRSA annotation = %q, want %q", got, want)
+	}
+}
+
 func renderHelmChart(t *testing.T, args ...string) []helmManifest {
 	t.Helper()
 
