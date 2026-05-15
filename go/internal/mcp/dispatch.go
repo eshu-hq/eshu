@@ -127,6 +127,14 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":         intOr(args, "limit", 25),
 			"offset":        intOr(args, "offset", 0),
 		}}, nil
+	case "inspect_call_graph_metrics":
+		return &route{method: "POST", path: "/api/v0/code/call-graph/metrics", body: map[string]any{
+			"metric_type": str(args, "metric_type"),
+			"repo_id":     str(args, "repo_id"),
+			"language":    str(args, "language"),
+			"limit":       intOr(args, "limit", 25),
+			"offset":      intOr(args, "offset", 0),
+		}}, nil
 	case "investigate_code_topic":
 		return &route{method: "POST", path: "/api/v0/code/topics/investigate", body: map[string]any{
 			"topic":    str(args, "topic"),

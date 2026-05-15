@@ -272,6 +272,11 @@ and cross-module calls. `POST /api/v0/code/imports/investigate` requires a
 repository, file, or module scope anchor before expanding relationships,
 returns deterministic `limit+1` pages with `truncated` and `next_offset`, and
 includes source handles for follow-up file reads.
+Call graph metrics use the graph as the first-call read model for recursive
+function and hub-function prompts. `POST /api/v0/code/call-graph/metrics`
+requires a repository scope before expanding `CALLS`, returns deterministic
+`limit+1` pages with `truncated` and `next_offset`, and includes source handles,
+hub call-degree counts, and recursion evidence for follow-up file reads.
 The OpenAPI fragments for `POST /api/v0/code/dead-code` and
 `POST /api/v0/code/dead-code/investigate` name modeled language roots such as
 Go public-package exports plus C, C#, Dart, Haskell, Kotlin, Elixir, PHP, and
@@ -304,9 +309,9 @@ normalized to `c_sharp` before candidate scanning.
 - `RepositoryHandler` — `GET /api/v0/repositories*` routes (`repository.go:21`)
 - `EntityHandler` — entity resolution, workload/service context routes, service dossier stories, and service investigation coverage (`entity.go:11`, `service_story_handler.go:9`, `service_investigation.go:17`)
 - `CodeHandler` — code search, symbol lookup, structural inventory, import
-  dependency investigation, relationships, relationship stories, redacted
-  hardcoded-secret investigation in `code_security_secrets.go`, dead-code,
-  complexity, call-chain (`code.go:11`)
+  dependency investigation, call graph metrics, relationships, relationship
+  stories, redacted hardcoded-secret investigation in `code_security_secrets.go`,
+  dead-code, complexity, call-chain (`code.go:11`)
 - `ContentHandler` — file and entity content reads (`content_handler.go:11`)
 - `InfraHandler` — infrastructure resource and relationship routes (`infra.go:12`)
   including Terraform backend, import, moved, removed, check, and lockfile

@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 60
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 61
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,11 +59,11 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 60 tools from the tool definition files.
+`ReadOnlyTools` assembles 61 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 25 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
+| `codebaseTools` | 26 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
@@ -77,6 +77,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `find_symbol` | POST | `/api/v0/code/symbols/search` |
 | `inspect_code_inventory` | POST | `/api/v0/code/structure/inventory` |
 | `investigate_import_dependencies` | POST | `/api/v0/code/imports/investigate` |
+| `inspect_call_graph_metrics` | POST | `/api/v0/code/call-graph/metrics` |
 | `investigate_code_topic` | POST | `/api/v0/code/topics/investigate` |
 | `investigate_hardcoded_secrets` | POST | `/api/v0/code/security/secrets/investigate` |
 | `investigate_dead_code` | POST | `/api/v0/code/dead-code/investigate` |
@@ -106,6 +107,11 @@ the HTTP handler. The handler rejects negative bounds and returns exactly one
 canonical row key for each `query_type`: `dependencies`, `modules`, `cycles`, or
 `cross_module_calls`.
 
+`inspect_call_graph_metrics` keeps MCP as transport for recursive and
+hub-function prompts. Dispatch forwards `repo_id`, `language`, `metric_type`,
+`limit`, and `offset` to the HTTP handler; the query layer owns graph bounds,
+truth metadata, source handles, and the canonical `functions` row key.
+
 `build_evidence_citation_packet` keeps MCP as transport only: dispatch forwards
 the caller's bounded handle array to the HTTP evidence route. The advertised
 schema caps input at 500 handles and the query handler hydrates at most 50
@@ -126,7 +132,7 @@ callers.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 60 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 61 tool definitions |
 
 ## SSE session model
 

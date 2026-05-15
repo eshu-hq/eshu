@@ -74,6 +74,12 @@
   bounds, query type validation, truth metadata, canonical row keys, and source
   handles.
 
+- **Call graph metrics tools** → keep `inspect_call_graph_metrics` as a thin
+  dispatch path to `POST /api/v0/code/call-graph/metrics`. Do not add
+  recursive or hub-function Cypher in MCP; the query handler owns repo scoping,
+  graph aggregation, truth metadata, canonical `functions` rows, source
+  handles, and truncation.
+
 - **Change an existing tool's argument mapping** → update `resolveRoute` in
   `dispatch.go`, update the matching `tools_*.go` `InputSchema`, and update or
   add a test in `dispatch_test.go`. Why: the `InputSchema` is the advertised
@@ -115,7 +121,7 @@
 - Symptom: service tool (`get_service_context`, `get_service_story`) returns
   404 from the internal handler → a qualified identifier like `workload:name`
   was not stripped; verify `PathEscape` receives the stripped value at
-  `dispatch.go:282`.
+  `dispatch.go:356`.
 
 - Symptom: `find_dead_iac` returns empty results with a Postgres-backed
   reachability store → the IaC reachability field may not be wired in
