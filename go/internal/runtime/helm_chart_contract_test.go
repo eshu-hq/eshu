@@ -207,6 +207,28 @@ awsCloudCollector:
 	}
 }
 
+func TestHelmAWSCloudCollectorOwnsServiceAccountDefaults(t *testing.T) {
+	t.Parallel()
+
+	valuesPath := filepath.Join(repositoryRoot(t), "deploy", "helm", "eshu", "values.yaml")
+	content, err := os.ReadFile(valuesPath)
+	if err != nil {
+		t.Fatalf("read values.yaml: %v", err)
+	}
+	var values map[string]any
+	if err := yaml.Unmarshal(content, &values); err != nil {
+		t.Fatalf("decode values.yaml: %v", err)
+	}
+	awsCollector := helmMap(values["awsCloudCollector"])
+	if _, ok := awsCollector["serviceAccount"]; !ok {
+		t.Fatal("awsCloudCollector.serviceAccount missing from values.yaml")
+	}
+	terraformStateCollector := helmMap(values["terraformStateCollector"])
+	if _, ok := terraformStateCollector["serviceAccount"]; ok {
+		t.Fatal("terraformStateCollector.serviceAccount is present, want AWS-only service account defaults")
+	}
+}
+
 func renderHelmChart(t *testing.T, args ...string) []helmManifest {
 	t.Helper()
 

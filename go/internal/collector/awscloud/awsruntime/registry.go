@@ -60,6 +60,46 @@ type DefaultScannerFactory struct {
 	RedactionKey redact.Key
 }
 
+var supportedServiceKinds = []string{
+	awscloud.ServiceECS,
+	awscloud.ServiceECR,
+	awscloud.ServiceEC2,
+	awscloud.ServiceEKS,
+	awscloud.ServiceELBv2,
+	awscloud.ServiceRoute53,
+	awscloud.ServiceSQS,
+	awscloud.ServiceSNS,
+	awscloud.ServiceEventBridge,
+	awscloud.ServiceS3,
+	awscloud.ServiceRDS,
+	awscloud.ServiceDynamoDB,
+	awscloud.ServiceCloudWatchLogs,
+	awscloud.ServiceCloudFront,
+	awscloud.ServiceAPIGateway,
+	awscloud.ServiceSecretsManager,
+	awscloud.ServiceSSM,
+	awscloud.ServiceIAM,
+	awscloud.ServiceLambda,
+}
+
+// SupportedServiceKinds returns the service_kind values backed by production
+// scanner adapters. Callers receive a copy so package registry state cannot be
+// mutated through config validation or tests.
+func SupportedServiceKinds() []string {
+	return append([]string(nil), supportedServiceKinds...)
+}
+
+// SupportsServiceKind reports whether service is backed by a production AWS
+// scanner adapter.
+func SupportsServiceKind(service string) bool {
+	for _, supported := range supportedServiceKinds {
+		if service == supported {
+			return true
+		}
+	}
+	return false
+}
+
 // Scanner implements ScannerFactory.
 func (f DefaultScannerFactory) Scanner(
 	_ context.Context,

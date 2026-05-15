@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 )
 
 func TestLoadRuntimeConfigRequiresCentralExternalID(t *testing.T) {
@@ -161,5 +163,21 @@ func TestLoadRuntimeConfigRejectsUnknownAllowedService(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unsupported allowed service") {
 		t.Fatalf("loadRuntimeConfig() error = %v, want unsupported allowed service", err)
+	}
+}
+
+func TestValidateAllowedServicesAcceptsRuntimeSupportedServices(t *testing.T) {
+	for _, service := range awsruntime.SupportedServiceKinds() {
+		t.Run(service, func(t *testing.T) {
+			t.Parallel()
+
+			services, err := validateAllowedServices([]string{service})
+			if err != nil {
+				t.Fatalf("validateAllowedServices(%q) error = %v", service, err)
+			}
+			if len(services) != 1 || services[0] != service {
+				t.Fatalf("validateAllowedServices(%q) = %#v, want same service", service, services)
+			}
+		})
 	}
 }

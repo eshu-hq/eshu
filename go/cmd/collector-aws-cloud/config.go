@@ -268,42 +268,13 @@ func validateAllowedServices(values []string) ([]string, error) {
 			return nil, fmt.Errorf("allowed_services must not contain empty entries")
 		case service == "*":
 			return nil, fmt.Errorf("allowed_services must not contain wildcard entries")
-		case !isSupportedAWSService(service):
+		case !awsruntime.SupportsServiceKind(service):
 			return nil, fmt.Errorf("unsupported allowed service %q", service)
 		default:
 			services = append(services, service)
 		}
 	}
 	return services, nil
-}
-
-// isSupportedAWSService mirrors the production scanner registry at the config
-// boundary so unsafe target scopes fail during startup instead of at claim time.
-func isSupportedAWSService(service string) bool {
-	switch service {
-	case awscloud.ServiceIAM,
-		awscloud.ServiceECR,
-		awscloud.ServiceECS,
-		awscloud.ServiceEC2,
-		awscloud.ServiceELBv2,
-		awscloud.ServiceRoute53,
-		awscloud.ServiceLambda,
-		awscloud.ServiceEKS,
-		awscloud.ServiceSQS,
-		awscloud.ServiceSNS,
-		awscloud.ServiceEventBridge,
-		awscloud.ServiceS3,
-		awscloud.ServiceRDS,
-		awscloud.ServiceDynamoDB,
-		awscloud.ServiceCloudWatchLogs,
-		awscloud.ServiceCloudFront,
-		awscloud.ServiceAPIGateway,
-		awscloud.ServiceSecretsManager,
-		awscloud.ServiceSSM:
-		return true
-	default:
-		return false
-	}
 }
 
 // accountIDFromIAMRoleARN extracts the account segment from a role ARN and

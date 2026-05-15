@@ -85,7 +85,10 @@
   claim tests, and implementing the provider here.
 - Add a new service scanner by adding a service constant in `awscloud`, scanner
   package tests, a service `awssdk` adapter, package docs, and a
-  `DefaultScannerFactory.Scanner` branch.
+  `DefaultScannerFactory.Scanner` branch. Also add the service to
+  `supportedServiceKinds`; command-side target-scope validation uses
+  `SupportsServiceKind` so startup acceptance stays aligned with the production
+  registry.
 - Change claim shape only with coordinator, workflow, and ADR updates in the
   same PR.
 
