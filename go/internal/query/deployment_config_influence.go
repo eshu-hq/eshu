@@ -441,7 +441,7 @@ func deploymentConfigLimitations(environment string, artifacts []map[string]any,
 func deploymentConfigNextCalls(readFirstFiles []map[string]any, serviceName string, environment string) []string {
 	calls := []string{"trace_deployment_chain(service_name: " + serviceName + ")"}
 	if environment != "" {
-		calls[0] = "trace_deployment_chain(service_name: " + serviceName + ", environment context: " + environment + ")"
+		calls = append(calls, "investigate_deployment_config(service_name: "+serviceName+", environment: "+environment+")")
 	}
 	if len(readFirstFiles) > 0 {
 		first := readFirstFiles[0]

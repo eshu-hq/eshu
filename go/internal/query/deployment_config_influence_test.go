@@ -1,6 +1,9 @@
 package query
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestBuildDeploymentConfigInfluenceResponseReturnsPromptReadyFiles(t *testing.T) {
 	t.Parallel()
@@ -108,5 +111,11 @@ func TestBuildDeploymentConfigInfluenceResponseReturnsPromptReadyFiles(t *testin
 	}
 	if got := StringSliceVal(resp, "recommended_next_calls"); len(got) == 0 {
 		t.Fatalf("recommended_next_calls is empty")
+	} else {
+		for _, call := range got {
+			if strings.Contains(call, "environment context:") {
+				t.Fatalf("recommended_next_calls contains non-contract field: %q", call)
+			}
+		}
 	}
 }

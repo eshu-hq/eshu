@@ -93,6 +93,18 @@ func TestDeploymentConfigInfluenceToolContract(t *testing.T) {
 			t.Fatalf("tool schema missing %q", key)
 		}
 	}
+	anyOf, ok := schema["anyOf"].([]map[string]any)
+	if !ok {
+		t.Fatalf("tool schema anyOf type = %T, want []map[string]any", schema["anyOf"])
+	}
+	if len(anyOf) != 2 {
+		t.Fatalf("tool schema anyOf length = %d, want 2", len(anyOf))
+	}
+	firstRequired := anyOf[0]["required"].([]string)
+	secondRequired := anyOf[1]["required"].([]string)
+	if firstRequired[0] != "service_name" || secondRequired[0] != "workload_id" {
+		t.Fatalf("tool schema anyOf required = %#v / %#v, want service_name / workload_id", firstRequired, secondRequired)
+	}
 	limit := properties["limit"].(map[string]any)
 	if got, want := limit["maximum"], 100; got != want {
 		t.Fatalf("limit maximum = %#v, want %#v", got, want)

@@ -44,6 +44,10 @@ func ecosystemTools() []ToolDefinition {
 			Description: "Return a bounded story of the files, repositories, values layers, image tag sources, runtime settings, resource limits, and rendered targets that influence a service deployment.",
 			InputSchema: map[string]any{
 				"type": "object",
+				"anyOf": []map[string]any{
+					{"required": []string{"service_name"}},
+					{"required": []string{"workload_id"}},
+				},
 				"properties": map[string]any{
 					"service_name": map[string]any{
 						"type":        "string",
