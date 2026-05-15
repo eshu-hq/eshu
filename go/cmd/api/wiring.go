@@ -216,8 +216,9 @@ func newRouter(
 			Profile: queryProfile,
 		},
 		PackageRegistry: &query.PackageRegistryHandler{
-			Neo4j:   neo4jReader,
-			Profile: queryProfile,
+			Neo4j:        neo4jReader,
+			Correlations: query.NewPostgresPackageRegistryCorrelationStore(db),
+			Profile:      queryProfile,
 		},
 		Status: &query.StatusHandler{
 			Neo4j:        neo4jReader,

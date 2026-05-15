@@ -178,4 +178,74 @@ const openAPIPathsPackageRegistry = `
         }
       }
     },
+    "/api/v0/package-registry/correlations": {
+      "get": {
+        "tags": ["package-registry"],
+        "summary": "List package registry correlations",
+        "description": "Lists reducer-owned package ownership candidates and manifest-backed consumption correlations. Requests must be anchored by package_id or repository_id and return provenance_only so source hints are not mistaken for ownership truth.",
+        "operationId": "listPackageRegistryCorrelations",
+        "parameters": [
+          {"name": "package_id", "in": "query", "schema": {"type": "string"}, "description": "Package.uid to anchor package ownership or consumption correlation lookup."},
+          {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Repository.id to anchor package ownership or consumption correlation lookup."},
+          {"name": "relationship_kind", "in": "query", "schema": {"type": "string", "enum": ["ownership", "consumption"]}, "description": "Optional relationship kind filter."},
+          {"name": "after_correlation_id", "in": "query", "schema": {"type": "string"}, "description": "Correlation ID from next_cursor when continuing a truncated page."},
+          {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Package registry ownership and consumption correlations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "correlations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "correlation_id": {"type": "string"},
+                          "relationship_kind": {"type": "string"},
+                          "package_id": {"type": "string"},
+                          "version_id": {"type": "string"},
+                          "ecosystem": {"type": "string"},
+                          "package_name": {"type": "string"},
+                          "repository_id": {"type": "string"},
+                          "repository_name": {"type": "string"},
+                          "source_url": {"type": "string"},
+                          "relative_path": {"type": "string"},
+                          "manifest_section": {"type": "string"},
+                          "dependency_range": {"type": "string"},
+                          "outcome": {"type": "string"},
+                          "reason": {"type": "string"},
+                          "provenance_only": {"type": "boolean"},
+                          "canonical_writes": {"type": "integer"},
+                          "evidence_fact_ids": {"type": "array", "items": {"type": "string"}}
+                        },
+                        "required": ["correlation_id", "relationship_kind", "package_id", "outcome", "provenance_only", "canonical_writes"]
+                      }
+                    },
+                    "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "next_cursor": {
+                      "type": "object",
+                      "properties": {
+                        "after_correlation_id": {"type": "string"}
+                      },
+                      "required": ["after_correlation_id"]
+                    }
+                  },
+                  "required": ["correlations", "count", "limit", "truncated"]
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
 `

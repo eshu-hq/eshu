@@ -14,13 +14,15 @@ const (
 	packageRegistryPackagesCapability     = "package_registry.packages.list"
 	packageRegistryVersionsCapability     = "package_registry.versions.list"
 	packageRegistryDependenciesCapability = "package_registry.dependencies.list"
+	packageRegistryCorrelationsCapability = "package_registry.correlations.list"
 	packageRegistryMaxLimit               = 200
 )
 
 // PackageRegistryHandler exposes graph-backed package registry identity reads.
 type PackageRegistryHandler struct {
-	Neo4j   GraphQuery
-	Profile QueryProfile
+	Neo4j        GraphQuery
+	Correlations PackageRegistryCorrelationStore
+	Profile      QueryProfile
 }
 
 // PackageRegistryPackageResult is one package identity materialized from
@@ -79,6 +81,7 @@ func (h *PackageRegistryHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/package-registry/packages", h.listPackages)
 	mux.HandleFunc("GET /api/v0/package-registry/versions", h.listVersions)
 	mux.HandleFunc("GET /api/v0/package-registry/dependencies", h.listDependencies)
+	mux.HandleFunc("GET /api/v0/package-registry/correlations", h.listCorrelations)
 }
 
 func (h *PackageRegistryHandler) profile() QueryProfile {

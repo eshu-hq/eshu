@@ -95,6 +95,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
 | `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |
 | `list_package_registry_dependencies` | GET | `/api/v0/package-registry/dependencies` |
+| `list_package_registry_correlations` | GET | `/api/v0/package-registry/correlations` |
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |

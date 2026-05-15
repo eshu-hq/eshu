@@ -49,6 +49,7 @@ a clear drilldown path when more data is available.
 | `list_package_registry_packages` | package id, ecosystem, or name filter | `limit` | yes | prompt-ready |
 | `list_package_registry_versions` | package id required | `limit` | yes | prompt-ready |
 | `list_package_registry_dependencies` | package id or version id required | `limit` default 50, optional cursor | yes | prompt-ready; returns `next_cursor` when truncated |
+| `list_package_registry_correlations` | package id or repository id required | `limit` default 50, optional cursor | yes | prompt-ready; separates ownership candidates from consumption truth |
 | `get_repo_story` | repository selector required | singleton story | yes | prompt-ready |
 | `get_repository_coverage` | repository selector required | singleton coverage | yes | prompt-ready |
 | `trace_resource_to_code` | resource id or selector required | `max_depth` and `limit` | yes | prompt-ready; returns `truncated` |

@@ -7,7 +7,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 63
+	expectedCount := 64
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -54,6 +54,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"list_package_registry_packages",
 		"list_package_registry_versions",
 		"list_package_registry_dependencies",
+		"list_package_registry_correlations",
 		"resolve_entity",
 		"get_file_content",
 		"list_ingesters",
@@ -75,7 +76,7 @@ func TestPackageRegistryDependencyToolLimitDefaultIsOptional(t *testing.T) {
 	t.Parallel()
 
 	tools := packageRegistryTools()
-	if got, want := len(tools), 1; got != want {
+	if got, want := len(tools), 2; got != want {
 		t.Fatalf("len(packageRegistryTools()) = %d, want %d", got, want)
 	}
 	schema, ok := tools[0].InputSchema.(map[string]any)

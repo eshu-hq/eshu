@@ -386,7 +386,27 @@ run both Neo4j and NornicDB conformance for the statement shape.
    with no package names, source URLs, or repository names in metric labels;
    existing reducer queue wait and execution metrics still expose stuck, slow,
    failed, and superseded `package_source_correlation` intents.
-6. **Query lane:** expose package publication and consumption evidence only
+   The package correlation sub-slice now persists
+   `reducer_package_ownership_correlation` facts for source-hint ownership
+   candidates with `provenance_only=true` and `canonical_writes=0`, and persists
+   `reducer_package_consumption_correlation` facts when package registry
+   identity matches a Git manifest dependency entity. The active manifest
+   dependency loader is bounded by the package identities in the reducer intent
+   and uses `fact_records_active_package_dependency_entity_idx`; the read model
+   uses `fact_records_package_correlations_lookup_idx` for package-anchored
+   reads and `fact_records_package_correlations_repository_lookup_idx` for
+   repository-anchored reads, and requires `package_id` or `repository_id`.
+   No-Regression Evidence: `go test ./internal/reducer
+   ./internal/storage/postgres -run
+   'TestPackage|TestBuildPackageConsumption|TestPostgresPackageCorrelation|TestBootstrapDefinitionsIncludePackageCorrelationFactIndexes'
+   -count=1` passes for ownership candidates, manifest-backed consumption,
+   writer idempotency shape, and the supporting Postgres indexes.
+   Observability Evidence: source-hint outcomes continue through
+   `eshu_dp_package_source_correlations_total{domain,outcome}`, and reducer
+   execution duration, queue wait, and execution-status metrics cover slow,
+   failed, retried, or superseded package correlation intents. No new metric
+   label carries package names, repository names, or source URLs.
+6. **Query lane:** expose package ownership and consumption evidence only
    after graph truth and query truth agree for repo, service, and package
    surfaces. The first query sub-slice exposes bounded package/package-version
    identity reads from the canonical graph and explicitly omits repository
@@ -417,6 +437,22 @@ run both Neo4j and NornicDB conformance for the statement shape.
    on `Neo4jReader.Run` reports the bounded Cypher execution, while reducer
    source-correlation counters continue to expose exact, derived, ambiguous,
    unresolved, stale, and rejected ownership-candidate outcomes.
+   The package correlation read sub-slice exposes
+   `GET /api/v0/package-registry/correlations` and
+   `list_package_registry_correlations` for bounded package ownership and
+   consumption answers. Requests require `limit` plus `package_id` or
+   `repository_id`, support `relationship_kind` and `after_correlation_id`, and
+   return `provenance_only` so callers can distinguish source-hint ownership
+   candidates from admitted manifest-backed consumption.
+   No-Regression Evidence: `go test ./internal/query ./internal/mcp -run
+   'TestPackageRegistryListCorrelations|TestCapabilityMatrix|TestReadOnlyTools|TestResolveRouteMapsPackageRegistry'
+   -count=1` passes for HTTP, capability matrix, MCP tool schema, and MCP route
+   mapping. The route fetches `limit+1`, returns `truncated`, and emits
+   `next_cursor.after_correlation_id`.
+   Observability Evidence: package correlation reads run through
+   `SpanQueryPackageRegistryCorrelations`; Postgres errors return through the
+   normal query error contract, and scoped `package_id`/`repository_id` filters
+   keep the read shape bounded before query execution.
 7. **Provider expansion lane:** add fixture-backed adapters for public ecosystem
    registries, then live-gated adapters for GitHub, GitLab, Google, Azure,
    Nexus, and CodeArtifact.

@@ -83,3 +83,44 @@ CREATE INDEX IF NOT EXISTS fact_records_documentation_packets_packet_idx
     )
     WHERE fact_kind = 'documentation_evidence_packet'
       AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_active_package_dependency_entity_idx
+    ON fact_records (
+        (payload->'entity_metadata'->>'package_manager'),
+        (payload->>'entity_name'),
+        observed_at ASC,
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'content_entity'
+      AND source_system = 'git'
+      AND payload->>'entity_type' = 'Variable'
+      AND payload->'entity_metadata'->>'config_kind' = 'dependency';
+
+CREATE INDEX IF NOT EXISTS fact_records_package_correlations_lookup_idx
+    ON fact_records (
+        (payload->>'package_id'),
+        (payload->>'repository_id'),
+        (payload->>'relationship_kind'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind IN (
+        'reducer_package_ownership_correlation',
+        'reducer_package_consumption_correlation'
+    )
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_package_correlations_repository_lookup_idx
+    ON fact_records (
+        (payload->>'repository_id'),
+        (payload->>'package_id'),
+        (payload->>'relationship_kind'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind IN (
+        'reducer_package_ownership_correlation',
+        'reducer_package_consumption_correlation'
+    )
+      AND is_tombstone = FALSE;

@@ -316,6 +316,9 @@ func buildReducerService(
 		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
 			DB: database,
 		},
+		PackageCorrelationWriter: reducer.PostgresPackageCorrelationWriter{
+			DB: database,
+		},
 	})
 	if err != nil {
 		return reducer.Service{}, err

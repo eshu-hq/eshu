@@ -185,6 +185,36 @@ func TestBootstrapDefinitionsIncludeDocumentationFactIndexes(t *testing.T) {
 	}
 }
 
+func TestBootstrapDefinitionsIncludePackageCorrelationFactIndexes(t *testing.T) {
+	t.Parallel()
+
+	var facts Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "fact_records" {
+			facts = def
+			break
+		}
+	}
+	if facts.Name == "" {
+		t.Fatal("fact_records definition missing")
+	}
+	for _, want := range []string{
+		"fact_records_active_package_dependency_entity_idx",
+		"(payload->'entity_metadata'->>'package_manager')",
+		"(payload->>'entity_name')",
+		"payload->'entity_metadata'->>'config_kind' = 'dependency'",
+		"fact_records_package_correlations_lookup_idx",
+		"fact_records_package_correlations_repository_lookup_idx",
+		"'reducer_package_ownership_correlation'",
+		"'reducer_package_consumption_correlation'",
+		"(payload->>'relationship_kind')",
+	} {
+		if !strings.Contains(facts.SQL, want) {
+			t.Fatalf("fact_records SQL missing %q", want)
+		}
+	}
+}
+
 func TestBootstrapDefinitionsIncludeFactContractColumns(t *testing.T) {
 	t.Parallel()
 
