@@ -77,8 +77,9 @@ correlation reads one row per active repository scope, not every fact row.
 `fact_records_active_package_dependency_entity_idx` to load only active Git
 manifest dependency entities for the ecosystem/name set in the current
 package-registry reducer intent. Package correlation reads use
-`fact_records_package_correlations_lookup_idx` so API and MCP callers must stay
-anchored by `package_id` or `repository_id`.
+`fact_records_package_correlations_lookup_idx` for package-scoped reads and
+`fact_records_package_correlations_repository_lookup_idx` for repository-scoped
+reads so API and MCP callers stay bounded by `package_id` or `repository_id`.
 
 `sanitizeJSONB` strips `\u0000` escape sequences and raw control bytes
 (`0x00–0x1F` except tab/newline/CR) from payloads before INSERT to prevent

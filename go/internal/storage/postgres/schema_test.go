@@ -204,6 +204,7 @@ func TestBootstrapDefinitionsIncludePackageCorrelationFactIndexes(t *testing.T) 
 		"(payload->>'entity_name')",
 		"payload->'entity_metadata'->>'config_kind' = 'dependency'",
 		"fact_records_package_correlations_lookup_idx",
+		"fact_records_package_correlations_repository_lookup_idx",
 		"'reducer_package_ownership_correlation'",
 		"'reducer_package_consumption_correlation'",
 		"(payload->>'relationship_kind')",

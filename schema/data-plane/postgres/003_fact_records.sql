@@ -110,3 +110,17 @@ CREATE INDEX IF NOT EXISTS fact_records_package_correlations_lookup_idx
         'reducer_package_consumption_correlation'
     )
       AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_package_correlations_repository_lookup_idx
+    ON fact_records (
+        (payload->>'repository_id'),
+        (payload->>'package_id'),
+        (payload->>'relationship_kind'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind IN (
+        'reducer_package_ownership_correlation',
+        'reducer_package_consumption_correlation'
+    )
+      AND is_tombstone = FALSE;

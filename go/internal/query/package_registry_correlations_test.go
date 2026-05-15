@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -113,5 +114,13 @@ func TestPackageRegistryListCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 	}
 	if got, want := resp.NextCursor["after_correlation_id"], "correlation-1"; got != want {
 		t.Fatalf("next_cursor.after_correlation_id = %q, want %q", got, want)
+	}
+}
+
+func TestPackageRegistryCorrelationQueryExcludesTombstones(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(listPackageRegistryCorrelationsQuery, "fact.is_tombstone = FALSE") {
+		t.Fatalf("listPackageRegistryCorrelationsQuery must exclude tombstone facts:\n%s", listPackageRegistryCorrelationsQuery)
 	}
 }

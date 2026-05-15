@@ -128,6 +128,7 @@ JOIN scope_generations AS generation
   ON generation.scope_id = fact.scope_id
  AND generation.generation_id = fact.generation_id
 WHERE fact.fact_kind = ANY($1::text[])
+  AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
   AND ($2 = '' OR fact.payload->>'package_id' = $2)
   AND ($3 = '' OR fact.payload->>'repository_id' = $3)
