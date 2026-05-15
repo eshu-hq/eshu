@@ -8,7 +8,7 @@ describe("DeploymentGraphView", () => {
       links: [
         {
           detail: "iac-eks-argocd owns the ApplicationSet source evidence.",
-          label: "deploys from",
+          label: "DEPLOYS_FROM",
           source: "source:iac-eks-argocd",
           target: "evidence:argocd:iac-eks-argocd"
         },
@@ -49,6 +49,8 @@ describe("DeploymentGraphView", () => {
     const graphImage = screen.getByRole("img", { name: "Deployment evidence graph" });
     expect(within(graphImage).getByText("ArgoCD")).toBeInTheDocument();
     expect(within(graphImage).getByText("ApplicationSet")).toBeInTheDocument();
+    expect(within(graphImage).getByText("DEPLOYS_FROM", { selector: "text" }))
+      .toBeInTheDocument();
     expect(screen.queryByText(/\.\.\./)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /ArgoCD ApplicationSet evidence/i }));
@@ -58,7 +60,7 @@ describe("DeploymentGraphView", () => {
     ).toBeInTheDocument();
 
     fireEvent.click(
-      within(graphImage).getByRole("button", { name: /inspect deploys from relationship/i })
+      within(graphImage).getByRole("button", { name: /inspect DEPLOYS_FROM relationship/i })
     );
 
     expect(screen.getByText("Selected relationship")).toBeInTheDocument();
@@ -67,5 +69,101 @@ describe("DeploymentGraphView", () => {
     expect(
       screen.getByText("iac-eks-argocd owns the ApplicationSet source evidence.")
     ).toBeInTheDocument();
+  });
+
+  it("gives dense evidence graphs first-class canvas controls and spacing", () => {
+    const graph: DeploymentGraph = {
+      links: [
+        {
+          label: "deploys from",
+          source: "source:helm-charts",
+          target: "evidence:helm"
+        },
+        {
+          label: "targets",
+          source: "evidence:helm",
+          target: "environment:bg-qa"
+        },
+        {
+          label: "configures",
+          source: "environment:bg-qa",
+          target: "target:service"
+        }
+      ],
+      nodes: [
+        {
+          column: 0,
+          id: "source:helm-charts",
+          kind: "repository",
+          label: "helm-charts",
+          lane: "helm"
+        },
+        {
+          column: 1,
+          id: "evidence:helm",
+          kind: "evidence",
+          label: "Helm chart/values",
+          lane: "helm"
+        },
+        {
+          column: 2,
+          id: "environment:bg-qa",
+          kind: "environment",
+          label: "bg-qa",
+          lane: "helm"
+        },
+        {
+          column: 0,
+          id: "source:terraform-stack-node10",
+          kind: "repository",
+          label: "terraform-stack-node10",
+          lane: "terraform-node10"
+        },
+        {
+          column: 1,
+          id: "evidence:terraform-node10",
+          kind: "evidence",
+          label: "Terraform ECS",
+          lane: "terraform-node10"
+        },
+        {
+          column: 0,
+          id: "source:terraform-stack-myboats",
+          kind: "repository",
+          label: "terraform-stack-myboats",
+          lane: "terraform-myboats"
+        },
+        {
+          column: 1,
+          id: "evidence:terraform-myboats",
+          kind: "evidence",
+          label: "Terraform ECS",
+          lane: "terraform-myboats"
+        },
+        {
+          column: 3,
+          id: "target:service",
+          kind: "service",
+          label: "repository service",
+          lane: "service"
+        }
+      ]
+    };
+
+    render(<DeploymentGraphView graph={graph} />);
+
+    const graphImage = screen.getByRole("img", { name: "Deployment evidence graph" });
+    expect(graphImage).toHaveAttribute("viewBox", "0 0 1280 620");
+    expect(screen.getByRole("button", { name: "Expand evidence graph widget" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zoom in evidence graph" })).toBeInTheDocument();
+    expect(screen.getByText("8 nodes")).toBeInTheDocument();
+    expect(screen.getByText("3 relationships")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in evidence graph" }));
+
+    expect(screen.getByTestId("deployment-graph-viewport")).toHaveAttribute(
+      "transform",
+      "translate(0 0) scale(1.2)"
+    );
   });
 });

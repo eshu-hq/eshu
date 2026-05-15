@@ -32,25 +32,9 @@ describe("ServiceSpotlightPanel", () => {
     expect(screen.getByText("25 references")).toBeInTheDocument();
     expect(screen.getByText("17 typed dependents")).toBeInTheDocument();
     expect(screen.getAllByText(/Dual deployment/i).length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: "Investigation coverage" })).toBeInTheDocument();
-    expect(screen.getByText("Partial")).toBeInTheDocument();
-    expect(screen.getByText("26 with evidence of 26 checked")).toBeInTheDocument();
-    expect(screen.getAllByText("API Surface").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("38 endpoint(s) across 0 spec file(s)").length).toBeGreaterThan(0);
-    expect(screen.getByText("Service story")).toBeInTheDocument();
-    expect(screen.getAllByText("retrieve the full one-call dossier").length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: "Traffic path" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "api-node-boats traffic path" })).toBeInTheDocument();
-    expect(screen.getAllByText("CloudFront distribution").length).toBeGreaterThan(1);
-    expect(screen.getAllByText("origin-alb-primary").length).toBeGreaterThan(1);
-    expect(screen.getAllByText("prod").length).toBeGreaterThan(1);
-    expect(screen.getByText("CloudFront distribution E123")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Configuration influence" })).toBeInTheDocument();
-    expect(screen.getByText("image.tag")).toBeInTheDocument();
-    expect(screen.getByText("resources.limits.cpu")).toBeInTheDocument();
-    expect(screen.getAllByText("iac-eks-argocd").length).toBeGreaterThan(1);
-    expect(screen.getAllByText(/clusters\/bg-prod\/api-node-boats\/values.yaml/).length).toBeGreaterThan(0);
-    expect(screen.getByText("get_file_lines from line 17")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Traffic path" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Investigation coverage" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "API endpoints" })).not.toBeInTheDocument();
 
     const relationshipMap = screen.getByRole("img", { name: "api-node-boats relationship map" });
     expect(within(relationshipMap).getByText("api-node-boats")).toBeInTheDocument();
@@ -66,17 +50,48 @@ describe("ServiceSpotlightPanel", () => {
     expect(within(relationshipMap).getByText("iac-eks-argocd")).toBeInTheDocument();
     expect(within(relationshipMap).queryByText("terraform-stack-boattrader")).not.toBeInTheDocument();
 
-    const deploymentSources = screen.getByRole("region", { name: "Deployment sources" });
-    expect(within(deploymentSources).getByRole("heading", { name: "Deployment sources" })).toBeInTheDocument();
-    expect(within(deploymentSources).queryByText("READS_CONFIG_FROM")).not.toBeInTheDocument();
-    expect(within(deploymentSources).queryByText("terraform-stack-boattrader")).not.toBeInTheDocument();
-
     fireEvent.click(screen.getByRole("button", { name: "Config dependencies" }));
 
     const configRelationshipMap = screen.getByRole("img", { name: "api-node-boats relationship map" });
     expect(within(configRelationshipMap).getByText("terraform-stack-boattrader")).toBeInTheDocument();
     expect(within(configRelationshipMap).getAllByText("READS_CONFIG_FROM").length).toBeGreaterThan(0);
     expect(within(configRelationshipMap).queryByText("iac-eks-argocd")).not.toBeInTheDocument();
+
+    expect(screen.queryByRole("heading", { name: "Repos that mention it" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Impact review" }));
+
+    expect(screen.getByRole("heading", { name: "Investigation coverage" })).toBeInTheDocument();
+    expect(screen.getByText("Partial")).toBeInTheDocument();
+    expect(screen.getByText("26 with evidence of 26 checked")).toBeInTheDocument();
+    expect(screen.getAllByText("API Surface").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("38 endpoint(s) across 0 spec file(s)").length).toBeGreaterThan(0);
+    expect(screen.getByText("Service story")).toBeInTheDocument();
+    expect(screen.getAllByText("retrieve the full one-call dossier").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Impact review" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Traffic and config" }));
+
+    expect(screen.getByRole("heading", { name: "Traffic path" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "api-node-boats traffic path" })).toBeInTheDocument();
+    expect(screen.getAllByText("api-node-boats.prod.bgrp.io").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("CloudFront distribution").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("origin-alb-primary").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("prod").length).toBeGreaterThan(1);
+    expect(screen.getByText("CloudFront distribution E123")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Configuration influence" })).toBeInTheDocument();
+    expect(screen.getByText("image.tag")).toBeInTheDocument();
+    expect(screen.getByText("resources.limits.cpu")).toBeInTheDocument();
+    expect(screen.getAllByText("iac-eks-argocd").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/clusters\/bg-prod\/api-node-boats\/values.yaml/).length).toBeGreaterThan(0);
+    expect(screen.getByText("get_file_lines from line 17")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "API and relationships" }));
+
+    const deploymentSources = screen.getByRole("region", { name: "Deployment sources" });
+    expect(within(deploymentSources).getByRole("heading", { name: "Deployment sources" })).toBeInTheDocument();
+    expect(within(deploymentSources).queryByText("READS_CONFIG_FROM")).not.toBeInTheDocument();
+    expect(within(deploymentSources).queryByText("terraform-stack-boattrader")).not.toBeInTheDocument();
 
     const dependencyGraph = screen.getByRole("region", { name: "Config and dependency graph" });
     expect(within(dependencyGraph).getByRole("heading", { name: "Config and dependency graph" })).toBeInTheDocument();
@@ -85,14 +100,12 @@ describe("ServiceSpotlightPanel", () => {
     expect(within(dependencyGraph).getAllByText("Terraform resource").length).toBeGreaterThan(0);
     expect(within(dependencyGraph).getByText("READS_CONFIG_FROM")).toBeInTheDocument();
     expect(within(dependencyGraph).getByText("terraform-stack-boattrader")).toBeInTheDocument();
-
-    expect(screen.getAllByText("ArgoCD").length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Repos that mention it" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Typed dependents" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Upstream relationships" })).toBeInTheDocument();
+    expect(screen.getAllByText("ArgoCD").length).toBeGreaterThan(0);
     expect(screen.getByText("25 observed")).toBeInTheDocument();
     expect(screen.getByText("17 observed")).toBeInTheDocument();
-    expect(screen.getAllByText("api-node-boats.prod.bgrp.io").length).toBeGreaterThan(1);
 
     const search = screen.getByRole("searchbox", { name: "Search API endpoints" });
     fireEvent.change(search, { target: { value: "listing" } });
@@ -216,6 +229,7 @@ describe("ServiceSpotlightPanel", () => {
     );
 
     render(<ServiceSpotlightPanel spotlight={spotlight} />);
+    fireEvent.click(screen.getByRole("button", { name: "Impact review" }));
 
     expect(await screen.findByRole("heading", { name: "Code paths Eshu found" })).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();

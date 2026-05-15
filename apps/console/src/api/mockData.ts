@@ -14,9 +14,38 @@ export interface EvidenceRow {
   readonly basis: string;
   readonly category?: string;
   readonly detailPath?: string;
+  readonly drilldown?: EvidenceDrilldown;
   readonly source: string;
   readonly summary: string;
   readonly title?: string;
+}
+
+export interface EvidenceDrilldown {
+  readonly metrics?: readonly EvidenceMetric[];
+  readonly summary?: string;
+  readonly table?: EvidenceTable;
+}
+
+export interface EvidenceMetric {
+  readonly detail?: string;
+  readonly label: string;
+  readonly value: string;
+}
+
+export interface EvidenceTable {
+  readonly ariaLabel: string;
+  readonly columns: readonly EvidenceTableColumn[];
+  readonly rows: readonly EvidenceTableRow[];
+}
+
+export interface EvidenceTableColumn {
+  readonly key: string;
+  readonly label: string;
+}
+
+export interface EvidenceTableRow {
+  readonly cells: Readonly<Record<string, string>>;
+  readonly id: string;
 }
 
 export interface DeploymentGraphNode {

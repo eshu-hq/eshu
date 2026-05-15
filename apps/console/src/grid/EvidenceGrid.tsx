@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { EvidenceRow } from "../api/mockData";
+import type { EvidenceDrilldown, EvidenceRow } from "../api/mockData";
 
 interface EvidenceGridProps {
   readonly rows: readonly EvidenceRow[];
@@ -25,6 +25,7 @@ export function EvidenceGrid({ rows }: EvidenceGridProps): React.JSX.Element {
         const isInspected = inspectedRow === key;
         return (
           <article
+            aria-label={`${row.title ?? row.source} evidence`}
             className={isInspected ? "evidence-row evidence-row-active" : "evidence-row"}
             key={key}
           >
@@ -57,14 +58,86 @@ export function EvidenceGrid({ rows }: EvidenceGridProps): React.JSX.Element {
               Inspect evidence
             </button>
             {isInspected ? (
-              <p className="evidence-row-detail">
-                Source {row.source} supports this claim through {row.basis}
-                {row.detailPath !== undefined ? ` at ${row.detailPath}` : ""}.
-              </p>
+              <EvidenceDrilldownPanel row={row} />
             ) : null}
           </article>
         );
       })}
+    </div>
+  );
+}
+
+function EvidenceDrilldownPanel({ row }: { readonly row: EvidenceRow }): React.JSX.Element {
+  if (row.drilldown === undefined) {
+    return (
+      <p className="evidence-row-detail">
+        Source {row.source} supports this claim through {row.basis}
+        {row.detailPath !== undefined ? ` at ${row.detailPath}` : ""}.
+      </p>
+    );
+  }
+
+  return (
+    <div className="evidence-row-detail evidence-drilldown">
+      {row.drilldown.summary !== undefined ? <p>{row.drilldown.summary}</p> : null}
+      <EvidenceMetrics drilldown={row.drilldown} />
+      <EvidenceTableView drilldown={row.drilldown} />
+    </div>
+  );
+}
+
+function EvidenceMetrics({
+  drilldown
+}: {
+  readonly drilldown: EvidenceDrilldown;
+}): React.JSX.Element | null {
+  if (drilldown.metrics === undefined || drilldown.metrics.length === 0) {
+    return null;
+  }
+  return (
+    <dl className="evidence-drilldown-metrics">
+      {drilldown.metrics.map((metric) => (
+        <div key={`${metric.label}:${metric.value}`}>
+          <dt>{metric.label}</dt>
+          <dd title={metric.detail}>{metric.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function EvidenceTableView({
+  drilldown
+}: {
+  readonly drilldown: EvidenceDrilldown;
+}): React.JSX.Element | null {
+  if (drilldown.table === undefined || drilldown.table.rows.length === 0) {
+    return null;
+  }
+  return (
+    <div className="evidence-drilldown-table-wrap">
+      <table aria-label={drilldown.table.ariaLabel} className="evidence-drilldown-table">
+        <thead>
+          <tr>
+            {drilldown.table.columns.map((column) => (
+              <th key={column.key} scope="col">
+                {column.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {drilldown.table.rows.map((tableRow) => (
+            <tr key={tableRow.id}>
+              {drilldown.table?.columns.map((column) => (
+                <td key={`${tableRow.id}:${column.key}`}>
+                  {tableRow.cells[column.key] ?? ""}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

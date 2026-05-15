@@ -75,8 +75,14 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.workspace-evidence-graph .deployment-graph-canvas,
 .workspace-evidence-graph .deployment-graph-svg {
-  min-height: 360px;
+  min-height: 620px;
+}
+
+.workspace-evidence-graph .deployment-graph-expanded .deployment-graph-canvas,
+.workspace-evidence-graph .deployment-graph-expanded .deployment-graph-svg {
+  min-height: min(78vh, 900px);
 }
 
 .workspace-evidence-graph .graph-detail {

@@ -74,7 +74,7 @@
   align-items: start;
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(0, 1fr) minmax(290px, 0.34fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .service-atlas-workbench-main {
@@ -88,8 +88,6 @@
   display: grid;
   gap: 14px;
   padding: 14px;
-  position: sticky;
-  top: 16px;
 }
 
 .service-evidence-rail-heading,

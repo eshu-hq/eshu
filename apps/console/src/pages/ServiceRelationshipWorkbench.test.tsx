@@ -14,8 +14,33 @@ describe("ServiceRelationshipWorkbench", () => {
       .toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reset view" }))
       .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zoom out" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Expand graph widget" }))
+      .toHaveAttribute("aria-pressed", "false");
 
     const deploymentGraph = screen.getByRole("img", { name: "api-node-boats relationship map" });
+    const workbench = screen.getByRole("region", { name: "Interactive relationship story" });
+    const mapStage = screen.getByTestId("relationship-map-stage");
+    const viewport = within(deploymentGraph).getByTestId("relationship-map-viewport");
+    expect(within(mapStage).getByRole("img", { name: "api-node-boats relationship map" }))
+      .toBeInTheDocument();
+    expect(within(mapStage).getByRole("complementary", { name: "Relationship inspector" }))
+      .toBeInTheDocument();
+    expect(viewport).toHaveAttribute("transform", "translate(0 0) scale(0.8)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(viewport).toHaveAttribute("transform", "translate(0 0) scale(1.05)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset view" }));
+    expect(viewport).toHaveAttribute("transform", "translate(0 0) scale(0.8)");
+
+    expect(workbench).not.toHaveClass("relationship-workbench-expanded");
+    fireEvent.click(screen.getByRole("button", { name: "Expand graph widget" }));
+    expect(workbench).toHaveClass("relationship-workbench-expanded");
+    expect(screen.getByRole("button", { name: "Collapse graph widget" }))
+      .toHaveAttribute("aria-pressed", "true");
+
     expect(within(deploymentGraph).getByText("api-node-boats")).toBeInTheDocument();
     expect(within(deploymentGraph).getByText("terraform-stack-node10")).toBeInTheDocument();
     expect(within(deploymentGraph).getByText("iac-eks-argocd")).toBeInTheDocument();
@@ -25,6 +50,23 @@ describe("ServiceRelationshipWorkbench", () => {
       name: /Inspect terraform-stack-node10 Terraform resource/i
     });
     expect(terraformNode).toHaveAttribute("data-draggable", "true");
+    fireEvent.click(terraformNode);
+
+    const terraformInspector = screen.getByRole("complementary", { name: "Relationship inspector" });
+    expect(within(terraformInspector).getByRole("tab", { name: "Summary" }))
+      .toHaveAttribute("aria-selected", "true");
+    expect(within(terraformInspector).getByText(/provisions runtime dependencies for api-node-boats/i))
+      .toBeInTheDocument();
+    expect(within(terraformInspector).queryByText(/PROVISIONS_DEPENDENCY_FOR/))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(within(terraformInspector).getByRole("tab", { name: "Facts" }));
+    expect(within(terraformInspector).getByText(/PROVISIONS_DEPENDENCY_FOR/)).toBeInTheDocument();
+    expect(within(terraformInspector).getByText(/READS_CONFIG_FROM/)).toBeInTheDocument();
+    expect(within(terraformInspector).getByText(/TERRAFORM_ECS_SERVICE/)).toBeInTheDocument();
+
+    fireEvent.click(within(terraformInspector).getByRole("tab", { name: "Evidence paths" }));
+    expect(within(terraformInspector).getByText("environments/bg-dev/ecs.tf")).toBeInTheDocument();
 
     fireEvent.click(
       within(deploymentGraph).getByRole("button", {
@@ -33,14 +75,30 @@ describe("ServiceRelationshipWorkbench", () => {
     );
 
     const inspector = screen.getByRole("complementary", { name: "Relationship inspector" });
+    const selectionSummary = screen.getByRole("status", { name: "Selected relationship" });
+    expect(within(selectionSummary).getByText("DEPLOYS_FROM")).toBeInTheDocument();
+    expect(within(selectionSummary).getByText(/iac-eks-argocd -> api-node-boats/i))
+      .toBeInTheDocument();
     expect(within(inspector).getByText("Selected relationship")).toBeInTheDocument();
+    expect(within(inspector).getByRole("tab", { name: "Summary" }))
+      .toHaveAttribute("aria-selected", "true");
     expect(within(inspector).getByText("DEPLOYS_FROM")).toBeInTheDocument();
+    expect(within(inspector).queryByText("ARGOCD_APPLICATIONSET_DEPLOY_SOURCE"))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(within(inspector).getByRole("tab", { name: "Facts" }));
+    expect(within(inspector).getByText("ARGOCD_APPLICATIONSET_DEPLOY_SOURCE"))
+      .toBeInTheDocument();
+
+    fireEvent.click(within(inspector).getByRole("tab", { name: "Evidence paths" }));
+    expect(within(inspector).getByText("applicationsets/api-node/kustomization.yaml"))
+      .toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Config dependencies" }));
 
     const configGraph = screen.getByRole("img", { name: "api-node-boats relationship map" });
     expect(within(configGraph).getByText("terraform-stack-boattrader")).toBeInTheDocument();
-    expect(within(configGraph).getByText("READS_CONFIG_FROM")).toBeInTheDocument();
+    expect(within(configGraph).getAllByText("READS_CONFIG_FROM").length).toBeGreaterThan(0);
     expect(within(configGraph).queryByText("iac-eks-argocd")).not.toBeInTheDocument();
   });
 });
@@ -144,6 +202,13 @@ const spotlight: ServiceSpotlight = {
       label: "Configuration access",
       relationshipTypes: ["READS_CONFIG_FROM"],
       repositories: [
+        {
+          evidenceKinds: ["TERRAFORM_IAM_PERMISSION"],
+          paths: ["environments/bg-dev/resources.tf"],
+          relationshipTypes: ["READS_CONFIG_FROM"],
+          repository: "terraform-stack-node10",
+          technology: "terraform"
+        },
         {
           evidenceKinds: ["TERRAFORM_IAM_PERMISSION"],
           paths: ["environments/bg-dev/resources.tf"],

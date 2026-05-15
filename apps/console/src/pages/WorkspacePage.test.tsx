@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
 import { WorkspacePage } from "./WorkspacePage";
@@ -57,7 +57,7 @@ describe("WorkspacePage", () => {
     expect(screen.getByText(/contains 41 indexed files/i)).toBeInTheDocument();
     expect(screen.getByText("exact")).toBeInTheDocument();
     expect(screen.getByText("fresh")).toBeInTheDocument();
-    expect(screen.getByText("Evidence graph")).toBeInTheDocument();
+    expect(screen.getByText("Deployment evidence map")).toBeInTheDocument();
     expect(screen.getByText(/Deployment relationships found/i)).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /cd-helm/i }).length).toBeGreaterThan(0);
     expect(screen.getByText("Evidence story")).toBeInTheDocument();
@@ -175,10 +175,11 @@ describe("WorkspacePage", () => {
     expect(screen.getAllByText(/38 endpoint/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Kubernetes/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/ECS/i).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "API and relationships" }));
     expect(screen.getAllByText("core-engineering-automation").length).toBeGreaterThan(0);
     expect(screen.getAllByText("terraform-stack-node10").length).toBeGreaterThan(0);
     expect(screen.getByText("/getListing")).toBeInTheDocument();
-    expect(screen.getByText(/Raw deployment evidence behind the service story/i)).toBeInTheDocument();
+    expect(screen.getByText(/Structured proof behind the service story/i)).toBeInTheDocument();
   });
 
   it("renders the same service dossier for a direct service workspace route", async () => {
@@ -191,6 +192,16 @@ describe("WorkspacePage", () => {
             service_name: "api-node-boats"
           },
           story: "Workload api-node-boats is defined in repository api-node-boats.",
+          story_sections: [
+            {
+              summary: "38 endpoint(s), 44 method(s), 1 spec file(s)",
+              title: "api"
+            },
+            {
+              summary: "25 consumer repo(s) observed from graph and content evidence",
+              title: "consumers"
+            }
+          ],
           api_surface: {
             endpoint_count: 38,
             endpoints: [
@@ -314,12 +325,26 @@ describe("WorkspacePage", () => {
       await screen.findByRole("heading", { level: 1, name: "api-node-boats" })
     ).toBeInTheDocument();
     expect(screen.queryByText("Files")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "API and relationships" }));
     expect(screen.getByRole("searchbox", { name: "Search API endpoints" })).toBeInTheDocument();
     expect(screen.getAllByText(/Dual deployment/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/ECS Terraform/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Kubernetes GitOps/i).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Traffic and config" }));
     expect(screen.getByText("api-node-boats.prod.bgrp.io")).toBeInTheDocument();
+    const fetchCallCountBeforeImpact = vi.mocked(globalThis.fetch).mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Impact review" }));
+    await waitFor(() =>
+      expect(vi.mocked(globalThis.fetch).mock.calls.length).toBeGreaterThan(fetchCallCountBeforeImpact)
+    );
     expect(screen.getByRole("heading", { name: "Investigation coverage" })).toBeInTheDocument();
+    const apiEvidence = screen.getByRole("article", { name: /api evidence/i });
+    fireEvent.click(within(apiEvidence).getByRole("button", { name: "Inspect evidence" }));
+    expect(within(apiEvidence).getByRole("table", { name: "API endpoint evidence" })).toBeInTheDocument();
+    expect(within(apiEvidence).getByText("/getListing")).toBeInTheDocument();
+    expect(within(apiEvidence).getAllByText("GET").length).toBeGreaterThan(0);
+    expect(within(apiEvidence).getByText("getListing")).toBeInTheDocument();
+    expect(within(apiEvidence).getAllByText("catalog-specs.yaml").length).toBeGreaterThan(0);
     expect(screen.getByText("Partial")).toBeInTheDocument();
     expect(screen.getByText("26 with evidence of 26 checked")).toBeInTheDocument();
     expect(screen.getAllByText("API Surface").length).toBeGreaterThan(0);

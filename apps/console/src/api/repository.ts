@@ -4,6 +4,7 @@ import type { EshuTruth } from "./envelope";
 import { getDemoWorkspaceStory } from "./mockData";
 import type { EntityKind, EvidenceRow, OverviewStat, WorkspaceStory } from "./mockData";
 import { deploymentGraphFromStory } from "./deploymentGraph";
+import { deploymentArtifactDrilldown, drilldownForStorySection } from "./repositoryEvidenceDrilldown";
 import { deploymentEvidenceSummary, isPresent, joinHuman, nonEmpty } from "./repositoryText";
 import {
   serviceContextFromStoryDossier,
@@ -78,7 +79,7 @@ interface StorySubject {
   readonly type?: string;
 }
 
-interface StorySection {
+export interface StorySection {
   readonly summary?: string;
   readonly title?: string;
 }
@@ -93,7 +94,10 @@ export interface ContextResponse {
     readonly artifacts?: readonly DeploymentEvidenceArtifact[];
     readonly relationship_types?: readonly string[];
   };
+  readonly api_surface?: ServiceContextResponse["api_surface"];
+  readonly deployment_lanes?: ServiceContextResponse["deployment_lanes"];
   readonly file_count?: number;
+  readonly graph_dependents?: ServiceContextResponse["graph_dependents"];
   readonly infrastructure?: readonly InfrastructureItem[];
   readonly repository?: StoryRepository;
 }
@@ -101,10 +105,13 @@ export interface ContextResponse {
 export interface ContextConsumer {
   readonly consumer_kinds?: readonly string[];
   readonly evidence_kinds?: readonly string[];
+  readonly graph_relationship_types?: readonly string[];
   readonly id?: string;
+  readonly matched_values?: readonly string[];
   readonly name?: string;
   readonly repo_name?: string;
   readonly repository?: string;
+  readonly relationship_types?: readonly string[];
   readonly sample_paths?: readonly string[];
 }
 
@@ -269,7 +276,6 @@ async function loadContext(
     return undefined;
   }
 }
-
 function storyPath(entityKind: EntityKind, entityId: string): string {
   const escapedID = encodeURIComponent(entityId);
   switch (entityKind) {
@@ -280,7 +286,6 @@ function storyPath(entityKind: EntityKind, entityId: string): string {
       return `/api/v0/services/${escapedID}/story`;
   }
 }
-
 const liveRepositoryTruth: EshuTruth = {
   basis: "authoritative_graph",
   capability: "platform_impact.context_overview",
@@ -289,7 +294,6 @@ const liveRepositoryTruth: EshuTruth = {
   profile: "local_authoritative",
   reason: "loaded from the local Eshu HTTP API"
 };
-
 function titleFromSubject(subject: StoryResponse["subject"], fallback: string): string {
   if (typeof subject === "string" && subject.trim().length > 0) {
     return subject;
@@ -299,7 +303,6 @@ function titleFromSubject(subject: StoryResponse["subject"], fallback: string): 
   }
   return fallback;
 }
-
 function titleFromStory(story: StoryResponse, fallback: string): string {
   return nonEmpty(story.service_identity?.service_name, story.service_name, titleFromSubject(story.subject, story.repository?.name ?? fallback));
 }
@@ -323,6 +326,7 @@ function evidenceFromStory(
   const storyRows = (story.story_sections ?? []).map((section) => ({
     basis: "repository_story",
     category: section.title ?? "story",
+    drilldown: drilldownForStorySection(section, context),
     source: section.title ?? "story",
     summary: section.summary ?? "",
     title: evidenceTitle(section.title)
@@ -350,6 +354,7 @@ function deploymentEvidenceRows(context: ContextResponse | undefined): readonly 
       basis: nonEmpty(sample.relationship_type, sample.evidence_kind, "deployment_evidence"),
       category: "deployment",
       detailPath: path,
+      drilldown: deploymentArtifactDrilldown(family, group),
       source: sourceRepo,
       summary: deploymentEvidenceSummary(family, sourceRepo, group.length, path),
       title: family === "argocd" ? "Deployed by ArgoCD" : "Deployed from Helm"

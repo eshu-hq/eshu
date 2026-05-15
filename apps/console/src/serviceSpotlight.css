@@ -83,7 +83,66 @@
   align-items: start;
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.42fr);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.service-deployment-board:has(.relationship-workbench-expanded),
+.service-atlas-workbench:has(.relationship-workbench-expanded) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.service-atlas-workbench:has(.relationship-workbench-expanded) .service-evidence-rail {
+  position: static;
+}
+
+.service-section-tabs {
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 6px;
+}
+
+.service-section-tabs button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  display: grid;
+  gap: 3px;
+  min-height: 56px;
+  padding: 9px 11px;
+  text-align: left;
+}
+
+.service-section-tabs button[aria-pressed="true"] {
+  background: color-mix(in oklch, var(--relation), var(--field) 87%);
+  border-color: color-mix(in oklch, var(--relation), var(--line) 58%);
+  color: var(--text);
+}
+
+.service-section-tabs button:hover {
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.service-section-tabs span {
+  font-weight: 820;
+}
+
+.service-section-tabs small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.service-atlas-tab-panel {
+  display: grid;
+  gap: 16px;
 }
 
 .service-map-panel {
@@ -112,6 +171,10 @@
 .service-entrypoints > div {
   display: grid;
   gap: 10px;
+}
+
+.service-lane-cards {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
 .service-lane-cards article,
@@ -405,6 +468,7 @@
   .service-brief,
   .service-deployment-board,
   .service-metrics,
+  .service-section-tabs,
   .service-operating-grid {
     grid-template-columns: 1fr;
   }

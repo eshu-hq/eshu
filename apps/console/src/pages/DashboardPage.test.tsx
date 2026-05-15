@@ -244,6 +244,7 @@ describe("DashboardPage", () => {
       await screen.findByRole("heading", { level: 1, name: "checkout-api" })
     ).toBeInTheDocument();
     expect(screen.getAllByText("3 endpoints").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "API and relationships" }));
     expect(screen.getAllByText("/v1/orders").length).toBeGreaterThan(0);
     expect(screen.getByText("/v1/orders/{id}")).toBeInTheDocument();
     expect(screen.getAllByText("Kubernetes").length).toBeGreaterThan(0);
