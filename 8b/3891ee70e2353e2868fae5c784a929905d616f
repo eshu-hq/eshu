@@ -1,0 +1,47 @@
+apps/console/src/pages/ServiceSpotlightPanel.tsx
+  s_a259424f603ccc::t_ed4949ba4f6a4e 11
+  s_a259424f603ccc::t_917bf7edf6473a 24-26,28,44-50,53,55-59
+apps/console/src/pages/ServiceSpotlightPanel.test.tsx
+  s_a259424f603ccc::t_899ae5cb080a48 23-28
+  s_a259424f603ccc::t_68d90dc8cf527e 39
+  s_a259424f603ccc::t_eb5ca27fef86f7 41
+  s_a259424f603ccc::t_1b75eeaf191600 414
+apps/console/src/serviceSpotlight.css
+  s_a259424f603ccc::t_b42786116ca8c4 309-311
+apps/console/src/api/serviceSpotlight.ts
+  s_a259424f603ccc::t_15ac69874b6184 3-4,218-219
+  s_a259424f603ccc::t_c4f8cb6dc3a288 43-50,229-230,273-283
+  s_a259424f603ccc::t_236f6cebd0735b 215,217
+apps/console/src/pages/ServiceAtlasEvidence.tsx
+  s_a259424f603ccc::t_26fbb00333dc1a 1-24,26-96,104-136
+  s_a259424f603ccc::t_203bcdc101b318 25,97-103
+apps/console/src/api/envelopePayload.ts
+  s_a259424f603ccc::t_1f9b3838ab2adc 1-21
+apps/console/src/serviceAtlas.css
+  s_a259424f603ccc::t_5ed647b6fcc077 1-141
+apps/console/src/serviceInvestigation.css
+  s_a259424f603ccc::t_52c809ec5dfc2a 1-193
+apps/console/src/styles.css
+  s_a259424f603ccc::t_b369a2adb0e954 229,231
+  s_a259424f603ccc::t_bd954962843816 2
+  s_a259424f603ccc::t_823899e3fd817b 4
+docs/superpowers/plans/2026-05-15-service-atlas-ui.md
+  s_a259424f603ccc::t_c51b0dbd8c0489 1-6,8-19,22,24-34,36-40,42,44,46-57,59,61-63,65-67,69-71,73-82,84-86,88-90,92-96,98-99
+  s_a259424f603ccc::t_7851e6a0fca69a 7,20-21,23,35,41,43,45,58,60,64,68,72,83,87,91,97,100-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8b3891ee70e2353e2868fae5c784a929905d616f",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
