@@ -99,6 +99,8 @@ func (h *CodeHandler) handleDeadCodeInvestigation(w http.ResponseWriter, r *http
 		"truncated":                scan.DisplayTruncated || scan.CandidateScanTruncated,
 		"display_truncated":        scan.DisplayTruncated,
 		"candidate_scan_truncated": scan.CandidateScanTruncated,
+		"suppressed_truncated":     scan.SuppressedTruncated,
+		"next_offset":              deadCodeInvestigationNextOffset(req, scan),
 		"candidate_scan_limit":     scan.CandidateScanLimit,
 		"candidate_scan_pages":     scan.CandidateScanPages,
 		"candidate_scan_rows":      scan.CandidateScanRows,
@@ -452,35 +454,9 @@ func deadCodeInvestigationLanguageMap[T any](language string, values map[string]
 	return map[string]any{language: "unsupported_language"}
 }
 
-func deadCodeInvestigationNextCalls(scan deadCodeInvestigationScan) []map[string]any {
-	candidates := append([]map[string]any{}, scan.CleanupReady...)
-	candidates = append(candidates, scan.Ambiguous...)
-	if len(candidates) > 5 {
-		candidates = candidates[:5]
+func deadCodeInvestigationNextOffset(req deadCodeInvestigationRequest, scan deadCodeInvestigationScan) any {
+	if scan.DisplayTruncated || scan.CandidateScanTruncated {
+		return req.Offset + req.Limit
 	}
-	next := make([]map[string]any, 0, len(candidates)*2)
-	for _, candidate := range candidates {
-		entityID := StringVal(candidate, "entity_id")
-		if entityID == "" {
-			continue
-		}
-		next = append(next, map[string]any{
-			"tool":      "get_entity_content",
-			"arguments": map[string]any{"entity_id": entityID},
-			"reason":    "read the exact source before changing or deleting the candidate",
-		})
-		next = append(next, map[string]any{
-			"tool": "get_code_relationship_story",
-			"arguments": map[string]any{
-				"entity_id":          entityID,
-				"direction":          "incoming",
-				"relationship_type":  "CALLS",
-				"include_transitive": false,
-				"limit":              25,
-				"offset":             0,
-			},
-			"reason": "verify direct caller evidence before treating the candidate as cleanup-ready",
-		})
-	}
-	return next
+	return nil
 }

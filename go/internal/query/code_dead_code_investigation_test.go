@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -200,6 +201,50 @@ func TestHandleDeadCodeInvestigationKeepsTypeScriptCandidatesAmbiguous(t *testin
 	}
 }
 
+func TestDeadCodeInvestigationNextCallsMatchCandidateType(t *testing.T) {
+	t.Parallel()
+
+	scan := deadCodeInvestigationScan{
+		CleanupReady: []map[string]any{
+			{
+				"entity_id": "go-helper",
+				"name":      "helper",
+				"labels":    []string{"Function"},
+				"language":  "go",
+			},
+			{
+				"entity_id": "go-service",
+				"name":      "Service",
+				"labels":    []string{"Class"},
+				"language":  "go",
+			},
+			{
+				"entity_id": "sql-fn",
+				"name":      "refresh_order_totals",
+				"labels":    []string{"SqlFunction"},
+				"language":  "sql",
+			},
+		},
+	}
+
+	calls := deadCodeInvestigationNextCalls(scan)
+	if !hasDeadCodeInvestigationRelationshipCall(calls, "go-helper", "CALLS") {
+		t.Fatalf("next calls missing CALLS story for function: %#v", calls)
+	}
+	if !hasDeadCodeInvestigationRelationshipCall(calls, "go-helper", "REFERENCES") {
+		t.Fatalf("next calls missing REFERENCES story for function: %#v", calls)
+	}
+	if !hasDeadCodeInvestigationRelationshipCall(calls, "go-service", "INHERITS") {
+		t.Fatalf("next calls missing INHERITS story for class: %#v", calls)
+	}
+	if hasDeadCodeInvestigationRelationshipCall(calls, "sql-fn", "CALLS") {
+		t.Fatalf("next calls should not suggest CALLS story for SQL function: %#v", calls)
+	}
+	if !hasDeadCodeInvestigationToolCall(calls, "execute_cypher_query", "sql-fn") {
+		t.Fatalf("next calls missing bounded EXECUTES diagnostic for SQL function: %#v", calls)
+	}
+}
+
 func deadCodeInvestigationRow(entityID, name, language, path string, startLine, endLine int) map[string]any {
 	return map[string]any{
 		"entity_id":  entityID,
@@ -256,4 +301,36 @@ func requireDeadCodeInvestigationSlice(t *testing.T, source map[string]any, key 
 		t.Fatalf("%s type = %T, want []any", key, source[key])
 	}
 	return value
+}
+
+func hasDeadCodeInvestigationRelationshipCall(calls []map[string]any, entityID string, relationshipType string) bool {
+	for _, call := range calls {
+		if StringVal(call, "tool") != "get_code_relationship_story" {
+			continue
+		}
+		args, ok := call["arguments"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if StringVal(args, "entity_id") == entityID && StringVal(args, "relationship_type") == relationshipType {
+			return true
+		}
+	}
+	return false
+}
+
+func hasDeadCodeInvestigationToolCall(calls []map[string]any, tool string, entityID string) bool {
+	for _, call := range calls {
+		if StringVal(call, "tool") != tool {
+			continue
+		}
+		args, ok := call["arguments"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if strings.Contains(StringVal(args, "cypher_query"), entityID) || StringVal(args, "entity_id") == entityID {
+			return true
+		}
+	}
+	return false
 }
