@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"testing"
 )
 
@@ -101,6 +102,48 @@ func TestResolveRouteMapsRelationshipEvidenceToDrilldownPath(t *testing.T) {
 	}
 	if got, want := route.path, "/api/v0/evidence/relationships/resolved%2Fexample%20id"; got != want {
 		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+}
+
+func TestResolveRouteMapsEvidenceCitationPacketToBoundedBody(t *testing.T) {
+	t.Parallel()
+
+	handles := []any{
+		map[string]any{
+			"kind":          "file",
+			"repo_id":       "repo-service",
+			"relative_path": "README.md",
+			"start_line":    float64(1),
+			"end_line":      float64(12),
+		},
+	}
+	route, err := resolveRoute("build_evidence_citation_packet", map[string]any{
+		"subject":  map[string]any{"type": "repo", "id": "repo-service"},
+		"question": "Show source and docs proof",
+		"handles":  handles,
+		"limit":    float64(10),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "POST"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/evidence/citations"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	body, ok := route.body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+	}
+	if got, want := body["question"], "Show source and docs proof"; got != want {
+		t.Fatalf("body[question] = %#v, want %#v", got, want)
+	}
+	if got, want := body["handles"], handles; !reflect.DeepEqual(got, want) {
+		t.Fatalf("body[handles] = %#v, want %#v", got, want)
+	}
+	if got, want := body["limit"], 10; got != want {
+		t.Fatalf("body[limit] = %#v, want %#v", got, want)
 	}
 }
 

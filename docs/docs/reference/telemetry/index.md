@@ -606,6 +606,7 @@ The `eshu_dp_projector_stage_duration_seconds` histogram carries a `stage` attri
 | Span | Where | Description |
 | --- | --- | --- |
 | `query.relationship_evidence` | HTTP relationship evidence drilldown | Resolves compact `resolved_id` graph pointers to durable Postgres evidence |
+| `query.evidence_citation_packet` | HTTP evidence citation packet | Hydrates explicit file and entity handles into bounded source, docs, manifest, and deployment proof |
 | `query.documentation_findings` | HTTP documentation findings list | Reads durable documentation finding facts for updater consumers |
 | `query.documentation_evidence_packet` | HTTP documentation evidence packet lookup | Reads the immutable packet an updater snapshots before planning a diff |
 | `query.documentation_packet_freshness` | HTTP documentation packet freshness lookup | Checks whether a saved packet is still current before publish |

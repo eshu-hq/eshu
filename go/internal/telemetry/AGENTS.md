@@ -28,7 +28,8 @@
   telemetry reference doc, and the cross-service correlation guide.
 - **Frozen span names** — `Span*` constants in `contract.go` are frozen. Add
   new names to the `spanNames` slice in `contract.go` before using them in
-  callers.
+  callers. Query-handler spans such as `SpanQueryEvidenceCitationPacket` must
+  stay stable because API and MCP observability depends on the span name.
 - **No high-cardinality metric labels** — file paths, fact IDs, repository
   names, and work-item IDs must not appear in metric attribute values. They
   belong in span attributes or log fields. Dashboards and alert rules depend on

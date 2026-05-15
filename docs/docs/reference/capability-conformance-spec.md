@@ -88,6 +88,7 @@ The same capability ID may back more than one surface or tool. Initial mapping:
 | `analyze_infra_relationships` | `platform_impact.deployment_chain` |
 | `get_repo_context` | `platform_impact.context_overview`, `relationship_evidence.drilldown` |
 | `get_relationship_evidence` | `relationship_evidence.drilldown` |
+| `build_evidence_citation_packet` | `evidence_citation.packet` |
 | `get_service_context` | `platform_impact.context_overview` |
 | `get_ecosystem_overview` | `platform_impact.context_overview` |
 | `execute_language_query` | `symbol_graph.decorators`, `symbol_graph.argument_names`, `symbol_graph.class_methods`, `symbol_graph.imports`, `symbol_graph.inheritance` |

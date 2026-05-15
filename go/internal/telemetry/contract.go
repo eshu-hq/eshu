@@ -163,6 +163,7 @@ const (
 	SpanSharedAcceptanceLookup            = "shared_acceptance.lookup"
 	SpanSharedAcceptanceUpsert            = "shared_acceptance.upsert"
 	SpanQueryRelationshipEvidence         = "query.relationship_evidence"
+	SpanQueryEvidenceCitationPacket       = "query.evidence_citation_packet"
 	SpanQueryDocumentationFindings        = "query.documentation_findings"
 	SpanQueryDocumentationEvidencePacket  = "query.documentation_evidence_packet"
 	SpanQueryDocumentationPacketFreshness = "query.documentation_packet_freshness"
@@ -359,6 +360,7 @@ var spanNames = []string{
 	SpanSharedAcceptanceLookup,
 	SpanSharedAcceptanceUpsert,
 	SpanQueryRelationshipEvidence,
+	SpanQueryEvidenceCitationPacket,
 	SpanQueryDocumentationFindings,
 	SpanQueryDocumentationEvidencePacket,
 	SpanQueryDocumentationPacketFreshness,

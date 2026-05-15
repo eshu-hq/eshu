@@ -7,7 +7,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 52
+	expectedCount := 53
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -37,6 +37,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"find_unmanaged_resources",
 		"get_ecosystem_overview",
 		"get_relationship_evidence",
+		"build_evidence_citation_packet",
 		"investigate_change_surface",
 		"investigate_deployment_config",
 		"investigate_resource",
@@ -83,8 +84,8 @@ func TestContextTools(t *testing.T) {
 
 func TestContentTools(t *testing.T) {
 	tools := contentTools()
-	if len(tools) != 5 {
-		t.Errorf("Expected 5 content tools, got %d", len(tools))
+	if len(tools) != 6 {
+		t.Errorf("Expected 6 content tools, got %d", len(tools))
 	}
 }
 

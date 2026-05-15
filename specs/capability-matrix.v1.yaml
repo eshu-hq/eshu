@@ -194,6 +194,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: resolved_relationships drilldown by resolved_id}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: resolved_relationships drilldown by resolved_id}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-relationship-evidence}], notes: resolved_relationships drilldown by resolved_id}
+  - capability: evidence_citation.packet
+    tools: [build_evidence_citation_packet]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: bounded_handle_batch, verification: [{go_test: ./internal/query}], notes: bounded Postgres content-store hydration for file and entity handles}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: bounded_handle_batch, verification: [{go_test: ./internal/query}], notes: graph sidecar unused; hydrates story and investigation handles from the content store}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: bounded_handle_batch, verification: [{go_test: ./internal/query}], notes: bounded Postgres content-store hydration with truncation coverage}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: bounded_handle_batch, verification: [{remote_validation: prod-evidence-citation-packet}], notes: bounded citation packet for source, docs, manifests, and deployment evidence}
   - capability: documentation_findings.list
     tools: [list_documentation_findings]
     profiles:

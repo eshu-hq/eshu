@@ -312,6 +312,13 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/content/entities/read", body: map[string]any{
 			"entity_id": str(args, "entity_id"),
 		}}, nil
+	case "build_evidence_citation_packet":
+		return &route{method: "POST", path: "/api/v0/evidence/citations", body: map[string]any{
+			"subject":  args["subject"],
+			"question": str(args, "question"),
+			"handles":  args["handles"],
+			"limit":    intOr(args, "limit", 10),
+		}}, nil
 	case "search_file_content":
 		return &route{method: "POST", path: "/api/v0/content/files/search", body: contentSearchBody(args)}, nil
 	case "search_entity_content":

@@ -50,3 +50,33 @@ func TestSearchContentToolsDoNotAdvertiseUnsupportedFilters(t *testing.T) {
 		}
 	}
 }
+
+func TestEvidenceCitationToolAdvertisesInputHandleCap(t *testing.T) {
+	t.Parallel()
+
+	var tool *ToolDefinition
+	for _, candidate := range contentTools() {
+		if candidate.Name == "build_evidence_citation_packet" {
+			tool = &candidate
+			break
+		}
+	}
+	if tool == nil {
+		t.Fatal("build_evidence_citation_packet tool is not registered")
+	}
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("InputSchema type = %T, want map", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("properties type = %T, want map", schema["properties"])
+	}
+	handles, ok := properties["handles"].(map[string]any)
+	if !ok {
+		t.Fatalf("handles schema type = %T, want map", properties["handles"])
+	}
+	if got, want := handles["maxItems"], 500; got != want {
+		t.Fatalf("handles.maxItems = %#v, want %#v", got, want)
+	}
+}

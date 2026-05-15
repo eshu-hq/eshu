@@ -60,6 +60,78 @@ const openAPIPathsEvidence = `
         }
       }
     },
+    "/api/v0/evidence/citations": {
+      "post": {
+        "tags": ["evidence"],
+        "summary": "Build evidence citation packet",
+        "description": "Hydrates bounded file and entity handles from story, investigation, search, or drilldown responses into ranked source, documentation, manifest, and deployment citations without graph traversal.",
+        "operationId": "buildEvidenceCitationPacket",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subject": {"type": "object"},
+                  "question": {"type": "string"},
+                  "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 50},
+                  "handles": {
+                    "type": "array",
+                    "maxItems": 500,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {"type": "string", "enum": ["file", "entity"]},
+                        "repo_id": {"type": "string"},
+                        "relative_path": {"type": "string"},
+                        "entity_id": {"type": "string"},
+                        "evidence_family": {"type": "string"},
+                        "reason": {"type": "string"},
+                        "start_line": {"type": "integer"},
+                        "end_line": {"type": "integer"}
+                      }
+                    }
+                  }
+                },
+                "required": ["handles"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Evidence citation packet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subject": {"type": "object"},
+                    "question": {"type": "string"},
+                    "citations": {"type": "array", "items": {"type": "object"}},
+                    "missing_handles": {"type": "array", "items": {"type": "object"}},
+                    "coverage": {"type": "object"},
+                    "recommended_next_calls": {"type": "array", "items": {"type": "object"}}
+                  },
+                  "required": ["citations", "missing_handles", "coverage", "recommended_next_calls"]
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {
+            "description": "Postgres content store is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v0/documentation/findings": {
       "get": {
         "tags": ["documentation"],

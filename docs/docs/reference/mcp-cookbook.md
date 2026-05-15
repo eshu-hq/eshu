@@ -32,8 +32,10 @@ If you want shorter, role-based prompts before you drop into tool names and JSON
 
 Read `service_identity`, `api_surface`, `deployment_lanes`,
 `upstream_dependencies`, `downstream_consumers`, `evidence_graph`, and
-`investigation` first. Only call `get_relationship_evidence` or content tools
-when the answer needs the exact source behind a `resolved_id` or file handle.
+`investigation` first. Use `build_evidence_citation_packet` when the answer
+needs exact source, docs, manifest, or deployment proof behind returned file or
+entity handles. Use `get_relationship_evidence` when the proof is a
+`resolved_id` relationship pointer.
 
 ### Investigate coverage before answering
 

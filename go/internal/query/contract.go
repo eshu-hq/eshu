@@ -347,6 +347,12 @@ var capabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
+	"evidence_citation.packet": {
+		LocalLightweightMax:   &truthDerived,
+		LocalAuthoritativeMax: &truthDerived,
+		LocalFullStackMax:     &truthDerived,
+		ProductionMax:         &truthDerived,
+	},
 	"documentation_findings.list": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,

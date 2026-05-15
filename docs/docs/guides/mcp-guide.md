@@ -178,8 +178,8 @@ assumptions from a partial code snapshot.
 | "Tell me the Internet-to-cloud-to-code story for this repo" | `get_repo_story` |
 | "Tell me the deployment story for this workload or service" | `get_workload_story`, `get_service_story` |
 | "Which repos, deployment sources, and docs should I scan before explaining this service?" | `investigate_service` |
-| "Explain this service, then cite the relevant files and docs" | `get_service_story`, then optional content reads from its drill-down handles |
-| "Create support or onboarding documentation for this repo or service" | `get_repo_story`, `get_service_story`, `get_workload_story` |
+| "Explain this service, then cite the relevant files and docs" | `get_service_story`, then `build_evidence_citation_packet` with its file and entity handles |
+| "Create support or onboarding documentation for this repo or service" | `get_repo_story`, `get_service_story`, `get_workload_story`, then `build_evidence_citation_packet` |
 | "Show me the source of this file" | `get_file_content` |
 | "Search across indexed code" | `search_file_content` |
 | "Find complex functions" | `find_most_complex_functions` |
@@ -207,7 +207,7 @@ Use it this way:
 2. for service questions, treat `get_service_story` as the one-call dossier path and read `service_identity`, `api_surface`, `deployment_lanes`, `upstream_dependencies`, `downstream_consumers`, `evidence_graph`, and `investigation`
 3. for deeper deployment debugging, use `trace_deployment_chain` and then read `controller_overview`, `runtime_overview`, or `deployment_fact_summary`
 4. for image tags, runtime settings, resource limits, values layers, rendered targets, and "which files should I read first" prompts, use `investigate_deployment_config`
-5. if the answer needs exact file or docs evidence, follow with Postgres-backed content reads or search
+5. if the answer needs exact source, docs, manifest, or deployment citations, follow with `build_evidence_citation_packet` using the story or investigation handles
 6. use `investigate_service` when the caller asks what Eshu scanned, which repos have evidence, or which call should happen next
 7. use `drilldowns` or `resolved_id` handles to move into `get_repo_context`, `get_workload_context`, `get_service_context`, content reads, `get_relationship_evidence`, or lower-level relationship tools
 
@@ -322,13 +322,22 @@ PostgreSQL query instead of one request per repository.
 
 For documentation and runbook generation, expect the story layer to prefer Postgres-backed content evidence whenever it needs exact docs, README, runbook, overlay, or config references. If content is missing, story responses should expose limitations instead of implying the docs do not exist.
 
+Use `build_evidence_citation_packet` when the prompt asks for proof behind an
+answer. It accepts only explicit file or entity handles, caps each packet at 50
+hydrated citations, rejects arrays above 500 input handles, hydrates files and
+entities from the content store in batches, returns bounded excerpts plus
+missing-handle coverage, and avoids graph calls. Use `get_file_content`,
+`get_file_lines`, or search only when the user needs a single raw source body or
+when the previous story/investigation response did not already identify the
+handles.
+
 ## Prompt-suite guardrails
 
 Prompt-suite coverage should stay portable and auth-safe:
 
 - use repo-relative identifiers and paths, not server-local filesystem paths
 - prefer story and context tools before raw content search when the user asks for explanation or documentation
-- use Postgres-backed content reads and search as evidence fetchers after the story identifies the right artifacts
+- use `build_evidence_citation_packet` after story or investigation tools identify the right evidence handles
 - use `investigate_code_topic` before raw content search for broad code-topic or behavior prompts
 - page broad content searches with `limit` and `offset`; do not repeat the same broad search hoping a warm cache makes it cheaper
 - prefer structured MCP or HTTP tools before any expert fallback
