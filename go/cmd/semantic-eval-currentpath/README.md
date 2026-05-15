@@ -25,7 +25,8 @@ content store, or future NornicDB semantic retrieval path.
 - `--base-url` points to the Eshu API. Defaults to `ESHU_API_URL`, then
   `http://localhost:8080`.
 - `--repo-id` replaces `{repo_id}` placeholders in suite scopes and expected
-  handles. Use the canonical repository id from the Eshu repository catalog.
+  handles. It is required when the suite contains placeholders. Use the
+  canonical repository id from the Eshu repository catalog.
 - `--run-output` writes the observed current-path run JSON.
 - `--report-output` writes the scored report JSON. When omitted, the report is
   printed to stdout.

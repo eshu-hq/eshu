@@ -67,8 +67,12 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	if err != nil {
 		return fmt.Errorf("load suite: %w", err)
 	}
-	if strings.TrimSpace(*repoID) != "" {
-		suite = substituteRepoID(suite, strings.TrimSpace(*repoID))
+	trimmedRepoID := strings.TrimSpace(*repoID)
+	if trimmedRepoID == "" && suiteContainsRepoIDPlaceholder(suite) {
+		return fmt.Errorf("--repo-id is required when the suite contains %q placeholders", repoIDToken)
+	}
+	if trimmedRepoID != "" {
+		suite = substituteRepoID(suite, trimmedRepoID)
 	}
 
 	runResult, err := currentpath.Runner{
@@ -107,6 +111,53 @@ func apiBaseURLFromEnv() string {
 		return value
 	}
 	return defaultBaseURL
+}
+
+func suiteContainsRepoIDPlaceholder(suite currentpath.Suite) bool {
+	for _, evalCase := range suite.Cases {
+		if mapContainsRepoIDPlaceholder(evalCase.Scope) {
+			return true
+		}
+		for _, expected := range evalCase.Expected {
+			if strings.Contains(expected.Handle, repoIDToken) {
+				return true
+			}
+		}
+		for _, handle := range evalCase.MustNotInclude {
+			if strings.Contains(handle, repoIDToken) {
+				return true
+			}
+		}
+		if requestContainsRepoIDPlaceholder(evalCase.CurrentPath) {
+			return true
+		}
+	}
+	return false
+}
+
+func mapContainsRepoIDPlaceholder(values map[string]string) bool {
+	for _, value := range values {
+		if strings.Contains(value, repoIDToken) {
+			return true
+		}
+	}
+	return false
+}
+
+func requestContainsRepoIDPlaceholder(request currentpath.Request) bool {
+	if strings.Contains(request.RepoID, repoIDToken) ||
+		strings.Contains(request.Query, repoIDToken) ||
+		strings.Contains(request.Language, repoIDToken) ||
+		strings.Contains(request.Intent, repoIDToken) ||
+		strings.Contains(request.SearchType, repoIDToken) {
+		return true
+	}
+	for _, term := range request.Terms {
+		if strings.Contains(term, repoIDToken) {
+			return true
+		}
+	}
+	return false
 }
 
 func substituteRepoID(suite currentpath.Suite, repoID string) currentpath.Suite {

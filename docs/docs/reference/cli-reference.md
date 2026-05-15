@@ -66,7 +66,7 @@ Flags:
 | :--- | :--- |
 | `--suite` | Required path to a current-path semantic eval suite. |
 | `--base-url` | Eshu API base URL. Defaults to `ESHU_API_URL`, then `http://localhost:8080`. |
-| `--repo-id` | Replaces `{repo_id}` placeholders in suite scopes and expected handles. |
+| `--repo-id` | Replaces `{repo_id}` placeholders in suite scopes and expected handles; required when placeholders are present. |
 | `--run-output` | Optional path for observed candidate run JSON. |
 | `--report-output` | Optional path for score report JSON; stdout is used when omitted. |
 | `--k` | Top-K metric cutoff. Defaults to `10`. |

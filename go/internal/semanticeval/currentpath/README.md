@@ -38,7 +38,8 @@ Candidate handles are normalized in this order: `source_handle`, `handle`,
 `testdata/eshu_phase0_suite.json` contains a 10-case public Eshu starter corpus.
 It uses `{repo_id}` placeholders so local canonical repository ids are not
 committed. Run it through `go/cmd/semantic-eval-currentpath` with `--repo-id`
-set to the indexed Eshu repository id.
+set to the indexed Eshu repository id; the command rejects placeholder suites
+when `--repo-id` is omitted.
 
 The starter suite is intentionally smaller than the ADR's final 50-100 case
 target. Expand it with additional public, non-private operator questions before
