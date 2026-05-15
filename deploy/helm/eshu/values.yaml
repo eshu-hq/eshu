@@ -288,6 +288,10 @@ awsCloudCollector:
   claimLeaseTTL: ""
   heartbeatInterval: ""
   collectorInstances: []
+  serviceAccount:
+    create: false
+    name: ""
+    annotations: {}
   redaction:
     secretName: ""
     keyKey: redaction-key

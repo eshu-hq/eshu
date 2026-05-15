@@ -410,6 +410,17 @@
         "claimLeaseTTL": { "type": "string" },
         "heartbeatInterval": { "type": "string" },
         "collectorInstances": { "$ref": "#/definitions/collectorInstances" },
+        "serviceAccount": {
+          "type": "object",
+          "properties": {
+            "create": { "type": "boolean" },
+            "name": { "type": "string" },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        },
         "redaction": {
           "type": "object",
           "properties": {

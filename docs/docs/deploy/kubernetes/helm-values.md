@@ -32,6 +32,9 @@ The chart lives at `deploy/helm/eshu`.
 | `terraformStateCollector.redaction.secretName` | empty | Secret containing `ESHU_TFSTATE_REDACTION_KEY`. Required when enabled. |
 | `awsCloudCollector.enabled` | `false` | Deploy the claim-driven AWS cloud collector. |
 | `awsCloudCollector.collectorInstances` | `[]` | Desired `aws` collector instances rendered to `ESHU_COLLECTOR_INSTANCES_JSON`. |
+| `awsCloudCollector.serviceAccount.create` | `false` | Create a dedicated AWS collector service account. Use this for IRSA so AWS permissions do not attach to every Eshu pod. |
+| `awsCloudCollector.serviceAccount.name` | empty | Existing or generated AWS collector service-account name. Defaults to the AWS collector fullname when `create=true`; otherwise falls back to the shared release service account. |
+| `awsCloudCollector.serviceAccount.annotations` | `{}` | Annotations for the AWS collector service account, including `eks.amazonaws.com/role-arn` for IRSA. |
 | `awsCloudCollector.redaction.secretName` | empty | Optional secret containing `ESHU_AWS_REDACTION_KEY`; required by the binary when ECS or Lambda scans are enabled. |
 | `packageRegistryCollector.enabled` | `false` | Deploy the claim-driven package registry collector. |
 | `packageRegistryCollector.collectorInstances` | `[]` | Desired `package_registry` collector instances rendered to `ESHU_COLLECTOR_INSTANCES_JSON`. |
@@ -195,13 +198,13 @@ terraformStateCollector:
 AWS on EKS should use workload identity, not static access keys:
 
 ```yaml
-serviceAccount:
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-collector
-
 awsCloudCollector:
   enabled: true
   instanceId: aws-primary
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-collector
   collectorInstances:
     - instance_id: aws-primary
       collector_kind: aws

@@ -129,6 +129,88 @@ cover the runtime path through `aws.service.scan`,
 and `aws_scan_status`; no new metric or span name is needed for redacted scalar
 construction.
 
+## Security Review (2026-05-15)
+
+**Scope:** Closes the AWS slice of issue #26. Covers the claim-driven
+`collector-aws-cloud` runtime, target-scope credential configuration, Helm IRSA
+deployment shape, AWS service scanner API posture, and redaction boundary after
+the AWS scanner families landed.
+
+### External Contract Evidence
+
+AWS IAM guidance reviewed for this sign-off:
+
+- AWS IAM best practices require temporary credentials for workloads, least
+  privilege, condition-based restriction, and IAM Access Analyzer validation:
+  <https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html>
+- AWS confused-deputy guidance requires the third-party deputy to pass a
+  customer-specific `sts:ExternalId` and the target role trust policy to check
+  it:
+  <https://docs.aws.amazon.com/IAM/latest/UserGuide/confused-deputy.html>
+- AWS STS `AssumeRole` supports external IDs and short-lived session
+  credentials:
+  <https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html>
+- EKS IRSA binds an IAM role to a Kubernetes service account:
+  <https://docs.aws.amazon.com/eks/latest/userguide/associate-service-account-role.html>
+- IAM Access Analyzer policy validation is the operator gate for trust-policy
+  and identity-policy checks:
+  <https://docs.aws.amazon.com/IAM/latest/UserGuide/access-analyzer-policy-validation.html>
+
+### Controls Verified
+
+- **Temporary credentials only.** `go/cmd/collector-aws-cloud/config.go`
+  rejects `access_key_id`, `secret_access_key`, and `session_token` in
+  collector instance config. The runtime uses SDK workload identity or
+  claim-scoped STS AssumeRole credentials and releases in-process credential
+  material after scanner construction and scan completion in
+  `go/internal/collector/awscloud/awsruntime/credentials.go`.
+- **External ID / tenant guard.** Central AssumeRole scopes now require
+  `external_id`; the role ARN must be an IAM role ARN in the configured
+  `account_id`. This keeps target labels, trust-policy scope, and STS
+  acquisition tied to the same AWS account.
+- **Ambiguous credential config rejected.** `local_workload_identity` scopes now
+  reject `role_arn` and `external_id`, so account-local mode cannot silently
+  behave like central mode.
+- **Broad target scope rejected.** Target scopes now reject wildcard regions and
+  services, reject unsupported service names, reject non-12-digit AWS account
+  IDs, and reject negative per-account concurrency.
+- **IRSA blast radius narrowed.** The Helm chart now supports
+  `awsCloudCollector.serviceAccount.create` and uses the dedicated service
+  account for the AWS collector deployment. Operators can bind the AWS collector
+  role only to `collector-aws-cloud` instead of annotating the shared release
+  service account used by API, reducer, ingester, and other pods.
+- **Read-only scanner posture.** Production AWS service adapters under
+  `go/internal/collector/awscloud/services/*/awssdk` were reviewed. The
+  scanner families use metadata-shaped `List*`, `Describe*`, and safe `Get*`
+  calls such as `GetBucketPolicyStatus`, `GetLifecyclePolicy`,
+  `GetFunction`, `GetTopicAttributes`, and
+  `GetOpenIDConnectProvider`. They do not call mutation APIs (`Create*`,
+  `Update*`, `Put*`, `Delete*`, `Tag*`, `Untag*`) and do not call value or
+  payload APIs such as `GetSecretValue`, SSM `GetParameter*`,
+  `ReceiveMessage`, `PutEvents`, DynamoDB `Query` or `Scan`, CloudWatch Logs
+  event reads, API execution/export, S3 object reads, database reads, or Lambda
+  package downloads.
+- **Redaction boundary.** ECS task-definition and Lambda environment values
+  require `ESHU_AWS_REDACTION_KEY` and cross the fact boundary only as
+  `go/internal/redact` markers with reason, source, and
+  `RedactionPolicyVersion`.
+
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud
+./internal/runtime ./internal/collector/awscloud/... -count=1` proves the new
+credential and target-scope guards, the AWS collector dedicated service-account
+render, and the existing scanner/redaction/runtime contracts. `helm lint
+deploy/helm/eshu` proves the chart change remains renderable under Helm's chart
+gate. `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions
+mkdocs build --strict --clean --config-file docs/mkdocs.yml` proves the
+operator docs and ADR references build.
+
+No-Observability-Change: this security review tightens startup configuration
+validation and Helm identity isolation. Runtime scan telemetry remains the
+existing `aws.credentials.assume_role`, `aws.collector.claim.process`,
+`eshu_dp_aws_assumerole_failed_total`, `eshu_dp_aws_claim_concurrency`, and
+`aws_scan_status` status rows. Invalid unsafe config now fails before the
+collector claims work, so no new runtime metric is needed.
+
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/cloudfront/...`
 covers the bounded CloudFront call shape: paginated ListDistributions with
 MaxItems=100 and one ListTagsForResource read per ARN-addressable

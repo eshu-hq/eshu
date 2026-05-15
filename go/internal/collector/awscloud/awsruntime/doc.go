@@ -9,5 +9,6 @@
 // registry includes metadata-only adapters for SQS, SNS, EventBridge, S3, RDS,
 // DynamoDB, CloudWatch Logs, CloudFront, API Gateway, Secrets Manager, and SSM
 // without broadening those services into payload, policy, data-plane,
-// credential, or mutation APIs.
+// credential, or mutation APIs. SupportedServiceKinds and SupportsServiceKind
+// expose that production registry to command-side startup validation.
 package awsruntime

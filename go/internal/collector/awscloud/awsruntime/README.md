@@ -39,6 +39,9 @@ See `doc.go` for the godoc contract.
 - `AccountLimiter` - in-process per-account claim limiter and concurrency
   observer.
 - `CredentialConfig` - non-secret credential mode, role ARN, and external ID.
+  Command config validation requires central AssumeRole scopes to carry both a
+  same-account role ARN and an external ID; local workload identity scopes must
+  not carry AssumeRole routing fields.
 - `Target` - one authorized AWS claim target.
 - `CredentialProvider` - acquires a claim-scoped credential lease.
 - `CredentialLease` - releases temporary credential material after a scan.
@@ -49,6 +52,9 @@ See `doc.go` for the godoc contract.
 - `DefaultScannerFactory` - production service registry for AWS scanners. ECS
   and Lambda scanners receive the command-provided redaction key for
   environment values.
+- `SupportedServiceKinds` and `SupportsServiceKind` - production registry
+  service-kind introspection used by command-side target-scope validation so
+  startup checks cannot drift from scanner availability.
 - `ScannerFactory` - creates a service scanner for one target and lease.
 - `ServiceScanner` - scans one service claim into fact envelopes.
 - `CheckpointStore` - durable pagination checkpoint store used by long service
@@ -118,9 +124,10 @@ pagination spans. The command registers the instruments:
 - `CredentialLease.Release` runs after scanner construction and scan attempts.
   Implementations must clear temporary credential material there.
 - `SDKCredentialProvider` loads AWS SDK config with adaptive retries and passes
-  configured STS external IDs.
+  required STS external IDs for central AssumeRole scopes.
 - `DefaultScannerFactory` is the only production registry for service scanners;
-  add full-scan services there instead of branching in the command.
+  add full-scan services there and update `supportedServiceKinds` instead of
+  branching in the command.
 - ECS and Lambda service scans require a non-empty redaction key because
   environment values are treated as sensitive even when the variable name looks
   harmless.

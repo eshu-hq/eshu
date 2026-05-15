@@ -19,7 +19,10 @@
 - Authorize `(account_id, region, service_kind)` before acquiring credentials.
 - Keep static AWS credentials out of this package and out of tests.
 - Preserve `aws.RetryModeAdaptive` on every loaded AWS SDK config.
-- Pass STS external ID when configured.
+- Pass the command-validated STS external ID for central AssumeRole targets.
+- Keep the command-side credential guard intact: central scopes require a
+  same-account role ARN and external ID, while local workload identity scopes
+  reject AssumeRole routing fields.
 - Preserve claim fencing by copying `CurrentFencingToken` into every AWS
   boundary and warning fact.
 - Expire pagination checkpoints for prior generations before building service
@@ -82,7 +85,10 @@
   claim tests, and implementing the provider here.
 - Add a new service scanner by adding a service constant in `awscloud`, scanner
   package tests, a service `awssdk` adapter, package docs, and a
-  `DefaultScannerFactory.Scanner` branch.
+  `DefaultScannerFactory.Scanner` branch. Also add the service to
+  `supportedServiceKinds`; command-side target-scope validation uses
+  `SupportsServiceKind` so startup acceptance stays aligned with the production
+  registry.
 - Change claim shape only with coordinator, workflow, and ADR updates in the
   same PR.
 

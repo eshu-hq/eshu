@@ -17,6 +17,12 @@
 ## Invariants
 
 - Do not accept static AWS credential fields.
+- Require central AssumeRole targets to provide an external ID and an IAM role
+  ARN in the configured `account_id`.
+- Keep local workload identity targets local: do not accept `role_arn` or
+  `external_id` in that mode.
+- Reject wildcard AWS regions or service lists. `allowed_services` must name a
+  scanner family wired into the runtime registry.
 - Require `ESHU_AWS_REDACTION_KEY` when ECS or Lambda is enabled so environment
   values cannot cross persistence boundaries in plaintext.
 - Keep this command process-only. AWS credentials belong in `awsruntime`; AWS

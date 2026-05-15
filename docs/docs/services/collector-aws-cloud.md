@@ -56,11 +56,74 @@ AWS cloud collection supports two credential modes:
 
 | Mode | Use when | Credential source |
 | --- | --- | --- |
-| `central_assume_role` | A central Eshu runtime scans target accounts through scoped read roles. | STS AssumeRole with optional external ID. |
+| `central_assume_role` | A central Eshu runtime scans target accounts through scoped read roles. | STS AssumeRole with a mandatory external ID. |
 | `local_workload_identity` | The collector runs inside the target account or an account-local boundary. | AWS SDK default chain, usually IRSA on EKS. |
 
 Static access-key fields are rejected during configuration parsing. Do not put
 AWS keys in Helm values, ConfigMaps, or `ESHU_COLLECTOR_INSTANCES_JSON`.
+Central AssumeRole targets must use an IAM role ARN in the configured
+`account_id`; local workload identity targets must not set `role_arn` or
+`external_id`.
+
+## IAM Security Model
+
+AWS recommends temporary role credentials for workloads, least-privilege
+permissions, IAM Access Analyzer policy validation, and external IDs for
+cross-account confused-deputy prevention. Eshu's AWS collector follows that
+shape:
+
+- `central_assume_role` requires `role_arn` and `external_id`.
+- The configured `role_arn` account must match the target `account_id`.
+- Wildcard `allowed_regions` and `allowed_services` entries are rejected.
+- `allowed_services` must name a shipped scanner family, not arbitrary AWS
+  service strings.
+- `local_workload_identity` uses the pod/process role directly and rejects
+  AssumeRole routing fields.
+- ECS and Lambda scans require `ESHU_AWS_REDACTION_KEY` before startup because
+  environment values are redacted before persistence.
+
+Target-account trust policy shape for central AssumeRole:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::111122223333:role/eshu-collector-control-plane"
+      },
+      "Action": "sts:AssumeRole",
+      "Condition": {
+        "StringEquals": {
+          "sts:ExternalId": "customer-or-target-scope-id"
+        }
+      }
+    }
+  ]
+}
+```
+
+Validate both the trust policy and the permissions policy before rollout:
+
+```bash
+aws accessanalyzer validate-policy \
+  --policy-type TRUST_POLICY \
+  --policy-document file://trust-policy.json
+
+aws accessanalyzer validate-policy \
+  --policy-type IDENTITY_POLICY \
+  --policy-document file://permissions-policy.json
+```
+
+The permissions policy must stay read-only and service-scoped. Start from the
+scanner families enabled in `allowed_services`, grant only the `List*`,
+`Describe*`, and metadata `Get*` calls required by those scanners, and do not
+grant AWS mutation APIs such as `Create*`, `Update*`, `Put*`, `Delete*`,
+`Tag*`, or `Untag*`. Do not grant data-plane reads that the collector
+intentionally avoids, including secret values, SSM parameter values, SQS
+messages, DynamoDB table reads, log events, API execution/export, S3 object
+contents, database contents, or Lambda code/package downloads.
 
 ## Configuration
 
@@ -115,13 +178,13 @@ scope. Minimal central AssumeRole shape:
 For EKS workload identity:
 
 ```yaml
-serviceAccount:
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-collector
-
 awsCloudCollector:
   enabled: true
   instanceId: aws-primary
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-collector
   collectorInstances:
     - instance_id: aws-primary
       collector_kind: aws
@@ -140,6 +203,9 @@ awsCloudCollector:
 The Helm chart renders `ESHU_COLLECTOR_INSTANCES_JSON`, the instance selector,
 owner ID, Postgres env, OTEL env, probes, metrics service, optional
 `ServiceMonitor`, `NetworkPolicy`, and `PodDisruptionBudget` for this runtime.
+Use `awsCloudCollector.serviceAccount.create=true` for IRSA so AWS collector
+permissions do not attach to the API, reducer, ingester, or other pods in the
+same release.
 The workflow coordinator chart remains dark-only in this branch, so production
 deployments need an approved control-plane path that creates AWS workflow work.
 
