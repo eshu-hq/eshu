@@ -100,6 +100,10 @@ type DefaultHandlers struct {
 	// ContainerImageIdentityWriter persists digest-keyed image identity
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter
+
+	// PackageCorrelationWriter persists package ownership candidates and
+	// manifest-backed consumption decisions for package-registry evidence.
+	PackageCorrelationWriter PackageCorrelationWriter
 }
 
 // NewDefaultRegistry constructs the canonical reducer catalog for the default
@@ -223,10 +227,11 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 		}
 		definitions = append(definitions, drift)
 	}
-	if handlers.FactLoader != nil {
+	if handlers.FactLoader != nil && handlers.PackageCorrelationWriter != nil {
 		packageSource := packageSourceCorrelationDomainDefinition()
 		packageSource.Handler = PackageSourceCorrelationHandler{
 			FactLoader:  handlers.FactLoader,
+			Writer:      handlers.PackageCorrelationWriter,
 			Instruments: handlers.Instruments,
 		}
 		definitions = append(definitions, packageSource)

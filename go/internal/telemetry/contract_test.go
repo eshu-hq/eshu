@@ -107,6 +107,7 @@ func TestSpanNames(t *testing.T) {
 		"query.package_registry_packages",
 		"query.package_registry_versions",
 		"query.package_registry_dependencies",
+		"query.package_registry_correlations",
 		"tfstate.collector.claim.process",
 		"tfstate.discovery.resolve",
 		"tfstate.source.open",

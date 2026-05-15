@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -14,10 +15,14 @@ import (
 )
 
 type stubPackageSourceFactLoader struct {
-	scopeFacts      []facts.Envelope
-	repositoryFacts []facts.Envelope
-	kindCalls       [][]string
-	repositoryCalls int
+	scopeFacts           []facts.Envelope
+	repositoryFacts      []facts.Envelope
+	manifestDependencies []facts.Envelope
+	kindCalls            [][]string
+	repositoryCalls      int
+	manifestCalls        int
+	manifestEcosystems   []string
+	manifestPackageNames []string
 }
 
 func (s *stubPackageSourceFactLoader) ListFacts(
@@ -43,6 +48,34 @@ func (s *stubPackageSourceFactLoader) ListActiveRepositoryFacts(
 ) ([]facts.Envelope, error) {
 	s.repositoryCalls++
 	return append([]facts.Envelope(nil), s.repositoryFacts...), nil
+}
+
+func (s *stubPackageSourceFactLoader) ListActivePackageManifestDependencyFacts(
+	_ context.Context,
+	ecosystems []string,
+	packageNames []string,
+) ([]facts.Envelope, error) {
+	s.manifestCalls++
+	s.manifestEcosystems = append([]string(nil), ecosystems...)
+	s.manifestPackageNames = append([]string(nil), packageNames...)
+	return append([]facts.Envelope(nil), s.manifestDependencies...), nil
+}
+
+type recordingPackageCorrelationWriter struct {
+	write PackageCorrelationWrite
+	calls int
+}
+
+func (w *recordingPackageCorrelationWriter) WritePackageCorrelations(
+	_ context.Context,
+	write PackageCorrelationWrite,
+) (PackageCorrelationWriteResult, error) {
+	w.calls++
+	w.write = write
+	return PackageCorrelationWriteResult{
+		CanonicalWrites: packageCorrelationCanonicalWrites(write.ConsumptionDecisions),
+		FactsWritten:    len(write.OwnershipDecisions) + len(write.ConsumptionDecisions),
+	}, nil
 }
 
 func newPackageSourceCorrelationInstruments(t *testing.T) (*telemetry.Instruments, sdkmetric.Reader) {
@@ -93,6 +126,13 @@ func TestPackageSourceCorrelationHandlerLoadsActiveRepositoriesAndEmitsCounters(
 	inst, reader := newPackageSourceCorrelationInstruments(t)
 	loader := &stubPackageSourceFactLoader{
 		scopeFacts: []facts.Envelope{
+			packageRegistryPackageFact(
+				"pkg:npm://registry.example/team-api",
+				"npm",
+				"team-api",
+				"",
+				observedAt,
+			),
 			packageSourceHintFact(
 				"pkg:npm://registry.example/team-api",
 				"repository",
@@ -109,9 +149,22 @@ func TestPackageSourceCorrelationHandlerLoadsActiveRepositoriesAndEmitsCounters(
 				observedAt,
 			),
 		},
+		manifestDependencies: []facts.Envelope{
+			packageManifestDependencyFact(
+				"repo-consumer",
+				"consumer",
+				"package.json",
+				"team-api",
+				"npm",
+				"^1.2.0",
+				observedAt,
+			),
+		},
 	}
+	writer := &recordingPackageCorrelationWriter{}
 	handler := PackageSourceCorrelationHandler{
 		FactLoader:  loader,
+		Writer:      writer,
 		Instruments: inst,
 	}
 
@@ -130,19 +183,38 @@ func TestPackageSourceCorrelationHandlerLoadsActiveRepositoriesAndEmitsCounters(
 	if result.Status != ResultStatusSucceeded {
 		t.Fatalf("Handle().Status = %q, want %q", result.Status, ResultStatusSucceeded)
 	}
-	if result.CanonicalWrites != 0 {
-		t.Fatalf("Handle().CanonicalWrites = %d, want 0", result.CanonicalWrites)
+	if result.CanonicalWrites != 1 {
+		t.Fatalf("Handle().CanonicalWrites = %d, want 1 package consumption write", result.CanonicalWrites)
 	}
 	if !strings.Contains(result.EvidenceSummary, "evaluated=1") ||
 		!strings.Contains(result.EvidenceSummary, "derived=1") ||
-		!strings.Contains(result.EvidenceSummary, "canonical_writes=0") {
-		t.Fatalf("Handle().EvidenceSummary = %q, want evaluated/derived/canonical_writes counts", result.EvidenceSummary)
+		!strings.Contains(result.EvidenceSummary, "consumption=1") ||
+		!strings.Contains(result.EvidenceSummary, "canonical_writes=1") {
+		t.Fatalf("Handle().EvidenceSummary = %q, want evaluated/derived/consumption/canonical_writes counts", result.EvidenceSummary)
 	}
-	if got, want := strings.Join(loader.kindCalls[0], ","), "package_registry.source_hint,repository"; got != want {
+	if got, want := strings.Join(loader.kindCalls[0], ","), "package_registry.source_hint,package_registry.package,repository"; got != want {
 		t.Fatalf("ListFactsByKind() kinds = %q, want %q", got, want)
 	}
 	if loader.repositoryCalls != 1 {
 		t.Fatalf("ListActiveRepositoryFacts() calls = %d, want 1", loader.repositoryCalls)
+	}
+	if loader.manifestCalls != 1 {
+		t.Fatalf("ListActivePackageManifestDependencyFacts() calls = %d, want 1", loader.manifestCalls)
+	}
+	if got, want := loader.manifestPackageNames, []string{"team-api"}; !sameStrings(got, want) {
+		t.Fatalf("PackageNames = %#v, want %#v", got, want)
+	}
+	if writer.calls != 1 {
+		t.Fatalf("WritePackageCorrelations() calls = %d, want 1", writer.calls)
+	}
+	if got, want := len(writer.write.OwnershipDecisions), 1; got != want {
+		t.Fatalf("OwnershipDecisions len = %d, want %d", got, want)
+	}
+	if got, want := len(writer.write.ConsumptionDecisions), 1; got != want {
+		t.Fatalf("ConsumptionDecisions len = %d, want %d", got, want)
+	}
+	if got, want := writer.write.ConsumptionDecisions[0].RepositoryID, "repo-consumer"; got != want {
+		t.Fatalf("consumption RepositoryID = %q, want %q", got, want)
 	}
 
 	var rm metricdata.ResourceMetrics
@@ -336,6 +408,74 @@ func packageSourceRepositoryFact(
 			"remote_url": remoteURL,
 		},
 	}
+}
+
+func packageRegistryPackageFact(
+	packageID string,
+	ecosystem string,
+	normalizedName string,
+	namespace string,
+	observedAt time.Time,
+) facts.Envelope {
+	return facts.Envelope{
+		FactID:        "package-fact:" + packageID,
+		FactKind:      facts.PackageRegistryPackageFactKind,
+		ObservedAt:    observedAt,
+		IsTombstone:   false,
+		SourceRef:     facts.Ref{SourceSystem: "package_registry"},
+		StableFactKey: "package:" + packageID,
+		Payload: map[string]any{
+			"package_id":      packageID,
+			"ecosystem":       ecosystem,
+			"normalized_name": normalizedName,
+			"namespace":       namespace,
+		},
+	}
+}
+
+func packageManifestDependencyFact(
+	repositoryID string,
+	repositoryName string,
+	relativePath string,
+	dependencyName string,
+	packageManager string,
+	dependencyRange string,
+	observedAt time.Time,
+) facts.Envelope {
+	return facts.Envelope{
+		FactID:        "manifest-dep:" + repositoryID + ":" + dependencyName,
+		FactKind:      factKindContentEntity,
+		ObservedAt:    observedAt,
+		IsTombstone:   false,
+		SourceRef:     facts.Ref{SourceSystem: "git"},
+		StableFactKey: "content_entity:" + repositoryID + ":" + dependencyName,
+		Payload: map[string]any{
+			"repo_id":       repositoryID,
+			"relative_path": relativePath,
+			"entity_type":   "Variable",
+			"entity_name":   dependencyName,
+			"entity_metadata": map[string]any{
+				"config_kind":     "dependency",
+				"package_manager": packageManager,
+				"section":         "dependencies",
+				"value":           dependencyRange,
+			},
+			"repo_name": repositoryName,
+		},
+	}
+}
+
+func unmarshalPackageCorrelationPayload(t *testing.T, raw any) map[string]any {
+	t.Helper()
+	payloadBytes, ok := raw.([]byte)
+	if !ok {
+		t.Fatalf("payload arg type = %T, want []byte", raw)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	return payload
 }
 
 func sameStrings(left, right []string) bool {

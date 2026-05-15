@@ -389,7 +389,9 @@ Key metrics (all prefixed `eshu_dp_`):
 - `canonical_writes_total` — includes graph-projection repair writes.
 - `package_source_correlations_total` — package source-correlation decisions by
   bounded outcome (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`,
-  `rejected`) and reducer domain.
+  `rejected`) and reducer domain. Durable package correlation facts store
+  source-hint ownership candidates as `provenance_only=true` and
+  manifest-backed consumption decisions as canonical package consumption truth.
 - `correlation_rule_matches_total`, `correlation_orphan_detected_total`, and
   `correlation_unmanaged_detected_total` — AWS runtime drift rule execution and
   admitted orphan/unmanaged findings. Unknown and ambiguous findings are exposed
@@ -414,6 +416,11 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   facts only for explicit digest or single-tag-to-digest matches. Ambiguous,
   unresolved, and stale tag outcomes stay diagnostic counters until stronger
   evidence proves safe identity.
+- **Package ownership is conservative** —
+  `PackageSourceCorrelationHandler` writes ownership candidates from registry
+  source hints but leaves `canonical_writes=0`; manifest dependency facts are
+  the first admitted package consumption truth because they combine registry
+  identity with Git source declaration.
 - **Projection must be idempotent** — queue retries, duplicate claims, and
   partial graph writes must converge on the same truth.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`

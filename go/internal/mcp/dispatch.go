@@ -319,6 +319,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		}}, nil
 	case "list_package_registry_dependencies":
 		return packageRegistryDependenciesRoute(args), nil
+	case "list_package_registry_correlations":
+		return packageRegistryCorrelationsRoute(args), nil
 	case "get_repo_story":
 		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story"}, nil
 	case "get_repo_summary":

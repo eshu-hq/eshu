@@ -317,17 +317,18 @@ func configStateDriftDomainDefinition() DomainDefinition {
 }
 
 // packageSourceCorrelationDomainDefinition returns the additive definition for
-// the package source-correlation classifier. Its v1 truth surface is bounded
-// outcome counters; source hints remain provenance-only and emit no canonical
-// package ownership graph writes.
+// the package source-correlation classifier. Source hints remain provenance-only
+// ownership candidates, while Git manifest dependencies matched to package
+// registry identity are durable consumption facts.
 func packageSourceCorrelationDomainDefinition() DomainDefinition {
 	return DomainDefinition{
 		Domain:  DomainPackageSourceCorrelation,
-		Summary: "classify package-registry source hints against active repository remotes",
+		Summary: "classify package-registry ownership candidates and manifest-backed consumption",
 		Ownership: OwnershipShape{
-			CrossSource: true,
-			CrossScope:  true,
-			CounterEmit: true,
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
 		},
 		TruthContract: truth.Contract{
 			CanonicalKind: "package_source_correlation",
