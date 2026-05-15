@@ -260,6 +260,52 @@ func TestLoadReducerClaimDomains_RejectsUnknownPluralDomain(t *testing.T) {
 	}
 }
 
+func TestLoadReducerClaimDomain_RejectsPluralDomainsWithClearLegacyMessage(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadReducerClaimDomain(func(k string) string {
+		if k == reducerClaimDomainsEnv {
+			return strings.Join([]string{
+				string(reducer.DomainSQLRelationshipMaterialization),
+				string(reducer.DomainInheritanceMaterialization),
+			}, ",")
+		}
+		return ""
+	})
+	if err == nil {
+		t.Fatal("loadReducerClaimDomain() error = nil, want multiple-domain validation error")
+	}
+	for _, want := range []string{
+		reducerClaimDomainEnv,
+		"supports exactly one reducer domain",
+		reducerClaimDomainsEnv,
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("loadReducerClaimDomain() error = %q, want substring %q", err.Error(), want)
+		}
+	}
+}
+
+func TestLoadReducerClaimDomains_ReportsLegacySourceForEmptyDomain(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadReducerClaimDomains(func(k string) string {
+		if k == reducerClaimDomainEnv {
+			return string(reducer.DomainSQLRelationshipMaterialization) + ","
+		}
+		return ""
+	})
+	if err == nil {
+		t.Fatal("loadReducerClaimDomains() error = nil, want empty-domain validation error")
+	}
+	if !strings.Contains(err.Error(), reducerClaimDomainEnv) {
+		t.Fatalf("loadReducerClaimDomains() error = %q, want legacy env name", err.Error())
+	}
+	if strings.Contains(err.Error(), reducerClaimDomainsEnv) {
+		t.Fatalf("loadReducerClaimDomains() error = %q, did not want plural env name", err.Error())
+	}
+}
+
 func expectedNornicDBReducerWorkers() int {
 	n := runtime.NumCPU()
 	if n < 1 {

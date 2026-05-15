@@ -101,7 +101,7 @@ func loadReducerClaimDomain(getenv func(string) string) (reducer.Domain, error) 
 		return "", nil
 	}
 	if len(domains) > 1 {
-		return "", fmt.Errorf("%s contains multiple domains; use %s-aware configuration", reducerClaimDomainsEnv, reducerClaimDomainsEnv)
+		return "", fmt.Errorf("%s supports exactly one reducer domain; set %s for multiple domains and wire the plural claim-domain configuration", reducerClaimDomainEnv, reducerClaimDomainsEnv)
 	}
 	return domains[0], nil
 }
@@ -112,11 +112,13 @@ func loadReducerClaimDomains(getenv func(string) string) ([]reducer.Domain, erro
 	}
 	legacyRaw := strings.TrimSpace(getenv(reducerClaimDomainEnv))
 	raw := strings.TrimSpace(getenv(reducerClaimDomainsEnv))
+	sourceEnv := reducerClaimDomainsEnv
 	if legacyRaw != "" && raw != "" {
 		return nil, fmt.Errorf("%s and %s cannot both be set", reducerClaimDomainEnv, reducerClaimDomainsEnv)
 	}
 	if raw == "" {
 		raw = legacyRaw
+		sourceEnv = reducerClaimDomainEnv
 	}
 	if raw == "" {
 		return nil, nil
@@ -128,11 +130,11 @@ func loadReducerClaimDomains(getenv func(string) string) ([]reducer.Domain, erro
 	for _, part := range parts {
 		value := strings.TrimSpace(part)
 		if value == "" {
-			return nil, fmt.Errorf("%s contains an empty reducer domain", reducerClaimDomainsEnv)
+			return nil, fmt.Errorf("%s contains an empty reducer domain", sourceEnv)
 		}
 		domain, err := reducer.ParseDomain(value)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s contains invalid reducer domain %q: %w", sourceEnv, value, err)
 		}
 		if _, ok := seen[domain]; ok {
 			continue
