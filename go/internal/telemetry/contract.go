@@ -1,5 +1,4 @@
-// Package telemetry defines the frozen observability contract for the Go data
-// plane. It intentionally contains only stable names and copy-safe accessors.
+// Package telemetry defines the frozen Go data-plane observability contract.
 package telemetry
 
 import (
@@ -13,7 +12,6 @@ const (
 	// DefaultServiceNamespace is the stable namespace shared by Go data-plane
 	// runtimes when they publish telemetry resources.
 	DefaultServiceNamespace = "eshu"
-
 	// DefaultSignalName is the shared OTEL instrumentation name for the data
 	// plane bootstrap substrate.
 	DefaultSignalName = "eshu/go/data-plane"
@@ -368,6 +366,7 @@ var spanNames = []string{
 	SpanQueryIaCUnmanagedResources,
 	SpanQueryInfraResourceSearch,
 	SpanQueryCodeTopicInvestigation,
+	SpanQueryHardcodedSecretInvestigation,
 	SpanQueryDeadCodeInvestigation,
 	SpanQueryChangeSurfaceInvestigation,
 	SpanQueryResourceInvestigation,

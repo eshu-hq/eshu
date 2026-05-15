@@ -4,11 +4,15 @@
 // Handlers depend on graph and content ports such as GraphQuery and the
 // Postgres content reader rather than concrete backends, so backend
 // dialect differences stay in narrow seams. The public OpenAPI contract is
-// built from openapi*.go fragments and served at /api/v0/openapi.json;
+// built from openapi*.go fragments, including openapi_paths_code_security.go
+// for security prompt routes, and served at /api/v0/openapi.json;
 // handler behavior, OpenAPI fragments, and docs/docs/reference/http-api.md
 // must agree whenever public routes or response shapes change. Response
 // envelopes, truth metadata, capability gates, and code-quality classifications
-// are stable wire contracts. The dead-code OpenAPI fragment names modeled
+// are stable wire contracts. Hardcoded-secret investigation returns redacted
+// content-index findings with suppression notes and never returns raw secret
+// values; the route contract lives in code_security_secrets.go. The dead-code
+// OpenAPI fragment names modeled
 // language roots and keeps the language filter examples aligned with C#, C,
 // Dart, Haskell, Kotlin, Elixir, Perl, PHP, Groovy, and SQL query behavior. That
 // filter is part of the dogfood contract for validating one language family

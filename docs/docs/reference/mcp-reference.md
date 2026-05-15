@@ -59,6 +59,7 @@ These are the most commonly used tools for understanding code.
 | **`find_most_complex_functions`** | List the hardest-to-maintain functions. | "Show me the 5 most complex functions." |
 | **`find_dead_code`** | Identify derived dead-code candidates, optionally scoped by `repo_id` as a canonical ID, repository name, repo slug, or indexed path, with optional `limit`, default entrypoint, direct Go Cobra/stdlib-HTTP/controller-runtime signature, Go public-API, test, and generated-code exclusions, optional decorator-owned entry-point exclusions, and a `truncated` signal when the bounded result window is cut off. | "Find dead code in this repo, but ignore `@route`." |
 | **`investigate_dead_code`** | Return a prompt-ready dead-code investigation packet with coverage, language maturity, exactness blockers, cleanup-ready/ambiguous/suppressed buckets, source handles, and recommended next calls. JavaScript and TypeScript candidates stay ambiguous until corpus precision is proven. | "What code is dead in `api-gateway`, and what is safe versus ambiguous?" |
+| **`investigate_hardcoded_secrets`** | Return redacted hardcoded password, API key, token, private-key, and risky-literal candidates from indexed content with suppression notes, source handles, paging, and truncation coverage. | "Find potential hardcoded passwords, API keys, or secrets." |
 
 ## Story & Context
 

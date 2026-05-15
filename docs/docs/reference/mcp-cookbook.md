@@ -553,8 +553,13 @@ one and returns `truncated` when the row window clips the result.
 
 > "Find potential hardcoded passwords, API keys, or secrets."
 
-**Tool:** tracked follow-up issue #292
+**Tool:** `investigate_hardcoded_secrets`
 
-Do not use a raw graph-wide source-code Cypher scan for this prompt. Issue #292
-tracks the first-class bounded security tool that can scan indexed content with
-redaction, deterministic paging, and security-review evidence.
+```json
+{ "repo_id": "payments-service", "limit": 25, "include_suppressed": false }
+```
+
+This scans indexed content, returns redacted excerpts only, reports finding
+kind, confidence, severity, suppression notes, source handles, and
+`truncated`. Use `include_suppressed=true` only when you want test, fixture,
+example, or placeholder candidates included with suppression metadata.

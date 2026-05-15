@@ -1,5 +1,6 @@
-// Package telemetry owns Eshu's OpenTelemetry contract: metric instruments,
-// span names, structured log keys, and shared runtime attributes.
+// Package telemetry owns Eshu's frozen Go data-plane OpenTelemetry contract:
+// metric instruments, span names, structured log keys, and shared runtime
+// attributes.
 //
 // The frozen contract lives in contract.go (metric, span, scope, phase,
 // and failure-class names) and the metric instruments themselves live in
@@ -19,7 +20,10 @@
 // separate Terraform config-vs-state joins from AWS runtime ARN joins.
 // SpanQueryChangeSurfaceInvestigation names the prompt-facing change-surface
 // route that combines target resolution, content handles, and bounded graph
-// traversal. SpanQueryEvidenceCitationPacket names the prompt-facing citation
+// traversal. SpanQueryHardcodedSecretInvestigation names the prompt-facing
+// security route that returns redacted hardcoded-secret candidates from indexed
+// content and keeps that span name in contract_query_spans.go.
+// SpanQueryEvidenceCitationPacket names the prompt-facing citation
 // hydration route that turns explicit content handles into bounded source and
 // documentation proof. Pipeline stage, graph-backend, and failure-class names
 // stay centralized here so runtime packages can report comparable events

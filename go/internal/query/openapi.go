@@ -53,6 +53,7 @@ func OpenAPISpec() string {
 			openAPIPathsEntities+
 			openAPIPathsInvestigations+
 			openAPIPathsCode+
+			openAPIPathsCodeSecurity+
 			openAPIPathsCodeDeadCodeInvestigation+
 			openAPIPathsCodeSymbols+
 			openAPIPathsIaC+

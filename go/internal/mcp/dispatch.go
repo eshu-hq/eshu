@@ -110,6 +110,15 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":    intOr(args, "limit", 25),
 			"offset":   intOr(args, "offset", 0),
 		}}, nil
+	case "investigate_hardcoded_secrets":
+		return &route{method: "POST", path: "/api/v0/code/security/secrets/investigate", body: map[string]any{
+			"repo_id":            str(args, "repo_id"),
+			"language":           str(args, "language"),
+			"finding_kinds":      stringSlice(args, "finding_kinds"),
+			"include_suppressed": boolOr(args, "include_suppressed", false),
+			"limit":              intOr(args, "limit", 25),
+			"offset":             intOr(args, "offset", 0),
+		}}, nil
 	case "get_code_relationship_story":
 		return &route{method: "POST", path: "/api/v0/code/relationships/story", body: map[string]any{
 			"target":             str(args, "target"),

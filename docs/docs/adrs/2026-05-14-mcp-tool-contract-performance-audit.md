@@ -48,9 +48,12 @@ tool surface:
   the requested repo IDs instead of one sequential query per repo.
 - `find_infra_resources` now advertises `limit` through MCP, caps it at 200,
   probes one extra graph row, and returns `truncated`.
-- The MCP cookbook no longer recommends raw graph-wide source-code Cypher for
-  hardcoded-secret prompts. Issue #292 remains the first-class security prompt
-  work item.
+- `investigate_hardcoded_secrets` is the first-class MCP path for issue #292.
+  It routes to `POST /api/v0/code/security/secrets/investigate`, scans indexed
+  content through Postgres, classifies password, token, API key, AWS access key,
+  private key, Slack token, and risky secret literals, redacts every returned
+  excerpt, reports confidence/severity, source handles, suppression notes,
+  limit/offset, and truncation, and avoids raw Cypher.
 - `find_symbol` is the first-class MCP symbol-definition lookup for issue #287.
   It routes to `POST /api/v0/code/symbols/search`, defaults to exact matching,
   accepts optional `repo_id`, `language`, and entity-type filters, caps `limit`
@@ -93,7 +96,7 @@ tool surface:
 | Callers, callees, imports, call chains | `get_code_relationship_story`, `find_function_call_chain` | Relationship story is bounded, ambiguity-aware, entity-anchored, paged, and exposes optional bounded transitive CALLS traversal; call-chain keeps the dedicated endpoint | #288 |
 | Dead code and code quality | `find_dead_code`, `find_most_complex_functions` | Existing bounded routes; raw Cypher examples now show limits | #289, #290 |
 | Class hierarchy and overrides | `analyze_code_relationships`, `execute_language_query` | Current fallback remains diagnostics-heavy for some shapes | #291 |
-| Security hardcoded secrets | none first-class | Raw graph-wide Cypher removed from the recommended prompt path | #292 |
+| Security hardcoded secrets | `investigate_hardcoded_secrets` | First-class redacted content-index investigation with severity, confidence, suppression notes, source handles, paging, and truncation | #292 |
 | Deployment, GitOps, and resource tracing | `trace_deployment_chain`, `trace_resource_to_code`, story tools | Service story is one-call; low-level trace paths keep existing caps | #293, #294, #295 |
 | Environment comparison | `compare_environments` | Scoped workload/environment route now returns a prompt-ready story packet with shared resources, dedicated resources, evidence, limitations, coverage, and exact next calls | #296 |
 | Package and registry prompts | `list_package_registry_packages`, `list_package_registry_versions` | Already require/cap `limit` and deterministic ordering | #297 |
@@ -130,6 +133,10 @@ The changed read paths are cold-call bounded:
   read for file handles plus one PostgreSQL entity read for entity handles, trim
   excerpts in memory after the bounded fetch, return missing-handle coverage,
   and never default to whole-graph discovery;
+- hardcoded-secret investigation uses one Postgres content-store query over
+  indexed file content, supports optional repository, language, and finding-kind
+  scope, caps `limit` at 200, caps `offset` at 10000, probes one extra row for
+  `truncated`, and redacts returned line excerpts before building the response;
 - infrastructure search has a max limit and truncation probe.
 - legacy impact tools `find_blast_radius`, `find_change_surface`, and
   `trace_resource_to_code` now accept `limit`, cap it at 200, execute graph
@@ -187,6 +194,24 @@ response envelope reports `truth.capability=code_search.topic_investigation`,
 `source_backend=postgres_content_store`, `coverage.query_shape`,
 `coverage.searched_term_count`, `limit`, `offset`, and `truncated`, so a slow or
 empty MCP answer can be diagnosed by scope, term expansion, and result window.
+
+No-Regression Evidence: issue #292 focused proof:
+`go test ./internal/query -run 'TestHandleHardcodedSecretInvestigation|TestCapabilityMatrixMatchesYAMLContract|TestOpenAPI' -count=1`
+and
+`go test ./internal/mcp -run 'TestInvestigateHardcodedSecretsToolAdvertisesBoundedContract|TestResolveRouteMapsInvestigateHardcodedSecrets|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute' -count=1`.
+The new route returns redacted excerpts only, rejects offsets above 10000,
+passes `limit+1` to the content-store read for truncation, advertises the MCP
+limit/offset/finding-kind contract, and maps the tool to
+`POST /api/v0/code/security/secrets/investigate`.
+
+Observability Evidence: hardcoded-secret investigation emits
+`query.hardcoded_secret_investigation` with `http.route` and
+`eshu.capability`, then one child `postgres.query` span with
+`db.operation=investigate_hardcoded_secrets`. The response envelope reports
+`truth.capability=security.hardcoded_secrets`, `source_backend`,
+`coverage.query_shape`, `coverage.suppressed_count`, `limit`, `offset`, and
+`truncated`, so a slow or partial MCP answer can be diagnosed by scope, content
+scan, suppression filtering, or result window.
 
 No-Regression Evidence: evidence citation packet focused proof:
 `go test ./internal/query -run 'TestContentReaderEvidenceCitationFiles|TestEvidenceHandlerCitationPacket|TestEvidenceHandlerBuildsCitationPacket' -count=1` and

@@ -144,6 +144,7 @@ All of these tools are available through MCP. Your AI assistant can call them di
 - "Explain how these two things connect" → `explain_dependency_path`
 - "What differs between prod and staging?" → `compare_environments`
 - "Where is this behavior implemented?" → `investigate_code_topic`
+- "Find hardcoded passwords, API keys, or risky literals." → `investigate_hardcoded_secrets`
 - "Show me the source and docs evidence behind this answer" → `build_evidence_citation_packet`
 
 See the [MCP Guide](guides/mcp-guide.md) for setup.

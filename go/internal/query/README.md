@@ -292,7 +292,8 @@ normalized to `c_sharp` before candidate scanning.
 - `RepositoryHandler` — `GET /api/v0/repositories*` routes (`repository.go:21`)
 - `EntityHandler` — entity resolution, workload/service context routes, service dossier stories, and service investigation coverage (`entity.go:11`, `service_story_handler.go:9`, `service_investigation.go:17`)
 - `CodeHandler` — code search, symbol lookup, relationships, relationship
-  stories, dead-code, complexity, call-chain (`code.go:11`)
+  stories, redacted hardcoded-secret investigation in
+  `code_security_secrets.go`, dead-code, complexity, call-chain (`code.go:11`)
 - `ContentHandler` — file and entity content reads (`content_handler.go:11`)
 - `InfraHandler` — infrastructure resource and relationship routes (`infra.go:12`)
   including Terraform backend, import, moved, removed, check, and lockfile
@@ -339,7 +340,8 @@ normalized to `c_sharp` before candidate scanning.
 **OpenAPI**
 
 - `OpenAPISpec()` — concatenates twelve `openapi_paths_*.go` fragments and
-  `openAPIComponents` into one JSON string (`openapi.go:49`)
+  `openAPIComponents` into one JSON string (`openapi.go:49`); security prompt
+  routes live in `openapi_paths_code_security.go`
 - `ServeOpenAPI`, `ServeSwaggerUI`, `ServeReDoc` — HTTP handlers for
   `/api/v0/openapi.json`, `/api/v0/docs`, `/api/v0/redoc` (`openapi.go`)
 
@@ -366,7 +368,9 @@ See `doc.go` for the full godoc contract.
   Postgres drivers directly — they go through query package adapters and ports
 - `internal/telemetry` — `EventAttr`, `DefaultServiceNamespace`, span constants
   `SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
-  `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`, `SpanQueryDeadCodeInvestigation`, `SpanQueryChangeSurfaceInvestigation`
+  `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`,
+  `SpanQueryHardcodedSecretInvestigation`, `SpanQueryDeadCodeInvestigation`,
+  `SpanQueryChangeSurfaceInvestigation`
 
 Handlers depend on the `GraphQuery` and `ContentStore` ports, not on
 `neo4jdriver.DriverWithContext` or `*sql.DB` directly. `Neo4jReader` and
@@ -386,7 +390,10 @@ wired in `cmd/api/wiring.go`, not here.
   (`query.documentation_packet_freshness`) on documentation truth evidence
   routes (`documentation.go`); `telemetry.SpanQueryCodeTopicInvestigation`
   (`query.code_topic_investigation`) on broad code-topic investigation
-  (`code_topic.go`); `telemetry.SpanQueryDeadCodeInvestigation`
+  (`code_topic.go`); `telemetry.SpanQueryHardcodedSecretInvestigation`
+  (`query.hardcoded_secret_investigation`) on redacted hardcoded-secret
+  investigation (`code_security_secrets.go`);
+  `telemetry.SpanQueryDeadCodeInvestigation`
   (`query.dead_code_investigation`) on dead-code investigation
   (`code_dead_code_investigation.go`); `telemetry.SpanQueryChangeSurfaceInvestigation`
   (`query.change_surface_investigation`) on change-surface investigation;
