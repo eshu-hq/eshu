@@ -23,6 +23,7 @@ only in diagnostics sections and local graph debugging.
 | Code quality and refactoring prompts | `inspect_code_quality`, `find_most_complex_functions`, `calculate_cyclomatic_complexity` | Ready | Prefer `inspect_code_quality` for list-style prompts because it returns source handles and truncation. |
 | Dead-code prompts | `investigate_dead_code` | Ready | Use the investigation packet first; `find_dead_code` remains the lower-level candidate scan. |
 | Hardcoded-secret prompts | `investigate_hardcoded_secrets` | Ready | Returns redacted evidence only, with suppression notes and paging. |
+| Repository explanation and context | `get_repo_story`, `get_repo_context` | Ready | Use `get_repo_story` for the narrative repository dossier and `get_repo_context` for durable drilldown after story or search results identify the repository. |
 | Service explanation and onboarding | `get_service_story`, `investigate_service` | Ready | Use story first for the normal dossier path; use investigation first when coverage must be inspected before answering. |
 | Deployment chain prompts | `trace_deployment_chain` | Ready | Read `deployment_fact_summary`, `deployment_facts`, `controller_overview`, and `runtime_overview` before lower-level rows. |
 | Deployment configuration prompts | `investigate_deployment_config` | Ready | Covers image tags, runtime settings, resource limits, values layers, rendered targets, and read-first file handles. |
