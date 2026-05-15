@@ -40,7 +40,7 @@ func (cr *ContentReader) InspectStructuralInventory(
 		ORDER BY repo_id, relative_path, start_line, entity_name, entity_id
 		LIMIT $%d OFFSET $%d
 	`, strings.Join(where, " AND "), limitArg, offsetArg)
-	args = append(args, req.normalizedLimit(), req.Offset)
+	args = append(args, req.queryLimit(), req.Offset)
 
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -114,7 +114,7 @@ func (cr *ContentReader) CountStructuralInventoryByFile(
 		ORDER BY function_count DESC, repo_id, relative_path
 		LIMIT $%d OFFSET $%d
 	`, strings.Join(where, " AND "), limitArg, offsetArg)
-	args = append(args, req.normalizedLimit(), req.Offset)
+	args = append(args, req.queryLimit(), req.Offset)
 
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -123,7 +123,7 @@ func (cr *ContentReader) CountStructuralInventoryByFile(
 	}
 	defer func() { _ = rows.Close() }()
 
-	results := make([]StructuralInventoryFileCount, 0, req.normalizedLimit())
+	results := make([]StructuralInventoryFileCount, 0, req.queryLimit())
 	for rows.Next() {
 		var row StructuralInventoryFileCount
 		if err := rows.Scan(&row.RepoID, &row.RelativePath, &row.Language, &row.FunctionCount); err != nil {
@@ -187,29 +187,61 @@ func structuralInventoryKindPredicates(
 ) []string {
 	switch req.kind() {
 	case "dataclass":
-		return []string{"(metadata->'dead_code_root_kinds' ? 'python.dataclass_model' OR metadata->'decorators' ? '@dataclass' OR metadata->'decorators' ? '@dataclasses.dataclass')"}
+		return []string{"(metadata->'dead_code_root_kinds' ? 'python.dataclass_model' OR " + decoratorMatchPredicate(addArg, "@dataclass") + " OR " + decoratorMatchPredicate(addArg, "@dataclasses.dataclass") + ")"}
 	case "documented", "documented_function":
 		return []string{"coalesce(metadata->>'docstring', '') <> ''"}
 	case "decorated":
-		predicates := []string{"jsonb_array_length(coalesce(metadata->'decorators', '[]'::jsonb)) > 0"}
+		predicates := []string{decoratorPresencePredicate()}
 		if decorator := strings.TrimSpace(req.Decorator); decorator != "" {
-			raw := addArg(decorator)
-			withAt := addArg(ensureAtDecorator(decorator))
-			predicates = append(predicates, "((metadata->'decorators') ? "+raw+" OR (metadata->'decorators') ? "+withAt+")")
+			predicates = append(predicates, decoratorMatchPredicate(addArg, decorator))
 		}
 		if className := strings.TrimSpace(req.ClassName); className != "" {
 			predicates = append(predicates, classContextPredicate(addArg(className)))
 		}
 		return predicates
 	case "class_with_method":
-		return []string{"entity_name = " + addArg(strings.TrimSpace(req.MethodName)), "coalesce(metadata->>'class_context', metadata->>'context', metadata->>'impl_context', '') <> ''"}
+		predicates := []string{"entity_name = " + addArg(strings.TrimSpace(req.MethodName)), "coalesce(metadata->>'class_context', metadata->>'context', metadata->>'impl_context', '') <> ''"}
+		if className := strings.TrimSpace(req.ClassName); className != "" {
+			predicates = append(predicates, classContextPredicate(addArg(className)))
+		}
+		return predicates
 	case "super_call":
 		return []string{"(source_cache ILIKE '%super(%' OR source_cache ILIKE '%super.%' OR source_cache ILIKE '%super::%' OR source_cache ILIKE '%super %')"}
 	case "top_level":
-		return []string{"coalesce(metadata->>'class_context', metadata->>'context', metadata->>'impl_context', '') = ''"}
+		predicates := []string{"coalesce(metadata->>'class_context', metadata->>'context', metadata->>'impl_context', '') = ''"}
+		if strings.TrimSpace(req.EntityKind) == "" {
+			predicates = append(predicates, "(entity_type = 'Function' OR entity_type = 'Class')")
+		}
+		return predicates
 	default:
 		return nil
 	}
+}
+
+func (req structuralInventoryRequest) queryLimit() int {
+	if req.Limit <= 0 {
+		return structuralInventoryDefaultLimit
+	}
+	return req.Limit
+}
+
+func decoratorPresencePredicate() string {
+	return "((CASE WHEN jsonb_typeof(metadata->'decorators') = 'array' THEN jsonb_array_length(metadata->'decorators') > 0 ELSE false END) OR (jsonb_typeof(metadata->'decorators') = 'object' AND metadata->'decorators' <> '{}'::jsonb))"
+}
+
+func decoratorMatchPredicate(addArg func(any) string, decorator string) string {
+	raw := addArg(strings.TrimSpace(decorator))
+	withAt := addArg(ensureAtDecorator(decorator))
+	withoutAt := addArg(strings.TrimPrefix(strings.TrimSpace(decorator), "@"))
+	args := strings.Join([]string{raw, withAt, withoutAt}, ", ")
+	decoratorArray := "CASE WHEN jsonb_typeof(metadata->'decorators') = 'array' THEN metadata->'decorators' ELSE '[]'::jsonb END"
+	return "(((metadata->'decorators') ? " + raw +
+		" OR (metadata->'decorators') ? " + withAt +
+		" OR (metadata->'decorators') ? " + withoutAt +
+		" OR EXISTS (SELECT 1 FROM jsonb_array_elements(" + decoratorArray + ") AS decorator(value) WHERE decorator.value->>'name' IN (" + args +
+		") OR decorator.value->>'expression' IN (" + args +
+		"))) OR (jsonb_typeof(metadata->'decorators') = 'object' AND ((metadata->'decorators'->>'name') IN (" + args +
+		") OR (metadata->'decorators'->>'expression') IN (" + args + "))))"
 }
 
 func classContextPredicate(arg string) string {

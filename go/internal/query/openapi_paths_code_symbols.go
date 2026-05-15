@@ -51,7 +51,7 @@ const openAPIPathsCodeSymbols = `
       "post": {
         "tags": ["code"],
         "summary": "Inspect structural code inventory",
-        "description": "Returns bounded content-index structural inventory for functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, super calls, and function counts per file.",
+        "description": "Returns bounded content-index structural inventory for functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, super calls, and function counts per file. Requests must include at least one scope filter: repo_id, file_path, language, entity_kind, or symbol.",
         "operationId": "inspectCodeInventory",
         "requestBody": {
           "required": true,
@@ -60,14 +60,14 @@ const openAPIPathsCodeSymbols = `
               "schema": {
                 "type": "object",
                 "properties": {
-                  "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)"},
+                  "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path). One of repo_id, file_path, language, entity_kind, or symbol is required."},
                   "language": {"type": "string", "description": "Optional language filter"},
                   "inventory_kind": {
                     "type": "string",
                     "enum": ["entity", "top_level", "dataclass", "documented", "documented_function", "decorated", "class_with_method", "super_call", "function_count_by_file"],
                     "default": "entity"
                   },
-                  "entity_kind": {"type": "string", "description": "Optional entity kind such as function, class, module, variable, component, type_alias, or sql_function"},
+                  "entity_kind": {"type": "string", "description": "Optional entity kind such as function, class, module, variable, component, type_alias, or sql_function. Must be function for function_count_by_file inventory."},
                   "file_path": {"type": "string", "description": "Optional repo-relative file path"},
                   "symbol": {"type": "string", "description": "Optional exact entity name"},
                   "decorator": {"type": "string", "description": "Optional decorator filter"},

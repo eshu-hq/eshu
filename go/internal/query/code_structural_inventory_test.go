@@ -56,7 +56,8 @@ func TestCodeHandlerStructuralInventoryReturnsBoundedDataclasses(t *testing.T) {
 	if !strings.Contains(recorder.queries[0], "ORDER BY repo_id, relative_path, start_line, entity_name, entity_id") {
 		t.Fatalf("query = %q, want deterministic ordering", recorder.queries[0])
 	}
-	if got, want := numericDriverValue(t, recorder.args[0][3]), int64(2); got != want {
+	limitArg := recorder.args[0][len(recorder.args[0])-2]
+	if got, want := numericDriverValue(t, limitArg), int64(2); got != want {
 		t.Fatalf("limit probe arg = %d, want %d", got, want)
 	}
 
@@ -220,6 +221,53 @@ func TestCodeHandlerStructuralInventoryRejectsInvalidBounds(t *testing.T) {
 	}
 }
 
+func TestStructuralInventoryValidationRejectsOverMaxLimit(t *testing.T) {
+	t.Parallel()
+
+	err := (structuralInventoryRequest{
+		RepoID:        "repo-1",
+		InventoryKind: "entity",
+		Limit:         structuralInventoryMaxLimit + 1,
+	}).validate()
+
+	if err == nil {
+		t.Fatal("validate() error = nil, want limit bound error")
+	}
+	if got, want := err.Error(), "limit must be <= 200"; got != want {
+		t.Fatalf("validate() error = %q, want %q", got, want)
+	}
+}
+
+func TestStructuralInventoryValidationRequiresScope(t *testing.T) {
+	t.Parallel()
+
+	err := (structuralInventoryRequest{InventoryKind: "super_call"}).validate()
+
+	if err == nil {
+		t.Fatal("validate() error = nil, want scope error")
+	}
+	if got, want := err.Error(), "one of repo_id, file_path, language, entity_kind, or symbol is required"; got != want {
+		t.Fatalf("validate() error = %q, want %q", got, want)
+	}
+}
+
+func TestStructuralInventoryValidationRejectsNonFunctionFileCounts(t *testing.T) {
+	t.Parallel()
+
+	err := (structuralInventoryRequest{
+		RepoID:        "repo-1",
+		InventoryKind: "function_count_by_file",
+		EntityKind:    "class",
+	}).validate()
+
+	if err == nil {
+		t.Fatal("validate() error = nil, want entity_kind error")
+	}
+	if got, want := err.Error(), "entity_kind must be function for function_count_by_file inventory"; got != want {
+		t.Fatalf("validate() error = %q, want %q", got, want)
+	}
+}
+
 func TestStructuralInventoryWhereUsesLanguageVariants(t *testing.T) {
 	t.Parallel()
 
@@ -230,6 +278,63 @@ func TestStructuralInventoryWhereUsesLanguageVariants(t *testing.T) {
 		t.Fatalf("where = %q, want TypeScript language variants", joined)
 	}
 	if got, want := args, []any{"typescript", "tsx"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("args = %#v, want %#v", got, want)
+	}
+}
+
+func TestStructuralInventoryWhereHonorsClassNameForClassWithMethod(t *testing.T) {
+	t.Parallel()
+
+	where, args := structuralInventoryWhere(structuralInventoryRequest{
+		RepoID:        "repo-1",
+		InventoryKind: "class_with_method",
+		MethodName:    "render",
+		ClassName:     "Dashboard",
+	})
+
+	joined := strings.Join(where, " AND ")
+	if !strings.Contains(joined, "entity_name = $3") {
+		t.Fatalf("where = %q, want method predicate", joined)
+	}
+	if !strings.Contains(joined, "metadata->>'class_context' = $4") {
+		t.Fatalf("where = %q, want class context predicate", joined)
+	}
+	if got, want := args, []any{"repo-1", "Function", "render", "Dashboard"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("args = %#v, want %#v", got, want)
+	}
+}
+
+func TestStructuralInventoryWhereRestrictsTopLevelToFunctionsAndClasses(t *testing.T) {
+	t.Parallel()
+
+	where, _ := structuralInventoryWhere(structuralInventoryRequest{
+		RepoID:        "repo-1",
+		InventoryKind: "top_level",
+	})
+
+	joined := strings.Join(where, " AND ")
+	if !strings.Contains(joined, "(entity_type = 'Function' OR entity_type = 'Class')") {
+		t.Fatalf("where = %q, want default function/class filter", joined)
+	}
+}
+
+func TestStructuralInventoryWhereMatchesObjectDecorators(t *testing.T) {
+	t.Parallel()
+
+	where, args := structuralInventoryWhere(structuralInventoryRequest{
+		RepoID:        "repo-1",
+		InventoryKind: "decorated",
+		Decorator:     "route",
+	})
+
+	joined := strings.Join(where, " AND ")
+	if !strings.Contains(joined, "jsonb_typeof(metadata->'decorators') = 'array'") {
+		t.Fatalf("where = %q, want array-safe decorator predicate", joined)
+	}
+	if !strings.Contains(joined, "decorator.value->>'name'") {
+		t.Fatalf("where = %q, want object decorator name predicate", joined)
+	}
+	if got, want := args, []any{"repo-1", "route", "@route", "route"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("args = %#v, want %#v", got, want)
 	}
 }

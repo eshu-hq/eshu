@@ -751,7 +751,11 @@ dataclasses", "find documented functions", "find decorated methods in this
 class", "find classes with a method", "find `super()` calls", and "count
 functions per file". It reads the content index, returns deterministic pages
 with `truncated` and `next_offset`, and includes source handles for drill-down
-file or entity reads.
+file or entity reads. Every request must include at least one scope filter:
+`repo_id`, `file_path`, `language`, `entity_kind`, or `symbol`.
+`function_count_by_file` always counts functions; if `entity_kind` is supplied
+there, it must be `function`. `top_level` defaults to Function/Class rows unless
+the caller supplies a narrower `entity_kind`.
 
 Example code-topic investigation workflow:
 

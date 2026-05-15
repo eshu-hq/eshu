@@ -3,9 +3,16 @@ package mcp
 func structuralInventoryTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "inspect_code_inventory",
-		Description: "Inspect bounded structural code inventory such as functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, and super calls.",
+		Description: "Inspect bounded structural code inventory such as functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, and super calls. Provide at least one scope filter: repo_id, file_path, language, entity_kind, or symbol.",
 		InputSchema: map[string]any{
 			"type": "object",
+			"anyOf": []map[string]any{
+				{"required": []string{"repo_id"}},
+				{"required": []string{"file_path"}},
+				{"required": []string{"language"}},
+				{"required": []string{"entity_kind"}},
+				{"required": []string{"symbol"}},
+			},
 			"properties": map[string]any{
 				"repo_id": map[string]any{
 					"type":        "string",
@@ -23,7 +30,7 @@ func structuralInventoryTool() ToolDefinition {
 				},
 				"entity_kind": map[string]any{
 					"type":        "string",
-					"description": "Optional entity kind such as function, class, module, variable, component, type_alias, or sql_function",
+					"description": "Optional entity kind such as function, class, module, variable, component, type_alias, or sql_function. Must be function for function_count_by_file inventory.",
 				},
 				"file_path": map[string]any{
 					"type":        "string",

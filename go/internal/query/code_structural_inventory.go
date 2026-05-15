@@ -166,6 +166,9 @@ func (h *CodeHandler) structuralInventoryData(
 }
 
 func (r structuralInventoryRequest) validate() error {
+	if r.Limit > structuralInventoryMaxLimit {
+		return fmt.Errorf("limit must be <= 200")
+	}
 	if r.Offset < 0 {
 		return fmt.Errorf("offset must be >= 0")
 	}
@@ -177,6 +180,14 @@ func (r structuralInventoryRequest) validate() error {
 	}
 	if r.kind() == "class_with_method" && strings.TrimSpace(r.MethodName) == "" {
 		return fmt.Errorf("method_name is required for class_with_method inventory")
+	}
+	if r.kind() == "function_count_by_file" &&
+		strings.TrimSpace(r.EntityKind) != "" &&
+		contentEntityTypeForResolve(strings.ToLower(strings.TrimSpace(r.EntityKind))) != "Function" {
+		return fmt.Errorf("entity_kind must be function for function_count_by_file inventory")
+	}
+	if !r.hasScopeFilter() {
+		return fmt.Errorf("one of repo_id, file_path, language, entity_kind, or symbol is required")
 	}
 	return nil
 }
@@ -205,13 +216,22 @@ func (r structuralInventoryRequest) entityType() string {
 	switch r.kind() {
 	case "dataclass":
 		return "Class"
-	case "documented_function", "class_with_method":
+	case "documented_function", "class_with_method", "function_count_by_file":
 		return "Function"
 	}
 	if entityKind == "" {
 		return ""
 	}
 	return contentEntityTypeForResolve(strings.ToLower(entityKind))
+}
+
+func (r structuralInventoryRequest) hasScopeFilter() bool {
+	for _, value := range []string{r.RepoID, r.FilePath, r.Language, r.EntityKind, r.Symbol} {
+		if strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func structuralInventoryKinds() map[string]struct{} {

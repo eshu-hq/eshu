@@ -561,6 +561,9 @@ for comparing local graph state while debugging.
 { "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "top_level", "file_path": "src/module_a.py", "limit": 50 } }
 ```
 
+`top_level` defaults to Function/Class rows. Add `entity_kind` when you need a
+narrower entity type.
+
 ### Find circular file imports
 
 First-class import/dependency support is tracked in #361.
@@ -587,10 +590,13 @@ First-class import/dependency support is tracked in #361.
 { "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "function_count_by_file", "limit": 50 } }
 ```
 
+This inventory kind always counts functions; do not pass a non-function
+`entity_kind`.
+
 ### Find classes with a specific method
 
 ```json
-{ "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "class_with_method", "method_name": "greet", "limit": 50 } }
+{ "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "class_with_method", "method_name": "greet", "class_name": "Child", "limit": 50 } }
 ```
 
 ### Find `super()` calls
