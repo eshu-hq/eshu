@@ -57,8 +57,18 @@ func TestAWSFreshnessStoreStoreTriggerUpsertsByFreshnessKey(t *testing.T) {
 	if !strings.Contains(db.queries[0].query, "ON CONFLICT (freshness_key) DO UPDATE") {
 		t.Fatalf("query missing freshness-key upsert: %s", db.queries[0].query)
 	}
-	if !strings.Contains(db.queries[0].query, "status = EXCLUDED.status") {
-		t.Fatalf("query must requeue a new event for an already handed-off target: %s", db.queries[0].query)
+	for _, want := range []string{
+		"trigger_id = CASE",
+		"status = CASE",
+		"WHEN aws_freshness_triggers.status = 'claimed'",
+		"claimed_by = CASE",
+		"claimed_at = CASE",
+		"failed_at = CASE",
+		"failure_class = CASE",
+	} {
+		if !strings.Contains(db.queries[0].query, want) {
+			t.Fatalf("query missing claim-safe upsert fragment %q: %s", want, db.queries[0].query)
+		}
 	}
 }
 

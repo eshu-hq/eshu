@@ -20,7 +20,11 @@ INSERT INTO aws_freshness_triggers (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
 ON CONFLICT (freshness_key) DO UPDATE
-SET trigger_id = EXCLUDED.trigger_id,
+SET trigger_id = CASE
+        WHEN aws_freshness_triggers.status = 'claimed'
+        THEN aws_freshness_triggers.trigger_id
+        ELSE EXCLUDED.trigger_id
+    END,
     delivery_key = EXCLUDED.delivery_key,
     event_kind = EXCLUDED.event_kind,
     event_id = EXCLUDED.event_id,
@@ -29,9 +33,43 @@ SET trigger_id = EXCLUDED.trigger_id,
     service_kind = EXCLUDED.service_kind,
     resource_type = EXCLUDED.resource_type,
     resource_id = EXCLUDED.resource_id,
-    status = EXCLUDED.status,
+    status = CASE
+        WHEN aws_freshness_triggers.status = 'claimed'
+        THEN aws_freshness_triggers.status
+        ELSE EXCLUDED.status
+    END,
     duplicate_count = aws_freshness_triggers.duplicate_count + 1,
     observed_at = EXCLUDED.observed_at,
+    claimed_by = CASE
+        WHEN aws_freshness_triggers.status = 'claimed'
+        THEN aws_freshness_triggers.claimed_by
+        ELSE NULL
+    END,
+    claimed_at = CASE
+        WHEN aws_freshness_triggers.status = 'claimed'
+        THEN aws_freshness_triggers.claimed_at
+        ELSE NULL
+    END,
+    handed_off_at = CASE
+        WHEN aws_freshness_triggers.status = 'claimed'
+        THEN aws_freshness_triggers.handed_off_at
+        ELSE NULL
+    END,
+    failed_at = CASE
+        WHEN aws_freshness_triggers.status = 'claimed'
+        THEN aws_freshness_triggers.failed_at
+        ELSE NULL
+    END,
+    failure_class = CASE
+        WHEN aws_freshness_triggers.status = 'claimed'
+        THEN aws_freshness_triggers.failure_class
+        ELSE NULL
+    END,
+    failure_message = CASE
+        WHEN aws_freshness_triggers.status = 'claimed'
+        THEN aws_freshness_triggers.failure_message
+        ELSE NULL
+    END,
     updated_at = EXCLUDED.updated_at
 RETURNING
     trigger_id,
