@@ -13,7 +13,7 @@ If you want shorter, role-based prompts before you drop into tool names and JSON
 - [Class hierarchy](#class-hierarchy)
 - [Service dossier](#service-dossier)
 - [Repository management](#repository-management)
-- [Diagnostic Cypher queries](#advanced-cypher-queries)
+- [Diagnostic Cypher queries](#diagnostic-cypher-queries)
 - [Security analysis](#security-analysis)
 
 ---
@@ -149,7 +149,7 @@ raw Cypher or repeat broad content searches without narrowing the topic.
 There is not a first-class bounded dataclass inventory tool yet. Track that
 work in #362. Until then, do not put this prompt in normal MCP prompt suites.
 Operators can use the diagnostics-only Cypher example in
-[Advanced Cypher Queries](#advanced-cypher-queries) when they need to inspect a
+[Diagnostic Cypher Queries](#diagnostic-cypher-queries) when they need to inspect a
 local graph manually.
 
 ---
@@ -249,7 +249,7 @@ lands, keep exact cross-module predicates out of normal prompt suites.
 There is not a first-class bounded recursion detector yet. Track that work in
 #360. Until then, do not put this prompt in normal MCP prompt suites. Operators
 can use the diagnostics-only Cypher example in
-[Advanced Cypher Queries](#advanced-cypher-queries) for local graph debugging.
+[Diagnostic Cypher Queries](#diagnostic-cypher-queries) for local graph debugging.
 
 ### Find hub functions (most connected)
 
@@ -258,7 +258,7 @@ can use the diagnostics-only Cypher example in
 There is not a first-class bounded call-graph centrality tool yet. Track that
 work in #360. Until then, do not put this prompt in normal MCP prompt suites.
 Operators can use the diagnostics-only Cypher example in
-[Advanced Cypher Queries](#advanced-cypher-queries) for local graph debugging.
+[Diagnostic Cypher Queries](#diagnostic-cypher-queries) for local graph debugging.
 
 ---
 
@@ -470,7 +470,7 @@ ambiguity-aware.
 
 ---
 
-## Advanced Cypher Queries
+## Diagnostic Cypher Queries
 
 This section is diagnostics-only. `execute_cypher_query` is not a normal prompt
 contract and should not be used by starter prompts, cookbook happy paths, or
@@ -509,7 +509,7 @@ First-class support is tracked in #360.
 First-class support is tracked in #360.
 
 ```json
-{ "cypher_query": "MATCH (f:Function) OPTIONAL MATCH (f)-[:CALLS]->(callee:Function) OPTIONAL MATCH (caller:Function)-[:CALLS]->(f) WITH f, count(DISTINCT callee) AS calls_out, count(DISTINCT caller) AS calls_in ORDER BY (calls_out + calls_in) DESC LIMIT 5 RETURN f.name, f.path, calls_out, calls_in", "limit": 5 }
+{ "cypher_query": "MATCH (f:Function) OPTIONAL MATCH (f)-[:CALLS]->(callee:Function) OPTIONAL MATCH (caller:Function)-[:CALLS]->(f) WITH f, count(DISTINCT callee) AS calls_out, count(DISTINCT caller) AS calls_in ORDER BY (calls_out + calls_in) DESC RETURN f.name, f.path, calls_out, calls_in", "limit": 5 }
 ```
 
 ### Find functions that are never called
@@ -526,7 +526,7 @@ for comparing local graph state while debugging.
 First-class structural inventory support is tracked in #362.
 
 ```json
-{ "cypher_query": "MATCH (n:Function) RETURN n.name, n.path, n.line_number LIMIT 50", "limit": 50 }
+{ "cypher_query": "MATCH (n:Function) RETURN n.name, n.path, n.line_number", "limit": 50 }
 ```
 
 ### Find all classes
@@ -534,7 +534,7 @@ First-class structural inventory support is tracked in #362.
 First-class structural inventory support is tracked in #362.
 
 ```json
-{ "cypher_query": "MATCH (n:Class) RETURN n.name, n.path, n.line_number LIMIT 50", "limit": 50 }
+{ "cypher_query": "MATCH (n:Class) RETURN n.name, n.path, n.line_number", "limit": 50 }
 ```
 
 ### Find functions in a specific file
@@ -566,7 +566,7 @@ First-class import/dependency support is tracked in #361.
 First-class structural inventory support is tracked in #362.
 
 ```json
-{ "cypher_query": "MATCH (f:Function) WHERE f.docstring IS NOT NULL AND f.docstring <> '' RETURN f.name, f.path LIMIT 50", "limit": 50 }
+{ "cypher_query": "MATCH (f:Function) WHERE f.docstring IS NOT NULL AND f.docstring <> '' RETURN f.name, f.path", "limit": 50 }
 ```
 
 ### Find decorated methods in a class
