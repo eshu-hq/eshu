@@ -1017,10 +1017,15 @@ Console callers can narrow or page instead of relying on a warm cache.
 surface route. It accepts one graph target family (`target` + `target_type`,
 `service_name`, `workload_id`, `resource_id`, or `module_id`) and/or a code
 scope (`topic`, `repo_id`, `changed_paths`). The handler first resolves the
-target with exact, label-scoped graph lookups; ambiguous targets return
+target with exact, label-scoped graph lookups; bare `service_name` values also
+probe the canonical `workload:<name>` id before falling back to name or
+repo-scoped workload lookup. Generic `target` values without `target_type` try
+the same bounded known-label probes instead of a whole-graph scan. Ambiguous
+targets return
 `target_resolution.status=ambiguous` plus candidates and do not run traversal.
-Resolved targets use a bounded traversal with `max_depth` default 4, cap 8,
-`limit` default 25, cap 100, deterministic ordering, and `truncated`. Code
+Resolved targets use a typed start-node anchor, bounded traversal with
+`max_depth` default 4, cap 8, `limit` default 25, cap 100, deterministic
+ordering, and `truncated`. Code
 topics and changed paths return `code_surface` file/symbol handles,
 `recommended_next_calls`, and coverage metadata so MCP clients can answer
 blast-radius and behavior-change prompts without guessing which discovery tool

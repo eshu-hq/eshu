@@ -195,6 +195,27 @@ envelope reports `truth.capability=platform_impact.change_surface`,
 latency can be classified as target resolution, content lookup, or bounded
 graph traversal.
 
+No-Regression Evidence: issue #339 focused proof:
+`go test ./internal/query -run 'TestInvestigateChangeSurfaceUsesBoundedTraversal|TestInvestigateChangeSurfaceResolvesBareServiceNameByCanonicalWorkloadID|TestInvestigateChangeSurfaceGenericTargetUsesBoundedResolverProbes' -count=1`
+and `go test ./internal/query -count=1`. The fix keeps change-surface target
+resolution bounded by replacing one UNION-shaped service/workload resolver with
+ordered exact label/property probes: `Workload.id`, canonical
+`workload:<service_name>`, `Workload.name`, then request-scoped
+`Workload.repo_id` when present. Generic `target` requests without
+`target_type` use the same ordered known-label exact probes instead of the old
+unlabelled fallback. Resolved traversal no longer starts from
+`MATCH (start) WHERE start.id = ...`; it starts from the selected label's
+indexed identity property, for example `MATCH (start:Workload {id: $target_id})`
+or `MATCH (start:TerraformModule {uid: $target_id})`, before the same bounded
+`*1..max_depth`, deterministic ordering, `LIMIT limit+1`, and truncation
+contract.
+
+No-Observability-Change: issue #339 does not add a new runtime stage or storage
+path. The existing `query.change_surface_investigation` parent span, child
+`neo4j.query` spans, response `target_resolution.status`,
+`coverage.query_shape`, `max_depth`, `limit`, `offset`, and `truncated` fields
+still identify whether latency came from target resolution or graph traversal.
+
 No-Regression Evidence: deployment configuration influence focused proof:
 `go test ./internal/query -run TestBuildDeploymentConfigInfluenceResponseReturnsPromptReadyFiles -count=1`
 and

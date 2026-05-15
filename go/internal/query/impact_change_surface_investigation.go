@@ -45,6 +45,11 @@ type changeSurfaceTargetCandidate struct {
 	Rank        int
 }
 
+type changeSurfaceResolverQuery struct {
+	cypher string
+	params map[string]any
+}
+
 func (h *ImpactHandler) investigateChangeSurface(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -107,7 +112,7 @@ func (h *ImpactHandler) investigateChangeSurface(w http.ResponseWriter, r *http.
 	impactRows := []map[string]any(nil)
 	graphTruncated := false
 	if selected != nil {
-		impactRows, graphTruncated, err = h.changeSurfaceImpactRows(r.Context(), req, selected.ID)
+		impactRows, graphTruncated, err = h.changeSurfaceImpactRows(r.Context(), req, *selected)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -232,12 +237,19 @@ func (h *ImpactHandler) resolveChangeSurfaceTarget(
 		return nil, nil, fmt.Errorf("graph backend is unavailable")
 	}
 	target := req.graphTarget()
-	cypher := changeSurfaceResolverCypher(req.graphTargetType(), req.Limit+1)
-	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{"target": target})
-	if err != nil {
-		return nil, nil, fmt.Errorf("resolve change surface target: %w", err)
+	candidates := make([]changeSurfaceTargetCandidate, 0, req.Limit+1)
+	// Keep resolver probes separate so each graph read stays label/property
+	// anchored and avoids backend-sensitive OR or UNION planning.
+	for _, query := range changeSurfaceResolverQueries(req, req.Limit+1) {
+		rows, err := h.Neo4j.Run(ctx, query.cypher, query.params)
+		if err != nil {
+			return nil, nil, fmt.Errorf("resolve change surface target: %w", err)
+		}
+		candidates = appendChangeSurfaceCandidates(candidates, changeSurfaceCandidates(rows), req.Limit+1)
+		if len(candidates) > 0 {
+			break
+		}
 	}
-	candidates := changeSurfaceCandidates(rows)
 	totalCandidates := len(candidates)
 	truncated := len(candidates) > req.Limit
 	if truncated {
@@ -263,57 +275,145 @@ func (h *ImpactHandler) resolveChangeSurfaceTarget(
 	}
 }
 
-func changeSurfaceResolverCypher(targetType string, limit int) string {
-	switch targetType {
+func changeSurfaceResolverQueries(req changeSurfaceInvestigationRequest, limit int) []changeSurfaceResolverQuery {
+	target := req.graphTarget()
+	switch req.graphTargetType() {
 	case "service", "workload":
-		return fmt.Sprintf(`MATCH (n:Workload {id: $target})
-RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, 0 as rank
-UNION
-MATCH (n:Workload {name: $target})
-RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, 1 as rank
-ORDER BY rank, name, id
-LIMIT %d`, limit)
+		queries := []changeSurfaceResolverQuery{
+			changeSurfaceWorkloadResolverQuery("id", target, 0, limit),
+		}
+		if canonicalID := canonicalWorkloadIDCandidate(target); canonicalID != target {
+			queries = append(queries, changeSurfaceWorkloadResolverQuery("id", canonicalID, 1, limit))
+		}
+		queries = append(queries, changeSurfaceWorkloadResolverQuery("name", target, 2, limit))
+		if req.RepoID != "" {
+			queries = append(queries, changeSurfaceWorkloadResolverQuery("repo_id", req.RepoID, 3, limit))
+		}
+		return queries
 	case "workload_instance":
-		return fmt.Sprintf(`MATCH (n:WorkloadInstance {id: $target})
-RETURN n.id as id, n.name as name, labels(n) as labels, n.workload_id as repo_id, n.environment as environment, 0 as rank
-UNION
-MATCH (n:WorkloadInstance {workload_id: $target})
-RETURN n.id as id, n.name as name, labels(n) as labels, n.workload_id as repo_id, n.environment as environment, 1 as rank
-ORDER BY rank, name, id
-LIMIT %d`, limit)
+		return []changeSurfaceResolverQuery{
+			changeSurfaceWorkloadInstanceResolverQuery("id", target, 0, limit),
+			changeSurfaceWorkloadInstanceResolverQuery("workload_id", target, 1, limit),
+		}
 	case "repository", "repo":
-		return fmt.Sprintf(`MATCH (n:Repository {id: $target})
-RETURN n.id as id, n.name as name, labels(n) as labels, n.id as repo_id, n.environment as environment, 0 as rank
-UNION
-MATCH (n:Repository {name: $target})
-RETURN n.id as id, n.name as name, labels(n) as labels, n.id as repo_id, n.environment as environment, 1 as rank
-ORDER BY rank, name, id
-LIMIT %d`, limit)
+		return []changeSurfaceResolverQuery{
+			changeSurfaceRepositoryResolverQuery("id", target, 0, limit),
+			changeSurfaceRepositoryResolverQuery("name", target, 1, limit),
+		}
 	case "resource", "cloud_resource":
-		return fmt.Sprintf(`MATCH (n:CloudResource {id: $target})
-RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, 0 as rank
-UNION
-MATCH (n:CloudResource {resource_id: $target})
-RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, 1 as rank
-UNION
-MATCH (n:CloudResource {name: $target})
-RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, 2 as rank
-ORDER BY rank, name, id
-LIMIT %d`, limit)
+		return []changeSurfaceResolverQuery{
+			changeSurfaceCloudResourceResolverQuery("id", target, 0, limit),
+			changeSurfaceCloudResourceResolverQuery("resource_id", target, 1, limit),
+			changeSurfaceCloudResourceResolverQuery("name", target, 2, limit),
+		}
 	case "terraform_module", "module":
-		return fmt.Sprintf(`MATCH (n:TerraformModule {uid: $target})
-RETURN n.uid as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, 0 as rank
-UNION
-MATCH (n:TerraformModule {name: $target})
-RETURN n.uid as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, 1 as rank
-ORDER BY rank, name, id
-LIMIT %d`, limit)
+		return []changeSurfaceResolverQuery{
+			changeSurfaceTerraformModuleResolverQuery("uid", target, 0, limit),
+			changeSurfaceTerraformModuleResolverQuery("name", target, 1, limit),
+		}
 	default:
-		return fmt.Sprintf(`MATCH (n) WHERE n.id = $target
-RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, 0 as rank
-ORDER BY rank, name, id
-LIMIT %d`, limit)
+		return changeSurfaceGenericResolverQueries(target, limit)
 	}
+}
+
+func changeSurfaceGenericResolverQueries(target string, limit int) []changeSurfaceResolverQuery {
+	queries := []changeSurfaceResolverQuery{
+		changeSurfaceWorkloadResolverQuery("id", target, 0, limit),
+	}
+	if canonicalID := canonicalWorkloadIDCandidate(target); canonicalID != target {
+		queries = append(queries, changeSurfaceWorkloadResolverQuery("id", canonicalID, 1, limit))
+	}
+	queries = append(queries,
+		changeSurfaceWorkloadResolverQuery("name", target, 2, limit),
+		changeSurfaceRepositoryResolverQuery("id", target, 3, limit),
+		changeSurfaceRepositoryResolverQuery("name", target, 4, limit),
+		changeSurfaceWorkloadInstanceResolverQuery("id", target, 5, limit),
+		changeSurfaceWorkloadInstanceResolverQuery("workload_id", target, 6, limit),
+		changeSurfaceCloudResourceResolverQuery("id", target, 7, limit),
+		changeSurfaceCloudResourceResolverQuery("resource_id", target, 8, limit),
+		changeSurfaceTerraformModuleResolverQuery("uid", target, 9, limit),
+	)
+	return queries
+}
+
+func canonicalWorkloadIDCandidate(target string) string {
+	target = strings.TrimSpace(target)
+	if target == "" || strings.HasPrefix(target, "workload:") {
+		return target
+	}
+	return "workload:" + target
+}
+
+func changeSurfaceWorkloadResolverQuery(property string, target string, rank int, limit int) changeSurfaceResolverQuery {
+	return changeSurfaceResolverQuery{
+		cypher: fmt.Sprintf(`MATCH (n:Workload {%s: $target})
+RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, %d as rank
+ORDER BY rank, name, id
+LIMIT %d`, property, rank, limit),
+		params: map[string]any{"target": target},
+	}
+}
+
+func changeSurfaceWorkloadInstanceResolverQuery(property string, target string, rank int, limit int) changeSurfaceResolverQuery {
+	return changeSurfaceResolverQuery{
+		cypher: fmt.Sprintf(`MATCH (n:WorkloadInstance {%s: $target})
+RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, %d as rank
+ORDER BY rank, name, id
+LIMIT %d`, property, rank, limit),
+		params: map[string]any{"target": target},
+	}
+}
+
+func changeSurfaceRepositoryResolverQuery(property string, target string, rank int, limit int) changeSurfaceResolverQuery {
+	return changeSurfaceResolverQuery{
+		cypher: fmt.Sprintf(`MATCH (n:Repository {%s: $target})
+RETURN n.id as id, n.name as name, labels(n) as labels, n.id as repo_id, n.environment as environment, %d as rank
+ORDER BY rank, name, id
+LIMIT %d`, property, rank, limit),
+		params: map[string]any{"target": target},
+	}
+}
+
+func changeSurfaceCloudResourceResolverQuery(property string, target string, rank int, limit int) changeSurfaceResolverQuery {
+	return changeSurfaceResolverQuery{
+		cypher: fmt.Sprintf(`MATCH (n:CloudResource {%s: $target})
+RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, %d as rank
+ORDER BY rank, name, id
+LIMIT %d`, property, rank, limit),
+		params: map[string]any{"target": target},
+	}
+}
+
+func changeSurfaceTerraformModuleResolverQuery(property string, target string, rank int, limit int) changeSurfaceResolverQuery {
+	return changeSurfaceResolverQuery{
+		cypher: fmt.Sprintf(`MATCH (n:TerraformModule {%s: $target})
+RETURN n.uid as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, %d as rank
+ORDER BY rank, name, id
+LIMIT %d`, property, rank, limit),
+		params: map[string]any{"target": target},
+	}
+}
+
+func appendChangeSurfaceCandidates(
+	existing []changeSurfaceTargetCandidate,
+	incoming []changeSurfaceTargetCandidate,
+	limit int,
+) []changeSurfaceTargetCandidate {
+	seen := make(map[string]struct{}, len(existing)+len(incoming))
+	for _, candidate := range existing {
+		seen[candidate.ID] = struct{}{}
+	}
+	for _, candidate := range incoming {
+		if _, ok := seen[candidate.ID]; ok {
+			continue
+		}
+		seen[candidate.ID] = struct{}{}
+		existing = append(existing, candidate)
+		if limit > 0 && len(existing) >= limit {
+			return existing
+		}
+	}
+	return existing
 }
 
 func changeSurfaceCandidates(rows []map[string]any) []changeSurfaceTargetCandidate {
