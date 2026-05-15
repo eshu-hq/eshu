@@ -134,6 +134,32 @@ func TestAWSCloudRuntimeDriftFindingStoreCountsActiveScopedFindings(t *testing.T
 	}
 }
 
+func TestAWSCloudRuntimeDriftFindingStoreFiltersByARN(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: [][]any{{0}}}},
+	}
+	store := NewAWSCloudRuntimeDriftFindingStore(db)
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:payments-api"
+
+	_, err := store.CountActiveFindings(context.Background(), AWSCloudRuntimeDriftFindingFilter{
+		AccountID: "123456789012",
+		Region:    "us-east-1",
+		ARN:       arn,
+	})
+	if err != nil {
+		t.Fatalf("CountActiveFindings() error = %v, want nil", err)
+	}
+	query := db.queries[0].query
+	if !strings.Contains(query, "fact.payload->>'arn' = $3") {
+		t.Fatalf("query missing arn predicate: %s", query)
+	}
+	if got, want := db.queries[0].args[2], arn; got != want {
+		t.Fatalf("arn arg = %#v, want %#v", got, want)
+	}
+}
+
 func TestAWSCloudRuntimeDriftFindingStoreRejectsUnboundedFilters(t *testing.T) {
 	t.Parallel()
 

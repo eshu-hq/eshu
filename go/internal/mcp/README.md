@@ -82,6 +82,8 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `analyze_code_relationships` | POST | `/api/v0/code/relationships/story` for callers/callees/importers/class hierarchy/overrides; `/api/v0/code/relationships` for unresolved compatibility fallbacks |
 | `find_dead_iac` | POST | `/api/v0/iac/dead` |
 | `find_unmanaged_resources` | POST | `/api/v0/iac/unmanaged-resources` |
+| `get_iac_management_status` | POST | `/api/v0/iac/management-status` |
+| `explain_iac_management_status` | POST | `/api/v0/iac/management-status/explain` |
 | `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |
 | `build_evidence_citation_packet` | POST | `/api/v0/evidence/citations` |
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |

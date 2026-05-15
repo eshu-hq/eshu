@@ -299,7 +299,7 @@ normalized to `c_sharp` before candidate scanning.
   including Terraform backend, import, moved, removed, check, and lockfile
   provider entity labels when they have been projected
 - `IaCHandler` — IaC quality and AWS management routes (`iac.go:22`,
-  `iac_management.go:142`)
+  `iac_management.go`, `iac_management_surface.go`)
   - `IaCManagementFindingRow` is the stable read model for AWS-backed IaC
     management status. It exposes the full #124 taxonomy, matched Terraform
     state/config handles, other-IaC ownership hints, service and environment
@@ -407,8 +407,11 @@ wired in `cmd/api/wiring.go`, not here.
   (`query.resource_investigation`) on resource investigation;
   `telemetry.SpanQueryDeadIaC` (`query.dead_iac`)
   on IaC dead-code queries (`iac.go`); `telemetry.SpanQueryIaCUnmanagedResources`
-  (`query.iac_unmanaged_resources`) on AWS management finding queries
-  (`iac_management.go`); `telemetry.SpanQueryInfraResourceSearch`
+  (`query.iac_unmanaged_resources`) on AWS management finding list queries,
+  `telemetry.SpanQueryIaCManagementStatus` (`query.iac_management_status`) on
+  exact status reads, and `telemetry.SpanQueryIaCManagementExplanation`
+  (`query.iac_management_explanation`) on grouped evidence explanations;
+  `telemetry.SpanQueryInfraResourceSearch`
   (`query.infra_resource_search`) on infrastructure search (`infra.go`).
   Per-query spans `neo4j.query` and `postgres.query` on every graph and content
   read.

@@ -23,6 +23,7 @@ type AWSCloudRuntimeDriftFindingFilter struct {
 	ScopeID      string
 	AccountID    string
 	Region       string
+	ARN          string
 	FindingKinds []string
 	Limit        int
 	Offset       int
@@ -236,6 +237,9 @@ func buildAWSCloudRuntimeDriftFindingQuery(
 	} else if filter.AccountID != "" {
 		conditions = append(conditions, "fact.scope_id LIKE "+addArg(awsScopePrefix(filter.AccountID, filter.Region)))
 	}
+	if filter.ARN != "" {
+		conditions = append(conditions, "fact.payload->>'arn' = "+addArg(filter.ARN))
+	}
 	if len(filter.FindingKinds) > 0 {
 		placeholders := make([]string, 0, len(filter.FindingKinds))
 		for _, kind := range filter.FindingKinds {
@@ -268,6 +272,7 @@ func normalizeAWSCloudRuntimeDriftFindingFilter(
 	filter.ScopeID = strings.TrimSpace(filter.ScopeID)
 	filter.AccountID = strings.TrimSpace(filter.AccountID)
 	filter.Region = strings.TrimSpace(filter.Region)
+	filter.ARN = strings.TrimSpace(filter.ARN)
 	filter.FindingKinds = cleanStringSet(filter.FindingKinds)
 	if filter.Limit <= 0 {
 		filter.Limit = awsCloudRuntimeDriftFindingDefaultLimit

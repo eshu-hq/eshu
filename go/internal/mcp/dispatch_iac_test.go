@@ -153,6 +153,42 @@ func TestResolveRouteMapsFindUnmanagedResources(t *testing.T) {
 	}
 }
 
+func TestResolveRouteMapsIaCManagementStatusTools(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		tool string
+		path string
+	}{
+		{tool: "get_iac_management_status", path: "/api/v0/iac/management-status"},
+		{tool: "explain_iac_management_status", path: "/api/v0/iac/management-status/explain"},
+	} {
+		t.Run(tc.tool, func(t *testing.T) {
+			route, err := resolveRoute(tc.tool, map[string]any{
+				"account_id":  "123456789012",
+				"region":      "us-east-1",
+				"resource_id": "arn:aws:lambda:us-east-1:123456789012:function:payments-api",
+			})
+			if err != nil {
+				t.Fatalf("resolveRoute() error = %v, want nil", err)
+			}
+			if route.path != tc.path {
+				t.Fatalf("route.path = %q, want %q", route.path, tc.path)
+			}
+			body, ok := route.body.(map[string]any)
+			if !ok {
+				t.Fatalf("route.body type = %T, want map[string]any", route.body)
+			}
+			if got, want := body["resource_id"], "arn:aws:lambda:us-east-1:123456789012:function:payments-api"; got != want {
+				t.Fatalf("body[resource_id] = %#v, want %#v", got, want)
+			}
+			if got, want := body["limit"], 1; got != want {
+				t.Fatalf("body[limit] = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
 func TestResolveRouteMapsAnalyzeDeadCodeLimit(t *testing.T) {
 	t.Parallel()
 

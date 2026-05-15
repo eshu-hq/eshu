@@ -222,7 +222,8 @@ compatibility handoff cannot complete.
   `NewAWSCloudRuntimeDriftFindingStore` — active-generation reads over
   `reducer_aws_cloud_runtime_drift_finding` facts for the IaC management API;
   filters must include `scope_id` or a 12-digit `account_id`, optional regions
-  must use AWS region characters only, and direct list reads cap at 500 rows.
+  must use AWS region characters only, exact `arn` filters use payload equality,
+  and direct list reads cap at 500 rows.
   The decoded row preserves optional #124 read-model payload fields such as
   `management_status`, matched Terraform state/config handles, candidate
   service/environment labels, dependency paths, warning flags, missing

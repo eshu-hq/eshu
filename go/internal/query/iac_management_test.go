@@ -204,3 +204,125 @@ func TestHandleUnmanagedCloudResourcesDefaultsToActionableAWSFindingKinds(t *tes
 		t.Fatalf("observed.FindingKinds = %#v, want %#v", got, wantKinds)
 	}
 }
+
+func TestHandleIaCManagementStatusReturnsExactARNStatus(t *testing.T) {
+	t.Parallel()
+
+	var observed IaCManagementFilter
+	arn := "arn:aws:s3:::unknown-bucket"
+	handler := &IaCHandler{
+		Profile: ProfileLocalAuthoritative,
+		Management: fakeIaCManagementStore{
+			observedFilter: &observed,
+			rows: []IaCManagementFindingRow{{
+				ID:                "fact:aws-unknown-s3",
+				Provider:          "aws",
+				ResourceType:      "s3",
+				ResourceID:        "unknown-bucket",
+				ARN:               arn,
+				FindingKind:       "unknown_cloud_resource",
+				ManagementStatus:  "unknown_management",
+				Confidence:        1,
+				ScopeID:           "aws:123456789012:us-east-1:s3",
+				GenerationID:      "generation:aws-1",
+				SourceSystem:      "aws",
+				RecommendedAction: "expand_collector_coverage_or_permissions",
+				MissingEvidence:   []string{"terraform_config_owner"},
+				WarningFlags:      []string{"insufficient_coverage"},
+			}},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/iac/management-status", bytes.NewBufferString(`{
+		"account_id": "123456789012",
+		"arn": "`+arn+`"
+	}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if got, want := observed.ARN, arn; got != want {
+		t.Fatalf("observed.ARN = %q, want %q", got, want)
+	}
+	if got, want := observed.Limit, 1; got != want {
+		t.Fatalf("observed.Limit = %d, want %d", got, want)
+	}
+
+	var resp ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := resp.Data.(map[string]any)
+	if got, want := data["management_status"], "unknown_management"; got != want {
+		t.Fatalf("management_status = %q, want %q", got, want)
+	}
+	if _, ok := data["story"].(string); !ok {
+		t.Fatalf("story missing or non-string: %#v", data["story"])
+	}
+	if got, want := resp.Truth.Capability, "iac_management.get_status"; got != want {
+		t.Fatalf("truth capability = %q, want %q", got, want)
+	}
+}
+
+func TestHandleIaCManagementExplanationGroupsEvidence(t *testing.T) {
+	t.Parallel()
+
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:payments-api"
+	handler := &IaCHandler{
+		Profile: ProfileLocalAuthoritative,
+		Management: fakeIaCManagementStore{
+			rows: []IaCManagementFindingRow{{
+				ID:               "fact:aws-unmanaged-lambda",
+				Provider:         "aws",
+				AccountID:        "123456789012",
+				Region:           "us-east-1",
+				ResourceType:     "lambda",
+				ResourceID:       "function:payments-api",
+				ARN:              arn,
+				FindingKind:      "unmanaged_cloud_resource",
+				ManagementStatus: "terraform_state_only",
+				Confidence:       0.92,
+				ScopeID:          "aws:123456789012:us-east-1:lambda",
+				GenerationID:     "generation:aws-1",
+				SourceSystem:     "aws",
+				Evidence: []IaCManagementEvidenceRow{
+					{ID: "cloud", EvidenceType: "aws_cloud_resource", Key: "arn", Value: arn, Confidence: 1},
+					{ID: "state", EvidenceType: "terraform_state_resource", Key: "resource_address", Value: "aws_lambda_function.payments", Confidence: 1},
+					{ID: "tag", EvidenceType: "aws_raw_tag", Key: "tag:Service", Value: "payments", Confidence: 1, ProvenanceOnly: true},
+				},
+			}},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/iac/management-status/explain", bytes.NewBufferString(`{
+		"account_id": "123456789012",
+		"region": "us-east-1",
+		"resource_id": "`+arn+`"
+	}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	var resp ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := resp.Data.(map[string]any)
+	groups := data["evidence_groups"].([]any)
+	if got, want := len(groups), 3; got != want {
+		t.Fatalf("len(evidence_groups) = %d, want %d", got, want)
+	}
+	if got, want := resp.Truth.Capability, "iac_management.explain_status"; got != want {
+		t.Fatalf("truth capability = %q, want %q", got, want)
+	}
+}
