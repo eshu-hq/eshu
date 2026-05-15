@@ -1,7 +1,10 @@
 .service-atlas-header {
   align-items: stretch;
   background:
-    color-mix(in oklch, var(--success), transparent 90%),
+    linear-gradient(
+      color-mix(in oklch, var(--success), transparent 90%),
+      color-mix(in oklch, var(--success), transparent 90%)
+    ),
     var(--surface);
   border: 1px solid color-mix(in oklch, var(--success), var(--line) 68%);
   border-radius: 8px;

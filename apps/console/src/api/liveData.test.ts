@@ -8,12 +8,17 @@ import {
 } from "./liveData";
 import { loadDashboardSnapshot } from "./dashboardSnapshot";
 
-function clientFor(routes: Record<string, unknown>): EshuApiClient {
+function clientFor(
+  routes: Record<string, unknown>,
+  requests: string[] = []
+): EshuApiClient {
   return new EshuApiClient({
     baseUrl: "http://localhost:8080",
     fetcher: async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const request = new Request(input, init);
-      const body = routes[new URL(request.url).pathname];
+      const url = new URL(request.url);
+      requests.push(`${url.pathname}${url.search}`);
+      const body = routes[url.pathname];
       if (body === undefined) {
         return Response.json({ detail: "missing route" }, { status: 404 });
       }
@@ -87,15 +92,9 @@ describe("live Eshu data adapters", () => {
   });
 
   it("uses catalog repository rows for paginated dashboard catalog totals", async () => {
-    const catalogRepositories = Array.from({ length: 896 }, (_, index) => ({
-      id: `repository:r_${index}`,
-      name: `repo-${index}`
-    }));
+    const requests: string[] = [];
     const metrics = await loadDashboardMetrics({
       client: clientFor({
-        "/api/v0/catalog": {
-          repositories: catalogRepositories
-        },
         "/api/v0/index-status": {
           queue: { outstanding: 0, succeeded: 8347 },
           repository_count: 896,
@@ -106,7 +105,7 @@ describe("live Eshu data adapters", () => {
           limit: 100,
           repositories: repositoriesResponse.repositories
         }
-      }),
+      }, requests),
       mode: "private"
     });
 
@@ -115,6 +114,8 @@ describe("live Eshu data adapters", () => {
       label: "Catalog repositories",
       value: "896"
     });
+    expect(requests).not.toContain("/api/v0/catalog?limit=2000&offset=0");
+    expect(requests).toContain("/api/v0/repositories?limit=1&offset=0");
   });
 
   it("keeps degraded graph status separate from queryable catalog data", async () => {

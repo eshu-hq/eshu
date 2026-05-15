@@ -10,6 +10,7 @@ describe("DashboardPage", () => {
         const path = new URL(new Request(input).url).pathname;
         if (path.endsWith("/api/v0/repositories")) {
           return Response.json({
+            count: 3,
             repositories: [
               { id: "repository:r_1", name: "mobius-tools" },
               { id: "repository:r_3", name: "hapi-phraseapp" },
@@ -267,6 +268,7 @@ describe("DashboardPage", () => {
         const path = new URL(new Request(input).url).pathname;
         if (path.endsWith("/api/v0/repositories")) {
           return Response.json({
+            count: 2,
             repositories: [
               { id: "repository:r_1", name: "boats-chatgpt-app" },
               { id: "repository:r_2", name: "iac-eks-pcg" }

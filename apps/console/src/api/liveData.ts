@@ -122,7 +122,10 @@ export async function loadDashboardMetrics({
   const status = await requiredClient(client).getJson<IndexStatusResponse>(
     "/api/v0/index-status"
   );
-  const repositorySummary = await loadCatalogRepositorySummary(requiredClient(client));
+  const repositorySummary = await loadRepositorySummary(
+    requiredClient(client),
+    status.repository_count
+  );
   const queue = status.queue ?? {};
   const outstanding = queue.outstanding ?? queue.pending ?? 0;
   const inFlight = queue.in_flight ?? 0;
@@ -251,21 +254,9 @@ async function loadRepositories(client: EshuApiClient): Promise<readonly Reposit
   }));
 }
 
-async function loadRepositorySummary(
-  client: EshuApiClient
-): Promise<{ readonly total: number }> {
-  const payload = await loadRepositoryPage(client);
-  return { total: payload.count ?? payload.repositories?.length ?? 0 };
-}
-
-async function loadCatalogRepositorySummary(
-  client: EshuApiClient
-): Promise<{ readonly total: number }> {
-  const catalog = await loadCatalog(client);
-  if (catalog?.repositories !== undefined) {
-    return { total: catalog.repositories.length };
-  }
-  return loadRepositorySummary(client);
+async function loadRepositorySummary(client: EshuApiClient, fallbackTotal?: number): Promise<{ readonly total: number }> {
+  const payload = await client.getJson<RepositoryListResponse>("/api/v0/repositories?limit=1&offset=0");
+  return { total: payload.count ?? fallbackTotal ?? payload.repositories?.length ?? 0 };
 }
 
 async function loadRepositoryPage(client: EshuApiClient): Promise<RepositoryListResponse> {
