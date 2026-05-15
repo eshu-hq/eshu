@@ -1,0 +1,141 @@
+.service-atlas-header {
+  align-items: stretch;
+  background:
+    color-mix(in oklch, var(--success), transparent 90%),
+    var(--surface);
+  border: 1px solid color-mix(in oklch, var(--success), var(--line) 68%);
+  border-radius: 8px;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  padding: 22px;
+}
+
+.service-atlas-copy {
+  align-content: start;
+  display: grid;
+  gap: 12px;
+}
+
+.service-atlas-copy h2 {
+  color: var(--accent);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.service-atlas-copy h1 {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  line-height: 0.98;
+  margin: 0;
+}
+
+.service-atlas-copy p {
+  color: var(--muted);
+  font-size: 1.03rem;
+  line-height: 1.55;
+  margin: 0;
+  max-width: 82ch;
+}
+
+.service-atlas-trust-strip {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0;
+}
+
+.service-atlas-trust-strip div {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.service-atlas-trust-strip dt,
+.service-evidence-rail-heading span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 760;
+}
+
+.service-atlas-trust-strip dd {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 820;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.service-atlas-workbench {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(290px, 0.34fr);
+}
+
+.service-atlas-workbench-main {
+  min-width: 0;
+}
+
+.service-evidence-rail {
+  background: color-mix(in oklch, var(--relation), var(--surface) 95%);
+  border: 1px solid color-mix(in oklch, var(--relation), var(--line) 68%);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  position: sticky;
+  top: 16px;
+}
+
+.service-evidence-rail-heading,
+.service-evidence-rail section,
+.service-evidence-rail-list,
+.service-evidence-rail-list article {
+  display: grid;
+  gap: 8px;
+}
+
+.service-evidence-rail h3,
+.service-evidence-rail h4,
+.service-evidence-rail p {
+  margin: 0;
+}
+
+.service-evidence-rail h3 {
+  font-size: 1.1rem;
+}
+
+.service-evidence-rail h4 {
+  font-size: 0.95rem;
+}
+
+.service-evidence-rail p,
+.service-evidence-rail span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.service-evidence-rail-list article {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.service-evidence-rail-list strong {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .service-atlas-header,
+  .service-atlas-trust-strip,
+  .service-atlas-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .service-evidence-rail {
+    position: static;
+  }
+}

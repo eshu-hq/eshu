@@ -8,6 +8,7 @@ import type {
   ServiceSpotlight
 } from "../api/serviceSpotlight";
 import { ServiceDeploymentLaneMap } from "../visualization/ServiceDeploymentLaneMap";
+import { ServiceEvidenceRail, ServiceTrustStrip } from "./ServiceAtlasEvidence";
 import { ServiceChangeSurfacePanel } from "./ServiceChangeSurfacePanel";
 import { ServiceCodeInvestigationPanel } from "./ServiceCodeInvestigationPanel";
 import { ServiceConfigInfluencePanel } from "./ServiceConfigInfluencePanel";
@@ -20,10 +21,11 @@ export function ServiceSpotlightPanel({
   readonly spotlight: ServiceSpotlight;
 }): React.JSX.Element {
   return (
-    <section aria-label="Service intelligence" className="service-spotlight">
-      <div className="service-brief">
-        <div className="service-brief-copy">
+    <section aria-label="Service Atlas" className="service-spotlight service-atlas">
+      <div className="service-atlas-header">
+        <div className="service-atlas-copy">
           <span className="entity-kind">Service</span>
+          <h2>Service Atlas</h2>
           <h1>{spotlight.name}</h1>
           <p>{humanSummary(spotlight)}</p>
           <div className="service-storyline" aria-label="Service story highlights">
@@ -39,15 +41,22 @@ export function ServiceSpotlightPanel({
         <MetricList spotlight={spotlight} />
       </div>
 
-      <div className="service-deployment-board">
-        <section aria-label="Deployment story" className="service-panel service-map-panel">
-          <PanelHeading
-            detail={deploymentSentence(spotlight)}
-            title="Deployment"
-          />
-          <ServiceDeploymentLaneMap spotlight={spotlight} />
-        </section>
-        <LaneCards lanes={spotlight.lanes} />
+      <ServiceTrustStrip spotlight={spotlight} />
+
+      <div className="service-atlas-workbench">
+        <div className="service-atlas-workbench-main">
+          <div className="service-deployment-board">
+            <section aria-label="Deployment story" className="service-panel service-map-panel">
+              <PanelHeading
+                detail={deploymentSentence(spotlight)}
+                title="Deployment"
+              />
+              <ServiceDeploymentLaneMap spotlight={spotlight} />
+            </section>
+            <LaneCards lanes={spotlight.lanes} />
+          </div>
+        </div>
+        <ServiceEvidenceRail spotlight={spotlight} />
       </div>
 
       <EntryPointStrip hostnames={spotlight.hostnames} />

@@ -1,5 +1,7 @@
 @import "./dashboard.css";
+@import "./serviceAtlas.css";
 @import "./serviceChangeSurface.css";
+@import "./serviceInvestigation.css";
 @import "./serviceSpotlight.css";
 @import "./serviceTrafficPath.css";
 @import "./tables.css";

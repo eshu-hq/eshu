@@ -20,6 +20,12 @@ describe("ServiceSpotlightPanel", () => {
     render(<ServiceSpotlightPanel spotlight={spotlight} />);
 
     expect(screen.getByRole("heading", { name: "api-node-boats" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Service Atlas" })).toBeInTheDocument();
+    expect(screen.getByText("Partial coverage")).toBeInTheDocument();
+    expect(screen.getByText("26 repositories")).toBeInTheDocument();
+    expect(screen.getByText("6 evidence families")).toBeInTheDocument();
+    expect(screen.getByText("Fresh truth")).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Evidence drilldown" })).toBeInTheDocument();
     expect(screen.getAllByText("38 endpoints").length).toBeGreaterThan(0);
     expect(screen.getByText("44 methods")).toBeInTheDocument();
     expect(screen.getAllByText("2 lanes").length).toBeGreaterThan(0);
@@ -30,9 +36,9 @@ describe("ServiceSpotlightPanel", () => {
     expect(screen.getByText("Partial")).toBeInTheDocument();
     expect(screen.getByText("26 with evidence of 26 checked")).toBeInTheDocument();
     expect(screen.getAllByText("API Surface").length).toBeGreaterThan(0);
-    expect(screen.getByText("38 endpoint(s) across 0 spec file(s)")).toBeInTheDocument();
+    expect(screen.getAllByText("38 endpoint(s) across 0 spec file(s)").length).toBeGreaterThan(0);
     expect(screen.getByText("Service story")).toBeInTheDocument();
-    expect(screen.getByText("retrieve the full one-call dossier")).toBeInTheDocument();
+    expect(screen.getAllByText("retrieve the full one-call dossier").length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Traffic path" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "api-node-boats traffic path" })).toBeInTheDocument();
     expect(screen.getAllByText("CloudFront distribution").length).toBeGreaterThan(1);
@@ -425,6 +431,12 @@ const spotlight: ServiceSpotlight = {
     upstream: 35
   },
   repoName: "api-node-boats",
+  trust: {
+    basis: "hybrid",
+    freshness: "fresh",
+    level: "derived",
+    profile: "production"
+  },
   investigation: {
     coverage: {
       reason: "evidence was found, but Eshu cannot prove exhaustive coverage",
@@ -433,7 +445,14 @@ const spotlight: ServiceSpotlight = {
       state: "partial",
       truncated: false
     },
-    evidenceFamilies: ["api_surface", "deployment_lanes", "downstream_consumers"],
+    evidenceFamilies: [
+      "api_surface",
+      "deployment_lanes",
+      "documentation",
+      "downstream_consumers",
+      "support",
+      "upstream_dependencies"
+    ],
     findings: [
       {
         family: "api_surface",

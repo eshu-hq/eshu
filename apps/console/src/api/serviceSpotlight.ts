@@ -1,5 +1,7 @@
 import type { EshuApiClient } from "./client";
 import type { DeploymentConfigInfluence } from "./deploymentConfigInfluence";
+import { envelopePayload } from "./envelopePayload";
+import type { EshuTruth } from "./envelope";
 import type { DeploymentGraph } from "./mockData";
 import {
   normalizeServiceInvestigation,
@@ -38,6 +40,14 @@ export interface ServiceSpotlight {
   readonly repoName: string;
   readonly summary: string;
   readonly trafficPaths?: readonly ServiceTrafficPath[];
+  readonly trust: ServiceSpotlightTrust;
+}
+
+export interface ServiceSpotlightTrust {
+  readonly basis: string;
+  readonly freshness: string;
+  readonly level: string;
+  readonly profile: string;
 }
 
 export interface ServiceEndpoint {
@@ -202,10 +212,11 @@ async function loadCandidate(
   serviceName: string
 ): Promise<ServiceSpotlight | undefined> {
   try {
-    const context = await client.getJson<ServiceContextResponse>(
+    const response = await client.get<ServiceContextResponse>(
       `/api/v0/services/${encodeURIComponent(serviceName)}/context`
-    );
-    const spotlight = serviceSpotlightFromContext(context, serviceName);
+    ) as unknown;
+    const { data, truth } = envelopePayload<ServiceContextResponse>(response);
+    const spotlight = serviceSpotlightFromContext(data, serviceName, undefined, truth);
     return scoreSpotlight(spotlight) > 0 ? spotlight : undefined;
   } catch {
     return undefined;
@@ -215,7 +226,8 @@ async function loadCandidate(
 export function serviceSpotlightFromContext(
   context: ServiceContextResponse,
   fallbackName: string,
-  configInfluence?: DeploymentConfigInfluence
+  configInfluence?: DeploymentConfigInfluence,
+  truth?: EshuTruth
 ): ServiceSpotlight {
   const name = nonEmpty(context.name, fallbackName);
   const endpoints = endpointRows(context.api_surface?.endpoints ?? []);
@@ -258,7 +270,17 @@ export function serviceSpotlightFromContext(
       relationshipCounts.upstream,
       relationshipCounts.downstream
     ),
-    trafficPaths: buildServiceTrafficPaths(context, name, lanes)
+    trafficPaths: buildServiceTrafficPaths(context, name, lanes),
+    trust: spotlightTrust(truth)
+  };
+}
+
+function spotlightTrust(truth: EshuTruth | undefined): ServiceSpotlightTrust {
+  return {
+    basis: nonEmpty(truth?.basis, "unknown"),
+    freshness: nonEmpty(truth?.freshness.state, "unavailable"),
+    level: nonEmpty(truth?.level, "derived"),
+    profile: nonEmpty(truth?.profile, "local_authoritative")
   };
 }
 
