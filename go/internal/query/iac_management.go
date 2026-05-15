@@ -37,23 +37,32 @@ type IaCManagementFilter struct {
 
 // IaCManagementFindingRow is one query-facing unmanaged cloud resource finding.
 type IaCManagementFindingRow struct {
-	ID                string                     `json:"id"`
-	Provider          string                     `json:"provider"`
-	AccountID         string                     `json:"account_id,omitempty"`
-	Region            string                     `json:"region,omitempty"`
-	ResourceType      string                     `json:"resource_type,omitempty"`
-	ResourceID        string                     `json:"resource_id,omitempty"`
-	ARN               string                     `json:"arn,omitempty"`
-	FindingKind       string                     `json:"finding_kind"`
-	ManagementStatus  string                     `json:"management_status"`
-	Confidence        float64                    `json:"confidence"`
-	ScopeID           string                     `json:"scope_id"`
-	GenerationID      string                     `json:"generation_id"`
-	SourceSystem      string                     `json:"source_system"`
-	CandidateID       string                     `json:"candidate_id,omitempty"`
-	RecommendedAction string                     `json:"recommended_action"`
-	MissingEvidence   []string                   `json:"missing_evidence,omitempty"`
-	Evidence          []IaCManagementEvidenceRow `json:"evidence"`
+	ID                           string                     `json:"id"`
+	Provider                     string                     `json:"provider"`
+	AccountID                    string                     `json:"account_id,omitempty"`
+	Region                       string                     `json:"region,omitempty"`
+	ResourceType                 string                     `json:"resource_type,omitempty"`
+	ResourceID                   string                     `json:"resource_id,omitempty"`
+	ARN                          string                     `json:"arn,omitempty"`
+	Tags                         map[string]string          `json:"tags,omitempty"`
+	FindingKind                  string                     `json:"finding_kind"`
+	ManagementStatus             string                     `json:"management_status"`
+	Confidence                   float64                    `json:"confidence"`
+	ScopeID                      string                     `json:"scope_id"`
+	GenerationID                 string                     `json:"generation_id"`
+	SourceSystem                 string                     `json:"source_system"`
+	CandidateID                  string                     `json:"candidate_id,omitempty"`
+	MatchedTerraformStateAddress string                     `json:"matched_terraform_state_address,omitempty"`
+	MatchedTerraformConfigFile   string                     `json:"matched_terraform_config_file,omitempty"`
+	MatchedTerraformModulePath   string                     `json:"matched_terraform_module_path,omitempty"`
+	MatchedOtherIaCSource        string                     `json:"matched_other_iac_source,omitempty"`
+	ServiceCandidates            []string                   `json:"service_candidates,omitempty"`
+	EnvironmentCandidates        []string                   `json:"environment_candidates,omitempty"`
+	DependencyPaths              []string                   `json:"dependency_paths,omitempty"`
+	RecommendedAction            string                     `json:"recommended_action"`
+	MissingEvidence              []string                   `json:"missing_evidence,omitempty"`
+	WarningFlags                 []string                   `json:"warning_flags,omitempty"`
+	Evidence                     []IaCManagementEvidenceRow `json:"evidence"`
 }
 
 // IaCManagementEvidenceRow is one evidence atom explaining a cloud management
@@ -308,7 +317,18 @@ func awsRuntimeDriftRowToIaCManagement(
 ) IaCManagementFindingRow {
 	parsed := parseAWSManagementARN(row.ARN)
 	evidence := make([]IaCManagementEvidenceRow, 0, len(row.Evidence))
+	statusInput := iacManagementStatusInput{
+		FindingKind: strings.TrimSpace(row.FindingKind),
+	}
+	tags := map[string]string{}
+	enrichment := iacManagementEvidenceEnrichment{}
 	for _, atom := range row.Evidence {
+		statusInput.recordEvidence(atom.EvidenceType)
+		enrichment.recordEvidence(atom)
+		isRawTag := strings.EqualFold(atom.EvidenceType, "aws_raw_tag")
+		if isRawTag && strings.HasPrefix(atom.Key, "tag:") {
+			tags[strings.TrimPrefix(atom.Key, "tag:")] = atom.Value
+		}
 		evidence = append(evidence, IaCManagementEvidenceRow{
 			ID:             atom.ID,
 			SourceSystem:   atom.SourceSystem,
@@ -317,27 +337,45 @@ func awsRuntimeDriftRowToIaCManagement(
 			Key:            atom.Key,
 			Value:          atom.Value,
 			Confidence:     atom.Confidence,
-			ProvenanceOnly: atom.EvidenceType == "aws_raw_tag",
+			ProvenanceOnly: isRawTag,
 		})
 	}
+	if len(tags) == 0 {
+		tags = nil
+	}
+	status := normalizeIaCManagementStatus(row.ManagementStatus, deriveIaCManagementStatus(statusInput))
+	missingEvidence := firstNonEmptySlice(row.MissingEvidence, missingEvidenceForManagementStatus(status))
+	warningFlags := iacMergeStringSets(
+		row.WarningFlags,
+		warningFlagsForManagementFinding(status, parsed.resourceType, parsed.resourceID, tags),
+	)
 	return IaCManagementFindingRow{
-		ID:                row.FactID,
-		Provider:          "aws",
-		AccountID:         parsed.accountID,
-		Region:            parsed.region,
-		ResourceType:      parsed.resourceType,
-		ResourceID:        parsed.resourceID,
-		ARN:               row.ARN,
-		FindingKind:       row.FindingKind,
-		ManagementStatus:  managementStatusForFindingKind(row.FindingKind),
-		Confidence:        row.Confidence,
-		ScopeID:           row.ScopeID,
-		GenerationID:      row.GenerationID,
-		SourceSystem:      row.SourceSystem,
-		CandidateID:       row.CandidateID,
-		RecommendedAction: recommendedActionForFindingKind(row.FindingKind),
-		MissingEvidence:   missingEvidenceForFindingKind(row.FindingKind),
-		Evidence:          evidence,
+		ID:                           row.FactID,
+		Provider:                     "aws",
+		AccountID:                    parsed.accountID,
+		Region:                       parsed.region,
+		ResourceType:                 parsed.resourceType,
+		ResourceID:                   parsed.resourceID,
+		ARN:                          row.ARN,
+		Tags:                         tags,
+		FindingKind:                  row.FindingKind,
+		ManagementStatus:             status,
+		Confidence:                   row.Confidence,
+		ScopeID:                      row.ScopeID,
+		GenerationID:                 row.GenerationID,
+		SourceSystem:                 row.SourceSystem,
+		CandidateID:                  row.CandidateID,
+		MatchedTerraformStateAddress: iacFirstNonEmpty(row.MatchedTerraformStateAddress, enrichment.stateAddress),
+		MatchedTerraformConfigFile:   iacFirstNonEmpty(row.MatchedTerraformConfigFile, enrichment.configFile),
+		MatchedTerraformModulePath:   iacFirstNonEmpty(row.MatchedTerraformModulePath, enrichment.modulePath),
+		MatchedOtherIaCSource:        iacFirstNonEmpty(row.MatchedOtherIaCSource, enrichment.otherIaCSource),
+		ServiceCandidates:            firstNonEmptySlice(row.ServiceCandidates, enrichment.serviceCandidates),
+		EnvironmentCandidates:        firstNonEmptySlice(row.EnvironmentCandidates, enrichment.environmentCandidates),
+		DependencyPaths:              firstNonEmptySlice(row.DependencyPaths, enrichment.dependencyPaths),
+		RecommendedAction:            iacFirstNonEmpty(row.RecommendedAction, recommendedActionForManagementStatus(status)),
+		MissingEvidence:              missingEvidence,
+		WarningFlags:                 warningFlags,
+		Evidence:                     evidence,
 	}
 }
 
@@ -358,39 +396,6 @@ func parseAWSManagementARN(arn string) awsManagementARN {
 		region:       parts[3],
 		resourceType: parts[2],
 		resourceID:   parts[5],
-	}
-}
-
-func managementStatusForFindingKind(kind string) string {
-	switch kind {
-	case findingKindOrphanedCloudResource:
-		return "cloud_only"
-	case findingKindUnmanagedCloudResource:
-		return "terraform_state_only"
-	default:
-		return "observed_cloud_drift"
-	}
-}
-
-func recommendedActionForFindingKind(kind string) string {
-	switch kind {
-	case findingKindOrphanedCloudResource:
-		return "triage_owner_and_import_or_retire"
-	case findingKindUnmanagedCloudResource:
-		return "restore_config_or_prepare_import_block"
-	default:
-		return "review_evidence"
-	}
-}
-
-func missingEvidenceForFindingKind(kind string) []string {
-	switch kind {
-	case findingKindOrphanedCloudResource:
-		return []string{"terraform_state_resource", "terraform_config_resource"}
-	case findingKindUnmanagedCloudResource:
-		return []string{"terraform_config_resource"}
-	default:
-		return nil
 	}
 }
 

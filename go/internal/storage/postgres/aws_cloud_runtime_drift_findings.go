@@ -31,18 +31,29 @@ type AWSCloudRuntimeDriftFindingFilter struct {
 // AWSCloudRuntimeDriftFindingRow is one active reducer finding loaded from
 // fact_records.
 type AWSCloudRuntimeDriftFindingRow struct {
-	FactID        string
-	ScopeID       string
-	GenerationID  string
-	SourceSystem  string
-	ObservedAt    time.Time
-	CanonicalID   string
-	CandidateID   string
-	CandidateKind string
-	ARN           string
-	FindingKind   string
-	Confidence    float64
-	Evidence      []AWSCloudRuntimeDriftEvidenceRow
+	FactID                       string
+	ScopeID                      string
+	GenerationID                 string
+	SourceSystem                 string
+	ObservedAt                   time.Time
+	CanonicalID                  string
+	CandidateID                  string
+	CandidateKind                string
+	ARN                          string
+	FindingKind                  string
+	ManagementStatus             string
+	Confidence                   float64
+	MatchedTerraformStateAddress string
+	MatchedTerraformConfigFile   string
+	MatchedTerraformModulePath   string
+	MatchedOtherIaCSource        string
+	ServiceCandidates            []string
+	EnvironmentCandidates        []string
+	DependencyPaths              []string
+	MissingEvidence              []string
+	WarningFlags                 []string
+	RecommendedAction            string
+	Evidence                     []AWSCloudRuntimeDriftEvidenceRow
 }
 
 // AWSCloudRuntimeDriftEvidenceRow preserves the reducer evidence atoms used to
@@ -146,13 +157,24 @@ func (s AWSCloudRuntimeDriftFindingStore) CountActiveFindings(
 }
 
 type awsCloudRuntimeDriftFindingPayload struct {
-	CanonicalID   string                            `json:"canonical_id"`
-	CandidateID   string                            `json:"candidate_id"`
-	CandidateKind string                            `json:"candidate_kind"`
-	ARN           string                            `json:"arn"`
-	FindingKind   string                            `json:"finding_kind"`
-	Confidence    float64                           `json:"confidence"`
-	Evidence      []AWSCloudRuntimeDriftEvidenceRow `json:"evidence"`
+	CanonicalID                  string                            `json:"canonical_id"`
+	CandidateID                  string                            `json:"candidate_id"`
+	CandidateKind                string                            `json:"candidate_kind"`
+	ARN                          string                            `json:"arn"`
+	FindingKind                  string                            `json:"finding_kind"`
+	ManagementStatus             string                            `json:"management_status"`
+	Confidence                   float64                           `json:"confidence"`
+	MatchedTerraformStateAddress string                            `json:"matched_terraform_state_address"`
+	MatchedTerraformConfigFile   string                            `json:"matched_terraform_config_file"`
+	MatchedTerraformModulePath   string                            `json:"matched_terraform_module_path"`
+	MatchedOtherIaCSource        string                            `json:"matched_other_iac_source"`
+	ServiceCandidates            []string                          `json:"service_candidates"`
+	EnvironmentCandidates        []string                          `json:"environment_candidates"`
+	DependencyPaths              []string                          `json:"dependency_paths"`
+	MissingEvidence              []string                          `json:"missing_evidence"`
+	WarningFlags                 []string                          `json:"warning_flags"`
+	RecommendedAction            string                            `json:"recommended_action"`
+	Evidence                     []AWSCloudRuntimeDriftEvidenceRow `json:"evidence"`
 }
 
 func decodeAWSCloudRuntimeDriftFindingPayload(
@@ -168,7 +190,18 @@ func decodeAWSCloudRuntimeDriftFindingPayload(
 	row.CandidateKind = decoded.CandidateKind
 	row.ARN = decoded.ARN
 	row.FindingKind = decoded.FindingKind
+	row.ManagementStatus = decoded.ManagementStatus
 	row.Confidence = decoded.Confidence
+	row.MatchedTerraformStateAddress = decoded.MatchedTerraformStateAddress
+	row.MatchedTerraformConfigFile = decoded.MatchedTerraformConfigFile
+	row.MatchedTerraformModulePath = decoded.MatchedTerraformModulePath
+	row.MatchedOtherIaCSource = decoded.MatchedOtherIaCSource
+	row.ServiceCandidates = append([]string(nil), decoded.ServiceCandidates...)
+	row.EnvironmentCandidates = append([]string(nil), decoded.EnvironmentCandidates...)
+	row.DependencyPaths = append([]string(nil), decoded.DependencyPaths...)
+	row.MissingEvidence = append([]string(nil), decoded.MissingEvidence...)
+	row.WarningFlags = append([]string(nil), decoded.WarningFlags...)
+	row.RecommendedAction = decoded.RecommendedAction
 	row.Evidence = append([]AWSCloudRuntimeDriftEvidenceRow(nil), decoded.Evidence...)
 	return nil
 }

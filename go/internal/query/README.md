@@ -300,6 +300,12 @@ normalized to `c_sharp` before candidate scanning.
   provider entity labels when they have been projected
 - `IaCHandler` — IaC quality and AWS management routes (`iac.go:22`,
   `iac_management.go:142`)
+  - `IaCManagementFindingRow` is the stable read model for AWS-backed IaC
+    management status. It exposes the full #124 taxonomy, matched Terraform
+    state/config handles, other-IaC ownership hints, service and environment
+    candidates, dependency paths, warning flags, missing evidence, and
+    provenance evidence atoms. Raw tag evidence remains provenance-only and
+    does not promote ownership, service, or environment truth.
 - `ImpactHandler` — blast radius, change surface, deployment trace, resource
   investigation, dependency paths (`impact.go:11`)
 - `EvidenceHandler` — relationship evidence drilldown and bounded citation

@@ -497,6 +497,25 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	if _, ok := unmanagedResponse["graph_projection_note"]; !ok {
 		t.Fatal("iac/unmanaged-resources response schema missing graph_projection_note")
 	}
+	unmanagedFindings := mustMapField(t, unmanagedResponse, "findings")
+	unmanagedFindingItems := mustMapField(t, unmanagedFindings, "items")
+	unmanagedFindingProps := mustMapField(t, unmanagedFindingItems, "properties")
+	for _, field := range []string{
+		"management_status",
+		"tags",
+		"matched_terraform_state_address",
+		"matched_terraform_config_file",
+		"matched_terraform_module_path",
+		"matched_other_iac_source",
+		"service_candidates",
+		"environment_candidates",
+		"dependency_paths",
+		"warning_flags",
+	} {
+		if _, ok := unmanagedFindingProps[field]; !ok {
+			t.Fatalf("iac/unmanaged-resources finding schema missing %s", field)
+		}
+	}
 	if _, ok := deadIaCResponse["limitations"]; !ok {
 		t.Fatal("iac/dead response schema missing limitations")
 	}

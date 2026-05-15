@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +25,17 @@ func TestAWSCloudRuntimeDriftFindingStoreListsActiveScopedFindings(t *testing.T)
 					"candidate_id":"candidate:lambda:payments-api",
 					"arn":"arn:aws:lambda:us-east-1:123456789012:function:payments-api",
 					"finding_kind":"unmanaged_cloud_resource",
+					"management_status":"terraform_state_only",
 					"confidence":0.92,
+					"matched_terraform_state_address":"module.app.aws_lambda_function.payments",
+					"matched_terraform_config_file":"services/payments/lambda.tf",
+					"matched_terraform_module_path":"module.app",
+					"service_candidates":["payments"],
+					"environment_candidates":["prod"],
+					"dependency_paths":["service:payments -> lambda:payments-api"],
+					"missing_evidence":["terraform_config_resource"],
+					"warning_flags":["security_sensitive_resource"],
+					"recommended_action":"restore_config_or_prepare_import_block",
 					"evidence":[{
 						"id":"evidence:state",
 						"source_system":"terraform_state",
@@ -58,6 +69,15 @@ func TestAWSCloudRuntimeDriftFindingStoreListsActiveScopedFindings(t *testing.T)
 	}
 	if got, want := row.FindingKind, "unmanaged_cloud_resource"; got != want {
 		t.Fatalf("row.FindingKind = %q, want %q", got, want)
+	}
+	if got, want := row.ManagementStatus, "terraform_state_only"; got != want {
+		t.Fatalf("row.ManagementStatus = %q, want %q", got, want)
+	}
+	if got, want := row.MatchedTerraformStateAddress, "module.app.aws_lambda_function.payments"; got != want {
+		t.Fatalf("row.MatchedTerraformStateAddress = %q, want %q", got, want)
+	}
+	if got, want := row.WarningFlags, []string{"security_sensitive_resource"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("row.WarningFlags = %#v, want %#v", got, want)
 	}
 	if got, want := len(row.Evidence), 1; got != want {
 		t.Fatalf("len(row.Evidence) = %d, want %d", got, want)
