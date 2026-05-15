@@ -6,13 +6,6 @@ func importDependencyTool() ToolDefinition {
 		Description: "Investigate bounded import and module dependency questions such as imports by file, importers, package imports, circular Python file imports, and cross-module calls. Provide at least one scope filter: repo_id, source_file, target_file, source_module, or target_module.",
 		InputSchema: map[string]any{
 			"type": "object",
-			"anyOf": []map[string]any{
-				{"required": []string{"repo_id"}},
-				{"required": []string{"source_file"}},
-				{"required": []string{"target_file"}},
-				{"required": []string{"source_module"}},
-				{"required": []string{"target_module"}},
-			},
 			"properties": map[string]any{
 				"query_type": map[string]any{
 					"type":        "string",

@@ -6,13 +6,6 @@ func structuralInventoryTool() ToolDefinition {
 		Description: "Inspect bounded structural code inventory such as functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, and super calls. Provide at least one scope filter: repo_id, file_path, language, entity_kind, or symbol.",
 		InputSchema: map[string]any{
 			"type": "object",
-			"anyOf": []map[string]any{
-				{"required": []string{"repo_id"}},
-				{"required": []string{"file_path"}},
-				{"required": []string{"language"}},
-				{"required": []string{"entity_kind"}},
-				{"required": []string{"symbol"}},
-			},
 			"properties": map[string]any{
 				"repo_id": map[string]any{
 					"type":        "string",

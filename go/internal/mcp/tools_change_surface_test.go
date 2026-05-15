@@ -1,6 +1,9 @@
 package mcp
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestChangeSurfaceInvestigationToolContract(t *testing.T) {
 	t.Parallel()
@@ -93,17 +96,11 @@ func TestDeploymentConfigInfluenceToolContract(t *testing.T) {
 			t.Fatalf("tool schema missing %q", key)
 		}
 	}
-	anyOf, ok := schema["anyOf"].([]map[string]any)
-	if !ok {
-		t.Fatalf("tool schema anyOf type = %T, want []map[string]any", schema["anyOf"])
+	if _, ok := schema["anyOf"]; ok {
+		t.Fatal("tool schema must not advertise top-level anyOf")
 	}
-	if len(anyOf) != 2 {
-		t.Fatalf("tool schema anyOf length = %d, want 2", len(anyOf))
-	}
-	firstRequired := anyOf[0]["required"].([]string)
-	secondRequired := anyOf[1]["required"].([]string)
-	if firstRequired[0] != "service_name" || secondRequired[0] != "workload_id" {
-		t.Fatalf("tool schema anyOf required = %#v / %#v, want service_name / workload_id", firstRequired, secondRequired)
+	if !strings.Contains(tool.Description, "Provide service_name or workload_id") {
+		t.Fatalf("tool description = %q, want service_name/workload_id guidance", tool.Description)
 	}
 	limit := properties["limit"].(map[string]any)
 	if got, want := limit["maximum"], 100; got != want {

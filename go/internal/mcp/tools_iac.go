@@ -3,7 +3,7 @@ package mcp
 func iacManagementStatusTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "get_iac_management_status",
-		Description: "Get the current read-only IaC management status and safety gate for one AWS stable resource identity.",
+		Description: "Get the current read-only IaC management status and safety gate for one AWS stable resource identity. Provide scope_id or account_id plus arn or resource_id.",
 		InputSchema: iacManagementStatusSchema(),
 	}
 }
@@ -11,7 +11,7 @@ func iacManagementStatusTool() ToolDefinition {
 func iacManagementExplanationTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "explain_iac_management_status",
-		Description: "Explain one AWS IaC management status with grouped cloud, Terraform, raw-tag, management evidence, redaction, and safety gate details.",
+		Description: "Explain one AWS IaC management status with grouped cloud, Terraform, raw-tag, management evidence, redaction, and safety gate details. Provide scope_id or account_id plus arn or resource_id.",
 		InputSchema: iacManagementStatusSchema(),
 	}
 }
@@ -19,7 +19,7 @@ func iacManagementExplanationTool() ToolDefinition {
 func terraformImportPlanTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "propose_terraform_import_plan",
-		Description: "Generate read-only Terraform import-plan candidates from bounded AWS IaC management findings without running Terraform or mutating cloud state.",
+		Description: "Generate read-only Terraform import-plan candidates from bounded AWS IaC management findings without running Terraform or mutating cloud state. Provide scope_id or account_id.",
 		InputSchema: terraformImportPlanSchema(),
 	}
 }
@@ -27,7 +27,7 @@ func terraformImportPlanTool() ToolDefinition {
 func awsRuntimeDriftFindingsTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "list_aws_runtime_drift_findings",
-		Description: "List active AWS runtime drift reducer findings with bounded filters, truth outcomes, and rejected promotion status.",
+		Description: "List active AWS runtime drift reducer findings with bounded filters, truth outcomes, and rejected promotion status. Provide scope_id or account_id.",
 		InputSchema: awsRuntimeDriftFindingsSchema(),
 	}
 }
@@ -61,12 +61,6 @@ func iacManagementStatusSchema() map[string]any {
 				"items":       map[string]any{"type": "string"},
 				"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
 			},
-		},
-		"anyOf": []map[string]any{
-			{"required": []string{"scope_id", "arn"}},
-			{"required": []string{"scope_id", "resource_id"}},
-			{"required": []string{"account_id", "arn"}},
-			{"required": []string{"account_id", "resource_id"}},
 		},
 	}
 }
@@ -111,10 +105,6 @@ func terraformImportPlanSchema() map[string]any {
 				"default":     0,
 			},
 		},
-		"anyOf": []map[string]any{
-			{"required": []string{"scope_id"}},
-			{"required": []string{"account_id"}},
-		},
 	}
 }
 
@@ -153,10 +143,6 @@ func awsRuntimeDriftFindingsSchema() map[string]any {
 				"description": "Zero-based result offset for paging findings",
 				"default":     0,
 			},
-		},
-		"anyOf": []map[string]any{
-			{"required": []string{"scope_id"}},
-			{"required": []string{"account_id"}},
 		},
 	}
 }

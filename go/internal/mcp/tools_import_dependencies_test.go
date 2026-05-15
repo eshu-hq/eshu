@@ -1,6 +1,9 @@
 package mcp
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResolveRouteMapsImportDependencyToolToBoundedEndpoint(t *testing.T) {
 	t.Parallel()
@@ -46,9 +49,11 @@ func TestImportDependencyToolSchemaRequiresScopeAndBounds(t *testing.T) {
 		t.Fatalf("tool.Name = %q, want %q", got, want)
 	}
 	schema := tool.InputSchema.(map[string]any)
-	anyOf, ok := schema["anyOf"].([]map[string]any)
-	if !ok || len(anyOf) == 0 {
-		t.Fatalf("schema anyOf = %#v, want scope requirements", schema["anyOf"])
+	if _, ok := schema["anyOf"]; ok {
+		t.Fatal("schema must not advertise top-level anyOf")
+	}
+	if !strings.Contains(tool.Description, "Provide at least one scope filter") {
+		t.Fatalf("tool description = %q, want scope guidance", tool.Description)
 	}
 	properties := schema["properties"].(map[string]any)
 	limit := properties["limit"].(map[string]any)

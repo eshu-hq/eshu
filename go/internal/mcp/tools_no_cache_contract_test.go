@@ -1,6 +1,9 @@
 package mcp
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNoCachePromptToolsAdvertiseBounds(t *testing.T) {
 	t.Parallel()
@@ -24,31 +27,38 @@ func TestNoCachePromptToolsAdvertiseBounds(t *testing.T) {
 	}
 }
 
-func TestAnalyzeCodeRelationshipsSchemaRequiresTargetExceptRepoScopedOverrides(t *testing.T) {
+func TestAnalyzeCodeRelationshipsSchemaDocumentsTargetExceptRepoScopedOverrides(t *testing.T) {
 	t.Parallel()
 
 	tool := requireMCPTool(t, "analyze_code_relationships")
-	schema := tool.InputSchema.(map[string]any)
-	anyOf, ok := schema["anyOf"].([]map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
 	if !ok {
-		t.Fatalf("analyze_code_relationships schema anyOf type = %T, want []map[string]any", schema["anyOf"])
+		t.Fatalf("InputSchema type = %T, want map[string]any", tool.InputSchema)
 	}
-	if len(anyOf) != 2 {
-		t.Fatalf("analyze_code_relationships schema anyOf len = %d, want 2", len(anyOf))
+	if _, ok := schema["anyOf"]; ok {
+		t.Fatal("analyze_code_relationships schema must not advertise top-level anyOf")
 	}
-	targetRequired := anyOf[0]["required"].([]string)
-	if len(targetRequired) != 2 || targetRequired[0] != "query_type" || targetRequired[1] != "target" {
-		t.Fatalf("target branch required = %#v, want query_type,target", targetRequired)
+	required, ok := schema["required"].([]string)
+	if !ok {
+		t.Fatalf("required type = %T, want []string", schema["required"])
 	}
-	overrideRequired := anyOf[1]["required"].([]string)
-	if len(overrideRequired) != 2 || overrideRequired[0] != "query_type" || overrideRequired[1] != "repo_id" {
-		t.Fatalf("override branch required = %#v, want query_type,repo_id", overrideRequired)
+	if len(required) != 1 || required[0] != "query_type" {
+		t.Fatalf("required = %#v, want query_type only", required)
 	}
-	properties := anyOf[1]["properties"].(map[string]any)
-	queryType := properties["query_type"].(map[string]any)
-	enum := queryType["enum"].([]string)
-	if len(enum) != 1 || enum[0] != "overrides" {
-		t.Fatalf("override branch query_type enum = %#v, want [overrides]", enum)
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("properties type = %T, want map[string]any", schema["properties"])
+	}
+	target, ok := properties["target"].(map[string]any)
+	if !ok {
+		t.Fatalf("target schema type = %T, want map[string]any", properties["target"])
+	}
+	description, ok := target["description"].(string)
+	if !ok {
+		t.Fatalf("target description type = %T, want string", target["description"])
+	}
+	if !strings.Contains(description, "Optional for repo-scoped overrides") {
+		t.Fatalf("target description = %q, want repo-scoped overrides guidance", description)
 	}
 }
 

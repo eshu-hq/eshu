@@ -96,7 +96,7 @@ func codebaseTools() []ToolDefinition {
 		securityInvestigationTool(),
 		{
 			Name:        "get_code_relationship_story",
-			Description: "Get a bounded relationship story for one resolved code symbol, including ambiguity candidates, direct callers/callees/imports, optional transitive CALLS traversal, truncation, and source handles.",
+			Description: "Get a bounded relationship story for one resolved code symbol, including ambiguity candidates, direct callers/callees/imports, optional transitive CALLS traversal, truncation, and source handles. Provide target or entity_id.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -151,10 +151,6 @@ func codebaseTools() []ToolDefinition {
 						"default":     0,
 						"maximum":     10000,
 					},
-				},
-				"anyOf": []map[string]any{
-					{"required": []string{"target"}},
-					{"required": []string{"entity_id"}},
 				},
 			},
 		},

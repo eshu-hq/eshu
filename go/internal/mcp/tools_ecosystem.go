@@ -41,13 +41,9 @@ func ecosystemTools() []ToolDefinition {
 		},
 		{
 			Name:        "investigate_deployment_config",
-			Description: "Return a bounded story of the files, repositories, values layers, image tag sources, runtime settings, resource limits, and rendered targets that influence a service deployment.",
+			Description: "Return a bounded story of the files, repositories, values layers, image tag sources, runtime settings, resource limits, and rendered targets that influence a service deployment. Provide service_name or workload_id.",
 			InputSchema: map[string]any{
 				"type": "object",
-				"anyOf": []map[string]any{
-					{"required": []string{"service_name"}},
-					{"required": []string{"workload_id"}},
-				},
 				"properties": map[string]any{
 					"service_name": map[string]any{
 						"type":        "string",
@@ -128,13 +124,9 @@ func ecosystemTools() []ToolDefinition {
 		},
 		{
 			Name:        "investigate_resource",
-			Description: "Resolve a queue, database, cloud resource, Terraform resource, or Kubernetes object into a bounded investigation packet with workload users, provisioning repositories, source handles, ambiguity metadata, and next calls.",
+			Description: "Resolve a queue, database, cloud resource, Terraform resource, or Kubernetes object into a bounded investigation packet with workload users, provisioning repositories, source handles, ambiguity metadata, and next calls. Provide query or resource_id.",
 			InputSchema: map[string]any{
 				"type": "object",
-				"anyOf": []map[string]any{
-					{"required": []string{"query"}},
-					{"required": []string{"resource_id"}},
-				},
 				"properties": map[string]any{
 					"query": map[string]any{
 						"type":        "string",
