@@ -67,6 +67,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainInheritanceMaterialization` | Materialize inheritance, override, and alias edges |
 | `DomainPackageSourceCorrelation` | Classify package-registry source hints against active repository remotes without ownership promotion |
 | `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan, unmanaged, unknown, and ambiguous drift findings as canonical reducer facts |
+| `DomainContainerImageIdentity` | Join Git, OCI registry, and runtime image references into digest-keyed reducer facts |
 
 ## Intent lifecycle
 
@@ -408,6 +409,11 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `AWSCloudRuntimeDriftHandler` writes `reducer_aws_cloud_runtime_drift_finding`
   facts through `PostgresAWSCloudRuntimeDriftWriter`; graph nodes and MCP/API
   read models need their own frozen shape before Cypher lands.
+- **Container image identity is digest-first** —
+  `ContainerImageIdentityHandler` writes `reducer_container_image_identity`
+  facts only for explicit digest or single-tag-to-digest matches. Ambiguous,
+  unresolved, and stale tag outcomes stay diagnostic counters until stronger
+  evidence proves safe identity.
 - **Projection must be idempotent** — queue retries, duplicate claims, and
   partial graph writes must converge on the same truth.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`

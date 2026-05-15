@@ -313,6 +313,9 @@ func buildReducerService(
 		},
 		AWSCloudRuntimeDriftWriter: reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
 		AWSCloudRuntimeDriftLogger: logger,
+		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
+			DB: database,
+		},
 	})
 	if err != nil {
 		return reducer.Service{}, err

@@ -434,6 +434,43 @@ func TestImplementedDefaultDomainDefinitionsIncludesAWSCloudRuntimeDriftWhenAdap
 	}
 }
 
+func TestImplementedDefaultDomainDefinitionsOmitsContainerImageIdentityWithoutAdapters(t *testing.T) {
+	t.Parallel()
+
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{})
+	for _, def := range definitions {
+		if def.Domain == DomainContainerImageIdentity {
+			t.Fatalf("container_image_identity registered without adapters; want omitted to avoid silent intent drops")
+		}
+	}
+}
+
+func TestImplementedDefaultDomainDefinitionsIncludesContainerImageIdentityWhenAdaptersPresent(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubFactLoader{}
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
+		FactLoader:                   loader,
+		ContainerImageIdentityWriter: &recordingContainerImageIdentityWriter{},
+	})
+	found := false
+	for _, def := range definitions {
+		if def.Domain == DomainContainerImageIdentity {
+			found = true
+			handler, ok := def.Handler.(ContainerImageIdentityHandler)
+			if !ok {
+				t.Fatalf("container_image_identity handler type = %T, want ContainerImageIdentityHandler", def.Handler)
+			}
+			if handler.FactLoader != loader {
+				t.Fatal("container_image_identity handler FactLoader was not wired")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("container_image_identity not registered after wiring loader+writer")
+	}
+}
+
 // stubDriftEvidenceLoader is a no-op DriftEvidenceLoader used only to satisfy
 // the non-nil gate in implementedDefaultDomainDefinitions.
 type stubDriftEvidenceLoader struct{}

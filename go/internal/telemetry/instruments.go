@@ -75,6 +75,7 @@ type Instruments struct {
 	PackageRegistryRateLimited                metric.Int64Counter
 	PackageRegistryParseFailures              metric.Int64Counter
 	PackageSourceCorrelations                 metric.Int64Counter
+	ContainerImageIdentityDecisions           metric.Int64Counter
 	ConfluenceHTTPRequests                    metric.Int64Counter
 	ConfluencePermissionDeniedPages           metric.Int64Counter
 	ConfluenceDocumentsObserved               metric.Int64Counter
@@ -548,6 +549,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PackageSourceCorrelations counter: %w", err)
+	}
+
+	inst.ContainerImageIdentityDecisions, err = meter.Int64Counter(
+		"eshu_dp_container_image_identity_decisions_total",
+		metric.WithDescription("Total container image identity decisions by reducer domain and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ContainerImageIdentityDecisions counter: %w", err)
 	}
 
 	inst.ConfluenceHTTPRequests, err = meter.Int64Counter(

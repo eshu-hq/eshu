@@ -338,6 +338,30 @@ func packageSourceCorrelationDomainDefinition() DomainDefinition {
 	}
 }
 
+// containerImageIdentityDomainDefinition returns the additive definition for
+// digest-keyed image identity decisions. The domain writes durable reducer
+// facts only for digest-proven or single tag-to-digest registry observations;
+// ambiguous, missing, and stale tag cases remain explicit decision facts.
+func containerImageIdentityDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainContainerImageIdentity,
+		Summary: "join Git, OCI registry, and runtime image references into digest-keyed image identity",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "container_image_identity",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
+
 // awsCloudRuntimeDriftDomainDefinition returns the additive definition for
 // AWS runtime drift publication. The domain consumes admitted
 // aws_cloud_runtime_drift candidates and writes durable reducer facts, but it

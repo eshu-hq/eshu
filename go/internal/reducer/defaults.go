@@ -96,6 +96,10 @@ type DefaultHandlers struct {
 	AWSCloudRuntimeDriftEvidenceLoader AWSCloudRuntimeDriftEvidenceLoader
 	AWSCloudRuntimeDriftWriter         AWSCloudRuntimeDriftFindingWriter
 	AWSCloudRuntimeDriftLogger         *slog.Logger
+
+	// ContainerImageIdentityWriter persists digest-keyed image identity
+	// decisions for Git, OCI registry, and runtime image evidence.
+	ContainerImageIdentityWriter ContainerImageIdentityWriter
 }
 
 // NewDefaultRegistry constructs the canonical reducer catalog for the default
@@ -226,6 +230,15 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			Instruments: handlers.Instruments,
 		}
 		definitions = append(definitions, packageSource)
+	}
+	if handlers.FactLoader != nil && handlers.ContainerImageIdentityWriter != nil {
+		imageIdentity := containerImageIdentityDomainDefinition()
+		imageIdentity.Handler = ContainerImageIdentityHandler{
+			FactLoader:  handlers.FactLoader,
+			Writer:      handlers.ContainerImageIdentityWriter,
+			Instruments: handlers.Instruments,
+		}
+		definitions = append(definitions, imageIdentity)
 	}
 	if handlers.AWSCloudRuntimeDriftEvidenceLoader != nil &&
 		handlers.AWSCloudRuntimeDriftWriter != nil {

@@ -81,7 +81,26 @@ surfaces.
 1. Container image identity.
    Join Git image references, OCI registry digests, AWS ECR/ECS/EKS/Lambda
    runtime references, and later SBOM/attestation by digest. This should land
-   before vulnerability impact work.
+   before vulnerability impact work. Current reducer scope is digest-first:
+   explicit digest references and single OCI tag observations become durable
+   `reducer_container_image_identity` facts; ambiguous, unresolved, and stale
+   runtime tag outcomes stay diagnostic counters.
+
+   No-Regression Evidence: focused reducer coverage with
+   `go test ./internal/reducer -run 'TestBuildContainerImageIdentity|TestContainerImageIdentity|TestPostgresContainerImageIdentity|TestImplementedDefaultDomainDefinitions.*ContainerImageIdentity' -count=1`,
+   active OCI loader coverage with
+   `go test ./internal/storage/postgres -run 'TestFactStoreListActiveContainerImageIdentityFacts' -count=1`,
+   and package coverage with
+   `go test ./internal/reducer ./internal/storage/postgres ./internal/telemetry ./cmd/reducer -count=1`
+   cover exact digest, tag resolution, ambiguous tags, unresolved tags, stale
+   runtime tags, active OCI fact loading, durable writer filtering, default
+   domain wiring, telemetry registration, and reducer command wiring.
+
+   Observability Evidence: `eshu_dp_container_image_identity_decisions_total`
+   emits bounded `domain` and `outcome` dimensions for exact digest, tag
+   resolved, ambiguous tag, unresolved, and stale tag decisions; durable facts
+   include `identity_strength`, source layers, and evidence fact IDs for
+   operator diagnosis.
 
 2. IaC management status.
    Use Terraform config, Terraform state, AWS cloud facts, and reducer drift
