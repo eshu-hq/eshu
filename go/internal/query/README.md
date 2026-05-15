@@ -305,7 +305,7 @@ normalized to `c_sharp` before candidate scanning.
   including Terraform backend, import, moved, removed, check, and lockfile
   provider entity labels when they have been projected
 - `IaCHandler` — IaC quality and AWS management routes (`iac.go:22`,
-  `iac_management.go`, `iac_management_surface.go`)
+  `iac_management.go`, `iac_management_surface.go`, `iac_import_plan.go`)
   - `IaCManagementFindingRow` is the stable read model for AWS-backed IaC
     management status. It exposes the full #124 taxonomy, matched Terraform
     state/config handles, other-IaC ownership hints, service and environment
@@ -315,6 +315,10 @@ normalized to `c_sharp` before candidate scanning.
     tag/evidence values are redacted before the row leaves the query layer, and
     `safety_gate` names review-required findings plus refused follow-up actions
     such as Terraform import-plan generation.
+  - Terraform import-plan candidates are read-only response shaping over the
+    same bounded active findings. They generate Terraform `import` blocks only
+    for safety-approved supported cloud-only resources and return refused
+    candidates for ambiguous, sensitive, stale, state-only, or unsupported rows.
 - `ImpactHandler` — blast radius, change surface, deployment trace, resource
   investigation, dependency paths (`impact.go:11`)
 - `EvidenceHandler` — relationship evidence drilldown and bounded citation
@@ -383,7 +387,7 @@ See `doc.go` for the full godoc contract.
   Postgres drivers directly — they go through query package adapters and ports
 - `internal/telemetry` — `EventAttr`, `DefaultServiceNamespace`, span constants
   `SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
-  `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`,
+  `SpanQueryIaCUnmanagedResources`, `SpanQueryIaCTerraformImportPlan`, `SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`,
   `SpanQueryHardcodedSecretInvestigation`, `SpanQueryDeadCodeInvestigation`,
   `SpanQueryChangeSurfaceInvestigation`
 
@@ -420,6 +424,9 @@ wired in `cmd/api/wiring.go`, not here.
   `telemetry.SpanQueryIaCManagementStatus` (`query.iac_management_status`) on
   exact status reads, and `telemetry.SpanQueryIaCManagementExplanation`
   (`query.iac_management_explanation`) on grouped evidence explanations;
+  `telemetry.SpanQueryIaCTerraformImportPlan`
+  (`query.iac_terraform_import_plan`) on read-only Terraform import-plan
+  candidate generation;
   `telemetry.SpanQueryInfraResourceSearch`
   (`query.infra_resource_search`) on infrastructure search (`infra.go`).
   Per-query spans `neo4j.query` and `postgres.query` on every graph and content

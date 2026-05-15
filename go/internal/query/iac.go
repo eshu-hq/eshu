@@ -20,6 +20,7 @@ const (
 	iacManagementCapability        = "iac_management.find_unmanaged_resources"
 	iacManagementStatusCapability  = "iac_management.get_status"
 	iacManagementExplainCapability = "iac_management.explain_status"
+	iacTerraformImportCapability   = "iac_management.propose_terraform_import_plan"
 	iacManagementDefaultLimit      = 100
 	iacManagementMaxLimit          = 500
 )
@@ -38,6 +39,7 @@ func (h *IaCHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/iac/unmanaged-resources", h.handleUnmanagedCloudResources)
 	mux.HandleFunc("POST /api/v0/iac/management-status", h.handleIaCManagementStatus)
 	mux.HandleFunc("POST /api/v0/iac/management-status/explain", h.handleIaCManagementExplanation)
+	mux.HandleFunc("POST /api/v0/iac/terraform-import-plan/candidates", h.handleTerraformImportPlanCandidates)
 }
 
 func (h *IaCHandler) profile() QueryProfile {

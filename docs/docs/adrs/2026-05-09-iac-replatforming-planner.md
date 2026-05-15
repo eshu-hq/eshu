@@ -467,6 +467,32 @@ Issue #129 safety-gate implementation note:
 - Generate import blocks and destination suggestions as text artifacts.
 - Require explicit warnings for destructive or ambiguous imports.
 
+Issue #125 import-plan candidate implementation note:
+
+- The API and MCP now expose `POST
+  /api/v0/iac/terraform-import-plan/candidates` and
+  `propose_terraform_import_plan`. The route reads the same bounded active AWS
+  management findings as the unmanaged-resource surface, never runs Terraform,
+  never writes state, and never mutates cloud resources.
+- Candidates generate Terraform `import` blocks only for safety-approved
+  `cloud_only` findings with supported AWS resource-family mappings. The first
+  mappings cover S3 buckets and Lambda functions because their provider import
+  IDs are stable from the reducer read model. Sensitive, ambiguous, unknown,
+  stale, state-only, and unsupported findings stay visible as refused
+  candidates with refusal reasons and warnings.
+- No-Regression Evidence: focused Go tests cover safe S3 and Lambda import
+  blocks, request-derived S3 account/region hints, sensitive-resource refusal,
+  ARN-only `resource_id` handling, OpenAPI response fields, MCP tool
+  registration, MCP route body mapping, envelope negotiation, bounded paging,
+  and telemetry span-name contract without adding graph fan-out or Terraform
+  execution.
+- Observability Evidence: `telemetry.SpanQueryIaCTerraformImportPlan`
+  (`query.iac_terraform_import_plan`) wraps the route with stable `http.route`
+  and `eshu.capability` attributes. The underlying Postgres reader remains
+  instrumented through `InstrumentedDB{StoreName: "iac_management"}`, and the
+  response carries `limit`, `offset`, `truncated`, `next_offset`, `ready_count`,
+  `refused_count`, and `total_findings_count` for operator diagnosis.
+
 ### Phase 4: LLM-Assisted PR Workflow
 
 - Document prompts and MCP workflows for Codex/Claude.

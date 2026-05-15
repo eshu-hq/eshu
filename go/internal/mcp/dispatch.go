@@ -220,6 +220,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/iac/management-status", body: iacManagementStatusBody(args)}, nil
 	case "explain_iac_management_status":
 		return &route{method: "POST", path: "/api/v0/iac/management-status/explain", body: iacManagementStatusBody(args)}, nil
+	case "propose_terraform_import_plan":
+		return &route{method: "POST", path: "/api/v0/iac/terraform-import-plan/candidates", body: terraformImportPlanBody(args)}, nil
 	case "calculate_cyclomatic_complexity":
 		return &route{method: "POST", path: "/api/v0/code/complexity", body: map[string]any{
 			"function_name": str(args, "function_name"), "repo_id": str(args, "repo_id"),

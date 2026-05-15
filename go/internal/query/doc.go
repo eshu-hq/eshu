@@ -10,8 +10,10 @@
 // must agree whenever public routes or response shapes change. Response
 // envelopes, truth metadata, capability gates, and code-quality classifications
 // are stable wire contracts. IaC management responses include safety gates that
-// keep read-only evidence separate from Terraform import-plan eligibility and
-// redact sensitive evidence values before HTTP or MCP callers see them.
+// keep read-only evidence separate from Terraform import-plan eligibility,
+// Terraform import-plan candidate generation stays a read-only response-shaping
+// layer over bounded reducer rows, and sensitive evidence values are redacted
+// before HTTP or MCP callers see them.
 // Structural inventory uses bounded content-index reads for syntax and semantic
 // filters before callers drill into source or graph relationships.
 // Hardcoded-secret investigation returns redacted
