@@ -88,6 +88,9 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `PackageRegistryWorkPlanner` — plans package-registry collection runs from
   configured package/feed targets without opening registry connections. Each
   target becomes one claimable work item keyed by its configured `scope_id`.
+- `AWSFreshnessWorkPlanner` — plans targeted AWS collection runs from claimed
+  freshness triggers. Each unique `(account_id, region, service_kind)` target
+  becomes one normal AWS collector claim.
 
 ## Dependencies
 
@@ -99,6 +102,8 @@ fall back to defaults rather than failing; malformed values fail fast.
   `otelMetrics`.
 - `internal/collector/ociregistry` — OCI repository identity normalization used
   by the claim planner.
+- `internal/collector/awscloud/freshness` — normalized AWS freshness trigger
+  and target identity used by the AWS freshness planner.
 
 ## Telemetry
 
@@ -155,6 +160,8 @@ warning (`collector_instance_drift_detected`, fields
 - `Config.Validate` rejects active mode without `ClaimsEnabled=true` and at
   least one enabled claim-capable collector instance. The binary exits if this
   is violated.
+- AWS freshness planning rejects targets that are not present in the collector
+  instance `target_scopes`; provider events cannot widen configured AWS access.
 - `HeartbeatInterval` must be strictly less than `ClaimLeaseTTL` or
   `Validate` returns an error.
 - The reap ticker is nil in dark mode. `tickerChan(nil)` returns a nil channel

@@ -64,6 +64,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.AWSResourcesEmitted, "AWSResourcesEmitted counter should be registered")
 	assert.NotNil(t, inst.AWSRelationshipsEmitted, "AWSRelationshipsEmitted counter should be registered")
 	assert.NotNil(t, inst.AWSTagObservationsEmitted, "AWSTagObservationsEmitted counter should be registered")
+	assert.NotNil(t, inst.AWSFreshnessEvents, "AWSFreshnessEvents counter should be registered")
 
 	// Verify all histogram fields are non-nil
 	assert.NotNil(t, inst.CollectorObserveDuration, "CollectorObserveDuration histogram should be registered")
@@ -189,6 +190,16 @@ func TestAttrHelpers(t *testing.T) {
 			name:     "AttrReason",
 			attrFunc: func(v string) string { return string(AttrReason(v).Key) },
 			wantKey:  MetricDimensionReason,
+		},
+		{
+			name:     "AttrKind",
+			attrFunc: func(v string) string { return string(AttrKind(v).Key) },
+			wantKey:  MetricDimensionKind,
+		},
+		{
+			name:     "AttrAction",
+			attrFunc: func(v string) string { return string(AttrAction(v).Key) },
+			wantKey:  MetricDimensionAction,
 		},
 		{
 			name:     "AttrProvider",
