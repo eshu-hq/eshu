@@ -31,17 +31,32 @@ func TestAnalyzeCodeRelationshipsSchemaDocumentsTargetExceptRepoScopedOverrides(
 	t.Parallel()
 
 	tool := requireMCPTool(t, "analyze_code_relationships")
-	schema := tool.InputSchema.(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
 	if _, ok := schema["anyOf"]; ok {
 		t.Fatal("analyze_code_relationships schema must not advertise top-level anyOf")
 	}
-	required := schema["required"].([]string)
+	required, ok := schema["required"].([]string)
+	if !ok {
+		t.Fatalf("required type = %T, want []string", schema["required"])
+	}
 	if len(required) != 1 || required[0] != "query_type" {
 		t.Fatalf("required = %#v, want query_type only", required)
 	}
-	properties := schema["properties"].(map[string]any)
-	target := properties["target"].(map[string]any)
-	description := target["description"].(string)
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("properties type = %T, want map[string]any", schema["properties"])
+	}
+	target, ok := properties["target"].(map[string]any)
+	if !ok {
+		t.Fatalf("target schema type = %T, want map[string]any", properties["target"])
+	}
+	description, ok := target["description"].(string)
+	if !ok {
+		t.Fatalf("target description type = %T, want string", target["description"])
+	}
 	if !strings.Contains(description, "Optional for repo-scoped overrides") {
 		t.Fatalf("target description = %q, want repo-scoped overrides guidance", description)
 	}

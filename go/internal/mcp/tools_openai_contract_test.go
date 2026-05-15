@@ -2,7 +2,7 @@ package mcp
 
 import "testing"
 
-func TestReadOnlyToolInputSchemasAvoidTopLevelComposition(t *testing.T) {
+func TestReadOnlyToolInputSchemasAvoidTopLevelOpenAIRestrictedKeywords(t *testing.T) {
 	t.Parallel()
 
 	for _, tool := range ReadOnlyTools() {
@@ -19,7 +19,7 @@ func TestReadOnlyToolInputSchemasAvoidTopLevelComposition(t *testing.T) {
 			}
 			for _, key := range []string{"oneOf", "anyOf", "allOf", "enum", "not"} {
 				if _, ok := schema[key]; ok {
-					t.Fatalf("schema has top-level %q; exported MCP tool schemas must keep alternatives in descriptions or handler validation", key)
+					t.Fatalf("schema has top-level %q; exported MCP tool schemas must keep alternate anchors and restricted top-level keywords in descriptions or handler validation", key)
 				}
 			}
 		})
