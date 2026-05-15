@@ -87,6 +87,7 @@ func TestSpanNames(t *testing.T) {
 		"shared_acceptance.lookup",
 		"shared_acceptance.upsert",
 		"query.relationship_evidence",
+		"query.evidence_citation_packet",
 		"query.documentation_findings",
 		"query.documentation_evidence_packet",
 		"query.documentation_packet_freshness",

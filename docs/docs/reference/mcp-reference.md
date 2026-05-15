@@ -80,6 +80,15 @@ Use these tools when the user is asking for a narrative answer such as
 | **`get_workload_context`** | Durable drill-down for workload details after the story answer. | "Show me the workload context behind that story." |
 | **`get_service_context`** | Service alias drill-down for service-shaped prompts. | "Show me the service context behind that story." |
 
+## Evidence Citations
+
+Use this tool after a story, investigation, search, or relationship drill-down
+has already returned file or entity handles.
+
+| Tool Name | Description | Natural Language Example |
+| :--- | :--- | :--- |
+| **`build_evidence_citation_packet`** | Hydrate bounded file and entity handles into ranked source, documentation, manifest, and deployment citations. Accepts `repo_id + relative_path` file handles or `entity_id` handles, optional line ranges, `evidence_family`, `reason`, and `limit` up to 50. Returns bounded excerpts, missing handles, truncation coverage, and recommended next calls without graph traversal. | "Show me the source and docs evidence behind this explanation." |
+
 `trace_deployment_chain` now exposes the deployment-mapping fields that callers should use for deployment-specific answers:
 
 - `controller_overview`

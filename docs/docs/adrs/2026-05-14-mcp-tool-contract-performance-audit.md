@@ -72,6 +72,12 @@ tool surface:
   bounded search-term set, and uses one scored content-index query to return
   ranked files, symbols, coverage, truncation, call-graph handles, and exact
   recommended next calls.
+- `build_evidence_citation_packet` is the first-class MCP path for issue #298.
+  It routes to `POST /api/v0/evidence/citations`, accepts only explicit file
+  and entity handles from story, investigation, search, or drilldown responses,
+  caps each packet at 50 handles, batch-hydrates files and entities from the
+  Postgres content store, returns bounded excerpts, missing handles, citation
+  family, reason, and truncation coverage, and avoids graph traversal.
 
 ## Prompt-Family Audit
 
@@ -89,7 +95,7 @@ tool surface:
 | Deployment, GitOps, and resource tracing | `trace_deployment_chain`, `trace_resource_to_code`, story tools | Service story is one-call; low-level trace paths keep existing caps | #293, #294, #295 |
 | Environment comparison | `compare_environments` | Scoped workload/environment route now returns a prompt-ready story packet with shared resources, dedicated resources, evidence, limitations, coverage, and exact next calls | #296 |
 | Package and registry prompts | `list_package_registry_packages`, `list_package_registry_versions` | Already require/cap `limit` and deterministic ordering | #297 |
-| Documentation/confluence prompts | story routes plus content evidence | Story-first guidance remains; exact docs use paged content search | #298 |
+| Documentation/confluence prompts | story routes plus `build_evidence_citation_packet` | Story-first guidance remains; exact source, docs, manifest, and deployment proof uses bounded citation packets from returned handles | #298 |
 | Raw Cypher cookbook prompts | `execute_cypher_query` | Diagnostics-only, timeout-bound, server-capped, envelope-backed | #299 |
 
 ## Bounds And Observability
@@ -117,6 +123,11 @@ The changed read paths are cold-call bounded:
   orders by score and stable repo-relative path, probes one extra row for
   `truncated`, and returns exact follow-up calls instead of expanding
   relationships or source bodies in the first response;
+- evidence citation packets hydrate at most 50 explicit file/entity handles per
+  call, use one PostgreSQL content-file read for file handles plus one
+  PostgreSQL entity read for entity handles, trim excerpts in memory after the
+  bounded fetch, return missing-handle coverage, and never default to whole-graph
+  discovery;
 - infrastructure search has a max limit and truncation probe.
 - legacy impact tools `find_blast_radius`, `find_change_surface`, and
   `trace_resource_to_code` now accept `limit`, cap it at 200, execute graph
@@ -174,6 +185,23 @@ response envelope reports `truth.capability=code_search.topic_investigation`,
 `source_backend=postgres_content_store`, `coverage.query_shape`,
 `coverage.searched_term_count`, `limit`, `offset`, and `truncated`, so a slow or
 empty MCP answer can be diagnosed by scope, term expansion, and result window.
+
+No-Regression Evidence: evidence citation packet focused proof:
+`go test ./internal/query -run 'TestContentReaderEvidenceCitationFiles|TestEvidenceHandlerCitationPacket|TestEvidenceHandlerBuildsCitationPacket' -count=1` and
+`go test ./internal/mcp -run 'TestReadOnlyTools|TestContentTools|TestResolveRouteMapsEvidenceCitationPacket' -count=1`.
+The new path rejects empty handle sets, reports truncation, uses batched file
+and entity hydration in the handler test, and verifies the MCP tool maps to
+`POST /api/v0/evidence/citations` with a bounded request body.
+
+Observability Evidence: evidence citation packets emit
+`query.evidence_citation_packet` with `http.route` and `eshu.capability`, then
+child `postgres.query` spans with `db.operation=evidence_citation_files` and
+`db.operation=get_entity_contents` when both handle types are present. The
+response envelope reports `truth.capability=evidence_citation.packet`,
+`coverage.query_shape`, `source_backend`, `input_handle_count`,
+`resolved_count`, `missing_count`, `limit`, and `truncated`, so MCP latency and
+coverage gaps can be classified as handle selection, content-store hydration,
+or result-window truncation.
 
 No-Regression Evidence: change-surface investigation focused proof:
 `go test ./internal/query -run 'TestInvestigateChangeSurface|TestOpenAPI' -count=1`

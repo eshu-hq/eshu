@@ -61,6 +61,73 @@ func contentTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "build_evidence_citation_packet",
+			Description: "Hydrate a bounded set of file and entity handles into ranked source, docs, manifest, and deployment citations.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"subject": map[string]any{
+						"type":        "object",
+						"description": "Optional answer subject such as repo, service, workload, or code_topic.",
+					},
+					"question": map[string]any{
+						"type":        "string",
+						"description": "Prompt or answer fragment the citations support.",
+					},
+					"handles": map[string]any{
+						"type":        "array",
+						"description": "Evidence handles returned by story, investigation, search, or drilldown tools.",
+						"items": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"kind": map[string]any{
+									"type":        "string",
+									"enum":        []string{"file", "entity"},
+									"description": "Handle kind. If omitted, Eshu infers file from repo_id plus relative_path or entity from entity_id.",
+								},
+								"repo_id": map[string]any{
+									"type":        "string",
+									"description": "Canonical repository ID for a file handle.",
+								},
+								"relative_path": map[string]any{
+									"type":        "string",
+									"description": "Repository-relative file path for a file handle.",
+								},
+								"entity_id": map[string]any{
+									"type":        "string",
+									"description": "Canonical entity ID for an entity handle.",
+								},
+								"evidence_family": map[string]any{
+									"type":        "string",
+									"description": "Optional family such as source, documentation, manifest, deployment, or relationship.",
+								},
+								"reason": map[string]any{
+									"type":        "string",
+									"description": "Why this handle supports the answer.",
+								},
+								"start_line": map[string]any{
+									"type":        "integer",
+									"description": "Optional starting line for file citations.",
+								},
+								"end_line": map[string]any{
+									"type":        "integer",
+									"description": "Optional ending line for file citations.",
+								},
+							},
+						},
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum handles to hydrate in this packet.",
+						"default":     10,
+						"minimum":     1,
+						"maximum":     50,
+					},
+				},
+				"required": []string{"handles"},
+			},
+		},
+		{
 			Name:        "search_file_content",
 			Description: "Search indexed file content across repositories.",
 			InputSchema: map[string]any{

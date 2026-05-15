@@ -83,7 +83,8 @@ Story-first documentation now works the same way. Start with `get_service_story`
 the structured dossier fields such as `investigation`, `gitops_overview`,
 `documentation_overview`, and `support_overview` to shape an onboarding doc,
 deployment explainer, or support guide. Only after that should a client call
-content routes for exact README, runbook, values, or manifest evidence.
+`build_evidence_citation_packet` with the returned file and entity handles for
+exact README, runbook, values, manifest, or source evidence.
 
 When the answer spans code, GitOps, and runtime systems, the best prompt is not
 just "explain this service." It is "scan all related repositories, deployment
@@ -113,7 +114,8 @@ This is the practical split to keep in mind:
 
 - use story/context routes when you want the canonical answer first
 - use investigation when you want widening, evidence inspection, and explicit coverage reporting before the answer
-- use `repo_id + relative_path` or `entity_id` for exact follow-up evidence, not server-local paths
+- use `build_evidence_citation_packet` with `repo_id + relative_path` or
+  `entity_id` handles for exact follow-up evidence, not server-local paths
 
 ## Comparing environments
 
@@ -142,6 +144,7 @@ All of these tools are available through MCP. Your AI assistant can call them di
 - "Explain how these two things connect" → `explain_dependency_path`
 - "What differs between prod and staging?" → `compare_environments`
 - "Where is this behavior implemented?" → `investigate_code_topic`
+- "Show me the source and docs evidence behind this answer" → `build_evidence_citation_packet`
 
 See the [MCP Guide](guides/mcp-guide.md) for setup.
 See [Starter Prompts](guides/starter-prompts.md) for role-based prompt sets you can use right away.

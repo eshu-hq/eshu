@@ -205,7 +205,8 @@ Best additions:
 - Ask for evidence when you want proof. Prompts like "show the repos, manifests, and resources involved" steer the answer toward traceable output.
 - When the answer spans code, deployment, and runtime, explicitly ask Eshu to scan all related repositories first.
 - For broad code-topic prompts, start with `investigate_code_topic`. It returns ranked files, symbols, coverage, ambiguity, and exact next calls before you drill into `find_symbol`, `get_code_relationship_story`, or content reads.
-- For service documentation prompts, start with `investigate_service` when you need coverage before writing, or `get_service_story` when you want the one-call dossier first. The service story embeds the investigation packet and leaves exact file reads as citations.
+- For service documentation prompts, start with `investigate_service` when you need coverage before writing, or `get_service_story` when you want the one-call dossier first. The service story embeds the investigation packet and leaves exact file reads as citation handles.
+- When the user asks for proof behind the answer, use `build_evidence_citation_packet` with returned `repo_id + relative_path` and `entity_id` handles. That gives source, docs, manifest, and deployment excerpts without guessing which content route to call next.
 - Follow up in layers only when you need drill-down proof. Start with "show the service dossier," then ask "why does this edge exist?" or "show the exact file behind this handle."
 
 ## Good Follow-Ups

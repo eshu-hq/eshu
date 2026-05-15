@@ -59,14 +59,14 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 52 tools from six source files.
+`ReadOnlyTools` assembles 53 tools from six source files.
 
 | Group | Count | Source file |
 |---|---|---|
 | `codebaseTools` | 18 | `tools_codebase.go`, `tools_dead_code.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `contextTools` | 7 | `tools_context.go` |
-| `contentTools` | 5 | `tools_content.go` |
+| `contentTools` | 6 | `tools_content.go` |
 | `runtimeTools` | 3 | `tools_runtime.go` |
 
 Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
@@ -82,6 +82,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `find_dead_iac` | POST | `/api/v0/iac/dead` |
 | `find_unmanaged_resources` | POST | `/api/v0/iac/unmanaged-resources` |
 | `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |
+| `build_evidence_citation_packet` | POST | `/api/v0/evidence/citations` |
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
 | `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |

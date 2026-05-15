@@ -19,9 +19,11 @@
 // separate Terraform config-vs-state joins from AWS runtime ARN joins.
 // SpanQueryChangeSurfaceInvestigation names the prompt-facing change-surface
 // route that combines target resolution, content handles, and bounded graph
-// traversal. Pipeline stage, graph-backend, and failure-class names stay
-// centralized here so runtime packages can report comparable events without
-// inventing local label vocabularies. The drift loader's module-aware join
+// traversal. SpanQueryEvidenceCitationPacket names the prompt-facing citation
+// hydration route that turns explicit content handles into bounded source and
+// documentation proof. Pipeline stage, graph-backend, and failure-class names
+// stay centralized here so runtime packages can report comparable events
+// without inventing local label vocabularies. The drift loader's module-aware join
 // (issue #169) registers
 // the DriftUnresolvedModuleCalls counter and the
 // MetricDimensionDriftUnresolvedModuleReason dimension here so the closed

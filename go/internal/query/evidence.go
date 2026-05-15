@@ -29,6 +29,7 @@ type relationshipEvidenceReadModelStore interface {
 // Mount registers evidence drilldown routes.
 func (h *EvidenceHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/evidence/relationships/{resolved_id}", h.getRelationshipEvidence)
+	mux.HandleFunc("POST /api/v0/evidence/citations", h.buildEvidenceCitations)
 }
 
 func (h *EvidenceHandler) profile() QueryProfile {
