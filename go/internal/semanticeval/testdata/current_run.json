@@ -1,0 +1,31 @@
+{
+  "results": [
+    {
+      "case_id": "owner-for-token-validation",
+      "latency_ms": 42,
+      "candidates": [
+        {
+          "handle": "file://auth/token_validator.go",
+          "truth": "exact",
+          "score": 1
+        },
+        {
+          "handle": "doc://runbooks/auth-token-validation",
+          "truth": "semantic_candidate",
+          "score": 0.82
+        }
+      ]
+    },
+    {
+      "case_id": "checkout-deployment-owner",
+      "latency_ms": 77,
+      "candidates": [
+        {
+          "handle": "workload://checkout-api",
+          "truth": "exact",
+          "score": 1
+        }
+      ]
+    }
+  ]
+}

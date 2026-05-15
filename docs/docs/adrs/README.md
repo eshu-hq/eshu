@@ -53,6 +53,7 @@ still needs an owner.
 | `2026-05-12-webhook-triggered-repository-refresh.md` | Accepted | Defines a separate public EKS `webhook-listener` runtime for GitHub/GitLab default-branch events. Webhook payloads are trigger evidence only; Git sync and the normal repository generation path remain authoritative for graph/query truth. |
 | `2026-05-12-package-registry-collector.md` | Proposed | Defines issue #24 package-registry collection as a separate source-truth boundary from OCI image collection. Phase 1 validates ECR through the OCI lane and JFrog through both OCI and package-feed lanes, then expands to public ecosystem fixtures, GitHub, GitLab, Google, Azure, Nexus, and CodeArtifact. |
 | `2026-05-13-eshu-console-read-only-product-surface.md` | Proposed | Defines the first private read-only console: `apps/console`, role-neutral search, entity-centered workspaces, demo/private mode separation, and contract-first envelope handling. |
+| `2026-05-15-nornicdb-semantic-retrieval-evaluation.md` | Proposed | Defines issue #396's evaluation-first path for using NornicDB vector, hybrid search, decay, and link-prediction capabilities as a truth-labeled read-side context layer without changing reducer-owned canonical graph admission. |
 
 ## Discussion Shortlist
 
@@ -76,3 +77,5 @@ The ADRs that need active planning next are:
 12. Tag taxonomy implementation in the reducer-owned normalizer and admin
    status payload.
 13. Webhook-triggered repository refresh runtime for hosted freshness.
+14. NornicDB semantic retrieval evaluation for MCP/API recall, freshness
+   scoring, and candidate relationship discovery.

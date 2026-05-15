@@ -1,0 +1,42 @@
+{
+  "cases": [
+    {
+      "id": "owner-for-token-validation",
+      "question": "What owns token validation?",
+      "scope": {
+        "repo": "example/auth"
+      },
+      "expected": [
+        {
+          "handle": "file://auth/token_validator.go",
+          "relevance": 3,
+          "required": true,
+          "max_truth": "exact"
+        },
+        {
+          "handle": "doc://runbooks/auth-token-validation",
+          "relevance": 2,
+          "max_truth": "semantic_candidate"
+        }
+      ],
+      "must_not_include": [
+        "file://legacy/auth_token_validator.go"
+      ]
+    },
+    {
+      "id": "checkout-deployment-owner",
+      "question": "Which workload deploys checkout?",
+      "scope": {
+        "repo": "example/checkout"
+      },
+      "expected": [
+        {
+          "handle": "workload://checkout-api",
+          "relevance": 3,
+          "required": true,
+          "max_truth": "exact"
+        }
+      ]
+    }
+  ]
+}
