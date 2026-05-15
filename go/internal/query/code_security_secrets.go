@@ -183,17 +183,13 @@ func normalizeHardcodedSecretKinds(kinds []string) ([]string, error) {
 }
 
 func hardcodedSecretResponse(req hardcodedSecretInvestigationRequest, rows []hardcodedSecretFindingRow) map[string]any {
-	visibleRows := make([]hardcodedSecretFindingRow, 0, len(rows))
 	suppressedCount := 0
 	for _, row := range rows {
 		if row.Suppressed {
 			suppressedCount++
 		}
-		if row.Suppressed && !req.IncludeSuppressed {
-			continue
-		}
-		visibleRows = append(visibleRows, row)
 	}
+	visibleRows := rows
 	truncated := len(visibleRows) > req.Limit
 	if truncated {
 		visibleRows = visibleRows[:req.Limit]

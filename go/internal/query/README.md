@@ -466,6 +466,14 @@ wired in `cmd/api/wiring.go`, not here.
   performance bounds do not blur result-list pagination with raw scan coverage.
   Unsupported language metadata and repository-root
   `test/`, `tests/`, and `__tests__/` paths stay out of default cleanup results.
+- Hardcoded-secret investigation applies test, fixture, example, and placeholder
+  suppression inside the Postgres query before `LIMIT` and `OFFSET`
+  (`content_reader_security_secrets.go`). The SQL predicate and Go suppression
+  notes both derive from `hardcodedSecretSuppressionRules`, and
+  `code_security_secrets.go` treats the returned content-store rows as the
+  already-paged result window; do not move suppression back into either Go row
+  loop, because that makes `truncated` and offset paging describe the
+  pre-suppression row set instead of the visible results.
 - Content reads return `source_backend=unavailable` when Postgres does not have
   a cached row for the requested file. This is not a Postgres error; the ingester
   has not yet written content for that scope.

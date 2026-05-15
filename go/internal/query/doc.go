@@ -11,7 +11,10 @@
 // envelopes, truth metadata, capability gates, and code-quality classifications
 // are stable wire contracts. Hardcoded-secret investigation returns redacted
 // content-index findings with suppression notes and never returns raw secret
-// values; the route contract lives in code_security_secrets.go. The dead-code
+// values; suppression filtering and Go suppression notes share one rule table,
+// filtering stays in the Postgres read model before paging, the handler
+// preserves that page window, and the route contract lives in
+// code_security_secrets.go. The dead-code
 // OpenAPI fragment names modeled
 // language roots and keeps the language filter examples aligned with C#, C,
 // Dart, Haskell, Kotlin, Elixir, Perl, PHP, Groovy, and SQL query behavior. That

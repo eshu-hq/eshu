@@ -260,9 +260,11 @@ func TestContentReaderSearchEntitiesReferencingComponent(t *testing.T) {
 }
 
 type contentReaderQueryResult struct {
-	columns []string
-	rows    [][]driver.Value
-	err     error
+	columns              []string
+	rows                 [][]driver.Value
+	err                  error
+	queryContains        []string
+	queryContainsInOrder []string
 }
 
 func openContentReaderTestDB(t *testing.T, results []contentReaderQueryResult) *sql.DB {
@@ -389,10 +391,30 @@ func (c *contentReaderConn) QueryContext(_ context.Context, query string, _ []dr
 	}
 	result := c.results[0]
 	c.results = c.results[1:]
+	for _, fragment := range result.queryContains {
+		if !strings.Contains(query, fragment) {
+			return nil, fmt.Errorf("query missing fragment %q", fragment)
+		}
+	}
+	if err := contentReaderQueryContainsInOrder(query, result.queryContainsInOrder); err != nil {
+		return nil, err
+	}
 	if result.err != nil {
 		return nil, result.err
 	}
 	return &contentReaderRows{columns: result.columns, rows: result.rows}, nil
+}
+
+func contentReaderQueryContainsInOrder(query string, fragments []string) error {
+	offset := 0
+	for _, fragment := range fragments {
+		index := strings.Index(query[offset:], fragment)
+		if index < 0 {
+			return fmt.Errorf("query missing ordered fragment %q", fragment)
+		}
+		offset += index + len(fragment)
+	}
+	return nil
 }
 
 func contentReaderRelationshipReadModelColumns() []string {

@@ -210,8 +210,27 @@ Observability Evidence: hardcoded-secret investigation emits
 `db.operation=investigate_hardcoded_secrets`. The response envelope reports
 `truth.capability=security.hardcoded_secrets`, `source_backend`,
 `coverage.query_shape`, `coverage.suppressed_count`, `limit`, `offset`, and
-`truncated`, so a slow or partial MCP answer can be diagnosed by scope, content
-scan, suppression filtering, or result window.
+`truncated`. `coverage.suppressed_count` counts suppressed rows returned to the
+handler; it is normally zero when `include_suppressed=false` because the
+Postgres predicate filters those rows before paging. A slow or partial MCP
+answer can still be diagnosed by scope, content scan, returned-row suppression
+notes, and result window.
+
+No-Regression Evidence: issue #350 post-merge paging fix proof:
+`go test ./internal/query -run 'TestContentReaderInvestigateHardcodedSecrets' -count=1`
+and
+`go test ./internal/query ./internal/mcp ./internal/telemetry ./cmd/api ./cmd/mcp-server -count=1`.
+The content-store query now applies suppression filtering before `LIMIT` and
+`OFFSET`, so default pages cannot skip or duplicate visible findings when test,
+fixture, example, or placeholder candidates exist before them in deterministic
+order.
+
+No-Observability-Change: the existing `query.hardcoded_secret_investigation`
+handler span, child `postgres.query` span with
+`db.operation=investigate_hardcoded_secrets`, and response coverage fields
+(`limit`, `offset`, `truncated`, and returned-row
+`coverage.suppressed_count`) still diagnose the fixed path; no new metric label
+or span name was needed for this predicate placement change.
 
 No-Regression Evidence: evidence citation packet focused proof:
 `go test ./internal/query -run 'TestContentReaderEvidenceCitationFiles|TestEvidenceHandlerCitationPacket|TestEvidenceHandlerBuildsCitationPacket' -count=1` and
