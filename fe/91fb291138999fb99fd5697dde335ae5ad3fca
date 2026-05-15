@@ -1,0 +1,27 @@
+go/internal/storage/postgres/relationship_schema.go
+  s_1273e1d3d73976::t_9329985463afa5 205-210
+go/internal/storage/postgres/relationship_store_test.go
+  s_1273e1d3d73976::t_cdf8a1865e301a 188-208
+docs/docs/reference/nornicdb-tuning.md
+  s_1273e1d3d73976::t_694984a1c621bd 392-415
+go/internal/runtime/compose_nornicdb_image_test.go
+  s_1273e1d3d73976::t_26fd6f7b627c87 37-46
+docker-compose.yaml
+  s_1273e1d3d73976::t_2a86b844eb246d 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "fe91fb291138999fb99fd5697dde335ae5ad3fca",
+  "prompts": {},
+  "sessions": {
+    "s_1273e1d3d73976": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e28fa-e5aa-7ac3-a705-f0b90521b5e7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
