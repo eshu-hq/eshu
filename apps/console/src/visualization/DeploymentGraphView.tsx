@@ -1,6 +1,10 @@
 import { curveBumpX, line, scalePoint } from "d3";
 import { useMemo, useState } from "react";
-import type { DeploymentGraph, DeploymentGraphNode } from "../api/mockData";
+import type {
+  DeploymentGraph,
+  DeploymentGraphLink,
+  DeploymentGraphNode
+} from "../api/mockData";
 
 interface DeploymentGraphViewProps {
   readonly ariaLabel?: string;
@@ -8,19 +12,31 @@ interface DeploymentGraphViewProps {
   readonly graph: DeploymentGraph;
 }
 
-const graphWidth = 840;
-const graphHeight = 430;
+const graphWidth = 680;
+const graphHeight = 360;
+
+type SelectedGraphItem =
+  | {
+    readonly kind: "node";
+    readonly node: DeploymentGraphNode;
+  }
+  | {
+    readonly kind: "link";
+    readonly link: LayoutLink;
+  };
 
 export function DeploymentGraphView({
   ariaLabel = "Deployment evidence graph",
   detailTitle = "Evidence nodes",
   graph
 }: DeploymentGraphViewProps): React.JSX.Element {
-  const [selectedNode, setSelectedNode] = useState<DeploymentGraphNode | undefined>(
-    graph.nodes[0]
+  const [selectedItem, setSelectedItem] = useState<SelectedGraphItem | undefined>(
+    graph.nodes[0] === undefined ? undefined : { kind: "node", node: graph.nodes[0] }
   );
   const layout = useMemo(() => layoutGraph(graph), [graph]);
-  const selected = selectedNode ?? graph.nodes[0];
+  const selected = selectedItem ?? (
+    graph.nodes[0] === undefined ? undefined : { kind: "node" as const, node: graph.nodes[0] }
+  );
 
   return (
     <div className="deployment-graph">
@@ -31,17 +47,44 @@ export function DeploymentGraphView({
         viewBox={`0 0 ${graphWidth} ${graphHeight}`}
       >
         {layout.links.map((link) => (
-          <path className="deployment-link" d={link.path} key={link.key} />
+          <g
+            aria-label={`Inspect ${link.label} relationship`}
+            className="deployment-edge"
+            key={link.key}
+            onClick={() => setSelectedItem({ kind: "link", link })}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setSelectedItem({ kind: "link", link });
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            <path className="deployment-link deployment-link-hitbox" d={link.path} />
+            <path className="deployment-link" d={link.path} />
+            <rect
+              className="deployment-link-label-bg"
+              height="24"
+              rx="6"
+              width={edgeLabelWidth(link.label)}
+              x={link.labelX - edgeLabelWidth(link.label) / 2}
+              y={link.labelY - 18}
+            />
+            <text className="deployment-link-label" x={link.labelX} y={link.labelY - 2}>
+              {link.label}
+            </text>
+          </g>
         ))}
         {layout.nodes.map((node) => (
           <g
             className={`deployment-node deployment-node-${node.kind}`}
             key={node.id}
-            onClick={() => setSelectedNode(node)}
+            onClick={() => setSelectedItem({ kind: "node", node })}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
-                setSelectedNode(node);
+                setSelectedItem({ kind: "node", node });
               }
             }}
             role="button"
@@ -71,12 +114,13 @@ export function DeploymentGraphView({
       </svg>
       <div className="graph-detail">
         <h3>{detailTitle}</h3>
+        {selected !== undefined ? <GraphSelectionDossier selected={selected} /> : null}
         <div className="graph-node-buttons">
           {graph.nodes.map((node) => (
             <button
-              aria-pressed={selected?.id === node.id}
+              aria-pressed={selected?.kind === "node" && selected.node.id === node.id}
               key={node.id}
-              onClick={() => setSelectedNode(node)}
+              onClick={() => setSelectedItem({ kind: "node", node })}
               type="button"
             >
               <span>{node.label}</span>
@@ -84,16 +128,64 @@ export function DeploymentGraphView({
             </button>
           ))}
         </div>
-        {selected !== undefined ? (
-          <p>
-            <strong>{selected.label}</strong>
-            {selected.detail !== undefined && selected.detail.trim().length > 0
-              ? `: ${selected.detail}`
-              : ""}
-          </p>
+        {layout.links.length > 0 ? (
+          <div className="graph-edge-buttons">
+            <h4>Relationships</h4>
+            {layout.links.map((link) => (
+              <button
+                aria-pressed={selected?.kind === "link" && selected.link.key === link.key}
+                key={link.key}
+                onClick={() => setSelectedItem({ kind: "link", link })}
+                type="button"
+              >
+                <span>{link.label}</span>
+                <span>{`${link.source} -> ${link.target}`}</span>
+              </button>
+            ))}
+          </div>
         ) : null}
       </div>
     </div>
+  );
+}
+
+function GraphSelectionDossier({
+  selected
+}: {
+  readonly selected: SelectedGraphItem;
+}): React.JSX.Element {
+  if (selected.kind === "node") {
+    return (
+      <p>
+        <strong>{selected.node.label}</strong>
+        {selected.node.detail !== undefined && selected.node.detail.trim().length > 0
+          ? `: ${selected.node.detail}`
+          : ""}
+      </p>
+    );
+  }
+
+  return (
+    <section className="graph-selected-relationship" aria-label="Selected graph relationship">
+      <h4>Selected relationship</h4>
+      <dl>
+        <div>
+          <dt>Verb</dt>
+          <dd>{selected.link.label}</dd>
+        </div>
+        <div>
+          <dt>Source</dt>
+          <dd>{selected.link.source}</dd>
+        </div>
+        <div>
+          <dt>Target</dt>
+          <dd>{selected.link.target}</dd>
+        </div>
+      </dl>
+      {selected.link.detail !== undefined && selected.link.detail.trim().length > 0 ? (
+        <p>{selected.link.detail}</p>
+      ) : null}
+    </section>
   );
 }
 
@@ -105,8 +197,14 @@ interface LayoutNode extends DeploymentGraphNode {
 }
 
 interface LayoutLink {
+  readonly detail?: string;
   readonly key: string;
+  readonly label: string;
+  readonly labelX: number;
+  readonly labelY: number;
   readonly path: string;
+  readonly source: string;
+  readonly target: string;
 }
 
 function layoutGraph(graph: DeploymentGraph): {
@@ -141,12 +239,18 @@ function layoutGraph(graph: DeploymentGraph): {
     }
     return [
       {
+        detail: link.detail,
         key: `${link.source}:${link.target}:${link.label}`,
+        label: link.label,
+        labelX: (source.x + target.x) / 2,
+        labelY: (source.y + target.y) / 2,
         path:
           pathLine([
             [source.x, source.y],
             [target.x, target.y]
-          ]) ?? ""
+          ]) ?? "",
+        source: link.source,
+        target: link.target
       }
     ];
   });
@@ -181,12 +285,18 @@ function semanticLayout(
     }
     return [
       {
+        detail: link.detail,
         key: `${link.source}:${link.target}:${link.label}`,
+        label: link.label,
+        labelX: (source.x + target.x) / 2,
+        labelY: (source.y + target.y) / 2,
         path:
           pathLine([
             [source.x, source.y],
             [target.x, target.y]
-          ]) ?? ""
+          ]) ?? "",
+        source: link.source,
+        target: link.target
       }
     ];
   });
@@ -194,8 +304,8 @@ function semanticLayout(
 }
 
 function columnX(column: number): number {
-  const columns = [104, 340, 584, 720];
-  return columns[column] ?? 720;
+  const columns = [92, 258, 444, 578];
+  return columns[column] ?? 578;
 }
 
 function labelLines(label: string): readonly string[] {
@@ -243,4 +353,8 @@ function nodeHeight(label: string): number {
 function nodeWidth(label: string): number {
   const longest = Math.max(...labelLines(label).map((lineText) => lineText.length), 10);
   return Math.min(190, Math.max(124, longest * 8 + 32));
+}
+
+function edgeLabelWidth(label: DeploymentGraphLink["label"]): number {
+  return Math.max(86, label.length * 7 + 28);
 }

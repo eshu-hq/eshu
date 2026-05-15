@@ -226,6 +226,7 @@ p {
 
 .command-search input:focus,
 .table-toolbar input:focus,
+.table-toolbar select:focus,
 button:focus-visible,
 a:focus-visible {
   border-color: var(--accent);
@@ -371,6 +372,30 @@ a:focus-visible {
   stroke-width: 2.4;
 }
 
+.deployment-edge {
+  cursor: pointer;
+}
+
+.deployment-link-hitbox {
+  opacity: 0;
+  stroke: transparent;
+  stroke-width: 18;
+}
+
+.deployment-link-label-bg {
+  fill: color-mix(in oklch, var(--surface), var(--field) 35%);
+  stroke: color-mix(in oklch, var(--relation), var(--line) 40%);
+  stroke-width: 1;
+}
+
+.deployment-link-label {
+  fill: var(--text);
+  font-size: 11px;
+  font-weight: 760;
+  pointer-events: none;
+  text-anchor: middle;
+}
+
 .deployment-node rect {
   fill: var(--surface);
   stroke: var(--line);
@@ -411,7 +436,19 @@ a:focus-visible {
   gap: 8px;
 }
 
+.graph-edge-buttons {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.graph-edge-buttons h4,
+.graph-selected-relationship h4 {
+  margin: 0;
+}
+
 .graph-node-buttons button,
+.graph-edge-buttons button,
 .evidence-row button,
 .row-button {
   background: var(--field);
@@ -427,8 +464,53 @@ a:focus-visible {
   text-align: left;
 }
 
-.graph-node-buttons button[aria-pressed="true"] {
+.graph-edge-buttons button {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+}
+
+.graph-edge-buttons button span:last-child {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.graph-node-buttons button[aria-pressed="true"],
+.graph-edge-buttons button[aria-pressed="true"] {
   border-color: var(--accent);
+}
+
+.graph-selected-relationship {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+}
+
+.graph-selected-relationship dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.graph-selected-relationship div {
+  display: grid;
+  gap: 3px;
+}
+
+.graph-selected-relationship dt {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 760;
+}
+
+.graph-selected-relationship dd,
+.graph-selected-relationship p {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 900px) {

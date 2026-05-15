@@ -45,6 +45,7 @@ interface CatalogWorkloadRecord {
   readonly id?: string;
   readonly instance_count?: number;
   readonly kind?: string;
+  readonly materialization_status?: string;
   readonly name?: string;
   readonly repo_id?: string;
   readonly repo_name?: string;
@@ -330,16 +331,22 @@ function catalogRowFromWorkload(
   workload: CatalogWorkloadRecord,
   kind: "services" | "workloads"
 ): CatalogRow {
+  const environments = workload.environments ?? [];
   const environmentLabel =
-    workload.environments === undefined || workload.environments.length === 0
+    environments.length === 0
       ? ""
-      : ` across ${workload.environments.join(", ")}`;
+      : ` across ${environments.join(", ")}`;
   return {
     coverage: nonEmpty(workload.repo_name, workload.repo_id, "graph workload") + environmentLabel,
+    environments,
     freshness: "graph",
     id: nonEmpty(workload.id, workload.name),
+    instanceCount: workload.instance_count,
     kind,
-    name: nonEmpty(workload.name, workload.id)
+    materializationStatus: nonEmpty(workload.materialization_status, "graph"),
+    name: nonEmpty(workload.name, workload.id),
+    ownerRepo: nonEmpty(workload.repo_name, workload.repo_id),
+    workloadKind: nonEmpty(workload.kind)
   };
 }
 

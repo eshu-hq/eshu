@@ -39,7 +39,7 @@
   align-items: end;
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 0.25fr) auto;
   margin-bottom: 18px;
 }
 
@@ -63,6 +63,16 @@
   border-radius: 7px;
   color: var(--text);
   padding: 7px 9px;
+}
+
+.table-toolbar select {
+  appearance: none;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  min-height: 42px;
+  padding: 0 34px 0 12px;
 }
 
 .data-table {

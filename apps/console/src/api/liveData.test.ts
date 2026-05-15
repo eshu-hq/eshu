@@ -305,17 +305,27 @@ describe("live Eshu data adapters", () => {
     });
     expect(rows).toContainEqual({
       coverage: "api-node-boats across ecs-prod, eks-prod",
+      environments: ["ecs-prod", "eks-prod"],
       freshness: "graph",
       id: "workload:api-node-boats",
+      instanceCount: undefined,
       kind: "services",
-      name: "api-node-boats"
+      materializationStatus: "graph",
+      name: "api-node-boats",
+      ownerRepo: "api-node-boats",
+      workloadKind: "service"
     });
     expect(rows).toContainEqual({
       coverage: "api-node-boats across prod",
+      environments: ["prod"],
       freshness: "graph",
       id: "workload:billing-sync",
+      instanceCount: undefined,
       kind: "workloads",
-      name: "billing-sync"
+      materializationStatus: "graph",
+      name: "billing-sync",
+      ownerRepo: "api-node-boats",
+      workloadKind: "cronjob"
     });
     expect(rows.filter((row) => row.id === "workload:api-node-boats")).toHaveLength(1);
   });
