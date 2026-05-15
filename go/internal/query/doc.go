@@ -154,9 +154,10 @@
 // impact queries, while local_lightweight returns structured unsupported errors
 // for those routes. Change-surface investigation resolves ambiguous targets
 // before graph traversal, accepts bare service names through canonical
-// workload-id probes, keeps generic target resolution on bounded known-label
-// probes, anchors resolved traversal by typed target labels, and returns
-// code-topic or changed-path handles with bounded direct/transitive impact rows.
+// workload-id probes, keeps repo-scoped workload probes constrained by name,
+// keeps generic target resolution on bounded known-label probes, anchors
+// resolved traversal by typed target labels, and returns code-topic or
+// changed-path handles with bounded direct/transitive impact rows.
 // Repository coverage reads content-store counts first and reports graph parity
 // only when the graph coverage fallback actually ran, so large
 // repositories can answer coverage without an unbounded graph count.

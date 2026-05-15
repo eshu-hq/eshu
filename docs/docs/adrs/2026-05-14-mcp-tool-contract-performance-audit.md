@@ -196,12 +196,13 @@ latency can be classified as target resolution, content lookup, or bounded
 graph traversal.
 
 No-Regression Evidence: issue #339 focused proof:
-`go test ./internal/query -run 'TestInvestigateChangeSurfaceUsesBoundedTraversal|TestInvestigateChangeSurfaceResolvesBareServiceNameByCanonicalWorkloadID|TestInvestigateChangeSurfaceGenericTargetUsesBoundedResolverProbes' -count=1`
+`go test ./internal/query -run 'TestInvestigateChangeSurfaceUsesBoundedTraversal|TestInvestigateChangeSurfaceResolvesBareServiceNameByCanonicalWorkloadID|TestInvestigateChangeSurfaceDoesNotResolveWrongServiceNameByRepoOnly|TestInvestigateChangeSurfaceGenericTargetUsesBoundedResolverProbes' -count=1`
 and `go test ./internal/query -count=1`. The fix keeps change-surface target
 resolution bounded by replacing one UNION-shaped service/workload resolver with
 ordered exact label/property probes: `Workload.id`, canonical
-`workload:<service_name>`, `Workload.name`, then request-scoped
-`Workload.repo_id` when present. Generic `target` requests without
+`workload:<service_name>`, request-scoped `Workload.repo_id` plus
+`Workload.name` when `repo_id` is present, then global `Workload.name`.
+Generic `target` requests without
 `target_type` use the same ordered known-label exact probes instead of the old
 unlabelled fallback. Resolved traversal no longer starts from
 `MATCH (start) WHERE start.id = ...`; it starts from the selected label's

@@ -1019,9 +1019,10 @@ surface route. It accepts one graph target family (`target` + `target_type`,
 scope (`topic`, `repo_id`, `changed_paths`). The handler first resolves the
 target with exact, label-scoped graph lookups; bare `service_name` values also
 probe the canonical `workload:<name>` id before falling back to name or
-repo-scoped workload lookup. Generic `target` values without `target_type` try
-the same bounded known-label probes instead of a whole-graph scan. Ambiguous
-targets return
+repo-scoped workload lookup. Repo-scoped workload lookup constrains by both
+`repo_id` and the requested service/workload name, never `repo_id` alone.
+Generic `target` values without `target_type` try the same bounded known-label
+probes instead of a whole-graph scan. Ambiguous targets return
 `target_resolution.status=ambiguous` plus candidates and do not run traversal.
 Resolved targets use a typed start-node anchor, bounded traversal with
 `max_depth` default 4, cap 8, `limit` default 25, cap 100, deterministic

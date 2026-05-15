@@ -285,10 +285,10 @@ func changeSurfaceResolverQueries(req changeSurfaceInvestigationRequest, limit i
 		if canonicalID := canonicalWorkloadIDCandidate(target); canonicalID != target {
 			queries = append(queries, changeSurfaceWorkloadResolverQuery("id", canonicalID, 1, limit))
 		}
-		queries = append(queries, changeSurfaceWorkloadResolverQuery("name", target, 2, limit))
 		if req.RepoID != "" {
-			queries = append(queries, changeSurfaceWorkloadResolverQuery("repo_id", req.RepoID, 3, limit))
+			queries = append(queries, changeSurfaceWorkloadRepoScopedResolverQuery("name", target, req.RepoID, 2, limit))
 		}
+		queries = append(queries, changeSurfaceWorkloadResolverQuery("name", target, 3, limit))
 		return queries
 	case "workload_instance":
 		return []changeSurfaceResolverQuery{
@@ -351,6 +351,22 @@ RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.
 ORDER BY rank, name, id
 LIMIT %d`, property, rank, limit),
 		params: map[string]any{"target": target},
+	}
+}
+
+func changeSurfaceWorkloadRepoScopedResolverQuery(
+	property string,
+	target string,
+	repoID string,
+	rank int,
+	limit int,
+) changeSurfaceResolverQuery {
+	return changeSurfaceResolverQuery{
+		cypher: fmt.Sprintf(`MATCH (n:Workload {repo_id: $repo_id, %s: $target})
+RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, %d as rank
+ORDER BY rank, name, id
+LIMIT %d`, property, rank, limit),
+		params: map[string]any{"repo_id": repoID, "target": target},
 	}
 }
 
