@@ -49,6 +49,7 @@ Good substitutions:
 
 - "Who calls `process_payment` across all indexed repos?"
 - "Show me the most complex functions in `payments-service`."
+- "Find functions in `payments-service` with more than 20 lines or more than 5 arguments."
 - "What code is dead in `api-gateway`?"
 - "Find potential hardcoded passwords, API keys, or secrets in `api-gateway`."
 - "Find the implementation of `PaymentProvider` across indexed repos."
@@ -121,6 +122,7 @@ Use:
 - "Where is `<symbol>` implemented?"
 - "Investigate `<topic>` in `<repo>` and show files, symbols, code paths, and what to read next."
 - "Show me the most complex functions in `<repo>`."
+- "Find refactoring candidates in `<repo>` by complexity, function length, and argument count."
 
 Best additions:
 

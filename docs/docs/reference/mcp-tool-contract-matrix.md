@@ -20,6 +20,7 @@ a clear drilldown path when more data is available.
 | `find_unmanaged_resources` | repository selector optional; authoritative profile required | `limit` | yes | prompt-ready for bounded IaC management scans |
 | `calculate_cyclomatic_complexity` | entity id, function name, or repository selector | singleton or `limit` | yes | prompt-ready; list calls return `truncated` |
 | `find_most_complex_functions` | optional repository selector | `limit` | yes | prompt-ready; deterministic ordering and `truncated` |
+| `inspect_code_quality` | optional repository selector plus optional language/function scope | `limit` and `offset` | yes | prompt-ready for complexity, long-function, high-argument, and refactoring-candidate prompts with source handles and `truncated` |
 | `execute_cypher_query` | explicit read-only Cypher supplied by caller | `limit` plus timeout | yes | diagnostics-only; use named tools first |
 | `visualize_graph_query` | explicit Cypher supplied by caller | visualization URL | no | diagnostics-only browser helper |
 | `search_registry_bundles` | optional query string over repository bundle catalog | `limit` | yes | prompt-ready for bounded catalog lookup |

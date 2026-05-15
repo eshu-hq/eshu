@@ -140,6 +140,7 @@ func semanticEntityProperties(rowMap map[string]any) map[string]any {
 		"enclosing_function",
 		"type_annotation_count",
 		"type_annotation_kinds",
+		"parameter_count",
 		"decorators",
 		"async",
 	} {
@@ -262,6 +263,9 @@ func buildSemanticEntityRowMap(row reducer.SemanticEntityRow) (map[string]any, b
 		if count := semanticMetadataInt(row.Metadata, "type_annotation_count"); count > 0 {
 			rowMap["type_annotation_count"] = count
 		}
+		if count := semanticMetadataInt(row.Metadata, "parameter_count"); count > 0 {
+			rowMap["parameter_count"] = count
+		}
 		if kinds := semanticMetadataStringSlice(row.Metadata, "type_annotation_kinds"); len(kinds) > 0 {
 			rowMap["type_annotation_kinds"] = kinds
 		}
@@ -320,6 +324,7 @@ var semanticEntityNullableRowKeys = []string{
 	"enclosing_function",
 	"type_annotation_count",
 	"type_annotation_kinds",
+	"parameter_count",
 	"decorators",
 	"async",
 	"semantic_kind",

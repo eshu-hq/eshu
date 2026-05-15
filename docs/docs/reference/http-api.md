@@ -653,6 +653,7 @@ Use these routes when you only need code relationships and do not need the full 
 - `POST /api/v0/code/dead-code`
 - `POST /api/v0/code/dead-code/investigate`
 - `POST /api/v0/code/complexity`
+- `POST /api/v0/code/quality/inspect`
 
 Public code-query requests accept a repository selector in the `repo_id` field
 when a repository scope is part of the request. The selector may be the
@@ -664,6 +665,16 @@ not absolute server-local paths.
 `POST /api/v0/code/complexity` accepts `entity_id` or `function_name` for a
 single function. When neither selector is present it returns a bounded,
 deterministically ordered `results` list with `limit` and `truncated`.
+
+`POST /api/v0/code/quality/inspect` is the first-class refactoring metrics
+route for prompts about complex functions, long functions, high argument count,
+or combined refactoring candidates. It accepts `check` values `complexity`,
+`function_length`, `argument_count`, and `refactoring_candidates`; optional
+`repo_id`, `language`, `entity_id`, and `function_name` scope; threshold fields
+`min_complexity`, `min_lines`, and `min_arguments`; and bounded `limit` plus
+`offset`. Responses include `entity_id`, `repo_id`, `file_path`, `start_line`,
+`end_line`, `complexity`, `line_count`, `argument_count`, `source_handle`,
+`truncated`, threshold coverage, and exact `get_file_lines` follow-up calls.
 
 `POST /api/v0/code/relationships` prefers `entity_id` when the caller already
 has a canonical entity. It also accepts `name` for fallback lookup, plus

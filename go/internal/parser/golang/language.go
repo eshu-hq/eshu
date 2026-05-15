@@ -65,6 +65,7 @@ func Parse(
 				"end_line":              nodeEndLine(node),
 				"decorators":            []string{},
 				"lang":                  "go",
+				"parameter_count":       goParameterCount(node.ChildByFieldName("parameters"), source),
 				"cyclomatic_complexity": cyclomaticComplexity(node),
 			}
 			if docstring := goDocstring(node, source); docstring != "" {

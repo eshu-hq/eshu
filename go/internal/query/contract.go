@@ -243,6 +243,13 @@ var capabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     &truthDerived,
 		ProductionMax:         &truthDerived,
 	},
+	"code_quality.refactoring": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
 	"call_graph.call_chain_path": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
