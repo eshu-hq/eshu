@@ -81,6 +81,7 @@ nav:
   - Extend Eshu:
     - Overview: extend/index.md
     - Collector Authoring: guides/collector-authoring.md
+    - Collector And Reducer Readiness: reference/collector-reducer-readiness.md
     - Component Package Manager: reference/component-package-manager.md
     - Fact Envelope And Plugins: reference/fact-envelope-reference.md
     - Fact Schema Versioning: reference/fact-schema-versioning.md
