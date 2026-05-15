@@ -43,3 +43,23 @@ func TestReadAWSFreshnessSnapshotReturnsStatusCountsAndOldestQueuedAge(t *testin
 		t.Fatalf("oldest-age query missing typed as-of parameter:\n%s", queryer.queries[1])
 	}
 }
+
+func TestReadAWSFreshnessOldestQueuedAgeClampsNegativeDuration(t *testing.T) {
+	t.Parallel()
+
+	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: [][]any{{float64(-12)}}},
+	}}
+
+	age, err := readAWSFreshnessOldestQueuedAge(
+		context.Background(),
+		queryer,
+		time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC),
+	)
+	if err != nil {
+		t.Fatalf("readAWSFreshnessOldestQueuedAge() error = %v, want nil", err)
+	}
+	if age != 0 {
+		t.Fatalf("age = %s, want 0", age)
+	}
+}

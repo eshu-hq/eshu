@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -82,6 +83,33 @@ func TestWebhookHandlerRejectsAWSFreshnessBadToken(t *testing.T) {
 	}
 }
 
+func TestWebhookHandlerRejectsAWSFreshnessBadTokenBeforeBodyRead(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingAWSFreshnessStore{}
+	mux := mustWebhookMuxWithAWSFreshness(t, webhookListenerConfig{
+		AWSFreshnessToken:   "secret",
+		AWSFreshnessPath:    "/webhooks/aws/eventbridge",
+		MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+	}, store)
+	body := &readCountingCloser{}
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/aws/eventbridge", body)
+	req.Header.Set("Authorization", "Bearer wrong")
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+	if body.reads != 0 {
+		t.Fatalf("body reads = %d, want 0", body.reads)
+	}
+	if len(store.triggers) != 0 {
+		t.Fatalf("stored triggers = %d, want 0", len(store.triggers))
+	}
+}
+
 func TestWebhookHandlerRejectsAWSFreshnessBareAuthorizationToken(t *testing.T) {
 	t.Parallel()
 
@@ -102,6 +130,18 @@ func TestWebhookHandlerRejectsAWSFreshnessBareAuthorizationToken(t *testing.T) {
 	}
 	if len(store.triggers) != 0 {
 		t.Fatalf("stored triggers = %d, want 0", len(store.triggers))
+	}
+}
+
+func TestValidAWSFreshnessTokenAcceptsCaseInsensitiveBearerScheme(t *testing.T) {
+	t.Parallel()
+
+	for _, scheme := range []string{"bearer", "BEARER", "Bearer"} {
+		req := httptest.NewRequest(http.MethodPost, "/webhooks/aws/eventbridge", nil)
+		req.Header.Set("Authorization", scheme+" secret")
+		if !validAWSFreshnessToken(req, "secret") {
+			t.Fatalf("validAWSFreshnessToken(%q) = false, want true", scheme)
+		}
 	}
 }
 
@@ -152,4 +192,17 @@ func (s *recordingAWSFreshnessStore) StoreTrigger(
 ) (freshness.StoredTrigger, error) {
 	s.triggers = append(s.triggers, trigger)
 	return freshness.NewStoredTrigger(trigger, receivedAt)
+}
+
+type readCountingCloser struct {
+	reads int
+}
+
+func (r *readCountingCloser) Read([]byte) (int, error) {
+	r.reads++
+	return 0, io.ErrUnexpectedEOF
+}
+
+func (*readCountingCloser) Close() error {
+	return nil
 }

@@ -33,16 +33,23 @@ func (h webhookHandler) handleAWSFreshnessEventBridge(w http.ResponseWriter, r *
 		h.finishWebhookRequest(ctx, span, startedAt, webhookProviderAWSFreshness, result)
 	}()
 
-	payload, readReason, ok := h.readPostBody(w, r)
-	if !ok {
-		result.Reason = readReason
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		result.Reason = webhookReasonBadMethod
 		h.recordAWSFreshnessEvent(r.Context(), awsFreshnessKindUnknown, awsFreshnessActionRejected)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	if !validAWSFreshnessToken(r, h.Config.AWSFreshnessToken) {
 		result.Reason = awsFreshnessReasonAuth
 		h.recordAWSFreshnessEvent(r.Context(), awsFreshnessKindUnknown, awsFreshnessActionRejected)
 		http.Error(w, "token verification failed", http.StatusUnauthorized)
+		return
+	}
+	payload, readReason, ok := h.readPostBody(w, r)
+	if !ok {
+		result.Reason = readReason
+		h.recordAWSFreshnessEvent(r.Context(), awsFreshnessKindUnknown, awsFreshnessActionRejected)
 		return
 	}
 
@@ -97,10 +104,11 @@ func validAWSFreshnessToken(r *http.Request, expected string) bool {
 
 func awsFreshnessBearerToken(header string) string {
 	header = strings.TrimSpace(header)
-	if !strings.HasPrefix(header, "Bearer ") {
+	parts := strings.Fields(header)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 		return ""
 	}
-	return strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
+	return strings.TrimSpace(parts[1])
 }
 
 func (h webhookHandler) recordAWSFreshnessEvent(ctx context.Context, kind string, action string) {

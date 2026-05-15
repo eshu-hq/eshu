@@ -130,6 +130,42 @@ func TestServiceRunActiveModeHandsOffAWSFreshnessTriggers(t *testing.T) {
 	}
 }
 
+func TestScheduleAWSFreshnessWorkRequiresPlannerBeforeClaim(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 15, 18, 30, 0, 0, time.UTC)
+	trigger, err := freshness.NewStoredTrigger(freshness.Trigger{
+		EventID:     "event-1",
+		Kind:        freshness.EventKindConfigChange,
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceLambda,
+		ObservedAt:  now,
+	}, now)
+	if err != nil {
+		t.Fatalf("NewStoredTrigger() error = %v", err)
+	}
+	freshnessStore := &fakeAWSFreshnessTriggerStore{claimed: []freshness.StoredTrigger{trigger}}
+	service := Service{
+		Config: Config{
+			DeploymentMode: deploymentModeActive,
+			ClaimsEnabled:  true,
+		},
+		AWSFreshnessTriggers: freshnessStore,
+	}
+
+	err = service.scheduleAWSFreshnessWork(context.Background(), now, []workflow.CollectorInstance{
+		testServiceAWSInstance(now),
+	})
+
+	if err == nil {
+		t.Fatalf("scheduleAWSFreshnessWork() error = nil, want planner error")
+	}
+	if freshnessStore.claimCalls != 0 {
+		t.Fatalf("claim calls = %d, want 0", freshnessStore.claimCalls)
+	}
+}
+
 func testServiceAWSInstance(observedAt time.Time) workflow.CollectorInstance {
 	return workflow.CollectorInstance{
 		InstanceID:     "collector-aws",
