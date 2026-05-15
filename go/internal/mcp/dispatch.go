@@ -101,6 +101,20 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":        intOr(args, "limit", 25),
 			"offset":       intOr(args, "offset", 0),
 		}}, nil
+	case "inspect_code_inventory":
+		return &route{method: "POST", path: "/api/v0/code/structure/inventory", body: map[string]any{
+			"repo_id":        str(args, "repo_id"),
+			"language":       str(args, "language"),
+			"inventory_kind": str(args, "inventory_kind"),
+			"entity_kind":    str(args, "entity_kind"),
+			"file_path":      str(args, "file_path"),
+			"symbol":         str(args, "symbol"),
+			"decorator":      str(args, "decorator"),
+			"method_name":    str(args, "method_name"),
+			"class_name":     str(args, "class_name"),
+			"limit":          intOr(args, "limit", 25),
+			"offset":         intOr(args, "offset", 0),
+		}}, nil
 	case "investigate_code_topic":
 		return &route{method: "POST", path: "/api/v0/code/topics/investigate", body: map[string]any{
 			"topic":    str(args, "topic"),

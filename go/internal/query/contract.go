@@ -150,6 +150,12 @@ var capabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
 	},
+	"code_inventory.structural": {
+		LocalLightweightMax:   &truthDerived,
+		LocalAuthoritativeMax: &truthDerived,
+		LocalFullStackMax:     &truthDerived,
+		ProductionMax:         &truthDerived,
+	},
 	"code_search.variable_lookup": {
 		LocalLightweightMax:   &truthDerived,
 		LocalAuthoritativeMax: &truthExact,

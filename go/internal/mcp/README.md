@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 55
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 58
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -63,7 +63,7 @@ flowchart TB
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 19 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_security.go` |
+| `codebaseTools` | 23 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_security.go`, `tools_structural_inventory.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
@@ -75,6 +75,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 |---|---|---|
 | `find_code` | POST | `/api/v0/code/search` |
 | `find_symbol` | POST | `/api/v0/code/symbols/search` |
+| `inspect_code_inventory` | POST | `/api/v0/code/structure/inventory` |
 | `investigate_code_topic` | POST | `/api/v0/code/topics/investigate` |
 | `investigate_hardcoded_secrets` | POST | `/api/v0/code/security/secrets/investigate` |
 | `investigate_dead_code` | POST | `/api/v0/code/dead-code/investigate` |

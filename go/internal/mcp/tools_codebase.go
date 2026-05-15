@@ -89,6 +89,7 @@ func codebaseTools() []ToolDefinition {
 				"required": []string{"symbol"},
 			},
 		},
+		structuralInventoryTool(),
 		codeTopicInvestigationTool(),
 		securityInvestigationTool(),
 		{

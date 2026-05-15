@@ -96,6 +96,14 @@ tool surface:
   batch-hydrates files and entities from the Postgres content store, returns
   bounded excerpts, missing handles, citation family, reason, and truncation
   coverage, and avoids graph traversal.
+- `inspect_code_inventory` is the first-class MCP path for issue #362. It
+  routes to `POST /api/v0/code/structure/inventory`, reads `content_entities`
+  instead of raw Cypher, accepts repository, language, entity-kind, file-path,
+  symbol, decorator, method-name, and class-name filters, caps `limit` at 200,
+  caps `offset` at 10000, probes one extra row for `truncated`, returns source
+  handles, and covers function/class lists, file-local top-level elements,
+  dataclasses, documented functions, decorated methods, classes with a method,
+  `super()` calls, and function counts per file.
 
 ## Prompt-Family Audit
 
@@ -115,7 +123,8 @@ tool surface:
 | Package and registry prompts | `list_package_registry_packages`, `list_package_registry_versions` | Already require/cap `limit` and deterministic ordering | None from this PR |
 | Runtime and indexing status prompts | `get_index_status`, `list_ingesters`, `get_ingester_status` | Cookbook status prompts use shipped MCP tools instead of stale job-status names | #297 |
 | Documentation/confluence prompts | story routes plus `build_evidence_citation_packet` | Story-first guidance remains; exact source, docs, manifest, and deployment proof uses bounded citation packets from returned handles | #298 |
-| Raw Cypher cookbook prompts | `execute_cypher_query` | Diagnostics-only, timeout-bound, server-capped, envelope-backed; cookbook happy paths no longer advertise raw Cypher as the normal MCP tool | #360, #361, #362 |
+| Structural code inventory | `inspect_code_inventory` | First-class content-index path covers functions/classes, file-local entities, top-level rows, dataclasses, documented functions, decorated methods, classes with a method, `super()` calls, and function counts per file with source handles and truncation | #362 |
+| Raw Cypher cookbook prompts | `execute_cypher_query` | Diagnostics-only, timeout-bound, server-capped, envelope-backed; cookbook happy paths no longer advertise raw Cypher as the normal MCP tool where named tools answer the prompt | #360, #361 |
 
 ## Bounds And Observability
 
@@ -200,6 +209,12 @@ The changed read paths are cold-call bounded:
   indexed file content, supports optional repository, language, and finding-kind
   scope, caps `limit` at 200, caps `offset` at 10000, probes one extra row for
   `truncated`, and redacts returned line excerpts before building the response;
+- structural inventory uses one Postgres content-store query over
+  `content_entities`, applies repository, file-path, entity-type, exact symbol,
+  language, decorator, class-context, or method filters before paging, caps
+  `limit` at 200, caps `offset` at 10000, probes one extra row for
+  `truncated`, and uses a grouped PostgreSQL aggregate only for
+  `function_count_by_file`;
 - infrastructure search has a max limit and truncation probe.
 - legacy impact tools `find_blast_radius`, `find_change_surface`, and
   `trace_resource_to_code` now accept `limit`, cap it at 200, execute graph
@@ -249,11 +264,17 @@ Observability Evidence: the changed paths continue through existing
 `postgres.query` and `neo4j.query` spans with `db.operation` values
 `search_file_content_in_repos`, `search_entity_content_in_repos`,
 `search_file_content_page`, `search_entity_content_page`, and
-`search_symbols`; infrastructure lookup continues through `searchInfraResources`'
-existing graph query span. Direct Cypher now uses the canonical response
+`search_symbols`, plus `inspect_structural_inventory` and
+`count_structural_inventory_by_file`; infrastructure lookup continues through
+`searchInfraResources`' existing graph query span. Direct Cypher now uses the canonical response
 envelope with `truth.capability=graph_query.read_only_cypher`; symbol lookup
 uses `truth.capability=code_search.symbol_lookup` so MCP callers can distinguish
 diagnostics from first-class prompt tools.
+
+No-Regression Evidence: structural inventory focused proof:
+`go test ./internal/query -run 'TestCodeHandlerStructuralInventory|TestOpenAPI|TestCapabilityMatrixMatchesYAMLContract' -count=1`
+and
+`go test ./internal/mcp -run 'TestInspectCodeInventory|TestEveryRegisteredToolHasDispatchRoute|TestReadOnlyTools|TestCodebaseTools|TestMCPToolContractMatrixCoversReadOnlyTools' -count=1`.
 
 No-Observability-Change: relationship story uses the existing content-store and
 graph query instrumentation rather than adding a new worker or storage path.

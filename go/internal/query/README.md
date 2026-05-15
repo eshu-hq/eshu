@@ -48,7 +48,7 @@ flowchart TB
 An HTTP request hits one of the routes registered by `APIRouter.Mount`
 (`handler.go:125`). The handler method first checks whether the requested
 capability is allowed for the current `QueryProfile` using `capabilityUnsupported`
-(`handler.go:105`), which consults `capabilityMatrix` in `contract.go:127`. If
+(`handler.go:105`), which consults `capabilityMatrix` in `contract.go:134`. If
 the profile does not support the capability, `WriteContractError` returns HTTP
 501 with a structured `ErrorEnvelope` carrying `ErrorCodeUnsupportedCapability`,
 the capability ID, and the `RequiredProfile`.
@@ -237,7 +237,7 @@ The response is written with `WriteSuccess` when the caller sends
 `Accept: application/eshu.envelope+json`; this wraps the payload in a
 `ResponseEnvelope` containing `data`, `truth` (`TruthEnvelope`), and `error`
 fields. Without that header, `WriteJSON` emits the legacy payload directly.
-`BuildTruthEnvelope` (`contract.go:483`) constructs the `TruthEnvelope`; it
+`BuildTruthEnvelope` (`contract.go:510`) constructs the `TruthEnvelope`; it
 panics if the capability string is not in `capabilityMatrix`.
 Repository runtime artifacts parse Dockerfile stage metadata through
 `buildDockerfileRuntimeArtifacts`, including base image, base tag, build
@@ -260,6 +260,12 @@ such as repo sync authentication or workspace locking. It scores
 `content_entities` and `content_files` in one bounded query, returns ranked
 `repo_id + relative_path` evidence, matched symbols, coverage/truncation, and
 follow-up handles for `get_file_lines` and `get_code_relationship_story`.
+Structural inventory uses `content_entities` as the first-call read model for
+function/class lists, top-level file elements, dataclasses, documented
+functions, decorated methods, classes with a method, `super()` calls, and
+function counts per file. `POST /api/v0/code/structure/inventory` keeps those
+prompts out of raw Cypher by applying repo/path/language/type filters before a
+deterministic `limit+1` page and returning source handles for drill-down reads.
 The OpenAPI fragments for `POST /api/v0/code/dead-code` and
 `POST /api/v0/code/dead-code/investigate` name modeled language roots such as
 Go public-package exports plus C, C#, Dart, Haskell, Kotlin, Elixir, PHP, and
@@ -291,8 +297,8 @@ normalized to `c_sharp` before candidate scanning.
   (`handler.go:110`)
 - `RepositoryHandler` — `GET /api/v0/repositories*` routes (`repository.go:21`)
 - `EntityHandler` — entity resolution, workload/service context routes, service dossier stories, and service investigation coverage (`entity.go:11`, `service_story_handler.go:9`, `service_investigation.go:17`)
-- `CodeHandler` — code search, symbol lookup, relationships, relationship
-  stories, redacted hardcoded-secret investigation in
+- `CodeHandler` — code search, symbol lookup, structural inventory,
+  relationships, relationship stories, redacted hardcoded-secret investigation in
   `code_security_secrets.go`, dead-code, complexity, call-chain (`code.go:11`)
 - `ContentHandler` — file and entity content reads (`content_handler.go:11`)
 - `InfraHandler` — infrastructure resource and relationship routes (`infra.go:12`)
@@ -342,7 +348,7 @@ normalized to `c_sharp` before candidate scanning.
   helpers (`handler.go`)
 - `AuthMiddleware` — bearer-token middleware used by `cmd/api` (`auth.go:30`)
 - `BuildTruthEnvelope` — builds a `TruthEnvelope` from profile, capability, and
-  basis; panics on unknown capability (`contract.go:483`)
+  basis; panics on unknown capability (`contract.go:510`)
 - `ParseQueryProfile`, `NormalizeQueryProfile`, `ParseGraphBackend` — input
   validation helpers (`contract.go`)
 
@@ -442,7 +448,7 @@ wired in `cmd/api/wiring.go`, not here.
   `truth.profiles.required` in the response envelope for the minimum profile,
   then verify the ESHU_QUERY_PROFILE env var in the running API.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
-  a capability string not in `capabilityMatrix` (`contract.go:483`). Add missing
+  a capability string not in `capabilityMatrix` (`contract.go:510`). Add missing
   capability IDs to `capabilityMatrix` before shipping new handlers.
 - `code_quality.dead_code` is a derived query unless the language maturity row
   says otherwise. Handler changes must preserve `classification`,
@@ -514,12 +520,12 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 ## Gotchas / invariants
 
 - `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
-  (`contract.go:483`). All capability strings used in handlers must be registered
+  (`contract.go:510`). All capability strings used in handlers must be registered
   in that map before the handler can be called safely.
 - The unexported `capabilityUnsupported` returns true when `maxTruthLevel` returns
   `nil` for the current profile; a nil max-truth means the capability is
   explicitly unsupported at that profile level. `APIRouter` and every handler that
-  gates on capability call this helper (`handler.go:105`, `contract.go:127`).
+  gates on capability call this helper (`handler.go:105`, `contract.go:134`).
 - `Neo4jReader` opens a new session per query by calling `NewSession` on the
   driver (`neo4j.go:50`); the session is closed in a `defer`. Do not hold
   sessions across multiple queries in the same handler.

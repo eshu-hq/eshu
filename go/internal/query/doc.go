@@ -12,6 +12,8 @@
 // are stable wire contracts. IaC management responses include safety gates that
 // keep read-only evidence separate from Terraform import-plan eligibility and
 // redact sensitive evidence values before HTTP or MCP callers see them.
+// Structural inventory uses bounded content-index reads for syntax and semantic
+// filters before callers drill into source or graph relationships.
 // Hardcoded-secret investigation returns redacted
 // content-index findings with suppression notes and never returns raw secret
 // values; suppression filtering and Go suppression notes share one rule table,

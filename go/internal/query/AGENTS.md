@@ -18,7 +18,8 @@
 5. `go/internal/telemetry/contract.go` — span name constants
    (`SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
    `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`,
-   `SpanQueryCodeTopicInvestigation`, `SpanQueryDeadCodeInvestigation`) and log key conventions; check here
+   `SpanQueryCodeStructuralInventory`, `SpanQueryCodeTopicInvestigation`,
+   `SpanQueryDeadCodeInvestigation`) and log key conventions; check here
    before adding new telemetry.
 
 ## Invariants this package enforces
@@ -26,13 +27,13 @@
 - **Capability gate before any read** — handlers call the unexported
   `capabilityUnsupported` helper before touching `GraphQuery` or `ContentStore`.
   A nil max-truth means the capability is blocked at the current profile.
-  `capabilityUnsupported` consults the `capabilityMatrix` map in `contract.go:127`
+  `capabilityUnsupported` consults the `capabilityMatrix` map in `contract.go:134`
   which stores `TruthLevelExact` and `TruthLevelDerived` ceiling values per
   profile. On failure, handlers call `WriteContractError` (`handler.go:40`).
 
 - **`BuildTruthEnvelope` panics on unknown capability** — every capability string
   passed to `BuildTruthEnvelope` must exist in `capabilityMatrix`
-  (`contract.go:483`). Add the capability to the map before the handler is
+  (`contract.go:510`). Add the capability to the map before the handler is
   callable.
 
 - **Port boundary** — no handler calls `neo4jdriver.DriverWithContext` or
@@ -121,6 +122,12 @@
   (`http.route`, `eshu.capability`) let operators correlate latency metrics to
   specific capabilities.
 
+- **Change structural inventory** → keep normal prompt flow on
+  `content_entities` through `ContentReader` unless a prompt truly needs graph
+  relationships. The route must keep repo/path/language/type filters, bounded
+  `limit+1` probing, deterministic ordering, truncation metadata, and source
+  handles.
+
 ## Failure modes and how to debug
 
 - Symptom: HTTP 501 with `error.code=unsupported_capability` → likely cause:
@@ -140,7 +147,7 @@
 
 - Symptom: panic in production with `query capability ... missing from capability
   matrix` → a new handler called `BuildTruthEnvelope` with an unregistered
-  capability → add the missing entry to `capabilityMatrix` in `contract.go:127`
+  capability → add the missing entry to `capabilityMatrix` in `contract.go:134`
   and the matching YAML spec.
 
 - Symptom: MCP tool calls receive unexpected payload shape (missing `data`

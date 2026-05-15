@@ -646,6 +646,7 @@ Use these routes when you only need code relationships and do not need the full 
 
 - `POST /api/v0/code/search`
 - `POST /api/v0/code/symbols/search`
+- `POST /api/v0/code/structure/inventory`
 - `POST /api/v0/code/topics/investigate`
 - `POST /api/v0/code/security/secrets/investigate`
 - `POST /api/v0/code/relationships`
@@ -728,6 +729,33 @@ Example symbol-definition workflow:
 The symbol route returns definition-shaped results with `source_handle`,
 `classification=definition`, `match_kind`, `truncated`, and `ambiguity` so MCP
 callers can page or disambiguate without guessing.
+
+Example structural-inventory workflow:
+
+`POST /api/v0/code/structure/inventory`
+
+```json
+{
+  "repo_id": "payments",
+  "language": "python",
+  "inventory_kind": "dataclass",
+  "entity_kind": "class",
+  "limit": 25,
+  "offset": 0
+}
+```
+
+The structural inventory route is the bounded API path for prompts such as
+"list functions/classes", "show top-level elements in this file", "find
+dataclasses", "find documented functions", "find decorated methods in this
+class", "find classes with a method", "find `super()` calls", and "count
+functions per file". It reads the content index, returns deterministic pages
+with `truncated` and `next_offset`, and includes source handles for drill-down
+file or entity reads. Every request must include at least one scope filter:
+`repo_id`, `file_path`, `language`, `entity_kind`, or `symbol`.
+`function_count_by_file` always counts functions; if `entity_kind` is supplied
+there, it must be `function`. `top_level` defaults to Function/Class rows unless
+the caller supplies a narrower `entity_kind`.
 
 Example code-topic investigation workflow:
 
