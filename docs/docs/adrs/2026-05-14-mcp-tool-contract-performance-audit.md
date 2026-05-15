@@ -76,6 +76,12 @@ tool surface:
   requests return target-scoped override edges when a target is supplied, or a
   repo-scoped bounded override list when the caller asks "find all overridden
   methods" without pretending one method name was provided.
+- `inspect_code_quality` is the first-class MCP path for issue #290. It routes
+  to `POST /api/v0/code/quality/inspect`, supports complexity, function-length,
+  argument-count, and refactoring-candidate checks, caps `limit`, caps `offset`,
+  probes one extra graph row for `truncated`, returns repo/entity/source handles,
+  metric values, deterministic ordering, threshold coverage, and exact follow-up
+  calls, and replaces normal raw-Cypher code-quality prompts.
 - `investigate_code_topic` is the first-class MCP path for issue #286. It routes
   to `POST /api/v0/code/topics/investigate`, accepts a natural-language topic,
   optional intent, repository selector, language, limit, and offset, derives a
@@ -101,7 +107,7 @@ tool surface:
 | Symbol discovery and implementation lookup | `find_symbol`, `find_code`, `execute_language_query` | First-class definition lookup is bounded, paged, source-handle backed, and no longer requires raw Cypher for "where is this implemented?" prompts | #287 |
 | Broad code-topic and implementation investigation | `investigate_code_topic` | First-class content-index investigation returns ranked files, symbols, searched terms, coverage, truncation, and source/relationship follow-up handles without raw Cypher or client-side term guessing | #286 |
 | Callers, callees, imports, call chains | `get_code_relationship_story`, `find_function_call_chain` | Relationship story is bounded, ambiguity-aware, entity-anchored, paged, and exposes optional bounded transitive CALLS traversal; call-chain keeps the dedicated endpoint | #288 |
-| Dead code and code quality | `find_dead_code`, `find_most_complex_functions` | Existing bounded routes; raw Cypher examples now show limits | #289, #290 |
+| Dead code and code quality | `find_dead_code`, `find_most_complex_functions`, `inspect_code_quality` | Complexity, long-function, high-argument, and refactoring-candidate prompts use first-class bounded tools with source handles and truncation instead of raw Cypher | #289 |
 | Class hierarchy and overrides | `analyze_code_relationships` | First-class relationship story path now returns class methods, direct parents/children, bounded inheritance-depth metadata, and target- or repo-scoped override rows without raw Cypher | None from this PR |
 | Security hardcoded secrets | `investigate_hardcoded_secrets` | First-class redacted content-index investigation with severity, confidence, suppression notes, source handles, paging, and truncation | #292 |
 | Deployment, GitOps, and resource tracing | `trace_deployment_chain`, `trace_resource_to_code`, story tools | Service story is one-call; low-level trace paths keep existing caps | #293, #294, #295 |
@@ -124,6 +130,37 @@ for this PR is focused no-regression coverage on the same handler family plus
 the performance-evidence gate; stop threshold is any unscoped targetless graph
 read, missing deterministic ordering, missing truncation signal, or failure to
 emit the existing `neo4j.query` spans and response coverage fields.
+
+Performance Impact Declaration: issue #290 changes the MCP/API code-quality
+read surface and the semantic function projection metadata needed to answer
+argument-count prompts accurately. The affected cold-call path is one graph read
+over `Function` nodes, optionally narrowed by `repo.id` and `language`, with
+validated check-specific templates, deterministic ordering, `SKIP`, `LIMIT
+limit+1`, and a `truncated` signal. Function-length checks compute
+`line_count` from existing `start_line`/`end_line` properties; argument-count
+checks read the projected `parameter_count` property and never inspect source
+bodies on the first call. Projection changes only add one integer property to
+semantic function rows. The stop threshold is any targetless unbounded query,
+any missing deterministic order/truncation signal, or any attempt to infer
+argument count client-side from unbounded source text.
+
+No-Regression Evidence: code-quality/refactoring focused proof:
+`go test ./internal/query -run 'TestHandleCodeQualityInspection|TestOpenAPISpecIncludesCodeQualityInspection|TestCapabilityMatrixMatchesYAMLContract' -count=1`,
+`go test ./internal/mcp -run 'TestResolveRouteMapsInspectCodeQuality|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute|TestMCPToolContractMatrixCoversReadOnlyTools' -count=1`,
+`go test ./internal/parser -run 'TestDefaultEngineParsePath.*ParameterCount' -count=1`,
+and
+`go test ./internal/reducer ./internal/storage/cypher -run 'TestExtractSemanticEntityRowsFiltersAnnotation|TestSemanticEntityWriterWritesAnnotation' -count=1`.
+Broader package proof:
+`go test ./internal/query ./internal/mcp ./internal/parser ./internal/reducer ./internal/storage/cypher -count=1`.
+
+No-Observability-Change: issue #290 uses existing `neo4j.query` graph spans
+for the bounded inspection read, existing MCP dispatch debug logs, existing
+canonical response envelopes with `truth.capability=code_quality.refactoring`,
+and response-level `limit`, `offset`, `truncated`, `thresholds`, and source
+handles so operators can see scope, row cap, and whether another page is
+needed. The semantic projection addition writes one integer property through
+the existing semantic-entity writer path and its existing graph-write
+instrumentation.
 
 The changed read paths are cold-call bounded:
 

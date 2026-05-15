@@ -109,6 +109,7 @@ func TestExtractSemanticEntityRowsFiltersAnnotationTypedefTypeAliasComponentAndF
 				"language":      "javascript",
 				"docstring":     "Returns the active tab.",
 				"method_kind":   "getter",
+				"args":          []any{"request", "logger", "flags"},
 			},
 		},
 		{
@@ -205,6 +206,9 @@ func TestExtractSemanticEntityRowsFiltersAnnotationTypedefTypeAliasComponentAndF
 	}
 	if got, want := jsFunction.Metadata["method_kind"], "getter"; got != want {
 		t.Fatalf("Function.Metadata[method_kind] = %v, want %v", got, want)
+	}
+	if got, want := jsFunction.Metadata["parameter_count"], 3; got != want {
+		t.Fatalf("Function.Metadata[parameter_count] = %v, want %v", got, want)
 	}
 
 	moduleRow := rowsByType["Module"]

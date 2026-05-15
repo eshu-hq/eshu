@@ -88,8 +88,9 @@ func TestSemanticEntityWriterWritesAnnotationTypedefTypeAliasComponentAndFunctio
 				StartLine:    10,
 				EndLine:      24,
 				Metadata: map[string]any{
-					"docstring":   "Returns the active tab.",
-					"method_kind": "getter",
+					"docstring":       "Returns the active tab.",
+					"method_kind":     "getter",
+					"parameter_count": 3,
 				},
 			},
 		},
@@ -179,6 +180,12 @@ func TestSemanticEntityWriterWritesAnnotationTypedefTypeAliasComponentAndFunctio
 	}
 	if got, want := functionRows[0]["method_kind"], "getter"; got != want {
 		t.Fatalf("function method_kind = %#v, want %#v", got, want)
+	}
+	if got, want := functionRows[0]["parameter_count"], 3; got != want {
+		t.Fatalf("function parameter_count = %#v, want %#v", got, want)
+	}
+	if !strings.Contains(executor.calls[5].Cypher, "n.parameter_count = row.parameter_count") {
+		t.Fatalf("function cypher missing parameter_count projection: %s", executor.calls[5].Cypher)
 	}
 	if !strings.Contains(executor.calls[5].Cypher, "MERGE (n:Function {uid: row.entity_id})") {
 		t.Fatalf("function cypher missing Function merge: %s", executor.calls[5].Cypher)

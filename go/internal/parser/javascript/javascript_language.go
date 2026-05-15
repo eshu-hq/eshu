@@ -378,6 +378,7 @@ func appendFunctionDeclaration(
 		"end_line":        nodeEndLine(declarationNode),
 		"decorators":      javaScriptDecorators(declarationNode, source),
 		"type_parameters": javaScriptTypeParameters(declarationNode, source),
+		"parameter_count": javaScriptParameterCount(declarationNode.ChildByFieldName("parameters"), source),
 		"lang":            lang,
 	}
 	if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {

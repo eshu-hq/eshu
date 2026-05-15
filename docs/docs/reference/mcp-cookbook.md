@@ -269,10 +269,14 @@ selected the exact function.
 
 > "Find the 5 most complex functions."
 
-**Tool:** `find_most_complex_functions`
+**Tool:** `inspect_code_quality`
 
 ```json
-{ "limit": 5 }
+{
+  "check": "complexity",
+  "repo_id": "payments-service",
+  "limit": 5
+}
 ```
 
 ### Calculate complexity of a specific function
@@ -336,12 +340,14 @@ the investigation packet:
 
 > "Find functions with more than 20 lines that might need refactoring."
 
-**Tool:** `execute_cypher_query`
+**Tool:** `inspect_code_quality`
 
 ```json
 {
-  "cypher_query": "MATCH (f:Function) WHERE f.end_line - f.line_number > 20 RETURN f.name, f.path, (f.end_line - f.line_number) AS lines",
-  "limit": 100
+  "check": "function_length",
+  "repo_id": "payments-service",
+  "min_lines": 20,
+  "limit": 25
 }
 ```
 
@@ -349,12 +355,14 @@ the investigation packet:
 
 > "Find all functions with more than 5 arguments."
 
-**Tool:** `execute_cypher_query`
+**Tool:** `inspect_code_quality`
 
 ```json
 {
-  "cypher_query": "MATCH (f:Function) WHERE size(f.args) > 5 RETURN f.name, f.path, size(f.args) AS arg_count",
-  "limit": 100
+  "check": "argument_count",
+  "repo_id": "payments-service",
+  "min_arguments": 5,
+  "limit": 25
 }
 ```
 

@@ -210,6 +210,19 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/code/complexity", body: map[string]any{
 			"repo_id": str(args, "repo_id"), "limit": intOr(args, "limit", 10),
 		}}, nil
+	case "inspect_code_quality":
+		return &route{method: "POST", path: "/api/v0/code/quality/inspect", body: map[string]any{
+			"check":          str(args, "check"),
+			"repo_id":        str(args, "repo_id"),
+			"language":       str(args, "language"),
+			"entity_id":      str(args, "entity_id"),
+			"function_name":  str(args, "function_name"),
+			"min_complexity": intOr(args, "min_complexity", 0),
+			"min_lines":      intOr(args, "min_lines", 0),
+			"min_arguments":  intOr(args, "min_arguments", 0),
+			"limit":          intOr(args, "limit", 10),
+			"offset":         intOr(args, "offset", 0),
+		}}, nil
 	case "execute_language_query":
 		return &route{method: "POST", path: "/api/v0/code/language-query", body: map[string]any{
 			"language": str(args, "language"), "entity_type": str(args, "entity_type"),

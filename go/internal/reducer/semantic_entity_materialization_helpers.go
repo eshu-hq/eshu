@@ -42,6 +42,9 @@ func collectSemanticMetadata(payload map[string]any) map[string]any {
 	if count := semanticPayloadMetadataInt(payload, "declaration_merge_count"); count > 0 {
 		metadata["declaration_merge_count"] = count
 	}
+	if count := semanticPayloadParameterCount(payload); count > 0 {
+		metadata["parameter_count"] = count
+	}
 	if kinds := semanticPayloadMetadataStringSlice(payload, "declaration_merge_kinds"); len(kinds) > 0 {
 		metadata["declaration_merge_kinds"] = kinds
 	}
@@ -198,6 +201,18 @@ func semanticPayloadMetadataInt(payload map[string]any, key string) int {
 	default:
 		return 0
 	}
+}
+
+func semanticPayloadParameterCount(payload map[string]any) int {
+	if count := semanticPayloadMetadataInt(payload, "parameter_count"); count > 0 {
+		return count
+	}
+	for _, key := range []string{"args", "parameters"} {
+		if values := semanticPayloadMetadataStringSlice(payload, key); len(values) > 0 {
+			return len(values)
+		}
+	}
+	return 0
 }
 
 func semanticPayloadStringSlice(payload map[string]any, key string) []string {

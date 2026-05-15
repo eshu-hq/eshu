@@ -313,6 +313,7 @@ func codebaseTools() []ToolDefinition {
 				"required": []string{},
 			},
 		},
+		codeQualityInspectionTool(),
 		{
 			Name:        "execute_cypher_query",
 			Description: "Fallback tool to run a direct, read-only Cypher query against the code graph.",
