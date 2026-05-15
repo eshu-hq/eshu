@@ -30,6 +30,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"find_code",
 		"find_symbol",
 		"inspect_code_inventory",
+		"investigate_import_dependencies",
 		"investigate_code_topic",
 		"investigate_hardcoded_secrets",
 		"get_code_relationship_story",

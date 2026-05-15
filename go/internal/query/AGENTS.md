@@ -128,6 +128,13 @@
   `limit+1` probing, deterministic ordering, truncation metadata, and source
   handles.
 
+- **Change import dependency investigation** → keep normal import, package,
+  direct Python file-cycle, and cross-module call prompts on
+  `POST /api/v0/code/imports/investigate`. Require at least one repo/file/module
+  scope anchor before expanding `IMPORTS` or `CALLS`, keep deterministic
+  ordering plus `limit+1` truncation probing, and return source handles for file
+  drill-down.
+
 ## Failure modes and how to debug
 
 - Symptom: HTTP 501 with `error.code=unsupported_capability` → likely cause:

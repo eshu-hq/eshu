@@ -104,6 +104,13 @@ tool surface:
   handles, and covers function/class lists, file-local top-level elements,
   dataclasses, documented functions, decorated methods, classes with a method,
   `super()` calls, and function counts per file.
+- `investigate_import_dependencies` is the first-class MCP path for issue
+  #361. It routes to `POST /api/v0/code/imports/investigate`, requires at least
+  one graph scope anchor (`repo_id`, `source_file`, `target_file`,
+  `source_module`, or `target_module`), caps `limit` at 200 and `offset` at
+  10000, probes one extra row for `truncated`, returns source handles, and
+  covers imports by file, importers, package imports, direct Python file import
+  cycles, and cross-module calls without raw Cypher.
 
 ## Prompt-Family Audit
 
@@ -114,7 +121,7 @@ tool surface:
 | Content evidence search | `search_file_content`, `search_entity_content` | Bounded, paged, multi-repo query is single PostgreSQL call | None from this PR |
 | Symbol discovery and implementation lookup | `find_symbol`, `find_code`, `execute_language_query` | First-class definition lookup is bounded, paged, source-handle backed, and no longer requires raw Cypher for "where is this implemented?" prompts | #287 |
 | Broad code-topic and implementation investigation | `investigate_code_topic` | First-class content-index investigation returns ranked files, symbols, searched terms, coverage, truncation, and source/relationship follow-up handles without raw Cypher or client-side term guessing | #286 |
-| Callers, callees, imports, call chains | `get_code_relationship_story`, `find_function_call_chain` | Relationship story is bounded, ambiguity-aware, entity-anchored, paged, and exposes optional bounded transitive CALLS traversal; call-chain keeps the dedicated endpoint | #288 |
+| Callers, callees, imports, call chains | `get_code_relationship_story`, `find_function_call_chain`, `investigate_import_dependencies` | Relationship story is bounded, ambiguity-aware, entity-anchored, paged, and exposes optional bounded transitive CALLS traversal; call-chain keeps the dedicated endpoint; import/dependency prompts now have file/module scoped graph reads for imports, importers, package imports, direct Python cycles, and cross-module calls | #288 |
 | Dead code and code quality | `find_dead_code`, `find_most_complex_functions`, `inspect_code_quality` | Complexity, long-function, high-argument, and refactoring-candidate prompts use first-class bounded tools with source handles and truncation instead of raw Cypher | #289 |
 | Class hierarchy and overrides | `analyze_code_relationships` | First-class relationship story path now returns class methods, direct parents/children, bounded inheritance-depth metadata, and target- or repo-scoped override rows without raw Cypher | None from this PR |
 | Security hardcoded secrets | `investigate_hardcoded_secrets` | First-class redacted content-index investigation with severity, confidence, suppression notes, source handles, paging, and truncation | #292 |
@@ -275,6 +282,20 @@ No-Regression Evidence: structural inventory focused proof:
 `go test ./internal/query -run 'TestCodeHandlerStructuralInventory|TestOpenAPI|TestCapabilityMatrixMatchesYAMLContract' -count=1`
 and
 `go test ./internal/mcp -run 'TestInspectCodeInventory|TestEveryRegisteredToolHasDispatchRoute|TestReadOnlyTools|TestCodebaseTools|TestMCPToolContractMatrixCoversReadOnlyTools' -count=1`.
+
+No-Regression Evidence: import dependency investigation focused proof:
+`go test ./internal/query ./internal/mcp -run 'TestHandleImportDependency|TestResolveRouteMapsImportDependency|TestImportDependencyToolSchema' -count=1`
+and
+`go test ./internal/query -run 'TestOpenAPI|TestCapabilityMatrixMatchesYAMLContract' -count=1`.
+
+Observability Evidence: import dependency investigation uses
+`telemetry.SpanQueryImportDependencyInvestigation`
+(`query.import_dependency_investigation`) with stable `http.route` and
+`eshu.capability` attributes. Graph reads continue through existing
+`neo4j.execute` instrumentation, and responses include `source_backend`,
+`coverage.query_shape`, `coverage.relationship_types`, `coverage.truncated`,
+`limit`, `offset`, and `next_offset` so slow or clipped prompt answers can be
+classified without rerunning raw Cypher.
 
 No-Observability-Change: relationship story uses the existing content-store and
 graph query instrumentation rather than adding a new worker or storage path.

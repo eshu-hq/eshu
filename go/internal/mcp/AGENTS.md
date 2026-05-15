@@ -68,6 +68,11 @@
   content-index filtering or raw Cypher in MCP; the query handler owns bounds,
   truth metadata, and source handles.
 
+- **Import dependency tools** → keep `investigate_import_dependencies` as a
+  thin dispatch path to `POST /api/v0/code/imports/investigate`. Do not add
+  file/module expansion or raw Cypher in MCP; the query handler owns graph
+  bounds, query type validation, truth metadata, and source handles.
+
 - **Change an existing tool's argument mapping** → update `resolveRoute` in
   `dispatch.go`, update the matching `tools_*.go` `InputSchema`, and update or
   add a test in `dispatch_test.go`. Why: the `InputSchema` is the advertised

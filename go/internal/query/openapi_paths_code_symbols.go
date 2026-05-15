@@ -111,6 +111,71 @@ const openAPIPathsCodeSymbols = `
         }
       }
     },
+    "/api/v0/code/imports/investigate": {
+      "post": {
+        "tags": ["code"],
+        "summary": "Investigate import and module dependencies",
+        "description": "Returns bounded graph-backed import dependencies, package imports, direct Python file import cycles, and cross-module calls. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module.",
+        "operationId": "investigateImportDependencies",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query_type": {
+                    "type": "string",
+                    "enum": ["imports_by_file", "importers", "module_dependencies", "package_imports", "file_import_cycles", "cross_module_calls"],
+                    "default": "imports_by_file"
+                  },
+                  "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)."},
+                  "language": {"type": "string", "description": "Optional language filter. file_import_cycles currently supports python."},
+                  "source_file": {"type": "string", "description": "Optional repo-relative source file path anchor"},
+                  "target_file": {"type": "string", "description": "Optional repo-relative target file path for cross-module call and cycle queries"},
+                  "source_module": {"type": "string", "description": "Optional source module name anchor"},
+                  "target_module": {"type": "string", "description": "Optional imported or target module name anchor"},
+                  "limit": {"type": "integer", "default": 25, "maximum": 200},
+                  "offset": {"type": "integer", "default": 0, "maximum": 10000}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import dependency investigation results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "query_type": {"type": "string"},
+                    "scope": {"type": "object", "additionalProperties": true},
+                    "results": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+                    "matches": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+                    "dependencies": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+                    "modules": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+                    "cycles": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+                    "cross_module_calls": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+                    "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "offset": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "next_offset": {"type": "integer", "nullable": true},
+                    "source_backend": {"type": "string"},
+                    "coverage": {"type": "object", "additionalProperties": true}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/code/topics/investigate": {
       "post": {
         "tags": ["code"],

@@ -63,7 +63,7 @@ flowchart TB
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 24 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
+| `codebaseTools` | 24 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
@@ -76,6 +76,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `find_code` | POST | `/api/v0/code/search` |
 | `find_symbol` | POST | `/api/v0/code/symbols/search` |
 | `inspect_code_inventory` | POST | `/api/v0/code/structure/inventory` |
+| `investigate_import_dependencies` | POST | `/api/v0/code/imports/investigate` |
 | `investigate_code_topic` | POST | `/api/v0/code/topics/investigate` |
 | `investigate_hardcoded_secrets` | POST | `/api/v0/code/security/secrets/investigate` |
 | `investigate_dead_code` | POST | `/api/v0/code/dead-code/investigate` |
