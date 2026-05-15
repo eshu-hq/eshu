@@ -13,6 +13,7 @@ import (
 type recordingChangeSurfaceGraph struct {
 	runCalls []changeSurfaceRunCall
 	runRows  [][]map[string]any
+	runFunc  func(cypher string, params map[string]any) ([]map[string]any, error)
 }
 
 type changeSurfaceRunCall struct {
@@ -26,6 +27,9 @@ func (g *recordingChangeSurfaceGraph) Run(
 	params map[string]any,
 ) ([]map[string]any, error) {
 	g.runCalls = append(g.runCalls, changeSurfaceRunCall{cypher: cypher, params: params})
+	if g.runFunc != nil {
+		return g.runFunc(cypher, params)
+	}
 	if len(g.runRows) == 0 {
 		return nil, nil
 	}
@@ -116,7 +120,12 @@ func TestInvestigateChangeSurfaceUsesBoundedTraversal(t *testing.T) {
 		t.Fatalf("graph Run calls = %d, want resolver and traversal", got)
 	}
 	traversalCypher := graph.runCalls[1].cypher
-	for _, want := range []string{"*1..3", "LIMIT 3", "ORDER BY depth, impacted.name, impacted.id"} {
+	for _, want := range []string{
+		"MATCH (start:Workload {id: $target_id})",
+		"*1..3",
+		"LIMIT 3",
+		"ORDER BY depth, impacted.name, impacted.id",
+	} {
 		if !strings.Contains(traversalCypher, want) {
 			t.Fatalf("traversal cypher missing %q: %s", want, traversalCypher)
 		}
@@ -137,6 +146,147 @@ func TestInvestigateChangeSurfaceUsesBoundedTraversal(t *testing.T) {
 	coverage := data["coverage"].(map[string]any)
 	if got, want := coverage["query_shape"], "resolved_change_surface_traversal"; got != want {
 		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
+	}
+}
+
+func TestInvestigateChangeSurfaceResolvesBareServiceNameByCanonicalWorkloadID(t *testing.T) {
+	t.Parallel()
+
+	graph := &recordingChangeSurfaceGraph{runRows: [][]map[string]any{
+		{},
+		{
+			{"id": "workload:api-node-boats", "name": "api-node-boats", "labels": []any{"Workload"}, "repo_id": "api-node-boats"},
+		},
+		{
+			{"id": "repo-api-node-boats", "name": "api-node-boats", "labels": []any{"Repository"}, "depth": int64(1), "repo_id": "api-node-boats"},
+		},
+	}}
+	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/change-surface/investigate",
+		bytes.NewBufferString(`{"service_name":"api-node-boats","repo_id":"api-node-boats","limit":4,"max_depth":1}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if got, want := len(graph.runCalls), 3; got != want {
+		t.Fatalf("graph Run calls = %d, want exact id probe, canonical workload id probe, and traversal", got)
+	}
+	if got, want := graph.runCalls[1].params["target"], "workload:api-node-boats"; got != want {
+		t.Fatalf("second resolver target = %#v, want %#v", got, want)
+	}
+
+	data := decodeChangeSurfaceData(t, w)
+	resolution := data["target_resolution"].(map[string]any)
+	if got, want := resolution["status"], "resolved"; got != want {
+		t.Fatalf("resolution.status = %#v, want %#v", got, want)
+	}
+	selected := resolution["selected"].(map[string]any)
+	if got, want := selected["id"], "workload:api-node-boats"; got != want {
+		t.Fatalf("selected.id = %#v, want %#v", got, want)
+	}
+	if traversal := graph.runCalls[2].cypher; !strings.Contains(traversal, "MATCH (start:Workload {id: $target_id})") {
+		t.Fatalf("traversal cypher = %s, want typed Workload id anchor", traversal)
+	}
+}
+
+func TestInvestigateChangeSurfaceDoesNotResolveWrongServiceNameByRepoOnly(t *testing.T) {
+	t.Parallel()
+
+	graph := &recordingChangeSurfaceGraph{
+		runFunc: func(cypher string, _ map[string]any) ([]map[string]any, error) {
+			if strings.Contains(cypher, "repo_id: $target") {
+				return []map[string]any{
+					{"id": "workload:orders-api", "name": "orders-api", "labels": []any{"Workload"}, "repo_id": "api-node-boats"},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/change-surface/investigate",
+		bytes.NewBufferString(`{"service_name":"missing-api","repo_id":"api-node-boats","limit":4,"max_depth":1}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if got, want := len(graph.runCalls), 4; got != want {
+		t.Fatalf("graph Run calls = %d, want resolver probes without traversal", got)
+	}
+	repoScopedCypher := graph.runCalls[2].cypher
+	if !strings.Contains(repoScopedCypher, "repo_id: $repo_id") || !strings.Contains(repoScopedCypher, "name: $target") {
+		t.Fatalf("repo-scoped resolver cypher = %s, want repo_id and name constraints", repoScopedCypher)
+	}
+	if got, want := graph.runCalls[2].params["target"], "missing-api"; got != want {
+		t.Fatalf("repo-scoped resolver target = %#v, want %#v", got, want)
+	}
+	if got, want := graph.runCalls[2].params["repo_id"], "api-node-boats"; got != want {
+		t.Fatalf("repo-scoped resolver repo_id = %#v, want %#v", got, want)
+	}
+
+	data := decodeChangeSurfaceData(t, w)
+	resolution := data["target_resolution"].(map[string]any)
+	if got, want := resolution["status"], "no_match"; got != want {
+		t.Fatalf("resolution.status = %#v, want %#v", got, want)
+	}
+}
+
+func TestInvestigateChangeSurfaceGenericTargetUsesBoundedResolverProbes(t *testing.T) {
+	t.Parallel()
+
+	graph := &recordingChangeSurfaceGraph{runRows: [][]map[string]any{
+		{
+			{"id": "workload:api-node-boats", "name": "api-node-boats", "labels": []any{"Workload"}, "repo_id": "api-node-boats"},
+		},
+		{
+			{"id": "repo-api-node-boats", "name": "api-node-boats", "labels": []any{"Repository"}, "depth": int64(1), "repo_id": "api-node-boats"},
+		},
+	}}
+	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/change-surface/investigate",
+		bytes.NewBufferString(`{"target":"workload:api-node-boats","limit":2,"max_depth":1}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if got, want := len(graph.runCalls), 2; got != want {
+		t.Fatalf("graph Run calls = %d, want resolver and traversal", got)
+	}
+	resolverCypher := graph.runCalls[0].cypher
+	if strings.Contains(resolverCypher, "MATCH (n) WHERE") {
+		t.Fatalf("resolver cypher used unlabelled scan: %s", resolverCypher)
+	}
+	if !strings.Contains(resolverCypher, "MATCH (n:Workload {id: $target})") {
+		t.Fatalf("resolver cypher = %s, want typed Workload id probe", resolverCypher)
+	}
+	if traversal := graph.runCalls[1].cypher; !strings.Contains(traversal, "MATCH (start:Workload {id: $target_id})") {
+		t.Fatalf("traversal cypher = %s, want typed Workload id anchor", traversal)
 	}
 }
 

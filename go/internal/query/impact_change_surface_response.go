@@ -19,17 +19,21 @@ func changeSurfaceNoTargetResolution(req changeSurfaceInvestigationRequest) map[
 func (h *ImpactHandler) changeSurfaceImpactRows(
 	ctx context.Context,
 	req changeSurfaceInvestigationRequest,
-	targetID string,
+	target changeSurfaceTargetCandidate,
 ) ([]map[string]any, bool, error) {
-	cypher := fmt.Sprintf(`MATCH (start) WHERE start.id = $target_id
+	startMatch, err := changeSurfaceTraversalStartMatch(target)
+	if err != nil {
+		return nil, false, err
+	}
+	cypher := fmt.Sprintf(`%s
 MATCH path = (start)-[*1..%d]->(impacted)
 WHERE impacted.id <> $target_id
   AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])
 RETURN DISTINCT impacted.id as id, impacted.name as name, labels(impacted) as labels,
        impacted.environment as environment, impacted.repo_id as repo_id, length(path) as depth
 ORDER BY depth, impacted.name, impacted.id
-LIMIT %d`, req.MaxDepth, req.Limit+1)
-	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{"target_id": targetID})
+LIMIT %d`, startMatch, req.MaxDepth, req.Limit+1)
+	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{"target_id": target.ID})
 	if err != nil {
 		return nil, false, fmt.Errorf("query change surface impact: %w", err)
 	}
@@ -56,6 +60,34 @@ LIMIT %d`, req.MaxDepth, req.Limit+1)
 		filtered = filtered[:req.Limit]
 	}
 	return filtered, truncated, nil
+}
+
+func changeSurfaceTraversalStartMatch(target changeSurfaceTargetCandidate) (string, error) {
+	switch {
+	case target.hasLabel("Workload"):
+		return "MATCH (start:Workload {id: $target_id})", nil
+	case target.hasLabel("WorkloadInstance"):
+		return "MATCH (start:WorkloadInstance {id: $target_id})", nil
+	case target.hasLabel("Repository"):
+		return "MATCH (start:Repository {id: $target_id})", nil
+	case target.hasLabel("CloudResource"):
+		return "MATCH (start:CloudResource {id: $target_id})", nil
+	case target.hasLabel("TerraformModule"):
+		return "MATCH (start:TerraformModule {uid: $target_id})", nil
+	case target.hasLabel("DataAsset"):
+		return "MATCH (start:DataAsset {uid: $target_id})", nil
+	default:
+		return "", fmt.Errorf("change surface traversal cannot anchor unsupported target labels %v", target.Labels)
+	}
+}
+
+func (c changeSurfaceTargetCandidate) hasLabel(label string) bool {
+	for _, candidate := range c.Labels {
+		if candidate == label {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *ImpactHandler) changeSurfaceCodeSurface(
