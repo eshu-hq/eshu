@@ -181,6 +181,7 @@ func TestScoreCheckedInFixtureContract(t *testing.T) {
 		t.Fatalf("ForbiddenHits = %d, want 0", got)
 	}
 	assertFloatNear(t, report.Averages.MeanLatencyMS, 59.5, 0.0001)
+	assertFloatNear(t, report.Averages.P95LatencyMS, 77, 0.0001)
 }
 
 func assertFloatNear(t *testing.T, got float64, want float64, tolerance float64) {

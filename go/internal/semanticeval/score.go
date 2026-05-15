@@ -28,6 +28,7 @@ type Metrics struct {
 	ForbiddenHits        int     `json:"forbidden_hits"`
 	UnsupportedCaseCount int     `json:"unsupported_case_count"`
 	MeanLatencyMS        float64 `json:"mean_latency_ms,omitempty"`
+	P95LatencyMS         float64 `json:"p95_latency_ms,omitempty"`
 }
 
 // CaseScore captures retrieval quality for one eval case.
@@ -60,6 +61,7 @@ func Score(suite Suite, run Run, options Options) (Report, error) {
 	}
 
 	report := Report{K: k, CaseCount: len(suite.Cases)}
+	latencies := make([]float64, 0, len(suite.Cases))
 	for _, evalCase := range suite.Cases {
 		caseResult := resultsByCase[evalCase.ID]
 		score := scoreCase(evalCase, caseResult, k)
@@ -70,6 +72,7 @@ func Score(suite Suite, run Run, options Options) (Report, error) {
 		report.Averages.FalseCanonicalClaims += score.FalseCanonicalClaims
 		report.Averages.ForbiddenHits += score.ForbiddenHits
 		report.Averages.MeanLatencyMS += score.LatencyMS
+		latencies = append(latencies, score.LatencyMS)
 		if score.Unsupported {
 			report.Averages.UnsupportedCaseCount++
 		}
@@ -80,6 +83,7 @@ func Score(suite Suite, run Run, options Options) (Report, error) {
 	report.Averages.PrecisionAtK /= denominator
 	report.Averages.NDCGAtK /= denominator
 	report.Averages.MeanLatencyMS /= denominator
+	report.Averages.P95LatencyMS = percentileNearestRank(latencies, 0.95)
 	return report, nil
 }
 
@@ -184,4 +188,20 @@ func normalizedDCG(expected []ExpectedHandle, dcg float64, k int) float64 {
 
 func discountedGain(relevance int, rank int) float64 {
 	return float64(relevance) / math.Log2(float64(rank+1))
+}
+
+func percentileNearestRank(values []float64, percentile float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	sortedValues := append([]float64(nil), values...)
+	sort.Float64s(sortedValues)
+	rank := int(math.Ceil(percentile * float64(len(sortedValues))))
+	if rank < 1 {
+		rank = 1
+	}
+	if rank > len(sortedValues) {
+		rank = len(sortedValues)
+	}
+	return sortedValues[rank-1]
 }
