@@ -29,6 +29,42 @@ declare namespace fastify {
 	}
 }
 
+func TestTypeScriptImportedExportClauseReexportsFromSourceHandlesDefaultAndNamedImport(t *testing.T) {
+	t.Parallel()
+
+	source := `import Fastify, { type FastifyRequest, InternalReply as FastifyReply } from './types/request'
+
+declare namespace fastify {
+  export type {
+    FastifyRequest,
+    FastifyReply
+  }
+}
+`
+
+	got := javaScriptTypeScriptImportedExportClauseReexportsFromSource(source)
+	assertTypeScriptImportedExportReexport(t, got, "FastifyRequest", "FastifyRequest", "./types/request")
+	assertTypeScriptImportedExportReexport(t, got, "FastifyReply", "InternalReply", "./types/request")
+}
+
+func TestTypeScriptImportedExportClauseReexportsFromSourceIgnoresBlockComments(t *testing.T) {
+	t.Parallel()
+
+	source := `import { FastifyRequest, InternalReply as FastifyReply } from './types/request'
+
+declare namespace fastify {
+  export type {
+    FastifyRequest /* public request type */,
+    FastifyReply /* public reply type */
+  }
+}
+`
+
+	got := javaScriptTypeScriptImportedExportClauseReexportsFromSource(source)
+	assertTypeScriptImportedExportReexport(t, got, "FastifyRequest", "FastifyRequest", "./types/request")
+	assertTypeScriptImportedExportReexport(t, got, "FastifyReply", "InternalReply", "./types/request")
+}
+
 func TestTypeScriptImportedTypeReferencesFromPublicDeclarations(t *testing.T) {
 	t.Parallel()
 

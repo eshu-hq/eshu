@@ -12,7 +12,7 @@ type javaScriptTypeScriptImportedBinding struct {
 }
 
 var (
-	javaScriptTypeScriptNamedImportRe       = regexp.MustCompile(`(?s)\bimport\s+(?:type\s+)?\{([^}]*)\}\s+from\s+["']([^"']+)["']`)
+	javaScriptTypeScriptNamedImportRe       = regexp.MustCompile(`(?s)\bimport\s+(?:type\s+)?(?:[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*)?\{([^}]*)\}\s+from\s+["']([^"']+)["']`)
 	javaScriptTypeScriptLocalExportClauseRe = regexp.MustCompile(`(?s)\bexport\s+(?:type\s+)?\{([^}]*)\}`)
 	javaScriptTypeScriptPublicDeclNameRe    = regexp.MustCompile(`\bexport\s+(?:abstract\s+class|interface|type|class|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)\b`)
 )
