@@ -54,6 +54,31 @@ func TestRecoveryStoreReplayFailedWorkItemsDefaultFilter(t *testing.T) {
 	}
 }
 
+func TestRecoveryStoreReplayFailedWorkItemsPreservesRetrySemantics(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{"item-1"}}},
+		},
+	}
+
+	store := NewRecoveryStore(db)
+	_, err := store.ReplayFailedWorkItems(context.Background(), recovery.ReplayFilter{
+		Stage: recovery.StageReducer,
+	}, time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("ReplayFailedWorkItems() error = %v, want nil", err)
+	}
+
+	if strings.Contains(db.queries[0].query, "attempt_count = 0") {
+		t.Fatalf("recovery replay query resets retry evidence:\n%s", db.queries[0].query)
+	}
+	if !strings.Contains(db.queries[0].query, "attempt_count = GREATEST(attempt_count, 1)") {
+		t.Fatalf("recovery replay query missing retry-preserving attempt_count:\n%s", db.queries[0].query)
+	}
+}
+
 func TestRecoveryStoreReplayFailedWorkItemsByScopeFilter(t *testing.T) {
 	t.Parallel()
 

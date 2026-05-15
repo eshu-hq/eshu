@@ -47,6 +47,34 @@ func TestPostgresAdminStoreReplayFailedWorkItems_UsesConsistentPlaceholderOffset
 	}
 }
 
+func TestPostgresAdminStoreReplayFailedWorkItems_PreservesRetrySemantics(t *testing.T) {
+	t.Parallel()
+
+	db := &recordingAdminExecQueryer{
+		rows: &recordingAdminRows{},
+	}
+	store := &postgresAdminStore{
+		db:  db,
+		now: func() time.Time { return time.Unix(1700000000, 0).UTC() },
+	}
+
+	_, err := store.ReplayFailedWorkItems(context.Background(), ReplayWorkItemFilter{
+		Stage:        "reducer",
+		FailureClass: "reducer_failed",
+		Limit:        25,
+	})
+	if err != nil {
+		t.Fatalf("ReplayFailedWorkItems() error = %v, want nil", err)
+	}
+
+	if strings.Contains(db.query, "attempt_count = 0") {
+		t.Fatalf("replay query resets retry evidence:\n%s", db.query)
+	}
+	if !strings.Contains(db.query, "attempt_count = GREATEST(work.attempt_count, 1)") {
+		t.Fatalf("replay query missing retry-preserving attempt_count:\n%s", db.query)
+	}
+}
+
 type recordingAdminExecQueryer struct {
 	query     string
 	queryArgs []any

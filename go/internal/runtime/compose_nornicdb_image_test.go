@@ -34,3 +34,13 @@ func TestNornicDBComposeDoesNotForceAmd64Platform(t *testing.T) {
 		t.Fatalf("docker-compose.yaml must leave NORNICDB_PLATFORM empty by default, want %q", want)
 	}
 }
+
+func TestNornicDBComposePersistsSearchIndexes(t *testing.T) {
+	t.Parallel()
+
+	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
+	want := `NORNICDB_PERSIST_SEARCH_INDEXES: "true"`
+	if !strings.Contains(content, want) {
+		t.Fatalf("docker-compose.yaml must persist NornicDB search indexes for large-graph restarts, want %q", want)
+	}
+}

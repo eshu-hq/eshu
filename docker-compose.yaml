@@ -18,6 +18,7 @@ services:
       NORNICDB_HEIMDALL_ENABLED: "false"
       NORNICDB_QDRANT_GRPC_ENABLED: "false"
       NORNICDB_EMBEDDING_PROVIDER: local
+      NORNICDB_PERSIST_SEARCH_INDEXES: "true"
     volumes:
       - nornicdb_data:/data
     healthcheck:

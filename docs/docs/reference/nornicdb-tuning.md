@@ -389,3 +389,27 @@ Watch future heavy write families such as call edges, infra edges, and other
 shared reducer domains. If they need different treatment, add phase metadata
 and tuning only after repo-scale evidence proves the existing canonical or
 semantic controls do not describe the bottleneck.
+
+## Search Index Startup Persistence
+
+Default Compose enables `NORNICDB_PERSIST_SEARCH_INDEXES=true` for the NornicDB
+service. NornicDB otherwise rebuilds BM25, vector, and HNSW search indexes by
+scanning the persisted graph on startup. On the 2026-05-15 remote full-corpus
+degraded-run recovery, a reboot left NornicDB reporting HTTP health while it
+rebuilt `2,279,280` search-index nodes; `eshu-bootstrap-data-plane` had already
+applied Postgres schema and then waited behind graph schema work for more than
+20 minutes, with app services still dependency-gated by `db-migrate`.
+
+No-Regression Evidence: `timothyswt/nornicdb-cpu-bge:latest` resolved to the
+same pinned digest used by Compose
+(`sha256:2e57f5af86ccea2ff67cfc479239c2266149bab909b175fb6a33c4b4c7ec85d7`),
+so the restart delay was not an image-version delta. Persisting search indexes
+keeps the existing graph write contract and avoids paying the full search-index
+scan after normal restarts on large Eshu graphs.
+
+Observability Evidence: NornicDB logs expose `BuildIndexes progress:
+phase=iterating_nodes processed=<n>/2279280 bm25_engine=v2`; Docker stats showed
+NornicDB CPU-bound while `db-migrate` was idle after
+`bootstrap.postgres.applied`. Eshu queue status remained visible once app
+services were started with existing images: `8640/8723` succeeded and
+`82` dead letters, with no active work.

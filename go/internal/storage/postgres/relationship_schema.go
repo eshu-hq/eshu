@@ -202,7 +202,12 @@ INSERT INTO resolved_relationships (
     source_entity_id, target_entity_id, relationship_type,
     confidence, evidence_count, rationale, resolution_source, details
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-ON CONFLICT (resolved_id) DO NOTHING
+ON CONFLICT (
+    generation_id,
+    COALESCE(source_entity_id, source_repo_id),
+    COALESCE(target_entity_id, target_repo_id),
+    relationship_type
+) DO NOTHING
 `
 
 const listEvidenceFactsByGenerationSQL = `
