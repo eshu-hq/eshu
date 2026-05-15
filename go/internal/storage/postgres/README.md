@@ -220,7 +220,12 @@ compatibility handoff cannot complete.
   `NewAWSCloudRuntimeDriftFindingStore` — active-generation reads over
   `reducer_aws_cloud_runtime_drift_finding` facts for the IaC management API;
   filters must include `scope_id` or a 12-digit `account_id`, optional regions
-  must use AWS region characters only, and direct list reads cap at 500 rows
+  must use AWS region characters only, and direct list reads cap at 500 rows.
+  The decoded row preserves optional #124 read-model payload fields such as
+  `management_status`, matched Terraform state/config handles, candidate
+  service/environment labels, dependency paths, warning flags, missing
+  evidence, and recommended action. Older facts without those fields still
+  decode and let the query layer derive the current AWS drift statuses.
 
 **Queue stores**
 
@@ -255,7 +260,7 @@ compatibility handoff cannot complete.
   a `batch_concurrency` attribute so operators reading the log can
   reconcile the new wall-clock value with the per-batch
   `eshu_dp_postgres_query_duration_seconds` metric.
-  
+
   Pool budgeting: peak Postgres demand is `ESHU_PROJECTOR_WORKERS *
   ESHU_CONTENT_WRITER_BATCH_CONCURRENCY` plus connections held by
   collector, status reads, and heartbeats. The auto cap of 4 reduces

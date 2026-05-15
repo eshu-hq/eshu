@@ -970,13 +970,31 @@ explain every finding from persisted evidence instead of broad graph anti-joins.
 
 The unmanaged-resource route reads active AWS runtime drift reducer facts. It
 requires `scope_id` or `account_id`; `region`, `finding_kinds`, `limit`, and
-`offset` narrow the page. Returned findings include the AWS ARN, account,
-region, `management_status`, `missing_evidence`, reducer evidence atoms, and a
-recommended next action. `orphaned_cloud_resource` means Eshu saw the cloud
-resource but no Terraform state or config owner. `unmanaged_cloud_resource`
-means Eshu saw cloud plus Terraform state evidence but no Terraform config
-owner. Raw tags remain provenance evidence and do not create environment or
-ownership truth.
+`offset` narrow the page. Returned findings use the `IaCManagementFinding`
+read model and include the AWS ARN, account, region, `management_status`,
+matched Terraform state/config fields when present, service/environment
+candidates, dependency paths, `missing_evidence`, `warning_flags`, reducer
+evidence atoms, and a recommended next action. Raw tags may appear in the
+`tags` map and evidence rows, but they remain provenance-only. They do not
+create environment, service, or ownership truth.
+
+Management status values are deterministic:
+
+| Status | Promotion rule |
+| --- | --- |
+| `managed_by_terraform` | Cloud, Terraform state, and Terraform config evidence agree. |
+| `terraform_state_only` | Cloud and Terraform state evidence agree, but config evidence is missing. |
+| `terraform_config_only` | Terraform config evidence exists, but state and cloud evidence are absent. |
+| `cloud_only` | Cloud evidence exists with no Terraform state, config, or other-IaC owner. |
+| `managed_by_other_iac` | Cloud evidence is tied to CloudFormation, CDK, Pulumi, Crossplane, Serverless, or another non-Terraform IaC source. |
+| `ambiguous_management` | Ownership signals conflict or multiple IaC systems claim the same resource. |
+| `unknown_management` | Collector coverage, permissions, or supported-resource evidence is insufficient. |
+| `stale_iac_candidate` | IaC evidence exists, but fresh cloud evidence is absent or inconsistent. |
+
+`orphaned_cloud_resource` currently maps to `cloud_only`.
+`unmanaged_cloud_resource` currently maps to `terraform_state_only`.
+Ambiguous and unknown outcomes are first-class statuses, not errors or silent
+fallbacks.
 
 Example unmanaged-resource workflow:
 

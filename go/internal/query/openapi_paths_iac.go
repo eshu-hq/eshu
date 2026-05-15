@@ -146,15 +146,36 @@ const openAPIPathsIaC = `
                           "resource_type": {"type": "string"},
                           "resource_id": {"type": "string"},
                           "arn": {"type": "string"},
+                          "tags": {"type": "object", "additionalProperties": {"type": "string"}},
                           "finding_kind": {"type": "string"},
-                          "management_status": {"type": "string"},
+                          "management_status": {
+                            "type": "string",
+                            "enum": [
+                              "managed_by_terraform",
+                              "terraform_state_only",
+                              "terraform_config_only",
+                              "cloud_only",
+                              "managed_by_other_iac",
+                              "ambiguous_management",
+                              "unknown_management",
+                              "stale_iac_candidate"
+                            ]
+                          },
                           "confidence": {"type": "number"},
                           "scope_id": {"type": "string"},
                           "generation_id": {"type": "string"},
                           "source_system": {"type": "string"},
                           "candidate_id": {"type": "string"},
+                          "matched_terraform_state_address": {"type": "string"},
+                          "matched_terraform_config_file": {"type": "string"},
+                          "matched_terraform_module_path": {"type": "string"},
+                          "matched_other_iac_source": {"type": "string"},
+                          "service_candidates": {"type": "array", "items": {"type": "string"}},
+                          "environment_candidates": {"type": "array", "items": {"type": "string"}},
+                          "dependency_paths": {"type": "array", "items": {"type": "string"}},
                           "recommended_action": {"type": "string"},
                           "missing_evidence": {"type": "array", "items": {"type": "string"}},
+                          "warning_flags": {"type": "array", "items": {"type": "string"}},
                           "evidence": {"type": "array", "items": {"type": "object"}}
                         }
                       }

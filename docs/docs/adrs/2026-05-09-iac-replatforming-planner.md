@@ -364,6 +364,32 @@ Negative:
   limitations.
 - Add contract tests using fixture facts from Git, Terraform state, and AWS.
 
+Phase 1 implementation note:
+
+- `IaCManagementFinding` is the query-facing read-model contract for the first
+  AWS-backed slice. It keeps all eight management statuses stable:
+  `managed_by_terraform`, `terraform_state_only`, `terraform_config_only`,
+  `cloud_only`, `managed_by_other_iac`, `ambiguous_management`,
+  `unknown_management`, and `stale_iac_candidate`.
+- Promotion is evidence-gated. Raw tags are emitted as provenance evidence only
+  and never become service, environment, or ownership truth by themselves.
+- The current reducer-backed AWS runtime drift facts map
+  `orphaned_cloud_resource` to `cloud_only` and
+  `unmanaged_cloud_resource` to `terraform_state_only`. The read model already
+  accepts matched Terraform state/config fields, other-IaC source, service and
+  environment candidates, dependency paths, missing evidence, warning flags,
+  and recommended actions so #130 can add stronger matching without changing
+  the API shape.
+- No-Regression Evidence: focused Go tests cover the management-status taxonomy,
+  evidence-derived read-model enrichment, OpenAPI contract, and active
+  generation Postgres read adapter without widening the bounded
+  `scope_id`/`account_id` query.
+- No-Observability-Change: this phase changes response shaping and optional
+  decoded payload fields only. Existing `query.iac_management` Postgres spans
+  from `InstrumentedDB`, the `query.iac_unmanaged_resources` handler span, and
+  the bounded paging fields `limit`, `offset`, `truncated`, and `next_offset`
+  remain the operator signals for this read path.
+
 ### Phase 2: Query And MCP Tools
 
 - Add read-only API/MCP tools for unmanaged and ambiguous cloud resources.
