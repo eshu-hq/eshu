@@ -50,7 +50,7 @@ visibility together before relaxing that guard.
 | --- | --- | --- | --- | --- |
 | Git/repository | Implemented through ingester and collector-git paths. | Ingester `StatefulSet` is charted. | Workload, deployment, code-call, semantic entity, SQL relationship, inheritance, and package-source follow-up domains exist. | EKS proof must show repo sync, fact commit, queue drain, graph projection, and query completeness on the target cluster. |
 | Terraform state | `go/cmd/collector-terraform-state` and `go/internal/collector/terraformstate` exist. | Optional `terraformStateCollector` deployment exists and requires collector instances plus redaction config. | `DomainConfigStateDrift` emits bounded counter/log truth; management-status read models remain in planner issues. | Live S3/local state proof in the target environment, plus #124, #130, and #131 for useful management status. |
-| AWS cloud | `go/cmd/collector-aws-cloud` and service scanners exist for the current AWS slice. | Optional `awsCloudCollector` deployment and isolated service account/IRSA values exist. | `DomainCloudAssetResolution` and `DomainAWSCloudRuntimeDrift` exist; AWS runtime drift is durable-fact only for now. | Live read-only AWS proof, #37 operator closeout, graph/read shape for drift findings, and active coordinator claim proof. |
+| AWS cloud | `go/cmd/collector-aws-cloud` and service scanners exist for the current AWS slice. | Optional `awsCloudCollector` deployment and isolated service account/IRSA values exist. | `DomainCloudAssetResolution` and `DomainAWSCloudRuntimeDrift` exist; AWS runtime drift writes durable facts and exposes bounded API/MCP read-model rows. | Live read-only AWS proof, #37 operator closeout, graph projection shape for drift findings, and active coordinator claim proof. |
 | AWS freshness | Implemented through `go/cmd/webhook-listener` and `go/internal/collector/awscloud/freshness`. | Webhook listener and `awsFreshness` ingress path are charted. | Freshness creates targeted AWS collector work; scheduled scans remain authoritative. | #37 remains open for live AWS EventBridge/AWS Config sample, dashboard visibility, and security sign-off. |
 | OCI registry | `go/cmd/collector-oci-registry` exists. | Optional `ociRegistryCollector` deployment exists. | No first-class container-image identity reducer is complete. | Add digest identity/read model joining Git image refs, AWS runtime refs, OCI manifests, and later SBOM/attestation. |
 | Package registry | `go/cmd/collector-package-registry` exists. | Optional `packageRegistryCollector` deployment exists. | `DomainPackageSourceCorrelation` classifies source hints with counters only; it does not promote package ownership. Package-native dependency facts now project to bounded package dependency graph reads. | Expand package ownership/usage correlation after EKS collector proof and image identity. |
@@ -109,9 +109,24 @@ surfaces.
    generation in #125.
 
 3. AWS runtime drift read surface.
-   `DomainAWSCloudRuntimeDrift` writes durable reducer facts. Graph nodes,
-   API/MCP filters, and service-story integration still need a frozen shape
-   before Cypher lands.
+   `DomainAWSCloudRuntimeDrift` writes durable reducer facts. The
+   `POST /api/v0/aws/runtime-drift/findings` route and
+   `list_aws_runtime_drift_findings` MCP tool expose bounded scope/account,
+   region, ARN, finding-kind, limit, and offset filters with
+   exact/derived/ambiguous/stale/unknown outcomes and rejected promotion status.
+   Service/environment candidates and dependency paths remain evidence fields,
+   not ownership truth. Graph nodes still need a frozen Cypher shape before
+   projection lands.
+
+   No-Regression Evidence: `go test ./internal/query ./internal/mcp -count=1`
+   covers the bounded API route, MCP dispatch, OpenAPI contract, capability
+   matrix parity, and existing IaC management behavior without changing the
+   reducer or store query shape.
+
+   Observability Evidence: `query.aws_runtime_drift_findings` spans wrap the
+   route and the existing instrumented Postgres reader emits
+   `eshu_dp_postgres_query_duration_seconds` for active-generation drift fact
+   list/count queries.
 
 4. Package ownership and consumption.
    Package source hints are currently classified without ownership promotion.

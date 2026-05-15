@@ -17,12 +17,13 @@ const (
 	iacDeadDefaultLimit = 100
 	iacDeadMaxLimit     = 500
 
-	iacManagementCapability        = "iac_management.find_unmanaged_resources"
-	iacManagementStatusCapability  = "iac_management.get_status"
-	iacManagementExplainCapability = "iac_management.explain_status"
-	iacTerraformImportCapability   = "iac_management.propose_terraform_import_plan"
-	iacManagementDefaultLimit      = 100
-	iacManagementMaxLimit          = 500
+	iacManagementCapability           = "iac_management.find_unmanaged_resources"
+	iacManagementStatusCapability     = "iac_management.get_status"
+	iacManagementExplainCapability    = "iac_management.explain_status"
+	iacTerraformImportCapability      = "iac_management.propose_terraform_import_plan"
+	awsRuntimeDriftFindingsCapability = "aws_runtime_drift.findings.list"
+	iacManagementDefaultLimit         = 100
+	iacManagementMaxLimit             = 500
 )
 
 // IaCHandler serves infrastructure-as-code quality query routes.
@@ -40,6 +41,7 @@ func (h *IaCHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/iac/management-status", h.handleIaCManagementStatus)
 	mux.HandleFunc("POST /api/v0/iac/management-status/explain", h.handleIaCManagementExplanation)
 	mux.HandleFunc("POST /api/v0/iac/terraform-import-plan/candidates", h.handleTerraformImportPlanCandidates)
+	mux.HandleFunc("POST /api/v0/aws/runtime-drift/findings", h.handleAWSRuntimeDriftFindings)
 }
 
 func (h *IaCHandler) profile() QueryProfile {

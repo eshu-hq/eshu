@@ -24,6 +24,14 @@ func terraformImportPlanTool() ToolDefinition {
 	}
 }
 
+func awsRuntimeDriftFindingsTool() ToolDefinition {
+	return ToolDefinition{
+		Name:        "list_aws_runtime_drift_findings",
+		Description: "List active AWS runtime drift reducer findings with bounded filters, truth outcomes, and rejected promotion status.",
+		InputSchema: awsRuntimeDriftFindingsSchema(),
+	}
+}
+
 func iacManagementStatusSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
@@ -95,6 +103,49 @@ func terraformImportPlanSchema() map[string]any {
 			"limit": map[string]any{
 				"type":        "integer",
 				"description": "Maximum candidate findings to inspect",
+				"default":     100,
+			},
+			"offset": map[string]any{
+				"type":        "integer",
+				"description": "Zero-based result offset for paging findings",
+				"default":     0,
+			},
+		},
+		"anyOf": []map[string]any{
+			{"required": []string{"scope_id"}},
+			{"required": []string{"account_id"}},
+		},
+	}
+}
+
+func awsRuntimeDriftFindingsSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"scope_id": map[string]any{
+				"type":        "string",
+				"description": "Exact AWS collector scope, for example aws:123456789012:us-east-1:lambda",
+			},
+			"account_id": map[string]any{
+				"type":        "string",
+				"description": "AWS account ID used to bound the active drift finding read",
+			},
+			"region": map[string]any{
+				"type":        "string",
+				"description": "Optional AWS region when account_id is supplied",
+			},
+			"arn": map[string]any{
+				"type":        "string",
+				"description": "Optional exact AWS ARN to inspect",
+			},
+			"finding_kinds": map[string]any{
+				"type":        "array",
+				"items":       map[string]any{"type": "string"},
+				"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
+			},
+			"limit": map[string]any{
+				"type":        "integer",
+				"description": "Maximum drift findings to return",
 				"default":     100,
 			},
 			"offset": map[string]any{
