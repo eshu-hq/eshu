@@ -76,7 +76,9 @@ classes nested inside another exported expression. Declaration public-surface
 walking follows repo-bounded static re-export barrels with a small cycle-safe
 depth cap so package `types` surfaces such as
 `index.d.ts -> types/index.d.ts -> plugin.d.ts` stay rooted without whole-repo
-inference.
+inference. It also follows declaration entrypoints that import symbols and
+export them through local `export type { ... }` clauses, including public
+generic defaults that reference imported declaration types.
 
 ## Related docs
 

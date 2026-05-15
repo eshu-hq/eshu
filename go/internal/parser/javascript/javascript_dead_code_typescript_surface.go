@@ -64,6 +64,9 @@ func javaScriptTypeScriptSurfaceRootKinds(
 			publicNames[name] = struct{}{}
 			rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPIReexportRoot)
 		}
+		for name := range javaScriptTypeScriptPublicImportedTypeReferenceNames(repoRoot, publicPath, path, exportedNames) {
+			rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPITypeReferenceRoot)
+		}
 	}
 
 	for name := range javaScriptTypeScriptPublicTypeReferences(root, source, publicNames, exportedNames) {
@@ -287,6 +290,7 @@ func javaScriptTypeScriptStaticReexportsFromSource(source string) []javaScriptTy
 			})
 		}
 	}
+	reexports = append(reexports, javaScriptTypeScriptImportedExportClauseReexportsFromSource(source)...)
 	return reexports
 }
 

@@ -148,7 +148,7 @@ func authorizedAWSFreshnessTargets(
 ) ([]freshness.Target, error) {
 	targetsByKey := make(map[string]freshness.Target, len(triggers))
 	for _, trigger := range triggers {
-		if err := trigger.Trigger.Validate(); err != nil {
+		if err := trigger.Validate(); err != nil {
 			return nil, err
 		}
 		target := trigger.Target()

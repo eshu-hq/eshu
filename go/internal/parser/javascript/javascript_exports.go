@@ -164,7 +164,7 @@ func javaScriptReExportSpecifiersFromText(
 }
 
 func javaScriptReExportSpecifierNames(raw string) (string, string) {
-	part := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "type "))
+	part := strings.TrimSpace(strings.TrimPrefix(javaScriptExportSpecifierWithoutLineComments(raw), "type "))
 	if part == "" || strings.Contains(part, "...") {
 		return "", ""
 	}
@@ -189,4 +189,37 @@ func javaScriptReExportSpecifierNames(raw string) (string, string) {
 		return "", ""
 	}
 	return left, right
+}
+
+func javaScriptExportSpecifierWithoutLineComments(raw string) string {
+	segments := make([]string, 0, 1)
+	for _, line := range strings.Split(javaScriptExportSpecifierWithoutBlockComments(raw), "\n") {
+		beforeComment, _, _ := strings.Cut(line, "//")
+		if trimmed := strings.TrimSpace(beforeComment); trimmed != "" {
+			segments = append(segments, trimmed)
+		}
+	}
+	return strings.TrimSpace(strings.Join(segments, " "))
+}
+
+func javaScriptExportSpecifierWithoutBlockComments(raw string) string {
+	var cleaned strings.Builder
+	cleaned.Grow(len(raw))
+	for i := 0; i < len(raw); {
+		if i+1 < len(raw) && raw[i] == '/' && raw[i+1] == '*' {
+			cleaned.WriteByte(' ')
+			i += 2
+			for i+1 < len(raw) && (raw[i] != '*' || raw[i+1] != '/') {
+				i++
+			}
+			if i+1 >= len(raw) {
+				break
+			}
+			i += 2
+			continue
+		}
+		cleaned.WriteByte(raw[i])
+		i++
+	}
+	return cleaned.String()
 }
