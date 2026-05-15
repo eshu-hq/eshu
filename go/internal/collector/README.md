@@ -234,6 +234,17 @@ it.
   re-reads file bodies from disk at emit time. The OS page cache keeps re-reads
   fast. Do not change this design to in-memory bodies without accounting for
   `O(repo_size)` memory growth on large repositories.
+- Performance Evidence: On 2026-05-15, pprof from the remote full-corpus
+  Compose run showed bootstrap startup CPU in filesystem repository copy and
+  ignore matching before graph projection began. A focused local benchmark for
+  literal ignore patterns improved from 2.35-2.44 us/op, 656 B/op, and 10
+  allocs/op at `4d31617` to 1.11-1.13 us/op, 96 B/op, and 1 alloc/op after
+  routing non-glob `.gitignore` and `.eshuignore` rules through literal
+  matching.
+- Observability Evidence: The existing `collector snapshot stage completed`
+  logs, `SpanScopeAssign`, `SpanCollectorStream`, and pprof profiles expose the
+  selector/copy window separately from per-repository discovery, pre-scan,
+  parse, materialize, commit, and projection stages.
 - Parser variable scope is part of performance and truth. Java defaults to
   module-level variables during native snapshots because dead-code candidates
   and Java call inference do not need every method-local declaration as a
