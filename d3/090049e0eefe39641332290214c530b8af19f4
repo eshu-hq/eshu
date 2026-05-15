@@ -1,0 +1,46 @@
+scripts/verify-performance-evidence.sh
+  s_1273e1d3d73976::t_692f5986961962 87-99,101,112-113,134-140,182-183
+  s_1273e1d3d73976::t_3bd92926241c19 100,102-111
+CLAUDE.md
+  s_1273e1d3d73976::t_385b224f612a3b 68-75,112-113,175-180,422-425,427,430-432,452-465,472-478,691-692,695-696,717-719,897-898,903-904
+docs/docs/reference/nornicdb-pitfalls.md
+  s_1273e1d3d73976::t_385b224f612a3b 16-19
+.agents/skills/golang-engineering/SKILL.md
+  s_1273e1d3d73976::t_6abadc80e97121 27-29
+.agents/skills/cypher-query-rigor/SKILL.md
+  s_1273e1d3d73976::t_6abadc80e97121 29-31,47-52,210-211
+.agents/skills/eshu-diagnostic-rigor/SKILL.md
+  s_1273e1d3d73976::t_6abadc80e97121 33-37,45-46,60-63,68-72,100-107,109
+.agents/skills/concurrency-deadlock-rigor/SKILL.md
+  s_1273e1d3d73976::t_6abadc80e97121 45-56
+docs/docs/reference/cypher-performance.md
+  s_1273e1d3d73976::t_385b224f612a3b 47-50
+  s_1273e1d3d73976::t_a4d1ceee933b78 127-129
+AGENTS.md
+  s_1273e1d3d73976::t_8c46422d2ea4ea 68-75,175-180,422-425,427,430-432,452-465,472-478,691-692,695-696,717-719,897-898,903-904
+  s_1273e1d3d73976::t_385b224f612a3b 112-113
+scripts/test-verify-performance-evidence.sh
+  s_1273e1d3d73976::t_528229d22de35a 8
+  s_1273e1d3d73976::t_4ccceab68cb4e9 106-112
+  s_1273e1d3d73976::t_110bd0881e7d9b 113-123
+scripts/README.md
+  s_1273e1d3d73976::t_a4d1ceee933b78 30-33
+docs/docs/reference/local-testing.md
+  s_1273e1d3d73976::t_a4d1ceee933b78 325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d3090049e0eefe39641332290214c530b8af19f4",
+  "prompts": {},
+  "sessions": {
+    "s_1273e1d3d73976": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e28fa-e5aa-7ac3-a705-f0b90521b5e7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
