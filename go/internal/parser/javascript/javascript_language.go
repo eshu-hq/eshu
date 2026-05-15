@@ -246,6 +246,14 @@ func Parse(
 				"line_number": nodeLine(node),
 				"lang":        outputLanguage,
 			})
+			for _, reference := range javaScriptFunctionValueReferenceCallsFromArguments(
+				node.ChildByFieldName("arguments"),
+				source,
+				outputLanguage,
+				commonJSModuleAliases,
+			) {
+				appendBucket(payload, "function_calls", reference)
+			}
 		case "return_statement":
 			valueNode := javaScriptReturnValueNode(node)
 			if item := javaScriptFunctionValueReferenceCall(valueNode, source, outputLanguage, commonJSModuleAliases); item != nil {

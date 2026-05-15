@@ -61,7 +61,8 @@ framework callback, function-value callback, Python route/task/CLI decorator,
 Python AWS Lambda handler, JavaScript package export, CommonJS default export,
 CommonJS mixin method export, configured Hapi handler or exported route-array
 handler reference, Next.js app or route export,
-Express/Koa/Fastify/NestJS callback root, Node migration export, TypeScript
+Express/Koa/Fastify/NestJS callback root, Fastify route-object handler,
+constructor-passed function-value reference, Node migration export, TypeScript
 module-contract export, TypeScript public method on a class that declares
 `implements`, or TypeScript package public API surface proven through a
 nearest-package `exports` or `types` target and bounded static re-export
@@ -120,9 +121,9 @@ Exported TypeScript object registries also mark same-file function values as
 JavaScript-family adapters also preserve import alias metadata, CommonJS
 `module.exports` self-aliases, JSONC tsconfig `baseUrl` and `paths`
 `resolved_source` metadata through the JavaScript helper subpackage even when
-the config uses comments or trailing commas, returned function-value references,
-static relative re-export metadata, constructor calls, and local receiver type
-metadata from
+the config uses comments or trailing commas, returned and constructor-argument
+function-value references, static relative re-export metadata, constructor
+calls, and local receiver type metadata from
 `const value = new Type()` so reducer call materialization can resolve bounded
 cross-file calls.
 JSON parsing now lives in the JSON helper subpackage. The parent parser keeps

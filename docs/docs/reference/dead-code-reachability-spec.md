@@ -426,6 +426,11 @@ Current branch status:
   `SqlFunction` routines are scanned as derived candidates, and parser-proven
   trigger-to-function `EXECUTES` edges protect trigger-invoked routines from
   cleanup results
+- TypeScript issue #336 evidence is recorded in
+  `dead-code-typescript-corpus-evidence.md`. Eshu now models Fastify
+  route-object handler roots and emits function-value references for route
+  object `handler` properties and constructor arguments such as BullMQ
+  processors, while JavaScript-family dead-code cleanup remains conservative.
 - broader Go router, webhook, worker, reflection, and build-tag roots plus
   broader Python worker, dynamic-dispatch, and non-export-declared public API
   roots plus broader

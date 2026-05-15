@@ -17,6 +17,15 @@ func javaScriptFunctionValueReferenceCalls(
 		return nil
 	}
 	argumentsNode := node.ChildByFieldName("arguments")
+	return javaScriptFunctionValueReferenceCallsFromArguments(argumentsNode, source, lang, commonJSModuleAliases)
+}
+
+func javaScriptFunctionValueReferenceCallsFromArguments(
+	argumentsNode *tree_sitter.Node,
+	source []byte,
+	lang string,
+	commonJSModuleAliases map[string]struct{},
+) []map[string]any {
 	if argumentsNode == nil {
 		return nil
 	}
@@ -25,7 +34,7 @@ func javaScriptFunctionValueReferenceCalls(
 	walkNamed(argumentsNode, func(child *tree_sitter.Node) {
 		if !javaScriptFunctionValueReferenceNode(child) ||
 			javaScriptFunctionValueReferenceIsCallCallee(child) ||
-			javaScriptFunctionValueReferenceIsHandlerValue(child, source) {
+			javaScriptFunctionValueReferenceIsNonFastifyHandlerValue(child, source) {
 			return
 		}
 		if child.Parent() != nil && child.Parent().Kind() == "member_expression" {
@@ -87,7 +96,7 @@ func javaScriptReturnValueNode(node *tree_sitter.Node) *tree_sitter.Node {
 	return nil
 }
 
-func javaScriptFunctionValueReferenceIsHandlerValue(node *tree_sitter.Node, source []byte) bool {
+func javaScriptFunctionValueReferenceIsNonFastifyHandlerValue(node *tree_sitter.Node, source []byte) bool {
 	if node == nil {
 		return false
 	}
@@ -98,7 +107,10 @@ func javaScriptFunctionValueReferenceIsHandlerValue(node *tree_sitter.Node, sour
 	if !javaScriptNodeSameRange(parent.ChildByFieldName("value"), node) {
 		return false
 	}
-	return strings.TrimSpace(nodeText(parent.ChildByFieldName("key"), source)) == "handler"
+	if strings.Trim(strings.TrimSpace(nodeText(parent.ChildByFieldName("key"), source)), `"'`) != "handler" {
+		return false
+	}
+	return !javaScriptHasFastifyImport(string(source))
 }
 
 func javaScriptFunctionValueReferenceNode(node *tree_sitter.Node) bool {
