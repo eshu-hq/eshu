@@ -19,7 +19,7 @@ only in diagnostics sections and local graph debugging.
 | One-symbol callers/callees/imports | `get_code_relationship_story` | Ready | Resolves ambiguity first, then returns bounded direct or transitive relationship rows. |
 | Class hierarchy and overrides | `analyze_code_relationships` | Ready | Use `query_type=class_hierarchy` or `query_type=overrides`; raw Cypher examples are diagnostics-only. |
 | Call-chain prompts | `find_function_call_chain` | Ready | Use `max_depth`; compatibility through `analyze_code_relationships` is still supported. |
-| Recursive and hub-function prompts | None yet | Tracked by #360 | Keep these out of normal prompt suites until the bounded call-graph metrics tool lands. Diagnostics-only Cypher remains documented for local debugging. |
+| Recursive and hub-function prompts | `inspect_call_graph_metrics` | Ready | Requires repository scope, returns canonical `functions` rows, reports recursion or hub-degree evidence, and includes truncation metadata. |
 | Code quality and refactoring prompts | `inspect_code_quality`, `find_most_complex_functions`, `calculate_cyclomatic_complexity` | Ready | Prefer `inspect_code_quality` for list-style prompts because it returns source handles and truncation. |
 | Dead-code prompts | `investigate_dead_code` | Ready | Use the investigation packet first; `find_dead_code` remains the lower-level candidate scan. |
 | Hardcoded-secret prompts | `investigate_hardcoded_secrets` | Ready | Returns redacted evidence only, with suppression notes and paging. |
@@ -46,8 +46,8 @@ only in diagnostics sections and local graph debugging.
   Server-local paths are not portable prompt contracts.
 - Use `build_evidence_citation_packet` after story or investigation tools return
   handles instead of guessing which files to cite.
-- Keep recursive and hub-function prompts quarantined to #360 until that tool
-  lands; do not add them to starter prompt happy paths.
+- Use `inspect_call_graph_metrics` for recursive and hub-function prompts
+  instead of diagnostics-only Cypher.
 
 ## Evidence
 
@@ -58,6 +58,8 @@ No-Regression Evidence: this audit is documentation-only. It cross-checks
 `docs/docs/reference/mcp-tool-contract-matrix.md` against the current
 `ReadOnlyTools` prompt surface. Strict docs proof:
 `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`.
+Focused contract proof:
+`go test ./internal/mcp -run TestMCPPromptEpicDocsDoNotAdvertiseClosedGaps -count=1`.
 
 No-Observability-Change: this does not change runtime, API, MCP dispatch, graph
 queries, or telemetry. Existing handler spans, MCP envelope negotiation, and

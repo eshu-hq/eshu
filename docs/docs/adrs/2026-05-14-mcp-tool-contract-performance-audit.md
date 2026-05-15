@@ -123,21 +123,21 @@ tool surface:
 
 | Prompt family from docs | Primary current MCP path | Status after this PR | Remaining tracked work |
 | --- | --- | --- | --- |
-| Cross-repo service story, onboarding, runbooks | `get_service_story`, `investigate_service` | One-call dossier path from #284; keep using story first | #285 parent epic |
+| Cross-repo service story, onboarding, runbooks | `get_service_story`, `investigate_service` | One-call dossier path from #284; keep using story first | None |
 | Exact file/source evidence | `get_file_content`, `get_file_lines`, `get_entity_content` | Already scoped by repo/path or entity ID | None from this PR |
 | Content evidence search | `search_file_content`, `search_entity_content` | Bounded, paged, multi-repo query is single PostgreSQL call | None from this PR |
-| Symbol discovery and implementation lookup | `find_symbol`, `find_code`, `execute_language_query` | First-class definition lookup is bounded, paged, source-handle backed, and no longer requires raw Cypher for "where is this implemented?" prompts | #287 |
-| Broad code-topic and implementation investigation | `investigate_code_topic` | First-class content-index investigation returns ranked files, symbols, searched terms, coverage, truncation, and source/relationship follow-up handles without raw Cypher or client-side term guessing | #286 |
-| Callers, callees, imports, call chains | `get_code_relationship_story`, `find_function_call_chain`, `investigate_import_dependencies`, `inspect_call_graph_metrics` | Relationship story is bounded, ambiguity-aware, entity-anchored, paged, and exposes optional bounded transitive CALLS traversal; call-chain keeps the dedicated endpoint; import/dependency prompts now have file/module scoped graph reads for imports, importers, package imports, direct Python cycles, and cross-module calls; call-graph metrics now cover recursive and hub-function prompts with repo-scoped graph reads | #288 |
-| Dead code and code quality | `find_dead_code`, `find_most_complex_functions`, `inspect_code_quality` | Complexity, long-function, high-argument, and refactoring-candidate prompts use first-class bounded tools with source handles and truncation instead of raw Cypher | #289 |
+| Symbol discovery and implementation lookup | `find_symbol`, `find_code`, `execute_language_query` | First-class definition lookup is bounded, paged, source-handle backed, and no longer requires raw Cypher for "where is this implemented?" prompts | None |
+| Broad code-topic and implementation investigation | `investigate_code_topic` | First-class content-index investigation returns ranked files, symbols, searched terms, coverage, truncation, and source/relationship follow-up handles without raw Cypher or client-side term guessing | None |
+| Callers, callees, imports, call chains | `get_code_relationship_story`, `find_function_call_chain`, `investigate_import_dependencies`, `inspect_call_graph_metrics` | Relationship story is bounded, ambiguity-aware, entity-anchored, paged, and exposes optional bounded transitive CALLS traversal; call-chain keeps the dedicated endpoint; import/dependency prompts now have file/module scoped graph reads for imports, importers, package imports, direct Python cycles, and cross-module calls; call-graph metrics now cover recursive and hub-function prompts with repo-scoped graph reads | None |
+| Dead code and code quality | `find_dead_code`, `find_most_complex_functions`, `inspect_code_quality` | Complexity, long-function, high-argument, and refactoring-candidate prompts use first-class bounded tools with source handles and truncation instead of raw Cypher | None |
 | Class hierarchy and overrides | `analyze_code_relationships` | First-class relationship story path now returns class methods, direct parents/children, bounded inheritance-depth metadata, and target- or repo-scoped override rows without raw Cypher | None from this PR |
-| Security hardcoded secrets | `investigate_hardcoded_secrets` | First-class redacted content-index investigation with severity, confidence, suppression notes, source handles, paging, and truncation | #292 |
-| Deployment, GitOps, and resource tracing | `trace_deployment_chain`, `trace_resource_to_code`, story tools | Service story is one-call; low-level trace paths keep existing caps | #293, #294, #295 |
-| Environment comparison | `compare_environments` | Scoped workload/environment route now returns a prompt-ready story packet with shared resources, dedicated resources, evidence, limitations, coverage, and exact next calls | #296 |
+| Security hardcoded secrets | `investigate_hardcoded_secrets` | First-class redacted content-index investigation with severity, confidence, suppression notes, source handles, paging, and truncation | None |
+| Deployment, GitOps, and resource tracing | `trace_deployment_chain`, `trace_resource_to_code`, story tools | Service story is one-call; low-level trace paths keep existing caps | None |
+| Environment comparison | `compare_environments` | Scoped workload/environment route now returns a prompt-ready story packet with shared resources, dedicated resources, evidence, limitations, coverage, and exact next calls | None |
 | Package and registry prompts | `list_package_registry_packages`, `list_package_registry_versions` | Already require/cap `limit` and deterministic ordering | None from this PR |
-| Runtime and indexing status prompts | `get_index_status`, `list_ingesters`, `get_ingester_status` | Cookbook status prompts use shipped MCP tools instead of stale job-status names | #297 |
-| Documentation/confluence prompts | story routes plus `build_evidence_citation_packet` | Story-first guidance remains; exact source, docs, manifest, and deployment proof uses bounded citation packets from returned handles | #298 |
-| Structural code inventory | `inspect_code_inventory` | First-class content-index path covers functions/classes, file-local entities, top-level rows, dataclasses, documented functions, decorated methods, classes with a method, `super()` calls, and function counts per file with source handles and truncation | #362 |
+| Runtime and indexing status prompts | `get_index_status`, `list_ingesters`, `get_ingester_status` | Cookbook status prompts use shipped MCP tools instead of stale job-status names | None |
+| Documentation/confluence prompts | story routes plus `build_evidence_citation_packet` | Story-first guidance remains; exact source, docs, manifest, and deployment proof uses bounded citation packets from returned handles | None |
+| Structural code inventory | `inspect_code_inventory` | First-class content-index path covers functions/classes, file-local entities, top-level rows, dataclasses, documented functions, decorated methods, classes with a method, `super()` calls, and function counts per file with source handles and truncation | None |
 | Raw Cypher cookbook prompts | `execute_cypher_query` | Diagnostics-only, timeout-bound, server-capped, envelope-backed; cookbook happy paths no longer advertise raw Cypher as the normal MCP tool where named tools answer the prompt | None from this PR |
 
 ## Bounds And Observability
@@ -500,7 +500,7 @@ new `TestMCPCookbookKeepsRawCypherDiagnosticsOnly` test fails when the MCP
 cookbook advertises `execute_cypher_query` before the diagnostics-only section
 or when diagnostics examples omit an explicit `limit`. After the change,
 `go test ./internal/mcp -run TestMCPCookbookKeepsRawCypherDiagnosticsOnly -count=1`
-passes and the cookbook links the remaining first-class gap to #362.
+passes and the cookbook keeps raw Cypher confined to diagnostics-only examples.
 
 No-Observability-Change: issue #299 does not change MCP dispatch, HTTP query
 handlers, graph reads, spans, metrics, logs, or response payloads. Existing
@@ -528,5 +528,6 @@ callers can diagnose partial, unsupported, or paged answers from the payload.
 The documented prompt path is stricter: story and focused tools are the primary
 contracts, while raw Cypher is an inspected diagnostics escape hatch. MCP
 clients can now page content search without guessing, and explicit multi-repo
-search no longer serializes repository queries. Security prompts remain
-deliberately unsolved by raw Cypher and are tracked in #292.
+search no longer serializes repository queries. The documented #285 prompt
+families now map to named, bounded MCP routes; future gaps should reopen with a
+new issue instead of reusing the closed child tickets.
