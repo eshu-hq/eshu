@@ -66,7 +66,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainSQLRelationshipMaterialization` | Materialize canonical SQL relationship edges |
 | `DomainInheritanceMaterialization` | Materialize inheritance, override, and alias edges |
 | `DomainPackageSourceCorrelation` | Classify package-registry source hints against active repository remotes without ownership promotion |
-| `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan and unmanaged drift findings as canonical reducer facts |
+| `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan, unmanaged, unknown, and ambiguous drift findings as canonical reducer facts |
 
 ## Intent lifecycle
 
@@ -391,8 +391,9 @@ Key metrics (all prefixed `eshu_dp_`):
   `rejected`) and reducer domain.
 - `correlation_rule_matches_total`, `correlation_orphan_detected_total`, and
   `correlation_unmanaged_detected_total` — AWS runtime drift rule execution and
-  admitted orphan/unmanaged findings. ARNs stay in structured logs and fact
-  evidence, not metric labels.
+  admitted orphan/unmanaged findings. Unknown and ambiguous findings are exposed
+  in reducer summaries, admitted-finding logs, and durable fact evidence. ARNs
+  stay in structured logs and fact evidence, not metric labels.
 
 Log phase attributes: `telemetry.PhaseReduction` (main loop),
 `telemetry.PhaseShared` (shared projection and repair runner).

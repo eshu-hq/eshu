@@ -174,8 +174,10 @@ an ARN allowlist derived from that generation. For state-backed ARNs it resolves
 the `state_snapshot:<backend_kind>:<locator_hash>` owner through
 `tfstatebackend.Resolver`, loads the owning config snapshot's
 `terraform_resources`, and marks config present only when the Terraform address
-matches. Missing or ambiguous backend ownership suppresses unmanaged
-classification rather than treating unknown config as absent.
+matches. Missing backend ownership produces `unknown_cloud_resource` /
+`unknown_management` evidence; ambiguous backend ownership or multiple active
+state owners for the same ARN produces `ambiguous_cloud_resource` /
+`ambiguous_management` evidence. Neither path treats unknown config as absent.
 
 The AWS runtime drift findings reader uses the same bounded active fact read
 shape and only closes result sets with the package-standard checked defer
@@ -239,7 +241,9 @@ compatibility handoff cannot complete.
   commit status for `/admin/status`
 - `PostgresAWSCloudRuntimeDriftEvidenceLoader` — bounded AWS resource →
   active Terraform state → owned Terraform config join for the
-  `aws_cloud_runtime_drift` reducer domain
+  `aws_cloud_runtime_drift` reducer domain, including explicit unknown and
+  ambiguous owner evidence when coverage or deterministic owner signals are
+  insufficient
 
 **Content stores**
 

@@ -86,6 +86,84 @@ func TestBuildCandidatesPreservesRawTagsAsEvidence(t *testing.T) {
 	}
 }
 
+func TestBuildCandidatesKeepsWeakTagsAsProvenanceOnly(t *testing.T) {
+	t.Parallel()
+
+	arn := "arn:aws:ecs:us-east-1:123456789012:service/prod/api"
+	candidates := BuildCandidates([]AddressedRow{{
+		ARN:          arn,
+		ResourceType: "aws_ecs_service",
+		Cloud: &ResourceRow{
+			ARN: arn,
+			Tags: map[string]string{
+				"Name":    "module.api.aws_ecs_service.this",
+				"Service": "api",
+			},
+		},
+	}}, "aws_account:123456789012:us-east-1")
+
+	if len(candidates) != 1 {
+		t.Fatalf("len(BuildCandidates()) = %d, want 1", len(candidates))
+	}
+	if got, want := findingKindValue(candidates[0]), string(FindingKindOrphanedCloudResource); got != want {
+		t.Fatalf("finding kind = %q, want %q", got, want)
+	}
+	if hasEvidenceType(candidates[0], EvidenceTypeStateResource) {
+		t.Fatalf("weak tag/name evidence promoted to %q ownership evidence", EvidenceTypeStateResource)
+	}
+}
+
+func TestBuildCandidatesEmitsUnknownAndAmbiguousManagementEvidence(t *testing.T) {
+	t.Parallel()
+
+	unknownARN := "arn:aws:lambda:us-east-1:123456789012:function:worker"
+	ambiguousARN := "arn:aws:s3:::shared-bucket"
+	candidates := BuildCandidates([]AddressedRow{
+		{
+			ARN:              unknownARN,
+			ResourceType:     "aws_lambda_function",
+			Cloud:            &ResourceRow{ARN: unknownARN},
+			State:            &ResourceRow{ARN: unknownARN, Address: "aws_lambda_function.worker"},
+			FindingKind:      FindingKindUnknownCloudResource,
+			ManagementStatus: ManagementStatusUnknown,
+			MissingEvidence:  []string{"terraform_config_owner"},
+			WarningFlags:     []string{"unresolved_terraform_backend_owner"},
+		},
+		{
+			ARN:              ambiguousARN,
+			ResourceType:     "aws_s3_bucket",
+			Cloud:            &ResourceRow{ARN: ambiguousARN},
+			State:            &ResourceRow{ARN: ambiguousARN, Address: "aws_s3_bucket.shared"},
+			FindingKind:      FindingKindAmbiguousCloudResource,
+			ManagementStatus: ManagementStatusAmbiguous,
+			MissingEvidence:  []string{"single_terraform_state_owner"},
+			WarningFlags:     []string{"ambiguous_terraform_state_owner"},
+		},
+	}, "aws_account:123456789012:us-east-1")
+
+	if len(candidates) != 2 {
+		t.Fatalf("len(BuildCandidates()) = %d, want 2", len(candidates))
+	}
+	byKind := map[string]model.Candidate{}
+	for _, candidate := range candidates {
+		byKind[findingKindValue(candidate)] = candidate
+	}
+	ambiguous := byKind[string(FindingKindAmbiguousCloudResource)]
+	unknown := byKind[string(FindingKindUnknownCloudResource)]
+	if ambiguous.ID == "" {
+		t.Fatalf("missing %q candidate", FindingKindAmbiguousCloudResource)
+	}
+	if unknown.ID == "" {
+		t.Fatalf("missing %q candidate", FindingKindUnknownCloudResource)
+	}
+	if !hasEvidenceType(ambiguous, EvidenceTypeAmbiguousManagement) {
+		t.Fatalf("ambiguous candidate missing %q evidence", EvidenceTypeAmbiguousManagement)
+	}
+	if !hasEvidenceType(unknown, EvidenceTypeCoverageGap) {
+		t.Fatalf("unknown candidate missing %q evidence", EvidenceTypeCoverageGap)
+	}
+}
+
 func TestBuildCandidatesValidatesStructuralEvidenceWithRulePack(t *testing.T) {
 	t.Parallel()
 
@@ -117,4 +195,13 @@ func hasEvidenceType(candidate model.Candidate, evidenceType string) bool {
 		}
 	}
 	return false
+}
+
+func findingKindValue(candidate model.Candidate) string {
+	for _, atom := range candidate.Evidence {
+		if atom.EvidenceType == EvidenceTypeFindingKind {
+			return atom.Value
+		}
+	}
+	return ""
 }

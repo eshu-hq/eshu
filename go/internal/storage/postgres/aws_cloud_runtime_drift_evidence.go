@@ -101,16 +101,22 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) LoadAWSCloudRuntimeDriftEvid
 			if row.State == nil {
 				row.State = stateRow.resource
 			}
+			if awsRuntimeHasConflictingStateRows(stateByARN[arn]) {
+				row.FindingKind = cloudruntime.FindingKindAmbiguousCloudResource
+				row.ManagementStatus = cloudruntime.ManagementStatusAmbiguous
+				row.MissingEvidence = append(row.MissingEvidence, "single_terraform_state_owner")
+				row.WarningFlags = append(row.WarningFlags, "ambiguous_terraform_state_owner")
+				continue
+			}
 			config, ok := configByStateScope[stateRow.scopeID]
 			if !ok {
 				continue
 			}
-			if config.unknownOwner {
-				row.Config = &cloudruntime.ResourceRow{
-					ARN:          arn,
-					Address:      stateRow.resource.Address,
-					ResourceType: stateRow.resource.ResourceType,
-				}
+			if config.ownerIssue != "" {
+				row.FindingKind = config.ownerIssue
+				row.ManagementStatus = awsRuntimeManagementStatusForOwnerIssue(config.ownerIssue)
+				row.MissingEvidence = append(row.MissingEvidence, awsRuntimeMissingEvidenceForOwnerIssue(config.ownerIssue))
+				row.WarningFlags = append(row.WarningFlags, awsRuntimeWarningFlagForOwnerIssue(config.ownerIssue))
 				continue
 			}
 			if configRow := config.byAddress[stateRow.resource.Address]; configRow != nil {
@@ -207,8 +213,8 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadActiveStateResourcesByAR
 }
 
 type awsRuntimeConfigRows struct {
-	byAddress    map[string]*cloudruntime.ResourceRow
-	unknownOwner bool
+	byAddress  map[string]*cloudruntime.ResourceRow
+	ownerIssue cloudruntime.FindingKind
 }
 
 func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadConfigByStateScope(
@@ -223,14 +229,22 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadConfigByStateScope(
 			}
 			backendKind, locatorHash, ok := parseStateSnapshotScope(stateRow.scopeID)
 			if !ok || l.ConfigResolver == nil {
-				out[stateRow.scopeID] = awsRuntimeConfigRows{unknownOwner: true}
+				out[stateRow.scopeID] = awsRuntimeConfigRows{
+					ownerIssue: cloudruntime.FindingKindUnknownCloudResource,
+				}
 				continue
 			}
 			anchor, err := l.ConfigResolver.ResolveConfigCommitForBackend(ctx, backendKind, locatorHash)
 			switch {
-			case errors.Is(err, tfstatebackend.ErrNoConfigRepoOwnsBackend),
-				errors.Is(err, tfstatebackend.ErrAmbiguousBackendOwner):
-				out[stateRow.scopeID] = awsRuntimeConfigRows{unknownOwner: true}
+			case errors.Is(err, tfstatebackend.ErrAmbiguousBackendOwner):
+				out[stateRow.scopeID] = awsRuntimeConfigRows{
+					ownerIssue: cloudruntime.FindingKindAmbiguousCloudResource,
+				}
+				continue
+			case errors.Is(err, tfstatebackend.ErrNoConfigRepoOwnsBackend):
+				out[stateRow.scopeID] = awsRuntimeConfigRows{
+					ownerIssue: cloudruntime.FindingKindUnknownCloudResource,
+				}
 				continue
 			case err != nil:
 				return nil, fmt.Errorf("resolve aws runtime drift config owner: %w", err)
@@ -243,6 +257,60 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadConfigByStateScope(
 		}
 	}
 	return out, nil
+}
+
+func awsRuntimeHasConflictingStateRows(rows []awsRuntimeStateResourceRow) bool {
+	if len(rows) < 2 {
+		return false
+	}
+	first := awsRuntimeStateConflictKey(rows[0])
+	for _, row := range rows[1:] {
+		if awsRuntimeStateConflictKey(row) != first {
+			return true
+		}
+	}
+	return false
+}
+
+func awsRuntimeStateConflictKey(row awsRuntimeStateResourceRow) string {
+	return strings.Join([]string{
+		strings.TrimSpace(row.scopeID),
+		strings.TrimSpace(row.generationID),
+		strings.TrimSpace(row.resource.Address),
+	}, "\x00")
+}
+
+func awsRuntimeManagementStatusForOwnerIssue(kind cloudruntime.FindingKind) string {
+	switch kind {
+	case cloudruntime.FindingKindAmbiguousCloudResource:
+		return cloudruntime.ManagementStatusAmbiguous
+	case cloudruntime.FindingKindUnknownCloudResource:
+		return cloudruntime.ManagementStatusUnknown
+	default:
+		return ""
+	}
+}
+
+func awsRuntimeMissingEvidenceForOwnerIssue(kind cloudruntime.FindingKind) string {
+	switch kind {
+	case cloudruntime.FindingKindAmbiguousCloudResource:
+		return "single_terraform_config_owner"
+	case cloudruntime.FindingKindUnknownCloudResource:
+		return "terraform_config_owner"
+	default:
+		return ""
+	}
+}
+
+func awsRuntimeWarningFlagForOwnerIssue(kind cloudruntime.FindingKind) string {
+	switch kind {
+	case cloudruntime.FindingKindAmbiguousCloudResource:
+		return "ambiguous_terraform_backend_owner"
+	case cloudruntime.FindingKindUnknownCloudResource:
+		return "unresolved_terraform_backend_owner"
+	default:
+		return ""
+	}
 }
 
 func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadConfigRowsForAnchor(

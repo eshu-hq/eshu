@@ -17,6 +17,8 @@ import (
 type Summary struct {
 	OrphanedResources  int
 	UnmanagedResources int
+	AmbiguousResources int
+	UnknownResources   int
 }
 
 // RecordEvaluation emits bounded metrics for one AWS cloud-runtime drift
@@ -35,6 +37,10 @@ func RecordEvaluation(ctx context.Context, instruments *telemetry.Instruments, e
 		case FindingKindUnmanagedCloudResource:
 			summary.UnmanagedResources++
 			recordFindingCounter(ctx, instruments, instrumentsCounterUnmanaged)
+		case FindingKindAmbiguousCloudResource:
+			summary.AmbiguousResources++
+		case FindingKindUnknownCloudResource:
+			summary.UnknownResources++
 		}
 	}
 	return summary

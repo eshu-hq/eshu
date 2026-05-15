@@ -17,6 +17,8 @@ import (
 const (
 	findingKindUnmanagedCloudResource = "unmanaged_cloud_resource"
 	findingKindOrphanedCloudResource  = "orphaned_cloud_resource"
+	findingKindUnknownCloudResource   = "unknown_cloud_resource"
+	findingKindAmbiguousCloudResource = "ambiguous_cloud_resource"
 )
 
 // IaCManagementStore reads reducer-materialized cloud management findings.
@@ -260,7 +262,12 @@ func normalizeIaCManagementRequest(req iacManagementRequest) (IaCManagementFilte
 		filter.Offset = 0
 	}
 	if len(filter.FindingKinds) == 0 {
-		filter.FindingKinds = []string{findingKindOrphanedCloudResource, findingKindUnmanagedCloudResource}
+		filter.FindingKinds = []string{
+			findingKindAmbiguousCloudResource,
+			findingKindOrphanedCloudResource,
+			findingKindUnmanagedCloudResource,
+			findingKindUnknownCloudResource,
+		}
 	}
 	return filter, nil
 }
@@ -289,8 +296,10 @@ func validAWSRegion(region string) bool {
 
 func normalizeIaCManagementFindingKinds(raw []string) ([]string, error) {
 	allowed := map[string]bool{
+		findingKindAmbiguousCloudResource: true,
 		findingKindOrphanedCloudResource:  true,
 		findingKindUnmanagedCloudResource: true,
+		findingKindUnknownCloudResource:   true,
 	}
 	seen := map[string]struct{}{}
 	var kinds []string

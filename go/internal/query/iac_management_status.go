@@ -79,6 +79,10 @@ func deriveIaCManagementStatus(input iacManagementStatusInput) string {
 	case findingKindUnmanagedCloudResource:
 		input.HasCloudEvidence = true
 		input.HasTerraformStateEvidence = true
+	case findingKindAmbiguousCloudResource:
+		input.HasConflictingEvidence = true
+	case findingKindUnknownCloudResource:
+		input.HasCoverageGapEvidence = true
 	}
 
 	if input.HasConflictingEvidence ||

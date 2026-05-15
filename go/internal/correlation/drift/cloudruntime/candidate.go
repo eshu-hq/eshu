@@ -25,12 +25,24 @@ const (
 	EvidenceTypeFindingKind = "aws_cloud_runtime_finding_kind"
 	// EvidenceTypeRawTag marks raw AWS tag evidence for DSL normalization.
 	EvidenceTypeRawTag = "aws_raw_tag"
+	// EvidenceTypeManagementStatus marks the query-facing management status
+	// derived from deterministic evidence matching.
+	EvidenceTypeManagementStatus = "iac_management_status"
+	// EvidenceTypeCoverageGap marks missing collector coverage or permissions
+	// that prevent ownership proof.
+	EvidenceTypeCoverageGap = "collector_coverage_gap"
+	// EvidenceTypeAmbiguousManagement marks conflicting deterministic ownership
+	// evidence for one stable cloud identity.
+	EvidenceTypeAmbiguousManagement = "ambiguous_management_conflict"
+	// EvidenceTypeWarningFlag carries reducer warning flags for the read model.
+	EvidenceTypeWarningFlag = "iac_management_warning"
 )
 
 const (
 	evidenceKeyARN         = "arn"
 	evidenceKeyAddress     = "resource_address"
 	evidenceKeyFindingKind = "finding_kind"
+	evidenceKeyStatus      = "management_status"
 	driftSourceSystem      = "reducer/aws_cloud_runtime_drift"
 	driftConfidence        = 1.0
 )
@@ -38,11 +50,16 @@ const (
 // AddressedRow couples one ARN with the optional AWS cloud, Terraform-state,
 // and Terraform-config views the classifier needs.
 type AddressedRow struct {
-	ARN          string
-	ResourceType string
-	Cloud        *ResourceRow
-	State        *ResourceRow
-	Config       *ResourceRow
+	ARN               string
+	ResourceType      string
+	Cloud             *ResourceRow
+	State             *ResourceRow
+	Config            *ResourceRow
+	FindingKind       FindingKind
+	ManagementStatus  string
+	MissingEvidence   []string
+	WarningFlags      []string
+	RecommendedAction string
 }
 
 // BuildCandidates produces one candidate per AWS runtime finding, keyed by
@@ -64,7 +81,10 @@ func BuildCandidates(rows []AddressedRow, scopeID string) []model.Candidate {
 		if arn == "" {
 			continue
 		}
-		kind := Classify(row.Cloud, row.State, row.Config)
+		kind := row.FindingKind
+		if kind == "" {
+			kind = Classify(row.Cloud, row.State, row.Config)
+		}
 		if kind == "" {
 			continue
 		}
@@ -99,6 +119,7 @@ func buildOneCandidate(row AddressedRow, arn string, kind FindingKind, scopeID s
 	evidence = appendResourceEvidence(evidence, candidateID, "/state", row.State, EvidenceTypeStateResource, scopeID)
 	evidence = appendResourceEvidence(evidence, candidateID, "/config", row.Config, EvidenceTypeConfigResource, scopeID)
 	evidence = appendRawTagEvidence(evidence, candidateID, row.Cloud, scopeID)
+	evidence = appendManagementEvidence(evidence, candidateID, row, kind, scopeID)
 
 	return model.Candidate{
 		ID:             candidateID,
@@ -108,6 +129,63 @@ func buildOneCandidate(row AddressedRow, arn string, kind FindingKind, scopeID s
 		State:          model.CandidateStateProvisional,
 		Evidence:       evidence,
 	}
+}
+
+func appendManagementEvidence(
+	evidence []model.EvidenceAtom,
+	candidateID string,
+	row AddressedRow,
+	kind FindingKind,
+	fallbackScopeID string,
+) []model.EvidenceAtom {
+	status := strings.TrimSpace(row.ManagementStatus)
+	if status == "" {
+		status = managementStatusForFinding(kind)
+	}
+	if status != "" {
+		evidence = append(evidence, model.EvidenceAtom{
+			ID:           candidateID + "/management_status",
+			SourceSystem: driftSourceSystem,
+			EvidenceType: EvidenceTypeManagementStatus,
+			ScopeID:      scopeFor(row.Cloud, fallbackScopeID),
+			Key:          evidenceKeyStatus,
+			Value:        status,
+			Confidence:   driftConfidence,
+		})
+	}
+
+	for _, missing := range sortedNonEmpty(row.MissingEvidence) {
+		evidenceType := "missing_evidence"
+		if status == ManagementStatusUnknown {
+			evidenceType = EvidenceTypeCoverageGap
+		}
+		evidence = append(evidence, model.EvidenceAtom{
+			ID:           candidateID + "/missing/" + missing,
+			SourceSystem: driftSourceSystem,
+			EvidenceType: evidenceType,
+			ScopeID:      scopeFor(row.Cloud, fallbackScopeID),
+			Key:          "missing_evidence",
+			Value:        missing,
+			Confidence:   driftConfidence,
+		})
+	}
+
+	for _, warning := range sortedNonEmpty(row.WarningFlags) {
+		evidenceType := EvidenceTypeWarningFlag
+		if status == ManagementStatusAmbiguous {
+			evidenceType = EvidenceTypeAmbiguousManagement
+		}
+		evidence = append(evidence, model.EvidenceAtom{
+			ID:           candidateID + "/warning/" + warning,
+			SourceSystem: driftSourceSystem,
+			EvidenceType: evidenceType,
+			ScopeID:      scopeFor(row.Cloud, fallbackScopeID),
+			Key:          "warning_flag",
+			Value:        warning,
+			Confidence:   driftConfidence,
+		})
+	}
+	return evidence
 }
 
 func appendResourceEvidence(
@@ -191,4 +269,40 @@ func scopeFor(row *ResourceRow, fallback string) string {
 		}
 	}
 	return strings.TrimSpace(fallback)
+}
+
+func managementStatusForFinding(kind FindingKind) string {
+	switch kind {
+	case FindingKindOrphanedCloudResource:
+		return ManagementStatusCloudOnly
+	case FindingKindUnmanagedCloudResource:
+		return ManagementStatusTerraformStateOnly
+	case FindingKindUnknownCloudResource:
+		return ManagementStatusUnknown
+	case FindingKindAmbiguousCloudResource:
+		return ManagementStatusAmbiguous
+	default:
+		return ""
+	}
+}
+
+func sortedNonEmpty(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
 }
