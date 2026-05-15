@@ -5,9 +5,11 @@ Read these files first:
 1. `doc.go`
 2. `config.go`
 3. `handler.go`
-4. `handler_observability_test.go`
-5. `main.go`
-6. `handler_test.go`
+4. `aws_freshness_handler.go`
+5. `handler_observability_test.go`
+6. `main.go`
+7. `handler_test.go`
+8. `aws_freshness_handler_test.go`
 
 ## Invariants
 
@@ -17,6 +19,8 @@ Read these files first:
 - Keep request body limits and provider authentication before normalization.
 - Keep repository names, delivery IDs, branch names, and SHAs out of metric
   labels. Use logs or spans for that detail.
+- Keep AWS resource names, IDs, ARNs, tags, and raw payloads out of metric
+  labels. AWS freshness metrics use only bounded `kind` and `action` labels.
 - Keep public ingress limited to provider webhook routes.
 
 ## Common Changes
@@ -24,6 +28,8 @@ Read these files first:
 - Add provider configuration in `config.go`.
 - Add provider route behavior in `handler.go` and cover it in
   `handler_test.go`.
+- Add AWS freshness route behavior in `aws_freshness_handler.go` and cover it
+  in `aws_freshness_handler_test.go`.
 - Add or change OTEL behavior in `handler.go` and cover it in
   `handler_observability_test.go`.
 - Add runtime startup wiring in `main.go` only after the handler/store contract

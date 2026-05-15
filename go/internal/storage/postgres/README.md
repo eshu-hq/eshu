@@ -360,7 +360,8 @@ compatibility handoff cannot complete.
   `MarkTriggersFailed`, and `WebhookTriggerSchemaSQL`
 - `AWSFreshnessStore` / `NewAWSFreshnessStore` —
   coalesced AWS Config/EventBridge freshness triggers with
-  `AWSFreshnessSchemaSQL`
+  `AWSFreshnessSchemaSQL`; `StatusStore` also reads aggregate freshness trigger
+  counts and oldest queued age for `/admin/status`
 
 **Schema bootstrap**
 

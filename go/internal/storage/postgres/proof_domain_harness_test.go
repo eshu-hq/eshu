@@ -213,6 +213,10 @@ func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...a
 		// not exercised by the proof harness; return empty rows so the wider
 		// status snapshot can still resolve.
 		return newProofRows(nil), nil
+	case query == awsFreshnessStatusCountsQuery:
+		return newProofRows(nil), nil
+	case query == awsFreshnessOldestQueuedAgeQuery:
+		return newProofRows([][]any{{float64(0)}}), nil
 	case strings.Contains(query, "FROM fact_records"):
 		if len(args) != 2 {
 			return nil, fmt.Errorf("list facts args = %d, want 2", len(args))

@@ -59,12 +59,27 @@ func run(parent context.Context) error {
 		return err
 	}
 
-	metrics, err := coordinator.NewMetrics(providers.MeterProvider.Meter(telemetry.DefaultSignalName))
+	meter := providers.MeterProvider.Meter(telemetry.DefaultSignalName)
+	metrics, err := coordinator.NewMetrics(meter)
 	if err != nil {
 		return fmt.Errorf("coordinator metrics: %w", err)
 	}
+	instruments, err := telemetry.NewInstruments(meter)
+	if err != nil {
+		return fmt.Errorf("telemetry instruments: %w", err)
+	}
 
 	store := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: db})
+	awsFreshnessDB := &postgres.InstrumentedDB{
+		Inner:       postgres.SQLDB{DB: db},
+		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
+		Instruments: instruments,
+		StoreName:   "aws_freshness_triggers",
+	}
+	awsFreshnessStore := postgres.NewAWSFreshnessStore(awsFreshnessDB)
+	if err := awsFreshnessStore.EnsureSchema(parent); err != nil {
+		return err
+	}
 	serviceRunner := coordinator.Service{
 		Config: cfg,
 		Store:  store,
@@ -74,6 +89,9 @@ func run(parent context.Context) error {
 		},
 		OCIRegistryPlanner:     coordinator.OCIRegistryWorkPlanner{},
 		PackageRegistryPlanner: coordinator.PackageRegistryWorkPlanner{},
+		AWSFreshnessTriggers:   awsFreshnessStore,
+		AWSFreshnessPlanner:    coordinator.AWSFreshnessWorkPlanner{},
+		AWSFreshnessEvents:     instruments.AWSFreshnessEvents,
 		Metrics:                metrics,
 		Logger:                 logger,
 	}

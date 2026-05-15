@@ -440,6 +440,9 @@ service. Those rows separate scanner status from fact commit status and include
 API call counts, throttle counts, warning counts, and budget/credential flags.
 When the row cap is reached, JSON sets `aws_cloud_scans_truncated` and reports
 the cap in `aws_cloud_scan_limit`; text output includes the same limit line.
+AWS freshness triggers appear as aggregate `aws_freshness` status counts plus
+oldest queued age. The CLI/status surface does not print event IDs, resource
+IDs, ARNs, or raw AWS payloads.
 
 Queue a full workspace rebuild on a deployed ingester:
 

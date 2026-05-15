@@ -91,6 +91,8 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `AWSFreshnessWorkPlanner` — plans targeted AWS collection runs from claimed
   freshness triggers. Each unique `(account_id, region, service_kind)` target
   becomes one normal AWS collector claim.
+- `AWSFreshnessTriggerStore` — claim, handed-off, and failed-state operations
+  for the coalesced `aws_freshness_triggers` handoff queue.
 
 ## Dependencies
 
@@ -162,6 +164,9 @@ warning (`collector_instance_drift_detected`, fields
   is violated.
 - AWS freshness planning rejects targets that are not present in the collector
   instance `target_scopes`; provider events cannot widen configured AWS access.
+- AWS freshness handoff claims at most 100 coalesced triggers per reconcile
+  tick and uses the existing workflow work-item queue; it does not bypass
+  collector claim fairness or create graph writes directly.
 - `HeartbeatInterval` must be strictly less than `ClaimLeaseTTL` or
   `Validate` returns an error.
 - The reap ticker is nil in dark mode. `tickerChan(nil)` returns a nil channel

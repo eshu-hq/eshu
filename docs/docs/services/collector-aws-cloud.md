@@ -222,6 +222,22 @@ names one resource, the collector rescans the affected service tuple so
 relationships, tags, and dependent metadata stay consistent with the normal
 snapshot path. Wildcard regions and services are rejected.
 
+`eshu-webhook-listener` exposes the intake route when
+`ESHU_AWS_FRESHNESS_TOKEN` is set. The default path is
+`/webhooks/aws/eventbridge`; override it with `ESHU_AWS_FRESHNESS_PATH`.
+EventBridge API destinations can pass either `Authorization: Bearer <token>` or
+`X-Eshu-AWS-Freshness-Token: <token>`. The listener accepts AWS Config
+configuration-item changes and EventBridge CloudTrail API-call events, stores
+only the normalized trigger, and never writes graph truth directly.
+
+The workflow coordinator owns handoff. In active claim mode it claims queued
+freshness rows, verifies the target is allowed by the AWS collector instance
+`target_scopes`, enqueues normal AWS workflow work, then marks the trigger
+`handed_off` or `failed`. `/admin/status?format=json` includes
+`aws_freshness.status_counts` and `aws_freshness.oldest_queued_age_seconds` so
+operators can see whether freshness triggers are piling up before assuming a
+full scan is needed.
+
 ## Supported Scanner Families
 
 The production scanner registry currently covers:

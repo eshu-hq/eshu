@@ -171,6 +171,11 @@ webhookListener:
     path: /webhooks/bitbucket
     secretName: ""
     secretKey: secret
+  awsFreshness:
+    enabled: false
+    path: /webhooks/aws/eventbridge
+    secretName: ""
+    tokenKey: token
   exposure:
     ingress:
       enabled: false

@@ -4,9 +4,10 @@
 
 1. `doc.go` - package contract.
 2. `types.go` - trigger, target, and durable key rules.
-3. `README.md` - flow, invariants, and telemetry notes.
-4. `../README.md` - AWS collector fact and boundary contract.
-5. `../../../workflow/README.md` - workflow claim lifecycle.
+3. `eventbridge.go` - AWS Config/EventBridge normalization rules.
+4. `README.md` - flow, invariants, and telemetry notes.
+5. `../README.md` - AWS collector fact and boundary contract.
+6. `../../../workflow/README.md` - workflow claim lifecycle.
 
 ## Invariants
 
@@ -18,6 +19,8 @@
   in runtime adapters.
 - Do not put resource ARNs, names, IDs, tags, or raw event payloads in metric
   labels.
+- Preserve `aws-global` normalization for IAM, Route 53, and CloudFront so
+  global provider events target the same claim boundary as scheduled scans.
 
 ## Common Changes
 

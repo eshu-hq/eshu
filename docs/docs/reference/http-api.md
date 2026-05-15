@@ -176,6 +176,10 @@ whether the latest published Go checkpoint is finished.
   count, throttle count, warning count, and budget/credential flags. When the
   result reaches the configured row cap, the payload sets
   `aws_cloud_scans_truncated` and reports that cap in `aws_cloud_scan_limit`.
+  AWS Config/EventBridge freshness backlog appears under `aws_freshness` with
+  aggregate `status_counts`, `oldest_queued_age`, and
+  `oldest_queued_age_seconds`; event IDs, resource IDs, ARNs, and raw payloads
+  stay out of the admin contract.
 - `GET /api/v0/status/index` returns the current checkpoint summary.
 - `GET /api/v0/index-status` returns the same checkpoint summary.
 - `GET /api/v0/status/ingesters` is the canonical ingester-status list route.

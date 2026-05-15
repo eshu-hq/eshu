@@ -49,6 +49,9 @@ type Service struct {
 	TerraformStatePlanner  TerraformStatePlanner
 	OCIRegistryPlanner     OCIRegistryPlanner
 	PackageRegistryPlanner PackageRegistryPlanner
+	AWSFreshnessTriggers   AWSFreshnessTriggerStore
+	AWSFreshnessPlanner    AWSFreshnessPlanner
+	AWSFreshnessEvents     awsFreshnessEventCounter
 	Clock                  func() time.Time
 }
 
@@ -173,6 +176,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.schedulePackageRegistryWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.scheduleAWSFreshnessWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
