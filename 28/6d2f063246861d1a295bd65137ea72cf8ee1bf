@@ -1,0 +1,23 @@
+apps/console/src/serviceRelationshipWorkbench.css
+  s_9ea8c2f1d908a2::t_0bad2ad80d4e7f 63,80-103,107,111-144,149-152,156-164,173,199,264,267-268,270-282,291-328,335-381,392-405
+apps/console/src/pages/ServiceRelationshipWorkbench.test.tsx
+  s_9ea8c2f1d908a2::t_b773ea44e529b4 17-20,23-43,53-69,78-81,83-84,86-95,101,205-211
+apps/console/src/pages/ServiceRelationshipInspector.tsx
+  s_9ea8c2f1d908a2::t_c90ff0be4ae3f4 1-366
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "286d2f063246861d1a295bd65137ea72cf8ee1bf",
+  "prompts": {},
+  "sessions": {
+    "s_9ea8c2f1d908a2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2dc2-041b-7b93-97ec-17c35afd72e7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
