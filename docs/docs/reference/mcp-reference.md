@@ -52,6 +52,7 @@ These are the most commonly used tools for understanding code.
 | :--- | :--- | :--- |
 | **`find_code`** | Search for code by name or fuzzy text. | "Where is the `User` class defined?" |
 | **`find_symbol`** | Find exact or fuzzy symbol definitions with `source_handle`, `truncated`, and `ambiguity` metadata. | "Where is `process_payment` implemented?" |
+| **`inspect_code_inventory`** | List bounded structural inventory from the content index: functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, class-method matches, `super()` calls, and function counts per file. | "Find all dataclasses in this repo." |
 | **`investigate_code_topic`** | Investigate broad behavior or implementation topics with ranked files, symbols, coverage, truncation, and exact next-call handles. | "Find the code paths responsible for repo sync authentication." |
 | **`get_code_relationship_story`** | Resolve one symbol or entity id, return ambiguity candidates, then fetch bounded callers, callees, imports, or transitive CALLS edges with truncation metadata. | "Who calls `process_payment`, and show me if the name is ambiguous." |
 | **`analyze_code_relationships`** | Bounded relationship analysis for callers, callees, imports, class hierarchy, and overrides. | "Show methods and subclasses for `Base`, then list overridden methods." |

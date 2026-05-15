@@ -63,6 +63,11 @@
   Why: the dispatch route test will catch a missing route;
   the `ReadOnlyTools` count test will catch a count mismatch.
 
+- **Structural inventory tools** → keep `inspect_code_inventory` as a thin
+  dispatch path to `POST /api/v0/code/structure/inventory`. Do not add
+  content-index filtering or raw Cypher in MCP; the query handler owns bounds,
+  truth metadata, and source handles.
+
 - **Change an existing tool's argument mapping** → update `resolveRoute` in
   `dispatch.go`, update the matching `tools_*.go` `InputSchema`, and update or
   add a test in `dispatch_test.go`. Why: the `InputSchema` is the advertised

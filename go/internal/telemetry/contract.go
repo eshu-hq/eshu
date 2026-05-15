@@ -170,6 +170,7 @@ const (
 	SpanQueryIaCManagementStatus          = "query.iac_management_status"
 	SpanQueryIaCManagementExplanation     = "query.iac_management_explanation"
 	SpanQueryInfraResourceSearch          = "query.infra_resource_search"
+	SpanQueryCodeStructuralInventory      = "query.code_structural_inventory"
 	SpanQueryCodeTopicInvestigation       = "query.code_topic_investigation"
 	SpanQueryDeadCodeInvestigation        = "query.dead_code_investigation"
 	SpanQueryChangeSurfaceInvestigation   = "query.change_surface_investigation"

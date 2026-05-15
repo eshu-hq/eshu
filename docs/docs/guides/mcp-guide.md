@@ -174,6 +174,7 @@ assumptions from a partial code snapshot.
 | "Compare prod and staging" | `compare_environments` |
 | "What does this repo contain?" | `get_repo_context` |
 | "Find the code paths involved in this behavior" | `investigate_code_topic` |
+| "List functions/classes, dataclasses, decorated methods, top-level file elements, or `super()` calls" | `inspect_code_inventory` |
 | "Why does this deployment or dependency edge exist?" | `get_relationship_evidence` with the `resolved_id` from `deployment_evidence` |
 | "Tell me the Internet-to-cloud-to-code story for this repo" | `get_repo_story` |
 | "Tell me the deployment story for this workload or service" | `get_workload_story`, `get_service_story` |
@@ -299,6 +300,7 @@ For programming prompts, keep using the code-query tools directly:
 
 - `find_code`
 - `find_symbol`
+- `inspect_code_inventory`
 - `get_code_relationship_story`
 - `analyze_code_relationships`
 - `calculate_cyclomatic_complexity`
@@ -312,7 +314,7 @@ For programming prompts, keep using the code-query tools directly:
 - `list_package_registry_packages`
 - `list_package_registry_versions`
 
-Those remain the primary public contract for callers/callees/class hierarchy/import/complexity/dead-code, dead-IaC, and package registry identity questions. Use `investigate_dead_code` first for dead-code prompts because it returns coverage, language maturity, exactness blockers, source handles, and conservative ambiguous buckets for JavaScript/TypeScript precision risk. Use `get_code_relationship_story` first for one-symbol caller, callee, import, and bounded transitive CALLS prompts because it returns ambiguity and truncation metadata in one response. The service and repository story tools are for end-to-end narratives, not a replacement for the focused query tools.
+Those remain the primary public contract for structural inventory, callers/callees/class hierarchy/import/complexity/dead-code, dead-IaC, and package registry identity questions. Use `inspect_code_inventory` first for functions/classes, dataclasses, documented functions, decorated methods, `super()` calls, and function counts per file. Use `investigate_dead_code` first for dead-code prompts because it returns coverage, language maturity, exactness blockers, source handles, and conservative ambiguous buckets for JavaScript/TypeScript precision risk. Use `get_code_relationship_story` first for one-symbol caller, callee, import, and bounded transitive CALLS prompts because it returns ambiguity and truncation metadata in one response. The service and repository story tools are for end-to-end narratives, not a replacement for the focused query tools.
 
 ## Repository access handoff
 

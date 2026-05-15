@@ -340,6 +340,26 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatal("SymbolSearchResult missing source_handle")
 	}
 
+	structuralInventoryPath := mustMapField(t, paths, "/api/v0/code/structure/inventory")
+	structuralInventoryPost := mustMapField(t, structuralInventoryPath, "post")
+	structuralInventoryBody := mustMapField(t, mustMapField(t, structuralInventoryPost, "requestBody"), "content")
+	structuralInventoryJSON := mustMapField(t, structuralInventoryBody, "application/json")
+	structuralInventoryRequest := mustMapField(t, mustMapField(t, structuralInventoryJSON, "schema"), "properties")
+	for _, field := range []string{"repo_id", "language", "inventory_kind", "entity_kind", "file_path", "symbol", "decorator", "method_name", "class_name", "limit", "offset"} {
+		if _, ok := structuralInventoryRequest[field]; !ok {
+			t.Fatalf("code/structure/inventory request schema missing %s", field)
+		}
+	}
+	structuralInventoryResponses := mustMapField(t, structuralInventoryPost, "responses")
+	structuralInventoryOK := mustMapField(t, structuralInventoryResponses, "200")
+	structuralInventoryContent := mustMapField(t, mustMapField(t, structuralInventoryOK, "content"), "application/json")
+	structuralInventoryResponse := mustMapField(t, mustMapField(t, structuralInventoryContent, "schema"), "properties")
+	for _, field := range []string{"results", "matches", "truncated", "next_offset", "source_backend"} {
+		if _, ok := structuralInventoryResponse[field]; !ok {
+			t.Fatalf("code/structure/inventory response schema missing %s", field)
+		}
+	}
+
 	topicInvestigationPath := mustMapField(t, paths, "/api/v0/code/topics/investigate")
 	topicInvestigationPost := mustMapField(t, topicInvestigationPath, "post")
 	topicInvestigationBody := mustMapField(t, mustMapField(t, topicInvestigationPost, "requestBody"), "content")

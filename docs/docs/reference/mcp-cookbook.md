@@ -126,10 +126,10 @@ raw Cypher or repeat broad content searches without narrowing the topic.
 
 > "Find all functions with the `log_decorator`."
 
-**Tool:** `analyze_code_relationships`
+**Tool:** `inspect_code_inventory`
 
 ```json
-{ "query_type": "find_functions_by_decorator", "target": "log_decorator" }
+{ "repo_id": "payments", "inventory_kind": "decorated", "entity_kind": "function", "decorator": "log_decorator", "limit": 50 }
 ```
 
 ### Find functions by argument name
@@ -146,11 +146,11 @@ raw Cypher or repeat broad content searches without narrowing the topic.
 
 > "Find all dataclasses."
 
-There is not a first-class bounded dataclass inventory tool yet. Track that
-work in #362. Until then, do not put this prompt in normal MCP prompt suites.
-Operators can use the diagnostics-only Cypher example in
-[Diagnostic Cypher Queries](#diagnostic-cypher-queries) when they need to inspect a
-local graph manually.
+**Tool:** `inspect_code_inventory`
+
+```json
+{ "repo_id": "payments", "language": "python", "inventory_kind": "dataclass", "limit": 50 }
+```
 
 ---
 
@@ -499,10 +499,8 @@ the row window clips the result.
 
 ### Find all dataclasses
 
-First-class support is tracked in #362.
-
 ```json
-{ "cypher_query": "MATCH (c:Class) WHERE 'dataclass' IN c.decorators RETURN c.name, c.path", "limit": 50 }
+{ "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "language": "python", "inventory_kind": "dataclass", "limit": 50 } }
 ```
 
 ### Find cross-module calls
@@ -541,34 +539,26 @@ for comparing local graph state while debugging.
 
 ### Find all function definitions
 
-First-class structural inventory support is tracked in #362.
-
 ```json
-{ "cypher_query": "MATCH (n:Function) RETURN n.name, n.path, n.line_number", "limit": 50 }
+{ "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "entity", "entity_kind": "function", "limit": 50 } }
 ```
 
 ### Find all classes
 
-First-class structural inventory support is tracked in #362.
-
 ```json
-{ "cypher_query": "MATCH (n:Class) RETURN n.name, n.path, n.line_number", "limit": 50 }
+{ "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "entity", "entity_kind": "class", "limit": 50 } }
 ```
 
 ### Find functions in a specific file
 
-First-class structural inventory support is tracked in #362.
-
 ```json
-{ "cypher_query": "MATCH (f:Function) WHERE f.path ENDS WITH 'module_a.py' RETURN f.name", "limit": 50 }
+{ "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "entity", "entity_kind": "function", "file_path": "src/module_a.py", "limit": 50 } }
 ```
 
 ### Find top-level elements in a file
 
-First-class structural inventory support is tracked in #362.
-
 ```json
-{ "cypher_query": "MATCH (f:File)-[:CONTAINS]->(n) WHERE f.name = 'module_a.py' AND (n:Function OR n:Class) AND n.context IS NULL RETURN n.name", "limit": 50 }
+{ "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "top_level", "file_path": "src/module_a.py", "limit": 50 } }
 ```
 
 ### Find circular file imports
@@ -581,42 +571,32 @@ First-class import/dependency support is tracked in #361.
 
 ### Find documented functions
 
-First-class structural inventory support is tracked in #362.
-
 ```json
-{ "cypher_query": "MATCH (f:Function) WHERE f.docstring IS NOT NULL AND f.docstring <> '' RETURN f.name, f.path", "limit": 50 }
+{ "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "documented_function", "limit": 50 } }
 ```
 
 ### Find decorated methods in a class
 
-First-class structural inventory support is tracked in #362.
-
 ```json
-{ "cypher_query": "MATCH (c:Class {name: 'Child'})-[:CONTAINS]->(m:Function) WHERE m.decorators IS NOT NULL AND size(m.decorators) > 0 RETURN m.name", "limit": 50 }
+{ "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "decorated", "entity_kind": "function", "class_name": "Child", "limit": 50 } }
 ```
 
 ### Count functions per file
 
-First-class structural inventory support is tracked in #362.
-
 ```json
-{ "cypher_query": "MATCH (f:Function) RETURN f.path, count(f) AS function_count ORDER BY function_count DESC", "limit": 50 }
+{ "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "function_count_by_file", "limit": 50 } }
 ```
 
 ### Find classes with a specific method
 
-First-class structural inventory support is tracked in #362.
-
 ```json
-{ "cypher_query": "MATCH (c:Class)-[:CONTAINS]->(m:Function {name: 'greet'}) RETURN c.name, c.path", "limit": 50 }
+{ "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "class_with_method", "method_name": "greet", "limit": 50 } }
 ```
 
 ### Find `super()` calls
 
-First-class structural inventory support is tracked in #362.
-
 ```json
-{ "cypher_query": "MATCH (f:Function)-[r:CALLS]->() WHERE r.full_call_name STARTS WITH 'super(' RETURN f.name, f.path", "limit": 50 }
+{ "tool": "inspect_code_inventory", "arguments": { "repo_id": "payments", "inventory_kind": "super_call", "entity_kind": "function", "limit": 50 } }
 ```
 
 ### Find modules imported by a file

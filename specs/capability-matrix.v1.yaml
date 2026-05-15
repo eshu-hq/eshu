@@ -26,6 +26,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded content-index symbol definition lookup; graph fallback available only when content store is absent}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 500, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded content-index symbol definition lookup}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 800, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-symbol-lookup}], notes: bounded content-index symbol definition lookup}
+  - capability: code_inventory.structural
+    tools: [inspect_code_inventory]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded content-index structural inventory for entities, top-level rows, dataclasses, documented functions, decorators, class methods, super calls, and function counts per file}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: content-index path avoids graph traversal on cold MCP calls}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: deterministic ordering, limit plus one truncation probe, max offset, and source handles}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-structural-inventory}], notes: use repo_id or file_path whenever prompt scope is known; broad scans remain capped and paged}
   - capability: code_search.variable_lookup
     tools: [find_code]
     profiles:

@@ -19,6 +19,7 @@ type CodeHandler struct {
 func (h *CodeHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/code/search", h.handleSearch)
 	mux.HandleFunc("POST /api/v0/code/symbols/search", h.handleSymbolSearch)
+	mux.HandleFunc("POST /api/v0/code/structure/inventory", h.handleStructuralInventory)
 	mux.HandleFunc("POST /api/v0/code/topics/investigate", h.handleTopicInvestigation)
 	mux.HandleFunc("POST /api/v0/code/security/secrets/investigate", h.handleHardcodedSecretInvestigation)
 	mux.HandleFunc("POST /api/v0/code/relationships", h.handleRelationships)

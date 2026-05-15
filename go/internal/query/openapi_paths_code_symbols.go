@@ -47,6 +47,70 @@ const openAPIPathsCodeSymbols = `
         }
       }
     },
+    "/api/v0/code/structure/inventory": {
+      "post": {
+        "tags": ["code"],
+        "summary": "Inspect structural code inventory",
+        "description": "Returns bounded content-index structural inventory for functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, super calls, and function counts per file.",
+        "operationId": "inspectCodeInventory",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)"},
+                  "language": {"type": "string", "description": "Optional language filter"},
+                  "inventory_kind": {
+                    "type": "string",
+                    "enum": ["entity", "top_level", "dataclass", "documented", "documented_function", "decorated", "class_with_method", "super_call", "function_count_by_file"],
+                    "default": "entity"
+                  },
+                  "entity_kind": {"type": "string", "description": "Optional entity kind such as function, class, module, variable, component, type_alias, or sql_function"},
+                  "file_path": {"type": "string", "description": "Optional repo-relative file path"},
+                  "symbol": {"type": "string", "description": "Optional exact entity name"},
+                  "decorator": {"type": "string", "description": "Optional decorator filter"},
+                  "method_name": {"type": "string", "description": "Method name required for class_with_method inventory"},
+                  "class_name": {"type": "string", "description": "Optional class or implementation context filter"},
+                  "limit": {"type": "integer", "default": 25, "maximum": 200},
+                  "offset": {"type": "integer", "default": 0, "maximum": 10000}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Structural inventory results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "repo_id": {"type": "string"},
+                    "language": {"type": "string"},
+                    "inventory_kind": {"type": "string"},
+                    "entity_kind": {"type": "string"},
+                    "results": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+                    "matches": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+                    "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "offset": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "next_offset": {"type": "integer", "nullable": true},
+                    "source_backend": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/code/topics/investigate": {
       "post": {
         "tags": ["code"],
