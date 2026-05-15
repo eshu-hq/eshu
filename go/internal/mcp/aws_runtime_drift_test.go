@@ -1,6 +1,9 @@
 package mcp
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResolveRouteMapsAWSRuntimeDriftFindings(t *testing.T) {
 	t.Parallel()
@@ -31,5 +34,18 @@ func TestResolveRouteMapsAWSRuntimeDriftFindings(t *testing.T) {
 	kinds := body["finding_kinds"].([]any)
 	if len(kinds) != 1 || kinds[0] != "unmanaged_cloud_resource" {
 		t.Fatalf("finding_kinds = %#v, want unmanaged_cloud_resource", kinds)
+	}
+}
+
+func TestAWSRuntimeDriftFindingsSchemaDocumentsScope(t *testing.T) {
+	t.Parallel()
+
+	tool := awsRuntimeDriftFindingsTool()
+	schema := tool.InputSchema.(map[string]any)
+	if _, ok := schema["anyOf"]; ok {
+		t.Fatal("schema must not advertise top-level anyOf")
+	}
+	if !strings.Contains(tool.Description, "Provide scope_id or account_id") {
+		t.Fatalf("tool description = %q, want scope guidance", tool.Description)
 	}
 }

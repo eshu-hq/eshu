@@ -1,6 +1,9 @@
 package mcp
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNoCachePromptToolsAdvertiseBounds(t *testing.T) {
 	t.Parallel()
@@ -24,31 +27,23 @@ func TestNoCachePromptToolsAdvertiseBounds(t *testing.T) {
 	}
 }
 
-func TestAnalyzeCodeRelationshipsSchemaRequiresTargetExceptRepoScopedOverrides(t *testing.T) {
+func TestAnalyzeCodeRelationshipsSchemaDocumentsTargetExceptRepoScopedOverrides(t *testing.T) {
 	t.Parallel()
 
 	tool := requireMCPTool(t, "analyze_code_relationships")
 	schema := tool.InputSchema.(map[string]any)
-	anyOf, ok := schema["anyOf"].([]map[string]any)
-	if !ok {
-		t.Fatalf("analyze_code_relationships schema anyOf type = %T, want []map[string]any", schema["anyOf"])
+	if _, ok := schema["anyOf"]; ok {
+		t.Fatal("analyze_code_relationships schema must not advertise top-level anyOf")
 	}
-	if len(anyOf) != 2 {
-		t.Fatalf("analyze_code_relationships schema anyOf len = %d, want 2", len(anyOf))
+	required := schema["required"].([]string)
+	if len(required) != 1 || required[0] != "query_type" {
+		t.Fatalf("required = %#v, want query_type only", required)
 	}
-	targetRequired := anyOf[0]["required"].([]string)
-	if len(targetRequired) != 2 || targetRequired[0] != "query_type" || targetRequired[1] != "target" {
-		t.Fatalf("target branch required = %#v, want query_type,target", targetRequired)
-	}
-	overrideRequired := anyOf[1]["required"].([]string)
-	if len(overrideRequired) != 2 || overrideRequired[0] != "query_type" || overrideRequired[1] != "repo_id" {
-		t.Fatalf("override branch required = %#v, want query_type,repo_id", overrideRequired)
-	}
-	properties := anyOf[1]["properties"].(map[string]any)
-	queryType := properties["query_type"].(map[string]any)
-	enum := queryType["enum"].([]string)
-	if len(enum) != 1 || enum[0] != "overrides" {
-		t.Fatalf("override branch query_type enum = %#v, want [overrides]", enum)
+	properties := schema["properties"].(map[string]any)
+	target := properties["target"].(map[string]any)
+	description := target["description"].(string)
+	if !strings.Contains(description, "Optional for repo-scoped overrides") {
+		t.Fatalf("target description = %q, want repo-scoped overrides guidance", description)
 	}
 }
 
