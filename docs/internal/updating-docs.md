@@ -65,3 +65,10 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs bui
 cd "$(git rev-parse --show-toplevel)"
 uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml
 ```
+
+## GitHub Pages deployment
+
+The `Deploy Docs` workflow always builds the MkDocs site on `main`. It only
+publishes to GitHub Pages when the repository variable
+`ESHU_GITHUB_PAGES_ENABLED` is set to `true`. Keep that variable unset until the
+repository's Pages settings are configured to publish from GitHub Actions.
