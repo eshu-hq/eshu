@@ -2,7 +2,10 @@
 
 ## Register
 
-product
+This document is the product register for Eshu Console: the durable place for
+audience, purpose, interaction, and trust contracts that should shape the UI.
+Implementation details belong in code, ADRs, or package docs; this register
+captures the product intent future console changes should preserve.
 
 ## Users
 
