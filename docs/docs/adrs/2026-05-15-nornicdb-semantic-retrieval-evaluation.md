@@ -14,9 +14,11 @@
 - `../reference/truth-label-protocol.md`
 - `../reference/mcp-tool-contract-matrix.md`
 - `../reference/telemetry/index.md`
-- NornicDB capability docs in `~/os-repos/NornicDB-New/docs/user-guides/`
-  and `~/os-repos/NornicDB-New/docs/features/`
-- Issue `#396` - evaluate NornicDB semantic retrieval, decay, and candidate
+- NornicDB capability docs at `orneryd/NornicDB@210c4c6765f3af8f2cb9b8e0c6ab71ddf5017e2b`:
+  `https://github.com/orneryd/NornicDB/tree/210c4c6765f3af8f2cb9b8e0c6ab71ddf5017e2b/docs/user-guides`
+  and
+  `https://github.com/orneryd/NornicDB/tree/210c4c6765f3af8f2cb9b8e0c6ab71ddf5017e2b/docs/features`
+- Issue: `#396` - evaluate NornicDB semantic retrieval, decay, and candidate
   evidence for MCP/API recall
 
 ---
