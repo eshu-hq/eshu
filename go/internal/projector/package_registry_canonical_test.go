@@ -53,6 +53,53 @@ func TestBuildCanonicalMaterializationExtractsPackageRegistryRows(t *testing.T) 
 	}
 }
 
+func TestBuildCanonicalMaterializationExtractsPackageRegistryDependencies(t *testing.T) {
+	t.Parallel()
+
+	result := buildCanonicalMaterialization(
+		packageRegistryScope(),
+		packageRegistryGeneration(),
+		append(packageRegistryFacts(), packageRegistryDependencyFact()),
+	)
+
+	if got, want := len(result.PackageRegistryDependencies), 1; got != want {
+		t.Fatalf("len(PackageRegistryDependencies) = %d, want %d", got, want)
+	}
+	dependency := result.PackageRegistryDependencies[0]
+	if got, want := dependency.UID, "package-registry-dependency-1"; got != want {
+		t.Fatalf("dependency UID = %q, want %q", got, want)
+	}
+	if got, want := dependency.VersionID, packageRegistryVersionID(); got != want {
+		t.Fatalf("dependency VersionID = %q, want %q", got, want)
+	}
+	if got, want := dependency.DependencyPackageID, "package://npm/registry.npmjs.org/left-pad"; got != want {
+		t.Fatalf("dependency DependencyPackageID = %q, want %q", got, want)
+	}
+	if got, want := dependency.DependencyType, "runtime"; got != want {
+		t.Fatalf("dependency DependencyType = %q, want %q", got, want)
+	}
+	if !dependency.Optional {
+		t.Fatal("dependency Optional = false, want true")
+	}
+}
+
+func TestBuildCanonicalMaterializationSkipsUnstablePackageRegistryDependency(t *testing.T) {
+	t.Parallel()
+
+	dependencyFact := packageRegistryDependencyFact()
+	dependencyFact.StableFactKey = ""
+	dependencyFact.FactID = "ephemeral-package-registry-dependency-1"
+	result := buildCanonicalMaterialization(
+		packageRegistryScope(),
+		packageRegistryGeneration(),
+		append(packageRegistryFacts(), dependencyFact),
+	)
+
+	if got := len(result.PackageRegistryDependencies); got != 0 {
+		t.Fatalf("len(PackageRegistryDependencies) = %d, want 0 for missing stable fact key", got)
+	}
+}
+
 func TestBuildCanonicalMaterializationKeepsPackageSourceHintsProvenanceOnly(t *testing.T) {
 	t.Parallel()
 
@@ -221,6 +268,50 @@ func packageRegistrySourceHintFact() facts.Envelope {
 			"raw_url":               "https://github.com/example/pkg",
 			"normalized_url":        "https://github.com/example/pkg",
 			"confidence_reason":     "package metadata repository field",
+		},
+	}
+}
+
+func packageRegistryDependencyFact() facts.Envelope {
+	return facts.Envelope{
+		FactID:           "package-registry-dependency-1",
+		ScopeID:          "package-registry-scope-1",
+		GenerationID:     "package-registry-generation-1",
+		FactKind:         facts.PackageRegistryPackageDependencyFactKind,
+		StableFactKey:    "package-registry-dependency-1",
+		SchemaVersion:    facts.PackageRegistryPackageDependencySchemaVersion,
+		CollectorKind:    "package_registry",
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       time.Date(2026, time.May, 13, 14, 0, 0, 0, time.UTC),
+		Payload: map[string]any{
+			"collector_instance_id": "package-registry-collector-1",
+			"ecosystem":             "npm",
+			"registry":              "https://registry.npmjs.org",
+			"package_id":            packageRegistryPackageID(),
+			"version_id":            packageRegistryVersionID(),
+			"version":               "1.2.3",
+			"dependency_package_id": "package://npm/registry.npmjs.org/left-pad",
+			"dependency_ecosystem":  "npm",
+			"dependency_registry":   "https://registry.npmjs.org",
+			"dependency_namespace":  "",
+			"dependency_normalized": "left-pad",
+			"dependency_range":      "^1.3.0",
+			"dependency_type":       "runtime",
+			"target_framework":      "node18",
+			"marker":                "optional peer fallback",
+			"optional":              true,
+			"excluded":              false,
+			"correlation_anchors": []any{
+				packageRegistryPackageID(),
+				packageRegistryVersionID(),
+				"package://npm/registry.npmjs.org/left-pad",
+			},
+		},
+		SourceRef: facts.Ref{
+			SourceSystem:   "package_registry",
+			ScopeID:        "package-registry-scope-1",
+			GenerationID:   "package-registry-generation-1",
+			SourceRecordID: packageRegistryVersionID() + "->package://npm/registry.npmjs.org/left-pad",
 		},
 	}
 }

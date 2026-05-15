@@ -390,7 +390,33 @@ run both Neo4j and NornicDB conformance for the statement shape.
    after graph truth and query truth agree for repo, service, and package
    surfaces. The first query sub-slice exposes bounded package/package-version
    identity reads from the canonical graph and explicitly omits repository
-   ownership until reducer admission lands.
+   ownership until reducer admission lands. The package-dependency sub-slice
+   now materializes package-native dependency facts as `PackageDependency`
+   graph nodes plus `DECLARES_DEPENDENCY` and `DEPENDS_ON_PACKAGE` edges, then
+   exposes bounded HTTP/MCP reads by `package_id` or `version_id`. This does
+   not promote repository ownership, package publication ownership, or runtime
+   consumption truth. The dependency read contract now keeps dependency target
+   package metadata create-only so declarations cannot overwrite richer package
+   observations, requires stable fact keys for dependency node identity, applies
+   server-side identity guards before returning OpenAPI-required fields, and
+   returns `next_cursor` values so MCP callers can continue truncated pages.
+   No-Regression Evidence: `go test ./internal/projector -run
+   'TestBuildCanonicalMaterialization(SkipsUnstablePackageRegistryDependency|ExtractsPackageRegistryDependencies)'`,
+   `go test ./internal/storage/cypher -run
+   TestCanonicalNodeWriterBuildsPackageRegistryStatements`, `go test
+   ./internal/query -run
+   'TestPackageRegistryListDependencies|TestServeOpenAPI|TestCapabilityMatrixMatchesYAMLContract'`,
+   and `go test ./internal/mcp -run
+   'TestPackageRegistryDependencyToolLimitDefaultIsOptional|TestResolveRouteMapsPackageRegistryDependencies|TestMCPToolContractMatrixCoversReadOnlyTools|TestReadOnlyTools'`
+   pass for the projection, Cypher writer, HTTP/OpenAPI, capability matrix, and
+   MCP tool contracts. The package-wide gate `go test ./internal/projector
+   ./internal/storage/cypher ./internal/query ./internal/mcp -count=1` also
+   passes for the touched runtime surfaces.
+   Observability Evidence: package dependency reads run through
+   `SpanQueryPackageRegistryDependencies`; existing graph query instrumentation
+   on `Neo4jReader.Run` reports the bounded Cypher execution, while reducer
+   source-correlation counters continue to expose exact, derived, ambiguous,
+   unresolved, stale, and rejected ownership-candidate outcomes.
 7. **Provider expansion lane:** add fixture-backed adapters for public ecosystem
    registries, then live-gated adapters for GitHub, GitLab, Google, Azure,
    Nexus, and CodeArtifact.

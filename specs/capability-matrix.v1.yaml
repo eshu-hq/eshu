@@ -292,6 +292,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: package_id, verification: [{go_test: ./internal/query}], notes: package-version identity lookup anchored by Package.uid}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: package_id, verification: [{go_test: ./internal/query}], notes: package-version identity lookup anchored by Package.uid}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: package_id, verification: [{remote_validation: prod-package-registry-versions}], notes: package-version identity lookup anchored by Package.uid}
+  - capability: package_registry.dependencies.list
+    tools: [list_package_registry_dependencies]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-package-registry-dependencies}], notes: requires package registry dependency graph nodes}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: package_or_version_id, verification: [{go_test: ./internal/query}], notes: bounded package-native dependency lookup anchored by Package.uid or PackageVersion.uid}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: package_or_version_id, verification: [{go_test: ./internal/query}], notes: bounded package-native dependency lookup anchored by Package.uid or PackageVersion.uid}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: package_or_version_id, verification: [{remote_validation: prod-package-registry-dependencies}], notes: bounded package-native dependency lookup anchored by Package.uid or PackageVersion.uid}
   - capability: platform_impact.resource_to_code
     tools: [trace_resource_to_code]
     profiles:

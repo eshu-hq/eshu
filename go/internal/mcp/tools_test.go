@@ -7,7 +7,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 61
+	expectedCount := 62
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -52,6 +52,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"investigate_service",
 		"list_package_registry_packages",
 		"list_package_registry_versions",
+		"list_package_registry_dependencies",
 		"resolve_entity",
 		"get_file_content",
 		"list_ingesters",
@@ -65,6 +66,25 @@ func TestReadOnlyTools(t *testing.T) {
 	for _, expected := range expectedTools {
 		if !toolNames[expected] {
 			t.Errorf("Expected tool %s not found", expected)
+		}
+	}
+}
+
+func TestPackageRegistryDependencyToolLimitDefaultIsOptional(t *testing.T) {
+	t.Parallel()
+
+	tools := packageRegistryTools()
+	if got, want := len(tools), 1; got != want {
+		t.Fatalf("len(packageRegistryTools()) = %d, want %d", got, want)
+	}
+	schema, ok := tools[0].InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("InputSchema type = %T, want map[string]any", tools[0].InputSchema)
+	}
+	required, _ := schema["required"].([]string)
+	for _, field := range required {
+		if field == "limit" {
+			t.Fatalf("required = %#v, want limit omitted because schema default is informational", required)
 		}
 	}
 }

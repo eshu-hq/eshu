@@ -222,6 +222,38 @@ func TestResolveRouteMapsPackageRegistryPackagesToBoundedQuery(t *testing.T) {
 	}
 }
 
+func TestResolveRouteMapsPackageRegistryDependenciesToBoundedQuery(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("list_package_registry_dependencies", map[string]any{
+		"after_dependency_id": "dep-1",
+		"after_version_id":    "package:npm:@eshu/core-api@0.9.0",
+		"package_id":          "package:npm:@eshu/core-api",
+		"version_id":          "package:npm:@eshu/core-api@1.0.0",
+		"limit":               float64(25),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "GET"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/package-registry/dependencies"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	for key, want := range map[string]string{
+		"after_dependency_id": "dep-1",
+		"after_version_id":    "package:npm:@eshu/core-api@0.9.0",
+		"package_id":          "package:npm:@eshu/core-api",
+		"version_id":          "package:npm:@eshu/core-api@1.0.0",
+		"limit":               "25",
+	} {
+		if got := route.query[key]; got != want {
+			t.Fatalf("route.query[%s] = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
 func TestResolveRouteMapsCodeRelationshipStoryToBoundedBody(t *testing.T) {
 	t.Parallel()
 

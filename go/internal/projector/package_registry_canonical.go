@@ -58,6 +58,35 @@ type PackageRegistryVersionRow struct {
 	ObservedAt          time.Time
 }
 
+// PackageRegistryDependencyRow carries one package-native dependency edge with
+// ecosystem-specific scope, type, marker, and optional/exclusion semantics.
+type PackageRegistryDependencyRow struct {
+	UID                  string
+	PackageID            string
+	VersionID            string
+	Version              string
+	DependencyPackageID  string
+	DependencyEcosystem  string
+	DependencyRegistry   string
+	DependencyNamespace  string
+	DependencyNormalized string
+	DependencyRange      string
+	DependencyType       string
+	TargetFramework      string
+	Marker               string
+	Optional             bool
+	Excluded             bool
+	SourceFactID         string
+	StableFactKey        string
+	SourceSystem         string
+	SourceRecordID       string
+	SourceConfidence     string
+	CollectorKind        string
+	CorrelationAnchors   []string
+	CollectorInstanceID  string
+	ObservedAt           time.Time
+}
+
 func extractPackageRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) {
 	if mat == nil || len(envelopes) == 0 {
 		return
@@ -71,6 +100,10 @@ func extractPackageRegistryRows(mat *CanonicalMaterialization, envelopes []facts
 		case facts.PackageRegistryPackageVersionFactKind:
 			if row, ok := packageRegistryVersionRow(envelope); ok {
 				mat.PackageRegistryVersions = append(mat.PackageRegistryVersions, row)
+			}
+		case facts.PackageRegistryPackageDependencyFactKind:
+			if row, ok := packageRegistryDependencyRow(envelope); ok {
+				mat.PackageRegistryDependencies = append(mat.PackageRegistryDependencies, row)
 			}
 		}
 	}
@@ -171,6 +204,55 @@ func packageRegistryVersionRow(envelope facts.Envelope) (PackageRegistryVersionR
 		CollectorInstanceID: collectorInstanceID,
 		ObservedAt:          envelope.ObservedAt,
 	}, true
+}
+
+func packageRegistryDependencyRow(envelope facts.Envelope) (PackageRegistryDependencyRow, bool) {
+	if envelope.IsTombstone {
+		return PackageRegistryDependencyRow{}, false
+	}
+	packageID, _ := payloadString(envelope.Payload, "package_id")
+	versionID, _ := payloadString(envelope.Payload, "version_id")
+	dependencyPackageID, _ := payloadString(envelope.Payload, "dependency_package_id")
+	if packageID == "" || versionID == "" || dependencyPackageID == "" {
+		return PackageRegistryDependencyRow{}, false
+	}
+	stableFactKey := strings.TrimSpace(envelope.StableFactKey)
+	if stableFactKey == "" {
+		return PackageRegistryDependencyRow{}, false
+	}
+	version, _ := payloadString(envelope.Payload, "version")
+	collectorInstanceID, _ := payloadString(envelope.Payload, "collector_instance_id")
+	return PackageRegistryDependencyRow{
+		UID:                  stableFactKey,
+		PackageID:            packageID,
+		VersionID:            versionID,
+		Version:              version,
+		DependencyPackageID:  dependencyPackageID,
+		DependencyEcosystem:  packageRegistryPayloadString(envelope.Payload, "dependency_ecosystem"),
+		DependencyRegistry:   packageRegistryPayloadString(envelope.Payload, "dependency_registry"),
+		DependencyNamespace:  packageRegistryPayloadString(envelope.Payload, "dependency_namespace"),
+		DependencyNormalized: packageRegistryPayloadString(envelope.Payload, "dependency_normalized"),
+		DependencyRange:      packageRegistryPayloadString(envelope.Payload, "dependency_range"),
+		DependencyType:       packageRegistryPayloadString(envelope.Payload, "dependency_type"),
+		TargetFramework:      packageRegistryPayloadString(envelope.Payload, "target_framework"),
+		Marker:               packageRegistryPayloadString(envelope.Payload, "marker"),
+		Optional:             packageRegistryPayloadBool(envelope.Payload, "optional"),
+		Excluded:             packageRegistryPayloadBool(envelope.Payload, "excluded"),
+		SourceFactID:         envelope.FactID,
+		StableFactKey:        stableFactKey,
+		SourceSystem:         packageRegistrySourceSystem(envelope),
+		SourceRecordID:       envelope.SourceRef.SourceRecordID,
+		SourceConfidence:     envelope.SourceConfidence,
+		CollectorKind:        envelope.CollectorKind,
+		CorrelationAnchors:   packageRegistryCorrelationAnchors(envelope.Payload),
+		CollectorInstanceID:  collectorInstanceID,
+		ObservedAt:           envelope.ObservedAt,
+	}, true
+}
+
+func packageRegistryPayloadString(payload map[string]any, key string) string {
+	value, _ := payloadString(payload, key)
+	return value
 }
 
 func packageRegistryPayloadBool(payload map[string]any, key string) bool {

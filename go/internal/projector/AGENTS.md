@@ -38,9 +38,10 @@
   projects committed OCI registry facts into digest-keyed image rows. Tags are
   mutable weak evidence and must not become the canonical image key.
 - **Package identity stays source-local** — `package_registry_canonical.go`
-  projects committed package and package-version facts into package identity
-  rows. Source hints are provenance only; do not create repository ownership,
-  publication, or consumption truth in the projector.
+  projects committed package, package-version, and package-dependency facts into
+  package identity rows and package-native dependency rows. Source hints are
+  provenance only; do not create repository ownership, publication, or
+  consumption truth in the projector.
   `package_source_correlation_intents.go` may enqueue the reducer classifier,
   but that intent is counter-only until reducer admission grows stronger
   provenance.

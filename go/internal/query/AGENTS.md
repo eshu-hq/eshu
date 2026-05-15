@@ -33,7 +33,7 @@
 
 - **`BuildTruthEnvelope` panics on unknown capability** — every capability string
   passed to `BuildTruthEnvelope` must exist in `capabilityMatrix`
-  (`contract.go:510`). Add the capability to the map before the handler is
+  (`contract.go:525`). Add the capability to the map before the handler is
   callable.
 
 - **Port boundary** — no handler calls `neo4jdriver.DriverWithContext` or
@@ -53,6 +53,14 @@
   concatenation of string literals in `openapi_paths_*.go` files. A handler
   change that adds a field or changes a route must update the matching fragment
   in the same PR, or the live spec diverges from actual behavior.
+
+- **Package registry reads stay anchored** — `PackageRegistryHandler` in
+  `package_registry.go` must require `limit` plus a route-specific anchor
+  before graph reads: package lookups use `package_id` or `ecosystem`, version
+  lookups use `package_id`, and dependency lookups use `package_id` or
+  `version_id`. Do not add whole-graph package scans, and do not present
+  package source hints as ownership, publication ownership, or runtime
+  consumption truth.
 
 - **Dead-code scans de-duplicate entity IDs across candidate labels** —
   `scanDeadCodeCandidates` applies `filterDuplicateDeadCodeRows`

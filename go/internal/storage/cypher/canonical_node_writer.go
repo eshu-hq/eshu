@@ -362,8 +362,10 @@ var canonicalNodeRetractOCIEntityLabels = map[string]struct{}{
 }
 
 var canonicalNodeRetractPackageRegistryEntityLabels = map[string]struct{}{
-	"Package":                       {},
-	"PackageRegistryPackage":        {},
-	"PackageRegistryPackageVersion": {},
-	"PackageVersion":                {},
+	"Package":                          {},
+	"PackageDependency":                {},
+	"PackageRegistryPackage":           {},
+	"PackageRegistryPackageDependency": {},
+	"PackageRegistryPackageVersion":    {},
+	"PackageVersion":                   {},
 }

@@ -142,9 +142,10 @@ properties. OCI registry facts are projected as digest-addressed image
 manifest/index/descriptor rows; tag facts remain weak mutable observations and
 do not define image identity. The projector never calls a Neo4j or NornicDB
 driver directly.
-Package-registry facts are projected only for stable ecosystem identity:
-`PackageRegistryPackageRow` and `PackageRegistryVersionRow` create `Package`
-and `PackageVersion` nodes, while `package_registry.source_hint` remains
+Package-registry facts are projected only for stable ecosystem identity and
+package-native dependency truth: `PackageRegistryPackageRow`,
+`PackageRegistryVersionRow`, and `PackageRegistryDependencyRow` create package,
+version, and dependency nodes. `package_registry.source_hint` remains
 provenance-only until reducer correlation proves ownership or consumption.
 When a generation contains source hints, `buildPackageSourceCorrelationReducerIntent`
 emits one `package_source_correlation` reducer intent for the scope so the

@@ -51,9 +51,10 @@
   Tag observations are separate `ContainerImageTagObservation` nodes; do not
   MERGE image manifest or index identity from tag text.
 - **Package source hints are weak evidence** —
-  `package_registry_canonical_writer.go` writes only package identity, package
-  version identity, and `HAS_VERSION`. Do not join to `Repository` or create
-  ownership/publication edges from registry source URLs.
+  `package_registry_canonical_writer.go` writes package identity, package
+  version identity, package-native dependency identity, `HAS_VERSION`,
+  `DECLARES_DEPENDENCY`, and `DEPENDS_ON_PACKAGE`. Do not join to `Repository`
+  or create ownership/publication edges from registry source URLs.
 - **Identity cleanup** — repository upserts must keep cleanup before MERGE and
   in a separate phase group for non-first-generation scopes. First-generation
   scopes skip repository cleanup because there is no prior repository identity

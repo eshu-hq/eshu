@@ -7,31 +7,32 @@ package projector
 // repository projection. Built from the same facts that produce content store
 // writes. Written to Neo4j in strict phase order by CanonicalNodeWriter.
 type CanonicalMaterialization struct {
-	ScopeID                 string
-	GenerationID            string
-	RepoID                  string
-	RepoPath                string // repository path used as Directory chain root
-	FirstGeneration         bool   // true when the scope has no prior active generation
-	Repository              *RepositoryRow
-	Directories             []DirectoryRow
-	Files                   []FileRow
-	Entities                []EntityRow
-	Modules                 []ModuleRow
-	Imports                 []ImportRow
-	Parameters              []ParameterRow
-	ClassMembers            []ClassMemberRow
-	NestedFuncs             []NestedFunctionRow
-	TerraformStateResources []TerraformStateResourceRow
-	TerraformStateModules   []TerraformStateModuleRow
-	TerraformStateOutputs   []TerraformStateOutputRow
-	OCIRegistryRepository   *OCIRegistryRepositoryRow
-	OCIImageManifests       []OCIImageManifestRow
-	OCIImageIndexes         []OCIImageIndexRow
-	OCIImageDescriptors     []OCIImageDescriptorRow
-	OCIImageTagObservations []OCIImageTagObservationRow
-	OCIImageReferrers       []OCIImageReferrerRow
-	PackageRegistryPackages []PackageRegistryPackageRow
-	PackageRegistryVersions []PackageRegistryVersionRow
+	ScopeID                     string
+	GenerationID                string
+	RepoID                      string
+	RepoPath                    string // repository path used as Directory chain root
+	FirstGeneration             bool   // true when the scope has no prior active generation
+	Repository                  *RepositoryRow
+	Directories                 []DirectoryRow
+	Files                       []FileRow
+	Entities                    []EntityRow
+	Modules                     []ModuleRow
+	Imports                     []ImportRow
+	Parameters                  []ParameterRow
+	ClassMembers                []ClassMemberRow
+	NestedFuncs                 []NestedFunctionRow
+	TerraformStateResources     []TerraformStateResourceRow
+	TerraformStateModules       []TerraformStateModuleRow
+	TerraformStateOutputs       []TerraformStateOutputRow
+	OCIRegistryRepository       *OCIRegistryRepositoryRow
+	OCIImageManifests           []OCIImageManifestRow
+	OCIImageIndexes             []OCIImageIndexRow
+	OCIImageDescriptors         []OCIImageDescriptorRow
+	OCIImageTagObservations     []OCIImageTagObservationRow
+	OCIImageReferrers           []OCIImageReferrerRow
+	PackageRegistryPackages     []PackageRegistryPackageRow
+	PackageRegistryVersions     []PackageRegistryVersionRow
+	PackageRegistryDependencies []PackageRegistryDependencyRow
 }
 
 // IsEmpty reports whether the materialization carries no projectable data.
@@ -50,7 +51,8 @@ func (m CanonicalMaterialization) IsEmpty() bool {
 		len(m.OCIImageTagObservations) == 0 &&
 		len(m.OCIImageReferrers) == 0 &&
 		len(m.PackageRegistryPackages) == 0 &&
-		len(m.PackageRegistryVersions) == 0
+		len(m.PackageRegistryVersions) == 0 &&
+		len(m.PackageRegistryDependencies) == 0
 }
 
 // RepositoryRow carries the canonical properties for a Repository node.
@@ -232,10 +234,12 @@ var entityTypeLabelMap = map[string]string{
 	"oci_image_referrer":              "OciImageReferrer",
 
 	// Package registry entities
-	"package":                          "Package",
-	"package_version":                  "PackageVersion",
-	"package_registry_package":         "PackageRegistryPackage",
-	"package_registry_package_version": "PackageRegistryPackageVersion",
+	"package":                             "Package",
+	"package_dependency":                  "PackageDependency",
+	"package_version":                     "PackageVersion",
+	"package_registry_package":            "PackageRegistryPackage",
+	"package_registry_package_dependency": "PackageRegistryPackageDependency",
+	"package_registry_package_version":    "PackageRegistryPackageVersion",
 
 	// Terragrunt extended types (emitted by parser as PascalCase, added as
 	// lowercase aliases for completeness).

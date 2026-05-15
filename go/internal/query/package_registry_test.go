@@ -240,3 +240,218 @@ func TestPackageRegistryListVersionsUsesPackageUIDAnchor(t *testing.T) {
 		t.Fatalf("published_at = %q, want %q", got, want)
 	}
 }
+
+func TestPackageRegistryListDependenciesRequiresScopeAndLimit(t *testing.T) {
+	t.Parallel()
+
+	handler := &PackageRegistryHandler{Neo4j: &recordingPackageRegistryGraphReader{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	for _, target := range []string{
+		"/api/v0/package-registry/dependencies?limit=10",
+		"/api/v0/package-registry/dependencies?package_id=package:npm:@eshu/core-api",
+	} {
+		target := target
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			if got, want := w.Code, http.StatusBadRequest; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestPackageRegistryListDependenciesUsesPackageOrVersionAnchor(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingPackageRegistryGraphReader{
+		runRows: []map[string]any{
+			{
+				"dependency_id":         "dep-1",
+				"source_package_id":     "package:npm:@eshu/core-api",
+				"source_version_id":     "package:npm:@eshu/core-api@1.0.0",
+				"version":               "1.0.0",
+				"dependency_package_id": "package:npm:left-pad",
+				"dependency_ecosystem":  "npm",
+				"dependency_registry":   "npmjs",
+				"dependency_namespace":  "",
+				"dependency_normalized": "left-pad",
+				"dependency_range":      "^1.3.0",
+				"dependency_type":       "runtime",
+				"target_framework":      "node18",
+				"marker":                "optional peer fallback",
+				"optional":              true,
+				"excluded":              false,
+				"source_confidence":     "reported",
+				"collector_kind":        "package_registry",
+				"collector_instance_id": "package-registry-collector-1",
+				"correlation_anchors":   []any{"package:npm:@eshu/core-api", "package:npm:left-pad"},
+			},
+			{
+				"dependency_id":         "dep-2",
+				"source_package_id":     "package:npm:@eshu/core-api",
+				"source_version_id":     "package:npm:@eshu/core-api@1.1.0",
+				"dependency_package_id": "package:npm:debug",
+			},
+		},
+	}
+	handler := &PackageRegistryHandler{Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/package-registry/dependencies?package_id=package:npm:@eshu/core-api&limit=1",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	for _, fragment := range []string{
+		"MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion)",
+		"MATCH (v)-[:DECLARES_DEPENDENCY]->(d:PackageDependency)-[:DEPENDS_ON_PACKAGE]->(target:Package)",
+		"d.uid IS NOT NULL",
+		"d.package_id IS NOT NULL",
+		"d.version_id IS NOT NULL",
+		"target.uid IS NOT NULL",
+		"ORDER BY v.uid, d.uid",
+		"LIMIT $limit",
+	} {
+		if !strings.Contains(reader.lastCypher, fragment) {
+			t.Fatalf("cypher = %q, want fragment %q", reader.lastCypher, fragment)
+		}
+	}
+	if got, want := reader.lastParams["limit"], 2; got != want {
+		t.Fatalf("params[limit] = %#v, want %#v", got, want)
+	}
+
+	var resp struct {
+		Dependencies []PackageRegistryDependencyResult `json:"dependencies"`
+		Count        int                               `json:"count"`
+		Limit        int                               `json:"limit"`
+		Truncated    bool                              `json:"truncated"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := len(resp.Dependencies), 1; got != want {
+		t.Fatalf("len(dependencies) = %d, want %d", got, want)
+	}
+	first := resp.Dependencies[0]
+	if got, want := first.DependencyPackageID, "package:npm:left-pad"; got != want {
+		t.Fatalf("dependency_package_id = %q, want %q", got, want)
+	}
+	if got, want := first.DependencyType, "runtime"; got != want {
+		t.Fatalf("dependency_type = %q, want %q", got, want)
+	}
+	if !first.Optional {
+		t.Fatal("optional = false, want true")
+	}
+	if !resp.Truncated {
+		t.Fatal("truncated = false, want true")
+	}
+}
+
+func TestPackageRegistryListDependenciesUsesBothAnchorsWhenProvided(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingPackageRegistryGraphReader{}
+	handler := &PackageRegistryHandler{Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/package-registry/dependencies?package_id=package:npm:@eshu/core-api&version_id=package:npm:@eshu/core-api@1.0.0&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if want := "MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion {uid: $version_id})"; !strings.Contains(reader.lastCypher, want) {
+		t.Fatalf("cypher = %q, want fragment %q", reader.lastCypher, want)
+	}
+	if got, want := reader.lastParams["package_id"], "package:npm:@eshu/core-api"; got != want {
+		t.Fatalf("params[package_id] = %#v, want %#v", got, want)
+	}
+	if got, want := reader.lastParams["version_id"], "package:npm:@eshu/core-api@1.0.0"; got != want {
+		t.Fatalf("params[version_id] = %#v, want %#v", got, want)
+	}
+}
+
+func TestPackageRegistryListDependenciesReturnsCursorForTruncatedPage(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingPackageRegistryGraphReader{
+		runRows: []map[string]any{
+			{
+				"dependency_id":         "dep-2",
+				"source_package_id":     "package:npm:@eshu/core-api",
+				"source_version_id":     "package:npm:@eshu/core-api@1.0.0",
+				"dependency_package_id": "package:npm:debug",
+			},
+			{
+				"dependency_id":         "dep-3",
+				"source_package_id":     "package:npm:@eshu/core-api",
+				"source_version_id":     "package:npm:@eshu/core-api@1.1.0",
+				"dependency_package_id": "package:npm:left-pad",
+			},
+		},
+	}
+	handler := &PackageRegistryHandler{Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/package-registry/dependencies?package_id=package:npm:@eshu/core-api&limit=1&after_version_id=package:npm:@eshu/core-api@0.9.0&after_dependency_id=dep-1",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	for key, want := range map[string]string{
+		"after_version_id":    "package:npm:@eshu/core-api@0.9.0",
+		"after_dependency_id": "dep-1",
+	} {
+		if got := reader.lastParams[key]; got != want {
+			t.Fatalf("params[%s] = %#v, want %#v", key, got, want)
+		}
+	}
+	if want := "v.uid > $after_version_id OR (v.uid = $after_version_id AND d.uid > $after_dependency_id)"; !strings.Contains(reader.lastCypher, want) {
+		t.Fatalf("cypher = %q, want cursor fragment %q", reader.lastCypher, want)
+	}
+
+	var resp struct {
+		Dependencies []PackageRegistryDependencyResult `json:"dependencies"`
+		Truncated    bool                              `json:"truncated"`
+		NextCursor   map[string]string                 `json:"next_cursor"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if !resp.Truncated {
+		t.Fatal("truncated = false, want true")
+	}
+	if got, want := resp.NextCursor["after_version_id"], "package:npm:@eshu/core-api@1.0.0"; got != want {
+		t.Fatalf("next_cursor[after_version_id] = %q, want %q", got, want)
+	}
+	if got, want := resp.NextCursor["after_dependency_id"], "dep-2"; got != want {
+		t.Fatalf("next_cursor[after_dependency_id] = %q, want %q", got, want)
+	}
+}

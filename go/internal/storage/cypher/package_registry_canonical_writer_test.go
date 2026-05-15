@@ -52,10 +52,36 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 			CorrelationAnchors:  []string{"package://npm/registry.npmjs.org/@scope/pkg"},
 			CollectorInstanceID: "package-registry-collector-1",
 		}},
+		PackageRegistryDependencies: []projector.PackageRegistryDependencyRow{{
+			UID:                  "package-registry-dependency-1",
+			PackageID:            "package://npm/registry.npmjs.org/@scope/pkg",
+			VersionID:            "package://npm/registry.npmjs.org/@scope/pkg@1.2.3",
+			Version:              "1.2.3",
+			DependencyPackageID:  "package://npm/registry.npmjs.org/left-pad",
+			DependencyEcosystem:  "npm",
+			DependencyRegistry:   "https://registry.npmjs.org",
+			DependencyNormalized: "left-pad",
+			DependencyRange:      "^1.3.0",
+			DependencyType:       "runtime",
+			TargetFramework:      "node18",
+			Marker:               "optional peer fallback",
+			Optional:             true,
+			SourceFactID:         "package-registry-dependency-1",
+			StableFactKey:        "package-registry-dependency-1",
+			SourceSystem:         "package_registry",
+			SourceRecordID:       "package://npm/registry.npmjs.org/@scope/pkg@1.2.3->package://npm/registry.npmjs.org/left-pad",
+			SourceConfidence:     facts.SourceConfidenceReported,
+			CollectorKind:        "package_registry",
+			CorrelationAnchors: []string{
+				"package://npm/registry.npmjs.org/@scope/pkg@1.2.3",
+				"package://npm/registry.npmjs.org/left-pad",
+			},
+			CollectorInstanceID: "package-registry-collector-1",
+		}},
 	}
 
 	statements := writer.buildPackageRegistryStatements(mat)
-	if got, want := len(statements), 2; got != want {
+	if got, want := len(statements), 3; got != want {
 		t.Fatalf("buildPackageRegistryStatements() count = %d, want %d", got, want)
 	}
 
@@ -82,5 +108,29 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	}
 	if strings.Contains(version.Cypher, "SourceHint") || strings.Contains(version.Cypher, "Repository") {
 		t.Fatalf("version Cypher = %q, must not promote source hints to ownership", version.Cypher)
+	}
+
+	dependency := statements[2]
+	for _, fragment := range []string{
+		"ON CREATE SET target.id = row.dependency_package_id",
+		"target.scope_id = row.scope_id",
+		"target.generation_id = row.generation_id",
+		"target.evidence_source = 'projector/package_registry'",
+		"MERGE (d:PackageDependency:PackageRegistryPackageDependency {uid: row.uid})",
+		"MERGE (v)-[declares:DECLARES_DEPENDENCY]->(d)",
+		"MERGE (d)-[depends:DEPENDS_ON_PACKAGE]->(target)",
+		"dependency_type = row.dependency_type",
+		"target_framework = row.target_framework",
+		"marker = row.marker",
+	} {
+		if !strings.Contains(dependency.Cypher, fragment) {
+			t.Fatalf("dependency Cypher = %q, want fragment %q", dependency.Cypher, fragment)
+		}
+	}
+	if strings.Contains(dependency.Cypher, "\nSET target.") {
+		t.Fatalf("dependency Cypher = %q, must not overwrite observed target package properties", dependency.Cypher)
+	}
+	if strings.Contains(dependency.Cypher, "Repository") {
+		t.Fatalf("dependency Cypher = %q, must not infer repository ownership", dependency.Cypher)
 	}
 }

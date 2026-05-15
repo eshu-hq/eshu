@@ -291,9 +291,11 @@ snapshot.
 ### Package Registry Identity
 
 Package registry routes expose the graph identity materialized from
-`package_registry.package` and `package_registry.package_version` facts. They do
-not report repository ownership or publication truth yet; source repository
-hints remain provenance-only until reducer correlation admits them.
+`package_registry.package`, `package_registry.package_version`, and
+`package_registry.package_dependency` facts. They do not report repository
+ownership, package publication ownership, or runtime consumption truth yet;
+source repository hints remain provenance-only until reducer correlation admits
+them with stronger build, release, CI, or image evidence.
 
 `GET /api/v0/package-registry/packages` lists package identities. The caller
 must provide `limit` and either `package_id` or `ecosystem`. `name` may narrow
@@ -304,6 +306,15 @@ an ecosystem-scoped lookup. Responses include package identity fields,
 caller must provide `package_id` and `limit`. Responses include version
 identity, publication timestamp when present, yank/unlist/deprecation flags,
 `truncated`, and the requested `limit`.
+
+`GET /api/v0/package-registry/dependencies` lists package-native dependency
+edges for one package or package version. The caller must provide `limit` and
+either `package_id` or `version_id`; when both are provided the version must be
+reachable from that package. Responses preserve dependency package identity,
+range, dependency type, target framework, marker, optional/excluded flags,
+source confidence, `truncated`, and the requested `limit`. Truncated responses
+include `next_cursor.after_version_id` and `next_cursor.after_dependency_id` for
+the next bounded read.
 
 ## Context API
 

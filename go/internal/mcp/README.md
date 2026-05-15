@@ -59,12 +59,13 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 61 tools from the tool definition files.
+`ReadOnlyTools` assembles 62 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
 | `codebaseTools` | 26 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
+| `packageRegistryTools` | 1 | `tools_package_registry.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
 | `runtimeTools` | 3 | `tools_runtime.go` |
@@ -92,6 +93,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `build_evidence_citation_packet` | POST | `/api/v0/evidence/citations` |
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
 | `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |
+| `list_package_registry_dependencies` | GET | `/api/v0/package-registry/dependencies` |
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
