@@ -148,6 +148,7 @@ nav:
       - Ingester: services/ingester.md
       - Resolution Engine: services/resolution-engine.md
       - Terraform State Collector: services/collector-terraform-state.md
+      - AWS Cloud Collector: services/collector-aws-cloud.md
     - Source Layout: reference/source-layout.md
     - Languages:
       - Feature Matrix: languages/feature-matrix.md

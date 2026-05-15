@@ -223,6 +223,15 @@ collector/projector/reducer path.
 - Use it for: Detecting broken trust policy, external ID, or workload identity
   setup.
 
+### `eshu_dp_aws_budget_exhausted_total`
+
+- Type: Counter
+- Labels: `service`, `account`, `region`
+- Meaning: AWS service scans that yielded partial results because the
+  configured API budget was exhausted.
+- Use it for: Distinguishing bounded partial scans from credential, throttling,
+  or commit failures before changing per-account concurrency.
+
 ### `eshu_dp_aws_pagination_checkpoint_events_total`
 
 - Type: Counter
