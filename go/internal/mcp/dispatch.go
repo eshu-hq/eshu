@@ -163,6 +163,14 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":                  intOr(args, "limit", 100),
 			"exclude_decorated_with": stringSlice(args, "exclude_decorated_with"),
 		}}, nil
+	case "investigate_dead_code":
+		return &route{method: "POST", path: "/api/v0/code/dead-code/investigate", body: map[string]any{
+			"repo_id":                str(args, "repo_id"),
+			"language":               str(args, "language"),
+			"limit":                  intOr(args, "limit", 100),
+			"offset":                 intOr(args, "offset", 0),
+			"exclude_decorated_with": stringSlice(args, "exclude_decorated_with"),
+		}}, nil
 	case "find_dead_iac":
 		return &route{method: "POST", path: "/api/v0/iac/dead", body: map[string]any{
 			"repo_id":           str(args, "repo_id"),

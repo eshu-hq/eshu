@@ -287,29 +287,37 @@ selected the exact function.
 
 > "Find unused code, but ignore API endpoints."
 
-**Tool:** `find_dead_code`
+**Tool:** `investigate_dead_code`
 
 ```json
-{ "repo_id": "payments", "limit": 200, "exclude_decorated_with": ["@app.route"] }
+{
+  "repo_id": "payments",
+  "limit": 200,
+  "offset": 0,
+  "exclude_decorated_with": ["@app.route"]
+}
 ```
 
-This returns derived dead-code candidates today: the handler starts from the
-graph candidate set, applies the current default entrypoint/test/generated
-exclusions plus direct Go Cobra, stdlib HTTP, controller-runtime signature
-roots and Go exported public-package roots, and reports its modeled root
-categories in the response envelope's `data.analysis` field. The `repo_id`
-argument may be a canonical repository ID, repository name, repo slug, or
-indexed path; the server resolves it before querying. The response also
-includes `data.truncated` when the bounded dead-code result window cut off
-additional candidates and `data.analysis.roots_skipped_missing_source` when Go
-framework-root checks could not run because entity source text was unavailable.
-The same `data.analysis` object now reports
-`framework_roots_from_parser_metadata` versus
-`framework_roots_from_source_fallback` so local validation can tell whether the
-reindex-backed metadata path is taking over from the legacy query-time
-heuristic path.
+This returns a prompt-ready dead-code investigation packet. It still uses the
+same bounded dead-code candidate scan and root policy as `find_dead_code`, but
+the response groups results into `cleanup_ready`, `ambiguous`, and
+`suppressed` buckets, includes repository coverage/freshness and language
+maturity, and returns exact source handles plus recommended next calls. The
+`repo_id` argument may be a canonical repository ID, repository name, repo slug,
+or indexed path; the server resolves it before querying. JavaScript and
+TypeScript candidates stay in `ambiguous` until corpus precision is proven, so
+callers do not treat known false-positive-prone results as cleanup-safe.
 
-### Find dead code (Cypher)
+### Find dead code with the lower-level candidate scan
+
+Use `find_dead_code` when you need the raw derived candidate list instead of
+the investigation packet:
+
+```json
+{ "repo_id": "payments", "language": "go", "limit": 100 }
+```
+
+### Find dead code (diagnostic Cypher only)
 
 > "Find functions that are never called."
 

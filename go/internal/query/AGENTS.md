@@ -18,7 +18,7 @@
 5. `go/internal/telemetry/contract.go` — span name constants
    (`SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
    `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`,
-   `SpanQueryCodeTopicInvestigation`) and log key conventions; check here
+   `SpanQueryCodeTopicInvestigation`, `SpanQueryDeadCodeInvestigation`) and log key conventions; check here
    before adding new telemetry.
 
 ## Invariants this package enforces
@@ -66,6 +66,12 @@
   slices also rely on the filter during dogfood so earlier candidate labels do
   not hide language-specific evidence. Keep this path when adding or dogfooding
   a language-specific dead-code slice.
+
+- **Keep dead-code investigation conservative for JavaScript/TypeScript** —
+  `handleDeadCodeInvestigation` buckets JavaScript, JSX, TypeScript, and TSX
+  active candidates as `ambiguous` until issue #336 records corpus precision
+  evidence. Do not move those candidates into `cleanup_ready` based only on a
+  missing incoming graph edge.
 
 - **SQL routine reachability uses graph `EXECUTES` probes** —
   `CodeHandler.filterDeadCodeResultsWithoutIncomingEdges` falls through to
