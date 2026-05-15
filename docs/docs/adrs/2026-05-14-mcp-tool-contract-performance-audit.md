@@ -114,7 +114,7 @@ tool surface:
 | Environment comparison | `compare_environments` | Scoped workload/environment route now returns a prompt-ready story packet with shared resources, dedicated resources, evidence, limitations, coverage, and exact next calls | #296 |
 | Package and registry prompts | `list_package_registry_packages`, `list_package_registry_versions` | Already require/cap `limit` and deterministic ordering | #297 |
 | Documentation/confluence prompts | story routes plus `build_evidence_citation_packet` | Story-first guidance remains; exact source, docs, manifest, and deployment proof uses bounded citation packets from returned handles | #298 |
-| Raw Cypher cookbook prompts | `execute_cypher_query` | Diagnostics-only, timeout-bound, server-capped, envelope-backed | #299 |
+| Raw Cypher cookbook prompts | `execute_cypher_query` | Diagnostics-only, timeout-bound, server-capped, envelope-backed; cookbook happy paths no longer advertise raw Cypher as the normal MCP tool | #360, #361, #362 |
 
 ## Bounds And Observability
 
@@ -428,6 +428,19 @@ include `limit` and `truncated`; environment comparison also includes
 `coverage.left_truncated` and `coverage.right_truncated`, so operators and MCP
 callers can tell whether latency or incomplete answers came from the bounded
 graph read window rather than cache warmth.
+
+No-Regression Evidence: issue #299 is a documentation-contract cleanup. The
+new `TestMCPCookbookKeepsRawCypherDiagnosticsOnly` test fails when the MCP
+cookbook advertises `execute_cypher_query` before the diagnostics-only section
+or when diagnostics examples omit an explicit `limit`. After the change,
+`go test ./internal/mcp -run TestMCPCookbookKeepsRawCypherDiagnosticsOnly -count=1`
+passes and the cookbook links the remaining first-class gaps to #360, #361,
+and #362.
+
+No-Observability-Change: issue #299 does not change MCP dispatch, HTTP query
+handlers, graph reads, spans, metrics, logs, or response payloads. Existing
+`execute_cypher_query` timeout, server-side row cap, envelope metadata, and
+`truncated` response field remain the diagnostics path.
 
 No-Regression Evidence: issue #296 focused proof for the environment comparison
 story contract:

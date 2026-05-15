@@ -13,7 +13,7 @@ If you want shorter, role-based prompts before you drop into tool names and JSON
 - [Class hierarchy](#class-hierarchy)
 - [Service dossier](#service-dossier)
 - [Repository management](#repository-management)
-- [Advanced Cypher queries](#advanced-cypher-queries)
+- [Diagnostic Cypher queries](#diagnostic-cypher-queries)
 - [Security analysis](#security-analysis)
 
 ---
@@ -146,11 +146,11 @@ raw Cypher or repeat broad content searches without narrowing the topic.
 
 > "Find all dataclasses."
 
-**Tool:** `execute_cypher_query`
-
-```json
-{ "cypher_query": "MATCH (c:Class) WHERE 'dataclass' IN c.decorators RETURN c.name, c.path", "limit": 50 }
-```
+There is not a first-class bounded dataclass inventory tool yet. Track that
+work in #362. Until then, do not put this prompt in normal MCP prompt suites.
+Operators can use the diagnostics-only Cypher example in
+[Diagnostic Cypher Queries](#diagnostic-cypher-queries) when they need to inspect a
+local graph manually.
 
 ---
 
@@ -226,40 +226,39 @@ selected the exact function.
 
 > "Find functions in `module_a.py` that call `helper` in `module_b.py`."
 
-**Tool:** `execute_cypher_query`
+**Tool:** `get_code_relationship_story`
 
 ```json
 {
-  "cypher_query": "MATCH (caller:Function)-[:CALLS]->(callee:Function {name: 'helper'}) WHERE caller.path ENDS WITH 'module_a.py' AND callee.path ENDS WITH 'module_b.py' RETURN caller.name",
-  "limit": 50
+  "target": "helper",
+  "repo_id": "payments",
+  "relationship_type": "CALLS",
+  "direction": "incoming",
+  "limit": 25
 }
 ```
+
+Use returned source handles to inspect the caller and callee files. Exact
+file-pair and module-pair relationship filters are tracked in #361; until that
+lands, keep exact cross-module predicates out of normal prompt suites.
 
 ### Find recursive functions
 
 > "Find all functions that call themselves."
 
-**Tool:** `execute_cypher_query`
-
-```json
-{
-  "cypher_query": "MATCH (f:Function)-[:CALLS]->(f2:Function) WHERE f.name = f2.name AND f.path = f2.path RETURN f.name, f.path",
-  "limit": 50
-}
-```
+There is not a first-class bounded recursion detector yet. Track that work in
+#360. Until then, do not put this prompt in normal MCP prompt suites. Operators
+can use the diagnostics-only Cypher example in
+[Diagnostic Cypher Queries](#diagnostic-cypher-queries) for local graph debugging.
 
 ### Find hub functions (most connected)
 
 > "Find the functions that are most central to the codebase."
 
-**Tool:** `execute_cypher_query`
-
-```json
-{
-  "cypher_query": "MATCH (f:Function) OPTIONAL MATCH (f)-[:CALLS]->(callee:Function) OPTIONAL MATCH (caller:Function)-[:CALLS]->(f) WITH f, count(DISTINCT callee) AS calls_out, count(DISTINCT caller) AS calls_in ORDER BY (calls_out + calls_in) DESC LIMIT 5 RETURN f.name, f.path, calls_out, calls_in",
-  "limit": 5
-}
-```
+There is not a first-class bounded call-graph centrality tool yet. Track that
+work in #360. Until then, do not put this prompt in normal MCP prompt suites.
+Operators can use the diagnostics-only Cypher example in
+[Diagnostic Cypher Queries](#diagnostic-cypher-queries) for local graph debugging.
 
 ---
 
@@ -321,19 +320,6 @@ the investigation packet:
 
 ```json
 { "repo_id": "payments", "language": "go", "limit": 100 }
-```
-
-### Find dead code (diagnostic Cypher only)
-
-> "Find functions that are never called."
-
-**Tool:** `execute_cypher_query`
-
-```json
-{
-  "cypher_query": "MATCH (f:Function) WHERE NOT (()-[:CALLS]->(f)) AND f.is_dependency = false RETURN f.name, f.path",
-  "limit": 100
-}
 ```
 
 ### Find large functions
@@ -484,26 +470,76 @@ ambiguity-aware.
 
 ---
 
-## Advanced Cypher Queries
+## Diagnostic Cypher Queries
 
-`execute_cypher_query` is a diagnostics-only fallback. Prefer the named MCP
-tools above when they answer the question. When you do use raw Cypher, include a
-small `limit`; the server also appends a bounded `LIMIT` when the query omits
-one and returns `truncated` when the row window clips the result.
+This section is diagnostics-only. `execute_cypher_query` is not a normal prompt
+contract and should not be used by starter prompts, cookbook happy paths, or
+prompt-suite tests. Prefer the named MCP tools above when they answer the
+question. When you do use raw Cypher, include a small `limit`; the server also
+appends a bounded `LIMIT` when the query omits one and returns `truncated` when
+the row window clips the result.
+
+### Find all dataclasses
+
+First-class support is tracked in #362.
+
+```json
+{ "cypher_query": "MATCH (c:Class) WHERE 'dataclass' IN c.decorators RETURN c.name, c.path", "limit": 50 }
+```
+
+### Find cross-module calls
+
+Use `get_code_relationship_story` for normal caller/callee prompts. Exact
+module-pair filtering is tracked in #361.
+
+```json
+{ "cypher_query": "MATCH (caller:Function)-[:CALLS]->(callee:Function {name: 'helper'}) WHERE caller.path ENDS WITH 'module_a.py' AND callee.path ENDS WITH 'module_b.py' RETURN caller.name", "limit": 50 }
+```
+
+### Find recursive functions
+
+First-class support is tracked in #360.
+
+```json
+{ "cypher_query": "MATCH (f:Function)-[:CALLS]->(f2:Function) WHERE f.name = f2.name AND f.path = f2.path RETURN f.name, f.path", "limit": 50 }
+```
+
+### Find hub functions
+
+First-class support is tracked in #360.
+
+```json
+{ "cypher_query": "MATCH (f:Function) OPTIONAL MATCH (f)-[:CALLS]->(callee:Function) OPTIONAL MATCH (caller:Function)-[:CALLS]->(f) WITH f, count(DISTINCT callee) AS calls_out, count(DISTINCT caller) AS calls_in ORDER BY (calls_out + calls_in) DESC RETURN f.name, f.path, calls_out, calls_in", "limit": 5 }
+```
+
+### Find functions that are never called
+
+Use `investigate_dead_code` for normal dead-code prompts. This raw query is only
+for comparing local graph state while debugging.
+
+```json
+{ "cypher_query": "MATCH (f:Function) WHERE NOT (()-[:CALLS]->(f)) AND f.is_dependency = false RETURN f.name, f.path", "limit": 100 }
+```
 
 ### Find all function definitions
 
+First-class structural inventory support is tracked in #362.
+
 ```json
-{ "cypher_query": "MATCH (n:Function) RETURN n.name, n.path, n.line_number LIMIT 50", "limit": 50 }
+{ "cypher_query": "MATCH (n:Function) RETURN n.name, n.path, n.line_number", "limit": 50 }
 ```
 
 ### Find all classes
 
+First-class structural inventory support is tracked in #362.
+
 ```json
-{ "cypher_query": "MATCH (n:Class) RETURN n.name, n.path, n.line_number LIMIT 50", "limit": 50 }
+{ "cypher_query": "MATCH (n:Class) RETURN n.name, n.path, n.line_number", "limit": 50 }
 ```
 
 ### Find functions in a specific file
+
+First-class structural inventory support is tracked in #362.
 
 ```json
 { "cypher_query": "MATCH (f:Function) WHERE f.path ENDS WITH 'module_a.py' RETURN f.name", "limit": 50 }
@@ -511,11 +547,15 @@ one and returns `truncated` when the row window clips the result.
 
 ### Find top-level elements in a file
 
+First-class structural inventory support is tracked in #362.
+
 ```json
 { "cypher_query": "MATCH (f:File)-[:CONTAINS]->(n) WHERE f.name = 'module_a.py' AND (n:Function OR n:Class) AND n.context IS NULL RETURN n.name", "limit": 50 }
 ```
 
 ### Find circular file imports
+
+First-class import/dependency support is tracked in #361.
 
 ```json
 { "cypher_query": "MATCH (f1:File)-[:IMPORTS]->(m2:Module), (f2:File)-[:IMPORTS]->(m1:Module) WHERE f1.name = m1.name + '.py' AND f2.name = m2.name + '.py' RETURN f1.name, f2.name", "limit": 50 }
@@ -523,11 +563,15 @@ one and returns `truncated` when the row window clips the result.
 
 ### Find documented functions
 
+First-class structural inventory support is tracked in #362.
+
 ```json
-{ "cypher_query": "MATCH (f:Function) WHERE f.docstring IS NOT NULL AND f.docstring <> '' RETURN f.name, f.path LIMIT 50", "limit": 50 }
+{ "cypher_query": "MATCH (f:Function) WHERE f.docstring IS NOT NULL AND f.docstring <> '' RETURN f.name, f.path", "limit": 50 }
 ```
 
 ### Find decorated methods in a class
+
+First-class structural inventory support is tracked in #362.
 
 ```json
 { "cypher_query": "MATCH (c:Class {name: 'Child'})-[:CONTAINS]->(m:Function) WHERE m.decorators IS NOT NULL AND size(m.decorators) > 0 RETURN m.name", "limit": 50 }
@@ -535,11 +579,15 @@ one and returns `truncated` when the row window clips the result.
 
 ### Count functions per file
 
+First-class structural inventory support is tracked in #362.
+
 ```json
 { "cypher_query": "MATCH (f:Function) RETURN f.path, count(f) AS function_count ORDER BY function_count DESC", "limit": 50 }
 ```
 
 ### Find classes with a specific method
+
+First-class structural inventory support is tracked in #362.
 
 ```json
 { "cypher_query": "MATCH (c:Class)-[:CONTAINS]->(m:Function {name: 'greet'}) RETURN c.name, c.path", "limit": 50 }
@@ -547,17 +595,23 @@ one and returns `truncated` when the row window clips the result.
 
 ### Find `super()` calls
 
+First-class structural inventory support is tracked in #362.
+
 ```json
 { "cypher_query": "MATCH (f:Function)-[r:CALLS]->() WHERE r.full_call_name STARTS WITH 'super(' RETURN f.name, f.path", "limit": 50 }
 ```
 
 ### Find modules imported by a file
 
+First-class import/dependency support is tracked in #361.
+
 ```json
 { "cypher_query": "MATCH (f:File {name: 'module_a.py'})-[:IMPORTS]->(m:Module) RETURN m.name AS imported_module_name", "limit": 50 }
 ```
 
 ### Find all Python package imports
+
+First-class import/dependency support is tracked in #361.
 
 ```json
 { "cypher_query": "MATCH (f:File)-[:IMPORTS]->(m:Module) WHERE f.path ENDS WITH '.py' RETURN DISTINCT m.name", "limit": 100 }

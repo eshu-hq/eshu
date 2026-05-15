@@ -198,7 +198,7 @@ For complex questions that standard tools can't answer.
 
 | Tool Name | Description | Natural Language Example |
 | :--- | :--- | :--- |
-| **`execute_cypher_query`** | Run a raw read-only database query. | "Find all recursive functions." |
+| **`execute_cypher_query`** | Run a raw read-only database query for diagnostics only after named tools do not cover the question. | "Inspect a bounded diagnostic query." |
 | **`visualize_graph_query`** | Generate a Neo4j Browser link for a query. | "Visualize the class hierarchy of `BaseModel`." |
 
 ---
