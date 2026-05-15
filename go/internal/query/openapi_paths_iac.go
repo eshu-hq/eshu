@@ -84,7 +84,7 @@ const openAPIPathsIaC = `
       "post": {
         "tags": ["iac"],
         "summary": "Find unmanaged cloud resources",
-        "description": "Finds AWS cloud resources whose active reducer drift facts show no Terraform config owner or only Terraform state ownership. Requests must be bounded by scope_id or account_id.",
+        "description": "Finds AWS cloud resources whose active reducer drift facts show no Terraform config owner or only Terraform state ownership. Requests must be bounded by scope_id or account_id. Responses include safety gates, redacted sensitive evidence values, and refused import-plan actions for resources requiring security review.",
         "operationId": "findUnmanagedResources",
         "requestBody": {
           "required": true,
@@ -127,6 +127,7 @@ const openAPIPathsIaC = `
                     "arn": {"type": "string"},
                     "story": {"type": "string"},
                     "finding_groups": {"type": "array", "items": {"type": "object"}},
+                    "safety_summary": {"type": "object"},
                     "finding_kinds": {"type": "array", "items": {"type": "string"}},
                     "findings_count": {"type": "integer"},
                     "total_findings_count": {"type": "integer"},
@@ -180,6 +181,18 @@ const openAPIPathsIaC = `
                           "recommended_action": {"type": "string"},
                           "missing_evidence": {"type": "array", "items": {"type": "string"}},
                           "warning_flags": {"type": "array", "items": {"type": "string"}},
+                          "safety_gate": {
+                            "type": "object",
+                            "properties": {
+                              "outcome": {"type": "string", "enum": ["read_only_allowed", "security_review_required"]},
+                              "read_only": {"type": "boolean"},
+                              "review_required": {"type": "boolean"},
+                              "refused_actions": {"type": "array", "items": {"type": "string"}},
+                              "warnings": {"type": "array", "items": {"type": "string"}},
+                              "redactions": {"type": "array", "items": {"type": "string"}},
+                              "audit_expectation": {"type": "string"}
+                            }
+                          },
                           "evidence": {"type": "array", "items": {"type": "object"}}
                         }
                       }
@@ -200,7 +213,7 @@ const openAPIPathsIaC = `
       "post": {
         "tags": ["iac"],
         "summary": "Get IaC management status for one cloud resource",
-        "description": "Returns the current read-only IaC management status for one exact AWS resource identity. Requests must be bounded by scope_id or account_id and by arn or resource_id.",
+        "description": "Returns the current read-only IaC management status for one exact AWS resource identity. Requests must be bounded by scope_id or account_id and by arn or resource_id. Sensitive evidence values are redacted and sensitive, ambiguous, unknown, or stale findings require security review before import-plan use.",
         "operationId": "getIaCManagementStatus",
         "requestBody": {
           "required": true,
@@ -242,6 +255,7 @@ const openAPIPathsIaC = `
                     "management_status": {"type": "string"},
                     "analysis_status": {"type": "string"},
                     "finding": {"type": ["object", "null"]},
+                    "safety_gate": {"type": "object"},
                     "total_findings_count": {"type": "integer"},
                     "limitations": {"type": "array", "items": {"type": "string"}}
                   }
@@ -260,7 +274,7 @@ const openAPIPathsIaC = `
       "post": {
         "tags": ["iac"],
         "summary": "Explain IaC management status evidence",
-        "description": "Explains one exact AWS IaC management status with grouped reducer evidence rows.",
+        "description": "Explains one exact AWS IaC management status with grouped reducer evidence rows, redacted sensitive values, and the safety gate that applies before import-plan use.",
         "operationId": "explainIaCManagementStatus",
         "requestBody": {
           "required": true,
@@ -301,6 +315,7 @@ const openAPIPathsIaC = `
                     "region": {"type": "string"},
                     "finding": {"type": ["object", "null"]},
                     "evidence_groups": {"type": "array", "items": {"type": "object"}},
+                    "safety_gate": {"type": "object"},
                     "total_findings_count": {"type": "integer"},
                     "limitations": {"type": "array", "items": {"type": "string"}}
                   }

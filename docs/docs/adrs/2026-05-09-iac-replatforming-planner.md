@@ -432,6 +432,30 @@ Issue #131 read-surface implementation note:
   `InstrumentedDB{StoreName: "iac_management"}` and keeps ARNs out of metric
   labels.
 
+Issue #129 safety-gate implementation note:
+
+- IaC management findings now include a `safety_gate` object that preserves the
+  read-only contract while naming whether security review is required before
+  follow-up import-plan use. Sensitive resource families, ambiguous ownership,
+  insufficient coverage, and stale IaC evidence return
+  `security_review_required` and refuse the `terraform_import_plan` follow-up
+  action.
+- Evidence and raw-tag values whose keys indicate passwords, tokens,
+  credentials, secret values, environment values, parameter values, or
+  authorization material are returned as `[REDACTED]`. The API keeps evidence
+  shape and provenance while preventing secret-like values from leaving the
+  query layer.
+- No-Regression Evidence: focused Go tests cover sensitive evidence/tag
+  redaction, exact-status `safety_gate` response shape, safety-summary counts,
+  OpenAPI contract fields, and existing IaC management behavior without adding
+  unbounded reads.
+- No-Observability-Change: this phase changes response shaping after the same
+  bounded Postgres read. Existing `query.iac_management`,
+  `query.iac_management_status`, and `query.iac_management_explanation` spans,
+  `InstrumentedDB{StoreName: "iac_management"}` Postgres spans, and bounded
+  paging fields remain the operator signals; resource IDs, ARNs, tags, and
+  redacted values stay out of metric labels.
+
 ### Phase 2: Query And MCP Tools
 
 - Add read-only API/MCP tools for unmanaged and ambiguous cloud resources.

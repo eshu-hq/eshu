@@ -996,17 +996,30 @@ requires `scope_id` or `account_id`; `region`, `finding_kinds`, `limit`, and
 read model and include the AWS ARN, account, region, `management_status`,
 matched Terraform state/config fields when present, service/environment
 candidates, dependency paths, `missing_evidence`, `warning_flags`, reducer
-evidence atoms, and a recommended next action. Raw tags may appear in the
-`tags` map and evidence rows, but they remain provenance-only. They do not
-create environment, service, or ownership truth.
+evidence atoms, a recommended next action, and `safety_gate`. Raw tags may
+appear in the `tags` map and evidence rows, but they remain provenance-only.
+They do not create environment, service, or ownership truth. Tag or evidence
+values whose keys indicate passwords, tokens, credentials, secret values,
+environment values, parameter values, or authorization material are returned as
+`[REDACTED]`; callers should use the redaction marker and not expect raw
+secret-like values from this read surface.
+
+`safety_gate` is the promotion guard for the finding. The API remains
+read-only, but a finding can still refuse follow-up actions such as Terraform
+import-plan generation. `security_review_required` is returned for sensitive
+resource families, ambiguous ownership, insufficient coverage, or stale IaC
+evidence. The current refused action is `terraform_import_plan`; an assistant
+or operator must resolve the warning or complete security review before using
+that finding as an import-plan input. The unmanaged-resource list also includes
+`safety_summary` with counts for review-required and redacted findings.
 
 The status and explain routes inspect one exact AWS stable resource identity.
 They require `scope_id` or `account_id` plus `arn` or `resource_id`; for AWS,
 `resource_id` should be the ARN. The status route returns the story, current
-management status, active finding if present, and limitations. The explain
-route returns the same finding with grouped cloud, Terraform state/config,
-management, and raw-tag evidence rows. Both routes force the page to one active
-finding and remain read-only.
+management status, active finding if present, `safety_gate`, and limitations.
+The explain route returns the same finding with grouped cloud, Terraform
+state/config, management, and raw-tag evidence rows plus `safety_gate`. Both
+routes force the page to one active finding and remain read-only.
 
 Management status values are deterministic:
 

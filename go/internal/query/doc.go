@@ -9,7 +9,10 @@
 // handler behavior, OpenAPI fragments, and docs/docs/reference/http-api.md
 // must agree whenever public routes or response shapes change. Response
 // envelopes, truth metadata, capability gates, and code-quality classifications
-// are stable wire contracts. Hardcoded-secret investigation returns redacted
+// are stable wire contracts. IaC management responses include safety gates that
+// keep read-only evidence separate from Terraform import-plan eligibility and
+// redact sensitive evidence values before HTTP or MCP callers see them.
+// Hardcoded-secret investigation returns redacted
 // content-index findings with suppression notes and never returns raw secret
 // values; suppression filtering and Go suppression notes share one rule table,
 // filtering stays in the Postgres read model before paging, the handler

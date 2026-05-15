@@ -95,6 +95,11 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 the caller's bounded handle array to the HTTP evidence route. The advertised
 schema caps input at 500 handles and the query handler hydrates at most 50
 citations per packet.
+
+IaC management tools also keep MCP as transport only. The HTTP query layer adds
+`safety_gate`, `safety_summary`, and sensitive-value redaction before the
+envelope reaches MCP, so tool callers see the same review-required and refused
+Terraform import-plan actions as HTTP callers.
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |

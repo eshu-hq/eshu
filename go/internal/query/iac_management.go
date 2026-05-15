@@ -65,6 +65,7 @@ type IaCManagementFindingRow struct {
 	RecommendedAction            string                     `json:"recommended_action"`
 	MissingEvidence              []string                   `json:"missing_evidence,omitempty"`
 	WarningFlags                 []string                   `json:"warning_flags,omitempty"`
+	SafetyGate                   IaCManagementSafetyGate    `json:"safety_gate"`
 	Evidence                     []IaCManagementEvidenceRow `json:"evidence"`
 }
 
@@ -203,6 +204,7 @@ func (h *IaCHandler) handleUnmanagedCloudResources(w http.ResponseWriter, r *htt
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	findings = normalizeIaCManagementFindingsSafety(findings)
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"scope_id":              filter.ScopeID,
@@ -211,6 +213,7 @@ func (h *IaCHandler) handleUnmanagedCloudResources(w http.ResponseWriter, r *htt
 		"arn":                   filter.ARN,
 		"story":                 iacManagementListStory(filter, findings, totalFindings),
 		"finding_groups":        iacManagementFindingGroups(findings),
+		"safety_summary":        iacManagementSafetySummary(findings),
 		"finding_kinds":         filter.FindingKinds,
 		"findings":              findings,
 		"findings_count":        len(findings),
@@ -339,24 +342,19 @@ func awsRuntimeDriftRowToIaCManagement(
 		FindingKind: strings.TrimSpace(row.FindingKind),
 	}
 	tags := map[string]string{}
+	var redactions []string
 	enrichment := iacManagementEvidenceEnrichment{}
 	for _, atom := range row.Evidence {
 		statusInput.recordEvidence(atom.EvidenceType)
 		enrichment.recordEvidence(atom)
-		isRawTag := strings.EqualFold(atom.EvidenceType, "aws_raw_tag")
-		if isRawTag && strings.HasPrefix(atom.Key, "tag:") {
-			tags[strings.TrimPrefix(atom.Key, "tag:")] = atom.Value
+		evidenceRow, redacted := sanitizeIaCManagementEvidence(atom)
+		if redacted {
+			redactions = append(redactions, iacManagementSafetyRedactionSensitiveEvidence)
 		}
-		evidence = append(evidence, IaCManagementEvidenceRow{
-			ID:             atom.ID,
-			SourceSystem:   atom.SourceSystem,
-			EvidenceType:   atom.EvidenceType,
-			ScopeID:        atom.ScopeID,
-			Key:            atom.Key,
-			Value:          atom.Value,
-			Confidence:     atom.Confidence,
-			ProvenanceOnly: isRawTag,
-		})
+		if evidenceRow.ProvenanceOnly && strings.HasPrefix(atom.Key, "tag:") {
+			tags[strings.TrimPrefix(atom.Key, "tag:")] = evidenceRow.Value
+		}
+		evidence = append(evidence, evidenceRow)
 	}
 	if len(tags) == 0 {
 		tags = nil
@@ -367,7 +365,7 @@ func awsRuntimeDriftRowToIaCManagement(
 		row.WarningFlags,
 		warningFlagsForManagementFinding(status, parsed.resourceType, parsed.resourceID, tags),
 	)
-	return IaCManagementFindingRow{
+	finding := IaCManagementFindingRow{
 		ID:                           row.FactID,
 		Provider:                     "aws",
 		AccountID:                    parsed.accountID,
@@ -393,8 +391,11 @@ func awsRuntimeDriftRowToIaCManagement(
 		RecommendedAction:            iacFirstNonEmpty(row.RecommendedAction, recommendedActionForManagementStatus(status)),
 		MissingEvidence:              missingEvidence,
 		WarningFlags:                 warningFlags,
+		SafetyGate:                   iacManagementSafetyGate(status, warningFlags, redactions),
 		Evidence:                     evidence,
 	}
+	normalizeIaCManagementFindingSafety(&finding)
+	return finding
 }
 
 type awsManagementARN struct {
