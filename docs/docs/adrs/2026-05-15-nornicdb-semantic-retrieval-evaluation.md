@@ -235,6 +235,27 @@ Required evidence:
   canonical claim count
 - docs explaining how to add a new eval case without leaking private repo data
 
+Initial implementation status:
+
+- `go/internal/semanticeval` owns the strict JSON suite/run contract and scoring
+  formulas for `recall@K`, `precision@K`, `nDCG@K`, false canonical claims,
+  forbidden hits, unsupported cases, and mean latency.
+- `go/internal/semanticeval/testdata` provides a checked-in fixture contract for
+  shaping current-path and future semantic/hybrid runs without touching runtime
+  query behavior.
+- `go/internal/semanticeval/README.md` documents how to add eval cases while
+  avoiding private code, secrets, customer names, and unredacted production
+  incident text.
+
+No-Regression Evidence: `cd go && go test ./internal/semanticeval -count=1`
+passes for the scoring package and checked-in fixture contract.
+
+No-Observability-Change: this slice adds an offline scoring package only. It
+does not add runtime projection, retrieval, graph writes, queue work, HTTP, MCP,
+Postgres, or NornicDB calls. The first runtime-backed retrieval slice must add
+the semantic projection and retrieval telemetry listed in
+[Observability Requirements](#observability-requirements).
+
 ### Phase 1: Semantic Context Projection Design
 
 Define bounded semantic context records from existing Eshu truth, such as file
