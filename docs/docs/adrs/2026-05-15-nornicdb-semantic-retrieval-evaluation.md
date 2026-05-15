@@ -241,21 +241,32 @@ Initial implementation status:
 
 - `go/internal/semanticeval` owns the strict JSON suite/run contract and scoring
   formulas for `recall@K`, `precision@K`, `nDCG@K`, false canonical claims,
-  forbidden hits, unsupported cases, and mean latency.
+  forbidden hits, unsupported cases, mean latency, and nearest-rank p95
+  latency.
+- `go/internal/semanticeval/currentpath` owns the bounded HTTP runner for the
+  existing Eshu query surfaces. It converts envelope responses from
+  `/api/v0/code/search`, `/api/v0/code/topics/investigate`,
+  `/api/v0/content/files/search`, and `/api/v0/content/entities/search` into
+  scorer-compatible ranked candidates without importing graph, storage, query
+  handler, MCP, or reducer packages.
 - `go/internal/semanticeval/testdata` provides a checked-in fixture contract for
   shaping current-path and future semantic/hybrid runs without touching runtime
   query behavior.
-- `go/internal/semanticeval/README.md` documents how to add eval cases while
-  avoiding private code, secrets, customer names, and unredacted production
-  incident text.
+- `go/internal/semanticeval/README.md` and
+  `go/internal/semanticeval/currentpath/README.md` document how to add eval cases
+  while avoiding private code, secrets, customer names, and unredacted
+  production incident text.
 
-No-Regression Evidence: `cd go && go test ./internal/semanticeval -count=1`
-passes for the scoring package and checked-in fixture contract.
+No-Regression Evidence: `cd go && go test ./internal/semanticeval ./internal/semanticeval/currentpath -count=1`
+passes for the scoring package, checked-in fixture contract, bounded HTTP
+request construction, truth mapping, unsupported-capability handling, and
+candidate handle normalization.
 
-No-Observability-Change: this slice adds an offline scoring package only. It
-does not add runtime projection, retrieval, graph writes, queue work, HTTP, MCP,
-Postgres, or NornicDB calls. The first runtime-backed retrieval slice must add
-the semantic projection and retrieval telemetry listed in
+No-Observability-Change: this slice adds offline scoring and an opt-in
+current-path HTTP eval runner only. It does not add production runtime
+projection, graph writes, queue work, MCP handlers, Postgres writes, or NornicDB
+calls. The first runtime-backed semantic retrieval slice must add the semantic
+projection and retrieval telemetry listed in
 [Observability Requirements](#observability-requirements).
 
 ### Phase 1: Semantic Context Projection Design

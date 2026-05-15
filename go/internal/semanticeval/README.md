@@ -17,6 +17,7 @@ flowchart LR
   B["Run results\nranked candidates"] --> C
   C --> D["Report\nrecall@K / precision@K / nDCG@K"]
   C --> E["Truth failures\nfalse canonical claims"]
+  C --> F["Latency\nmean / p95"]
 ```
 
 ## Invariants
@@ -37,6 +38,12 @@ flowchart LR
 - `ndcg_at_k`: graded rank quality from expected relevance values.
 - `false_canonical_claims`: semantic or stale handles claimed as exact truth.
 - `forbidden_hits`: must-not-include handles that appeared in the first `K`.
+- `unsupported_case_count`: cases where the evaluated path cannot answer with
+  the current runtime profile or capability set.
+- `mean_latency_ms`: mean retrieval latency across cases when the runner records
+  latency.
+- `p95_latency_ms`: nearest-rank p95 retrieval latency across cases when the
+  runner records latency.
 
 ## Adding Cases
 
@@ -60,4 +67,5 @@ normally be `semantic_candidate`, not `exact`.
 ## Related Docs
 
 - `docs/docs/adrs/2026-05-15-nornicdb-semantic-retrieval-evaluation.md`
+- `go/internal/semanticeval/currentpath/README.md`
 - `docs/docs/reference/truth-label-protocol.md`
