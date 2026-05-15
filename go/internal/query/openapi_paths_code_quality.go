@@ -19,7 +19,7 @@ const openAPIPathsCodeQuality = `
                   "language": {"type": "string"},
                   "entity_id": {"type": "string"},
                   "function_name": {"type": "string"},
-                  "min_complexity": {"type": "integer", "default": 10},
+                  "min_complexity": {"type": "integer", "description": "Minimum cyclomatic complexity. When omitted or <= 0, the server uses 1 for complexity ranking and 10 for refactoring candidates."},
                   "min_lines": {"type": "integer", "default": 20},
                   "min_arguments": {"type": "integer", "default": 5},
                   "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100},

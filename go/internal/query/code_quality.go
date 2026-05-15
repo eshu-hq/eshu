@@ -35,6 +35,20 @@ type codeQualityInspectionRequest struct {
 }
 
 func (h *CodeHandler) handleCodeQualityInspection(w http.ResponseWriter, r *http.Request) {
+	if capabilityUnsupported(h.profile(), codeQualityCapability) {
+		WriteContractError(
+			w,
+			r,
+			http.StatusNotImplemented,
+			"code quality inspection requires authoritative graph mode",
+			ErrorCodeUnsupportedCapability,
+			codeQualityCapability,
+			h.profile(),
+			requiredProfile(codeQualityCapability),
+		)
+		return
+	}
+
 	var req codeQualityInspectionRequest
 	if err := ReadJSON(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())

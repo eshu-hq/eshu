@@ -117,6 +117,59 @@ func TestHandleCodeQualityInspectionFindsLongFunctionsWithHandles(t *testing.T) 
 	}
 }
 
+func TestHandleCodeQualityInspectionLocalLightweightReturnsStructuredUnsupportedCapability(t *testing.T) {
+	t.Parallel()
+
+	graphCalled := false
+	handler := &CodeHandler{
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+				graphCalled = true
+				return nil, nil
+			},
+		},
+		Profile: ProfileLocalLightweight,
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/quality/inspect",
+		bytes.NewBufferString(`{"check":"complexity","limit":1}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+
+	handler.handleCodeQualityInspection(rec, req)
+
+	if got, want := rec.Code, http.StatusNotImplemented; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+	if graphCalled {
+		t.Fatal("graph query was called, want capability gate before graph reads")
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if envelope.Error == nil {
+		t.Fatal("envelope.Error = nil, want unsupported capability error")
+	}
+	if got, want := envelope.Error.Code, ErrorCodeUnsupportedCapability; got != want {
+		t.Fatalf("error code = %q, want %q", got, want)
+	}
+	if got, want := envelope.Error.Capability, codeQualityCapability; got != want {
+		t.Fatalf("capability = %q, want %q", got, want)
+	}
+	if envelope.Error.Profiles == nil {
+		t.Fatal("error profiles = nil, want current and required profiles")
+	}
+	if got, want := envelope.Error.Profiles.Current, ProfileLocalLightweight; got != want {
+		t.Fatalf("current profile = %q, want %q", got, want)
+	}
+	if got, want := envelope.Error.Profiles.Required, ProfileLocalAuthoritative; got != want {
+		t.Fatalf("required profile = %q, want %q", got, want)
+	}
+}
+
 func TestHandleCodeQualityInspectionFindsFunctionsByArgumentCount(t *testing.T) {
 	t.Parallel()
 

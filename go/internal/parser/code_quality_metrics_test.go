@@ -45,6 +45,10 @@ func TestDefaultEngineParsePathTypeScriptFunctionParameterCount(t *testing.T) {
 		`export function buildPayment(id: string, amount: number, currency: string, capture: boolean, customerId: string, metadata: Record<string, string>) {
   return { id, amount, currency, capture, customerId, metadata };
 }
+
+export function compareDefaults(a = x < y, b = "left,right", c = "x,y") {
+  return { a, b, c };
+}
 `,
 	)
 
@@ -59,4 +63,6 @@ func TestDefaultEngineParsePathTypeScriptFunctionParameterCount(t *testing.T) {
 
 	function := assertFunctionByName(t, got, "buildPayment")
 	assertIntFieldValue(t, function, "parameter_count", 6)
+	defaultsFunction := assertFunctionByName(t, got, "compareDefaults")
+	assertIntFieldValue(t, defaultsFunction, "parameter_count", 3)
 }

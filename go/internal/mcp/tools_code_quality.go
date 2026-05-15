@@ -31,8 +31,7 @@ func codeQualityInspectionTool() ToolDefinition {
 				},
 				"min_complexity": map[string]any{
 					"type":        "integer",
-					"description": "Minimum cyclomatic complexity for complexity/refactoring checks",
-					"default":     10,
+					"description": "Minimum cyclomatic complexity. When omitted or <= 0, the server uses 1 for complexity ranking and 10 for refactoring candidates.",
 				},
 				"min_lines": map[string]any{
 					"type":        "integer",
