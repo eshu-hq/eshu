@@ -47,6 +47,9 @@ func (s Service) scheduleAWSFreshnessWork(
 	if s.Config.DeploymentMode != deploymentModeActive || !s.Config.ClaimsEnabled || s.AWSFreshnessTriggers == nil {
 		return nil
 	}
+	if s.AWSFreshnessPlanner == nil {
+		return fmt.Errorf("AWS freshness planner is required before claiming freshness triggers")
+	}
 	claimLimit := defaultAWSFreshnessClaimLimit
 	triggers, err := s.AWSFreshnessTriggers.ClaimQueuedTriggers(ctx, awsFreshnessClaimOwner, observedAt.UTC(), claimLimit)
 	if err != nil {
@@ -57,9 +60,6 @@ func (s Service) scheduleAWSFreshnessWork(
 	}
 	if len(triggers) == 0 {
 		return nil
-	}
-	if s.AWSFreshnessPlanner == nil {
-		return fmt.Errorf("AWS freshness planner is required when freshness triggers are claimed")
 	}
 	assignments := s.assignAWSFreshnessTriggers(ctx, observedAt.UTC(), triggers, instances)
 	for _, assignment := range assignments {

@@ -16,7 +16,7 @@ ORDER BY status
 `
 
 const awsFreshnessOldestQueuedAgeQuery = `
-SELECT COALESCE(EXTRACT(EPOCH FROM ($1::timestamptz - MIN(received_at))), 0) AS oldest_queued_age_seconds
+SELECT COALESCE(GREATEST(EXTRACT(EPOCH FROM ($1::timestamptz - MIN(received_at))), 0), 0) AS oldest_queued_age_seconds
 FROM aws_freshness_triggers
 WHERE status = 'queued'
 `
@@ -58,6 +58,9 @@ func readAWSFreshnessOldestQueuedAge(ctx context.Context, queryer Queryer, asOf 
 	}
 	if err := rows.Err(); err != nil {
 		return 0, fmt.Errorf("read AWS freshness oldest queued age: %w", err)
+	}
+	if seconds < 0 {
+		seconds = 0
 	}
 	return durationFromSeconds(seconds), nil
 }

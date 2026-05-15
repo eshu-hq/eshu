@@ -265,7 +265,7 @@ wiring.
 
 AWS EventBridge events carry stable top-level metadata such as `source`,
 `detail-type`, `account`, `region`, `time`, `resources`, and provider-specific
-`detail`: <https://docs.aws.amazon.com/eventbridge/latest/ref/overiew-event-structure.html>.
+`detail`: <https://docs.aws.amazon.com/eventbridge/latest/ref/overview-event-structure.html>.
 AWS service API events delivered through CloudTrail use the
 `AWS API Call via CloudTrail` detail type and carry the service/API identity in
 the detail payload:
