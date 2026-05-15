@@ -74,7 +74,7 @@ The same capability ID may back more than one surface or tool. Initial mapping:
 | --- | --- |
 | `find_code` | `code_search.exact_symbol`, `code_search.fuzzy_symbol` |
 | `search_file_content` | `code_search.content_search` |
-| `analyze_code_relationships` | `call_graph.direct_callers`, `call_graph.direct_callees`, `call_graph.transitive_callers`, `call_graph.transitive_callees` |
+| `analyze_code_relationships` | `call_graph.direct_callers`, `call_graph.direct_callees`, `call_graph.transitive_callers`, `call_graph.transitive_callees`, `symbol_graph.class_methods`, `symbol_graph.inheritance` |
 | `find_function_call_chain` | `call_graph.call_chain_path` |
 | `find_dead_code` | `code_quality.dead_code` |
 | `calculate_cyclomatic_complexity` | `code_quality.complexity` |

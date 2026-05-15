@@ -46,6 +46,9 @@ func (h *CodeHandler) resolveRelationshipStoryTarget(
 		return relationshipStoryResolution{Status: "not_found", Target: target}, nil, nil
 	}
 	candidates = exactEntityNameMatches(candidates, target)
+	if req.normalizedQueryType() == "class_hierarchy" {
+		candidates = relationshipStoryClassHierarchyCandidates(candidates)
+	}
 	if len(candidates) == 0 {
 		return relationshipStoryResolution{Status: "not_found", Target: target}, nil, nil
 	}
@@ -71,6 +74,25 @@ func (h *CodeHandler) resolveRelationshipStoryTarget(
 		RepoID:   entity.RepoID,
 		Language: entity.Language,
 	}, &entity, nil
+}
+
+func relationshipStoryClassHierarchyCandidates(candidates []EntityContent) []EntityContent {
+	out := make([]EntityContent, 0, len(candidates))
+	for _, candidate := range candidates {
+		if relationshipStoryClassHierarchyEntityType(candidate.EntityType) {
+			out = append(out, candidate)
+		}
+	}
+	return out
+}
+
+func relationshipStoryClassHierarchyEntityType(entityType string) bool {
+	switch strings.ToLower(strings.TrimSpace(entityType)) {
+	case "class", "interface", "trait", "struct", "enum", "protocol":
+		return true
+	default:
+		return false
+	}
 }
 
 func (h *CodeHandler) relationshipStoryCandidates(

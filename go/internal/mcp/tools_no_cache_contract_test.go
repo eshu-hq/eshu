@@ -24,6 +24,34 @@ func TestNoCachePromptToolsAdvertiseBounds(t *testing.T) {
 	}
 }
 
+func TestAnalyzeCodeRelationshipsSchemaRequiresTargetExceptRepoScopedOverrides(t *testing.T) {
+	t.Parallel()
+
+	tool := requireMCPTool(t, "analyze_code_relationships")
+	schema := tool.InputSchema.(map[string]any)
+	anyOf, ok := schema["anyOf"].([]map[string]any)
+	if !ok {
+		t.Fatalf("analyze_code_relationships schema anyOf type = %T, want []map[string]any", schema["anyOf"])
+	}
+	if len(anyOf) != 2 {
+		t.Fatalf("analyze_code_relationships schema anyOf len = %d, want 2", len(anyOf))
+	}
+	targetRequired := anyOf[0]["required"].([]string)
+	if len(targetRequired) != 2 || targetRequired[0] != "query_type" || targetRequired[1] != "target" {
+		t.Fatalf("target branch required = %#v, want query_type,target", targetRequired)
+	}
+	overrideRequired := anyOf[1]["required"].([]string)
+	if len(overrideRequired) != 2 || overrideRequired[0] != "query_type" || overrideRequired[1] != "repo_id" {
+		t.Fatalf("override branch required = %#v, want query_type,repo_id", overrideRequired)
+	}
+	properties := anyOf[1]["properties"].(map[string]any)
+	queryType := properties["query_type"].(map[string]any)
+	enum := queryType["enum"].([]string)
+	if len(enum) != 1 || enum[0] != "overrides" {
+		t.Fatalf("override branch query_type enum = %#v, want [overrides]", enum)
+	}
+}
+
 func TestNoCachePromptRoutesPassBounds(t *testing.T) {
 	t.Parallel()
 

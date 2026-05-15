@@ -15,6 +15,7 @@ const (
 )
 
 type relationshipStoryRequest struct {
+	QueryType         string `json:"query_type"`
 	Target            string `json:"target"`
 	Name              string `json:"name"`
 	EntityID          string `json:"entity_id"`
@@ -66,6 +67,11 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if req.isRepoScopedOverrideStory() {
+		h.handleRepoScopedOverrideStory(w, r, req)
+		return
+	}
+
 	resolution, entity, err := h.resolveRelationshipStoryTarget(r.Context(), req)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -73,6 +79,12 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 	}
 	if resolution.Status != "resolved" {
 		h.writeRelationshipStory(w, r, req, resolution, nil, TruthBasisContentIndex)
+		return
+	}
+	if req.normalizedQueryType() == "class_hierarchy" && entity != nil &&
+		strings.TrimSpace(entity.EntityType) != "" &&
+		!relationshipStoryClassHierarchyEntityType(entity.EntityType) {
+		WriteError(w, http.StatusBadRequest, "class_hierarchy target must resolve to a class or inheritable entity")
 		return
 	}
 
@@ -87,6 +99,18 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 	}
 	data := relationshipStoryData(req, resolution, relationships)
 	data["source_backend"] = sourceBackend
+	if req.normalizedQueryType() == "class_hierarchy" {
+		hierarchy, err := h.relationshipStoryClassHierarchy(r.Context(), req, entity, relationships)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		data["class_hierarchy"] = hierarchy
+		markRelationshipStoryClassHierarchyCoverage(data, req)
+	}
+	if req.normalizedQueryType() == "overrides" {
+		data["override_story"] = relationshipStoryOverrideData(req, relationships)
+	}
 	WriteSuccess(
 		w,
 		r,
@@ -97,7 +121,7 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 }
 
 func (r relationshipStoryRequest) validate() error {
-	if strings.TrimSpace(r.EntityID) == "" && strings.TrimSpace(r.target()) == "" {
+	if strings.TrimSpace(r.EntityID) == "" && strings.TrimSpace(r.target()) == "" && !r.isRepoScopedOverrideStory() {
 		return errors.New("entity_id or target is required")
 	}
 	if r.Offset < 0 {
@@ -124,6 +148,16 @@ func (r relationshipStoryRequest) validate() error {
 		}
 	}
 	return nil
+}
+
+func (r relationshipStoryRequest) normalizedQueryType() string {
+	return strings.ToLower(strings.TrimSpace(r.QueryType))
+}
+
+func (r relationshipStoryRequest) isRepoScopedOverrideStory() bool {
+	return r.normalizedQueryType() == "overrides" &&
+		strings.TrimSpace(r.EntityID) == "" &&
+		strings.TrimSpace(r.target()) == ""
 }
 
 func (r relationshipStoryRequest) target() string {
@@ -158,6 +192,12 @@ func (r relationshipStoryRequest) normalizedDirection() (string, error) {
 func (r relationshipStoryRequest) normalizedRelationshipType() (string, error) {
 	relationshipType := strings.ToUpper(strings.TrimSpace(r.RelationshipType))
 	if relationshipType == "" {
+		switch r.normalizedQueryType() {
+		case "class_hierarchy":
+			return "INHERITS", nil
+		case "overrides":
+			return "OVERRIDES", nil
+		}
 		return "CALLS", nil
 	}
 	switch relationshipType {
@@ -180,6 +220,9 @@ func normalizedRelationshipStoryMaxDepth(maxDepth int) int {
 }
 
 func relationshipStoryEffectiveMaxDepth(req relationshipStoryRequest) int {
+	if req.normalizedQueryType() == "class_hierarchy" {
+		return normalizedRelationshipStoryMaxDepth(req.MaxDepth)
+	}
 	if !req.IncludeTransitive {
 		return 1
 	}
@@ -259,6 +302,20 @@ func relationshipStoryData(
 			"truncated":              truncated,
 		},
 	}
+}
+
+func markRelationshipStoryClassHierarchyCoverage(data map[string]any, req relationshipStoryRequest) {
+	maxDepth := normalizedRelationshipStoryMaxDepth(req.MaxDepth)
+	if scope, ok := data["scope"].(map[string]any); ok {
+		scope["max_depth"] = maxDepth
+	}
+	coverage, ok := data["coverage"].(map[string]any)
+	if !ok {
+		return
+	}
+	coverage["query_shape"] = "entity_anchor_class_hierarchy_story"
+	coverage["relationship_types"] = []string{"INHERITS", "CONTAINS"}
+	coverage["max_depth"] = maxDepth
 }
 
 func relationshipStoryDirectionCounts(rows []map[string]any) map[string]int {

@@ -369,10 +369,11 @@ the investigation packet:
 **Tool:** `analyze_code_relationships`
 
 ```json
-{ "query_type": "class_hierarchy", "target": "A" }
+{ "query_type": "class_hierarchy", "target": "A", "repo_id": "payments", "limit": 25 }
 ```
 
-The response includes a list of methods and child classes.
+The response includes `class_hierarchy.methods`, direct parents, direct
+children, source handles, and bounded depth metadata.
 
 ### Find subclasses
 
@@ -381,8 +382,12 @@ The response includes a list of methods and child classes.
 **Tool:** `analyze_code_relationships`
 
 ```json
-{ "query_type": "class_hierarchy", "target": "Base" }
+{ "query_type": "class_hierarchy", "target": "Base", "repo_id": "payments", "limit": 25 }
 ```
+
+Read `class_hierarchy.children` for direct subclasses. If the response is
+truncated, page or narrow by repository/language before asking for source
+evidence.
 
 ### Find method overrides
 
@@ -391,34 +396,39 @@ The response includes a list of methods and child classes.
 **Tool:** `analyze_code_relationships`
 
 ```json
-{ "query_type": "overrides", "target": "foo" }
+{ "query_type": "overrides", "repo_id": "payments", "limit": 25 }
 ```
+
+Use `target` when you want overrides for one method. Omit `target` only when
+you want the bounded repo-scoped override list.
 
 ### Find inheritance depth
 
 > "How deep are the inheritance chains?"
 
-**Tool:** `execute_cypher_query`
+**Tool:** `analyze_code_relationships`
 
 ```json
-{
-  "cypher_query": "MATCH (c:Class) OPTIONAL MATCH path = (c)-[:INHERITS*]->(parent:Class) RETURN c.name, c.path, length(path) AS depth ORDER BY depth DESC",
-  "limit": 100
-}
+{ "query_type": "class_hierarchy", "target": "Base", "repo_id": "payments", "max_depth": 5, "limit": 25 }
 ```
 
-### Find overriding methods (Cypher)
+Read `class_hierarchy.depth_summary.max_parent_depth` and
+`class_hierarchy.depth_summary.max_child_depth`. Use the returned handles for
+follow-up source reads.
+
+### Find overriding methods
 
 > "Find all methods that override a parent class method."
 
-**Tool:** `execute_cypher_query`
+**Tool:** `analyze_code_relationships`
 
 ```json
-{
-  "cypher_query": "MATCH (c:Class)-[:INHERITS]->(p:Class), (c)-[:CONTAINS]->(m:Function), (p)-[:CONTAINS]->(m_parent:Function) WHERE m.name = m_parent.name RETURN m.name as method, c.name as child_class, p.name as parent_class",
-  "limit": 100
-}
+{ "query_type": "overrides", "repo_id": "payments", "limit": 25 }
 ```
+
+Raw Cypher is diagnostics-only for this prompt family. Normal MCP callers
+should use the first-class story response so the answer is scoped, paged, and
+ambiguity-aware.
 
 ---
 

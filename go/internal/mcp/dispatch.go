@@ -148,6 +148,10 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			return analyzeCodeRelationshipsStoryRoute(args, "outgoing", "CALLS", true), nil
 		case "find_importers":
 			return analyzeCodeRelationshipsStoryRoute(args, "incoming", "IMPORTS", false), nil
+		case "class_hierarchy":
+			return analyzeCodeRelationshipsTypedStoryRoute(args, "class_hierarchy", "both", "INHERITS"), nil
+		case "overrides":
+			return analyzeCodeRelationshipsTypedStoryRoute(args, "overrides", "both", "OVERRIDES"), nil
 		case "call_chain":
 			start, end, ok := strings.Cut(str(args, "target"), "->")
 			if !ok {
