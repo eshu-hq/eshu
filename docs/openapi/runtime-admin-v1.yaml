@@ -535,6 +535,34 @@ components:
         updated_at:
           type: string
           format: date-time
+    AWSFreshnessStatusCount:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - count
+      properties:
+        name:
+          type: string
+          enum: [queued, claimed, handed_off, failed]
+        count:
+          type: integer
+    AWSFreshnessSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - status_counts
+        - oldest_queued_age
+        - oldest_queued_age_seconds
+      properties:
+        status_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/AWSFreshnessStatusCount"
+        oldest_queued_age:
+          type: string
+        oldest_queued_age_seconds:
+          type: number
     TagTaxonomySummary:
       type: object
       additionalProperties: false
@@ -644,5 +672,11 @@ components:
         aws_cloud_scan_limit:
           type: integer
           description: Configured AWS scan-status row cap when truncated.
+        aws_freshness:
+          description: >
+            Aggregate AWS Config/EventBridge freshness trigger backlog. This
+            section must not include event IDs, resource IDs, ARNs, tags, or raw
+            provider payloads.
+          $ref: "#/components/schemas/AWSFreshnessSummary"
         tag_taxonomy:
           $ref: "#/components/schemas/TagTaxonomySummary"

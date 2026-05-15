@@ -62,7 +62,7 @@ Current platform reality:
 | API | HTTP API, query reads, admin endpoints | `eshu api start --host 0.0.0.0 --port 8080` | graph + content reads only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | MCP Server | MCP tool transport plus mounted query passthrough | `eshu mcp start` | graph + content reads only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Ingester | repo sync, parsing, fact emission, workspace ownership | `/usr/local/bin/eshu-ingester` | workspace PVC + Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `StatefulSet` |
-| Webhook Listener | public provider webhook intake and durable refresh triggers | `/usr/local/bin/eshu-webhook-listener` | Postgres trigger table only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
+| Webhook Listener | public Git and AWS freshness webhook intake and durable refresh triggers | `/usr/local/bin/eshu-webhook-listener` | Postgres trigger tables only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | OCI Registry Collector | OCI registry scan, tag observation, manifest/referrer fact emission | `/usr/local/bin/eshu-collector-oci-registry` | Postgres fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
 | Package Registry Collector | package metadata fetch, parser routing, package/version/dependency fact emission | `/usr/local/bin/eshu-collector-package-registry` | Postgres workflow + fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
 | AWS Cloud Collector | AWS IAM-first cloud observation and fact emission | `/usr/local/bin/eshu-collector-aws-cloud` | Postgres workflow + fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
@@ -248,7 +248,8 @@ full re-index whenever possible.
 
 - the `ingester` should reconcile only the scopes and generations that changed
 - the `webhook-listener` should enqueue provider refresh triggers without
-  cloning repositories, parsing files, or writing graph truth directly
+  cloning repositories, parsing files, reading cloud resources, or writing graph
+  truth directly
 - the `workflow-coordinator` should stay dark until claim ownership is enabled
 - the `resolution-engine` should drain queued follow-up work and shared
   corrections from durable state

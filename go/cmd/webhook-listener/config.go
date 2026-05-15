@@ -12,9 +12,11 @@ type webhookListenerConfig struct {
 	GitHubSecret        string
 	GitLabToken         string
 	BitbucketSecret     string
+	AWSFreshnessToken   string
 	GitHubPath          string
 	GitLabPath          string
 	BitbucketPath       string
+	AWSFreshnessPath    string
 	MaxRequestBodyBytes int64
 	DefaultBranch       string
 }
@@ -27,14 +29,16 @@ func loadWebhookListenerConfig(getenv func(string) string) (webhookListenerConfi
 		GitHubSecret:        strings.TrimSpace(getenv("ESHU_WEBHOOK_GITHUB_SECRET")),
 		GitLabToken:         strings.TrimSpace(getenv("ESHU_WEBHOOK_GITLAB_TOKEN")),
 		BitbucketSecret:     strings.TrimSpace(getenv("ESHU_WEBHOOK_BITBUCKET_SECRET")),
+		AWSFreshnessToken:   strings.TrimSpace(getenv("ESHU_AWS_FRESHNESS_TOKEN")),
 		GitHubPath:          firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_GITHUB_PATH")), "/webhooks/github"),
 		GitLabPath:          firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_GITLAB_PATH")), "/webhooks/gitlab"),
 		BitbucketPath:       firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_BITBUCKET_PATH")), "/webhooks/bitbucket"),
+		AWSFreshnessPath:    firstNonEmpty(strings.TrimSpace(getenv("ESHU_AWS_FRESHNESS_PATH")), "/webhooks/aws/eventbridge"),
 		MaxRequestBodyBytes: int64FromEnv(getenv, "ESHU_WEBHOOK_MAX_BODY_BYTES", defaultMaxWebhookBodyBytes),
 		DefaultBranch:       strings.TrimSpace(getenv("ESHU_WEBHOOK_DEFAULT_BRANCH")),
 	}
-	if cfg.GitHubSecret == "" && cfg.GitLabToken == "" && cfg.BitbucketSecret == "" {
-		return webhookListenerConfig{}, fmt.Errorf("at least one webhook provider secret is required")
+	if cfg.GitHubSecret == "" && cfg.GitLabToken == "" && cfg.BitbucketSecret == "" && cfg.AWSFreshnessToken == "" {
+		return webhookListenerConfig{}, fmt.Errorf("at least one webhook provider secret or AWS freshness token is required")
 	}
 	if cfg.MaxRequestBodyBytes <= 0 {
 		return webhookListenerConfig{}, fmt.Errorf("webhook max body bytes must be positive")

@@ -22,6 +22,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		RetryPolicies          []retryPolicyJSON          `json:"retry_policies"`
 		RegistryCollectors     []registryCollectorJSON    `json:"registry_collectors,omitempty"`
 		AWSCloudScans          []awsCloudScanJSON         `json:"aws_cloud_scans,omitempty"`
+		AWSFreshness           *awsFreshnessJSON          `json:"aws_freshness,omitempty"`
 		AWSCloudScansTruncated bool                       `json:"aws_cloud_scans_truncated,omitempty"`
 		AWSCloudScanLimit      int                        `json:"aws_cloud_scan_limit,omitempty"`
 		ScopeActivity          scopeActivityJSON          `json:"scope_activity"`
@@ -44,6 +45,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		RetryPolicies:          retryPoliciesJSON(report.RetryPolicies),
 		RegistryCollectors:     registryCollectorsJSON(report.RegistryCollectors),
 		AWSCloudScans:          awsCloudScansJSON(report.AWSCloudScans),
+		AWSFreshness:           awsFreshnessJSONFromReport(report.AWSFreshness),
 		AWSCloudScansTruncated: report.AWSCloudScansTruncated,
 		AWSCloudScanLimit:      awsCloudScanLimitJSON(report),
 		ScopeActivity:          scopeActivityJSONFromReport(report.ScopeActivity),

@@ -98,6 +98,7 @@ type RawSnapshot struct {
 	Coordinator           *CoordinatorSnapshot
 	RegistryCollectors    []RegistryCollectorSnapshot
 	AWSCloudScans         []AWSCloudScanStatus
+	AWSFreshness          AWSFreshnessSnapshot
 	// AWSCloudScansTruncated reports that the reader returned the configured
 	// row cap instead of every AWS scan tuple.
 	AWSCloudScansTruncated bool
@@ -161,6 +162,7 @@ type Report struct {
 	Coordinator            *CoordinatorSnapshot
 	RegistryCollectors     []RegistryCollectorSnapshot
 	AWSCloudScans          []AWSCloudScanStatus
+	AWSFreshness           AWSFreshnessSnapshot
 	AWSCloudScansTruncated bool
 	AWSCloudScanLimit      int
 	// TerraformState carries the operator-facing tfstate admin status section
@@ -168,15 +170,6 @@ type Report struct {
 	// RawSnapshot.TerraformStateRecentWarnings. Empty when the reader did not
 	// surface tfstate evidence.
 	TerraformState TerraformStateReport
-}
-
-// TerraformStateReport projects the per-locator serial and recent warning
-// evidence into a stable shape for the admin status surface. The Postgres
-// query bounds raw inputs; this projection only sorts and groups them.
-type TerraformStateReport struct {
-	LastSerials    []TerraformStateLocatorSerial
-	RecentWarnings []TerraformStateLocatorWarning
-	WarningsByKind map[string]map[string][]TerraformStateLocatorWarning
 }
 
 // DefaultOptions returns the baseline operator heuristics for this first live
@@ -247,6 +240,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		Coordinator:            cloneCoordinatorSnapshot(raw.Coordinator),
 		RegistryCollectors:     cloneRegistryCollectorSnapshots(raw.RegistryCollectors),
 		AWSCloudScans:          cloneAWSCloudScanStatuses(raw.AWSCloudScans),
+		AWSFreshness:           cloneAWSFreshnessSnapshot(raw.AWSFreshness),
 		AWSCloudScansTruncated: raw.AWSCloudScansTruncated,
 		AWSCloudScanLimit:      raw.AWSCloudScanLimit,
 		TerraformState: TerraformStateReport{
@@ -306,6 +300,7 @@ func RenderText(report Report) string {
 	lines = append(lines, renderCoordinatorLines(report.Coordinator)...)
 	lines = append(lines, renderRegistryCollectorLines(report.RegistryCollectors)...)
 	lines = append(lines, renderAWSCloudScanLines(report.AWSCloudScans)...)
+	lines = append(lines, renderAWSFreshnessLines(report.AWSFreshness)...)
 	if report.AWSCloudScansTruncated {
 		lines = append(lines, fmt.Sprintf("AWS cloud scans truncated: limit=%d", report.AWSCloudScanLimit))
 	}

@@ -16,7 +16,9 @@
    `CollectorInstanceSummary`; how the workflow coordinator state plugs in
 7. `go/internal/status/aws_cloud.go` — AWS cloud scanner status text and JSON
    projection support
-8. `docs/docs/reference/http-api.md` and `docs/docs/reference/cli-reference.md`
+8. `go/internal/status/aws_freshness.go` — AWS freshness trigger backlog text
+   and JSON projection support
+9. `docs/docs/reference/http-api.md` and `docs/docs/reference/cli-reference.md`
    — the documented operator contract this package backs
 
 ## Invariants this package enforces
@@ -47,6 +49,8 @@
 - **AWS cloud scan status separates scanner state from commit state.** Preserve
   both fields so operators can tell scanner/API problems apart from fact commit
   problems.
+- **AWS freshness status stays aggregate.** Do not add event IDs, resource IDs,
+  ARNs, or payload details to `AWSFreshnessSnapshot`.
 
 ## Common changes and how to scope them
 

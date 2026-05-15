@@ -53,7 +53,7 @@
 {{- fail "workflowCoordinator.claimsEnabled must remain false in this chart; use the documented Compose proof path for active claim validation" -}}
 {{- end -}}
 {{- if .Values.webhookListener.enabled -}}
-{{- if and (not .Values.webhookListener.github.enabled) (not .Values.webhookListener.gitlab.enabled) (not .Values.webhookListener.bitbucket.enabled) -}}
+{{- if and (not .Values.webhookListener.github.enabled) (not .Values.webhookListener.gitlab.enabled) (not .Values.webhookListener.bitbucket.enabled) (not .Values.webhookListener.awsFreshness.enabled) -}}
 {{- fail "webhookListener requires at least one enabled provider" -}}
 {{- end -}}
 {{- if and .Values.webhookListener.github.enabled (not .Values.webhookListener.github.secretName) -}}
@@ -64,6 +64,9 @@
 {{- end -}}
 {{- if and .Values.webhookListener.bitbucket.enabled (not .Values.webhookListener.bitbucket.secretName) -}}
 {{- fail "webhookListener.bitbucket.secretName is required when webhookListener.bitbucket.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.webhookListener.awsFreshness.enabled (not .Values.webhookListener.awsFreshness.secretName) -}}
+{{- fail "webhookListener.awsFreshness.secretName is required when webhookListener.awsFreshness.enabled=true" -}}
 {{- end -}}
 {{- end -}}
 {{- if .Values.confluenceCollector.enabled -}}

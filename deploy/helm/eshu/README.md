@@ -111,6 +111,9 @@ webhookListener:
   bitbucket:
     enabled: true
     secretName: bitbucket-webhook-secret
+  awsFreshness:
+    enabled: true
+    secretName: aws-freshness-webhook-token
   exposure:
     ingress:
       enabled: true

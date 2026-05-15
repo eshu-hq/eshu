@@ -102,6 +102,10 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
+	awsFreshness, err := readAWSFreshnessSnapshot(ctx, s.queryer, asOf.UTC())
+	if err != nil {
+		return statuspkg.RawSnapshot{}, err
+	}
 	terraformStateEvidence, err := readTerraformStateAdminEvidence(
 		ctx,
 		s.queryer,
@@ -127,6 +131,7 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 		Coordinator:                  coordinatorSnapshot,
 		RegistryCollectors:           registryCollectors,
 		AWSCloudScans:                awsCloudScans,
+		AWSFreshness:                 awsFreshness,
 		AWSCloudScansTruncated:       awsCloudScansTruncated,
 		AWSCloudScanLimit:            awsCloudScanStatusLimit,
 		TerraformStateLastSerials:    terraformStateEvidence.LastSerials,

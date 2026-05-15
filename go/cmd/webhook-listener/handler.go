@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 	"go.opentelemetry.io/otel/attribute"
@@ -22,13 +23,18 @@ type triggerStore interface {
 	StoreTrigger(context.Context, webhook.Trigger, time.Time) (webhook.StoredTrigger, error)
 }
 
+type awsFreshnessStore interface {
+	StoreTrigger(context.Context, freshness.Trigger, time.Time) (freshness.StoredTrigger, error)
+}
+
 type webhookHandler struct {
-	Config      webhookListenerConfig
-	Store       triggerStore
-	Clock       func() time.Time
-	Logger      *slog.Logger
-	Instruments *telemetry.Instruments
-	Tracer      trace.Tracer
+	Config            webhookListenerConfig
+	Store             triggerStore
+	AWSFreshnessStore awsFreshnessStore
+	Clock             func() time.Time
+	Logger            *slog.Logger
+	Instruments       *telemetry.Instruments
+	Tracer            trace.Tracer
 }
 
 type webhookTelemetryResult struct {
@@ -57,8 +63,11 @@ const (
 )
 
 func newWebhookMux(handler webhookHandler) (*http.ServeMux, error) {
-	if handler.Store == nil {
+	if handler.Store == nil && repoWebhookConfigured(handler.Config) {
 		return nil, fmt.Errorf("webhook trigger store is required")
+	}
+	if handler.AWSFreshnessStore == nil && handler.Config.AWSFreshnessToken != "" {
+		return nil, fmt.Errorf("AWS freshness trigger store is required")
 	}
 	mux := http.NewServeMux()
 	if handler.Config.GitHubSecret != "" {
@@ -70,7 +79,14 @@ func newWebhookMux(handler webhookHandler) (*http.ServeMux, error) {
 	if handler.Config.BitbucketSecret != "" {
 		mux.HandleFunc(handler.Config.BitbucketPath, handler.handleBitbucket)
 	}
+	if handler.Config.AWSFreshnessToken != "" {
+		mux.HandleFunc(handler.Config.AWSFreshnessPath, handler.handleAWSFreshnessEventBridge)
+	}
 	return mux, nil
+}
+
+func repoWebhookConfigured(config webhookListenerConfig) bool {
+	return config.GitHubSecret != "" || config.GitLabToken != "" || config.BitbucketSecret != ""
 }
 
 func (h webhookHandler) handleGitHub(w http.ResponseWriter, r *http.Request) {

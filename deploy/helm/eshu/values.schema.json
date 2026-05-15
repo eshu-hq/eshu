@@ -219,6 +219,15 @@
             "secretKey": { "type": "string" }
           }
         },
+        "awsFreshness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "secretName": { "type": "string" },
+            "tokenKey": { "type": "string" }
+          }
+        },
         "exposure": {
           "type": "object",
           "properties": {

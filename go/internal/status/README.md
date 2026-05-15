@@ -82,6 +82,8 @@ See `doc.go` for the godoc contract. Key types and functions:
 - `AWSCloudScanStatus` — per AWS `(collector_instance_id, account_id, region,
   service_kind)` scanner status, commit status, API call count, throttle count,
   warning count, and budget/credential flags
+- `AWSFreshnessSnapshot` — aggregate AWS Config/EventBridge freshness trigger
+  status counts and oldest queued age; does not expose resource identifiers
 - `TerraformStateLocatorSerial` — most recent observed serial per
   Terraform-state scope, keyed by safe locator hash so the report never carries
   raw bucket names, S3 keys, or local paths
@@ -117,7 +119,8 @@ states (in priority order):
 - `RenderText(report)` — compact multi-line text for CLI and plain-text admin
   endpoints; includes health, queue, retry policies, scope activity, generation
   history, stage summaries, domain backlogs, queue blockages, coordinator state,
-  registry collector state, AWS cloud scan state, and flow lanes
+  registry collector state, AWS cloud scan state, AWS freshness backlog state,
+  and flow lanes
 - `RenderJSON(report)` — stable JSON payload for machine-readable consumption;
   field names are part of the operator contract
 - `NewHTTPHandler(reader, opts)` — returns an `http.Handler` that serves `GET`
@@ -172,6 +175,10 @@ strings.
   describes scanner-side outcome such as `partial`, `credential_failed`, or
   `failed`; `CommitStatus` describes whether the fenced fact transaction later
   committed.
+- **AWS freshness status is aggregate only.** `AWSFreshnessSnapshot` shows
+  queued, claimed, handed-off, and failed trigger counts plus oldest queued age.
+  Resource IDs, ARNs, event IDs, and raw payloads stay out of the status
+  contract.
 - **`BuildReport` is a pure function.** It can be called in tests without any
   storage dependency. Use it to unit-test health logic, flow summaries, and
   domain backlog ordering.

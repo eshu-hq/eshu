@@ -72,6 +72,15 @@ spec:
                   name: {{ .Values.webhookListener.bitbucket.secretName }}
                   key: {{ .Values.webhookListener.bitbucket.secretKey }}
             {{- end }}
+            {{- if .Values.webhookListener.awsFreshness.enabled }}
+            - name: ESHU_AWS_FRESHNESS_PATH
+              value: {{ .Values.webhookListener.awsFreshness.path | quote }}
+            - name: ESHU_AWS_FRESHNESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.webhookListener.awsFreshness.secretName }}
+                  key: {{ .Values.webhookListener.awsFreshness.tokenKey }}
+            {{- end }}
             {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}
             {{- include "eshu.renderConnectionTuningEnv" .Values.webhookListener.connectionTuning | nindent 12 }}
             {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "webhook-listener") | nindent 12 }}

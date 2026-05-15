@@ -253,6 +253,56 @@ resulting AWS scans continue through existing `aws.collector.claim.process`,
 `aws.service.scan`, `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_resources_emitted_total`, and `aws_scan_status` signals.
 
+## Freshness Ingress and Handoff (2026-05-15)
+
+**Scope:** Completes the issue #37 runtime path for AWS freshness by adding
+EventBridge/AWS Config intake to `eshu-webhook-listener`, coordinator handoff
+from `aws_freshness_triggers` to ordinary AWS workflow work, aggregate
+`/admin/status` freshness backlog projection, and Compose/Helm deployment
+wiring.
+
+### External Contract Evidence
+
+AWS EventBridge events carry stable top-level metadata such as `source`,
+`detail-type`, `account`, `region`, `time`, `resources`, and provider-specific
+`detail`: <https://docs.aws.amazon.com/eventbridge/latest/ref/overiew-event-structure.html>.
+AWS service API events delivered through CloudTrail use the
+`AWS API Call via CloudTrail` detail type and carry the service/API identity in
+the detail payload:
+<https://docs.aws.amazon.com/en_us/eventbridge/latest/userguide/eb-service-event-cloudtrail.html>.
+AWS Config configuration items include `resourceType`, `resourceId`,
+`awsAccountId`, `awsRegion`, and capture timestamps for supported recorded
+resource types:
+<https://docs.aws.amazon.com/config/latest/APIReference/API_ConfigurationItem.html>.
+
+### Design Decision
+
+Provider events remain wake-up signals. Intake accepts only authenticated
+EventBridge-shaped JSON, normalizes AWS Config configuration-item changes and
+CloudTrail API events into `(account_id, region, service_kind)`, and stores the
+coalesced trigger. The coordinator claims at most 100 queued freshness rows per
+reconcile tick, verifies each target against the AWS collector instance
+`target_scopes`, enqueues normal AWS workflow work, and then marks the trigger
+`handed_off` or `failed`. IAM, Route 53, and CloudFront normalize to
+`aws-global` so freshness targets match the scheduled-scan claim boundary.
+
+No-Regression Evidence: `go test ./cmd/webhook-listener
+./cmd/workflow-coordinator ./internal/collector/awscloud/freshness
+./internal/coordinator ./internal/status ./internal/storage/postgres
+./internal/telemetry -count=1` covers authenticated intake, AWS event
+normalization, coordinator handoff, status projection, schema readers, and
+metric registration without adding AWS API calls or graph writes.
+
+Observability Evidence: `eshu_dp_aws_freshness_events_total{kind,action}`
+records `intake_stored`, `intake_coalesced`, `intake_rejected`,
+`intake_failed`, `handoff_claimed`, `handoff_created`, and `handoff_failed`.
+`/admin/status?format=json` exposes aggregate `aws_freshness.status_counts` and
+`aws_freshness.oldest_queued_age_seconds` without event IDs, resource IDs,
+ARNs, or raw payloads. Handoff-created work continues through
+`aws.collector.claim.process`, `aws.service.scan`,
+`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_resources_emitted_total`, and
+`aws_scan_status`.
+
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/cloudfront/...`
 covers the bounded CloudFront call shape: paginated ListDistributions with
 MaxItems=100 and one ListTagsForResource read per ARN-addressable
@@ -1510,8 +1560,10 @@ and SSM metadata are implemented.
 
 **Scope:** EventBridge / AWS Config integration. The first slice adds the
 internal normalized trigger contract, `aws_freshness_triggers` coalescing
-store, and AWS workflow planner. Follow-up slices must add the provider ingress
-runtime, admin status projection, and deployment wiring.
+store, and AWS workflow planner. The second slice adds provider ingress,
+coordinator handoff, admin status projection, and Compose/Helm deployment
+wiring. Remaining work is live AWS operator validation and security sign-off
+before production exposure.
 
 ---
 

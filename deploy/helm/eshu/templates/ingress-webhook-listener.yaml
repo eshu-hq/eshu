@@ -46,6 +46,15 @@ spec:
                 port:
                   number: 8080
           {{- end }}
+          {{- if $.Values.webhookListener.awsFreshness.enabled }}
+          - path: {{ $.Values.webhookListener.awsFreshness.path | quote }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "eshu.webhookListenerFullname" $ }}
+                port:
+                  number: 8080
+          {{- end }}
     {{- end }}
   {{- with .Values.webhookListener.exposure.ingress.tls }}
   tls:

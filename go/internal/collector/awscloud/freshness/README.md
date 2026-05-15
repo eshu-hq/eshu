@@ -27,6 +27,8 @@ flowchart LR
 - `StoredTrigger` - durable trigger row with delivery and coalescing keys.
 - `Target` - AWS collector claim target derived from a trigger.
 - `NewStoredTrigger` - validates and builds stable durable keys.
+- `NormalizeEventBridge` - normalizes AWS Config and EventBridge CloudTrail
+  events into bounded triggers without AWS SDK calls.
 - `EventKindConfigChange` and `EventKindCloudTrailAPI` - bounded trigger kinds.
 - `TriggerStatusQueued`, `TriggerStatusClaimed`, `TriggerStatusHandedOff`, and
   `TriggerStatusFailed` - durable handoff states.
@@ -39,6 +41,8 @@ flowchart LR
   collectors scan service tuples, not individual resource IDs.
 - Resource IDs are provenance for logs or spans only; they are not metric labels
   and do not change the scan boundary.
+- IAM, Route 53, and CloudFront events normalize to `aws-global` so the trigger
+  target matches the collector claim shape for global scanner families.
 
 ## Telemetry
 

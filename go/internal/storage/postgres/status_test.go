@@ -176,8 +176,8 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	if len(queryer.queries) != 18 {
-		t.Fatalf("QueryContext() call count = %d, want 18", len(queryer.queries))
+	if len(queryer.queries) != 20 {
+		t.Fatalf("QueryContext() call count = %d, want 20", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",
@@ -189,6 +189,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"inflight.conflict_domain",
 		"failure_details",
 		"FROM aws_scan_status",
+		"FROM aws_freshness_triggers",
 	} {
 		joined := strings.Join(queryer.queries, "\n")
 		if !strings.Contains(joined, want) {
@@ -416,6 +417,12 @@ func (q *fakeQueryer) QueryContext(_ context.Context, query string, _ ...any) (R
 	if len(q.responses) == 0 {
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return &fakeRows{}, nil
+		}
+		if query == awsFreshnessStatusCountsQuery {
+			return &fakeRows{}, nil
+		}
+		if query == awsFreshnessOldestQueuedAgeQuery {
+			return &fakeRows{rows: [][]any{{float64(0)}}}, nil
 		}
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
