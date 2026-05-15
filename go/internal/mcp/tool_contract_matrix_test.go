@@ -34,17 +34,6 @@ func TestMCPPromptEpicDocsDoNotAdvertiseClosedGaps(t *testing.T) {
 			"Keep recursive and hub-function prompts quarantined to #360",
 		},
 		"../../../docs/docs/adrs/2026-05-14-mcp-tool-contract-performance-audit.md": {
-			"| Cross-repo service story, onboarding, runbooks | `get_service_story`, `investigate_service` | One-call dossier path from #284; keep using story first | #285 parent epic |",
-			"| Symbol discovery and implementation lookup | `find_symbol`, `find_code`, `execute_language_query` | First-class definition lookup is bounded, paged, source-handle backed, and no longer requires raw Cypher for \"where is this implemented?\" prompts | #287 |",
-			"| Broad code-topic and implementation investigation | `investigate_code_topic` | First-class content-index investigation returns ranked files, symbols, searched terms, coverage, truncation, and source/relationship follow-up handles without raw Cypher or client-side term guessing | #286 |",
-			"| Callers, callees, imports, call chains | `get_code_relationship_story`, `find_function_call_chain`, `investigate_import_dependencies`, `inspect_call_graph_metrics` | Relationship story is bounded, ambiguity-aware, entity-anchored, paged, and exposes optional bounded transitive CALLS traversal; call-chain keeps the dedicated endpoint; import/dependency prompts now have file/module scoped graph reads for imports, importers, package imports, direct Python cycles, and cross-module calls; call-graph metrics now cover recursive and hub-function prompts with repo-scoped graph reads | #288 |",
-			"| Dead code and code quality | `find_dead_code`, `find_most_complex_functions`, `inspect_code_quality` | Complexity, long-function, high-argument, and refactoring-candidate prompts use first-class bounded tools with source handles and truncation instead of raw Cypher | #289 |",
-			"| Security hardcoded secrets | `investigate_hardcoded_secrets` | First-class redacted content-index investigation with severity, confidence, suppression notes, source handles, paging, and truncation | #292 |",
-			"| Deployment, GitOps, and resource tracing | `trace_deployment_chain`, `trace_resource_to_code`, story tools | Service story is one-call; low-level trace paths keep existing caps | #293, #294, #295 |",
-			"| Environment comparison | `compare_environments` | Scoped workload/environment route now returns a prompt-ready story packet with shared resources, dedicated resources, evidence, limitations, coverage, and exact next calls | #296 |",
-			"| Runtime and indexing status prompts | `get_index_status`, `list_ingesters`, `get_ingester_status` | Cookbook status prompts use shipped MCP tools instead of stale job-status names | #297 |",
-			"| Documentation/confluence prompts | story routes plus `build_evidence_citation_packet` | Story-first guidance remains; exact source, docs, manifest, and deployment proof uses bounded citation packets from returned handles | #298 |",
-			"| Structural code inventory | `inspect_code_inventory` | First-class content-index path covers functions/classes, file-local entities, top-level rows, dataclasses, documented functions, decorated methods, classes with a method, `super()` calls, and function counts per file with source handles and truncation | #362 |",
 			"passes and the cookbook links the remaining first-class gap to #362.",
 			"Security prompts remain deliberately unsolved by raw Cypher and are tracked in #292.",
 		},
@@ -61,10 +50,103 @@ func TestMCPPromptEpicDocsDoNotAdvertiseClosedGaps(t *testing.T) {
 			}
 			content := string(raw)
 			for _, claim := range claims {
-				if strings.Contains(content, claim) {
+				if containsNormalizedText(content, claim) {
 					t.Fatalf("%s still advertises closed MCP gap: %s", path, claim)
 				}
 			}
 		})
 	}
+
+	raw, err := os.ReadFile("../../../docs/docs/adrs/2026-05-14-mcp-tool-contract-performance-audit.md")
+	if err != nil {
+		t.Fatalf("read MCP performance ADR: %v", err)
+	}
+	assertADRRemainingTrackedWorkExcludesClosedIssues(t, string(raw))
+}
+
+func TestContainsNormalizedTextMatchesLineWrappedClaims(t *testing.T) {
+	t.Parallel()
+
+	haystack := "Security prompts remain\n deliberately unsolved by raw Cypher"
+	needle := "Security prompts remain deliberately unsolved by raw Cypher"
+	if !containsNormalizedText(haystack, needle) {
+		t.Fatal("containsNormalizedText() missed a line-wrapped stale claim")
+	}
+}
+
+func TestMarkdownTableRowsSplitsCells(t *testing.T) {
+	t.Parallel()
+
+	rows := markdownTableRows("| A | B | C |\n| --- | --- | --- |\n| x | y | z |\n")
+	if len(rows) != 2 {
+		t.Fatalf("markdownTableRows() row count = %d, want 2", len(rows))
+	}
+	if got, want := rows[1][2], "z"; got != want {
+		t.Fatalf("markdownTableRows()[1][2] = %q, want %q", got, want)
+	}
+}
+
+func assertADRRemainingTrackedWorkExcludesClosedIssues(t *testing.T, markdown string) {
+	t.Helper()
+
+	closedIssuesByPromptFamily := map[string][]string{
+		"Cross-repo service story, onboarding, runbooks":    {"#285"},
+		"Symbol discovery and implementation lookup":        {"#287"},
+		"Broad code-topic and implementation investigation": {"#286"},
+		"Callers, callees, imports, call chains":            {"#288"},
+		"Dead code and code quality":                        {"#289"},
+		"Security hardcoded secrets":                        {"#292"},
+		"Deployment, GitOps, and resource tracing":          {"#293", "#294", "#295"},
+		"Environment comparison":                            {"#296"},
+		"Runtime and indexing status prompts":               {"#297"},
+		"Documentation/confluence prompts":                  {"#298"},
+		"Structural code inventory":                         {"#362"},
+	}
+	rowsByFamily := map[string][]string{}
+	for _, row := range markdownTableRows(markdown) {
+		if len(row) < 4 || row[0] == "Prompt family from docs" {
+			continue
+		}
+		rowsByFamily[row[0]] = row
+	}
+	for family, closedIssues := range closedIssuesByPromptFamily {
+		row, ok := rowsByFamily[family]
+		if !ok {
+			t.Fatalf("ADR prompt-family table missing row for %q", family)
+		}
+		remainingTrackedWork := row[3]
+		for _, issue := range closedIssues {
+			if strings.Contains(remainingTrackedWork, issue) {
+				t.Fatalf("ADR row %q still advertises closed issue %s as remaining work: %s", family, issue, remainingTrackedWork)
+			}
+		}
+	}
+}
+
+func containsNormalizedText(haystack, needle string) bool {
+	return strings.Contains(normalizeWhitespace(haystack), normalizeWhitespace(needle))
+}
+
+func normalizeWhitespace(value string) string {
+	return strings.Join(strings.Fields(value), " ")
+}
+
+func markdownTableRows(markdown string) [][]string {
+	var rows [][]string
+	for _, line := range strings.Split(markdown, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "|") || !strings.HasSuffix(trimmed, "|") {
+			continue
+		}
+		trimmed = strings.Trim(trimmed, "|")
+		cells := strings.Split(trimmed, "|")
+		for idx := range cells {
+			cells[idx] = strings.TrimSpace(cells[idx])
+		}
+		if len(cells) > 0 && strings.Trim(cells[0], "-: ") == "" {
+			continue
+		}
+		rows = append(rows, cells)
+	}
+	return rows
 }
