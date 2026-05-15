@@ -50,6 +50,9 @@ Current runtime shape:
 - MCP server: shared probes, status, and metrics
 - Ingester: shared probes, status, metrics, plus recovery routes
 - Reducer: shared probes, status, and metrics
+- Claim-driven collectors such as `collector-terraform-state`,
+  `collector-aws-cloud`, and `collector-package-registry`: shared probes,
+  status, and metrics
 
 The shared runtime metrics families are documented in
 [Telemetry Metrics](telemetry/metrics.md).
@@ -109,12 +112,24 @@ The JSON response follows the shared status report shape from
 - `domains`
 - `queue_blockages`
 - `tag_taxonomy`
+- `aws_cloud_scans`
+- `aws_cloud_scans_truncated`
+- `aws_cloud_scan_limit`
 
 `tag_taxonomy` appears when AWS tag normalization is enabled. It includes the
 first-party and override alias packs in use, canonical-key coverage, unknown
 tag keys, applied aliases, disabled aliases, and missing expected tags after
 source readiness. The tag taxonomy contract lives in
 [Tag Taxonomy](tag-taxonomy.md).
+
+`aws_cloud_scans` appears when AWS cloud scanner status rows exist. Each row is
+keyed by collector instance, account, region, and service kind, and includes
+scanner status, commit status, API call count, throttle count, warning count,
+resource count, relationship count, tag-observation count, budget-exhausted
+state, credential-failed state, and last-started/observed/completed timestamps.
+When the row cap is reached, `aws_cloud_scans_truncated` is `true` and
+`aws_cloud_scan_limit` reports the cap used for the response. The operator
+runbook lives in [AWS Cloud Collector](../services/collector-aws-cloud.md).
 
 Queue entries include both a duration string and seconds value:
 

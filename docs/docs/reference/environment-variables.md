@@ -225,7 +225,7 @@ full-corpus validation is complete.
 | `ESHU_AWS_COLLECTOR_POLL_INTERVAL` | `1s` | collector-aws-cloud | Delay between empty claim polls. | Raise to reduce idle DB polling; lower only when claim pickup latency matters. |
 | `ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-aws-cloud | Lease TTL used when claiming and refreshing work. | Raise if valid AWS service scans or commits approach the current lease. |
 | `ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-aws-cloud | Heartbeat interval for active workflow claims. | Keep below claim TTL. Lower for faster stale-worker detection. |
-| `ESHU_AWS_REDACTION_KEY` | unset | collector-aws-cloud | Deployment-scoped key for ECS task-definition environment redaction markers. Required only when an AWS target scope enables `ecs`. | Set from a secret source before enabling ECS scans. |
+| `ESHU_AWS_REDACTION_KEY` | unset | collector-aws-cloud | Deployment-scoped key for ECS task-definition and Lambda environment redaction markers. Required when an AWS target scope enables `ecs` or `lambda`. | Set from a secret source before enabling ECS or Lambda scans. |
 
 ## Telemetry, Memory, And Compose
 

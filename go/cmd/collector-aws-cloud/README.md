@@ -85,6 +85,7 @@ The command registers the shared data-plane telemetry instruments and emits:
 - `eshu_dp_aws_throttle_total`
 - `eshu_dp_aws_assumerole_failed_total`
 - `eshu_dp_aws_budget_exhausted_total`
+- `eshu_dp_aws_pagination_checkpoint_events_total`
 - `eshu_dp_aws_claim_concurrency`
 - `eshu_dp_aws_resources_emitted_total`
 - `eshu_dp_aws_relationships_emitted_total`

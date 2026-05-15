@@ -170,6 +170,8 @@ plus CloudFront distribution metadata with reported ACM certificate and WAF web
 ACL relationship facts, plus Secrets Manager secret metadata with reported KMS
 key and rotation Lambda relationship facts, plus SSM Parameter Store metadata
 with reported KMS key relationship facts.
+Use the [AWS Cloud Collector](../services/collector-aws-cloud.md) runbook for
+configuration, status fields, dashboards, common failures, and escalation.
 
 `collector-oci-registry` scans configured OCI registry repositories. In the
 legacy local mode it reads `ESHU_OCI_REGISTRY_TARGETS_JSON`; when

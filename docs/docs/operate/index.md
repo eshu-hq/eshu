@@ -18,6 +18,7 @@ queued work.
 | Understand service ownership | [Service Runtimes](../deployment/service-runtimes.md) |
 | Prove a local change before handoff | [Local Testing Reference](../reference/local-testing.md) |
 | Validate hosted or Kubernetes behavior | [Cloud Validation Runbook](../reference/cloud-validation.md) |
+| Operate AWS cloud collection | [AWS Cloud Collector](../services/collector-aws-cloud.md) |
 | Prepare Kubernetes rollout checks | [Kubernetes Production Checklist](../deploy/kubernetes/production-checklist.md) |
 | Roll forward or back | [Upgrade and Rollback](../deploy/kubernetes/upgrades-rollbacks.md) |
 
