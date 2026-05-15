@@ -45,7 +45,9 @@ only in evidence atoms for later explanation or structured logs.
 - ARN is the primary join key. `BuildCandidates` sorts by ARN so explain traces
   remain stable across reducer reruns.
 - Classification is exclusive. Cloud-only resources are `orphaned_cloud_resource`;
-  cloud plus state with no config is `unmanaged_cloud_resource`.
+  cloud plus state with no config is `unmanaged_cloud_resource`; unresolved
+  collector/config coverage becomes `unknown_cloud_resource`; conflicting
+  deterministic owner evidence becomes `ambiguous_cloud_resource`.
 - Cloud plus state plus config produces no candidate because the three source
   layers converge for this slice.
 - Raw AWS tags become `aws_raw_tag` evidence with keys like `tag:Environment`.

@@ -5,13 +5,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
 type stubAWSRuntimeDriftConfigResolver struct {
-	anchors map[string]tfstatebackend.CommitAnchor
-	calls   []string
-	err     error
+	anchors      map[string]tfstatebackend.CommitAnchor
+	calls        []string
+	err          error
+	errByBackend map[string]error
 }
 
 func (s *stubAWSRuntimeDriftConfigResolver) ResolveConfigCommitForBackend(
@@ -20,6 +22,9 @@ func (s *stubAWSRuntimeDriftConfigResolver) ResolveConfigCommitForBackend(
 	locatorHash string,
 ) (tfstatebackend.CommitAnchor, error) {
 	s.calls = append(s.calls, backendKind+":"+locatorHash)
+	if err := s.errByBackend[backendKind+":"+locatorHash]; err != nil {
+		return tfstatebackend.CommitAnchor{}, err
+	}
 	if s.err != nil {
 		return tfstatebackend.CommitAnchor{}, s.err
 	}
@@ -159,6 +164,85 @@ func TestPostgresAWSCloudRuntimeDriftEvidenceLoaderJoinsCloudStateAndConfig(t *t
 	}
 }
 
+func TestPostgresAWSCloudRuntimeDriftEvidenceLoaderMarksUnknownAndAmbiguousMatches(t *testing.T) {
+	t.Parallel()
+
+	const (
+		awsScopeID       = "aws:123456789012:us-east-1:lambda"
+		awsGeneration    = "aws-gen-1"
+		unknownScopeID   = "state_snapshot:s3:missing-owner"
+		ambiguousScopeID = "state_snapshot:s3:ambiguous-owner"
+		stateGen         = "state-gen-1"
+	)
+	unknownARN := "arn:aws:lambda:us-east-1:123456789012:function:unknown"
+	ambiguousARN := "arn:aws:s3:::ambiguous-bucket"
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				{unknownARN, []byte(`{
+					"arn":"` + unknownARN + `",
+					"resource_id":"unknown",
+					"resource_type":"aws_lambda_function"
+				}`)},
+				{ambiguousARN, []byte(`{
+					"arn":"` + ambiguousARN + `",
+					"resource_id":"ambiguous-bucket",
+					"resource_type":"aws_s3_bucket"
+				}`)},
+			}},
+			{rows: [][]any{
+				{unknownScopeID, stateGen, "aws_lambda_function.unknown", fixtureAWSRuntimeStatePayload(
+					"aws_lambda_function.unknown", "aws_lambda_function", unknownARN,
+				)},
+				{ambiguousScopeID, stateGen, "aws_s3_bucket.ambiguous_a", fixtureAWSRuntimeStatePayload(
+					"aws_s3_bucket.ambiguous_a", "aws_s3_bucket", ambiguousARN,
+				)},
+				{ambiguousScopeID, stateGen, "aws_s3_bucket.ambiguous_b", fixtureAWSRuntimeStatePayload(
+					"aws_s3_bucket.ambiguous_b", "aws_s3_bucket", ambiguousARN,
+				)},
+			}},
+		},
+	}
+	resolver := &stubAWSRuntimeDriftConfigResolver{
+		errByBackend: map[string]error{
+			"s3:ambiguous-owner": tfstatebackend.ErrAmbiguousBackendOwner,
+		},
+	}
+	loader := PostgresAWSCloudRuntimeDriftEvidenceLoader{
+		DB:             db,
+		ConfigResolver: resolver,
+	}
+
+	rows, err := loader.LoadAWSCloudRuntimeDriftEvidence(context.Background(), awsScopeID, awsGeneration)
+	if err != nil {
+		t.Fatalf("LoadAWSCloudRuntimeDriftEvidence() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 2; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	for _, row := range rows {
+		switch row.ARN {
+		case unknownARN:
+			if got, want := row.FindingKind, cloudruntime.FindingKindUnknownCloudResource; got != want {
+				t.Fatalf("unknown row FindingKind = %q, want %q", got, want)
+			}
+			if row.Config != nil {
+				t.Fatalf("unknown row Config = %#v, want nil", row.Config)
+			}
+		case ambiguousARN:
+			if got, want := row.FindingKind, cloudruntime.FindingKindAmbiguousCloudResource; got != want {
+				t.Fatalf("ambiguous row FindingKind = %q, want %q", got, want)
+			}
+			if !stringSliceContains(row.WarningFlags, "ambiguous_terraform_state_owner") {
+				t.Fatalf("ambiguous row warnings = %#v, want state-owner warning", row.WarningFlags)
+			}
+		default:
+			t.Fatalf("unexpected ARN %q", row.ARN)
+		}
+	}
+}
+
 func TestPostgresAWSCloudRuntimeDriftEvidenceLoaderSkipsStateJoinWithoutAWSRows(t *testing.T) {
 	t.Parallel()
 
@@ -203,4 +287,13 @@ func fixtureAWSRuntimeStatePayload(address, resourceType, arn string) []byte {
 		"name":"runtime",
 		"attributes":{"arn":"` + arn + `"}
 	}`)
+}
+
+func stringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

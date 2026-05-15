@@ -251,7 +251,7 @@ func codebaseTools() []ToolDefinition {
 					"finding_kinds": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": "Optional finding kinds: orphaned_cloud_resource or unmanaged_cloud_resource",
+						"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
 					},
 					"limit": map[string]any{
 						"type":        "integer",

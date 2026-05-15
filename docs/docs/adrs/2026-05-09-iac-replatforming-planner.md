@@ -390,6 +390,28 @@ Phase 1 implementation note:
   the bounded paging fields `limit`, `offset`, `truncated`, and `next_offset`
   remain the operator signals for this read path.
 
+Issue #130 matching-rule implementation note:
+
+- AWS runtime drift matching remains keyed by provider stable identity: AWS ARN
+  from the live cloud fact to active Terraform-state `attributes.arn`, then to
+  Terraform config by the resolved state backend owner and exact Terraform
+  address. Raw tags and names remain provenance evidence only.
+- Missing Terraform backend ownership now emits `unknown_cloud_resource` with
+  `unknown_management` instead of silently suppressing the row. Ambiguous
+  backend ownership or multiple active Terraform-state owners for one ARN emits
+  `ambiguous_cloud_resource` with `ambiguous_management`.
+- Reducer facts now persist management status, matched Terraform state address,
+  missing evidence, warning flags, and recommended action so the API and MCP
+  read model can explain why a resource is unmanaged, unknown, or ambiguous.
+- No-Regression Evidence: focused Go tests cover tag/name non-promotion,
+  unknown and ambiguous candidate evidence, bounded Postgres AWS ARN joins,
+  unknown/ambiguous owner classification, reducer payload enrichment, and
+  query default finding-kind admission for the same active fact read shape.
+- Observability Evidence: `AWSCloudRuntimeDriftHandler` summaries include
+  orphaned, unmanaged, ambiguous, and unknown counts; admitted-finding logs
+  continue to emit `drift.kind`; generic `correlation_rule_matches_total`
+  remains the bounded rule-pack metric while ARNs stay out of metric labels.
+
 ### Phase 2: Query And MCP Tools
 
 - Add read-only API/MCP tools for unmanaged and ambiguous cloud resources.

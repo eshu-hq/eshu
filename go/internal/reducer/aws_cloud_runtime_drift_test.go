@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -313,6 +314,15 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 					Value:        string(cloudruntime.FindingKindUnmanagedCloudResource),
 					Confidence:   1,
 				},
+				{
+					ID:           "candidate/state",
+					SourceSystem: "reducer/aws_cloud_runtime_drift",
+					EvidenceType: cloudruntime.EvidenceTypeStateResource,
+					ScopeID:      "state_snapshot:s3:hash",
+					Key:          "resource_address",
+					Value:        "aws_lambda_function.unmanaged",
+					Confidence:   1,
+				},
 			},
 		},
 	}
@@ -362,4 +372,37 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 	if got, want := payload["canonical_id"], result.CanonicalIDs[0]; got != want {
 		t.Fatalf("payload canonical_id = %#v, want %q", got, want)
 	}
+
+	payloadBytes, ok = db.execs[1].args[14].([]byte)
+	if !ok {
+		t.Fatalf("payload arg type = %T, want []byte", db.execs[1].args[14])
+	}
+	payload = map[string]any{}
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		t.Fatalf("unmarshal unmanaged payload: %v", err)
+	}
+	if got, want := payload["management_status"], cloudruntime.ManagementStatusTerraformStateOnly; got != want {
+		t.Fatalf("unmanaged management_status = %#v, want %q", got, want)
+	}
+	if got, want := payload["matched_terraform_state_address"], "aws_lambda_function.unmanaged"; got != want {
+		t.Fatalf("matched_terraform_state_address = %#v, want %q", got, want)
+	}
+	if got := stringSliceFromAny(payload["missing_evidence"]); !slices.Equal(got, []string{"terraform_config_resource"}) {
+		t.Fatalf("missing_evidence = %#v, want terraform_config_resource", got)
+	}
+}
+
+func stringSliceFromAny(value any) []string {
+	raw, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		text, ok := item.(string)
+		if ok {
+			out = append(out, text)
+		}
+	}
+	return out
 }

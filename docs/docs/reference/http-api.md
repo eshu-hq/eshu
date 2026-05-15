@@ -1013,6 +1013,8 @@ Management status values are deterministic:
 
 `orphaned_cloud_resource` currently maps to `cloud_only`.
 `unmanaged_cloud_resource` currently maps to `terraform_state_only`.
+`unknown_cloud_resource` maps to `unknown_management`.
+`ambiguous_cloud_resource` maps to `ambiguous_management`.
 Ambiguous and unknown outcomes are first-class statuses, not errors or silent
 fallbacks.
 

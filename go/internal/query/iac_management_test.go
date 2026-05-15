@@ -170,3 +170,37 @@ func TestHandleUnmanagedCloudResourcesReturnsMaterializedFindings(t *testing.T) 
 		t.Fatalf("truth capability = %q, want %q", got, want)
 	}
 }
+
+func TestHandleUnmanagedCloudResourcesDefaultsToActionableAWSFindingKinds(t *testing.T) {
+	t.Parallel()
+
+	var observed IaCManagementFilter
+	handler := &IaCHandler{
+		Profile: ProfileLocalAuthoritative,
+		Management: fakeIaCManagementStore{
+			observedFilter: &observed,
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/iac/unmanaged-resources", bytes.NewBufferString(`{
+		"account_id": "123456789012"
+	}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	wantKinds := []string{
+		"ambiguous_cloud_resource",
+		"orphaned_cloud_resource",
+		"unmanaged_cloud_resource",
+		"unknown_cloud_resource",
+	}
+	if got := observed.FindingKinds; !reflect.DeepEqual(got, wantKinds) {
+		t.Fatalf("observed.FindingKinds = %#v, want %#v", got, wantKinds)
+	}
+}

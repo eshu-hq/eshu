@@ -72,10 +72,11 @@
 // attributes.arn is in that AWS allowlist, resolves each state_snapshot
 // backend to the owning config snapshot, and reuses the Terraform
 // config-resource loader to decide whether a state-backed resource is truly
-// absent from config. Unresolved or ambiguous backend ownership suppresses
-// unmanaged classification for that state-backed ARN because config absence is
-// not proven. AWSCloudRuntimeDriftFindingStore is the fact-backed read side
-// for that publication path; it rejects unscoped filters, keeps reads on the
+// absent from config. Unresolved backend ownership produces unknown-management
+// evidence and ambiguous backend ownership produces ambiguous-management
+// evidence because config absence is not proven.
+// AWSCloudRuntimeDriftFindingStore is the fact-backed read side for that
+// publication path; it rejects unscoped filters, keeps reads on the
 // active generation, validates account and region values before building the
 // account-scope LIKE predicate, and caps direct list pages at 500 rows so
 // internal callers cannot bypass the query API's bounds.

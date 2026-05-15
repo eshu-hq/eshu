@@ -98,7 +98,7 @@ const openAPIPathsIaC = `
                   "region": {"type": "string", "description": "Optional AWS region when account_id is supplied."},
                   "finding_kinds": {
                     "type": "array",
-                    "description": "Optional finding kinds: orphaned_cloud_resource or unmanaged_cloud_resource.",
+                    "description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource.",
                     "items": {"type": "string"}
                   },
                   "limit": {"type": "integer", "description": "Maximum findings to return (default 100, max 500).", "default": 100},
