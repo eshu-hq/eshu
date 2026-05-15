@@ -23,7 +23,7 @@ type callGraphMetricsRequest struct {
 	MetricType string `json:"metric_type"`
 	RepoID     string `json:"repo_id"`
 	Language   string `json:"language"`
-	Limit      int    `json:"limit"`
+	Limit      *int   `json:"limit"`
 	Offset     int    `json:"offset"`
 }
 
@@ -87,17 +87,20 @@ func (r callGraphMetricsRequest) validate() error {
 	if _, ok := callGraphMetricTypes()[r.metricType()]; !ok {
 		return fmt.Errorf("metric_type must be one of: %s", strings.Join(callGraphMetricTypeNames(), ", "))
 	}
-	if r.Limit > callGraphMetricsMaxLimit {
-		return fmt.Errorf("limit must be <= 200")
-	}
-	if r.Limit < 0 {
-		return fmt.Errorf("limit must be >= 0")
-	}
 	if r.Offset < 0 {
 		return fmt.Errorf("offset must be >= 0")
 	}
 	if r.Offset > callGraphMetricsMaxOffset {
 		return fmt.Errorf("offset must be <= 10000")
+	}
+	if r.Limit == nil {
+		return nil
+	}
+	if *r.Limit > callGraphMetricsMaxLimit {
+		return fmt.Errorf("limit must be <= 200")
+	}
+	if *r.Limit < 1 {
+		return fmt.Errorf("limit must be >= 1")
 	}
 	return nil
 }
@@ -115,13 +118,14 @@ func (r callGraphMetricsRequest) normalizedLanguage() string {
 }
 
 func (r callGraphMetricsRequest) normalizedLimit() int {
-	switch {
-	case r.Limit <= 0:
+	if r.Limit == nil {
 		return callGraphMetricsDefaultLimit
-	case r.Limit > callGraphMetricsMaxLimit:
+	}
+	switch {
+	case *r.Limit > callGraphMetricsMaxLimit:
 		return callGraphMetricsMaxLimit
 	default:
-		return r.Limit
+		return *r.Limit
 	}
 }
 

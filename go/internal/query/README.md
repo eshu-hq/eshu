@@ -276,7 +276,7 @@ Call graph metrics use the graph as the first-call read model for recursive
 function and hub-function prompts. `POST /api/v0/code/call-graph/metrics`
 requires a repository scope before expanding `CALLS`, returns deterministic
 `limit+1` pages with `truncated` and `next_offset`, and includes source handles,
-call-degree counts, and recursion evidence for follow-up file reads.
+hub call-degree counts, and recursion evidence for follow-up file reads.
 The OpenAPI fragments for `POST /api/v0/code/dead-code` and
 `POST /api/v0/code/dead-code/investigate` name modeled language roots such as
 Go public-package exports plus C, C#, Dart, Haskell, Kotlin, Elixir, PHP, and

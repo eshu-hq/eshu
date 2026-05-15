@@ -23,6 +23,10 @@ func TestOpenAPICallGraphMetrics(t *testing.T) {
 			t.Fatalf("code/call-graph/metrics request schema missing %s", field)
 		}
 	}
+	limit := mustMapField(t, metricsRequest, "limit")
+	if got, want := limit["minimum"], float64(1); got != want {
+		t.Fatalf("limit minimum = %#v, want %#v", got, want)
+	}
 	metricsResponses := mustMapField(t, metricsPost, "responses")
 	metricsOK := mustMapField(t, metricsResponses, "200")
 	metricsContent := mustMapField(t, mustMapField(t, metricsOK, "content"), "application/json")

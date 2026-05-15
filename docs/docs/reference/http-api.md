@@ -804,11 +804,12 @@ Example call-graph metrics workflow:
 The call-graph metrics route is the bounded graph path for prompts such as
 "find recursive functions" and "find hub functions". It requires `repo_id`,
 accepts `metric_type` values `hub_functions` and `recursive_functions`, and
-returns canonical `functions` rows with source handles, `incoming_calls`,
-`outgoing_calls`, `total_degree`, `truncated`, `next_offset`, and
-`coverage.query_shape`. Recursive rows add `recursion_kind` and
-`recursion_evidence` so MCP clients do not have to infer whether a row is a
-self-call or mutual recursion pair.
+returns canonical `functions` rows with source handles, `truncated`,
+`next_offset`, and `coverage.query_shape`. Hub rows include `incoming_calls`,
+`outgoing_calls`, and `total_degree`; recursive rows include `recursion_kind`
+and `recursion_evidence` so MCP clients do not have to infer whether a row is a
+self-call or mutual recursion pair. `limit` defaults to 25 and must be at least
+1 when supplied.
 
 Example code-topic investigation workflow:
 

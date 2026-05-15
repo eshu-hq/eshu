@@ -195,7 +195,7 @@ const openAPIPathsCodeSymbols = `
                   },
                   "repo_id": {"type": "string", "description": "Required repository selector (canonical ID, name, slug, or path)."},
                   "language": {"type": "string", "description": "Optional language filter."},
-                  "limit": {"type": "integer", "default": 25, "minimum": 0, "maximum": 200},
+                  "limit": {"type": "integer", "default": 25, "minimum": 1, "maximum": 200},
                   "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}
                 }
               }

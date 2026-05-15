@@ -115,7 +115,7 @@ tool surface:
 - `inspect_call_graph_metrics` is the first-class MCP path for issue #360. It
   routes to `POST /api/v0/code/call-graph/metrics`, requires `repo_id`, accepts
   optional `language`, caps `limit` at 200 and `offset` at 10000, rejects
-  negative paging bounds, probes one extra row for `truncated`, returns
+  non-positive limits and negative offsets, probes one extra row for `truncated`, returns
   canonical `functions` rows, and covers recursive functions plus high-degree
   hub functions without raw Cypher.
 

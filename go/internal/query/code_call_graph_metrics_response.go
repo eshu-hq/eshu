@@ -27,7 +27,7 @@ func callGraphMetricFunctions(req callGraphMetricsRequest, rows []map[string]any
 	functions := make([]map[string]any, 0, len(rows))
 	for index, row := range rows {
 		item := cloneQueryAnyMap(row)
-		item["rank"] = index + 1
+		item["rank"] = req.Offset + index + 1
 		item["source_backend"] = "graph"
 		item["source_handle"] = callGraphMetricSourceHandle(row)
 		if functionID := StringVal(row, "function_id"); functionID != "" {
@@ -102,5 +102,9 @@ func nextCallGraphMetricsOffset(offset, count int, truncated bool) any {
 	if !truncated {
 		return nil
 	}
-	return offset + count
+	nextOffset := offset + count
+	if nextOffset > callGraphMetricsMaxOffset {
+		return nil
+	}
+	return nextOffset
 }

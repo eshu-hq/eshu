@@ -233,3 +233,52 @@ func TestHandleCallGraphMetricsRejectsNegativeLimit(t *testing.T) {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 }
+
+func TestHandleCallGraphMetricsRejectsZeroLimit(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{Neo4j: fakeGraphReader{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/call-graph/metrics",
+		bytes.NewBufferString(`{"metric_type":"hub_functions","repo_id":"repo-1","limit":0}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+}
+
+func TestCallGraphMetricsResponseUsesGlobalRankAndCapsNextOffset(t *testing.T) {
+	t.Parallel()
+
+	resp := callGraphMetricsResponse(callGraphMetricsRequest{
+		MetricType: "hub_functions",
+		RepoID:     "repo-1",
+		Limit:      intPtr(1),
+		Offset:     callGraphMetricsMaxOffset,
+	}, []map[string]any{
+		{"repo_id": "repo-1", "file_path": "a.go", "function_id": "fn-a"},
+		{"repo_id": "repo-1", "file_path": "b.go", "function_id": "fn-b"},
+	})
+
+	if got, want := resp["truncated"], true; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+	if got := resp["next_offset"]; got != nil {
+		t.Fatalf("next_offset = %#v, want nil beyond max offset", got)
+	}
+	functions := resp["functions"].([]map[string]any)
+	if got, want := functions[0]["rank"], callGraphMetricsMaxOffset+1; got != want {
+		t.Fatalf("rank = %#v, want %#v", got, want)
+	}
+}
+
+func intPtr(value int) *int {
+	return &value
+}

@@ -140,7 +140,7 @@
   prompts on `POST /api/v0/code/call-graph/metrics`. Require `repo_id` before
   expanding `CALLS`, keep deterministic ordering plus `limit+1` truncation
   probing, reject negative paging bounds, and return canonical `functions` rows
-  with source handles, call-degree counts, and recursion evidence.
+  with source handles, hub call-degree counts, and recursion evidence.
 
 ## Failure modes and how to debug
 
