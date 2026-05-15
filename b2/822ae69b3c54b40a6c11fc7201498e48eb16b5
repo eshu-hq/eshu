@@ -1,0 +1,26 @@
+apps/console/src/api/liveData.test.ts
+  s_a259424f603ccc::t_a837f1e8fcc1a6 11-14,19-21,95,108,117-118
+apps/console/src/serviceAtlas.css
+  s_a259424f603ccc::t_65f90c65ac8ba4 4-7
+apps/console/src/api/liveData.ts
+  s_a259424f603ccc::t_a11cdea553118a 257-258
+  s_a259424f603ccc::t_06186ffeb0eb14 125-128,259
+apps/console/src/pages/DashboardPage.test.tsx
+  s_a259424f603ccc::t_022073705a11c6 13,271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b2822ae69b3c54b40a6c11fc7201498e48eb16b5",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
