@@ -114,6 +114,8 @@ Reducers own correlation and drift findings.
 ## Scope And Generation Model
 
 The bounded acceptance unit is the stable catalog entity, not the repository.
+Collection still happens through a source scope first, then emits entity-scoped
+facts for each stable catalog entity observed inside that source.
 
 Collector modes:
 
@@ -122,20 +124,35 @@ Collector modes:
 - `service_catalog_api` for provider API snapshots from Backstage, OpsLevel,
   and Cortex.
 
-Suggested scope IDs:
+Source scope IDs identify the collection input:
 
 ```text
 service-catalog-manifest://<repo-id>/<path>
-service-catalog-api://<provider>/<tenant-or-base-url>
+service-catalog-api://<provider>/<tenant-id-or-host>
+```
+
+`<tenant-id-or-host>` must be canonicalized before it is used in a scope ID:
+strip URL scheme, query, fragment, user info, and trailing slashes; lowercase
+the host; preserve only the configured tenant identifier or host plus an
+operator-approved base path when two catalog tenants share one host. Raw URLs
+must stay in facts as source locators, not in scope IDs.
+
+Entity scope IDs identify the fact acceptance unit derived from either source
+mode:
+
+```text
 service-catalog-entity://<provider>/<tenant-id-or-host>/<entity-ref>
 ```
 
-Suggested generation IDs:
+Source generation IDs:
 
 - Manifest mode: `<git-generation-id>:<descriptor-content-sha>`.
 - API mode: provider cursor, ETag, update timestamp, or response digest plus
   observed timestamp.
-- Entity mode: provider entity version or normalized entity digest.
+
+Entity generation IDs should use the provider entity version where available;
+otherwise use the normalized entity digest plus the source generation ID that
+observed it.
 
 When a provider has no transactional snapshot API, the collector must mark the
 generation as partial or eventually consistent and preserve page/cursor
