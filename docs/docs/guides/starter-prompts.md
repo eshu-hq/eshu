@@ -53,6 +53,7 @@ Good substitutions:
 - "What code is dead in `api-gateway`?"
 - "Find potential hardcoded passwords, API keys, or secrets in `api-gateway`."
 - "Find the implementation of `PaymentProvider` across indexed repos."
+- "Which files import `shared-auth-lib`, and are there direct Python import cycles?"
 - "Investigate repo sync authentication in `eshu`, then show the files, symbols, and code paths involved."
 - "Explain the dependency path between `checkout-service` and `shared-auth-lib`."
 
@@ -215,6 +216,7 @@ Best additions:
 - When the answer spans code, deployment, and runtime, explicitly ask Eshu to scan all related repositories first.
 - For broad code-topic prompts, start with `investigate_code_topic`. It returns ranked files, symbols, coverage, ambiguity, and exact next calls before you drill into `find_symbol`, `get_code_relationship_story`, or content reads.
 - For structural code inventory prompts, start with `inspect_code_inventory`. It returns bounded pages for functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, class methods, `super()` calls, and function counts per file without raw Cypher.
+- For import, importer, import-cycle, and cross-module call prompts, start with `investigate_import_dependencies`. It accepts file and module scope anchors, returns source handles, and reports truncation so clients can page without raw Cypher.
 - For class hierarchy and override prompts, use `analyze_code_relationships` with `query_type=class_hierarchy` or `query_type=overrides`. It returns methods, parent/child rows, inheritance depth, override handles, truncation, and exact follow-up handles without raw Cypher.
 - For service documentation prompts, start with `investigate_service` when you need coverage before writing, or `get_service_story` when you want the one-call dossier first. The service story embeds the investigation packet and leaves exact file reads as citation handles.
 - When the user asks for proof behind the answer, use `build_evidence_citation_packet` with returned `repo_id + relative_path` and `entity_id` handles. That gives source, docs, manifest, and deployment excerpts without guessing which content route to call next.
