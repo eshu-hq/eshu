@@ -101,8 +101,10 @@
   `AWSCloudRuntimeDriftFindingStore` reads
   `reducer_aws_cloud_runtime_drift_finding` rows through
   `ingestion_scopes.active_generation_id`. It rejects filters without
-  `scope_id` or AWS account scope and caps list reads at 500 rows before
-  querying; do not add unbounded fact-table scans for management APIs.
+  `scope_id` or valid AWS account scope, rejects wildcard-capable account or
+  region values before building the `LIKE` prefix, and caps list reads at 500
+  rows before querying; do not add unbounded fact-table scans for management
+  APIs.
 
 ## Common changes and how to scope them
 

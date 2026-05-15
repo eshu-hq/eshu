@@ -76,8 +76,9 @@
 // unmanaged classification for that state-backed ARN because config absence is
 // not proven. AWSCloudRuntimeDriftFindingStore is the fact-backed read side
 // for that publication path; it rejects unscoped filters, keeps reads on the
-// active generation, and caps direct list pages at 500 rows so internal callers
-// cannot bypass the query API's bounds.
+// active generation, validates account and region values before building the
+// account-scope LIKE predicate, and caps direct list pages at 500 rows so
+// internal callers cannot bypass the query API's bounds.
 //
 // State-only addresses absent from the prior-config address set keep
 // PreviouslyDeclaredInConfig=false and surface as added_in_state — the

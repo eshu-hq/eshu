@@ -219,8 +219,8 @@ compatibility handoff cannot complete.
 - `AWSCloudRuntimeDriftFindingStore` /
   `NewAWSCloudRuntimeDriftFindingStore` — active-generation reads over
   `reducer_aws_cloud_runtime_drift_finding` facts for the IaC management API;
-  filters must include `scope_id` or `account_id`, and direct list reads cap at
-  500 rows
+  filters must include `scope_id` or a 12-digit `account_id`, optional regions
+  must use AWS region characters only, and direct list reads cap at 500 rows
 
 **Queue stores**
 

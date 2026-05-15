@@ -254,7 +254,38 @@ func validateAWSCloudRuntimeDriftFindingFilter(
 	if filter.ScopeID == "" && filter.AccountID == "" {
 		return fmt.Errorf("aws cloud runtime drift finding filter requires scope_id or account_id")
 	}
+	if filter.AccountID != "" && !validAWSCloudRuntimeDriftAccountID(filter.AccountID) {
+		return fmt.Errorf("aws cloud runtime drift finding filter account_id must be a 12-digit AWS account ID")
+	}
+	if filter.Region != "" && !validAWSCloudRuntimeDriftRegion(filter.Region) {
+		return fmt.Errorf("aws cloud runtime drift finding filter region must contain only lowercase letters, digits, and hyphens")
+	}
 	return nil
+}
+
+func validAWSCloudRuntimeDriftAccountID(accountID string) bool {
+	if len(accountID) != 12 {
+		return false
+	}
+	for _, r := range accountID {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func validAWSCloudRuntimeDriftRegion(region string) bool {
+	if region == "" {
+		return false
+	}
+	for _, r := range region {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func awsScopePrefix(accountID string, region string) string {

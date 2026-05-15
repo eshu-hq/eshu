@@ -73,7 +73,8 @@ cloud+state+config suppression rows, and reducer binary wiring. Focused gate:
 `go test ./internal/projector ./internal/storage/postgres ./internal/reducer ./cmd/reducer`.
 The read-model slice adds scoped handler, OpenAPI, MCP dispatch, and active
 fact-read coverage, including store-level tests that reject unbounded filters
-and cap direct list reads at 500 rows before SQL execution. Focused gates: `go test ./internal/query`,
+or wildcard-capable account/region filters and cap direct list reads at 500
+rows before SQL execution. Focused gates: `go test ./internal/query`,
 `go test ./internal/storage/postgres -run 'TestAWSCloudRuntimeDriftFindingStore|TestInstrumentedDB'`,
 and `go test ./internal/mcp`.
 

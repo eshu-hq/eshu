@@ -120,11 +120,26 @@ func TestAWSCloudRuntimeDriftFindingStoreRejectsUnboundedFilters(t *testing.T) {
 	db := &fakeExecQueryer{}
 	store := NewAWSCloudRuntimeDriftFindingStore(db)
 
-	if _, err := store.ListActiveFindings(context.Background(), AWSCloudRuntimeDriftFindingFilter{}); err == nil {
-		t.Fatal("ListActiveFindings() error = nil, want unbounded filter error")
-	}
-	if _, err := store.CountActiveFindings(context.Background(), AWSCloudRuntimeDriftFindingFilter{}); err == nil {
-		t.Fatal("CountActiveFindings() error = nil, want unbounded filter error")
+	for _, tc := range []struct {
+		name   string
+		filter AWSCloudRuntimeDriftFindingFilter
+	}{
+		{name: "missing scope", filter: AWSCloudRuntimeDriftFindingFilter{}},
+		{name: "wildcard account", filter: AWSCloudRuntimeDriftFindingFilter{AccountID: "%"}},
+		{name: "short account", filter: AWSCloudRuntimeDriftFindingFilter{AccountID: "123"}},
+		{name: "wildcard region", filter: AWSCloudRuntimeDriftFindingFilter{
+			AccountID: "123456789012",
+			Region:    "us-_-1",
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := store.ListActiveFindings(context.Background(), tc.filter); err == nil {
+				t.Fatal("ListActiveFindings() error = nil, want bounded filter error")
+			}
+			if _, err := store.CountActiveFindings(context.Background(), tc.filter); err == nil {
+				t.Fatal("CountActiveFindings() error = nil, want bounded filter error")
+			}
+		})
 	}
 	if got := len(db.queries); got != 0 {
 		t.Fatalf("query count = %d, want 0", got)
