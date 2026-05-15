@@ -190,14 +190,17 @@ assumptions from a partial code snapshot.
 | "Which AWS resources are unmanaged?" | `find_unmanaged_resources` |
 | "What owns this AWS resource?" | `get_iac_management_status` |
 | "Why is this AWS resource marked unmanaged, unknown, or ambiguous?" | `explain_iac_management_status` |
+| "Draft Terraform import blocks for approved unmanaged AWS resources" | `propose_terraform_import_plan` |
 | "Which registry packages or versions are indexed?" | `list_package_registry_packages`, `list_package_registry_versions` |
 
 The IaC management tools are evidence and planning inputs only. Read
-`safety_gate` before asking an assistant to draft Terraform import work:
-security-sensitive resources, ambiguous ownership, stale evidence, and
-insufficient coverage return `security_review_required` and refuse the
-`terraform_import_plan` follow-up action. Sensitive evidence values are
-returned as `[REDACTED]`; MCP callers should not expect secret-like tag,
+`safety_gate` before asking an assistant to draft Terraform import work. The
+`propose_terraform_import_plan` tool only shapes read-only candidates and
+Terraform `import` blocks from approved findings; it does not run Terraform or
+mutate cloud state. Security-sensitive resources, ambiguous ownership, stale
+evidence, and insufficient coverage return `security_review_required` and
+refuse the `terraform_import_plan` follow-up action. Sensitive evidence values
+are returned as `[REDACTED]`; MCP callers should not expect secret-like tag,
 environment, parameter, password, token, or credential values.
 
 ## Story-first responses
@@ -311,6 +314,7 @@ For programming prompts, keep using the code-query tools directly:
 - `find_unmanaged_resources`
 - `get_iac_management_status`
 - `explain_iac_management_status`
+- `propose_terraform_import_plan`
 - `list_package_registry_packages`
 - `list_package_registry_versions`
 

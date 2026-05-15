@@ -194,6 +194,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: aws_account_or_scope_plus_arn, verification: [{go_test: ./internal/query}], notes: exact ARN read plus evidence grouping over active reducer AWS runtime drift facts}
       local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: aws_account_or_scope_plus_arn, verification: [{compose_e2e: aws-runtime-drift-read-model}], notes: exact ARN read plus evidence grouping over active reducer AWS runtime drift facts}
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1000, max_scope_size: aws_account_or_scope_plus_arn, verification: [{remote_validation: prod-aws-runtime-drift-read-model}], notes: exact ARN read plus evidence grouping over active reducer AWS runtime drift facts}
+  - capability: iac_management.propose_terraform_import_plan
+    tools: [propose_terraform_import_plan]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: aws_account_or_scope, verification: [{integration_test: local-lightweight-unsupported-terraform-import-plan}], notes: requires reducer-materialized AWS runtime drift facts}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{go_test: ./internal/query}], notes: bounded response shaping over active reducer AWS runtime drift facts; never runs Terraform and refuses safety-gated findings}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{compose_e2e: aws-runtime-drift-read-model}], notes: bounded response shaping over active reducer AWS runtime drift facts; never runs Terraform and refuses safety-gated findings}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{remote_validation: prod-aws-runtime-drift-read-model}], notes: bounded response shaping over active reducer AWS runtime drift facts; never runs Terraform and refuses safety-gated findings}
   - capability: platform_impact.deployment_chain
     tools: [trace_deployment_chain, find_infra_resources, analyze_infra_relationships]
     profiles:

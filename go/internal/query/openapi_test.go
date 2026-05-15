@@ -73,6 +73,7 @@ func TestServeOpenAPI(t *testing.T) {
 		"/api/v0/infra/resources/search",
 		"/api/v0/iac/dead",
 		"/api/v0/iac/unmanaged-resources",
+		"/api/v0/iac/terraform-import-plan/candidates",
 		"/api/v0/impact/trace-deployment-chain",
 		"/api/v0/impact/blast-radius",
 		"/api/v0/impact/change-surface/investigate",

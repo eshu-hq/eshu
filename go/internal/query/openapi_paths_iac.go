@@ -209,6 +209,111 @@ const openAPIPathsIaC = `
         }
       }
     },
+    "/api/v0/iac/terraform-import-plan/candidates": {
+      "post": {
+        "tags": ["iac"],
+        "summary": "Propose Terraform import-plan candidates",
+        "description": "Generates read-only Terraform import-plan candidates from active AWS IaC management findings. The route never runs Terraform, imports resources, or mutates cloud state. Safety-gated, ambiguous, unknown, stale, state-only, and unsupported findings are returned as refused candidates with reasons.",
+        "operationId": "proposeTerraformImportPlanCandidates",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope_id": {"type": "string", "description": "Exact AWS collector scope, for example aws:123456789012:us-east-1:lambda."},
+                  "account_id": {"type": "string", "description": "AWS account ID used to bound the active finding read."},
+                  "region": {"type": "string", "description": "Optional AWS region when account_id is supplied."},
+                  "arn": {"type": "string", "description": "Optional exact AWS ARN to inspect."},
+                  "resource_id": {"type": "string", "description": "Optional alias for arn; for AWS this must be the full ARN, not a provider-local ID such as an S3 bucket name or Lambda function name."},
+                  "finding_kinds": {
+                    "type": "array",
+                    "description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource.",
+                    "items": {"type": "string"}
+                  },
+                  "limit": {"type": "integer", "description": "Maximum findings to inspect (default 100, max 500).", "default": 100},
+                  "offset": {"type": "integer", "description": "Zero-based result offset for paging findings.", "default": 0}
+                },
+                "anyOf": [
+                  {"required": ["scope_id"]},
+                  {"required": ["account_id"]}
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Terraform import-plan candidates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "story": {"type": "string"},
+                    "scope_id": {"type": "string"},
+                    "account_id": {"type": "string"},
+                    "region": {"type": "string"},
+                    "arn": {"type": "string"},
+                    "finding_kinds": {"type": "array", "items": {"type": "string"}},
+                    "candidates_count": {"type": "integer"},
+                    "ready_count": {"type": "integer"},
+                    "refused_count": {"type": "integer"},
+                    "total_findings_count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "offset": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "next_offset": {"type": ["integer", "null"]},
+                    "truth_basis": {"type": "string"},
+                    "analysis_status": {"type": "string"},
+                    "limitations": {"type": "array", "items": {"type": "string"}},
+                    "terraform_import_plan": {
+                      "type": "object",
+                      "properties": {
+                        "format": {"type": "string"},
+                        "hcl": {"type": "string"}
+                      }
+                    },
+                    "candidates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {"type": "string"},
+                          "finding_id": {"type": "string"},
+                          "status": {"type": "string", "enum": ["ready", "refused"]},
+                          "provider": {"type": "string"},
+                          "account_id": {"type": "string"},
+                          "region": {"type": "string"},
+                          "arn": {"type": "string"},
+                          "cloud_resource_type": {"type": "string"},
+                          "terraform_resource_type": {"type": "string"},
+                          "import_id": {"type": "string"},
+                          "suggested_resource_address": {"type": "string"},
+                          "destination_hint": {"type": "string"},
+                          "configuration_shape": {"type": "string"},
+                          "provider_hint": {"type": "object"},
+                          "warnings": {"type": "array", "items": {"type": "string"}},
+                          "refusal_reasons": {"type": "array", "items": {"type": "string"}},
+                          "import_block": {"type": "string"},
+                          "evidence_refs": {"type": "array", "items": {"type": "string"}},
+                          "safety_gate": {"type": "object"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/iac/management-status": {
       "post": {
         "tags": ["iac"],

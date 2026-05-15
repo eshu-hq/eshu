@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 58
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 59
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,11 +59,11 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 55 tools from the tool definition files.
+`ReadOnlyTools` assembles 59 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 23 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_security.go`, `tools_structural_inventory.go` |
+| `codebaseTools` | 24 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
@@ -85,10 +85,18 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `find_unmanaged_resources` | POST | `/api/v0/iac/unmanaged-resources` |
 | `get_iac_management_status` | POST | `/api/v0/iac/management-status` |
 | `explain_iac_management_status` | POST | `/api/v0/iac/management-status/explain` |
+| `propose_terraform_import_plan` | POST | `/api/v0/iac/terraform-import-plan/candidates` |
 | `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |
 | `build_evidence_citation_packet` | POST | `/api/v0/evidence/citations` |
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
 | `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |
+| `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
+| `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
+| `resolve_entity` | POST | `/api/v0/entities/resolve` |
+| `get_service_story` | GET | `/api/v0/services/{service_name}/story` |
+| `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
+| `get_file_content` | POST | `/api/v0/content/files/read` |
+| `list_ingesters` | GET | `/api/v0/status/ingesters` |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
 
@@ -98,16 +106,10 @@ schema caps input at 500 handles and the query handler hydrates at most 50
 citations per packet.
 
 IaC management tools also keep MCP as transport only. The HTTP query layer adds
-`safety_gate`, `safety_summary`, and sensitive-value redaction before the
-envelope reaches MCP, so tool callers see the same review-required and refused
-Terraform import-plan actions as HTTP callers.
-| `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
-| `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
-| `resolve_entity` | POST | `/api/v0/entities/resolve` |
-| `get_service_story` | GET | `/api/v0/services/{service_name}/story` |
-| `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
-| `get_file_content` | POST | `/api/v0/content/files/read` |
-| `list_ingesters` | GET | `/api/v0/status/ingesters` |
+`safety_gate`, `safety_summary`, import-plan candidate shaping, and
+sensitive-value redaction before the envelope reaches MCP, so tool callers see
+the same review-required and refused Terraform import-plan actions as HTTP
+callers.
 
 ## Exported surface
 
@@ -118,7 +120,7 @@ Terraform import-plan actions as HTTP callers.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 55 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 59 tool definitions |
 
 ## SSE session model
 

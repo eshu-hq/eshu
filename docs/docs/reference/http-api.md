@@ -984,6 +984,7 @@ Use these routes when you need infrastructure-as-code cleanup candidates:
 
 - `POST /api/v0/iac/dead`
 - `POST /api/v0/iac/unmanaged-resources`
+- `POST /api/v0/iac/terraform-import-plan/candidates`
 - `POST /api/v0/iac/management-status`
 - `POST /api/v0/iac/management-status/explain`
 
@@ -1041,6 +1042,20 @@ or operator must resolve the warning or complete security review before using
 that finding as an import-plan input. The unmanaged-resource list also includes
 `safety_summary` with counts for review-required and redacted findings.
 
+The Terraform import-plan candidate route reads the same active AWS management
+findings and turns only safety-approved `cloud_only` findings for supported
+resource families into Terraform `import` blocks. It does not run Terraform,
+write state, or mutate cloud resources. Each candidate includes the Terraform
+resource type, provider import ID, suggested resource address, destination
+hint, provider hint, evidence references, warnings, refusal reasons, and the
+original `safety_gate`. Security-review, ambiguous, unknown, stale,
+state-only, and unsupported findings remain in the response as refused
+candidates so an operator can see why the route did not generate an import
+block.
+
+For this route, `resource_id` is only an alias for `arn`. Pass the full AWS ARN,
+not a provider-local ID such as an S3 bucket name or Lambda function name.
+
 The status and explain routes inspect one exact AWS stable resource identity.
 They require `scope_id` or `account_id` plus `arn` or `resource_id`; for AWS,
 `resource_id` should be the ARN. The status route returns the story, current
@@ -1077,6 +1092,18 @@ Example unmanaged-resource workflow:
   "region": "us-east-1",
   "finding_kinds": ["unmanaged_cloud_resource"],
   "limit": 100,
+  "offset": 0
+}
+```
+
+Example Terraform import-plan candidate workflow:
+
+```json
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "finding_kinds": ["orphaned_cloud_resource"],
+  "limit": 25,
   "offset": 0
 }
 ```

@@ -298,6 +298,13 @@ var capabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthDerived,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
+	"iac_management.propose_terraform_import_plan": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthDerived,
+		LocalFullStackMax:     &truthDerived,
+		ProductionMax:         &truthDerived,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
 	"platform_impact.deployment_chain": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,

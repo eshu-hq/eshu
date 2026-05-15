@@ -16,6 +16,14 @@ func iacManagementExplanationTool() ToolDefinition {
 	}
 }
 
+func terraformImportPlanTool() ToolDefinition {
+	return ToolDefinition{
+		Name:        "propose_terraform_import_plan",
+		Description: "Generate read-only Terraform import-plan candidates from bounded AWS IaC management findings without running Terraform or mutating cloud state.",
+		InputSchema: terraformImportPlanSchema(),
+	}
+}
+
 func iacManagementStatusSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
@@ -51,6 +59,53 @@ func iacManagementStatusSchema() map[string]any {
 			{"required": []string{"scope_id", "resource_id"}},
 			{"required": []string{"account_id", "arn"}},
 			{"required": []string{"account_id", "resource_id"}},
+		},
+	}
+}
+
+func terraformImportPlanSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"scope_id": map[string]any{
+				"type":        "string",
+				"description": "Exact AWS collector scope, for example aws:123456789012:us-east-1:lambda",
+			},
+			"account_id": map[string]any{
+				"type":        "string",
+				"description": "AWS account ID used to bound the active finding read",
+			},
+			"region": map[string]any{
+				"type":        "string",
+				"description": "Optional AWS region when account_id is supplied",
+			},
+			"arn": map[string]any{
+				"type":        "string",
+				"description": "Optional exact AWS ARN to inspect",
+			},
+			"resource_id": map[string]any{
+				"type":        "string",
+				"description": "Optional alias for arn; for AWS this must be the full ARN, not a provider-local ID such as an S3 bucket name or Lambda function name",
+			},
+			"finding_kinds": map[string]any{
+				"type":        "array",
+				"items":       map[string]any{"type": "string"},
+				"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
+			},
+			"limit": map[string]any{
+				"type":        "integer",
+				"description": "Maximum candidate findings to inspect",
+				"default":     100,
+			},
+			"offset": map[string]any{
+				"type":        "integer",
+				"description": "Zero-based result offset for paging findings",
+				"default":     0,
+			},
+		},
+		"anyOf": []map[string]any{
+			{"required": []string{"scope_id"}},
+			{"required": []string{"account_id"}},
 		},
 	}
 }
