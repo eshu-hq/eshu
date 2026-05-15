@@ -316,6 +316,15 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"category": str(args, "category"),
 			"limit":    intOr(args, "limit", 50),
 		}}, nil
+	case "investigate_resource":
+		return &route{method: "POST", path: "/api/v0/impact/resource-investigation", body: map[string]any{
+			"query":         str(args, "query"),
+			"resource_id":   str(args, "resource_id"),
+			"resource_type": str(args, "resource_type"),
+			"environment":   str(args, "environment"),
+			"max_depth":     intOr(args, "max_depth", 4),
+			"limit":         intOr(args, "limit", 25),
+		}}, nil
 	case "analyze_infra_relationships":
 		return &route{method: "POST", path: "/api/v0/infra/relationships", body: map[string]any{
 			"entity_id": str(args, "target"), "relationship_type": str(args, "query_type"),

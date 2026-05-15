@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 49
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 51
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,12 +59,12 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 50 tools from five source files.
+`ReadOnlyTools` assembles 51 tools from five source files.
 
 | Group | Count | Source file |
 |---|---|---|
 | `codebaseTools` | 17 | `tools_codebase.go` |
-| `ecosystemTools` | 18 | `tools_ecosystem.go` |
+| `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 5 | `tools_content.go` |
 | `runtimeTools` | 3 | `tools_runtime.go` |
@@ -86,6 +86,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
+| `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
 | `get_service_story` | GET | `/api/v0/services/{service_name}/story` |
 | `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
@@ -101,7 +102,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 50 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 51 tool definitions |
 
 ## SSE session model
 

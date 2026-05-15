@@ -127,6 +127,52 @@ func ecosystemTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "investigate_resource",
+			Description: "Resolve a queue, database, cloud resource, Terraform resource, or Kubernetes object into a bounded investigation packet with workload users, provisioning repositories, source handles, ambiguity metadata, and next calls.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"anyOf": []map[string]any{
+					{"required": []string{"query"}},
+					{"required": []string{"resource_id"}},
+				},
+				"properties": map[string]any{
+					"query": map[string]any{
+						"type":        "string",
+						"description": "Resource name, kind, queue, database, or cloud identifier to resolve.",
+					},
+					"resource_id": map[string]any{
+						"type":        "string",
+						"description": "Canonical graph resource id when already known.",
+					},
+					"resource_type": map[string]any{
+						"type":        "string",
+						"description": "Optional resource family to narrow resolution.",
+						"enum":        []string{"queue", "database", "cloud_resource", "k8s_resource", "terraform_resource", "terraform_module"},
+						"default":     "",
+					},
+					"environment": map[string]any{
+						"type":        "string",
+						"description": "Optional environment scope.",
+					},
+					"max_depth": map[string]any{
+						"type":        "integer",
+						"description": "Maximum repository provenance traversal depth.",
+						"default":     4,
+						"minimum":     1,
+						"maximum":     8,
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum rows per response section.",
+						"default":     25,
+						"minimum":     1,
+						"maximum":     100,
+					},
+				},
+				"required": []string{},
+			},
+		},
+		{
 			Name:        "analyze_infra_relationships",
 			Description: "Analyze infrastructure relationships: what deploys what, what provisions what.",
 			InputSchema: map[string]any{

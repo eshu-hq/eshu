@@ -108,6 +108,7 @@ func TestLocalAuthoritativeSupportsFullStackPlatformImpactCapabilities(t *testin
 		"platform_impact.context_overview",
 		"platform_impact.change_surface",
 		"platform_impact.resource_to_code",
+		"platform_impact.resource_investigation",
 		"platform_impact.environment_compare",
 	}
 	for _, capability := range capabilities {

@@ -169,7 +169,8 @@ assumptions from a partial code snapshot.
 | "What is the blast radius of a code-topic or changed-path edit?" | `investigate_change_surface` |
 | "How is this deployed?" | `trace_deployment_chain` |
 | "Which files influence image tags, runtime settings, or resource limits?" | `investigate_deployment_config` |
-| "What provisions this database?" | `trace_resource_to_code` |
+| "What provisions this database?" | `investigate_resource` |
+| "Which workloads use this queue or database?" | `investigate_resource` |
 | "Compare prod and staging" | `compare_environments` |
 | "What does this repo contain?" | `get_repo_context` |
 | "Find the code paths involved in this behavior" | `investigate_code_topic` |

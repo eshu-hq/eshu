@@ -22,6 +22,7 @@ func (h *ImpactHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/impact/blast-radius", h.findBlastRadius)
 	mux.HandleFunc("POST /api/v0/impact/change-surface", h.findChangeSurface)
 	mux.HandleFunc("POST /api/v0/impact/change-surface/investigate", h.investigateChangeSurface)
+	mux.HandleFunc("POST /api/v0/impact/resource-investigation", h.investigateResource)
 	mux.HandleFunc("POST /api/v0/impact/trace-resource-to-code", h.traceResourceToCode)
 	mux.HandleFunc("POST /api/v0/impact/explain-dependency-path", h.explainDependencyPath)
 }

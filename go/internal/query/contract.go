@@ -313,6 +313,13 @@ var capabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
+	"platform_impact.resource_investigation": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
 	"platform_impact.dependency_path": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,

@@ -60,6 +60,7 @@ The initial capability families are:
 - `platform_impact.context_overview`
 - `relationship_evidence.drilldown`
 - `platform_impact.resource_to_code`
+- `platform_impact.resource_investigation`
 - `platform_impact.dependency_path`
 - `platform_impact.environment_compare`
 - `platform_impact.change_surface`
@@ -91,6 +92,7 @@ The same capability ID may back more than one surface or tool. Initial mapping:
 | `get_ecosystem_overview` | `platform_impact.context_overview` |
 | `execute_language_query` | `symbol_graph.decorators`, `symbol_graph.argument_names`, `symbol_graph.class_methods`, `symbol_graph.imports`, `symbol_graph.inheritance` |
 | `trace_resource_to_code` | `platform_impact.resource_to_code` |
+| `investigate_resource` | `platform_impact.resource_investigation` |
 | `explain_dependency_path` | `platform_impact.dependency_path` |
 | `compare_environments` | `platform_impact.environment_compare` |
 

@@ -319,6 +319,70 @@ const openAPIPathsImpact = `
         }
       }
     },
+    "/api/v0/impact/resource-investigation": {
+      "post": {
+        "tags": ["impact"],
+        "summary": "Investigate resource",
+        "description": "Resolves a queue, database, cloud resource, Terraform resource, or Kubernetes object into a bounded investigation packet with ambiguity metadata, workload users, repository provenance paths, source handles, limitations, and recommended next calls.",
+        "operationId": "investigateResource",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Provide query or resource_id.",
+                "anyOf": [
+                  {"required": ["query"]},
+                  {"required": ["resource_id"]}
+                ],
+                "properties": {
+                  "query": {"type": "string", "description": "Resource name, kind, queue, database, or cloud identifier to resolve"},
+                  "resource_id": {"type": "string", "description": "Canonical graph resource id when already known"},
+                  "resource_type": {"type": "string", "enum": ["queue", "database", "cloud_resource", "k8s_resource", "terraform_resource", "terraform_module"]},
+                  "environment": {"type": "string"},
+                  "max_depth": {"type": "integer", "default": 4, "minimum": 1, "maximum": 8},
+                  "limit": {"type": "integer", "default": 25, "minimum": 1, "maximum": 100}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resource investigation packet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scope": {"type": "object"},
+                    "target_resolution": {"type": "object"},
+                    "resource": {"type": "object"},
+                    "story": {"type": "string"},
+                    "workloads": {"type": "array", "items": {"type": "object"}},
+                    "workload_count": {"type": "integer"},
+                    "provisioning_paths": {"type": "array", "items": {"type": "object"}},
+                    "source_handles": {"type": "array", "items": {"type": "object"}},
+                    "recommended_next_calls": {"type": "array", "items": {"type": "object"}},
+                    "limitations": {"type": "array", "items": {"type": "string"}},
+                    "coverage": {"type": "object"},
+                    "limit": {"type": "integer"},
+                    "max_depth": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "environment": {"type": "string"},
+                    "source_backend": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/impact/trace-resource-to-code": {
       "post": {
         "tags": ["impact"],
