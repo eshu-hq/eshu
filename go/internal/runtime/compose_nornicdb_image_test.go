@@ -44,3 +44,13 @@ func TestNornicDBComposePersistsSearchIndexes(t *testing.T) {
 		t.Fatalf("docker-compose.yaml must persist NornicDB search indexes for large-graph restarts, want %q", want)
 	}
 }
+
+func TestNornicDBComposeDisablesEmbeddingsByDefault(t *testing.T) {
+	t.Parallel()
+
+	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
+	want := `NORNICDB_EMBEDDING_ENABLED: "false"`
+	if !strings.Contains(content, want) {
+		t.Fatalf("docker-compose.yaml must disable NornicDB embeddings for indexing by default, want %q", want)
+	}
+}

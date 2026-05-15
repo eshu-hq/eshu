@@ -345,7 +345,9 @@ dead letters, and terminal drain state.
 
 | Variable | Default | Scope | Use |
 | --- | --- | --- | --- |
-| `NORNICDB_ENABLE_PPROF` | unset / `false` | NornicDB process | Enables NornicDB profiling when a run is progressing linearly and Eshu logs no longer identify a ESHU-side batching mistake. |
+| `NORNICDB_PPROF_ENABLED` | unset / `false` | NornicDB process | Enables NornicDB profiling when a run is progressing linearly and Eshu logs no longer identify a ESHU-side batching mistake. |
+| `NORNICDB_PPROF_LISTEN` | `127.0.0.1:9091` | NornicDB process | Bind address for the opt-in pprof listener. Use `0.0.0.0:9091` only on trusted private test hosts where the port is intentionally exposed. |
+| `NORNICDB_EMBEDDING_ENABLED` | `false` in Eshu Compose | NornicDB process | Keeps local embedding generation and the auto-embed worker disabled during Eshu indexing. Enable only for semantic-search experiments after the indexing baseline is understood. |
 
 ## Adding New Knobs
 
@@ -413,3 +415,25 @@ NornicDB CPU-bound while `db-migrate` was idle after
 `bootstrap.postgres.applied`. Eshu queue status remained visible once app
 services were started with existing images: `8640/8723` succeeded and
 `82` dead letters, with no active work.
+
+## Embeddings During Indexing
+
+Eshu's default Compose profile sets `NORNICDB_EMBEDDING_ENABLED=false` even
+though the pinned NornicDB image may carry `NORNICDB_EMBEDDING_ENABLED=true` in
+the image environment. Full-corpus indexing writes millions of graph nodes and
+does not require vector embeddings for correctness. Leaving the auto-embed
+worker on during indexing makes the graph backend load the local embedding
+model and scan nodes for embeddings while canonical writes are still competing
+for CPU and storage.
+
+No-Regression Evidence: on the 2026-05-15 remote full-corpus recovery baseline,
+NornicDB logs showed local `bge-m3` embeddings enabled and the auto-embed worker
+active during the run, while Eshu completed correctly at `896` repositories and
+`8344/8344` queue rows. Disabling embeddings by default preserves the graph
+write and search-index persistence contracts; it only removes background vector
+generation that Eshu does not query during indexing.
+
+Observability Evidence: NornicDB startup logs print whether embeddings are
+enabled, the selected provider/model, and whether the embed worker starts. The
+Prometheus surface also exposes embedding worker and processed/failed counters,
+so a profiling run can prove whether embeddings are intentionally enabled.
