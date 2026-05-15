@@ -55,8 +55,14 @@ func TestImportDependencyToolSchemaRequiresScopeAndBounds(t *testing.T) {
 	if got, want := limit["maximum"], 200; got != want {
 		t.Fatalf("limit maximum = %#v, want %#v", got, want)
 	}
+	if got, want := limit["minimum"], 0; got != want {
+		t.Fatalf("limit minimum = %#v, want %#v", got, want)
+	}
 	offset := properties["offset"].(map[string]any)
 	if got, want := offset["maximum"], 10000; got != want {
 		t.Fatalf("offset maximum = %#v, want %#v", got, want)
+	}
+	if got, want := offset["minimum"], 0; got != want {
+		t.Fatalf("offset minimum = %#v, want %#v", got, want)
 	}
 }

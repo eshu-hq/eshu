@@ -122,6 +122,9 @@ raw Cypher or repeat broad content searches without narrowing the topic.
 { "query_type": "importers", "repo_id": "payments", "target_module": "math", "limit": 25 }
 ```
 
+Read rows from `dependencies`. The tool returns only one row key for each
+`query_type`, so clients should not guess between `results` and aliases.
+
 ### Find functions with a decorator
 
 > "Find all functions with the `log_decorator`."
@@ -511,6 +514,8 @@ Use the named import-dependency tool for normal prompt flows.
 { "tool": "investigate_import_dependencies", "arguments": { "query_type": "cross_module_calls", "repo_id": "payments", "source_file": "src/module_a.py", "target_file": "src/module_b.py", "limit": 50 } }
 ```
 
+Read rows from `cross_module_calls`.
+
 ### Find recursive functions
 
 First-class support is tracked in #360.
@@ -569,6 +574,8 @@ narrower entity type.
 { "tool": "investigate_import_dependencies", "arguments": { "query_type": "file_import_cycles", "repo_id": "payments", "language": "python", "limit": 50 } }
 ```
 
+Read rows from `cycles`.
+
 ### Find documented functions
 
 ```json
@@ -608,11 +615,15 @@ This inventory kind always counts functions; do not pass a non-function
 { "tool": "investigate_import_dependencies", "arguments": { "query_type": "imports_by_file", "repo_id": "payments", "source_file": "src/module_a.py", "limit": 50 } }
 ```
 
+Read rows from `dependencies`.
+
 ### Find all Python package imports
 
 ```json
 { "tool": "investigate_import_dependencies", "arguments": { "query_type": "package_imports", "repo_id": "payments", "language": "python", "limit": 100 } }
 ```
+
+Read rows from `modules`.
 
 ---
 

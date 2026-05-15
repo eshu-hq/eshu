@@ -91,6 +91,9 @@ func (r importDependencyRequest) validate() error {
 	if r.Limit > importDependencyMaxLimit {
 		return fmt.Errorf("limit must be <= 200")
 	}
+	if r.Limit < 0 {
+		return fmt.Errorf("limit must be >= 0")
+	}
 	if r.Offset < 0 {
 		return fmt.Errorf("offset must be >= 0")
 	}

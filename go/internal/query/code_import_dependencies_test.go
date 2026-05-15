@@ -93,6 +93,15 @@ func TestHandleImportDependencyInvestigationReturnsBoundedImportsByFile(t *testi
 	if first["source_handle"] == nil {
 		t.Fatalf("dependency missing source_handle: %#v", first)
 	}
+	if _, ok := resp["results"]; ok {
+		t.Fatalf("response includes ambiguous results alias: %#v", resp["results"])
+	}
+	if _, ok := resp["matches"]; ok {
+		t.Fatalf("response includes ambiguous matches alias: %#v", resp["matches"])
+	}
+	if _, ok := resp["modules"]; ok {
+		t.Fatalf("imports_by_file response includes non-canonical modules key: %#v", resp["modules"])
+	}
 }
 
 func TestHandleImportDependencyInvestigationReturnsFileImportCycles(t *testing.T) {
@@ -210,6 +219,9 @@ func TestHandleImportDependencyInvestigationReturnsCrossModuleCalls(t *testing.T
 	if !ok || len(calls) != 1 {
 		t.Fatalf("cross_module_calls = %#v, want one call", resp["cross_module_calls"])
 	}
+	if _, ok := resp["dependencies"]; ok {
+		t.Fatalf("cross_module_calls response includes non-canonical dependencies key: %#v", resp["dependencies"])
+	}
 }
 
 func TestHandleImportDependencyInvestigationRejectsUnscopedRequests(t *testing.T) {
@@ -223,6 +235,26 @@ func TestHandleImportDependencyInvestigationRejectsUnscopedRequests(t *testing.T
 		http.MethodPost,
 		"/api/v0/code/imports/investigate",
 		bytes.NewBufferString(`{"query_type":"imports_by_file","limit":25}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+}
+
+func TestHandleImportDependencyInvestigationRejectsNegativeLimit(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{Neo4j: fakeGraphReader{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/imports/investigate",
+		bytes.NewBufferString(`{"query_type":"imports_by_file","repo_id":"repo-1","limit":-1}`),
 	)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)

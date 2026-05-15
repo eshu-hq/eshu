@@ -108,7 +108,8 @@ tool surface:
   #361. It routes to `POST /api/v0/code/imports/investigate`, requires at least
   one graph scope anchor (`repo_id`, `source_file`, `target_file`,
   `source_module`, or `target_module`), caps `limit` at 200 and `offset` at
-  10000, probes one extra row for `truncated`, returns source handles, and
+  10000, rejects negative paging bounds, probes one extra row for `truncated`,
+  returns one canonical row key per query type, returns source handles, and
   covers imports by file, importers, package imports, direct Python file import
   cycles, and cross-module calls without raw Cypher.
 

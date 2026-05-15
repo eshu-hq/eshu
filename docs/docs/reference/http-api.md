@@ -778,10 +778,13 @@ The import dependency route is the bounded graph path for prompts such as
 Python package imports", "find direct Python file import cycles", and "find
 cross-module calls". It requires at least one scope anchor: `repo_id`,
 `source_file`, `target_file`, `source_module`, or `target_module`. Responses
-include `dependencies`, `cycles`, or `cross_module_calls` depending on
-`query_type`, plus source handles, `truncated`, `next_offset`, and
+include exactly one canonical row key for the selected `query_type`:
+`dependencies` for `imports_by_file`, `importers`, and `module_dependencies`;
+`modules` for `package_imports`; `cycles` for `file_import_cycles`; and
+`cross_module_calls` for `cross_module_calls`. The response also includes
+source handles where rows refer to files, `truncated`, `next_offset`, and
 `coverage.query_shape` so MCP clients can page instead of broadening to raw
-Cypher.
+Cypher. `limit` and `offset` must be non-negative.
 
 Example code-topic investigation workflow:
 

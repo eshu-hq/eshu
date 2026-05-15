@@ -12,9 +12,6 @@ func importDependencyResponse(req importDependencyRequest, rows []map[string]any
 	response := map[string]any{
 		"query_type":     req.queryType(),
 		"scope":          importDependencyScope(req),
-		"results":        results,
-		"matches":        results,
-		"count":          len(results),
 		"limit":          limit,
 		"offset":         req.Offset,
 		"truncated":      truncated,
@@ -25,12 +22,17 @@ func importDependencyResponse(req importDependencyRequest, rows []map[string]any
 	switch req.queryType() {
 	case "file_import_cycles":
 		response["cycles"] = results
+		response["count"] = len(results)
 	case "cross_module_calls":
 		response["cross_module_calls"] = results
+		response["count"] = len(results)
 	case "package_imports":
-		response["modules"] = importDependencyUniqueModules(rows)
+		modules := importDependencyUniqueModules(rows)
+		response["modules"] = modules
+		response["count"] = len(modules)
 	default:
 		response["dependencies"] = results
+		response["count"] = len(results)
 	}
 	return response
 }

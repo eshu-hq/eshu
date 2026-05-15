@@ -101,6 +101,11 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
 
+`investigate_import_dependencies` passes paging and scope arguments directly to
+the HTTP handler. The handler rejects negative bounds and returns exactly one
+canonical row key for each `query_type`: `dependencies`, `modules`, `cycles`, or
+`cross_module_calls`.
+
 `build_evidence_citation_packet` keeps MCP as transport only: dispatch forwards
 the caller's bounded handle array to the HTTP evidence route. The advertised
 schema caps input at 500 handles and the query handler hydrates at most 50

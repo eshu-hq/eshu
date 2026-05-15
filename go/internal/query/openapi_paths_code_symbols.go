@@ -115,7 +115,7 @@ const openAPIPathsCodeSymbols = `
       "post": {
         "tags": ["code"],
         "summary": "Investigate import and module dependencies",
-        "description": "Returns bounded graph-backed import dependencies, package imports, direct Python file import cycles, and cross-module calls. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module.",
+        "description": "Returns bounded graph-backed import dependencies, package imports, direct Python file import cycles, and cross-module calls. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. The row payload uses one canonical key by query type: dependencies, modules, cycles, or cross_module_calls.",
         "operationId": "investigateImportDependencies",
         "requestBody": {
           "required": true,
@@ -135,8 +135,8 @@ const openAPIPathsCodeSymbols = `
                   "target_file": {"type": "string", "description": "Optional repo-relative target file path for cross-module call and cycle queries"},
                   "source_module": {"type": "string", "description": "Optional source module name anchor"},
                   "target_module": {"type": "string", "description": "Optional imported or target module name anchor"},
-                  "limit": {"type": "integer", "default": 25, "maximum": 200},
-                  "offset": {"type": "integer", "default": 0, "maximum": 10000}
+                  "limit": {"type": "integer", "default": 25, "minimum": 0, "maximum": 200},
+                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}
                 }
               }
             }
@@ -152,12 +152,10 @@ const openAPIPathsCodeSymbols = `
                   "properties": {
                     "query_type": {"type": "string"},
                     "scope": {"type": "object", "additionalProperties": true},
-                    "results": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "matches": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "dependencies": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "modules": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "cycles": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "cross_module_calls": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+                    "dependencies": {"type": "array", "description": "Canonical rows for imports_by_file, importers, and module_dependencies query_type values.", "items": {"type": "object", "additionalProperties": true}},
+                    "modules": {"type": "array", "description": "Canonical rows for package_imports query_type.", "items": {"type": "object", "additionalProperties": true}},
+                    "cycles": {"type": "array", "description": "Canonical rows for file_import_cycles query_type.", "items": {"type": "object", "additionalProperties": true}},
+                    "cross_module_calls": {"type": "array", "description": "Canonical rows for cross_module_calls query_type.", "items": {"type": "object", "additionalProperties": true}},
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},

@@ -27,9 +27,14 @@ func TestOpenAPIImportDependencyInvestigation(t *testing.T) {
 	importDependencyOK := mustMapField(t, importDependencyResponses, "200")
 	importDependencyContent := mustMapField(t, mustMapField(t, importDependencyOK, "content"), "application/json")
 	importDependencyResponse := mustMapField(t, mustMapField(t, importDependencyContent, "schema"), "properties")
-	for _, field := range []string{"results", "dependencies", "modules", "cycles", "cross_module_calls", "truncated", "next_offset", "source_backend", "coverage"} {
+	for _, field := range []string{"dependencies", "modules", "cycles", "cross_module_calls", "truncated", "next_offset", "source_backend", "coverage"} {
 		if _, ok := importDependencyResponse[field]; !ok {
 			t.Fatalf("code/imports/investigate response schema missing %s", field)
+		}
+	}
+	for _, field := range []string{"results", "matches"} {
+		if _, ok := importDependencyResponse[field]; ok {
+			t.Fatalf("code/imports/investigate response schema includes ambiguous %s alias", field)
 		}
 	}
 }

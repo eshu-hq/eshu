@@ -132,8 +132,9 @@
   direct Python file-cycle, and cross-module call prompts on
   `POST /api/v0/code/imports/investigate`. Require at least one repo/file/module
   scope anchor before expanding `IMPORTS` or `CALLS`, keep deterministic
-  ordering plus `limit+1` truncation probing, and return source handles for file
-  drill-down.
+  ordering plus `limit+1` truncation probing, reject negative paging bounds, and
+  return exactly one row key for each query type (`dependencies`, `modules`,
+  `cycles`, or `cross_module_calls`) plus source handles for file drill-down.
 
 ## Failure modes and how to debug
 
