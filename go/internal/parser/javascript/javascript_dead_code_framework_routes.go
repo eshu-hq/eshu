@@ -103,9 +103,13 @@ func javaScriptFrameworkRegisteredDeadCodeRootKinds(
 				return
 			}
 			if _, ok := javaScriptFastifyRouteMethods[property]; ok {
+				routeArgs := javaScriptRouteHandlerArgs(args)
+				if property == "route" {
+					routeArgs = javaScriptFastifyRouteObjectHandlerArgs(args, source)
+				}
 				javaScriptRegisterHandlerArgs(
 					registered,
-					javaScriptRouteHandlerArgs(args),
+					routeArgs,
 					source,
 					"javascript.fastify_route_registration",
 				)
@@ -198,6 +202,20 @@ func javaScriptRouteHandlerArgs(args []tree_sitter.Node) []tree_sitter.Node {
 	return args[1:]
 }
 
+func javaScriptFastifyRouteObjectHandlerArgs(args []tree_sitter.Node, source []byte) []tree_sitter.Node {
+	handlers := make([]tree_sitter.Node, 0, 1)
+	for i := range args {
+		if args[i].Kind() != "object" {
+			continue
+		}
+		handlers = append(handlers, javaScriptObjectHandlerValues(&args[i], source)...)
+	}
+	if len(handlers) > 0 {
+		return handlers
+	}
+	return javaScriptRouteHandlerArgs(args)
+}
+
 func javaScriptArgsAfter(args []tree_sitter.Node, index int) []tree_sitter.Node {
 	if len(args) <= index {
 		return nil
@@ -220,6 +238,31 @@ func javaScriptRegisterHandlerArgs(
 			registered[key] = appendUniqueString(registered[key], rootKind)
 		}
 	}
+}
+
+func javaScriptObjectHandlerValues(objectNode *tree_sitter.Node, source []byte) []tree_sitter.Node {
+	if objectNode == nil || objectNode.Kind() != "object" {
+		return nil
+	}
+	handlers := make([]tree_sitter.Node, 0, 1)
+	cursor := objectNode.Walk()
+	children := objectNode.NamedChildren(cursor)
+	cursor.Close()
+	for i := range children {
+		child := children[i]
+		if child.Kind() != "pair" {
+			continue
+		}
+		key := strings.Trim(strings.TrimSpace(nodeText(child.ChildByFieldName("key"), source)), `"'`)
+		if key != "handler" {
+			continue
+		}
+		valueNode := child.ChildByFieldName("value")
+		if valueNode != nil {
+			handlers = append(handlers, *valueNode)
+		}
+	}
+	return handlers
 }
 
 func javaScriptArgumentIsStringLiteral(node *tree_sitter.Node) bool {

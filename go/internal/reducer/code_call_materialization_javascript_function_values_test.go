@@ -106,6 +106,87 @@ export const AUTH_COOKIE_OPTS: AuthCookieOptions = {
 	assertReducerRowsContainCallee(t, rows, "content-entity:auth-cookie-options")
 }
 
+func TestExtractCodeCallRowsResolvesFastifyRouteObjectHandlerReference(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	callerPath := filepath.Join(repoRoot, "server", "routes.ts")
+	calleePath := filepath.Join(repoRoot, "server", "handlers", "health.ts")
+	writeReducerTestFile(t, callerPath, `import fastify from "fastify";
+import { healthHandler } from "./handlers/health";
+
+const app = fastify();
+
+export const registerRoutes = () => {
+  app.route({
+    method: "GET",
+    url: "/health",
+    handler: healthHandler,
+  });
+};
+`)
+	writeReducerTestFile(t, calleePath, `export const healthHandler = async () => ({ ok: true });
+`)
+
+	rows := parsedJavaScriptFunctionValueRows(t, repoRoot, callerPath, calleePath)
+	assertReducerRowsContainCallee(t, rows, "content-entity:health-handler")
+}
+
+func TestExtractCodeCallRowsDoesNotResolveUnrelatedHandlerObjectInFastifyFile(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	callerPath := filepath.Join(repoRoot, "server", "mixed-routes.ts")
+	routeHandlerPath := filepath.Join(repoRoot, "server", "handlers", "health.ts")
+	unrelatedHandlerPath := filepath.Join(repoRoot, "server", "handlers", "unrelated.ts")
+	writeReducerTestFile(t, callerPath, `import fastify from "fastify";
+import { healthHandler } from "./handlers/health";
+import { unrelatedHandler } from "./handlers/unrelated";
+
+const app = fastify();
+const registry = { configure: (options) => options };
+
+export const registerRoutes = () => {
+  app.route({
+    method: "GET",
+    url: "/health",
+    handler: healthHandler,
+  });
+  registry.configure({ handler: unrelatedHandler });
+};
+`)
+	writeReducerTestFile(t, routeHandlerPath, `export const healthHandler = async () => ({ ok: true });
+`)
+	writeReducerTestFile(t, unrelatedHandlerPath, `export const unrelatedHandler = async () => ({ ok: false });
+`)
+
+	rows := parsedJavaScriptFunctionValueRows(t, repoRoot, callerPath, routeHandlerPath, unrelatedHandlerPath)
+	assertReducerRowsContainCallee(t, rows, "content-entity:health-handler")
+	assertReducerRowsDoNotContainCallee(t, rows, "content-entity:unrelated-handler")
+}
+
+func TestExtractCodeCallRowsResolvesConstructorFunctionValueReference(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	callerPath := filepath.Join(repoRoot, "workers", "queue.ts")
+	calleePath := filepath.Join(repoRoot, "workers", "process-job.ts")
+	writeReducerTestFile(t, callerPath, `import { Worker } from "bullmq";
+import { processJob } from "./process-job";
+
+export const startWorker = () => {
+  return new Worker("emails", processJob);
+};
+`)
+	writeReducerTestFile(t, calleePath, `export async function processJob(job) {
+  return job.id;
+}
+`)
+
+	rows := parsedJavaScriptFunctionValueRows(t, repoRoot, callerPath, calleePath)
+	assertReducerRowsContainCallee(t, rows, "content-entity:process-job")
+}
+
 func parsedJavaScriptFunctionValueRows(t *testing.T, repoRoot string, paths ...string) []map[string]any {
 	t.Helper()
 
@@ -173,5 +254,26 @@ func assignJavaScriptFunctionValueUIDs(t *testing.T, path string, payload map[st
 		assignReducerTestFunctionUID(t, payload, "createNextHandler", "content-entity:create-next-handler")
 	case "auth.ts":
 		assignReducerTestInterfaceUID(t, payload, "AuthCookieOptions", "content-entity:auth-cookie-options")
+	case "routes.ts":
+		assignReducerTestFunctionUID(t, payload, "registerRoutes", "content-entity:register-routes")
+	case "mixed-routes.ts":
+		assignReducerTestFunctionUID(t, payload, "registerRoutes", "content-entity:register-routes")
+	case "health.ts":
+		assignReducerTestFunctionUID(t, payload, "healthHandler", "content-entity:health-handler")
+	case "unrelated.ts":
+		assignReducerTestFunctionUID(t, payload, "unrelatedHandler", "content-entity:unrelated-handler")
+	case "queue.ts":
+		assignReducerTestFunctionUID(t, payload, "startWorker", "content-entity:start-worker")
+	case "process-job.ts":
+		assignReducerTestFunctionUID(t, payload, "processJob", "content-entity:process-job")
+	}
+}
+
+func assertReducerRowsDoNotContainCallee(t *testing.T, rows []map[string]any, want string) {
+	t.Helper()
+	for _, row := range rows {
+		if row["callee_entity_id"] == want {
+			t.Fatalf("rows=%#v, want no callee_entity_id %q", rows, want)
+		}
 	}
 }

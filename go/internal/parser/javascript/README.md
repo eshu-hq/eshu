@@ -65,13 +65,16 @@ artifact path, so `lib/index.d.ts` can map back to authored sources such as
 
 Dead-code roots are evidence rows, not guesses. Package entrypoints, CommonJS
 exports, methods on CommonJS default-exported classes, Hapi handlers, Next.js
-route exports, framework callbacks, TypeScript interface implementation
-methods, module-contract exports, and public API re-exports must remain
-grounded in syntax or bounded repository files. CommonJS default-export class
-method roots apply only to the exported class expression, not helper classes
-nested inside another exported expression. Declaration public-surface walking
-follows repo-bounded static re-export barrels with a small cycle-safe depth cap
-so package `types` surfaces such as
+route exports, Fastify route-object handlers, framework callbacks, TypeScript
+interface implementation methods, module-contract exports, and public API
+re-exports must remain grounded in syntax or bounded repository files.
+Function values passed as call or constructor arguments are emitted as
+reference evidence so worker processors and route-handler callbacks do not
+look unused only because the framework owns invocation. CommonJS default-export
+class method roots apply only to the exported class expression, not helper
+classes nested inside another exported expression. Declaration public-surface
+walking follows repo-bounded static re-export barrels with a small cycle-safe
+depth cap so package `types` surfaces such as
 `index.d.ts -> types/index.d.ts -> plugin.d.ts` stay rooted without whole-repo
 inference.
 

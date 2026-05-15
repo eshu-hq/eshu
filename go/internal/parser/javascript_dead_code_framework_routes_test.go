@@ -150,6 +150,54 @@ app.register(pluginHandler);
 	}
 }
 
+func TestDefaultEngineParsePathTypeScriptFastifyRouteObjectHandler(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "server.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`import fastify from "fastify";
+
+const app = fastify();
+
+function routeObjectHandler(request, reply) {
+  return reply.send({ ok: true });
+}
+
+function localHelper() {
+  return "helper";
+}
+
+app.route({
+  method: "GET",
+  url: "/health",
+  handler: routeObjectHandler,
+});
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(
+		t,
+		assertFunctionByName(t, got, "routeObjectHandler"),
+		"dead_code_root_kinds",
+		"javascript.fastify_route_registration",
+	)
+	if _, ok := assertFunctionByName(t, got, "localHelper")["dead_code_root_kinds"]; ok {
+		t.Fatalf("localHelper dead_code_root_kinds present, want absent for unregistered helper")
+	}
+}
+
 func TestDefaultEngineParsePathTypeScriptNestJSControllerMethods(t *testing.T) {
 	t.Parallel()
 

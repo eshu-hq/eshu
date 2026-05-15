@@ -139,10 +139,11 @@ JavaScript imports whose runtime `.js` specifiers point at TypeScript source.
 Qualified JavaScript-family calls that match an imported namespace resolve the
 imported target before trying same-file trailing-name matches, so controller and
 model functions with the same method name do not collapse into self-calls.
-Constructor calls, local receiver type metadata, returned function-value
-references, TypeScript type references, and Function prototype receiver calls
-such as `callback.call(...)` let `new Type()`, `value.method()`, type-only
-imports, callback returns, and function receiver dispatch resolve when parser
+Constructor calls, local receiver type metadata, returned and
+constructor-argument function-value references, TypeScript type references, and
+Function prototype receiver calls such as `callback.call(...)` let `new Type()`,
+`value.method()`, type-only imports, worker processors, route-handler callback
+objects, callback returns, and function receiver dispatch resolve when parser
 evidence proves the local target. Static object registries are resolved only
 inside the containing function source, including destructured aliases and
 literal bracket keys; runtime-computed keys do not create edges. `JavaScript`

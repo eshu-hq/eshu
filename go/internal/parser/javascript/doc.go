@@ -6,7 +6,8 @@
 // tsconfig.json import resolution, and package.json public surface modeling.
 // JavaScript and TypeScript dead-code helpers live in this package so root
 // modeling stays close to import, export, CommonJS default-export class, Hapi,
-// framework-route, TypeScript public-surface, and nearest-package evidence.
+// framework-route, Fastify route-object handler, constructor function-value,
+// TypeScript public-surface, and nearest-package evidence.
 // CommonJS class-method roots are limited to the exported class expression.
 // Declaration public-surface walks are static, repository-bounded, and
 // depth-capped. Package declaration targets ending in .d.ts are mapped back to
