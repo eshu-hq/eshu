@@ -16,6 +16,14 @@ func packageRegistryTools() []ToolDefinition {
 						"type":        "string",
 						"description": "PackageVersion.uid for an exact version-scoped dependency lookup.",
 					},
+					"after_version_id": map[string]any{
+						"type":        "string",
+						"description": "Source PackageVersion.uid from next_cursor when continuing a truncated dependency page.",
+					},
+					"after_dependency_id": map[string]any{
+						"type":        "string",
+						"description": "PackageDependency.uid from next_cursor when continuing a truncated dependency page.",
+					},
 					"limit": map[string]any{
 						"type":        "integer",
 						"description": "Maximum dependency edges to return.",
@@ -24,7 +32,6 @@ func packageRegistryTools() []ToolDefinition {
 						"maximum":     200,
 					},
 				},
-				"required": []string{"limit"},
 			},
 		},
 	}

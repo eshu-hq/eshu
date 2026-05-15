@@ -114,6 +114,8 @@ const openAPIPathsPackageRegistry = `
         "parameters": [
           {"name": "package_id", "in": "query", "schema": {"type": "string"}, "description": "Package.uid to anchor dependency lookup when version_id is absent."},
           {"name": "version_id", "in": "query", "schema": {"type": "string"}, "description": "PackageVersion.uid for an exact version-scoped dependency lookup."},
+          {"name": "after_version_id", "in": "query", "schema": {"type": "string"}, "description": "Source PackageVersion.uid from next_cursor when continuing a truncated dependency page."},
+          {"name": "after_dependency_id", "in": "query", "schema": {"type": "string"}, "description": "PackageDependency.uid from next_cursor when continuing a truncated dependency page."},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
@@ -154,7 +156,15 @@ const openAPIPathsPackageRegistry = `
                     },
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "truncated": {"type": "boolean"},
+                    "next_cursor": {
+                      "type": "object",
+                      "properties": {
+                        "after_version_id": {"type": "string"},
+                        "after_dependency_id": {"type": "string"}
+                      },
+                      "required": ["after_version_id", "after_dependency_id"]
+                    }
                   },
                   "required": ["dependencies", "count", "limit", "truncated"]
                 }

@@ -316,11 +316,7 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":      strconv.Itoa(intOr(args, "limit", 50)),
 		}}, nil
 	case "list_package_registry_dependencies":
-		return &route{method: "GET", path: "/api/v0/package-registry/dependencies", query: map[string]string{
-			"package_id": str(args, "package_id"),
-			"version_id": str(args, "version_id"),
-			"limit":      strconv.Itoa(intOr(args, "limit", 50)),
-		}}, nil
+		return packageRegistryDependenciesRoute(args), nil
 	case "get_repo_story":
 		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story"}, nil
 	case "get_repo_summary":

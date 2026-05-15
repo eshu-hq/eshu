@@ -83,6 +83,23 @@ func TestBuildCanonicalMaterializationExtractsPackageRegistryDependencies(t *tes
 	}
 }
 
+func TestBuildCanonicalMaterializationSkipsUnstablePackageRegistryDependency(t *testing.T) {
+	t.Parallel()
+
+	dependencyFact := packageRegistryDependencyFact()
+	dependencyFact.StableFactKey = ""
+	dependencyFact.FactID = "ephemeral-package-registry-dependency-1"
+	result := buildCanonicalMaterialization(
+		packageRegistryScope(),
+		packageRegistryGeneration(),
+		append(packageRegistryFacts(), dependencyFact),
+	)
+
+	if got := len(result.PackageRegistryDependencies); got != 0 {
+		t.Fatalf("len(PackageRegistryDependencies) = %d, want 0 for missing stable fact key", got)
+	}
+}
+
 func TestBuildCanonicalMaterializationKeepsPackageSourceHintsProvenanceOnly(t *testing.T) {
 	t.Parallel()
 

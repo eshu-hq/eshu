@@ -7,10 +7,10 @@
 2. `go/internal/mcp/server.go` — `Server`, `NewServer`, `handleMessage`,
    `handleSSE`, `handleHTTPMessage`, and `RunHTTP`; understand the message
    dispatch switch before touching protocol handling
-3. `go/internal/mcp/dispatch.go` and `go/internal/mcp/dispatch_args.go` —
-   `dispatchTool`, `resolveRoute`, and argument helpers; understand
-   `parseCanonicalEnvelope` before touching
-   response shaping
+3. `go/internal/mcp/dispatch.go`, `go/internal/mcp/dispatch_args.go`, and
+   `go/internal/mcp/dispatch_package_registry.go` — `dispatchTool`,
+   `resolveRoute`, package-registry cursor mapping, and argument helpers;
+   understand `parseCanonicalEnvelope` before touching response shaping
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
 5. `go/internal/query/` — the `http.Handler` that backs every tool call;

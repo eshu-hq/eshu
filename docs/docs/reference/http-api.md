@@ -309,9 +309,12 @@ identity, publication timestamp when present, yank/unlist/deprecation flags,
 
 `GET /api/v0/package-registry/dependencies` lists package-native dependency
 edges for one package or package version. The caller must provide `limit` and
-either `package_id` or `version_id`. Responses preserve dependency package
-identity, range, dependency type, target framework, marker, optional/excluded
-flags, source confidence, `truncated`, and the requested `limit`.
+either `package_id` or `version_id`; when both are provided the version must be
+reachable from that package. Responses preserve dependency package identity,
+range, dependency type, target framework, marker, optional/excluded flags,
+source confidence, `truncated`, and the requested `limit`. Truncated responses
+include `next_cursor.after_version_id` and `next_cursor.after_dependency_id` for
+the next bounded read.
 
 ## Context API
 

@@ -260,6 +260,12 @@ func (h *PackageRegistryHandler) listDependencies(w http.ResponseWriter, r *http
 		WriteError(w, http.StatusBadRequest, "package_id or version_id is required")
 		return
 	}
+	afterVersionID := QueryParam(r, "after_version_id")
+	afterDependencyID := QueryParam(r, "after_dependency_id")
+	if (afterVersionID == "") != (afterDependencyID == "") {
+		WriteError(w, http.StatusBadRequest, "after_version_id and after_dependency_id must be provided together")
+		return
+	}
 	if h.Neo4j == nil {
 		WriteContractError(
 			w,
@@ -274,7 +280,13 @@ func (h *PackageRegistryHandler) listDependencies(w http.ResponseWriter, r *http
 		return
 	}
 
-	cypher, params := packageRegistryDependenciesCypher(packageID, versionID, limit+1)
+	cypher, params := packageRegistryDependenciesCypher(
+		packageID,
+		versionID,
+		afterVersionID,
+		afterDependencyID,
+		limit+1,
+	)
 	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -308,12 +320,20 @@ func (h *PackageRegistryHandler) listDependencies(w http.ResponseWriter, r *http
 			CorrelationAnchors:   StringSliceVal(row, "correlation_anchors"),
 		})
 	}
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"dependencies": results,
 		"count":        len(results),
 		"limit":        limit,
 		"truncated":    truncated,
-	}, BuildTruthEnvelope(
+	}
+	if truncated && len(results) > 0 {
+		last := results[len(results)-1]
+		body["next_cursor"] = map[string]string{
+			"after_version_id":    last.SourceVersionID,
+			"after_dependency_id": last.DependencyID,
+		}
+	}
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		packageRegistryDependenciesCapability,
 		TruthBasisAuthoritativeGraph,
@@ -418,18 +438,38 @@ ORDER BY v.version, v.uid
 LIMIT $limit`
 }
 
-func packageRegistryDependenciesCypher(packageID, versionID string, limit int) (string, map[string]any) {
-	params := map[string]any{"limit": limit}
+func packageRegistryDependenciesCypher(
+	packageID,
+	versionID,
+	afterVersionID,
+	afterDependencyID string,
+	limit int,
+) (string, map[string]any) {
+	params := map[string]any{
+		"after_dependency_id": afterDependencyID,
+		"after_version_id":    afterVersionID,
+		"limit":               limit,
+	}
 	var match string
-	if versionID != "" {
+	switch {
+	case packageID != "" && versionID != "":
+		match = "MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion {uid: $version_id})"
+		params["package_id"] = packageID
+		params["version_id"] = versionID
+	case versionID != "":
 		match = "MATCH (v:PackageVersion {uid: $version_id})"
 		params["version_id"] = versionID
-	} else {
+	default:
 		match = "MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion)"
 		params["package_id"] = packageID
 	}
 	return match + `
 MATCH (v)-[:DECLARES_DEPENDENCY]->(d:PackageDependency)-[:DEPENDS_ON_PACKAGE]->(target:Package)
+WHERE d.uid IS NOT NULL AND d.uid <> ''
+  AND d.package_id IS NOT NULL AND d.package_id <> ''
+  AND d.version_id IS NOT NULL AND d.version_id <> ''
+  AND target.uid IS NOT NULL AND target.uid <> ''
+  AND ($after_version_id = '' OR v.uid > $after_version_id OR (v.uid = $after_version_id AND d.uid > $after_dependency_id))
 RETURN d.uid AS dependency_id,
        d.package_id AS source_package_id,
        d.version_id AS source_version_id,
@@ -449,6 +489,6 @@ RETURN d.uid AS dependency_id,
        d.collector_kind AS collector_kind,
        d.collector_instance_id AS collector_instance_id,
        d.correlation_anchors AS correlation_anchors
-ORDER BY v.uid, d.dependency_type, d.dependency_normalized, d.uid
+ORDER BY v.uid, d.uid
 LIMIT $limit`, params
 }

@@ -67,13 +67,15 @@ SET rel.generation_id = row.generation_id,
 const canonicalPackageRegistryDependencyUpsertCypher = `UNWIND $rows AS row
 MATCH (v:PackageVersion {uid: row.version_id})
 MERGE (target:Package:PackageRegistryPackage {uid: row.dependency_package_id})
-SET target.id = row.dependency_package_id,
+ON CREATE SET target.id = row.dependency_package_id,
     target.name = row.dependency_normalized,
     target.ecosystem = row.dependency_ecosystem,
     target.registry = row.dependency_registry,
     target.namespace = row.dependency_namespace,
     target.normalized_name = row.dependency_normalized,
-    target.evidence_source = 'projector/package_registry_dependency'
+    target.scope_id = row.scope_id,
+    target.generation_id = row.generation_id,
+    target.evidence_source = 'projector/package_registry'
 MERGE (d:PackageDependency:PackageRegistryPackageDependency {uid: row.uid})
 SET d.id = row.uid,
     d.package_id = row.package_id,

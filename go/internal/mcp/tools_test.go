@@ -70,6 +70,25 @@ func TestReadOnlyTools(t *testing.T) {
 	}
 }
 
+func TestPackageRegistryDependencyToolLimitDefaultIsOptional(t *testing.T) {
+	t.Parallel()
+
+	tools := packageRegistryTools()
+	if got, want := len(tools), 1; got != want {
+		t.Fatalf("len(packageRegistryTools()) = %d, want %d", got, want)
+	}
+	schema, ok := tools[0].InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("InputSchema type = %T, want map[string]any", tools[0].InputSchema)
+	}
+	required, _ := schema["required"].([]string)
+	for _, field := range required {
+		if field == "limit" {
+			t.Fatalf("required = %#v, want limit omitted because schema default is informational", required)
+		}
+	}
+}
+
 func TestCodebaseTools(t *testing.T) {
 	tools := codebaseTools()
 	if len(tools) != 26 {

@@ -112,6 +112,10 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 
 	dependency := statements[2]
 	for _, fragment := range []string{
+		"ON CREATE SET target.id = row.dependency_package_id",
+		"target.scope_id = row.scope_id",
+		"target.generation_id = row.generation_id",
+		"target.evidence_source = 'projector/package_registry'",
 		"MERGE (d:PackageDependency:PackageRegistryPackageDependency {uid: row.uid})",
 		"MERGE (v)-[declares:DECLARES_DEPENDENCY]->(d)",
 		"MERGE (d)-[depends:DEPENDS_ON_PACKAGE]->(target)",
@@ -122,6 +126,9 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 		if !strings.Contains(dependency.Cypher, fragment) {
 			t.Fatalf("dependency Cypher = %q, want fragment %q", dependency.Cypher, fragment)
 		}
+	}
+	if strings.Contains(dependency.Cypher, "\nSET target.") {
+		t.Fatalf("dependency Cypher = %q, must not overwrite observed target package properties", dependency.Cypher)
 	}
 	if strings.Contains(dependency.Cypher, "Repository") {
 		t.Fatalf("dependency Cypher = %q, must not infer repository ownership", dependency.Cypher)

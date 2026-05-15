@@ -55,10 +55,12 @@
   in the same PR, or the live spec diverges from actual behavior.
 
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
-  `package_registry.go` must require `limit` plus `package_id`, `version_id`,
-  or `ecosystem` before graph reads. Do not add whole-graph package scans, and
-  do not present package source hints as ownership, publication ownership, or
-  runtime consumption truth.
+  `package_registry.go` must require `limit` plus a route-specific anchor
+  before graph reads: package lookups use `package_id` or `ecosystem`, version
+  lookups use `package_id`, and dependency lookups use `package_id` or
+  `version_id`. Do not add whole-graph package scans, and do not present
+  package source hints as ownership, publication ownership, or runtime
+  consumption truth.
 
 - **Dead-code scans de-duplicate entity IDs across candidate labels** —
   `scanDeadCodeCandidates` applies `filterDuplicateDeadCodeRows`

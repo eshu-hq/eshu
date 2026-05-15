@@ -216,10 +216,14 @@ func packageRegistryDependencyRow(envelope facts.Envelope) (PackageRegistryDepen
 	if packageID == "" || versionID == "" || dependencyPackageID == "" {
 		return PackageRegistryDependencyRow{}, false
 	}
+	stableFactKey := strings.TrimSpace(envelope.StableFactKey)
+	if stableFactKey == "" {
+		return PackageRegistryDependencyRow{}, false
+	}
 	version, _ := payloadString(envelope.Payload, "version")
 	collectorInstanceID, _ := payloadString(envelope.Payload, "collector_instance_id")
 	return PackageRegistryDependencyRow{
-		UID:                  packageRegistryDependencyUID(envelope),
+		UID:                  stableFactKey,
 		PackageID:            packageID,
 		VersionID:            versionID,
 		Version:              version,
@@ -235,7 +239,7 @@ func packageRegistryDependencyRow(envelope facts.Envelope) (PackageRegistryDepen
 		Optional:             packageRegistryPayloadBool(envelope.Payload, "optional"),
 		Excluded:             packageRegistryPayloadBool(envelope.Payload, "excluded"),
 		SourceFactID:         envelope.FactID,
-		StableFactKey:        envelope.StableFactKey,
+		StableFactKey:        stableFactKey,
 		SourceSystem:         packageRegistrySourceSystem(envelope),
 		SourceRecordID:       envelope.SourceRef.SourceRecordID,
 		SourceConfidence:     envelope.SourceConfidence,
@@ -249,13 +253,6 @@ func packageRegistryDependencyRow(envelope facts.Envelope) (PackageRegistryDepen
 func packageRegistryPayloadString(payload map[string]any, key string) string {
 	value, _ := payloadString(payload, key)
 	return value
-}
-
-func packageRegistryDependencyUID(envelope facts.Envelope) string {
-	if stableFactKey := strings.TrimSpace(envelope.StableFactKey); stableFactKey != "" {
-		return stableFactKey
-	}
-	return strings.TrimSpace(envelope.FactID)
 }
 
 func packageRegistryPayloadBool(payload map[string]any, key string) bool {

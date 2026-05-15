@@ -395,17 +395,23 @@ run both Neo4j and NornicDB conformance for the statement shape.
    graph nodes plus `DECLARES_DEPENDENCY` and `DEPENDS_ON_PACKAGE` edges, then
    exposes bounded HTTP/MCP reads by `package_id` or `version_id`. This does
    not promote repository ownership, package publication ownership, or runtime
-   consumption truth.
+   consumption truth. The dependency read contract now keeps dependency target
+   package metadata create-only so declarations cannot overwrite richer package
+   observations, requires stable fact keys for dependency node identity, applies
+   server-side identity guards before returning OpenAPI-required fields, and
+   returns `next_cursor` values so MCP callers can continue truncated pages.
    No-Regression Evidence: `go test ./internal/projector -run
-   'TestBuildCanonicalMaterializationExtractsPackageRegistry'`, `go test
-   ./internal/storage/cypher -run
+   'TestBuildCanonicalMaterialization(SkipsUnstablePackageRegistryDependency|ExtractsPackageRegistryDependencies)'`,
+   `go test ./internal/storage/cypher -run
    TestCanonicalNodeWriterBuildsPackageRegistryStatements`, `go test
    ./internal/query -run
    'TestPackageRegistryListDependencies|TestServeOpenAPI|TestCapabilityMatrixMatchesYAMLContract'`,
    and `go test ./internal/mcp -run
-   'TestReadOnlyTools|TestResolveRouteMapsPackageRegistryDependencies|TestMCPToolContractMatrixCoversReadOnlyTools'`
+   'TestPackageRegistryDependencyToolLimitDefaultIsOptional|TestResolveRouteMapsPackageRegistryDependencies|TestMCPToolContractMatrixCoversReadOnlyTools|TestReadOnlyTools'`
    pass for the projection, Cypher writer, HTTP/OpenAPI, capability matrix, and
-   MCP tool contracts.
+   MCP tool contracts. The package-wide gate `go test ./internal/projector
+   ./internal/storage/cypher ./internal/query ./internal/mcp -count=1` also
+   passes for the touched runtime surfaces.
    Observability Evidence: package dependency reads run through
    `SpanQueryPackageRegistryDependencies`; existing graph query instrumentation
    on `Neo4jReader.Run` reports the bounded Cypher execution, while reducer
