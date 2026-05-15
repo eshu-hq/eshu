@@ -86,6 +86,37 @@ describe("live Eshu data adapters", () => {
     });
   });
 
+  it("uses catalog repository rows for paginated dashboard catalog totals", async () => {
+    const catalogRepositories = Array.from({ length: 896 }, (_, index) => ({
+      id: `repository:r_${index}`,
+      name: `repo-${index}`
+    }));
+    const metrics = await loadDashboardMetrics({
+      client: clientFor({
+        "/api/v0/catalog": {
+          repositories: catalogRepositories
+        },
+        "/api/v0/index-status": {
+          queue: { outstanding: 0, succeeded: 8347 },
+          repository_count: 896,
+          status: "healthy"
+        },
+        "/api/v0/repositories": {
+          count: 896,
+          limit: 100,
+          repositories: repositoriesResponse.repositories
+        }
+      }),
+      mode: "private"
+    });
+
+    expect(metrics).toContainEqual({
+      detail: "Repositories available through catalog drilldown.",
+      label: "Catalog repositories",
+      value: "896"
+    });
+  });
+
   it("keeps degraded graph status separate from queryable catalog data", async () => {
     const metrics = await loadDashboardMetrics({
       client: clientFor({
