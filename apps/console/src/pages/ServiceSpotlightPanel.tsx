@@ -14,11 +14,15 @@ import { ServiceRelationshipExplorer } from "./ServiceRelationshipExplorer";
 import { ServiceRelationshipWorkbench } from "./ServiceRelationshipWorkbench";
 import { ServiceTrafficPathPanel } from "./ServiceTrafficPathPanel";
 
+type ServiceAtlasTab = "map" | "traffic" | "impact" | "api";
+
 export function ServiceSpotlightPanel({
   spotlight
 }: {
   readonly spotlight: ServiceSpotlight;
 }): React.JSX.Element {
+  const [activeTab, setActiveTab] = useState<ServiceAtlasTab>("map");
+
   return (
     <section aria-label="Service Atlas" className="service-spotlight service-atlas">
       <div className="service-atlas-header">
@@ -42,46 +46,85 @@ export function ServiceSpotlightPanel({
 
       <ServiceTrustStrip spotlight={spotlight} />
 
-      <div className="service-atlas-workbench">
-        <div className="service-atlas-workbench-main">
-          <div className="service-deployment-board">
-            <section aria-label="Deployment story" className="service-panel service-map-panel">
-              <PanelHeading
-                detail={relationshipMapSentence(spotlight)}
-                title="Service flow"
-              />
-              <ServiceRelationshipWorkbench spotlight={spotlight} />
-            </section>
-            <LaneCards lanes={spotlight.lanes} />
+      <div className="service-section-tabs" aria-label="Service atlas sections">
+        {serviceTabs.map((tab) => (
+          <button
+            aria-label={tab.label}
+            aria-pressed={activeTab === tab.id}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            type="button"
+          >
+            <span>{tab.label}</span>
+            <small>{tab.description}</small>
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "map" ? (
+        <div className="service-atlas-tab-panel service-atlas-workbench">
+          <div className="service-atlas-workbench-main">
+            <div className="service-deployment-board">
+              <section aria-label="Deployment story" className="service-panel service-map-panel">
+                <PanelHeading
+                  detail={relationshipMapSentence(spotlight)}
+                  title="Service flow"
+                />
+                <ServiceRelationshipWorkbench spotlight={spotlight} />
+              </section>
+              <LaneCards lanes={spotlight.lanes} />
+            </div>
           </div>
+          <ServiceEvidenceRail spotlight={spotlight} />
         </div>
-        <ServiceEvidenceRail spotlight={spotlight} />
-      </div>
+      ) : null}
 
-      <EntryPointStrip hostnames={spotlight.hostnames} />
-      <ServiceTrafficPathPanel paths={spotlight.trafficPaths} serviceName={spotlight.name} />
-      <ServiceConfigInfluencePanel influence={spotlight.configInfluence} />
-      <ServiceInvestigationPanel investigation={spotlight.investigation} />
-      <ServiceChangeSurfacePanel spotlight={spotlight} />
-      <ServiceCodeInvestigationPanel spotlight={spotlight} />
+      {activeTab === "traffic" ? (
+        <div className="service-atlas-tab-panel">
+          <EntryPointStrip hostnames={spotlight.hostnames} />
+          <ServiceTrafficPathPanel paths={spotlight.trafficPaths} serviceName={spotlight.name} />
+          <ServiceConfigInfluencePanel influence={spotlight.configInfluence} />
+        </div>
+      ) : null}
 
-      <div className="service-operating-grid">
-        <EndpointTable
-          endpointCount={spotlight.api.endpointCount}
-          endpoints={spotlight.api.endpoints}
-        />
-        <RelationshipList
-          clusters={spotlight.relationshipClusters}
-          dependencies={spotlight.dependencies}
-          graphDependents={spotlight.graphDependents}
-          lanes={spotlight.lanes}
-          references={spotlight.consumers}
-          totals={spotlight.relationshipCounts}
-        />
-      </div>
+      {activeTab === "impact" ? (
+        <div className="service-atlas-tab-panel">
+          <ServiceInvestigationPanel investigation={spotlight.investigation} />
+          <ServiceChangeSurfacePanel spotlight={spotlight} />
+          <ServiceCodeInvestigationPanel spotlight={spotlight} />
+        </div>
+      ) : null}
+
+      {activeTab === "api" ? (
+        <div className="service-atlas-tab-panel service-operating-grid">
+          <EndpointTable
+            endpointCount={spotlight.api.endpointCount}
+            endpoints={spotlight.api.endpoints}
+          />
+          <RelationshipList
+            clusters={spotlight.relationshipClusters}
+            dependencies={spotlight.dependencies}
+            graphDependents={spotlight.graphDependents}
+            lanes={spotlight.lanes}
+            references={spotlight.consumers}
+            totals={spotlight.relationshipCounts}
+          />
+        </div>
+      ) : null}
     </section>
   );
 }
+
+const serviceTabs: readonly {
+  readonly description: string;
+  readonly id: ServiceAtlasTab;
+  readonly label: string;
+}[] = [
+  { description: "Deployment truth", id: "map", label: "Map" },
+  { description: "Entry, traffic, config", id: "traffic", label: "Traffic and config" },
+  { description: "Change and code proof", id: "impact", label: "Impact review" },
+  { description: "Endpoints and consumers", id: "api", label: "API and relationships" }
+];
 
 function MetricList({
   spotlight

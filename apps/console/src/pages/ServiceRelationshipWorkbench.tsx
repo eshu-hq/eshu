@@ -1,5 +1,11 @@
+import { Maximize2, Minimize2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ServiceSpotlight } from "../api/serviceSpotlight";
+import {
+  RelationshipInspector,
+  RelationshipSelectionSummary,
+  type SelectedGraphItem
+} from "./ServiceRelationshipInspector";
 import {
   applyDraggedPositions,
   buildGraphModel,
@@ -14,15 +20,25 @@ import {
   type GraphMode,
   type LayoutEdge,
   type LayoutNode,
-  type Point,
-  type RelationshipEdge,
-  type RelationshipNode
+  type Point
 } from "./serviceRelationshipGraphModel";
 
-interface SelectedGraphItem {
-  readonly edge?: RelationshipEdge;
-  readonly node?: RelationshipNode;
+interface ViewportTransform {
+  readonly scale: number;
+  readonly x: number;
+  readonly y: number;
 }
+
+interface PanState {
+  readonly origin: Point;
+  readonly pointerId: number;
+  readonly start: Point;
+}
+
+const defaultViewport: ViewportTransform = { scale: 0.8, x: 0, y: 0 };
+const maxZoom = 2.2;
+const minZoom = 0.55;
+const zoomStep = 0.25;
 
 export function ServiceRelationshipWorkbench({
   spotlight
@@ -30,7 +46,10 @@ export function ServiceRelationshipWorkbench({
   readonly spotlight: ServiceSpotlight;
 }): React.JSX.Element {
   const [mode, setMode] = useState<GraphMode>("deployment");
+  const [expanded, setExpanded] = useState(false);
   const [selected, setSelected] = useState<SelectedGraphItem | undefined>();
+  const [panState, setPanState] = useState<PanState | undefined>();
+  const [viewport, setViewport] = useState<ViewportTransform>(defaultViewport);
   const [draggedPositions, setDraggedPositions] = useState<ReadonlyMap<string, Point>>(
     () => new Map()
   );
@@ -39,10 +58,19 @@ export function ServiceRelationshipWorkbench({
     () => applyDraggedPositions(layoutGraph(model), draggedPositions),
     [draggedPositions, model]
   );
-  const selectedNode = selected?.node ?? layout.nodes[0];
+  const selectedNode = selected?.node ?? (selected?.edge === undefined ? layout.nodes[0] : undefined);
+  const resetView = (): void => {
+    setDraggedPositions(new Map());
+    setPanState(undefined);
+    setSelected(undefined);
+    setViewport(defaultViewport);
+  };
 
   return (
-    <section className="relationship-workbench" aria-label="Interactive relationship story">
+    <section
+      className={`relationship-workbench${expanded ? " relationship-workbench-expanded" : ""}`}
+      aria-label="Interactive relationship story"
+    >
       <div className="relationship-workbench-toolbar">
         <div className="relationship-workbench-title">
           <h3>Relationship map</h3>
@@ -69,63 +97,136 @@ export function ServiceRelationshipWorkbench({
           <div className="relationship-map-controls">
             <span>{`${layout.nodes.length} nodes`}</span>
             <span>{`${layout.edges.length} edges`}</span>
-            <button
-              onClick={() => {
-                setDraggedPositions(new Map());
-                setSelected(undefined);
-              }}
-              type="button"
-            >
+            <div className="relationship-map-zoom-controls" aria-label="Relationship map zoom">
+              <button
+                aria-label="Zoom out"
+                onClick={() => setViewport((current) => zoomViewport(current, -zoomStep))}
+                type="button"
+              >
+                -
+              </button>
+              <span>{`${Math.round(viewport.scale * 100)}%`}</span>
+              <button
+                aria-label="Zoom in"
+                onClick={() => setViewport((current) => zoomViewport(current, zoomStep))}
+                type="button"
+              >
+                +
+              </button>
+            </div>
+            <button onClick={resetView} type="button">
               Reset view
             </button>
+            <button
+              aria-label={expanded ? "Collapse graph widget" : "Expand graph widget"}
+              aria-pressed={expanded}
+              className="relationship-map-widget-toggle"
+              onClick={() => setExpanded((current) => !current)}
+              title={expanded ? "Collapse graph widget" : "Expand graph widget"}
+              type="button"
+            >
+              {expanded ? <Minimize2 aria-hidden="true" size={16} /> : <Maximize2 aria-hidden="true" size={16} />}
+              <span>{expanded ? "Collapse" : "Expand"}</span>
+            </button>
           </div>
-          <svg
-            aria-label={`${spotlight.name} relationship map`}
-            className="relationship-map-svg"
-            role="img"
-            viewBox={`0 0 ${graphWidth} ${graphHeight}`}
-          >
-            <defs>
-              <marker
-                id="relationship-arrow"
-                markerHeight="8"
-                markerWidth="8"
-                orient="auto"
-                refX="8"
-                refY="4"
-                viewBox="0 0 8 8"
-              >
-                <path d="M0,0 L8,4 L0,8 Z" />
-              </marker>
-            </defs>
-            {layout.edges.map((edge) => (
-              <RelationshipEdgeView
-                edge={edge}
-                key={`${nodeId(edge.source)}:${nodeId(edge.target)}:${edge.label}`}
-                onSelect={() => setSelected({ edge: edgeToModel(edge) })}
-                selected={selected?.edge?.source === nodeId(edge.source) &&
-                  selected.edge.target === nodeId(edge.target) &&
-                  selected.edge.label === edge.label}
-              />
-            ))}
-            {layout.nodes.map((node) => (
-              <RelationshipNodeView
-                key={node.id}
-                node={node}
-                onDrag={(point) => {
-                  setDraggedPositions((current) => {
-                    const next = new Map(current);
-                    next.set(node.id, point);
-                    return next;
+          {selected?.edge !== undefined ? (
+            <RelationshipSelectionSummary edge={selected.edge} />
+          ) : null}
+          <div className="relationship-map-stage" data-testid="relationship-map-stage">
+            <svg
+              aria-label={`${spotlight.name} relationship map`}
+              className="relationship-map-svg"
+              onPointerMove={(event) => {
+                if (panState === undefined) {
+                  return;
+                }
+                const point = svgPoint(event);
+                setViewport((current) => ({
+                  ...current,
+                  x: panState.origin.x + point.x - panState.start.x,
+                  y: panState.origin.y + point.y - panState.start.y
+                }));
+              }}
+              onPointerUp={(event) => {
+                if (panState?.pointerId === event.pointerId) {
+                  setPanState(undefined);
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+              }}
+              onWheel={(event) => {
+                event.preventDefault();
+                setViewport((current) =>
+                  zoomViewport(current, event.deltaY < 0 ? zoomStep : -zoomStep)
+                );
+              }}
+              role="img"
+              viewBox={`0 0 ${graphWidth} ${graphHeight}`}
+            >
+              <defs>
+                <marker
+                  id="relationship-arrow"
+                  markerHeight="8"
+                  markerWidth="8"
+                  orient="auto"
+                  refX="8"
+                  refY="4"
+                  viewBox="0 0 8 8"
+                >
+                  <path d="M0,0 L8,4 L0,8 Z" />
+                </marker>
+              </defs>
+              <rect
+                className="relationship-map-pan-plane"
+                height={graphHeight}
+                onPointerDown={(event) => {
+                  const point = svgPoint(event);
+                  setPanState({
+                    origin: { x: viewport.x, y: viewport.y },
+                    pointerId: event.pointerId,
+                    start: point
                   });
+                  event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
                 }}
-                onSelect={() => setSelected({ node })}
-                selected={selected?.node?.id === node.id || selectedNode?.id === node.id}
+                width={graphWidth}
+                x="0"
+                y="0"
               />
-            ))}
-          </svg>
+              <g
+                data-testid="relationship-map-viewport"
+                transform={viewportTransform(viewport)}
+              >
+                {layout.edges.map((edge) => (
+                  <RelationshipEdgeView
+                    edge={edge}
+                    key={`${nodeId(edge.source)}:${nodeId(edge.target)}:${edge.label}`}
+                    onSelect={() => setSelected({ edge: edgeToModel(edge) })}
+                    selected={selected?.edge?.source === nodeId(edge.source) &&
+                      selected.edge.target === nodeId(edge.target) &&
+                      selected.edge.label === edge.label}
+                  />
+                ))}
+                {layout.nodes.map((node) => (
+                  <RelationshipNodeView
+                    key={node.id}
+                    node={node}
+                    onDrag={(point) => {
+                      setDraggedPositions((current) => {
+                        const next = new Map(current);
+                        next.set(node.id, point);
+                        return next;
+                      });
+                    }}
+                    onSelect={() => setSelected({ node })}
+                    selected={selected?.node?.id === node.id ||
+                      (selected === undefined && selectedNode?.id === node.id)}
+                    viewport={viewport}
+                  />
+                ))}
+              </g>
+            </svg>
+            <RelationshipInspector selected={selected ?? { node: selectedNode }} spotlight={spotlight} />
+          </div>
         </div>
-        <RelationshipInspector selected={selected ?? { node: selectedNode }} />
       </div>
     </section>
   );
@@ -150,13 +251,18 @@ function RelationshipEdgeView({
     <g
       aria-label={`Inspect ${edge.label} relationship from ${nodeLabel(edge.source)} to ${nodeLabel(edge.target)}`}
       className={`relationship-edge relationship-edge-${edge.family}${selected ? " relationship-edge-selected" : ""}`}
-      onClick={onSelect}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect();
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onSelect();
         }
       }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerUp={(event) => event.stopPropagation()}
       role="button"
       tabIndex={0}
     >
@@ -181,12 +287,14 @@ function RelationshipNodeView({
   node,
   onDrag,
   onSelect,
-  selected
+  selected,
+  viewport
 }: {
   readonly node: LayoutNode;
   readonly onDrag: (point: Point) => void;
   readonly onSelect: () => void;
   readonly selected: boolean;
+  readonly viewport: ViewportTransform;
 }): React.JSX.Element {
   const [dragging, setDragging] = useState(false);
   const width = node.kind === "service" ? 164 : Math.max(142, Math.min(230, node.label.length * 7 + 42));
@@ -205,6 +313,7 @@ function RelationshipNodeView({
         }
       }}
       onPointerDown={(event) => {
+        event.stopPropagation();
         setDragging(true);
         event.currentTarget.setPointerCapture(event.pointerId);
       }}
@@ -212,13 +321,14 @@ function RelationshipNodeView({
         if (!dragging) {
           return;
         }
-        const point = svgPoint(event);
+        const point = graphPoint(event, viewport);
         onDrag({
           x: clamp(point.x, 56, graphWidth - 56),
           y: clamp(point.y, 46, graphHeight - 46)
         });
       }}
       onPointerUp={(event) => {
+        event.stopPropagation();
         setDragging(false);
         event.currentTarget.releasePointerCapture(event.pointerId);
       }}
@@ -235,50 +345,18 @@ function RelationshipNodeView({
   );
 }
 
-function RelationshipInspector({
-  selected
-}: {
-  readonly selected: SelectedGraphItem;
-}): React.JSX.Element {
-  if (selected.edge !== undefined) {
-    return (
-      <aside className="relationship-inspector" aria-label="Relationship inspector">
-        <h4>Selected relationship</h4>
-        <dl>
-          <div>
-            <dt>Verb</dt>
-            <dd>{selected.edge.label}</dd>
-          </div>
-          <div>
-            <dt>Source</dt>
-            <dd>{selected.edge.source}</dd>
-          </div>
-          <div>
-            <dt>Target</dt>
-            <dd>{selected.edge.target}</dd>
-          </div>
-        </dl>
-        <p>{selected.edge.detail}</p>
-      </aside>
-    );
-  }
-  return (
-    <aside className="relationship-inspector" aria-label="Relationship inspector">
-      <h4>{selected.node?.label ?? "Select a node"}</h4>
-      {selected.node !== undefined ? (
-        <>
-          <span>{nodeDescriptor(selected.node)}</span>
-          <p>{selected.node.detail}</p>
-        </>
-      ) : (
-        <p>Select a node or relationship to inspect the supporting evidence.</p>
-      )}
-    </aside>
-  );
+function graphPoint(event: React.PointerEvent<SVGElement>, viewport: ViewportTransform): Point {
+  const point = svgPoint(event);
+  return {
+    x: (point.x - viewport.x) / viewport.scale,
+    y: (point.y - viewport.y) / viewport.scale
+  };
 }
 
-function svgPoint(event: React.PointerEvent<SVGGElement>): Point {
-  const svg = event.currentTarget.ownerSVGElement;
+function svgPoint(event: React.PointerEvent<SVGElement>): Point {
+  const svg = event.currentTarget instanceof SVGSVGElement ?
+    event.currentTarget :
+    event.currentTarget.ownerSVGElement;
   if (svg === null) {
     return { x: event.clientX, y: event.clientY };
   }
@@ -293,7 +371,29 @@ function svgPoint(event: React.PointerEvent<SVGGElement>): Point {
   return { x: transformed.x, y: transformed.y };
 }
 
-function nodeDescriptor(node: RelationshipNode): string {
+function zoomViewport(
+  viewport: ViewportTransform,
+  delta: number
+): ViewportTransform {
+  return {
+    ...viewport,
+    scale: clamp(roundToHundredth(viewport.scale + delta), minZoom, maxZoom)
+  };
+}
+
+function viewportTransform(viewport: ViewportTransform): string {
+  return `translate(${formatGraphNumber(viewport.x)} ${formatGraphNumber(viewport.y)}) scale(${formatGraphNumber(viewport.scale)})`;
+}
+
+function roundToHundredth(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function formatGraphNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function nodeDescriptor(node: LayoutNode): string {
   if (node.kind === "service") {
     return "Service workload";
   }

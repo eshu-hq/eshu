@@ -13,6 +13,7 @@ import type {
 interface EvidenceGroup {
   readonly artifacts: readonly DeploymentEvidenceArtifact[];
   readonly family: string;
+  readonly relationshipType: string;
   readonly sourceRepo: string;
 }
 
@@ -45,8 +46,8 @@ export function deploymentGraphFromStory(
   const evidenceGroups = groupDeploymentEvidence(context?.deployment_evidence?.artifacts ?? []);
   const graphGroups = evidenceGroups.length > 0 ? evidenceGroups : groupConsumerEvidence(context);
   for (const [index, group] of graphGroups.entries()) {
-    const lane = `${group.family}:${group.sourceRepo}`;
-    const evidenceID = `evidence:${group.family}:${group.sourceRepo}`;
+    const lane = `${group.relationshipType}:${group.family}:${group.sourceRepo}`;
+    const evidenceID = `evidence:${group.family}:${group.sourceRepo}:${group.relationshipType}`;
     addNode(nodes, {
       column: 0,
       detail: group.sourceRepo,
@@ -65,15 +66,9 @@ export function deploymentGraphFromStory(
     });
     links.push({
       detail: evidenceDetail(group.artifacts),
-      label: relationshipLabel(group.artifacts[0]),
+      label: group.relationshipType,
       source: `source:${group.sourceRepo}`,
       target: evidenceID
-    });
-    links.push({
-      detail: `${group.artifacts.length} evidence item(s)`,
-      label: group.family === "argocd" ? "discovers config" : "deploys from",
-      source: evidenceID,
-      target: "target:service"
     });
 
     const environment = firstEnvironment(group.artifacts);
@@ -88,7 +83,19 @@ export function deploymentGraphFromStory(
         lane
       });
       links.push({ label: "targets", source: evidenceID, target: environmentID });
-      links.push({ label: "configures", source: environmentID, target: "target:service" });
+      links.push({
+        detail: `${group.sourceRepo} ${group.relationshipType} ${serviceName}`,
+        label: group.relationshipType,
+        source: environmentID,
+        target: "target:service"
+      });
+    } else {
+      links.push({
+        detail: `${group.sourceRepo} ${group.relationshipType} ${serviceName}`,
+        label: group.relationshipType,
+        source: evidenceID,
+        target: "target:service"
+      });
     }
 
     if (index >= 3) {
@@ -150,12 +157,13 @@ function groupDeploymentEvidence(
       continue;
     }
     const sourceRepo = nonEmpty(artifact.source_repo_name, artifact.source_location?.repo_name);
-    const key = `${family}:${sourceRepo}`;
+    const relationshipType = relationshipLabel(artifact);
+    const key = `${family}:${sourceRepo}:${relationshipType}`;
     groups.set(key, [...(groups.get(key) ?? []), artifact]);
   }
   return Array.from(groups.entries()).map(([key, artifacts]) => {
-    const [family, sourceRepo] = key.split(":");
-    return { artifacts, family, sourceRepo };
+    const [family, sourceRepo, relationshipType] = key.split(":");
+    return { artifacts, family, relationshipType, sourceRepo };
   });
 }
 
@@ -176,6 +184,7 @@ function groupConsumerEvidence(context: ContextResponse | undefined): readonly E
   return consumers.map((consumer) => ({
     artifacts: [consumerArtifact(consumer)],
     family: consumerFamily(consumer),
+    relationshipType: "DEPLOYS_FROM",
     sourceRepo: consumerName(consumer)
   }));
 }

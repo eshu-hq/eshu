@@ -112,10 +112,10 @@ export function WorkspacePage(): React.JSX.Element {
           <WorkspaceSectionHeading
             description={
               story.serviceSpotlight !== undefined
-                ? "Raw deployment evidence behind the service story, kept visible for audit."
+                ? "Structured proof behind the service story, with sources, artifacts, environments, and targets separated."
                 : "Deployment relationships found from repository, workflow, and infrastructure evidence."
             }
-            title="Evidence graph"
+            title="Deployment evidence map"
           />
           {story.deploymentGraph.nodes.length > 1 ? (
             <DeploymentGraphView

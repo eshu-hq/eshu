@@ -1,0 +1,64 @@
+.evidence-drilldown {
+  color: var(--text);
+  display: grid;
+  gap: 12px;
+}
+
+.evidence-drilldown > p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.evidence-drilldown-metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  margin: 0;
+}
+
+.evidence-drilldown-metrics div {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 9px 10px;
+}
+
+.evidence-drilldown-metrics dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 720;
+}
+
+.evidence-drilldown-metrics dd {
+  color: var(--text);
+  font-weight: 760;
+  margin: 3px 0 0;
+}
+
+.evidence-drilldown-table-wrap {
+  overflow-x: auto;
+}
+
+.evidence-drilldown-table {
+  border-collapse: collapse;
+  min-width: 720px;
+  width: 100%;
+}
+
+.evidence-drilldown-table th,
+.evidence-drilldown-table td {
+  border-top: 1px solid var(--line);
+  padding: 9px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.evidence-drilldown-table th {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.evidence-drilldown-table td {
+  overflow-wrap: anywhere;
+}

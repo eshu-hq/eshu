@@ -56,8 +56,8 @@ export interface GraphModel {
   readonly nodes: readonly RelationshipNode[];
 }
 
-export const graphWidth = 920;
-export const graphHeight = 520;
+export const graphWidth = 1160;
+export const graphHeight = 680;
 
 export function buildGraphModel(spotlight: ServiceSpotlight, mode: GraphMode): GraphModel {
   const nodeMap = new Map<string, RelationshipNode>();
@@ -118,7 +118,7 @@ export function layoutGraph(model: GraphModel): {
     .force("y", forceY<LayoutNode>((node) => desiredY(node)).strength(0.2))
     .force("center", forceCenter(graphWidth / 2, graphHeight / 2))
     .stop();
-  for (let index = 0; index < 140; index += 1) {
+  for (let index = 0; index < 170; index += 1) {
     simulation.tick();
   }
   return { edges, nodes };
