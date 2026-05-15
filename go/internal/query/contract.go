@@ -305,6 +305,13 @@ var capabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthDerived,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
+	"aws_runtime_drift.findings.list": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthDerived,
+		LocalFullStackMax:     &truthDerived,
+		ProductionMax:         &truthDerived,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
 	"platform_impact.deployment_chain": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,

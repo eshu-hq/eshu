@@ -229,7 +229,7 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanQueryDocumentationEvidencePacket`, `SpanQueryDocumentationPacketFreshness`,
 `SpanQueryDeadIaC`, `SpanQueryIaCUnmanagedResources`,
 `SpanQueryIaCManagementStatus`, `SpanQueryIaCManagementExplanation`,
-`SpanQueryIaCTerraformImportPlan`,
+`SpanQueryIaCTerraformImportPlan`, `SpanQueryAWSRuntimeDriftFindings`,
 `SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`,
 `SpanQueryHardcodedSecretInvestigation`, `SpanQueryDeadCodeInvestigation`,
 `SpanQueryCallGraphMetrics`, `SpanQueryChangeSurfaceInvestigation`,

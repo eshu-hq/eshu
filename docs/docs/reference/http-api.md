@@ -1052,6 +1052,7 @@ Use these routes when you need infrastructure-as-code cleanup candidates:
 - `POST /api/v0/iac/terraform-import-plan/candidates`
 - `POST /api/v0/iac/management-status`
 - `POST /api/v0/iac/management-status/explain`
+- `POST /api/v0/aws/runtime-drift/findings`
 
 The dead-IaC route requires an explicit `repo_id` or bounded `repo_ids` scope.
 When reducer-materialized reachability rows exist, the route returns those rows
@@ -1106,6 +1107,17 @@ evidence. The current refused action is `terraform_import_plan`; an assistant
 or operator must resolve the warning or complete security review before using
 that finding as an import-plan input. The unmanaged-resource list also includes
 `safety_summary` with counts for review-required and redacted findings.
+
+The AWS runtime drift route exposes the broader drift read surface over the
+same active reducer facts. It returns `drift_findings`, `outcome_groups`,
+bounded paging fields, and a truth envelope for
+`aws_runtime_drift.findings.list`. Each row keeps the `IaCManagementFinding`
+fields and adds `outcome` (`exact`, `derived`, `ambiguous`, `stale`, or
+`unknown`) plus `promotion_outcome` (`not_promoted` or `rejected`). Rejected
+promotion means the read-only finding must not drive import, cleanup, or
+ownership automation without stronger evidence or security review. The route
+is read-model-backed; graph projection remains gated until the Cypher shape
+and performance proof are frozen.
 
 The Terraform import-plan candidate route reads the same active AWS management
 findings and turns only safety-approved `cloud_only` findings for supported

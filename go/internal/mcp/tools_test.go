@@ -7,7 +7,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 62
+	expectedCount := 63
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -43,6 +43,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"get_iac_management_status",
 		"explain_iac_management_status",
 		"propose_terraform_import_plan",
+		"list_aws_runtime_drift_findings",
 		"get_ecosystem_overview",
 		"get_relationship_evidence",
 		"build_evidence_citation_packet",
@@ -91,8 +92,8 @@ func TestPackageRegistryDependencyToolLimitDefaultIsOptional(t *testing.T) {
 
 func TestCodebaseTools(t *testing.T) {
 	tools := codebaseTools()
-	if len(tools) != 26 {
-		t.Errorf("Expected 26 codebase tools, got %d", len(tools))
+	if len(tools) != 27 {
+		t.Errorf("Expected 27 codebase tools, got %d", len(tools))
 	}
 }
 

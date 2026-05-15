@@ -444,7 +444,9 @@ wired in `cmd/api/wiring.go`, not here.
   (`query.iac_management_explanation`) on grouped evidence explanations;
   `telemetry.SpanQueryIaCTerraformImportPlan`
   (`query.iac_terraform_import_plan`) on read-only Terraform import-plan
-  candidate generation;
+  candidate generation; `telemetry.SpanQueryAWSRuntimeDriftFindings`
+  (`query.aws_runtime_drift_findings`) on active AWS runtime drift finding
+  reads;
   `telemetry.SpanQueryInfraResourceSearch`
   (`query.infra_resource_search`) on infrastructure search (`infra.go`).
   Per-query spans `neo4j.query` and `postgres.query` on every graph and content

@@ -273,6 +273,7 @@ func codebaseTools() []ToolDefinition {
 		iacManagementStatusTool(),
 		iacManagementExplanationTool(),
 		terraformImportPlanTool(),
+		awsRuntimeDriftFindingsTool(),
 		{
 			Name:        "calculate_cyclomatic_complexity",
 			Description: "Calculate the cyclomatic complexity of a specific function to measure its complexity.",

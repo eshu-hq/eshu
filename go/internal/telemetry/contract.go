@@ -4,7 +4,6 @@ package telemetry
 import (
 	"errors"
 	"maps"
-	"slices"
 	"strings"
 )
 
@@ -170,6 +169,7 @@ const (
 	SpanQueryIaCManagementStatus          = "query.iac_management_status"
 	SpanQueryIaCManagementExplanation     = "query.iac_management_explanation"
 	SpanQueryIaCTerraformImportPlan       = "query.iac_terraform_import_plan"
+	SpanQueryAWSRuntimeDriftFindings      = "query.aws_runtime_drift_findings"
 	SpanQueryInfraResourceSearch          = "query.infra_resource_search"
 	SpanQueryCodeStructuralInventory      = "query.code_structural_inventory"
 	SpanQueryCodeTopicInvestigation       = "query.code_topic_investigation"
@@ -297,154 +297,6 @@ const (
 	// terraformstate.CompositeCaptureSkipReason*.
 	LogKeyDriftCompositeReason = "reason"
 )
-
-var metricDimensionKeys = []string{
-	MetricDimensionScopeID,
-	MetricDimensionScopeKind,
-	MetricDimensionSource,
-	MetricDimensionSourceSystem,
-	MetricDimensionGenerationID,
-	MetricDimensionCollectorKind,
-	MetricDimensionDomain,
-	MetricDimensionPartitionKey,
-	MetricDimensionRunner,
-	MetricDimensionLookupResult,
-	MetricDimensionErrorType,
-	MetricDimensionRepoSizeTier,
-	MetricDimensionSkipReason,
-	MetricDimensionNodeType,
-	MetricDimensionEdgeType,
-	MetricDimensionWritePhase,
-	MetricDimensionOutcome,
-	MetricDimensionBackendKind,
-	MetricDimensionResult,
-	MetricDimensionReason,
-	MetricDimensionKind,
-	MetricDimensionAction,
-	MetricDimensionProvider,
-	MetricDimensionEventKind,
-	MetricDimensionDecision,
-	MetricDimensionStatus,
-	MetricDimensionOperation,
-	MetricDimensionStatusClass,
-	MetricDimensionFailureClass,
-	MetricDimensionService,
-	MetricDimensionAccount,
-	MetricDimensionRegion,
-	MetricDimensionMediaFamily,
-	MetricDimensionArtifactFamily,
-	MetricDimensionSafeLocatorHash,
-	MetricDimensionWarningKind,
-	MetricDimensionPack,
-	MetricDimensionRule,
-	MetricDimensionDriftKind,
-	MetricDimensionResourceType,
-}
-
-var spanNames = []string{
-	SpanCollectorObserve,
-	SpanCollectorStream,
-	SpanScopeAssign,
-	SpanFactEmit,
-	SpanProjectorRun,
-	SpanReducerIntentEnqueue,
-	SpanReducerRun,
-	SpanReducerBatchClaim,
-	SpanReducerDriftEvidenceLoad,
-	SpanReducerAWSRuntimeDriftEvidenceLoad,
-	SpanCanonicalWrite,
-	SpanCanonicalProjection,
-	SpanCanonicalRetract,
-	SpanEvidenceDiscovery,
-	SpanIaCReachabilityMaterialization,
-	SpanSQLRelationshipMaterialization,
-	SpanInheritanceMaterialization,
-	SpanCrossRepoResolution,
-	SpanSharedAcceptanceLookup,
-	SpanSharedAcceptanceUpsert,
-	SpanQueryRelationshipEvidence,
-	SpanQueryEvidenceCitationPacket,
-	SpanQueryDocumentationFindings,
-	SpanQueryDocumentationEvidencePacket,
-	SpanQueryDocumentationPacketFreshness,
-	SpanQueryDeadIaC,
-	SpanQueryIaCUnmanagedResources,
-	SpanQueryIaCManagementStatus,
-	SpanQueryIaCManagementExplanation,
-	SpanQueryIaCTerraformImportPlan,
-	SpanQueryInfraResourceSearch,
-	SpanQueryCodeTopicInvestigation,
-	SpanQueryHardcodedSecretInvestigation,
-	SpanQueryDeadCodeInvestigation,
-	SpanQueryCallGraphMetrics,
-	SpanQueryChangeSurfaceInvestigation,
-	SpanQueryResourceInvestigation,
-	SpanQueryPackageRegistryPackages,
-	SpanQueryPackageRegistryVersions,
-	SpanQueryPackageRegistryDependencies,
-	SpanTerraformStateClaimProcess,
-	SpanTerraformStateDiscoveryResolve,
-	SpanTerraformStateSourceOpen,
-	SpanTerraformStateParserStream,
-	SpanTerraformStateFactEmitBatch,
-	SpanTerraformStateCoordinatorDone,
-	SpanWebhookHandle,
-	SpanWebhookStore,
-	SpanOCIRegistryScan,
-	SpanOCIRegistryAPICall,
-	SpanAWSCollectorClaimProcess,
-	SpanAWSCredentialsAssumeRole,
-	SpanAWSServiceScan,
-	SpanAWSServicePaginationPage,
-	SpanPostgresExec,
-	SpanPostgresQuery,
-	SpanNeo4jExecute,
-}
-
-var logKeys = []string{
-	LogKeyScopeID,
-	LogKeyScopeKind,
-	LogKeySourceSystem,
-	LogKeyGenerationID,
-	LogKeyCollectorKind,
-	LogKeyDomain,
-	LogKeyPartitionKey,
-	LogKeyRequestID,
-	LogKeyFailureClass,
-	LogKeyRefreshSkipped,
-	LogKeyPipelinePhase,
-	LogKeyAcceptanceScopeID,
-	LogKeyAcceptanceUnitID,
-	LogKeyAcceptanceSourceRunID,
-	LogKeyAcceptanceGenerationID,
-	LogKeyAcceptanceStaleCount,
-	LogKeyDriftPriorConfigDepth,
-	LogKeyDriftPriorConfigAddresses,
-	LogKeyDriftStateOnlyAddresses,
-	LogKeyDriftAddressesPromoted,
-	LogKeyDriftMultiElementPrefix,
-	LogKeyDriftMultiElementCount,
-	LogKeyDriftMultiElementSource,
-	LogKeyDriftCompositeResourceType,
-	LogKeyDriftCompositeAttributeKey,
-	LogKeyDriftCompositePath,
-	LogKeyDriftCompositeError,
-}
-
-// MetricDimensionKeys returns the frozen ordered metric dimensions.
-func MetricDimensionKeys() []string {
-	return slices.Clone(metricDimensionKeys)
-}
-
-// SpanNames returns the frozen ordered span names.
-func SpanNames() []string {
-	return slices.Clone(spanNames)
-}
-
-// LogKeys returns the frozen ordered structured log keys.
-func LogKeys() []string {
-	return slices.Clone(logKeys)
-}
 
 // Bootstrap captures the minimum OpenTelemetry-first runtime settings needed
 // by the Go data-plane bootstrap substrate.
