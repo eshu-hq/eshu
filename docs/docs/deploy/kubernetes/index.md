@@ -9,6 +9,10 @@ documentation, OCI registries, Terraform state, AWS cloud facts, package
 registries, and public GitHub, GitLab, or Bitbucket default-branch refresh
 triggers. Every database-backed workload also runs the
 `eshu-bootstrap-data-plane` init container before the main process starts.
+Before enabling several collector families together, read
+[Collector And Reducer Readiness](../../reference/collector-reducer-readiness.md)
+to check which collectors are implemented, which reducers can consume their
+facts, and which workflow-coordinator proof gates still apply.
 
 ## What gets deployed
 
