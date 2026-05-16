@@ -92,6 +92,40 @@ func TestPackageRegistryDependencyToolLimitDefaultIsOptional(t *testing.T) {
 	}
 }
 
+func TestPackageRegistryCorrelationToolAllowsPublicationRelationship(t *testing.T) {
+	t.Parallel()
+
+	tools := packageRegistryTools()
+	schema, ok := tools[1].InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("InputSchema type = %T, want map[string]any", tools[1].InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("properties type = %T, want map[string]any", schema["properties"])
+	}
+	relationshipKind, ok := properties["relationship_kind"].(map[string]any)
+	if !ok {
+		t.Fatalf("relationship_kind schema type = %T, want map[string]any", properties["relationship_kind"])
+	}
+	enum, ok := relationshipKind["enum"].([]string)
+	if !ok {
+		t.Fatalf("relationship_kind enum type = %T, want []string", relationshipKind["enum"])
+	}
+	if !stringSliceContains(enum, "publication") {
+		t.Fatalf("relationship_kind enum = %#v, want publication", enum)
+	}
+}
+
+func stringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestCodebaseTools(t *testing.T) {
 	tools := codebaseTools()
 	if len(tools) != 27 {

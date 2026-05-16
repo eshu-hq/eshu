@@ -1,3 +1,6 @@
+package postgres
+
+const factRecordSchemaSQL = `
 CREATE TABLE IF NOT EXISTS fact_records (
     fact_id TEXT PRIMARY KEY,
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
@@ -185,3 +188,4 @@ CREATE INDEX IF NOT EXISTS fact_records_container_image_identity_digest_idx
     )
     WHERE fact_kind = 'reducer_container_image_identity'
       AND is_tombstone = FALSE;
+`

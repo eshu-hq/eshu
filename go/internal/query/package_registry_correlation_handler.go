@@ -6,26 +6,29 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// PackageRegistryCorrelationResult is one reducer-owned package ownership or
-// consumption correlation read from durable reducer facts.
+// PackageRegistryCorrelationResult is one reducer-owned package ownership,
+// publication, or consumption correlation read from durable reducer facts.
 type PackageRegistryCorrelationResult struct {
-	CorrelationID    string   `json:"correlation_id"`
-	RelationshipKind string   `json:"relationship_kind"`
-	PackageID        string   `json:"package_id"`
-	VersionID        string   `json:"version_id,omitempty"`
-	Ecosystem        string   `json:"ecosystem,omitempty"`
-	PackageName      string   `json:"package_name,omitempty"`
-	RepositoryID     string   `json:"repository_id,omitempty"`
-	RepositoryName   string   `json:"repository_name,omitempty"`
-	SourceURL        string   `json:"source_url,omitempty"`
-	RelativePath     string   `json:"relative_path,omitempty"`
-	ManifestSection  string   `json:"manifest_section,omitempty"`
-	DependencyRange  string   `json:"dependency_range,omitempty"`
-	Outcome          string   `json:"outcome"`
-	Reason           string   `json:"reason,omitempty"`
-	ProvenanceOnly   bool     `json:"provenance_only"`
-	CanonicalWrites  int      `json:"canonical_writes"`
-	EvidenceFactIDs  []string `json:"evidence_fact_ids,omitempty"`
+	CorrelationID          string   `json:"correlation_id"`
+	RelationshipKind       string   `json:"relationship_kind"`
+	PackageID              string   `json:"package_id"`
+	VersionID              string   `json:"version_id,omitempty"`
+	Version                string   `json:"version,omitempty"`
+	PublishedAt            string   `json:"published_at,omitempty"`
+	Ecosystem              string   `json:"ecosystem,omitempty"`
+	PackageName            string   `json:"package_name,omitempty"`
+	RepositoryID           string   `json:"repository_id,omitempty"`
+	RepositoryName         string   `json:"repository_name,omitempty"`
+	SourceURL              string   `json:"source_url,omitempty"`
+	CandidateRepositoryIDs []string `json:"candidate_repository_ids,omitempty"`
+	RelativePath           string   `json:"relative_path,omitempty"`
+	ManifestSection        string   `json:"manifest_section,omitempty"`
+	DependencyRange        string   `json:"dependency_range,omitempty"`
+	Outcome                string   `json:"outcome"`
+	Reason                 string   `json:"reason,omitempty"`
+	ProvenanceOnly         bool     `json:"provenance_only"`
+	CanonicalWrites        int      `json:"canonical_writes"`
+	EvidenceFactIDs        []string `json:"evidence_fact_ids,omitempty"`
 }
 
 func (h *PackageRegistryHandler) listCorrelations(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +101,6 @@ func (h *PackageRegistryHandler) listCorrelations(w http.ResponseWriter, r *http
 		h.profile(),
 		packageRegistryCorrelationsCapability,
 		TruthBasisSemanticFacts,
-		"resolved from reducer-owned package ownership and consumption correlation facts",
+		"resolved from reducer-owned package ownership, publication, and consumption correlation facts",
 	))
 }

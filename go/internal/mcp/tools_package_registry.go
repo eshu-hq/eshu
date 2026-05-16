@@ -36,22 +36,22 @@ func packageRegistryTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_package_registry_correlations",
-			Description: "List reducer-owned package ownership candidates and manifest-backed consumption correlations by package_id or repository_id.",
+			Description: "List reducer-owned package ownership candidates, publication evidence, and manifest-backed consumption correlations by package_id or repository_id.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"package_id": map[string]any{
 						"type":        "string",
-						"description": "Package.uid to anchor package ownership or consumption correlation lookup.",
+						"description": "Package.uid to anchor package ownership, publication, or consumption correlation lookup.",
 					},
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Repository.id to anchor package ownership or consumption correlation lookup.",
+						"description": "Repository.id to anchor package ownership, publication, or consumption correlation lookup.",
 					},
 					"relationship_kind": map[string]any{
 						"type":        "string",
 						"description": "Optional relationship kind filter.",
-						"enum":        []string{"ownership", "consumption"},
+						"enum":        []string{"ownership", "publication", "consumption"},
 					},
 					"after_correlation_id": map[string]any{
 						"type":        "string",

@@ -55,15 +55,14 @@ func TestPackageRegistryListCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 		rows: []PackageRegistryCorrelationRow{
 			{
 				CorrelationID:    "correlation-1",
-				RelationshipKind: "consumption",
+				RelationshipKind: "publication",
 				PackageID:        "pkg:npm://registry.example/team-api",
-				RepositoryID:     "repo-web",
-				RepositoryName:   "web",
-				RelativePath:     "package.json",
-				DependencyRange:  "^1.2.0",
-				Outcome:          "manifest_declared",
-				Reason:           "git manifest dependency matches package registry identity",
-				CanonicalWrites:  1,
+				VersionID:        "pkg:npm://registry.example/team-api@1.2.0",
+				RepositoryID:     "repo-team-api",
+				RepositoryName:   "team-api",
+				Outcome:          "exact",
+				Reason:           "source hint matches repository remote exactly",
+				ProvenanceOnly:   true,
 			},
 			{CorrelationID: "correlation-2", RelationshipKind: "ownership"},
 		},
@@ -74,7 +73,7 @@ func TestPackageRegistryListCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/api/v0/package-registry/correlations?package_id=pkg:npm://registry.example/team-api&relationship_kind=consumption&limit=1",
+		"/api/v0/package-registry/correlations?package_id=pkg:npm://registry.example/team-api&relationship_kind=publication&limit=1",
 		nil,
 	)
 	w := httptest.NewRecorder()
@@ -86,7 +85,7 @@ func TestPackageRegistryListCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 	if got, want := store.lastFilter.PackageID, "pkg:npm://registry.example/team-api"; got != want {
 		t.Fatalf("PackageID = %q, want %q", got, want)
 	}
-	if got, want := store.lastFilter.RelationshipKind, "consumption"; got != want {
+	if got, want := store.lastFilter.RelationshipKind, "publication"; got != want {
 		t.Fatalf("RelationshipKind = %q, want %q", got, want)
 	}
 	if got, want := store.lastFilter.Limit, 2; got != want {
@@ -106,7 +105,10 @@ func TestPackageRegistryListCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 	if got, want := len(resp.Correlations), 1; got != want {
 		t.Fatalf("len(correlations) = %d, want %d", got, want)
 	}
-	if got, want := resp.Correlations[0].RepositoryID, "repo-web"; got != want {
+	if got, want := resp.Correlations[0].VersionID, "pkg:npm://registry.example/team-api@1.2.0"; got != want {
+		t.Fatalf("VersionID = %q, want %q", got, want)
+	}
+	if got, want := resp.Correlations[0].RepositoryID, "repo-team-api"; got != want {
 		t.Fatalf("RepositoryID = %q, want %q", got, want)
 	}
 	if !resp.Truncated {
@@ -122,5 +124,13 @@ func TestPackageRegistryCorrelationQueryExcludesTombstones(t *testing.T) {
 
 	if !strings.Contains(listPackageRegistryCorrelationsQuery, "fact.is_tombstone = FALSE") {
 		t.Fatalf("listPackageRegistryCorrelationsQuery must exclude tombstone facts:\n%s", listPackageRegistryCorrelationsQuery)
+	}
+}
+
+func TestPackageRegistryCorrelationQueryIncludesPublicationFacts(t *testing.T) {
+	t.Parallel()
+
+	if !stringSliceContains(packageRegistryCorrelationFactKinds(), packagePublicationCorrelationFactKind) {
+		t.Fatalf("packageRegistryCorrelationFactKinds() = %#v, want publication facts", packageRegistryCorrelationFactKinds())
 	}
 }

@@ -62,11 +62,13 @@ are extracted via `StringVal`, `BoolVal`, `IntVal`, `StringSliceVal`
 `content_reader_entity.go:13`) issue parametrized Postgres queries against
 `content_files` and `content_entities`.
 `PackageRegistryHandler` (`package_registry.go:21`) keeps package-registry
-reads graph-backed and bounded: package and version identity lookups require a
-package, ecosystem, or version anchor, and dependency lookup requires
-`package_id` or `version_id` plus `limit`. These routes return package-native
-dependency truth only; ownership, publication ownership, and runtime
-consumption stay out of the response until reducer admission owns those joins.
+reads bounded: package and version identity lookups require a package,
+ecosystem, or version anchor, dependency lookup requires `package_id` or
+`version_id` plus `limit`, and correlation lookup requires `package_id` or
+`repository_id` plus `limit`. Dependency routes return package-native
+dependency truth only; correlation routes expose reducer-owned ownership
+candidates, provenance-only publication evidence, and admitted manifest-backed
+consumption without letting package source hints become ownership truth.
 `CICDHandler` (`ci_cd.go:16`) reads reducer-owned CI/CD run correlation facts
 from Postgres. It requires an explicit scope, repository, commit, provider-run,
 artifact-digest, or environment anchor plus `limit`, and it keeps CI success,

@@ -123,6 +123,10 @@ the caller's bounded handle array to the HTTP evidence route. The advertised
 schema caps input at 500 handles and the query handler hydrates at most 50
 citations per packet.
 
+Package-registry tools keep MCP as transport too. Ownership candidates,
+package-version publication evidence, and manifest-backed consumption all come
+from the query handler; MCP only maps arguments and preserves the envelope.
+
 IaC management tools also keep MCP as transport only. The HTTP query layer adds
 `safety_gate`, `safety_summary`, import-plan candidate shaping, and
 sensitive-value redaction before the envelope reaches MCP, so tool callers see

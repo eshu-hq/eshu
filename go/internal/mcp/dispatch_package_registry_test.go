@@ -8,7 +8,7 @@ func TestResolveRouteMapsPackageRegistryCorrelationsToBoundedQuery(t *testing.T)
 	route, err := resolveRoute("list_package_registry_correlations", map[string]any{
 		"after_correlation_id": "correlation-1",
 		"package_id":           "pkg:npm://registry.example/team-api",
-		"relationship_kind":    "consumption",
+		"relationship_kind":    "publication",
 		"repository_id":        "repo-web",
 		"limit":                float64(25),
 	})
@@ -24,7 +24,7 @@ func TestResolveRouteMapsPackageRegistryCorrelationsToBoundedQuery(t *testing.T)
 	for key, want := range map[string]string{
 		"after_correlation_id": "correlation-1",
 		"package_id":           "pkg:npm://registry.example/team-api",
-		"relationship_kind":    "consumption",
+		"relationship_kind":    "publication",
 		"repository_id":        "repo-web",
 		"limit":                "25",
 	} {

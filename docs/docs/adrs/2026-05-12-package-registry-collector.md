@@ -388,25 +388,30 @@ run both Neo4j and NornicDB conformance for the statement shape.
    failed, and superseded `package_source_correlation` intents.
    The package correlation sub-slice now persists
    `reducer_package_ownership_correlation` facts for source-hint ownership
-   candidates with `provenance_only=true` and `canonical_writes=0`, and persists
-   `reducer_package_consumption_correlation` facts when package registry
-   identity matches a Git manifest dependency entity. The active manifest
-   dependency loader is bounded by the package identities in the reducer intent
-   and uses `fact_records_active_package_dependency_entity_idx`; the read model
-   uses `fact_records_package_correlations_lookup_idx` for package-anchored
-   reads and `fact_records_package_correlations_repository_lookup_idx` for
-   repository-anchored reads, and requires `package_id` or `repository_id`.
+   candidates with `provenance_only=true` and `canonical_writes=0`, persists
+   `reducer_package_publication_correlation` facts for source-hint package
+   version publication evidence with `provenance_only=true` and
+   `canonical_writes=0`, and persists
+   `reducer_package_consumption_correlation` facts when package registry identity
+   matches a Git manifest dependency entity. The active manifest dependency
+   loader is bounded by the package identities in the reducer intent and uses
+   `fact_records_active_package_dependency_entity_idx`; the read model uses
+   `fact_records_package_correlations_lookup_idx` for package-anchored reads and
+   `fact_records_package_correlations_repository_lookup_idx` for
+   repository-anchored reads across ownership, publication, and consumption
+   facts, and requires `package_id` or `repository_id`.
    No-Regression Evidence: `go test ./internal/reducer
    ./internal/storage/postgres -run
    'TestPackage|TestBuildPackageConsumption|TestPostgresPackageCorrelation|TestBootstrapDefinitionsIncludePackageCorrelationFactIndexes'
-   -count=1` passes for ownership candidates, manifest-backed consumption,
-   writer idempotency shape, and the supporting Postgres indexes.
+   -count=1` passes for ownership candidates, package-version publication
+   evidence, manifest-backed consumption, writer idempotency shape, and the
+   supporting Postgres indexes.
    Observability Evidence: source-hint outcomes continue through
    `eshu_dp_package_source_correlations_total{domain,outcome}`, and reducer
    execution duration, queue wait, and execution-status metrics cover slow,
    failed, retried, or superseded package correlation intents. No new metric
    label carries package names, repository names, or source URLs.
-6. **Query lane:** expose package ownership and consumption evidence only
+6. **Query lane:** expose package ownership, publication, and consumption evidence only
    after graph truth and query truth agree for repo, service, and package
    surfaces. The first query sub-slice exposes bounded package/package-version
    identity reads from the canonical graph and explicitly omits repository
@@ -439,11 +444,13 @@ run both Neo4j and NornicDB conformance for the statement shape.
    unresolved, stale, and rejected ownership-candidate outcomes.
    The package correlation read sub-slice exposes
    `GET /api/v0/package-registry/correlations` and
-   `list_package_registry_correlations` for bounded package ownership and
-   consumption answers. Requests require `limit` plus `package_id` or
-   `repository_id`, support `relationship_kind` and `after_correlation_id`, and
-   return `provenance_only` so callers can distinguish source-hint ownership
-   candidates from admitted manifest-backed consumption.
+   `list_package_registry_correlations` for bounded package ownership,
+   publication, and consumption answers. Requests require `limit` plus
+   `package_id` or `repository_id`, support `relationship_kind` values
+   `ownership`, `publication`, and `consumption`, and support
+   `after_correlation_id`. Responses return `provenance_only` so callers can
+   distinguish source-hint ownership/publication candidates from admitted
+   manifest-backed consumption.
    No-Regression Evidence: `go test ./internal/query ./internal/mcp -run
    'TestPackageRegistryListCorrelations|TestCapabilityMatrix|TestReadOnlyTools|TestResolveRouteMapsPackageRegistry'
    -count=1` passes for HTTP, capability matrix, MCP tool schema, and MCP route

@@ -207,6 +207,7 @@ func TestBootstrapDefinitionsIncludePackageCorrelationFactIndexes(t *testing.T) 
 		"fact_records_package_correlations_repository_lookup_idx",
 		"'reducer_package_ownership_correlation'",
 		"'reducer_package_consumption_correlation'",
+		"'reducer_package_publication_correlation'",
 		"(payload->>'relationship_kind')",
 	} {
 		if !strings.Contains(facts.SQL, want) {

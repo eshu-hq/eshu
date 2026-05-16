@@ -23,8 +23,10 @@
 // same facts.Envelope metadata shape as full fact loads. Payload value filters
 // are available only for top-level payload fields that are part of a reducer
 // domain's truth contract. Shared projection intent writes use bounded
-// multi-row upserts so high-cardinality code-call materialization reduces
-// Postgres round trips without changing idempotency semantics; current
+// multi-row upserts so high-cardinality package, code-call, and correlation
+// facts reduce Postgres round trips without changing idempotency semantics.
+// Package correlation indexes cover reducer ownership, publication, and
+// consumption fact rows under package_id and repository_id anchors. Current
 // source-run history lookups let chunked code-call projection avoid retracting
 // edges written by earlier chunks from the same accepted run. StatusStore also
 // runs the bounded Terraform-state admin queries from tfstate_status.go: one

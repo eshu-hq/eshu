@@ -10,6 +10,7 @@ import (
 const (
 	packageOwnershipCorrelationFactKind   = "reducer_package_ownership_correlation"
 	packageConsumptionCorrelationFactKind = "reducer_package_consumption_correlation"
+	packagePublicationCorrelationFactKind = "reducer_package_publication_correlation"
 )
 
 // PackageRegistryCorrelationStore reads reducer-owned package correlations.
@@ -30,26 +31,29 @@ type PackageRegistryCorrelationFilter struct {
 	Limit              int
 }
 
-// PackageRegistryCorrelationRow is one durable package ownership or
-// consumption row decoded from reducer fact payloads.
+// PackageRegistryCorrelationRow is one durable package ownership, publication,
+// or consumption row decoded from reducer fact payloads.
 type PackageRegistryCorrelationRow struct {
-	CorrelationID    string
-	RelationshipKind string
-	PackageID        string
-	VersionID        string
-	Ecosystem        string
-	PackageName      string
-	RepositoryID     string
-	RepositoryName   string
-	SourceURL        string
-	RelativePath     string
-	ManifestSection  string
-	DependencyRange  string
-	Outcome          string
-	Reason           string
-	ProvenanceOnly   bool
-	CanonicalWrites  int
-	EvidenceFactIDs  []string
+	CorrelationID          string
+	RelationshipKind       string
+	PackageID              string
+	VersionID              string
+	Version                string
+	PublishedAt            string
+	Ecosystem              string
+	PackageName            string
+	RepositoryID           string
+	RepositoryName         string
+	SourceURL              string
+	CandidateRepositoryIDs []string
+	RelativePath           string
+	ManifestSection        string
+	DependencyRange        string
+	Outcome                string
+	Reason                 string
+	ProvenanceOnly         bool
+	CanonicalWrites        int
+	EvidenceFactIDs        []string
 }
 
 type packageRegistryCorrelationQueryer interface {
@@ -69,7 +73,7 @@ func NewPostgresPackageRegistryCorrelationStore(db packageRegistryCorrelationQue
 }
 
 // ListPackageRegistryCorrelations returns a bounded page of active reducer
-// package ownership or consumption correlation facts.
+// package ownership, publication, or consumption correlation facts.
 func (s PostgresPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 	ctx context.Context,
 	filter PackageRegistryCorrelationFilter,
@@ -87,7 +91,7 @@ func (s PostgresPackageRegistryCorrelationStore) ListPackageRegistryCorrelations
 	rows, err := s.DB.QueryContext(
 		ctx,
 		listPackageRegistryCorrelationsQuery,
-		[]string{packageOwnershipCorrelationFactKind, packageConsumptionCorrelationFactKind},
+		packageRegistryCorrelationFactKinds(),
 		filter.PackageID,
 		filter.RepositoryID,
 		filter.RelationshipKind,
@@ -138,6 +142,14 @@ ORDER BY fact.fact_id ASC
 LIMIT $6
 `
 
+func packageRegistryCorrelationFactKinds() []string {
+	return []string{
+		packageOwnershipCorrelationFactKind,
+		packageConsumptionCorrelationFactKind,
+		packagePublicationCorrelationFactKind,
+	}
+}
+
 func decodePackageRegistryCorrelationRow(
 	factID string,
 	payloadBytes []byte,
@@ -147,22 +159,25 @@ func decodePackageRegistryCorrelationRow(
 		return PackageRegistryCorrelationRow{}, fmt.Errorf("decode package registry correlation: %w", err)
 	}
 	return PackageRegistryCorrelationRow{
-		CorrelationID:    factID,
-		RelationshipKind: StringVal(payload, "relationship_kind"),
-		PackageID:        StringVal(payload, "package_id"),
-		VersionID:        StringVal(payload, "version_id"),
-		Ecosystem:        StringVal(payload, "ecosystem"),
-		PackageName:      StringVal(payload, "package_name"),
-		RepositoryID:     StringVal(payload, "repository_id"),
-		RepositoryName:   StringVal(payload, "repository_name"),
-		SourceURL:        StringVal(payload, "source_url"),
-		RelativePath:     StringVal(payload, "relative_path"),
-		ManifestSection:  StringVal(payload, "manifest_section"),
-		DependencyRange:  StringVal(payload, "dependency_range"),
-		Outcome:          StringVal(payload, "outcome"),
-		Reason:           StringVal(payload, "reason"),
-		ProvenanceOnly:   BoolVal(payload, "provenance_only"),
-		CanonicalWrites:  IntVal(payload, "canonical_writes"),
-		EvidenceFactIDs:  StringSliceVal(payload, "evidence_fact_ids"),
+		CorrelationID:          factID,
+		RelationshipKind:       StringVal(payload, "relationship_kind"),
+		PackageID:              StringVal(payload, "package_id"),
+		VersionID:              StringVal(payload, "version_id"),
+		Version:                StringVal(payload, "version"),
+		PublishedAt:            StringVal(payload, "published_at"),
+		Ecosystem:              StringVal(payload, "ecosystem"),
+		PackageName:            StringVal(payload, "package_name"),
+		RepositoryID:           StringVal(payload, "repository_id"),
+		RepositoryName:         StringVal(payload, "repository_name"),
+		SourceURL:              StringVal(payload, "source_url"),
+		CandidateRepositoryIDs: StringSliceVal(payload, "candidate_repository_ids"),
+		RelativePath:           StringVal(payload, "relative_path"),
+		ManifestSection:        StringVal(payload, "manifest_section"),
+		DependencyRange:        StringVal(payload, "dependency_range"),
+		Outcome:                StringVal(payload, "outcome"),
+		Reason:                 StringVal(payload, "reason"),
+		ProvenanceOnly:         BoolVal(payload, "provenance_only"),
+		CanonicalWrites:        IntVal(payload, "canonical_writes"),
+		EvidenceFactIDs:        StringSliceVal(payload, "evidence_fact_ids"),
 	}, nil
 }

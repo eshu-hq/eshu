@@ -52,6 +52,8 @@ flowchart TB
 `BootstrapDefinitions` in order. Each `Definition` carries a name and SQL DDL.
 `ValidateDefinitions` enforces uniqueness. Schema DDL is idempotent
 (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`).
+The large `fact_records` DDL lives in `schema_fact_records.go` so
+`schema.go` can stay focused on bootstrap ordering and exported helpers.
 
 ### Fact persistence
 
@@ -79,7 +81,8 @@ manifest dependency entities for the ecosystem/name set in the current
 package-registry reducer intent. Package correlation reads use
 `fact_records_package_correlations_lookup_idx` for package-scoped reads and
 `fact_records_package_correlations_repository_lookup_idx` for repository-scoped
-reads so API and MCP callers stay bounded by `package_id` or `repository_id`.
+reads across ownership, publication, and consumption rows so API and MCP callers
+stay bounded by `package_id` or `repository_id`.
 CI/CD run correlation reads use
 `fact_records_ci_cd_run_correlations_lookup_idx` and
 `fact_records_ci_cd_run_correlations_run_lookup_idx` for repository/run scoped

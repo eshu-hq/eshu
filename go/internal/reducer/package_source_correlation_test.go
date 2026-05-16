@@ -74,7 +74,9 @@ func (w *recordingPackageCorrelationWriter) WritePackageCorrelations(
 	w.write = write
 	return PackageCorrelationWriteResult{
 		CanonicalWrites: packageCorrelationCanonicalWrites(write.ConsumptionDecisions),
-		FactsWritten:    len(write.OwnershipDecisions) + len(write.ConsumptionDecisions),
+		FactsWritten: len(write.OwnershipDecisions) +
+			len(write.ConsumptionDecisions) +
+			len(write.PublicationDecisions),
 	}, nil
 }
 
@@ -133,6 +135,14 @@ func TestPackageSourceCorrelationHandlerLoadsActiveRepositoriesAndEmitsCounters(
 				"",
 				observedAt,
 			),
+			packageRegistryPackageVersionFact(
+				"package-version-fact",
+				"pkg:npm://registry.example/team-api",
+				"pkg:npm://registry.example/team-api@1.2.0",
+				"1.2.0",
+				observedAt,
+				observedAt,
+			),
 			packageSourceHintFact(
 				"pkg:npm://registry.example/team-api",
 				"repository",
@@ -189,10 +199,11 @@ func TestPackageSourceCorrelationHandlerLoadsActiveRepositoriesAndEmitsCounters(
 	if !strings.Contains(result.EvidenceSummary, "evaluated=1") ||
 		!strings.Contains(result.EvidenceSummary, "derived=1") ||
 		!strings.Contains(result.EvidenceSummary, "consumption=1") ||
+		!strings.Contains(result.EvidenceSummary, "publication=1") ||
 		!strings.Contains(result.EvidenceSummary, "canonical_writes=1") {
-		t.Fatalf("Handle().EvidenceSummary = %q, want evaluated/derived/consumption/canonical_writes counts", result.EvidenceSummary)
+		t.Fatalf("Handle().EvidenceSummary = %q, want evaluated/derived/consumption/publication/canonical_writes counts", result.EvidenceSummary)
 	}
-	if got, want := strings.Join(loader.kindCalls[0], ","), "package_registry.source_hint,package_registry.package,repository"; got != want {
+	if got, want := strings.Join(loader.kindCalls[0], ","), "package_registry.source_hint,package_registry.package,package_registry.package_version,repository"; got != want {
 		t.Fatalf("ListFactsByKind() kinds = %q, want %q", got, want)
 	}
 	if loader.repositoryCalls != 1 {
@@ -212,6 +223,9 @@ func TestPackageSourceCorrelationHandlerLoadsActiveRepositoriesAndEmitsCounters(
 	}
 	if got, want := len(writer.write.ConsumptionDecisions), 1; got != want {
 		t.Fatalf("ConsumptionDecisions len = %d, want %d", got, want)
+	}
+	if got, want := len(writer.write.PublicationDecisions), 1; got != want {
+		t.Fatalf("PublicationDecisions len = %d, want %d", got, want)
 	}
 	if got, want := writer.write.ConsumptionDecisions[0].RepositoryID, "repo-consumer"; got != want {
 		t.Fatalf("consumption RepositoryID = %q, want %q", got, want)

@@ -134,6 +134,9 @@ surfaces.
    derived, ambiguous, unresolved, stale, and rejected cases are proven.
    Package-native dependency edges are safe to expose separately because they
    describe package metadata, not repository ownership or runtime consumption.
+   The reducer now also writes provenance-only package-version publication rows
+   from registry versions plus source hints, keeping publication evidence
+   visible without promoting package ownership.
 
 5. CI/CD run correlation.
    `DomainCICDRunCorrelation` writes durable reducer facts for provider runs,

@@ -161,6 +161,9 @@
 // content store without graph traversal, reject input arrays above 500 handles,
 // and hydrate at most 50 citations per call so story, investigation, and
 // documentation prompts can cite source, docs, manifests, and deployment proof.
+// Package-registry correlation reads stay anchored by package_id or
+// repository_id and expose ownership candidates, package-version publication
+// evidence, and manifest-backed consumption as separate relationship kinds.
 // Repository runtime artifacts surface Dockerfile base image, base tag, build
 // platform, copy-from, command, port, and environment evidence from parser
 // metadata. Deployment trace image references can include projected OCI registry
