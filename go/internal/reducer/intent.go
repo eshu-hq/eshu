@@ -61,6 +61,10 @@ const (
 	// DomainSBOMAttestationAttachment attaches SBOM and attestation evidence to
 	// image digests only when subject evidence is explicit.
 	DomainSBOMAttestationAttachment Domain = "sbom_attestation_attachment"
+	// DomainSupplyChainImpact publishes reducer-owned vulnerability impact
+	// findings only when vulnerability, package, SBOM, image, or repository
+	// evidence forms an explicit path.
+	DomainSupplyChainImpact Domain = "supply_chain_impact"
 	// DomainAWSCloudRuntimeDrift publishes admitted AWS runtime-vs-IaC drift
 	// findings as canonical reducer facts. The domain stays graph-neutral until
 	// the drift node and query shape are frozen.

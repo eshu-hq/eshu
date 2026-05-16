@@ -195,8 +195,45 @@ surfaces.
 
 7. Supply-chain impact.
    SBOM, attestation, vulnerability, package, OCI, cloud, and deployment facts
-   need reducer-owned confidence rules. The vulnerability collector should stay
-   gated until those upstream facts are proven together.
+   now have the first reducer-owned confidence/read-model slice for fixture or
+   preloaded facts. `DomainSupplyChainImpact` writes
+   `reducer_supply_chain_impact_finding` facts with `affected_exact`,
+   `affected_derived`, `possibly_affected`, `not_affected_known_fixed`, and
+   `unknown_impact` statuses. The live vulnerability collector remains gated
+   until the existing upstream collectors are proven together, but the impact
+   reducer can explain explicit CVE/advisory -> package/component ->
+   repository/image evidence paths without collapsing CVSS, EPSS, or KEV into
+   reachability.
+
+   Performance Impact Declaration: supply-chain impact affects the reducer fact
+   load, durable fact write, and HTTP/MCP Postgres read path. Cardinality is
+   bounded by the triggering vulnerability package/CVE set plus active package,
+   SBOM, image, and package-consumption rows selected by package ID, PURL, CVE,
+   or subject digest. Known-normal baseline is the existing SBOM attachment and
+   package correlation read-model pattern. Proof ladder is focused reducer,
+   Postgres query-shape, HTTP, MCP, telemetry, and command wiring tests, then
+   package gates. Stop threshold: any unanchored fact scan, missing `limit+1`
+   pagination, missing index for an advertised anchor, or package gate runtime
+   materially above the adjacent SBOM/package read-model tests blocks merge.
+
+   No-Regression Evidence: focused reducer, query, MCP, storage, telemetry, API,
+   and command coverage with
+   `go test ./internal/reducer -run 'TestBuildSupplyChainImpact|TestSupplyChainImpact|TestPostgresSupplyChainImpact' -count=1`,
+   `go test ./internal/query -run 'TestSupplyChainListImpact|TestSupplyChainImpactFindingQuery|TestOpenAPISpecIncludesSupplyChainImpact' -count=1`,
+   `go test ./internal/mcp -run 'TestResolveRouteMapsSupplyChainImpactFindingsToBoundedQuery|TestReadOnlyTools' -count=1`,
+   `go test ./internal/storage/postgres -run 'TestListActiveSupplyChainImpact|TestBootstrapDefinitionsIncludeSupplyChainImpact' -count=1`,
+   and `go test ./internal/reducer ./internal/query ./internal/mcp ./internal/storage/postgres ./internal/telemetry ./cmd/reducer ./cmd/api ./cmd/mcp-server -count=1`
+   covers exact, derived, possible, known-fixed, and unknown statuses, bounded
+   active evidence loading, active read-model predicates, OpenAPI, MCP route
+   mapping, capability matrix wiring, telemetry registration, and runtime
+   wiring.
+
+   Observability Evidence: `eshu_dp_supply_chain_impact_findings_total` reports
+   bounded `domain` and `outcome` dimensions for reducer decisions; the
+   `query.supply_chain_impact_findings` span wraps API/MCP reads; existing
+   instrumented Postgres query duration metrics expose the active fact read
+   path. Finding facts carry CVE, package, status, reachability, missing
+   evidence, evidence path, and evidence fact IDs for operator diagnosis.
 
 ## EKS Proof Ladder
 

@@ -70,6 +70,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainContainerImageIdentity` | Join Git, OCI registry, and runtime image references into digest-keyed reducer facts |
 | `DomainCICDRunCorrelation` | Correlate CI/CD runs, artifacts, and environments with artifact identity evidence |
 | `DomainSBOMAttestationAttachment` | Attach SBOM and attestation documents to image digests only when subject evidence is explicit |
+| `DomainSupplyChainImpact` | Publish vulnerability impact findings only when explicit vulnerability, package, SBOM, image, or repository evidence exists |
 
 ## Intent lifecycle
 
@@ -427,6 +428,12 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   domain must not emit vulnerability priority or affected-by findings. The
   SBOM attachment index treats multiple distinct attestation subjects as
   ambiguous, not as a first-subject match.
+- **Supply-chain impact is evidence-first** —
+  `SupplyChainImpactHandler` writes `reducer_supply_chain_impact_finding`
+  facts only from explicit vulnerability, affected package, package-version,
+  SBOM component, attachment, image identity, or package-consumption evidence.
+  CVSS, EPSS, and KEV stay risk signals; they never prove reachability without
+  package or runtime evidence, and missing deployment evidence remains visible.
 - **Package ownership is conservative** —
   `PackageSourceCorrelationHandler` writes ownership candidates from registry
   source hints and package-version publication evidence but leaves

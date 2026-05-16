@@ -125,6 +125,24 @@ Use `SBOMAttestationFactKinds` when callers need the full accepted set, and
 facts are sensitive evidence. Reducers must keep document parse status,
 subject attachment status, and signature verification status separate.
 
+Vulnerability intelligence fact kinds use schema version `1.0.0` for the first
+collector contract:
+
+- `vulnerability.source_snapshot`
+- `vulnerability.cve`
+- `vulnerability.affected_product`
+- `vulnerability.affected_package`
+- `vulnerability.epss_score`
+- `vulnerability.known_exploited`
+- `vulnerability.reference`
+- `vulnerability.warning`
+
+Use `VulnerabilityIntelligenceFactKinds` when callers need the full accepted
+set, and `VulnerabilityIntelligenceSchemaVersion` when building
+vulnerability-intelligence envelopes. These facts are source truth only:
+reducers must decide package, image, workload, deployment, and fixed-version
+impact.
+
 AWS cloud fact kinds use schema version `1.0.0` for the first collector
 contract:
 

@@ -169,6 +169,7 @@ func newMCPQueryRouter(
 		},
 		SupplyChain: &query.SupplyChainHandler{
 			SBOMAttachments: query.NewPostgresSBOMAttestationAttachmentStore(db),
+			ImpactFindings:  query.NewPostgresSupplyChainImpactFindingStore(db),
 			Profile:         queryProfile,
 		},
 		Status: &query.StatusHandler{

@@ -109,6 +109,10 @@ type DefaultHandlers struct {
 	// attachment decisions for digest-keyed image evidence.
 	SBOMAttestationAttachmentWriter SBOMAttestationAttachmentWriter
 
+	// SupplyChainImpactWriter persists vulnerability impact findings with
+	// explicit package, SBOM, image, and repository evidence paths.
+	SupplyChainImpactWriter SupplyChainImpactWriter
+
 	// PackageCorrelationWriter persists package ownership candidates and
 	// manifest-backed consumption decisions for package-registry evidence.
 	PackageCorrelationWriter PackageCorrelationWriter
@@ -270,6 +274,15 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			Instruments: handlers.Instruments,
 		}
 		definitions = append(definitions, attachments)
+	}
+	if handlers.FactLoader != nil && handlers.SupplyChainImpactWriter != nil {
+		impact := supplyChainImpactDomainDefinition()
+		impact.Handler = SupplyChainImpactHandler{
+			FactLoader:  handlers.FactLoader,
+			Writer:      handlers.SupplyChainImpactWriter,
+			Instruments: handlers.Instruments,
+		}
+		definitions = append(definitions, impact)
 	}
 	if handlers.AWSCloudRuntimeDriftEvidenceLoader != nil &&
 		handlers.AWSCloudRuntimeDriftWriter != nil {

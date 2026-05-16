@@ -28,8 +28,8 @@
   query adapters (`wiring.go:146`). Do not set either to nil.
 - **MCP read tools must have matching query handlers** — `newMCPQueryRouter`
   wires `CICDHandler` and `SupplyChainHandler` to their Postgres read models so
-  `list_ci_cd_run_correlations` and `list_sbom_attestation_attachments` do not
-  dispatch to 404 routes.
+  `list_ci_cd_run_correlations`, `list_supply_chain_impact_findings`, and
+  `list_sbom_attestation_attachments` do not dispatch to 404 routes.
 - **Auth on query routes** — `query.AuthMiddleware` wraps the `query.APIRouter`
   handler before it is passed to `mcp.NewServer`. The MCP transport endpoints
   (`/sse`, `/mcp/message`, `/health`) handle auth separately inside the MCP

@@ -327,6 +327,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: digest_or_document_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer SBOM and attestation attachment lookup anchored by subject digest, document id, or document digest}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: digest_or_document_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer SBOM and attestation attachment lookup anchored by subject digest, document id, or document digest}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: digest_or_document_scope, verification: [{remote_validation: prod-sbom-attestation-attachments}], notes: bounded reducer SBOM and attestation attachment lookup anchored by subject digest, document id, or document digest}
+  - capability: supply_chain.impact_findings.list
+    tools: [list_supply_chain_impact_findings]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-supply-chain-impact}], notes: requires reducer supply-chain impact facts}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: cve_package_repository_or_digest_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer impact lookup anchored by CVE, package, repository, image digest, or impact status}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: cve_package_repository_or_digest_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer impact lookup anchored by CVE, package, repository, image digest, or impact status}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: cve_package_repository_or_digest_scope, verification: [{remote_validation: prod-supply-chain-impact}], notes: bounded reducer impact lookup anchored by CVE, package, repository, image digest, or impact status}
   - capability: platform_impact.resource_to_code
     tools: [trace_resource_to_code]
     profiles:
