@@ -2,6 +2,7 @@ package cicdrun
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -148,6 +149,242 @@ func TestGitHubActionsFixtureEmitsPartialWarnings(t *testing.T) {
 			t.Fatalf("warning reason %q missing from %#v", reason, warnings)
 		}
 	}
+}
+
+func TestGitHubActionsFixtureRejectsMalformedIDShapes(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"run": {
+			"id": {"bad": "shape"},
+			"run_attempt": 1,
+			"repository": {"full_name": "eshu-hq/eshu"},
+			"head_sha": "0123456789abcdef0123456789abcdef01234567"
+		}
+	}`)
+	_, err := GitHubActionsFixtureEnvelopes(raw, FixtureContext{
+		ScopeID:             "github-actions://github.example.com/eshu-hq/eshu/ci.yml",
+		GenerationID:        "bad:1",
+		CollectorInstanceID: "fixture-gh-actions",
+	})
+	if err == nil {
+		t.Fatal("GitHubActionsFixtureEnvelopes() error = nil, want malformed provider ID error")
+	}
+}
+
+func TestGitHubActionsFixturePreservesLargeNumericIDs(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"run": {
+			"id": 9223372036854775807,
+			"run_attempt": 1,
+			"repository": {
+				"full_name": "eshu-hq/eshu",
+				"html_url": "https://github.example.com/eshu-hq/eshu"
+			},
+			"head_sha": "0123456789abcdef0123456789abcdef01234567"
+		},
+		"jobs": [{"id": 9223372036854775806, "name": "build"}],
+		"artifacts": [{"id": 9223372036854775805, "name": "image", "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}],
+		"triggers": [{"trigger_kind": "workflow_call", "source_provider": "github_actions", "source_run_id": 9223372036854775804}]
+	}`)
+	envelopes, err := GitHubActionsFixtureEnvelopes(raw, FixtureContext{
+		ScopeID:             "github-actions://github.example.com/eshu-hq/eshu/ci.yml",
+		GenerationID:        "9223372036854775807:1",
+		CollectorInstanceID: "fixture-gh-actions",
+	})
+	if err != nil {
+		t.Fatalf("GitHubActionsFixtureEnvelopes() error = %v", err)
+	}
+
+	byKind := envelopesByKind(envelopes)
+	assertPayload(t, byKind[facts.CICDRunFactKind][0].Payload, "run_id", "9223372036854775807")
+	assertPayload(t, byKind[facts.CICDJobFactKind][0].Payload, "job_id", "9223372036854775806")
+	assertPayload(t, byKind[facts.CICDArtifactFactKind][0].Payload, "artifact_id", "9223372036854775805")
+	assertPayload(t, byKind[facts.CICDTriggerEdgeFactKind][0].Payload, "source_run_id", "9223372036854775804")
+	assertPayload(t, byKind[facts.CICDRunFactKind][0].Payload, "repository_id", "github.example.com/eshu-hq/eshu")
+}
+
+func TestGitHubActionsFixtureWarnsAndSkipsMalformedChildRecords(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"run": {
+			"id": 123,
+			"run_attempt": 1,
+			"repository": {"full_name": "eshu-hq/eshu"},
+			"head_sha": "0123456789abcdef0123456789abcdef01234567"
+		},
+		"jobs": [
+			{"name": "missing job id"},
+			{"id": 456, "steps": [{"name": "missing number"}]}
+		],
+		"artifacts": [
+			{"name": "missing artifact id", "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},
+			{"id": 789, "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "workflow_run": {"id": 999}}
+		],
+		"triggers": [
+			{"trigger_kind": "workflow_call", "source_provider": "github_actions"}
+		]
+	}`)
+	envelopes, err := GitHubActionsFixtureEnvelopes(raw, FixtureContext{
+		ScopeID:             "github-actions://github.com/eshu-hq/eshu/ci.yml",
+		GenerationID:        "123:1",
+		CollectorInstanceID: "fixture-gh-actions",
+	})
+	if err != nil {
+		t.Fatalf("GitHubActionsFixtureEnvelopes() error = %v", err)
+	}
+
+	byKind := envelopesByKind(envelopes)
+	assertKindCount(t, byKind, facts.CICDRunFactKind, 1)
+	if got := len(byKind[facts.CICDJobFactKind]); got != 1 {
+		t.Fatalf("job facts = %d, want only job with provider ID", got)
+	}
+	if got := len(byKind[facts.CICDStepFactKind]); got != 0 {
+		t.Fatalf("step facts = %d, want malformed step skipped", got)
+	}
+	if got := len(byKind[facts.CICDArtifactFactKind]); got != 0 {
+		t.Fatalf("artifact facts = %d, want missing/mismatched artifacts skipped", got)
+	}
+	if got := len(byKind[facts.CICDTriggerEdgeFactKind]); got != 0 {
+		t.Fatalf("trigger facts = %d, want incomplete trigger skipped", got)
+	}
+
+	wantReasons := map[string]bool{
+		"job_missing_id":              false,
+		"step_missing_number":         false,
+		"artifact_missing_id":         false,
+		"artifact_run_mismatch":       false,
+		"trigger_edge_missing_anchor": false,
+	}
+	for _, warning := range byKind[facts.CICDWarningFactKind] {
+		if reason, ok := warning.Payload["reason"].(string); ok {
+			wantReasons[reason] = true
+		}
+	}
+	for reason, found := range wantReasons {
+		if !found {
+			t.Fatalf("warning reason %q missing from %#v", reason, byKind[facts.CICDWarningFactKind])
+		}
+	}
+}
+
+func TestGitHubActionsFixtureDeduplicatesDuplicateRecords(t *testing.T) {
+	t.Parallel()
+
+	raw := readFixture(t, "testdata/github_actions_success.json")
+	var fixture map[string]any
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatalf("json.Unmarshal fixture: %v", err)
+	}
+	fixture["jobs"] = append(fixture["jobs"].([]any), fixture["jobs"].([]any)[0])
+	fixture["artifacts"] = append(fixture["artifacts"].([]any), fixture["artifacts"].([]any)[0])
+	fixture["triggers"] = append(fixture["triggers"].([]any), fixture["triggers"].([]any)[0])
+	duplicated, err := json.Marshal(fixture)
+	if err != nil {
+		t.Fatalf("json.Marshal fixture: %v", err)
+	}
+
+	envelopes, err := GitHubActionsFixtureEnvelopes(duplicated, FixtureContext{
+		ScopeID:             "github-actions://github.com/eshu-hq/eshu/ci.yml",
+		GenerationID:        "123456789:2",
+		CollectorInstanceID: "fixture-gh-actions",
+		ObservedAt:          time.Date(2026, 5, 16, 3, 30, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("GitHubActionsFixtureEnvelopes() error = %v", err)
+	}
+	seen := map[string]bool{}
+	for _, envelope := range envelopes {
+		if seen[envelope.FactID] {
+			t.Fatalf("duplicate FactID emitted: %s", envelope.FactID)
+		}
+		seen[envelope.FactID] = true
+	}
+}
+
+func TestGitHubActionsFixtureRedactsCredentialBearingURLsAndWarningText(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"run": {
+			"id": 123,
+			"run_attempt": 1,
+			"html_url": "https://token@github.example.com/eshu-hq/eshu/actions/runs/123",
+			"repository": {
+				"full_name": "eshu-hq/eshu",
+				"html_url": "https://github.example.com/eshu-hq/eshu"
+			},
+			"head_sha": "0123456789abcdef0123456789abcdef01234567"
+		},
+		"warnings": [
+			{"reason": "provider_warning", "message": "failed https://token@github.example.com/eshu-hq/eshu?token=secret"}
+		]
+	}`)
+	envelopes, err := GitHubActionsFixtureEnvelopes(raw, FixtureContext{
+		ScopeID:             "github-actions://github.example.com/eshu-hq/eshu/ci.yml",
+		GenerationID:        "123:1",
+		CollectorInstanceID: "fixture-gh-actions",
+		SourceURI:           "https://token@github.example.com/eshu-hq/eshu/actions/runs/123?token=secret",
+	})
+	if err != nil {
+		t.Fatalf("GitHubActionsFixtureEnvelopes() error = %v", err)
+	}
+
+	byKind := envelopesByKind(envelopes)
+	assertPayload(t, byKind[facts.CICDRunFactKind][0].Payload, "url", "")
+	if got := byKind[facts.CICDRunFactKind][0].SourceRef.SourceURI; got != "" {
+		t.Fatalf("SourceRef.SourceURI = %q, want stripped", got)
+	}
+	message := byKind[facts.CICDWarningFactKind][0].Payload["message"].(string)
+	if bytes.Contains([]byte(message), []byte("token")) || bytes.Contains([]byte(message), []byte("secret")) {
+		t.Fatalf("warning message was not redacted: %q", message)
+	}
+}
+
+func TestGitHubActionsFixtureWarnsWhenRunAnchorsMissing(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{"run": {"id": 123, "run_attempt": 1}}`)
+	envelopes, err := GitHubActionsFixtureEnvelopes(raw, FixtureContext{
+		ScopeID:             "github-actions://github.com/eshu-hq/eshu/ci.yml",
+		GenerationID:        "123:1",
+		CollectorInstanceID: "fixture-gh-actions",
+	})
+	if err != nil {
+		t.Fatalf("GitHubActionsFixtureEnvelopes() error = %v", err)
+	}
+
+	byKind := envelopesByKind(envelopes)
+	assertKindCount(t, byKind, facts.CICDRunFactKind, 1)
+	assertKindCount(t, byKind, facts.CICDWarningFactKind, 1)
+	assertPayload(t, byKind[facts.CICDWarningFactKind][0].Payload, "reason", "run_missing_repository_or_commit")
+}
+
+func TestGitHubActionsFixtureEmitsWorkflowDefinitionFromProviderIDOnly(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"workflow": {"id": 314159},
+		"run": {
+			"id": 123,
+			"run_attempt": 1,
+			"repository": {"full_name": "eshu-hq/eshu"},
+			"head_sha": "0123456789abcdef0123456789abcdef01234567"
+		}
+	}`)
+	envelopes, err := GitHubActionsFixtureEnvelopes(raw, FixtureContext{
+		ScopeID:             "github-actions://github.com/eshu-hq/eshu/314159",
+		GenerationID:        "123:1",
+		CollectorInstanceID: "fixture-gh-actions",
+	})
+	if err != nil {
+		t.Fatalf("GitHubActionsFixtureEnvelopes() error = %v", err)
+	}
+
+	assertKindCount(t, envelopesByKind(envelopes), facts.CICDPipelineDefinitionFactKind, 1)
 }
 
 func readFixture(t *testing.T, path string) []byte {

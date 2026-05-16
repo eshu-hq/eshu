@@ -1,7 +1,9 @@
 package cicdrun
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -62,31 +64,43 @@ func validateContext(ctx FixtureContext) error {
 	return nil
 }
 
-func sharedPayload(ctx FixtureContext, run githubRun) map[string]any {
-	runID := providerID(run.ID)
-	attempt := providerID(run.RunAttempt)
+func sharedPayload(ctx FixtureContext, run githubRun) (map[string]any, error) {
+	runID, err := providerID(run.ID)
+	if err != nil {
+		return nil, err
+	}
+	attempt, err := providerID(run.RunAttempt)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
 		"collector_instance_id": ctx.CollectorInstanceID,
 		"provider":              string(ProviderGitHubActions),
 		"run_id":                runID,
 		"run_attempt":           defaultAttempt(attempt),
-	}
+	}, nil
 }
 
-func providerID(value any) string {
+func providerID(value any) (string, error) {
 	switch typed := value.(type) {
 	case nil:
-		return ""
+		return "", nil
 	case string:
-		return strings.TrimSpace(typed)
-	case float64:
-		return strconv.FormatInt(int64(typed), 10)
+		return strings.TrimSpace(typed), nil
+	case json.Number:
+		if strings.ContainsAny(typed.String(), ".eE") {
+			return "", fmt.Errorf("provider id %q must be an integer or string", typed.String())
+		}
+		if _, err := strconv.ParseInt(typed.String(), 10, 64); err != nil {
+			return "", fmt.Errorf("provider id %q must be an integer or string: %w", typed.String(), err)
+		}
+		return typed.String(), nil
 	case int:
-		return strconv.Itoa(typed)
+		return strconv.Itoa(typed), nil
 	case int64:
-		return strconv.FormatInt(typed, 10)
+		return strconv.FormatInt(typed, 10), nil
 	default:
-		return strings.TrimSpace(fmt.Sprint(typed))
+		return "", fmt.Errorf("provider id has unsupported shape %T", value)
 	}
 }
 
@@ -103,8 +117,25 @@ func trim(value string) string {
 
 func stripSensitiveURL(value string) string {
 	value = strings.TrimSpace(value)
-	if strings.Contains(value, "?") {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return ""
+	}
+	if parsed.User != nil || parsed.RawQuery != "" {
 		return ""
 	}
 	return value
+}
+
+func redactSensitiveText(value string) string {
+	fields := strings.Fields(value)
+	for i, field := range fields {
+		trimmed := strings.Trim(field, ".,;")
+		if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
+			if stripSensitiveURL(trimmed) == "" {
+				fields[i] = strings.Replace(field, trimmed, "[redacted_url]", 1)
+			}
+		}
+	}
+	return strings.Join(fields, " ")
 }

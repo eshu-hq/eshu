@@ -110,7 +110,7 @@ type githubArtifactRunRef struct {
 
 type githubTrigger struct {
 	TriggerKind    string `json:"trigger_kind"`
-	SourceRunID    string `json:"source_run_id"`
+	SourceRunID    any    `json:"source_run_id"`
 	SourceProvider string `json:"source_provider"`
 }
 
