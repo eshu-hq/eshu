@@ -4,7 +4,7 @@ services:
     # NORNICDB_PLATFORM unset so Docker selects linux/arm64 on Apple Silicon
     # and linux/amd64 on x86 hosts. Set NORNICDB_IMAGE and NORNICDB_PLATFORM
     # together only when testing a specific local NornicDB build.
-    image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge@sha256:2e57f5af86ccea2ff67cfc479239c2266149bab909b175fb6a33c4b4c7ec85d7}
+    image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v1.1.0@sha256:65855ca2c9649020f7f9e29d2e0fbedf0bf9601457de233d87160ddbe4b473f0}
     platform: ${NORNICDB_PLATFORM:-}
     ports:
       - "${NEO4J_HTTP_PORT:-7474}:7474"

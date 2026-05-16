@@ -402,12 +402,14 @@ rebuilt `2,279,280` search-index nodes; `eshu-bootstrap-data-plane` had already
 applied Postgres schema and then waited behind graph schema work for more than
 20 minutes, with app services still dependency-gated by `db-migrate`.
 
-No-Regression Evidence: `timothyswt/nornicdb-cpu-bge:latest` resolved to the
-same pinned digest used by Compose
-(`sha256:2e57f5af86ccea2ff67cfc479239c2266149bab909b175fb6a33c4b4c7ec85d7`),
-so the restart delay was not an image-version delta. Persisting search indexes
-keeps the existing graph write contract and avoids paying the full search-index
-scan after normal restarts on large Eshu graphs.
+No-Regression Evidence: Compose now pins
+`timothyswt/nornicdb-cpu-bge:v1.1.0@sha256:65855ca2c9649020f7f9e29d2e0fbedf0bf9601457de233d87160ddbe4b473f0`.
+The tag resolves to a multi-arch manifest with linux/amd64 digest
+`sha256:159f988a6987e9ab55ea822520c50bd5ef7a77068eaab80c4696d8905c7754a7`
+and linux/arm64 digest
+`sha256:be0374a0cc7bfbbf8830d303ee2b51c7e3d629f4539cce6a98a718615f87d1ca`.
+Persisting search indexes keeps the existing graph write contract and avoids
+paying the full search-index scan after normal restarts on large Eshu graphs.
 
 Observability Evidence: NornicDB logs expose `BuildIndexes progress:
 phase=iterating_nodes processed=<n>/2279280 bm25_engine=v2`; Docker stats showed

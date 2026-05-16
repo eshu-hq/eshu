@@ -265,26 +265,27 @@ Initial implementation status:
   while avoiding private code, secrets, customer names, and unredacted
   production incident text.
 
-Baseline Evidence: on 2026-05-16, commit `45e0ed15`, local-authoritative
-NornicDB `v1.0.44`, and a clean `ESHU_HOME`, the original 10-case corpus
-produced `recall@10=0.10`, `precision@10=0.01`, `nDCG@10=0.10`, false
-canonical claims `0`, mean latency `23.3837ms`, and p95 latency `113.008ms`.
-That run was marked caveated because the suite file itself appeared as the only
-hit for 9/10 cases.
+Baseline Evidence: the original 2026-05-16 10-case run at commit `45e0ed15`
+on local-authoritative NornicDB `v1.0.44` produced `recall@10=0.10`,
+`precision@10=0.01`, `nDCG@10=0.10`, false canonical claims `0`, mean latency
+`23.3837ms`, and p95 latency `113.008ms`, but was caveated because the suite
+file itself was the only hit for 9/10 cases.
 
-Clean Baseline Evidence: on 2026-05-16, commit `1be2630a`, local-authoritative
-NornicDB `v1.0.44`, clean `ESHU_HOME`, and HTTP API `127.0.0.1:8081`, the
-hardened 15-case corpus ran against `repository:r_37831231`. The indexed repo
-contained 2,679 content files, 92,958 content entities, 98,333 facts, 9/9
-succeeded fact work items, and 40,292/40,292 completed shared projection
-intents with pending/in-flight/retrying/failed/dead-letter all `0`.
-`semantic-eval-currentpath` at `K=10` produced `recall@10=0.0667`,
-`precision@10=0.0067`, `nDCG@10=0.0667`, false canonical claims `0`,
-forbidden hits `0`, unsupported cases `0`, mean latency `16.1861ms`, and p95
-latency `110.925ms`. Only `content-reader-implementation` found its expected
-handle; the other 14 cases returned no candidates after filtering the suite
-artifact, which is the clean current-path recall gap future semantic retrieval
-must beat.
+Clean Baseline Evidence: the hardened 15-case corpus ran twice on 2026-05-16
+against `repository:r_37831231` with 2,679 content files, 92,958 content
+entities, 98,333 facts, 9/9 succeeded fact work items, and 40,292/40,292
+completed shared projection intents. NornicDB `v1.0.44` at commit `1be2630a`
+produced `recall@10=0.0667`, `precision@10=0.0067`, `nDCG@10=0.0667`, false
+canonical claims `0`, forbidden hits `0`, unsupported cases `0`, mean latency
+`16.1861ms`, and p95 latency `110.925ms`. NornicDB `v1.1.0` retest used the
+`timothyswt/nornicdb-cpu-bge:v1.1.0@sha256:65855ca2c9649020f7f9e29d2e0fbedf0bf9601457de233d87160ddbe4b473f0`
+manifest and a process-mode `v1.1.0` binary built from NornicDB-New tag commit
+`f7a64c7`; it produced the same recall, precision, nDCG, false-claim,
+forbidden-hit, and unsupported-case values with mean latency `14.9923ms` and
+p95 latency `97.944ms`. In both clean runs only
+`content-reader-implementation` found its expected handle; the other 14 cases
+returned no candidates after filtering the suite artifact, which is the clean
+current-path recall gap future semantic retrieval must beat.
 
 No-Regression Evidence: `cd go && go test ./cmd/semantic-eval-currentpath ./internal/semanticeval/... -count=1`
 passes for the scoring package, checked-in fixture contract, starter corpus

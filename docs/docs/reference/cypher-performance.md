@@ -46,7 +46,7 @@ For **NornicDB** (Eshu's default backend):
 
 - Use the current NornicDB-New checkout named by local config, repo docs, or
   the user. This must be the source that produced the pinned
-  `timothyswt/nornicdb-amd64-cpu:vX.Y.Z` binary under test. Do not read an
+  `timothyswt/nornicdb-cpu-bge:vX.Y.Z` binary under test. Do not read an
   older `NornicDB` sibling unless the run explicitly uses that source.
 - Read the relevant code under `pkg/cypher/` and `pkg/storage/` in
   NornicDB-New for the exact behavior of the feature you plan to use.
@@ -99,7 +99,7 @@ Acceptable measurement shapes, in order of preference:
 
 What to record for every measurement:
 
-- **Backend and version** (e.g., `timothyswt/nornicdb-amd64-cpu:v1.0.45`).
+- **Backend and version** (e.g., `timothyswt/nornicdb-cpu-bge:v1.1.0`).
 - **Storage state**: schema applied via `eshu-bootstrap-data-plane` before
   indexing? (Skipping this step is the most common source of falsely-slow
   baselines on NornicDB; see

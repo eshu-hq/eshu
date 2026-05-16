@@ -16,7 +16,7 @@ The default stack uses NornicDB for graph storage and Postgres for relational
 state, facts, queues, status, content, and recovery data.
 
 The NornicDB service defaults to a pinned multi-arch Docker manifest:
-`timothyswt/nornicdb-cpu-bge@sha256:2e57f5af86ccea2ff67cfc479239c2266149bab909b175fb6a33c4b4c7ec85d7`.
+`timothyswt/nornicdb-cpu-bge:v1.1.0@sha256:65855ca2c9649020f7f9e29d2e0fbedf0bf9601457de233d87160ddbe4b473f0`.
 Leave `NORNICDB_PLATFORM` unset for normal local runs. Docker will select the
 `linux/arm64` image on Apple Silicon and the `linux/amd64` image on x86 hosts.
 
