@@ -130,6 +130,7 @@ nav:
       - Dead Code Reachability Spec: reference/dead-code-reachability-spec.md
       - Graph Backend Installation: reference/graph-backend-installation.md
       - Graph Backend Operations: reference/graph-backend-operations.md
+      - Semantic Context Projection: reference/semantic-context-projection.md
       - NornicDB Tuning: reference/nornicdb-tuning.md
       - NornicDB Pitfalls: reference/nornicdb-pitfalls.md
       - Cypher Performance: reference/cypher-performance.md
