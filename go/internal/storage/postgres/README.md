@@ -79,10 +79,13 @@ correlation reads one row per active repository scope, not every fact row.
 `fact_records_active_package_dependency_entity_idx` to load only active Git
 manifest dependency entities for the ecosystem/name set in the current
 package-registry reducer intent. Package correlation reads use
-`fact_records_package_correlations_lookup_idx` for package-scoped reads and
-`fact_records_package_correlations_repository_lookup_idx` for repository-scoped
-reads across ownership, publication, and consumption rows so API and MCP callers
-stay bounded by `package_id` or `repository_id`.
+`fact_records_package_correlations_v2_lookup_idx` for package-scoped reads and
+`fact_records_package_correlations_v2_repository_lookup_idx` for
+repository-scoped reads across ownership, publication, and consumption rows so
+API and MCP callers stay bounded by `package_id` or `repository_id`. The v2
+names force existing bootstrapped databases to create indexes with the expanded
+publication predicate instead of keeping the older ownership/consumption-only
+partial indexes.
 CI/CD run correlation reads use
 `fact_records_ci_cd_run_correlations_lookup_idx` and
 `fact_records_ci_cd_run_correlations_run_lookup_idx` for repository/run scoped

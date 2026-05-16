@@ -396,8 +396,8 @@ run both Neo4j and NornicDB conformance for the statement shape.
    matches a Git manifest dependency entity. The active manifest dependency
    loader is bounded by the package identities in the reducer intent and uses
    `fact_records_active_package_dependency_entity_idx`; the read model uses
-   `fact_records_package_correlations_lookup_idx` for package-anchored reads and
-   `fact_records_package_correlations_repository_lookup_idx` for
+   `fact_records_package_correlations_v2_lookup_idx` for package-anchored reads and
+   `fact_records_package_correlations_v2_repository_lookup_idx` for
    repository-anchored reads across ownership, publication, and consumption
    facts, and requires `package_id` or `repository_id`.
    No-Regression Evidence: `go test ./internal/reducer

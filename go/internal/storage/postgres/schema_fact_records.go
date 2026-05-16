@@ -100,7 +100,7 @@ CREATE INDEX IF NOT EXISTS fact_records_active_package_dependency_entity_idx
       AND payload->>'entity_type' = 'Variable'
       AND payload->'entity_metadata'->>'config_kind' = 'dependency';
 
-CREATE INDEX IF NOT EXISTS fact_records_package_correlations_lookup_idx
+CREATE INDEX IF NOT EXISTS fact_records_package_correlations_v2_lookup_idx
     ON fact_records (
         (payload->>'package_id'),
         (payload->>'repository_id'),
@@ -115,7 +115,7 @@ CREATE INDEX IF NOT EXISTS fact_records_package_correlations_lookup_idx
     )
       AND is_tombstone = FALSE;
 
-CREATE INDEX IF NOT EXISTS fact_records_package_correlations_repository_lookup_idx
+CREATE INDEX IF NOT EXISTS fact_records_package_correlations_v2_repository_lookup_idx
     ON fact_records (
         (payload->>'repository_id'),
         (payload->>'package_id'),

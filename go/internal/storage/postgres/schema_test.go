@@ -203,8 +203,8 @@ func TestBootstrapDefinitionsIncludePackageCorrelationFactIndexes(t *testing.T) 
 		"(payload->'entity_metadata'->>'package_manager')",
 		"(payload->>'entity_name')",
 		"payload->'entity_metadata'->>'config_kind' = 'dependency'",
-		"fact_records_package_correlations_lookup_idx",
-		"fact_records_package_correlations_repository_lookup_idx",
+		"fact_records_package_correlations_v2_lookup_idx",
+		"fact_records_package_correlations_v2_repository_lookup_idx",
 		"'reducer_package_ownership_correlation'",
 		"'reducer_package_consumption_correlation'",
 		"'reducer_package_publication_correlation'",
@@ -212,6 +212,14 @@ func TestBootstrapDefinitionsIncludePackageCorrelationFactIndexes(t *testing.T) 
 	} {
 		if !strings.Contains(facts.SQL, want) {
 			t.Fatalf("fact_records SQL missing %q", want)
+		}
+	}
+	for _, oldName := range []string{
+		"fact_records_package_correlations_lookup_idx",
+		"fact_records_package_correlations_repository_lookup_idx",
+	} {
+		if strings.Contains(facts.SQL, oldName) {
+			t.Fatalf("fact_records SQL must not change existing partial index %q in place", oldName)
 		}
 	}
 }

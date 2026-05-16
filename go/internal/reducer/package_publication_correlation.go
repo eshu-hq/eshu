@@ -15,6 +15,9 @@ type PackagePublicationDecision struct {
 	Version                string
 	PublishedAt            string
 	SourceURL              string
+	SourceHintFactID       string
+	SourceHintKind         string
+	SourceHintVersionID    string
 	RepositoryID           string
 	RepositoryName         string
 	CandidateRepositoryIDs []string
@@ -50,6 +53,9 @@ func BuildPackagePublicationDecisions(envelopes []facts.Envelope) []PackagePubli
 				Version:                version.Version,
 				PublishedAt:            version.PublishedAt,
 				SourceURL:              sourceDecision.SourceURL,
+				SourceHintFactID:       hint.FactID,
+				SourceHintKind:         hint.HintKind,
+				SourceHintVersionID:    hint.VersionID,
 				RepositoryID:           sourceDecision.RepositoryID,
 				RepositoryName:         sourceDecision.RepositoryName,
 				CandidateRepositoryIDs: uniqueSortedStrings(sourceDecision.CandidateRepositoryIDs),
@@ -68,7 +74,16 @@ func BuildPackagePublicationDecisions(envelopes []facts.Envelope) []PackagePubli
 		if decisions[i].VersionID != decisions[j].VersionID {
 			return decisions[i].VersionID < decisions[j].VersionID
 		}
-		return decisions[i].SourceURL < decisions[j].SourceURL
+		if decisions[i].SourceURL != decisions[j].SourceURL {
+			return decisions[i].SourceURL < decisions[j].SourceURL
+		}
+		if decisions[i].SourceHintVersionID != decisions[j].SourceHintVersionID {
+			return decisions[i].SourceHintVersionID < decisions[j].SourceHintVersionID
+		}
+		if decisions[i].SourceHintKind != decisions[j].SourceHintKind {
+			return decisions[i].SourceHintKind < decisions[j].SourceHintKind
+		}
+		return decisions[i].SourceHintFactID < decisions[j].SourceHintFactID
 	})
 	return decisions
 }

@@ -26,7 +26,9 @@
 // multi-row upserts so high-cardinality package, code-call, and correlation
 // facts reduce Postgres round trips without changing idempotency semantics.
 // Package correlation indexes cover reducer ownership, publication, and
-// consumption fact rows under package_id and repository_id anchors. Current
+// consumption fact rows under package_id and repository_id anchors; their v2
+// names force existing databases to build the expanded publication predicate.
+// Current
 // source-run history lookups let chunked code-call projection avoid retracting
 // edges written by earlier chunks from the same accepted run. StatusStore also
 // runs the bounded Terraform-state admin queries from tfstate_status.go: one

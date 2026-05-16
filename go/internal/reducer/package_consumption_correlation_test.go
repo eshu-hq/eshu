@@ -163,3 +163,42 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 		t.Fatalf("provenance_only = %#v, want %#v", got, want)
 	}
 }
+
+func TestPackagePublicationIdentityIncludesSourceHintIdentity(t *testing.T) {
+	t.Parallel()
+
+	write := PackageCorrelationWrite{
+		ScopeID:      "scope-package",
+		GenerationID: "generation-package",
+	}
+	repositoryHint := PackagePublicationDecision{
+		PackageID:           "pkg:npm://registry.example/team-api",
+		VersionID:           "pkg:npm://registry.example/team-api@1.2.0",
+		SourceURL:           "https://github.com/acme/team-api",
+		SourceHintFactID:    "source-hint-repository",
+		SourceHintKind:      "repository",
+		SourceHintVersionID: "pkg:npm://registry.example/team-api@1.2.0",
+	}
+	homepageHint := PackagePublicationDecision{
+		PackageID:           repositoryHint.PackageID,
+		VersionID:           repositoryHint.VersionID,
+		SourceURL:           repositoryHint.SourceURL,
+		SourceHintFactID:    "source-hint-homepage",
+		SourceHintKind:      "homepage",
+		SourceHintVersionID: repositoryHint.SourceHintVersionID,
+	}
+
+	if got, want := packagePublicationFactID(write, repositoryHint), packagePublicationFactID(write, homepageHint); got == want {
+		t.Fatalf("packagePublicationFactID collapsed distinct source hints to %q", got)
+	}
+	if got, want := packagePublicationStableFactKey(write, repositoryHint), packagePublicationStableFactKey(write, homepageHint); got == want {
+		t.Fatalf("packagePublicationStableFactKey collapsed distinct source hints to %q", got)
+	}
+	payload := packagePublicationPayload(write, repositoryHint)
+	if got, want := payload["source_hint_kind"], "repository"; got != want {
+		t.Fatalf("source_hint_kind = %#v, want %#v", got, want)
+	}
+	if got, want := payload["source_hint_fact_id"], "source-hint-repository"; got != want {
+		t.Fatalf("source_hint_fact_id = %#v, want %#v", got, want)
+	}
+}

@@ -304,6 +304,9 @@ func packagePublicationStableFactKey(
 		strings.TrimSpace(fmt.Sprint(identity["package_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["version_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["source_url"])),
+		strings.TrimSpace(fmt.Sprint(identity["source_hint_kind"])),
+		strings.TrimSpace(fmt.Sprint(identity["source_hint_version_id"])),
+		strings.TrimSpace(fmt.Sprint(identity["source_hint_fact_id"])),
 	}, ":")
 }
 
@@ -312,11 +315,14 @@ func packagePublicationIdentity(
 	decision PackagePublicationDecision,
 ) map[string]any {
 	return map[string]any{
-		"generation_id": strings.TrimSpace(write.GenerationID),
-		"package_id":    strings.TrimSpace(decision.PackageID),
-		"scope_id":      strings.TrimSpace(write.ScopeID),
-		"source_url":    strings.TrimSpace(decision.SourceURL),
-		"version_id":    strings.TrimSpace(decision.VersionID),
+		"generation_id":          strings.TrimSpace(write.GenerationID),
+		"package_id":             strings.TrimSpace(decision.PackageID),
+		"scope_id":               strings.TrimSpace(write.ScopeID),
+		"source_url":             strings.TrimSpace(decision.SourceURL),
+		"version_id":             strings.TrimSpace(decision.VersionID),
+		"source_hint_fact_id":    strings.TrimSpace(decision.SourceHintFactID),
+		"source_hint_kind":       strings.TrimSpace(decision.SourceHintKind),
+		"source_hint_version_id": strings.TrimSpace(decision.SourceHintVersionID),
 	}
 }
 
@@ -337,6 +343,9 @@ func packagePublicationPayload(
 		"version":                  decision.Version,
 		"published_at":             decision.PublishedAt,
 		"source_url":               decision.SourceURL,
+		"source_hint_fact_id":      decision.SourceHintFactID,
+		"source_hint_kind":         decision.SourceHintKind,
+		"source_hint_version_id":   decision.SourceHintVersionID,
 		"repository_id":            decision.RepositoryID,
 		"repository_name":          decision.RepositoryName,
 		"candidate_repository_ids": uniqueSortedStrings(decision.CandidateRepositoryIDs),

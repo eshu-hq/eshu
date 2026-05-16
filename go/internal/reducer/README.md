@@ -423,7 +423,9 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   source hints and package-version publication evidence but leaves
   `canonical_writes=0`; manifest dependency facts are the first admitted
   package consumption truth because they combine registry identity with Git
-  source declaration.
+  source declaration. Publication fact identity includes source-hint kind, fact
+  ID, and version scope so repository and homepage hints with the same URL do
+  not overwrite one another.
 - **Projection must be idempotent** — queue retries, duplicate claims, and
   partial graph writes must converge on the same truth.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`
