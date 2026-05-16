@@ -78,6 +78,7 @@ type Instruments struct {
 	ContainerImageIdentityDecisions           metric.Int64Counter
 	CICDRunCorrelations                       metric.Int64Counter
 	SBOMAttestationAttachments                metric.Int64Counter
+	SupplyChainImpactFindings                 metric.Int64Counter
 	ConfluenceHTTPRequests                    metric.Int64Counter
 	ConfluencePermissionDeniedPages           metric.Int64Counter
 	ConfluenceDocumentsObserved               metric.Int64Counter
@@ -575,6 +576,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SBOMAttestationAttachments counter: %w", err)
+	}
+
+	inst.SupplyChainImpactFindings, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_findings_total",
+		metric.WithDescription("Total supply-chain impact findings by reducer domain and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactFindings counter: %w", err)
 	}
 
 	inst.ConfluenceHTTPRequests, err = meter.Int64Counter(

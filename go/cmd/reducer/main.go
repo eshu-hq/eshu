@@ -322,6 +322,9 @@ func buildReducerService(
 		SBOMAttestationAttachmentWriter: reducer.PostgresSBOMAttestationAttachmentWriter{
 			DB: database,
 		},
+		SupplyChainImpactWriter: reducer.PostgresSupplyChainImpactWriter{
+			DB: database,
+		},
 		PackageCorrelationWriter: reducer.PostgresPackageCorrelationWriter{
 			DB: database,
 		},

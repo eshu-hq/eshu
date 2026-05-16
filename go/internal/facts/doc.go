@@ -22,5 +22,8 @@
 // artifact, trigger, environment, and warning evidence reported by providers.
 // SBOM and attestation fact kind constants and schema-version helpers live here
 // for document, component, dependency, external reference, statement, SLSA
-// provenance, signature verification, and warning evidence.
+// provenance, signature verification, and warning evidence. Vulnerability
+// intelligence fact kind constants and schema-version helpers live here for
+// CVE, affected package/product, EPSS, KEV, reference, snapshot, and warning
+// evidence.
 package facts

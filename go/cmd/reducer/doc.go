@@ -18,9 +18,10 @@
 // handle so the module-aware join in issue #169 can increment
 // eshu_dp_drift_unresolved_module_calls_total when a module call's source
 // resolves to a registry, git URL, archive, or cross-repo path; the AWS runtime
-// drift durable fact writer is wired for issue #39, and the SBOM/attestation
-// attachment writer publishes digest-subject attachment facts before
-// vulnerability-impact graph work lands),
+// drift durable fact writer is wired for issue #39, the SBOM/attestation
+// attachment writer publishes digest-subject attachment facts, and the
+// supply-chain impact writer publishes reducer-owned vulnerability impact
+// facts without graph writes),
 // and hosts it
 // through app.NewHostedWithStatusServer so it exposes the shared `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. NornicDB reducer

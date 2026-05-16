@@ -314,6 +314,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return packageRegistryCorrelationsRoute(args), nil
 	case "list_ci_cd_run_correlations":
 		return cicdRunCorrelationsRoute(args), nil
+	case "list_supply_chain_impact_findings":
+		return supplyChainImpactFindingsRoute(args), nil
 	case "list_sbom_attestation_attachments":
 		return sbomAttestationAttachmentsRoute(args), nil
 	case "get_repo_story":

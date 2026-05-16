@@ -341,6 +341,20 @@ deployment truth by themselves; those rows stay derived, unresolved, ambiguous,
 or rejected with `provenance_only=true` when appropriate. Truncated responses
 include `next_cursor.after_correlation_id` for the next bounded read.
 
+### Supply-Chain Impact Findings
+
+`GET /api/v0/supply-chain/impact/findings` lists reducer-owned vulnerability
+impact findings. The caller must provide `limit` and at least one bounded
+anchor: `cve_id`, `package_id`, `repository_id`, `subject_digest`, or
+`impact_status`. Valid statuses are `affected_exact`, `affected_derived`,
+`possibly_affected`, `not_affected_known_fixed`, and `unknown_impact`.
+
+Rows keep risk and reachability evidence separate: CVSS, EPSS, KEV,
+fixed-version state, runtime reachability, repository/image evidence, and
+missing evidence are distinct fields. CVSS, EPSS, and KEV do not prove workload
+impact by themselves. Truncated responses include
+`next_cursor.after_finding_id` for the next bounded read.
+
 ### SBOM And Attestation Attachments
 
 `GET /api/v0/supply-chain/sbom-attestations/attachments` lists reducer-owned

@@ -410,6 +410,30 @@ func sbomAttestationAttachmentDomainDefinition() DomainDefinition {
 	}
 }
 
+// supplyChainImpactDomainDefinition returns the additive definition for
+// vulnerability impact findings. The domain writes durable reducer facts for
+// all statuses and keeps CVSS, EPSS, KEV, package, runtime, and deployment
+// signals separate so callers can see missing evidence.
+func supplyChainImpactDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainSupplyChainImpact,
+		Summary: "publish reducer-owned vulnerability impact findings with explicit evidence paths",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "supply_chain_impact",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
+
 // awsCloudRuntimeDriftDomainDefinition returns the additive definition for
 // AWS runtime drift publication. The domain consumes admitted
 // aws_cloud_runtime_drift candidates and writes durable reducer facts, but it

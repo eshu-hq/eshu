@@ -110,6 +110,7 @@ func TestSpanNames(t *testing.T) {
 		"query.package_registry_correlations",
 		"query.ci_cd_run_correlations",
 		"query.sbom_attestation_attachments",
+		"query.supply_chain_impact_findings",
 		"tfstate.collector.claim.process",
 		"tfstate.discovery.resolve",
 		"tfstate.source.open",

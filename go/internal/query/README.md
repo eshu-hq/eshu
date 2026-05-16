@@ -79,6 +79,10 @@ document ID, or document digest plus `limit`, and it keeps attachment status,
 parse status, and verification status as separate response fields so callers do
 not mistake parsed component evidence for trusted vulnerability impact or
 promote `ambiguous_subject` attestations into canonical image attachments.
+The same handler exposes supply-chain impact findings through a separate
+Postgres read model. Impact reads require a CVE, package, repository, subject
+digest, or status anchor plus `limit`, and keep CVSS, EPSS, KEV, reachability,
+fixed-version state, and missing evidence as separate fields.
 Code dead-code queries add an analysis pass over graph rows so parser-provided
 `dead_code_root_kinds`, language maturity, test/generated exclusions, and
 candidate classifications are visible in the response body. Unsupported
