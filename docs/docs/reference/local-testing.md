@@ -29,6 +29,35 @@ export ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:15432/eshu
 For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 `neo4j` instead.
 
+## Semantic Retrieval Phase 0 Baseline
+
+Use this when collecting the current-path baseline for ADR
+`2026-05-15-nornicdb-semantic-retrieval-evaluation`.
+
+Prerequisites:
+
+- an Eshu API with the target repository indexed
+- the canonical repository id from the repository catalog
+- the checked-in starter suite at
+  `go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json`
+
+Run:
+
+```bash
+cd go
+go run ./cmd/semantic-eval-currentpath \
+  --suite ./internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json \
+  --repo-id repository:r_example \
+  --base-url http://localhost:8080 \
+  --run-output /tmp/eshu-currentpath-run.json \
+  --report-output /tmp/eshu-currentpath-report.json
+```
+
+Record `recall_at_k`, `precision_at_k`, `ndcg_at_k`, `p95_latency_ms`, and
+`false_canonical_claims` in the ADR before comparing future NornicDB-backed
+semantic retrieval. Keep local repository ids and private run outputs out of
+committed docs unless they have been intentionally scrubbed.
+
 ## Confluence Collector Smoke
 
 Use this when testing the Confluence collector against a real Atlassian site.

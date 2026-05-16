@@ -30,6 +30,7 @@ exact binary set on `PATH`.
 | `eshu-webhook-listener` | `webhook-listener/` | Long-running GitHub/GitLab webhook intake |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |
 | `eshu-workflow-coordinator` | `workflow-coordinator/` | Long-running workflow coordinator |
+| `eshu-semantic-eval-currentpath` | `semantic-eval-currentpath/` | One-shot semantic retrieval baseline helper |
 
 ## Pipeline shape
 

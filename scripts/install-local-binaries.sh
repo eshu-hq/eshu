@@ -60,6 +60,7 @@ main() {
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-webhook-listener" ./cmd/webhook-listener
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-bootstrap-data-plane" ./cmd/bootstrap-data-plane
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-admin-status" ./cmd/admin-status
+    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-semantic-eval-currentpath" ./cmd/semantic-eval-currentpath
 
     echo "Installed Eshu binaries to $INSTALL_DIR"
     if [[ -n "$ESHU_BUILD_TAGS" ]]; then
