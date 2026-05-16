@@ -140,7 +140,7 @@ func versionAffected(observed string, affected []string) bool {
 			return true
 		}
 	}
-	return len(affected) == 0
+	return false
 }
 
 func isKnownFixed(observed string, fixed string) bool {

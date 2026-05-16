@@ -104,7 +104,8 @@ digest, document, document-digest, and status-scoped facts.
 `ListActiveSBOMAttestationAttachmentFacts` loads only active referrer and image
 identity facts for the subject digests in the current reducer intent, so
 attachment admission does not scan unrelated SBOM or OCI evidence.
-Supply-chain impact reads use `fact_records_supply_chain_impact_lookup_idx` and
+Supply-chain impact reads use `fact_records_supply_chain_impact_lookup_idx`,
+`fact_records_supply_chain_impact_status_lookup_idx`, and
 `fact_records_supply_chain_impact_package_lookup_idx` for CVE, status, package,
 repository, and subject-digest scoped reads. The reducer's active evidence
 loader uses `fact_records_vulnerability_affected_package_lookup_idx` and

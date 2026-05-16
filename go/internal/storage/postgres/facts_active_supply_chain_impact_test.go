@@ -41,6 +41,7 @@ func TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes(t *testing.T) {
 	}
 	for _, want := range []string{
 		"fact_records_supply_chain_impact_lookup_idx",
+		"fact_records_supply_chain_impact_status_lookup_idx",
 		"fact_records_supply_chain_impact_package_lookup_idx",
 		"fact_records_vulnerability_affected_package_lookup_idx",
 		"fact_records_sbom_component_purl_idx",
@@ -48,5 +49,18 @@ func TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes(t *testing.T) {
 		if !strings.Contains(facts.SQL, want) {
 			t.Fatalf("Bootstrap SQL missing %q", want)
 		}
+	}
+	statusIndexStart := strings.Index(facts.SQL, "CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_status_lookup_idx")
+	if statusIndexStart < 0 {
+		t.Fatal("supply-chain impact status index missing")
+	}
+	statusIndexSQL := facts.SQL[statusIndexStart:]
+	statusColumn := strings.Index(statusIndexSQL, "(payload->>'impact_status')")
+	cveColumn := strings.Index(statusIndexSQL, "(payload->>'cve_id')")
+	if statusColumn < 0 {
+		t.Fatalf("status index missing impact_status leading column: %s", statusIndexSQL)
+	}
+	if cveColumn >= 0 && cveColumn < statusColumn {
+		t.Fatalf("status index should lead with impact_status, not cve_id: %s", statusIndexSQL)
 	}
 }

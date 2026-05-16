@@ -87,7 +87,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		return nil, fmt.Errorf("cve_id, package_id, repository_id, subject_digest, or impact_status is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > supplyChainImpactFindingMaxLimit+1 {
-		return nil, fmt.Errorf("limit must be between 1 and %d", supplyChainImpactFindingMaxLimit)
+		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", supplyChainImpactFindingMaxLimit+1)
 	}
 
 	rows, err := s.DB.QueryContext(

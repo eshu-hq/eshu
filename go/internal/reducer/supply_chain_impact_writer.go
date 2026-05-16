@@ -81,6 +81,7 @@ func supplyChainImpactStableFactKey(write SupplyChainImpactWrite, finding Supply
 		strings.TrimSpace(fmt.Sprint(identity["generation_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["cve_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["package_id"])),
+		strings.TrimSpace(fmt.Sprint(identity["repository_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["subject_digest"])),
 	}, ":")
 }

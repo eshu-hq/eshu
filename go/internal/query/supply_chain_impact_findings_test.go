@@ -2,7 +2,9 @@ package query
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +22,16 @@ func (s *recordingSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 ) ([]SupplyChainImpactFindingRow, error) {
 	s.lastFilter = filter
 	return append([]SupplyChainImpactFindingRow(nil), s.rows...), nil
+}
+
+type unusedSupplyChainImpactFindingQueryer struct{}
+
+func (unusedSupplyChainImpactFindingQueryer) QueryContext(
+	context.Context,
+	string,
+	...any,
+) (*sql.Rows, error) {
+	return nil, fmt.Errorf("query must not run for invalid filters")
 }
 
 func TestSupplyChainListImpactFindingsRequiresScopeAndLimit(t *testing.T) {
@@ -44,6 +56,24 @@ func TestSupplyChainListImpactFindingsRequiresScopeAndLimit(t *testing.T) {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 			}
 		})
+	}
+}
+
+func TestPostgresSupplyChainImpactFindingStoreReportsPaginationLimit(t *testing.T) {
+	t.Parallel()
+
+	store := NewPostgresSupplyChainImpactFindingStore(unusedSupplyChainImpactFindingQueryer{})
+
+	_, err := store.ListSupplyChainImpactFindings(context.Background(), SupplyChainImpactFindingFilter{
+		CVEID: "CVE-2026-0001",
+		Limit: supplyChainImpactFindingMaxLimit + 2,
+	})
+	if err == nil {
+		t.Fatal("ListSupplyChainImpactFindings() error = nil, want limit error")
+	}
+	want := fmt.Sprintf("limit must be between 1 and %d for internal pagination", supplyChainImpactFindingMaxLimit+1)
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %q, want %q", err.Error(), want)
 	}
 }
 

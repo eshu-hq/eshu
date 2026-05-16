@@ -123,6 +123,23 @@ func TestBuildSupplyChainImpactFindingsDerivesImagePathFromSBOMAttachment(t *tes
 	}
 }
 
+func TestBuildSupplyChainImpactFindingsRequiresAffectedVersionForExactImpact(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-1", "CVE-2026-0001", 8.0),
+		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0001", testImpactPackageID, "npm", "example", "", "1.3.0"),
+		packageVersionFact("version-1", testImpactPackageID, testImpactPURL, "1.2.3"),
+		packageConsumptionFact("consume-1", testImpactPackageID, testImpactRepositoryID),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-0001"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactPossiblyAffected)
+	if got.RuntimeReachability != "unknown" {
+		t.Fatalf("RuntimeReachability = %q, want unknown without affected-version proof", got.RuntimeReachability)
+	}
+}
+
 func TestSupplyChainImpactHandlerLoadsActiveEvidenceAndWritesFindings(t *testing.T) {
 	t.Parallel()
 
@@ -161,6 +178,33 @@ func TestSupplyChainImpactHandlerLoadsActiveEvidenceAndWritesFindings(t *testing
 	}
 	if result.CanonicalWrites != 1 {
 		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
+	}
+}
+
+func TestSupplyChainImpactStableFactKeyIncludesRepository(t *testing.T) {
+	t.Parallel()
+
+	write := SupplyChainImpactWrite{
+		ScopeID:      "scope-1",
+		GenerationID: "generation-1",
+	}
+	left := supplyChainImpactStableFactKey(write, SupplyChainImpactFinding{
+		CVEID:         "CVE-2026-0001",
+		PackageID:     testImpactPackageID,
+		RepositoryID:  "repo://example/api",
+		SubjectDigest: testImpactSubjectDigest,
+	})
+	right := supplyChainImpactStableFactKey(write, SupplyChainImpactFinding{
+		CVEID:         "CVE-2026-0001",
+		PackageID:     testImpactPackageID,
+		RepositoryID:  "repo://example/worker",
+		SubjectDigest: testImpactSubjectDigest,
+	})
+	if left == right {
+		t.Fatalf("stable fact keys collapsed distinct repositories: %q", left)
+	}
+	if !strings.Contains(left, ":repo://example/api:") {
+		t.Fatalf("stable fact key = %q, want repository identity segment", left)
 	}
 }
 
