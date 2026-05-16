@@ -182,18 +182,18 @@ const openAPIPathsPackageRegistry = `
       "get": {
         "tags": ["package-registry"],
         "summary": "List package registry correlations",
-        "description": "Lists reducer-owned package ownership candidates and manifest-backed consumption correlations. Requests must be anchored by package_id or repository_id and return provenance_only so source hints are not mistaken for ownership truth.",
+        "description": "Lists reducer-owned package ownership candidates, publication evidence, and manifest-backed consumption correlations. Requests must be anchored by package_id or repository_id and return provenance_only so source hints are not mistaken for ownership truth.",
         "operationId": "listPackageRegistryCorrelations",
         "parameters": [
-          {"name": "package_id", "in": "query", "schema": {"type": "string"}, "description": "Package.uid to anchor package ownership or consumption correlation lookup."},
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Repository.id to anchor package ownership or consumption correlation lookup."},
-          {"name": "relationship_kind", "in": "query", "schema": {"type": "string", "enum": ["ownership", "consumption"]}, "description": "Optional relationship kind filter."},
+          {"name": "package_id", "in": "query", "schema": {"type": "string"}, "description": "Package.uid to anchor package ownership, publication, or consumption correlation lookup."},
+          {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Repository.id to anchor package ownership, publication, or consumption correlation lookup."},
+          {"name": "relationship_kind", "in": "query", "schema": {"type": "string", "enum": ["ownership", "publication", "consumption"]}, "description": "Optional relationship kind filter."},
           {"name": "after_correlation_id", "in": "query", "schema": {"type": "string"}, "description": "Correlation ID from next_cursor when continuing a truncated page."},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
           "200": {
-            "description": "Package registry ownership and consumption correlations",
+            "description": "Package registry ownership, publication, and consumption correlations",
             "content": {
               "application/json": {
                 "schema": {
@@ -208,11 +208,14 @@ const openAPIPathsPackageRegistry = `
                           "relationship_kind": {"type": "string"},
                           "package_id": {"type": "string"},
                           "version_id": {"type": "string"},
+                          "version": {"type": "string"},
+                          "published_at": {"type": "string", "format": "date-time"},
                           "ecosystem": {"type": "string"},
                           "package_name": {"type": "string"},
                           "repository_id": {"type": "string"},
                           "repository_name": {"type": "string"},
                           "source_url": {"type": "string"},
+                          "candidate_repository_ids": {"type": "array", "items": {"type": "string"}},
                           "relative_path": {"type": "string"},
                           "manifest_section": {"type": "string"},
                           "dependency_range": {"type": "string"},

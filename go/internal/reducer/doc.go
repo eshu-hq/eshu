@@ -42,4 +42,11 @@
 // worker counts.
 // Workload materialization inputs reuse the deployable-unit correlation gate
 // before projecting workload rows.
+// Package-registry correlation keeps source-hint ownership and package-version
+// publication as provenance-only facts, while manifest-backed dependency facts
+// are admitted as package consumption truth. Publication correlation indexes
+// source hints by package and version before matching so version-scoped hints
+// do not cross-attach to other releases, and durable publication fact identity
+// includes the source-hint kind, fact ID, and version scope so weak and exact
+// hints with the same URL cannot overwrite each other.
 package reducer

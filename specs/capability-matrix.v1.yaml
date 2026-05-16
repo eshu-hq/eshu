@@ -310,9 +310,9 @@ capabilities:
     tools: [list_package_registry_correlations]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-package-registry-correlations}], notes: requires reducer package correlation facts}
-      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: package_or_repository_id, verification: [{go_test: ./internal/query}], notes: bounded reducer package ownership and consumption correlation lookup anchored by Package.uid or Repository.id}
-      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: package_or_repository_id, verification: [{go_test: ./internal/query}], notes: bounded reducer package ownership and consumption correlation lookup anchored by Package.uid or Repository.id}
-      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: package_or_repository_id, verification: [{remote_validation: prod-package-registry-correlations}], notes: bounded reducer package ownership and consumption correlation lookup anchored by Package.uid or Repository.id}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: package_or_repository_id, verification: [{go_test: ./internal/query}], notes: bounded reducer package ownership, publication, and consumption correlation lookup anchored by Package.uid or Repository.id}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: package_or_repository_id, verification: [{go_test: ./internal/query}], notes: bounded reducer package ownership, publication, and consumption correlation lookup anchored by Package.uid or Repository.id}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: package_or_repository_id, verification: [{remote_validation: prod-package-registry-correlations}], notes: bounded reducer package ownership, publication, and consumption correlation lookup anchored by Package.uid or Repository.id}
   - capability: ci_cd.run_correlations.list
     tools: [list_ci_cd_run_correlations]
     profiles:

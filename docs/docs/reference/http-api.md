@@ -317,12 +317,15 @@ include `next_cursor.after_version_id` and `next_cursor.after_dependency_id` for
 the next bounded read.
 
 `GET /api/v0/package-registry/correlations` lists reducer-owned package
-ownership candidates and manifest-backed consumption correlations. The caller
-must provide `limit` and either `package_id` or `repository_id`.
-`relationship_kind=ownership` returns source-hint ownership candidates with
-`provenance_only=true`; `relationship_kind=consumption` returns Git manifest
-dependencies matched to package registry identity. Truncated responses include
-`next_cursor.after_correlation_id` for the next bounded read.
+ownership candidates, package-version publication evidence, and manifest-backed
+consumption correlations. The caller must provide `limit` and either
+`package_id` or `repository_id`. `relationship_kind=ownership` returns
+source-hint ownership candidates with `provenance_only=true`;
+`relationship_kind=publication` returns package-version publication evidence
+matched to source hints without promoting ownership; `relationship_kind=consumption`
+returns Git manifest dependencies matched to package registry identity.
+Truncated responses include `next_cursor.after_correlation_id` for the next
+bounded read.
 
 ### CI/CD Run Correlation
 

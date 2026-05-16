@@ -78,6 +78,7 @@ func (h PackageSourceCorrelationHandler) Handle(
 
 	decisions := BuildPackageSourceCorrelationDecisions(envelopes)
 	consumptionDecisions := BuildPackageConsumptionDecisions(envelopes)
+	publicationDecisions := BuildPackagePublicationDecisions(envelopes)
 	counts := packageSourceCorrelationCounts(decisions)
 	writeResult, err := h.Writer.WritePackageCorrelations(ctx, PackageCorrelationWrite{
 		IntentID:             intent.IntentID,
@@ -87,6 +88,7 @@ func (h PackageSourceCorrelationHandler) Handle(
 		Cause:                intent.Cause,
 		OwnershipDecisions:   decisions,
 		ConsumptionDecisions: consumptionDecisions,
+		PublicationDecisions: publicationDecisions,
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("write package correlations: %w", err)
@@ -100,6 +102,7 @@ func (h PackageSourceCorrelationHandler) Handle(
 		EvidenceSummary: packageSourceCorrelationSummary(
 			len(decisions),
 			len(consumptionDecisions),
+			len(publicationDecisions),
 			counts,
 			writeResult.CanonicalWrites,
 		),
@@ -187,11 +190,12 @@ func packageSourceCorrelationCounts(
 func packageSourceCorrelationSummary(
 	evaluated int,
 	consumption int,
+	publication int,
 	counts map[PackageSourceCorrelationOutcome]int,
 	canonicalWrites int,
 ) string {
 	return fmt.Sprintf(
-		"package correlations evaluated=%d exact=%d derived=%d ambiguous=%d unresolved=%d stale=%d rejected=%d consumption=%d canonical_writes=%d",
+		"package correlations evaluated=%d exact=%d derived=%d ambiguous=%d unresolved=%d stale=%d rejected=%d consumption=%d publication=%d canonical_writes=%d",
 		evaluated,
 		counts[PackageSourceCorrelationExact],
 		counts[PackageSourceCorrelationDerived],
@@ -200,6 +204,7 @@ func packageSourceCorrelationSummary(
 		counts[PackageSourceCorrelationStale],
 		counts[PackageSourceCorrelationRejected],
 		consumption,
+		publication,
 		canonicalWrites,
 	)
 }
@@ -208,6 +213,7 @@ func packageSourceCorrelationFactKinds() []string {
 	return []string{
 		facts.PackageRegistrySourceHintFactKind,
 		facts.PackageRegistryPackageFactKind,
+		facts.PackageRegistryPackageVersionFactKind,
 		factKindRepository,
 	}
 }

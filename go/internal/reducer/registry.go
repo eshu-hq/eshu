@@ -318,12 +318,12 @@ func configStateDriftDomainDefinition() DomainDefinition {
 
 // packageSourceCorrelationDomainDefinition returns the additive definition for
 // the package source-correlation classifier. Source hints remain provenance-only
-// ownership candidates, while Git manifest dependencies matched to package
-// registry identity are durable consumption facts.
+// ownership and publication candidates, while Git manifest dependencies matched
+// to package registry identity are durable consumption facts.
 func packageSourceCorrelationDomainDefinition() DomainDefinition {
 	return DomainDefinition{
 		Domain:  DomainPackageSourceCorrelation,
-		Summary: "classify package-registry ownership candidates and manifest-backed consumption",
+		Summary: "classify package-registry ownership, publication, and consumption correlations",
 		Ownership: OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,

@@ -65,7 +65,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainSemanticEntityMaterialization` | Materialize Annotation, Typedef, TypeAlias, Component semantic nodes |
 | `DomainSQLRelationshipMaterialization` | Materialize canonical SQL relationship edges |
 | `DomainInheritanceMaterialization` | Materialize inheritance, override, and alias edges |
-| `DomainPackageSourceCorrelation` | Classify package-registry source hints against active repository remotes without ownership promotion |
+| `DomainPackageSourceCorrelation` | Classify package-registry source hints and package-version publication evidence without ownership promotion |
 | `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan, unmanaged, unknown, and ambiguous drift findings as canonical reducer facts |
 | `DomainContainerImageIdentity` | Join Git, OCI registry, and runtime image references into digest-keyed reducer facts |
 | `DomainCICDRunCorrelation` | Correlate CI/CD runs, artifacts, and environments with artifact identity evidence |
@@ -391,8 +391,9 @@ Key metrics (all prefixed `eshu_dp_`):
 - `package_source_correlations_total` — package source-correlation decisions by
   bounded outcome (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`,
   `rejected`) and reducer domain. Durable package correlation facts store
-  source-hint ownership candidates as `provenance_only=true` and
-  manifest-backed consumption decisions as canonical package consumption truth.
+  source-hint ownership candidates and package-version publication evidence as
+  `provenance_only=true`, while manifest-backed consumption decisions are
+  canonical package consumption truth.
 - `correlation_rule_matches_total`, `correlation_orphan_detected_total`, and
   `correlation_unmanaged_detected_total` — AWS runtime drift rule execution and
   admitted orphan/unmanaged findings. Unknown and ambiguous findings are exposed
@@ -419,9 +420,12 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   evidence proves safe identity.
 - **Package ownership is conservative** —
   `PackageSourceCorrelationHandler` writes ownership candidates from registry
-  source hints but leaves `canonical_writes=0`; manifest dependency facts are
-  the first admitted package consumption truth because they combine registry
-  identity with Git source declaration.
+  source hints and package-version publication evidence but leaves
+  `canonical_writes=0`; manifest dependency facts are the first admitted
+  package consumption truth because they combine registry identity with Git
+  source declaration. Publication fact identity includes source-hint kind, fact
+  ID, and version scope so repository and homepage hints with the same URL do
+  not overwrite one another.
 - **Projection must be idempotent** — queue retries, duplicate claims, and
   partial graph writes must converge on the same truth.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`

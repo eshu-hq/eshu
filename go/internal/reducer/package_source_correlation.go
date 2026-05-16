@@ -49,9 +49,11 @@ type PackageSourceCorrelationDecision struct {
 	Reason                 string
 	ProvenanceOnly         bool
 	CanonicalWrites        int
+	EvidenceFactIDs        []string
 }
 
 type packageSourceHint struct {
+	FactID    string
 	PackageID string
 	VersionID string
 	HintKind  string
@@ -97,6 +99,7 @@ func extractPackageSourceHints(envelopes []facts.Envelope) []packageSourceHint {
 			payloadStr(envelope.Payload, "raw_url"),
 		)
 		hints = append(hints, packageSourceHint{
+			FactID:    envelope.FactID,
 			PackageID: payloadStr(envelope.Payload, "package_id"),
 			VersionID: payloadStr(envelope.Payload, "version_id"),
 			HintKind:  strings.ToLower(payloadStr(envelope.Payload, "hint_kind")),
@@ -143,6 +146,7 @@ func classifyPackageSourceHint(
 		SourceURL:       hint.SourceURL,
 		ProvenanceOnly:  true,
 		CanonicalWrites: 0,
+		EvidenceFactIDs: compactStringSlice(hint.FactID),
 	}
 	if hint.PackageID == "" || hint.SourceURL == "" {
 		decision.Outcome = PackageSourceCorrelationRejected
@@ -293,4 +297,14 @@ func firstPackageSourceURL(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func compactStringSlice(values ...string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
