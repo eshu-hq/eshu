@@ -195,6 +195,8 @@ func (request Request) body(evalCase Case) map[string]any {
 		if len(request.Terms) > 0 {
 			body["terms"] = request.Terms
 		}
+	case ModeContentFileSearch, ModeContentEntitySearch:
+		body["query"] = query
 	}
 	return body
 }
