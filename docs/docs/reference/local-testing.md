@@ -130,6 +130,25 @@ go test ./internal/collector/confluence \
 Record the page count, visible document count, emitted section/link counts,
 wall time, and HTTP GET count in the changed package README or ADR.
 
+## Vulnerability Intelligence OSV Fixture Proof
+
+Use this when changing the first OSV source-client slice for issue #12. This is
+not a live hosted collector smoke. It verifies bounded OSV API request shaping,
+detail fetch path construction, source snapshot facts, affected package
+normalization, fixed-version extraction, and URL credential stripping without
+network calls or graph writes.
+
+```bash
+cd go
+go test ./internal/collector/vulnerabilityintelligence -count=1 -v
+```
+
+Record any expanded source coverage in
+`docs/docs/adrs/2026-05-15-vulnerability-intelligence-collector.md`. Live OSV
+runtime validation must wait for the ADR's collector proof gate and must add
+request budgets, rate-limit telemetry, fact-emission metrics, admin/status
+output, and deployment docs before enabling hosted collection.
+
 ## OCI Registry Live Smokes
 
 Use these only for maintainer/operator validation against real registries. They
