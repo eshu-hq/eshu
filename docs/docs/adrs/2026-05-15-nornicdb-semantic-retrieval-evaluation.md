@@ -256,8 +256,10 @@ Initial implementation status:
   shaping current-path and future semantic/hybrid runs without touching runtime
   query behavior.
 - `go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json`
-  provides a checked-in 10-case public Eshu starter corpus for current-path
-  baseline collection. It is not the final 50-100 case corpus target.
+  provides a checked-in 15-case public Eshu starter corpus for current-path
+  baseline collection. Each case filters the suite file through current-path
+  `exclude_handles` so exact content search does not rank the eval artifact as
+  the answer. It is not the final 50-100 case corpus target.
 - `go/internal/semanticeval/README.md` and
   `go/internal/semanticeval/currentpath/README.md` document how to add eval cases
   while avoiding private code, secrets, customer names, and unredacted
@@ -276,12 +278,18 @@ for 9/10 cases because its fixture text self-matches the current exact content
 search path; the next corpus iteration should exclude eval artifacts or add
 explicit must-not-include handles before treating recall as product evidence.
 
+Corpus Hardening: this follow-up adds current-path `exclude_handles`, expands
+the starter corpus to 15 public Eshu cases, and requires every checked-in Phase
+0 case to filter the suite artifact. This is a diagnostic hardening change, not
+a new product baseline; rerun the local-authoritative baseline before comparing
+a future NornicDB-backed retrieval path.
+
 No-Regression Evidence: `cd go && go test ./cmd/semantic-eval-currentpath ./internal/semanticeval/... -count=1`
 passes for the scoring package, checked-in fixture contract, starter corpus
 contract, bounded HTTP request construction, truth mapping,
 unsupported-capability handling, candidate handle normalization, placeholder
-substitution, content search query-body construction, and report/run JSON
-writing.
+substitution, current-path artifact exclusion, content search query-body
+construction, and report/run JSON writing.
 
 No-Observability-Change: this slice adds offline scoring and an opt-in
 current-path HTTP eval runner/command only. It does not add production runtime

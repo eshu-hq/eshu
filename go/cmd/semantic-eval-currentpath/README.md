@@ -25,8 +25,9 @@ content store, or future NornicDB semantic retrieval path.
 - `--base-url` points to the Eshu API. Defaults to `ESHU_API_URL`, then
   `http://localhost:8080`.
 - `--repo-id` replaces `{repo_id}` placeholders in suite scopes and expected
-  handles. It is required when the suite contains placeholders. Use the
-  canonical repository id from the Eshu repository catalog.
+  handles, `must_not_include`, and current-path artifact exclusions. It is
+  required when the suite contains placeholders. Use the canonical repository id
+  from the Eshu repository catalog.
 - `--run-output` writes the observed current-path run JSON.
 - `--report-output` writes the scored report JSON. When omitted, the report is
   printed to stdout.
@@ -57,6 +58,9 @@ request latency captured in the eval run.
 - It only calls the bounded modes accepted by the currentpath package.
 - Checked-in suites may use `{repo_id}` so local canonical ids do not leak into
   repository docs.
+- Current-path `exclude_handles` is only for harness artifacts such as the
+  checked-in suite file. Real wrong answers should stay visible through
+  `must_not_include`.
 - A successful run does not prove semantic retrieval value by itself; it is the
   baseline that future NornicDB-backed runs must beat.
 

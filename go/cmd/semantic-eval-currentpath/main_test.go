@@ -56,6 +56,7 @@ func TestRunWritesCurrentPathRunAndReport(t *testing.T) {
 		if err := writeJSON(w, http.StatusOK, map[string]any{
 			"data": map[string]any{
 				"results": []map[string]any{
+					{"handle": "file://repository:r_test/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"},
 					{"repo_id": observedRepoID, "relative_path": "go/internal/semanticeval/README.md"},
 				},
 			},
@@ -79,7 +80,12 @@ func TestRunWritesCurrentPathRunAndReport(t *testing.T) {
       "expected": [
         {"handle": "file://{repo_id}/go/internal/semanticeval/README.md", "relevance": 3, "required": true, "max_truth": "derived"}
       ],
-      "current_path": {"mode": "content_file_search", "query": "Semantic Eval", "limit": 10}
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "Semantic Eval",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
     }
   ]
 }`
@@ -127,6 +133,9 @@ func TestRunWritesCurrentPathRunAndReport(t *testing.T) {
 	}
 	if !strings.Contains(string(runData), "file://repository:r_test/go/internal/semanticeval/README.md") {
 		t.Fatalf("run = %s, want substituted file handle", string(runData))
+	}
+	if strings.Contains(string(runData), "eshu_phase0_suite.json") {
+		t.Fatalf("run = %s, want eval suite artifact filtered", string(runData))
 	}
 	if strings.TrimSpace(stdout.String()) != "" {
 		t.Fatalf("stdout = %q, want empty when report-output is set", stdout.String())

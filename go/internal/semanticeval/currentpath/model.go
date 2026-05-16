@@ -43,16 +43,17 @@ type Case struct {
 
 // Request describes one bounded current Eshu HTTP query.
 type Request struct {
-	Mode       Mode     `json:"mode"`
-	Query      string   `json:"query,omitempty"`
-	RepoID     string   `json:"repo_id,omitempty"`
-	Language   string   `json:"language,omitempty"`
-	Intent     string   `json:"intent,omitempty"`
-	Terms      []string `json:"terms,omitempty"`
-	Limit      int      `json:"limit,omitempty"`
-	Exact      bool     `json:"exact,omitempty"`
-	SearchType string   `json:"search_type,omitempty"`
-	TimeoutMS  int      `json:"timeout_ms,omitempty"`
+	Mode           Mode     `json:"mode"`
+	Query          string   `json:"query,omitempty"`
+	RepoID         string   `json:"repo_id,omitempty"`
+	Language       string   `json:"language,omitempty"`
+	Intent         string   `json:"intent,omitempty"`
+	Terms          []string `json:"terms,omitempty"`
+	Limit          int      `json:"limit,omitempty"`
+	Exact          bool     `json:"exact,omitempty"`
+	SearchType     string   `json:"search_type,omitempty"`
+	TimeoutMS      int      `json:"timeout_ms,omitempty"`
+	ExcludeHandles []string `json:"exclude_handles,omitempty"`
 }
 
 // LoadSuiteJSON decodes a strict current-path eval suite.
@@ -114,6 +115,11 @@ func (request Request) Validate() error {
 	}
 	if request.TimeoutMS < 0 || request.TimeoutMS > maxTimeoutMS {
 		return fmt.Errorf("timeout_ms must be between 0 and %d", maxTimeoutMS)
+	}
+	for _, handle := range request.ExcludeHandles {
+		if strings.TrimSpace(handle) == "" {
+			return fmt.Errorf("exclude_handles must not include blank handles")
+		}
 	}
 	return nil
 }

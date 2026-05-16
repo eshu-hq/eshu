@@ -126,7 +126,7 @@ func (runner Runner) runCase(ctx context.Context, client HTTPClient, baseURL *ur
 	if err != nil {
 		return semanticeval.CaseResult{}, fmt.Errorf("case %q extract candidates: %w", evalCase.ID, err)
 	}
-	result.Candidates = candidates
+	result.Candidates = filterExcludedCandidates(candidates, evalCase.CurrentPath.ExcludeHandles)
 	return result, nil
 }
 
@@ -149,4 +149,22 @@ func unsupportedCandidates(caseID string) []semanticeval.Candidate {
 		Handle: "unsupported://" + caseID,
 		Truth:  semanticeval.TruthClassUnsupported,
 	}}
+}
+
+func filterExcludedCandidates(candidates []semanticeval.Candidate, excludeHandles []string) []semanticeval.Candidate {
+	if len(candidates) == 0 || len(excludeHandles) == 0 {
+		return candidates
+	}
+	excluded := make(map[string]struct{}, len(excludeHandles))
+	for _, handle := range excludeHandles {
+		excluded[handle] = struct{}{}
+	}
+	filtered := candidates[:0]
+	for _, candidate := range candidates {
+		if _, ok := excluded[candidate.Handle]; ok {
+			continue
+		}
+		filtered = append(filtered, candidate)
+	}
+	return filtered
 }

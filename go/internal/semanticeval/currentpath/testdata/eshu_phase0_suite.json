@@ -7,7 +7,12 @@
       "expected": [
         {"handle": "file://{repo_id}/go/internal/semanticeval/README.md", "relevance": 3, "required": true, "max_truth": "derived"}
       ],
-      "current_path": {"mode": "content_file_search", "query": "Semantic Eval scoring contract", "limit": 10}
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "Semantic Eval scoring contract",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
     },
     {
       "id": "currentpath-runner-contract-doc",
@@ -16,7 +21,12 @@
       "expected": [
         {"handle": "file://{repo_id}/go/internal/semanticeval/currentpath/README.md", "relevance": 3, "required": true, "max_truth": "derived"}
       ],
-      "current_path": {"mode": "content_file_search", "query": "Current-Path Semantic Eval Runner", "limit": 10}
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "Current-Path Semantic Eval Runner",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
     },
     {
       "id": "semantic-retrieval-adr",
@@ -25,7 +35,12 @@
       "expected": [
         {"handle": "file://{repo_id}/docs/docs/adrs/2026-05-15-nornicdb-semantic-retrieval-evaluation.md", "relevance": 3, "required": true, "max_truth": "derived"}
       ],
-      "current_path": {"mode": "content_file_search", "query": "NornicDB Semantic Retrieval Freshness Scoring Candidate Evidence Evaluation", "limit": 10}
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "NornicDB Semantic Retrieval Freshness Scoring Candidate Evidence Evaluation",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
     },
     {
       "id": "service-runtime-ownership-doc",
@@ -34,7 +49,12 @@
       "expected": [
         {"handle": "file://{repo_id}/docs/docs/deployment/service-runtimes.md", "relevance": 3, "required": true, "max_truth": "derived"}
       ],
-      "current_path": {"mode": "content_file_search", "query": "Runtime Contract API MCP Ingester Reducer Bootstrap Index", "limit": 10}
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "Runtime Contract API MCP Ingester Reducer Bootstrap Index",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
     },
     {
       "id": "telemetry-overview-doc",
@@ -43,7 +63,12 @@
       "expected": [
         {"handle": "file://{repo_id}/docs/docs/reference/telemetry/index.md", "relevance": 3, "required": true, "max_truth": "derived"}
       ],
-      "current_path": {"mode": "content_file_search", "query": "Telemetry Overview metrics traces logs", "limit": 10}
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "Telemetry Overview metrics traces logs",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
     },
     {
       "id": "architecture-overview-doc",
@@ -52,7 +77,12 @@
       "expected": [
         {"handle": "file://{repo_id}/docs/docs/architecture.md", "relevance": 3, "required": true, "max_truth": "derived"}
       ],
-      "current_path": {"mode": "content_file_search", "query": "System Architecture facts-first graph backend", "limit": 10}
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "System Architecture facts-first graph backend",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
     },
     {
       "id": "truth-envelope-builder",
@@ -61,7 +91,12 @@
       "expected": [
         {"handle": "file://{repo_id}/go/internal/query/contract.go", "relevance": 3, "required": true, "max_truth": "derived"}
       ],
-      "current_path": {"mode": "content_file_search", "query": "BuildTruthEnvelope TruthEnvelope", "limit": 10}
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "BuildTruthEnvelope TruthEnvelope",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
     },
     {
       "id": "content-reader-implementation",
@@ -70,7 +105,12 @@
       "expected": [
         {"handle": "file://{repo_id}/go/internal/query/content_reader.go", "relevance": 3, "required": true, "max_truth": "derived"}
       ],
-      "current_path": {"mode": "content_file_search", "query": "ContentReader reads file and entity content", "limit": 10}
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "ContentReader reads file and entity content",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
     },
     {
       "id": "admin-status-binary-doc",
@@ -79,7 +119,12 @@
       "expected": [
         {"handle": "file://{repo_id}/go/cmd/admin-status/README.md", "relevance": 3, "required": true, "max_truth": "derived"}
       ],
-      "current_path": {"mode": "content_file_search", "query": "admin-status shared Eshu status report", "limit": 10}
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "admin-status shared Eshu status report",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
     },
     {
       "id": "package-registry-query-handler",
@@ -88,7 +133,82 @@
       "expected": [
         {"handle": "file://{repo_id}/go/internal/query/package_registry.go", "relevance": 3, "required": true, "max_truth": "derived"}
       ],
-      "current_path": {"mode": "content_file_search", "query": "package registry query surface", "limit": 10}
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "package registry query surface",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
+    },
+    {
+      "id": "http-api-envelope-doc",
+      "question": "Where does Eshu document the HTTP API envelope and truth metadata?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/docs/docs/reference/http-api.md", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "HTTP API response envelope truth freshness errors",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
+    },
+    {
+      "id": "mcp-guide-setup-doc",
+      "question": "Where is the MCP setup and usage guide?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/docs/docs/guides/mcp-guide.md", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "MCP Guide eshu mcp setup start tools",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
+    },
+    {
+      "id": "local-binaries-runbook",
+      "question": "Where does Eshu explain running local binaries?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/docs/docs/run-locally/local-binaries.md", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "install local binaries eshu graph start PATH",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
+    },
+    {
+      "id": "query-package-readme",
+      "question": "Where is the query package ownership and API surface documented?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/go/internal/query/README.md", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "query package BuildTruthEnvelope ContentReader OpenAPI",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
+    },
+    {
+      "id": "package-registry-collector-doc",
+      "question": "Where is the package registry collector runtime documented?",
+      "scope": {"repo_id": "{repo_id}"},
+      "expected": [
+        {"handle": "file://{repo_id}/go/cmd/collector-package-registry/README.md", "relevance": 3, "required": true, "max_truth": "derived"}
+      ],
+      "current_path": {
+        "mode": "content_file_search",
+        "query": "package registry collector claim runtime configuration",
+        "limit": 10,
+        "exclude_handles": ["file://{repo_id}/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"]
+      }
     }
   ]
 }

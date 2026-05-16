@@ -157,6 +157,11 @@ func requestContainsRepoIDPlaceholder(request currentpath.Request) bool {
 			return true
 		}
 	}
+	for _, handle := range request.ExcludeHandles {
+		if strings.Contains(handle, repoIDToken) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -178,6 +183,9 @@ func substituteRepoID(suite currentpath.Suite, repoID string) currentpath.Suite 
 		request := &evalCase.CurrentPath
 		request.RepoID = strings.ReplaceAll(request.RepoID, repoIDToken, repoID)
 		request.Query = strings.ReplaceAll(request.Query, repoIDToken, repoID)
+		for excludeIndex := range request.ExcludeHandles {
+			request.ExcludeHandles[excludeIndex] = strings.ReplaceAll(request.ExcludeHandles[excludeIndex], repoIDToken, repoID)
+		}
 	}
 	return suite
 }
