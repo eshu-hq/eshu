@@ -10,6 +10,7 @@ func cicdRunCorrelationsRoute(args map[string]any) *route {
 		"environment":          str(args, "environment"),
 		"limit":                strconv.Itoa(intOr(args, "limit", 50)),
 		"outcome":              str(args, "outcome"),
+		"provider":             str(args, "provider"),
 		"provider_run_id":      cicdProviderRunID(args),
 		"repository_id":        str(args, "repository_id"),
 		"run_id":               str(args, "run_id"),

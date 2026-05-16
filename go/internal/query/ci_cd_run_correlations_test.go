@@ -117,10 +117,70 @@ func TestCICDListRunCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 	}
 }
 
+func TestCICDListRunCorrelationsRequiresProviderForProviderRunID(t *testing.T) {
+	t.Parallel()
+
+	handler := &CICDHandler{Correlations: &recordingCICDRunCorrelationStore{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/ci-cd/run-correlations?provider_run_id=12345&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
+func TestCICDListRunCorrelationsPassesProviderRunDisambiguator(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingCICDRunCorrelationStore{}
+	handler := &CICDHandler{Correlations: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/ci-cd/run-correlations?provider=github_actions&provider_run_id=12345&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastFilter.Provider, "github_actions"; got != want {
+		t.Fatalf("Provider = %q, want %q", got, want)
+	}
+	if got, want := store.lastFilter.ProviderRunID, "12345"; got != want {
+		t.Fatalf("ProviderRunID = %q, want %q", got, want)
+	}
+}
+
 func TestCICDRunCorrelationQueryExcludesTombstones(t *testing.T) {
 	t.Parallel()
 
 	if !strings.Contains(listCICDRunCorrelationsQuery, "fact.is_tombstone = FALSE") {
 		t.Fatalf("listCICDRunCorrelationsQuery must exclude tombstone facts:\n%s", listCICDRunCorrelationsQuery)
+	}
+}
+
+func TestCICDRunCorrelationQueryFiltersProviderWithRunID(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"fact.payload->>'provider' = $5",
+		"fact.payload->>'run_id' = $6",
+	} {
+		if !strings.Contains(listCICDRunCorrelationsQuery, want) {
+			t.Fatalf("listCICDRunCorrelationsQuery missing %q:\n%s", want, listCICDRunCorrelationsQuery)
+		}
 	}
 }

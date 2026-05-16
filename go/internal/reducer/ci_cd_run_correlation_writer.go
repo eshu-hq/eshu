@@ -92,7 +92,6 @@ func cicdRunCorrelationIdentity(write CICDRunCorrelationWrite, decision CICDRunC
 		"provider":      strings.TrimSpace(decision.Provider),
 		"run_id":        strings.TrimSpace(decision.RunID),
 		"run_attempt":   strings.TrimSpace(decision.RunAttempt),
-		"outcome":       string(decision.Outcome),
 	}
 }
 

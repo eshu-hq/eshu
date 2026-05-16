@@ -81,6 +81,7 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 		ScopeID:            QueryParam(r, "scope_id"),
 		RepositoryID:       QueryParam(r, "repository_id"),
 		CommitSHA:          QueryParam(r, "commit_sha"),
+		Provider:           QueryParam(r, "provider"),
 		ProviderRunID:      firstNonEmpty(QueryParam(r, "provider_run_id"), QueryParam(r, "run_id")),
 		ArtifactDigest:     QueryParam(r, "artifact_digest"),
 		Environment:        QueryParam(r, "environment"),
@@ -90,6 +91,10 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 	}
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "scope_id, repository_id, commit_sha, provider_run_id, artifact_digest, or environment is required")
+		return
+	}
+	if filter.ProviderRunID != "" && filter.Provider == "" && !filter.hasProviderRunDisambiguator() {
+		WriteError(w, http.StatusBadRequest, "provider is required when provider_run_id is the only anchor")
 		return
 	}
 	if h.Correlations == nil {

@@ -186,6 +186,11 @@ func BuildCICDRunCorrelationDecisions(envelopes []facts.Envelope) []CICDRunCorre
 				ev := ensureCICDRunEvidence(runs, key)
 				ev.environments = append(ev.environments, envelope)
 			}
+		case facts.CICDTriggerEdgeFactKind:
+			if key := cicdRunKey(envelope.Payload); key != "" {
+				ev := ensureCICDRunEvidence(runs, key)
+				ev.triggers = append(ev.triggers, envelope)
+			}
 		case facts.CICDStepFactKind:
 			if key := cicdRunKey(envelope.Payload); key != "" && payloadString(envelope.Payload, "deployment_hint_source") == "shell" {
 				ev := ensureCICDRunEvidence(runs, key)
@@ -271,6 +276,7 @@ type cicdRunEvidence struct {
 	run          facts.Envelope
 	artifacts    []facts.Envelope
 	environments []facts.Envelope
+	triggers     []facts.Envelope
 	shellOnly    []facts.Envelope
 }
 
@@ -326,6 +332,9 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 	if len(ev.environments) > 0 {
 		decision.Environment = payloadString(ev.environments[0].Payload, "environment")
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, ev.environments[0].FactID)
+	}
+	for _, trigger := range ev.triggers {
+		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, trigger.FactID)
 	}
 	if decision.RepositoryID == "" || decision.CommitSHA == "" {
 		decision.Outcome = CICDRunCorrelationUnresolved

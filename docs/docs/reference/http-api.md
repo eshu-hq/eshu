@@ -329,12 +329,14 @@ dependencies matched to package registry identity. Truncated responses include
 `GET /api/v0/ci-cd/run-correlations` lists reducer-owned CI/CD run, artifact,
 and environment correlations. The caller must provide `limit` and at least one
 bounded anchor: `scope_id`, `repository_id`, `commit_sha`, `provider_run_id`,
-`run_id`, `artifact_digest`, or `environment`. Exact rows require an explicit
-artifact digest that matches reducer-owned container image identity evidence.
-CI success, environment observations, and shell-only deployment hints do not
-become deployment truth by themselves; those rows stay derived, unresolved,
-ambiguous, or rejected with `provenance_only=true` when appropriate. Truncated
-responses include `next_cursor.after_correlation_id` for the next bounded read.
+`run_id`, `artifact_digest`, or `environment`. When `provider_run_id` or
+`run_id` is the only anchor, callers must also provide `provider` because
+provider-native run IDs are not globally unique. Exact rows require an explicit
+artifact digest that matches reducer-owned container image identity evidence. CI
+success, environment observations, and shell-only deployment hints do not become
+deployment truth by themselves; those rows stay derived, unresolved, ambiguous,
+or rejected with `provenance_only=true` when appropriate. Truncated responses
+include `next_cursor.after_correlation_id` for the next bounded read.
 
 ## Context API
 

@@ -89,6 +89,23 @@ func TestBuildCICDRunCorrelationDecisionsClassifiesEvidence(t *testing.T) {
 	assertCICDDecision(t, got["github_actions:run-rejected:1"], CICDRunCorrelationRejected, 0)
 }
 
+func TestBuildCICDRunCorrelationDecisionsRetainsTriggerEvidence(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildCICDRunCorrelationDecisions([]facts.Envelope{
+		ciRunFact("run-triggered", "github_actions", "repo-api", "abc123"),
+		ciTriggerEdgeFact("trigger-edge", "run-triggered"),
+	})
+
+	got := cicdDecisionsByRun(decisions)["github_actions:run-triggered:1"]
+	if got.Outcome != CICDRunCorrelationDerived {
+		t.Fatalf("Outcome = %q, want %q", got.Outcome, CICDRunCorrelationDerived)
+	}
+	if !stringSliceContains(got.EvidenceFactIDs, "trigger-edge") {
+		t.Fatalf("EvidenceFactIDs = %#v, want trigger-edge retained", got.EvidenceFactIDs)
+	}
+}
+
 func TestCICDRunCorrelationHandlerLoadsActiveImageIdentityFacts(t *testing.T) {
 	t.Parallel()
 
@@ -240,6 +257,27 @@ func TestPostgresCICDRunCorrelationWriterDoesNotAddObservedLayerForDerivedRows(t
 	}
 }
 
+func TestCICDRunCorrelationFactIDIsStableAcrossOutcomeChanges(t *testing.T) {
+	t.Parallel()
+
+	write := CICDRunCorrelationWrite{
+		ScopeID:      "ci://github-actions/acme/api",
+		GenerationID: "run-evolving:1",
+	}
+	derived := CICDRunCorrelationDecision{
+		Provider:   "github_actions",
+		RunID:      "run-evolving",
+		RunAttempt: "1",
+		Outcome:    CICDRunCorrelationDerived,
+	}
+	exact := derived
+	exact.Outcome = CICDRunCorrelationExact
+
+	if got, want := cicdRunCorrelationFactID(write, derived), cicdRunCorrelationFactID(write, exact); got != want {
+		t.Fatalf("fact IDs differ across outcome changes: derived=%q exact=%q", got, want)
+	}
+}
+
 func assertCICDDecision(
 	t *testing.T,
 	decision CICDRunCorrelationDecision,
@@ -310,6 +348,20 @@ func ciEnvironmentFact(factID, runID, environment string) facts.Envelope {
 	}
 }
 
+func ciTriggerEdgeFact(factID, runID string) facts.Envelope {
+	return facts.Envelope{
+		FactID:           factID,
+		FactKind:         "ci.trigger_edge",
+		SourceConfidence: facts.SourceConfidenceReported,
+		Payload: map[string]any{
+			"provider":     "github_actions",
+			"run_id":       runID,
+			"run_attempt":  "1",
+			"trigger_kind": "workflow_call",
+		},
+	}
+}
+
 func ciStepShellHintFact(factID, runID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:           factID,
@@ -322,6 +374,15 @@ func ciStepShellHintFact(factID, runID string) facts.Envelope {
 			"deployment_hint_source": "shell",
 		},
 	}
+}
+
+func stringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func containerImageIdentityFact(factID, repositoryID, imageRef, digest string) facts.Envelope {

@@ -314,14 +314,14 @@ Performance Impact: the reducer loads only CI fact kinds for the intent scope,
 extracts artifact digests, then loads active container-image identity rows for
 that digest allowlist. The API/MCP read model requires a bounded anchor
 (`scope_id`, `repository_id`, `commit_sha`, `provider_run_id`, `run_id`,
-`artifact_digest`, or `environment`), requires `limit`, orders by `fact_id`,
-and reads `limit + 1` rows for pagination. Scope reads use the existing
-scope/generation/fact-kind index; repository, run, commit, artifact-digest, and
-environment reads each have partial reducer-fact indexes. Expected cardinality
-is one run generation plus its jobs/artifacts/environments and the matching
-digest rows, not the full fact table. Stop threshold: any focused package test
-that shows an unbounded fact scan or a read path without an index-backed anchor
-blocks merge.
+`artifact_digest`, or `environment`), requires `provider` when a provider run is
+the only anchor, requires `limit`, orders by `fact_id`, and reads `limit + 1`
+rows for pagination. Scope reads use the existing scope/generation/fact-kind
+index; repository, provider-run, commit, artifact-digest, and environment reads
+each have partial reducer-fact indexes. Expected cardinality is one run
+generation plus its jobs/artifacts/environments and the matching digest rows,
+not the full fact table. Stop threshold: any focused package test that shows an
+unbounded fact scan or a read path without an index-backed anchor blocks merge.
 
 No-Regression Evidence: focused reducer, query, MCP, telemetry, storage, API,
 and reducer command tests cover exact artifact-image admission, derived

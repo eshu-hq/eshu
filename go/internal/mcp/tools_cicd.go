@@ -12,6 +12,10 @@ func cicdTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Optional ingestion scope ID for a CI/CD run generation.",
 					},
+					"provider": map[string]any{
+						"type":        "string",
+						"description": "CI/CD provider such as github_actions or gitlab_ci; required when provider_run_id is the only anchor.",
+					},
 					"provider_run_id": map[string]any{
 						"type":        "string",
 						"description": "Provider-native run, build, or pipeline ID for exact run lookup.",

@@ -142,8 +142,8 @@ surfaces.
    container-image identity row; environment-only and CI-success evidence stays
    provenance. The `GET /api/v0/ci-cd/run-correlations` route and
    `list_ci_cd_run_correlations` MCP tool expose bounded scope, repository,
-   commit, provider-run, artifact-digest, environment, outcome, limit, and
-   cursor filters.
+   commit, provider plus provider-run for run-only reads, artifact-digest,
+   environment, outcome, limit, and cursor filters.
 
    No-Regression Evidence: focused reducer, query, MCP, storage, telemetry,
    API, and reducer command coverage with
