@@ -192,6 +192,54 @@ func TestPostgresCICDRunCorrelationWriterPersistsReducerFacts(t *testing.T) {
 	}
 }
 
+func TestPostgresCICDRunCorrelationWriterDoesNotAddObservedLayerForDerivedRows(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeWorkloadIdentityExecer{}
+	writer := PostgresCICDRunCorrelationWriter{
+		DB: db,
+		Now: func() time.Time {
+			return time.Date(2026, 5, 15, 17, 0, 0, 0, time.UTC)
+		},
+	}
+
+	_, err := writer.WriteCICDRunCorrelations(context.Background(), CICDRunCorrelationWrite{
+		IntentID:     "intent-cicd",
+		ScopeID:      "ci://github-actions/acme/api",
+		GenerationID: "run-derived:1",
+		SourceSystem: "ci_cd_run",
+		Cause:        "ci run observed",
+		Decisions: []CICDRunCorrelationDecision{
+			{
+				Provider:        "github_actions",
+				RunID:           "run-derived",
+				RunAttempt:      "1",
+				RepositoryID:    "repo-api",
+				CommitSHA:       "abc123",
+				Outcome:         CICDRunCorrelationDerived,
+				Reason:          "run has provider evidence but no explicit artifact identity anchor",
+				ProvenanceOnly:  true,
+				CanonicalWrites: 0,
+				EvidenceFactIDs: []string{"run-fact"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteCICDRunCorrelations() error = %v, want nil", err)
+	}
+	payload := unmarshalCICDRunCorrelationPayload(t, db.execs[0].args[14])
+	sourceLayers, ok := payload["source_layers"].([]any)
+	if !ok {
+		t.Fatalf("source_layers type = %T, want []any", payload["source_layers"])
+	}
+	if got, want := len(sourceLayers), 1; got != want {
+		t.Fatalf("len(source_layers) = %d, want %d: %#v", got, want, sourceLayers)
+	}
+	if got, want := sourceLayers[0], "source_declaration"; got != want {
+		t.Fatalf("source_layers[0] = %#v, want %#v", got, want)
+	}
+}
+
 func assertCICDDecision(
 	t *testing.T,
 	decision CICDRunCorrelationDecision,

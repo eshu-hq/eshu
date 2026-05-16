@@ -120,9 +120,14 @@ func cicdRunCorrelationPayload(write CICDRunCorrelationWrite, decision CICDRunCo
 		"correlation_kind":   decision.CorrelationKind,
 		"evidence_fact_ids":  uniqueSortedStrings(decision.EvidenceFactIDs),
 		"source_layer_kinds": uniqueSortedStrings(decision.SourceLayerKinds),
-		"source_layers": []string{
-			string(truth.LayerSourceDeclaration),
-			string(truth.LayerObservedResource),
-		},
+		"source_layers":      cicdRunCorrelationSourceLayers(decision),
 	}
+}
+
+func cicdRunCorrelationSourceLayers(decision CICDRunCorrelationDecision) []string {
+	layers := []string{string(truth.LayerSourceDeclaration)}
+	if decision.CanonicalTarget != "" || decision.Outcome == CICDRunCorrelationExact {
+		layers = append(layers, string(truth.LayerObservedResource))
+	}
+	return uniqueSortedStrings(layers)
 }
