@@ -117,6 +117,59 @@ The overlay also redirects `bootstrap-index`, `ingester`,
 `./tests/fixtures/tfstate_drift_tier2/repos/` so the Tier-2 verifier owns its
 fixture corpus and does not collide with the default ecosystem fixtures.
 
+## Run the remote collector E2E stack
+
+Use `docker-compose.remote-e2e.yaml` on a VPN-attached or account-local EC2
+test machine when you want one Compose stack for the default runtime plus the
+claim-driven Terraform state, OCI registry, package registry, and AWS cloud
+collectors. The file is standalone so the remote proof does not mutate the
+default local stack or the Tier-2 MinIO overlay.
+
+The stack still uses the pinned NornicDB v1.1.0 image from the default Compose
+file. It runs Postgres, NornicDB, schema migration, bootstrap indexing, API,
+MCP, ingester, reducer, workflow coordinator, webhook listener, collector
+workers, and an optional AWS freshness seeder. AWS cloud scans are freshness
+trigger driven today; the seeder posts synthetic AWS Config change events into
+the webhook listener so the workflow coordinator creates AWS scan work.
+
+```bash
+cp .env.remote-e2e.example .env.remote-e2e
+# Edit .env.remote-e2e with the real account, region, tfstate object, and ECR repo.
+docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml --profile seed up --build
+```
+
+Run without `--profile seed` if real AWS freshness events are already being
+delivered to the webhook listener:
+
+```bash
+docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml up --build
+```
+
+The EC2 instance role must expose read-only inventory permissions for the target
+account. `ReadOnlyAccess` is enough for the AWS cloud and ECR inventory calls
+covered by this stack. Terraform state also needs `s3:GetObject` on the
+configured state object, plus `kms:Decrypt` if that object uses a customer
+managed KMS key. If Docker containers rely on the EC2 instance profile through
+IMDSv2, set the instance metadata response hop limit to at least `2`; otherwise
+the AWS SDK inside the containers may not be able to obtain role credentials.
+
+Confluence is optional because it needs tenant credentials:
+
+```bash
+docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml --profile confluence up --build
+```
+
+No-Regression Evidence: the remote E2E stack is additive and validates with
+`docker compose --env-file .env.remote-e2e.example -f docker-compose.remote-e2e.yaml config`;
+it does not change existing Compose service defaults or worker counts.
+
+Observability Evidence: every long-running remote E2E runtime keeps the shared
+`/healthz`, `/readyz`, `/metrics`, and `/admin/status` surfaces. The proof uses
+existing workflow, AWS freshness, AWS cloud, Terraform state, OCI registry,
+package registry, reducer, ingester, API, MCP, Postgres, and NornicDB metrics
+and status endpoints to distinguish scheduling, claim, scan, projection, graph,
+and store failures.
+
 ## Point local CLI commands at Compose
 
 The API is available at `http://localhost:8080` by default. For indexing into

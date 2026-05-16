@@ -1,0 +1,467 @@
+# Remote collector end-to-end proof stack.
+#
+# This file is intentionally separate from the default Compose and Tier-2
+# overlays. Use it on a test EC2 instance that can reach the target AWS account,
+# S3 Terraform state object, and private ECR registry.
+
+x-collector-env: &remote_e2e_collector_env
+  ESHU_COLLECTOR_INSTANCES_JSON: |
+    [
+      {
+        "instance_id": "remote-e2e-git",
+        "collector_kind": "git",
+        "mode": "continuous",
+        "enabled": true,
+        "bootstrap": true,
+        "claims_enabled": true,
+        "configuration": {
+          "source": "remote-e2e-compose",
+          "fairness_weight": 1
+        }
+      },
+      {
+        "instance_id": "remote-e2e-terraform-state",
+        "collector_kind": "terraform_state",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": true,
+        "configuration": {
+          "target_scopes": [
+            {
+              "target_scope_id": "aws-e2e",
+              "provider": "aws",
+              "deployment_mode": "account_local",
+              "credential_mode": "local_workload_identity",
+              "allowed_regions": ["${ESHU_TFSTATE_S3_REGION:?set ESHU_TFSTATE_S3_REGION}"],
+              "allowed_backends": ["s3"],
+              "redaction_policy_ref": "remote-e2e"
+            }
+          ],
+          "discovery": {
+            "seeds": [
+              {
+                "kind": "s3",
+                "target_scope_id": "aws-e2e",
+                "bucket": "${ESHU_TFSTATE_S3_BUCKET:?set ESHU_TFSTATE_S3_BUCKET}",
+                "key": "${ESHU_TFSTATE_S3_KEY:?set ESHU_TFSTATE_S3_KEY}",
+                "region": "${ESHU_TFSTATE_S3_REGION:?set ESHU_TFSTATE_S3_REGION}"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "instance_id": "remote-e2e-aws-cloud",
+        "collector_kind": "aws",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": true,
+        "configuration": {
+          "target_scopes": [
+            {
+              "account_id": "${ESHU_AWS_E2E_ACCOUNT_ID:?set ESHU_AWS_E2E_ACCOUNT_ID}",
+              "allowed_regions": ["${ESHU_AWS_E2E_REGION:?set ESHU_AWS_E2E_REGION}", "aws-global"],
+              "allowed_services": [
+                "iam",
+                "ecr",
+                "ecs",
+                "ec2",
+                "elbv2",
+                "lambda",
+                "eks",
+                "route53",
+                "sqs",
+                "sns",
+                "eventbridge",
+                "s3",
+                "rds",
+                "dynamodb",
+                "cloudwatchlogs",
+                "cloudfront",
+                "apigateway",
+                "secretsmanager",
+                "ssm"
+              ],
+              "max_concurrent_claims": 1,
+              "credentials": {
+                "mode": "local_workload_identity"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "instance_id": "remote-e2e-oci-registry",
+        "collector_kind": "oci_registry",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": true,
+        "configuration": {
+          "targets": [
+            {
+              "provider": "ecr",
+              "registry_id": "${ESHU_ECR_OCI_REGISTRY_ID:?set ESHU_ECR_OCI_REGISTRY_ID}",
+              "region": "${ESHU_ECR_OCI_REGION:?set ESHU_ECR_OCI_REGION}",
+              "repository": "${ESHU_ECR_OCI_REPOSITORY:?set ESHU_ECR_OCI_REPOSITORY}",
+              "tag_limit": 25,
+              "visibility": "private",
+              "auth_mode": "aws"
+            }
+          ]
+        }
+      },
+      {
+        "instance_id": "remote-e2e-package-registry",
+        "collector_kind": "package_registry",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": true,
+        "configuration": {
+          "targets": [
+            {
+              "provider": "npm",
+              "ecosystem": "npm",
+              "registry": "https://registry.npmjs.org",
+              "scope_id": "package-registry://npm/npm/lodash",
+              "packages": ["lodash"],
+              "package_limit": 1,
+              "version_limit": 5,
+              "visibility": "public",
+              "metadata_url": "https://registry.npmjs.org/lodash",
+              "document_format": "native"
+            }
+          ]
+        }
+      }
+    ]
+
+x-runtime-env: &remote_e2e_runtime_env
+  ESHU_GRAPH_BACKEND: nornicdb
+  DEFAULT_DATABASE: nornic
+  ESHU_NEO4J_DATABASE: nornic
+  NEO4J_DATABASE: nornic
+  NEO4J_URI: bolt://nornicdb:7687
+  NEO4J_USERNAME: neo4j
+  NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+  ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+  ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+  ESHU_HOME: /tmp/.eshu
+  HOME: /tmp
+  ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
+  ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+  ESHU_PROMETHEUS_METRICS_PORT: "9464"
+
+x-aws-env: &remote_e2e_aws_env
+  AWS_REGION: ${ESHU_AWS_E2E_REGION:?set ESHU_AWS_E2E_REGION}
+  AWS_DEFAULT_REGION: ${ESHU_AWS_E2E_REGION:?set ESHU_AWS_E2E_REGION}
+  AWS_EC2_METADATA_DISABLED: ${AWS_EC2_METADATA_DISABLED:-false}
+  NO_PROXY: 169.254.169.254,localhost,127.0.0.1,nornicdb,postgres,webhook-listener
+  no_proxy: 169.254.169.254,localhost,127.0.0.1,nornicdb,postgres,webhook-listener
+
+services:
+  nornicdb:
+    extends:
+      file: docker-compose.yaml
+      service: nornicdb
+
+  postgres:
+    extends:
+      file: docker-compose.yaml
+      service: postgres
+
+  db-migrate:
+    extends:
+      file: docker-compose.yaml
+      service: db-migrate
+
+  workspace-setup:
+    extends:
+      file: docker-compose.yaml
+      service: workspace-setup
+
+  bootstrap-index:
+    extends:
+      file: docker-compose.yaml
+      service: bootstrap-index
+    environment:
+      ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
+      <<: *remote_e2e_collector_env
+
+  eshu:
+    extends:
+      file: docker-compose.yaml
+      service: eshu
+    environment:
+      ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
+      <<: *remote_e2e_collector_env
+
+  mcp-server:
+    extends:
+      file: docker-compose.yaml
+      service: mcp-server
+    environment:
+      ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
+      <<: *remote_e2e_collector_env
+
+  ingester:
+    extends:
+      file: docker-compose.yaml
+      service: ingester
+    environment:
+      ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
+      <<: *remote_e2e_collector_env
+
+  resolution-engine:
+    extends:
+      file: docker-compose.yaml
+      service: resolution-engine
+    environment:
+      ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
+
+  workflow-coordinator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/eshu-workflow-coordinator"]
+    ports:
+      - "${ESHU_WORKFLOW_COORDINATOR_HTTP_PORT:-18082}:8080"
+      - "${ESHU_WORKFLOW_COORDINATOR_METRICS_PORT:-19469}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: active
+      ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  webhook-listener:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/eshu-webhook-listener"]
+    ports:
+      - "${ESHU_WEBHOOK_LISTENER_HTTP_PORT:-18083}:8080"
+    environment:
+      <<: *remote_e2e_runtime_env
+      ESHU_AWS_FRESHNESS_TOKEN: ${ESHU_AWS_FRESHNESS_TOKEN:?set ESHU_AWS_FRESHNESS_TOKEN}
+      ESHU_AWS_FRESHNESS_PATH: /webhooks/aws/eventbridge
+      ESHU_WEBHOOK_MAX_BODY_BYTES: ${ESHU_WEBHOOK_MAX_BODY_BYTES:-1048576}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  seed-aws-freshness:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - seed
+    environment:
+      ESHU_AWS_E2E_ACCOUNT_ID: ${ESHU_AWS_E2E_ACCOUNT_ID:?set ESHU_AWS_E2E_ACCOUNT_ID}
+      ESHU_AWS_E2E_REGION: ${ESHU_AWS_E2E_REGION:?set ESHU_AWS_E2E_REGION}
+      ESHU_AWS_E2E_SERVICES: ${ESHU_AWS_E2E_SERVICES:-iam,ecr,ecs,ec2,elbv2,lambda,eks,route53,sqs,sns,eventbridge,s3,rds,dynamodb,cloudwatchlogs,cloudfront,apigateway,secretsmanager,ssm}
+      ESHU_AWS_FRESHNESS_TOKEN: ${ESHU_AWS_FRESHNESS_TOKEN:?set ESHU_AWS_FRESHNESS_TOKEN}
+      ESHU_ECR_OCI_REPOSITORY: ${ESHU_ECR_OCI_REPOSITORY:?set ESHU_ECR_OCI_REPOSITORY}
+      ESHU_TFSTATE_S3_BUCKET: ${ESHU_TFSTATE_S3_BUCKET:?set ESHU_TFSTATE_S3_BUCKET}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        observed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        services=$$(printf '%s' "$${ESHU_AWS_E2E_SERVICES}" | tr ',' ' ')
+        for service in $${services}; do
+          region="$${ESHU_AWS_E2E_REGION}"
+          case "$${service}" in
+            iam) resource_type="AWS::IAM::Role"; region="aws-global"; resource_id="remote-e2e-role" ;;
+            ecr) resource_type="AWS::ECR::Repository"; resource_id="$${ESHU_ECR_OCI_REPOSITORY:-remote-e2e-repository}" ;;
+            ecs) resource_type="AWS::ECS::Cluster"; resource_id="remote-e2e-cluster" ;;
+            ec2) resource_type="AWS::EC2::VPC"; resource_id="remote-e2e-vpc" ;;
+            elbv2) resource_type="AWS::ElasticLoadBalancingV2::LoadBalancer"; resource_id="remote-e2e-load-balancer" ;;
+            lambda) resource_type="AWS::Lambda::Function"; resource_id="remote-e2e-function" ;;
+            eks) resource_type="AWS::EKS::Cluster"; resource_id="remote-e2e-eks" ;;
+            route53) resource_type="AWS::Route53::HostedZone"; region="aws-global"; resource_id="remote-e2e-zone" ;;
+            sqs) resource_type="AWS::SQS::Queue"; resource_id="remote-e2e-queue" ;;
+            sns) resource_type="AWS::SNS::Topic"; resource_id="remote-e2e-topic" ;;
+            eventbridge) resource_type="AWS::Events::Rule"; resource_id="remote-e2e-rule" ;;
+            s3) resource_type="AWS::S3::Bucket"; resource_id="$${ESHU_TFSTATE_S3_BUCKET:-remote-e2e-bucket}" ;;
+            rds) resource_type="AWS::RDS::DBInstance"; resource_id="remote-e2e-db" ;;
+            dynamodb) resource_type="AWS::DynamoDB::Table"; resource_id="remote-e2e-table" ;;
+            cloudwatchlogs) resource_type="AWS::Logs::LogGroup"; resource_id="remote-e2e-log-group" ;;
+            cloudfront) resource_type="AWS::CloudFront::Distribution"; region="aws-global"; resource_id="remote-e2e-distribution" ;;
+            apigateway) resource_type="AWS::ApiGateway::RestApi"; resource_id="remote-e2e-api" ;;
+            secretsmanager) resource_type="AWS::SecretsManager::Secret"; resource_id="remote-e2e-secret" ;;
+            ssm) resource_type="AWS::SSM::Parameter"; resource_id="remote-e2e-parameter" ;;
+            *) echo "unsupported service: $${service}" >&2; exit 1 ;;
+          esac
+          event_id="remote-e2e-$${service}-$${observed_at}"
+          payload=$$(cat <<JSON
+        {
+          "id": "$${event_id}",
+          "account": "$${ESHU_AWS_E2E_ACCOUNT_ID}",
+          "region": "$${region}",
+          "time": "$${observed_at}",
+          "detail-type": "Config Configuration Item Change",
+          "detail": {
+            "configurationItem": {
+              "resourceType": "$${resource_type}",
+              "resourceId": "$${resource_id}",
+              "awsAccountId": "$${ESHU_AWS_E2E_ACCOUNT_ID}",
+              "awsRegion": "$${region}",
+              "configurationItemCaptureTime": "$${observed_at}"
+            }
+          }
+        }
+        JSON
+        )
+          curl -fsS -X POST http://webhook-listener:8080/webhooks/aws/eventbridge \
+            -H "X-Eshu-AWS-Freshness-Token: $${ESHU_AWS_FRESHNESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "$${payload}" >/dev/null
+          echo "seeded AWS freshness trigger for $${service}"
+        done
+    depends_on:
+      webhook-listener:
+        condition: service_healthy
+
+  collector-terraform-state:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-terraform-state"]
+    ports:
+      - "${ESHU_COLLECTOR_TFSTATE_METRICS_PORT:-19470}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env, *remote_e2e_aws_env]
+      ESHU_TFSTATE_COLLECTOR_INSTANCE_ID: remote-e2e-terraform-state
+      ESHU_TFSTATE_COLLECTOR_OWNER_ID: remote-e2e-tfstate-worker
+      ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL: ${ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL:-2s}
+      ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL: ${ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL:-60s}
+      ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL: ${ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL:-10s}
+      ESHU_TFSTATE_REDACTION_KEY: ${ESHU_TFSTATE_REDACTION_KEY:?set ESHU_TFSTATE_REDACTION_KEY}
+      ESHU_TFSTATE_REDACTION_RULESET_VERSION: ${ESHU_TFSTATE_REDACTION_RULESET_VERSION:?set ESHU_TFSTATE_REDACTION_RULESET_VERSION}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-oci-registry:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-oci-registry"]
+    ports:
+      - "${ESHU_COLLECTOR_OCI_REGISTRY_METRICS_PORT:-19471}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env, *remote_e2e_aws_env]
+      ESHU_OCI_REGISTRY_COLLECTOR_INSTANCE_ID: remote-e2e-oci-registry
+      ESHU_OCI_REGISTRY_COLLECTOR_OWNER_ID: remote-e2e-oci-worker
+      ESHU_OCI_REGISTRY_POLL_INTERVAL: ${ESHU_OCI_REGISTRY_POLL_INTERVAL:-2s}
+      ESHU_OCI_REGISTRY_CLAIM_LEASE_TTL: ${ESHU_OCI_REGISTRY_CLAIM_LEASE_TTL:-60s}
+      ESHU_OCI_REGISTRY_HEARTBEAT_INTERVAL: ${ESHU_OCI_REGISTRY_HEARTBEAT_INTERVAL:-10s}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-package-registry:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-package-registry"]
+    ports:
+      - "${ESHU_COLLECTOR_PACKAGE_REGISTRY_METRICS_PORT:-19472}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_PACKAGE_REGISTRY_COLLECTOR_INSTANCE_ID: remote-e2e-package-registry
+      ESHU_PACKAGE_REGISTRY_COLLECTOR_OWNER_ID: remote-e2e-package-worker
+      ESHU_PACKAGE_REGISTRY_POLL_INTERVAL: ${ESHU_PACKAGE_REGISTRY_POLL_INTERVAL:-2s}
+      ESHU_PACKAGE_REGISTRY_CLAIM_LEASE_TTL: ${ESHU_PACKAGE_REGISTRY_CLAIM_LEASE_TTL:-60s}
+      ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL: ${ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL:-10s}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-aws-cloud:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-aws-cloud"]
+    ports:
+      - "${ESHU_COLLECTOR_AWS_CLOUD_METRICS_PORT:-19473}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env, *remote_e2e_aws_env]
+      ESHU_AWS_COLLECTOR_INSTANCE_ID: remote-e2e-aws-cloud
+      ESHU_AWS_COLLECTOR_OWNER_ID: remote-e2e-aws-worker
+      ESHU_AWS_COLLECTOR_POLL_INTERVAL: ${ESHU_AWS_COLLECTOR_POLL_INTERVAL:-2s}
+      ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL: ${ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL:-60s}
+      ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL: ${ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL:-10s}
+      ESHU_AWS_REDACTION_KEY: ${ESHU_AWS_REDACTION_KEY:?set ESHU_AWS_REDACTION_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-confluence:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - confluence
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-confluence"]
+    ports:
+      - "${ESHU_COLLECTOR_CONFLUENCE_METRICS_PORT:-19474}:9464"
+    environment:
+      <<: *remote_e2e_runtime_env
+      ESHU_CONFLUENCE_BASE_URL: ${ESHU_CONFLUENCE_BASE_URL:-}
+      ESHU_CONFLUENCE_SPACE_ID: ${ESHU_CONFLUENCE_SPACE_ID:-}
+      ESHU_CONFLUENCE_ROOT_PAGE_ID: ${ESHU_CONFLUENCE_ROOT_PAGE_ID:-}
+      ESHU_CONFLUENCE_BEARER_TOKEN: ${ESHU_CONFLUENCE_BEARER_TOKEN:-}
+      ESHU_CONFLUENCE_EMAIL: ${ESHU_CONFLUENCE_EMAIL:-}
+      ESHU_CONFLUENCE_API_TOKEN: ${ESHU_CONFLUENCE_API_TOKEN:-}
+      ESHU_CONFLUENCE_PAGE_LIMIT: ${ESHU_CONFLUENCE_PAGE_LIMIT:-100}
+      ESHU_CONFLUENCE_POLL_INTERVAL: ${ESHU_CONFLUENCE_POLL_INTERVAL:-5m}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+volumes:
+  nornicdb_data:
+  postgres_data:
+  eshu_data:
