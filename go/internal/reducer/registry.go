@@ -363,6 +363,30 @@ func containerImageIdentityDomainDefinition() DomainDefinition {
 	}
 }
 
+// cicdRunCorrelationDomainDefinition returns the additive definition for
+// CI/CD run correlation. The domain writes durable reducer facts for all
+// outcomes, but exact canonical writes require an explicit artifact identity
+// anchor rather than CI success or shell text.
+func cicdRunCorrelationDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainCICDRunCorrelation,
+		Summary: "correlate CI/CD runs, artifacts, and environments with artifact identity evidence",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "ci_cd_run_correlation",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
+
 // awsCloudRuntimeDriftDomainDefinition returns the additive definition for
 // AWS runtime drift publication. The domain consumes admitted
 // aws_cloud_runtime_drift candidates and writes durable reducer facts, but it

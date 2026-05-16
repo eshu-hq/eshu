@@ -68,6 +68,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainPackageSourceCorrelation` | Classify package-registry source hints against active repository remotes without ownership promotion |
 | `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan, unmanaged, unknown, and ambiguous drift findings as canonical reducer facts |
 | `DomainContainerImageIdentity` | Join Git, OCI registry, and runtime image references into digest-keyed reducer facts |
+| `DomainCICDRunCorrelation` | Correlate CI/CD runs, artifacts, and environments with artifact identity evidence |
 
 ## Intent lifecycle
 

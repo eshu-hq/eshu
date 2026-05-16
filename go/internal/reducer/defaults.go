@@ -101,6 +101,10 @@ type DefaultHandlers struct {
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter
 
+	// CICDRunCorrelationWriter persists provider run, artifact, and
+	// environment correlation decisions for CI/CD evidence.
+	CICDRunCorrelationWriter CICDRunCorrelationWriter
+
 	// PackageCorrelationWriter persists package ownership candidates and
 	// manifest-backed consumption decisions for package-registry evidence.
 	PackageCorrelationWriter PackageCorrelationWriter
@@ -244,6 +248,15 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			Instruments: handlers.Instruments,
 		}
 		definitions = append(definitions, imageIdentity)
+	}
+	if handlers.FactLoader != nil && handlers.CICDRunCorrelationWriter != nil {
+		cicdRun := cicdRunCorrelationDomainDefinition()
+		cicdRun.Handler = CICDRunCorrelationHandler{
+			FactLoader:  handlers.FactLoader,
+			Writer:      handlers.CICDRunCorrelationWriter,
+			Instruments: handlers.Instruments,
+		}
+		definitions = append(definitions, cicdRun)
 	}
 	if handlers.AWSCloudRuntimeDriftEvidenceLoader != nil &&
 		handlers.AWSCloudRuntimeDriftWriter != nil {

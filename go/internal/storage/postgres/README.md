@@ -80,6 +80,14 @@ package-registry reducer intent. Package correlation reads use
 `fact_records_package_correlations_lookup_idx` for package-scoped reads and
 `fact_records_package_correlations_repository_lookup_idx` for repository-scoped
 reads so API and MCP callers stay bounded by `package_id` or `repository_id`.
+CI/CD run correlation reads use
+`fact_records_ci_cd_run_correlations_lookup_idx` and
+`fact_records_ci_cd_run_correlations_run_lookup_idx` for repository/run scoped
+reducer facts. Commit, artifact-digest, and environment-only reads have their
+own partial indexes so each advertised API/MCP anchor stays bounded. The
+`fact_records_container_image_identity_digest_idx` index lets the reducer join
+CI artifact digests to active image identity rows without scanning unrelated
+fact payloads.
 
 `sanitizeJSONB` strips `\u0000` escape sequences and raw control bytes
 (`0x00–0x1F` except tab/newline/CR) from payloads before INSERT to prevent

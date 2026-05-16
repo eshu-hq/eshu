@@ -234,6 +234,10 @@ For shared-write debugging specifically:
   and bounded `outcome` (`exact`, `derived`, `ambiguous`, `unresolved`,
   `stale`, `rejected`). Source URLs, package names, and repository names stay
   out of metric labels.
+- `eshu_dp_ci_cd_run_correlations_total` is labeled by reducer `domain` and
+  bounded `outcome` (`exact`, `derived`, `ambiguous`, `unresolved`,
+  `rejected`). Run IDs, commit SHAs, environment names, artifact digests, and
+  repository names stay out of metric labels.
 - `package_registry.observe` spans wrap one claimed target from metadata fetch
   through fact envelope construction. `package_registry.fetch` isolates the
   remote metadata request.
@@ -489,6 +493,7 @@ log streams.
 | `eshu_dp_package_registry_rate_limited_total` | Package registry metadata requests rejected with HTTP 429 | `ecosystem` |
 | `eshu_dp_package_registry_parse_failures_total` | Package registry metadata parse failures | `ecosystem`, `document_type` |
 | `eshu_dp_package_source_correlations_total` | Package source-correlation decisions emitted by reducer outcome | `domain`, `outcome` |
+| `eshu_dp_ci_cd_run_correlations_total` | CI/CD run correlation decisions emitted by reducer outcome | `domain`, `outcome` |
 | `eshu_dp_aws_api_calls_total` | AWS API calls by operation outcome | `service`, `account`, `region`, `operation`, `result` |
 | `eshu_dp_aws_throttle_total` | AWS throttle-shaped service errors | `service`, `account`, `region` |
 | `eshu_dp_aws_assumerole_failed_total` | AWS claim credential acquisition failures | `account` |

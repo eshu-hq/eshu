@@ -55,6 +55,9 @@ const (
 	// DomainContainerImageIdentity joins Git, registry, and runtime image
 	// evidence into digest-keyed container image identity decisions.
 	DomainContainerImageIdentity Domain = "container_image_identity"
+	// DomainCICDRunCorrelation correlates provider CI/CD runs, artifacts, and
+	// environment observations with reducer-owned artifact identity evidence.
+	DomainCICDRunCorrelation Domain = "ci_cd_run_correlation"
 	// DomainAWSCloudRuntimeDrift publishes admitted AWS runtime-vs-IaC drift
 	// findings as canonical reducer facts. The domain stays graph-neutral until
 	// the drift node and query shape are frozen.

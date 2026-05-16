@@ -220,6 +220,10 @@ func newRouter(
 			Correlations: query.NewPostgresPackageRegistryCorrelationStore(db),
 			Profile:      queryProfile,
 		},
+		CICD: &query.CICDHandler{
+			Correlations: query.NewPostgresCICDRunCorrelationStore(db),
+			Profile:      queryProfile,
+		},
 		Status: &query.StatusHandler{
 			Neo4j:        neo4jReader,
 			DB:           db,

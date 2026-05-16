@@ -118,6 +118,7 @@ type APIRouter struct {
 	Evidence        *EvidenceHandler
 	Documentation   *DocumentationHandler
 	PackageRegistry *PackageRegistryHandler
+	CICD            *CICDHandler
 	Status          *StatusHandler
 	Compare         *CompareHandler
 	Admin           *AdminHandler
@@ -183,6 +184,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Package registry
 	if a.PackageRegistry != nil {
 		a.PackageRegistry.Mount(mux)
+	}
+
+	// CI/CD
+	if a.CICD != nil {
+		a.CICD.Mount(mux)
 	}
 
 	// Status

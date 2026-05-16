@@ -67,6 +67,10 @@ package, ecosystem, or version anchor, and dependency lookup requires
 `package_id` or `version_id` plus `limit`. These routes return package-native
 dependency truth only; ownership, publication ownership, and runtime
 consumption stay out of the response until reducer admission owns those joins.
+`CICDHandler` (`ci_cd.go:16`) reads reducer-owned CI/CD run correlation facts
+from Postgres. It requires an explicit scope, repository, commit, provider-run,
+artifact-digest, or environment anchor plus `limit`, and it keeps CI success,
+environment observations, and shell-only hints separate from deployment truth.
 Code dead-code queries add an analysis pass over graph rows so parser-provided
 `dead_code_root_kinds`, language maturity, test/generated exclusions, and
 candidate classifications are visible in the response body. Unsupported

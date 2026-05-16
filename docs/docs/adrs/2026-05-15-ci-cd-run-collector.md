@@ -297,6 +297,50 @@ The first implementation should be split into small PRs:
 Implementation must not start by adding graph writes or query shortcuts. The
 facts and reducer contracts must be proven first.
 
+### Reducer Read-Model Slice (#389)
+
+The first reducer slice adds `DomainCICDRunCorrelation` without a hosted CI/CD
+collector runtime and without graph writes. The reducer consumes fixture-backed
+`ci.run`, `ci.artifact`, `ci.environment_observation`, `ci.trigger_edge`, and
+`ci.step` facts, joins artifact digests to active
+`reducer_container_image_identity` facts, and writes
+`reducer_ci_cd_run_correlation` facts for exact, derived, ambiguous,
+unresolved, and rejected outcomes. Exact canonical writes require one explicit
+artifact digest to match one container-image identity row. Environment-only
+evidence, CI success, and shell-only deployment hints do not become deployment
+truth.
+
+Performance Impact: the reducer loads only CI fact kinds for the intent scope,
+extracts artifact digests, then loads active container-image identity rows for
+that digest allowlist. The API/MCP read model requires a bounded anchor
+(`scope_id`, `repository_id`, `commit_sha`, `provider_run_id`, `run_id`,
+`artifact_digest`, or `environment`), requires `provider` when a provider run is
+the only anchor, requires `limit`, orders by `fact_id`, and reads `limit + 1`
+rows for pagination. Scope reads use the existing scope/generation/fact-kind
+index; repository, provider-run, commit, artifact-digest, and environment reads
+each have partial reducer-fact indexes. Expected cardinality is one run
+generation plus its jobs/artifacts/environments and the matching digest rows,
+not the full fact table. Stop threshold: any focused package test that shows an
+unbounded fact scan or a read path without an index-backed anchor blocks merge.
+
+No-Regression Evidence: focused reducer, query, MCP, telemetry, storage, API,
+and reducer command tests cover exact artifact-image admission, derived
+environment evidence, ambiguous digest matches, unresolved missing anchors,
+rejected shell-only hints, default domain wiring, bounded API/MCP filters,
+OpenAPI/capability matrix coverage, and schema index registration:
+`go test ./internal/reducer -run 'TestBuildCICDRunCorrelationDecisions|TestCICDRunCorrelationHandler|TestPostgresCICDRunCorrelationWriter|TestImplementedDefaultDomainDefinitions|TestNewDefaultRegistry' -count=1`;
+`go test ./internal/query -run 'TestOpenAPISpecIncludesCICDRunCorrelations|TestCICDListRunCorrelations|TestCICDRunCorrelationQuery|TestCapabilityMatrixMatchesYAMLContract' -count=1`;
+`go test ./internal/mcp -run 'TestMCPToolContractMatrixCoversReadOnlyTools|TestResolveRouteMapsCICDRunCorrelationsToBoundedQuery|TestReadOnlyTools|TestHandleHTTPMessage_ToolsList|TestReadOnlyToolsDoNotUseTopLevelComposition' -count=1`;
+`go test ./internal/storage/postgres -run 'TestListActiveCICDRunCorrelationFactsQueryIsDigestBoundedAndPaged|TestBootstrapDefinitionsIncludeCICDRunCorrelationFactIndexes' -count=1`;
+`go test ./internal/telemetry -run 'TestSpanNames|TestMetricDimensionKeys' -count=1`;
+`go test ./cmd/reducer ./cmd/api -count=1`.
+
+Observability Evidence: `eshu_dp_ci_cd_run_correlations_total` emits bounded
+`domain` and `outcome` dimensions for exact, derived, ambiguous, unresolved,
+and rejected reducer decisions. `query.ci_cd_run_correlations` spans wrap the
+API route, and the existing instrumented Postgres query path reports
+`eshu_dp_postgres_query_duration_seconds` for active reducer fact reads.
+
 ## Acceptance Criteria
 
 - Fixtures cover GitHub Actions, GitLab CI/CD, Jenkins, and Buildkite run/job

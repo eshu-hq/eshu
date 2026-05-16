@@ -316,6 +316,9 @@ func buildReducerService(
 		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
 			DB: database,
 		},
+		CICDRunCorrelationWriter: reducer.PostgresCICDRunCorrelationWriter{
+			DB: database,
+		},
 		PackageCorrelationWriter: reducer.PostgresPackageCorrelationWriter{
 			DB: database,
 		},
