@@ -178,6 +178,9 @@ it.
   `package_registry` collector family
 - `ociregistry` subpackage — OCI registry identity, provider adapters,
   runtime scan orchestration, and reported-confidence container image facts
+- `cicdrun` subpackage — fixture-backed CI/CD provider normalization and
+  reported-confidence run, job, step, artifact, trigger, environment, and
+  warning fact-envelope construction for the `ci_cd_run` collector family
 
 ## Dependencies
 
