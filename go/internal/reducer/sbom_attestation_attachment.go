@@ -29,6 +29,9 @@ const (
 	// SBOMAttachmentSubjectMismatch means referrer and document subjects
 	// disagree, so the document is not attached.
 	SBOMAttachmentSubjectMismatch SBOMAttachmentStatus = "subject_mismatch"
+	// SBOMAttachmentAmbiguousSubject means the document reports multiple
+	// distinct subjects, so Eshu cannot choose one canonical image attachment.
+	SBOMAttachmentAmbiguousSubject SBOMAttachmentStatus = "ambiguous_subject"
 	// SBOMAttachmentUnknownSubject means the document parsed but had no digest
 	// subject that Eshu can attach to an image.
 	SBOMAttachmentUnknownSubject SBOMAttachmentStatus = "unknown_subject"
@@ -213,6 +216,7 @@ func sbomAttachmentStatuses() []SBOMAttachmentStatus {
 		SBOMAttachmentAttachedUnverified,
 		SBOMAttachmentAttachedParseOnly,
 		SBOMAttachmentSubjectMismatch,
+		SBOMAttachmentAmbiguousSubject,
 		SBOMAttachmentUnknownSubject,
 		SBOMAttachmentUnparseable,
 	}
@@ -234,12 +238,13 @@ func sbomAttestationAttachmentSummary(
 	canonicalWrites int,
 ) string {
 	return fmt.Sprintf(
-		"sbom attestation attachments evaluated=%d attached_verified=%d attached_unverified=%d attached_parse_only=%d subject_mismatch=%d unknown_subject=%d unparseable=%d canonical_writes=%d",
+		"sbom attestation attachments evaluated=%d attached_verified=%d attached_unverified=%d attached_parse_only=%d subject_mismatch=%d ambiguous_subject=%d unknown_subject=%d unparseable=%d canonical_writes=%d",
 		evaluated,
 		counts[SBOMAttachmentAttachedVerified],
 		counts[SBOMAttachmentAttachedUnverified],
 		counts[SBOMAttachmentAttachedParseOnly],
 		counts[SBOMAttachmentSubjectMismatch],
+		counts[SBOMAttachmentAmbiguousSubject],
 		counts[SBOMAttachmentUnknownSubject],
 		counts[SBOMAttachmentUnparseable],
 		canonicalWrites,
@@ -263,7 +268,7 @@ func sbomAttachmentSubjectDigests(envelopes []facts.Envelope) []string {
 		case facts.SBOMDocumentFactKind:
 			digests = append(digests, payloadString(envelope.Payload, "subject_digest"))
 		case facts.AttestationStatementFactKind:
-			digests = append(digests, firstPayloadString(envelope.Payload, "subject_digest", "subject_digests"))
+			digests = append(digests, payloadStrings(envelope.Payload, "subject_digest", "subject_digests")...)
 		}
 	}
 	return uniqueSortedStrings(digests)

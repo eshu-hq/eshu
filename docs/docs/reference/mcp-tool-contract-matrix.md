@@ -51,7 +51,7 @@ a clear drilldown path when more data is available.
 | `list_package_registry_dependencies` | package id or version id required | `limit` default 50, optional cursor | yes | prompt-ready; returns `next_cursor` when truncated |
 | `list_package_registry_correlations` | package id or repository id required | `limit` default 50, optional cursor | yes | prompt-ready; separates ownership candidates, publication evidence, and consumption truth |
 | `list_ci_cd_run_correlations` | scope id, repository id, commit sha, provider run id plus provider when run-only, artifact digest, or environment required | `limit` default 50, optional cursor | yes | prompt-ready; reports exact, derived, ambiguous, unresolved, and rejected outcomes without promoting CI success to deployment truth |
-| `list_sbom_attestation_attachments` | subject digest, document id, or document digest required | `limit` default 50, optional cursor | yes | prompt-ready; preserves attached verified, unverified, parse-only, subject mismatch, unknown subject, and unparseable states without turning components into vulnerability impact |
+| `list_sbom_attestation_attachments` | subject digest, document id, or document digest required | `limit` default 50, optional cursor | yes | prompt-ready; preserves attached verified, unverified, parse-only, subject mismatch, ambiguous subject, unknown subject, and unparseable states without turning components into vulnerability impact |
 | `get_repo_story` | repository selector required | singleton story | yes | prompt-ready |
 | `get_repository_coverage` | repository selector required | singleton coverage | yes | prompt-ready |
 | `trace_resource_to_code` | resource id or selector required | `max_depth` and `limit` | yes | prompt-ready; returns `truncated` |

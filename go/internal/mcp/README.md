@@ -130,6 +130,11 @@ package-version publication evidence, and manifest-backed consumption all come
 from the query handler; `dispatch_package_registry.go` owns the bounded route
 builders while MCP only maps arguments and preserves the envelope.
 
+Supply-chain tools keep the same transport-only contract. The SBOM/attestation
+tool schema accepts only the reducer-owned attachment statuses, including
+`ambiguous_subject`, so multi-subject attestations stay visible without becoming
+canonical image attachments.
+
 IaC management tools also keep MCP as transport only. The HTTP query layer adds
 `safety_gate`, `safety_summary`, import-plan candidate shaping, and
 sensitive-value redaction before the envelope reaches MCP, so tool callers see

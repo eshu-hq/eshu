@@ -9,7 +9,7 @@ const openAPIPathsSupplyChain = `
           {"name": "subject_digest", "in": "query", "schema": {"type": "string"}},
           {"name": "document_id", "in": "query", "schema": {"type": "string"}},
           {"name": "document_digest", "in": "query", "schema": {"type": "string"}},
-          {"name": "attachment_status", "in": "query", "schema": {"type": "string", "enum": ["attached_verified", "attached_unverified", "attached_parse_only", "subject_mismatch", "unknown_subject", "unparseable"]}},
+          {"name": "attachment_status", "in": "query", "schema": {"type": "string", "enum": ["attached_verified", "attached_unverified", "attached_parse_only", "subject_mismatch", "ambiguous_subject", "unknown_subject", "unparseable"]}},
           {"name": "artifact_kind", "in": "query", "schema": {"type": "string", "enum": ["sbom", "attestation"]}},
           {"name": "after_attachment_id", "in": "query", "schema": {"type": "string"}},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}

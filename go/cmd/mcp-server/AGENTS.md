@@ -26,6 +26,10 @@
 - **IaC stores always wired** — `newMCPQueryRouter` always sets
   `IaCHandler.Reachability` and `IaCHandler.Management` to Postgres-backed
   query adapters (`wiring.go:146`). Do not set either to nil.
+- **MCP read tools must have matching query handlers** — `newMCPQueryRouter`
+  wires `CICDHandler` and `SupplyChainHandler` to their Postgres read models so
+  `list_ci_cd_run_correlations` and `list_sbom_attestation_attachments` do not
+  dispatch to 404 routes.
 - **Auth on query routes** — `query.AuthMiddleware` wraps the `query.APIRouter`
   handler before it is passed to `mcp.NewServer`. The MCP transport endpoints
   (`/sse`, `/mcp/message`, `/health`) handle auth separately inside the MCP
@@ -42,8 +46,9 @@
 ## Common changes and how to scope them
 
 - **Add a new query handler** → add a field to the `query.APIRouter` struct,
-  wire it in `newMCPQueryRouter` in `wiring.go`, and add the matching tool
-  in `go/internal/mcp/dispatch.go`. Run
+  wire it in `newMCPQueryRouter` in `wiring.go`, assert it in
+  `wiring_test.go`, and add the matching tool in `go/internal/mcp/dispatch.go`.
+  Run
   `cd go && go test ./cmd/mcp-server ./internal/mcp -count=1`. Why: the
   compile-time assertions (`query.Neo4jReader` satisfies `query.GraphQuery`,
   `query.ContentReader` satisfies `query.ContentStore` — `wiring.go:22`) fail

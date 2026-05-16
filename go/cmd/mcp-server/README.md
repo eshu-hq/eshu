@@ -63,9 +63,10 @@ flowchart TB
    `PingContext`. If `ESHU_QUERY_PROFILE` is not `ProfileLocalLightweight` and
    `ESHU_DISABLE_NEO4J` is not `true`, it also dials Neo4j via
    `internalruntime.OpenNeo4jDriver`.
-3. `newMCPQueryRouter` wires all ten `query` handlers
+3. `newMCPQueryRouter` wires the MCP-backed `query` handlers
    (`RepositoryHandler`, `EntityHandler`, `CodeHandler`, `ContentHandler`,
    `InfraHandler`, `IaCHandler`, `ImpactHandler`, `EvidenceHandler`,
+   `PackageRegistryHandler`, `CICDHandler`, `SupplyChainHandler`,
    `StatusHandler`, `CompareHandler`) into a `query.APIRouter` and mounts it.
 4. The mounted handler is wrapped by `query.AuthMiddleware`.
 5. `mountRuntimeSurface` creates a shared admin mux via
@@ -130,8 +131,9 @@ or spans beyond the startup/connection events.
 
 ## Extension points
 
-- Add a new query handler: add it to `newMCPQueryRouter` in `wiring.go` and
-  define the matching tool in `internal/mcp/dispatch.go`.
+- Add a new query handler: add it to `newMCPQueryRouter` in `wiring.go`,
+  assert it in `wiring_test.go`, and define the matching tool in
+  `internal/mcp/dispatch.go`.
 - Add a new transport mode: add a case to the `switch transport` in `main.go`
   and implement a corresponding `Server` method in `internal/mcp/server.go`.
 
@@ -145,6 +147,8 @@ or spans beyond the startup/connection events.
 - `IaCHandler.Reachability` and `IaCHandler.Management` must be non-nil;
   `newMCPQueryRouter` always sets them to the Postgres-backed adapters
   (`wiring.go:146`).
+- `CICDHandler.Correlations` and `SupplyChainHandler.SBOMAttachments` must be
+  non-nil because MCP exposes read tools for both routes.
 
 ## Related docs
 

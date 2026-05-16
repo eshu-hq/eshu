@@ -168,10 +168,11 @@ surfaces.
    `DomainSBOMAttestationAttachment` writes durable reducer facts for SBOM
    documents and attestation statements by explicit subject digest. The
    read model exposes `attached_verified`, `attached_unverified`,
-   `attached_parse_only`, `subject_mismatch`, `unknown_subject`, and
-   `unparseable` without collapsing parse validity and verification trust into
-   one boolean. Component rows are evidence only; vulnerability priority and
-   affected-by findings remain gated.
+   `attached_parse_only`, `subject_mismatch`, `ambiguous_subject`,
+   `unknown_subject`, and `unparseable` without collapsing parse validity and
+   verification trust into one boolean or attaching multi-subject attestations
+   to an arbitrary digest. Component rows are evidence only; vulnerability
+   priority and affected-by findings remain gated.
 
    No-Regression Evidence: focused reducer, query, MCP, storage, telemetry,
    API, and reducer command coverage with
@@ -180,10 +181,10 @@ surfaces.
    `go test ./internal/mcp -run 'TestResolveRouteMapsSBOMAttestationAttachments|TestMCPToolContractMatrixCoversReadOnlyTools|TestReadOnlyTools|TestHandleHTTPMessage_ToolsList' -count=1`,
    `go test ./internal/storage/postgres -run 'TestListActiveSBOMAttestationAttachmentFactsQueryIsDigestBoundedAndPaged|TestBootstrapDefinitionsIncludeSBOMAttestationAttachmentFactIndexes|TestBootstrapSQLFilesMirrorDefinitions' -count=1`,
    `go test ./internal/telemetry -run 'TestSpanNames|TestInstruments' -count=1`,
-   and `go test ./cmd/reducer ./cmd/api -count=1` covers verified,
-   failed-verification, parse-only, subject mismatch, unknown subject,
-   unparseable, bounded active fact loading, Postgres indexes, OpenAPI, MCP,
-   and runtime wiring contracts.
+   and `go test ./cmd/reducer ./cmd/api ./cmd/mcp-server -count=1` covers
+   verified, failed-verification, parse-only, subject mismatch, ambiguous
+   subject, unknown subject, unparseable, bounded active fact loading, Postgres
+   indexes, OpenAPI, MCP, and runtime wiring contracts.
 
    Observability Evidence: `eshu_dp_sbom_attestation_attachments_total`
    exposes the reducer domain and bounded attachment outcome for admitted and

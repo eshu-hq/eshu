@@ -422,9 +422,11 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
 - **SBOM attachment keeps trust dimensions separate** —
   `SBOMAttestationAttachmentHandler` writes
   `reducer_sbom_attestation_attachment` facts for attached verified,
-  unverified, parse-only, subject mismatch, unknown subject, and unparseable
-  outcomes. Component evidence stays evidence only; this domain must not emit
-  vulnerability priority or affected-by findings.
+  unverified, parse-only, subject mismatch, ambiguous subject, unknown subject,
+  and unparseable outcomes. Component evidence stays evidence only; this
+  domain must not emit vulnerability priority or affected-by findings. The
+  SBOM attachment index treats multiple distinct attestation subjects as
+  ambiguous, not as a first-subject match.
 - **Package ownership is conservative** —
   `PackageSourceCorrelationHandler` writes ownership candidates from registry
   source hints and package-version publication evidence but leaves

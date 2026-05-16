@@ -22,7 +22,8 @@
 // hub-function prompt answers with bounded pages and source handles. Supply
 // chain attachment reads use Postgres reducer facts and require a subject
 // digest, document ID, or document digest before listing SBOM or attestation
-// evidence.
+// evidence; ambiguous multi-subject attestations remain explicit
+// non-canonical rows.
 // Hardcoded-secret investigation returns redacted
 // content-index findings with suppression notes and never returns raw secret
 // values; suppression filtering and Go suppression notes share one rule table,

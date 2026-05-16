@@ -23,7 +23,7 @@ func supplyChainTools() []ToolDefinition {
 					"attachment_status": map[string]any{
 						"type":        "string",
 						"description": "Optional reducer attachment status filter.",
-						"enum":        []string{"attached_verified", "attached_unverified", "attached_parse_only", "subject_mismatch", "unknown_subject", "unparseable"},
+						"enum":        []string{"attached_verified", "attached_unverified", "attached_parse_only", "subject_mismatch", "ambiguous_subject", "unknown_subject", "unparseable"},
 					},
 					"artifact_kind": map[string]any{
 						"type":        "string",

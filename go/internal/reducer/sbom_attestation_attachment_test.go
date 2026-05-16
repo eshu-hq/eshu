@@ -82,6 +82,7 @@ func TestBuildSBOMAttestationAttachmentDecisionsClassifiesSubjectsAndTrust(t *te
 		sbomDocumentFact("doc-unparseable", "doc-unparseable", testSBOMSubjectDigest, "sha256:5555555555555555555555555555555555555555555555555555555555555555", "unparseable", "not_configured"),
 		attestationStatementFact("statement-verified", "stmt-verified", testSBOMSubjectDigest, "sha256:6666666666666666666666666666666666666666666666666666666666666666", "parsed", "verified"),
 		attestationSignatureVerificationFact("verification-verified", "stmt-verified", "passed", "policy://prod"),
+		attestationStatementMultiSubjectFact("statement-multi", "stmt-multi", []string{testSBOMSubjectDigest, testSBOMOtherDigest}, "sha256:7777777777777777777777777777777777777777777777777777777777777777", "parsed", "verified"),
 	})
 
 	got := sbomAttachmentDecisionsByDocument(decisions)
@@ -92,6 +93,7 @@ func TestBuildSBOMAttestationAttachmentDecisionsClassifiesSubjectsAndTrust(t *te
 	assertSBOMAttachmentDecision(t, got["doc-unknown"], SBOMAttachmentUnknownSubject, 0)
 	assertSBOMAttachmentDecision(t, got["doc-unparseable"], SBOMAttachmentUnparseable, 0)
 	assertSBOMAttachmentDecision(t, got["stmt-verified"], SBOMAttachmentAttachedVerified, 1)
+	assertSBOMAttachmentDecision(t, got["stmt-multi"], SBOMAttachmentAmbiguousSubject, 0)
 	if got["doc-verified"].ComponentCount != 1 {
 		t.Fatalf("ComponentCount = %d, want 1", got["doc-verified"].ComponentCount)
 	}
@@ -319,6 +321,23 @@ func attestationStatementFact(
 			"attestation_version": "1.0",
 		},
 	}
+}
+
+func attestationStatementMultiSubjectFact(
+	factID string,
+	statementID string,
+	subjectDigests []string,
+	statementDigest string,
+	parseStatus string,
+	verificationStatus string,
+) facts.Envelope {
+	values := make([]any, 0, len(subjectDigests))
+	for _, digest := range subjectDigests {
+		values = append(values, digest)
+	}
+	fact := attestationStatementFact(factID, statementID, "", statementDigest, parseStatus, verificationStatus)
+	fact.Payload["subject_digests"] = values
+	return fact
 }
 
 func attestationSignatureVerificationFact(

@@ -351,10 +351,11 @@ narrow the page after the digest or document anchor is set.
 
 Rows expose `attachment_status`, `parse_status`, and `verification_status`
 separately. Valid statuses are `attached_verified`, `attached_unverified`,
-`attached_parse_only`, `subject_mismatch`, `unknown_subject`, and
-`unparseable`. Component evidence is returned as document evidence only; this
-route does not emit vulnerability priority or affected-by findings. Truncated
-responses include `next_cursor.after_attachment_id` for the next bounded read.
+`attached_parse_only`, `subject_mismatch`, `ambiguous_subject`,
+`unknown_subject`, and `unparseable`. Component evidence is returned as document
+evidence only; this route does not emit vulnerability priority or affected-by
+findings. Truncated responses include `next_cursor.after_attachment_id` for the
+next bounded read.
 
 ## Context API
 

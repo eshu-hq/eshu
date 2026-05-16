@@ -18,6 +18,7 @@ type sbomAttachmentDocument struct {
 	artifactKind       string
 	format             string
 	specVersion        string
+	ambiguousSubject   bool
 }
 
 type sbomAttachmentReferrer struct {
@@ -97,17 +98,24 @@ func sbomDocumentFromEnvelope(envelope facts.Envelope) sbomAttachmentDocument {
 
 func attestationDocumentFromEnvelope(envelope facts.Envelope) sbomAttachmentDocument {
 	statementID := firstNonBlank(payloadString(envelope.Payload, "statement_id"), envelope.FactID)
+	subjectDigests := payloadStrings(envelope.Payload, "subject_digest", "subject_digests")
+	ambiguousSubject := len(subjectDigests) > 1
+	subjectDigest := ""
+	if len(subjectDigests) == 1 {
+		subjectDigest = subjectDigests[0]
+	}
 	return sbomAttachmentDocument{
 		factID:             envelope.FactID,
 		documentID:         statementID,
 		documentDigest:     firstNonBlank(payloadString(envelope.Payload, "statement_digest"), payloadString(envelope.Payload, "payload_digest")),
-		subjectDigest:      firstPayloadString(envelope.Payload, "subject_digest", "subject_digests"),
+		subjectDigest:      subjectDigest,
 		parseStatus:        defaultStatus(payloadString(envelope.Payload, "parse_status"), "parsed"),
 		verificationStatus: normalizedVerificationStatus(payloadString(envelope.Payload, "verification_status")),
 		verificationPolicy: payloadString(envelope.Payload, "verification_policy"),
 		artifactKind:       "attestation",
 		format:             firstNonBlank(payloadString(envelope.Payload, "attestation_format"), "in-toto"),
 		specVersion:        firstNonBlank(payloadString(envelope.Payload, "attestation_version"), payloadString(envelope.Payload, "predicate_type")),
+		ambiguousSubject:   ambiguousSubject,
 	}
 }
 
@@ -142,6 +150,9 @@ func classifySBOMAttachmentDocument(
 	}
 	if isUnparseableStatus(doc.parseStatus) {
 		return sbomAttachmentDecision(doc, SBOMAttachmentUnparseable, verification, policy, 0, "source document could not be parsed into stable facts", evidence, index)
+	}
+	if doc.ambiguousSubject {
+		return sbomAttachmentDecision(doc, SBOMAttachmentAmbiguousSubject, verification, policy, 0, "document reports multiple distinct subject digests", evidence, index)
 	}
 	if doc.subjectDigest == "" {
 		return sbomAttachmentDecision(doc, SBOMAttachmentUnknownSubject, verification, policy, 0, "document parsed but has no artifact subject digest", evidence, index)
@@ -230,27 +241,28 @@ func defaultStatus(value string, fallback string) string {
 	return value
 }
 
-func firstPayloadString(payload map[string]any, scalarKey string, sliceKey string) string {
+func payloadStrings(payload map[string]any, scalarKey string, sliceKey string) []string {
+	var values []string
 	if value := payloadString(payload, scalarKey); value != "" {
-		return value
+		values = append(values, value)
 	}
 	raw, ok := payload[sliceKey]
 	if !ok {
-		return ""
+		return uniqueSortedStrings(values)
 	}
 	switch typed := raw.(type) {
 	case []string:
 		for _, value := range typed {
 			if strings.TrimSpace(value) != "" {
-				return strings.TrimSpace(value)
+				values = append(values, strings.TrimSpace(value))
 			}
 		}
 	case []any:
 		for _, value := range typed {
 			if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
-				return text
+				values = append(values, text)
 			}
 		}
 	}
-	return ""
+	return uniqueSortedStrings(values)
 }

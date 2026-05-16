@@ -275,12 +275,16 @@ func TestBootstrapDefinitionsIncludeSBOMAttestationAttachmentFactIndexes(t *test
 		t.Fatal("fact_records definition missing")
 	}
 	for _, want := range []string{
+		"fact_records_oci_image_referrer_subject_idx",
 		"fact_records_sbom_attestation_attachments_subject_idx",
 		"fact_records_sbom_attestation_attachments_document_idx",
+		"fact_records_sbom_attestation_attachments_document_digest_idx",
 		"fact_records_sbom_attestation_attachments_status_idx",
+		"'oci_registry.image_referrer'",
 		"'reducer_sbom_attestation_attachment'",
 		"(payload->>'subject_digest')",
 		"(payload->>'document_id')",
+		"(payload->>'document_digest')",
 		"(payload->>'attachment_status')",
 	} {
 		if !strings.Contains(facts.SQL, want) {

@@ -95,13 +95,15 @@ own partial indexes so each advertised API/MCP anchor stays bounded. The
 CI artifact digests to active image identity rows without scanning unrelated
 fact payloads.
 SBOM/attestation attachment reads use
+`fact_records_oci_image_referrer_subject_idx`,
 `fact_records_sbom_attestation_attachments_subject_idx`,
-`fact_records_sbom_attestation_attachments_document_idx`, and
-`fact_records_sbom_attestation_attachments_status_idx` for digest, document,
-and status-scoped reducer facts. `ListActiveSBOMAttestationAttachmentFacts`
-loads only active referrer and image identity facts for the subject digests in
-the current reducer intent, so attachment admission does not scan unrelated
-SBOM or OCI evidence.
+`fact_records_sbom_attestation_attachments_document_idx`,
+`fact_records_sbom_attestation_attachments_document_digest_idx`, and
+`fact_records_sbom_attestation_attachments_status_idx` for referrer-subject,
+digest, document, document-digest, and status-scoped facts.
+`ListActiveSBOMAttestationAttachmentFacts` loads only active referrer and image
+identity facts for the subject digests in the current reducer intent, so
+attachment admission does not scan unrelated SBOM or OCI evidence.
 
 `sanitizeJSONB` strips `\u0000` escape sequences and raw control bytes
 (`0x00–0x1F` except tab/newline/CR) from payloads before INSERT to prevent

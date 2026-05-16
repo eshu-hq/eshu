@@ -77,7 +77,8 @@ environment observations, and shell-only hints separate from deployment truth.
 attestation attachment facts from Postgres. It requires a subject digest,
 document ID, or document digest plus `limit`, and it keeps attachment status,
 parse status, and verification status as separate response fields so callers do
-not mistake parsed component evidence for trusted vulnerability impact.
+not mistake parsed component evidence for trusted vulnerability impact or
+promote `ambiguous_subject` attestations into canonical image attachments.
 Code dead-code queries add an analysis pass over graph rows so parser-provided
 `dead_code_root_kinds`, language maturity, test/generated exclusions, and
 candidate classifications are visible in the response body. Unsupported

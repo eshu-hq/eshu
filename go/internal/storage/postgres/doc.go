@@ -85,8 +85,8 @@
 // account-scope LIKE predicate, and caps direct list pages at 500 rows so
 // internal callers cannot bypass the query API's bounds.
 // SBOM/attestation attachment readers use the same active-generation keyset
-// page shape, with subject-digest, document, and status indexes on reducer
-// attachment facts so MCP/API reads stay digest-first and bounded.
+// page shape, with referrer-subject, subject-digest, document, document-digest,
+// and status indexes so MCP/API reads stay digest-first and bounded.
 //
 // State-only addresses absent from the prior-config address set keep
 // PreviouslyDeclaredInConfig=false and surface as added_in_state — the

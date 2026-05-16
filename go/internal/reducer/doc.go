@@ -51,5 +51,7 @@
 // hints with the same URL cannot overwrite each other.
 // SBOM and attestation attachment writes reducer facts for every attachment
 // status while keeping parse validity, signature verification, and component
-// evidence separate from vulnerability-impact truth.
+// evidence separate from vulnerability-impact truth; multi-subject
+// attestations remain non-canonical instead of attaching to the first digest in
+// the reported subject list.
 package reducer
