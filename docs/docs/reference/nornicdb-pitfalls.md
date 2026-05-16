@@ -15,7 +15,7 @@ instead of rediscovering the same failure mode.
    truth in order:
    - The current NornicDB-New checkout named by local config, repo docs, or the
      user. It must be the source that built the Compose image
-     `timothyswt/nornicdb-amd64-cpu:vX.Y.Z` under test. **Do not** read an
+     `timothyswt/nornicdb-cpu-bge:vX.Y.Z` under test. **Do not** read an
      older `NornicDB` sibling unless the run explicitly uses that source.
    - Upstream NornicDB documentation and release notes for the binary tag
      pinned in `docker-compose.yaml` (`NORNICDB_IMAGE`). NornicDB evolves
@@ -147,7 +147,7 @@ fails it correctly. The Eshu fix is in
   `Neo.ClientError.Transaction.TransactionCommitFailed`) in addition to
   the older `failed to commit implicit transaction:...` wrapping. Earlier
   binaries surfaced commit-time UNIQUE under the older wrapping; the
-  pinned `timothyswt/nornicdb-amd64-cpu:v1.0.45` uses the newer wrapping,
+  pinned `timothyswt/nornicdb-cpu-bge:v1.1.0` uses the newer wrapping,
   and the classifier had silently stopped matching after the upgrade.
 
 With these changes, concurrent canonical MERGE on the same uid is
@@ -192,7 +192,7 @@ Before drafting a patch:
 2. If the bug does not reproduce in NornicDB isolation, the root cause is not
    in NornicDB. Look at the Eshu-side trigger and patch there.
 3. If you do patch NornicDB-New, build the binary into a uniquely tagged
-   image (e.g., `timothyswt/nornicdb-amd64-cpu:eshu-<issue>-<sha>`) and pin
+   image (e.g., `timothyswt/nornicdb-cpu-bge:eshu-<issue>-<sha>`) and pin
    it via the `NORNICDB_IMAGE` environment variable in the relevant Compose
    overlay only. Never overwrite the shared production tag — concurrent
    Compose stacks on the same host run the same image.

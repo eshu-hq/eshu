@@ -89,7 +89,7 @@ services:
   # without Docker Compose trying to pull a non-existent registry tag. When
   # NORNICDB_PULL_POLICY is unset, compose v2 falls back to its default
   # "missing" semantics — pull only when the tagged image isn't already in
-  # the local daemon — so the published timothyswt/nornicdb-amd64-cpu image
+  # the local daemon — so the published timothyswt/nornicdb-cpu-bge image
   # still works without operator intervention. Set NORNICDB_PULL_POLICY=never
   # alongside NORNICDB_IMAGE=<local-tag> to pin a locally-built image.
   nornicdb:
