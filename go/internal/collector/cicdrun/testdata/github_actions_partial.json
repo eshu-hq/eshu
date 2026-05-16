@@ -1,0 +1,26 @@
+{
+  "run": {
+    "id": 987654321,
+    "run_attempt": 1,
+    "name": "Deploy",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "failure",
+    "head_branch": "main",
+    "head_sha": "fedcba9876543210fedcba9876543210fedcba98",
+    "repository": {
+      "full_name": "eshu-hq/eshu",
+      "html_url": "https://github.com/eshu-hq/eshu"
+    }
+  },
+  "jobs_partial": true,
+  "jobs": [],
+  "artifacts": [
+    {
+      "id": 8001,
+      "name": "build-output",
+      "size_in_bytes": 64,
+      "expired": false
+    }
+  ]
+}

@@ -341,6 +341,39 @@ and rejected reducer decisions. `query.ci_cd_run_correlations` spans wrap the
 API route, and the existing instrumented Postgres query path reports
 `eshu_dp_postgres_query_duration_seconds` for active reducer fact reads.
 
+### GitHub Actions Fixture Normalizer Slice (#408)
+
+This collector slice adds `internal/collector/cicdrun` with offline GitHub
+Actions fixture normalization only. It emits reported-confidence
+`ci.pipeline_definition`, `ci.run`, `ci.job`, `ci.step`, `ci.artifact`,
+`ci.trigger_edge`, `ci.environment_observation`, and `ci.warning` facts for one
+provider run attempt. It does not call hosted GitHub APIs, manage credentials,
+ingest logs, claim workflow work, or write graph state. Provider-native IDs and
+`run_attempt` stay in fact identity so retries remain separate. Token-bearing
+artifact download URLs are stripped, and partial provider payloads emit warning
+facts instead of complete-looking coverage.
+
+Performance Impact: fixture normalization is CPU-only and bounded by one
+fixture's run, job, step, artifact, trigger, and warning counts. The stage does
+not add graph writes, queue claims, leases, worker fanout, goroutines, channels,
+or hosted API calls. Expected cardinality is O(jobs + steps + artifacts +
+triggers + warnings) for one run generation. Stop threshold: any test or review
+evidence showing unbounded fixture traversal, live network calls, credential
+handling, graph/query imports, or collapsed retry attempts blocks merge.
+
+No-Regression Evidence: `go test ./internal/collector/cicdrun -run
+TestGitHubActionsFixture -count=1` covers successful GitHub Actions fixture
+normalization, reducer-consumable run/artifact/environment anchors, stable
+attempt-specific fact identity, missing artifact digest warnings, partial job
+metadata warnings, token-bearing artifact URL stripping, and reported
+collector provenance.
+
+No-Observability-Change: `internal/collector/cicdrun` is a deterministic
+offline normalizer and does not mount a runtime. The package README records the
+bounded fixture proof. The later hosted runtime slice must add provider API
+request, rate-limit, fact-emission, partial-generation, redaction, freshness,
+health/readiness, and status signals before live CI/CD collection is enabled.
+
 ## Acceptance Criteria
 
 - Fixtures cover GitHub Actions, GitLab CI/CD, Jenkins, and Buildkite run/job

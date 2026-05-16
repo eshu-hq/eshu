@@ -201,6 +201,31 @@ state. The facts package currently defines:
 Reducers must corroborate workload, deployment, ownership, and environment truth
 before AWS evidence is promoted into canonical graph answers.
 
+## Core CI/CD Run Fact Families
+
+CI/CD run facts use `collector_kind: "ci_cd_run"` and
+`source_confidence: "reported"` when provider runtime metadata reports the run,
+job, artifact, trigger, environment, or warning evidence. The first
+implementation slice is fixture-backed for GitHub Actions and does not poll
+hosted APIs or manage credentials.
+
+| Fact kind | Purpose |
+| --- | --- |
+| `ci.pipeline_definition` | One provider workflow or expanded runtime definition with workflow ID/path, name, state, trigger, run identity, and repository anchors. |
+| `ci.run` | One provider run with run ID, attempt, event, status/result, branch, commit SHA, repository locator, actor, timestamps, and URL metadata. |
+| `ci.job` | One job under a run with provider job ID, name, status/result, runner labels, and timing metadata. |
+| `ci.step` | One ordered step with provider step number, name, action reference when present, status/result, and timing metadata. |
+| `ci.artifact` | One provider artifact metadata row with provider artifact ID, name, type, size, digest when reported, expiration, and tokenless download reference. |
+| `ci.trigger_edge` | One explicit provider trigger relation, such as workflow-call or upstream-run evidence. |
+| `ci.environment_observation` | One provider environment observation with environment name and deployment/status metadata. |
+| `ci.warning` | One non-fatal provider or fixture warning, such as partial job metadata or a missing artifact digest. |
+
+Provider-native IDs and run attempts are part of fact identity so retries remain
+separate. Artifact download URLs with query strings are stripped. CI success,
+environment names, and shell text remain provenance evidence; reducers must
+corroborate them with stronger artifact, deployment, runtime, or graph truth
+before promotion.
+
 ## Trust model
 
 Plugins are untrusted by default. Activation requires operator configuration.
