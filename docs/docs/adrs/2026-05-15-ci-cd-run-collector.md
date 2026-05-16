@@ -331,7 +331,7 @@ OpenAPI/capability matrix coverage, and schema index registration:
 `go test ./internal/reducer -run 'TestBuildCICDRunCorrelationDecisions|TestCICDRunCorrelationHandler|TestPostgresCICDRunCorrelationWriter|TestImplementedDefaultDomainDefinitions|TestNewDefaultRegistry' -count=1`;
 `go test ./internal/query -run 'TestOpenAPISpecIncludesCICDRunCorrelations|TestCICDListRunCorrelations|TestCICDRunCorrelationQuery|TestCapabilityMatrixMatchesYAMLContract' -count=1`;
 `go test ./internal/mcp -run 'TestMCPToolContractMatrixCoversReadOnlyTools|TestResolveRouteMapsCICDRunCorrelationsToBoundedQuery|TestReadOnlyTools|TestHandleHTTPMessage_ToolsList|TestReadOnlyToolsDoNotUseTopLevelComposition' -count=1`;
-`go test ./internal/storage/postgres -run 'TestBootstrapDefinitionsIncludeCICDRunCorrelationFactIndexes' -count=1`;
+`go test ./internal/storage/postgres -run 'TestListActiveCICDRunCorrelationFactsQueryIsDigestBoundedAndPaged|TestBootstrapDefinitionsIncludeCICDRunCorrelationFactIndexes' -count=1`;
 `go test ./internal/telemetry -run 'TestSpanNames|TestMetricDimensionKeys' -count=1`;
 `go test ./cmd/reducer ./cmd/api -count=1`.
 
