@@ -124,3 +124,62 @@ CREATE INDEX IF NOT EXISTS fact_records_package_correlations_repository_lookup_i
         'reducer_package_consumption_correlation'
     )
       AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_ci_cd_run_correlations_lookup_idx
+    ON fact_records (
+        (payload->>'repository_id'),
+        (payload->>'commit_sha'),
+        (payload->>'artifact_digest'),
+        (payload->>'environment'),
+        (payload->>'outcome'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_ci_cd_run_correlation'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_ci_cd_run_correlations_run_lookup_idx
+    ON fact_records (
+        (payload->>'run_id'),
+        (payload->>'provider'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_ci_cd_run_correlation'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_ci_cd_run_correlations_commit_lookup_idx
+    ON fact_records (
+        (payload->>'commit_sha'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_ci_cd_run_correlation'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_ci_cd_run_correlations_artifact_lookup_idx
+    ON fact_records (
+        (payload->>'artifact_digest'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_ci_cd_run_correlation'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_ci_cd_run_correlations_environment_lookup_idx
+    ON fact_records (
+        (payload->>'environment'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_ci_cd_run_correlation'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_container_image_identity_digest_idx
+    ON fact_records (
+        (payload->>'digest'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_container_image_identity'
+      AND is_tombstone = FALSE;

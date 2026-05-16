@@ -215,6 +215,43 @@ func TestBootstrapDefinitionsIncludePackageCorrelationFactIndexes(t *testing.T) 
 	}
 }
 
+func TestBootstrapDefinitionsIncludeCICDRunCorrelationFactIndexes(t *testing.T) {
+	t.Parallel()
+
+	var facts Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "fact_records" {
+			facts = def
+			break
+		}
+	}
+	if facts.Name == "" {
+		t.Fatal("fact_records definition missing")
+	}
+	for _, want := range []string{
+		"fact_records_ci_cd_run_correlations_lookup_idx",
+		"fact_records_ci_cd_run_correlations_run_lookup_idx",
+		"fact_records_ci_cd_run_correlations_commit_lookup_idx",
+		"fact_records_ci_cd_run_correlations_artifact_lookup_idx",
+		"fact_records_ci_cd_run_correlations_environment_lookup_idx",
+		"fact_records_container_image_identity_digest_idx",
+		"'reducer_ci_cd_run_correlation'",
+		"'reducer_container_image_identity'",
+		"(payload->>'repository_id')",
+		"(payload->>'commit_sha')",
+		"(payload->>'artifact_digest')",
+		"(payload->>'environment')",
+		"(payload->>'provider')",
+		"(payload->>'run_id')",
+		"(payload->>'digest')",
+		"fact_id ASC",
+	} {
+		if !strings.Contains(facts.SQL, want) {
+			t.Fatalf("fact_records SQL missing %q", want)
+		}
+	}
+}
+
 func TestBootstrapDefinitionsIncludeFactContractColumns(t *testing.T) {
 	t.Parallel()
 

@@ -17,5 +17,7 @@
 // descriptor, referrer, and warning evidence reported by OCI-compatible
 // registries. AWS cloud fact kind constants and schema-version helpers live
 // here for resource, relationship, tag, DNS, image-reference, and warning
-// evidence reported by AWS service APIs.
+// evidence reported by AWS service APIs. CI/CD run fact kind constants and
+// schema-version helpers live here for pipeline definition, run, job, step,
+// artifact, trigger, environment, and warning evidence reported by providers.
 package facts

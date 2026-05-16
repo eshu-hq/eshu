@@ -65,7 +65,7 @@ fixtures, reducer contracts, telemetry, and binary wiring exist.
 | --- | --- | --- |
 | Kubernetes live | ADR exists; no runtime package or charted workload. | Collector kind/workflow contract, API discovery, fixtures, reducer joins, and a service runbook. |
 | SBOM and attestation | ADR exists; no runtime package or reducer. | Fact contracts, fixture parsers, OCI/referrer integration, provenance reducer, and read model. |
-| CI/CD runs | ADR exists; no runtime package or reducer. | Provider fixtures first, run/job/artifact fact contracts, reducer admission tests, then hosted runtime. |
+| CI/CD runs | ADR exists; hosted runtime is not implemented. The first reducer slice writes `reducer_ci_cd_run_correlation` facts from fixture-backed run/artifact/environment evidence and exposes bounded API/MCP reads. | Provider fixture collectors, run/job/artifact fact contracts beyond reducer fixtures, provider-specific extraction, credentials/redaction proof, and hosted runtime. |
 | Service catalog | ADR exists; no runtime package or reducer. | Catalog fact contracts, ownership/admission reducer, and service-story read integration. |
 | Observability | ADR exists; no runtime package or reducer. | OTel/Prometheus/Grafana/Datadog fact fixtures, reducer coverage outcomes, then hosted runtime. |
 | Vulnerability intelligence | ADR exists and is intentionally gated. | Package, OCI, SBOM, AWS, Terraform state, and deployment evidence must be proven before impact reducers. |
@@ -135,7 +135,33 @@ surfaces.
    Package-native dependency edges are safe to expose separately because they
    describe package metadata, not repository ownership or runtime consumption.
 
-5. Supply-chain impact.
+5. CI/CD run correlation.
+   `DomainCICDRunCorrelation` writes durable reducer facts for provider runs,
+   artifacts, environments, and rejected shell-only hints. Exact canonical
+   writes require an artifact digest that joins to one reducer-owned
+   container-image identity row; environment-only and CI-success evidence stays
+   provenance. The `GET /api/v0/ci-cd/run-correlations` route and
+   `list_ci_cd_run_correlations` MCP tool expose bounded scope, repository,
+   commit, provider-run, artifact-digest, environment, outcome, limit, and
+   cursor filters.
+
+   No-Regression Evidence: focused reducer, query, MCP, storage, telemetry,
+   API, and reducer command coverage with
+   `go test ./internal/reducer -run 'TestBuildCICDRunCorrelationDecisions|TestCICDRunCorrelationHandler|TestPostgresCICDRunCorrelationWriter|TestImplementedDefaultDomainDefinitions|TestNewDefaultRegistry' -count=1`,
+   `go test ./internal/query -run 'TestOpenAPISpecIncludesCICDRunCorrelations|TestCICDListRunCorrelations|TestCICDRunCorrelationQuery|TestCapabilityMatrixMatchesYAMLContract' -count=1`,
+   `go test ./internal/mcp -run 'TestMCPToolContractMatrixCoversReadOnlyTools|TestResolveRouteMapsCICDRunCorrelationsToBoundedQuery|TestReadOnlyTools|TestHandleHTTPMessage_ToolsList|TestReadOnlyToolsDoNotUseTopLevelComposition' -count=1`,
+   `go test ./internal/storage/postgres -run 'TestBootstrapDefinitionsIncludeCICDRunCorrelationFactIndexes' -count=1`,
+   `go test ./internal/telemetry -run 'TestSpanNames|TestMetricDimensionKeys' -count=1`,
+   and `go test ./cmd/reducer ./cmd/api -count=1` covers exact,
+   derived, ambiguous, unresolved, rejected, index, OpenAPI, MCP, and wiring
+   contracts.
+
+   Observability Evidence: `eshu_dp_ci_cd_run_correlations_total` exposes the
+   reducer domain and bounded outcome for admission decisions; the
+   `query.ci_cd_run_correlations` span plus existing Postgres query duration
+   metrics expose the read path.
+
+6. Supply-chain impact.
    SBOM, attestation, vulnerability, package, OCI, cloud, and deployment facts
    need reducer-owned confidence rules. The vulnerability collector should stay
    gated until those upstream facts are proven together.
