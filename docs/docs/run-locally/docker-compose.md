@@ -131,6 +131,8 @@ MCP, ingester, reducer, workflow coordinator, webhook listener, collector
 workers, and an optional AWS freshness seeder. AWS cloud scans are freshness
 trigger driven today; the seeder posts synthetic AWS Config change events into
 the webhook listener so the workflow coordinator creates AWS scan work.
+The Compose project defaults to `eshu-remote-e2e`, so its volumes are isolated
+from the default stack even when both files are run from the same checkout.
 
 ```bash
 cp .env.remote-e2e.example .env.remote-e2e

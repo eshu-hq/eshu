@@ -4,6 +4,8 @@
 # overlays. Use it on a test EC2 instance that can reach the target AWS account,
 # S3 Terraform state object, and private ECR registry.
 
+name: ${ESHU_REMOTE_E2E_PROJECT_NAME:-eshu-remote-e2e}
+
 x-collector-env: &remote_e2e_collector_env
   ESHU_COLLECTOR_INSTANCES_JSON: |
     [
@@ -105,7 +107,7 @@ x-collector-env: &remote_e2e_collector_env
               "repository": "${ESHU_ECR_OCI_REPOSITORY:?set ESHU_ECR_OCI_REPOSITORY}",
               "tag_limit": 25,
               "visibility": "private",
-              "auth_mode": "aws"
+              "auth_mode": "credentialed"
             }
           ]
         }
