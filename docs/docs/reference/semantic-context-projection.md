@@ -57,12 +57,22 @@ source has stable handles, a bounded text body, and a clear truth label.
 Raw full files are not embedded by default. If a later PR wants file chunks, it
 must add a separate gate with measured size, redaction, and recall evidence.
 
+Documentation snippets have an additional fail-closed eligibility rule. They
+are projected only when the source contract already says
+`permissions.viewer_can_read_source=true`, `source_acl_evaluated` is not false,
+and `states.permission_decision` is not `denied`. Unknown, denied, or
+ACL-protected documentation is marked `skipped_acl` in Postgres and never gets a
+NornicDB context node. If Eshu later needs caller-specific documentation
+semantic search, it must add an authorization partition or pre-search ACL
+filter before writing any restricted summaries into NornicDB.
+
 ## Record Shape
 
 Every projected record must have this logical shape before it reaches NornicDB:
 
 ```text
-context_id        stable uid, e.g. semantic_context:<kind>:<source_handle>
+context_id        stable logical id, e.g. semantic_context:<kind>:<source>
+node_uid          opaque hash-qualified NornicDB uid for this projected version
 source_handle     file://, entity://, workload://, evidence://, or doc:// handle
 source_kind       one of the record kinds above
 repo_id           optional but required for repository-scoped records
@@ -79,10 +89,11 @@ model_name        embedding model identifier
 model_dimensions  vector dimensions when known
 ```
 
-Only `title`, `context_text`, `source_kind`, `repo_id`, `truth_level`, and
-bounded display handles belong on NornicDB semantic context nodes. Everything
-else stays in Postgres unless a query needs it for filtering and the field is
-safe for BM25 search.
+Only `uid`, `title`, `context_text`, `source_kind`, `repo_id`, `truth_level`,
+`freshness_state`, and a bounded `display_handle` belong on NornicDB semantic
+context nodes. The `uid` is an opaque hash, not the raw source handle. Full
+source handles, text hashes, model names, content hashes, provider IDs, ACL
+state, and operational metadata stay in Postgres.
 
 This restriction matters because NornicDB v1.1.0 hybrid search indexes all node
 properties for BM25, and managed embeddings can also use all node properties
@@ -112,6 +123,7 @@ implementation can choose exact table names, but the durable key must include:
 
 ```text
 context_id
+node_uid
 source_handle
 source_kind
 repo_id
@@ -132,7 +144,8 @@ Required status values:
 | `pending` | source state changed and needs projection |
 | `indexed` | matching NornicDB node and search index state exists |
 | `skipped_empty` | record had no safe searchable text |
-| `retracting` | old context hash or source handle is being removed |
+| `skipped_acl` | documentation source is denied, protected, or ACL-unknown |
+| `retracting` | stale NornicDB `node_uid` is being removed |
 | `retracted` | old NornicDB node has been removed or hidden |
 | `failed_retryable` | bounded retry may repair the record |
 | `failed_terminal` | operator or code change is required |
@@ -161,15 +174,17 @@ Required node properties:
 uid
 title
 context_text
-source_handle
+display_handle
 source_kind
 repo_id
 truth_level
 freshness_state
-text_hash
-text_version
-model_name
 ```
+
+The `uid` must be derived from the stable `context_id`, `text_hash`,
+`text_version`, `model_provider`, `model_name`, and `model_dimensions`. The raw
+`source_handle`, `text_hash`, `text_version`, and model fields are looked up in
+Postgres after top-K retrieval and must not be searchable NornicDB properties.
 
 Recommended index names:
 
@@ -186,21 +201,23 @@ they give better checkpoint control.
 
 ## Replay And Retraction
 
-Projection is idempotent by `context_id`, `text_hash`, `text_version`, and
-model identity.
+Projection is idempotent by stable `context_id`, versioned `node_uid`,
+`text_hash`, `text_version`, and model identity.
 
 - Unchanged text and model identity keep the existing `indexed` row.
-- Changed text writes a replacement context node and marks older hashes for
-  retraction.
+- Changed text writes a new hash-qualified `node_uid` and marks older node
+  UIDs for retraction.
 - Source tombstones or missing active source state retract matching context
   nodes.
+- Documentation permission changes from readable to denied or unknown retract
+  the prior context node and mark the current row `skipped_acl`.
 - Failed NornicDB writes leave Postgres rows retryable until the configured
   attempt budget is exhausted.
 - Retries must be safe under concurrent reducer workers and must not depend on
   lowering worker counts.
 
-Retraction should remove or hide only `EshuSemanticContext` nodes for the
-specific `context_id` and stale hash. It must not touch canonical graph labels.
+Retraction should remove or hide only `EshuSemanticContext` nodes by stale
+`node_uid`. It must not touch canonical graph labels.
 
 ## Query Contract For Later Phases
 
@@ -209,6 +226,8 @@ Phase 2 retrieval must use this projection through bounded calls:
 - require `limit`, timeout, search mode, and truncation signal
 - resolve repository, workload, service, or environment scope before search
 - search only `EshuSemanticContext` labels
+- rely only on documentation snippets that passed fail-closed projection
+  eligibility, then re-check source authorization during Postgres expansion
 - return handles and truth labels, not raw NornicDB nodes
 - expand graph/content details only after top-K candidates are selected
 - keep semantic candidates separate from canonical facts in the answer envelope
@@ -219,6 +238,8 @@ The implementation must cover these before runtime promotion:
 
 - invalid or unknown `source_kind`
 - empty, redacted, or oversized text
+- documentation with denied or unknown source ACL
+- documentation ACL changing after an earlier readable projection
 - duplicate handles with different generations
 - stale generation replay after a newer generation indexed
 - partial NornicDB write after Postgres checkpoint update failure
@@ -276,6 +297,8 @@ Before implementation work can be accepted:
 
 - unit tests prove text shaping, redaction, hashing, checkpoint status
   transitions, idempotent replay, and retraction selection
+- documentation projection tests prove unknown, denied, or ACL-protected
+  sources never create NornicDB context nodes
 - a focused fixture proves only `EshuSemanticContext` labels are written
 - semantic eval records current-path versus semantic-path metrics
 - performance evidence records input cardinality, fact count, context record
