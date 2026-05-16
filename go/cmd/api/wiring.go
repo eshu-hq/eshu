@@ -224,6 +224,10 @@ func newRouter(
 			Correlations: query.NewPostgresCICDRunCorrelationStore(db),
 			Profile:      queryProfile,
 		},
+		SupplyChain: &query.SupplyChainHandler{
+			SBOMAttachments: query.NewPostgresSBOMAttestationAttachmentStore(db),
+			Profile:         queryProfile,
+		},
 		Status: &query.StatusHandler{
 			Neo4j:        neo4jReader,
 			DB:           db,

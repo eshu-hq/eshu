@@ -58,6 +58,9 @@ const (
 	// DomainCICDRunCorrelation correlates provider CI/CD runs, artifacts, and
 	// environment observations with reducer-owned artifact identity evidence.
 	DomainCICDRunCorrelation Domain = "ci_cd_run_correlation"
+	// DomainSBOMAttestationAttachment attaches SBOM and attestation evidence to
+	// image digests only when subject evidence is explicit.
+	DomainSBOMAttestationAttachment Domain = "sbom_attestation_attachment"
 	// DomainAWSCloudRuntimeDrift publishes admitted AWS runtime-vs-IaC drift
 	// findings as canonical reducer facts. The domain stays graph-neutral until
 	// the drift node and query shape are frozen.

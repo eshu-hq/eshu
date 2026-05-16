@@ -108,6 +108,23 @@ Use `OCIRegistryFactKinds` when callers need the full accepted set, and
 reported OCI evidence. Tags are mutable observations; digest-addressed
 descriptors, manifests, indexes, and referrers carry the stronger identity.
 
+SBOM and attestation fact kinds use schema version `1.0.0` for the first
+collector contract:
+
+- `sbom.document`
+- `sbom.component`
+- `sbom.dependency_relationship`
+- `sbom.external_reference`
+- `attestation.statement`
+- `attestation.slsa_provenance`
+- `attestation.signature_verification`
+- `sbom.warning`
+
+Use `SBOMAttestationFactKinds` when callers need the full accepted set, and
+`SBOMAttestationSchemaVersion` when building SBOM/attestation envelopes. These
+facts are sensitive evidence. Reducers must keep document parse status,
+subject attachment status, and signature verification status separate.
+
 AWS cloud fact kinds use schema version `1.0.0` for the first collector
 contract:
 

@@ -49,4 +49,7 @@
 // do not cross-attach to other releases, and durable publication fact identity
 // includes the source-hint kind, fact ID, and version scope so weak and exact
 // hints with the same URL cannot overwrite each other.
+// SBOM and attestation attachment writes reducer facts for every attachment
+// status while keeping parse validity, signature verification, and component
+// evidence separate from vulnerability-impact truth.
 package reducer

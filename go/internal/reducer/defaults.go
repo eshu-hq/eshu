@@ -105,6 +105,10 @@ type DefaultHandlers struct {
 	// environment correlation decisions for CI/CD evidence.
 	CICDRunCorrelationWriter CICDRunCorrelationWriter
 
+	// SBOMAttestationAttachmentWriter persists SBOM and attestation document
+	// attachment decisions for digest-keyed image evidence.
+	SBOMAttestationAttachmentWriter SBOMAttestationAttachmentWriter
+
 	// PackageCorrelationWriter persists package ownership candidates and
 	// manifest-backed consumption decisions for package-registry evidence.
 	PackageCorrelationWriter PackageCorrelationWriter
@@ -257,6 +261,15 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			Instruments: handlers.Instruments,
 		}
 		definitions = append(definitions, cicdRun)
+	}
+	if handlers.FactLoader != nil && handlers.SBOMAttestationAttachmentWriter != nil {
+		attachments := sbomAttestationAttachmentDomainDefinition()
+		attachments.Handler = SBOMAttestationAttachmentHandler{
+			FactLoader:  handlers.FactLoader,
+			Writer:      handlers.SBOMAttestationAttachmentWriter,
+			Instruments: handlers.Instruments,
+		}
+		definitions = append(definitions, attachments)
 	}
 	if handlers.AWSCloudRuntimeDriftEvidenceLoader != nil &&
 		handlers.AWSCloudRuntimeDriftWriter != nil {

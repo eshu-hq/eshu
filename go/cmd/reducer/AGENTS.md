@@ -26,7 +26,7 @@ before touching any file in this directory.
   `config.go:135–148` `loadReducerProjectorDrainGate` returns `true` only
   when the backend is `GraphBackendNornicDB` AND the query profile is
   `local-authoritative`.
-- **Heartbeat renews at `LeaseDuration / 2`** — `main.go:341`
+- **Heartbeat renews at `LeaseDuration / 2`** — `main.go:353`
   `HeartbeatInterval: workQueue.LeaseDuration / 2`; do not set
   `ESHU_REDUCER_RETRY_DELAY` shorter than the lease TTL or claims will churn.
 - **Prior-config depth defaults to 10; invalid input WARNs and falls back** —
@@ -59,7 +59,7 @@ before touching any file in this directory.
 ### Change the drift prior-config depth
 
 - `PriorConfigDepth` on the loader is set via `parsePriorConfigDepth`
-  (`config.go:270`) from the `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` env var
+  (`config.go:311`) from the `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` env var
   (`main.go:294`). The package default lives in
   `go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go` as
   `defaultPriorConfigDepth` (10). When changing the default, update both the

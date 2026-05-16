@@ -69,6 +69,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan, unmanaged, unknown, and ambiguous drift findings as canonical reducer facts |
 | `DomainContainerImageIdentity` | Join Git, OCI registry, and runtime image references into digest-keyed reducer facts |
 | `DomainCICDRunCorrelation` | Correlate CI/CD runs, artifacts, and environments with artifact identity evidence |
+| `DomainSBOMAttestationAttachment` | Attach SBOM and attestation documents to image digests only when subject evidence is explicit |
 
 ## Intent lifecycle
 
@@ -330,9 +331,9 @@ Core interfaces:
 
 Key construction functions:
 
-- `NewDefaultRuntime(DefaultHandlers)` — `defaults.go:121` — one-call wiring
+- `NewDefaultRuntime(DefaultHandlers)` — `defaults.go:137` — one-call wiring
   for the standard domain catalog.
-- `NewDefaultRegistry(DefaultHandlers)` — `defaults.go:105` — registry only.
+- `NewDefaultRegistry(DefaultHandlers)` — `defaults.go:121` — registry only.
 - `NewRuntime(Registry)` — `runtime.go:63` — bare runtime over a custom registry.
 - `LoadSharedProjectionConfig(getenv)` — `shared_projection_runner.go:476`.
 - `BuildSharedProjectionIntent(input)` — `shared_projection.go:53` — stable
@@ -418,6 +419,12 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   facts only for explicit digest or single-tag-to-digest matches. Ambiguous,
   unresolved, and stale tag outcomes stay diagnostic counters until stronger
   evidence proves safe identity.
+- **SBOM attachment keeps trust dimensions separate** —
+  `SBOMAttestationAttachmentHandler` writes
+  `reducer_sbom_attestation_attachment` facts for attached verified,
+  unverified, parse-only, subject mismatch, unknown subject, and unparseable
+  outcomes. Component evidence stays evidence only; this domain must not emit
+  vulnerability priority or affected-by findings.
 - **Package ownership is conservative** —
   `PackageSourceCorrelationHandler` writes ownership candidates from registry
   source hints and package-version publication evidence but leaves

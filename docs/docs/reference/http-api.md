@@ -341,6 +341,21 @@ deployment truth by themselves; those rows stay derived, unresolved, ambiguous,
 or rejected with `provenance_only=true` when appropriate. Truncated responses
 include `next_cursor.after_correlation_id` for the next bounded read.
 
+### SBOM And Attestation Attachments
+
+`GET /api/v0/supply-chain/sbom-attestations/attachments` lists reducer-owned
+SBOM and attestation attachment facts. The caller must provide `limit` and at
+least one bounded anchor: `subject_digest`, `document_id`, or
+`document_digest`. Optional `attachment_status` and `artifact_kind` filters
+narrow the page after the digest or document anchor is set.
+
+Rows expose `attachment_status`, `parse_status`, and `verification_status`
+separately. Valid statuses are `attached_verified`, `attached_unverified`,
+`attached_parse_only`, `subject_mismatch`, `unknown_subject`, and
+`unparseable`. Component evidence is returned as document evidence only; this
+route does not emit vulnerability priority or affected-by findings. Truncated
+responses include `next_cursor.after_attachment_id` for the next bounded read.
+
 ## Context API
 
 ### Resolve fuzzy input into canonical entities

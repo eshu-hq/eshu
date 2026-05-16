@@ -19,7 +19,10 @@
 // dependency investigation uses graph-backed repo/file/module anchors before it
 // expands IMPORTS or CALLS relationships for prompt-ready dependency answers.
 // Call graph metrics use repo-anchored graph reads for recursive-function and
-// hub-function prompt answers with bounded pages and source handles.
+// hub-function prompt answers with bounded pages and source handles. Supply
+// chain attachment reads use Postgres reducer facts and require a subject
+// digest, document ID, or document digest before listing SBOM or attestation
+// evidence.
 // Hardcoded-secret investigation returns redacted
 // content-index findings with suppression notes and never returns raw secret
 // values; suppression filtering and Go suppression notes share one rule table,

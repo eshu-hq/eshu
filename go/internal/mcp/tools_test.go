@@ -7,7 +7,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 65
+	expectedCount := 66
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -56,6 +56,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"list_package_registry_dependencies",
 		"list_package_registry_correlations",
 		"list_ci_cd_run_correlations",
+		"list_sbom_attestation_attachments",
 		"resolve_entity",
 		"get_file_content",
 		"list_ingesters",

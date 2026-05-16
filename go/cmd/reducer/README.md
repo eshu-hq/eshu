@@ -58,7 +58,9 @@ flowchart TB
    drift adapters `PostgresAWSCloudRuntimeDriftEvidenceLoader` and
    `PostgresAWSCloudRuntimeDriftWriter` are wired for issue #39 so
    `aws_resource` reducer intents can publish durable orphan/unmanaged
-   findings after the bounded ARN join),
+   findings after the bounded ARN join; and the SBOM/attestation attachment
+   writer publishes digest-subject attachment facts before vulnerability impact
+   graph work lands),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
    the `postgres.NewReducerQueue`.
@@ -144,7 +146,7 @@ Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` | `10` | Number of prior repo-snapshot generations the drift loader walks to detect `removed_from_config`. `0` means use the default (10). Invalid or non-positive input falls back to `0` with a structured WARN log and the env key `failure_class=env_parse`. Parsed by `parsePriorConfigDepth` in `config.go:270` and stored in `PostgresDriftEvidenceLoader.PriorConfigDepth`. |
+| `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` | `10` | Number of prior repo-snapshot generations the drift loader walks to detect `removed_from_config`. `0` means use the default (10). Invalid or non-positive input falls back to `0` with a structured WARN log and the env key `failure_class=env_parse`. Parsed by `parsePriorConfigDepth` in `config.go:311` and stored in `PostgresDriftEvidenceLoader.PriorConfigDepth`. |
 
 ### NornicDB knobs (narrow seam)
 

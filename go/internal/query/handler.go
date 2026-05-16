@@ -119,6 +119,7 @@ type APIRouter struct {
 	Documentation   *DocumentationHandler
 	PackageRegistry *PackageRegistryHandler
 	CICD            *CICDHandler
+	SupplyChain     *SupplyChainHandler
 	Status          *StatusHandler
 	Compare         *CompareHandler
 	Admin           *AdminHandler
@@ -189,6 +190,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// CI/CD
 	if a.CICD != nil {
 		a.CICD.Mount(mux)
+	}
+
+	// Supply chain
+	if a.SupplyChain != nil {
+		a.SupplyChain.Mount(mux)
 	}
 
 	// Status

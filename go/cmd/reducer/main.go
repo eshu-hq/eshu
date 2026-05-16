@@ -319,6 +319,9 @@ func buildReducerService(
 		CICDRunCorrelationWriter: reducer.PostgresCICDRunCorrelationWriter{
 			DB: database,
 		},
+		SBOMAttestationAttachmentWriter: reducer.PostgresSBOMAttestationAttachmentWriter{
+			DB: database,
+		},
 		PackageCorrelationWriter: reducer.PostgresPackageCorrelationWriter{
 			DB: database,
 		},

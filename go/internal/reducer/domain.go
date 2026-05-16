@@ -22,6 +22,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainPackageSourceCorrelation:       {},
 	DomainContainerImageIdentity:         {},
 	DomainCICDRunCorrelation:             {},
+	DomainSBOMAttestationAttachment:      {},
 	DomainAWSCloudRuntimeDrift:           {},
 }
 

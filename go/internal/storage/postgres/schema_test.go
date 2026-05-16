@@ -261,6 +261,34 @@ func TestBootstrapDefinitionsIncludeCICDRunCorrelationFactIndexes(t *testing.T) 
 	}
 }
 
+func TestBootstrapDefinitionsIncludeSBOMAttestationAttachmentFactIndexes(t *testing.T) {
+	t.Parallel()
+
+	var facts Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "fact_records" {
+			facts = def
+			break
+		}
+	}
+	if facts.Name == "" {
+		t.Fatal("fact_records definition missing")
+	}
+	for _, want := range []string{
+		"fact_records_sbom_attestation_attachments_subject_idx",
+		"fact_records_sbom_attestation_attachments_document_idx",
+		"fact_records_sbom_attestation_attachments_status_idx",
+		"'reducer_sbom_attestation_attachment'",
+		"(payload->>'subject_digest')",
+		"(payload->>'document_id')",
+		"(payload->>'attachment_status')",
+	} {
+		if !strings.Contains(facts.SQL, want) {
+			t.Fatalf("fact_records SQL missing %q", want)
+		}
+	}
+}
+
 func TestBootstrapDefinitionsIncludeFactContractColumns(t *testing.T) {
 	t.Parallel()
 
