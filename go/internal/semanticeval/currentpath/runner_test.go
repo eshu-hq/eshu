@@ -153,6 +153,52 @@ func TestRequestBodyIncludesQueryForContentSearchModes(t *testing.T) {
 	}
 }
 
+func TestRunnerExcludesConfiguredArtifactHandles(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"data": map[string]any{
+				"results": []map[string]any{
+					{"handle": "file://repo-1/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json"},
+					{"handle": "file://repo-1/go/internal/semanticeval/README.md"},
+				},
+			},
+			"truth": map[string]any{"level": "derived"},
+		})
+	}))
+	defer server.Close()
+
+	suite := Suite{Cases: []Case{
+		{
+			Case: semanticeval.Case{
+				ID:       "artifact-filter",
+				Question: "where is semantic eval documented?",
+				Expected: []semanticeval.ExpectedHandle{
+					{Handle: "file://repo-1/go/internal/semanticeval/README.md", Relevance: 3, Required: true, MaxTruth: semanticeval.TruthClassDerived},
+				},
+			},
+			CurrentPath: Request{
+				Mode:  ModeContentFileSearch,
+				Query: "semantic eval",
+				ExcludeHandles: []string{
+					"file://repo-1/go/internal/semanticeval/currentpath/testdata/eshu_phase0_suite.json",
+				},
+			},
+		},
+	}}
+
+	run, err := Runner{BaseURL: server.URL, Timeout: time.Second}.Run(context.Background(), suite)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	candidates := run.Results[0].Candidates
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(candidates) = %d, want %d: %#v", got, want, candidates)
+	}
+	if got, want := candidates[0].Handle, "file://repo-1/go/internal/semanticeval/README.md"; got != want {
+		t.Fatalf("first handle = %q, want %q", got, want)
+	}
+}
+
 func TestRunnerRecordsUnsupportedCapability(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(t, w, http.StatusNotImplemented, map[string]any{
