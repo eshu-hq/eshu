@@ -166,9 +166,12 @@ wall time, and HTTP GET count in the changed package README or ADR.
 Use this when changing the vulnerability source-client slices for issue #12.
 This is not a live hosted collector smoke. It verifies bounded OSV API request
 shaping, detail fetch path construction, CISA KEV catalog decoding, FIRST EPSS
-explicit-CVE query shaping, source snapshot facts, affected package
-normalization, KEV/EPSS risk-signal facts, fixed-version extraction, and URL
-credential stripping without network calls or graph writes.
+explicit-CVE query shaping, NVD CVE API 2.0 single-CVE lookup, NVD 120-day
+modified-window validation, NVD pagination cap enforcement, optional NVD
+`apiKey` header delivery, source snapshot facts, affected package
+normalization, NVD CPE applicability envelope construction with version range
+fields preserved, KEV/EPSS risk-signal facts, fixed-version extraction, and
+URL credential stripping without network calls or graph writes.
 
 ```bash
 cd go
