@@ -29,6 +29,37 @@ export ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:15432/eshu
 For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 `neo4j` instead.
 
+## Remote Collector E2E Compose Proof
+
+Use this gate when changing `docker-compose.remote-e2e.yaml`. The proof target
+is an account-local or VPN-attached EC2 host with Docker, a readable S3
+Terraform state object, and an ECR repository. The Compose project name defaults
+to `eshu-remote-e2e`, so NornicDB, Postgres, and Eshu data volumes are isolated
+from the default local Compose project.
+
+No-Regression Evidence: baseline is no remote all-collector Compose entrypoint;
+after measurement is `docker compose --env-file .env.remote-e2e.example -f docker-compose.remote-e2e.yaml config`
+and `docker compose --env-file .env.remote-e2e.example -f docker-compose.remote-e2e.yaml --profile seed config seed-aws-freshness`.
+These commands rendered the stack against NornicDB
+`timothyswt/nornicdb-cpu-bge:v1.1.0@sha256:65855ca2c9649020f7f9e29d2e0fbedf0bf9601457de233d87160ddbe4b473f0`
+without starting remote AWS reads, creating queue rows, or changing default
+worker counts. Input shape is one configured AWS account, one AWS region plus
+`aws-global`, one S3 Terraform state seed, one private ECR repository target,
+one public npm package target, and optional Confluence credentials. Terminal
+queue and row counts are intentionally `0` for the local validation because the
+proof only renders configuration; the remote EC2 run must capture workflow
+runs, work items, retries, dead letters, collector status, and queue-zero
+before treating collector behavior as accepted.
+
+Observability Evidence: the rendered remote stack keeps the shared `/healthz`,
+`/readyz`, `/metrics`, and `/admin/status` surface for the workflow
+coordinator and collector workers, while API, MCP, ingester, reducer, Postgres,
+and NornicDB keep their existing Compose health and metrics endpoints. The AWS
+freshness seeder enters through the webhook listener, so operators can separate
+webhook intake, workflow planning, claim leasing, collector scan work, reducer
+projection, graph writes, and store failures with existing status endpoints,
+structured logs, and Prometheus metrics.
+
 ## Semantic Retrieval Phase 0 Baseline
 
 Use this when collecting the current-path baseline for ADR
