@@ -19,8 +19,9 @@
   read adapters (`query.Neo4jReader`, `query.ContentReader`). The binary never
   calls any graph write method or Postgres write method. Enforced structurally:
   handler structs hold read-port interfaces.
-- **Required Postgres DSN** — `wireAPI` returns an error if both `ESHU_POSTGRES_DSN`
-  and `ESHU_CONTENT_STORE_DSN` are empty; the binary exits at startup (`wiring.go:58`).
+- **Required Postgres DSN** — `wireAPI` returns an error after `ResolveAPIKey`
+  succeeds if both `ESHU_POSTGRES_DSN` and `ESHU_CONTENT_STORE_DSN` are empty;
+  the binary exits at startup (`wiring.go:42`).
 - **Profile and backend validated at startup** — `loadQueryProfile` and
   `loadGraphBackend` call `ParseQueryProfile` and `ParseGraphBackend` respectively;
   unrecognized values return errors that cause `os.Exit(1)` (`wiring.go:147`).

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"strings"
 )
 
@@ -306,23 +305,17 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	case "get_relationship_evidence":
 		return &route{method: "GET", path: "/api/v0/evidence/relationships/" + url.PathEscape(str(args, "resolved_id"))}, nil
 	case "list_package_registry_packages":
-		return &route{method: "GET", path: "/api/v0/package-registry/packages", query: map[string]string{
-			"package_id": str(args, "package_id"),
-			"ecosystem":  str(args, "ecosystem"),
-			"name":       str(args, "name"),
-			"limit":      strconv.Itoa(intOr(args, "limit", 50)),
-		}}, nil
+		return packageRegistryPackagesRoute(args), nil
 	case "list_package_registry_versions":
-		return &route{method: "GET", path: "/api/v0/package-registry/versions", query: map[string]string{
-			"package_id": str(args, "package_id"),
-			"limit":      strconv.Itoa(intOr(args, "limit", 50)),
-		}}, nil
+		return packageRegistryVersionsRoute(args), nil
 	case "list_package_registry_dependencies":
 		return packageRegistryDependenciesRoute(args), nil
 	case "list_package_registry_correlations":
 		return packageRegistryCorrelationsRoute(args), nil
 	case "list_ci_cd_run_correlations":
 		return cicdRunCorrelationsRoute(args), nil
+	case "list_sbom_attestation_attachments":
+		return sbomAttestationAttachmentsRoute(args), nil
 	case "get_repo_story":
 		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story"}, nil
 	case "get_repo_summary":

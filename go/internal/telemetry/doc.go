@@ -25,7 +25,9 @@
 // content and keeps that span name in contract_query_spans.go.
 // SpanQueryEvidenceCitationPacket names the prompt-facing citation
 // hydration route that turns explicit content handles into bounded source and
-// documentation proof. Pipeline stage, graph-backend, and failure-class names
+// documentation proof. SpanQuerySBOMAttestationAttachments names the
+// digest/document-anchored SBOM and attestation attachment read path. Pipeline
+// stage, graph-backend, and failure-class names
 // stay centralized here so runtime packages can report comparable events
 // without inventing local label vocabularies. The drift loader's module-aware join
 // (issue #169) registers

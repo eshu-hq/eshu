@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 65
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 66
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 65 tools from the tool definition files.
+`ReadOnlyTools` assembles 66 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -67,6 +67,7 @@ flowchart TB
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `packageRegistryTools` | 2 | `tools_package_registry.go` |
 | `cicdTools` | 1 | `tools_cicd.go` |
+| `supplyChainTools` | 1 | `tools_supply_chain.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
 | `runtimeTools` | 3 | `tools_runtime.go` |
@@ -98,6 +99,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_package_registry_dependencies` | GET | `/api/v0/package-registry/dependencies` |
 | `list_package_registry_correlations` | GET | `/api/v0/package-registry/correlations` |
 | `list_ci_cd_run_correlations` | GET | `/api/v0/ci-cd/run-correlations` |
+| `list_sbom_attestation_attachments` | GET | `/api/v0/supply-chain/sbom-attestations/attachments` |
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
@@ -125,7 +127,13 @@ citations per packet.
 
 Package-registry tools keep MCP as transport too. Ownership candidates,
 package-version publication evidence, and manifest-backed consumption all come
-from the query handler; MCP only maps arguments and preserves the envelope.
+from the query handler; `dispatch_package_registry.go` owns the bounded route
+builders while MCP only maps arguments and preserves the envelope.
+
+Supply-chain tools keep the same transport-only contract. The SBOM/attestation
+tool schema accepts only the reducer-owned attachment statuses, including
+`ambiguous_subject`, so multi-subject attestations stay visible without becoming
+canonical image attachments.
 
 IaC management tools also keep MCP as transport only. The HTTP query layer adds
 `safety_gate`, `safety_summary`, import-plan candidate shaping, and
@@ -142,7 +150,7 @@ callers.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 65 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 66 tool definitions |
 
 ## SSE session model
 

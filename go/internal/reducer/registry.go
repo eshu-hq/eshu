@@ -387,6 +387,29 @@ func cicdRunCorrelationDomainDefinition() DomainDefinition {
 	}
 }
 
+// sbomAttestationAttachmentDomainDefinition returns the additive definition for
+// SBOM and attestation attachment. The domain writes durable reducer facts for
+// all outcomes, but canonical attachment requires an explicit digest subject.
+func sbomAttestationAttachmentDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainSBOMAttestationAttachment,
+		Summary: "attach SBOM and attestation evidence to image digests when subject evidence is explicit",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "sbom_attestation_attachment",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
+
 // awsCloudRuntimeDriftDomainDefinition returns the additive definition for
 // AWS runtime drift publication. The domain consumes admitted
 // aws_cloud_runtime_drift candidates and writes durable reducer facts, but it

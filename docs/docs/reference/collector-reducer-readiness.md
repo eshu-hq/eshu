@@ -64,7 +64,7 @@ fixtures, reducer contracts, telemetry, and binary wiring exist.
 | Source family | Current state | Needed before runtime |
 | --- | --- | --- |
 | Kubernetes live | ADR exists; no runtime package or charted workload. | Collector kind/workflow contract, API discovery, fixtures, reducer joins, and a service runbook. |
-| SBOM and attestation | ADR exists; no runtime package or reducer. | Fact contracts, fixture parsers, OCI/referrer integration, provenance reducer, and read model. |
+| SBOM and attestation | Fact contracts and the first reducer attachment read model exist; hosted collector runtime is not implemented. | Fixture parsers, OCI/referrer integration in a collector runtime, live verification policy, and vulnerability-impact join remain. |
 | CI/CD runs | ADR exists; hosted runtime is not implemented. The first reducer slice writes `reducer_ci_cd_run_correlation` facts from fixture-backed run/artifact/environment evidence and exposes bounded API/MCP reads. The first collector implementation slice adds a GitHub Actions fixture normalizer that emits provider run, job, step, artifact, trigger, environment, and warning facts without hosted polling. | GitLab/Jenkins/Buildkite fixture normalizers, hosted GitHub Actions runtime, credentials/redaction proof, request-budget/status evidence, and live provider proof. |
 | Service catalog | ADR exists; no runtime package or reducer. | Catalog fact contracts, ownership/admission reducer, and service-story read integration. |
 | Observability | ADR exists; no runtime package or reducer. | OTel/Prometheus/Grafana/Datadog fact fixtures, reducer coverage outcomes, then hosted runtime. |
@@ -164,7 +164,36 @@ surfaces.
    `query.ci_cd_run_correlations` span plus existing Postgres query duration
    metrics expose the read path.
 
-6. Supply-chain impact.
+6. SBOM and attestation attachment.
+   `DomainSBOMAttestationAttachment` writes durable reducer facts for SBOM
+   documents and attestation statements by explicit subject digest. The
+   read model exposes `attached_verified`, `attached_unverified`,
+   `attached_parse_only`, `subject_mismatch`, `ambiguous_subject`,
+   `unknown_subject`, and `unparseable` without collapsing parse validity and
+   verification trust into one boolean or attaching multi-subject attestations
+   to an arbitrary digest. Component rows are evidence only; vulnerability
+   priority and affected-by findings remain gated.
+
+   No-Regression Evidence: focused reducer, query, MCP, storage, telemetry,
+   API, and reducer command coverage with
+   `go test ./internal/reducer -run 'TestBuildSBOMAttestationAttachmentDecisions|TestSBOMAttestationAttachmentHandler|TestPostgresSBOMAttestationAttachmentWriter' -count=1`,
+   `go test ./internal/query -run 'TestSupplyChainListSBOMAttestationAttachments|TestSBOMAttestationAttachmentQuery|TestOpenAPISpecIncludesSBOMAttestationAttachments|TestCapabilityMatrixMatchesYAMLContract' -count=1`,
+   `go test ./internal/mcp -run 'TestResolveRouteMapsSBOMAttestationAttachments|TestMCPToolContractMatrixCoversReadOnlyTools|TestReadOnlyTools|TestHandleHTTPMessage_ToolsList' -count=1`,
+   `go test ./internal/storage/postgres -run 'TestListActiveSBOMAttestationAttachmentFactsQueryIsDigestBoundedAndPaged|TestBootstrapDefinitionsIncludeSBOMAttestationAttachmentFactIndexes|TestBootstrapSQLFilesMirrorDefinitions' -count=1`,
+   `go test ./internal/telemetry -run 'TestSpanNames|TestInstruments' -count=1`,
+   and `go test ./cmd/reducer ./cmd/api ./cmd/mcp-server -count=1` covers
+   verified, failed-verification, parse-only, subject mismatch, ambiguous
+   subject, unknown subject, unparseable, bounded active fact loading, Postgres
+   indexes, OpenAPI, MCP, and runtime wiring contracts.
+
+   Observability Evidence: `eshu_dp_sbom_attestation_attachments_total`
+   exposes the reducer domain and bounded attachment outcome for admitted and
+   suppressed decisions; the `query.sbom_attestation_attachments` span plus
+   existing Postgres query duration metrics expose the read path. Attachment
+   facts carry parse status, verification status, warning summaries, component
+   count, source confidence, and evidence fact IDs for operator diagnosis.
+
+7. Supply-chain impact.
    SBOM, attestation, vulnerability, package, OCI, cloud, and deployment facts
    need reducer-owned confidence rules. The vulnerability collector should stay
    gated until those upstream facts are proven together.
@@ -205,7 +234,7 @@ Recommended order:
 3. Container image identity reducer and read model.
 4. #124, #130, and #131 for IaC management status before import-plan generation.
 5. Package ownership/usage reducer expansion.
-6. SBOM/attestation runtime and reducer.
+6. SBOM/attestation runtime fixture parsers and hosted collector wiring.
 7. Vulnerability intelligence runtime and impact reducer.
 8. Kubernetes live collector if cluster runtime truth is required.
 9. #20, #21, and #22 for shared multi-cloud collector design.

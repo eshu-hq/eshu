@@ -72,6 +72,18 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	if router.Evidence == nil {
 		t.Fatal("newMCPQueryRouter().Evidence = nil, want relationship evidence drilldown route mounted")
 	}
+	if router.SupplyChain == nil {
+		t.Fatal("newMCPQueryRouter().SupplyChain = nil, want SBOM attestation attachment route mounted")
+	}
+	if router.SupplyChain.SBOMAttachments == nil {
+		t.Fatal("newMCPQueryRouter().SupplyChain.SBOMAttachments = nil, want Postgres read model store")
+	}
+	if router.CICD == nil {
+		t.Fatal("newMCPQueryRouter().CICD = nil, want CI/CD run correlation route mounted")
+	}
+	if router.CICD.Correlations == nil {
+		t.Fatal("newMCPQueryRouter().CICD.Correlations = nil, want Postgres read model store")
+	}
 }
 
 func TestOpenQueryGraphAcceptsNornicDBOnSharedBoltPath(t *testing.T) {

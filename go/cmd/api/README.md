@@ -82,9 +82,9 @@ See `doc.go` for the full godoc contract.
 
 - `internal/query` — `APIRouter`, `RepositoryHandler`, `EntityHandler`,
   `CodeHandler`, `ContentHandler`, `InfraHandler`, `IaCHandler`, `ImpactHandler`,
-  `EvidenceHandler`, `StatusHandler`, `CompareHandler`, `AdminHandler`,
-  `Neo4jReader`, `ContentReader`, `AuthMiddleware`, `ParseQueryProfile`,
-  `ParseGraphBackend`
+  `EvidenceHandler`, `SupplyChainHandler`, `StatusHandler`, `CompareHandler`,
+  `AdminHandler`, `Neo4jReader`, `ContentReader`, `AuthMiddleware`,
+  `ParseQueryProfile`, `ParseGraphBackend`
 - `internal/runtime` — `OpenNeo4jDriver`, `ResolveAPIKey`, `NewStatusAdminMux`,
   `NewStatusRequestHandler`
 - `internal/recovery` — `NewHandler` for refinalize/replay routes
@@ -154,17 +154,22 @@ See `doc.go` for the full godoc contract.
 
 - Reads only. This binary does not write facts, enqueue projection work, or touch
   the reducer queue. Writes belong to `ingester`, `projector`, or `reducer`.
+
 - Version probes are pre-startup checks. Keep `printAPIVersionFlag` at the top
   of `main` so `eshu-api --version` works without database credentials.
-- `ESHU_POSTGRES_DSN` is required; startup fails with an explicit error if both
-  `ESHU_POSTGRES_DSN` and the legacy `ESHU_CONTENT_STORE_DSN` are empty
-  (`wiring.go:58`).
+
+- `ESHU_POSTGRES_DSN` is required; after `ResolveAPIKey` succeeds, startup fails
+  with an explicit error if both `ESHU_POSTGRES_DSN` and the legacy
+  `ESHU_CONTENT_STORE_DSN` are empty (`wiring.go:42`).
+
 - Invalid `ESHU_QUERY_PROFILE` or `ESHU_GRAPH_BACKEND` values fail at startup via
   `ParseQueryProfile` and `ParseGraphBackend`; there is no silent default for
   unrecognized values.
+
 - `wireAPI` returns a cleanup closure. `PrometheusHandler` and all acquired
   connections are freed when the closure runs; partial wiring failures still
   free already-acquired connections (`main.go:67`).
+
 - The API mux is wrapped with `AuthMiddleware` before it is handed to the
   HTTP server; do not add unprotected data routes after this wrap point.
 

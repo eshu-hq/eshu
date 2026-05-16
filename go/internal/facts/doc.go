@@ -20,4 +20,7 @@
 // evidence reported by AWS service APIs. CI/CD run fact kind constants and
 // schema-version helpers live here for pipeline definition, run, job, step,
 // artifact, trigger, environment, and warning evidence reported by providers.
+// SBOM and attestation fact kind constants and schema-version helpers live here
+// for document, component, dependency, external reference, statement, SLSA
+// provenance, signature verification, and warning evidence.
 package facts
