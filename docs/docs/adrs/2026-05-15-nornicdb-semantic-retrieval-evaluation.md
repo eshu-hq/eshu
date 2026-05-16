@@ -263,11 +263,25 @@ Initial implementation status:
   while avoiding private code, secrets, customer names, and unredacted
   production incident text.
 
+Baseline Evidence: on 2026-05-16, commit `45e0ed15`, local-authoritative
+NornicDB `v1.0.44`, clean `ESHU_HOME`, and HTTP API `127.0.0.1:8081`, the
+starter corpus ran against `repository:r_03915719`. The indexed repo contained
+2,669 content files, 92,594 content entities, 97,949 facts, and 9/9 succeeded
+work items with pending/in-flight/retrying/failed/dead-letter all `0`.
+`semantic-eval-currentpath` over 10 cases at `K=10` produced `recall@10=0.10`,
+`precision@10=0.01`, `nDCG@10=0.10`, false canonical claims `0`, forbidden
+hits `0`, unsupported cases `0`, mean latency `23.3837ms`, and p95 latency
+`113.008ms`. Caveat: the checked-in eval suite file appeared as the only hit
+for 9/10 cases because its fixture text self-matches the current exact content
+search path; the next corpus iteration should exclude eval artifacts or add
+explicit must-not-include handles before treating recall as product evidence.
+
 No-Regression Evidence: `cd go && go test ./cmd/semantic-eval-currentpath ./internal/semanticeval/... -count=1`
 passes for the scoring package, checked-in fixture contract, starter corpus
 contract, bounded HTTP request construction, truth mapping,
 unsupported-capability handling, candidate handle normalization, placeholder
-substitution, and report/run JSON writing.
+substitution, content search query-body construction, and report/run JSON
+writing.
 
 No-Observability-Change: this slice adds offline scoring and an opt-in
 current-path HTTP eval runner/command only. It does not add production runtime

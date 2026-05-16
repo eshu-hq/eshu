@@ -132,6 +132,27 @@ func TestRunnerMapsTopicEvidenceGroupsAndFallbackTruth(t *testing.T) {
 	}
 }
 
+func TestRequestBodyIncludesQueryForContentSearchModes(t *testing.T) {
+	evalCase := Case{
+		Case: semanticeval.Case{
+			ID:       "content-search",
+			Question: "Where is semantic eval documented?",
+			Scope:    map[string]string{"repo_id": "repo-1"},
+			Expected: []semanticeval.ExpectedHandle{
+				{Handle: "file://repo-1/README.md", Relevance: 3, Required: true, MaxTruth: semanticeval.TruthClassDerived},
+			},
+		},
+	}
+
+	for _, mode := range []Mode{ModeContentFileSearch, ModeContentEntitySearch} {
+		evalCase.CurrentPath = Request{Mode: mode, Query: "Semantic Eval", Limit: 10}
+		body := evalCase.CurrentPath.body(evalCase)
+		if got, want := body["query"], "Semantic Eval"; got != want {
+			t.Fatalf("mode %q query = %#v, want %q", mode, got, want)
+		}
+	}
+}
+
 func TestRunnerRecordsUnsupportedCapability(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(t, w, http.StatusNotImplemented, map[string]any{
