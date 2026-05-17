@@ -2,10 +2,12 @@ package awssdk
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	awssqs "github.com/aws/aws-sdk-go-v2/service/sqs"
 	awssqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/aws/smithy-go"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
@@ -65,15 +67,88 @@ func TestClientListQueuesReadsOnlyMetadataAttributesAndTags(t *testing.T) {
 		if name == awssqstypes.QueueAttributeNamePolicy {
 			t.Fatalf("GetQueueAttributes requested Policy; metadata-only scanner must not request queue policy JSON")
 		}
+		if isTestFIFOOnlyAttribute(name) {
+			t.Fatalf("standard queue attribute request included FIFO-only attribute %q", name)
+		}
+	}
+}
+
+func TestClientListQueuesReadsFIFOAttributesOnlyForFIFOQueues(t *testing.T) {
+	queueURL := "https://sqs.us-east-1.amazonaws.com/123456789012/orders.fifo"
+	client := &fakeSQSAPI{
+		listQueuesPages: []*awssqs.ListQueuesOutput{{
+			QueueUrls: []string{queueURL},
+		}},
+		attributes: map[string]string{
+			string(awssqstypes.QueueAttributeNameQueueArn):                      "arn:aws:sqs:us-east-1:123456789012:orders.fifo",
+			string(awssqstypes.QueueAttributeNameFifoQueue):                     "true",
+			string(awssqstypes.QueueAttributeNameContentBasedDeduplication):     "true",
+			string(awssqstypes.QueueAttributeNameDeduplicationScope):            "messageGroup",
+			string(awssqstypes.QueueAttributeNameFifoThroughputLimit):           "perMessageGroupId",
+			string(awssqstypes.QueueAttributeNameReceiveMessageWaitTimeSeconds): "20",
+		},
+	}
+	adapter := &Client{
+		client:   client,
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSQS},
+	}
+
+	queues, err := adapter.ListQueues(context.Background())
+	if err != nil {
+		t.Fatalf("ListQueues() error = %v, want nil", err)
+	}
+	if got, want := client.attributeCallCount, 1; got != want {
+		t.Fatalf("GetQueueAttributes calls = %d, want %d", got, want)
+	}
+	for _, want := range []awssqstypes.QueueAttributeName{
+		awssqstypes.QueueAttributeNameQueueArn,
+		awssqstypes.QueueAttributeNameFifoQueue,
+		awssqstypes.QueueAttributeNameDeduplicationScope,
+		awssqstypes.QueueAttributeNameReceiveMessageWaitTimeSeconds,
+	} {
+		if !containsAttributeName(client.attributeNames, want) {
+			t.Fatalf("GetQueueAttributes did not request %q", want)
+		}
+	}
+	if got := queues[0].Attributes.DeduplicationScope; got != "messageGroup" {
+		t.Fatalf("DeduplicationScope = %q, want messageGroup", got)
+	}
+}
+
+func TestClientListQueuesDoesNotRequestFIFOOnlyAttributesForStandardQueues(t *testing.T) {
+	queueURL := "https://sqs.us-east-1.amazonaws.com/123456789012/orders"
+	client := &fakeSQSAPI{
+		listQueuesPages: []*awssqs.ListQueuesOutput{{
+			QueueUrls: []string{queueURL},
+		}},
+		attributes: map[string]string{
+			string(awssqstypes.QueueAttributeNameQueueArn):  "arn:aws:sqs:us-east-1:123456789012:orders",
+			string(awssqstypes.QueueAttributeNameFifoQueue): "false",
+		},
+		rejectFIFOOnlyAttributes: true,
+	}
+	adapter := &Client{
+		client:   client,
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSQS},
+	}
+
+	if _, err := adapter.ListQueues(context.Background()); err != nil {
+		t.Fatalf("ListQueues() error = %v, want nil", err)
+	}
+	if got, want := client.attributeCallCount, 1; got != want {
+		t.Fatalf("GetQueueAttributes calls = %d, want %d", got, want)
 	}
 }
 
 type fakeSQSAPI struct {
-	listQueuesPages []*awssqs.ListQueuesOutput
-	listQueuesCalls int
-	attributeNames  []awssqstypes.QueueAttributeName
-	attributes      map[string]string
-	tags            map[string]string
+	listQueuesPages          []*awssqs.ListQueuesOutput
+	listQueuesCalls          int
+	attributeCallCount       int
+	attributeNames           []awssqstypes.QueueAttributeName
+	attributes               map[string]string
+	attributesByCall         []map[string]string
+	tags                     map[string]string
+	rejectFIFOOnlyAttributes bool
 }
 
 func (f *fakeSQSAPI) ListQueues(
@@ -95,6 +170,22 @@ func (f *fakeSQSAPI) GetQueueAttributes(
 	_ ...func(*awssqs.Options),
 ) (*awssqs.GetQueueAttributesOutput, error) {
 	f.attributeNames = append(f.attributeNames, input.AttributeNames...)
+	f.attributeCallCount++
+	if f.rejectFIFOOnlyAttributes {
+		for _, name := range input.AttributeNames {
+			if isTestFIFOOnlyAttribute(name) {
+				return nil, &smithy.GenericAPIError{
+					Code:    "InvalidAttributeName",
+					Message: fmt.Sprintf("attribute %s is only valid for FIFO queues", name),
+				}
+			}
+		}
+	}
+	if len(f.attributesByCall) > 0 {
+		attributes := f.attributesByCall[0]
+		f.attributesByCall = f.attributesByCall[1:]
+		return &awssqs.GetQueueAttributesOutput{Attributes: attributes}, nil
+	}
 	return &awssqs.GetQueueAttributesOutput{Attributes: f.attributes}, nil
 }
 
@@ -113,6 +204,18 @@ func containsAttributeName(names []awssqstypes.QueueAttributeName, want awssqsty
 		}
 	}
 	return false
+}
+
+func isTestFIFOOnlyAttribute(name awssqstypes.QueueAttributeName) bool {
+	switch name {
+	case awssqstypes.QueueAttributeNameFifoQueue,
+		awssqstypes.QueueAttributeNameContentBasedDeduplication,
+		awssqstypes.QueueAttributeNameDeduplicationScope,
+		awssqstypes.QueueAttributeNameFifoThroughputLimit:
+		return true
+	default:
+		return false
+	}
 }
 
 func equalStrings(left, right []string) bool {

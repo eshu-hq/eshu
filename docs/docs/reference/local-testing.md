@@ -60,6 +60,32 @@ webhook intake, workflow planning, claim leasing, collector scan work, reducer
 projection, graph writes, and store failures with existing status endpoints,
 structured logs, and Prometheus metrics.
 
+No-Regression Evidence: after fixing the AWS scan-status placeholder contract,
+standard SQS queue attribute selection, CloudWatch Logs tag throttling, and the
+remote package-registry target bound, the remote all-collector Compose proof
+completed against read-only AWS plus bounded OCI, package-registry, and
+Terraform-state targets. The terminal state was `aws|completed|19`,
+`oci_registry|completed|12`, `package_registry|completed|12`,
+`terraform_state|completed|12`, fact sources `aws|10224`,
+`oci_registry|1272`, `package_registry|8508`, `terraform_state|1205`, and
+fact work items `succeeded|453` with no failed, retrying, or dead-letter rows.
+The AWS scan-status summary was `succeeded|committed|19|4489|3839|2543|0`
+for status, commit status, service count, API calls, resources,
+relationships, and warnings. API and MCP `/healthz` both returned `status=ok`,
+all collector containers were healthy, and NornicDB logged
+`Search index startup build skipped (mode=manual)` with no recent
+`UNWIND MERGE chain relationship update failed`, SQLSTATE, collect-failure,
+constraint, panic, fatal, or OOM errors.
+
+Observability Evidence: the proof used workflow work-item state,
+`aws_scan_status`, fact source counts, fact work-item terminal counts,
+collector structured logs, API/MCP `/healthz`, collector container health, and
+NornicDB logs to diagnose each stage. Existing AWS API-call and throttle
+metrics stayed active for SQS, CloudWatch Logs, API Gateway, and S3 service
+calls, so the fixes preserve operator visibility into API pressure while
+preventing standard-queue metadata and throttled tag reads from failing the
+entire collector process.
+
 ## Semantic Retrieval Phase 0 Baseline
 
 Use this when collecting the current-path baseline for ADR

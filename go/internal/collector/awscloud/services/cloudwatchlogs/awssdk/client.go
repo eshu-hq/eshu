@@ -105,6 +105,9 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 		})
 		return err
 	})
+	if isThrottleError(err) {
+		return nil, nil
+	}
 	if err != nil || output == nil {
 		return nil, err
 	}

@@ -90,12 +90,24 @@ func (c *Client) queueMetadata(ctx context.Context, queueURL string) (sqsservice
 }
 
 func (c *Client) getQueueAttributes(ctx context.Context, queueURL string) (map[string]string, error) {
+	attributeNames := standardQueueAttributeNames()
+	if isFIFOQueueURL(queueURL) {
+		attributeNames = append(attributeNames, fifoQueueAttributeNames()...)
+	}
+	return c.requestQueueAttributes(ctx, queueURL, attributeNames)
+}
+
+func (c *Client) requestQueueAttributes(
+	ctx context.Context,
+	queueURL string,
+	attributeNames []awssqstypes.QueueAttributeName,
+) (map[string]string, error) {
 	var output *awssqs.GetQueueAttributesOutput
 	err := c.recordAPICall(ctx, "GetQueueAttributes", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetQueueAttributes(callCtx, &awssqs.GetQueueAttributesInput{
 			QueueUrl:       aws.String(queueURL),
-			AttributeNames: safeQueueAttributeNames(),
+			AttributeNames: attributeNames,
 		})
 		return err
 	})
@@ -126,7 +138,7 @@ func (c *Client) listQueueTags(ctx context.Context, queueURL string) (map[string
 	return cloneStringMap(output.Tags), nil
 }
 
-func safeQueueAttributeNames() []awssqstypes.QueueAttributeName {
+func standardQueueAttributeNames() []awssqstypes.QueueAttributeName {
 	return []awssqstypes.QueueAttributeName{
 		awssqstypes.QueueAttributeNameQueueArn,
 		awssqstypes.QueueAttributeNameCreatedTimestamp,
@@ -136,16 +148,25 @@ func safeQueueAttributeNames() []awssqstypes.QueueAttributeName {
 		awssqstypes.QueueAttributeNameMessageRetentionPeriod,
 		awssqstypes.QueueAttributeNameReceiveMessageWaitTimeSeconds,
 		awssqstypes.QueueAttributeNameVisibilityTimeout,
-		awssqstypes.QueueAttributeNameFifoQueue,
-		awssqstypes.QueueAttributeNameContentBasedDeduplication,
-		awssqstypes.QueueAttributeNameDeduplicationScope,
-		awssqstypes.QueueAttributeNameFifoThroughputLimit,
 		awssqstypes.QueueAttributeNameKmsMasterKeyId,
 		awssqstypes.QueueAttributeNameKmsDataKeyReusePeriodSeconds,
 		awssqstypes.QueueAttributeNameSqsManagedSseEnabled,
 		awssqstypes.QueueAttributeNameRedrivePolicy,
 		awssqstypes.QueueAttributeNameRedriveAllowPolicy,
 	}
+}
+
+func fifoQueueAttributeNames() []awssqstypes.QueueAttributeName {
+	return []awssqstypes.QueueAttributeName{
+		awssqstypes.QueueAttributeNameFifoQueue,
+		awssqstypes.QueueAttributeNameContentBasedDeduplication,
+		awssqstypes.QueueAttributeNameDeduplicationScope,
+		awssqstypes.QueueAttributeNameFifoThroughputLimit,
+	}
+}
+
+func isFIFOQueueURL(queueURL string) bool {
+	return strings.HasSuffix(queueNameFromURL(queueURL), ".fifo")
 }
 
 func mapQueue(queueURL string, attributes map[string]string, tags map[string]string) sqsservice.Queue {

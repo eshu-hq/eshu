@@ -127,7 +127,7 @@ x-collector-env: &remote_e2e_collector_env
               "scope_id": "package-registry://npm/npm/lodash",
               "packages": ["lodash"],
               "package_limit": 1,
-              "version_limit": 5,
+              "version_limit": 200,
               "visibility": "public",
               "metadata_url": "https://registry.npmjs.org/lodash",
               "document_format": "native"
