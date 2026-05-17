@@ -73,6 +73,6 @@ jobs:
             artifacts/eshu-linux-x86_64/eshu-linux-x86_64
             artifacts/eshu-macos-arm64/eshu-macos-arm64
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
