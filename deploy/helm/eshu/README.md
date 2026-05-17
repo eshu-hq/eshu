@@ -9,7 +9,8 @@ with:
 - NornicDB as the default graph adapter through the Bolt-compatible graph
   connection values; set `env.ESHU_GRAPH_BACKEND=neo4j` for the explicit Neo4j
   compatibility path
-- A short-lived `eshu-bootstrap-data-plane` init container on every database-backed workload
+- A short-lived `eshu-bootstrap-data-plane` schema bootstrap `Job` that runs
+  once before install or upgrade
 - A stateless API `Deployment` for HTTP API
 - A stateless MCP `Deployment` for MCP transport and mounted query routes
 - A stateful repository ingester `StatefulSet` for repo sync and indexing
@@ -51,18 +52,27 @@ helm template eshu ./deploy/helm/eshu
 contentStore:
   dsn: postgresql://eshu:secret@postgres:5432/eshu
 
+schemaBootstrap:
+  enabled: true
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 300
+
 apiAuth:
   secretName: eshu-api-auth
   key: api-key
 
 api:
   replicas: 2
+  env:
+    GOMEMLIMIT: "1536MiB"
   resources:
     requests:
       cpu: 250m
       memory: 512Mi
 
 ingester:
+  env:
+    ESHU_PPROF_ADDR: "127.0.0.1:6060"
   resources:
     requests:
       cpu: 500m
@@ -77,6 +87,8 @@ ingester:
       connectionAcquisitionTimeout: 20s
 
 resolutionEngine:
+  env:
+    ESHU_PPROF_ADDR: "127.0.0.1:6061"
   connectionTuning:
     neo4j:
       maxConnectionPoolSize: "150"

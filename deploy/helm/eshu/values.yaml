@@ -36,6 +36,23 @@ initContainerSecurityContext:
     drop:
       - ALL
 
+schemaBootstrap:
+  enabled: true
+  useHelmHooks: true
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 300
+  serviceAccountName: ""
+  annotations: {}
+  podAnnotations: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
 service:
   type: ClusterIP
   port: 8080
@@ -51,6 +68,7 @@ apiAuth:
 api:
   replicas: 1
   revisionHistoryLimit: 3
+  env: {}
   connectionTuning:
     postgres:
       maxOpenConns: ""
@@ -76,6 +94,7 @@ mcpServer:
   enabled: true
   replicas: 1
   revisionHistoryLimit: 3
+  env: {}
   connectionTuning:
     postgres:
       maxOpenConns: ""
@@ -102,6 +121,7 @@ resolutionEngine:
   replicas: 1
   revisionHistoryLimit: 3
   lanes: []
+  env: {}
   connectionTuning:
     postgres:
       maxOpenConns: ""
@@ -130,6 +150,7 @@ workflowCoordinator:
   collectorInstances: []
   replicas: 1
   revisionHistoryLimit: 3
+  env: {}
   connectionTuning:
     postgres:
       maxOpenConns: ""
@@ -359,6 +380,7 @@ exposure:
 ingester:
   replicas: 1
   revisionHistoryLimit: 3
+  env: {}
   connectionTuning:
     postgres:
       maxOpenConns: ""

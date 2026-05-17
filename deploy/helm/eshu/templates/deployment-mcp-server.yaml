@@ -39,8 +39,6 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      initContainers:
-        {{- include "eshu.renderDataPlaneBootstrapInitContainer" . | nindent 8 }}
       containers:
         - name: mcp-server
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -67,7 +65,7 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.apiAuth.secretName }}
                   key: {{ .Values.apiAuth.key }}
-            {{- include "eshu.renderEnvMap" .Values.env | nindent 12 }}
+            {{- include "eshu.renderEnvMaps" (list .Values.env .Values.mcpServer.env) | nindent 12 }}
           ports:
             - name: http
               containerPort: 8080

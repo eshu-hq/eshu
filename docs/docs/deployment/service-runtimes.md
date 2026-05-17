@@ -58,7 +58,7 @@ Current platform reality:
 
 | Runtime | Owns | Default command | Storage access | Metrics exposure | Kubernetes shape |
 | --- | --- | --- | --- | --- | --- |
-| DB Migrate | Postgres + graph schema DDL | `/usr/local/bin/eshu-bootstrap-data-plane` | Postgres DDL + graph DDL | none (exits immediately) | `initContainer` |
+| Schema Bootstrap | Postgres + graph schema DDL | `/usr/local/bin/eshu-bootstrap-data-plane` | Postgres DDL + graph DDL | none (exits immediately) | `Job` |
 | API | HTTP API, query reads, admin endpoints | `eshu api start --host 0.0.0.0 --port 8080` | graph + content reads only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | MCP Server | MCP tool transport plus mounted query passthrough | `eshu mcp start` | graph + content reads only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Ingester | repo sync, parsing, fact emission, workspace ownership | `/usr/local/bin/eshu-ingester` | workspace PVC + Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `StatefulSet` |
@@ -517,7 +517,7 @@ operator sets both claim flags and an explicit claim-enabled collector instance.
 That proof path is for fenced claim validation, API/MCP truth checks, and
 remote full-corpus timing; it is not the Kubernetes production default.
 
-## DB Migrate (Schema Init Container)
+## Schema Bootstrap
 
 `eshu-bootstrap-data-plane` applies all Postgres and graph backend schema DDL then
 exits. It uses `CREATE TABLE IF NOT EXISTS` and `CREATE CONSTRAINT IF NOT
@@ -534,9 +534,9 @@ EXISTS` so it is safe to run repeatedly (idempotent).
 
 ### Why it exists
 
-Without this service, downstream runtimes (API, MCP, ingester, reducer)
+Without this job, downstream runtimes (API, MCP, ingester, reducer)
 had to wait for `bootstrap-index` to finish its full data population run
-(50+ minutes on 895 repos) before starting. The schema init container
+(50+ minutes on 895 repos) before starting. The schema bootstrap job
 decouples DDL from data: services come up within seconds and serve traffic
 on an empty-but-valid schema while bootstrap-index populates data in the
 background.
@@ -566,64 +566,51 @@ db-migrate:
       condition: service_healthy
 ```
 
-### EKS / Kubernetes Init Container
+### Kubernetes
 
-In EKS, add `eshu-bootstrap-data-plane` as an `initContainer` on every
-Deployment and StatefulSet that needs database access. The init container
-runs before the main container starts, ensuring schemas exist. The public Helm
-chart now follows that contract for the API, MCP server, ingester,
-workflow-coordinator, and resolution-engine workloads.
+In Kubernetes, run `eshu-bootstrap-data-plane` once as a bounded Job before
+rolling API, MCP server, ingester, workflow-coordinator, collectors, and
+resolution-engine workloads. The public Helm chart renders this as a
+`schema-bootstrap` Job with Helm `pre-install,pre-upgrade` hook annotations.
+Argo CD maps those Helm hooks to `PreSync`, so GitOps installs also run schema
+bootstrap before applying the workload wave.
 
 ```yaml
-# Example: API Deployment
-apiVersion: apps/v1
-kind: Deployment
+# Example: schema bootstrap Job
+apiVersion: batch/v1
+kind: Job
 metadata:
-  name: eshu
+  name: eshu-schema-bootstrap
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
   template:
     spec:
-      initContainers:
-        - name: db-migrate
+      restartPolicy: Never
+      containers:
+        - name: schema-bootstrap
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           command: ["/usr/local/bin/eshu-bootstrap-data-plane"]
           env:
             - name: ESHU_POSTGRES_DSN
-              valueFrom:
-                secretKeyRef:
-                  name: eshu-db-credentials
-                  key: dsn
+              value: postgresql://eshu:secret@postgres:5432/eshu
             - name: NEO4J_URI
               value: bolt://nornicdb:7687
             - name: NEO4J_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: eshu-neo4j-credentials
-                  key: username
+              value: neo4j
             - name: NEO4J_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: eshu-neo4j-credentials
-                  key: password
+              value: change-me
             - name: ESHU_GRAPH_BACKEND
               value: nornicdb
             - name: DEFAULT_DATABASE
               value: nornic
-      containers:
-        - name: api
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-          command: ["/usr/local/bin/eshu-api"]
-          # ...
 ```
 
-Apply the same init container to:
-
-| Workload | Kind | Why |
-| --- | --- | --- |
-| `eshu` (API) | `Deployment` | Reads from Postgres + graph backend |
-| `mcp-server` | `Deployment` | Reads from Postgres + graph backend |
-| `ingester` | `StatefulSet` | Writes facts to Postgres |
-| `resolution-engine` (reducer) | `Deployment` | Writes to Postgres + graph backend |
+Do not attach graph schema bootstrap to every runtime pod. Repeating graph
+schema verification from each workload can saturate a large existing graph
+backend during rolling updates and makes the deployment look hung.
 
 ### Environment variables
 
@@ -638,16 +625,15 @@ Apply the same init container to:
 
 ### Operational notes
 
-- **Idempotent**: safe to run on every pod start — all DDL uses `IF NOT EXISTS`.
-- **Fast**: completes in under 5 seconds on a warm database.
+- **Idempotent**: safe to run for every install or upgrade — all DDL uses
+  `IF NOT EXISTS`.
+- **Bounded**: the Helm chart gives the Job an `activeDeadlineSeconds` timeout.
 - **No data dependency**: does not populate any data, only creates empty tables
   and indexes. Data is populated by `bootstrap-index` or `ingester`.
-- **Failure handling**: if the init container fails (database unreachable),
-  Kubernetes will retry the pod according to `restartPolicy`. The main
-  container will not start until schema migration succeeds.
+- **Failure handling**: if the Job fails, Helm/Argo marks the release or sync
+  failed before workloads roll.
 - **Rolling updates**: when deploying a new version with schema changes, the
-  init container on the first pod to roll applies the new DDL. Subsequent pods
-  see it already applied (idempotent).
+  Job applies the new DDL once before replacement pods start.
 
 ## Bootstrap Index
 

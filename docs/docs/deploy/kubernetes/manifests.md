@@ -18,5 +18,5 @@ kubectl apply -k deploy/manifests/minimal
 ```
 
 This is not the production shape. It does not include the MCP runtime,
-ingester, workflow coordinator, resolution engine, db-migrate init container,
-or `ServiceMonitor` resources.
+ingester, workflow coordinator, resolution engine, schema bootstrap Job, or
+`ServiceMonitor` resources.

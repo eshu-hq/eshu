@@ -743,6 +743,32 @@ Capture a profile while reproducing the slow path on the same host as the
 runtime; loopback-only binding means `kubectl port-forward` (in a deployment)
 or just running the binary locally (for dogfood) is the typical access path.
 
+For Helm deployments, use workload-specific `env` maps when only one runtime
+needs a profile:
+
+```yaml
+ingester:
+  env:
+    ESHU_PPROF_ADDR: "127.0.0.1:6060"
+resolutionEngine:
+  env:
+    ESHU_PPROF_ADDR: "127.0.0.1:6061"
+```
+
+No-Regression Evidence: baseline `helm template` with
+`ingester.env.ESHU_PPROF_ADDR` and `resolutionEngine.env.ESHU_PPROF_ADDR`
+rendered no `ESHU_PPROF_ADDR` entries because the public chart ignored
+workload env maps; after the chart change, the same render puts `6060` only on
+the ingester and `6061` only on the default resolution-engine deployment.
+`resolutionEngine.lanes[0].env.ESHU_PPROF_ADDR` previously failed schema
+validation and now renders on the named reducer lane only.
+
+Observability Evidence: this is an opt-in diagnostics-only chart change. It
+does not add workers, graph writes, or queue work; it lets operators turn on the
+existing `runtime.NewPprofServer` logs (`pprof server listening`) and
+`/debug/pprof/*` endpoints per runtime while leaving pprof absent from the
+default rendered chart.
+
 ### CPU Capture During A Phase
 
 For perf investigations that need a CPU profile from the ingester, or matched
