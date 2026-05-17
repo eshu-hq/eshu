@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awscloudwatchlogs "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	awscloudwatchlogstypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
+	"github.com/aws/smithy-go"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
@@ -103,6 +104,36 @@ func TestClientListsCloudWatchLogsMetadataOnly(t *testing.T) {
 	}
 }
 
+func TestClientListsLogGroupsWhenTagReadIsThrottled(t *testing.T) {
+	logGroupARN := "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/orders"
+	api := &fakeCloudWatchLogsAPI{
+		groupPages: []*awscloudwatchlogs.DescribeLogGroupsOutput{{
+			LogGroups: []awscloudwatchlogstypes.LogGroup{{
+				LogGroupArn:  aws.String(logGroupARN),
+				LogGroupName: aws.String("/aws/lambda/orders"),
+			}},
+		}},
+		tagErrors: map[string]error{
+			logGroupARN: &smithy.GenericAPIError{
+				Code:    "ThrottlingException",
+				Message: "Rate exceeded",
+			},
+		},
+	}
+	adapter := &Client{client: api, boundary: testBoundary()}
+
+	logGroups, err := adapter.ListLogGroups(context.Background())
+	if err != nil {
+		t.Fatalf("ListLogGroups() error = %v, want nil", err)
+	}
+	if got, want := len(logGroups), 1; got != want {
+		t.Fatalf("len(logGroups) = %d, want %d", got, want)
+	}
+	if len(logGroups[0].Tags) != 0 {
+		t.Fatalf("Tags = %#v, want no tags when tag read is throttled", logGroups[0].Tags)
+	}
+}
+
 func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
@@ -117,6 +148,7 @@ type fakeCloudWatchLogsAPI struct {
 	groupLimits []int32
 	groupTokens []string
 	tags        map[string]*awscloudwatchlogs.ListTagsForResourceOutput
+	tagErrors   map[string]error
 	tagARNs     []string
 }
 
@@ -142,6 +174,9 @@ func (f *fakeCloudWatchLogsAPI) ListTagsForResource(
 ) (*awscloudwatchlogs.ListTagsForResourceOutput, error) {
 	resourceARN := aws.ToString(input.ResourceArn)
 	f.tagARNs = append(f.tagARNs, resourceARN)
+	if err := f.tagErrors[resourceARN]; err != nil {
+		return nil, err
+	}
 	if output := f.tags[resourceARN]; output != nil {
 		return output, nil
 	}

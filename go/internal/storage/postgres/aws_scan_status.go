@@ -138,19 +138,19 @@ WHERE aws_scan_status.fencing_token < EXCLUDED.fencing_token
 const observeAWSScanStatusQuery = `
 UPDATE aws_scan_status
 SET
-    status = $8,
-    failure_class = $9,
-    failure_message = $10,
-    api_call_count = $11,
-    throttle_count = $12,
-    warning_count = $13,
-    resource_count = $14,
-    relationship_count = $15,
-    tag_observation_count = $16,
-    budget_exhausted = $17,
-    credential_failed = $18,
-    last_observed_at = $19,
-    updated_at = $19
+    status = $7,
+    failure_class = $8,
+    failure_message = $9,
+    api_call_count = $10,
+    throttle_count = $11,
+    warning_count = $12,
+    resource_count = $13,
+    relationship_count = $14,
+    tag_observation_count = $15,
+    budget_exhausted = $16,
+    credential_failed = $17,
+    last_observed_at = $18,
+    updated_at = $18
 WHERE collector_instance_id = $1
   AND account_id = $2
   AND region = $3
@@ -162,12 +162,12 @@ WHERE collector_instance_id = $1
 const commitAWSScanStatusQuery = `
 UPDATE aws_scan_status
 SET
-    commit_status = $8,
-    failure_class = CASE WHEN $9 = '' THEN failure_class ELSE $9 END,
-    failure_message = CASE WHEN $10 = '' THEN failure_message ELSE $10 END,
-    last_completed_at = CASE WHEN $8 = 'committed' THEN $11 ELSE last_completed_at END,
-    last_successful_at = CASE WHEN $8 = 'committed' AND status = 'succeeded' THEN $11 ELSE last_successful_at END,
-    updated_at = $11
+    commit_status = $7,
+    failure_class = CASE WHEN $8 = '' THEN failure_class ELSE $8 END,
+    failure_message = CASE WHEN $9 = '' THEN failure_message ELSE $9 END,
+    last_completed_at = CASE WHEN $7 = 'committed' THEN $10 ELSE last_completed_at END,
+    last_successful_at = CASE WHEN $7 = 'committed' AND status = 'succeeded' THEN $10 ELSE last_successful_at END,
+    updated_at = $10
 WHERE collector_instance_id = $1
   AND account_id = $2
   AND region = $3
