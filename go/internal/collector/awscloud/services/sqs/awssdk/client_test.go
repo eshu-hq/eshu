@@ -79,16 +79,13 @@ func TestClientListQueuesReadsFIFOAttributesOnlyForFIFOQueues(t *testing.T) {
 		listQueuesPages: []*awssqs.ListQueuesOutput{{
 			QueueUrls: []string{queueURL},
 		}},
-		attributesByCall: []map[string]string{
-			{
-				string(awssqstypes.QueueAttributeNameQueueArn):  "arn:aws:sqs:us-east-1:123456789012:orders.fifo",
-				string(awssqstypes.QueueAttributeNameFifoQueue): "true",
-			},
-			{
-				string(awssqstypes.QueueAttributeNameContentBasedDeduplication): "true",
-				string(awssqstypes.QueueAttributeNameDeduplicationScope):        "messageGroup",
-				string(awssqstypes.QueueAttributeNameFifoThroughputLimit):       "perMessageGroupId",
-			},
+		attributes: map[string]string{
+			string(awssqstypes.QueueAttributeNameQueueArn):                      "arn:aws:sqs:us-east-1:123456789012:orders.fifo",
+			string(awssqstypes.QueueAttributeNameFifoQueue):                     "true",
+			string(awssqstypes.QueueAttributeNameContentBasedDeduplication):     "true",
+			string(awssqstypes.QueueAttributeNameDeduplicationScope):            "messageGroup",
+			string(awssqstypes.QueueAttributeNameFifoThroughputLimit):           "perMessageGroupId",
+			string(awssqstypes.QueueAttributeNameReceiveMessageWaitTimeSeconds): "20",
 		},
 	}
 	adapter := &Client{
@@ -100,8 +97,18 @@ func TestClientListQueuesReadsFIFOAttributesOnlyForFIFOQueues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListQueues() error = %v, want nil", err)
 	}
-	if got, want := client.attributeCallCount, 2; got != want {
+	if got, want := client.attributeCallCount, 1; got != want {
 		t.Fatalf("GetQueueAttributes calls = %d, want %d", got, want)
+	}
+	for _, want := range []awssqstypes.QueueAttributeName{
+		awssqstypes.QueueAttributeNameQueueArn,
+		awssqstypes.QueueAttributeNameFifoQueue,
+		awssqstypes.QueueAttributeNameDeduplicationScope,
+		awssqstypes.QueueAttributeNameReceiveMessageWaitTimeSeconds,
+	} {
+		if !containsAttributeName(client.attributeNames, want) {
+			t.Fatalf("GetQueueAttributes did not request %q", want)
+		}
 	}
 	if got := queues[0].Attributes.DeduplicationScope; got != "messageGroup" {
 		t.Fatalf("DeduplicationScope = %q, want messageGroup", got)

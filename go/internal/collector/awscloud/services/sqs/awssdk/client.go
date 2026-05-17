@@ -90,18 +90,11 @@ func (c *Client) queueMetadata(ctx context.Context, queueURL string) (sqsservice
 }
 
 func (c *Client) getQueueAttributes(ctx context.Context, queueURL string) (map[string]string, error) {
-	attributes, err := c.requestQueueAttributes(ctx, queueURL, standardQueueAttributeNames())
-	if err != nil {
-		return nil, err
-	}
+	attributeNames := standardQueueAttributeNames()
 	if isFIFOQueueURL(queueURL) {
-		fifoAttributes, err := c.requestQueueAttributes(ctx, queueURL, fifoQueueAttributeNames())
-		if err != nil {
-			return nil, err
-		}
-		attributes = mergeAttributes(attributes, fifoAttributes)
+		attributeNames = append(attributeNames, fifoQueueAttributeNames()...)
 	}
-	return attributes, nil
+	return c.requestQueueAttributes(ctx, queueURL, attributeNames)
 }
 
 func (c *Client) requestQueueAttributes(
@@ -174,20 +167,6 @@ func fifoQueueAttributeNames() []awssqstypes.QueueAttributeName {
 
 func isFIFOQueueURL(queueURL string) bool {
 	return strings.HasSuffix(queueNameFromURL(queueURL), ".fifo")
-}
-
-func mergeAttributes(base, overlay map[string]string) map[string]string {
-	if len(base) == 0 {
-		return cloneStringMap(overlay)
-	}
-	merged := cloneStringMap(base)
-	for key, value := range overlay {
-		key = strings.TrimSpace(key)
-		if key != "" {
-			merged[key] = value
-		}
-	}
-	return merged
 }
 
 func mapQueue(queueURL string, attributes map[string]string, tags map[string]string) sqsservice.Queue {
