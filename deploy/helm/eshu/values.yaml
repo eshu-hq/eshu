@@ -120,7 +120,7 @@ resolutionEngine:
       cpu: 500m
       memory: 2Gi
     limits:
-      cpu: 2000m
+      cpu: 8000m
       memory: 8Gi
 
 workflowCoordinator:
@@ -394,6 +394,8 @@ env:
   ESHU_ENABLE_PUBLIC_DOCS: "false"
   INDEX_VARIABLES: "false"
   ESHU_MAX_CALLS_PER_FILE: "50"
+  ESHU_CANONICAL_WRITE_TIMEOUT: "120s"
+  ESHU_SHARED_PROJECTION_WORKERS: "8"
 
 contentStore:
   dsn: ""
@@ -441,7 +443,7 @@ nornicdb:
   enabled: false
   image:
     repository: timothyswt/nornicdb-amd64-cpu
-    tag: latest
+    tag: "v1.1.0"
     pullPolicy: IfNotPresent
   ports:
     http: 7474
