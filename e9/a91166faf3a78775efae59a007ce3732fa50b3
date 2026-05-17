@@ -1,0 +1,22 @@
+deploy/helm/eshu/values.yaml
+  s_b8c22ab4b54a82::t_b5f8e9a1dfc081 121,124
+  s_b8c22ab4b54a82::t_6959fc37ec4d47 459
+  s_b8c22ab4b54a82::t_47080299c6a910 385,387
+  s_b8c22ab4b54a82::t_b00db87e12cb21 388
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e9a91166faf3a78775efae59a007ce3732fa50b3",
+  "prompts": {},
+  "sessions": {
+    "s_b8c22ab4b54a82": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b33b7d2c-c4e1-417c-a2ef-e19c093359a9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
