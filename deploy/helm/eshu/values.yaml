@@ -452,13 +452,15 @@ nornicdb:
     NORNICDB_ASYNC_WRITES_ENABLED: "false"
     NORNICDB_HEIMDALL_ENABLED: "false"
     NORNICDB_QDRANT_GRPC_ENABLED: "false"
+    NORNICDB_PERSIST_SEARCH_INDEXES: "true"
+    NORNICDB_EMBEDDING_ENABLED: "false"
   resources:
     requests:
       cpu: 500m
       memory: 4Gi
     limits:
-      cpu: 1000m
-      memory: 32Gi
+      cpu: 8000m
+      memory: 64Gi
   persistence:
     enabled: true
     storageClass: ""

@@ -59,18 +59,26 @@ spec:
             - name: bolt
               containerPort: {{ .Values.nornicdb.ports.bolt }}
               protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            failureThreshold: 60
+            periodSeconds: 30
           livenessProbe:
             httpGet:
               path: /
               port: http
-            initialDelaySeconds: 30
+            initialDelaySeconds: 0
             periodSeconds: 30
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /
               port: http
-            initialDelaySeconds: 10
+            initialDelaySeconds: 0
             periodSeconds: 15
+            failureThreshold: 3
           resources:
             {{- toYaml .Values.nornicdb.resources | nindent 12 }}
           volumeMounts:
