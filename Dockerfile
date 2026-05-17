@@ -1,38 +1,51 @@
 # Multi-stage build for Eshu (Go-only)
-FROM golang:1.26-alpine AS builder
 
-RUN apk add --no-cache git gcc musl-dev
+# xx provides cross-compilation helpers (clang + target sysroot selection).
+# Using --platform=$BUILDPLATFORM throughout avoids running Go 1.26 under
+# QEMU amd64 emulation, which causes runtime crashes on arm64 hosts.
+FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.5.0 AS xx
+
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
+COPY --from=xx /usr/bin/xx-* /usr/bin/
+
+ARG TARGETPLATFORM
+ARG ESHU_VERSION=dev
+
+# clang+lld for cross-compilation; xx-apk installs the target-arch sysroot.
+RUN apk add --no-cache git clang lld
+RUN xx-apk add --no-cache musl-dev gcc
 
 WORKDIR /build
 
-ARG ESHU_VERSION=dev
-
-# Copy Go module files and download dependencies
+# Download modules natively (avoids QEMU + Go 1.26 TLS/crypto panics).
 COPY go/go.mod go/go.sum ./go/
-RUN cd go && go mod download
+RUN cd go && GONOSUMDB='*' GONOSUMCHECK='*' go mod download
 
 # Copy Go source
 COPY go/ ./go/
 
-# Build all Go binaries (CGO required for tree-sitter parser bindings)
-RUN cd go && LDFLAGS="-s -w -extldflags '-static' -X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${ESHU_VERSION}" \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu ./cmd/eshu \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-api ./cmd/api \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-mcp-server ./cmd/mcp-server \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-ingester ./cmd/ingester \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-index ./cmd/bootstrap-index \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-reducer ./cmd/reducer \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-workflow-coordinator ./cmd/workflow-coordinator \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-projector ./cmd/projector \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-git ./cmd/collector-git \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-confluence ./cmd/collector-confluence \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-terraform-state ./cmd/collector-terraform-state \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-oci-registry ./cmd/collector-oci-registry \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-package-registry ./cmd/collector-package-registry \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-aws-cloud ./cmd/collector-aws-cloud \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-webhook-listener ./cmd/webhook-listener \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-data-plane ./cmd/bootstrap-data-plane \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status
+# Build all Go binaries. xx-go sets GOARCH, CGO_ENABLED, and CC automatically
+# for the target platform. CGO is required for tree-sitter parser bindings.
+RUN cd go \
+    && export CGO_ENABLED=1 \
+    && LDFLAGS="-s -w -extldflags '-static' -X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${ESHU_VERSION}" \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu ./cmd/eshu \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-api ./cmd/api \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-mcp-server ./cmd/mcp-server \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-ingester ./cmd/ingester \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-index ./cmd/bootstrap-index \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-reducer ./cmd/reducer \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-workflow-coordinator ./cmd/workflow-coordinator \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-projector ./cmd/projector \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-git ./cmd/collector-git \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-confluence ./cmd/collector-confluence \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-terraform-state ./cmd/collector-terraform-state \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-oci-registry ./cmd/collector-oci-registry \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-package-registry ./cmd/collector-package-registry \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-aws-cloud ./cmd/collector-aws-cloud \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-webhook-listener ./cmd/webhook-listener \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-data-plane ./cmd/bootstrap-data-plane \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status
 
 # Production stage
 FROM alpine:3.21

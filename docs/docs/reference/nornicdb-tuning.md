@@ -439,3 +439,64 @@ Observability Evidence: NornicDB startup logs print whether embeddings are
 enabled, the selected provider/model, and whether the embed worker starts. The
 Prometheus surface also exposes embedding worker and processed/failed counters,
 so a profiling run can prove whether embeddings are intentionally enabled.
+
+## EKS Cloud Deployment Tuning
+
+This section records the evidence for Helm chart default changes introduced to
+stabilize and right-size NornicDB in EKS Kubernetes deployments.
+
+### Startup Restart Loop Fix
+
+On EKS, NornicDB entered a restart loop because the Kubernetes readiness probe
+fired at port 7474 while NornicDB was still scanning 2,279,280 nodes to rebuild
+BM25, vector, and HNSW search indexes. The scan is CPU-bound and took more than
+20 minutes on the 2026-05-15 full-corpus recovery host, during which port 7474
+refused connections. Combined with no startup probe, readiness failures caused
+the pod to be killed and restarted before indexing ever completed.
+
+Fix: `NORNICDB_PERSIST_SEARCH_INDEXES=true` (load indexes from PVC instead of
+scanning), `NORNICDB_EMBEDDING_ENABLED=false` (prevent auto-embed worker from
+competing for CPU at startup), a startup probe with `failureThreshold=60` and
+`periodSeconds=30` (30-minute startup window), and probe path changed from `/`
+to `/health` to match the documented NornicDB health endpoint contract.
+
+No-Regression Evidence: the 2026-05-04 full-corpus proof drained `8458/8458`
+queue rows in `878s` with `NORNICDB_PERSIST_SEARCH_INDEXES=true` and
+`NORNICDB_EMBEDDING_ENABLED=false` active in Compose, ending with
+`pending=0 in_flight=0 retrying=0 dead_letter=0 failed=0`. The 2026-05-15
+remote full-corpus recovery confirmed the same at `896` repositories and
+`8344/8344` queue rows. These settings have been the Compose default since the
+search-index persistence checkpoint and are promotion of existing proven
+behavior to the Helm chart defaults.
+
+Observability Evidence: NornicDB startup logs expose `BuildIndexes progress:
+phase=iterating_nodes processed=<n>/2279280 bm25_engine=v2` during index
+rebuild; the absence of these logs when `NORNICDB_PERSIST_SEARCH_INDEXES=true`
+confirms indexes loaded from disk. The Kubernetes startupProbe success event
+and readiness state changes are visible in pod events. Eshu queue status
+(`eshu status`) reports `pending`, `in_flight`, and `dead_letter` counts
+throughout the run.
+
+### Cloud Write Timeout And Worker Alignment
+
+EKS pod-to-pod NornicDB latency under load exceeds the default 30s write
+timeout. `ESHU_CANONICAL_WRITE_TIMEOUT=120s` is set as the Helm default, which
+matches the value used in all validated corpus proofs (see the Validation Ladder
+section above). `ESHU_SHARED_PROJECTION_WORKERS=8` and `ESHU_REDUCER_WORKERS=8`
+match the available CPU cores on the ops-qa node class and align with the
+2026-05-04 full-corpus proof that used `ESHU_REDUCER_WORKERS=8`.
+
+No-Regression Evidence: all full-corpus and medium-corpus checkpoints in this
+document used `ESHU_CANONICAL_WRITE_TIMEOUT=120s` and `ESHU_REDUCER_WORKERS=8`
+(or the NumCPU default on an 8-core host). Setting these as explicit Helm
+defaults makes the deployment match the proven lab configuration rather than
+relying on runtime NumCPU discovery against potentially variable cloud node
+sizing.
+
+Observability Evidence: `ESHU_CANONICAL_WRITE_TIMEOUT` surfaces in
+graph-write timeout failures logged as `graph_write_timeout` with
+`failure_details` naming the phase, label, and row count.
+`ESHU_REDUCER_WORKERS` surfaces in reducer worker startup logs and the
+`eshu_dp_reducer_active_workers` gauge. `ESHU_SHARED_PROJECTION_WORKERS`
+surfaces in shared projection startup logs and the
+`eshu_dp_shared_projection_active_workers` gauge.

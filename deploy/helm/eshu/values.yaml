@@ -118,10 +118,10 @@ resolutionEngine:
   resources:
     requests:
       cpu: 500m
-      memory: 2Gi
+      memory: 1Gi
     limits:
-      cpu: 2000m
-      memory: 8Gi
+      cpu: 8000m
+      memory: 32Gi
 
 workflowCoordinator:
   enabled: false
@@ -382,10 +382,10 @@ ingester:
   resources:
     requests:
       cpu: 1000m
-      memory: 4Gi
+      memory: 1Gi
     limits:
-      cpu: 4000m
-      memory: 16Gi
+      cpu: 8000m
+      memory: 32Gi
 
 env:
   ESHU_GRAPH_BACKEND: nornicdb
@@ -394,6 +394,8 @@ env:
   ESHU_ENABLE_PUBLIC_DOCS: "false"
   INDEX_VARIABLES: "false"
   ESHU_MAX_CALLS_PER_FILE: "50"
+  ESHU_CANONICAL_WRITE_TIMEOUT: "120s"
+  ESHU_SHARED_PROJECTION_WORKERS: "8"
 
 contentStore:
   dsn: ""
@@ -441,7 +443,7 @@ nornicdb:
   enabled: false
   image:
     repository: timothyswt/nornicdb-amd64-cpu
-    tag: latest
+    tag: "v1.1.0"
     pullPolicy: IfNotPresent
   ports:
     http: 7474
@@ -452,13 +454,16 @@ nornicdb:
     NORNICDB_ASYNC_WRITES_ENABLED: "false"
     NORNICDB_HEIMDALL_ENABLED: "false"
     NORNICDB_QDRANT_GRPC_ENABLED: "false"
+    NORNICDB_PERSIST_SEARCH_INDEXES: "true"
+    NORNICDB_EMBEDDING_ENABLED: "false"
+    GOMEMLIMIT: "48GiB"
   resources:
     requests:
-      cpu: 500m
-      memory: 4Gi
+      cpu: 2000m
+      memory: 16Gi
     limits:
-      cpu: 1000m
-      memory: 32Gi
+      cpu: 8000m
+      memory: 64Gi
   persistence:
     enabled: true
     storageClass: ""
