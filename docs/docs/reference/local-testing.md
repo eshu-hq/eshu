@@ -85,6 +85,34 @@ calls, so the fixes preserve operator visibility into API pressure while
 preventing standard-queue metadata and throttled tag reads from failing the
 entire collector process.
 
+No-Regression Evidence: after hardening hosted collector restart recovery, the
+focused local gate covered Postgres workflow-run reconciliation retry on
+SQLSTATE `40P01`, AWS scan-status generation handoff after a terminal prior
+scan, and claim-aware collectors continuing after retryable collect or commit
+failure:
+`go test ./internal/collector ./internal/collector/awscloud/awsruntime ./internal/storage/postgres -count=1`.
+Remote all-collector Docker Compose proof against NornicDB `v1.1.0` completed
+a clean run with workflow terminal state `aws=19`, `oci_registry=9`,
+`package_registry=9`, `terraform_state=9`, fact work `succeeded=444`, AWS scan
+status `succeeded/committed=19`, `4489` API calls, `3841` resources, `2547`
+relationships, `0` warnings, and outstanding workflow/fact/AWS bad counts
+`0/0/0`. A preserved-volume restart of the same Compose project then reached
+`aws=38`, `oci_registry=20`, `package_registry=20`, `terraform_state=20`, fact
+work `succeeded=516`, AWS scan status `succeeded/committed=19`, `4489` API
+calls, `3842` resources, `2550` relationships, `0` warnings, and outstanding
+workflow/fact/AWS bad counts `0/0/0`. The change does not alter default worker
+counts, graph write paths, collector target shape, or queue fan-out.
+
+Observability Evidence: the restart proof used workflow work-item state,
+`aws_scan_status`, fact work-item state, API/MCP/workflow `/healthz`, collector
+container health, and structured logs filtered for deadlock, stale-fence,
+collect-failure, SQLSTATE, panic, fatal, OOM, and `UNWIND MERGE` failures.
+Existing workflow-coordinator run-reconciliation metrics expose retry-loop
+outcomes and durations, AWS scan status exposes scanner and commit state per
+bounded service tuple, and claim-aware collector retryable failures remain
+visible through workflow item `last_failure_class`, claim status, and retry
+visibility timestamps.
+
 ## Confluence Collector Smoke
 
 Use this when testing the Confluence collector against a real Atlassian site.
