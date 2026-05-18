@@ -4,16 +4,19 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
-func syncGitRepositories(
+func syncGitRepositoriesWithLogger(
 	ctx context.Context,
 	config RepoSyncConfig,
 	repositoryIDs []string,
+	logger *slog.Logger,
 ) (GitSyncSelection, error) {
 	if err := os.MkdirAll(config.ReposDir, 0o755); err != nil {
 		return GitSyncSelection{}, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
@@ -24,7 +27,7 @@ func syncGitRepositories(
 	}
 
 	selected := make([]string, 0, len(repositoryIDs))
-	for _, repoID := range repositoryIDs {
+	for i, repoID := range repositoryIDs {
 		if err := ctx.Err(); err != nil {
 			return GitSyncSelection{}, err
 		}
@@ -33,14 +36,15 @@ func syncGitRepositories(
 			return GitSyncSelection{}, err
 		}
 		repoPath := filepath.Join(config.ReposDir, filepath.FromSlash(checkoutName))
+		event := gitSyncLogEventFor(repoID, i+1, len(repositoryIDs))
 		if !hasGitMarker(repoPath) {
-			cloned, cloneErr := cloneRepository(ctx, config, repoID, repoPath, token)
+			cloned, cloneErr := cloneRepository(ctx, config, repoID, repoPath, token, logger, event)
 			if cloneErr == nil && cloned {
 				selected = append(selected, repoPath)
 			}
 			continue
 		}
-		updated, updateErr := updateRepository(ctx, config, repoPath, token)
+		updated, updateErr := updateRepository(ctx, config, repoPath, token, logger, event)
 		if updateErr == nil && updated {
 			selected = append(selected, repoPath)
 		}
@@ -56,18 +60,26 @@ func cloneRepository(
 	repoID string,
 	repoPath string,
 	token string,
+	logger *slog.Logger,
+	event gitSyncLogEvent,
 ) (bool, error) {
+	event = event.withOperation("clone")
+	logGitSyncStarted(ctx, logger, event)
 	remoteURL := repoRemoteURL(config, repoID)
 	if remoteURL == "" {
-		return false, fmt.Errorf("build remote URL for %q", repoID)
+		err := fmt.Errorf("build remote URL for %q", repoID)
+		logGitSyncFailed(ctx, logger, event, err)
+		return false, err
 	}
 	if err := os.MkdirAll(filepath.Dir(repoPath), 0o755); err != nil {
+		logGitSyncFailed(ctx, logger, event, err)
 		return false, err
 	}
 	command := exec.CommandContext(
 		ctx,
 		"git",
 		"clone",
+		"--progress",
 		fmt.Sprintf("--depth=%d", config.CloneDepth),
 		"--single-branch",
 		remoteURL,
@@ -75,11 +87,17 @@ func cloneRepository(
 	)
 	command.Env = gitCommandEnv(config, token)
 	var stderr bytes.Buffer
-	command.Stderr = &stderr
+	progress := newGitProgressWriter(ctx, logger, event, &stderr)
+	command.Stderr = progress
 	if err := command.Run(); err != nil {
+		progress.Flush()
 		_ = os.RemoveAll(repoPath)
-		return false, fmt.Errorf("clone %q: %w: %s", repoID, err, strings.TrimSpace(stderr.String()))
+		wrapped := fmt.Errorf("clone %q: %w: %s", repoID, err, sanitizeGitProgressMessage(strings.TrimSpace(stderr.String())))
+		logGitSyncFailed(ctx, logger, event, wrapped)
+		return false, wrapped
 	}
+	progress.Flush()
+	logGitSyncCompleted(ctx, logger, event, true)
 	return true, nil
 }
 
@@ -88,27 +106,38 @@ func updateRepository(
 	config RepoSyncConfig,
 	repoPath string,
 	token string,
+	logger *slog.Logger,
+	event gitSyncLogEvent,
 ) (bool, error) {
+	event = event.withOperation("fetch")
 	branch, err := resolveDefaultBranch(ctx, config, repoPath, token)
 	if err != nil {
+		logGitSyncFailed(ctx, logger, event, err)
 		return false, err
 	}
 	if branch == "" {
+		logGitSyncCompleted(ctx, logger, event, false)
 		return false, nil
 	}
 
-	if err := gitFetchBranch(ctx, config, repoPath, branch, token); err != nil {
+	event.Branch = branch
+	logGitSyncStarted(ctx, logger, event)
+	if err := gitFetchBranch(ctx, config, repoPath, branch, token, logger, event); err != nil {
+		logGitSyncFailed(ctx, logger, event, err)
 		return false, err
 	}
 	headSHA, err := gitRevParse(ctx, repoPath, "HEAD", config, token)
 	if err != nil {
+		logGitSyncFailed(ctx, logger, event, err)
 		return false, err
 	}
 	remoteSHA, err := gitRevParse(ctx, repoPath, "refs/remotes/origin/"+branch, config, token)
 	if err != nil {
+		logGitSyncFailed(ctx, logger, event, err)
 		return false, err
 	}
 	if headSHA == remoteSHA {
+		logGitSyncCompleted(ctx, logger, event, false)
 		return false, nil
 	}
 
@@ -122,8 +151,10 @@ func updateRepository(
 		branch,
 		"refs/remotes/origin/"+branch,
 	); err != nil {
+		logGitSyncFailed(ctx, logger, event, err)
 		return false, err
 	}
+	logGitSyncCompleted(ctx, logger, event, true)
 	return true, nil
 }
 
@@ -184,13 +215,17 @@ func gitFetchBranch(
 	repoPath string,
 	branch string,
 	token string,
+	logger *slog.Logger,
+	event gitSyncLogEvent,
 ) error {
-	_, err := gitRun(
+	_, err := gitRunWithStderrWriter(
 		ctx,
 		repoPath,
 		config,
 		token,
+		newGitProgressWriter(ctx, logger, event, nil),
 		"fetch",
+		"--progress",
 		"origin",
 		fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch),
 		fmt.Sprintf("--depth=%d", config.CloneDepth),
@@ -219,6 +254,17 @@ func gitRun(
 	token string,
 	args ...string,
 ) (string, error) {
+	return gitRunWithStderrWriter(ctx, repoPath, config, token, nil, args...)
+}
+
+func gitRunWithStderrWriter(
+	ctx context.Context,
+	repoPath string,
+	config RepoSyncConfig,
+	token string,
+	stderrWriter io.Writer,
+	args ...string,
+) (string, error) {
 	commandArgs := make([]string, 0, len(args)+2)
 	commandArgs = append(commandArgs, "-C", repoPath)
 	commandArgs = append(commandArgs, args...)
@@ -227,11 +273,28 @@ func gitRun(
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	command.Stdout = &stdout
-	command.Stderr = &stderr
-	if err := command.Run(); err != nil {
-		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+	if stderrWriter != nil {
+		command.Stderr = io.MultiWriter(&stderr, stderrWriter)
+	} else {
+		command.Stderr = &stderr
 	}
+	if err := command.Run(); err != nil {
+		flushProgressWriter(stderrWriter)
+		return "", fmt.Errorf("git %s: %w: %s",
+			strings.Join(args, " "),
+			err,
+			sanitizeGitProgressMessage(strings.TrimSpace(stderr.String())),
+		)
+	}
+	flushProgressWriter(stderrWriter)
 	return strings.TrimSpace(stdout.String()), nil
+}
+
+func flushProgressWriter(writer io.Writer) {
+	flusher, ok := writer.(interface{ Flush() })
+	if ok {
+		flusher.Flush()
+	}
 }
 
 func gitCommandEnv(config RepoSyncConfig, token string) []string {

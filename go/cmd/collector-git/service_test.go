@@ -175,6 +175,10 @@ func TestBuildCollectorServiceWiresTelemetryIntoSourceAndService(t *testing.T) {
 	if source.Logger == nil || service.Logger == nil {
 		t.Fatal("collector logger wiring = nil, want non-nil")
 	}
+	selector := source.Selector.(collector.NativeRepositorySelector)
+	if selector.Logger == nil {
+		t.Fatal("collector selector logger = nil, want non-nil")
+	}
 }
 
 type discardWriter struct{}

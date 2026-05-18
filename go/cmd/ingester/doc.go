@@ -24,10 +24,12 @@
 // If ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED is true, the repository selector
 // checks queued GitHub, GitLab, and Bitbucket webhook refresh triggers before
 // scheduled polling, marks unsupported providers failed, and still sends
-// selected repositories through the same Git sync and snapshot path. It is the
-// only long-running
-// runtime that mounts the workspace PVC in Kubernetes, runs as a StatefulSet,
-// and shuts down cleanly on SIGINT or SIGTERM.
+// selected repositories through the same Git sync and snapshot path. The
+// selector receives the ingester runtime logger so clone/fetch start, progress,
+// completion, and failure records are visible during hosted startup before
+// snapshot workers begin. It is the only long-running runtime that mounts the
+// workspace PVC in Kubernetes, runs as a StatefulSet, and shuts down cleanly on
+// SIGINT or SIGTERM.
 //
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in
 // net/http/pprof endpoint via runtime.NewPprofServer, bound to 127.0.0.1

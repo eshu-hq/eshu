@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -36,6 +37,7 @@ type WebhookTriggerRepositorySelector struct {
 	ClaimLimit int
 	Now        func() time.Time
 	SyncGit    func(context.Context, RepoSyncConfig, []string) (GitSyncSelection, error)
+	Logger     *slog.Logger
 }
 
 // SelectRepositories claims queued webhook triggers, syncs only the referenced
@@ -83,7 +85,9 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 
 	syncGitFn := s.SyncGit
 	if syncGitFn == nil {
-		syncGitFn = syncGitRepositories
+		syncGitFn = func(ctx context.Context, config RepoSyncConfig, repositoryIDs []string) (GitSyncSelection, error) {
+			return syncGitRepositoriesWithLogger(ctx, config, repositoryIDs, s.Logger)
+		}
 	}
 	synced, err := syncGitFn(ctx, s.Config, repositoryIDs)
 	if err != nil {

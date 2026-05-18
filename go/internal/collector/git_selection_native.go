@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -16,6 +17,7 @@ type NativeRepositorySelector struct {
 	DiscoverSelection func(context.Context, RepoSyncConfig, string) (RepositorySelection, error)
 	SyncFilesystem    func(context.Context, RepoSyncConfig, []string) ([]string, error)
 	SyncGit           func(context.Context, RepoSyncConfig, []string) (GitSyncSelection, error)
+	Logger            *slog.Logger
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
@@ -57,7 +59,9 @@ func (s NativeRepositorySelector) SelectRepositories(
 	case "explicit", "githubOrg":
 		syncGitFn := s.SyncGit
 		if syncGitFn == nil {
-			syncGitFn = syncGitRepositories
+			syncGitFn = func(ctx context.Context, config RepoSyncConfig, repositoryIDs []string) (GitSyncSelection, error) {
+				return syncGitRepositoriesWithLogger(ctx, config, repositoryIDs, s.Logger)
+			}
 		}
 		synced, err := syncGitFn(ctx, s.Config, selection.RepositoryIDs)
 		if err != nil {

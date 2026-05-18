@@ -49,6 +49,14 @@ The binary inherits its telemetry stack from the shared bootstrap
 `telemetry.Providers.PrometheusHandler`. See `internal/runtime/README.md`
 for the shared admin/metrics contract.
 
+Git-backed sync also emits structured clone/fetch lifecycle logs through the
+runtime logger before snapshot workers start: `git repository sync started`,
+`git repository sync progress`, `git repository sync completed`, and
+`git repository sync failed`. These records carry operation, provider kind,
+repository id, repository ordinal/count, elapsed seconds, branch when known,
+and bounded failure class while redacting credential-bearing URLs and avoiding
+full local checkout paths.
+
 ## Gotchas / invariants
 
 - shutdown is signal-driven: `signal.NotifyContext` watches `os.Interrupt`

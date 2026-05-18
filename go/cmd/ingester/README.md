@@ -60,6 +60,15 @@ repositories, then handed to the same snapshot and fact-emission path as
 scheduled polling. Unsupported provider triggers are marked failed instead of
 being routed through a guessed clone path.
 
+Git-backed repository selection uses the same runtime logger as the rest of the
+ingester. During first startup or webhook-triggered sync, clone/fetch emits
+structured `git repository sync started`, `git repository sync progress`,
+`git repository sync completed`, and `git repository sync failed` records before
+snapshot workers start. The fields are bounded for hosted operators: operation,
+provider kind, repository id, repository ordinal/count, elapsed seconds, branch
+when known, and failure class. Credential-bearing URLs are redacted and full
+local checkout paths are not logged.
+
 After each full collector batch drain, `AfterBatchDrained` calls
 `BackfillAllRelationshipEvidence` then `ReopenDeploymentMappingWorkItems`.
 These two calls implement the Phase 1 → Phase 3 bootstrap ordering described in
@@ -155,6 +164,8 @@ The ingester inherits collector and projector telemetry. Key signals:
 - `eshu_dp_projector_stage_duration_seconds{stage="canonical_write"}` — graph
   write bottleneck
 - Compose metrics endpoint: `http://localhost:19465/metrics`
+- `git repository sync *` structured logs — clone/fetch lifecycle and progress
+  during hosted repository sync before snapshot and parse stages begin
 
 ## Operational notes
 
