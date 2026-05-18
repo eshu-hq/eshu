@@ -10,14 +10,23 @@ The chart lives at `deploy/helm/eshu`.
 | `image.tag` | `v0.0.2` | Runtime image tag. |
 | `service.type` | `ClusterIP` | API service type. |
 | `api.replicas` | `1` | API replica count. |
+| `api.env` | `{}` | API-only environment overrides merged after global `env`. |
 | `mcpServer.enabled` | `true` | Deploy the MCP runtime. |
+| `mcpServer.env` | `{}` | MCP-only environment overrides merged after global `env`. |
 | `ingester.persistence.size` | `100Gi` | Workspace PVC size. |
+| `ingester.env` | `{}` | Ingester-only environment overrides merged after global `env`. |
 | `resolutionEngine.enabled` | `true` | Deploy the reducer runtime. |
 | `resolutionEngine.lanes` | `[]` | Optional domain-specific reducer deployments with independent replicas, resources, and claim allowlists. |
+| `resolutionEngine.env` | `{}` | Reducer-only environment overrides merged after global `env`. |
+| `schemaBootstrap.enabled` | `true` | Render the one-shot schema bootstrap Job. |
+| `schemaBootstrap.useHelmHooks` | `true` | Annotate the Job as a Helm `pre-install,pre-upgrade` hook. Argo CD maps these Helm hooks to `PreSync`. |
+| `schemaBootstrap.activeDeadlineSeconds` | `600` | Upper bound for one schema bootstrap Job attempt. |
+| `schemaBootstrap.ttlSecondsAfterFinished` | `300` | Cleanup window when the Job is not deleted by hook policy. Successful hook Jobs are deleted by `hook-succeeded`. |
 | `workflowCoordinator.enabled` | `false` | Deploy dark-mode workflow coordinator. |
 | `workflowCoordinator.deploymentMode` | `dark` | Keep coordinator claim ownership dark. The chart rejects active mode in this branch. |
 | `workflowCoordinator.claimsEnabled` | `false` | Keep workflow claims off in Helm. Use Compose for active proof runs. |
 | `workflowCoordinator.collectorInstances` | `[]` | Declarative collector instances for dark reconciliation only. |
+| `workflowCoordinator.env` | `{}` | Workflow-coordinator-only environment overrides merged after global `env`. |
 | `confluenceCollector.enabled` | `false` | Deploy the Confluence documentation collector. |
 | `confluenceCollector.baseUrl` | empty | Atlassian wiki base URL, for example `https://example.atlassian.net/wiki`. |
 | `confluenceCollector.spaceId` | empty | Confluence space ID to crawl. Set this or `rootPageId`, not both. |
@@ -52,12 +61,65 @@ The chart lives at `deploy/helm/eshu`.
 | `env.ESHU_GRAPH_BACKEND` | `nornicdb` | Active graph adapter. |
 | `observability.prometheus.serviceMonitor.enabled` | `false` | Render `ServiceMonitor` resources. |
 
-Each runtime has `resources` and `connectionTuning` blocks. Connection tuning
-supports Postgres pool settings and Bolt driver settings per workload.
+Each runtime has `resources`, `env`, and `connectionTuning` blocks. Connection
+tuning supports Postgres pool settings and Bolt driver settings per workload.
+Workload-specific `env` maps are rendered after global `env`, so a runtime can
+override a global value or enable a diagnostic knob such as `ESHU_PPROF_ADDR`
+without turning it on for every pod.
 
 The workflow coordinator chart is deliberately dark-only right now. Do not use
 Helm values to promote coordinator-owned claims before the fenced claim,
 fairness, Git collector, and remote full-corpus proof gates pass.
+
+## Schema bootstrap
+
+The chart renders one `schema-bootstrap` Job instead of repeating
+`eshu-bootstrap-data-plane` from every workload pod. The Job owns Postgres and
+graph schema DDL for the release; runtime pods then start without revalidating
+graph schema in parallel.
+
+By default the Job is a Helm `pre-install,pre-upgrade` hook. Helm waits for the
+hook before continuing the release, and Argo CD treats those Helm hooks as
+`PreSync` hooks. Existing Postgres, graph, and credential dependencies must be
+available before the hook runs.
+
+Do not combine `schemaBootstrap.useHelmHooks=true` with chart-managed NornicDB
+(`nornicdb.enabled=true`). Helm pre-install hooks run before normal chart
+resources are created, so the in-chart NornicDB Service and Deployment would not
+exist yet. Deploy NornicDB separately first, point `neo4j.uri` at an existing
+graph backend, or disable hook mode and provide an external ordering mechanism.
+
+When `schemaBootstrap.useHelmHooks=false`, the Job is a normal chart resource.
+Helm and Argo CD will not wait for it before creating the API, MCP, ingester,
+collector, or reducer workloads unless the caller supplies ordering outside the
+chart, such as a split release or explicit GitOps hook/wave policy. Use non-hook
+mode only when that ordering is already handled.
+
+If `schemaBootstrap.serviceAccountName` is set while
+`schemaBootstrap.useHelmHooks=true`, the named ServiceAccount must already exist
+before Helm runs the hook. Leave it empty to use the namespace default
+ServiceAccount for the pre-install/pre-upgrade bootstrap job.
+
+No-Regression Evidence: `helm template` renders exactly one
+`eshu-schema-bootstrap` Job and no `db-migrate` init containers in the default
+chart output; the runtime DDL binary and environment contract remain unchanged.
+
+Observability Evidence: the existing bootstrap logs emit
+`bootstrap.schema.started`, `bootstrap.postgres.applied`,
+`bootstrap.graph.applied`, and `runtime.startup.failed`; the Kubernetes Job adds
+bounded rollout status through `activeDeadlineSeconds`, `backoffLimit`, and Job
+success/failure state.
+
+```yaml
+schemaBootstrap:
+  enabled: true
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 300
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+```
 
 ## Resolution engine lanes
 
@@ -70,11 +132,15 @@ deployment; it renders one deployment and metrics service per lane and sets
 
 ```yaml
 resolutionEngine:
+  env:
+    ESHU_PPROF_ADDR: "127.0.0.1:6061"
   lanes:
     - name: code-graph
       domains:
         - sql_relationship_materialization
         - inheritance_materialization
+      env:
+        ESHU_PPROF_ADDR: "127.0.0.1:6062"
       replicas: 3
       resources:
         requests:

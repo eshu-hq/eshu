@@ -56,6 +56,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-webhook-listener" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "eshu.schemaBootstrapFullname" -}}
+{{- printf "%s-schema-bootstrap" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "eshu.confluenceCollectorFullname" -}}
 {{- printf "%s-confluence-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -219,6 +223,18 @@ app.kubernetes.io/component: package-registry-collector
 {{- end }}
 {{- end -}}
 
+{{- define "eshu.renderEnvMaps" -}}
+{{- $merged := dict -}}
+{{- range $envMap := . }}
+{{- if $envMap }}
+{{- range $key, $value := $envMap }}
+{{- $_ := set $merged $key $value }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- include "eshu.renderEnvMap" $merged }}
+{{- end -}}
+
 {{- define "eshu.joinStringMap" -}}
 {{- $map := . -}}
 {{- $items := list -}}
@@ -348,26 +364,16 @@ app.kubernetes.io/component: package-registry-collector
 {{- end -}}
 {{- end -}}
 
-{{- define "eshu.renderDataPlaneBootstrapInitContainer" -}}
-- name: db-migrate
-  image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-  imagePullPolicy: {{ .Values.image.pullPolicy }}
-  command: ["/usr/local/bin/eshu-bootstrap-data-plane"]
-  securityContext:
-    {{- toYaml .Values.initContainerSecurityContext | nindent 4 }}
-  env:
-    - name: ESHU_HOME
-      value: /tmp/.eshu
-    - name: HOME
-      value: /tmp
-    - name: NEO4J_URI
-      value: {{ .Values.neo4j.uri | quote }}
-    {{- include "eshu.renderContentStoreEnv" . | nindent 4 }}
-    {{- include "eshu.renderNeo4jAuthEnv" . | nindent 4 }}
-    {{- include "eshu.renderEnvMap" .Values.env | nindent 4 }}
-  volumeMounts:
-    - name: tmp
-      mountPath: /tmp
+{{- define "eshu.renderDataPlaneBootstrapEnv" -}}
+- name: ESHU_HOME
+  value: /tmp/.eshu
+- name: HOME
+  value: /tmp
+- name: NEO4J_URI
+  value: {{ .Values.neo4j.uri | quote }}
+{{- include "eshu.renderContentStoreEnv" . | nindent 0 }}
+{{- include "eshu.renderNeo4jAuthEnv" . | nindent 0 }}
+{{- include "eshu.renderEnvMap" .Values.env | nindent 0 }}
 {{- end -}}
 
 {{/* Bolt credentials are always rendered because the shared client config rejects empty auth fields. */}}

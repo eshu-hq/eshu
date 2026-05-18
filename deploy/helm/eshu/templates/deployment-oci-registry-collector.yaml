@@ -27,8 +27,6 @@ spec:
       serviceAccountName: {{ include "eshu.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      initContainers:
-        {{- include "eshu.renderDataPlaneBootstrapInitContainer" . | nindent 8 }}
       containers:
         - name: oci-registry-collector
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

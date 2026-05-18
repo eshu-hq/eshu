@@ -1,0 +1,77 @@
+{{- if .Values.schemaBootstrap.enabled }}
+{{- if and .Values.schemaBootstrap.useHelmHooks .Values.nornicdb.enabled }}
+{{- fail "schemaBootstrap.useHelmHooks=true requires the graph backend to exist before Helm pre-install hooks run; set nornicdb.enabled=false or deploy bundled NornicDB separately before enabling the schema bootstrap hook" }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "eshu.schemaBootstrapFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: schema-bootstrap
+  {{- if or .Values.schemaBootstrap.useHelmHooks .Values.schemaBootstrap.annotations }}
+  annotations:
+    {{- if .Values.schemaBootstrap.useHelmHooks }}
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    {{- end }}
+    {{- with .Values.schemaBootstrap.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  backoffLimit: {{ .Values.schemaBootstrap.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.schemaBootstrap.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.schemaBootstrap.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "eshu.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: schema-bootstrap
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- $podAnnotations := mergeOverwrite (dict) .Values.podAnnotations .Values.schemaBootstrap.podAnnotations }}
+      {{- with $podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if .Values.schemaBootstrap.serviceAccountName }}
+      serviceAccountName: {{ .Values.schemaBootstrap.serviceAccountName | quote }}
+      {{- end }}
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: schema-bootstrap
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/eshu-bootstrap-data-plane"]
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            {{- include "eshu.renderDataPlaneBootstrapEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.schemaBootstrap.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

@@ -39,8 +39,6 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      initContainers:
-        {{- include "eshu.renderDataPlaneBootstrapInitContainer" . | nindent 8 }}
       containers:
         - name: workflow-coordinator
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -65,7 +63,7 @@ spec:
               value: {{ .Values.workflowCoordinator.deploymentMode | quote }}
             - name: ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED
               value: {{ ternary "true" "false" .Values.workflowCoordinator.claimsEnabled | quote }}
-            {{- include "eshu.renderEnvMap" .Values.env | nindent 12 }}
+            {{- include "eshu.renderEnvMaps" (list .Values.env .Values.workflowCoordinator.env) | nindent 12 }}
           ports:
             - name: http
               containerPort: 8080

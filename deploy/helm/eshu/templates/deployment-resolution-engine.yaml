@@ -44,8 +44,6 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      initContainers:
-        {{- include "eshu.renderDataPlaneBootstrapInitContainer" . | nindent 8 }}
       containers:
         - name: resolution-engine
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -67,7 +65,7 @@ spec:
             {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "resolution-engine") | nindent 12 }}
             {{- include "eshu.renderPrometheusEnv" . | nindent 12 }}
             {{- include "eshu.renderNeo4jAuthEnv" . | nindent 12 }}
-            {{- include "eshu.renderEnvMap" .Values.env | nindent 12 }}
+            {{- include "eshu.renderEnvMaps" (list .Values.env .Values.resolutionEngine.env) | nindent 12 }}
           ports:
             {{- if .Values.observability.prometheus.enabled }}
             - name: metrics
@@ -142,8 +140,6 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      initContainers:
-        {{- include "eshu.renderDataPlaneBootstrapInitContainer" $root | nindent 8 }}
       containers:
         - name: resolution-engine
           image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag }}"
@@ -167,7 +163,7 @@ spec:
             {{- include "eshu.renderOtelEnv" (dict "Values" $root.Values "component" "resolution-engine") | nindent 12 }}
             {{- include "eshu.renderPrometheusEnv" $root | nindent 12 }}
             {{- include "eshu.renderNeo4jAuthEnv" $root | nindent 12 }}
-            {{- include "eshu.renderEnvMap" $root.Values.env | nindent 12 }}
+            {{- include "eshu.renderEnvMaps" (list $root.Values.env $lane.env) | nindent 12 }}
           ports:
             {{- if $root.Values.observability.prometheus.enabled }}
             - name: metrics

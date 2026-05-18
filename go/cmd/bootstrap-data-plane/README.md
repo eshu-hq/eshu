@@ -48,7 +48,7 @@ providers are registered. Lifecycle events use `telemetry.EventAttr`:
 
 - idempotent: every DDL statement is `CREATE ... IF NOT EXISTS`
 - version probes are pre-startup checks; keep `buildinfo.PrintVersionFlag` at
-  the top of `main` so init-container diagnostics do not run DDL
+  the top of `main` so deployment diagnostics do not run DDL
 - graph driver close uses a 10-second timeout; close errors are joined into
   the run result via `errors.Join`
 - exits non-zero if either Postgres or graph DDL fails; no partial apply
@@ -57,7 +57,7 @@ providers are registered. Lifecycle events use `telemetry.EventAttr`:
 
 ## Related docs
 
-- [Service runtimes — DB Migrate](../../../docs/docs/deployment/service-runtimes.md#db-migrate-schema-init-container)
+- [Service runtimes — Schema Bootstrap](../../../docs/docs/deployment/service-runtimes.md#schema-bootstrap)
 - [Docker Compose deployment](../../../docs/docs/deployment/docker-compose.md)
 - [Helm deployment](../../../docs/docs/deployment/helm.md)
 - [CLI reference](../../../docs/docs/reference/cli-reference.md)

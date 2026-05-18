@@ -4,11 +4,13 @@ Use this path when Eshu will run as a shared service for a team.
 
 The Helm chart is the supported Kubernetes entry point. It renders separate
 workloads for the API, MCP server, ingester, optional workflow coordinator, and
-resolution engine. It can also render optional collectors for Confluence
+resolution engine. It renders a short-lived schema bootstrap Job before
+workload rollout. It can also render optional collectors for Confluence
 documentation, OCI registries, Terraform state, AWS cloud facts, package
 registries, and public GitHub, GitLab, or Bitbucket default-branch refresh
-triggers. Every database-backed workload also runs the
-`eshu-bootstrap-data-plane` init container before the main process starts.
+triggers. The bootstrap Job runs `eshu-bootstrap-data-plane` once per install or
+upgrade so individual runtime pods do not all re-run graph schema verification
+during rolling updates.
 Before enabling several collector families together, read
 [Collector And Reducer Readiness](../../reference/collector-reducer-readiness.md)
 to check which collectors are implemented, which reducers can consume their
@@ -29,7 +31,7 @@ facts, and which workflow-coordinator proof gates still apply.
 | AWS cloud collector | `Deployment` | Optional claim-driven worker that observes AWS account/region/service work and writes reported cloud facts to Postgres. |
 | Package registry collector | `Deployment` | Optional claim-driven worker that fetches explicit package metadata targets and writes package-registry facts to Postgres. |
 | Resolution engine | `Deployment` | Drains queued projection work and writes canonical graph state. |
-| DB migrate | `initContainer` | Applies Postgres and graph schema DDL before each workload starts. |
+| Schema bootstrap | `Job` | Applies Postgres and graph schema DDL before workload rollout. |
 
 The chart does not install Postgres, NornicDB, or Neo4j. Bring those storage
 systems first, then point the chart at them with Helm values.

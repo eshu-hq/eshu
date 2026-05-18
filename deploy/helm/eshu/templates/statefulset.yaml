@@ -41,7 +41,6 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
-        {{- include "eshu.renderDataPlaneBootstrapInitContainer" . | nindent 8 }}
         - name: workspace-setup
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -102,7 +101,7 @@ spec:
             {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "ingester") | nindent 12 }}
             {{- include "eshu.renderPrometheusEnv" . | nindent 12 }}
             {{- include "eshu.renderNeo4jAuthEnv" . | nindent 12 }}
-            {{- include "eshu.renderEnvMap" .Values.env | nindent 12 }}
+            {{- include "eshu.renderEnvMaps" (list .Values.env .Values.ingester.env) | nindent 12 }}
             {{- if eq .Values.repoSync.auth.method "githubApp" }}
             - name: GITHUB_APP_ID
               valueFrom:
