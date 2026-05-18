@@ -1,0 +1,23 @@
+go/internal/graph/schema_execution.go
+  s_f2f7fbb6f30866::t_d0b03634e5cdfd 60-75,77
+go/internal/graph/schema_execution_test.go
+  s_f2f7fbb6f30866::t_b7fd30dfc94f58 8-9,57-90
+go/internal/graph/schema.go
+  s_f2f7fbb6f30866::t_a757985b0b16e4 334
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "92cbcf302915c5900d5b1f3c1394b181367e2191",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
