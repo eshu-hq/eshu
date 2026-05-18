@@ -34,10 +34,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("snapshot API Gateway metadata: %w", err)
 	}
 	var envelopes []facts.Envelope
+	if err := appendWarnings(&envelopes, snapshot.Warnings); err != nil {
+		return nil, err
+	}
 	for _, api := range snapshot.RESTAPIs {
-		if err := appendWarnings(&envelopes, api.Warnings); err != nil {
-			return nil, err
-		}
 		if err := appendResource(&envelopes, restAPIObservation(boundary, api)); err != nil {
 			return nil, err
 		}

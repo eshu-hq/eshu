@@ -280,15 +280,15 @@ func TestScannerAggregatesRelationshipAttributesForStableKeys(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	boundary := testBoundary()
 	client := fakeClient{snapshot: Snapshot{
+		Warnings: []awscloud.WarningObservation{{
+			Boundary:    boundary,
+			WarningKind: awscloud.WarningThrottleSustained,
+			ErrorClass:  "throttled",
+			Message:     "API Gateway GetResources throttled after SDK retries",
+		}},
 		RESTAPIs: []RESTAPI{{
 			ID:   "rest-1",
 			Name: "orders-rest",
-			Warnings: []awscloud.WarningObservation{{
-				Boundary:    boundary,
-				WarningKind: awscloud.WarningThrottleSustained,
-				ErrorClass:  "throttled",
-				Message:     "API Gateway GetResources throttled after SDK retries",
-			}},
 		}},
 	}}
 

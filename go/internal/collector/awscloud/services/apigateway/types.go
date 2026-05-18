@@ -23,6 +23,7 @@ type Client interface {
 // Snapshot is the scanner-owned metadata view of API Gateway REST, HTTP,
 // WebSocket, stage, domain, mapping, and integration records.
 type Snapshot struct {
+	Warnings []awscloud.WarningObservation
 	RESTAPIs []RESTAPI
 	V2APIs   []V2API
 	Domains  []DomainName
@@ -43,7 +44,6 @@ type RESTAPI struct {
 	Tags                      map[string]string
 	Stages                    []Stage
 	Integrations              []Integration
-	Warnings                  []awscloud.WarningObservation
 }
 
 // V2API is the metadata-only scanner view of an API Gateway HTTP or WebSocket

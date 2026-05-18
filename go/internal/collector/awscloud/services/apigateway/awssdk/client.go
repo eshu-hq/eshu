@@ -52,7 +52,7 @@ func NewClient(
 // Snapshot returns REST, HTTP, WebSocket, custom-domain, mapping, stage, and
 // integration metadata visible to the configured AWS credentials.
 func (c *Client) Snapshot(ctx context.Context) (apigatewayservice.Snapshot, error) {
-	restAPIs, err := c.listRESTAPIs(ctx)
+	restAPIs, warnings, err := c.listRESTAPIs(ctx)
 	if err != nil {
 		return apigatewayservice.Snapshot{}, err
 	}
@@ -69,7 +69,7 @@ func (c *Client) Snapshot(ctx context.Context) (apigatewayservice.Snapshot, erro
 		return apigatewayservice.Snapshot{}, err
 	}
 	domains := append(restDomains, v2Domains...)
-	return apigatewayservice.Snapshot{RESTAPIs: restAPIs, V2APIs: v2APIs, Domains: domains}, nil
+	return apigatewayservice.Snapshot{Warnings: warnings, RESTAPIs: restAPIs, V2APIs: v2APIs, Domains: domains}, nil
 }
 
 func (c *Client) recordAPICall(ctx context.Context, operation string, call func(context.Context) error) error {

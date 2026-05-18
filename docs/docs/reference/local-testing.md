@@ -118,6 +118,8 @@ the focused TDD gate first failed with `TooManyRequestsException` bubbling out
 of `Snapshot()`, then passed with REST integration metadata omitted and a
 durable throttle warning emitted:
 `go test ./internal/collector/awscloud/services/apigateway/awssdk -run 'TestClientSnapshotRecordsWarningWhenRESTResourcesThrottle|TestClientSnapshotReadsRESTAndV2MetadataOnly' -count=1 -v`,
+plus the Copilot review regressions
+`go test ./internal/collector/awscloud/services/apigateway/awssdk -run 'TestClientSnapshotDiscardsPartialRESTIntegrationsWhenLaterPageThrottles|TestClientSnapshotDeduplicatesRESTResourceThrottleWarnings' -count=1 -v`,
 `go test ./internal/collector/awscloud/services/apigateway -run 'TestScannerEmitsThrottleWarningFacts|TestScannerEmitsAPIGatewayMetadataOnlyFactsAndRelationships' -count=1 -v`,
 and
 `go test ./internal/collector/awscloud/awsruntime -run 'TestClaimedSourceMarksThrottleWarningAsPartial|TestClaimedSourceRecordsScanStatusWithAPICallStats' -count=1 -v`.

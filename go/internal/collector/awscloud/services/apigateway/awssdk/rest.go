@@ -19,8 +19,11 @@ type restAPIClient interface {
 	GetBasePathMappings(context.Context, *awsapigateway.GetBasePathMappingsInput, ...func(*awsapigateway.Options)) (*awsapigateway.GetBasePathMappingsOutput, error)
 }
 
-func (c *Client) listRESTAPIs(ctx context.Context) ([]apigatewayservice.RESTAPI, error) {
+func (c *Client) listRESTAPIs(
+	ctx context.Context,
+) ([]apigatewayservice.RESTAPI, []awscloud.WarningObservation, error) {
 	var apis []apigatewayservice.RESTAPI
+	var warnings []awscloud.WarningObservation
 	var position *string
 	for {
 		var page *awsapigateway.GetRestApisOutput
@@ -33,21 +36,22 @@ func (c *Client) listRESTAPIs(ctx context.Context) ([]apigatewayservice.RESTAPI,
 			return err
 		})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if page == nil {
-			return apis, nil
+			return apis, warnings, nil
 		}
 		for _, item := range page.Items {
-			api, err := c.restAPIMetadata(ctx, item)
+			api, apiWarnings, err := c.restAPIMetadata(ctx, item)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
+			warnings = appendRESTWarningOnce(warnings, apiWarnings...)
 			apis = append(apis, api)
 		}
 		position = page.Position
 		if aws.ToString(position) == "" {
-			return apis, nil
+			return apis, warnings, nil
 		}
 	}
 }
@@ -55,20 +59,19 @@ func (c *Client) listRESTAPIs(ctx context.Context) ([]apigatewayservice.RESTAPI,
 func (c *Client) restAPIMetadata(
 	ctx context.Context,
 	item awsapigatewaytypes.RestApi,
-) (apigatewayservice.RESTAPI, error) {
+) (apigatewayservice.RESTAPI, []awscloud.WarningObservation, error) {
 	api := mapRESTAPI(item)
 	var err error
 	api.Stages, err = c.listRESTStages(ctx, api.ID)
 	if err != nil {
-		return apigatewayservice.RESTAPI{}, err
+		return apigatewayservice.RESTAPI{}, nil, err
 	}
 	var warnings []awscloud.WarningObservation
 	api.Integrations, warnings, err = c.listRESTIntegrations(ctx, api.ID)
 	if err != nil {
-		return apigatewayservice.RESTAPI{}, err
+		return apigatewayservice.RESTAPI{}, nil, err
 	}
-	api.Warnings = append(api.Warnings, warnings...)
-	return api, nil
+	return api, warnings, nil
 }
 
 func (c *Client) listRESTStages(ctx context.Context, apiID string) ([]apigatewayservice.Stage, error) {
@@ -107,7 +110,7 @@ func (c *Client) listRESTIntegrations(
 			return err
 		})
 		if isThrottleError(err) {
-			return integrations, []awscloud.WarningObservation{c.restResourcesThrottleWarning()}, nil
+			return nil, []awscloud.WarningObservation{c.restResourcesThrottleWarning()}, nil
 		}
 		if err != nil {
 			return nil, nil, err
@@ -123,6 +126,30 @@ func (c *Client) listRESTIntegrations(
 			return integrations, nil, nil
 		}
 	}
+}
+
+func appendRESTWarningOnce(
+	warnings []awscloud.WarningObservation,
+	candidates ...awscloud.WarningObservation,
+) []awscloud.WarningObservation {
+	for _, candidate := range candidates {
+		if candidate.WarningKind != awscloud.WarningThrottleSustained {
+			warnings = append(warnings, candidate)
+			continue
+		}
+		seen := false
+		for _, warning := range warnings {
+			if warning.WarningKind == awscloud.WarningThrottleSustained &&
+				warning.ErrorClass == candidate.ErrorClass {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			warnings = append(warnings, candidate)
+		}
+	}
+	return warnings
 }
 
 func (c *Client) restResourcesThrottleWarning() awscloud.WarningObservation {
