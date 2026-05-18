@@ -418,6 +418,12 @@ NornicDB CPU-bound while `db-migrate` was idle after
 services were started with existing images: `8640/8723` succeeded and
 `82` dead letters, with no active work.
 
+Follow-up Observability Evidence: graph schema bootstrap now logs each graph DDL
+statement before and after execution and bounds each statement with
+`ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` (`2m` default), so a future recurrence
+names the exact schema phase and statement instead of showing only
+`bootstrap.postgres.applied` until the Kubernetes active deadline kills the job.
+
 ## Embeddings During Indexing
 
 Eshu's default Compose profile sets `NORNICDB_EMBEDDING_ENABLED=false` even
