@@ -400,7 +400,7 @@ scanning the persisted graph on startup. On the 2026-05-15 remote full-corpus
 degraded-run recovery, a reboot left NornicDB reporting HTTP health while it
 rebuilt `2,279,280` search-index nodes; `eshu-bootstrap-data-plane` had already
 applied Postgres schema and then waited behind graph schema work for more than
-20 minutes, with app services still dependency-gated by `db-migrate`.
+20 minutes, with app services still gated behind schema bootstrap.
 
 No-Regression Evidence: Compose now pins
 `timothyswt/nornicdb-cpu-bge:v1.1.0@sha256:65855ca2c9649020f7f9e29d2e0fbedf0bf9601457de233d87160ddbe4b473f0`.
@@ -413,7 +413,7 @@ paying the full search-index scan after normal restarts on large Eshu graphs.
 
 Observability Evidence: NornicDB logs expose `BuildIndexes progress:
 phase=iterating_nodes processed=<n>/2279280 bm25_engine=v2`; Docker stats showed
-NornicDB CPU-bound while `db-migrate` was idle after
+NornicDB CPU-bound while schema bootstrap was idle after
 `bootstrap.postgres.applied`. Eshu queue status remained visible once app
 services were started with existing images: `8640/8723` succeeded and
 `82` dead letters, with no active work.

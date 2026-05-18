@@ -159,6 +159,11 @@ eshu.io/reducer-lane: {{ .lane.name | quote }}
 app.kubernetes.io/component: workflow-coordinator
 {{- end -}}
 
+{{- define "eshu.schemaBootstrapSelectorLabels" -}}
+{{- include "eshu.selectorLabels" . }}
+app.kubernetes.io/component: schema-bootstrap
+{{- end -}}
+
 {{- define "eshu.webhookListenerSelectorLabels" -}}
 {{- include "eshu.selectorLabels" . }}
 app.kubernetes.io/component: webhook-listener
