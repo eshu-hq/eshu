@@ -328,14 +328,10 @@ func EnsureSchemaWithBackend(ctx context.Context, executor CypherExecutor, logge
 	}
 
 	var failed int
-	totalStatements, err := schemaStatementTotal(dialect.backend)
-	if err != nil {
-		return err
-	}
 	state := schemaExecutionState{
 		logger:  logger,
 		dialect: dialect,
-		total:   totalStatements,
+		total:   schemaStatementTotal(dialect),
 	}
 
 	// Constraints

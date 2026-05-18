@@ -57,12 +57,24 @@ func (s *schemaExecutionState) execute(
 	return nil
 }
 
-func schemaStatementTotal(backend SchemaBackend) (int, error) {
-	stmts, err := SchemaStatementsForBackend(backend)
-	if err != nil {
-		return 0, err
+func schemaStatementTotal(dialect schemaDialect) int {
+	total := 0
+	for _, cypher := range schemaConstraints {
+		if dialect.constraint(cypher) != "" {
+			total++
+		}
 	}
-	return len(stmts), nil
+	total += len(schemaPerformanceIndexes)
+	if dialect.includeMergeLookupIndexes {
+		total += len(nornicDBMergeLookupIndexes)
+		total += len(nornicDBUIDLookupIndexes())
+	}
+	total += len(uidConstraintLabels)
+	total += len(schemaFulltextIndexes)
+	if !dialect.skipFulltextFallback {
+		total += len(schemaFulltextIndexes)
+	}
+	return total
 }
 
 func schemaStatementSummary(cypher string) string {
