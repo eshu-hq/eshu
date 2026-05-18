@@ -21,13 +21,13 @@
 - **Both stores must succeed** — `run` applies Postgres first (logging with
   `EventAttr`), then graph; if either fails the process exits non-zero. Close
   errors are joined with `errors.Join` rather than swallowed. Enforced at
-  `main.go:85` and `main.go:101`.
+  `main.go:90` and `main.go:113`.
 - **Backend gate** — `schemaBackendFromEnv` calls `LoadGraphBackend` and maps
   the result to `graph.SchemaBackend`; unknown values return an error before
-  any DDL runs. Enforced at `main.go:128`.
+  any DDL runs. Enforced at `main.go:156`.
 - **Write session only** — `neo4jSchemaExecutor` always opens a session with
   `AccessModeWrite`; it must not be pointed at a read replica. Enforced at
-  `main.go:176`.
+  `main.go:226`.
 
 ## Common changes and how to scope them
 

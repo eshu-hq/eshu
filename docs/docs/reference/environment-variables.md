@@ -85,6 +85,7 @@ advisory report.
 | `ESHU_NEO4J_SOCKET_CONNECT_TIMEOUT` | `5s` | Graph runtimes | Socket connect timeout. | Raise for slow networks; not a graph-write tuning knob. |
 | `ESHU_NEO4J_VERIFY_TIMEOUT` | `10s` | Graph runtimes | Startup verification timeout. | Raise only for slow backend startup. |
 | `ESHU_NEO4J_PROFILE_GROUP_STATEMENTS` | `false` | ingester, bootstrap-index | Logs per-statement attempt timing inside Neo4j grouped writes, including phase, label, row count, and statement summary when available. | Enable only during Neo4j write-shape investigations. It is noisy and its logs describe transaction attempts, not final commit proof. |
+| `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` | `2m` | `eshu-bootstrap-data-plane` graph schema bootstrap | Per-statement client deadline for graph DDL during schema bootstrap. | Raise only when the backend is known to be healthy but legitimately slow to apply one schema statement. If it fires, use the `graph schema statement failed` log's backend, phase, statement index, duration, and statement summary before tuning. |
 
 ## Repository Discovery And Parsing
 

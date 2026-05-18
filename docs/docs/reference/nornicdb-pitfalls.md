@@ -74,8 +74,7 @@ before relying on this explanation.**
   the teardown is cheap.
 - **Do not patch Eshu's schema bootstrap to re-run `CREATE CONSTRAINT` after
   writes** as a way to refresh anything. The schema DDL must run exactly once
-  on an empty database (`db-migrate` / `bootstrap-data-plane`) and never
-  again.
+  on an empty database through `bootstrap-data-plane` before writes begin.
 - **If you observe false UNIQUE violations on read/update of pre-existing
   nodes**, suspect this pitfall before suspecting a logic bug in the writer.
 

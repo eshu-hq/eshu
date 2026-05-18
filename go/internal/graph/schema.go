@@ -303,57 +303,6 @@ var schemaFulltextIndexes = []fulltextIndex{
 	},
 }
 
-// fulltextIndex pairs a primary procedure-based fulltext statement with
-// its modern CREATE FULLTEXT INDEX fallback.
-type fulltextIndex struct {
-	primary  string
-	fallback string
-}
-
-// SchemaStatements returns the complete ordered list of Cypher statements
-// that EnsureSchema would execute. Useful for inspection and testing.
-func SchemaStatements() []string {
-	// Keep the legacy no-argument helper on Neo4j. Runtime bootstraps that
-	// need the configured default call SchemaStatementsForBackend instead.
-	stmts, _ := SchemaStatementsForBackend(SchemaBackendNeo4j)
-	return stmts
-}
-
-// SchemaStatementsForBackend returns the ordered Cypher schema statements for
-// a specific graph backend without executing them.
-func SchemaStatementsForBackend(backend SchemaBackend) ([]string, error) {
-	dialect, err := schemaDialectForBackend(backend)
-	if err != nil {
-		return nil, err
-	}
-
-	stmts := make([]string, 0,
-		len(schemaConstraints)+
-			len(uidConstraintLabels)+
-			len(schemaPerformanceIndexes)+
-			len(schemaFulltextIndexes))
-	for _, cypher := range schemaConstraints {
-		if cypher = dialect.constraint(cypher); cypher != "" {
-			stmts = append(stmts, cypher)
-		}
-	}
-	stmts = append(stmts, schemaPerformanceIndexes...)
-	if dialect.includeMergeLookupIndexes {
-		stmts = append(stmts, nornicDBMergeLookupIndexes...)
-		stmts = append(stmts, nornicDBUIDLookupIndexes()...)
-	}
-	for _, label := range uidConstraintLabels {
-		stmts = append(stmts, fmt.Sprintf(
-			"CREATE CONSTRAINT %s_uid_unique IF NOT EXISTS FOR (n:%s) REQUIRE n.uid IS UNIQUE",
-			labelToSnake(label), label,
-		))
-	}
-	for _, ft := range schemaFulltextIndexes {
-		stmts = append(stmts, ft.primary)
-	}
-	return stmts, nil
-}
-
 // EnsureSchema creates all constraints and indexes required by the platform
 // context graph. Each statement is executed individually; failures are logged
 // as warnings but do not abort the remaining statements. Full-text index
@@ -379,6 +328,11 @@ func EnsureSchemaWithBackend(ctx context.Context, executor CypherExecutor, logge
 	}
 
 	var failed int
+	state := schemaExecutionState{
+		logger:  logger,
+		dialect: dialect,
+		total:   schemaStatementTotal(dialect),
+	}
 
 	// Constraints
 	for _, cypher := range schemaConstraints {
@@ -386,42 +340,38 @@ func EnsureSchemaWithBackend(ctx context.Context, executor CypherExecutor, logge
 		if cypher == "" {
 			continue
 		}
-		if err := executeSchemaStatement(ctx, executor, cypher); err != nil {
+		if err := state.execute(ctx, executor, "constraints", cypher); err != nil {
+			if isSchemaContextFailure(err) {
+				return err
+			}
 			failed++
-			logger.Warn("schema statement warning",
-				"error", err,
-				"cypher", cypher,
-				"graph_backend", dialect.backend)
 		}
 	}
 
 	// Performance indexes
 	for _, cypher := range schemaPerformanceIndexes {
-		if err := executeSchemaStatement(ctx, executor, cypher); err != nil {
+		if err := state.execute(ctx, executor, "performance_indexes", cypher); err != nil {
+			if isSchemaContextFailure(err) {
+				return err
+			}
 			failed++
-			logger.Warn("schema statement warning",
-				"error", err,
-				"cypher", cypher,
-				"graph_backend", dialect.backend)
 		}
 	}
 	if dialect.includeMergeLookupIndexes {
 		for _, cypher := range nornicDBMergeLookupIndexes {
-			if err := executeSchemaStatement(ctx, executor, cypher); err != nil {
+			if err := state.execute(ctx, executor, "nornicdb_merge_lookup_indexes", cypher); err != nil {
+				if isSchemaContextFailure(err) {
+					return err
+				}
 				failed++
-				logger.Warn("schema statement warning",
-					"error", err,
-					"cypher", cypher,
-					"graph_backend", dialect.backend)
 			}
 		}
 		for _, cypher := range nornicDBUIDLookupIndexes() {
-			if err := executeSchemaStatement(ctx, executor, cypher); err != nil {
+			if err := state.execute(ctx, executor, "nornicdb_uid_lookup_indexes", cypher); err != nil {
+				if isSchemaContextFailure(err) {
+					return err
+				}
 				failed++
-				logger.Warn("schema statement warning",
-					"error", err,
-					"cypher", cypher,
-					"graph_backend", dialect.backend)
 			}
 		}
 	}
@@ -432,32 +382,29 @@ func EnsureSchemaWithBackend(ctx context.Context, executor CypherExecutor, logge
 			"CREATE CONSTRAINT %s_uid_unique IF NOT EXISTS FOR (n:%s) REQUIRE n.uid IS UNIQUE",
 			labelToSnake(label), label,
 		)
-		if err := executeSchemaStatement(ctx, executor, cypher); err != nil {
+		if err := state.execute(ctx, executor, "uid_constraints", cypher); err != nil {
+			if isSchemaContextFailure(err) {
+				return err
+			}
 			failed++
-			logger.Warn("schema statement warning",
-				"error", err,
-				"cypher", cypher,
-				"graph_backend", dialect.backend)
 		}
 	}
 
 	// Full-text indexes with fallback
 	for _, ft := range schemaFulltextIndexes {
-		if err := executeSchemaStatement(ctx, executor, ft.primary); err != nil {
+		if err := state.execute(ctx, executor, "fulltext_primary", ft.primary); err != nil {
+			if isSchemaContextFailure(err) {
+				return err
+			}
 			if dialect.skipFulltextFallback {
 				failed++
-				logger.Warn("fulltext index warning",
-					"primary_error", err,
-					"primary", ft.primary,
-					"graph_backend", dialect.backend)
 				continue
 			}
-			if err2 := executeSchemaStatement(ctx, executor, ft.fallback); err2 != nil {
+			if err2 := state.execute(ctx, executor, "fulltext_fallback", ft.fallback); err2 != nil {
+				if isSchemaContextFailure(err2) {
+					return err2
+				}
 				failed++
-				logger.Warn("fulltext index warning",
-					"primary_error", err, "fallback_error", err2,
-					"primary", ft.primary, "fallback", ft.fallback,
-					"graph_backend", dialect.backend)
 			}
 		}
 	}
@@ -534,22 +481,4 @@ func executeSchemaStatement(ctx context.Context, executor CypherExecutor, cypher
 		Cypher:     cypher,
 		Parameters: map[string]any{},
 	})
-}
-
-// labelToSnake converts a PascalCase label to lower_snake_case for use in
-// constraint names (e.g., "CrossplaneXRD" -> "crossplane_x_r_d").
-func labelToSnake(label string) string {
-	result := make([]byte, 0, len(label)+4)
-	for i, b := range []byte(label) {
-		if b >= 'A' && b <= 'Z' {
-			lower := b + ('a' - 'A')
-			if i > 0 {
-				result = append(result, '_')
-			}
-			result = append(result, lower)
-		} else {
-			result = append(result, b)
-		}
-	}
-	return string(result)
 }
