@@ -178,6 +178,10 @@ request.
   outside the AWS collector fact contract. API identities, stages, custom
   domains, mappings, access-log destinations, ACM certificate dependencies, and
   ARN-addressable integration targets are reported evidence only.
+  Sustained throttling on optional API Gateway REST resource pages emits an
+  `aws_warning` with `warning_kind=throttle_sustained` and leaves integration
+  relationships absent for that partial scan rather than fabricating stale
+  dependency truth.
 - Secrets Manager facts are metadata only. Secret values, version payloads,
   resource policy JSON, external rotation partner metadata, external rotation
   role ARNs, and mutations stay outside the AWS collector fact contract. Secret

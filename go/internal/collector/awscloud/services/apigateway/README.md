@@ -53,8 +53,10 @@ with the shared AWS collector API-call events, spans, throttle counters, and
 operation labels.
 
 No-Observability-Change: existing AWS collector API-call metrics, pagination
-spans, throttle counters, resource and relationship emission counters, and
-`aws_scan_status` rows cover API Gateway metadata scanning.
+spans, throttle counters, `aws_warning` facts, resource and relationship
+emission counters, and `aws_scan_status` rows cover API Gateway metadata
+scanning. Sustained `GetResources` throttling marks the scan partial with
+`failure_class=throttled` while preserving API, stage, and domain observations.
 
 ## Gotchas / invariants
 
@@ -64,6 +66,10 @@ spans, throttle counters, resource and relationship emission counters, and
   ownership or workload inference.
 - REST integration URIs can wrap a target ARN inside an API Gateway URI. The
   scanner extracts the backend ARN only when the shape is explicit.
+- `GetResources` owns REST integration visibility. If AWS keeps throttling it
+  after SDK retries, the scanner emits a throttle warning and omits REST
+  integration relationships for that scan instead of failing the whole regional
+  API Gateway claim.
 - Stage variables, policy JSON, API keys, authorizer secrets, integration
   credentials, request templates, and response templates stay out of facts.
 

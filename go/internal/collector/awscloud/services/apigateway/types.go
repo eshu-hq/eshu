@@ -3,6 +3,8 @@ package apigateway
 import (
 	"context"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
 const (
@@ -21,6 +23,7 @@ type Client interface {
 // Snapshot is the scanner-owned metadata view of API Gateway REST, HTTP,
 // WebSocket, stage, domain, mapping, and integration records.
 type Snapshot struct {
+	Warnings []awscloud.WarningObservation
 	RESTAPIs []RESTAPI
 	V2APIs   []V2API
 	Domains  []DomainName

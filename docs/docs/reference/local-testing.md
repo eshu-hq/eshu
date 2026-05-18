@@ -113,6 +113,29 @@ bounded service tuple, and claim-aware collector retryable failures remain
 visible through workflow item `last_failure_class`, claim status, and retry
 visibility timestamps.
 
+No-Regression Evidence: after hardening API Gateway `GetResources` throttling,
+the focused TDD gate first failed with `TooManyRequestsException` bubbling out
+of `Snapshot()`, then passed with REST integration metadata omitted and a
+durable throttle warning emitted:
+`go test ./internal/collector/awscloud/services/apigateway/awssdk -run 'TestClientSnapshotRecordsWarningWhenRESTResourcesThrottle|TestClientSnapshotReadsRESTAndV2MetadataOnly' -count=1 -v`,
+plus the Copilot review regressions
+`go test ./internal/collector/awscloud/services/apigateway/awssdk -run 'TestClientSnapshotDiscardsPartialRESTIntegrationsWhenLaterPageThrottles|TestClientSnapshotDeduplicatesRESTResourceThrottleWarnings' -count=1 -v`,
+`go test ./internal/collector/awscloud/services/apigateway -run 'TestScannerEmitsThrottleWarningFacts|TestScannerEmitsAPIGatewayMetadataOnlyFactsAndRelationships' -count=1 -v`,
+and
+`go test ./internal/collector/awscloud/awsruntime -run 'TestClaimedSourceMarksThrottleWarningAsPartial|TestClaimedSourceRecordsScanStatusWithAPICallStats' -count=1 -v`.
+The broader AWS collector package gate
+`go test ./internal/collector/awscloud/... -count=1` also passed. This change
+does not alter worker counts, claim fan-out, graph writes, or default AWS SDK
+retry attempts.
+
+Observability Evidence: API Gateway `GetResources` throttling continues to
+increment the existing bounded AWS API-call and throttle counters, records an
+`aws_warning` with `warning_kind=throttle_sustained`, and maps the claim to
+`aws_scan_status.status=partial` with `failure_class=throttled`. Operators can
+distinguish partial REST integration coverage from auth failures, process
+crashes, and unrelated service scans through existing workflow item state,
+`aws_scan_status`, API-call stats, throttle counts, and warning facts.
+
 ## Confluence Collector Smoke
 
 Use this when testing the Confluence collector against a real Atlassian site.

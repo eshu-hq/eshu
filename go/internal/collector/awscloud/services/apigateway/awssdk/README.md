@@ -51,7 +51,9 @@ using the service, account, region, operation, and result labels.
 
 No-Observability-Change: the existing AWS collector API-call metrics,
 throttle counters, `SpanAWSServicePaginationPage` span, and API-call event log
-cover API Gateway REST and v2 pagination.
+cover API Gateway REST and v2 pagination. `GetResources` throttling also
+produces an API Gateway throttle warning so `aws_scan_status` can expose the
+claim as partial/throttled without leaking resource identifiers into labels.
 
 ## Gotchas / invariants
 
@@ -59,6 +61,9 @@ cover API Gateway REST and v2 pagination.
 - `GetResources` must keep `Embed: []string{"methods"}` so REST integrations
   come from the same bounded resource page rather than unbounded per-method
   calls.
+- `GetResources` throttling after SDK retries is partial metadata loss, not a
+  reason to discard API, stage, v2, and domain observations already available
+  in the same claim.
 - Do not map policy JSON, management policy JSON, credentials, credential
   ARNs, request templates, response templates, variables, or stage variables
   into scanner models.

@@ -200,17 +200,18 @@ func reflectDeepEqualStrings(got []string, want []string) bool {
 }
 
 type fakeRESTAPI struct {
-	restAPIPages      []*awsapigateway.GetRestApisOutput
-	restAPICalls      int
-	restStagePages    []*awsapigateway.GetStagesOutput
-	restStageCalls    int
-	restResourcePages []*awsapigateway.GetResourcesOutput
-	restResourceCalls int
-	restResourceEmbed []string
-	restDomainPages   []*awsapigateway.GetDomainNamesOutput
-	restDomainCalls   int
-	restMappingPages  []*awsapigateway.GetBasePathMappingsOutput
-	restMappingCalls  int
+	restAPIPages       []*awsapigateway.GetRestApisOutput
+	restAPICalls       int
+	restStagePages     []*awsapigateway.GetStagesOutput
+	restStageCalls     int
+	restResourcePages  []*awsapigateway.GetResourcesOutput
+	restResourceErrors []error
+	restResourceCalls  int
+	restResourceEmbed  []string
+	restDomainPages    []*awsapigateway.GetDomainNamesOutput
+	restDomainCalls    int
+	restMappingPages   []*awsapigateway.GetBasePathMappingsOutput
+	restMappingCalls   int
 }
 
 func (f *fakeRESTAPI) GetRestApis(
@@ -245,6 +246,11 @@ func (f *fakeRESTAPI) GetResources(
 	_ ...func(*awsapigateway.Options),
 ) (*awsapigateway.GetResourcesOutput, error) {
 	f.restResourceEmbed = append([]string(nil), input.Embed...)
+	if f.restResourceCalls < len(f.restResourceErrors) && f.restResourceErrors[f.restResourceCalls] != nil {
+		err := f.restResourceErrors[f.restResourceCalls]
+		f.restResourceCalls++
+		return nil, err
+	}
 	if f.restResourceCalls >= len(f.restResourcePages) {
 		return &awsapigateway.GetResourcesOutput{}, nil
 	}

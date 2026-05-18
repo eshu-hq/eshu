@@ -40,6 +40,9 @@ const (
 	// WarningBudgetExhausted marks a scan that yielded before completing its
 	// configured API budget.
 	WarningBudgetExhausted = "budget_exhausted"
+	// WarningThrottleSustained marks a scan that omitted optional metadata after
+	// an AWS API stayed throttled past the SDK retry budget.
+	WarningThrottleSustained = "throttle_sustained"
 	// WarningAssumeRoleFailed marks a scan that could not acquire target
 	// account credentials.
 	WarningAssumeRoleFailed = "assumerole_failed"

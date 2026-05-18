@@ -45,6 +45,9 @@ func (s ClaimedSource) observeScanStatus(
 	} else if factStats.BudgetExhausted {
 		statusValue = awscloud.ScanStatusPartial
 		failureClass = "budget_exhausted"
+	} else if factStats.Throttled {
+		statusValue = awscloud.ScanStatusPartial
+		failureClass = "throttled"
 	} else if scanErr != nil {
 		statusValue = awscloud.ScanStatusFailed
 		failureClass = awsScanFailureClass(apiStats)
@@ -84,6 +87,7 @@ type awsEnvelopeStats struct {
 	TagObservationCount int
 	BudgetExhausted     bool
 	CredentialFailed    bool
+	Throttled           bool
 }
 
 func awsFactStats(envelopes []facts.Envelope) awsEnvelopeStats {
@@ -104,6 +108,8 @@ func awsFactStats(envelopes []facts.Envelope) awsEnvelopeStats {
 				stats.BudgetExhausted = true
 			case awscloud.WarningAssumeRoleFailed:
 				stats.CredentialFailed = true
+			case awscloud.WarningThrottleSustained:
+				stats.Throttled = true
 			}
 		}
 	}

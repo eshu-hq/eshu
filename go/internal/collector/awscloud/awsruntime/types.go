@@ -25,6 +25,9 @@ const (
 	// WarningBudgetExhausted is emitted when a service scan yields after
 	// exhausting its configured API budget.
 	WarningBudgetExhausted = awscloud.WarningBudgetExhausted
+	// WarningThrottleSustained is emitted when a service scan omits optional
+	// metadata after an AWS API stays throttled past the SDK retry budget.
+	WarningThrottleSustained = awscloud.WarningThrottleSustained
 )
 
 // CredentialMode identifies how the runtime obtains AWS credentials for one
