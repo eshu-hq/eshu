@@ -22,10 +22,11 @@ The chart lives at `deploy/helm/eshu`.
 | `schemaBootstrap.useHelmHooks` | `true` | Annotate the Job as a Helm `pre-install,pre-upgrade` hook. Argo CD maps these Helm hooks to `PreSync`. |
 | `schemaBootstrap.activeDeadlineSeconds` | `600` | Upper bound for one schema bootstrap Job attempt. |
 | `schemaBootstrap.ttlSecondsAfterFinished` | `300` | Cleanup window when the Job is not deleted by hook policy. Successful hook Jobs are deleted by `hook-succeeded`. |
-| `workflowCoordinator.enabled` | `false` | Deploy dark-mode workflow coordinator. |
-| `workflowCoordinator.deploymentMode` | `dark` | Keep coordinator claim ownership dark. The chart rejects active mode in this branch. |
-| `workflowCoordinator.claimsEnabled` | `false` | Keep workflow claims off in Helm. Use Compose for active proof runs. |
-| `workflowCoordinator.collectorInstances` | `[]` | Declarative collector instances for dark reconciliation only. |
+| `podSecurityContext.fsGroupChangePolicy` | `OnRootMismatch` | Avoid recursive ownership changes on existing large PVCs when the volume root already matches the configured `fsGroup`. |
+| `workflowCoordinator.enabled` | `false` | Deploy the workflow coordinator. Required when claim-driven collector Deployments are enabled. |
+| `workflowCoordinator.deploymentMode` | `dark` | Use `active` when the coordinator should create and schedule collector claims. |
+| `workflowCoordinator.claimsEnabled` | `false` | Enable claim creation and scheduling for active coordinator deployments. |
+| `workflowCoordinator.collectorInstances` | `[]` | Declarative collector instances used by coordinator reconciliation and claim scheduling. |
 | `workflowCoordinator.env` | `{}` | Workflow-coordinator-only environment overrides merged after global `env`. |
 | `confluenceCollector.enabled` | `false` | Deploy the Confluence documentation collector. |
 | `confluenceCollector.baseUrl` | empty | Atlassian wiki base URL, for example `https://example.atlassian.net/wiki`. |
@@ -67,9 +68,12 @@ Workload-specific `env` maps are rendered after global `env`, so a runtime can
 override a global value or enable a diagnostic knob such as `ESHU_PPROF_ADDR`
 without turning it on for every pod.
 
-The workflow coordinator chart is deliberately dark-only right now. Do not use
-Helm values to promote coordinator-owned claims before the fenced claim,
-fairness, Git collector, and remote full-corpus proof gates pass.
+Claim-driven collectors require the workflow coordinator in active mode. The
+chart fails fast when Terraform-state, AWS cloud, or package-registry collector
+Deployments are enabled without `workflowCoordinator.enabled=true`,
+`workflowCoordinator.deploymentMode=active`, and
+`workflowCoordinator.claimsEnabled=true`. This prevents collector pods from
+starting cleanly but sitting idle because no runtime is creating durable claims.
 
 ## Schema bootstrap
 
@@ -284,10 +288,31 @@ lease TTL, heartbeat interval, pod-name owner ID, Postgres env, OTEL env,
 Prometheus env, probes, metrics Service, ServiceMonitor, NetworkPolicy, and
 PodDisruptionBudget for each enabled collector.
 
-The workflow coordinator chart still remains dark-only in this branch. These
-collector deployments are ready to claim work created by an approved control
-plane path, but Helm values do not promote the coordinator to active claim
-ownership yet.
+Enable the workflow coordinator in active claim mode whenever one of these
+collector Deployments is enabled. The coordinator owns durable claim creation;
+the collector pods only claim and execute work. The chart rejects mismatched
+values so an install cannot silently deploy idle collectors.
+
+```yaml
+workflowCoordinator:
+  enabled: true
+  deploymentMode: active
+  claimsEnabled: true
+  collectorInstances:
+    - instance_id: terraform-state-primary
+      collector_kind: terraform_state
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        target_scopes:
+          - target_scope_id: aws-prod
+            provider: aws
+            deployment_mode: central
+            credential_mode: local_workload_identity
+            allowed_regions: [us-east-1]
+            allowed_backends: [s3]
+```
 
 Terraform-state uses secret-backed redaction. Do not put redaction keys or
 state credentials in values:

@@ -82,6 +82,10 @@
         "runAsUser": { "type": "integer", "minimum": 1 },
         "runAsGroup": { "type": "integer", "minimum": 1 },
         "fsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroupChangePolicy": {
+          "type": "string",
+          "enum": ["OnRootMismatch", "Always"]
+        },
         "seccompProfile": {
           "type": "object",
           "properties": {
@@ -198,12 +202,9 @@
         "enabled": { "type": "boolean" },
         "deploymentMode": {
           "type": "string",
-          "enum": ["dark"]
+          "enum": ["dark", "active"]
         },
-        "claimsEnabled": {
-          "type": "boolean",
-          "enum": [false]
-        },
+        "claimsEnabled": { "type": "boolean" },
         "collectorInstances": {
           "type": "array",
           "items": {

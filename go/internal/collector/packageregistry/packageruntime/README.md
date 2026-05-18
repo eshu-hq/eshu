@@ -59,10 +59,24 @@ must stay out of metrics.
   workflow claim path and are copied into every emitted fact.
 - Advisory and registry-event observations are bounded by the same configured
   package and version limits as dependencies, artifacts, and source hints.
+- Package scope remains strict: metadata that exceeds `package_limit` fails the
+  claim. Version scope is truncating: metadata over `version_limit` keeps the
+  first deterministic version set, drops dependent observations for truncated
+  versions, and emits a package-scoped `version_limit_truncated` warning fact.
 - Credentials stay in `TargetConfig` runtime fields. They must not be copied to
   facts, logs, metric labels, or docs.
 - `HTTPMetadataProvider` accepts one explicit metadata URL per target; it does
   not crawl feeds or enumerate registries.
+
+## Evidence
+
+Collector Performance Evidence: `go test ./internal/collector/packageregistry/packageruntime -run 'TestBoundedParsedMetadataTruncatesVersionsAndEmitsWarning|TestClaimedSourceTruncatesMetadataOverVersionLimit|TestClaimedSourceParsesMetadataIntoPackageRegistryFacts|TestClaimedSourceSanitizesSourceURIBeforeFactEmission' -count=1 -v` proves over-limit package metadata stays bounded without retrying the whole collector claim. The bounding pass remains linear over parsed observations, emits no more than `version_limit` version facts per package, and drops dependent observations for truncated versions before envelope construction.
+
+Collector Observability Evidence: truncated package metadata emits a durable `package_registry.warning` fact with `warning_code=version_limit_truncated`, and the existing `eshu_dp_package_registry_facts_emitted_total` counter reports it through the bounded `fact_kind=package_registry.warning` label. `/admin/status` continues to expose package-registry collector completion, retryable failure, and terminal failure counts without adding package names, feed URLs, versions, or artifact paths to metric labels.
+
+No-Observability-Change: no new metrics or labels were added. Existing package-registry duration, request, facts-emitted, rate-limit, generation-lag, parse-failure, health, readiness, metrics, and admin-status signals already cover this bounded truncation path.
+
+Collector Deployment Evidence: `helm lint deploy/helm/eshu` and `go test ./internal/runtime -run 'TestHelmClaimDrivenCollectorsRequireWorkflowCoordinator|TestHelmWorkflowCoordinatorActiveModeForClaimDrivenCollectors|TestHelmPodSecurityContextUsesOnRootMismatch' -count=1 -v` prove the chart renders active workflow-coordinator claim scheduling for hosted collectors and keeps the package-registry collector Deployment on the existing metrics Service and ServiceMonitor path.
 
 ## Related Docs
 

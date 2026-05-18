@@ -2,6 +2,7 @@ package packageruntime
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry"
@@ -19,7 +20,7 @@ func boundedParsedMetadata(
 	if err != nil {
 		return packageregistry.ParsedMetadata{}, err
 	}
-	allowedVersions, err := boundVersions(target, parsed, allowedPackages, &bounded)
+	truncationWarnings, allowedVersions, err := boundVersions(target, parsed, allowedPackages, &bounded)
 	if err != nil {
 		return packageregistry.ParsedMetadata{}, err
 	}
@@ -97,6 +98,7 @@ func boundedParsedMetadata(
 	if err != nil {
 		return packageregistry.ParsedMetadata{}, err
 	}
+	bounded.Warnings = append(truncationWarnings, bounded.Warnings...)
 	bounded.Hosting = parsed.Hosting
 	return bounded, nil
 }
@@ -155,26 +157,102 @@ func boundVersions(
 	parsed packageregistry.ParsedMetadata,
 	allowedPackages map[string]struct{},
 	bounded *packageregistry.ParsedMetadata,
-) (map[string]struct{}, error) {
+) ([]packageregistry.WarningObservation, map[string]struct{}, error) {
 	allowedVersions := map[string]struct{}{}
+	packageObservations, err := packageObservationsByID(parsed.Packages)
+	if err != nil {
+		return nil, nil, err
+	}
+	versionObservations := map[string]packageregistry.PackageVersionObservation{}
 	versionCounts := map[string]int{}
 	for _, observation := range parsed.Versions {
 		packageID, err := packageID(observation.Package)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if !containsID(allowedPackages, packageID) {
 			continue
 		}
+		if _, ok := versionObservations[packageID]; !ok {
+			versionObservations[packageID] = observation
+		}
 		versionCounts[packageID]++
 		if versionCounts[packageID] > target.VersionLimit {
-			return nil, fmt.Errorf("package registry metadata emits more than version_limit %d for %s",
-				target.VersionLimit, packageID)
+			continue
 		}
 		bounded.Versions = append(bounded.Versions, observation)
 		allowedVersions[versionKey(packageID, observation.Version)] = struct{}{}
 	}
-	return allowedVersions, nil
+	warnings := versionLimitWarnings(target, allowedPackages, versionCounts, packageObservations, versionObservations)
+	return warnings, allowedVersions, nil
+}
+
+func packageObservationsByID(
+	observations []packageregistry.PackageObservation,
+) (map[string]packageregistry.PackageObservation, error) {
+	byID := map[string]packageregistry.PackageObservation{}
+	for _, observation := range observations {
+		packageID, err := packageID(observation.Identity)
+		if err != nil {
+			return nil, err
+		}
+		byID[packageID] = observation
+	}
+	return byID, nil
+}
+
+func versionLimitWarnings(
+	target packageregistry.TargetConfig,
+	allowedPackages map[string]struct{},
+	versionCounts map[string]int,
+	packageObservations map[string]packageregistry.PackageObservation,
+	versionObservations map[string]packageregistry.PackageVersionObservation,
+) []packageregistry.WarningObservation {
+	warnings := make([]packageregistry.WarningObservation, 0)
+	for _, packageID := range sortedIDs(versionCounts) {
+		count := versionCounts[packageID]
+		if !containsID(allowedPackages, packageID) || count <= target.VersionLimit {
+			continue
+		}
+		packageObservation, hasPackageObservation := packageObservations[packageID]
+		versionObservation := versionObservations[packageID]
+		warningPackage := packageObservation.Identity
+		if !hasPackageObservation {
+			warningPackage = versionObservation.Package
+		}
+		warning := packageregistry.WarningObservation{
+			WarningKey:          "version-limit:" + packageID,
+			WarningCode:         "version_limit_truncated",
+			Severity:            "warning",
+			Message:             fmt.Sprintf("metadata emitted %d versions; kept first %d due to version_limit %d", count, target.VersionLimit, target.VersionLimit),
+			Package:             &warningPackage,
+			ScopeID:             packageObservation.ScopeID,
+			GenerationID:        packageObservation.GenerationID,
+			CollectorInstanceID: packageObservation.CollectorInstanceID,
+			FencingToken:        packageObservation.FencingToken,
+			ObservedAt:          packageObservation.ObservedAt,
+			SourceURI:           packageObservation.SourceURI,
+		}
+		if warning.ScopeID == "" {
+			warning.ScopeID = versionObservation.ScopeID
+			warning.GenerationID = versionObservation.GenerationID
+			warning.CollectorInstanceID = versionObservation.CollectorInstanceID
+			warning.FencingToken = versionObservation.FencingToken
+			warning.ObservedAt = versionObservation.ObservedAt
+			warning.SourceURI = versionObservation.SourceURI
+		}
+		warnings = append(warnings, warning)
+	}
+	return warnings
+}
+
+func sortedIDs[T any](values map[string]T) []string {
+	ids := make([]string, 0, len(values))
+	for id := range values {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 func boundPackageVersionObservations[T any](

@@ -33,6 +33,52 @@ observability:
     enabled: true
     serviceMonitor:
       enabled: true
+workflowCoordinator:
+  enabled: true
+  deploymentMode: active
+  claimsEnabled: true
+  collectorInstances:
+    - instance_id: terraform-state-primary
+      collector_kind: terraform_state
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        target_scopes:
+          - target_scope_id: aws-prod
+            provider: aws
+            deployment_mode: central
+            credential_mode: local_workload_identity
+            allowed_regions: [us-east-1]
+            allowed_backends: [s3]
+    - instance_id: aws-primary
+      collector_kind: aws
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        target_scopes:
+          - account_id: "123456789012"
+            allowed_regions: [us-east-1]
+            allowed_services: [iam]
+            credentials:
+              mode: local_workload_identity
+    - instance_id: package-registry-primary
+      collector_kind: package_registry
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - provider: jfrog
+            ecosystem: npm
+            registry: https://artifacts.example.test
+            scope_id: npm://artifacts.example.test/team/app
+            packages: ["@team/app"]
+            metadata_url: https://artifacts.example.test/api/npm/team/app
+            document_format: artifactory_package
+            username_env: PACKAGE_REGISTRY_USERNAME
+            password_env: PACKAGE_REGISTRY_PASSWORD
 terraformStateCollector:
   enabled: true
   instanceId: terraform-state-primary
