@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -242,5 +244,106 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUsesTransactionWhenAvailable(t
 	}
 	if got, want := tx.execs[1].args[2], string(reducer.GraphProjectionKeyspaceCodeEntitiesUID); got != want {
 		t.Fatalf("first transactional completeness keyspace arg = %v, want %q", got, want)
+	}
+}
+
+func TestWorkflowControlStoreReconcileWorkflowRunsRetriesDeadlockTransaction(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 18, 16, 30, 0, 0, time.UTC)
+	firstTx := workflowRunReconciliationTx()
+	firstTx.execErrors = map[int]error{0: &pgconn.PgError{Code: "40P01", Message: "deadlock detected"}}
+	secondTx := workflowRunReconciliationTx()
+	db := &fakeTransactionalDB{
+		txs: []*fakeTx{firstTx, secondTx},
+		queryResponses: []queueFakeRows{
+			{
+				rows: [][]any{{
+					"run-deadlock",
+					string(workflow.TriggerKindSchedule),
+					string(workflow.RunStatusReducerConverging),
+					"[]",
+					sql.NullString{},
+					now.Add(-time.Minute),
+					now.Add(-time.Minute),
+					sql.NullTime{},
+				}},
+			},
+		},
+	}
+	store := NewWorkflowControlStore(db)
+
+	reconciled, err := store.ReconcileWorkflowRuns(context.Background(), now)
+	if err != nil {
+		t.Fatalf("ReconcileWorkflowRuns() error = %v, want retry success", err)
+	}
+	if got, want := reconciled, 1; got != want {
+		t.Fatalf("reconciled = %d, want %d", got, want)
+	}
+	if got, want := db.beginCalls, 2; got != want {
+		t.Fatalf("begin calls = %d, want %d", got, want)
+	}
+	if !firstTx.rolledBack {
+		t.Fatal("first transaction rolledBack = false, want true after deadlock")
+	}
+	if !secondTx.committed {
+		t.Fatal("second transaction committed = false, want true")
+	}
+}
+
+func workflowRunReconciliationTx() *fakeTx {
+	return &fakeTx{
+		queryResponses: []queueFakeRows{
+			{
+				rows: [][]any{{
+					string(scope.CollectorGit),
+					1,
+					0,
+					0,
+					1,
+					0,
+				}},
+			},
+			{
+				rows: [][]any{
+					{
+						string(scope.CollectorGit),
+						string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
+						string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+						1,
+					},
+					{
+						string(scope.CollectorGit),
+						string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
+						string(reducer.GraphProjectionPhaseSemanticNodesCommitted),
+						1,
+					},
+					{
+						string(scope.CollectorGit),
+						string(reducer.GraphProjectionKeyspaceDeployableUnitUID),
+						string(reducer.GraphProjectionPhaseDeployableUnitCorrelation),
+						1,
+					},
+					{
+						string(scope.CollectorGit),
+						string(reducer.GraphProjectionKeyspaceServiceUID),
+						string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+						1,
+					},
+					{
+						string(scope.CollectorGit),
+						string(reducer.GraphProjectionKeyspaceServiceUID),
+						string(reducer.GraphProjectionPhaseDeploymentMapping),
+						1,
+					},
+					{
+						string(scope.CollectorGit),
+						string(reducer.GraphProjectionKeyspaceServiceUID),
+						string(reducer.GraphProjectionPhaseWorkloadMaterialization),
+						1,
+					},
+				},
+			},
+		},
 	}
 }

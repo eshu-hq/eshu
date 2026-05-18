@@ -89,6 +89,8 @@ func TestClaimedServiceReleasesWhenClaimHasNoGeneration(t *testing.T) {
 func TestClaimedServiceFailsClaimWhenCommitFails(t *testing.T) {
 	t.Parallel()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	now := time.Date(2026, time.April, 20, 22, 20, 0, 0, time.UTC)
 	item := testClaimedWorkItem(now)
 	claim := testWorkflowClaim(item.WorkItemID, now)
@@ -97,6 +99,10 @@ func TestClaimedServiceFailsClaimWhenCommitFails(t *testing.T) {
 		item:  item,
 		claim: claim,
 		found: true,
+		retryableFail: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
 	}
 	source := &stubClaimedSource{collected: FactsFromSlice(testScope(), testGeneration(now), testFacts(now)), ok: true}
 	committer := &stubClaimedCommitter{
@@ -106,15 +112,49 @@ func TestClaimedServiceFailsClaimWhenCommitFails(t *testing.T) {
 	}
 	service := testClaimedService(now, claim, scope.CollectorGit, store, source, committer)
 
-	err := service.Run(context.Background())
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("Run() error = %v, want wrapped %v", err, wantErr)
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil after retryable commit failure", err)
 	}
 	if got, want := store.retryableFailCalls, 1; got != want {
 		t.Fatalf("retryable fail calls = %d, want %d", got, want)
 	}
 	if got := store.lastRetryableFail; got.FailureClass != "commit_failure" {
 		t.Fatalf("FailureClass = %q, want commit_failure", got.FailureClass)
+	}
+}
+
+func TestClaimedServiceContinuesAfterRetryableCollectFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.May, 18, 16, 45, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	wantErr := errors.New("temporary throttle")
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		retryableFail: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
+	}
+	source := &stubClaimedSource{err: wantErr}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, &stubClaimedCommitter{})
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil after retryable claim failure", err)
+	}
+	if got, want := store.retryableFailCalls, 1; got != want {
+		t.Fatalf("retryable fail calls = %d, want %d", got, want)
+	}
+	if got := store.lastRetryableFail.FailureClass; got != "collect_failure" {
+		t.Fatalf("FailureClass = %q, want collect_failure", got)
+	}
+	if got, want := store.lastRetryableFail.VisibleAt, now.Add(service.PollInterval); !got.Equal(want) {
+		t.Fatalf("VisibleAt = %s, want %s", got, want)
 	}
 }
 
@@ -294,6 +334,7 @@ type stubClaimStore struct {
 	lastTerminalFail   workflow.ClaimMutation
 	heartbeat          func(context.Context, workflow.ClaimMutation) error
 	release            func(context.Context, workflow.ClaimMutation) error
+	retryableFail      func(context.Context, workflow.ClaimMutation) error
 }
 
 func (s *stubClaimStore) ClaimNextEligible(
@@ -330,9 +371,12 @@ func (s *stubClaimStore) ReleaseClaim(ctx context.Context, mutation workflow.Cla
 	return nil
 }
 
-func (s *stubClaimStore) FailClaimRetryable(_ context.Context, mutation workflow.ClaimMutation) error {
+func (s *stubClaimStore) FailClaimRetryable(ctx context.Context, mutation workflow.ClaimMutation) error {
 	s.retryableFailCalls++
 	s.lastRetryableFail = mutation
+	if s.retryableFail != nil {
+		return s.retryableFail(ctx, mutation)
+	}
 	return nil
 }
 
