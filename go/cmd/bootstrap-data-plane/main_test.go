@@ -8,7 +8,9 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -289,6 +291,79 @@ func TestRunReturnsNeo4jSchemaError(t *testing.T) {
 	}
 }
 
+func TestRunWrapsGraphSchemaStatementsWithConfiguredTimeout(t *testing.T) {
+	t.Parallel()
+
+	executor := &deadlineRecordingExecutor{}
+	logger := testLogger(t)
+
+	err := run(
+		context.Background(),
+		func(key string) string {
+			if key == graphSchemaStatementTimeoutEnv {
+				return "25ms"
+			}
+			return ""
+		},
+		logger,
+		func(context.Context, func(string) string) (bootstrapDB, error) {
+			return &fakeBootstrapDB{}, nil
+		},
+		func(context.Context, bootstrapExecutor) error {
+			return nil
+		},
+		func(context.Context, func(string) string) (neo4jDeps, error) {
+			return neo4jDeps{
+				executor: executor,
+				close:    func() error { return nil },
+			}, nil
+		},
+		func(ctx context.Context, exec graph.CypherExecutor, _ *slog.Logger, _ graph.SchemaBackend) error {
+			return exec.ExecuteCypher(ctx, graph.CypherStatement{Cypher: "CREATE INDEX test IF NOT EXISTS FOR (n:Node) ON (n.id)"})
+		},
+	)
+	if err != nil {
+		t.Fatalf("run() error = %v, want nil", err)
+	}
+	if !executor.sawDeadline {
+		t.Fatal("graph schema executor did not receive a statement deadline")
+	}
+	if executor.deadlineRemaining <= 0 || executor.deadlineRemaining > 100*time.Millisecond {
+		t.Fatalf("deadline remaining = %s, want a bounded per-statement timeout", executor.deadlineRemaining)
+	}
+}
+
+func TestRunRejectsInvalidGraphSchemaStatementTimeout(t *testing.T) {
+	t.Parallel()
+
+	logger := testLogger(t)
+
+	err := run(
+		context.Background(),
+		func(key string) string {
+			if key == graphSchemaStatementTimeoutEnv {
+				return "soon"
+			}
+			return ""
+		},
+		logger,
+		func(context.Context, func(string) string) (bootstrapDB, error) {
+			return &fakeBootstrapDB{}, nil
+		},
+		func(context.Context, bootstrapExecutor) error {
+			return nil
+		},
+		noopNeo4j,
+		noopApplyNeo4j,
+	)
+	if err == nil {
+		t.Fatal("run() error = nil, want invalid timeout error")
+	}
+	if !strings.Contains(err.Error(), graphSchemaStatementTimeoutEnv) {
+		t.Fatalf("run() error = %q, want env var name", err.Error())
+	}
+}
+
 func TestRunJoinsNeo4jCloseError(t *testing.T) {
 	t.Parallel()
 
@@ -349,5 +424,20 @@ type fakeNeo4jExecutor struct {
 
 func (f *fakeNeo4jExecutor) ExecuteCypher(_ context.Context, _ graph.CypherStatement) error {
 	f.calls++
+	return nil
+}
+
+type deadlineRecordingExecutor struct {
+	sawDeadline       bool
+	deadlineRemaining time.Duration
+}
+
+func (d *deadlineRecordingExecutor) ExecuteCypher(ctx context.Context, _ graph.CypherStatement) error {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return nil
+	}
+	d.sawDeadline = true
+	d.deadlineRemaining = time.Until(deadline)
 	return nil
 }

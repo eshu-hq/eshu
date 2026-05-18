@@ -38,6 +38,11 @@ type applyPostgresFn func(context.Context, bootstrapExecutor) error
 type openNeo4jFn func(context.Context, func(string) string) (neo4jDeps, error)
 type applyNeo4jFn func(context.Context, graph.CypherExecutor, *slog.Logger, graph.SchemaBackend) error
 
+const (
+	graphSchemaStatementTimeoutEnv     = "ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT"
+	defaultGraphSchemaStatementTimeout = 2 * time.Minute
+)
+
 func main() {
 	if handled, err := buildinfo.PrintVersionFlag(os.Args[1:], os.Stdout, "eshu-bootstrap-data-plane"); handled {
 		if err != nil {
@@ -85,6 +90,15 @@ func run(
 ) (err error) {
 	logger.Info("starting data-plane schema migration", telemetry.EventAttr("bootstrap.schema.started"))
 
+	backend, err := schemaBackendFromEnv(getenv)
+	if err != nil {
+		return err
+	}
+	statementTimeout, err := graphSchemaStatementTimeout(getenv)
+	if err != nil {
+		return err
+	}
+
 	// Postgres schema
 	db, err := openDBFn(ctx, getenv)
 	if err != nil {
@@ -112,16 +126,31 @@ func run(
 		}
 	}()
 
-	backend, err := schemaBackendFromEnv(getenv)
-	if err != nil {
-		return err
-	}
-	if err = applyNeo4jFn(ctx, nd.executor, logger, backend); err != nil {
+	graphExecutor := graph.CypherExecutor(&statementTimeoutExecutor{
+		executor: nd.executor,
+		timeout:  statementTimeout,
+	})
+	if err = applyNeo4jFn(ctx, graphExecutor, logger, backend); err != nil {
 		return err
 	}
 	logger.Info("graph schema applied", telemetry.EventAttr("bootstrap.graph.applied"), "graph_backend", backend)
 
 	return nil
+}
+
+func graphSchemaStatementTimeout(getenv func(string) string) (time.Duration, error) {
+	raw := getenv(graphSchemaStatementTimeoutEnv)
+	if raw == "" {
+		return defaultGraphSchemaStatementTimeout, nil
+	}
+	timeout, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", graphSchemaStatementTimeoutEnv, err)
+	}
+	if timeout <= 0 {
+		return 0, fmt.Errorf("%s must be greater than zero", graphSchemaStatementTimeoutEnv)
+	}
+	return timeout, nil
 }
 
 func schemaBackendFromEnv(getenv func(string) string) (graph.SchemaBackend, error) {
@@ -162,6 +191,28 @@ func openNeo4j(ctx context.Context, getenv func(string) string) (neo4jDeps, erro
 			return driver.Close(closeCtx)
 		},
 	}, nil
+}
+
+type statementTimeoutExecutor struct {
+	executor graph.CypherExecutor
+	timeout  time.Duration
+}
+
+func (e *statementTimeoutExecutor) ExecuteCypher(ctx context.Context, stmt graph.CypherStatement) error {
+	statementCtx, cancel := context.WithTimeout(ctx, e.timeout)
+	defer cancel()
+
+	err := e.executor.ExecuteCypher(statementCtx, stmt)
+	if err != nil {
+		if errors.Is(statementCtx.Err(), context.DeadlineExceeded) {
+			return fmt.Errorf("graph schema statement exceeded %s: %w", e.timeout, context.DeadlineExceeded)
+		}
+		return err
+	}
+	if errors.Is(statementCtx.Err(), context.DeadlineExceeded) {
+		return fmt.Errorf("graph schema statement exceeded %s: %w", e.timeout, context.DeadlineExceeded)
+	}
+	return nil
 }
 
 // neo4jSchemaExecutor adapts the Neo4j driver to the graph.CypherExecutor

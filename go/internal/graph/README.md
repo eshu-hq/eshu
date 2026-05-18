@@ -32,7 +32,10 @@ graph/
   entity.go      — EntityProps, BuildEntityMergeStatement, MergeEntity, validators
   batch.go       — BatchEntityRow, BatchFileRow, BatchRelationshipRow, batch helpers
   mutations.go   — DeleteFileFromGraph, DeleteRepositoryFromGraph, ResetRepositorySubtreeInGraph
-  schema.go      — SchemaBackend, EnsureSchema, EnsureSchemaWithBackend, SchemaStatements
+  schema.go      — SchemaBackend, EnsureSchema, EnsureSchemaWithBackend
+  schema_execution.go — schema DDL progress logging and context-budget handling
+  schema_statements.go — ordered schema statement inspection helpers
+  schema_labels.go — schema label naming helpers
 ```
 
 ## Ownership boundary
@@ -141,9 +144,22 @@ their `storage/cypher` counterparts by design to avoid a cycle.
 
 ## Telemetry
 
-`EnsureSchema` and `EnsureSchemaWithBackend` log per-statement warnings via
-`slog` when DDL fails and continue executing remaining statements. No metrics
-or span instruments are registered here; backend executors own those.
+`EnsureSchema` and `EnsureSchemaWithBackend` log every DDL statement before and
+after execution via `slog`. Each log includes `graph_backend`, `schema_phase`,
+`statement_index`, `statement_total`, `schema_statement`, and `duration_ms` on
+completion. Generic DDL failures still log as warnings and continue so
+idempotent already-exists or optional full-text behavior does not block startup.
+Context deadline or cancellation errors fail fast because the caller has already
+lost its execution budget. No metrics or span instruments are registered here;
+backend executors own those.
+
+No-Regression Evidence: focused schema tests keep the prior non-deadline warning
+behavior while adding a deadline regression that proves context budget
+exhaustion is returned after the first failed statement.
+
+Observability Evidence: structured schema statement logs expose backend, phase,
+ordinal, total, duration, bounded statement summary, and failure class so a
+Kubernetes bootstrap job no longer appears hung after Postgres schema completes.
 
 ## Gotchas / invariants
 

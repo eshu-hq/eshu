@@ -135,5 +135,6 @@ adapter check. Chunk 5b records the profile-matrix proof across:
 NornicDB remains the default. Local and Compose profile gates pass against
 latest `main`, production has NornicDB full-corpus evidence, and the corrected
 schema-first Neo4j proof shows the official alternative can run the same corpus
-inside the target envelope. Keep `eshu-bootstrap-data-plane` in every
-production-profile proof before timing graph writes.
+inside the target envelope. Keep `eshu-bootstrap-data-plane` as a completed
+schema bootstrap step in every production-profile proof before timing graph
+writes.

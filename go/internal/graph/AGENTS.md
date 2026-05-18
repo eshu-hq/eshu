@@ -10,8 +10,10 @@
    `MergeEntity`, `ValidateCypherLabel`
 4. `go/internal/graph/batch.go` — `BatchMergeEntities`, `BatchMergeFiles`,
    `BatchMergeRelationships` and the UNWIND row types
-5. `go/internal/graph/schema.go` — `EnsureSchemaWithBackend`, `SchemaBackend`,
-   the constraint and index lists
+5. `go/internal/graph/schema.go`, `schema_statements.go`,
+   `schema_execution.go`, and `schema_labels.go` — `EnsureSchemaWithBackend`,
+   `SchemaBackend`, the constraint/index lists, ordered statement inspection,
+   and schema DDL observability helpers
 6. `go/internal/storage/cypher/README.md` — which adapters implement `Writer`
    and use these helpers
 

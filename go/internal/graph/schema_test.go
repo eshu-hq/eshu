@@ -400,13 +400,17 @@ func TestLabelToSnake(t *testing.T) {
 }
 
 type schemaRecordingExecutor struct {
-	calls  []CypherStatement
-	failOn func(string) bool
+	calls   []CypherStatement
+	failErr error
+	failOn  func(string) bool
 }
 
 func (r *schemaRecordingExecutor) ExecuteCypher(_ context.Context, stmt CypherStatement) error {
 	r.calls = append(r.calls, stmt)
 	if r.failOn != nil && r.failOn(stmt.Cypher) {
+		if r.failErr != nil {
+			return r.failErr
+		}
 		return errors.New("simulated schema error")
 	}
 	return nil

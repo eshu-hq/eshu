@@ -622,6 +622,7 @@ backend during rolling updates and makes the deployment look hung.
 | `NEO4J_USERNAME` | Yes | Bolt auth username |
 | `NEO4J_PASSWORD` | Yes | Bolt auth password |
 | `DEFAULT_DATABASE` | No | Bolt database name, default `nornic` |
+| `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` | No | Per graph DDL statement deadline, default `2m` |
 
 ### Operational notes
 
@@ -630,6 +631,9 @@ backend during rolling updates and makes the deployment look hung.
 - **Bounded**: the Helm chart gives the Job an `activeDeadlineSeconds` timeout.
 - **No data dependency**: does not populate any data, only creates empty tables
   and indexes. Data is populated by `bootstrap-index` or `ingester`.
+- **Observable graph DDL**: every graph schema statement logs `applying` and
+  either `applied` or `failed` with backend, phase, ordinal, total, duration,
+  failure class, and a bounded statement summary.
 - **Failure handling**: if the Job fails, Helm/Argo marks the release or sync
   failed before workloads roll.
 - **Rolling updates**: when deploying a new version with schema changes, the

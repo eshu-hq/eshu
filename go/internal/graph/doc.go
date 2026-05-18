@@ -11,5 +11,8 @@
 // performance, keeps parser-matured infrastructure labels indexed before
 // canonical writers upsert them, adds digest/tag-ref lookup support for OCI
 // registry projection labels, and keeps backend-specific constraint translation
-// inside the schema dialect helpers.
+// inside the schema dialect and label-naming helpers. Schema setup emits
+// bounded progress logs for every DDL statement and treats context deadline or
+// cancellation as a fail-fast signal while keeping generic DDL warnings
+// non-fatal.
 package graph
