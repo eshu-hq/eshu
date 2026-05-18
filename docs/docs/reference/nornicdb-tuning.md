@@ -395,8 +395,8 @@ semantic controls do not describe the bottleneck.
 ## Search Index Startup Persistence
 
 Default Compose enables `NORNICDB_PERSIST_SEARCH_INDEXES=true` for the NornicDB
-service. NornicDB otherwise rebuilds BM25, vector, and HNSW search indexes by
-scanning the persisted graph on startup. On the 2026-05-15 remote full-corpus
+service. NornicDB otherwise rebuilds its search indexes by scanning the
+persisted graph on startup. On the 2026-05-15 remote full-corpus
 degraded-run recovery, a reboot left NornicDB reporting HTTP health while it
 rebuilt `2,279,280` search-index nodes; `eshu-bootstrap-data-plane` had already
 applied Postgres schema and then waited behind graph schema work for more than
@@ -411,9 +411,9 @@ and linux/arm64 digest
 Persisting search indexes keeps the existing graph write contract and avoids
 paying the full search-index scan after normal restarts on large Eshu graphs.
 
-Observability Evidence: NornicDB logs expose `BuildIndexes progress:
-phase=iterating_nodes processed=<n>/2279280 bm25_engine=v2`; Docker stats showed
-NornicDB CPU-bound while schema bootstrap was idle after
+Observability Evidence: NornicDB logs expose `BuildIndexes progress` with
+phase and processed-node counts; Docker stats showed NornicDB CPU-bound while
+schema bootstrap was idle after
 `bootstrap.postgres.applied`. Eshu queue status remained visible once app
 services were started with existing images: `8640/8723` succeeded and
 `82` dead letters, with no active work.
@@ -455,7 +455,7 @@ stabilize and right-size NornicDB in EKS Kubernetes deployments.
 
 On EKS, NornicDB entered a restart loop because the Kubernetes readiness probe
 fired at port 7474 while NornicDB was still scanning 2,279,280 nodes to rebuild
-BM25, vector, and HNSW search indexes. The scan is CPU-bound and took more than
+search indexes. The scan is CPU-bound and took more than
 20 minutes on the 2026-05-15 full-corpus recovery host, during which port 7474
 refused connections. Combined with no startup probe, readiness failures caused
 the pod to be killed and restarted before indexing ever completed.
@@ -475,11 +475,11 @@ remote full-corpus recovery confirmed the same at `896` repositories and
 search-index persistence checkpoint and are promotion of existing proven
 behavior to the Helm chart defaults.
 
-Observability Evidence: NornicDB startup logs expose `BuildIndexes progress:
-phase=iterating_nodes processed=<n>/2279280 bm25_engine=v2` during index
-rebuild; the absence of these logs when `NORNICDB_PERSIST_SEARCH_INDEXES=true`
-confirms indexes loaded from disk. The Kubernetes startupProbe success event
-and readiness state changes are visible in pod events. Eshu queue status
+Observability Evidence: NornicDB startup logs expose `BuildIndexes progress`
+with phase and processed-node counts during index rebuild; the absence of these
+logs when `NORNICDB_PERSIST_SEARCH_INDEXES=true` confirms indexes loaded from
+disk. The Kubernetes startupProbe success event and readiness state changes are
+visible in pod events. Eshu queue status
 (`eshu status`) reports `pending`, `in_flight`, and `dead_letter` counts
 throughout the run.
 

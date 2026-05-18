@@ -71,4 +71,16 @@ git -C "${test_only_repo}" add .
 git -C "${test_only_repo}" commit -q -m 'test-only change'
 expect_pass "${test_only_repo}"
 
+deleted_repo="$(init_repo deleted)"
+mkdir -p "${deleted_repo}/go/internal/collector/removed"
+printf 'package removed\n' >"${deleted_repo}/go/internal/collector/removed/source.go"
+printf 'package removed\n' >"${deleted_repo}/go/internal/collector/removed/doc.go"
+printf '# Removed Collector\n' >"${deleted_repo}/go/internal/collector/removed/README.md"
+printf '# AGENTS\n' >"${deleted_repo}/go/internal/collector/removed/AGENTS.md"
+git -C "${deleted_repo}" add .
+git -C "${deleted_repo}" commit -q -m 'add package to delete'
+git -C "${deleted_repo}" rm -q -r go/internal/collector/removed
+git -C "${deleted_repo}" commit -q -m 'delete package'
+expect_pass "${deleted_repo}"
+
 printf 'verify-package-docs tests passed\n'

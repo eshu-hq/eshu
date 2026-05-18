@@ -24,12 +24,17 @@ if [ -z "$base" ]; then
 fi
 
 changed_files=()
-if git -C "$repo_root" diff --name-only "$base"...HEAD >/tmp/eshu-package-doc-files 2>/dev/null; then
+if git -C "$repo_root" diff --name-status "$base"...HEAD >/tmp/eshu-package-doc-files 2>/dev/null; then
   :
 else
-  git -C "$repo_root" diff --name-only "$base" HEAD >/tmp/eshu-package-doc-files
+  git -C "$repo_root" diff --name-status "$base" HEAD >/tmp/eshu-package-doc-files
 fi
-while IFS= read -r file; do
+while IFS=$'\t' read -r status first second; do
+  case "$status" in
+    D*) continue ;;
+    R*|C*) file="$second" ;;
+    *) file="$first" ;;
+  esac
   [ -n "$file" ] && changed_files+=("$file")
 done </tmp/eshu-package-doc-files
 rm -f /tmp/eshu-package-doc-files
