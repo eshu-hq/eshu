@@ -86,3 +86,66 @@ func TestBoundedParsedMetadataKeepsAdvisoriesAndEventsForAllowedVersions(t *test
 		t.Fatalf("Events = %#v, want only allowed version event", bounded.Events)
 	}
 }
+
+func TestBoundedParsedMetadataTruncatesVersionsAndEmitsWarning(t *testing.T) {
+	t.Parallel()
+
+	identity := packageregistry.PackageIdentity{
+		Ecosystem: packageregistry.EcosystemNPM,
+		Registry:  "registry.npmjs.org",
+		RawName:   "left-pad",
+	}
+	target := packageregistry.TargetConfig{
+		Provider:     "npmjs",
+		Ecosystem:    packageregistry.EcosystemNPM,
+		Registry:     "registry.npmjs.org",
+		ScopeID:      "npm://registry.npmjs.org/left-pad",
+		PackageLimit: 1,
+		VersionLimit: 2,
+	}
+	parsed := packageregistry.ParsedMetadata{
+		Packages: []packageregistry.PackageObservation{
+			{Identity: identity, ScopeID: target.ScopeID, GenerationID: "generation-1", CollectorInstanceID: "public-npm"},
+		},
+		Versions: []packageregistry.PackageVersionObservation{
+			{Package: identity, Version: "1.0.0", ScopeID: target.ScopeID, GenerationID: "generation-1", CollectorInstanceID: "public-npm"},
+			{Package: identity, Version: "1.1.0", ScopeID: target.ScopeID, GenerationID: "generation-1", CollectorInstanceID: "public-npm"},
+			{Package: identity, Version: "1.2.0", ScopeID: target.ScopeID, GenerationID: "generation-1", CollectorInstanceID: "public-npm"},
+		},
+		Artifacts: []packageregistry.PackageArtifactObservation{
+			{Package: identity, Version: "1.2.0", ArtifactKey: "left-pad-1.2.0.tgz"},
+		},
+	}
+
+	bounded, err := boundedParsedMetadata(target, parsed)
+	if err != nil {
+		t.Fatalf("boundedParsedMetadata() error = %v, want nil", err)
+	}
+	if got := versionStrings(bounded.Versions); strings.Join(got, ",") != "1.0.0,1.1.0" {
+		t.Fatalf("bounded versions = %#v, want first two versions", got)
+	}
+	if len(bounded.Artifacts) != 0 {
+		t.Fatalf("Artifacts = %#v, want artifacts for truncated versions removed", bounded.Artifacts)
+	}
+	if len(bounded.Warnings) != 1 {
+		t.Fatalf("Warnings = %#v, want one truncation warning", bounded.Warnings)
+	}
+	warning := bounded.Warnings[0]
+	if got, want := warning.WarningCode, "version_limit_truncated"; got != want {
+		t.Fatalf("WarningCode = %q, want %q", got, want)
+	}
+	if warning.Package == nil {
+		t.Fatal("Warning.Package = nil, want package-scoped warning")
+	}
+	if got := warning.Message; !strings.Contains(got, "3 versions") || !strings.Contains(got, "version_limit 2") {
+		t.Fatalf("Warning message = %q, want count and limit", got)
+	}
+}
+
+func versionStrings(observations []packageregistry.PackageVersionObservation) []string {
+	versions := make([]string, 0, len(observations))
+	for _, observation := range observations {
+		versions = append(versions, observation.Version)
+	}
+	return versions
+}

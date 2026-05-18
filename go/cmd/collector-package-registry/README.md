@@ -45,7 +45,9 @@ Each selected instance's `configuration.targets` array supports:
 - `ecosystem`: `npm`, `pypi`, `gomod`, `maven`, `nuget`, or `generic`
 - `registry`
 - `scope_id`
-- `packages`, `package_limit`, and `version_limit`
+- `packages`, `package_limit`, and `version_limit`; `package_limit` rejects
+  oversized target scope, while `version_limit` keeps the first bounded version
+  set and emits a `version_limit_truncated` warning fact
 - `metadata_url`
 - `document_format`: optional, defaults to `native`; use `artifactory_package`
   when the response is an Artifactory wrapper around package-native metadata

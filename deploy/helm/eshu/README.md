@@ -14,7 +14,7 @@ with:
 - A stateless API `Deployment` for HTTP API
 - A stateless MCP `Deployment` for MCP transport and mounted query routes
 - A stateful repository ingester `StatefulSet` for repo sync and indexing
-- An optional workflow-coordinator `Deployment` for dark-mode control-plane validation
+- An optional workflow-coordinator `Deployment` for dark-mode validation or active claim scheduling
 - A stateless Resolution Engine `Deployment` for facts queue projection
 - An optional Confluence collector `Deployment` that stores documentation sections in Postgres
 - An optional OCI registry collector `Deployment` that stores digest-addressed image facts in Postgres
@@ -56,6 +56,9 @@ schemaBootstrap:
   enabled: true
   activeDeadlineSeconds: 600
   ttlSecondsAfterFinished: 300
+
+podSecurityContext:
+  fsGroupChangePolicy: OnRootMismatch
 
 apiAuth:
   secretName: eshu-api-auth
@@ -124,6 +127,47 @@ ociRegistryCollector:
     - provider: dockerhub
       repository: library/busybox
       references: ["latest"]
+
+workflowCoordinator:
+  enabled: true
+  deploymentMode: active
+  claimsEnabled: true
+  collectorInstances:
+    - instance_id: package-registry-primary
+      collector_kind: package_registry
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - provider: npm
+            ecosystem: npm
+            registry: https://registry.npmjs.org
+            scope_id: npm://registry.npmjs.org/lodash
+            packages: [lodash]
+            package_limit: 1
+            version_limit: 2
+            metadata_url: https://registry.npmjs.org/lodash
+
+packageRegistryCollector:
+  enabled: true
+  instanceId: package-registry-primary
+  collectorInstances:
+    - instance_id: package-registry-primary
+      collector_kind: package_registry
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - provider: npm
+            ecosystem: npm
+            registry: https://registry.npmjs.org
+            scope_id: npm://registry.npmjs.org/lodash
+            packages: [lodash]
+            package_limit: 1
+            version_limit: 2
+            metadata_url: https://registry.npmjs.org/lodash
 
 webhookListener:
   enabled: true

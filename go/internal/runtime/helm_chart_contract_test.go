@@ -162,6 +162,23 @@ contentStore:
 neo4j:
   auth:
     secretName: ""
+workflowCoordinator:
+  enabled: true
+  deploymentMode: active
+  claimsEnabled: true
+  collectorInstances:
+    - instance_id: aws-primary
+      collector_kind: aws
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        target_scopes:
+          - account_id: "123456789012"
+            allowed_regions: [us-east-1]
+            allowed_services: [iam]
+            credentials:
+              mode: local_workload_identity
 awsCloudCollector:
   enabled: true
   instanceId: aws-primary
@@ -229,6 +246,186 @@ func TestHelmAWSCloudCollectorOwnsServiceAccountDefaults(t *testing.T) {
 	}
 }
 
+func TestHelmClaimDrivenCollectorsRequireWorkflowCoordinator(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		values string
+	}{
+		{
+			name: "terraform_state",
+			values: `
+terraformStateCollector:
+  enabled: true
+  instanceId: terraform-state-primary
+  redaction:
+    secretName: tfstate-redaction
+    keyKey: redaction-key
+    rulesetVersion: schema-v1
+  collectorInstances:
+    - instance_id: terraform-state-primary
+      collector_kind: terraform_state
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        target_scopes:
+          - target_scope_id: aws-prod
+            provider: aws
+            deployment_mode: central
+            credential_mode: local_workload_identity
+            allowed_regions: [us-east-1]
+            allowed_backends: [s3]
+`,
+		},
+		{
+			name: "aws_cloud",
+			values: `
+awsCloudCollector:
+  enabled: true
+  instanceId: aws-cloud-primary
+  collectorInstances:
+    - instance_id: aws-cloud-primary
+      collector_kind: aws
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        target_scopes:
+          - target_scope_id: aws-dev
+            provider: aws
+            account_ids: ["123456789012"]
+            regions: [us-east-1]
+`,
+		},
+		{
+			name: "package_registry",
+			values: `
+packageRegistryCollector:
+  enabled: true
+  instanceId: package-registry-primary
+  collectorInstances:
+    - instance_id: package-registry-primary
+      collector_kind: package_registry
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - provider: npm
+            ecosystem: npm
+            registry: https://registry.npmjs.org
+            scope_id: npm://registry.npmjs.org/lodash
+            packages: [lodash]
+            package_limit: 1
+            version_limit: 2
+            metadata_url: https://registry.npmjs.org/lodash
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			valuesPath := filepath.Join(t.TempDir(), "claim-values.yaml")
+			if err := os.WriteFile(valuesPath, []byte(tt.values), 0o600); err != nil {
+				t.Fatalf("write claim collector values: %v", err)
+			}
+
+			output := renderHelmChartFailure(t, "-f", valuesPath)
+			if !strings.Contains(output, "workflowCoordinator.enabled=true is required when claim-driven collectors are enabled") {
+				t.Fatalf("helm template error = %q, want workflow coordinator requirement", output)
+			}
+		})
+	}
+}
+
+func TestHelmWorkflowCoordinatorActiveModeForClaimDrivenCollectors(t *testing.T) {
+	t.Parallel()
+
+	valuesPath := filepath.Join(t.TempDir(), "active-values.yaml")
+	values := []byte(`
+workflowCoordinator:
+  enabled: true
+  deploymentMode: active
+  claimsEnabled: true
+  collectorInstances:
+    - instance_id: package-registry-primary
+      collector_kind: package_registry
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - provider: npm
+            ecosystem: npm
+            registry: https://registry.npmjs.org
+            scope_id: npm://registry.npmjs.org/lodash
+            packages: [lodash]
+            package_limit: 1
+            version_limit: 2
+            metadata_url: https://registry.npmjs.org/lodash
+packageRegistryCollector:
+  enabled: true
+  instanceId: package-registry-primary
+  collectorInstances:
+    - instance_id: package-registry-primary
+      collector_kind: package_registry
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - provider: npm
+            ecosystem: npm
+            registry: https://registry.npmjs.org
+            scope_id: npm://registry.npmjs.org/lodash
+            packages: [lodash]
+            package_limit: 1
+            version_limit: 2
+            metadata_url: https://registry.npmjs.org/lodash
+`)
+	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+		t.Fatalf("write active coordinator values: %v", err)
+	}
+
+	manifests := renderHelmChart(t, "-f", valuesPath)
+	coordinator := requireHelmManifest(t, manifests, "Deployment", "eshu-workflow-coordinator")
+	env := helmEnvByName(requireHelmContainer(t, coordinator, "workflow-coordinator"))
+	assertHelmLiteralEnv(t, env, "ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE", "active")
+	assertHelmLiteralEnv(t, env, "ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED", "true")
+	if !strings.Contains(helmString(env["ESHU_COLLECTOR_INSTANCES_JSON"]["value"]), `"collector_kind":"package_registry"`) {
+		t.Fatalf("ESHU_COLLECTOR_INSTANCES_JSON = %#v, want package_registry instance", env["ESHU_COLLECTOR_INSTANCES_JSON"])
+	}
+	requireHelmManifest(t, manifests, "Deployment", "eshu-package-registry-collector")
+}
+
+func TestHelmPodSecurityContextUsesOnRootMismatch(t *testing.T) {
+	t.Parallel()
+
+	valuesPath := filepath.Join(t.TempDir(), "repo-sync-values.yaml")
+	values := []byte(`
+repoSync:
+  enabled: true
+  auth:
+    method: none
+  source:
+    mode: filesystem
+`)
+	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+		t.Fatalf("write repo sync values: %v", err)
+	}
+
+	manifests := renderHelmChart(t, "-f", valuesPath)
+	ingester := requireHelmManifest(t, manifests, "StatefulSet", "eshu")
+	securityContext := helmMap(helmPodSpec(t, ingester)["securityContext"])
+	if got, want := helmString(securityContext["fsGroupChangePolicy"]), "OnRootMismatch"; got != want {
+		t.Fatalf("fsGroupChangePolicy = %q, want %q", got, want)
+	}
+}
+
 func renderHelmChart(t *testing.T, args ...string) []helmManifest {
 	t.Helper()
 
@@ -260,6 +457,23 @@ func renderHelmChart(t *testing.T, args ...string) []helmManifest {
 		manifests = append(manifests, manifest)
 	}
 	return manifests
+}
+
+func renderHelmChartFailure(t *testing.T, args ...string) string {
+	t.Helper()
+
+	chartPath := filepath.Join(repositoryRoot(t), "deploy", "helm", "eshu")
+	helmPath, err := exec.LookPath("helm")
+	if err != nil {
+		t.Skipf("helm binary not found in PATH; install Helm to run chart contract tests: %v", err)
+	}
+	cmdArgs := append([]string{"template", "eshu", chartPath}, args...)
+	cmd := exec.Command(helmPath, cmdArgs...)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("helm template succeeded, want failure:\n%s", output)
+	}
+	return string(output)
 }
 
 func repositoryRoot(t *testing.T) string {

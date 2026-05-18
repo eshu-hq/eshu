@@ -481,7 +481,7 @@ go test ./internal/collector/ociregistry/ociruntime \
 # Package-registry metadata fetch, parser bounds, fact emission, and URL scrubbing.
 cd go
 go test ./internal/collector/packageregistry/packageruntime \
-  -run 'TestClaimedSourceParsesMetadataIntoPackageRegistryFacts|TestClaimedSourceRejectsMetadataOverVersionLimit|TestClaimedSourceSanitizesSourceURIBeforeFactEmission' \
+  -run 'TestClaimedSourceParsesMetadataIntoPackageRegistryFacts|TestClaimedSourceTruncatesMetadataOverVersionLimit|TestClaimedSourceSanitizesSourceURIBeforeFactEmission' \
   -count=1 -v
 
 # Confluence source-stage metrics and high-cardinality label guard.

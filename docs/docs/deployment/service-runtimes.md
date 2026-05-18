@@ -495,27 +495,30 @@ Postgres pools per lane; the total concurrent claim pressure is the sum of
 - claim contention
 - collection-complete versus reducer-converged state
 
-The coordinator ships dark by default in this slice:
+The coordinator ships dark by default:
 
 - `workflowCoordinator.enabled` defaults to `false`
 - `workflowCoordinator.collectorInstances` defaults to `[]`
 - Helm keeps `workflowCoordinator.deploymentMode=dark` and
-  `workflowCoordinator.claimsEnabled=false`; active claim ownership is blocked
-  in the chart for this branch
+  `workflowCoordinator.claimsEnabled=false` until an operator explicitly opts
+  into active claim ownership
 - `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE=dark`
 - `ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED=false`
 - the shared `/admin/status` surface stays on so operators can validate the
   control plane before ownership is enabled
 
-The Helm chart can still render the claim-driven collector workloads. Those
-workloads select their own claim-capable instance JSON and are ready to consume
-work created by an approved active control-plane lane. The chart does not use
-collector deployment values to bypass the coordinator dark-mode guard.
+The Helm chart can render claim-driven collector workloads only with an active
+coordinator. Terraform-state, AWS cloud, and package-registry collector
+Deployments require `workflowCoordinator.enabled=true`,
+`workflowCoordinator.deploymentMode=active`,
+`workflowCoordinator.claimsEnabled=true`, and at least one declared collector
+instance. This makes missing claim creation fail at render time instead of
+deploying collector pods that look healthy but have no durable work to claim.
 
-For proof runs, Compose may run the coordinator in active mode only when the
-operator sets both claim flags and an explicit claim-enabled collector instance.
-That proof path is for fenced claim validation, API/MCP truth checks, and
-remote full-corpus timing; it is not the Kubernetes production default.
+Compose and Kubernetes proof runs use the same active-mode contract: set both
+claim flags and provide explicit claim-enabled collector instances. The proof
+path must validate fenced claim behavior, API/MCP truth checks, remote timing,
+and preserved-volume restart behavior before a new image is promoted.
 
 ## Schema Bootstrap
 

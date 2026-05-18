@@ -299,7 +299,7 @@ func TestClaimedSourceRejectsMetadataForUnexpectedPackage(t *testing.T) {
 	}
 }
 
-func TestClaimedSourceRejectsMetadataOverVersionLimit(t *testing.T) {
+func TestClaimedSourceTruncatesMetadataOverVersionLimit(t *testing.T) {
 	t.Parallel()
 
 	source := newTestClaimedSource(t, TargetConfig{
@@ -322,12 +322,22 @@ func TestClaimedSourceRejectsMetadataOverVersionLimit(t *testing.T) {
 		}`),
 	})
 
-	_, _, err := source.NextClaimed(context.Background(), testPackageRegistryWorkItemForScope("package-registry://npm/npm/@scope/pkg"))
-	if err == nil {
-		t.Fatal("NextClaimed() error = nil, want version_limit rejection")
+	collected, ok, err := source.NextClaimed(context.Background(), testPackageRegistryWorkItemForScope("package-registry://npm/npm/@scope/pkg"))
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
 	}
-	if got := err.Error(); !strings.Contains(got, "version_limit") {
-		t.Fatalf("NextClaimed() error = %q, want version_limit rejection", got)
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	gotKinds := map[string]int{}
+	for envelope := range collected.Facts {
+		gotKinds[envelope.FactKind]++
+	}
+	if got := gotKinds[facts.PackageRegistryPackageVersionFactKind]; got != 1 {
+		t.Fatalf("package version fact count = %d, want 1; kinds=%#v", got, gotKinds)
+	}
+	if got := gotKinds[facts.PackageRegistryWarningFactKind]; got != 1 {
+		t.Fatalf("warning fact count = %d, want 1; kinds=%#v", got, gotKinds)
 	}
 }
 

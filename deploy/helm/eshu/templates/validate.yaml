@@ -46,11 +46,24 @@
 {{- fail "packageRegistryCollector.collectorInstances must contain at least one instance when packageRegistryCollector.enabled=true" -}}
 {{- end -}}
 {{- end -}}
-{{- if and .Values.workflowCoordinator.enabled (ne .Values.workflowCoordinator.deploymentMode "dark") -}}
-{{- fail "workflowCoordinator.deploymentMode must remain dark in this chart until coordinator-owned claims finish proof validation" -}}
+{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled -}}
+{{- if and $claimDrivenCollectorsEnabled (not .Values.workflowCoordinator.enabled) -}}
+{{- fail "workflowCoordinator.enabled=true is required when claim-driven collectors are enabled" -}}
 {{- end -}}
-{{- if and .Values.workflowCoordinator.enabled .Values.workflowCoordinator.claimsEnabled -}}
-{{- fail "workflowCoordinator.claimsEnabled must remain false in this chart; use the documented Compose proof path for active claim validation" -}}
+{{- if and $claimDrivenCollectorsEnabled (ne .Values.workflowCoordinator.deploymentMode "active") -}}
+{{- fail "workflowCoordinator.deploymentMode=active is required when claim-driven collectors are enabled" -}}
+{{- end -}}
+{{- if and $claimDrivenCollectorsEnabled (not .Values.workflowCoordinator.claimsEnabled) -}}
+{{- fail "workflowCoordinator.claimsEnabled=true is required when claim-driven collectors are enabled" -}}
+{{- end -}}
+{{- if and .Values.workflowCoordinator.claimsEnabled (ne .Values.workflowCoordinator.deploymentMode "active") -}}
+{{- fail "workflowCoordinator.deploymentMode=active is required when workflowCoordinator.claimsEnabled=true" -}}
+{{- end -}}
+{{- if and .Values.workflowCoordinator.enabled (eq .Values.workflowCoordinator.deploymentMode "active") (not .Values.workflowCoordinator.claimsEnabled) -}}
+{{- fail "workflowCoordinator.claimsEnabled=true is required when workflowCoordinator.deploymentMode=active" -}}
+{{- end -}}
+{{- if and .Values.workflowCoordinator.enabled .Values.workflowCoordinator.claimsEnabled (not .Values.workflowCoordinator.collectorInstances) -}}
+{{- fail "workflowCoordinator.collectorInstances must contain at least one instance when workflowCoordinator.claimsEnabled=true" -}}
 {{- end -}}
 {{- if .Values.webhookListener.enabled -}}
 {{- if and (not .Values.webhookListener.github.enabled) (not .Values.webhookListener.gitlab.enabled) (not .Values.webhookListener.bitbucket.enabled) (not .Values.webhookListener.awsFreshness.enabled) -}}
