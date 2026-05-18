@@ -3,6 +3,8 @@ package apigateway
 import (
 	"context"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
 const (
@@ -41,6 +43,7 @@ type RESTAPI struct {
 	Tags                      map[string]string
 	Stages                    []Stage
 	Integrations              []Integration
+	Warnings                  []awscloud.WarningObservation
 }
 
 // V2API is the metadata-only scanner view of an API Gateway HTTP or WebSocket

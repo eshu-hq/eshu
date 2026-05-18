@@ -277,6 +277,32 @@ func TestScannerAggregatesRelationshipAttributesForStableKeys(t *testing.T) {
 	}})
 }
 
+func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
+	boundary := testBoundary()
+	client := fakeClient{snapshot: Snapshot{
+		RESTAPIs: []RESTAPI{{
+			ID:   "rest-1",
+			Name: "orders-rest",
+			Warnings: []awscloud.WarningObservation{{
+				Boundary:    boundary,
+				WarningKind: awscloud.WarningThrottleSustained,
+				ErrorClass:  "throttled",
+				Message:     "API Gateway GetResources throttled after SDK retries",
+			}},
+		}},
+	}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), boundary)
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	warning := singleWarningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	if warning.Payload["error_class"] != "throttled" {
+		t.Fatalf("warning error_class = %#v, want throttled", warning.Payload["error_class"])
+	}
+	resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAPIGatewayRESTAPI, "rest-1")
+}
+
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
 	boundary.ServiceKind = awscloud.ServiceS3
@@ -379,6 +405,27 @@ func singleRelationshipByTypeAndTarget(
 	}
 	if len(matches) != 1 {
 		t.Fatalf("relationship %q to %q count = %d, want 1 in %#v", relationshipType, targetResourceID, len(matches), envelopes)
+	}
+	return matches[0]
+}
+
+func singleWarningByKind(
+	t *testing.T,
+	envelopes []facts.Envelope,
+	warningKind string,
+) facts.Envelope {
+	t.Helper()
+	var matches []facts.Envelope
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSWarningFactKind {
+			continue
+		}
+		if envelope.Payload["warning_kind"] == warningKind {
+			matches = append(matches, envelope)
+		}
+	}
+	if len(matches) != 1 {
+		t.Fatalf("warning %q count = %d, want 1 in %#v", warningKind, len(matches), envelopes)
 	}
 	return matches[0]
 }

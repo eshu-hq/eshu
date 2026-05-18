@@ -35,6 +35,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 	var envelopes []facts.Envelope
 	for _, api := range snapshot.RESTAPIs {
+		if err := appendWarnings(&envelopes, api.Warnings); err != nil {
+			return nil, err
+		}
 		if err := appendResource(&envelopes, restAPIObservation(boundary, api)); err != nil {
 			return nil, err
 		}
@@ -67,6 +70,17 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	return envelopes, nil
+}
+
+func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+	for _, observation := range observations {
+		envelope, err := awscloud.NewWarningEnvelope(observation)
+		if err != nil {
+			return err
+		}
+		*envelopes = append(*envelopes, envelope)
+	}
+	return nil
 }
 
 func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceObservation) error {

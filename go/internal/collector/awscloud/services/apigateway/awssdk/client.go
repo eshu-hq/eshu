@@ -124,5 +124,9 @@ func isThrottleError(err error) bool {
 		return false
 	}
 	code := strings.ToLower(apiErr.ErrorCode())
-	return strings.Contains(code, "throttl") || strings.Contains(code, "rate")
+	return strings.Contains(code, "throttl") ||
+		strings.Contains(code, "rate") ||
+		code == "requestlimitexceeded" ||
+		code == "toomanyrequestsexception" ||
+		code == "slowdown"
 }

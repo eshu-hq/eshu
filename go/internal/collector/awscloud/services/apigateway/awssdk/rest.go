@@ -7,6 +7,7 @@ import (
 	awsapigateway "github.com/aws/aws-sdk-go-v2/service/apigateway"
 	awsapigatewaytypes "github.com/aws/aws-sdk-go-v2/service/apigateway/types"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	apigatewayservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apigateway"
 )
 
@@ -61,10 +62,12 @@ func (c *Client) restAPIMetadata(
 	if err != nil {
 		return apigatewayservice.RESTAPI{}, err
 	}
-	api.Integrations, err = c.listRESTIntegrations(ctx, api.ID)
+	var warnings []awscloud.WarningObservation
+	api.Integrations, warnings, err = c.listRESTIntegrations(ctx, api.ID)
 	if err != nil {
 		return apigatewayservice.RESTAPI{}, err
 	}
+	api.Warnings = append(api.Warnings, warnings...)
 	return api, nil
 }
 
@@ -85,7 +88,10 @@ func (c *Client) listRESTStages(ctx context.Context, apiID string) ([]apigateway
 	return stages, nil
 }
 
-func (c *Client) listRESTIntegrations(ctx context.Context, apiID string) ([]apigatewayservice.Integration, error) {
+func (c *Client) listRESTIntegrations(
+	ctx context.Context,
+	apiID string,
+) ([]apigatewayservice.Integration, []awscloud.WarningObservation, error) {
 	var integrations []apigatewayservice.Integration
 	var position *string
 	for {
@@ -100,19 +106,37 @@ func (c *Client) listRESTIntegrations(ctx context.Context, apiID string) ([]apig
 			})
 			return err
 		})
+		if isThrottleError(err) {
+			return integrations, []awscloud.WarningObservation{c.restResourcesThrottleWarning()}, nil
+		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if page == nil {
-			return integrations, nil
+			return integrations, nil, nil
 		}
 		for _, resource := range page.Items {
 			integrations = append(integrations, mapRESTResourceIntegrations(apiID, resource)...)
 		}
 		position = page.Position
 		if aws.ToString(position) == "" {
-			return integrations, nil
+			return integrations, nil, nil
 		}
+	}
+}
+
+func (c *Client) restResourcesThrottleWarning() awscloud.WarningObservation {
+	return awscloud.WarningObservation{
+		Boundary:    c.boundary,
+		WarningKind: awscloud.WarningThrottleSustained,
+		ErrorClass:  "throttled",
+		Message:     "API Gateway GetResources throttled after SDK retries; REST integration metadata omitted for this scan",
+		Attributes: map[string]any{
+			"api_kind":          apigatewayservice.APIKindREST,
+			"operation":         "GetResources",
+			"partial_component": "rest_integrations",
+		},
+		SourceRecordID: "apigateway_rest_integrations_throttled",
 	}
 }
 
