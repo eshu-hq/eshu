@@ -56,11 +56,25 @@ func TestAWSScanStatusStoreUsesFenceGuard(t *testing.T) {
 		"INSERT INTO aws_scan_status",
 		"ON CONFLICT (collector_instance_id, account_id, region, service_kind) DO UPDATE SET",
 		"CASE WHEN aws_scan_status.generation_id = EXCLUDED.generation_id",
-		"aws_scan_status.fencing_token < EXCLUDED.fencing_token",
-		"aws_scan_status.fencing_token = EXCLUDED.fencing_token",
+		"aws_scan_status.fencing_token <= EXCLUDED.fencing_token",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("StartAWSScan() query missing %q:\n%s", want, query)
+		}
+	}
+}
+
+func TestAWSScanStatusStoreAllowsNewGenerationAfterTerminalPriorScan(t *testing.T) {
+	t.Parallel()
+
+	query := startAWSScanStatusQuery
+	for _, want := range []string{
+		"aws_scan_status.generation_id <> EXCLUDED.generation_id",
+		"aws_scan_status.status IN ('succeeded', 'partial', 'failed', 'credential_failed')",
+		"aws_scan_status.commit_status IN ('committed', 'failed')",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("StartAWSScan() query missing restart-safe generation handoff %q:\n%s", want, query)
 		}
 	}
 }

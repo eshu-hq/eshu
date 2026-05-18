@@ -26,6 +26,8 @@ type ClaimControlStore interface {
 	FailClaimTerminal(context.Context, workflow.ClaimMutation) error
 }
 
+var errRetryableClaimRecorded = errors.New("retryable claim failure recorded")
+
 // ClaimedSource resolves one already-claimed work item into a collected
 // generation that can be committed through the normal collector path.
 type ClaimedSource interface {
@@ -82,6 +84,9 @@ func (s ClaimedService) Run(ctx context.Context) error {
 		}
 
 		if err := s.processClaimed(ctx, item, claim); err != nil {
+			if errors.Is(err, errRetryableClaimRecorded) {
+				continue
+			}
 			return err
 		}
 	}
@@ -280,10 +285,14 @@ func (s ClaimedService) failRetryable(
 	err error,
 ) error {
 	failureClass = classifiedFailureClass(err, failureClass)
-	if failErr := s.ControlStore.FailClaimRetryable(ctx, withFailure(mutation, failureClass, err)); failErr != nil {
+	failed := withFailure(mutation, failureClass, err)
+	if failed.VisibleAt.IsZero() {
+		failed.VisibleAt = s.now().Add(s.PollInterval)
+	}
+	if failErr := s.ControlStore.FailClaimRetryable(ctx, failed); failErr != nil {
 		return fmt.Errorf("retryable-fail claimed %s work item: %w", s.claimedKindLabel(), failErr)
 	}
-	return fmt.Errorf("%s: %w", failureClass, err)
+	return errors.Join(errRetryableClaimRecorded, fmt.Errorf("%s: %w", failureClass, err))
 }
 
 func (s ClaimedService) claimedKindLabel() string {

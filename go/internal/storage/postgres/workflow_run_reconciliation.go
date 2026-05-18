@@ -3,14 +3,19 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+const workflowRunReconciliationMaxAttempts = 3
 
 const listWorkflowRunsForReconciliationQuery = `
 SELECT
@@ -107,6 +112,19 @@ func (s *WorkflowControlStore) ReconcileWorkflowRuns(ctx context.Context, observ
 }
 
 func (s *WorkflowControlStore) reconcileWorkflowRun(ctx context.Context, run workflow.Run, observedAt time.Time) error {
+	for attempt := 1; attempt <= workflowRunReconciliationMaxAttempts; attempt++ {
+		err := s.reconcileWorkflowRunOnce(ctx, run, observedAt)
+		if err == nil {
+			return nil
+		}
+		if !isRetryableWorkflowReconciliationError(err) || attempt == workflowRunReconciliationMaxAttempts {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *WorkflowControlStore) reconcileWorkflowRunOnce(ctx context.Context, run workflow.Run, observedAt time.Time) error {
 	queryTarget := s.db
 	execTarget := s.db
 	commit := func() error { return nil }
@@ -160,6 +178,19 @@ func (s *WorkflowControlStore) reconcileWorkflowRun(ctx context.Context, run wor
 	}
 	rollback = func() error { return nil }
 	return nil
+}
+
+func isRetryableWorkflowReconciliationError(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	switch pgErr.Code {
+	case "40001", "40P01":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *WorkflowControlStore) listWorkflowCollectorProgress(ctx context.Context, queryer Queryer, runID string) ([]workflow.CollectorRunProgress, error) {

@@ -128,10 +128,14 @@ ON CONFLICT (collector_instance_id, account_id, region, service_kind) DO UPDATE 
     last_completed_at = aws_scan_status.last_completed_at,
     last_successful_at = aws_scan_status.last_successful_at,
     updated_at = EXCLUDED.updated_at
-WHERE aws_scan_status.fencing_token < EXCLUDED.fencing_token
-   OR (
+WHERE (
         aws_scan_status.generation_id = EXCLUDED.generation_id
-        AND aws_scan_status.fencing_token = EXCLUDED.fencing_token
+        AND aws_scan_status.fencing_token <= EXCLUDED.fencing_token
+   )
+   OR (
+        aws_scan_status.generation_id <> EXCLUDED.generation_id
+        AND aws_scan_status.status IN ('succeeded', 'partial', 'failed', 'credential_failed')
+        AND aws_scan_status.commit_status IN ('committed', 'failed')
    )
 `
 

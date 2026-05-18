@@ -611,6 +611,7 @@ func TestIngestionStoreBackfillAllRelationshipEvidencePersistsBySourceGeneration
 
 type fakeTransactionalDB struct {
 	tx             *fakeTx
+	txs            []*fakeTx
 	beginCalls     int
 	beginErr       error
 	queries        []fakeQueryCall
@@ -621,6 +622,11 @@ func (f *fakeTransactionalDB) Begin(context.Context) (Transaction, error) {
 	f.beginCalls++
 	if f.beginErr != nil {
 		return nil, f.beginErr
+	}
+	if len(f.txs) > 0 {
+		tx := f.txs[0]
+		f.txs = f.txs[1:]
+		return tx, nil
 	}
 	return f.tx, nil
 }

@@ -21,6 +21,8 @@ import (
 func TestClaimedServiceUsesClassifiedCollectFailure(t *testing.T) {
 	t.Parallel()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	now := time.Date(2026, time.May, 9, 20, 0, 0, 0, time.UTC)
 	item := testClaimedWorkItem(now)
 	item.CollectorKind = scope.CollectorTerraformState
@@ -30,13 +32,16 @@ func TestClaimedServiceUsesClassifiedCollectFailure(t *testing.T) {
 		item:  item,
 		claim: claim,
 		found: true,
+		retryableFail: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
 	}
 	source := &stubClaimedSource{err: terraformstate.WaitingOnGitGenerationError{RepoIDs: []string{"platform-infra"}}}
 	service := testClaimedService(now, claim, scope.CollectorTerraformState, store, source, &stubClaimedCommitter{})
 
-	err := service.Run(context.Background())
-	if err == nil {
-		t.Fatal("Run() error = nil, want waiting error")
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil after retryable collect failure", err)
 	}
 	if got, want := store.lastRetryableFail.FailureClass, "waiting_on_git_generation"; got != want {
 		t.Fatalf("FailureClass = %q, want %q", got, want)
@@ -86,6 +91,8 @@ func TestClaimedServiceCompletesUnchangedTerraformStateClaimWithoutCommit(t *tes
 func TestClaimedServiceFailsTerraformStateCommitWhenFactStreamReportsError(t *testing.T) {
 	t.Parallel()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	now := time.Date(2026, time.May, 10, 11, 5, 0, 0, time.UTC)
 	item := testClaimedWorkItem(now)
 	item.CollectorKind = scope.CollectorTerraformState
@@ -95,6 +102,10 @@ func TestClaimedServiceFailsTerraformStateCommitWhenFactStreamReportsError(t *te
 		item:  item,
 		claim: claim,
 		found: true,
+		retryableFail: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
 	}
 	replayErr := errors.New("terraform state fact stream replay failed")
 	collectedScope := scope.IngestionScope{
@@ -127,9 +138,8 @@ func TestClaimedServiceFailsTerraformStateCommitWhenFactStreamReportsError(t *te
 		ok:        true,
 	}, committer)
 
-	err := service.Run(context.Background())
-	if !errors.Is(err, replayErr) {
-		t.Fatalf("Run() error = %v, want %v", err, replayErr)
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil after retryable stream failure", err)
 	}
 	if got, want := store.completeCalls, 0; got != want {
 		t.Fatalf("complete calls = %d, want %d", got, want)
