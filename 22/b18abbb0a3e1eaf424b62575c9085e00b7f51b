@@ -1,0 +1,31 @@
+go/internal/collector/awscloud/services/apigateway/awssdk/rest_throttle_test.go
+  s_f2f7fbb6f30866::t_c6d59072d72d06 1-146
+docs/docs/reference/local-testing.md
+  s_f2f7fbb6f30866::t_aeca1ff62e7b18 121-122
+go/internal/collector/awscloud/services/apigateway/scanner_test.go
+  s_f2f7fbb6f30866::t_560598bbc8ab02 283-288
+go/internal/collector/awscloud/services/apigateway/scanner.go
+  s_f2f7fbb6f30866::t_8044a2667223aa 37-39
+go/internal/collector/awscloud/services/apigateway/awssdk/client.go
+  s_f2f7fbb6f30866::t_bd84d1760db0a6 55,72
+go/internal/collector/awscloud/services/apigateway/types.go
+  s_f2f7fbb6f30866::t_ac4c0bacf595e3 26
+go/internal/collector/awscloud/services/apigateway/awssdk/rest.go
+  s_f2f7fbb6f30866::t_5bbe4e851fb2d2 22-24,26,39,42,45,47,49,54,62,67,72,74,113,131-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "22b18abbb0a3e1eaf424b62575c9085e00b7f51b",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
