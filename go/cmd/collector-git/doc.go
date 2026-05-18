@@ -8,6 +8,8 @@
 // native repository selector and snapshotter, optionally prioritizes queued
 // GitHub, GitLab, and Bitbucket webhook refresh triggers, and hosts it through
 // app.NewHostedWithStatusServer so it exposes the shared `/healthz`, `/readyz`,
-// `/metrics`, and `/admin/status` admin surface. It honors SIGINT and SIGTERM
-// for clean shutdown.
+// `/metrics`, and `/admin/status` admin surface. The native selector receives
+// the runtime logger so clone/fetch start, progress, completion, and failure
+// records are visible before snapshot workers start. It honors SIGINT and
+// SIGTERM for clean shutdown.
 package main

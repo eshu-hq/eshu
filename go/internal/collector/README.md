@@ -210,7 +210,10 @@ it.
   `eshu_dp_discovery_files_skipped_total` (labeled `skip_reason`),
   `eshu_dp_large_repo_classifications_total` (labeled `repo_size_tier`),
   `eshu_dp_large_repo_semaphore_wait_seconds`
-- Log events: `collector stream started`, `collector snapshot stage completed`
+- Log events: `git repository sync started`,
+  `git repository sync progress`, `git repository sync completed`,
+  `git repository sync failed`, `collector stream started`,
+  `collector snapshot stage completed`
   (stages: `discovery`, `pre_scan`, `go_package_semantic_prescan`, `parse`,
   `materialize`; the Go semantic pre-scan stage includes
   `go_package_target_count`, and the `parse` stage includes bounded
@@ -248,6 +251,18 @@ it.
   logs, `SpanScopeAssign`, `SpanCollectorStream`, and pprof profiles expose the
   selector/copy window separately from per-repository discovery, pre-scan,
   parse, materialize, commit, and projection stages.
+- No-Regression Evidence: Git clone/fetch progress logging does not change
+  selection semantics, worker counts, repository ordering, clone depth, fact
+  emission, or durable queue writes. The focused gate is
+  `go test ./internal/collector ./cmd/collector-git ./cmd/ingester -count=1`,
+  which covers sanitized git progress logging plus ingester and collector-git
+  logger wiring into `NativeRepositorySelector`.
+- Observability Evidence: Hosted git sync now emits structured start,
+  throttled progress, completion, and failure logs for clone/fetch before
+  snapshot workers start. The logs include bounded fields for operation,
+  provider kind, repository id, repository ordinal/count, branch when known,
+  elapsed seconds, and `failure_class=git_sync_failure` on failures while
+  redacting credential-bearing URLs and avoiding full local paths.
 - Parser variable scope is part of performance and truth. Java defaults to
   module-level variables during native snapshots because dead-code candidates
   and Java call inference do not need every method-local declaration as a

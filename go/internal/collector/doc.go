@@ -17,7 +17,11 @@
 // for query truth. Snapshot-stage telemetry separates Go package semantic
 // pre-scan cost from parser worker cost, and parse-stage telemetry records
 // bounded per-language summaries so operators can attribute repo-scale parser
-// cost without logging file paths.
+// cost without logging file paths. Git-backed selection logs clone/fetch start,
+// throttled progress, completion, and failure with repository ordinals and
+// sanitized repository identifiers so hosted operators can distinguish slow
+// network or auth behavior from snapshot parsing without exposing credentials
+// or full local checkout paths.
 // Snapshot entity mapping carries parser buckets, including Terraform
 // import/refactor/check and lockfile-provider evidence, into content facts
 // before projector or query policy decides how to present them. Native

@@ -144,7 +144,7 @@ func buildIngesterCollectorService(
 	committer.SkipRelationshipBackfill = true
 	committer.Logger = logger
 
-	selector := collector.RepositorySelector(collector.NativeRepositorySelector{Config: config})
+	selector := collector.RepositorySelector(collector.NativeRepositorySelector{Config: config, Logger: logger})
 	handoffConfig := collector.LoadWebhookTriggerHandoffConfig("ingester", getenv)
 	if handoffConfig.Enabled {
 		selector = collector.PriorityRepositorySelector{Selectors: []collector.RepositorySelector{
@@ -153,6 +153,7 @@ func buildIngesterCollectorService(
 				Store:      postgres.NewWebhookTriggerStore(database),
 				Owner:      handoffConfig.Owner,
 				ClaimLimit: handoffConfig.ClaimLimit,
+				Logger:     logger,
 			},
 			selector,
 		}}
