@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +23,7 @@ import (
 
 type bootstrapExecutor interface {
 	postgres.Executor
+	QueryContext(context.Context, string, ...any) (postgres.Rows, error)
 }
 
 type bootstrapDB interface {
@@ -68,7 +71,7 @@ func main() {
 			return postgres.ApplyBootstrap(ctx, exec)
 		},
 		openNeo4j,
-		graph.EnsureSchemaWithBackend,
+		graph.EnsureSchemaWithBackendStrict,
 	); err != nil {
 		logger.Error("bootstrap-data-plane failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
 		os.Exit(1)
@@ -115,7 +118,24 @@ func run(
 	}
 	logger.Info("postgres schema applied", telemetry.EventAttr("bootstrap.postgres.applied"))
 
-	// Neo4j schema
+	fingerprint, statementCount, err := graphSchemaFingerprint(backend)
+	if err != nil {
+		return err
+	}
+	applied, err := graphSchemaAlreadyApplied(ctx, db, backend, fingerprint)
+	if err != nil {
+		return err
+	}
+	if applied {
+		logger.Info("graph schema already applied",
+			telemetry.EventAttr("bootstrap.graph.skipped"),
+			"graph_backend", backend,
+			"schema_fingerprint", fingerprint,
+			"statement_count", statementCount,
+		)
+		return nil
+	}
+
 	nd, err := openNeo4jFn(ctx, getenv)
 	if err != nil {
 		return err
@@ -133,8 +153,90 @@ func run(
 	if err = applyNeo4jFn(ctx, graphExecutor, logger, backend); err != nil {
 		return err
 	}
+	if err = markGraphSchemaApplied(ctx, db, backend, fingerprint, statementCount); err != nil {
+		return err
+	}
 	logger.Info("graph schema applied", telemetry.EventAttr("bootstrap.graph.applied"), "graph_backend", backend)
 
+	return nil
+}
+
+const graphSchemaAppliedQuery = `
+SELECT EXISTS (
+    SELECT 1
+    FROM graph_schema_applications
+    WHERE backend = $1
+      AND schema_fingerprint = $2
+)
+`
+
+const markGraphSchemaAppliedQuery = `
+INSERT INTO graph_schema_applications (
+    backend,
+    schema_fingerprint,
+    statement_count,
+    applied_at
+) VALUES (
+    $1, $2, $3, NOW()
+)
+ON CONFLICT (backend, schema_fingerprint) DO UPDATE
+SET statement_count = EXCLUDED.statement_count,
+    applied_at = EXCLUDED.applied_at
+`
+
+func graphSchemaFingerprint(backend graph.SchemaBackend) (string, int, error) {
+	statements, err := graph.SchemaStatementsForBackend(backend)
+	if err != nil {
+		return "", 0, err
+	}
+	hasher := sha256.New()
+	_, _ = hasher.Write([]byte(string(backend)))
+	_, _ = hasher.Write([]byte{0})
+	for _, statement := range statements {
+		_, _ = hasher.Write([]byte(statement))
+		_, _ = hasher.Write([]byte{0})
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), len(statements), nil
+}
+
+func graphSchemaAlreadyApplied(
+	ctx context.Context,
+	db bootstrapExecutor,
+	backend graph.SchemaBackend,
+	fingerprint string,
+) (bool, error) {
+	rows, err := db.QueryContext(ctx, graphSchemaAppliedQuery, string(backend), fingerprint)
+	if err != nil {
+		return false, fmt.Errorf("query graph schema marker: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return false, fmt.Errorf("query graph schema marker: %w", err)
+		}
+		return false, nil
+	}
+	var applied bool
+	if err := rows.Scan(&applied); err != nil {
+		return false, fmt.Errorf("scan graph schema marker: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("query graph schema marker: %w", err)
+	}
+	return applied, nil
+}
+
+func markGraphSchemaApplied(
+	ctx context.Context,
+	db bootstrapExecutor,
+	backend graph.SchemaBackend,
+	fingerprint string,
+	statementCount int,
+) error {
+	if _, err := db.ExecContext(ctx, markGraphSchemaAppliedQuery, string(backend), fingerprint, statementCount); err != nil {
+		return fmt.Errorf("mark graph schema applied: %w", err)
+	}
 	return nil
 }
 
@@ -169,7 +271,19 @@ func schemaBackendFromEnv(getenv func(string) string) (graph.SchemaBackend, erro
 }
 
 func openBootstrapDB(ctx context.Context, getenv func(string) string) (bootstrapDB, error) {
-	return runtimecfg.OpenPostgres(ctx, getenv)
+	db, err := runtimecfg.OpenPostgres(ctx, getenv)
+	if err != nil {
+		return nil, err
+	}
+	return bootstrapSQLDB{SQLDB: postgres.SQLDB{DB: db}}, nil
+}
+
+type bootstrapSQLDB struct {
+	postgres.SQLDB
+}
+
+func (db bootstrapSQLDB) Close() error {
+	return db.DB.Close()
 }
 
 const neo4jCloseTimeout = 10 * time.Second

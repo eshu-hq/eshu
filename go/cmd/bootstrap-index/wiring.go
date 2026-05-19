@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -92,7 +93,8 @@ func buildBootstrapProjector(
 		StoreName:   "bootstrap-index",
 	}
 
-	projectorQueue := postgres.NewProjectorQueue(instrumentedDB, "bootstrap-index", time.Minute)
+	projectorQueue := postgres.NewProjectorQueue(instrumentedDB, "bootstrap-index", time.Minute).
+		WithClaimSourceSystem(string(scope.CollectorGit))
 	reducerQueue := postgres.NewReducerQueue(instrumentedDB, "bootstrap-index", time.Minute)
 	contentConfig, err := content.LoadWriterConfig(getenv)
 	if err != nil {

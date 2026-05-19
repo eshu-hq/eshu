@@ -234,10 +234,11 @@ func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...a
 		}
 		return db.claimReducerWork(args[0].(time.Time), args[2].(string), args[3].(time.Time))
 	case strings.Contains(query, "stage = 'projector'"):
-		if len(args) != 3 {
-			return nil, fmt.Errorf("projector claim args = %d, want 3", len(args))
+		if len(args) != 4 {
+			return nil, fmt.Errorf("projector claim args = %d, want 4", len(args))
 		}
-		return db.claimProjectorWork(args[0].(time.Time), args[1].(string), args[2].(time.Time))
+		sourceSystem, _ := args[3].(string)
+		return db.claimProjectorWork(args[0].(time.Time), args[1].(string), args[2].(time.Time), sourceSystem)
 	default:
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return newProofRows(nil), nil
@@ -259,12 +260,24 @@ func proofProjectorWorkOutstanding(items map[string]proofWorkItem) bool {
 	return false
 }
 
-func (db *proofDomainDB) claimProjectorWork(now time.Time, leaseOwner string, claimUntil time.Time) (Rows, error) {
+func (db *proofDomainDB) claimProjectorWork(
+	now time.Time,
+	leaseOwner string,
+	claimUntil time.Time,
+	sourceSystem string,
+) (Rows, error) {
 	for key, item := range db.state.workItems {
 		if item.stage != "projector" || (item.status != "pending" && item.status != "retrying") {
 			continue
 		}
 		if !item.visibleAt.IsZero() && item.visibleAt.After(now) {
+			continue
+		}
+		scopeRow, ok := db.state.scopes[item.scopeID]
+		if !ok {
+			return nil, fmt.Errorf("scope %q not found", item.scopeID)
+		}
+		if sourceSystem != "" && scopeRow.SourceSystem != sourceSystem {
 			continue
 		}
 		item.status = "claimed"
@@ -274,10 +287,6 @@ func (db *proofDomainDB) claimProjectorWork(now time.Time, leaseOwner string, cl
 		item.updatedAt = now
 		db.state.workItems[key] = item
 
-		scopeRow, ok := db.state.scopes[item.scopeID]
-		if !ok {
-			return nil, fmt.Errorf("scope %q not found", item.scopeID)
-		}
 		generationRow, ok := db.state.generations[item.generationID]
 		if !ok {
 			return nil, fmt.Errorf("generation %q not found", item.generationID)

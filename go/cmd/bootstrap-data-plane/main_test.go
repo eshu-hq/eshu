@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -391,53 +390,4 @@ func TestRunJoinsNeo4jCloseError(t *testing.T) {
 	if !errors.Is(err, closeErr) {
 		t.Fatalf("run() error = %v, want neo4j close error", err)
 	}
-}
-
-type fakeBootstrapDB struct {
-	execCalls int
-	closed    bool
-	closeErr  error
-}
-
-func (f *fakeBootstrapDB) ExecContext(
-	context.Context,
-	string,
-	...any,
-) (sql.Result, error) {
-	f.execCalls++
-	return fakeBootstrapResult{}, nil
-}
-
-func (f *fakeBootstrapDB) Close() error {
-	f.closed = true
-	return f.closeErr
-}
-
-type fakeBootstrapResult struct{}
-
-func (fakeBootstrapResult) LastInsertId() (int64, error) { return 0, nil }
-func (fakeBootstrapResult) RowsAffected() (int64, error) { return 0, nil }
-
-type fakeNeo4jExecutor struct {
-	calls int
-}
-
-func (f *fakeNeo4jExecutor) ExecuteCypher(_ context.Context, _ graph.CypherStatement) error {
-	f.calls++
-	return nil
-}
-
-type deadlineRecordingExecutor struct {
-	sawDeadline       bool
-	deadlineRemaining time.Duration
-}
-
-func (d *deadlineRecordingExecutor) ExecuteCypher(ctx context.Context, _ graph.CypherStatement) error {
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		return nil
-	}
-	d.sawDeadline = true
-	d.deadlineRemaining = time.Until(deadline)
-	return nil
 }

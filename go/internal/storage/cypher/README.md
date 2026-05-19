@@ -244,9 +244,27 @@ adapter seam.
   anchored on concrete labels (`Function`, `Class`, `K8sResource`, etc.) so
   graph backends can use the schema indexes instead of scanning all canonical
   nodes.
+- Repository-scoped cleanup runs only when the materialization carries a
+  repository id. Non-repository collectors such as OCI registry and package
+  registry write their own canonical nodes and must not issue `File`,
+  `Directory`, or repo-bound entity cleanup against a populated graph.
 - `GraphWriteTimeoutError` surfaces as `failure_class=graph_write_timeout` in
   projector/reducer queue rows; the `TimeoutHint` field names the env var to
   tune.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+TestCanonicalNodeWriterSkipsRepositoryRetractForNonRepositoryProjection -count=1`
+proves OCI/package canonical materializations no longer emit repository-scoped
+retract statements. The remote full-corpus Compose gate on 2026-05-19 drained
+`896` git scopes, `1` OCI registry scope, `1` package registry scope, and `1`
+Terraform-state scope with projector `917` succeeded / `58` superseded, reducer
+`7458` succeeded, and no `projection failed`, `graph_write_timeout`, failed,
+retrying, or dead-letter rows.
+
+Observability Evidence: existing `eshu_dp_canonical_phase_duration_seconds`,
+`eshu_dp_projector_stage_duration_seconds`, and structured `projection failed`
+logs expose the phase, source system, generation id, failure class, and timeout
+hint when repository cleanup is slow or mis-scoped.
 
 ## Extension points
 
