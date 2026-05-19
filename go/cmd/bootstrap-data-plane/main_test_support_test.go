@@ -110,6 +110,20 @@ func (f *fakeNeo4jExecutor) ExecuteCypher(_ context.Context, _ graph.CypherState
 	return nil
 }
 
+type fakeGraphSchemaInspector struct {
+	names map[string]struct{}
+	err   error
+	calls int
+}
+
+func (f *fakeGraphSchemaInspector) GraphSchemaObjectNames(_ context.Context) (map[string]struct{}, error) {
+	f.calls++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.names, nil
+}
+
 type deadlineRecordingExecutor struct {
 	sawDeadline       bool
 	deadlineRemaining time.Duration

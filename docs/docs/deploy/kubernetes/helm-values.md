@@ -82,6 +82,14 @@ The chart renders one `schema-bootstrap` Job instead of repeating
 graph schema DDL for the release; runtime pods then start without revalidating
 graph schema in parallel.
 
+For upgrades from older deployments where graph schema objects already exist
+but the Postgres `graph_schema_applications` marker is empty, set
+`env.ESHU_GRAPH_SCHEMA_ADOPT_EXISTING: "true"` for one rollout. The bootstrap
+binary inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`; when all expected schema
+object names are present it records the current backend/schema fingerprint and
+skips the live DDL pass. Leave the value unset for brand-new installs, where
+the Job should create the schema normally.
+
 By default the Job is a Helm `pre-install,pre-upgrade` hook. Helm waits for the
 hook before continuing the release, and Argo CD treats those Helm hooks as
 `PreSync` hooks. Existing Postgres, graph, and credential dependencies must be
@@ -110,9 +118,10 @@ chart output; the runtime DDL binary and environment contract remain unchanged.
 
 Observability Evidence: the existing bootstrap logs emit
 `bootstrap.schema.started`, `bootstrap.postgres.applied`,
-`bootstrap.graph.applied`, and `runtime.startup.failed`; the Kubernetes Job adds
-bounded rollout status through `activeDeadlineSeconds`, `backoffLimit`, and Job
-success/failure state.
+`bootstrap.graph.applied`, `bootstrap.graph.adopted`,
+`bootstrap.graph.adoption_incomplete`, and `runtime.startup.failed`; the
+Kubernetes Job adds bounded rollout status through `activeDeadlineSeconds`,
+`backoffLimit`, and Job success/failure state.
 
 ```yaml
 schemaBootstrap:
@@ -123,6 +132,8 @@ schemaBootstrap:
     requests:
       cpu: 100m
       memory: 128Mi
+env:
+  ESHU_GRAPH_SCHEMA_ADOPT_EXISTING: "true"
 ```
 
 ## Resolution engine lanes
