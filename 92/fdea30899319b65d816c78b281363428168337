@@ -1,0 +1,37 @@
+go/internal/collector/awscloud/services/dynamodb/README.md
+  s_f2f7fbb6f30866::t_6aceda7bd19862 31-33,66-69,90-95,102-103
+  s_f2f7fbb6f30866::t_7dc377d9420b2d 104-106
+go/internal/collector/awscloud/services/dynamodb/awssdk/client_test.go
+  s_f2f7fbb6f30866::t_57cd6cd34ee770 11,182-236,256,315-319
+  s_f2f7fbb6f30866::t_e84fe9d4f4149e 14
+  s_f2f7fbb6f30866::t_84a3dddfc46724 143,145,147
+go/internal/collector/awscloud/services/dynamodb/scanner_test.go
+  s_f2f7fbb6f30866::t_ed1a92f228fbb9 15,85,158,166,191-224,239,242-243,274-284
+go/internal/collector/awscloud/services/dynamodb/types.go
+  s_f2f7fbb6f30866::t_0811800a564d54 6-7,10,12-18
+go/internal/collector/awscloud/services/dynamodb/scanner.go
+  s_f2f7fbb6f30866::t_9bff0300083a2c 33,38-41,51-59
+go/internal/collector/awscloud/services/dynamodb/awssdk/client.go
+  s_f2f7fbb6f30866::t_7472aa97e37a2b 74-76,78,94,97,99,101,108,116,119,130,133,138,140,142,146,148,190,199-201,203-242
+  s_f2f7fbb6f30866::t_95c8fa3fec0ed6 91
+go/internal/collector/awscloud/README.md
+  s_f2f7fbb6f30866::t_58e23c26178b53 162-166
+go/internal/collector/awscloud/services/dynamodb/awssdk/README.md
+  s_f2f7fbb6f30866::t_8fd0c82c503faa 31-32,64-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "92fdea30899319b65d816c78b281363428168337",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
