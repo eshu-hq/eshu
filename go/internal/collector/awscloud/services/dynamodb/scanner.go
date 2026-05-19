@@ -30,12 +30,15 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("dynamodb scanner received service_kind %q", boundary.ServiceKind)
 	}
 
-	tables, err := s.Client.ListTables(ctx)
+	snapshot, err := s.Client.Snapshot(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list DynamoDB tables: %w", err)
 	}
 	var envelopes []facts.Envelope
-	for _, table := range tables {
+	if err := appendWarnings(&envelopes, snapshot.Warnings); err != nil {
+		return nil, err
+	}
+	for _, table := range snapshot.Tables {
 		tableEnvelopes, err := tableEnvelopes(boundary, table)
 		if err != nil {
 			return nil, err
@@ -43,6 +46,17 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, tableEnvelopes...)
 	}
 	return envelopes, nil
+}
+
+func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+	for _, observation := range observations {
+		envelope, err := awscloud.NewWarningEnvelope(observation)
+		if err != nil {
+			return err
+		}
+		*envelopes = append(*envelopes, envelope)
+	}
+	return nil
 }
 
 func tableEnvelopes(boundary awscloud.Boundary, table Table) ([]facts.Envelope, error) {

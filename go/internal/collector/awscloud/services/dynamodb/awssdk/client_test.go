@@ -8,8 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsdynamodb "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	awsdynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/aws/smithy-go"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	dynamodbservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/dynamodb"
 )
 
 func TestClientListsDynamoDBMetadataOnly(t *testing.T) {
@@ -138,10 +140,11 @@ func TestClientListsDynamoDBMetadataOnly(t *testing.T) {
 	}
 	adapter := &Client{client: api, boundary: testBoundary()}
 
-	tables, err := adapter.ListTables(context.Background())
+	snapshot, err := adapter.Snapshot(context.Background())
 	if err != nil {
-		t.Fatalf("ListTables() error = %v, want nil", err)
+		t.Fatalf("Snapshot() error = %v, want nil", err)
 	}
+	tables := snapshot.Tables
 
 	if got, want := len(tables), 2; got != want {
 		t.Fatalf("len(tables) = %d, want %d", got, want)
@@ -176,6 +179,61 @@ func TestClientListsDynamoDBMetadataOnly(t *testing.T) {
 	}
 }
 
+func TestClientSnapshotRecordsWarningWhenDescribeTimeToLiveThrottles(t *testing.T) {
+	tableARN := "arn:aws:dynamodb:us-east-1:123456789012:table/orders"
+	api := &fakeDynamoDBAPI{
+		tablePages: []*awsdynamodb.ListTablesOutput{{
+			TableNames: []string{"orders"},
+		}},
+		tables: map[string]*awsdynamodb.DescribeTableOutput{
+			"orders": {
+				Table: &awsdynamodbtypes.TableDescription{
+					TableArn:    aws.String(tableARN),
+					TableName:   aws.String("orders"),
+					TableStatus: awsdynamodbtypes.TableStatusActive,
+				},
+			},
+		},
+		ttlErrors: map[string]error{
+			"orders": &smithy.GenericAPIError{Code: "ThrottlingException", Message: "rate exceeded"},
+		},
+		backups: map[string]*awsdynamodb.DescribeContinuousBackupsOutput{
+			"orders": {},
+		},
+	}
+	adapter := &Client{client: api, boundary: testBoundary()}
+	recorder := awscloud.NewAPICallStatsRecorder(adapter.boundary)
+	ctx := awscloud.ContextWithAPICallRecorder(context.Background(), recorder)
+
+	snapshot, err := adapter.Snapshot(ctx)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v, want nil", err)
+	}
+	if got, want := len(snapshot.Tables), 1; got != want {
+		t.Fatalf("len(Tables) = %d, want %d", got, want)
+	}
+	if got := snapshot.Tables[0].TTL; got != (dynamodbservice.TTL{}) {
+		t.Fatalf("TTL = %#v, want empty after throttled DescribeTimeToLive", got)
+	}
+	if got, want := len(snapshot.Warnings), 1; got != want {
+		t.Fatalf("len(Warnings) = %d, want %d", got, want)
+	}
+	warning := snapshot.Warnings[0]
+	if warning.WarningKind != awscloud.WarningThrottleSustained {
+		t.Fatalf("warning kind = %q, want %q", warning.WarningKind, awscloud.WarningThrottleSustained)
+	}
+	if got := warning.Attributes["operation"]; got != "DescribeTimeToLive" {
+		t.Fatalf("warning operation = %#v, want DescribeTimeToLive", got)
+	}
+	if got := warning.Attributes["partial_component"]; got != "ttl" {
+		t.Fatalf("partial_component = %#v, want ttl", got)
+	}
+	stats := recorder.Snapshot()
+	if got, want := stats.ThrottleCount, 1; got != want {
+		t.Fatalf("ThrottleCount = %d, want %d", got, want)
+	}
+}
+
 func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
@@ -195,6 +253,7 @@ type fakeDynamoDBAPI struct {
 	tagCalls        map[string]int
 	tagTokens       map[string][]string
 	ttl             map[string]*awsdynamodb.DescribeTimeToLiveOutput
+	ttlErrors       map[string]error
 	backups         map[string]*awsdynamodb.DescribeContinuousBackupsOutput
 }
 
@@ -253,7 +312,11 @@ func (f *fakeDynamoDBAPI) DescribeTimeToLive(
 	input *awsdynamodb.DescribeTimeToLiveInput,
 	_ ...func(*awsdynamodb.Options),
 ) (*awsdynamodb.DescribeTimeToLiveOutput, error) {
-	if output := f.ttl[aws.ToString(input.TableName)]; output != nil {
+	tableName := aws.ToString(input.TableName)
+	if err := f.ttlErrors[tableName]; err != nil {
+		return nil, err
+	}
+	if output := f.ttl[tableName]; output != nil {
 		return output, nil
 	}
 	return &awsdynamodb.DescribeTimeToLiveOutput{}, nil

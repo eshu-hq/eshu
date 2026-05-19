@@ -71,10 +71,11 @@ func NewClient(
 	}
 }
 
-// ListTables returns DynamoDB table metadata visible to the configured AWS
-// credentials.
-func (c *Client) ListTables(ctx context.Context) ([]dynamodbservice.Table, error) {
+// Snapshot returns DynamoDB table metadata and non-fatal partial-scan warnings
+// visible to the configured AWS credentials.
+func (c *Client) Snapshot(ctx context.Context) (dynamodbservice.Snapshot, error) {
 	var tables []dynamodbservice.Table
+	var warnings []awscloud.WarningObservation
 	var startName *string
 	for {
 		var page *awsdynamodb.ListTablesOutput
@@ -87,23 +88,24 @@ func (c *Client) ListTables(ctx context.Context) ([]dynamodbservice.Table, error
 			return err
 		})
 		if err != nil {
-			return nil, err
+			return dynamodbservice.Snapshot{}, err
 		}
 		if page == nil {
-			return tables, nil
+			return dynamodbservice.Snapshot{Tables: tables, Warnings: warnings}, nil
 		}
 		for _, tableName := range page.TableNames {
-			table, ok, err := c.describeTable(ctx, tableName)
+			table, ok, tableWarnings, err := c.describeTable(ctx, tableName)
 			if err != nil {
-				return nil, err
+				return dynamodbservice.Snapshot{}, err
 			}
+			warnings = appendDynamoDBWarningOnce(warnings, tableWarnings...)
 			if ok {
 				tables = append(tables, table)
 			}
 		}
 		startName = page.LastEvaluatedTableName
 		if aws.ToString(startName) == "" {
-			return tables, nil
+			return dynamodbservice.Snapshot{Tables: tables, Warnings: warnings}, nil
 		}
 	}
 }
@@ -111,10 +113,10 @@ func (c *Client) ListTables(ctx context.Context) ([]dynamodbservice.Table, error
 func (c *Client) describeTable(
 	ctx context.Context,
 	tableName string,
-) (dynamodbservice.Table, bool, error) {
+) (dynamodbservice.Table, bool, []awscloud.WarningObservation, error) {
 	tableName = strings.TrimSpace(tableName)
 	if tableName == "" {
-		return dynamodbservice.Table{}, false, nil
+		return dynamodbservice.Table{}, false, nil, nil
 	}
 	var output *awsdynamodb.DescribeTableOutput
 	err := c.recordAPICall(ctx, "DescribeTable", func(callCtx context.Context) error {
@@ -125,25 +127,25 @@ func (c *Client) describeTable(
 		return err
 	})
 	if err != nil {
-		return dynamodbservice.Table{}, false, err
+		return dynamodbservice.Table{}, false, nil, err
 	}
 	if output == nil || output.Table == nil {
-		return dynamodbservice.Table{}, false, nil
+		return dynamodbservice.Table{}, false, nil, nil
 	}
 	tableARN := aws.ToString(output.Table.TableArn)
 	tags, err := c.listTags(ctx, tableARN)
 	if err != nil {
-		return dynamodbservice.Table{}, false, err
+		return dynamodbservice.Table{}, false, nil, err
 	}
-	ttl, err := c.describeTimeToLive(ctx, tableName)
+	ttl, warnings, err := c.describeTimeToLive(ctx, tableName)
 	if err != nil {
-		return dynamodbservice.Table{}, false, err
+		return dynamodbservice.Table{}, false, nil, err
 	}
 	backups, err := c.describeContinuousBackups(ctx, tableName)
 	if err != nil {
-		return dynamodbservice.Table{}, false, err
+		return dynamodbservice.Table{}, false, nil, err
 	}
-	return mapTable(*output.Table, tags, ttl, backups), true, nil
+	return mapTable(*output.Table, tags, ttl, backups), true, warnings, nil
 }
 
 func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]string, error) {
@@ -185,7 +187,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 func (c *Client) describeTimeToLive(
 	ctx context.Context,
 	tableName string,
-) (dynamodbservice.TTL, error) {
+) (dynamodbservice.TTL, []awscloud.WarningObservation, error) {
 	var output *awsdynamodb.DescribeTimeToLiveOutput
 	err := c.recordAPICall(ctx, "DescribeTimeToLive", func(callCtx context.Context) error {
 		var err error
@@ -194,10 +196,51 @@ func (c *Client) describeTimeToLive(
 		})
 		return err
 	})
-	if err != nil || output == nil {
-		return dynamodbservice.TTL{}, err
+	if isThrottleError(err) {
+		return dynamodbservice.TTL{}, []awscloud.WarningObservation{c.ttlThrottleWarning()}, nil
 	}
-	return mapTTL(output.TimeToLiveDescription), nil
+	if err != nil || output == nil {
+		return dynamodbservice.TTL{}, nil, err
+	}
+	return mapTTL(output.TimeToLiveDescription), nil, nil
+}
+
+func appendDynamoDBWarningOnce(
+	warnings []awscloud.WarningObservation,
+	candidates ...awscloud.WarningObservation,
+) []awscloud.WarningObservation {
+	for _, candidate := range candidates {
+		if candidate.WarningKind != awscloud.WarningThrottleSustained {
+			warnings = append(warnings, candidate)
+			continue
+		}
+		seen := false
+		for _, warning := range warnings {
+			if warning.WarningKind == awscloud.WarningThrottleSustained &&
+				warning.ErrorClass == candidate.ErrorClass {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			warnings = append(warnings, candidate)
+		}
+	}
+	return warnings
+}
+
+func (c *Client) ttlThrottleWarning() awscloud.WarningObservation {
+	return awscloud.WarningObservation{
+		Boundary:    c.boundary,
+		WarningKind: awscloud.WarningThrottleSustained,
+		ErrorClass:  "throttled",
+		Message:     "DynamoDB DescribeTimeToLive throttled after SDK retries; TTL metadata omitted for this scan",
+		Attributes: map[string]any{
+			"operation":         "DescribeTimeToLive",
+			"partial_component": "ttl",
+		},
+		SourceRecordID: "dynamodb_ttl_throttled",
+	}
 }
 
 func (c *Client) describeContinuousBackups(

@@ -28,7 +28,9 @@ flowchart LR
 
 See `doc.go` for the godoc contract.
 
-- `Client` - minimal DynamoDB metadata read surface consumed by `Scanner`.
+- `Client` - minimal DynamoDB metadata snapshot surface consumed by `Scanner`.
+- `Snapshot` - table metadata plus non-fatal scan warnings for partial optional
+  metadata coverage.
 - `Scanner` - emits table metadata and direct KMS relationship facts for one
   boundary.
 - `Table` - scanner-owned metadata-only table representation.
@@ -61,6 +63,10 @@ spans.
 - Attribute definitions, key schema, index definitions, TTL attribute names,
   stream settings, capacity settings, table class, replicas, tags, and backup
   status are reported control-plane metadata.
+- Sustained throttling on optional `DescribeTimeToLive` calls emits an
+  `aws_warning` with `warning_kind=throttle_sustained`, leaves table facts
+  present, and omits TTL metadata for the affected scan rather than failing the
+  whole DynamoDB claim.
 - Tags are raw AWS tag evidence. Do not infer environment, owner, workload,
   repository, or deployable-unit truth from tags in this package.
 - The KMS relationship is reported join evidence only. Correlation belongs in
@@ -81,11 +87,23 @@ covers DynamoDB table metadata fact emission, direct KMS relationship emission,
 omission of data-plane fields, SDK pagination, tag reads, runtime registration,
 command configuration, and the SDK adapter's safe metadata mapping.
 
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/dynamodb/... -count=1`
+covers the DynamoDB snapshot contract where `DescribeTimeToLive` throttling
+preserves table resources, omits optional TTL metadata, records API throttle
+counts, and emits one `throttle_sustained` warning that the AWS runtime marks
+as a partial scan.
+
 Collector Observability Evidence: DynamoDB uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
+
+Observability Evidence: TTL throttling stays visible through the existing
+`eshu_dp_aws_api_calls_total{operation="DescribeTimeToLive",result="error"}`,
+`eshu_dp_aws_throttle_total`, `aws_warning` fact
+`warning_kind="throttle_sustained"`, and `aws_scan_status` partial status
+signals without adding resource-name or table-name metric labels.
 
 No-Observability-Change: the existing AWS collector telemetry contract already
 diagnoses DynamoDB scans through `aws.service.scan`,
