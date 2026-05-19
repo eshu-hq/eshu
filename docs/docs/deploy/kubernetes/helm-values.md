@@ -21,7 +21,7 @@ The chart lives at `deploy/helm/eshu`.
 | `schemaBootstrap.enabled` | `true` | Render the one-shot schema bootstrap Job. |
 | `schemaBootstrap.useHelmHooks` | `true` | Annotate the Job as a Helm `pre-install,pre-upgrade` hook. Argo CD maps these Helm hooks to `PreSync`. |
 | `schemaBootstrap.activeDeadlineSeconds` | `600` | Upper bound for one schema bootstrap Job attempt. |
-| `schemaBootstrap.ttlSecondsAfterFinished` | `300` | Cleanup window when the Job is not deleted by hook policy. Successful hook Jobs are deleted by `hook-succeeded`. |
+| `schemaBootstrap.ttlSecondsAfterFinished` | `86400` | Cleanup window when the Job is not deleted by hook policy. Successful hook Jobs are deleted by `hook-succeeded`; failed Jobs stay available long enough for log/event inspection. |
 | `podSecurityContext.fsGroupChangePolicy` | `OnRootMismatch` | Avoid recursive ownership changes on existing large PVCs when the volume root already matches the configured `fsGroup`. |
 | `workflowCoordinator.enabled` | `false` | Deploy the workflow coordinator. Required when claim-driven collector Deployments are enabled. |
 | `workflowCoordinator.deploymentMode` | `dark` | Use `active` when the coordinator should create and schedule collector claims. |
@@ -118,7 +118,7 @@ success/failure state.
 schemaBootstrap:
   enabled: true
   activeDeadlineSeconds: 600
-  ttlSecondsAfterFinished: 300
+  ttlSecondsAfterFinished: 86400
   resources:
     requests:
       cpu: 100m

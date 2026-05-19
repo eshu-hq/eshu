@@ -142,16 +142,24 @@ func (e bootstrapNornicDBPhaseGroupExecutor) ExecutePhaseGroup(ctx context.Conte
 
 func (e bootstrapNornicDBPhaseGroupExecutor) executeSequentialRetractPhase(ctx context.Context, stmts []sourcecypher.Statement) error {
 	for i, stmt := range stmts {
-		startedAt := time.Now()
-		if err := e.inner.Execute(ctx, bootstrapSanitizedStatement(stmt)); err != nil {
-			return fmt.Errorf(
-				"phase-group retract statement %d/%d (duration=%s, first_statement=%q): %w",
-				i+1,
-				len(stmts),
-				time.Since(startedAt),
-				bootstrapStatementSummary(stmt),
-				err,
-			)
+		chunks := sourcecypher.ChunkPositiveStringSliceRetractStatement(
+			stmt,
+			sourcecypher.DefaultPositiveRetractStringSliceBatchSize,
+		)
+		for chunkIndex, chunk := range chunks {
+			startedAt := time.Now()
+			if err := e.inner.Execute(ctx, bootstrapSanitizedStatement(chunk)); err != nil {
+				return fmt.Errorf(
+					"phase-group retract statement %d/%d part %d/%d (duration=%s, first_statement=%q): %w",
+					i+1,
+					len(stmts),
+					chunkIndex+1,
+					len(chunks),
+					time.Since(startedAt),
+					bootstrapStatementSummary(chunk),
+					err,
+				)
+			}
 		}
 	}
 	return nil

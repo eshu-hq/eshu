@@ -42,7 +42,7 @@ schemaBootstrap:
   useHelmHooks: true
   backoffLimit: 1
   activeDeadlineSeconds: 600
-  ttlSecondsAfterFinished: 300
+  ttlSecondsAfterFinished: 86400
   serviceAccountName: ""
   annotations: {}
   podAnnotations: {}

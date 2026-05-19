@@ -98,7 +98,7 @@ func TestCanonicalNodeWriterRefreshesCurrentFileStructuralEdges(t *testing.T) {
 		switch {
 		case strings.Contains(stmt.Cypher, "-[r:IMPORTS]->"):
 			importRefresh = stmt
-		case strings.Contains(stmt.Cypher, "]->(f:File)"):
+		case strings.Contains(stmt.Cypher, "CONTAINS]->(f)"):
 			directoryFileRefresh = stmt
 		case strings.Contains(stmt.Cypher, "[r:CONTAINS]->(n)"):
 			t.Fatalf("file/entity edge refresh should be handled by entity retraction, got: %s", stmt.Cypher)
