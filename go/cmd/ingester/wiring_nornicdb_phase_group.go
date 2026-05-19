@@ -68,17 +68,25 @@ func (e nornicDBPhaseGroupExecutor) executeSequentialRetractPhase(
 	stmts []sourcecypher.Statement,
 ) error {
 	for i, stmt := range stmts {
-		statementStart := time.Now()
-		statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
-		if err := e.inner.Execute(ctx, sanitizedStatement(stmt)); err != nil {
-			return fmt.Errorf(
-				"phase-group retract statement %d/%d (duration=%s, first_statement=%q): %w",
-				i+1,
-				len(stmts),
-				time.Since(statementStart),
-				statementSummary,
-				err,
-			)
+		chunks := sourcecypher.ChunkPositiveStringSliceRetractStatement(
+			stmt,
+			sourcecypher.DefaultPositiveRetractStringSliceBatchSize,
+		)
+		for chunkIndex, chunk := range chunks {
+			statementStart := time.Now()
+			statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{chunk})
+			if err := e.inner.Execute(ctx, sanitizedStatement(chunk)); err != nil {
+				return fmt.Errorf(
+					"phase-group retract statement %d/%d part %d/%d (duration=%s, first_statement=%q): %w",
+					i+1,
+					len(stmts),
+					chunkIndex+1,
+					len(chunks),
+					time.Since(statementStart),
+					statementSummary,
+					err,
+				)
+			}
 		}
 	}
 	return nil
@@ -120,18 +128,26 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 			if err := flushGrouped(); err != nil {
 				return err
 			}
-			statementStart := time.Now()
-			statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
-			if err := e.inner.Execute(ctx, sanitizedStatement(stmt)); err != nil {
-				return fmt.Errorf(
-					"phase-group retract statement %d/%d (phase=%s, duration=%s, first_statement=%q): %w",
-					i+1,
-					len(stmts),
-					phase,
-					time.Since(statementStart),
-					statementSummary,
-					err,
-				)
+			chunks := sourcecypher.ChunkPositiveStringSliceRetractStatement(
+				stmt,
+				sourcecypher.DefaultPositiveRetractStringSliceBatchSize,
+			)
+			for chunkIndex, chunk := range chunks {
+				statementStart := time.Now()
+				statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{chunk})
+				if err := e.inner.Execute(ctx, sanitizedStatement(chunk)); err != nil {
+					return fmt.Errorf(
+						"phase-group retract statement %d/%d part %d/%d (phase=%s, duration=%s, first_statement=%q): %w",
+						i+1,
+						len(stmts),
+						chunkIndex+1,
+						len(chunks),
+						phase,
+						time.Since(statementStart),
+						statementSummary,
+						err,
+					)
+				}
 			}
 			continue
 		}

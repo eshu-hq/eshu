@@ -65,6 +65,23 @@ metadata such as `dead_code_root_kinds` and `exactness_blockers` out of
 canonical graph rows; the dead-code API merges that evidence from the content
 store by entity ID.
 
+Current-file structural edge refreshes seed from indexed `File.path` before
+expanding `IMPORTS` or directory `CONTAINS` relationships. This keeps the
+cleanup candidate set path-first instead of relationship-scan-first on NornicDB
+while preserving the same Cypher semantics for Neo4j-compatible backends.
+Positive string-slice retract statements can be chunked through
+`ChunkPositiveStringSliceRetractStatement`; negative `NOT IN` stale cleanup is
+intentionally excluded from chunking.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+'TestChunkPositiveStringSliceRetractStatement|TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath'
+-count=1` proves the indexed seed shape and protects current-file keep-list
+semantics.
+
+Observability Evidence: statement summaries and operation metadata stay on each
+chunked statement, so existing `canonical phase-group write` logs and graph
+failure details still identify the phase and sanitized first statement.
+
 Code-call shared projection routes `CALLS`, `REFERENCES`, and `USES_METACLASS`
 through label-scoped batched edge statements when endpoint labels are known.
 Each code-call statement carries a bounded route summary with relationship,

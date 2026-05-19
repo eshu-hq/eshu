@@ -55,7 +55,7 @@ contentStore:
 schemaBootstrap:
   enabled: true
   activeDeadlineSeconds: 600
-  ttlSecondsAfterFinished: 300
+  ttlSecondsAfterFinished: 86400
 
 podSecurityContext:
   fsGroupChangePolicy: OnRootMismatch

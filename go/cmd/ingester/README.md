@@ -69,6 +69,22 @@ provider kind, repository id, repository ordinal/count, elapsed seconds, branch
 when known, and failure class. Credential-bearing URLs are redacted and full
 local checkout paths are not logged.
 
+Hosted fetch refreshes parse `git ls-remote --symref` HEAD output as a
+two-field symbolic ref, so `ref: refs/heads/main` resolves to `main` instead of
+the invalid `ref:` branch. When a managed shallow checkout reports an old
+`.git/shallow.lock` created by an interrupted fetch, the ingester removes only
+that stale lock under the managed repo and retries the fetch once.
+
+No-Regression Evidence: `go test ./internal/collector -run
+'TestUpdateRepositoryParsesSymrefHeadBranchFromLsRemote|TestUpdateRepositoryRecoversOldShallowLockAndRetriesFetch'
+-count=1` covers hosted HEAD parsing and stale shallow-lock recovery without
+changing clone/fetch progress logging semantics.
+
+Observability Evidence: existing `git repository sync failed` and `git
+repository sync completed` logs still surface operation, repository ordinal,
+branch, elapsed time, and failure class; the retry path keeps the original fetch
+progress writer so a repeated failure remains visible.
+
 After each full collector batch drain, `AfterBatchDrained` calls
 `BackfillAllRelationshipEvidence` then `ReopenDeploymentMappingWorkItems`.
 These two calls implement the Phase 1 → Phase 3 bootstrap ordering described in
@@ -87,6 +103,20 @@ reported as separate phases. Directory and file writes remain separate bounded
 phases, while entity containment is folded into row-scoped entity upserts by
 default for NornicDB after high-cardinality Java proof runs showed the older
 file-scoped shape over-fragmented canonical writes.
+
+Positive list-seeded canonical retract statements are split into 25-key chunks
+inside the NornicDB phase-group executor before execution. Negative `NOT IN`
+cleanup statements stay intact because splitting a keep-list would make each
+chunk delete valid current files from other chunks.
+
+No-Regression Evidence: `go test ./cmd/ingester -run
+'TestNornicDBPhaseGroupExecutor.*RetractFilePaths' -count=1` proves positive
+retract file-path chunks split while negative keep-list cleanup remains one
+statement.
+
+Observability Evidence: phase-group retract errors now include the original
+statement ordinal and chunk part (`part x/y`) while preserving the sanitized
+statement summary used in queue failure details.
 
 ## Exported surface
 

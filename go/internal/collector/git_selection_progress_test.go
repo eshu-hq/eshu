@@ -3,6 +3,7 @@ package collector
 import (
 	"bytes"
 	"context"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -245,5 +246,121 @@ esac
 	}
 	if !strings.Contains(got, `"branch":"main"`) {
 		t.Fatalf("logs = %s, want started log to include branch", got)
+	}
+}
+
+func TestUpdateRepositoryParsesSymrefHeadBranchFromLsRemote(t *testing.T) {
+	binDir := t.TempDir()
+	fetchMarker := filepath.Join(binDir, "fetch.ok")
+	fakeGit := filepath.Join(binDir, "git")
+	if err := os.WriteFile(fakeGit, []byte(`#!/bin/sh
+case "$*" in
+	*"symbolic-ref refs/remotes/origin/HEAD"*)
+		exit 1
+		;;
+	*"ls-remote --symref origin HEAD"*)
+		printf "ref: refs/heads/main\tHEAD\nabc123\tHEAD\n"
+		;;
+	*"fetch --progress origin +refs/heads/main:refs/remotes/origin/main"*)
+		touch "`+fetchMarker+`"
+		;;
+	*"rev-parse HEAD"*|*"rev-parse refs/remotes/origin/main"*)
+		printf "abc123\n"
+		;;
+	*)
+		;;
+esac
+`), 0o755); err != nil {
+		t.Fatalf("write fake git: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	updated, err := updateRepository(
+		context.Background(),
+		RepoSyncConfig{CloneDepth: 1, GitAuthMethod: "none"},
+		t.TempDir(),
+		"",
+		slog.New(slog.NewJSONHandler(io.Discard, nil)),
+		gitSyncLogEventFor("example/private-service", 1, 1),
+	)
+	if err != nil {
+		t.Fatalf("updateRepository() error = %v, want nil", err)
+	}
+	if updated {
+		t.Fatal("updateRepository() updated = true, want false for equal refs")
+	}
+	if _, err := os.Stat(fetchMarker); err != nil {
+		t.Fatalf("fetch marker missing: %v", err)
+	}
+}
+
+func TestUpdateRepositoryRecoversOldShallowLockAndRetriesFetch(t *testing.T) {
+	repoPath := t.TempDir()
+	lockPath := filepath.Join(repoPath, ".git", "shallow.lock")
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
+		t.Fatalf("create .git dir: %v", err)
+	}
+	if err := os.WriteFile(lockPath, []byte("stale"), 0o644); err != nil {
+		t.Fatalf("write shallow.lock: %v", err)
+	}
+	staleTime := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(lockPath, staleTime, staleTime); err != nil {
+		t.Fatalf("age shallow.lock: %v", err)
+	}
+
+	binDir := t.TempDir()
+	attemptsPath := filepath.Join(binDir, "fetch-attempts")
+	fakeGit := filepath.Join(binDir, "git")
+	if err := os.WriteFile(fakeGit, []byte(`#!/bin/sh
+case "$*" in
+	*"symbolic-ref refs/remotes/origin/HEAD"*)
+		printf "refs/remotes/origin/main\n"
+		;;
+	*"fetch --progress"*)
+		attempts=0
+		if [ -f "`+attemptsPath+`" ]; then
+			attempts=$(cat "`+attemptsPath+`")
+		fi
+		attempts=$((attempts + 1))
+		printf "%s" "$attempts" > "`+attemptsPath+`"
+		if [ "$attempts" -eq 1 ]; then
+			printf "fatal: Unable to create '`+lockPath+`': File exists.\n" >&2
+			exit 128
+		fi
+		;;
+	*"rev-parse HEAD"*|*"rev-parse refs/remotes/origin/main"*)
+		printf "abc123\n"
+		;;
+	*)
+		;;
+esac
+`), 0o755); err != nil {
+		t.Fatalf("write fake git: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	updated, err := updateRepository(
+		context.Background(),
+		RepoSyncConfig{CloneDepth: 1, GitAuthMethod: "none"},
+		repoPath,
+		"",
+		slog.New(slog.NewJSONHandler(io.Discard, nil)),
+		gitSyncLogEventFor("example/private-service", 1, 1),
+	)
+	if err != nil {
+		t.Fatalf("updateRepository() error = %v, want nil", err)
+	}
+	if updated {
+		t.Fatal("updateRepository() updated = true, want false for equal refs")
+	}
+	attemptsBytes, err := os.ReadFile(attemptsPath)
+	if err != nil {
+		t.Fatalf("read attempts: %v", err)
+	}
+	if got, want := strings.TrimSpace(string(attemptsBytes)), "2"; got != want {
+		t.Fatalf("fetch attempts = %s, want %s", got, want)
+	}
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Fatalf("shallow.lock stat error = %v, want removed", err)
 	}
 }

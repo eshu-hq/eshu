@@ -203,14 +203,27 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroupStreaming(
 				closePool()
 				return preferPoolError(err)
 			}
-			statementStart := time.Now()
-			statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
-			if err := e.inner.Execute(ctx, sanitizedStatement(stmt)); err != nil {
-				closePool()
-				return fmt.Errorf(
-					"phase-group retract statement %d/%d (phase=%s, duration=%s, first_statement=%q): %w",
-					i+1, len(stmts), phase, time.Since(statementStart), statementSummary, err,
-				)
+			chunks := sourcecypher.ChunkPositiveStringSliceRetractStatement(
+				stmt,
+				sourcecypher.DefaultPositiveRetractStringSliceBatchSize,
+			)
+			for chunkIndex, chunk := range chunks {
+				statementStart := time.Now()
+				statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{chunk})
+				if err := e.inner.Execute(ctx, sanitizedStatement(chunk)); err != nil {
+					closePool()
+					return fmt.Errorf(
+						"phase-group retract statement %d/%d part %d/%d (phase=%s, duration=%s, first_statement=%q): %w",
+						i+1,
+						len(stmts),
+						chunkIndex+1,
+						len(chunks),
+						phase,
+						time.Since(statementStart),
+						statementSummary,
+						err,
+					)
+				}
 			}
 			continue
 		}

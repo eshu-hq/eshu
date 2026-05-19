@@ -128,3 +128,38 @@ func TestCanonicalNodeWriterRetractsStaleEntitiesAfterCurrentEntityUpsert(t *tes
 			entityRetractPhaseIdx, entityPhaseIdx)
 	}
 }
+
+func TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		cypher string
+		want   string
+	}{
+		{
+			name:   "imports",
+			cypher: canonicalNodeRefreshCurrentFileImportEdgesCypher,
+			want: `MATCH (f:File)
+WHERE f.path IN $file_paths
+MATCH (f)-[r:IMPORTS]->(:Module)
+DELETE r`,
+		},
+		{
+			name:   "directory contains",
+			cypher: canonicalNodeRefreshCurrentDirectoryFileEdgesCypher,
+			want: `MATCH (f:File)
+WHERE f.path IN $file_paths
+MATCH (:Directory)-[r:CONTAINS]->(f)
+DELETE r`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := strings.TrimSpace(tt.cypher)
+			want := strings.TrimSpace(tt.want)
+			if got != want {
+				t.Fatalf("Cypher = %q, want indexed file seed shape %q", got, want)
+			}
+		})
+	}
+}

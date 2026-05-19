@@ -10,7 +10,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
+
+const staleGitLockMinAge = 5 * time.Minute
 
 func syncGitRepositoriesWithLogger(
 	ctx context.Context,
@@ -173,7 +176,10 @@ func resolveDefaultBranch(
 		"refs/remotes/origin/HEAD",
 	)
 	if err == nil {
-		branch := strings.TrimPrefix(strings.TrimSpace(output), "refs/remotes/origin/")
+		branch, branchErr := normalizeGitBranchName(strings.TrimPrefix(strings.TrimSpace(output), "refs/remotes/origin/"))
+		if branchErr != nil {
+			return "", branchErr
+		}
 		if branch != "" {
 			return branch, nil
 		}
@@ -198,10 +204,13 @@ func resolveDefaultBranch(
 			continue
 		}
 		fields := strings.Fields(line)
-		if len(fields) == 0 {
+		if len(fields) < 2 || fields[0] != "ref:" {
 			continue
 		}
-		branch := strings.TrimPrefix(fields[0], "ref: refs/heads/")
+		branch, branchErr := normalizeGitBranchName(strings.TrimPrefix(fields[1], "refs/heads/"))
+		if branchErr != nil {
+			return "", branchErr
+		}
 		if branch != "" {
 			return branch, nil
 		}
@@ -218,7 +227,29 @@ func gitFetchBranch(
 	logger *slog.Logger,
 	event gitSyncLogEvent,
 ) error {
-	_, err := gitRunWithStderrWriter(
+	branch, err := normalizeGitBranchName(branch)
+	if err != nil {
+		return err
+	}
+	_, err = gitRunWithStderrWriter(
+		ctx,
+		repoPath,
+		config,
+		token,
+		newGitProgressWriter(ctx, logger, event, nil),
+		"fetch",
+		"--progress",
+		"origin",
+		fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch),
+		fmt.Sprintf("--depth=%d", config.CloneDepth),
+	)
+	if err == nil {
+		return nil
+	}
+	if !recoverStaleGitShallowLock(repoPath, err) {
+		return err
+	}
+	_, err = gitRunWithStderrWriter(
 		ctx,
 		repoPath,
 		config,
@@ -231,6 +262,41 @@ func gitFetchBranch(
 		fmt.Sprintf("--depth=%d", config.CloneDepth),
 	)
 	return err
+}
+
+func normalizeGitBranchName(branch string) (string, error) {
+	branch = strings.TrimSpace(branch)
+	branch = strings.TrimPrefix(branch, "refs/heads/")
+	if branch == "" {
+		return "", nil
+	}
+	if branch == "ref:" || strings.HasPrefix(branch, "-") ||
+		strings.Contains(branch, ":") ||
+		strings.Contains(branch, "..") ||
+		strings.Contains(branch, "\\") ||
+		strings.ContainsAny(branch, " \t\r\n") {
+		return "", fmt.Errorf("invalid git branch name %q", branch)
+	}
+	return branch, nil
+}
+
+func recoverStaleGitShallowLock(repoPath string, fetchErr error) bool {
+	if fetchErr == nil {
+		return false
+	}
+	msg := fetchErr.Error()
+	if !strings.Contains(msg, "shallow.lock") || !strings.Contains(msg, "File exists") {
+		return false
+	}
+	lockPath := filepath.Join(repoPath, ".git", "shallow.lock")
+	info, err := os.Stat(lockPath)
+	if err != nil {
+		return false
+	}
+	if time.Since(info.ModTime()) < staleGitLockMinAge {
+		return false
+	}
+	return os.Remove(lockPath) == nil
 }
 
 func gitRevParse(
