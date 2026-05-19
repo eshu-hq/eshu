@@ -67,7 +67,10 @@ path that would be quadratically expensive across all repos.
 Concurrently, `drainProjectorPipelined` claims work from the Postgres projector
 queue using `FOR UPDATE SKIP LOCKED`. `N` goroutines (default `min(NumCPU, 8)`,
 overridden by `ESHU_PROJECTION_WORKERS`) each call `drainProjectorWorkItem` in
-a loop. Each work item: claim → `factStore.LoadFacts` → `runner.Project`
+a loop. The queue claim is scoped to git source systems because this one-shot
+runtime owns the finite repository corpus; continuous collectors publish their
+own source-local work for steady-state services to drain. Each work item:
+claim → `factStore.LoadFacts` → `runner.Project`
 (canonical graph write + content write + reducer intent enqueue) → `workSink.Ack`.
 If the shared `ProjectorWorkHeartbeater` reports `projector.ErrWorkSuperseded`,
 the worker records `status=superseded` and returns to the claim loop without

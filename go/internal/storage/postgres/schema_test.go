@@ -13,8 +13,8 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if len(defs) != 20 {
-		t.Fatalf("BootstrapDefinitions() len = %d, want 20", len(defs))
+	if len(defs) != 21 {
+		t.Fatalf("BootstrapDefinitions() len = %d, want 21", len(defs))
 	}
 
 	wantNames := []string{
@@ -38,6 +38,7 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 		"aws_pagination_checkpoints",
 		"aws_scan_status",
 		"aws_freshness_triggers",
+		"graph_schema_applications",
 	}
 	for i, want := range wantNames {
 		if defs[i].Name != want {
@@ -51,6 +52,32 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 		}
 		if strings.TrimSpace(def.SQL) == "" {
 			t.Fatalf("definition %q has empty SQL", def.Name)
+		}
+	}
+}
+
+func TestBootstrapDefinitionsIncludeGraphSchemaApplications(t *testing.T) {
+	t.Parallel()
+
+	var marker Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "graph_schema_applications" {
+			marker = def
+			break
+		}
+	}
+	if marker.Name == "" {
+		t.Fatal("graph_schema_applications definition missing")
+	}
+	for _, want := range []string{
+		"CREATE TABLE IF NOT EXISTS graph_schema_applications",
+		"backend TEXT NOT NULL",
+		"schema_fingerprint TEXT NOT NULL",
+		"PRIMARY KEY (backend, schema_fingerprint)",
+		"graph_schema_applications_backend_idx",
+	} {
+		if !strings.Contains(marker.SQL, want) {
+			t.Fatalf("graph_schema_applications SQL missing %q", want)
 		}
 	}
 }

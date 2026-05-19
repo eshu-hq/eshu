@@ -13,12 +13,13 @@ import (
 
 // ProjectorQueue provides projector-stage queue claim and ack behavior.
 type ProjectorQueue struct {
-	db            ExecQueryer
-	LeaseOwner    string
-	LeaseDuration time.Duration
-	RetryDelay    time.Duration
-	MaxAttempts   int
-	Now           func() time.Time
+	db                ExecQueryer
+	LeaseOwner        string
+	LeaseDuration     time.Duration
+	RetryDelay        time.Duration
+	MaxAttempts       int
+	ClaimSourceSystem string
+	Now               func() time.Time
 }
 
 // ErrProjectorClaimRejected means the claimed projector work item no longer
@@ -36,6 +37,13 @@ func NewProjectorQueue(
 		LeaseOwner:    leaseOwner,
 		LeaseDuration: leaseDuration,
 	}
+}
+
+// WithClaimSourceSystem scopes Claim to projector work owned by one source
+// system while leaving enqueue, ack, heartbeat, and failure behavior unchanged.
+func (q ProjectorQueue) WithClaimSourceSystem(sourceSystem string) ProjectorQueue {
+	q.ClaimSourceSystem = strings.TrimSpace(sourceSystem)
+	return q
 }
 
 // Enqueue inserts one durable source-local projection work item.
@@ -78,7 +86,14 @@ func (q ProjectorQueue) Claim(ctx context.Context) (projector.ScopeGenerationWor
 	}
 
 	now := q.now()
-	rows, err := q.db.QueryContext(ctx, claimProjectorWorkQuery, now, q.LeaseOwner, now.Add(q.LeaseDuration))
+	rows, err := q.db.QueryContext(
+		ctx,
+		claimProjectorWorkQuery,
+		now,
+		q.LeaseOwner,
+		now.Add(q.LeaseDuration),
+		q.ClaimSourceSystem,
+	)
 	if err != nil {
 		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
 	}

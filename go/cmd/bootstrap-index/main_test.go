@@ -248,6 +248,31 @@ func TestBuildBootstrapProjectorWiresPhasePublisherAndRepairQueue(t *testing.T) 
 	}
 }
 
+func TestBuildBootstrapProjectorClaimsOnlyGitScopes(t *testing.T) {
+	t.Parallel()
+
+	deps, err := buildBootstrapProjector(
+		context.Background(),
+		&fakeBootstrapSQLDB{},
+		&noopCanonicalWriter{},
+		func(string) string { return "" },
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildBootstrapProjector() error = %v, want nil", err)
+	}
+
+	queue, ok := deps.workSource.(postgres.ProjectorQueue)
+	if !ok {
+		t.Fatalf("buildBootstrapProjector() workSource type = %T, want postgres.ProjectorQueue", deps.workSource)
+	}
+	if got, want := queue.ClaimSourceSystem, string(scope.CollectorGit); got != want {
+		t.Fatalf("ClaimSourceSystem = %q, want %q", got, want)
+	}
+}
+
 // --- fakes ---
 
 type fakeBootstrapDB struct {
@@ -284,16 +309,16 @@ func (f *fakeSource) Next(context.Context) (collector.CollectedGeneration, bool,
 }
 
 type fakeCommitter struct {
-	mu               sync.Mutex
-	calls            []string
-	backfillCalls    int
-	iacCalls         int
-	reopenCalls      int
+	mu                sync.Mutex
+	calls             []string
+	backfillCalls     int
+	iacCalls          int
+	reopenCalls       int
 	driftEnqueueCalls int
-	backfillErr      error
-	iacErr           error
-	reopenErr        error
-	driftEnqueueErr  error
+	backfillErr       error
+	iacErr            error
+	reopenErr         error
+	driftEnqueueErr   error
 }
 
 func (f *fakeCommitter) CommitScopeGeneration(

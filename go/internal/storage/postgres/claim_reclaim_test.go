@@ -99,6 +99,65 @@ func TestProjectorQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) 
 	}
 }
 
+func TestProjectorQueueClaimScopesBySourceSystem(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 18, 23, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{
+				rows: [][]any{{
+					"scope-123",
+					"git",
+					"repository",
+					"",
+					"",
+					false,
+					"git",
+					"repo-123",
+					"generation-456",
+					1,
+					time.Date(2026, time.May, 18, 22, 0, 0, 0, time.UTC),
+					time.Date(2026, time.May, 18, 22, 5, 0, 0, time.UTC),
+					"pending",
+					"snapshot",
+					"",
+					[]byte(`{"repo_id":"repository:r_test"}`),
+				}},
+			},
+		},
+	}
+
+	queue := NewProjectorQueue(db, "bootstrap-index", time.Minute).
+		WithClaimSourceSystem("git")
+	queue.Now = func() time.Time { return now }
+
+	if _, ok, err := queue.Claim(context.Background()); err != nil {
+		t.Fatalf("Claim() error = %v, want nil", err)
+	} else if !ok {
+		t.Fatal("Claim() ok = false, want true")
+	}
+
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	query := db.queries[0].query
+	for _, want := range []string{
+		"$4 = ''",
+		"FROM ingestion_scopes AS candidate_scope",
+		"source_system = $4",
+		"candidate_scope.scope_id = work.scope_id",
+		"same.scope_id = work.scope_id",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("claim query missing source-system filter %q:\n%s", want, query)
+		}
+	}
+	if got, want := db.queries[0].args[3], "git"; got != want {
+		t.Fatalf("source_system arg = %q, want %q", got, want)
+	}
+}
+
 func TestReducerQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) {
 	t.Parallel()
 

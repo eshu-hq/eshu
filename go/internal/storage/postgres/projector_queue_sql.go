@@ -44,6 +44,15 @@ WITH reclaimed_stale_projector_duplicates AS (
     WHERE stale.stage = 'projector'
       AND stale.status IN ('claimed', 'running')
       AND stale.claim_until <= $1
+      AND (
+          $4 = ''
+          OR EXISTS (
+              SELECT 1
+              FROM ingestion_scopes AS candidate_scope
+              WHERE candidate_scope.scope_id = stale.scope_id
+                AND candidate_scope.source_system = $4
+          )
+      )
       AND EXISTS (
           SELECT 1
           FROM fact_work_items AS live
@@ -71,6 +80,15 @@ superseded_stale_projector_generations AS (
     FROM scope_generations AS stale_generation
     WHERE stale.stage = 'projector'
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+      AND (
+          $4 = ''
+          OR EXISTS (
+              SELECT 1
+              FROM ingestion_scopes AS candidate_scope
+              WHERE candidate_scope.scope_id = stale.scope_id
+                AND candidate_scope.source_system = $4
+          )
+      )
       AND stale_generation.generation_id = stale.generation_id
       AND stale_generation.status IN ('pending', 'failed')
       AND EXISTS (
@@ -107,6 +125,15 @@ candidate AS (
       AND work.status IN ('pending', 'retrying', 'claimed', 'running')
       AND (work.visible_at IS NULL OR work.visible_at <= $1)
       AND (work.claim_until IS NULL OR work.claim_until <= $1)
+      AND (
+          $4 = ''
+          OR EXISTS (
+              SELECT 1
+              FROM ingestion_scopes AS candidate_scope
+              WHERE candidate_scope.scope_id = work.scope_id
+                AND candidate_scope.source_system = $4
+          )
+      )
       AND NOT EXISTS (
           SELECT 1
           FROM superseded_stale_projector_generations AS superseded

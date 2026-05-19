@@ -54,6 +54,21 @@ flowchart TB
 (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`).
 The large `fact_records` DDL lives in `schema_fact_records.go` so
 `schema.go` can stay focused on bootstrap ordering and exported helpers.
+`graph_schema_applications` stores the graph backend/schema fingerprint after
+`eshu-bootstrap-data-plane` successfully applies graph DDL. Preserved-volume
+restarts use that durable marker to skip repeated NornicDB constraint/index
+checks when the graph schema is unchanged.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'TestBootstrapDefinitions(AreOrderedAndComplete|IncludeGraphSchemaApplications|IncludeContentStoreTables)|TestBootstrapSQLFilesMirrorDefinitions'`
+proves the marker table is registered in ordered bootstrap definitions and the
+checked-in SQL file mirrors the Go definition.
+
+Observability Evidence: graph schema marker reads and writes are routed through
+the bootstrap data-plane Postgres connection; the operator-facing signal is the
+`bootstrap.graph.skipped` or `bootstrap.graph.applied` structured log from the
+bootstrap binary, plus normal Postgres query/exec errors if the marker table is
+unavailable.
 
 ### Fact persistence
 
@@ -188,6 +203,29 @@ markers after `cypher.CanonicalNodeWriter.Write` completes. The
 factories return `reducer.GraphProjectionReadinessLookup` implementations used
 by edge-domain reducer workers to gate on canonical node availability before
 writing edges.
+
+### Projector queue claim ownership
+
+`ProjectorQueue` claims source-local projection work in per-scope order with
+`FOR UPDATE SKIP LOCKED`, stale-lease reclaim, and newer-generation
+supersession. Long-running runtimes use the default unfiltered claim path.
+One-shot bootstrap callers may set `WithClaimSourceSystem` so the claim query
+only touches work from the source system that the bootstrap run owns.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'TestProjectorQueueClaim(ScopesBySourceSystem|IncludesExpiredLeaseReclaimPredicates)'`
+proves source-system scoped claims still preserve stale-lease reclaim,
+same-scope ordering, and the unfiltered queue contract. `go test
+./cmd/bootstrap-index -run
+'TestBuildBootstrapProjector(ClaimsOnlyGitScopes|WiresPhasePublisherAndRepairQueue)'`
+proves bootstrap-index wires the scoped claim path for git repository scopes.
+
+Observability Evidence: no new telemetry was needed because queue claim latency
+continues through `eshu_dp_queue_claim_duration_seconds{queue="projector"}`,
+claim SQL continues through `InstrumentedDB` Postgres query spans and duration
+metrics, and bootstrap projection logs still include `scope_id`,
+`generation_id`, `source_system`, worker id, status, fact count, duration, and
+failure class.
 
 ### Workflow control
 

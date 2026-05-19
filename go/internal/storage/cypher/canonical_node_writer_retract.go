@@ -3,12 +3,16 @@ package cypher
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
 
 func (w *CanonicalNodeWriter) buildRetractStatements(mat projector.CanonicalMaterialization) []Statement {
 	if mat.FirstGeneration {
+		return nil
+	}
+	if !hasRepositoryScopedRetract(mat) {
 		return nil
 	}
 
@@ -87,6 +91,9 @@ func (w *CanonicalNodeWriter) buildEntityRetractStatements(mat projector.Canonic
 	if mat.FirstGeneration {
 		return nil
 	}
+	if !hasRepositoryScopedRetract(mat) {
+		return nil
+	}
 	labels := canonicalNodeRetractEntityLabels()
 	stmts := make([]Statement, 0, len(labels))
 	for _, label := range labels {
@@ -100,6 +107,10 @@ func (w *CanonicalNodeWriter) buildEntityRetractStatements(mat projector.Canonic
 		})
 	}
 	return stmts
+}
+
+func hasRepositoryScopedRetract(mat projector.CanonicalMaterialization) bool {
+	return strings.TrimSpace(mat.RepoID) != ""
 }
 
 func canonicalNodeRetractEntityLabels() []string {

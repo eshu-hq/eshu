@@ -12,6 +12,8 @@ while `bootstrap-index` or `ingester` populates data.
 This binary owns DDL orchestration only. Postgres table definitions live in
 `internal/storage/postgres/`. Graph schema bootstrap lives in
 `internal/graph/` and is applied through `graph.EnsureSchemaWithBackend`.
+The only row this binary writes is the Postgres graph schema application marker,
+which records that the exact backend/fingerprint pair completed successfully.
 The binary writes no application data and does not stay resident.
 
 ## Entry points
@@ -44,16 +46,21 @@ Uses the shared telemetry bootstrap and the structured logger scoped to
 `bootstrap`/component `bootstrap-data-plane`. No OTEL metric or trace providers
 are registered. Lifecycle events use `telemetry.EventAttr`:
 `runtime.startup.failed`, `bootstrap.schema.started`,
-`bootstrap.postgres.applied`, `bootstrap.graph.applied` (with a `graph_backend`
-attribute). Graph DDL also emits one structured `graph schema statement
-applying` and one terminal `graph schema statement applied` or
-`graph schema statement failed` log per statement, including backend, phase,
-statement index, statement total, duration, failure class, and a bounded schema
-statement summary.
+`bootstrap.postgres.applied`, `bootstrap.graph.applied`, and
+`bootstrap.graph.skipped` (with `graph_backend`, `schema_fingerprint`, and
+`statement_count` when graph DDL is skipped). Graph DDL also emits one
+structured `graph schema statement applying` and one terminal
+`graph schema statement applied` or `graph schema statement failed` log per
+statement, including backend, phase, statement index, statement total, duration,
+failure class, and a bounded schema statement summary.
 
 ## Gotchas / invariants
 
 - idempotent: every DDL statement is `CREATE ... IF NOT EXISTS`
+- after a successful graph schema apply, the binary marks the backend and schema
+  fingerprint in Postgres. A later run with the same fingerprint skips graph DDL
+  instead of asking NornicDB to re-check every constraint/index against a
+  populated graph.
 - version probes are pre-startup checks; keep `buildinfo.PrintVersionFlag` at
   the top of `main` so deployment diagnostics do not run DDL
 - each graph DDL statement runs under `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT`
@@ -61,19 +68,28 @@ statement summary.
   continuing through the rest of the schema list
 - graph driver close uses a 10-second timeout; close errors are joined into
   the run result via `errors.Join`
-- exits non-zero if either Postgres or graph DDL fails; no partial apply
+- exits non-zero if either Postgres or graph DDL fails; no partial apply. The
+  graph marker is written only after the graph backend reports success.
 - `neo4jSchemaExecutor` runs DDL in a write session against the configured
   database name; do not point it at a read replica
 
-No-Regression Evidence: focused unit coverage proves generic DDL errors still
-log as warnings and continue, while context deadline/cancellation now stops
-schema bootstrap after the failing statement instead of burning the whole schema
-list.
+No-Regression Evidence: `go test ./cmd/bootstrap-data-plane -run
+'TestRun(SkipsGraphSchemaWhenFingerprintAlreadyApplied|AppliesAndMarksGraphSchemaWhenFingerprintMissing|DoesNotMarkGraphSchemaAfterApplyFailure)'`
+proves same-fingerprint restarts skip graph DDL, missing markers still apply and
+record graph schema completion, and failed graph DDL never records a successful
+marker. Existing focused unit coverage proves generic DDL errors still log as
+warnings and continue, while context deadline/cancellation stops schema
+bootstrap after the failing statement instead of burning the whole schema list.
+Remote Compose preserved-volume restart evidence on 2026-05-19 logged
+`bootstrap.graph.skipped` with `statement_count=209`, restarted the stack in
+about 2m38s, and left projector/reducer queues terminal with no failed,
+retrying, or dead-letter rows.
 
-Observability Evidence: focused schema-progress and statement-timeout tests
-cover the structured
-per-statement logs and the bootstrap-level timeout wrapper that operators use to
-see which graph schema statement is slow or blocked.
+Observability Evidence: `bootstrap.graph.skipped` tells operators that a
+preserved-volume restart reused the recorded graph schema fingerprint. Focused
+schema-progress and statement-timeout tests cover the structured per-statement
+logs and the bootstrap-level timeout wrapper that operators use to see which
+graph schema statement is slow or blocked.
 
 ## Related docs
 
