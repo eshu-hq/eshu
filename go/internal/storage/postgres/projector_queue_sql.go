@@ -27,7 +27,21 @@ ON CONFLICT (work_item_id) DO NOTHING
 `
 
 const claimProjectorWorkQuery = `
-WITH reclaimed_stale_projector_duplicates AS (
+WITH source_scoped_projector_work AS (
+    SELECT work.work_item_id
+    FROM fact_work_items AS work
+    WHERE work.stage = 'projector'
+      AND (
+          $4 = ''
+          OR EXISTS (
+              SELECT 1
+              FROM ingestion_scopes AS candidate_scope
+              WHERE candidate_scope.scope_id = work.scope_id
+                AND candidate_scope.source_system = $4
+          )
+      )
+),
+reclaimed_stale_projector_duplicates AS (
     UPDATE fact_work_items AS stale
     SET status = 'retrying',
         lease_owner = NULL,
@@ -41,18 +55,11 @@ WITH reclaimed_stale_projector_duplicates AS (
             'scope_id', stale.scope_id,
             'work_item_id', stale.work_item_id
         )
-    WHERE stale.stage = 'projector'
+    FROM source_scoped_projector_work AS scoped
+    WHERE stale.work_item_id = scoped.work_item_id
+      AND stale.stage = 'projector'
       AND stale.status IN ('claimed', 'running')
       AND stale.claim_until <= $1
-      AND (
-          $4 = ''
-          OR EXISTS (
-              SELECT 1
-              FROM ingestion_scopes AS candidate_scope
-              WHERE candidate_scope.scope_id = stale.scope_id
-                AND candidate_scope.source_system = $4
-          )
-      )
       AND EXISTS (
           SELECT 1
           FROM fact_work_items AS live
@@ -77,18 +84,11 @@ superseded_stale_projector_generations AS (
             'scope_id', stale.scope_id,
             'work_item_id', stale.work_item_id
         )
-    FROM scope_generations AS stale_generation
+    FROM scope_generations AS stale_generation,
+         source_scoped_projector_work AS scoped
     WHERE stale.stage = 'projector'
+      AND stale.work_item_id = scoped.work_item_id
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
-      AND (
-          $4 = ''
-          OR EXISTS (
-              SELECT 1
-              FROM ingestion_scopes AS candidate_scope
-              WHERE candidate_scope.scope_id = stale.scope_id
-                AND candidate_scope.source_system = $4
-          )
-      )
       AND stale_generation.generation_id = stale.generation_id
       AND stale_generation.status IN ('pending', 'failed')
       AND EXISTS (
@@ -121,19 +121,12 @@ superseded_stale_scope_generations AS (
 candidate AS (
     SELECT work.work_item_id
     FROM fact_work_items AS work
-    WHERE stage = 'projector'
+    JOIN source_scoped_projector_work AS scoped
+      ON scoped.work_item_id = work.work_item_id
+    WHERE work.stage = 'projector'
       AND work.status IN ('pending', 'retrying', 'claimed', 'running')
       AND (work.visible_at IS NULL OR work.visible_at <= $1)
       AND (work.claim_until IS NULL OR work.claim_until <= $1)
-      AND (
-          $4 = ''
-          OR EXISTS (
-              SELECT 1
-              FROM ingestion_scopes AS candidate_scope
-              WHERE candidate_scope.scope_id = work.scope_id
-                AND candidate_scope.source_system = $4
-          )
-      )
       AND NOT EXISTS (
           SELECT 1
           FROM superseded_stale_projector_generations AS superseded

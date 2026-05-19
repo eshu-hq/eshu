@@ -71,7 +71,7 @@ func main() {
 			return postgres.ApplyBootstrap(ctx, exec)
 		},
 		openNeo4j,
-		graph.EnsureSchemaWithBackend,
+		graph.EnsureSchemaWithBackendStrict,
 	); err != nil {
 		logger.Error("bootstrap-data-plane failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
 		os.Exit(1)

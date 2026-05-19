@@ -316,106 +316,13 @@ func EnsureSchema(ctx context.Context, executor CypherExecutor, logger *slog.Log
 // selected graph backend. NornicDB uses only syntax translations proven by
 // compatibility tests.
 func EnsureSchemaWithBackend(ctx context.Context, executor CypherExecutor, logger *slog.Logger, backend SchemaBackend) error {
-	if executor == nil {
-		return fmt.Errorf("schema executor is required")
-	}
-	if logger == nil {
-		logger = slog.Default()
-	}
-	dialect, err := schemaDialectForBackend(backend)
-	if err != nil {
-		return err
-	}
+	return ensureSchemaWithBackend(ctx, executor, logger, backend, false)
+}
 
-	var failed int
-	state := schemaExecutionState{
-		logger:  logger,
-		dialect: dialect,
-		total:   schemaStatementTotal(dialect),
-	}
-
-	// Constraints
-	for _, cypher := range schemaConstraints {
-		cypher = dialect.constraint(cypher)
-		if cypher == "" {
-			continue
-		}
-		if err := state.execute(ctx, executor, "constraints", cypher); err != nil {
-			if isSchemaContextFailure(err) {
-				return err
-			}
-			failed++
-		}
-	}
-
-	// Performance indexes
-	for _, cypher := range schemaPerformanceIndexes {
-		if err := state.execute(ctx, executor, "performance_indexes", cypher); err != nil {
-			if isSchemaContextFailure(err) {
-				return err
-			}
-			failed++
-		}
-	}
-	if dialect.includeMergeLookupIndexes {
-		for _, cypher := range nornicDBMergeLookupIndexes {
-			if err := state.execute(ctx, executor, "nornicdb_merge_lookup_indexes", cypher); err != nil {
-				if isSchemaContextFailure(err) {
-					return err
-				}
-				failed++
-			}
-		}
-		for _, cypher := range nornicDBUIDLookupIndexes() {
-			if err := state.execute(ctx, executor, "nornicdb_uid_lookup_indexes", cypher); err != nil {
-				if isSchemaContextFailure(err) {
-					return err
-				}
-				failed++
-			}
-		}
-	}
-
-	// UID uniqueness constraints for content entity labels
-	for _, label := range uidConstraintLabels {
-		cypher := fmt.Sprintf(
-			"CREATE CONSTRAINT %s_uid_unique IF NOT EXISTS FOR (n:%s) REQUIRE n.uid IS UNIQUE",
-			labelToSnake(label), label,
-		)
-		if err := state.execute(ctx, executor, "uid_constraints", cypher); err != nil {
-			if isSchemaContextFailure(err) {
-				return err
-			}
-			failed++
-		}
-	}
-
-	// Full-text indexes with fallback
-	for _, ft := range schemaFulltextIndexes {
-		if err := state.execute(ctx, executor, "fulltext_primary", ft.primary); err != nil {
-			if isSchemaContextFailure(err) {
-				return err
-			}
-			if dialect.skipFulltextFallback {
-				failed++
-				continue
-			}
-			if err2 := state.execute(ctx, executor, "fulltext_fallback", ft.fallback); err2 != nil {
-				if isSchemaContextFailure(err2) {
-					return err2
-				}
-				failed++
-			}
-		}
-	}
-
-	if failed > 0 {
-		logger.Warn("schema creation completed with warnings", "failed", failed, "graph_backend", dialect.backend)
-	} else {
-		logger.Info("database schema verified/created successfully", "graph_backend", dialect.backend)
-	}
-
-	return nil
+// EnsureSchemaWithBackendStrict creates the selected graph backend schema and
+// returns an error when any non-context DDL statement fails.
+func EnsureSchemaWithBackendStrict(ctx context.Context, executor CypherExecutor, logger *slog.Logger, backend SchemaBackend) error {
+	return ensureSchemaWithBackend(ctx, executor, logger, backend, true)
 }
 
 type schemaDialect struct {

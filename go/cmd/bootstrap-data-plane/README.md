@@ -11,7 +11,8 @@ while `bootstrap-index` or `ingester` populates data.
 
 This binary owns DDL orchestration only. Postgres table definitions live in
 `internal/storage/postgres/`. Graph schema bootstrap lives in
-`internal/graph/` and is applied through `graph.EnsureSchemaWithBackend`.
+`internal/graph/` and is applied through `graph.EnsureSchemaWithBackendStrict`
+so any rejected DDL keeps the graph marker unset for the next retry.
 The only row this binary writes is the Postgres graph schema application marker,
 which records that the exact backend/fingerprint pair completed successfully.
 The binary writes no application data and does not stay resident.
@@ -69,7 +70,7 @@ failure class, and a bounded schema statement summary.
 - graph driver close uses a 10-second timeout; close errors are joined into
   the run result via `errors.Join`
 - exits non-zero if either Postgres or graph DDL fails; no partial apply. The
-  graph marker is written only after the graph backend reports success.
+  graph marker is written only after every graph DDL statement succeeds.
 - `neo4jSchemaExecutor` runs DDL in a write session against the configured
   database name; do not point it at a read replica
 
@@ -77,9 +78,13 @@ No-Regression Evidence: `go test ./cmd/bootstrap-data-plane -run
 'TestRun(SkipsGraphSchemaWhenFingerprintAlreadyApplied|AppliesAndMarksGraphSchemaWhenFingerprintMissing|DoesNotMarkGraphSchemaAfterApplyFailure)'`
 proves same-fingerprint restarts skip graph DDL, missing markers still apply and
 record graph schema completion, and failed graph DDL never records a successful
-marker. Existing focused unit coverage proves generic DDL errors still log as
-warnings and continue, while context deadline/cancellation stops schema
-bootstrap after the failing statement instead of burning the whole schema list.
+marker. `go test ./internal/graph -run
+TestEnsureSchemaWithBackendStrictReturnsStatementFailures` proves the strict
+data-plane path returns a non-context schema failure instead of warning and
+continuing to the marker write. Existing focused unit coverage proves generic
+DDL errors still log as warnings for non-strict callers, while context
+deadline/cancellation stops schema bootstrap after the failing statement instead
+of burning the whole schema list.
 Remote Compose preserved-volume restart evidence on 2026-05-19 logged
 `bootstrap.graph.skipped` with `statement_count=209`, restarted the stack in
 about 2m38s, and left projector/reducer queues terminal with no failed,

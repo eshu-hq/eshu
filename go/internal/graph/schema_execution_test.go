@@ -28,6 +28,25 @@ func TestEnsureSchemaReturnsContextDeadline(t *testing.T) {
 	}
 }
 
+func TestEnsureSchemaWithBackendStrictReturnsStatementFailures(t *testing.T) {
+	t.Parallel()
+
+	executor := &schemaRecordingExecutor{
+		failOn: func(_ string) bool { return true },
+	}
+
+	err := EnsureSchemaWithBackendStrict(context.Background(), executor, nil, SchemaBackendNornicDB)
+	if err == nil {
+		t.Fatal("EnsureSchemaWithBackendStrict() error = nil, want failed statement error")
+	}
+	if !strings.Contains(err.Error(), "graph schema completed with") {
+		t.Fatalf("EnsureSchemaWithBackendStrict() error = %q, want failed statement count", err.Error())
+	}
+	if len(executor.calls) == 0 {
+		t.Fatal("executor should have been called at least once")
+	}
+}
+
 func TestEnsureSchemaLogsStatementProgress(t *testing.T) {
 	t.Parallel()
 

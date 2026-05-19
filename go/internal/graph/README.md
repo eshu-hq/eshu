@@ -18,7 +18,7 @@ dialects.
 flowchart LR
   A["internal/projector\ncanonical_builder.go"] --> B["graph.Writer\ngraph.Materialization"]
   B --> C["storage/cypher\nCanonicalNodeWriter"]
-  D["cmd/bootstrap-data-plane\ncmd/eshu local_graph_bootstrap"] --> E["graph.EnsureSchemaWithBackend"]
+  D["cmd/bootstrap-data-plane\ncmd/eshu local_graph_bootstrap"] --> E["graph.EnsureSchemaWithBackend*"]
   E --> F["CypherExecutor\n(Neo4j or NornicDB driver)"]
   G["storage/cypher\nwriter.go"] --> H["graph.BatchMergeEntities\ngraph.BatchMergeFiles\ngraph.BatchMergeRelationships"]
 ```
@@ -33,6 +33,7 @@ graph/
   batch.go       — BatchEntityRow, BatchFileRow, BatchRelationshipRow, batch helpers
   mutations.go   — DeleteFileFromGraph, DeleteRepositoryFromGraph, ResetRepositorySubtreeInGraph
   schema.go      — SchemaBackend, EnsureSchema, EnsureSchemaWithBackend
+                   and EnsureSchemaWithBackendStrict
   schema_execution.go — schema DDL progress logging and context-budget handling
   schema_statements.go — ordered schema statement inspection helpers
   schema_labels.go — schema label naming helpers
@@ -116,6 +117,10 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
   abort the remaining statements.
 - `EnsureSchemaWithBackend(ctx, executor, logger, backend)` — same, but
   routes through the selected backend dialect.
+- `EnsureSchemaWithBackendStrict(ctx, executor, logger, backend)` — same
+  backend dialect routing, but returns an error when any non-context DDL
+  statement fails. Deployment schema bootstrap uses this variant before writing
+  the durable graph schema marker.
 - `SourceLocalRecord` receives a `(scope_id, generation_id, record_id)`
   uniqueness constraint during schema setup; canonical source-local MERGE
   statements rely on it to avoid full label scans on large repositories.
@@ -144,14 +149,17 @@ their `storage/cypher` counterparts by design to avoid a cycle.
 
 ## Telemetry
 
-`EnsureSchema` and `EnsureSchemaWithBackend` log every DDL statement before and
-after execution via `slog`. Each log includes `graph_backend`, `schema_phase`,
+`EnsureSchema`, `EnsureSchemaWithBackend`, and
+`EnsureSchemaWithBackendStrict` log every DDL statement before and after
+execution via `slog`. Each log includes `graph_backend`, `schema_phase`,
 `statement_index`, `statement_total`, `schema_statement`, and `duration_ms` on
-completion. Generic DDL failures still log as warnings and continue so
-idempotent already-exists or optional full-text behavior does not block startup.
-Context deadline or cancellation errors fail fast because the caller has already
-lost its execution budget. No metrics or span instruments are registered here;
-backend executors own those.
+completion. Generic DDL failures still log as warnings and continue for
+non-strict callers so idempotent already-exists or optional full-text behavior
+does not block startup. Strict callers return an error after the ordered schema
+attempt completes if any non-context statement failed. Context deadline or
+cancellation errors fail fast because the caller has already lost its execution
+budget. No metrics or span instruments are registered here; backend executors
+own those.
 
 No-Regression Evidence: focused schema tests keep the prior non-deadline warning
 behavior while adding a deadline regression that proves context budget
