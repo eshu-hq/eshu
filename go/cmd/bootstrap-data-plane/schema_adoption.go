@@ -1,0 +1,202 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"sort"
+	"strings"
+
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
+
+	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+const graphSchemaAdoptExistingEnv = "ESHU_GRAPH_SCHEMA_ADOPT_EXISTING"
+
+type graphSchemaInspector interface {
+	GraphSchemaObjectNames(context.Context) (map[string]struct{}, error)
+}
+
+func graphSchemaAdoptionEnabled(getenv func(string) string) bool {
+	switch strings.ToLower(strings.TrimSpace(getenv(graphSchemaAdoptExistingEnv))) {
+	case "1", "true", "t", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func adoptExistingGraphSchema(
+	ctx context.Context,
+	db bootstrapExecutor,
+	inspector graphSchemaInspector,
+	logger *slog.Logger,
+	backend graph.SchemaBackend,
+	fingerprint string,
+	statementCount int,
+) (bool, error) {
+	if inspector == nil {
+		return false, fmt.Errorf("%s requires graph schema inspection support", graphSchemaAdoptExistingEnv)
+	}
+	expectedNames, err := expectedGraphSchemaObjectNames(backend)
+	if err != nil {
+		return false, err
+	}
+	actualNames, err := inspector.GraphSchemaObjectNames(ctx)
+	if err != nil {
+		return false, fmt.Errorf("inspect graph schema for adoption: %w", err)
+	}
+	missing := missingGraphSchemaObjectNames(expectedNames, actualNames)
+	if len(missing) > 0 {
+		if logger != nil {
+			logger.Info("graph schema adoption incomplete",
+				telemetry.EventAttr("bootstrap.graph.adoption_incomplete"),
+				"graph_backend", backend,
+				"schema_fingerprint", fingerprint,
+				"expected_schema_objects", len(expectedNames),
+				"actual_schema_objects", len(actualNames),
+				"missing_schema_objects", len(missing),
+				"first_missing_schema_objects", firstStrings(missing, 10),
+			)
+		}
+		return false, nil
+	}
+	if err := markGraphSchemaApplied(ctx, db, backend, fingerprint, statementCount); err != nil {
+		return false, err
+	}
+	if logger != nil {
+		logger.Info("graph schema adopted",
+			telemetry.EventAttr("bootstrap.graph.adopted"),
+			"graph_backend", backend,
+			"schema_fingerprint", fingerprint,
+			"statement_count", statementCount,
+			"schema_object_count", len(actualNames),
+		)
+	}
+	return true, nil
+}
+
+func expectedGraphSchemaObjectNames(backend graph.SchemaBackend) (map[string]struct{}, error) {
+	statements, err := graph.SchemaStatementsForBackend(backend)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[string]struct{}, len(statements))
+	for _, statement := range statements {
+		name, err := graphSchemaObjectName(statement)
+		if err != nil {
+			return nil, err
+		}
+		names[name] = struct{}{}
+	}
+	return names, nil
+}
+
+func graphSchemaObjectName(statement string) (string, error) {
+	fields := strings.Fields(statement)
+	if len(fields) > 0 && strings.EqualFold(fields[0], "CALL") {
+		if name, ok := graphSchemaProcedureIndexName(statement); ok {
+			return name, nil
+		}
+	}
+	if len(fields) < 4 || !strings.EqualFold(fields[0], "CREATE") {
+		return "", fmt.Errorf("cannot adopt unsupported graph schema statement %q", graphSchemaAdoptionStatementSummary(statement))
+	}
+	switch strings.ToUpper(fields[1]) {
+	case "CONSTRAINT", "INDEX":
+		if strings.EqualFold(fields[2], "IF") {
+			return "", fmt.Errorf("cannot adopt unnamed graph schema statement %q", graphSchemaAdoptionStatementSummary(statement))
+		}
+		return fields[2], nil
+	default:
+		return "", fmt.Errorf("cannot adopt unsupported graph schema statement %q", graphSchemaAdoptionStatementSummary(statement))
+	}
+}
+
+func graphSchemaProcedureIndexName(statement string) (string, bool) {
+	const prefix = "db.index.fulltext.createNodeIndex("
+	callIndex := strings.Index(statement, prefix)
+	if callIndex < 0 {
+		return "", false
+	}
+	rest := strings.TrimSpace(statement[callIndex+len(prefix):])
+	if !strings.HasPrefix(rest, "'") {
+		return "", false
+	}
+	rest = strings.TrimPrefix(rest, "'")
+	name, _, ok := strings.Cut(rest, "'")
+	name = strings.TrimSpace(name)
+	return name, ok && name != ""
+}
+
+func graphSchemaAdoptionStatementSummary(statement string) string {
+	return strings.Join(strings.Fields(statement), " ")
+}
+
+func missingGraphSchemaObjectNames(expected, actual map[string]struct{}) []string {
+	missing := make([]string, 0)
+	for name := range expected {
+		if _, ok := actual[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}
+
+func firstStrings(values []string, limit int) []string {
+	if len(values) <= limit {
+		return values
+	}
+	return values[:limit]
+}
+
+func (e *neo4jSchemaExecutor) GraphSchemaObjectNames(ctx context.Context) (map[string]struct{}, error) {
+	names := make(map[string]struct{})
+	for _, statement := range []string{"SHOW CONSTRAINTS", "SHOW INDEXES"} {
+		if err := e.collectGraphSchemaNames(ctx, statement, names); err != nil {
+			return nil, err
+		}
+	}
+	return names, nil
+}
+
+func (e *neo4jSchemaExecutor) collectGraphSchemaNames(
+	ctx context.Context,
+	statement string,
+	names map[string]struct{},
+) error {
+	session := e.driver.NewSession(ctx, neo4jdriver.SessionConfig{
+		AccessMode:   neo4jdriver.AccessModeRead,
+		DatabaseName: e.databaseName,
+	})
+	defer func() {
+		_ = session.Close(ctx)
+	}()
+
+	result, err := session.Run(ctx, statement, nil)
+	if err != nil {
+		return fmt.Errorf("run %s: %w", statement, err)
+	}
+	records, err := result.Collect(ctx)
+	if err != nil {
+		return fmt.Errorf("collect %s: %w", statement, err)
+	}
+	for _, record := range records {
+		rawName, ok := record.Get("name")
+		if !ok {
+			continue
+		}
+		name, ok := rawName.(string)
+		if !ok {
+			continue
+		}
+		name = strings.TrimSpace(name)
+		if name != "" {
+			names[name] = struct{}{}
+		}
+	}
+	return nil
+}

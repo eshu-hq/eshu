@@ -194,6 +194,9 @@ repoSync:
 
 env:
   ESHU_GRAPH_BACKEND: nornicdb
+  # Optional upgrade bridge for deployments that already have graph schema
+  # objects but lack the Postgres graph_schema_applications marker.
+  ESHU_GRAPH_SCHEMA_ADOPT_EXISTING: "true"
   ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT: 2m
   DEFAULT_DATABASE: nornic
   NEO4J_DATABASE: nornic

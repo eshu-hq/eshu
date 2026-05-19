@@ -32,8 +32,9 @@ type bootstrapDB interface {
 }
 
 type neo4jDeps struct {
-	executor graph.CypherExecutor
-	close    func() error
+	executor  graph.CypherExecutor
+	inspector graphSchemaInspector
+	close     func() error
 }
 
 type openBootstrapDBFn func(context.Context, func(string) string) (bootstrapDB, error)
@@ -150,6 +151,17 @@ func run(
 		executor: nd.executor,
 		timeout:  statementTimeout,
 	})
+	if graphSchemaAdoptionEnabled(getenv) {
+		adoptionCtx, cancel := context.WithTimeout(ctx, statementTimeout)
+		defer cancel()
+		adopted, err := adoptExistingGraphSchema(adoptionCtx, db, nd.inspector, logger, backend, fingerprint, statementCount)
+		if err != nil {
+			return err
+		}
+		if adopted {
+			return nil
+		}
+	}
 	if err = applyNeo4jFn(ctx, graphExecutor, logger, backend); err != nil {
 		return err
 	}
@@ -296,6 +308,10 @@ func openNeo4j(ctx context.Context, getenv func(string) string) (neo4jDeps, erro
 
 	return neo4jDeps{
 		executor: &neo4jSchemaExecutor{
+			driver:       driver,
+			databaseName: cfg.DatabaseName,
+		},
+		inspector: &neo4jSchemaExecutor{
 			driver:       driver,
 			databaseName: cfg.DatabaseName,
 		},

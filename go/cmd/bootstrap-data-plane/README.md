@@ -34,12 +34,17 @@ Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
 - ESHU_GRAPH_BACKEND — `neo4j` or `nornicdb`
 - ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT — per graph DDL statement timeout,
   default `2m`
+- ESHU_GRAPH_SCHEMA_ADOPT_EXISTING — when truthy, inspect `SHOW CONSTRAINTS`
+  and `SHOW INDEXES` before applying graph DDL. If every current schema object
+  already exists, mark the backend/fingerprint as applied and skip the DDL pass.
+  The inspection uses the ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT budget.
 - NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 - DEFAULT_DATABASE
 
 Invalid ESHU_GRAPH_BACKEND values fail with `unsupported graph backend for
 schema`. Invalid or non-positive ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT values fail
-before any DDL runs.
+before any DDL runs. When ESHU_GRAPH_SCHEMA_ADOPT_EXISTING is truthy, schema
+inspection errors fail closed instead of falling back to live DDL.
 
 ## Telemetry
 
@@ -49,7 +54,10 @@ are registered. Lifecycle events use `telemetry.EventAttr`:
 `runtime.startup.failed`, `bootstrap.schema.started`,
 `bootstrap.postgres.applied`, `bootstrap.graph.applied`, and
 `bootstrap.graph.skipped` (with `graph_backend`, `schema_fingerprint`, and
-`statement_count` when graph DDL is skipped). Graph DDL also emits one
+`statement_count` when graph DDL is skipped). Existing-schema adoption emits
+`bootstrap.graph.adoption_incomplete` when objects are missing and
+`bootstrap.graph.adopted` when the backend schema is complete enough to mark.
+Graph DDL also emits one
 structured `graph schema statement applying` and one terminal
 `graph schema statement applied` or `graph schema statement failed` log per
 statement, including backend, phase, statement index, statement total, duration,
@@ -62,6 +70,11 @@ failure class, and a bounded schema statement summary.
   fingerprint in Postgres. A later run with the same fingerprint skips graph DDL
   instead of asking NornicDB to re-check every constraint/index against a
   populated graph.
+- existing-schema adoption is explicit opt-in. It is for deployments that
+  already have the complete graph schema but lack the Postgres fingerprint
+  marker, such as upgrades from older chart/image combinations. It compares the
+  expected schema object names to `SHOW CONSTRAINTS` and `SHOW INDEXES` before
+  writing the marker.
 - version probes are pre-startup checks; keep `buildinfo.PrintVersionFlag` at
   the top of `main` so deployment diagnostics do not run DDL
 - each graph DDL statement runs under `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT`
@@ -75,10 +88,12 @@ failure class, and a bounded schema statement summary.
   database name; do not point it at a read replica
 
 No-Regression Evidence: `go test ./cmd/bootstrap-data-plane -run
-'TestRun(SkipsGraphSchemaWhenFingerprintAlreadyApplied|AppliesAndMarksGraphSchemaWhenFingerprintMissing|DoesNotMarkGraphSchemaAfterApplyFailure)'`
+'TestRun(SkipsGraphSchemaWhenFingerprintAlreadyApplied|AppliesAndMarksGraphSchemaWhenFingerprintMissing|DoesNotMarkGraphSchemaAfterApplyFailure|AdoptsExistingGraphSchemaWhenMarkerMissing|AppliesGraphSchemaWhenAdoptionFindsMissingObjects|FailsWhenAdoptionInspectionFails)'`
 proves same-fingerprint restarts skip graph DDL, missing markers still apply and
 record graph schema completion, and failed graph DDL never records a successful
-marker. `go test ./internal/graph -run
+marker. The adoption cases prove complete existing graph schema marks and skips,
+missing graph schema falls back to DDL, and failed schema inspection does not
+blindly run DDL against a live graph. `go test ./internal/graph -run
 TestEnsureSchemaWithBackendStrictReturnsStatementFailures` proves the strict
 data-plane path returns a non-context schema failure instead of warning and
 continuing to the marker write. Existing focused unit coverage proves generic
@@ -91,7 +106,10 @@ about 2m38s, and left projector/reducer queues terminal with no failed,
 retrying, or dead-letter rows.
 
 Observability Evidence: `bootstrap.graph.skipped` tells operators that a
-preserved-volume restart reused the recorded graph schema fingerprint. Focused
+preserved-volume restart reused the recorded graph schema fingerprint.
+`bootstrap.graph.adopted` and `bootstrap.graph.adoption_incomplete` expose the
+backend, schema fingerprint, expected object count, actual object count, and a
+bounded missing-object sample before any adoption decision is made. Focused
 schema-progress and statement-timeout tests cover the structured per-statement
 logs and the bootstrap-level timeout wrapper that operators use to see which
 graph schema statement is slow or blocked.
