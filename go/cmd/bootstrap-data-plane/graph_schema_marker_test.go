@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"maps"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 )
@@ -265,6 +266,61 @@ func TestRunAppliesGraphSchemaWhenAdoptionFindsMissingObjects(t *testing.T) {
 	}
 	if got, want := len(db.execs), 1; got != want {
 		t.Fatalf("marker exec count = %d, want %d", got, want)
+	}
+}
+
+func TestRunBoundsGraphSchemaAdoptionInspection(t *testing.T) {
+	t.Parallel()
+
+	expectedNames, err := expectedGraphSchemaObjectNames(graph.SchemaBackendNornicDB)
+	if err != nil {
+		t.Fatalf("expectedGraphSchemaObjectNames() error = %v, want nil", err)
+	}
+	db := &fakeBootstrapDB{
+		queryRows: []fakeBootstrapRows{{rows: nil}},
+	}
+	inspector := &fakeGraphSchemaInspector{names: expectedNames}
+	logger := testLogger(t)
+
+	err = run(
+		context.Background(),
+		func(key string) string {
+			switch key {
+			case graphSchemaAdoptExistingEnv:
+				return "true"
+			case graphSchemaStatementTimeoutEnv:
+				return "3s"
+			default:
+				return ""
+			}
+		},
+		logger,
+		func(context.Context, func(string) string) (bootstrapDB, error) {
+			return db, nil
+		},
+		func(context.Context, bootstrapExecutor) error {
+			return nil
+		},
+		func(context.Context, func(string) string) (neo4jDeps, error) {
+			return neo4jDeps{
+				executor:  &fakeNeo4jExecutor{},
+				inspector: inspector,
+				close:     func() error { return nil },
+			}, nil
+		},
+		func(_ context.Context, _ graph.CypherExecutor, _ *slog.Logger, _ graph.SchemaBackend) error {
+			t.Fatal("run() applied graph schema, want existing schema adoption")
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("run() error = %v, want nil", err)
+	}
+	if !inspector.sawDeadline {
+		t.Fatal("schema inspector saw no deadline")
+	}
+	if inspector.deadlineRemaining <= 0 || inspector.deadlineRemaining > 3*time.Second {
+		t.Fatalf("schema inspector deadline remaining = %s, want within 3s", inspector.deadlineRemaining)
 	}
 }
 

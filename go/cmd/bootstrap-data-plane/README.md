@@ -37,6 +37,7 @@ Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
 - ESHU_GRAPH_SCHEMA_ADOPT_EXISTING — when truthy, inspect `SHOW CONSTRAINTS`
   and `SHOW INDEXES` before applying graph DDL. If every current schema object
   already exists, mark the backend/fingerprint as applied and skip the DDL pass.
+  The inspection uses the ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT budget.
 - NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 - DEFAULT_DATABASE
 

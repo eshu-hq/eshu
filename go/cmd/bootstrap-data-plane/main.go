@@ -152,7 +152,9 @@ func run(
 		timeout:  statementTimeout,
 	})
 	if graphSchemaAdoptionEnabled(getenv) {
-		adopted, err := adoptExistingGraphSchema(ctx, db, nd.inspector, logger, backend, fingerprint, statementCount)
+		adoptionCtx, cancel := context.WithTimeout(ctx, statementTimeout)
+		defer cancel()
+		adopted, err := adoptExistingGraphSchema(adoptionCtx, db, nd.inspector, logger, backend, fingerprint, statementCount)
 		if err != nil {
 			return err
 		}
