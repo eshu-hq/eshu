@@ -234,6 +234,63 @@ func TestClientSnapshotRecordsWarningWhenDescribeTimeToLiveThrottles(t *testing.
 	}
 }
 
+func TestClientSnapshotSkipsTTLAfterFirstThrottle(t *testing.T) {
+	api := &fakeDynamoDBAPI{
+		tablePages: []*awsdynamodb.ListTablesOutput{{
+			TableNames: []string{"orders", "customers"},
+		}},
+		tables: map[string]*awsdynamodb.DescribeTableOutput{
+			"orders": {
+				Table: &awsdynamodbtypes.TableDescription{
+					TableArn:    aws.String("arn:aws:dynamodb:us-east-1:123456789012:table/orders"),
+					TableName:   aws.String("orders"),
+					TableStatus: awsdynamodbtypes.TableStatusActive,
+				},
+			},
+			"customers": {
+				Table: &awsdynamodbtypes.TableDescription{
+					TableArn:    aws.String("arn:aws:dynamodb:us-east-1:123456789012:table/customers"),
+					TableName:   aws.String("customers"),
+					TableStatus: awsdynamodbtypes.TableStatusActive,
+				},
+			},
+		},
+		ttlErrors: map[string]error{
+			"orders": &smithy.GenericAPIError{Code: "ThrottlingException", Message: "rate exceeded"},
+		},
+		ttl: map[string]*awsdynamodb.DescribeTimeToLiveOutput{
+			"customers": {
+				TimeToLiveDescription: &awsdynamodbtypes.TimeToLiveDescription{
+					TimeToLiveStatus: awsdynamodbtypes.TimeToLiveStatusEnabled,
+					AttributeName:    aws.String("expires_at"),
+				},
+			},
+		},
+		backups: map[string]*awsdynamodb.DescribeContinuousBackupsOutput{
+			"orders":    {},
+			"customers": {},
+		},
+	}
+	adapter := &Client{client: api, boundary: testBoundary()}
+
+	snapshot, err := adapter.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v, want nil", err)
+	}
+	if got, want := len(snapshot.Tables), 2; got != want {
+		t.Fatalf("len(Tables) = %d, want %d", got, want)
+	}
+	if got, want := api.ttlNames, []string{"orders"}; !stringSlicesEqual(got, want) {
+		t.Fatalf("DescribeTimeToLive table names = %#v, want %#v", got, want)
+	}
+	if got := snapshot.Tables[1].TTL; got != (dynamodbservice.TTL{}) {
+		t.Fatalf("customers TTL = %#v, want empty after prior sustained throttle", got)
+	}
+	if got, want := len(snapshot.Warnings), 1; got != want {
+		t.Fatalf("len(Warnings) = %d, want %d", got, want)
+	}
+}
+
 func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
@@ -254,6 +311,7 @@ type fakeDynamoDBAPI struct {
 	tagTokens       map[string][]string
 	ttl             map[string]*awsdynamodb.DescribeTimeToLiveOutput
 	ttlErrors       map[string]error
+	ttlNames        []string
 	backups         map[string]*awsdynamodb.DescribeContinuousBackupsOutput
 }
 
@@ -313,6 +371,7 @@ func (f *fakeDynamoDBAPI) DescribeTimeToLive(
 	_ ...func(*awsdynamodb.Options),
 ) (*awsdynamodb.DescribeTimeToLiveOutput, error) {
 	tableName := aws.ToString(input.TableName)
+	f.ttlNames = append(f.ttlNames, tableName)
 	if err := f.ttlErrors[tableName]; err != nil {
 		return nil, err
 	}

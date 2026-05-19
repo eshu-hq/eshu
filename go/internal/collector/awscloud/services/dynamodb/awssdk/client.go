@@ -77,6 +77,7 @@ func (c *Client) Snapshot(ctx context.Context) (dynamodbservice.Snapshot, error)
 	var tables []dynamodbservice.Table
 	var warnings []awscloud.WarningObservation
 	var startName *string
+	var ttlThrottled bool
 	for {
 		var page *awsdynamodb.ListTablesOutput
 		err := c.recordAPICall(ctx, "ListTables", func(callCtx context.Context) error {
@@ -94,10 +95,11 @@ func (c *Client) Snapshot(ctx context.Context) (dynamodbservice.Snapshot, error)
 			return dynamodbservice.Snapshot{Tables: tables, Warnings: warnings}, nil
 		}
 		for _, tableName := range page.TableNames {
-			table, ok, tableWarnings, err := c.describeTable(ctx, tableName)
+			table, ok, tableWarnings, tableTTLThrottled, err := c.describeTable(ctx, tableName, ttlThrottled)
 			if err != nil {
 				return dynamodbservice.Snapshot{}, err
 			}
+			ttlThrottled = ttlThrottled || tableTTLThrottled
 			warnings = appendDynamoDBWarningOnce(warnings, tableWarnings...)
 			if ok {
 				tables = append(tables, table)
@@ -113,10 +115,11 @@ func (c *Client) Snapshot(ctx context.Context) (dynamodbservice.Snapshot, error)
 func (c *Client) describeTable(
 	ctx context.Context,
 	tableName string,
-) (dynamodbservice.Table, bool, []awscloud.WarningObservation, error) {
+	skipTTL bool,
+) (dynamodbservice.Table, bool, []awscloud.WarningObservation, bool, error) {
 	tableName = strings.TrimSpace(tableName)
 	if tableName == "" {
-		return dynamodbservice.Table{}, false, nil, nil
+		return dynamodbservice.Table{}, false, nil, false, nil
 	}
 	var output *awsdynamodb.DescribeTableOutput
 	err := c.recordAPICall(ctx, "DescribeTable", func(callCtx context.Context) error {
@@ -127,25 +130,25 @@ func (c *Client) describeTable(
 		return err
 	})
 	if err != nil {
-		return dynamodbservice.Table{}, false, nil, err
+		return dynamodbservice.Table{}, false, nil, false, err
 	}
 	if output == nil || output.Table == nil {
-		return dynamodbservice.Table{}, false, nil, nil
+		return dynamodbservice.Table{}, false, nil, false, nil
 	}
 	tableARN := aws.ToString(output.Table.TableArn)
 	tags, err := c.listTags(ctx, tableARN)
 	if err != nil {
-		return dynamodbservice.Table{}, false, nil, err
+		return dynamodbservice.Table{}, false, nil, false, err
 	}
-	ttl, warnings, err := c.describeTimeToLive(ctx, tableName)
+	ttl, warnings, ttlThrottled, err := c.describeTimeToLive(ctx, tableName, skipTTL)
 	if err != nil {
-		return dynamodbservice.Table{}, false, nil, err
+		return dynamodbservice.Table{}, false, nil, false, err
 	}
 	backups, err := c.describeContinuousBackups(ctx, tableName)
 	if err != nil {
-		return dynamodbservice.Table{}, false, nil, err
+		return dynamodbservice.Table{}, false, nil, false, err
 	}
-	return mapTable(*output.Table, tags, ttl, backups), true, warnings, nil
+	return mapTable(*output.Table, tags, ttl, backups), true, warnings, ttlThrottled, nil
 }
 
 func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]string, error) {
@@ -187,7 +190,11 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 func (c *Client) describeTimeToLive(
 	ctx context.Context,
 	tableName string,
-) (dynamodbservice.TTL, []awscloud.WarningObservation, error) {
+	skipTTL bool,
+) (dynamodbservice.TTL, []awscloud.WarningObservation, bool, error) {
+	if skipTTL {
+		return dynamodbservice.TTL{}, nil, false, nil
+	}
 	var output *awsdynamodb.DescribeTimeToLiveOutput
 	err := c.recordAPICall(ctx, "DescribeTimeToLive", func(callCtx context.Context) error {
 		var err error
@@ -197,12 +204,12 @@ func (c *Client) describeTimeToLive(
 		return err
 	})
 	if isThrottleError(err) {
-		return dynamodbservice.TTL{}, []awscloud.WarningObservation{c.ttlThrottleWarning()}, nil
+		return dynamodbservice.TTL{}, []awscloud.WarningObservation{c.ttlThrottleWarning()}, true, nil
 	}
 	if err != nil || output == nil {
-		return dynamodbservice.TTL{}, nil, err
+		return dynamodbservice.TTL{}, nil, false, err
 	}
-	return mapTTL(output.TimeToLiveDescription), nil, nil
+	return mapTTL(output.TimeToLiveDescription), nil, false, nil
 }
 
 func appendDynamoDBWarningOnce(

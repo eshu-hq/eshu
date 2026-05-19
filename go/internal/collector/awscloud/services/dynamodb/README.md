@@ -90,8 +90,12 @@ command configuration, and the SDK adapter's safe metadata mapping.
 No-Regression Evidence: `go test ./internal/collector/awscloud/services/dynamodb/... -count=1`
 covers the DynamoDB snapshot contract where `DescribeTimeToLive` throttling
 preserves table resources, omits optional TTL metadata, records API throttle
-counts, and emits one `throttle_sustained` warning that the AWS runtime marks
-as a partial scan.
+counts, emits one `throttle_sustained` warning, and skips follow-up TTL calls
+for the rest of that scan after the first sustained TTL throttle.
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/awsruntime -run TestClaimedSourceMarksThrottleWarningAsPartial -count=1`
+proves the AWS runtime maps `throttle_sustained` warning facts to partial scan
+status.
 
 Collector Observability Evidence: DynamoDB uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
