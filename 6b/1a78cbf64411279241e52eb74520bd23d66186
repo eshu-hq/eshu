@@ -1,0 +1,36 @@
+go/internal/graph/schema.go
+  s_f2f7fbb6f30866::t_3fcf6848577ce9 319-320,322-325
+go/cmd/bootstrap-data-plane/main.go
+  s_f2f7fbb6f30866::t_078e611d8c64f1 74
+go/cmd/bootstrap-data-plane/README.md
+  s_f2f7fbb6f30866::t_ecbaab7e1bfc0b 14-15,73,81-87
+go/cmd/bootstrap-data-plane/doc.go
+  s_f2f7fbb6f30866::t_3f650344b1b346 9-16
+go/internal/graph/schema_execution.go
+  s_f2f7fbb6f30866::t_5ef899ed533af6 19-126
+go/internal/graph/doc.go
+  s_f2f7fbb6f30866::t_16771f6faca35c 16-19
+go/internal/graph/README.md
+  s_f2f7fbb6f30866::t_a1ea05de5b09ef 21,36,120-123,152-154,156-162
+go/internal/graph/schema_execution_test.go
+  s_f2f7fbb6f30866::t_eb2f05f478a081 31-49
+go/internal/storage/postgres/projector_queue_sql.go
+  s_f2f7fbb6f30866::t_7ca6f07ad56268 126
+  s_f2f7fbb6f30866::t_ed965c086962c1 30-44,58-60,87-88,90,124-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "6b1a78cbf64411279241e52eb74520bd23d66186",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
