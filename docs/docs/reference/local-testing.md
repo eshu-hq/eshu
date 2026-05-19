@@ -85,6 +85,23 @@ calls, so the fixes preserve operator visibility into API pressure while
 preventing standard-queue metadata and throttled tag reads from failing the
 entire collector process.
 
+No-Regression Evidence: the remote E2E corpus preflight now runs as a one-shot
+Alpine container before bootstrap indexing and workflow-coordinator claims.
+Local validation rendered both remote Compose shapes with
+`docker-compose --env-file .env.remote-e2e.example -f docker-compose.remote-e2e.yaml config`
+and `docker-compose --env-file .env.remote-e2e.example -f docker-compose.remote-e2e.yaml --profile seed config seed-aws-freshness`.
+Focused container probes proved malformed numeric thresholds fail with a
+targeted message and full-corpus mode rejects default fixture roots after
+normalizing leading `./`, trailing `/`, and absolute fixture paths. This changes
+only preflight admission; graph writes, queue workers, collector scan logic,
+NornicDB image, and NornicDB search/embedding settings are unchanged.
+
+Observability Evidence: the preflight emits `host_root`, `mounted_root`,
+`mode`, `candidate_repository_roots`, and `git_repository_roots` before any
+indexing work starts, so the release gate can distinguish fixture smoke runs,
+wrong-root full-corpus attempts, malformed thresholds, and real full-corpus
+runs from Compose logs before Eshu writes facts or graph rows.
+
 No-Regression Evidence: after hardening hosted collector restart recovery, the
 focused local gate covered Postgres workflow-run reconciliation retry on
 SQLSTATE `40P01`, AWS scan-status generation handoff after a terminal prior

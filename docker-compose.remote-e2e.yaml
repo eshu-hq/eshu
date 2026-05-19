@@ -171,6 +171,19 @@ services:
       file: docker-compose.yaml
       service: postgres
 
+  remote-e2e-corpus-preflight:
+    image: alpine:3.21
+    environment:
+      ESHU_REMOTE_E2E_CORPUS_MODE: ${ESHU_REMOTE_E2E_CORPUS_MODE:-smoke}
+      ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT: ${ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT:-0}
+      ESHU_REMOTE_E2E_EXPECTED_REPOSITORY_COUNT: ${ESHU_REMOTE_E2E_EXPECTED_REPOSITORY_COUNT:-}
+      ESHU_FILESYSTEM_HOST_ROOT: ${ESHU_FILESYSTEM_HOST_ROOT:-./tests/fixtures/ecosystems}
+    volumes:
+      - ${ESHU_FILESYSTEM_HOST_ROOT:-./tests/fixtures/ecosystems}:/fixtures:ro
+      - ./scripts/remote-e2e-corpus-preflight.sh:/usr/local/bin/remote-e2e-corpus-preflight.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - /bin/sh /usr/local/bin/remote-e2e-corpus-preflight.sh
   db-migrate:
     extends:
       file: docker-compose.yaml
@@ -188,7 +201,13 @@ services:
     environment:
       ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
       <<: *remote_e2e_collector_env
-
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      workspace-setup:
+        condition: service_completed_successfully
+      remote-e2e-corpus-preflight:
+        condition: service_completed_successfully
   eshu:
     extends:
       file: docker-compose.yaml
@@ -238,6 +257,8 @@ services:
       timeout: 5s
       retries: 10
     depends_on:
+      remote-e2e-corpus-preflight:
+        condition: service_completed_successfully
       db-migrate:
         condition: service_completed_successfully
 

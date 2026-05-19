@@ -126,7 +126,7 @@ collectors. The file is standalone so the remote proof does not mutate the
 default local stack or the Tier-2 MinIO overlay.
 
 The stack still uses the pinned NornicDB v1.1.0 image from the default Compose
-file. It runs Postgres, NornicDB, schema migration, bootstrap indexing, API,
+file. It runs Postgres, NornicDB, a corpus preflight, schema migration, bootstrap indexing, API,
 MCP, ingester, reducer, workflow coordinator, webhook listener, collector
 workers, and an optional AWS freshness seeder. AWS cloud scans are freshness
 trigger driven today; the seeder posts synthetic AWS Config change events into
@@ -136,9 +136,41 @@ from the default stack even when both files are run from the same checkout.
 
 ```bash
 cp .env.remote-e2e.example .env.remote-e2e
-# Edit .env.remote-e2e with the real account, region, tfstate object, and ECR repo.
+# Edit .env.remote-e2e with the real corpus root, account, region, state object, and ECR repo.
 docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml --profile seed up --build
 ```
+
+For a full-corpus gate, keep `ESHU_REMOTE_E2E_CORPUS_MODE=full`, set
+`ESHU_FILESYSTEM_HOST_ROOT` to the absolute host path for that corpus, and set
+either `ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` or
+`ESHU_REMOTE_E2E_EXPECTED_REPOSITORY_COUNT`. The
+`remote-e2e-corpus-preflight` service prints the effective host root, mounted
+root, mode, `candidate_repository_roots`, and `git_repository_roots` before indexing. In full mode it
+fails if the stack is still mounted on the default fixture corpus or if the
+count is below the declared threshold. It also validates the count variables
+before numeric comparisons so malformed values fail with a targeted message.
+
+No-Regression Evidence: the preflight script is mounted into a one-shot Alpine
+container and runs before bootstrap indexing or collector claims. Local proof
+rendered the remote stack with `docker-compose --env-file .env.remote-e2e.example -f docker-compose.remote-e2e.yaml config`
+and `docker-compose --env-file .env.remote-e2e.example -f docker-compose.remote-e2e.yaml --profile seed config seed-aws-freshness`;
+focused container probes confirmed malformed numeric thresholds fail with a
+targeted message and fixture roots are rejected in full-corpus mode. The change
+does not alter graph writes, queue workers, collector scan logic, or NornicDB
+settings.
+
+Observability Evidence: the preflight prints `host_root`, `mounted_root`,
+`mode`, `candidate_repository_roots`, and `git_repository_roots` before any
+indexing work starts, so a release operator can distinguish fixture smoke,
+wrong-root, malformed-threshold, and full-corpus runs from Compose logs alone.
+
+NornicDB graph-only note: Eshu Compose sets `NORNICDB_EMBEDDING_ENABLED=false`
+and `NORNICDB_PERSIST_SEARCH_INDEXES=true`. The official NornicDB docs describe
+embedding disablement and persisted BM25/vector/HNSW search indexes, but
+NornicDB does not currently document a supported switch that disables search/BM25 services entirely
+for graph-only deployments. Eshu tracks that upstream gap in
+[orneryd/NornicDB#175](https://github.com/orneryd/NornicDB/issues/175);
+until that exists, do not add a fake `NORNICDB_SEARCH_ENABLED` style variable.
 
 Run without `--profile seed` if real AWS freshness events are already being
 delivered to the webhook listener:
