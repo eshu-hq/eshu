@@ -245,6 +245,9 @@ full-corpus validation is complete.
 | `ESHU_PROMETHEUS_METRICS_ENABLED` | `true` in compose services | deployment/compose | Enables compose/service Prometheus scrape path. | Deployment wiring only. |
 | `ESHU_PROMETHEUS_METRICS_PORT` | `9464` in compose services | deployment/compose | In-container metrics port used by services. | Change only with matching service port wiring. |
 | `ESHU_FILESYSTEM_HOST_ROOT` | `./tests/fixtures/ecosystems` in compose | Docker Compose | Host repo root mounted into compose fixtures path. | Set to an absolute real directory for compose validation against local repos. |
+| `ESHU_REMOTE_E2E_CORPUS_MODE` | `smoke` in remote E2E compose; `full` in `.env.remote-e2e.example` | Docker Compose remote E2E | Declares whether the mounted corpus is a smoke/fixture or full-corpus release gate. | Use `full` for release gates so the preflight fails when the fixture corpus is mounted by mistake. |
+| `ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` | `0` in remote E2E compose | Docker Compose remote E2E | Minimum candidate repository-root count accepted by the corpus preflight. | Set for full-corpus gates when the exact count may drift slightly. |
+| `ESHU_REMOTE_E2E_EXPECTED_REPOSITORY_COUNT` | unset | Docker Compose remote E2E | Exact candidate repository-root count accepted by the corpus preflight. | Set when the corpus count is fixed and a missing or extra checkout should fail the run. |
 | `ESHU_ESHUIGNORE_PATH` | `/dev/null` in compose | Docker Compose | Optional host `.eshuignore` mounted into compose bootstrap/ingester containers. | Set when compose validation should use a specific ignore file. |
 | `ESHU_HTTP_PORT` | `8080` in compose | Docker Compose | Host port for Eshu API. | Change to avoid local port conflicts. |
 | `ESHU_MCP_PORT` | `8081` in compose | Docker Compose | Host port for MCP HTTP service. | Change to avoid local port conflicts. |

@@ -16,9 +16,12 @@ type composeDocument struct {
 }
 
 type composeService struct {
+	Command     any            `yaml:"command"`
+	Entrypoint  any            `yaml:"entrypoint"`
 	Image       string         `yaml:"image"`
 	DependsOn   any            `yaml:"depends_on"`
 	Environment map[string]any `yaml:"environment"`
+	Volumes     []any          `yaml:"volumes"`
 }
 
 func TestDefaultComposeUsesNornicDBBackend(t *testing.T) {
