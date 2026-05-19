@@ -3,11 +3,19 @@ package dynamodb
 import (
 	"context"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
-// Client lists metadata-only DynamoDB table observations for one AWS claim.
+// Client snapshots metadata-only DynamoDB table observations for one AWS claim.
 type Client interface {
-	ListTables(ctx context.Context) ([]Table, error)
+	Snapshot(ctx context.Context) (Snapshot, error)
+}
+
+// Snapshot captures DynamoDB table metadata plus non-fatal scan warnings.
+type Snapshot struct {
+	Tables   []Table
+	Warnings []awscloud.WarningObservation
 }
 
 // Table is the scanner-owned DynamoDB table model. It contains control-plane

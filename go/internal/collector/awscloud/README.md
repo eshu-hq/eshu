@@ -159,7 +159,11 @@ request.
   stream records, backup/export payloads, resource policies, PartiQL output, and
   mutations stay outside the AWS collector fact contract. Table metadata, tags,
   indexes, TTL status, backup status, stream settings, replicas, and directly
-  reported KMS key relationships are reported evidence only.
+  reported KMS key relationships are reported evidence only. Sustained
+  throttling on optional `DescribeTimeToLive` calls emits an `aws_warning` with
+  `warning_kind=throttle_sustained`, leaves table resources present, and omits
+  TTL metadata for that partial scan rather than failing the whole DynamoDB
+  claim.
 - CloudWatch Logs facts are metadata only. Log events, log stream payloads,
   Insights query results, export payloads, resource policies, subscription
   payloads, and mutations stay outside the AWS collector fact contract. Log

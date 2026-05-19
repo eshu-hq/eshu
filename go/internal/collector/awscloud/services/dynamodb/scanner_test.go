@@ -12,7 +12,7 @@ import (
 func TestScannerEmitsDynamoDBMetadataOnlyFactsAndKMSRelationship(t *testing.T) {
 	tableARN := "arn:aws:dynamodb:us-east-1:123456789012:table/orders"
 	kmsARN := "arn:aws:kms:us-east-1:123456789012:key/orders"
-	client := fakeClient{tables: []Table{{
+	client := fakeClient{snapshot: Snapshot{Tables: []Table{{
 		ARN:                       tableARN,
 		Name:                      "orders",
 		ID:                        "table-123",
@@ -82,7 +82,7 @@ func TestScannerEmitsDynamoDBMetadataOnlyFactsAndKMSRelationship(t *testing.T) {
 			TableClass:     "STANDARD",
 		}},
 		Tags: map[string]string{"Environment": "prod"},
-	}}}
+	}}}}
 
 	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
 	if err != nil {
@@ -155,7 +155,7 @@ func TestScannerEmitsDynamoDBMetadataOnlyFactsAndKMSRelationship(t *testing.T) {
 }
 
 func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
-	client := fakeClient{tables: []Table{{
+	client := fakeClient{snapshot: Snapshot{Tables: []Table{{
 		ARN:  "arn:aws:dynamodb:us-east-1:123456789012:table/orders",
 		Name: "orders",
 		SSE: SSE{
@@ -163,7 +163,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 			Type:            "KMS",
 			KMSMasterKeyARN: "alias/orders",
 		},
-	}}}
+	}}}}
 
 	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
 	if err != nil {
@@ -188,6 +188,40 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	}
 }
 
+func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
+	client := fakeClient{snapshot: Snapshot{
+		Tables: []Table{{
+			ARN:    "arn:aws:dynamodb:us-east-1:123456789012:table/orders",
+			Name:   "orders",
+			Status: "ACTIVE",
+		}},
+		Warnings: []awscloud.WarningObservation{{
+			Boundary:       testBoundary(),
+			WarningKind:    awscloud.WarningThrottleSustained,
+			ErrorClass:     "throttled",
+			Message:        "DynamoDB DescribeTimeToLive throttled after SDK retries; TTL metadata omitted for this scan",
+			SourceRecordID: "dynamodb_ttl_throttled",
+			Attributes: map[string]any{
+				"operation":         "DescribeTimeToLive",
+				"partial_component": "ttl",
+			},
+		}},
+	}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	if got := warning.Payload["error_class"]; got != "throttled" {
+		t.Fatalf("warning error_class = %#v, want throttled", got)
+	}
+	resource := resourceByType(t, envelopes, awscloud.ResourceTypeDynamoDBTable)
+	if got := resource.Payload["state"]; got != "ACTIVE" {
+		t.Fatalf("table state = %#v, want ACTIVE", got)
+	}
+}
+
 func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
@@ -202,11 +236,11 @@ func testBoundary() awscloud.Boundary {
 }
 
 type fakeClient struct {
-	tables []Table
+	snapshot Snapshot
 }
 
-func (c fakeClient) ListTables(context.Context) ([]Table, error) {
-	return c.tables, nil
+func (c fakeClient) Snapshot(context.Context) (Snapshot, error) {
+	return c.snapshot, nil
 }
 
 func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType string) facts.Envelope {
@@ -234,6 +268,20 @@ func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipTy
 		}
 	}
 	t.Fatalf("missing relationship_type %q in %#v", relationshipType, envelopes)
+	return facts.Envelope{}
+}
+
+func warningByKind(t *testing.T, envelopes []facts.Envelope, warningKind string) facts.Envelope {
+	t.Helper()
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSWarningFactKind {
+			continue
+		}
+		if got, _ := envelope.Payload["warning_kind"].(string); got == warningKind {
+			return envelope
+		}
+	}
+	t.Fatalf("missing warning_kind %q in %#v", warningKind, envelopes)
 	return facts.Envelope{}
 }
 

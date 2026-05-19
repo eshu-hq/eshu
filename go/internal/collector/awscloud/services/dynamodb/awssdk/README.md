@@ -16,7 +16,7 @@ admission, workload ownership, or query behavior.
 ```mermaid
 flowchart LR
   A["aws.Config"] --> B["NewClient"]
-  B --> C["Client.ListTables"]
+  B --> C["Client.Snapshot"]
   C --> D["ListTables pages"]
   C --> E["DescribeTable"]
   C --> F["ListTagsOfResource"]
@@ -28,7 +28,8 @@ flowchart LR
 
 See `doc.go` for the godoc contract.
 
-- `Client` - AWS SDK-backed implementation of `dynamodb.Client`.
+- `Client` - AWS SDK-backed implementation of `dynamodb.Client`, including
+  snapshot warnings for partial optional metadata coverage.
 - `NewClient` - builds a `Client` for one claimed AWS boundary.
 
 ## Dependencies
@@ -60,6 +61,12 @@ AWS error payloads stay out of metric labels.
   `LastEvaluatedTableName`.
 - `ListTagsOfResource` is called only when AWS returned a table ARN and follows
   `NextToken`.
+- `DescribeTimeToLive` has a lower service quota than the general DynamoDB
+  read-only control-plane path. If it is throttled after SDK retries, the
+  adapter emits one `throttle_sustained` warning and leaves TTL metadata empty
+  instead of failing the entire table scan. The adapter skips further TTL
+  lookups for the same scan after the first sustained TTL throttle so large
+  account scans do not burn one retry budget per table.
 - The adapter maps safe control-plane fields and drops item values, table scan
   results, query results, stream records, backup/export payloads, resource
   policies, and mutation surfaces.
