@@ -1,0 +1,21 @@
+go/internal/storage/cypher/canonical_node_writer_telemetry_test.go
+  s_072c5984f68e14::t_02d57fd866c0f2 6,53-58,86-96,101-108
+go/internal/storage/cypher/canonical_node_writer.go
+  s_072c5984f68e14::t_84b214ee063637 195,232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "6cf212d95e0f000a8ab789c0187a6769f9125c1c",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
