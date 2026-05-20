@@ -219,7 +219,7 @@ use planned commands in public examples until their implementation issues land.
 | `eshu version` | Print the installed version. | No |
 | `eshu doctor` | Run local diagnostics. | No |
 | `eshu scan [path]` | Index a local source, then poll `/api/v0/status/pipeline` until the source is queryable or failure is proven. | Yes |
-| `eshu trace service <name>` | Render the existing `/api/v0/services/{service_name}/story` dossier as an operator trace with canonical `--json` envelope support. | Yes |
+| `eshu trace service <name> [--repo <selector>] [--env <environment>] [--service-id <id>]` | Render the `/api/v0/services/{service_name}/story` dossier as an operator trace with canonical `--json` envelope support. Duplicate service names return disambiguation candidates instead of a guessed trace. | Yes |
 | `eshu index [path] [--discovery-report <file>]` | Index a local path by launching the Go `bootstrap-index` runtime. The optional discovery report writes a JSON advisory artifact for noisy-repo tuning. | No |
 | `eshu index-status` | Show the latest checkpointed index status. This is the completeness signal, not process health. | Yes |
 | `eshu finalize` | Compatibility stub. Prints the current ingester recovery endpoints and exits non-zero. | No |

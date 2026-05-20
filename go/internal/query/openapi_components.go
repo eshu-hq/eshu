@@ -304,7 +304,8 @@ const openAPIComponents = `  "components": {
           "detail": {"type": "string"},
           "error_code": {"type": "string"},
           "message": {"type": "string"},
-          "correlation_id": {"type": "string"}
+          "correlation_id": {"type": "string"},
+          "details": {"type": "object"}
         }
       }
     },
@@ -327,6 +328,14 @@ const openAPIComponents = `  "components": {
       },
       "Forbidden": {
         "description": "Permission denied",
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Ambiguous request or conflicting scope",
         "content": {
           "application/json": {
             "schema": {"$ref": "#/components/schemas/ErrorResponse"}

@@ -109,6 +109,7 @@ On failure, `error` carries a structured envelope:
     "code": "unsupported_capability",
     "message": "transitive callers require authoritative graph mode",
     "capability": "call_graph.transitive_callers",
+    "details": {},
     "profiles": {
       "current": "local_lightweight",
       "required": "local_authoritative"
@@ -122,6 +123,7 @@ Initial error code set:
 | Code | When |
 | --- | --- |
 | `unsupported_capability` | Capability not supported in the current runtime profile. Returned as HTTP 501. |
+| `ambiguous` | The selector matched multiple valid entities. Returned as HTTP 409 with narrowing candidates in `error.details` when available. |
 | `unauthenticated` | Authentication is missing or invalid. Returned as HTTP 401. |
 | `invalid_argument` | Request parameters are invalid or malformed. |
 | `not_found` | Requested finding, packet, entity, repo, or workspace scope does not exist. |
@@ -620,6 +622,21 @@ Examples:
 
 - `GET /api/v0/services/workload:payments-api/story`
 - `GET /api/v0/services/workload:payments-api/story?environment=prod`
+- `GET /api/v0/services/payments-api/story?repo=payments-service`
+- `GET /api/v0/services/payments-api/story?service_id=workload:payments-api`
+
+Optional query params:
+
+- `service_id` is the exact workload/service id selector. Use it when the
+  display name is not unique.
+- `repo` is a repository selector used to disambiguate duplicate service names.
+  It accepts the canonical repository id, name, slug, path, or remote URL.
+- `environment` narrows duplicate service names to workloads with a matching
+  runtime instance environment.
+
+When the name still resolves to multiple workloads, the route returns `409`
+with canonical envelope `error.code=ambiguous`, `data=null`, and
+`error.details.candidates`. The route does not pick the first matching workload.
 
 Treat the story routes as the top-level contract for repo/service/workload
 narratives. Use the context routes, trace routes, and content routes named in

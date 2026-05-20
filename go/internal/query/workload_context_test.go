@@ -361,7 +361,7 @@ func TestGetServiceStoryAcceptsPlainServiceName(t *testing.T) {
 	handler := &EntityHandler{
 		Neo4j: fakeWorkloadGraphReader{
 			runSingleByMatch: map[string]map[string]any{
-				"w.name = $service_name": {
+				"w.id = $workload_id": {
 					"id":        "workload:service-edge-api",
 					"name":      "service-edge-api",
 					"kind":      "Deployment",
@@ -378,6 +378,14 @@ func TestGetServiceStoryAcceptsPlainServiceName(t *testing.T) {
 				},
 			},
 			runByMatch: map[string][]map[string]any{
+				"w.name = $service_name": {
+					{
+						"id":      "workload:service-edge-api",
+						"name":    "service-edge-api",
+						"kind":    "Deployment",
+						"repo_id": "repo-1",
+					},
+				},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 				"K8sResource OR":                      {},
 				"fn.name IN":                          {},
@@ -416,7 +424,7 @@ func TestGetServiceStoryAcceptsQualifiedWorkloadIDAndNormalizesServiceName(t *te
 	handler := &EntityHandler{
 		Neo4j: fakeWorkloadGraphReader{
 			runSingleByMatch: map[string]map[string]any{
-				"w.id = $service_name": {
+				"w.id = $workload_id": {
 					"id":        "workload:service-edge-api",
 					"name":      "service-edge-api",
 					"kind":      "Deployment",
@@ -433,6 +441,14 @@ func TestGetServiceStoryAcceptsQualifiedWorkloadIDAndNormalizesServiceName(t *te
 				},
 			},
 			runByMatch: map[string][]map[string]any{
+				"w.id = $service_name": {
+					{
+						"id":      "workload:service-edge-api",
+						"name":    "service-edge-api",
+						"kind":    "Deployment",
+						"repo_id": "repo-1",
+					},
+				},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 				"K8sResource OR":                      {},
 				"fn.name IN":                          {},

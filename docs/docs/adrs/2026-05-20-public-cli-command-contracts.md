@@ -244,6 +244,35 @@ structured logs for `operation=service_story`, plus existing `neo4j.query` and
 `postgres.query` spans for graph and content reads. The CLI adds no runtime
 metric, span, log, or status surface.
 
+Continuation note for issue #477: the resolver now performs a bounded candidate
+pass before story enrichment. The service-story API accepts `service_id`,
+`repo`, and `environment` query parameters, resolves repository selectors to
+canonical repository ids, and returns `409` with
+`error.code=ambiguous` plus `error.details.candidates` when a display name
+still matches multiple workloads. `eshu trace service` exposes the same
+selectors as `--service-id`, `--repo`, and `--env`; ambiguous names print the
+candidate service ids and exit `3` instead of tracing whichever workload the
+backend returns first.
+
+No-Regression Evidence: focused resolver tests cover duplicate-name ambiguity,
+repository selector narrowing, environment selector narrowing, exact
+`service_id` selection, CLI query-param forwarding, and human ambiguity output:
+`go test ./cmd/eshu -run 'TestTraceService|TestFetchTraceService' -count=1`
+and `go test ./internal/query -run 'TestGetServiceStory' -count=1`. The
+candidate pass uses bounded exact-property `Workload` / `WorkloadInstance`
+lookups with `LIMIT 11` before the existing exact workload-id enrichment path;
+it avoids cross-property `OR` and does not add a worker, queue, write path, or
+unbounded traversal.
+
+Observability Evidence: the resolver still runs inside the existing
+`service_story` request and emits the existing
+`service_query.stage_started` / `service_query.stage_completed` structured logs.
+This continuation adds a `service_candidate_lookup` stage before enrichment, so
+operators can see whether a trace stopped at ambiguity or continued through the
+exact workload-id path. Existing `neo4j.query` spans still expose the backing
+candidate lookup, workload lookup, repository lookup, instance lookup, graph
+reads, Postgres reads, and response assembly cost.
+
 ### `eshu map --from <thing>`
 
 `eshu map --from <thing>` means: start from one known entity and show its

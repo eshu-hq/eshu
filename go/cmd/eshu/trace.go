@@ -12,8 +12,10 @@ import (
 )
 
 type traceServiceOptions struct {
-	JSON      bool
-	ServiceID string
+	JSON        bool
+	Repo        string
+	Environment string
+	ServiceID   string
 }
 
 type traceServiceEnvelope struct {
@@ -23,9 +25,10 @@ type traceServiceEnvelope struct {
 }
 
 type traceServiceError struct {
-	Code       string `json:"code,omitempty"`
-	Message    string `json:"message,omitempty"`
-	Capability string `json:"capability,omitempty"`
+	Code       string         `json:"code,omitempty"`
+	Message    string         `json:"message,omitempty"`
+	Capability string         `json:"capability,omitempty"`
+	Details    map[string]any `json:"details,omitempty"`
 }
 
 var traceFetchServiceStory = fetchTraceServiceStory
@@ -49,6 +52,8 @@ func init() {
 
 func addTraceServiceFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("json", false, "Write the canonical service trace envelope as JSON")
+	cmd.Flags().String("repo", "", "Repository selector to disambiguate a service name")
+	cmd.Flags().String("env", "", "Runtime environment selector to disambiguate a service name")
 	cmd.Flags().String("service-id", "", "Exact service or workload id to trace instead of the display name")
 }
 
@@ -58,9 +63,6 @@ func runTraceService(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	selector := strings.TrimSpace(args[0])
-	if opts.ServiceID != "" {
-		selector = opts.ServiceID
-	}
 	if selector == "" {
 		return commandExitError{message: "service name is required", code: 2}
 	}
@@ -95,14 +97,37 @@ func traceServiceOptionsFromCommand(cmd *cobra.Command) (traceServiceOptions, er
 	if err != nil {
 		return traceServiceOptions{}, err
 	}
+	repo, err := cmd.Flags().GetString("repo")
+	if err != nil {
+		return traceServiceOptions{}, err
+	}
+	environment, err := cmd.Flags().GetString("env")
+	if err != nil {
+		return traceServiceOptions{}, err
+	}
 	return traceServiceOptions{
-		JSON:      jsonOutput,
-		ServiceID: strings.TrimSpace(serviceID),
+		JSON:        jsonOutput,
+		Repo:        strings.TrimSpace(repo),
+		Environment: strings.TrimSpace(environment),
+		ServiceID:   strings.TrimSpace(serviceID),
 	}, nil
 }
 
 func fetchTraceServiceStory(client *APIClient, selector string, opts traceServiceOptions) (traceServiceEnvelope, error) {
 	path := "/api/v0/services/" + url.PathEscape(strings.TrimSpace(selector)) + "/story"
+	query := url.Values{}
+	if opts.Repo != "" {
+		query.Set("repo", opts.Repo)
+	}
+	if opts.Environment != "" {
+		query.Set("environment", opts.Environment)
+	}
+	if opts.ServiceID != "" {
+		query.Set("service_id", opts.ServiceID)
+	}
+	if encoded := query.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
 	var envelope traceServiceEnvelope
 	if err := client.GetEnvelope(path, &envelope); err != nil {
 		return traceServiceEnvelope{}, err
@@ -118,9 +143,61 @@ func finishTraceService(cmd *cobra.Command, opts traceServiceOptions, envelope t
 		return err
 	}
 	if err != nil {
+		if envelope.Error != nil && envelope.Error.Code == "ambiguous" {
+			_ = renderTraceServiceError(cmd.OutOrStdout(), envelope)
+		}
 		return err
 	}
 	return renderTraceServiceSummary(cmd.OutOrStdout(), envelope)
+}
+
+func renderTraceServiceError(w io.Writer, envelope traceServiceEnvelope) error {
+	if envelope.Error == nil || envelope.Error.Code != "ambiguous" {
+		return nil
+	}
+	if _, err := fmt.Fprintln(w, "Service selector is ambiguous. Add --service-id, --repo, or --env."); err != nil {
+		return err
+	}
+	candidates := traceSlice(envelope.Error.Details, "candidates")
+	if len(candidates) == 0 {
+		candidates = traceSlice(envelope.Data, "candidates")
+	}
+	for _, candidate := range candidates {
+		row, ok := candidate.(map[string]any)
+		if !ok {
+			continue
+		}
+		serviceID := traceFirstString(traceString(row, "service_id"), traceString(row, "id"))
+		serviceName := traceFirstString(traceString(row, "service_name"), traceString(row, "name"))
+		repoID := traceString(row, "repo_id")
+		environment := traceString(row, "environment")
+		if _, err := fmt.Fprintf(
+			w,
+			"- %s",
+			traceFirstString(serviceID, serviceName, "<unknown>"),
+		); err != nil {
+			return err
+		}
+		if serviceName != "" && serviceName != serviceID {
+			if _, err := fmt.Fprintf(w, " name=%s", serviceName); err != nil {
+				return err
+			}
+		}
+		if repoID != "" {
+			if _, err := fmt.Fprintf(w, " repo=%s", repoID); err != nil {
+				return err
+			}
+		}
+		if environment != "" {
+			if _, err := fmt.Fprintf(w, " env=%s", environment); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintln(w); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func renderTraceServiceSummary(w io.Writer, envelope traceServiceEnvelope) error {

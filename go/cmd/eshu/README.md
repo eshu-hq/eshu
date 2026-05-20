@@ -68,11 +68,13 @@ launched runtime via the shared `telemetry` package. Errors print to
   parent-process structured timestamps.
 - `eshu trace service <name>` is a read-only CLI consumer of
   `/api/v0/services/{service_name}/story`. It asks the API for
-  `application/eshu.envelope+json`, renders the service identity, repository,
-  materialization status, deployment-lane count, runtime-instance count,
-  upstream/downstream counts, coverage, and limitations, and preserves the
-  full canonical envelope with `--json`. The CLI must not open graph or
-  Postgres connections directly for this path.
+  `application/eshu.envelope+json`, passes supported selectors through as
+  `repo`, `environment`, and `service_id` query parameters, renders the service
+  identity, repository, materialization status, deployment-lane count,
+  runtime-instance count, upstream/downstream counts, coverage, and
+  limitations, and preserves the full canonical envelope with `--json`.
+  Ambiguous names print the candidate service ids and exit `3`. The CLI must
+  not open graph or Postgres connections directly for this path.
 - `eshu mcp start --workspace-root <repo>` attaches to the active local owner.
   The stdio path execs the internal `local-host mcp-stdio` attach command, while
   `--transport http` and legacy `--transport sse` exec `eshu-mcp-server` with
