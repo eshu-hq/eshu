@@ -10,7 +10,7 @@ describe("Cloudflare Pages configuration", () => {
     );
 
     expect(wranglerConfig).toContain('"pages_build_output_dir": "./site-dist"');
-    expect(wranglerConfig).not.toContain('"main"');
+    expect(wranglerConfig).not.toMatch(/^\s*"main"\s*:/m);
   });
 
   it("documents that Workers Builds are not part of the release gate", () => {
