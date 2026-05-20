@@ -206,8 +206,9 @@ See [Local Data Root Spec](local-data-root-spec.md) and
 
 `eshu scan` is available as the local indexing readiness contract. `eshu trace
 service <name>` is available as an API-backed service-story trace over the
-bounded service dossier route. `eshu map --from <thing>` and
-`eshu docs verify` remain planned contracts. Their shared design lives in
+bounded service dossier route. `eshu map --from <thing>` is available as an
+API-backed typed graph-neighborhood map. `eshu docs verify` remains a planned
+contract. Their shared design lives in
 [ADR 2026-05-20](../adrs/2026-05-20-public-cli-command-contracts.md). Do not
 use planned commands in public examples until their implementation issues land.
 
@@ -220,6 +221,7 @@ use planned commands in public examples until their implementation issues land.
 | `eshu doctor` | Run local diagnostics. | No |
 | `eshu scan [path]` | Index a local source, then poll `/api/v0/status/pipeline` until the source is queryable or failure is proven. | Yes |
 | `eshu trace service <name> [--repo <selector>] [--env <environment>] [--service-id <id>]` | Render the `/api/v0/services/{service_name}/story` dossier as an operator trace with canonical `--json` envelope support. Duplicate service names return disambiguation candidates instead of a guessed trace. | Yes |
+| `eshu map --from <thing> [--type <kind>] [--repo <selector>] [--env <environment>] [--relationship <TYPE>] [--depth <n>] [--limit <n>]` | Resolve one typed entity and render a bounded code/cloud neighborhood from `/api/v0/impact/entity-map`; ambiguous selectors return candidates instead of a guessed graph walk. | Yes |
 | `eshu index [path] [--discovery-report <file>]` | Index a local path by launching the Go `bootstrap-index` runtime. The optional discovery report writes a JSON advisory artifact for noisy-repo tuning. | No |
 | `eshu index-status` | Show the latest checkpointed index status. This is the completeness signal, not process health. | Yes |
 | `eshu finalize` | Compatibility stub. Prints the current ingester recovery endpoints and exits non-zero. | No |

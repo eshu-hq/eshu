@@ -1342,6 +1342,7 @@ MCP answers.
 - `POST /api/v0/impact/explain-dependency-path`
 - `POST /api/v0/impact/change-surface`
 - `POST /api/v0/impact/change-surface/investigate`
+- `POST /api/v0/impact/entity-map`
 - `POST /api/v0/impact/resource-investigation`
 - `POST /api/v0/environments/compare`
 
@@ -1371,6 +1372,20 @@ topics and changed paths return `code_surface` file/symbol handles,
 `recommended_next_calls`, and coverage metadata so MCP clients can answer
 blast-radius and behavior-change prompts without guessing which discovery tool
 to call first.
+
+`POST /api/v0/impact/entity-map` is the API contract behind
+`eshu map --from <thing>`. It requires `from` and accepts optional `from_type`,
+`repo_id`, `environment`, `relationship`, `depth`, and `limit`. The handler
+normalizes `terraform/<address>` and `k8s/<qualified-name>` prefixes, resolves
+the selector with exact label/property probes for supported graph families, and
+does not run traversal until exactly one start entity is selected. Ambiguous
+selectors return `status=ambiguous` with candidates and no traversal. Resolved
+selectors use the selected entity's typed anchor, run bounded outgoing and
+incoming traversals with `depth` default 1 and cap 4, `limit` default 25 and cap
+100, and group rows into `defined_by`, `deployed_by`, `runs_as`, `depends_on`,
+`consumed_by`, and `evidence`. Supported first-slice handles are workload and
+service ids/names, workload instances, repositories, cloud resources, Terraform
+resources/data sources/modules, Kubernetes resources, and graph file paths.
 
 `POST /api/v0/impact/resource-investigation` is the prompt-facing
 resource-first route for questions such as "what provisions this database" and

@@ -84,6 +84,11 @@ func (c *APIClient) Post(path string, body, result any) error {
 	return c.do("POST", path, body, result, "")
 }
 
+// PostEnvelope performs a POST request that asks for Eshu's canonical envelope.
+func (c *APIClient) PostEnvelope(path string, body, result any) error {
+	return c.do("POST", path, body, result, eshuEnvelopeMIMEType)
+}
+
 func (c *APIClient) do(method, path string, body, result any, accept string) error {
 	url := c.BaseURL + path
 

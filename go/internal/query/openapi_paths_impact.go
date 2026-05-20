@@ -319,6 +319,69 @@ const openAPIPathsImpact = `
         }
       }
     },
+    "/api/v0/impact/entity-map": {
+      "post": {
+        "tags": ["impact"],
+        "summary": "Map a bounded entity neighborhood",
+        "description": "Resolves one supported entity handle with typed label/property probes, then returns a bounded code/cloud neighborhood grouped into defined_by, deployed_by, runs_as, depends_on, consumed_by, and evidence sections.",
+        "operationId": "entityMap",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["from"],
+                "properties": {
+                  "from": {"type": "string", "description": "Entity handle such as terraform/aws_lb.main, workload:checkout, a repo id, or a typed graph id"},
+                  "from_type": {"type": "string", "enum": ["service", "workload", "workload_instance", "repository", "repo", "resource", "cloud_resource", "terraform_resource", "terraform_datasource", "k8s_resource", "terraform_module", "module", "file"]},
+                  "repo_id": {"type": "string"},
+                  "environment": {"type": "string"},
+                  "relationship": {"type": "string", "description": "Optional exact uppercase relationship type filter"},
+                  "depth": {"type": "integer", "default": 1, "minimum": 1, "maximum": 4},
+                  "limit": {"type": "integer", "default": 25, "minimum": 1, "maximum": 100}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entity map, ambiguity packet, or no-match packet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string", "enum": ["mapped", "ambiguous", "no_match"]},
+                    "command": {"type": "string"},
+                    "from": {"type": "string"},
+                    "scope": {"type": "object"},
+                    "resolution": {"type": "object"},
+                    "sections": {
+                      "type": "object",
+                      "properties": {
+                        "defined_by": {"type": "array", "items": {"type": "object"}},
+                        "deployed_by": {"type": "array", "items": {"type": "object"}},
+                        "runs_as": {"type": "array", "items": {"type": "object"}},
+                        "depends_on": {"type": "array", "items": {"type": "object"}},
+                        "consumed_by": {"type": "array", "items": {"type": "object"}}
+                      }
+                    },
+                    "evidence": {"type": "object"},
+                    "coverage": {"type": "object"},
+                    "warnings": {"type": "array", "items": {"type": "string"}}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/impact/resource-investigation": {
       "post": {
         "tags": ["impact"],
