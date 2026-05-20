@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 )
@@ -38,8 +39,58 @@ func (h *EntityHandler) getServiceStory(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	ctx, err := h.fetchServiceWorkloadContext(r.Context(), serviceName, "service_story")
+	ctx, err := h.fetchServiceWorkloadContextWithSelector(r.Context(), serviceWorkloadSelector{
+		ServiceName: serviceName,
+		ServiceID:   QueryParam(r, "service_id"),
+		Repository:  QueryParam(r, "repo"),
+		Environment: QueryParam(r, "environment"),
+	}, "service_story")
 	if err != nil {
+		var ambiguous serviceWorkloadAmbiguousError
+		if errors.As(err, &ambiguous) {
+			writeServiceStoryEnvelopeError(
+				w,
+				r,
+				http.StatusConflict,
+				ErrorCodeAmbiguous,
+				ambiguous.Error(),
+				map[string]any{
+					"status":     "ambiguous",
+					"selector":   ambiguous.Selector,
+					"candidates": serviceWorkloadCandidateMaps(ambiguous.Candidates),
+					"truncated":  ambiguous.Truncated,
+				},
+			)
+			return
+		}
+		var repoAmbiguous repositorySelectorAmbiguousError
+		if errors.As(err, &repoAmbiguous) {
+			writeServiceStoryEnvelopeError(
+				w,
+				r,
+				http.StatusConflict,
+				ErrorCodeAmbiguous,
+				repoAmbiguous.Error(),
+				map[string]any{
+					"status":     "ambiguous",
+					"selector":   repoAmbiguous.Selector,
+					"candidates": repoAmbiguous.Matches,
+					"truncated":  false,
+				},
+			)
+			return
+		}
+		if isRepositorySelectorNotFound(err) {
+			writeServiceStoryEnvelopeError(
+				w,
+				r,
+				http.StatusNotFound,
+				ErrorCodeScopeNotFound,
+				err.Error(),
+				nil,
+			)
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}
@@ -80,4 +131,35 @@ func (h *EntityHandler) getServiceStory(w http.ResponseWriter, r *http.Request) 
 			"resolved from service dossier and platform evidence",
 		),
 	)
+}
+
+func writeServiceStoryEnvelopeError(
+	w http.ResponseWriter,
+	r *http.Request,
+	status int,
+	code ErrorCode,
+	message string,
+	data any,
+) {
+	if acceptsEnvelope(r) {
+		WriteJSON(w, status, ResponseEnvelope{
+			Data:  nil,
+			Truth: nil,
+			Error: &ErrorEnvelope{
+				Code:       code,
+				Message:    message,
+				Capability: "platform_impact.context_overview",
+				Details:    serviceStoryErrorDetails(data),
+			},
+		})
+		return
+	}
+	WriteError(w, status, message)
+}
+
+func serviceStoryErrorDetails(data any) map[string]any {
+	if details, ok := data.(map[string]any); ok {
+		return details
+	}
+	return nil
 }

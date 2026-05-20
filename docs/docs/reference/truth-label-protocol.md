@@ -38,6 +38,8 @@ Rules:
 
 - successful responses set `data` and `truth`, with `error: null`
 - failed responses set `error`, with `data: null`
+- failed responses may carry bounded machine-readable narrowing or diagnostic
+  fields under `error.details`
 - `truth` may still be present on partial failures if it adds useful state
 
 ## HTTP Response Shape

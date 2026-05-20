@@ -21,13 +21,10 @@ func TestTraceServiceCommandIsRegistered(t *testing.T) {
 	if cmd == nil || cmd.Name() != "service" {
 		t.Fatalf("resolved command = %#v, want service command", cmd)
 	}
-	for _, name := range []string{"json", "service-id", "service-url", "api-key", "profile"} {
+	for _, name := range []string{"json", "repo", "env", "service-id", "service-url", "api-key", "profile"} {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Fatalf("trace service flag %q missing", name)
 		}
-	}
-	if cmd.Flags().Lookup("env") != nil {
-		t.Fatal("trace service exposes --env before the service-story API supports environment scoping")
 	}
 }
 
@@ -45,7 +42,11 @@ func TestFetchTraceServiceStoryRequestsCanonicalEnvelope(t *testing.T) {
 	defer server.Close()
 
 	client := &APIClient{BaseURL: server.URL, HTTPClient: server.Client()}
-	got, err := fetchTraceServiceStory(client, "checkout api", traceServiceOptions{})
+	got, err := fetchTraceServiceStory(client, "checkout api", traceServiceOptions{
+		Repo:        "checkout-service",
+		Environment: "prod",
+		ServiceID:   "workload:checkout",
+	})
 	if err != nil {
 		t.Fatalf("fetchTraceServiceStory() error = %v, want nil", err)
 	}
@@ -55,8 +56,14 @@ func TestFetchTraceServiceStoryRequestsCanonicalEnvelope(t *testing.T) {
 	if gotPath != "/api/v0/services/checkout%20api/story" {
 		t.Fatalf("path = %q, want escaped service story path", gotPath)
 	}
-	if gotQuery.Encode() != "" {
-		t.Fatalf("query = %q, want no unsupported selectors", gotQuery.Encode())
+	for key, want := range map[string]string{
+		"repo":        "checkout-service",
+		"environment": "prod",
+		"service_id":  "workload:checkout",
+	} {
+		if got := gotQuery.Get(key); got != want {
+			t.Fatalf("query[%s] = %q, want %q; full query=%q", key, got, want, gotQuery.Encode())
+		}
 	}
 	if got.Data == nil {
 		t.Fatalf("Data = nil, want service story data")
@@ -184,6 +191,50 @@ func TestRunTraceServiceReturnsTypedExitErrorForUnsupportedCapability(t *testing
 	}
 	if got, want := exitErr.ExitCode(), 6; got != want {
 		t.Fatalf("ExitCode() = %d, want %d", got, want)
+	}
+}
+
+func TestRunTraceServiceRendersAmbiguousCandidates(t *testing.T) {
+	reset := stubTraceServiceFetch(t, traceServiceEnvelope{
+		Error: &traceServiceError{
+			Code:    "ambiguous",
+			Message: "service selector \"checkout\" matched multiple services; add --service-id, --repo, or --env",
+			Details: map[string]any{
+				"status": "ambiguous",
+				"candidates": []any{
+					map[string]any{"service_id": "workload:checkout-api", "service_name": "checkout", "repo_id": "repo-checkout-api", "environment": "prod"},
+					map[string]any{"service_id": "workload:checkout-worker", "service_name": "checkout", "repo_id": "repo-checkout-worker", "environment": "qa"},
+				},
+			},
+		},
+	})
+	defer reset()
+
+	out := &bytes.Buffer{}
+	cmd := newTestTraceServiceCommand()
+	cmd.SetOut(out)
+
+	err := runTraceService(cmd, []string{"checkout"})
+	if err == nil {
+		t.Fatal("runTraceService() error = nil, want ambiguous selector exit")
+	}
+	var exitErr commandExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("error = %T, want commandExitError", err)
+	}
+	if got, want := exitErr.ExitCode(), 3; got != want {
+		t.Fatalf("ExitCode() = %d, want %d", got, want)
+	}
+	output := out.String()
+	for _, want := range []string{
+		"Service selector is ambiguous",
+		"workload:checkout-api",
+		"repo-checkout-worker",
+		"Add --service-id, --repo, or --env",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("ambiguous output missing %q:\n%s", want, output)
+		}
 	}
 }
 

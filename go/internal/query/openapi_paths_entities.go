@@ -177,7 +177,10 @@ const openAPIPathsEntities = `
         "description": "Returns the one-call service dossier for the service.",
         "operationId": "getServiceStory",
         "parameters": [
-          {"$ref": "#/components/parameters/ServiceName"}
+          {"$ref": "#/components/parameters/ServiceName"},
+          {"name": "service_id", "in": "query", "description": "Exact workload or service id selector. When supplied, the route resolves this id before service-name candidates.", "schema": {"type": "string"}},
+          {"name": "repo", "in": "query", "description": "Repository selector used to disambiguate duplicate service names. Accepts canonical repository id, repository name, slug, path, or remote URL.", "schema": {"type": "string"}},
+          {"name": "environment", "in": "query", "description": "Runtime environment selector used to disambiguate duplicate service names by workload instance environment.", "schema": {"type": "string"}}
         ],
         "responses": {
           "200": {
@@ -218,6 +221,7 @@ const openAPIPathsEntities = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
