@@ -17,6 +17,8 @@ eshu mcp setup
 ```
 
 The wizard writes or updates configuration for supported clients (Claude, Cursor, VS Code) and gives you a config snippet for manual wiring.
+For deployed HTTP MCP endpoints, [Connect MCP](../mcp/index.md) includes
+one-line Claude Code and Codex setup commands.
 
 ## Structured Results With Truth Labels
 

@@ -46,6 +46,26 @@ eshu mcp setup
 Then configure your MCP client for the local Eshu service, Compose MCP service, or
 deployed MCP endpoint. Restart the client after changing MCP configuration.
 
+For a deployed HTTP MCP endpoint, keep the bearer token out of committed docs
+and shell history when possible. Set `ESHU_MCP_URL` to the deployed
+`mcp-server` URL and `ESHU_MCP_TOKEN` to the token issued for that endpoint.
+
+Claude Code can add the deployed Eshu MCP server with:
+
+```bash
+claude mcp add --scope user --transport http eshu "$ESHU_MCP_URL" --header "Authorization: Bearer $ESHU_MCP_TOKEN"
+```
+
+Codex can add the deployed Eshu MCP server with:
+
+```bash
+codex mcp add eshu --url "$ESHU_MCP_URL" --bearer-token-env-var ESHU_MCP_TOKEN
+```
+
+Codex stores the environment variable name, not the token value. Make sure
+`ESHU_MCP_TOKEN` is exported in the shell or launch environment before starting
+Codex.
+
 ## What to ask
 
 - "Use Eshu to find this symbol and its callers."
