@@ -1,0 +1,24 @@
+go/cmd/eshu/docs_persistence.go
+  s_f2f7fbb6f30866::t_11cc15ec1252d4 57-58,125,262,269-274,290-295,303-314
+go/cmd/eshu/docs_test.go
+  s_f2f7fbb6f30866::t_29865069c7a933 227
+  s_f2f7fbb6f30866::t_a91c42cfe1e439 266-369
+go/cmd/eshu/docs.go
+  s_f2f7fbb6f30866::t_fec74ac29af4c8 110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "d3c97ae97b410a70c3082a353029a824811e6e43",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
