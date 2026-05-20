@@ -5,11 +5,11 @@ package cypher
 
 // --- Phase A: Retraction Cypher ---
 
-const canonicalNodeRetractFilesCypher = `MATCH (f:File)
+const canonicalNodeRetractFilesCypher = `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
 WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical' AND f.generation_id <> $generation_id
 DETACH DELETE f`
 
-const canonicalNodeRetractRemovedFilesCypher = `MATCH (f:File)
+const canonicalNodeRetractRemovedFilesCypher = `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
 WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical' AND f.generation_id <> $generation_id
   AND (f.path IS NULL OR NOT (f.path IN $file_paths))
 DETACH DELETE f`

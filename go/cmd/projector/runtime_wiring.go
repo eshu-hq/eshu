@@ -99,7 +99,7 @@ func openProjectorCanonicalWriter(
 		Instruments: instruments,
 	}
 
-	return sourcecypher.NewCanonicalNodeWriter(instrumentedExecutor, neo4jBatchSize(getenv), instruments),
+	return sourcecypher.NewCanonicalNodeWriter(instrumentedExecutor, neo4jBatchSize(getenv), instruments).WithTracer(tracer),
 		projectorNeo4jDriverCloser{Driver: driver},
 		nil
 }

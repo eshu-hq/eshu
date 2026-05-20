@@ -438,7 +438,7 @@ func TestCanonicalNodeWriterFileRetractPreservesCurrentFilePaths(t *testing.T) {
 
 	var fileRetract Statement
 	for _, stmt := range writer.buildRetractStatements(mat) {
-		if stmt.Operation == OperationCanonicalRetract && strings.Contains(stmt.Cypher, "MATCH (f:File)") {
+		if stmt.Operation == OperationCanonicalRetract && strings.Contains(stmt.Cypher, "DETACH DELETE f") {
 			fileRetract = stmt
 			break
 		}
