@@ -24,7 +24,19 @@ const (
 var (
 	scanLookPath = exec.LookPath
 	scanNow      = time.Now
-	scanSleep    = time.Sleep
+	scanWait     = func(ctx context.Context, interval time.Duration) error {
+		if interval <= 0 {
+			return nil
+		}
+		timer := time.NewTimer(interval)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return nil
+		}
+	}
 
 	scanRunBootstrap = func(ctx context.Context, binary string, args []string, env []string, stdout, stderr io.Writer) error {
 		cmd := exec.CommandContext(ctx, binary)
@@ -79,58 +91,48 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	client := apiClientFromCmd(cmd)
+	result := newScanResult(opts, client.BaseURL)
+	startedAt := scanNow()
+	parentCtx := cmd.Context()
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	runCtx, cancel := context.WithTimeout(parentCtx, opts.Timeout)
+	defer cancel()
 
 	preflight, err := scanFetchPipelineStatus(client)
 	if err != nil {
-		return fmt.Errorf("scan preflight status check: %w", err)
+		return finishScan(cmd, opts, result, fmt.Errorf("scan preflight status check: %w", err))
 	}
+	result.StatusReport = preflight
 	queryProbe, err := scanFetchQueryProbe(client)
 	if err != nil {
-		return fmt.Errorf("scan preflight query check: %w", err)
+		return finishScan(cmd, opts, result, fmt.Errorf("scan preflight query check: %w", err))
 	}
+	result.QueryProbe = queryProbe
 
 	binary, err := scanLookPath("eshu-bootstrap-index")
 	if err != nil {
-		return fmt.Errorf("eshu-bootstrap-index not found in PATH")
+		return finishScan(cmd, opts, result, fmt.Errorf("eshu-bootstrap-index not found in PATH: %w", err))
 	}
+	result.Evidence.BootstrapBinary = binary
 
-	startedAt := scanNow()
 	bootstrapStartedAt := scanNow()
 	if !opts.JSON {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scanning %s...\n", opts.Target.Root)
 	}
 	if err := scanRunBootstrap(
-		cmd.Context(),
+		runCtx,
 		binary,
 		opts.BootstrapArgs(),
 		opts.BootstrapEnv(),
 		cmd.OutOrStdout(),
 		cmd.ErrOrStderr(),
 	); err != nil {
-		return fmt.Errorf("run bootstrap index: %w", err)
+		return finishScan(cmd, opts, result, fmt.Errorf("run bootstrap index: %w", err))
 	}
 	bootstrapCompletedAt := scanNow()
-
-	result := scanResult{
-		Command: "scan",
-		Status:  "submitted",
-		Target:  opts.Target,
-		Timings: scanTimings{
-			BootstrapCompleteMS: durationMillis(bootstrapCompletedAt.Sub(bootstrapStartedAt)),
-		},
-		Evidence: scanEvidence{
-			BootstrapBinary: binary,
-			ServiceURL:      client.BaseURL,
-			StatusEndpoint:  scanStatusEndpoint,
-			QueryEndpoint:   scanQueryProbeEndpoint,
-		},
-		StatusReport: preflight,
-		QueryProbe:   queryProbe,
-		Warnings: []string{
-			"collector_complete_ms is unavailable because eshu-bootstrap-index does not emit a structured parent-process collector timestamp yet",
-			"projection_complete_ms is unavailable because source-local projection completion is only logged by the bootstrap child today",
-		},
-	}
+	result.Timings.BootstrapCompleteMS = durationMillis(bootstrapCompletedAt.Sub(bootstrapStartedAt))
 
 	if !opts.Wait {
 		result.Status = "submitted"
@@ -138,7 +140,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return finishScan(cmd, opts, result, nil)
 	}
 
-	readyResult, err := waitForScanReadiness(client, opts, result, startedAt, bootstrapCompletedAt)
+	readyResult, err := waitForScanReadiness(runCtx, client, opts, result, startedAt, bootstrapCompletedAt)
 	if err != nil {
 		if opts.AllowPartial && readyResult.StatusReport.Health.State != "" {
 			readyResult.Status = "partial"
@@ -156,6 +158,23 @@ func runScan(cmd *cobra.Command, args []string) error {
 	readyResult.QueryProbe = queryProbe
 	readyResult.Truth = scanTruth("current", "complete", opts.Profile, currentGraphBackend())
 	return finishScan(cmd, opts, readyResult, nil)
+}
+
+func newScanResult(opts scanOptions, serviceURL string) scanResult {
+	return scanResult{
+		Command: "scan",
+		Status:  "failed",
+		Target:  opts.Target,
+		Evidence: scanEvidence{
+			ServiceURL:     serviceURL,
+			StatusEndpoint: scanStatusEndpoint,
+			QueryEndpoint:  scanQueryProbeEndpoint,
+		},
+		Warnings: []string{
+			"collector_complete_ms is unavailable because eshu-bootstrap-index does not emit a structured parent-process collector timestamp yet",
+			"projection_complete_ms is unavailable because source-local projection completion is only logged by the bootstrap child today",
+		},
+	}
 }
 
 type scanOptions struct {
@@ -293,8 +312,14 @@ func finishScan(cmd *cobra.Command, opts scanOptions, result scanResult, err err
 	if err != nil {
 		return err
 	}
-	if result.Status == "ready" {
+	switch result.Status {
+	case "ready":
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan ready: %s\n", result.Target.Root)
+	case "partial":
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan partial: %s\n", result.Target.Root)
+		for _, warning := range result.Warnings {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", warning)
+		}
 	}
 	return nil
 }

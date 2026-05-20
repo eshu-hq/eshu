@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -91,6 +92,7 @@ type scanScopeActivity struct {
 }
 
 func waitForScanReadiness(
+	ctx context.Context,
 	client *APIClient,
 	opts scanOptions,
 	result scanResult,
@@ -99,16 +101,19 @@ func waitForScanReadiness(
 ) (scanResult, error) {
 	deadline := scanStartedAt.Add(opts.Timeout)
 	for {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
 		status, err := scanFetchPipelineStatus(client)
 		if err != nil {
-			result.StatusReport = status
 			return result, fmt.Errorf("scan readiness status check: %w", err)
 		}
 		result.StatusReport = status
 		verdict := evaluateScanReadiness(status)
+		now := scanNow()
 		if verdict.Ready {
-			queueZeroMS := durationMillis(scanNow().Sub(scanStartedAt))
-			readinessWaitMS := durationMillis(scanNow().Sub(bootstrapCompletedAt))
+			queueZeroMS := durationMillis(now.Sub(scanStartedAt))
+			readinessWaitMS := durationMillis(now.Sub(bootstrapCompletedAt))
 			result.Timings.QueueZeroMS = &queueZeroMS
 			result.Timings.ReadinessWaitMS = &readinessWaitMS
 			return result, nil
@@ -116,10 +121,12 @@ func waitForScanReadiness(
 		if verdict.Terminal {
 			return result, fmt.Errorf("%s", verdict.Reason)
 		}
-		if !scanNow().Before(deadline) {
+		if !now.Before(deadline) {
 			return result, fmt.Errorf("scan readiness timed out: %s", verdict.Reason)
 		}
-		scanSleep(opts.PollInterval)
+		if err := scanWait(ctx, opts.PollInterval); err != nil {
+			return result, err
+		}
 	}
 }
 

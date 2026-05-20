@@ -184,6 +184,123 @@ func TestRunScanReturnsPreflightFailureBeforeBootstrap(t *testing.T) {
 	}
 }
 
+func TestRunScanJSONReturnsEnvelopeForPreflightFailure(t *testing.T) {
+	reset := stubScanRuntime(t)
+	defer reset()
+
+	scanFetchPipelineStatus = func(_ *APIClient) (scanPipelineStatus, error) {
+		return scanPipelineStatus{}, errors.New("connection refused")
+	}
+	calledBootstrap := false
+	scanRunBootstrap = func(context.Context, string, []string, []string, io.Writer, io.Writer) error {
+		calledBootstrap = true
+		return nil
+	}
+
+	out := &bytes.Buffer{}
+	cmd := newTestScanCommand(t)
+	cmd.SetOut(out)
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatalf("Set(json) error = %v, want nil", err)
+	}
+
+	err := runScan(cmd, []string{t.TempDir()})
+	if err == nil {
+		t.Fatal("runScan() error = nil, want preflight failure")
+	}
+	if calledBootstrap {
+		t.Fatal("scanRunBootstrap called after failed preflight")
+	}
+	assertScanJSONError(t, out.Bytes(), "scan preflight status check")
+}
+
+func TestRunScanAppliesTimeoutToBootstrapContext(t *testing.T) {
+	reset := stubScanRuntime(t)
+	defer reset()
+
+	var sawDeadline bool
+	scanRunBootstrap = func(ctx context.Context, _ string, _ []string, _ []string, _ io.Writer, _ io.Writer) error {
+		_, sawDeadline = ctx.Deadline()
+		return context.DeadlineExceeded
+	}
+
+	cmd := newTestScanCommand(t)
+	if err := cmd.Flags().Set("timeout", "1ms"); err != nil {
+		t.Fatalf("Set(timeout) error = %v, want nil", err)
+	}
+
+	err := runScan(cmd, []string{t.TempDir()})
+	if err == nil {
+		t.Fatal("runScan() error = nil, want bootstrap deadline failure")
+	}
+	if !sawDeadline {
+		t.Fatal("bootstrap context has no deadline")
+	}
+}
+
+func TestWaitForScanReadinessStopsOnContextCancellation(t *testing.T) {
+	reset := stubScanRuntime(t)
+	defer reset()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var fetches atomic.Int64
+	scanFetchPipelineStatus = func(*APIClient) (scanPipelineStatus, error) {
+		fetches.Add(1)
+		return scanPipelineStatus{Health: scanHealth{State: "progressing"}}, nil
+	}
+
+	_, err := waitForScanReadiness(
+		ctx,
+		&APIClient{},
+		scanOptions{Timeout: time.Minute, PollInterval: time.Second},
+		scanResult{StatusReport: scanPipelineStatus{Health: scanHealth{State: "progressing"}}},
+		time.Now(),
+		time.Now(),
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("waitForScanReadiness() error = %v, want context canceled", err)
+	}
+	if got := fetches.Load(); got != 0 {
+		t.Fatalf("status fetches after canceled context = %d, want 0", got)
+	}
+}
+
+func TestRunScanAllowPartialPrintsHumanWarning(t *testing.T) {
+	reset := stubScanRuntime(t)
+	defer reset()
+
+	var fetchCount atomic.Int64
+	scanFetchPipelineStatus = func(_ *APIClient) (scanPipelineStatus, error) {
+		if fetchCount.Add(1) == 1 {
+			return scanPipelineStatus{Health: scanHealth{State: "healthy"}}, nil
+		}
+		return scanPipelineStatus{
+			Health: scanHealth{State: "degraded", Reasons: []string{"queue has dead-letter work"}},
+			Queue:  scanQueue{DeadLetter: 1},
+		}, nil
+	}
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	cmd := newTestScanCommand(t)
+	cmd.SetOut(out)
+	cmd.SetErr(errOut)
+	if err := cmd.Flags().Set("allow-partial", "true"); err != nil {
+		t.Fatalf("Set(allow-partial) error = %v, want nil", err)
+	}
+
+	if err := runScan(cmd, []string{t.TempDir()}); err != nil {
+		t.Fatalf("runScan() error = %v, want nil", err)
+	}
+	if !strings.Contains(out.String(), "Scan partial") {
+		t.Fatalf("stdout = %q, want Scan partial", out.String())
+	}
+	if !strings.Contains(errOut.String(), "Warning: queue has dead-letter work") {
+		t.Fatalf("stderr = %q, want partial warning", errOut.String())
+	}
+}
+
 func TestScanCommandIsRegisteredWithReadinessFlags(t *testing.T) {
 	cmd, _, err := rootCmd.Find([]string{"scan"})
 	if err != nil {
@@ -196,6 +313,27 @@ func TestScanCommandIsRegisteredWithReadinessFlags(t *testing.T) {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Fatalf("scan flag %q missing", name)
 		}
+	}
+}
+
+func assertScanJSONError(t *testing.T, contents []byte, want string) {
+	t.Helper()
+	var payload map[string]any
+	if err := json.Unmarshal(contents, &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, string(contents))
+	}
+	if payload["data"] == nil {
+		t.Fatalf("payload[data] = nil, want object")
+	}
+	if payload["truth"] == nil {
+		t.Fatalf("payload[truth] = nil, want object")
+	}
+	errPayload, ok := payload["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("payload[error] = %#v, want object", payload["error"])
+	}
+	if message, _ := errPayload["message"].(string); !strings.Contains(message, want) {
+		t.Fatalf("error message = %q, want containing %q", message, want)
 	}
 }
 
@@ -214,7 +352,7 @@ func stubScanRuntime(t *testing.T) func() {
 	originalFetchStatus := scanFetchPipelineStatus
 	originalFetchQueryProbe := scanFetchQueryProbe
 	originalNow := scanNow
-	originalSleep := scanSleep
+	originalWait := scanWait
 
 	scanLookPath = func(file string) (string, error) {
 		if file != "eshu-bootstrap-index" {
@@ -246,7 +384,7 @@ func stubScanRuntime(t *testing.T) func() {
 		now = now.Add(time.Second)
 		return now
 	}
-	scanSleep = func(time.Duration) {}
+	scanWait = func(context.Context, time.Duration) error { return nil }
 
 	return func() {
 		scanLookPath = originalLookPath
@@ -254,6 +392,6 @@ func stubScanRuntime(t *testing.T) func() {
 		scanFetchPipelineStatus = originalFetchStatus
 		scanFetchQueryProbe = originalFetchQueryProbe
 		scanNow = originalNow
-		scanSleep = originalSleep
+		scanWait = originalWait
 	}
 }
