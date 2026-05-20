@@ -1,0 +1,38 @@
+go/internal/query/openapi_paths_evidence.go
+  s_f2f7fbb6f30866::t_696f3e77ec3e3d 148-150
+go/internal/mcp/tools_documentation.go
+  s_f2f7fbb6f30866::t_a614b686ecc8eb 11-13
+go/internal/mcp/dispatch_documentation.go
+  s_f2f7fbb6f30866::t_c94a14b3d3f378 35-37
+go/internal/query/ports_test.go
+  s_f2f7fbb6f30866::t_acfe94053a4b22 29,155-158
+go/internal/query/documentation_read_model.go
+  s_f2f7fbb6f30866::t_11a3e25d96e1c2 205-212,221-223,241-246,248
+docs/docs/reference/http-api.md
+  s_f2f7fbb6f30866::t_44a67ad193d89d 283-287
+docs/docs/adrs/2026-05-20-public-cli-command-contracts.md
+  s_f2f7fbb6f30866::t_4dde5cd1fe2097 387-395,403-406,410-412,424-427
+go/internal/query/documentation_scope_filters_test.go
+  s_f2f7fbb6f30866::t_a0b7d6d88de1b2 65,113
+  s_f2f7fbb6f30866::t_b6feb797d22ef0 1-64,66-112,114-123
+go/internal/query/documentation.go
+  s_f2f7fbb6f30866::t_5e368d136e8112 28-30,110-112
+go/internal/mcp/tools_documentation_test.go
+  s_f2f7fbb6f30866::t_e8accc029c15a9 60,66-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "8bf83680983721d6d99849237b3be963ddf840e1",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
