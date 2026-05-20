@@ -183,6 +183,42 @@ func TestGetServiceStoryReturnsEnvelopeDataWhenRequested(t *testing.T) {
 	}
 }
 
+func TestGetServiceStoryReturnsEnvelopeErrorWhenServiceMissing(t *testing.T) {
+	t.Parallel()
+
+	handler := &EntityHandler{
+		Neo4j: fakeWorkloadGraphReader{
+			runSingleByMatch: map[string]map[string]any{},
+			runByMatch:       map[string][]map[string]any{},
+		},
+		Profile: ProfileProduction,
+	}
+
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/services/missing/story", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.SetPathValue("service_name", "missing")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if envelope.Data != nil {
+		t.Fatalf("envelope data = %#v, want nil", envelope.Data)
+	}
+	if envelope.Error == nil || envelope.Error.Code != ErrorCodeNotFound {
+		t.Fatalf("envelope error = %#v, want not_found", envelope.Error)
+	}
+}
+
 func sampleServiceDossierContext() map[string]any {
 	return map[string]any{
 		"id":        "workload:sample-service-api",

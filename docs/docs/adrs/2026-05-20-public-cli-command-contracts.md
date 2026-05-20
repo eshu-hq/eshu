@@ -216,6 +216,33 @@ Performance requirement: implementation must resolve the smallest service or
 workload scope before graph traversal, cap section sizes, expose truncation, and
 benchmark against representative whole-organization data.
 
+Implementation note for issue #477: the first `eshu trace service <name>` PR
+adds the public CLI consumer over the existing bounded service-story dossier
+route. The command calls `GET /api/v0/services/{service_name}/story` with
+`Accept: application/eshu.envelope+json`, renders an operator summary from the
+service identity, repository, deployment lanes, runtime instances,
+upstream/downstream counts, investigation coverage, and limitations, and passes
+the canonical envelope through unchanged with `--json`. It also makes
+service-story not-found responses honor the canonical envelope when requested.
+
+No-Regression Evidence: focused command and query tests cover trace command
+registration, envelope request headers, environment selector query wiring,
+human output, JSON passthrough, unsupported-capability exit classification, and
+canonical not-found service-story errors:
+`go test ./cmd/eshu -run 'TestTraceService|TestFetchTraceService' -count=1`
+and
+`go test ./internal/query -run 'TestGetServiceStoryReturnsEnvelope' -count=1`.
+This change does not introduce a new graph traversal, worker, queue,
+collector, batch, or write path; it reuses the service-story route's scoped
+query contract.
+
+No-Observability-Change: the command is a read-only CLI wrapper over
+service-story. Operators still diagnose slow or stale traces through the
+existing `service_query.stage_started` / `service_query.stage_completed`
+structured logs for `operation=service_story`, plus existing `neo4j.query` and
+`postgres.query` spans for graph and content reads. The CLI adds no runtime
+metric, span, log, or status surface.
+
 ### `eshu map --from <thing>`
 
 `eshu map --from <thing>` means: start from one known entity and show its

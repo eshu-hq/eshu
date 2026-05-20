@@ -23,6 +23,17 @@ func (h *EntityHandler) getServiceStory(w http.ResponseWriter, r *http.Request) 
 
 	serviceName := PathParam(r, "service_name")
 	if serviceName == "" {
+		if acceptsEnvelope(r) {
+			WriteJSON(w, http.StatusBadRequest, ResponseEnvelope{
+				Data: nil,
+				Error: &ErrorEnvelope{
+					Code:       ErrorCodeInvalidArgument,
+					Message:    "service_name is required",
+					Capability: "platform_impact.context_overview",
+				},
+			})
+			return
+		}
 		WriteError(w, http.StatusBadRequest, "service_name is required")
 		return
 	}
@@ -34,6 +45,17 @@ func (h *EntityHandler) getServiceStory(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if ctx == nil {
+		if acceptsEnvelope(r) {
+			WriteJSON(w, http.StatusNotFound, ResponseEnvelope{
+				Data: nil,
+				Error: &ErrorEnvelope{
+					Code:       ErrorCodeNotFound,
+					Message:    "service not found",
+					Capability: "platform_impact.context_overview",
+				},
+			})
+			return
+		}
 		WriteError(w, http.StatusNotFound, "service not found")
 		return
 	}

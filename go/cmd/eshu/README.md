@@ -25,6 +25,8 @@ orchestration. It does not own service runtime internals:
   - indexing: `scan`, `index`, `list`, `stats`, `delete`, `clean`, `query`,
     `watch`, `unwatch`, `watching`, `add-package`, `finalize` plus
     `i`/`ls`/`rm`/`w` aliases (`scan.go`, `basic.go`)
+  - service tracing: `trace service <name>` renders the API service-story
+    dossier through a canonical envelope-aware CLI consumer (`trace.go`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
     `logs`, `upgrade` (`graph.go`, `graph_install.go`,
     `local_graph.go`)
@@ -64,6 +66,13 @@ launched runtime via the shared `telemetry` package. Errors print to
   source-local projection-complete timings remain explicit `null` values in
   JSON because the bootstrap child logs those events today but does not expose
   parent-process structured timestamps.
+- `eshu trace service <name>` is a read-only CLI consumer of
+  `/api/v0/services/{service_name}/story`. It asks the API for
+  `application/eshu.envelope+json`, renders the service identity, repository,
+  materialization status, deployment-lane count, runtime-instance count,
+  upstream/downstream counts, coverage, and limitations, and preserves the
+  full canonical envelope with `--json`. The CLI must not open graph or
+  Postgres connections directly for this path.
 - `eshu mcp start --workspace-root <repo>` attaches to the active local owner.
   The stdio path execs the internal `local-host mcp-stdio` attach command, while
   `--transport http` and legacy `--transport sse` exec `eshu-mcp-server` with
