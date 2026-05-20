@@ -82,6 +82,9 @@ type route struct {
 
 // resolveRoute maps a tool name and its arguments to an internal HTTP route.
 func resolveRoute(toolName string, args map[string]any) (*route, error) {
+	if route, ok := documentationRoute(toolName, args); ok {
+		return route, nil
+	}
 	switch toolName {
 	// ── Code ──
 	case "find_code":

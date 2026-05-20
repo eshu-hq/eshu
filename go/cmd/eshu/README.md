@@ -27,6 +27,9 @@ orchestration. It does not own service runtime internals:
     `i`/`ls`/`rm`/`w` aliases (`scan.go`, `basic.go`)
   - service tracing: `trace service <name>` renders the API service-story
     dossier through a canonical envelope-aware CLI consumer (`trace.go`)
+  - documentation truth: `docs verify [path]` verifies local Markdown-family
+    documentation claims against the CLI command tree, generated OpenAPI paths,
+    and documented Eshu environment variables (`docs.go`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
     `logs`, `upgrade` (`graph.go`, `graph_install.go`,
     `local_graph.go`)
@@ -75,6 +78,14 @@ launched runtime via the shared `telemetry` package. Errors print to
   limitations, and preserves the full canonical envelope with `--json`.
   Ambiguous names print the candidate service ids and exit `3`. The CLI must
   not open graph or Postgres connections directly for this path.
+- `eshu docs verify [path]` is a local documentation-truth verifier. It scans
+  Markdown-family files with `--limit` and `--max-bytes`, extracts explicit
+  Eshu CLI command claims, HTTP endpoint claims, `ESHU_*` environment-variable
+  claims, and known unsupported shell-command claims, then generates
+  documentation finding and evidence-packet fact envelopes in memory. It does
+  not open Postgres or graph connections; persisted API and MCP reads use the
+  existing documentation finding/evidence routes once a data-plane caller
+  writes those facts.
 - `eshu mcp start --workspace-root <repo>` attaches to the active local owner.
   The stdio path execs the internal `local-host mcp-stdio` attach command, while
   `--transport http` and legacy `--transport sse` exec `eshu-mcp-server` with
