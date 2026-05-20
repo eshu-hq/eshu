@@ -299,6 +299,38 @@ config-only, derived, candidate, and exact evidence must be labeled.
 Performance requirement: input resolution must happen before relationship
 expansion. Default traversal depth and result sizes must be bounded.
 
+Implementation note for issue #478: the first `eshu map --from <thing>` PR adds
+the public CLI consumer over `POST /api/v0/impact/entity-map`. The route
+normalizes supported prefixes such as `terraform/<address>`, resolves the input
+with exact typed label/property probes, returns ambiguity candidates before
+traversal, and only expands outgoing/incoming relationships after one typed
+start anchor is selected. The default graph expansion is depth 1 with cap 4 and
+limit 25 with cap 100. The first supported handle families are workloads and
+service names, workload instances, repositories, cloud resources, Terraform
+resources/data sources/modules, Kubernetes resources, and graph file paths.
+Image refs, package refs, and cloud-only runtime handles remain future handle
+families unless they already materialize into one of those typed graph nodes.
+
+No-Regression Evidence: focused API and CLI tests cover command registration,
+canonical envelope POST behavior, JSON passthrough, ambiguous-input exit code,
+stale-freshness exit code, Terraform address normalization, no whole-graph
+resolver scan, typed Workload and TerraformResource traversal anchors, bounded
+depth/limit query shape, grouped output sections, and traversal suppression on
+ambiguity:
+`go test ./cmd/eshu -run 'TestMapFrom|TestFetchEntityMap|TestRunMapFrom' -count=1`
+and `go test ./internal/query -run 'TestEntityMap' -count=1`. This PR adds a
+bounded read route and CLI wrapper only; it does not add graph writes, queues,
+workers, collectors, or batch-processing paths.
+
+Observability Evidence: the API route wraps requests in the new
+`query.entity_map` span with `http.route=/api/v0/impact/entity-map` and
+`eshu.capability=platform_impact.entity_map`. Existing graph query spans expose
+the resolver and outgoing/incoming traversal cost. The response includes
+`resolution.status`, selected anchor metadata, `coverage.query_shape`,
+`coverage.depth`, `coverage.limit`, evidence relationship counts, relationship
+filter, and truncation so an operator can distinguish empty, ambiguous, slow,
+or truncated maps without guessing from CLI text.
+
 ### `eshu docs verify`
 
 `eshu docs verify [path]` means: extract documentation claims, compare them

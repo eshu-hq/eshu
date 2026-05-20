@@ -175,6 +175,7 @@ const (
 	SpanQueryCodeTopicInvestigation       = "query.code_topic_investigation"
 	SpanQueryDeadCodeInvestigation        = "query.dead_code_investigation"
 	SpanQueryChangeSurfaceInvestigation   = "query.change_surface_investigation"
+	SpanQueryEntityMap                    = "query.entity_map"
 	SpanQueryResourceInvestigation        = "query.resource_investigation"
 	SpanQueryPackageRegistryPackages      = "query.package_registry_packages"
 	SpanQueryPackageRegistryVersions      = "query.package_registry_versions"
