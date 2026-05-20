@@ -124,6 +124,68 @@ func TestVerifierBoundsDocumentsAndContentBytes(t *testing.T) {
 	}
 }
 
+func TestVerifierDefaultGenerationAndVersionsAreRunUnique(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := func() time.Time {
+		return time.Date(2026, time.May, 20, 15, 0, 0, 0, time.UTC)
+	}
+	first := doctruth.NewVerifier(doctruth.VerifierOptions{
+		Commands: []doctruth.CommandTruth{{Path: []string{"scan"}}},
+		Now:      fixedNow,
+	})
+	second := doctruth.NewVerifier(doctruth.VerifierOptions{
+		Commands: []doctruth.CommandTruth{{Path: []string{"scan"}}},
+		Now:      fixedNow,
+	})
+	doc := doctruth.DocumentInput{Path: "README.md", RevisionID: "rev", Content: "`eshu scan .`\n"}
+
+	firstResult, err := first.Verify(context.Background(), []doctruth.DocumentInput{doc})
+	if err != nil {
+		t.Fatalf("first Verify() error = %v, want nil", err)
+	}
+	secondResult, err := second.Verify(context.Background(), []doctruth.DocumentInput{doc})
+	if err != nil {
+		t.Fatalf("second Verify() error = %v, want nil", err)
+	}
+
+	if got, wantNot := firstResult.Envelopes[0].GenerationID, secondResult.Envelopes[0].GenerationID; got == wantNot {
+		t.Fatalf("GenerationID = %q for both runs, want run-unique defaults", got)
+	}
+	if got, wantNot := firstResult.Findings[0].FindingVersion, secondResult.Findings[0].FindingVersion; got == wantNot {
+		t.Fatalf("FindingVersion = %q for both runs, want run-unique versions", got)
+	}
+	if got, wantNot := firstResult.EvidencePackets[0].PacketVersion, secondResult.EvidencePackets[0].PacketVersion; got == wantNot {
+		t.Fatalf("PacketVersion = %q for both runs, want run-unique versions", got)
+	}
+}
+
+func TestVerifierDocumentIDsIncludeSourceURI(t *testing.T) {
+	t.Parallel()
+
+	verifier := doctruth.NewVerifier(doctruth.VerifierOptions{
+		Commands: []doctruth.CommandTruth{{Path: []string{"scan"}}},
+		Now: func() time.Time {
+			return time.Date(2026, time.May, 20, 15, 0, 0, 0, time.UTC)
+		},
+	})
+
+	result, err := verifier.Verify(context.Background(), []doctruth.DocumentInput{
+		{Path: "README.md", SourceURI: "file:///repo-a/README.md", RevisionID: "a", Content: "`eshu scan .`\n"},
+		{Path: "README.md", SourceURI: "file:///repo-b/README.md", RevisionID: "b", Content: "`eshu scan .`\n"},
+	})
+	if err != nil {
+		t.Fatalf("Verify() error = %v, want nil", err)
+	}
+
+	if got, wantNot := result.Findings[0].DocumentID, result.Findings[1].DocumentID; got == wantNot {
+		t.Fatalf("DocumentID = %q for both sources, want source-aware document identity", got)
+	}
+	if got, wantNot := result.Findings[0].FindingID, result.Findings[1].FindingID; got == wantNot {
+		t.Fatalf("FindingID = %q for both sources, want source-aware finding identity", got)
+	}
+}
+
 func assertFindingStatus(t *testing.T, findings []doctruth.VerificationFinding, claimType string, status string) {
 	t.Helper()
 

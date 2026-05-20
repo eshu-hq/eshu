@@ -13,6 +13,14 @@ func documentationTools() []ToolDefinition {
 					"document_id":  map[string]any{"type": "string"},
 					"status":       map[string]any{"type": "string"},
 					"truth_level":  map[string]any{"type": "string"},
+					"freshness_state": map[string]any{
+						"type":        "string",
+						"description": "Freshness state filter such as fresh or stale",
+					},
+					"updated_since": map[string]any{
+						"type":        "string",
+						"description": "Only return findings updated at or after this RFC3339 timestamp",
+					},
 					"limit": map[string]any{
 						"type":    "integer",
 						"default": 50,

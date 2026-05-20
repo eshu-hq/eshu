@@ -2,6 +2,8 @@ package doctruth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"regexp"
 	"sort"
 	"strings"
@@ -53,11 +55,12 @@ type HTTPEndpointTruth struct {
 
 // DocumentInput is one bounded documentation document revision to verify.
 type DocumentInput struct {
-	Path       string
-	SourceURI  string
-	RevisionID string
-	Content    string
-	ObservedAt time.Time
+	Path             string
+	SourceURI        string
+	RevisionID       string
+	Content          string
+	ContentTruncated bool
+	ObservedAt       time.Time
 }
 
 // VerifierOptions configures documentation verification truth sources and bounds.
@@ -144,6 +147,10 @@ type extractedClaim struct {
 
 // NewVerifier constructs a bounded documentation verifier.
 func NewVerifier(options VerifierOptions) *Verifier {
+	now := options.Now
+	if now == nil {
+		now = func() time.Time { return time.Now().UTC() }
+	}
 	v := &Verifier{
 		commands:     map[string]struct{}{},
 		endpoints:    map[string]struct{}{},
@@ -151,18 +158,15 @@ func NewVerifier(options VerifierOptions) *Verifier {
 		maxDocuments: options.MaxDocuments,
 		maxBytes:     options.MaxDocumentBytes,
 		scopeID:      firstNonEmpty(options.ScopeID, "documentation-verify-local"),
-		generationID: firstNonEmpty(options.GenerationID, "documentation-verify"),
+		generationID: firstNonEmpty(options.GenerationID, defaultGenerationID(now())),
 		sourceSystem: firstNonEmpty(options.SourceSystem, "local_docs"),
-		now:          options.Now,
+		now:          now,
 	}
 	if v.maxDocuments <= 0 {
 		v.maxDocuments = defaultMaxDocuments
 	}
 	if v.maxBytes <= 0 {
 		v.maxBytes = defaultMaxDocumentBytes
-	}
-	if v.now == nil {
-		v.now = func() time.Time { return time.Now().UTC() }
 	}
 	for _, command := range options.Commands {
 		key := commandKey(command.Path)
@@ -205,6 +209,9 @@ func (v *Verifier) Verify(ctx context.Context, documents []DocumentInput) (Verif
 		content := doc.Content
 		if len(content) > v.maxBytes {
 			content = string([]byte(content)[:v.maxBytes])
+			result.Truncated = true
+		}
+		if doc.ContentTruncated {
 			result.Truncated = true
 		}
 		result.Summary.DocumentsScanned++
@@ -315,10 +322,18 @@ func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (Verific
 			status = VerificationStatusMissingEvidence
 		}
 	}
-	version := v.now().UTC().Format(time.RFC3339)
-	sourceID := "doc-source:" + v.sourceSystem
-	documentID := "doc:" + facts.StableID("documentation-document", map[string]any{"path": doc.Path})
-	sectionID := "line:" + facts.StableID("documentation-line", map[string]any{"path": doc.Path, "line": claim.line})
+	version := v.version()
+	canonicalURI := canonicalDocumentURI(v.sourceSystem, doc)
+	sourceID := "doc-source:" + facts.StableID("documentation-source", map[string]any{
+		"source_system": v.sourceSystem,
+		"canonical_uri": canonicalURI,
+	})
+	documentID := "doc:" + facts.StableID("documentation-document", map[string]any{
+		"source_id":     sourceID,
+		"canonical_uri": canonicalURI,
+		"path":          doc.Path,
+	})
+	sectionID := "line:" + facts.StableID("documentation-line", map[string]any{"document_id": documentID, "line": claim.line})
 	claimID := "claim:" + facts.StableID("documentation-claim", map[string]any{
 		"document_id": documentID,
 		"line":        claim.line,
@@ -351,7 +366,7 @@ func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (Verific
 		Summary:          verificationSummaryText(claim, status),
 		EvidencePacketID: packetID,
 	}
-	packetPayload := v.evidencePacketPayload(doc, claim, finding, packetID)
+	packetPayload := v.evidencePacketPayload(doc, claim, finding, packetID, canonicalURI)
 	packet := VerificationEvidencePacket{
 		PacketID:      packetID,
 		PacketVersion: version,
@@ -370,6 +385,7 @@ func (v *Verifier) evidencePacketPayload(
 	claim extractedClaim,
 	finding VerificationFinding,
 	packetID string,
+	canonicalURI string,
 ) map[string]any {
 	version := finding.FindingVersion
 	return map[string]any{
@@ -381,9 +397,10 @@ func (v *Verifier) evidencePacketPayload(
 		"document": map[string]any{
 			"source_id":     finding.SourceID,
 			"document_id":   finding.DocumentID,
-			"canonical_uri": doc.SourceURI,
+			"canonical_uri": canonicalURI,
 			"revision_id":   doc.RevisionID,
 			"title":         doc.Path,
+			"truncated":     doc.ContentTruncated,
 		},
 		"section": map[string]any{
 			"section_id":       finding.SectionID,
@@ -405,7 +422,7 @@ func (v *Verifier) evidencePacketPayload(
 		},
 		"evidence_refs": []any{map[string]any{
 			"source_system":    v.sourceSystem,
-			"source_uri":       doc.SourceURI,
+			"source_uri":       canonicalURI,
 			"source_record_id": doc.Path,
 		}},
 		"truth": map[string]any{
@@ -420,4 +437,23 @@ func (v *Verifier) evidencePacketPayload(
 			"permission_decision": "allowed",
 		},
 	}
+}
+
+func defaultGenerationID(now time.Time) string {
+	var randomBytes [12]byte
+	if _, err := rand.Read(randomBytes[:]); err == nil {
+		return "documentation-verify:" + now.UTC().Format(time.RFC3339Nano) + ":" + hex.EncodeToString(randomBytes[:])
+	}
+	return "documentation-verify:" + time.Now().UTC().Format(time.RFC3339Nano)
+}
+
+func (v *Verifier) version() string {
+	return v.now().UTC().Format(time.RFC3339Nano) + "#" + v.generationID
+}
+
+func canonicalDocumentURI(sourceSystem string, doc DocumentInput) string {
+	if uri := strings.TrimSpace(doc.SourceURI); uri != "" {
+		return uri
+	}
+	return strings.TrimSpace(sourceSystem) + ":" + strings.TrimSpace(doc.Path)
 }

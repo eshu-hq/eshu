@@ -50,3 +50,16 @@ func TestDocumentationToolsAreRegisteredAndRouted(t *testing.T) {
 		})
 	}
 }
+
+func TestListDocumentationFindingsSchemaIncludesRoutedFilters(t *testing.T) {
+	t.Parallel()
+
+	tools := documentationTools()
+	schema := tools[0].InputSchema.(map[string]any)
+	properties := schema["properties"].(map[string]any)
+	for _, name := range []string{"freshness_state", "updated_since"} {
+		if _, ok := properties[name]; !ok {
+			t.Fatalf("list_documentation_findings InputSchema missing routed filter %q", name)
+		}
+	}
+}
