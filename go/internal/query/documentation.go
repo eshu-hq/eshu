@@ -25,6 +25,9 @@ type DocumentationHandler struct {
 }
 
 type documentationFindingFilter struct {
+	ScopeID        string
+	GenerationID   string
+	Repository     string
 	FindingType    string
 	SourceID       string
 	DocumentID     string
@@ -104,6 +107,9 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	readModel, err := store.documentationFindings(r.Context(), documentationFindingFilter{
+		ScopeID:        QueryParam(r, "scope_id"),
+		GenerationID:   QueryParam(r, "generation_id"),
+		Repository:     QueryParam(r, "repo"),
 		FindingType:    QueryParam(r, "finding_type"),
 		SourceID:       QueryParam(r, "source_id"),
 		DocumentID:     QueryParam(r, "document_id"),

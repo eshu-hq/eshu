@@ -57,9 +57,27 @@ func TestListDocumentationFindingsSchemaIncludesRoutedFilters(t *testing.T) {
 	tools := documentationTools()
 	schema := tools[0].InputSchema.(map[string]any)
 	properties := schema["properties"].(map[string]any)
-	for _, name := range []string{"freshness_state", "updated_since"} {
+	for _, name := range []string{"freshness_state", "updated_since", "scope_id", "generation_id", "repo"} {
 		if _, ok := properties[name]; !ok {
 			t.Fatalf("list_documentation_findings InputSchema missing routed filter %q", name)
+		}
+	}
+}
+
+func TestListDocumentationFindingsRouteIncludesPersistedScopeFilters(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("list_documentation_findings", map[string]any{
+		"scope_id":      "docs-scope",
+		"generation_id": "gen-1",
+		"repo":          "acme/api",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	for _, key := range []string{"scope_id", "generation_id", "repo"} {
+		if got := route.query[key]; got == "" {
+			t.Fatalf("route.query[%q] = empty, want routed filter", key)
 		}
 	}
 }

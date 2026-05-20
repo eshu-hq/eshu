@@ -8,11 +8,14 @@ func documentationTools() []ToolDefinition {
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"finding_type": map[string]any{"type": "string"},
-					"source_id":    map[string]any{"type": "string"},
-					"document_id":  map[string]any{"type": "string"},
-					"status":       map[string]any{"type": "string"},
-					"truth_level":  map[string]any{"type": "string"},
+					"scope_id":      map[string]any{"type": "string"},
+					"generation_id": map[string]any{"type": "string"},
+					"repo":          map[string]any{"type": "string"},
+					"finding_type":  map[string]any{"type": "string"},
+					"source_id":     map[string]any{"type": "string"},
+					"document_id":   map[string]any{"type": "string"},
+					"status":        map[string]any{"type": "string"},
+					"truth_level":   map[string]any{"type": "string"},
 					"freshness_state": map[string]any{
 						"type":        "string",
 						"description": "Freshness state filter such as fresh or stale",

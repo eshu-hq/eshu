@@ -202,6 +202,14 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 		"LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'",
 		"LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'",
 	}
+	addColumnFilter := func(field string, value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		args = append(args, value)
+		clauses = append(clauses, fmt.Sprintf("%s = $%d", field, len(args)))
+	}
 	addPayloadFilter := func(field string, value string) {
 		value = strings.TrimSpace(value)
 		if value == "" {
@@ -210,6 +218,9 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 		args = append(args, value)
 		clauses = append(clauses, fmt.Sprintf("payload->>'%s' = $%d", field, len(args)))
 	}
+	addColumnFilter("fact_records.scope_id", filter.ScopeID)
+	addColumnFilter("fact_records.generation_id", filter.GenerationID)
+	addColumnFilter("ingestion_scopes.metadata->>'repo'", filter.Repository)
 	addPayloadFilter("finding_type", filter.FindingType)
 	addPayloadFilter("source_id", filter.SourceID)
 	addPayloadFilter("document_id", filter.DocumentID)
@@ -227,7 +238,14 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 	args = append(args, limit+1, filter.Offset)
 	return fmt.Sprintf(`
 SELECT payload
+    || jsonb_build_object('scope_id', fact_records.scope_id, 'generation_id', fact_records.generation_id)
+    || CASE
+        WHEN ingestion_scopes.metadata ? 'repo'
+            THEN jsonb_build_object('repo', ingestion_scopes.metadata->>'repo')
+        ELSE '{}'::jsonb
+    END AS payload
 FROM fact_records
+LEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id
 WHERE %s
 ORDER BY observed_at DESC, fact_id DESC
 LIMIT $%d OFFSET $%d

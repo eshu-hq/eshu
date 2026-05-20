@@ -280,9 +280,11 @@ families stay visible as `unsupported_claim_type` instead of passing.
 `GET /api/v0/documentation/findings` lists read-only findings such as
 `service_deployment_drift`. The endpoint accepts filters for `finding_type`,
 `source_id`, `document_id`, `status`, `truth_level`, `freshness_state`,
-`updated_since`, `limit`, and `cursor`. Each item includes the stable finding
-identity, document and section identity, status, truth labels, summary, and an
-`evidence_packet_url`.
+`scope_id`, `generation_id`, `repo`, `updated_since`, `limit`, and `cursor`.
+`scope_id` and `generation_id` target one persisted verification run; `repo`
+matches repository metadata recorded on the documentation ingestion scope. Each
+item includes the stable finding identity, document and section identity,
+status, truth labels, summary, scope metadata, and an `evidence_packet_url`.
 
 `GET /api/v0/documentation/findings/{finding_id}/evidence-packet` returns the
 bounded packet an external updater can snapshot before it plans a diff. The
