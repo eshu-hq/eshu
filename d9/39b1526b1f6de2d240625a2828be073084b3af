@@ -1,0 +1,51 @@
+go/internal/query/entity_map_resolver.go
+  s_f2f7fbb6f30866::t_8dbbfeb005de7b 17-18,150-151,170
+  s_f2f7fbb6f30866::t_1ffaaa6d9cdef9 1-16,19-149,152-169,171-254
+docs/docs/adrs/2026-05-20-public-cli-command-contracts.md
+  s_f2f7fbb6f30866::t_47d2004e1db359 302-333
+go/internal/query/entity_map.go
+  s_f2f7fbb6f30866::t_6f44344072fb13 1-169
+go/internal/query/openapi_paths_impact.go
+  s_f2f7fbb6f30866::t_47d2004e1db359 322-384
+docs/docs/reference/cli-reference.md
+  s_f2f7fbb6f30866::t_47d2004e1db359 209-211,224
+go/internal/query/entity_map_traversal.go
+  s_f2f7fbb6f30866::t_1ffaaa6d9cdef9 1-127
+specs/capability-matrix.v1.yaml
+  s_f2f7fbb6f30866::t_293c2b85f24f5d 372-378
+go/cmd/eshu/map.go
+  s_f2f7fbb6f30866::t_e090bfb9560101 1-6,8-74,76-339
+  s_f2f7fbb6f30866::t_5e392f6f8755e3 7,75
+go/internal/telemetry/contract.go
+  s_f2f7fbb6f30866::t_293c2b85f24f5d 178
+go/cmd/eshu/map_test.go
+  s_f2f7fbb6f30866::t_72b516883a27c3 1-279
+go/internal/query/entity_map_response.go
+  s_f2f7fbb6f30866::t_1ffaaa6d9cdef9 1-132
+docs/docs/reference/http-api.md
+  s_f2f7fbb6f30866::t_47d2004e1db359 1345,1376-1388
+go/internal/query/impact.go
+  s_f2f7fbb6f30866::t_293c2b85f24f5d 25
+go/internal/query/contract.go
+  s_f2f7fbb6f30866::t_293c2b85f24f5d 358-360
+go/internal/query/entity_map_test.go
+  s_f2f7fbb6f30866::t_72b516883a27c3 1-285
+go/cmd/eshu/client.go
+  s_f2f7fbb6f30866::t_293c2b85f24f5d 87-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "d939b1526b1f6de2d240625a2828be073084b3af",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
