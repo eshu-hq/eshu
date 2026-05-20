@@ -12,6 +12,7 @@
 - Issue #478: implement `eshu map --from`
 - Issue #479: implement `eshu docs verify`
 - Issue #480: define public CLI contracts for site-advertised commands
+- `../reference/truth-label-protocol.md`
 - `2026-05-09-documentation-truth-collectors-and-actuators.md`
 - `2026-05-14-service-story-dossier-contract.md`
 - `2026-05-14-mcp-tool-contract-performance-audit.md`
@@ -82,33 +83,40 @@ or runtime status surfaces.
 ## Shared Output Contract
 
 Human output should lead with the operational answer, then evidence and
-warnings. JSON output should use a shared top-level shape:
+warnings. JSON output must follow the existing canonical envelope from the
+[Truth Label Protocol](../reference/truth-label-protocol.md): top-level
+`data`, `truth`, and `error` only. Command status, scope, warnings, evidence
+handles, and truncation metadata belong inside `data`.
 
 ```json
 {
-  "status": "success",
-  "command": "trace_service",
-  "scope": {},
-  "data": {},
+  "data": {
+    "status": "success",
+    "command": "trace_service",
+    "scope": {},
+    "result": {},
+    "evidence": {
+      "ids": [],
+      "packets": [],
+      "truncated": false
+    },
+    "warnings": []
+  },
   "truth": {
     "level": "exact",
     "profile": "production",
     "freshness": {"state": "fresh"},
     "capability": "platform_impact.deployment_chain"
   },
-  "evidence": {
-    "ids": [],
-    "packets": [],
-    "truncated": false
-  },
-  "warnings": [],
   "error": null
 }
 ```
 
 The exact fields can be refined by implementation, but every command must keep
-these concepts visible. A command must not return a confident empty result when
-the real state is ambiguous, stale, unsupported, incomplete, or unreadable.
+these concepts visible inside the canonical envelope. This ADR does not
+supersede the truth-label protocol. A command must not return a confident empty
+result when the real state is ambiguous, stale, unsupported, incomplete, or
+unreadable.
 
 ## Exit Codes
 
