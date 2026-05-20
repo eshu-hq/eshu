@@ -82,10 +82,12 @@ launched runtime via the shared `telemetry` package. Errors print to
   Markdown-family files with `--limit` and `--max-bytes`, extracts explicit
   Eshu CLI command claims, HTTP endpoint claims, `ESHU_*` environment-variable
   claims, and known unsupported shell-command claims, then generates
-  documentation finding and evidence-packet fact envelopes in memory. It does
-  not open Postgres or graph connections; persisted API and MCP reads use the
-  existing documentation finding/evidence routes once a data-plane caller
-  writes those facts.
+  documentation finding and evidence-packet fact envelopes in memory. Without
+  `--persist`, it does not open Postgres or graph connections. With
+  `--persist`, it opens the shared Postgres fact-store DSN, writes a
+  documentation-source scope generation, and skips re-verification when the
+  current pending or active generation has the same document fingerprint while
+  still returning persisted findings for `--fail-on` evaluation.
 - `eshu mcp start --workspace-root <repo>` attaches to the active local owner.
   The stdio path execs the internal `local-host mcp-stdio` attach command, while
   `--transport http` and legacy `--transport sse` exec `eshu-mcp-server` with

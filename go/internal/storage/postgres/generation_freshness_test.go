@@ -163,12 +163,52 @@ func TestPriorGenerationCheck(t *testing.T) {
 	}
 }
 
+func TestIngestionStoreCurrentScopeGeneration(t *testing.T) {
+	t.Parallel()
+
+	db := &generationFreshnessTestDB{
+		currentGenerations: map[string]currentGenerationRow{
+			"scope-123": {generationID: "gen-abc", freshnessHint: "fingerprint-abc"},
+		},
+	}
+	store := NewIngestionStore(db)
+	current, found, err := store.CurrentScopeGeneration(context.Background(), "scope-123")
+	if err != nil {
+		t.Fatalf("CurrentScopeGeneration() error = %v, want nil", err)
+	}
+	if !found {
+		t.Fatal("CurrentScopeGeneration() found = false, want true")
+	}
+	if current.GenerationID != "gen-abc" || current.FreshnessHint != "fingerprint-abc" {
+		t.Fatalf("CurrentScopeGeneration() = %#v, want gen-abc/fingerprint-abc", current)
+	}
+}
+
+func TestIngestionStoreCurrentScopeGenerationReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	store := NewIngestionStore(&generationFreshnessTestDB{})
+	current, found, err := store.CurrentScopeGeneration(context.Background(), "scope-unknown")
+	if err != nil {
+		t.Fatalf("CurrentScopeGeneration() error = %v, want nil", err)
+	}
+	if found {
+		t.Fatalf("CurrentScopeGeneration() found = true with current %#v, want false", current)
+	}
+}
+
 // -- test helpers --
 
+type currentGenerationRow struct {
+	generationID  string
+	freshnessHint string
+}
+
 type generationFreshnessTestDB struct {
-	scopes      map[string]sql.NullString // scope_id -> active_generation_id
-	generations map[string][]string       // scope_id -> generation_ids
-	queryErr    error
+	scopes             map[string]sql.NullString // scope_id -> active_generation_id
+	generations        map[string][]string       // scope_id -> generation_ids
+	currentGenerations map[string]currentGenerationRow
+	queryErr           error
 }
 
 func (db *generationFreshnessTestDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
@@ -183,6 +223,12 @@ func (db *generationFreshnessTestDB) QueryContext(_ context.Context, _ string, a
 	switch len(args) {
 	case 1:
 		scopeID := args[0].(string)
+		if current, ok := db.currentGenerations[scopeID]; ok {
+			return &generationFreshnessTestRows{
+				data: [][]any{{current.generationID, current.freshnessHint}},
+				idx:  -1,
+			}, nil
+		}
 		activeGen, found := db.scopes[scopeID]
 		if !found {
 			return &generationFreshnessTestRows{data: nil, idx: -1}, nil
@@ -239,6 +285,12 @@ func (r *generationFreshnessTestRows) Scan(dest ...any) error {
 			v, ok := value.(bool)
 			if !ok {
 				return fmt.Errorf("scan value %d type = %T, want bool", i, value)
+			}
+			*d = v
+		case *string:
+			v, ok := value.(string)
+			if !ok {
+				return fmt.Errorf("scan value %d type = %T, want string", i, value)
 			}
 			*d = v
 		default:

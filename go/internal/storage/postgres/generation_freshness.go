@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -22,6 +23,44 @@ SELECT EXISTS (
       AND generation_id <> $2
 )
 `
+
+// CurrentScopeGeneration reports the newest pending or active generation with
+// a non-empty freshness hint for one scope.
+type CurrentScopeGeneration struct {
+	GenerationID  string
+	FreshnessHint string
+}
+
+// CurrentScopeGeneration returns the newest pending or active generation with
+// a non-empty freshness hint for one scope.
+func (s IngestionStore) CurrentScopeGeneration(
+	ctx context.Context,
+	scopeID string,
+) (CurrentScopeGeneration, bool, error) {
+	if s.db == nil {
+		return CurrentScopeGeneration{}, false, fmt.Errorf("ingestion store db is required")
+	}
+	rows, err := s.db.QueryContext(ctx, activeGenerationFreshnessQuery, scopeID)
+	if err != nil {
+		return CurrentScopeGeneration{}, false, fmt.Errorf("query current generation for scope %s: %w", scopeID, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return CurrentScopeGeneration{}, false, fmt.Errorf("query current generation for scope %s: %w", scopeID, err)
+		}
+		return CurrentScopeGeneration{}, false, nil
+	}
+
+	var current CurrentScopeGeneration
+	if err := rows.Scan(&current.GenerationID, &current.FreshnessHint); err != nil {
+		return CurrentScopeGeneration{}, false, fmt.Errorf("scan current generation for scope %s: %w", scopeID, err)
+	}
+	current.GenerationID = strings.TrimSpace(current.GenerationID)
+	current.FreshnessHint = strings.TrimSpace(current.FreshnessHint)
+	return current, current.GenerationID != "", rows.Err()
+}
 
 // NewGenerationFreshnessCheck returns a GenerationFreshnessCheck backed by
 // the ingestion_scopes.active_generation_id denormalized column.
