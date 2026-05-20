@@ -129,6 +129,40 @@ func TestCanonicalNodeWriterRetractsStaleEntitiesAfterCurrentEntityUpsert(t *tes
 	}
 }
 
+func TestCanonicalNodeWriterRetractsStaleFilesFromRepositoryAnchor(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
+	mat := projector.CanonicalMaterialization{
+		GenerationID: "gen-2",
+		RepoID:       "repo-1",
+		Files: []projector.FileRow{
+			{Path: "/repos/my-repo/current.go"},
+		},
+	}
+
+	var fileRetract Statement
+	for _, stmt := range writer.buildRetractStatements(mat) {
+		if strings.Contains(stmt.Cypher, "File") &&
+			strings.Contains(stmt.Cypher, "DETACH DELETE f") {
+			fileRetract = stmt
+			break
+		}
+	}
+	if fileRetract.Cypher == "" {
+		t.Fatal("missing stale file retract statement")
+	}
+	if strings.HasPrefix(strings.TrimSpace(fileRetract.Cypher), "MATCH (f:File)") {
+		t.Fatalf("file retract starts from broad File scan: %s", fileRetract.Cypher)
+	}
+	if !strings.Contains(fileRetract.Cypher, "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)") {
+		t.Fatalf("file retract Cypher = %q, want Repository-id anchored REPO_CONTAINS traversal", fileRetract.Cypher)
+	}
+	if !strings.Contains(fileRetract.Cypher, "f.repo_id = $repo_id") {
+		t.Fatalf("file retract Cypher = %q, want repo_id guard on traversed File", fileRetract.Cypher)
+	}
+}
+
 func TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath(t *testing.T) {
 	t.Parallel()
 
