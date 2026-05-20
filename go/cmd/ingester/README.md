@@ -60,6 +60,12 @@ repositories, then handed to the same snapshot and fact-emission path as
 scheduled polling. Unsupported provider triggers are marked failed instead of
 being routed through a guessed clone path.
 
+Set `ESHU_REPO_SCHEDULED_SYNC_ENABLED=false` when the ingester should only
+process queued webhook refresh triggers and must not fall back to broad
+scheduled repository selection. This mode requires
+`ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED=true`; startup fails if scheduled sync is
+disabled without a trigger handoff path.
+
 Git-backed repository selection uses the same runtime logger as the rest of the
 ingester. During first startup or webhook-triggered sync, clone/fetch emits
 structured `git repository sync started`, `git repository sync progress`,
@@ -157,6 +163,7 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED | false | Check queued webhook refresh triggers before scheduled repository polling |
 | ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER | ingester | Lease owner written when claiming queued webhook triggers |
 | ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT | 100 | Max webhook triggers claimed per selector pass |
+| ESHU_REPO_SCHEDULED_SYNC_ENABLED | true | Enable broad scheduled repository selection when no webhook triggers are queued |
 | ESHU_PPROF_ADDR | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
 Per-label NornicDB tuning knobs (ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES,
