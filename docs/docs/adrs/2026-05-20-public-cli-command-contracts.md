@@ -374,24 +374,39 @@ environment claims against the documented Eshu env-var allowlist. It does not
 yet verify cloud, Kubernetes, Terraform, package/image ownership, or external
 documentation collector claims; those remain unsupported rather than passed.
 
+Implementation evidence for issue #479 persistence slice: `eshu docs verify
+--persist` now writes generated `documentation_finding` and
+`documentation_evidence_packet` envelopes through the Postgres fact ingestion
+boundary under a `documentation_source` scope. The command computes a bounded
+document fingerprint from the inventoried Markdown-family file revisions and
+checks the newest pending or active persisted generation before re-running
+claim comparison. If the fingerprint is unchanged, it loads the stored finding
+and evidence-packet facts and applies `--fail-on` to those persisted findings
+instead of silently passing the command.
+
 No-Regression Evidence: focused gates for the first slice are
 `go test ./internal/doctruth -run 'TestVerifier' -count=1`,
 `go test ./cmd/eshu -run 'TestDocsVerify' -count=1`, and
 `go test ./internal/mcp -run 'TestDocumentationToolsAreRegisteredAndRouted|TestReadOnlyTools|TestDocumentationTools' -count=1`.
+The persistence slice adds
+`go test ./cmd/eshu -run 'TestRunDocsVerifyPersist' -count=1` and
+`go test ./internal/storage/postgres -run 'TestIngestionStoreCurrentScopeGeneration' -count=1`.
 The covered input shape is local Markdown documents with explicit command,
 endpoint, env-var, and unsupported shell-command snippets. Bounds are
-file-count and per-file byte limits; graph writes, queue workers, backend
-Cypher, and runtime worker counts are unchanged.
+file-count and per-file byte limits plus one scope-generation freshness lookup
+and one kind-filtered fact read on unchanged persisted input; graph writes,
+backend Cypher, and runtime worker counts are unchanged.
 
 Observability Evidence: this slice is a local CLI/documentation-fact generator,
 so no new long-running runtime metric is required. Operator diagnosis uses the
 CLI summary counters (`documents_scanned`, `bytes_scanned`, `claims_checked`,
 `valid`, `contradicted`, `missing_evidence`, `unsupported_claim_type`,
-`truncated`), generated finding statuses, and the existing documentation read
-route spans `query.documentation_findings`,
-`query.documentation_evidence_packet`, and
-`query.documentation_packet_freshness` once generated facts are persisted and
-read through API or MCP.
+`truncated`), generated finding statuses, the JSON `persistence` block
+(`enabled`, `persisted`, `skipped`, `scope_id`, `generation_id`, and
+`freshness_hint`), Postgres ingestion commit stage logs for persisted writes,
+and the existing documentation read route spans
+`query.documentation_findings`, `query.documentation_evidence_packet`, and
+`query.documentation_packet_freshness` when API or MCP reads the stored facts.
 
 ---
 

@@ -140,6 +140,12 @@ can observe files without recommitting identical snapshots or superseding
 in-flight projector work. Failed generations do not satisfy this check, so a
 failed first projection can still be retried by the next snapshot.
 
+`IngestionStore.CurrentScopeGeneration` exposes the same newest pending or
+active `(generation_id, freshness_hint)` lookup for callers that need a
+bounded preflight before doing expensive deterministic work. `eshu docs verify
+--persist` uses this to reuse unchanged documentation finding facts while still
+letting changed documents commit through `CommitScopeGeneration`.
+
 ### Projector queue
 
 `ProjectorQueue.Claim` uses `SELECT ... FOR UPDATE SKIP LOCKED` with a
