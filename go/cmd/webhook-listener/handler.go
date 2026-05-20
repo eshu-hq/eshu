@@ -47,6 +47,7 @@ type webhookTelemetryResult struct {
 
 const (
 	webhookOutcomeStored   = "stored"
+	webhookOutcomeIgnored  = "ignored"
 	webhookOutcomeRejected = "rejected"
 	webhookOutcomeFailed   = "failed"
 	webhookReasonNone      = "none"
@@ -58,8 +59,10 @@ const (
 	webhookReasonDelivery  = "missing_delivery_id"
 	webhookReasonMalformed = "malformed_event"
 	webhookReasonStore     = "store_failed"
+	webhookReasonPing      = "ping"
 	webhookStatusUnknown   = "unknown"
 	webhookValueUnknown    = "unknown"
+	githubEventPing        = "ping"
 )
 
 func newWebhookMux(handler webhookHandler) (*http.ServeMux, error) {
@@ -114,8 +117,13 @@ func (h webhookHandler) handleGitHub(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing delivery id", http.StatusBadRequest)
 		return
 	}
+	event := strings.TrimSpace(r.Header.Get("X-GitHub-Event"))
+	if strings.EqualFold(event, githubEventPing) {
+		result = h.writeGitHubPingAccepted(w)
+		return
+	}
 	trigger, err := webhook.NormalizeGitHub(
-		r.Header.Get("X-GitHub-Event"),
+		event,
 		deliveryID,
 		payload,
 		h.Config.DefaultBranch,
@@ -274,6 +282,21 @@ func (h webhookHandler) storeAndWrite(
 	return result
 }
 
+func (h webhookHandler) writeGitHubPingAccepted(w http.ResponseWriter) webhookTelemetryResult {
+	writeWebhookJSON(w, http.StatusAccepted, map[string]any{
+		"status":   webhook.TriggerStatusIgnored,
+		"decision": webhook.DecisionIgnored,
+		"reason":   webhookReasonPing,
+	})
+	return webhookTelemetryResult{
+		Outcome:   webhookOutcomeIgnored,
+		Reason:    webhookReasonPing,
+		EventKind: webhook.EventKind(webhookReasonPing),
+		Decision:  webhook.DecisionIgnored,
+		Status:    webhook.TriggerStatusIgnored,
+	}
+}
+
 func (h webhookHandler) now() time.Time {
 	if h.Clock != nil {
 		return h.Clock()
@@ -316,11 +339,31 @@ func (h webhookHandler) finishWebhookRequest(
 		span.End()
 	}
 	if h.Instruments == nil {
+		h.logWebhookRequest(ctx, provider, result)
 		return
 	}
 	opts := metric.WithAttributes(attrs...)
 	h.Instruments.WebhookRequests.Add(ctx, 1, opts)
 	h.Instruments.WebhookRequestDuration.Record(ctx, h.durationSeconds(startedAt), opts)
+	h.logWebhookRequest(ctx, provider, result)
+}
+
+func (h webhookHandler) logWebhookRequest(
+	ctx context.Context,
+	provider webhook.Provider,
+	result webhookTelemetryResult,
+) {
+	if h.Logger == nil {
+		return
+	}
+	h.Logger.InfoContext(ctx, "webhook request handled",
+		slog.String("provider", providerValue(provider)),
+		slog.String("outcome", fallbackValue(result.Outcome)),
+		slog.String("reason", fallbackValue(result.Reason)),
+		slog.String("event_kind", eventKindValue(result.EventKind)),
+		slog.String("decision", decisionValue(result.Decision)),
+		slog.String("status", statusValue(result.Status)),
+	)
 }
 
 func (h webhookHandler) startWebhookStore(

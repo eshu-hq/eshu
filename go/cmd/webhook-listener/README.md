@@ -3,7 +3,9 @@
 `eshu-webhook-listener` is the public intake runtime for provider webhooks. It
 accepts GitHub, GitLab, Bitbucket, and AWS EventBridge/AWS Config HTTP
 deliveries, verifies the configured shared secret or token, normalizes the
-payload, and persists a durable refresh trigger in Postgres.
+payload, and persists a durable refresh trigger in Postgres. GitHub `ping`
+deliveries are accepted as verified no-op handshakes and do not create refresh
+triggers.
 
 The command requires a provider delivery identifier before normalization. It
 does not clone repositories, parse files, emit facts, or connect to the graph
@@ -50,13 +52,16 @@ limits.
 ## Operational Notes
 
 The runtime mounts `/healthz`, `/readyz`, `/metrics`, and `/admin/status` using
-the shared runtime mux. In Kubernetes, only provider webhook paths should be
+the shared runtime mux. When `ESHU_METRICS_ADDR` differs from
+`ESHU_LISTEN_ADDR`, `/metrics` is also served on the dedicated metrics address
+for Prometheus scraping. In Kubernetes, only provider webhook paths should be
 publicly routed; admin and metrics paths should stay internal unless explicitly
 protected by the operator.
 
-Provider intake emits bounded OTEL metrics and spans. Labels cover provider,
-event kind, decision, status, outcome, and reason; repository names, delivery
-IDs, and commit SHAs stay out of metric labels.
+Provider intake emits bounded structured logs, OTEL metrics, and spans. Labels
+and request-outcome log fields cover provider, event kind, decision, status,
+outcome, and reason; repository names, delivery IDs, and commit SHAs stay out
+of metric labels and request-outcome logs.
 
 | Signal | Type | What it tells operators |
 | --- | --- | --- |
