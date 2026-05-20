@@ -56,6 +56,13 @@ Claude Code can add the deployed Eshu MCP server with:
 claude mcp add --scope user --transport http eshu "$ESHU_MCP_URL" --header "Authorization: Bearer $ESHU_MCP_TOKEN"
 ```
 
+!!! warning "Bearer token exposure"
+    Claude Code stores the header in its MCP configuration, and this one-liner
+    expands the bearer token into a CLI argument while the command runs. Use it
+    from a trusted shell on a trusted machine, and prefer a client-managed
+    secret or environment-backed header mechanism when your Claude Code version
+    supports one.
+
 Codex can add the deployed Eshu MCP server with:
 
 ```bash
