@@ -363,6 +363,36 @@ Performance requirement: claim extraction must be bounded by scope, file count,
 content size, fingerprints, and batching. Large documentation sets need
 progress/status and stop thresholds.
 
+Implementation evidence for issue #479 first slice: `eshu docs verify [path]`
+now scans local Markdown-family documentation with `--limit` and
+`--max-bytes`, extracts explicit Eshu CLI command claims, HTTP endpoint claims,
+`ESHU_*` environment variable claims, and known unsupported shell-command
+claims, then emits documentation finding and evidence-packet fact envelopes in
+memory. This slice validates CLI claims against the current Cobra command tree,
+HTTP endpoint claims against the generated OpenAPI path inventory, and
+environment claims against the documented Eshu env-var allowlist. It does not
+yet verify cloud, Kubernetes, Terraform, package/image ownership, or external
+documentation collector claims; those remain unsupported rather than passed.
+
+No-Regression Evidence: focused gates for the first slice are
+`go test ./internal/doctruth -run 'TestVerifier' -count=1`,
+`go test ./cmd/eshu -run 'TestDocsVerify' -count=1`, and
+`go test ./internal/mcp -run 'TestDocumentationToolsAreRegisteredAndRouted|TestReadOnlyTools|TestDocumentationTools' -count=1`.
+The covered input shape is local Markdown documents with explicit command,
+endpoint, env-var, and unsupported shell-command snippets. Bounds are
+file-count and per-file byte limits; graph writes, queue workers, backend
+Cypher, and runtime worker counts are unchanged.
+
+Observability Evidence: this slice is a local CLI/documentation-fact generator,
+so no new long-running runtime metric is required. Operator diagnosis uses the
+CLI summary counters (`documents_scanned`, `bytes_scanned`, `claims_checked`,
+`valid`, `contradicted`, `missing_evidence`, `unsupported_claim_type`,
+`truncated`), generated finding statuses, and the existing documentation read
+route spans `query.documentation_findings`,
+`query.documentation_evidence_packet`, and
+`query.documentation_packet_freshness` once generated facts are persisted and
+read through API or MCP.
+
 ---
 
 ## Implementation Order

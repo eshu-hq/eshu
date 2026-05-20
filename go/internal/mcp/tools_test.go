@@ -7,7 +7,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 67
+	expectedCount := 70
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -60,6 +60,9 @@ func TestReadOnlyTools(t *testing.T) {
 		"list_sbom_attestation_attachments",
 		"resolve_entity",
 		"get_file_content",
+		"list_documentation_findings",
+		"get_documentation_evidence_packet",
+		"check_documentation_evidence_packet_freshness",
 		"list_ingesters",
 	}
 
@@ -160,6 +163,13 @@ func TestRuntimeTools(t *testing.T) {
 	tools := runtimeTools()
 	if len(tools) != 3 {
 		t.Errorf("Expected 3 runtime tools, got %d", len(tools))
+	}
+}
+
+func TestDocumentationTools(t *testing.T) {
+	tools := documentationTools()
+	if len(tools) != 3 {
+		t.Errorf("Expected 3 documentation tools, got %d", len(tools))
 	}
 }
 

@@ -270,6 +270,13 @@ Postgres content store; it does not traverse the graph.
 Documentation updater services should use the documentation truth routes
 instead of reading graph internals directly.
 
+`eshu docs verify` generates the same `documentation_finding` and
+`documentation_evidence_packet` fact shapes that these read routes expose once
+those facts are persisted by a caller or data-plane runtime. The first verifier
+slice checks local Markdown-family documentation for explicit Eshu CLI command,
+HTTP endpoint, and `ESHU_*` environment-variable claims. Unsupported claim
+families stay visible as `unsupported_claim_type` instead of passing.
+
 `GET /api/v0/documentation/findings` lists read-only findings such as
 `service_deployment_drift`. The endpoint accepts filters for `finding_type`,
 `source_id`, `document_id`, `status`, `truth_level`, `freshness_state`,

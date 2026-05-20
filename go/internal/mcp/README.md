@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 67
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 70
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 67 tools from the tool definition files.
+`ReadOnlyTools` assembles 70 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -70,6 +70,7 @@ flowchart TB
 | `supplyChainTools` | 2 | `tools_supply_chain.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
+| `documentationTools` | 3 | `tools_documentation.go` |
 | `runtimeTools` | 3 | `tools_runtime.go` |
 
 Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
@@ -107,6 +108,9 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `get_service_story` | GET | `/api/v0/services/{service_name}/story` |
 | `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
 | `get_file_content` | POST | `/api/v0/content/files/read` |
+| `list_documentation_findings` | GET | `/api/v0/documentation/findings` |
+| `get_documentation_evidence_packet` | GET | `/api/v0/documentation/findings/{finding_id}/evidence-packet` |
+| `check_documentation_evidence_packet_freshness` | GET | `/api/v0/documentation/evidence-packets/{packet_id}/freshness` |
 | `list_ingesters` | GET | `/api/v0/status/ingesters` |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
@@ -151,7 +155,7 @@ callers.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 67 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 70 tool definitions |
 
 ## SSE session model
 

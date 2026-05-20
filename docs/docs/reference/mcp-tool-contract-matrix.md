@@ -72,6 +72,9 @@ a clear drilldown path when more data is available.
 | `get_entity_content` | canonical entity id required | singleton entity source | yes | prompt-ready after entity resolution |
 | `search_file_content` | pattern plus optional repository selectors | `limit` and `offset` | yes | prompt-ready; unsupported filters are not advertised |
 | `search_entity_content` | pattern plus optional repository selectors | `limit` and `offset` | yes | prompt-ready; unsupported filters are not advertised |
+| `list_documentation_findings` | optional finding, source, document, status, truth, freshness, and updated-since filters | `limit` and `cursor` | yes | prompt-ready for durable documentation truth finding review; reads the same fact-backed route as HTTP |
+| `get_documentation_evidence_packet` | finding id required | singleton evidence packet | yes | prompt-ready for documentation updater evidence snapshots |
+| `check_documentation_evidence_packet_freshness` | packet id required, saved packet version optional | singleton freshness result | yes | prompt-ready for stale-packet checks before updater publication |
 | `list_ingesters` | explicit runtime inventory | `limit` and `offset` | yes | prompt-ready for runtime diagnostics |
 | `get_ingester_status` | ingester id required | singleton status | yes | prompt-ready for runtime diagnostics |
 | `get_index_status` | optional repository selector | singleton status | yes | prompt-ready for runtime diagnostics |
