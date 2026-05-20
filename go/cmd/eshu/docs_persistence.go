@@ -54,6 +54,8 @@ type docsVerifyPostgresPersistence struct {
 	facts     postgres.FactStore
 }
 
+const docsVerifyFreshnessVersion = "docs-verify-v1"
+
 func defaultDocsVerifyDeps() docsVerifyDeps {
 	return docsVerifyDeps{
 		openPersistence: openDocsVerifyPostgresPersistence,
@@ -120,7 +122,7 @@ func prepareDocsVerifyPersistence(
 		return nil, nil, summary, fmt.Errorf("documentation persistence is not configured")
 	}
 	scopeID := docsVerifyScopeID(opts.Path, opts.Scope)
-	freshness := docsInventoryFreshnessHint(inventory.Documents)
+	freshness := docsInventoryFreshnessHint(inventory.Documents, opts.MaxDocumentBytes, opts.Limit)
 	generationID := docsVerifyGenerationID(scopeID, freshness)
 	summary = docsVerifyPersistenceSummary{
 		Enabled:       true,
@@ -257,12 +259,18 @@ func docsVerifyGenerationID(scopeID, freshness string) string {
 	})
 }
 
-func docsInventoryFreshnessHint(documents []doctruth.DocumentInput) string {
+func docsInventoryFreshnessHint(documents []doctruth.DocumentInput, maxDocumentBytes int, limit int) string {
 	type docFingerprint struct {
 		Path       string `json:"path"`
 		SourceURI  string `json:"source_uri"`
 		RevisionID string `json:"revision_id"`
 		Truncated  bool   `json:"truncated"`
+	}
+	type freshnessInput struct {
+		Version          string           `json:"version"`
+		MaxDocumentBytes int              `json:"max_document_bytes"`
+		Limit            int              `json:"limit"`
+		Documents        []docFingerprint `json:"documents"`
 	}
 	fingerprints := make([]docFingerprint, 0, len(documents))
 	for _, doc := range documents {
@@ -279,12 +287,31 @@ func docsInventoryFreshnessHint(documents []doctruth.DocumentInput) string {
 		}
 		return fingerprints[i].SourceURI < fingerprints[j].SourceURI
 	})
-	encoded, err := json.Marshal(fingerprints)
+	encoded, err := json.Marshal(freshnessInput{
+		Version:          docsVerifyFreshnessVersion,
+		MaxDocumentBytes: maxDocumentBytes,
+		Limit:            limit,
+		Documents:        fingerprints,
+	})
 	if err != nil {
 		return "sha256:"
 	}
 	sum := sha256.Sum256(encoded)
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func applyDocsVerifyInventorySummary(result *doctruth.VerificationResult, inventory docsInventory) {
+	truncated := inventory.Truncated
+	bytesScanned := 0
+	for _, doc := range inventory.Documents {
+		bytesScanned += len(doc.Content)
+		if doc.ContentTruncated {
+			truncated = true
+		}
+	}
+	result.Summary.DocumentsScanned = len(inventory.Documents)
+	result.Summary.BytesScanned = bytesScanned
+	result.Truncated = result.Truncated || truncated
 }
 
 func addDocsVerifyFindingStatus(s *doctruth.VerificationSummary, status string) {

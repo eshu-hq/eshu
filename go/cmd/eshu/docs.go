@@ -107,7 +107,7 @@ func runDocsVerifyWithDeps(cmd *cobra.Command, args []string, deps docsVerifyDep
 		if err != nil {
 			return err
 		}
-		result.Truncated = result.Truncated || inventory.Truncated
+		applyDocsVerifyInventorySummary(&result, inventory)
 		exitErr := docsVerifyFailure(opts, result)
 		envelope := docsVerifyEnvelopeForResult(result, exitErr)
 		envelope.Data.Persistence = persistSummary

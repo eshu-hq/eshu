@@ -224,7 +224,7 @@ func TestRunDocsVerifyPersistSkipsUnchangedAndReturnsStoredFindings(t *testing.T
 	persistence := &recordingDocsVerifyPersistence{
 		current: docsPersistedGeneration{
 			GenerationID:  generationID,
-			FreshnessHint: docsInventoryFreshnessHint(inventory.Documents),
+			FreshnessHint: docsInventoryFreshnessHint(inventory.Documents, 256*1024, 50),
 		},
 		currentFound: true,
 		listed: []facts.Envelope{
@@ -260,6 +260,110 @@ func TestRunDocsVerifyPersistSkipsUnchangedAndReturnsStoredFindings(t *testing.T
 	}
 	if got := envelope.Error; got == nil || !strings.Contains(got.Message, "contradicted") {
 		t.Fatalf("Envelope.Error = %#v, want contradicted failure", got)
+	}
+}
+
+func TestRunDocsVerifyPersistDoesNotSkipWhenMaxBytesChanges(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	docPath := filepath.Join(dir, "README.md")
+	if err := os.WriteFile(docPath, []byte("Run `eshu docs verify .`.\nThis suffix keeps the file truncated.\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v, want nil", err)
+	}
+	previousInventory, err := inventoryDocs(docsVerifyOptions{Path: docPath, Limit: 50, MaxDocumentBytes: 8})
+	if err != nil {
+		t.Fatalf("inventoryDocs() error = %v, want nil", err)
+	}
+	scopeID := docsVerifyScopeID(docPath, "")
+	persistence := &recordingDocsVerifyPersistence{
+		current: docsPersistedGeneration{
+			GenerationID:  "docs-verify-generation-existing",
+			FreshnessHint: docsInventoryFreshnessHint(previousInventory.Documents, 8, 50),
+		},
+		currentFound: true,
+	}
+	cmd := newDocsVerifyCommandWithDeps(docsVerifyDeps{
+		openPersistence: fixedDocsPersistence(persistence),
+		now:             fixedDocsNow,
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{docPath, "--persist", "--json", "--max-bytes", "16"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("docs verify error = %v, want nil; output=%s", err, out.String())
+	}
+
+	if got, want := len(persistence.commits), 1; got != want {
+		t.Fatalf("commit count = %d, want %d when max-bytes changes for truncated docs", got, want)
+	}
+	if got := persistence.commits[0].scopeValue.ScopeID; got != scopeID {
+		t.Fatalf("committed scope = %q, want %q", got, scopeID)
+	}
+	var envelope docsVerifyEnvelope
+	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
+	}
+	if envelope.Data.Persistence.Skipped {
+		t.Fatalf("Persistence = %#v, want skipped false after max-bytes changes", envelope.Data.Persistence)
+	}
+}
+
+func TestRunDocsVerifyPersistSkipReportsCurrentInventoryCountersAndTruncation(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	docPath := filepath.Join(dir, "README.md")
+	content := []byte("Run `eshu docs verify .`.\nThis suffix is outside the bounded scan.\n")
+	if err := os.WriteFile(docPath, content, 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v, want nil", err)
+	}
+	opts := docsVerifyOptions{Path: docPath, Limit: 50, MaxDocumentBytes: 12}
+	inventory, err := inventoryDocs(opts)
+	if err != nil {
+		t.Fatalf("inventoryDocs() error = %v, want nil", err)
+	}
+	scopeID := docsVerifyScopeID(docPath, "")
+	generationID := "docs-verify-generation-existing"
+	persistence := &recordingDocsVerifyPersistence{
+		current: docsPersistedGeneration{
+			GenerationID:  generationID,
+			FreshnessHint: docsInventoryFreshnessHint(inventory.Documents, opts.MaxDocumentBytes, opts.Limit),
+		},
+		currentFound: true,
+		listed: []facts.Envelope{
+			storedDocumentationFinding(scopeID, generationID, "valid"),
+			storedDocumentationPacket(scopeID, generationID),
+		},
+	}
+	cmd := newDocsVerifyCommandWithDeps(docsVerifyDeps{
+		openPersistence: fixedDocsPersistence(persistence),
+		now:             fixedDocsNow,
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{docPath, "--persist", "--json", "--max-bytes", "12"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("docs verify error = %v, want nil; output=%s", err, out.String())
+	}
+
+	var envelope docsVerifyEnvelope
+	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
+	}
+	if got, want := envelope.Data.Summary.DocumentsScanned, 1; got != want {
+		t.Fatalf("DocumentsScanned = %d, want %d", got, want)
+	}
+	if got, want := envelope.Data.Summary.BytesScanned, 12; got != want {
+		t.Fatalf("BytesScanned = %d, want %d", got, want)
+	}
+	if !envelope.Data.Truncated {
+		t.Fatal("Truncated = false, want true for byte-truncated persisted replay")
+	}
+	if !envelope.Data.Persistence.Skipped {
+		t.Fatalf("Persistence = %#v, want skipped true", envelope.Data.Persistence)
 	}
 }
 
