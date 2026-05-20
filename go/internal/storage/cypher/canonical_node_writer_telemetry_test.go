@@ -3,9 +3,9 @@ package cypher
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
-	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -50,7 +50,12 @@ func TestCanonicalNodeWriterMarksRetractSpanAndLogOnPhaseFailure(t *testing.T) {
 	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
 	var logs bytes.Buffer
 	previousLogger := slog.Default()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	slog.SetDefault(telemetry.NewLoggerWithWriter(
+		telemetry.Bootstrap{ServiceName: "test", ServiceNamespace: "test"},
+		"test",
+		"test",
+		&logs,
+	))
 	t.Cleanup(func() { slog.SetDefault(previousLogger) })
 
 	writer := NewCanonicalNodeWriter(&mockPhaseGroupExecutor{phaseGroupErr: errors.New("graph timeout")}, 500, nil).
@@ -78,12 +83,29 @@ func TestCanonicalNodeWriterMarksRetractSpanAndLogOnPhaseFailure(t *testing.T) {
 	if got, want := retractSpan.Status().Code, codes.Error; got != want {
 		t.Fatalf("retract span status = %v, want %v", got, want)
 	}
-	logText := logs.String()
-	for _, want := range []string{`"msg":"canonical phase failed"`, `"phase":"retract"`, `"scope_id":"scope-1"`, `"mode":"phase_group"`} {
-		if !strings.Contains(logText, want) {
-			t.Fatalf("canonical failure log = %s, want %s", logText, want)
+	logEntry := decodeSingleJSONLog(t, logs.Bytes())
+	for key, want := range map[string]string{
+		"message":  "canonical phase failed",
+		"phase":    "retract",
+		"scope_id": "scope-1",
+		"mode":     "phase_group",
+		"trace_id": retractSpan.SpanContext().TraceID().String(),
+		"span_id":  retractSpan.SpanContext().SpanID().String(),
+	} {
+		if got, _ := logEntry[key].(string); got != want {
+			t.Fatalf("canonical failure log[%s] = %#v, want %q; log=%s", key, logEntry[key], want, logs.String())
 		}
 	}
+}
+
+func decodeSingleJSONLog(t *testing.T, data []byte) map[string]any {
+	t.Helper()
+
+	var entry map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(data), &entry); err != nil {
+		t.Fatalf("decode log JSON: %v; log=%s", err, string(data))
+	}
+	return entry
 }
 
 func assertSpanEnded(t *testing.T, spans []sdktrace.ReadOnlySpan, want string) {

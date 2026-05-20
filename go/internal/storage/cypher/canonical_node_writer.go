@@ -192,7 +192,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 				phaseSpan.End()
 				writeSpan.RecordError(err)
 				writeSpan.SetStatus(codes.Error, err.Error())
-				w.logCanonicalPhaseFailure(ctx, mat, phase, time.Since(phaseStart), err, "phase_group")
+				w.logCanonicalPhaseFailure(phaseCtx, mat, phase, time.Since(phaseStart), err, "phase_group")
 				return fmt.Errorf("canonical phase-group write (%s): %w", phase.name, err)
 			}
 			phaseSpan.End()
@@ -229,7 +229,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 				phaseSpan.End()
 				writeSpan.RecordError(err)
 				writeSpan.SetStatus(codes.Error, err.Error())
-				w.logCanonicalPhaseFailure(ctx, mat, phase, time.Since(phaseStart), err, "sequential")
+				w.logCanonicalPhaseFailure(phaseCtx, mat, phase, time.Since(phaseStart), err, "sequential")
 				return fmt.Errorf("canonical sequential write (%s): %w", phase.name, err)
 			}
 		}
