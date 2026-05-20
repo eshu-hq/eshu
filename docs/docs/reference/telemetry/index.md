@@ -178,6 +178,10 @@ For shared-write debugging specifically:
   request verification or durable trigger persistence.
 - Traces use `webhook.handle` and `webhook.store` spans; repository names,
   delivery IDs, and commit SHAs stay out of metric labels.
+- Structured `webhook request handled` logs expose bounded provider, outcome,
+  reason, event kind, decision, and `status` fields, where `status` represents
+  the stored trigger status when one exists. GitHub `ping` handshakes report
+  `outcome=ignored` and `reason=ping` without storing a refresh trigger.
 
 ### Facts Layer
 

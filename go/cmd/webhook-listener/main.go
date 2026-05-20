@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -13,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/app"
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -107,33 +110,61 @@ func run(parent context.Context) error {
 		return err
 	}
 	statusReader := postgres.NewStatusStore(postgres.SQLQueryer{DB: db})
-	adminMux, err := runtimecfg.NewStatusAdminMux(
-		"webhook-listener",
-		statusReader,
-		webhookMux,
-		runtimecfg.WithPrometheusHandler(providers.PrometheusHandler),
-	)
+	service, err := newWebhookApplication(runtimeConfig, statusReader, webhookMux, providers.PrometheusHandler)
 	if err != nil {
 		return err
+	}
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return service.Run(ctx)
+}
+
+func newWebhookApplication(
+	runtimeConfig runtimecfg.Config,
+	statusReader statuspkg.Reader,
+	webhookMux http.Handler,
+	prometheusHandler http.Handler,
+) (app.Application, error) {
+	adminMux, err := runtimecfg.NewStatusAdminMux(
+		runtimeConfig.ServiceName,
+		statusReader,
+		webhookMux,
+		runtimecfg.WithPrometheusHandler(prometheusHandler),
+	)
+	if err != nil {
+		return app.Application{}, err
 	}
 	httpServer, err := runtimecfg.NewHTTPServer(runtimecfg.HTTPServerConfig{
 		Addr:    runtimeConfig.ListenAddr,
 		Handler: adminMux,
 	})
 	if err != nil {
-		return err
+		return app.Application{}, err
 	}
 	lifecycle, err := runtimecfg.NewLifecycle(runtimeConfig)
 	if err != nil {
-		return err
+		return app.Application{}, err
+	}
+	combined := app.ComposeLifecycles(lifecycle, httpServer)
+
+	metricsAddr := strings.TrimSpace(runtimeConfig.MetricsAddr)
+	if metricsAddr != "" && metricsAddr != strings.TrimSpace(runtimeConfig.ListenAddr) {
+		metricsServer, err := runtimecfg.NewStatusMetricsServer(
+			runtimeConfig,
+			statusReader,
+			runtimecfg.WithPrometheusHandler(prometheusHandler),
+		)
+		if err != nil {
+			return app.Application{}, err
+		}
+		if metricsServer != nil {
+			combined = app.ComposeLifecycles(combined, metricsServer)
+		}
 	}
 
-	service := app.Application{
+	return app.Application{
 		Config:    runtimeConfig,
-		Lifecycle: app.ComposeLifecycles(lifecycle, httpServer),
+		Lifecycle: combined,
 		Runner:    runtimecfg.ContextRunner{},
-	}
-	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	return service.Run(ctx)
+	}, nil
 }

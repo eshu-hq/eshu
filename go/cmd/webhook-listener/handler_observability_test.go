@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,6 +86,56 @@ func TestWebhookHandlerRecordsBoundedTelemetry(t *testing.T) {
 	}
 	if !spanRecorded(spanRecorder, telemetry.SpanWebhookStore) {
 		t.Fatalf("span %q was not recorded", telemetry.SpanWebhookStore)
+	}
+}
+
+func TestWebhookHandlerLogsBoundedRejectedOutcome(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	payload := []byte(`{
+		"repository":{"id":42,"full_name":"eshu-hq/eshu","default_branch":"main"}
+	}`)
+	store := &recordingTriggerStore{}
+	mux, err := newWebhookMux(webhookHandler{
+		Config: webhookListenerConfig{
+			GitHubSecret:        "secret",
+			GitHubPath:          "/webhooks/github",
+			MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+		},
+		Store:  store,
+		Clock:  func() time.Time { return time.Date(2026, time.May, 12, 16, 0, 0, 0, time.UTC) },
+		Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+	})
+	if err != nil {
+		t.Fatalf("newWebhookMux() error = %v, want nil", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/github", bytes.NewReader(payload))
+	req.Header.Set("X-GitHub-Event", "push")
+	req.Header.Set("X-GitHub-Delivery", "delivery-secret-value")
+	req.Header.Set("X-Hub-Signature-256", "sha256=bad")
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+	got := logs.String()
+	for _, want := range []string{
+		`"msg":"webhook request handled"`,
+		`"provider":"github"`,
+		`"outcome":"rejected"`,
+		`"reason":"auth_failed"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("logs = %q, want %s", got, want)
+		}
+	}
+	for _, sensitive := range []string{"delivery-secret-value", "eshu-hq/eshu"} {
+		if strings.Contains(got, sensitive) {
+			t.Fatalf("logs = %q, must not contain %q", got, sensitive)
+		}
 	}
 }
 

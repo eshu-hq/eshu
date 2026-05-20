@@ -50,6 +50,39 @@ func TestWebhookHandlerAcceptsSignedGitHubPush(t *testing.T) {
 	}
 }
 
+func TestWebhookHandlerAcceptsSignedGitHubPingWithoutStoringTrigger(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"zen":"Keep it logically awesome.",
+		"hook_id":123,
+		"repository":{"id":42,"full_name":"eshu-hq/eshu","default_branch":"main"}
+	}`)
+	store := &recordingTriggerStore{}
+	mux := mustWebhookMux(t, webhookListenerConfig{
+		GitHubSecret:        "secret",
+		GitHubPath:          "/webhooks/github",
+		MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+	}, store)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/github", bytes.NewReader(payload))
+	req.Header.Set("X-GitHub-Event", "ping")
+	req.Header.Set("X-GitHub-Delivery", "delivery-ping")
+	req.Header.Set("X-Hub-Signature-256", githubSignature("secret", payload))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	if got, want := len(store.triggers), 0; got != want {
+		t.Fatalf("stored triggers = %d, want %d", got, want)
+	}
+	if got := rec.Body.String(); !bytes.Contains([]byte(got), []byte(`"reason":"ping"`)) {
+		t.Fatalf("body = %q, want ping reason", got)
+	}
+}
+
 func TestWebhookHandlerRejectsBadGitHubSignature(t *testing.T) {
 	t.Parallel()
 
