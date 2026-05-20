@@ -32,6 +32,29 @@ The Pages output directory is also declared in `wrangler.jsonc`:
 }
 ```
 
+## Release Gate
+
+Cloudflare Pages is the only Cloudflare deploy surface for this repository.
+Workers Builds are not a release gate for Eshu.
+
+Cloudflare's GitHub App is shared by Workers and Pages, and connected Workers
+can emit `Workers Builds: <name>` check runs for commits and pull requests. If a
+`Workers Builds: eshu` check appears on this repository, treat it as a
+Cloudflare-side integration issue unless a future change intentionally adds a
+Worker source and release gate.
+
+Expected release signals:
+
+- repo-owned GitHub Actions pass
+- the Cloudflare Pages deployment/check passes when Pages is enabled
+- no Cloudflare Workers build is required for Eshu release readiness
+
+To fix recurring Workers build noise, inspect the Cloudflare Workers service
+named `eshu` and disconnect, disable, or narrow its Git integration so it no
+longer builds this repository. Do not add a dummy Worker just to make the
+external check green; that would create a deployment surface Eshu does not
+currently use.
+
 ## Cloudflare MCP Use
 
 The authorized Cloudflare MCP is for read-only verification on this branch:

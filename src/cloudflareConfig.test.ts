@@ -10,5 +10,15 @@ describe("Cloudflare Pages configuration", () => {
     );
 
     expect(wranglerConfig).toContain('"pages_build_output_dir": "./site-dist"');
+    expect(wranglerConfig).not.toMatch(/^\s*"main"\s*:/m);
+  });
+
+  it("documents that Workers Builds are not part of the release gate", () => {
+    const pagesRunbook = readFileSync(
+      join(process.cwd(), "CLOUDFLARE_PAGES.md"),
+      "utf8"
+    );
+
+    expect(pagesRunbook).toContain("Workers Builds are not a release gate");
   });
 });
