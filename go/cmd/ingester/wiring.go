@@ -468,7 +468,7 @@ func openIngesterCanonicalWriter(
 		),
 		neo4jBatchSize(getenv),
 		instruments,
-	)
+	).WithTracer(tracer)
 	labelBatchSizes := map[string]int(nil)
 	orderedLabels := []string(nil)
 	if graphBackend == runtimecfg.GraphBackendNornicDB {

@@ -78,9 +78,18 @@ No-Regression Evidence: `go test ./internal/storage/cypher -run
 -count=1` proves the indexed seed shape and protects current-file keep-list
 semantics.
 
+No-Regression Evidence: `go test ./internal/storage/cypher ./cmd/ingester
+./cmd/bootstrap-index ./cmd/projector -count=1` keeps canonical writer, NornicDB
+phase-group executor, bootstrap, and projector wiring covered after adding
+source-local canonical writer tracing.
+
 Observability Evidence: statement summaries and operation metadata stay on each
-chunked statement, so existing `canonical phase-group write` logs and graph
-failure details still identify the phase and sanitized first statement.
+chunked statement, and source-local canonical writes now wrap the writer in
+`canonical.write` plus the retract phase in `canonical.retract`. Phase failures
+also emit a structured `canonical phase failed` log with scope, generation,
+repo, phase, mode, statement count, duration, and error, while existing
+`canonical phase-group write` logs and graph failure details still identify the
+phase and sanitized first statement.
 
 Code-call shared projection routes `CALLS`, `REFERENCES`, and `USES_METACLASS`
 through label-scoped batched edge statements when endpoint labels are known.

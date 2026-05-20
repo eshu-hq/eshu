@@ -196,7 +196,7 @@ func openBootstrapCanonicalWriter(
 		executor,
 		neo4jBatchSize(getenv),
 		instruments,
-	)
+	).WithTracer(tracer)
 	labelBatchSizes := map[string]int(nil)
 	orderedLabels := []string(nil)
 	fileBatchSize := 0

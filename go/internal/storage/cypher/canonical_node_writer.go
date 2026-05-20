@@ -6,6 +6,10 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -20,6 +24,7 @@ type CanonicalNodeWriter struct {
 	entityLabelBatchSizes             map[string]int
 	entityContainmentInEntityUpsert   bool
 	entityContainmentBatchAcrossFiles bool
+	tracer                            trace.Tracer
 	instruments                       *telemetry.Instruments
 }
 
@@ -39,6 +44,15 @@ func NewCanonicalNodeWriter(executor Executor, batchSize int, instruments *telem
 		batchSize:   batchSize,
 		instruments: instruments,
 	}
+}
+
+// WithTracer records canonical graph-write spans when tracing is configured.
+func (w *CanonicalNodeWriter) WithTracer(tracer trace.Tracer) *CanonicalNodeWriter {
+	if w == nil {
+		return nil
+	}
+	w.tracer = tracer
+	return w
 }
 
 // WithEntityBatchSize overrides the per-statement row batch size used only for
@@ -142,11 +156,15 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 	if len(allStatements) == 0 {
 		return nil
 	}
+	ctx, writeSpan := w.startWriteSpan(ctx, mat, len(allStatements))
+	defer writeSpan.End()
 
 	// Atomic path: single transaction for all phases.
 	if ge, ok := w.executor.(GroupExecutor); ok {
 		start := time.Now()
 		if err := ge.ExecuteGroup(ctx, allStatements); err != nil {
+			writeSpan.RecordError(err)
+			writeSpan.SetStatus(codes.Error, err.Error())
 			return fmt.Errorf("canonical atomic write: %w", err)
 		}
 		dur := time.Since(start).Seconds()
@@ -167,9 +185,17 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 				continue
 			}
 			phaseStart := time.Now()
-			if err := pge.ExecutePhaseGroup(ctx, phase.statements); err != nil {
+			phaseCtx, phaseSpan := w.startPhaseSpan(ctx, phase, mat)
+			if err := pge.ExecutePhaseGroup(phaseCtx, phase.statements); err != nil {
+				phaseSpan.RecordError(err)
+				phaseSpan.SetStatus(codes.Error, err.Error())
+				phaseSpan.End()
+				writeSpan.RecordError(err)
+				writeSpan.SetStatus(codes.Error, err.Error())
+				w.logCanonicalPhaseFailure(ctx, mat, phase, time.Since(phaseStart), err, "phase_group")
 				return fmt.Errorf("canonical phase-group write (%s): %w", phase.name, err)
 			}
+			phaseSpan.End()
 			phaseSeconds := time.Since(phaseStart).Seconds()
 			slog.Info(
 				"canonical phase group completed",
@@ -195,11 +221,19 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 			continue
 		}
 		phaseStart := time.Now()
+		phaseCtx, phaseSpan := w.startPhaseSpan(ctx, phase, mat)
 		for _, stmt := range phase.statements {
-			if err := w.executor.Execute(ctx, stmt); err != nil {
+			if err := w.executor.Execute(phaseCtx, stmt); err != nil {
+				phaseSpan.RecordError(err)
+				phaseSpan.SetStatus(codes.Error, err.Error())
+				phaseSpan.End()
+				writeSpan.RecordError(err)
+				writeSpan.SetStatus(codes.Error, err.Error())
+				w.logCanonicalPhaseFailure(ctx, mat, phase, time.Since(phaseStart), err, "sequential")
 				return fmt.Errorf("canonical sequential write (%s): %w", phase.name, err)
 			}
 		}
+		phaseSpan.End()
 		phaseSeconds := time.Since(phaseStart).Seconds()
 		slog.Info(
 			"canonical phase completed",
@@ -215,6 +249,60 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 		"scope_id", mat.ScopeID, "statements", len(allStatements), "duration_s", dur)
 	w.recordAtomicWrite(ctx, "sequential_group", dur, mat)
 	return nil
+}
+
+func (w *CanonicalNodeWriter) startWriteSpan(
+	ctx context.Context,
+	mat projector.CanonicalMaterialization,
+	statementCount int,
+) (context.Context, trace.Span) {
+	if w.tracer == nil {
+		return ctx, trace.SpanFromContext(context.Background())
+	}
+	return w.tracer.Start(ctx, telemetry.SpanCanonicalWrite, trace.WithAttributes(
+		telemetry.AttrScopeID(mat.ScopeID),
+		attribute.String(telemetry.MetricDimensionGenerationID, mat.GenerationID),
+		attribute.String("repo_id", mat.RepoID),
+		attribute.Int("statement_count", statementCount),
+		attribute.Int("file_count", len(mat.Files)),
+		attribute.Int("entity_count", len(mat.Entities)),
+	))
+}
+
+func (w *CanonicalNodeWriter) startPhaseSpan(
+	ctx context.Context,
+	phase canonicalWritePhase,
+	mat projector.CanonicalMaterialization,
+) (context.Context, trace.Span) {
+	if w.tracer == nil || phase.name != "retract" {
+		return ctx, trace.SpanFromContext(context.Background())
+	}
+	return w.tracer.Start(ctx, telemetry.SpanCanonicalRetract, trace.WithAttributes(
+		telemetry.AttrScopeID(mat.ScopeID),
+		attribute.String(telemetry.MetricDimensionGenerationID, mat.GenerationID),
+		attribute.String("repo_id", mat.RepoID),
+		attribute.Int("statement_count", len(phase.statements)),
+	))
+}
+
+func (w *CanonicalNodeWriter) logCanonicalPhaseFailure(
+	ctx context.Context,
+	mat projector.CanonicalMaterialization,
+	phase canonicalWritePhase,
+	duration time.Duration,
+	err error,
+	mode string,
+) {
+	slog.WarnContext(ctx, "canonical phase failed",
+		"scope_id", mat.ScopeID,
+		"repo_id", mat.RepoID,
+		"generation_id", mat.GenerationID,
+		"phase", phase.name,
+		"mode", mode,
+		"statements", len(phase.statements),
+		"duration_s", duration.Seconds(),
+		"error", err.Error(),
+	)
 }
 
 func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization) []canonicalWritePhase {
