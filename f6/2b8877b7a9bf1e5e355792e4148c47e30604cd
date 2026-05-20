@@ -1,0 +1,35 @@
+go/cmd/webhook-listener/main_test.go
+  s_072c5984f68e14::t_0d07ff52c584a7 1-95
+go/cmd/webhook-listener/handler_test.go
+  s_072c5984f68e14::t_c71e377463f17a 53-85
+go/cmd/webhook-listener/doc.go
+  s_072c5984f68e14::t_f177dbd800364f 6-16
+go/cmd/webhook-listener/handler.go
+  s_072c5984f68e14::t_734c12c9635834 65,121
+  s_072c5984f68e14::t_9d5f08367b2d2a 50,62,120,122-124,126,285-299,342,348-366
+docs/docs/reference/telemetry/index.md
+  s_072c5984f68e14::t_057e0d20289ea1 181
+  s_072c5984f68e14::t_c66c6758b4d980 182-184
+go/cmd/webhook-listener/main.go
+  s_072c5984f68e14::t_10a566964d2335 7,10,18,113-127,129,132,135,142,146-162,165,167,169
+go/cmd/webhook-listener/README.md
+  s_072c5984f68e14::t_8ae6c72235b3c7 6-8,55-57,61-64
+go/cmd/webhook-listener/handler_observability_test.go
+  s_072c5984f68e14::t_df57cae3a08860 6,9,92-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "f62b8877b7a9bf1e5e355792e4148c47e30604cd",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
