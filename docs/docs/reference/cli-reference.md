@@ -205,8 +205,9 @@ See [Local Data Root Spec](local-data-root-spec.md) and
 ### Command contracts
 
 `eshu scan` is available as the local indexing readiness contract. `eshu trace
-service <name>`, `eshu map --from <thing>`, and `eshu docs verify` remain
-planned contracts. Their shared design lives in
+service <name>` is available as an API-backed service-story trace over the
+bounded service dossier route. `eshu map --from <thing>` and
+`eshu docs verify` remain planned contracts. Their shared design lives in
 [ADR 2026-05-20](../adrs/2026-05-20-public-cli-command-contracts.md). Do not
 use planned commands in public examples until their implementation issues land.
 
@@ -218,6 +219,7 @@ use planned commands in public examples until their implementation issues land.
 | `eshu version` | Print the installed version. | No |
 | `eshu doctor` | Run local diagnostics. | No |
 | `eshu scan [path]` | Index a local source, then poll `/api/v0/status/pipeline` until the source is queryable or failure is proven. | Yes |
+| `eshu trace service <name>` | Render the existing `/api/v0/services/{service_name}/story` dossier as an operator trace with canonical `--json` envelope support. | Yes |
 | `eshu index [path] [--discovery-report <file>]` | Index a local path by launching the Go `bootstrap-index` runtime. The optional discovery report writes a JSON advisory artifact for noisy-repo tuning. | No |
 | `eshu index-status` | Show the latest checkpointed index status. This is the completeness signal, not process health. | Yes |
 | `eshu finalize` | Compatibility stub. Prints the current ingester recovery endpoints and exits non-zero. | No |

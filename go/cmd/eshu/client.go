@@ -11,11 +11,22 @@ import (
 	"time"
 )
 
+const eshuEnvelopeMIMEType = "application/eshu.envelope+json"
+
 // APIClient wraps HTTP calls to the Go API.
 type APIClient struct {
 	BaseURL    string
 	APIKey     string
 	HTTPClient *http.Client
+}
+
+type apiHTTPError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *apiHTTPError) Error() string {
+	return fmt.Sprintf("API error %d: %s", e.StatusCode, e.Body)
 }
 
 // NewAPIClient creates a client from environment/config.
@@ -60,15 +71,20 @@ func NewAPIClient(serviceURL, apiKey, profile string) *APIClient {
 
 // Get performs a GET request and decodes JSON response.
 func (c *APIClient) Get(path string, result any) error {
-	return c.do("GET", path, nil, result)
+	return c.do("GET", path, nil, result, "")
+}
+
+// GetEnvelope performs a GET request that asks for Eshu's canonical envelope.
+func (c *APIClient) GetEnvelope(path string, result any) error {
+	return c.do("GET", path, nil, result, eshuEnvelopeMIMEType)
 }
 
 // Post performs a POST request with JSON body and decodes JSON response.
 func (c *APIClient) Post(path string, body, result any) error {
-	return c.do("POST", path, body, result)
+	return c.do("POST", path, body, result, "")
 }
 
-func (c *APIClient) do(method, path string, body, result any) error {
+func (c *APIClient) do(method, path string, body, result any, accept string) error {
 	url := c.BaseURL + path
 
 	var bodyReader io.Reader
@@ -85,6 +101,9 @@ func (c *APIClient) do(method, path string, body, result any) error {
 		return fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if accept != "" {
+		req.Header.Set("Accept", accept)
+	}
 	if c.APIKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.APIKey)
 	}
@@ -103,7 +122,7 @@ func (c *APIClient) do(method, path string, body, result any) error {
 	}
 
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
+		return &apiHTTPError{StatusCode: resp.StatusCode, Body: string(respBody)}
 	}
 
 	if result != nil {
