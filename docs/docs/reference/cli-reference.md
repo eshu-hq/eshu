@@ -202,6 +202,15 @@ See [Local Data Root Spec](local-data-root-spec.md) and
 
 ## Public command map
 
+### Planned command contracts
+
+`eshu scan`, `eshu trace service <name>`, `eshu map --from <thing>`, and
+`eshu docs verify` are **planned contracts**, not shipped CLI commands in this
+release. Their shared design lives in
+[ADR 2026-05-20](../adrs/2026-05-20-public-cli-command-contracts.md). Do not
+use them in public examples until their implementation issues land with
+focused plus representative runtime proof.
+
 ### Root commands
 
 | Command | Purpose | API-backed |
