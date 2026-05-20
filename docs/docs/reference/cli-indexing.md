@@ -2,6 +2,48 @@
 
 These commands are the foundation of Eshu. They allow you to add, remove, and monitor the code repositories in your graph.
 
+## `eshu scan`
+
+Indexes a local source and waits until Eshu can prove the source is queryable.
+This is the public readiness command: it is stricter than `eshu index` because
+collection completion alone is not enough.
+
+`eshu scan` resolves the requested path to a repository, workspace, or plain
+directory root using the same local workspace rules as `eshu watch`, preflights
+the configured API status and query surfaces, launches the existing
+`bootstrap-index` runtime, then polls `/api/v0/status/pipeline` until the
+runtime is healthy, queue work is drained, failed and dead-letter counts are
+zero, and at least one generation has completed. The query-surface probe uses
+`/api/v0/repositories?limit=1` before and after the run.
+
+**Usage:**
+```bash
+eshu scan [path] [options]
+```
+
+**Common Options:**
+
+*   `path`: The source path to scan (default: current directory).
+*   `--force`: Re-index from scratch.
+*   `--wait=false`: Run bootstrap without waiting for readiness.
+*   `--timeout <duration>`: Cap the readiness proof (default: `30m`).
+*   `--poll-interval <duration>`: Control status polling (default: `3s`).
+*   `--allow-partial`: Return success for partial or degraded readiness with
+    warnings.
+*   `--json`: Emit the canonical `{data, truth, error}` envelope.
+*   `--discovery-report <file>`: Forward a discovery advisory path to
+    `bootstrap-index`.
+
+**Readiness Evidence:**
+
+`eshu scan --json` reports bootstrap-complete and queue-zero timings. It keeps
+collector-complete and source-local projection-complete timings as explicit
+`null` values with warnings because the bootstrap child logs those milestones
+today but does not expose parent-process structured timestamps. Accuracy wins:
+the CLI does not invent those numbers.
+
+---
+
 ## `eshu index`
 
 Adds a code repository to the graph database. This is the first step for any project.
