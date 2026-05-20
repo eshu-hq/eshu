@@ -1,0 +1,42 @@
+go/cmd/eshu/docs_persistence.go
+  s_f2f7fbb6f30866::t_31f25594ef45af 192,195,224-228,232-233
+  s_f2f7fbb6f30866::t_a76f3bc2b49637 1-37,40-48,50-129,131-172,174-191,193,196-208,214,216-218,221-223,229-231,234-289,291-336
+  s_f2f7fbb6f30866::t_35c1cd436ba6f6 173,290
+  s_f2f7fbb6f30866::t_aa7a61d13c7b9b 38-39,49,130,194,209-213,215,219-220
+docs/docs/reference/cli-reference.md
+  s_f2f7fbb6f30866::t_ae6711f4201978 226
+go/internal/storage/postgres/README.md
+  s_f2f7fbb6f30866::t_37227acc70b756 143-148
+go/internal/storage/postgres/generation_freshness.go
+  s_f2f7fbb6f30866::t_3740c80098c3fb 7,27-63
+go/cmd/eshu/docs_inventory.go
+  s_f2f7fbb6f30866::t_fa3a19572eccb4 1-180
+go/cmd/eshu/docs.go
+  s_f2f7fbb6f30866::t_928e43a43134c9 131
+  s_f2f7fbb6f30866::t_ea43e560dcd1d1 22-24,38,65-68,73-75,82-84,89,98-115,122-123,130,132-135,138-148,178-189,206-208
+  s_f2f7fbb6f30866::t_cf75bd2f4e2853 70-72
+docs/docs/adrs/2026-05-20-public-cli-command-contracts.md
+  s_f2f7fbb6f30866::t_a0cf721f2ade67 377-386,391-393,396-398,404-409
+go/cmd/eshu/docs_test.go
+  s_f2f7fbb6f30866::t_7a7aa831a88107 5,13-16,157-265,270-385
+go/internal/storage/postgres/generation_freshness_test.go
+  s_f2f7fbb6f30866::t_2ebd5656b18619 166-199,202-206,208-211,226-231,290-293
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_486ea2dc1a56bf 85-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "11e9b25190a5728e3ec32640dcf55f69c1f73238",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
