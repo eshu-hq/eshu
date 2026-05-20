@@ -35,7 +35,7 @@ type serviceWorkloadAmbiguousError struct {
 
 func (e serviceWorkloadAmbiguousError) Error() string {
 	return fmt.Sprintf(
-		"service selector %q matched multiple services; add --service-id, --repo, or --env",
+		"service selector %q matched multiple services; add service_id, repo, or environment",
 		e.Selector,
 	)
 }
@@ -155,7 +155,56 @@ func (h *EntityHandler) collectServiceWorkloadCandidates(
 	if truncated {
 		candidates = candidates[:serviceWorkloadCandidateLimit]
 	}
+	if err := h.hydrateServiceWorkloadCandidateRepoNames(ctx, candidates); err != nil {
+		return nil, false, err
+	}
 	return candidates, truncated, nil
+}
+
+func (h *EntityHandler) hydrateServiceWorkloadCandidateRepoNames(ctx context.Context, candidates []serviceWorkloadCandidate) error {
+	repoIDSet := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.RepoID == "" || candidate.RepoName != "" {
+			continue
+		}
+		repoIDSet[candidate.RepoID] = struct{}{}
+	}
+	if len(repoIDSet) == 0 {
+		return nil
+	}
+
+	repoIDs := make([]string, 0, len(repoIDSet))
+	for repoID := range repoIDSet {
+		repoIDs = append(repoIDs, repoID)
+	}
+	slices.Sort(repoIDs)
+
+	cypher := fmt.Sprintf(`
+		MATCH (r:Repository)
+		WHERE r.id IN $repo_ids
+		RETURN r.id as repo_id,
+		       r.name as repo_name
+		ORDER BY repo_id
+		LIMIT %d
+	`, len(repoIDs))
+	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{"repo_ids": repoIDs})
+	if err != nil {
+		return err
+	}
+	repoNames := make(map[string]string, len(rows))
+	for _, row := range rows {
+		repoID := StringVal(row, "repo_id")
+		repoName := StringVal(row, "repo_name")
+		if repoID != "" && repoName != "" {
+			repoNames[repoID] = repoName
+		}
+	}
+	for i := range candidates {
+		if candidates[i].RepoName == "" {
+			candidates[i].RepoName = repoNames[candidates[i].RepoID]
+		}
+	}
+	return nil
 }
 
 func (h *EntityHandler) queryServiceWorkloadCandidates(
