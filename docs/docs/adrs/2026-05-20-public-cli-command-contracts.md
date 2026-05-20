@@ -226,9 +226,10 @@ the canonical envelope through unchanged with `--json`. It also makes
 service-story not-found responses honor the canonical envelope when requested.
 
 No-Regression Evidence: focused command and query tests cover trace command
-registration, envelope request headers, environment selector query wiring,
-human output, JSON passthrough, unsupported-capability exit classification, and
-canonical not-found service-story errors:
+registration, envelope request headers, unsupported environment selector
+guarding, human output, JSON passthrough, null `truth` on synthetic transport
+errors, unsupported-capability exit classification, and canonical not-found
+service-story errors:
 `go test ./cmd/eshu -run 'TestTraceService|TestFetchTraceService' -count=1`
 and
 `go test ./internal/query -run 'TestGetServiceStoryReturnsEnvelope' -count=1`.

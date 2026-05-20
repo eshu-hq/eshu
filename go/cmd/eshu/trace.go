@@ -12,14 +12,13 @@ import (
 )
 
 type traceServiceOptions struct {
-	JSON        bool
-	Environment string
-	ServiceID   string
+	JSON      bool
+	ServiceID string
 }
 
 type traceServiceEnvelope struct {
 	Data  map[string]any     `json:"data"`
-	Truth map[string]any     `json:"truth,omitempty"`
+	Truth map[string]any     `json:"truth"`
 	Error *traceServiceError `json:"error"`
 }
 
@@ -50,7 +49,6 @@ func init() {
 
 func addTraceServiceFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("json", false, "Write the canonical service trace envelope as JSON")
-	cmd.Flags().String("env", "", "Optional environment selector for the service trace")
 	cmd.Flags().String("service-id", "", "Exact service or workload id to trace instead of the display name")
 }
 
@@ -93,30 +91,18 @@ func traceServiceOptionsFromCommand(cmd *cobra.Command) (traceServiceOptions, er
 	if err != nil {
 		return traceServiceOptions{}, err
 	}
-	environment, err := cmd.Flags().GetString("env")
-	if err != nil {
-		return traceServiceOptions{}, err
-	}
 	serviceID, err := cmd.Flags().GetString("service-id")
 	if err != nil {
 		return traceServiceOptions{}, err
 	}
 	return traceServiceOptions{
-		JSON:        jsonOutput,
-		Environment: strings.TrimSpace(environment),
-		ServiceID:   strings.TrimSpace(serviceID),
+		JSON:      jsonOutput,
+		ServiceID: strings.TrimSpace(serviceID),
 	}, nil
 }
 
 func fetchTraceServiceStory(client *APIClient, selector string, opts traceServiceOptions) (traceServiceEnvelope, error) {
 	path := "/api/v0/services/" + url.PathEscape(strings.TrimSpace(selector)) + "/story"
-	query := url.Values{}
-	if opts.Environment != "" {
-		query.Set("environment", opts.Environment)
-	}
-	if encoded := query.Encode(); encoded != "" {
-		path += "?" + encoded
-	}
 	var envelope traceServiceEnvelope
 	if err := client.GetEnvelope(path, &envelope); err != nil {
 		return traceServiceEnvelope{}, err

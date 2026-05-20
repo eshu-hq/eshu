@@ -21,10 +21,13 @@ func TestTraceServiceCommandIsRegistered(t *testing.T) {
 	if cmd == nil || cmd.Name() != "service" {
 		t.Fatalf("resolved command = %#v, want service command", cmd)
 	}
-	for _, name := range []string{"json", "env", "service-id", "service-url", "api-key", "profile"} {
+	for _, name := range []string{"json", "service-id", "service-url", "api-key", "profile"} {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Fatalf("trace service flag %q missing", name)
 		}
+	}
+	if cmd.Flags().Lookup("env") != nil {
+		t.Fatal("trace service exposes --env before the service-story API supports environment scoping")
 	}
 }
 
@@ -42,7 +45,7 @@ func TestFetchTraceServiceStoryRequestsCanonicalEnvelope(t *testing.T) {
 	defer server.Close()
 
 	client := &APIClient{BaseURL: server.URL, HTTPClient: server.Client()}
-	got, err := fetchTraceServiceStory(client, "checkout api", traceServiceOptions{Environment: "prod"})
+	got, err := fetchTraceServiceStory(client, "checkout api", traceServiceOptions{})
 	if err != nil {
 		t.Fatalf("fetchTraceServiceStory() error = %v, want nil", err)
 	}
@@ -52,8 +55,8 @@ func TestFetchTraceServiceStoryRequestsCanonicalEnvelope(t *testing.T) {
 	if gotPath != "/api/v0/services/checkout%20api/story" {
 		t.Fatalf("path = %q, want escaped service story path", gotPath)
 	}
-	if gotQuery.Get("environment") != "prod" {
-		t.Fatalf("environment query = %q, want prod", gotQuery.Get("environment"))
+	if gotQuery.Encode() != "" {
+		t.Fatalf("query = %q, want no unsupported selectors", gotQuery.Encode())
 	}
 	if got.Data == nil {
 		t.Fatalf("Data = nil, want service story data")
@@ -128,6 +131,39 @@ func TestRunTraceServiceJSONPassesCanonicalEnvelope(t *testing.T) {
 	}
 }
 
+func TestRunTraceServiceJSONIncludesNullTruthForTransportFailure(t *testing.T) {
+	original := traceFetchServiceStory
+	traceFetchServiceStory = func(_ *APIClient, _ string, _ traceServiceOptions) (traceServiceEnvelope, error) {
+		return traceServiceEnvelope{}, errors.New("connection refused")
+	}
+	defer func() {
+		traceFetchServiceStory = original
+	}()
+
+	out := &bytes.Buffer{}
+	cmd := newTestTraceServiceCommand()
+	cmd.SetOut(out)
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatalf("Set(json) error = %v, want nil", err)
+	}
+
+	err := runTraceService(cmd, []string{"checkout"})
+	if err == nil {
+		t.Fatal("runTraceService() error = nil, want transport failure")
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
+	}
+	if _, ok := payload["truth"]; !ok {
+		t.Fatalf("payload missing truth field: %#v", payload)
+	}
+	if payload["truth"] != nil {
+		t.Fatalf("payload[truth] = %#v, want nil", payload["truth"])
+	}
+}
+
 func TestRunTraceServiceReturnsTypedExitErrorForUnsupportedCapability(t *testing.T) {
 	reset := stubTraceServiceFetch(t, traceServiceEnvelope{
 		Error: &traceServiceError{
@@ -164,9 +200,6 @@ func stubTraceServiceFetch(t *testing.T, envelope traceServiceEnvelope) func() {
 	traceFetchServiceStory = func(_ *APIClient, selector string, opts traceServiceOptions) (traceServiceEnvelope, error) {
 		if selector != "checkout" {
 			t.Fatalf("selector = %q, want checkout", selector)
-		}
-		if opts.Environment != "" {
-			t.Fatalf("unexpected environment selector %q", opts.Environment)
 		}
 		return envelope, nil
 	}
