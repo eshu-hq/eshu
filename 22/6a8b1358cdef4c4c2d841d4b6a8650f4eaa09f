@@ -1,0 +1,56 @@
+go/cmd/eshu/trace.go
+  s_f2f7fbb6f30866::t_7799a959295f7a 15-18,55-56,100-107,109-112,118-130,146-148,154-160,166-200
+  s_f2f7fbb6f30866::t_1bce1c6dd70792 31,161-165
+go/internal/query/openapi_components.go
+  s_f2f7fbb6f30866::t_b4ba511ed20dcd 307-308,337-338
+go/cmd/eshu/trace_test.go
+  s_f2f7fbb6f30866::t_028ec3c72f0cb4 233
+  s_f2f7fbb6f30866::t_c6919aae10590a 202-208
+  s_f2f7fbb6f30866::t_0f892abbcb9bf3 24,45-49,59-66,197-201,209-232,234-237
+go/internal/query/contract.go
+  s_f2f7fbb6f30866::t_adf8d1704df592 114
+  s_f2f7fbb6f30866::t_f85c387be2f1cb 94
+go/internal/query/service_story_dossier_test.go
+  s_f2f7fbb6f30866::t_cc082fb424730e 4,9
+  s_f2f7fbb6f30866::t_aa176765b6b978 232-276,279,281,283-350,352,356-395,397-429
+  s_f2f7fbb6f30866::t_7f2ef98abfc7bc 147,155-162,351,353-355,396
+  s_f2f7fbb6f30866::t_c7c2ec7fcaadfc 277-278,280,282
+go/internal/query/service_workload_resolution.go
+  s_f2f7fbb6f30866::t_1a888a3ce06d91 1-323
+docs/docs/reference/cli-reference.md
+  s_f2f7fbb6f30866::t_480a2bb82a6963 222
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_de64c2553d882d 71-77
+docs/docs/adrs/2026-05-20-public-cli-command-contracts.md
+  s_f2f7fbb6f30866::t_bd52786e8c7f76 267-274
+  s_f2f7fbb6f30866::t_68ce9ff5c06dec 247-266,275
+go/internal/query/workload_context_test.go
+  s_f2f7fbb6f30866::t_1719185e16767b 364,381-388,427,444-451
+go/internal/query/service_story_handler.go
+  s_f2f7fbb6f30866::t_8ea0791a776229 4,42-47,49-93,135-145,147-151,153-157
+  s_f2f7fbb6f30866::t_70c39249b3e690 152,158-164
+  s_f2f7fbb6f30866::t_90ecb05d958a1c 146
+docs/docs/reference/http-api.md
+  s_f2f7fbb6f30866::t_2e91d0c9d10de0 625-639
+  s_f2f7fbb6f30866::t_596edc3266e1eb 112,126
+go/internal/query/openapi_paths_entities.go
+  s_f2f7fbb6f30866::t_d37cd495defbee 180-183,224
+docs/docs/reference/truth-label-protocol.md
+  s_f2f7fbb6f30866::t_e639edc03d5d4b 41-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "226a8b1358cdef4c4c2d841d4b6a8650f4eaa09f",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
