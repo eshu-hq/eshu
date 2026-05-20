@@ -24,6 +24,7 @@ type entityMapRequest struct {
 	Relationship string `json:"relationship"`
 	Depth        int    `json:"depth"`
 	Limit        int    `json:"limit"`
+	OriginalFrom string `json:"-"`
 }
 
 type entityMapCandidate struct {
@@ -107,6 +108,7 @@ func (h *ImpactHandler) entityMap(w http.ResponseWriter, r *http.Request) {
 
 func (r *entityMapRequest) normalize() error {
 	r.From = strings.TrimSpace(r.From)
+	r.OriginalFrom = r.From
 	r.FromType = normalizeEntityMapType(r.FromType)
 	r.RepoID = strings.TrimSpace(r.RepoID)
 	r.Environment = strings.TrimSpace(r.Environment)
@@ -138,6 +140,13 @@ func (r *entityMapRequest) normalize() error {
 		return fmt.Errorf("relationship must be an uppercase graph relationship type")
 	}
 	return nil
+}
+
+func (r entityMapRequest) responseFrom() string {
+	if r.OriginalFrom != "" {
+		return r.OriginalFrom
+	}
+	return r.From
 }
 
 func normalizeEntityMapType(value string) string {

@@ -14,7 +14,7 @@ func entityMapResponse(
 	return map[string]any{
 		"status":     status,
 		"command":    "map_from",
-		"from":       req.From,
+		"from":       req.responseFrom(),
 		"scope":      entityMapScope(req),
 		"resolution": resolution,
 		"sections":   sections,
@@ -35,12 +35,16 @@ func entityMapResponse(
 }
 
 func entityMapScope(req entityMapRequest) map[string]any {
-	return compactStringMap(map[string]any{
+	scope := compactStringMap(map[string]any{
 		"from_type":    req.FromType,
 		"repo_id":      req.RepoID,
 		"environment":  req.Environment,
 		"relationship": req.Relationship,
 	})
+	if req.responseFrom() != req.From {
+		scope["normalized_from"] = req.From
+	}
+	return scope
 }
 
 func entityMapWarnings(status string) []string {

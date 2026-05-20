@@ -31,7 +31,8 @@ func (h *ImpactHandler) resolveEntityMapStart(
 		candidates = candidates[:req.Limit]
 	}
 	resolution := map[string]any{
-		"input":      req.From,
+		"input":      req.responseFrom(),
+		"normalized": req.From,
 		"from_type":  req.FromType,
 		"status":     "no_match",
 		"candidates": entityMapCandidateMaps(candidates),

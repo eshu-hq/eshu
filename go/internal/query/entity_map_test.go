@@ -157,7 +157,7 @@ func TestEntityMapUsesTypedAnchorAndGroupsBoundedNeighborhood(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/impact/entity-map",
-		bytes.NewBufferString(`{"from":"checkout","from_type":"service","depth":2,"limit":3}`),
+		bytes.NewBufferString(`{"from":"checkout","from_type":"service","repo_id":"repo-checkout","environment":"prod","depth":2,"limit":3}`),
 	)
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
@@ -181,6 +181,23 @@ func TestEntityMapUsesTypedAnchorAndGroupsBoundedNeighborhood(t *testing.T) {
 		}
 		if !strings.Contains(call.cypher, "LIMIT $limit") {
 			t.Fatalf("traversal cypher = %s, want limit parameter", call.cypher)
+		}
+		if strings.Contains(call.cypher, "start.repo_id") || strings.Contains(call.cypher, "start.environment") {
+			t.Fatalf("traversal cypher = %s, want filters scoped to returned entity, not the start node", call.cypher)
+		}
+		for _, want := range []string{
+			"coalesce(entity.environment, '') = '' OR entity.environment = $environment",
+			"coalesce(entity.repo_id, '') = '' OR entity.repo_id = $repo_id",
+		} {
+			if !strings.Contains(call.cypher, want) {
+				t.Fatalf("traversal cypher missing %q: %s", want, call.cypher)
+			}
+		}
+		if got, want := call.params["repo_id"], "repo-checkout"; got != want {
+			t.Fatalf("traversal repo_id param = %#v, want %#v", got, want)
+		}
+		if got, want := call.params["environment"], "prod"; got != want {
+			t.Fatalf("traversal environment param = %#v, want %#v", got, want)
 		}
 	}
 
@@ -257,7 +274,13 @@ func TestEntityMapResolvesTerraformAddressWithoutWholeGraphScan(t *testing.T) {
 	}
 
 	data := decodeEntityMapData(t, w)
+	if got, want := data["from"], "terraform/aws_lb.main"; got != want {
+		t.Fatalf("data.from = %#v, want original selector %#v", got, want)
+	}
 	resolution := data["resolution"].(map[string]any)
+	if got, want := resolution["input"], "terraform/aws_lb.main"; got != want {
+		t.Fatalf("resolution.input = %#v, want original selector %#v", got, want)
+	}
 	selected := resolution["selected"].(map[string]any)
 	if got, want := selected["id"], "tfstate:aws_lb.main"; got != want {
 		t.Fatalf("selected.id = %#v, want %#v", got, want)

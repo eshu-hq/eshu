@@ -53,8 +53,8 @@ func entityMapTraversalCypher(selected entityMapCandidate, direction string, rel
 	}
 	return fmt.Sprintf(`MATCH (start:%s {%s: $from_id})
 MATCH path = %s
-WHERE ($environment = '' OR coalesce(entity.environment, start.environment, '') = '' OR entity.environment = $environment)
-  AND ($repo_id = '' OR coalesce(entity.repo_id, entity.id, '') = $repo_id OR coalesce(start.repo_id, start.id, '') = $repo_id)
+WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
+  AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR entity.repo_id = $repo_id OR (entity:Repository AND entity.id = $repo_id))
 RETURN DISTINCT coalesce(entity.id, entity.uid, entity.resource_id, entity.path, entity.name) AS entity_id,
        coalesce(entity.name, entity.address, entity.qualified_name, entity.path, entity.id, entity.uid) AS entity_name,
        labels(entity) AS entity_labels,
