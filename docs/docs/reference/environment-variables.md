@@ -110,6 +110,7 @@ advisory report.
 | `ESHU_SNAPSHOT_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner: `NumCPU` | collector | Concurrent repo snapshot workers. | Raise when CPU/disk/network have headroom and many small repos wait; lower when memory or disk I/O saturates. |
 | `ESHU_PARSE_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner: `NumCPU` | collector snapshotter | Concurrent file parse workers inside each snapshot. | Raise for CPU headroom; lower when parser memory or disk reads saturate. |
 | `ESHU_STREAM_BUFFER` | `0` | collector | Generation stream buffer; `0` derives from worker count. | Rarely tune; raise only when profiling shows producer/consumer handoff idle. |
+| `ESHU_REPO_SCHEDULED_SYNC_ENABLED` | `true` | ingester | Enables broad scheduled repository selection when no webhook triggers are queued. | Set to `false` with `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED=true` for webhook-only Git refresh in hosted deployments. |
 | `ESHU_LARGE_REPO_FILE_THRESHOLD` | `1000` | collector | File-count threshold for large-repo semaphore. | Lower when medium repos cause memory spikes; raise when many medium repos are being over-throttled. |
 | `ESHU_LARGE_REPO_MAX_CONCURRENT` | `2` | collector | Concurrent large repo snapshots. | Lower for memory stability; raise on high-memory machines after advisory reports show large repos are the bottleneck. |
 | `ESHU_DISCOVERY_REPORT` | unset | `eshu index`, bootstrap-index | Writes per-repo discovery advisory JSON. | Set before changing ignore/vendor rules or raising caps so the input shape is evidence-backed. |

@@ -713,8 +713,27 @@ The verifier creates a local bare Git remote, seeds the managed workspace
 checkout, indexes the first generation, advances the remote default branch,
 sends a signed GitHub `push` webhook to `eshu-webhook-listener`, and verifies
 the queued trigger is handed off through the ingester to a new generation whose
-content is visible through the HTTP API. It uses local Compose only; no live
-GitHub webhook or public network endpoint is required.
+content is visible through the HTTP API. It sets
+`ESHU_REPO_SCHEDULED_SYNC_ENABLED=false` so the proof can only pass through the
+webhook handoff path, not broad scheduled repository polling. It uses local
+Compose only; no live GitHub webhook or public network endpoint is required.
+
+No-Regression Evidence: after adding explicit scheduled-sync control, focused
+tests passed with
+`go test ./cmd/ingester ./internal/collector -count=1`. The local webhook
+Compose proof passed with `bash scripts/verify_webhook_refresh_compose.sh`:
+the baseline generation indexed with scheduled sync enabled, the signed GitHub
+push row was accepted, the ingester was recreated with
+`ESHU_REPO_SCHEDULED_SYNC_ENABLED=false`, the trigger reached `handed_off`, a
+new Git generation was recorded, and the refreshed content marker was visible
+through the HTTP API. Remote Compose render validation passed with
+`docker-compose --env-file .env.remote-e2e.example -f docker-compose.remote-e2e.yaml config`.
+
+Observability Evidence: the path remains diagnosable through
+`webhook_refresh_triggers.status` (`queued`, `claimed`, `handed_off`, `failed`),
+the existing `eshu_dp_webhook_trigger_decisions_total` and
+`eshu_dp_webhook_store_operations_total` metrics, bounded webhook listener
+request logs, and ingester Git sync lifecycle logs.
 
 ## Runtime Tree Hygiene
 

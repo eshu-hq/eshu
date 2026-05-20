@@ -250,6 +250,10 @@ full re-index whenever possible.
 - the `webhook-listener` should enqueue provider refresh triggers without
   cloning repositories, parsing files, reading cloud resources, or writing graph
   truth directly
+- hosted deployments that use public Git webhooks can set
+  `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED=true` and
+  `ESHU_REPO_SCHEDULED_SYNC_ENABLED=false` so the ingester claims queued
+  default-branch webhook triggers without broad scheduled repository polling
 - the `workflow-coordinator` should stay dark until claim ownership is enabled
 - the `resolution-engine` should drain queued follow-up work and shared
   corrections from durable state

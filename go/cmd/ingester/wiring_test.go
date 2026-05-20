@@ -191,6 +191,53 @@ func TestBuildIngesterCollectorServiceUsesNativeSnapshotter(t *testing.T) {
 	}
 }
 
+func TestBuildIngesterCollectorServiceUsesWebhookSelectorWithoutScheduledFallback(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildIngesterCollectorService(
+		postgres.SQLDB{},
+		mapGetenv(map[string]string{
+			"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED": "true",
+			"ESHU_REPO_SCHEDULED_SYNC_ENABLED":     "false",
+		}),
+		func() (string, error) { return t.TempDir(), nil },
+		func() []string { return []string{"PATH=/usr/bin"} },
+		nil, // tracer
+		nil, // instruments
+		nil, // logger
+	)
+	if err != nil {
+		t.Fatalf("buildIngesterCollectorService() error = %v, want nil", err)
+	}
+
+	source := service.Source.(*collector.GitSource)
+	if _, ok := source.Selector.(collector.WebhookTriggerRepositorySelector); !ok {
+		t.Fatalf("buildIngesterCollectorService() selector type = %T, want collector.WebhookTriggerRepositorySelector", source.Selector)
+	}
+}
+
+func TestBuildIngesterCollectorServiceRejectsDisabledScheduledSyncWithoutWebhookHandoff(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildIngesterCollectorService(
+		postgres.SQLDB{},
+		mapGetenv(map[string]string{
+			"ESHU_REPO_SCHEDULED_SYNC_ENABLED": "false",
+		}),
+		func() (string, error) { return t.TempDir(), nil },
+		func() []string { return []string{"PATH=/usr/bin"} },
+		nil, // tracer
+		nil, // instruments
+		nil, // logger
+	)
+	if err == nil {
+		t.Fatal("buildIngesterCollectorService() error = nil, want invalid config error")
+	}
+	if !strings.Contains(err.Error(), "ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED=true") {
+		t.Fatalf("buildIngesterCollectorService() error = %q, want webhook handoff guidance", err)
+	}
+}
+
 func TestBuildIngesterCollectorServiceWiresDiscoveryPathGlobOverlay(t *testing.T) {
 	t.Parallel()
 
@@ -219,6 +266,12 @@ func TestBuildIngesterCollectorServiceWiresDiscoveryPathGlobOverlay(t *testing.T
 	}
 	if got, want := snapshotter.DiscoveryOptions.IgnoredPathGlobs[0].Pattern, "generated/**"; got != want {
 		t.Fatalf("IgnoredPathGlobs[0].Pattern = %q, want %q", got, want)
+	}
+}
+
+func mapGetenv(values map[string]string) func(string) string {
+	return func(key string) string {
+		return values[key]
 	}
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -144,19 +145,33 @@ func buildIngesterCollectorService(
 	committer.SkipRelationshipBackfill = true
 	committer.Logger = logger
 
-	selector := collector.RepositorySelector(collector.NativeRepositorySelector{Config: config, Logger: logger})
+	scheduledSyncConfig, err := collector.LoadScheduledSyncConfig(getenv)
+	if err != nil {
+		return collector.Service{}, err
+	}
+
+	nativeSelector := collector.NativeRepositorySelector{Config: config, Logger: logger}
+	selector := collector.RepositorySelector(nativeSelector)
 	handoffConfig := collector.LoadWebhookTriggerHandoffConfig("ingester", getenv)
+	if !scheduledSyncConfig.Enabled && !handoffConfig.Enabled {
+		return collector.Service{}, errors.New("ESHU_REPO_SCHEDULED_SYNC_ENABLED=false requires ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED=true")
+	}
 	if handoffConfig.Enabled {
-		selector = collector.PriorityRepositorySelector{Selectors: []collector.RepositorySelector{
-			collector.WebhookTriggerRepositorySelector{
-				Config:     config,
-				Store:      postgres.NewWebhookTriggerStore(database),
-				Owner:      handoffConfig.Owner,
-				ClaimLimit: handoffConfig.ClaimLimit,
-				Logger:     logger,
-			},
-			selector,
-		}}
+		webhookSelector := collector.WebhookTriggerRepositorySelector{
+			Config:     config,
+			Store:      postgres.NewWebhookTriggerStore(database),
+			Owner:      handoffConfig.Owner,
+			ClaimLimit: handoffConfig.ClaimLimit,
+			Logger:     logger,
+		}
+		if scheduledSyncConfig.Enabled {
+			selector = collector.PriorityRepositorySelector{Selectors: []collector.RepositorySelector{
+				webhookSelector,
+				nativeSelector,
+			}}
+		} else {
+			selector = webhookSelector
+		}
 	}
 
 	return collector.Service{

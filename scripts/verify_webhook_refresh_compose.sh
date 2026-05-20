@@ -7,7 +7,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNTIME_LIB="$REPO_ROOT/scripts/lib/compose_verification_runtime_common.sh"
 ASSERT_LIB="$REPO_ROOT/scripts/lib/compose_verification_assertions.sh"
 
-TMP_DIR="$(mktemp -d)"
+TMP_PARENT="${ESHU_COMPOSE_TMPDIR:-$REPO_ROOT/.eshu-compose-runs}"
+mkdir -p "$TMP_PARENT"
+TMP_DIR="$(mktemp -d "$TMP_PARENT/webhook-refresh.XXXXXX")"
 TMP_DIR="$(cd "$TMP_DIR" && pwd -P)"
 FIXTURE_ROOT="$TMP_DIR/fixtures"
 SOURCE_REPO="$TMP_DIR/source-repo"
@@ -178,6 +180,7 @@ seed_managed_checkout() {
 		set -eu
 		rm -rf /data/repos/eshu-hq/eshu
 		mkdir -p /data/repos/eshu-hq
+		git config --global --add safe.directory /fixtures/remotes/eshu.git
 		git clone /fixtures/remotes/eshu.git /data/repos/eshu-hq/eshu
 	'
 }
@@ -248,6 +251,7 @@ export ESHU_REPOSITORY_RULES_JSON='[]'
 export ESHU_WEBHOOK_GITHUB_SECRET="$WEBHOOK_SECRET"
 export ESHU_WEBHOOK_DEFAULT_BRANCH="main"
 export ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED="true"
+export ESHU_REPO_SCHEDULED_SYNC_ENABLED="true"
 
 eshu_require_tool awk
 eshu_require_tool curl
@@ -307,7 +311,8 @@ eshu_assert_json_query "$WEBHOOK_RESPONSE_FILE" '
 ' "webhook listener did not accept and queue the signed GitHub push"
 
 echo "Restarting ingester to claim the queued webhook trigger..."
-"${COMPOSE_CMD[@]}" up -d --no-deps ingester
+export ESHU_REPO_SCHEDULED_SYNC_ENABLED="false"
+"${COMPOSE_CMD[@]}" up -d --no-deps --force-recreate ingester
 wait_for_sql_value "SELECT status FROM webhook_refresh_triggers WHERE delivery_id = 'webhook-refresh-compose-1'" "handed_off" 120 2
 wait_for_generation_count_gt "$INITIAL_GENERATION_COUNT" 120 2
 eshu_compose_wait_for_index_completion 180 2 "$INDEX_STATUS_FILE"
