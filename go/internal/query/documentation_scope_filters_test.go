@@ -48,21 +48,41 @@ func TestBuildDocumentationFindingsSQLFiltersPersistedScopeIdentity(t *testing.T
 		ScopeID:      "docs-scope",
 		GenerationID: "gen-1",
 		Repository:   "acme/api",
+		FindingType:  "command_truth",
 		Limit:        50,
 	})
 
 	for _, fragment := range []string{
 		"jsonb_build_object('scope_id', fact_records.scope_id, 'generation_id', fact_records.generation_id)",
 		"LEFT JOIN ingestion_scopes",
+		"fact_records.fact_kind = 'documentation_finding'",
+		"fact_records.is_tombstone = FALSE",
+		"(fact_records.payload->'permissions'->>'viewer_can_read_source') = 'true'",
 		"fact_records.scope_id = $1",
 		"fact_records.generation_id = $2",
-		"ingestion_scopes.metadata->>'repo' = $3",
+		"ingestion_scopes.payload->>'repo' = $3",
+		"fact_records.payload->>'finding_type' = $4",
+		"ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC",
 	} {
 		if !strings.Contains(query, fragment) {
 			t.Fatalf("documentation findings SQL missing fragment %q: %s", fragment, query)
 		}
 	}
-	if got, want := args[:3], []any{"docs-scope", "gen-1", "acme/api"}; !equalDocumentationAnySlice(got, want) {
+	if strings.Contains(query, "SELECT payload") {
+		t.Fatalf("documentation findings SQL must qualify fact_records.payload after joining ingestion_scopes: %s", query)
+	}
+	for _, fragment := range []string{
+		"WHERE fact_kind",
+		"AND is_tombstone",
+		"(payload->",
+		"ORDER BY observed_at",
+		", fact_id DESC",
+	} {
+		if strings.Contains(query, fragment) {
+			t.Fatalf("documentation findings SQL contains unqualified joined-column fragment %q: %s", fragment, query)
+		}
+	}
+	if got, want := args[:4], []any{"docs-scope", "gen-1", "acme/api", "command_truth"}; !equalDocumentationAnySlice(got, want) {
 		t.Fatalf("filter args = %#v, want %#v", got, want)
 	}
 }
