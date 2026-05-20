@@ -22,9 +22,9 @@ orchestration. It does not own service runtime internals:
 - subcommand groups:
   - service launch: `mcp`, `api`, `serve` plus aliases (`service.go`);
     `version`, `help`, `doctor` (`root.go`, `doctor.go`)
-  - indexing: `index`, `list`, `stats`, `delete`, `clean`, `query`,
+  - indexing: `scan`, `index`, `list`, `stats`, `delete`, `clean`, `query`,
     `watch`, `unwatch`, `watching`, `add-package`, `finalize` plus
-    `i`/`ls`/`rm`/`w` aliases (`basic.go`)
+    `i`/`ls`/`rm`/`w` aliases (`scan.go`, `basic.go`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
     `logs`, `upgrade` (`graph.go`, `graph_install.go`,
     `local_graph.go`)
@@ -54,6 +54,16 @@ launched runtime via the shared `telemetry` package. Errors print to
 - `SilenceUsage` and `SilenceErrors` are set on the root command
 - `eshu graph start` requires `eshu-reducer` and `eshu-ingester` on `PATH`;
   fresh local Eshu service runs need `go/bin` on `PATH` after rebuilding
+- `eshu scan` is the readiness contract for one local source. It preflights the
+  configured API status surface, launches `eshu-bootstrap-index`, then polls
+  `/api/v0/status/pipeline` until health is `healthy`, queue work is drained,
+  no failures or dead letters exist, and at least one generation completed. It
+  also probes `/api/v0/repositories?limit=1` before and after the run so the
+  API query surface has to respond, not just the status store. It reports
+  bootstrap and queue-zero timings. Collector-complete and
+  source-local projection-complete timings remain explicit `null` values in
+  JSON because the bootstrap child logs those events today but does not expose
+  parent-process structured timestamps.
 - `eshu mcp start --workspace-root <repo>` attaches to the active local owner.
   The stdio path execs the internal `local-host mcp-stdio` attach command, while
   `--transport http` and legacy `--transport sse` exec `eshu-mcp-server` with

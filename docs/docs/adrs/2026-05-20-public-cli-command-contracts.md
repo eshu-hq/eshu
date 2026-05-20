@@ -167,6 +167,29 @@ Performance requirement: implementation must capture small, medium, and
 representative large-run timing. Full-corpus proof must report collector,
 projection, and queue-zero timing separately.
 
+Implementation note for issue #476: the first `eshu scan` PR implements the
+correct readiness gate over the existing `bootstrap-index` runtime and
+`/api/v0/status/pipeline`, and it probes `/api/v0/repositories?limit=1` before
+and after the run so a status-only API cannot be mistaken for a queryable
+source. It reports bootstrap completion and queue-zero timings.
+Collector-complete and source-local projection-complete timings are rendered as
+explicit `null` values with warnings until the bootstrap/runtime status
+contract exposes those milestones as structured parent-process fields. This is
+intentional: the CLI must not fabricate precision from child logs.
+
+Performance Evidence: focused implementation proof is command-level only:
+`go test ./cmd/eshu -run 'TestRunScan' -count=1` covers preflight, bootstrap
+dispatch, readiness waiting, dead-letter failure, and JSON output without
+changing worker counts, batches, queue shape, graph writes, or reducer logic.
+Representative small/medium/large runtime timings remain required before
+public examples present `eshu scan` as a measured throughput claim.
+
+No-Observability-Change: `eshu scan` reuses existing operator signals from
+`/api/v0/status/pipeline`: `health.state`, `health.reasons`, queue outstanding,
+pending, in-flight, retrying, failed, dead-letter counts, generation history,
+stage summaries, and domain backlogs. The command adds no new runtime worker,
+collector, graph query, metric, span, or log path.
+
 ### `eshu trace service <name>`
 
 `eshu trace service <name>` means: explain how a service gets from code to
