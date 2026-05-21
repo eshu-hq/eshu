@@ -1,0 +1,32 @@
+docs/docs/reference/nornicdb-tuning.md
+  s_f2f7fbb6f30866::t_1241675c871c99 56-80
+go/internal/storage/cypher/edge_writer_code_call_labels.go
+  s_f2f7fbb6f30866::t_e4973b4c589a9e 125-148,164-175
+go/internal/storage/cypher/edge_writer_inheritance_override_test.go
+  s_f2f7fbb6f30866::t_57eddfccacf6a9 48-84,97-128
+  s_f2f7fbb6f30866::t_fccffaf726257a 85-96
+go/internal/storage/cypher/edge_writer.go
+  s_f2f7fbb6f30866::t_2bfda4d338e51b 338
+go/internal/reducer/inheritance_materialization_test.go
+  s_f2f7fbb6f30866::t_3dd29e2702fd58 169-174
+go/internal/storage/cypher/edge_writer_inheritance_labels.go
+  s_f2f7fbb6f30866::t_44a28cd54180fa 1-102
+go/internal/reducer/inheritance_materialization.go
+  s_f2f7fbb6f30866::t_42ecdcaaa18829 199,204,211-216,226,231,238-243,248,253,260-265,274,279,288,295-300,329-333,335-337,355,361-362,383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "7917abd0148052aa12817abc9e3e6db01e7dec91",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
