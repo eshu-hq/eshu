@@ -153,6 +153,25 @@ distinguish partial REST integration coverage from auth failures, process
 crashes, and unrelated service scans through existing workflow item state,
 `aws_scan_status`, API-call stats, throttle counts, and warning facts.
 
+No-Regression Evidence: after adding scheduled AWS workflow planning and repo
+alias-aware Terraform-state graph discovery, the focused gate covered AWS
+scheduled work creation without AWS freshness triggers plus Terraform-state
+backend-readiness query shape:
+`go test ./internal/coordinator ./internal/storage/postgres -run 'TestAWSScheduledWorkPlannerPlansConfiguredTargets|TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers|TestTerraformStateBackendFactReaderReturnsS3Candidates|TestTerraformStateGitReadinessCheckerReportsActiveGeneration' -count=1`.
+The change does not alter collector worker counts, AWS scanner behavior,
+Terraform-state parsing, graph writes, or claim lease semantics; it only
+creates bounded AWS work rows from configured target scopes when
+`scheduled_scan_enabled=true` and lets Terraform-state discovery resolve
+configured repo names such as `iac-eks-eshu` to active canonical Git repo ids.
+
+Observability Evidence: the existing workflow-coordinator reconcile metrics,
+workflow work-item status rows, AWS scan status rows, AWS API-call/throttle
+metrics, Terraform-state `waiting_on_git_generation` logs, and ingestion commit
+logs expose whether scheduled AWS work was planned, claimed, committed, or
+blocked. No new metric label was needed because the new scheduled path reuses
+the same `(account_id, region, service_kind)` workflow and collector signals as
+AWS freshness work.
+
 ## Confluence Collector Smoke
 
 Use this when testing the Confluence collector against a real Atlassian site.

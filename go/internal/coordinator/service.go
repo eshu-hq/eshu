@@ -40,6 +40,11 @@ type PackageRegistryPlanner interface {
 	PlanPackageRegistryWork(context.Context, PackageRegistryPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// AWSScheduledPlanner plans scheduled AWS collector work from configuration.
+type AWSScheduledPlanner interface {
+	PlanAWSScheduledWork(context.Context, AWSScheduledPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // Service is the dark-deployed workflow coordinator runner.
 type Service struct {
 	Config                 Config
@@ -49,6 +54,7 @@ type Service struct {
 	TerraformStatePlanner  TerraformStatePlanner
 	OCIRegistryPlanner     OCIRegistryPlanner
 	PackageRegistryPlanner PackageRegistryPlanner
+	AWSScheduledPlanner    AWSScheduledPlanner
 	AWSFreshnessTriggers   AWSFreshnessTriggerStore
 	AWSFreshnessPlanner    AWSFreshnessPlanner
 	AWSFreshnessEvents     awsFreshnessEventCounter
@@ -176,6 +182,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.schedulePackageRegistryWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.scheduleAWSScheduledWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),

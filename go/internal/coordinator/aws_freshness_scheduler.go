@@ -30,7 +30,8 @@ type AWSFreshnessPlanRequest struct {
 type AWSFreshnessWorkPlanner struct{}
 
 type awsFreshnessRuntimeConfiguration struct {
-	TargetScopes []awsFreshnessTargetScopeConfiguration `json:"target_scopes"`
+	TargetScopes         []awsFreshnessTargetScopeConfiguration `json:"target_scopes"`
+	ScheduledScanEnabled bool                                   `json:"scheduled_scan_enabled"`
 }
 
 type awsFreshnessTargetScopeConfiguration struct {

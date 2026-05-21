@@ -59,6 +59,7 @@ x-collector-env: &remote_e2e_collector_env
         "enabled": true,
         "claims_enabled": true,
         "configuration": {
+          "scheduled_scan_enabled": true,
           "target_scopes": [
             {
               "account_id": "${ESHU_AWS_E2E_ACCOUNT_ID:?set ESHU_AWS_E2E_ACCOUNT_ID}",
@@ -251,6 +252,7 @@ services:
       <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
       ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: active
       ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED: "true"
+      ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL: ${ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL:-5m}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
       interval: 15s

@@ -69,7 +69,7 @@ func TestTerraformStateBackendFactReaderReturnsS3Candidates(t *testing.T) {
 	}
 	query := db.queries[0].query
 	for _, want := range []string{
-		"FROM fact_records",
+		"JOIN fact_records",
 		"terraform_backends",
 		"active_generation_id",
 		"generation.status = 'active'",
@@ -81,6 +81,16 @@ func TestTerraformStateBackendFactReaderReturnsS3Candidates(t *testing.T) {
 	}
 	if strings.Contains(query, "latest_generations") {
 		t.Fatalf("query contains latest generation fallback: %s", query)
+	}
+	for _, want := range []string{
+		"requested_repos",
+		"active_repositories",
+		"requested_repo_id",
+		"canonical_repo_id",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("query missing repo alias resolution term %q: %s", want, query)
+		}
 	}
 	if !strings.Contains(db.queries[1].query, "terragrunt_remote_states") {
 		t.Fatalf("expected second query to read terragrunt_remote_states, got: %s", db.queries[1].query)
@@ -422,6 +432,14 @@ func TestTerraformStateGitReadinessCheckerReportsActiveGeneration(t *testing.T) 
 		if !strings.Contains(query, want) {
 			t.Fatalf("query missing %q: %s", want, query)
 		}
+	}
+	for _, want := range []string{"payload->>'repo_id'", "payload->>'graph_id'", "payload->>'name'", "payload->>'repo_slug'"} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("query missing alias match %q: %s", want, query)
+		}
+	}
+	if strings.Contains(query, "COALESCE") {
+		t.Fatalf("query uses COALESCE fallback and can miss repo names when repo_id is present: %s", query)
 	}
 }
 

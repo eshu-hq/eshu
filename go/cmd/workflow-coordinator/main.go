@@ -89,6 +89,7 @@ func run(parent context.Context) error {
 		},
 		OCIRegistryPlanner:     coordinator.OCIRegistryWorkPlanner{},
 		PackageRegistryPlanner: coordinator.PackageRegistryWorkPlanner{},
+		AWSScheduledPlanner:    coordinator.AWSScheduledWorkPlanner{},
 		AWSFreshnessTriggers:   awsFreshnessStore,
 		AWSFreshnessPlanner:    coordinator.AWSFreshnessWorkPlanner{},
 		AWSFreshnessEvents:     instruments.AWSFreshnessEvents,

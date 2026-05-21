@@ -88,6 +88,10 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `PackageRegistryWorkPlanner` — plans package-registry collection runs from
   configured package/feed targets without opening registry connections. Each
   target becomes one claimable work item keyed by its configured `scope_id`.
+- `AWSScheduledWorkPlanner` — plans scheduled AWS collection runs from the
+  configured target scopes without requiring a separate provider webhook when
+  the AWS collector configuration sets `scheduled_scan_enabled=true`. Each
+  `(account_id, region, service_kind)` tuple becomes one claimable work item.
 - `AWSFreshnessWorkPlanner` — plans targeted AWS collection runs from claimed
   freshness triggers. Each unique `(account_id, region, service_kind)` target
   becomes one normal AWS collector claim.
@@ -177,8 +181,9 @@ warning (`collector_instance_drift_detected`, fields
   does not implement the broader interface the recording calls are silently
   skipped. `otelMetrics` (returned by `NewMetrics`) implements all three.
 - This package only schedules families with explicit planners. Terraform-state,
-  OCI registry, and package registry have planners today; other collector families remain
-  instance-reconciled only until they define a bounded work unit.
+  OCI registry, package registry, and AWS scheduled scans have planners today;
+  other collector families remain instance-reconciled only until they define a
+  bounded work unit.
 
 ## Related docs
 
