@@ -227,6 +227,7 @@ confluenceCollector:
   revisionHistoryLimit: 3
   baseUrl: ""
   spaceId: ""
+  spaceIds: []
   spaceKey: ""
   rootPageId: ""
   pageLimit: ""

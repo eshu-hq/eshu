@@ -2,9 +2,10 @@
 
 ## Purpose
 
-`collector-confluence` reads a bounded Confluence Cloud space or page tree and
-emits source-neutral documentation facts. It is the first documentation-source
-collector vertical slice for Eshu's read-only evidence boundary.
+`collector-confluence` reads a bounded Confluence Cloud space, an explicit list
+of spaces, or a page tree and emits source-neutral documentation facts. It is
+the first documentation-source collector vertical slice for Eshu's read-only
+evidence boundary.
 
 ## Ownership Boundary
 
@@ -33,7 +34,8 @@ credentials, and the standard Postgres env contract used by
 Required Confluence values:
 
 - `ESHU_CONFLUENCE_BASE_URL`
-- exactly one of `ESHU_CONFLUENCE_SPACE_ID` or `ESHU_CONFLUENCE_ROOT_PAGE_ID`
+- exactly one of `ESHU_CONFLUENCE_SPACE_ID`, `ESHU_CONFLUENCE_SPACE_IDS`, or
+  `ESHU_CONFLUENCE_ROOT_PAGE_ID`
 - either `ESHU_CONFLUENCE_BEARER_TOKEN` or both `ESHU_CONFLUENCE_EMAIL` and
   `ESHU_CONFLUENCE_API_TOKEN`
 
@@ -42,6 +44,10 @@ Optional values:
 - `ESHU_CONFLUENCE_SPACE_KEY`
 - `ESHU_CONFLUENCE_PAGE_LIMIT`
 - `ESHU_CONFLUENCE_POLL_INTERVAL` (Go duration, defaults to `5m`)
+
+`ESHU_CONFLUENCE_SPACE_IDS` is an explicit comma-separated allowlist of numeric
+space IDs. Leave it blank unless you are using the multi-space mode; blank does
+not discover every visible space.
 
 ## Telemetry
 
@@ -73,13 +79,19 @@ Collector Performance Evidence: `cd go && go test ./internal/collector/confluenc
 
 Collector Observability Evidence: source-stage metrics now cover HTTP GET count and duration, permission-denied pages, document/section/link counts, and sync failure class. `TestSourceRecordsBoundedConfluenceMetrics`, `TestSourceRecordsSyncFailureClass`, and `TestHTTPClientRecordsBoundedRequestMetrics` prove the new Confluence metric labels are limited to `operation`, `result`, `status_class`, and `failure_class`.
 
-Collector Deployment Evidence: the command keeps the shared hosted runtime surface for `/healthz`, `/readyz`, `/metrics`, and `/admin/status`. Chart rendering and ServiceMonitor coverage remain validated by `scripts/verify_confluence_collector_helm.sh` for the deployed collector command, service, and scrape target.
+No-Regression Evidence: `cd go && go test ./internal/collector/confluence ./internal/telemetry ./cmd/collector-confluence -count=1` covered single-space, explicit multi-space, page-tree, permission-gap, stale-page, content, metrics, HTTP client, telemetry contract, and command wiring paths. The run completed in 0.479s for `internal/collector/confluence`, 0.909s for `internal/telemetry`, and 0.841s for `cmd/collector-confluence`.
+
+No-Observability-Change: multi-space mode reuses the existing Confluence HTTP request counters and durations, permission-denied counter, documents/sections/links emitted counters, sync failure counter, shared `collector.observe` span, `eshu_dp_collector_observe_duration_seconds`, `eshu_dp_facts_emitted_total`, `eshu_dp_generation_fact_count`, and `eshu_dp_facts_committed_total`; each emitted generation still has one bounded `scope_id`.
+
+Collector Deployment Evidence: the command keeps the shared hosted runtime surface for `/healthz`, `/readyz`, `/metrics`, and `/admin/status`. Chart rendering and ServiceMonitor coverage remain validated by `scripts/verify_confluence_collector_helm.sh` for the deployed collector command, service, scrape target, singular space ID mode, and explicit `spaceIds` allowlist mode.
 
 ## Invariants
 
 - The collector is read-only. It only issues Confluence HTTP `GET` requests.
 - It must emit documentation facts through `collector.Service`; do not write
   facts directly from the command package.
+- Multi-space mode must stay an explicit allowlist. Do not turn a blank
+  `ESHU_CONFLUENCE_SPACE_IDS` value into site-wide crawling.
 - Permission gaps in a page tree are partial-sync evidence, not fatal errors.
 - Source metadata must preserve page count, failure count, and sync status so
   operators can distinguish complete and partial generations.

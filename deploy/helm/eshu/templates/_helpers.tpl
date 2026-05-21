@@ -297,6 +297,10 @@ app.kubernetes.io/component: package-registry-collector
 - name: ESHU_CONFLUENCE_SPACE_ID
   value: {{ . | quote }}
 {{- end }}
+{{- with .Values.confluenceCollector.spaceIds }}
+- name: ESHU_CONFLUENCE_SPACE_IDS
+  value: {{ join "," . | quote }}
+{{- end }}
 {{- with .Values.confluenceCollector.spaceKey }}
 - name: ESHU_CONFLUENCE_SPACE_KEY
   value: {{ . | quote }}

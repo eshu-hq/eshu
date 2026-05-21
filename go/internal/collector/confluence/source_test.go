@@ -96,6 +96,73 @@ func TestSourceSyncsSpacePagesIntoDocumentationFacts(t *testing.T) {
 	}
 }
 
+func TestSourceSyncsConfiguredSpaceIDAllowlistAsSeparateGenerations(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeClient{
+		spacesByID: map[string]Space{
+			"100": {ID: "100", Key: "DEV", Name: "Development"},
+			"200": {ID: "200", Key: "OPS", Name: "Operations"},
+		},
+		spacePagesByID: map[string][]Page{
+			"100": {withSpace(confluencePage("dev-page", "Dev Runbook", 1, `<p>dev</p>`), "100")},
+			"200": {withSpace(confluencePage("ops-page", "Ops Runbook", 2, `<p>ops</p>`), "200")},
+		},
+	}
+	source := Source{
+		Client: client,
+		Config: SourceConfig{
+			BaseURL:  "https://example.atlassian.net/wiki",
+			SpaceIDs: []string{"100", "200"},
+			Now:      fixedNow,
+		},
+	}
+
+	first, ok, err := source.Next(context.Background())
+	if err != nil {
+		t.Fatalf("first Next() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("first Next() ok = false, want true")
+	}
+	second, ok, err := source.Next(context.Background())
+	if err != nil {
+		t.Fatalf("second Next() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("second Next() ok = false, want true")
+	}
+	_, ok, err = source.Next(context.Background())
+	if err != nil {
+		t.Fatalf("third Next() error = %v, want nil", err)
+	}
+	if ok {
+		t.Fatal("third Next() ok = true, want drained false")
+	}
+	nextCycle, ok, err := source.Next(context.Background())
+	if err != nil {
+		t.Fatalf("fourth Next() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("fourth Next() ok = false, want next cycle true")
+	}
+
+	if first.Scope.ScopeID == second.Scope.ScopeID {
+		t.Fatalf("allowlisted spaces shared ScopeID %q", first.Scope.ScopeID)
+	}
+	if got, want := first.Scope.Metadata["space_id"], "100"; got != want {
+		t.Fatalf("first space_id = %q, want %q", got, want)
+	}
+	if got, want := second.Scope.Metadata["space_id"], "200"; got != want {
+		t.Fatalf("second space_id = %q, want %q", got, want)
+	}
+	if got, want := nextCycle.Scope.Metadata["space_id"], "100"; got != want {
+		t.Fatalf("next cycle space_id = %q, want %q", got, want)
+	}
+	assertFactCount(t, drainFacts(t, first.Facts), facts.DocumentationDocumentFactKind, 1)
+	assertFactCount(t, drainFacts(t, second.Facts), facts.DocumentationDocumentFactKind, 1)
+}
+
 func TestSourceEmitsDocumentationTruthMentionsAndClaimsWhenExtractorConfigured(t *testing.T) {
 	t.Parallel()
 
@@ -408,6 +475,11 @@ func confluencePage(id string, title string, version int, body string) Page {
 			WebUI: "/spaces/PLAT/pages/" + id,
 		},
 	}
+}
+
+func withSpace(page Page, spaceID string) Page {
+	page.SpaceID = spaceID
+	return page
 }
 
 func withStatus(page Page, status string) Page {

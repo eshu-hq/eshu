@@ -9,6 +9,8 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 default_render="${TMP_DIR}/default.yaml"
 enabled_values="${TMP_DIR}/enabled-values.yaml"
 enabled_render="${TMP_DIR}/enabled.yaml"
+enabled_space_ids_values="${TMP_DIR}/enabled-space-ids-values.yaml"
+enabled_space_ids_render="${TMP_DIR}/enabled-space-ids.yaml"
 
 helm template eshu "${CHART_DIR}" >"${default_render}"
 if rg -q "eshu-confluence-collector" "${default_render}"; then
@@ -80,6 +82,48 @@ done
 
 if rg -q "ESHU_CONFLUENCE_ROOT_PAGE_ID" "${enabled_render}"; then
   echo "space-scoped render unexpectedly included root page ID" >&2
+  exit 1
+fi
+
+cat >"${enabled_space_ids_values}" <<'YAML'
+contentStore:
+  dsn: postgresql://eshu:secret@postgres:5432/eshu
+neo4j:
+  auth:
+    secretName: ""
+confluenceCollector:
+  enabled: true
+  baseUrl: https://example.atlassian.net/wiki
+  spaceIds:
+    - "196609"
+    - "2981929"
+  credentials:
+    secretName: confluence-collector-credentials
+    emailKey: email
+    apiTokenKey: api-token
+YAML
+
+helm template eshu "${CHART_DIR}" -f "${enabled_space_ids_values}" >"${enabled_space_ids_render}"
+
+space_ids_required_patterns=(
+  "name: ESHU_CONFLUENCE_SPACE_IDS"
+  "value: \"196609,2981929\""
+)
+
+for pattern in "${space_ids_required_patterns[@]}"; do
+  if ! rg -q "${pattern}" "${enabled_space_ids_render}"; then
+    echo "spaceIds render missing pattern: ${pattern}" >&2
+    exit 1
+  fi
+done
+
+if rg -q "name: ESHU_CONFLUENCE_SPACE_ID$" "${enabled_space_ids_render}"; then
+  echo "spaceIds render unexpectedly included singular space ID" >&2
+  exit 1
+fi
+
+if rg -q "name: ESHU_CONFLUENCE_ROOT_PAGE_ID$" "${enabled_space_ids_render}"; then
+  echo "spaceIds render unexpectedly included root page ID" >&2
   exit 1
 fi
 

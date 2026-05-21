@@ -110,6 +110,10 @@ confluenceCollector:
   enabled: true
   baseUrl: https://example.atlassian.net/wiki
   spaceId: "123456789"
+  # Or replace spaceId with an explicit allowlist of spaces:
+  # spaceIds:
+  #   - "123456789"
+  #   - "987654321"
   credentials:
     secretName: confluence-collector-credentials
 

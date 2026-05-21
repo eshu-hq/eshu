@@ -16,6 +16,7 @@ const defaultPollInterval = 5 * time.Minute
 type SourceConfig struct {
 	BaseURL      string
 	SpaceID      string
+	SpaceIDs     []string
 	SpaceKey     string
 	RootPageID   string
 	PageLimit    int
@@ -42,6 +43,13 @@ func LoadConfig(getenv func(string) string) (SourceConfig, error) {
 		PageLimit:    defaultPageLimit,
 		PollInterval: defaultPollInterval,
 	}
+	if raw := strings.TrimSpace(getenv("ESHU_CONFLUENCE_SPACE_IDS")); raw != "" {
+		spaceIDs, err := parseSpaceIDs(raw)
+		if err != nil {
+			return SourceConfig{}, err
+		}
+		config.SpaceIDs = spaceIDs
+	}
 	if raw := strings.TrimSpace(getenv("ESHU_CONFLUENCE_PAGE_LIMIT")); raw != "" {
 		limit, err := strconv.Atoi(raw)
 		if err != nil || limit <= 0 {
@@ -62,11 +70,21 @@ func LoadConfig(getenv func(string) string) (SourceConfig, error) {
 	if err := validateBaseURL(config.BaseURL); err != nil {
 		return SourceConfig{}, err
 	}
-	if config.SpaceID == "" && config.RootPageID == "" {
-		return SourceConfig{}, errors.New("ESHU_CONFLUENCE_SPACE_ID or ESHU_CONFLUENCE_ROOT_PAGE_ID is required")
+	boundedModes := 0
+	if config.SpaceID != "" {
+		boundedModes++
 	}
-	if config.SpaceID != "" && config.RootPageID != "" {
-		return SourceConfig{}, errors.New("configure only one of ESHU_CONFLUENCE_SPACE_ID or ESHU_CONFLUENCE_ROOT_PAGE_ID")
+	if len(config.SpaceIDs) > 0 {
+		boundedModes++
+	}
+	if config.RootPageID != "" {
+		boundedModes++
+	}
+	if boundedModes == 0 {
+		return SourceConfig{}, errors.New("ESHU_CONFLUENCE_SPACE_ID, ESHU_CONFLUENCE_SPACE_IDS, or ESHU_CONFLUENCE_ROOT_PAGE_ID is required")
+	}
+	if boundedModes > 1 {
+		return SourceConfig{}, errors.New("configure only one of ESHU_CONFLUENCE_SPACE_ID, ESHU_CONFLUENCE_SPACE_IDS, or ESHU_CONFLUENCE_ROOT_PAGE_ID")
 	}
 	if config.BearerToken == "" && (config.Email == "" || config.APIToken == "") {
 		return SourceConfig{}, errors.New("read-only Confluence API credentials are required")
@@ -88,6 +106,24 @@ func validateBaseURL(raw string) error {
 	return nil
 }
 
+func parseSpaceIDs(raw string) ([]string, error) {
+	parts := strings.Split(raw, ",")
+	spaceIDs := make([]string, 0, len(parts))
+	seen := map[string]struct{}{}
+	for _, part := range parts {
+		spaceID := strings.TrimSpace(part)
+		if spaceID == "" {
+			return nil, errors.New("ESHU_CONFLUENCE_SPACE_IDS must be a comma-separated list of non-empty space IDs")
+		}
+		if _, ok := seen[spaceID]; ok {
+			return nil, fmt.Errorf("ESHU_CONFLUENCE_SPACE_IDS contains duplicate space ID %q", spaceID)
+		}
+		seen[spaceID] = struct{}{}
+		spaceIDs = append(spaceIDs, spaceID)
+	}
+	return spaceIDs, nil
+}
+
 func (c SourceConfig) now() time.Time {
 	if c.Now != nil {
 		return c.Now().UTC()
@@ -95,9 +131,9 @@ func (c SourceConfig) now() time.Time {
 	return time.Now().UTC()
 }
 
-func (c SourceConfig) boundedID() string {
-	if c.SpaceID != "" {
-		return "space:" + c.SpaceID
+func (c SourceConfig) boundedID(spaceID string) string {
+	if spaceID != "" {
+		return "space:" + spaceID
 	}
 	return "page-tree:" + c.RootPageID
 }

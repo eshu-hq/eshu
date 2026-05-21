@@ -7,12 +7,12 @@ import (
 )
 
 func (s *Source) collectPages(ctx context.Context) ([]Page, Space, int, error) {
-	if s.Config.SpaceID != "" {
-		spaceValue, err := s.Client.GetSpace(ctx, s.Config.SpaceID)
+	if spaceID := s.activeSpaceID(); spaceID != "" {
+		spaceValue, err := s.Client.GetSpace(ctx, spaceID)
 		if err != nil {
 			return nil, Space{}, 0, fmt.Errorf("get confluence space: %w", err)
 		}
-		pages, err := s.Client.ListSpacePages(ctx, s.Config.SpaceID, pageLimit(s.Config.PageLimit))
+		pages, err := s.Client.ListSpacePages(ctx, spaceID, pageLimit(s.Config.PageLimit))
 		if err != nil {
 			return nil, Space{}, 0, fmt.Errorf("list confluence space pages: %w", err)
 		}

@@ -57,6 +57,85 @@ func TestLoadConfigRequiresBoundedScopeAndReadOnlyCredentials(t *testing.T) {
 	}
 }
 
+func TestLoadConfigAcceptsExplicitSpaceIDAllowlist(t *testing.T) {
+	t.Parallel()
+
+	config, err := LoadConfig(func(key string) string {
+		values := map[string]string{
+			"ESHU_CONFLUENCE_BASE_URL":      "https://example.atlassian.net/wiki",
+			"ESHU_CONFLUENCE_SPACE_IDS":     "100, 200,300",
+			"ESHU_CONFLUENCE_API_TOKEN":     "token",
+			"ESHU_CONFLUENCE_EMAIL":         "bot@example.com",
+			"ESHU_CONFLUENCE_POLL_INTERVAL": "15m",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v, want nil", err)
+	}
+	if got, want := config.SpaceIDs, []string{"100", "200", "300"}; !equalStrings(got, want) {
+		t.Fatalf("SpaceIDs = %#v, want %#v", got, want)
+	}
+	if got, want := config.PollInterval, 15*time.Minute; got != want {
+		t.Fatalf("PollInterval = %v, want %v", got, want)
+	}
+}
+
+func TestLoadConfigRejectsInvalidSpaceIDAllowlist(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		values map[string]string
+	}{
+		{
+			name: "empty list entry",
+			values: map[string]string{
+				"ESHU_CONFLUENCE_SPACE_IDS": "100,,200",
+			},
+		},
+		{
+			name: "duplicate id",
+			values: map[string]string{
+				"ESHU_CONFLUENCE_SPACE_IDS": "100,200,100",
+			},
+		},
+		{
+			name: "mixed single and list",
+			values: map[string]string{
+				"ESHU_CONFLUENCE_SPACE_ID":  "100",
+				"ESHU_CONFLUENCE_SPACE_IDS": "200,300",
+			},
+		},
+		{
+			name: "mixed root page and list",
+			values: map[string]string{
+				"ESHU_CONFLUENCE_ROOT_PAGE_ID": "root",
+				"ESHU_CONFLUENCE_SPACE_IDS":    "200,300",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := LoadConfig(func(key string) string {
+				values := map[string]string{
+					"ESHU_CONFLUENCE_BASE_URL":  "https://example.atlassian.net/wiki",
+					"ESHU_CONFLUENCE_API_TOKEN": "token",
+					"ESHU_CONFLUENCE_EMAIL":     "bot@example.com",
+				}
+				for k, v := range tt.values {
+					values[k] = v
+				}
+				return values[key]
+			})
+			if err == nil {
+				t.Fatal("LoadConfig() error = nil, want invalid allowlist error")
+			}
+		})
+	}
+}
+
 func TestLoadConfigRejectsInvalidBaseURL(t *testing.T) {
 	t.Parallel()
 

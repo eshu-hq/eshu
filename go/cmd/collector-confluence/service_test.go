@@ -40,3 +40,45 @@ func TestBuildCollectorServiceWiresConfluenceSource(t *testing.T) {
 		t.Fatalf("Source type = %T, want *confluence.Source", service.Source)
 	}
 }
+
+func TestBuildCollectorServiceWiresConfluenceSpaceIDAllowlist(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildCollectorService(
+		postgres.SQLDB{},
+		func(key string) string {
+			values := map[string]string{
+				"ESHU_CONFLUENCE_BASE_URL":  "https://example.atlassian.net/wiki",
+				"ESHU_CONFLUENCE_SPACE_IDS": "100,200",
+				"ESHU_CONFLUENCE_API_TOKEN": "token",
+				"ESHU_CONFLUENCE_EMAIL":     "bot@example.com",
+			}
+			return values[key]
+		},
+		noop.NewTracerProvider().Tracer("test"),
+		nil,
+		slog.Default(),
+	)
+	if err != nil {
+		t.Fatalf("buildCollectorService() error = %v, want nil", err)
+	}
+	source, ok := service.Source.(*confluencecollector.Source)
+	if !ok {
+		t.Fatalf("Source type = %T, want *confluence.Source", service.Source)
+	}
+	if got, want := source.Config.SpaceIDs, []string{"100", "200"}; !equalStrings(got, want) {
+		t.Fatalf("SpaceIDs = %#v, want %#v", got, want)
+	}
+}
+
+func equalStrings(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}
