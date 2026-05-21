@@ -298,6 +298,89 @@ func TestBuildReportTreatsCoordinatorReducerConvergenceAsProgressing(t *testing.
 	}
 }
 
+func TestBuildReportTreatsRecentProducerActivityAsProgressing(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: time.Date(2026, 5, 21, 15, 29, 21, 0, time.UTC),
+			GenerationCounts: []status.NamedCount{
+				{Name: "active", Count: 890},
+				{Name: "pending", Count: 2},
+			},
+			Queue: status.QueueSnapshot{
+				Total:                7530,
+				Succeeded:            7508,
+				Outstanding:          22,
+				Pending:              22,
+				InFlight:             0,
+				OldestOutstandingAge: 12 * time.Minute,
+			},
+			Coordinator: &status.CoordinatorSnapshot{
+				RunStatusCounts: []status.NamedCount{
+					{Name: "complete", Count: 3},
+					{Name: "reducer_converging", Count: 1},
+				},
+				WorkItemStatusCounts: []status.NamedCount{
+					{Name: "completed", Count: 22},
+				},
+				CompletenessCounts: []status.NamedCount{
+					{Name: "pending", Count: 2},
+				},
+			},
+			ProducerActivity: status.ProducerActivitySnapshot{
+				HasActiveOrPendingGeneration: true,
+				LatestGenerationAge:          15 * time.Second,
+			},
+		},
+		status.Options{
+			StallAfter:  10 * time.Minute,
+			DomainLimit: 5,
+		},
+	)
+
+	if got, want := report.Health.State, "progressing"; got != want {
+		t.Fatalf("BuildReport().Health.State = %q, want %q", got, want)
+	}
+	reasons := strings.Join(report.Health.Reasons, " ")
+	if !strings.Contains(reasons, "recent producer activity") {
+		t.Fatalf("BuildReport().Health.Reasons = %v, want recent producer activity reason", report.Health.Reasons)
+	}
+}
+
+func TestBuildReportDoesNotHideFailuresBehindRecentProducerActivity(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: time.Date(2026, 5, 21, 15, 29, 21, 0, time.UTC),
+			Queue: status.QueueSnapshot{
+				Total:                12,
+				Succeeded:            6,
+				Outstanding:          4,
+				Pending:              4,
+				DeadLetter:           2,
+				OldestOutstandingAge: 12 * time.Minute,
+			},
+			ProducerActivity: status.ProducerActivitySnapshot{
+				HasActiveOrPendingGeneration: true,
+				LatestGenerationAge:          15 * time.Second,
+			},
+		},
+		status.Options{
+			StallAfter:  10 * time.Minute,
+			DomainLimit: 5,
+		},
+	)
+
+	if got, want := report.Health.State, "degraded"; got != want {
+		t.Fatalf("BuildReport().Health.State = %q, want %q", got, want)
+	}
+	if !strings.Contains(strings.Join(report.Health.Reasons, " "), "dead-lettered") {
+		t.Fatalf("BuildReport().Health.Reasons = %v, want dead-letter detail", report.Health.Reasons)
+	}
+}
+
 func TestBuildReportTreatsCoordinatorFailureAsDegraded(t *testing.T) {
 	t.Parallel()
 

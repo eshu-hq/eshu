@@ -63,6 +63,11 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 			},
 			{
 				rows: [][]any{
+					{true, 30.0},
+				},
+			},
+			{
+				rows: [][]any{
 					{"reducer", "semantic_entity_materialization", "code_graph", "scope-1:generation-b:code", int64(2), 75.0},
 				},
 			},
@@ -105,6 +110,12 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 	}
 	if got.Queue != wantQueue {
 		t.Fatalf("ReadRawSnapshot().Queue = %#v, want %#v", got.Queue, wantQueue)
+	}
+	if !got.ProducerActivity.HasActiveOrPendingGeneration {
+		t.Fatal("ReadRawSnapshot().ProducerActivity.HasActiveOrPendingGeneration = false, want true")
+	}
+	if got.ProducerActivity.LatestGenerationAge != 30*time.Second {
+		t.Fatalf("ReadRawSnapshot().ProducerActivity.LatestGenerationAge = %v, want 30s", got.ProducerActivity.LatestGenerationAge)
 	}
 	if got.LatestQueueFailure == nil {
 		t.Fatal("ReadRawSnapshot().LatestQueueFailure = nil, want latest failure")
@@ -176,12 +187,13 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	if len(queryer.queries) != 20 {
-		t.Fatalf("QueryContext() call count = %d, want 20", len(queryer.queries))
+	if len(queryer.queries) != 21 {
+		t.Fatalf("QueryContext() call count = %d, want 21", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",
 		"FROM scope_generations",
+		"latest_generation_age_seconds",
 		"JOIN ingestion_scopes",
 		"activated_at",
 		"superseded_at",
@@ -378,6 +390,9 @@ func (q *fakeQueryer) QueryContext(_ context.Context, query string, _ ...any) (R
 		if query == awsFreshnessOldestQueuedAgeQuery {
 			return &fakeRows{rows: [][]any{{float64(0)}}}, nil
 		}
+		if query == producerActivityQuery {
+			return &fakeRows{rows: [][]any{{false, nil}}}, nil
+		}
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
 
@@ -439,6 +454,15 @@ func (r *fakeRows) Scan(dest ...any) error {
 				return fmt.Errorf("row[%d] type = %T, want float64", i, row[i])
 			}
 			*target = value
+		case *sql.NullFloat64:
+			switch value := row[i].(type) {
+			case nil:
+				*target = sql.NullFloat64{}
+			case float64:
+				*target = sql.NullFloat64{Float64: value, Valid: true}
+			default:
+				return fmt.Errorf("row[%d] type = %T, want float64 or nil", i, row[i])
+			}
 		case *time.Time:
 			value, ok := row[i].(time.Time)
 			if !ok {

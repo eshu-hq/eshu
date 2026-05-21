@@ -9,6 +9,7 @@ func evaluateHealth(
 	queue QueueSnapshot,
 	generationTotals map[string]int,
 	domainBacklogs []DomainBacklog,
+	producerActivity ProducerActivitySnapshot,
 	coordinator *CoordinatorSnapshot,
 	opts Options,
 ) HealthSummary {
@@ -28,16 +29,19 @@ func evaluateHealth(
 			},
 		}
 	}
+	producerActive := recentProducerActivityReason(producerActivity, opts)
 	if queue.Outstanding > 0 && queue.InFlight == 0 && queue.OldestOutstandingAge >= opts.StallAfter {
-		return HealthSummary{
-			State: healthStalled,
-			Reasons: []string{
-				fmt.Sprintf(
-					"backlog has %d outstanding items with no in-flight work for %s",
-					queue.Outstanding,
-					queue.OldestOutstandingAge,
-				),
-			},
+		if producerActive == "" {
+			return HealthSummary{
+				State: healthStalled,
+				Reasons: []string{
+					fmt.Sprintf(
+						"backlog has %d outstanding items with no in-flight work for %s",
+						queue.Outstanding,
+						queue.OldestOutstandingAge,
+					),
+				},
+			}
 		}
 	}
 	if coordinatorStalled := coordinatorStalledReason(coordinator, opts); coordinatorStalled != "" {
@@ -67,6 +71,8 @@ func evaluateHealth(
 		reason := "work remains queued"
 		if queue.InFlight > 0 {
 			reason = fmt.Sprintf("%d work items are currently in flight", queue.InFlight)
+		} else if producerActive != "" {
+			reason = producerActive
 		}
 		return HealthSummary{
 			State:   healthProgressing,
@@ -123,6 +129,13 @@ func evaluateHealth(
 		State:   healthHealthy,
 		Reasons: []string{"no outstanding queue backlog"},
 	}
+}
+
+func recentProducerActivityReason(snapshot ProducerActivitySnapshot, opts Options) string {
+	if !snapshot.HasActiveOrPendingGeneration || snapshot.LatestGenerationAge >= opts.StallAfter {
+		return ""
+	}
+	return fmt.Sprintf("recent producer activity observed %s ago", snapshot.LatestGenerationAge)
 }
 
 // sharedProjectionBacklog returns the largest outstanding domain backlog after

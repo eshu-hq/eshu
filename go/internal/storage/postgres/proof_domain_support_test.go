@@ -90,6 +90,15 @@ func (r *proofRows) Scan(dest ...any) error {
 				return fmt.Errorf("row[%d] type = %T, want float64", i, row[i])
 			}
 			*target = value
+		case *sql.NullFloat64:
+			switch value := row[i].(type) {
+			case nil:
+				*target = sql.NullFloat64{}
+			case float64:
+				*target = sql.NullFloat64{Float64: value, Valid: true}
+			default:
+				return fmt.Errorf("row[%d] type = %T, want float64 or nil", i, row[i])
+			}
 		default:
 			return fmt.Errorf("unsupported scan target %T", dest[i])
 		}

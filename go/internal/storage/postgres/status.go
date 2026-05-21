@@ -82,6 +82,10 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
+	producerActivity, err := readProducerActivitySnapshot(ctx, s.queryer, asOf.UTC())
+	if err != nil {
+		return statuspkg.RawSnapshot{}, err
+	}
 	queueBlockages, err := listReducerConflictBlockages(ctx, s.queryer, asOf.UTC())
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
@@ -125,6 +129,7 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 		GenerationTransitions:        generationTransitions,
 		StageCounts:                  stageCounts,
 		DomainBacklogs:               domainBacklogs,
+		ProducerActivity:             producerActivity,
 		QueueBlockages:               queueBlockages,
 		Queue:                        queueSnapshot,
 		LatestQueueFailure:           latestQueueFailure,

@@ -79,6 +79,19 @@ verification gate, operator status projection, and read-side age math; it does
 not alter Compose service definitions, worker counts, graph writes, collector
 scan shape, retry behavior, or NornicDB settings.
 
+No-Regression Evidence: after the merged-main remote proof briefly classified
+the run as `stalled` while `bootstrap-index` was still processing late large
+repositories, focused status coverage now keeps the same shape `progressing`
+when the queue has no in-flight work but scope-generation producer activity is
+recent. The regression also proves recent producer activity does not hide
+dead-letter or failed work; those states still report `degraded`. The storage
+reader coverage proves the producer age is read from active or pending
+`scope_generations`, clamped to a non-negative duration, and fed into the pure
+status projection. This changes only `/api/v0/index-status` health
+classification during producer-active idle gaps; it does not change queue
+claims, workflow planning, collector behavior, graph writes, worker counts, or
+the terminal verifier requirement that queue/workflow state reach zero.
+
 Observability Evidence: the verifier prints each checked service with Docker
 runtime state and health state, then records the checkpointed `/index-status`
 payload on queue or workflow-completion failure. Operators can distinguish a
@@ -90,3 +103,12 @@ private machine-specific logs or paths. The existing `/api/v0/index-status`,
 and overdue claim counts, queue/domain ages, and health reasons that distinguish
 fact-queue backlog, shared projection backlog, workflow convergence, blocked
 completeness, failed workflow runs, and stale pending workflow work.
+
+Observability Evidence: the existing `/index-status` health reason now names
+recent producer activity when it is the reason an old idle fact queue remains
+`progressing` instead of `stalled`. Operators can correlate that reason with
+the existing scope/generation counts, queue counts, workflow coordinator
+counts, and bootstrap or collector structured logs. No new metric label was
+added because the signal is a bounded status projection over
+`scope_generations` timestamps, and high-cardinality repository or path details
+remain in logs rather than status metrics.
