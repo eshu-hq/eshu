@@ -1,112 +1,94 @@
 # storage/cypher
 
-`storage/cypher` owns backend-neutral Cypher write contracts, canonical writers,
-edge helpers, statement metadata, retry/timeout wrappers, and write
-instrumentation for Eshu's canonical graph. Every write path that touches the
-graph backend goes through this package.
+`storage/cypher` owns backend-neutral graph write contracts for Eshu. It builds
+Cypher `Statement` values, writes canonical nodes and edges, wraps graph writes
+with timeout/retry/telemetry behavior, and keeps Neo4j and NornicDB behind the
+same `Executor` seam.
 
-## Where this fits in the pipeline
+Concrete driver sessions do not live here. Runtime wiring in `cmd/` chooses the
+backend executor and composes the wrapper chain.
+
+## Pipeline Position
 
 ```mermaid
 flowchart LR
-  A["internal/projector\nCanonicalWriter"] --> B["cypher.CanonicalNodeWriter"]
-  C["internal/reducer\nSharedProjectionEdgeWriter"] --> D["cypher.EdgeWriter"]
-  E["internal/reducer\nSemanticEntityMaterialization"] --> F["cypher.SemanticEntityWriter"]
-  B --> G["cypher.Executor\n(backend seam)"]
+  A["projector canonical materialization"] --> B["CanonicalNodeWriter"]
+  C["reducer shared projection rows"] --> D["EdgeWriter"]
+  E["reducer semantic entity rows"] --> F["SemanticEntityWriter"]
+  B --> G["Executor seam"]
   D --> G
   F --> G
-  G --> H["Neo4j / NornicDB\ndriver (cmd/ wiring)"]
+  G --> H["Neo4j or NornicDB driver wiring"]
 ```
 
-## Internal flow
+## Package Responsibilities
 
-```mermaid
-flowchart TB
-  A["Caller builds Statement\nvia BuildCanonical* or BuildPlan"] --> B["Executor.Execute\nor GroupExecutor.ExecuteGroup"]
-  B --> C{"executor chain"}
-  C -- timeout --> D["TimeoutExecutor\ncontext.WithTimeout"]
-  D --> E["RetryingExecutor\nexponential backoff + jitter"]
-  E --> F["InstrumentedExecutor\nspan + eshu_dp_neo4j_query_duration_seconds"]
-  F --> G["concrete executor\n(cmd/ wiring)"]
-  C -- single-statement-only --> H["ExecuteOnlyExecutor\nhides GroupExecutor"]
-  H --> F
+| Area | Owned here |
+| --- | --- |
+| Source-local writes | `Adapter`, `BuildPlan`, `OperationUpsertNode`, `OperationDeleteNode`. |
+| Canonical node writes | `CanonicalNodeWriter` and `BuildCanonical*` statement builders. |
+| Shared projection edges | `EdgeWriter` domain routing, row maps, batching, and retractions. |
+| Semantic entities | `SemanticEntityWriter` row-shape variants and stale semantic retractions. |
+| Execution seam | `Executor`, `GroupExecutor`, `PhaseGroupExecutor`, and `ExecuteOnlyExecutor`. |
+| Write wrappers | `TimeoutExecutor`, `RetryingExecutor`, and `InstrumentedExecutor`. |
+| Diagnostics | Statement metadata, batch metrics, spans, phase logs, and timeout errors. |
+
+## Execution Flow
+
+Callers build `Statement` values through builders or writers. The typical
+runtime chain is:
+
+```text
+caller -> TimeoutExecutor -> RetryingExecutor -> InstrumentedExecutor -> driver executor
 ```
 
-## Lifecycle / workflow
+`TimeoutExecutor` adds a bounded child context and returns
+`GraphWriteTimeoutError` with `failure_class=graph_write_timeout`.
 
-Callers build `Statement` values via statement builder functions
-(`BuildCanonicalWorkloadUpsert` and related, `BuildRetractRepoDependencyEdges` and
-related, `BuildPlan`) and pass them to a writer
-(`CanonicalNodeWriter`, `EdgeWriter`, `SemanticEntityWriter`) or directly to
-an `Executor`.
+`RetryingExecutor` retries transient Neo4j errors and NornicDB commit-time
+UNIQUE conflicts when the originating statement or grouped statement set is
+MERGE-shaped and therefore idempotent on re-execution.
 
-`CanonicalNodeWriter.Write` executes all canonical writes in named phases:
-`retract`, `repository_cleanup`, `repository`, `directories`, `files`,
-`entities`, `entity_retract`, `entity_containment`, `terraform_state`,
-`oci_registry`, `modules`, and `structural_edges`. When the executor
-implements `GroupExecutor`, all phases are sent in a single atomic transaction.
-When it implements
-`PhaseGroupExecutor`, each phase executes as a bounded group. Otherwise phases
-run sequentially.
+`InstrumentedExecutor` records `neo4j.execute` / `neo4j.execute_group` spans,
+query duration, batch size, and batch count metrics.
 
-The `repository_cleanup` phase is the only replacement barrier left in the
-canonical node path, and it is skipped for first-generation scopes because no
-prior repository identity can exist for that source-local scope. Directory rows
-use depth-ordered `MERGE` after the
-repository is present. File rows update current nodes in place with
-`MATCH (f:File {path: row.path})`, then send only missing rows through a
-`WHERE NOT EXISTS { MATCH (:File {path: row.path}) }` guard before `MERGE`.
-Nested files require a parent `Directory` match for the directory containment
-edge. Repository-root files use a separate Repository-contained statement shape
-so package entrypoint files can materialize without inventing a root
-`Directory`. This avoids NornicDB's expensive `DETACH DELETE` cost for current
-directories or files. Entity property filtering also keeps high-volume analysis
-metadata such as `dead_code_root_kinds` and `exactness_blockers` out of
-canonical graph rows; the dead-code API merges that evidence from the content
-store by entity ID.
+`ExecuteOnlyExecutor` forwards single statements while hiding `GroupExecutor`.
+Use it when the caller must avoid large atomic graph transactions.
 
-Current-file structural edge refreshes seed from indexed `File.path` before
-expanding `IMPORTS` or directory `CONTAINS` relationships. This keeps the
-cleanup candidate set path-first instead of relationship-scan-first on NornicDB
-while preserving the same Cypher semantics for Neo4j-compatible backends.
-Positive string-slice retract statements can be chunked through
-`ChunkPositiveStringSliceRetractStatement`; negative `NOT IN` stale cleanup is
-intentionally excluded from chunking.
-Stale-file retracts anchor on `Repository {id}` and traverse `REPO_CONTAINS`
-before applying the generation and keep-list predicates. This avoids starting
-from the full `File` label population when a webhook-triggered re-index needs
-to remove files that disappeared from one repository.
+## Canonical Write Phases
 
-No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestChunkPositiveStringSliceRetractStatement|TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath'
--count=1` proves the indexed seed shape and protects current-file keep-list
-semantics.
+`CanonicalNodeWriter.Write` executes these phases in strict order:
 
-No-Regression Evidence: `go test ./internal/storage/cypher ./cmd/ingester
-./cmd/bootstrap-index ./cmd/projector -count=1` keeps canonical writer, NornicDB
-phase-group executor, bootstrap, and projector wiring covered after adding
-source-local canonical writer tracing and repository-anchored stale-file
-retracts.
+1. `retract`
+2. `repository_cleanup`
+3. `repository`
+4. `directories`
+5. `files`
+6. `entities`
+7. `entity_retract`
+8. `entity_containment`
+9. `terraform_state`
+10. `oci_registry`
+11. `package_registry`
+12. `modules`
+13. `structural_edges`
 
-Observability Evidence: statement summaries and operation metadata stay on each
-chunked statement, and source-local canonical writes now wrap the writer in
-`canonical.write` plus the retract phase in `canonical.retract`. Phase failures
-also emit a structured `canonical phase failed` log with scope, generation,
-repo, phase, mode, statement count, duration, and error, while existing
-`canonical phase-group write` logs and graph failure details still identify the
-phase and sanitized first statement.
+The writer prefers one `GroupExecutor.ExecuteGroup` call for all statements.
+When the executor implements only `PhaseGroupExecutor`, each phase is grouped
+separately. Otherwise the writer runs statements sequentially while preserving
+phase order.
 
-Code-call shared projection routes `CALLS`, `REFERENCES`, and `USES_METACLASS`
-through label-scoped batched edge statements when endpoint labels are known.
-Each code-call statement carries a bounded route summary with relationship,
-source label, target label, and row count so slow shared-edge logs can be tied
-back to the exact Cypher shape without exposing file paths or entity IDs.
+This order is a correctness contract. Repository cleanup must commit before the
+repository MERGE. Directories must exist before nested files. Files must exist
+before entity containment. Current entity upserts must run before stale entity
+cleanup so cleanup can use generation and label anchors instead of large
+negative keep lists.
 
-Terraform-state rows are written as `TerraformResource`, `TerraformModule`, and
-`TerraformOutput` nodes keyed by `uid`. The rows keep lineage, serial, provider
-binding, tag-key hashes, and hashed correlation anchors on the node without
-creating cloud-resource joins. Those joins are reducer work after the
-Terraform-state readiness checkpoints exist.
+## Current Write Shapes
+
+Repository cleanup removes conflicting `Repository` identity by id or path only
+for non-first-generation repository scopes. First-generation scopes skip that
+phase because no prior repository identity can exist for the scope.
 
 OCI registry rows are written as `OciRegistryRepository`,
 `ContainerImage`/`OciImageManifest`, `ContainerImageIndex`/`OciImageIndex`,
@@ -131,68 +113,62 @@ execution commits package, version, and dependency writes in separate ordered
 phase groups because version and dependency statements `MATCH` identities
 created by earlier package-registry statements.
 
-`EdgeWriter.WriteEdges` maps a `reducer.Domain` to a batched UNWIND Cypher
-template and dispatches rows in batches of `BatchSize` (default
-`DefaultBatchSize` = 500). Domain-specific sub-batch sizes are available for
-`DomainCodeCalls`, `DomainInheritanceEdges`, and `DomainSQLRelationships`.
-`DomainCodeCalls` writes direct call evidence as `CALLS`, JSX component plus Go
-and TypeScript type-reference evidence as `REFERENCES`, and Python metaclass
-evidence as `USES_METACLASS`. When reducer rows include
-`caller_entity_type` and `callee_entity_type`, code-call and code-reference
-writes use the exact endpoint label plus `uid`; incomplete legacy rows still
-use the label-family fallback.
-`DomainSQLRelationships` writes SQL table, column, view, function, index, and
-trigger evidence with label-scoped endpoints. Trigger rows can emit both
-`TRIGGERS` to a `SqlTable` and `EXECUTES` to a `SqlFunction`; the latter is
-part of dead-code reachability for stored routines and must stay in the
-relationship retraction set.
+Directory rows are written depth-first. File rows update existing `File.path`
+nodes before sending missing rows through guarded MERGE statements. Repository
+root files attach directly to `Repository` with `REPO_CONTAINS`; the writer
+does not invent a synthetic root `Directory`.
 
-The executor chain is composed in `cmd/` wiring. A typical production chain
-wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
-`InstrumentedExecutor`.
+Entity writes keep high-volume analysis metadata such as
+`dead_code_root_kinds` and `exactness_blockers` out of graph rows. The API
+merges that evidence from the content store when it is needed.
 
-`RetryingExecutor` detects transient Neo4j errors (deadlock, lock timeout) and
-NornicDB MERGE unique conflicts and retries with exponential backoff and jitter.
-It does not retry the group path because `session.ExecuteWrite` already handles
-that internally.
+Terraform-state writes create `TerraformResource`, `TerraformModule`, and
+`TerraformOutput` nodes keyed by `uid`. They do not create cloud-resource joins;
+that admission happens in reducer correlation after readiness facts exist.
 
-## Exported surface
+`EdgeWriter` batches reducer domains with `UNWIND` and defaults to
+`DefaultBatchSize` (`500`). Code-call, inheritance, and SQL relationship
+domains can use domain-specific group batch sizes. Code calls may write
+`CALLS`, `REFERENCES`, or `USES_METACLASS`; SQL trigger rows can write both
+`TRIGGERS` and `EXECUTES`.
 
-**Core types**
+## Required Invariants
 
-- `Statement` — one executable Cypher statement: `Operation`, `Cypher`,
-  `Parameters`
-- `Plan` — deterministic write plan for one source-local materialization; built
-  by `BuildPlan`
-- `Operation` — string constant for write type; defined variants:
-  `OperationUpsertNode`, `OperationDeleteNode`, `OperationCanonicalUpsert`
-- `Executor` — the backend seam: `Execute(ctx, Statement) error`; every
-  concrete backend implements this
-- `GroupExecutor` — extension of `Executor` for atomic multi-statement writes
-- `PhaseGroupExecutor` — extension for bounded phase-grouped writes
-- `Adapter` — source-local record writer that builds and executes a `Plan`
+- All hot-path writes must be idempotent. Use `MERGE` for graph identity and
+  split mutable properties into `SET`.
+- Keep endpoint labels whitelisted. Dynamic label values must never come from
+  untrusted row data.
+- Do not add direct Neo4j or NornicDB driver calls in this package.
+- Do not branch on `ESHU_GRAPH_BACKEND` in writers or callers. Backend-specific
+  behavior belongs in narrow seams such as schema DDL, executor constructors,
+  retry classification, or measured writer options.
+- Do not serialize workers as a fix for MERGE races. Retry idempotent writes or
+  redesign the conflict domain.
+- Do not move source hints from OCI or Package Registry into repository
+  ownership edges without reducer admission evidence.
+- Keep SQL `EXECUTES` writes and retractions aligned; trigger-bound stored
+  routines depend on that edge for dead-code reachability.
 
-**Executor wrappers** (composable chain links)
+## Observability
 
-- `InstrumentedExecutor` — wraps `Executor` with OTEL span and
-  `eshu_dp_neo4j_query_duration_seconds` histogram
-- `RetryingExecutor` — wraps `Executor` with exponential backoff/jitter for
-  transient Neo4j and NornicDB errors
-- `TimeoutExecutor` — bounds individual statements with a child context;
-  returns `GraphWriteTimeoutError` on deadline
-- `ExecuteOnlyExecutor` — hides `GroupExecutor` from callers that must not use
-  large atomic groups
+This package emits these graph-write signals:
 
-**Canonical writers**
-
-- `CanonicalNodeWriter` — writes `projector.CanonicalMaterialization` in strict
-  phase order; constructed with `NewCanonicalNodeWriter`; configure per-label
-  batch sizes via `WithEntityLabelBatchSize` and containment mode via
-  `WithEntityContainmentInEntityUpsert`
-- `EdgeWriter` — writes shared-domain edge rows for
-  `reducer.SharedProjectionEdgeWriter`; constructed with `NewEdgeWriter`
-- `SemanticEntityWriter` — writes semantic entity (Annotation, Module, etc.)
-  nodes; five constructors select the Cypher row shape
+| Signal | Purpose |
+| --- | --- |
+| `neo4j.execute`, `neo4j.execute_group` | Statement and grouped-write spans. |
+| `eshu_dp_neo4j_query_duration_seconds` | Single and grouped graph write duration. |
+| `eshu_dp_neo4j_batch_size` | Rows per batched `UNWIND` statement. |
+| `eshu_dp_neo4j_batches_executed_total` | Batched statements executed. |
+| `eshu_dp_neo4j_deadlock_retries_total` | Retried graph write conflicts. |
+| `eshu_dp_canonical_atomic_writes_total` | Canonical writes by atomic or phase mode. |
+| `eshu_dp_canonical_atomic_fallbacks_total` | Writes that could not use full atomic grouping. |
+| `eshu_dp_canonical_phase_duration_seconds` | Per-phase canonical write duration. |
+| `eshu_dp_canonical_projection_duration_seconds` | End-to-end canonical projection duration. |
+| `eshu_dp_shared_edge_write_groups_total` | Grouped shared-edge writes. |
+| `eshu_dp_shared_edge_write_group_duration_seconds` | Shared-edge group duration. |
+| `eshu_dp_shared_edge_write_group_statement_count` | Statements per shared-edge group. |
+| `eshu_dp_code_call_edge_batches_total` | Code-call edge batches. |
+| `eshu_dp_code_call_edge_batch_duration_seconds` | Code-call edge batch duration. |
 
 **Statement builders**
 
@@ -262,33 +238,6 @@ adapter seam.
   — code-call-specific edge metrics
 - Spans: `neo4j.execute` and `neo4j.execute_group` from `InstrumentedExecutor`
 
-## Operational notes
-
-- Manual Neo4j or NornicDB production-profile performance runs must apply
-  `eshu-bootstrap-data-plane` before indexing. `eshu-bootstrap-index` applies the
-  Postgres bootstrap schema, but it does not apply graph indexes or constraints;
-  runs that skip the data-plane schema step are setup diagnostics, not backend
-  acceptance evidence.
-- `eshu_dp_neo4j_deadlock_retries_total` rising signals concurrent MERGE
-  contention on shared nodes (Repository, Directory, Module); check worker
-  concurrency before raising `RetryingExecutor.MaxRetries`.
-- `eshu_dp_canonical_atomic_fallbacks_total` > 0 means the executor does not
-  implement `GroupExecutor`; write ordering relies on sequential phase execution
-  which is slower and non-atomic.
-- `eshu_dp_canonical_phase_duration_seconds{phase="retract"}` elevated for
-  non-first generations indicates stale node volume or an unselective cleanup
-  shape; source-local entity retractions and containment refreshes must stay
-  anchored on concrete labels (`Function`, `Class`, `K8sResource`, etc.) so
-  graph backends can use the schema indexes instead of scanning all canonical
-  nodes.
-- Repository-scoped cleanup runs only when the materialization carries a
-  repository id. Non-repository collectors such as OCI registry and package
-  registry write their own canonical nodes and must not issue `File`,
-  `Directory`, or repo-bound entity cleanup against a populated graph.
-- `GraphWriteTimeoutError` surfaces as `failure_class=graph_write_timeout` in
-  projector/reducer queue rows; the `TimeoutHint` field names the env var to
-  tune.
-
 No-Regression Evidence: `go test ./internal/storage/cypher -run
 TestCanonicalNodeWriterSkipsRepositoryRetractForNonRepositoryProjection -count=1`
 proves OCI/package canonical materializations no longer emit repository-scoped
@@ -354,28 +303,24 @@ retry, failed, and dead-letter state without adding a new metric label.
   or a `BuildRetractRepoDependencyEdges`-style function for each new canonical
   domain node or edge type; no writer changes needed
 
+Structured logs include canonical phase failures and shared-edge route summaries
+with domain, evidence source, execution mode, row counts, route count, statement
+count, batch size, duration, and bounded statement summaries.
+
 ## Change Checklist
 
-- Add a canonical domain node by adding a builder, a matching retract builder
-  when stale data can exist, and focused statement tests. Callers pass the
-  resulting `Statement` to the existing executor path.
-- Add a shared projection domain by adding the reducer domain constant, an
-  `EdgeWriter` Cypher template, row-map support, and backend compatibility
-  tests for both active graph backends.
-- Change SQL relationship writes together with their retraction tests.
-  `EXECUTES` from `SqlTrigger` to `SqlFunction` is part of stored-routine
-  reachability and must stay aligned with dead-code queries.
-- Add an executor wrapper by implementing `Executor`; implement
-  `GroupExecutor` or `PhaseGroupExecutor` only when the wrapper can preserve
-  idempotency and bounded transaction behavior.
-- Tune batch sizes through `CanonicalNodeWriter` builder options in command
-  wiring, not with backend-specific constants inside the writer.
+Before changing a Cypher hot path, read
+`docs/public/reference/cypher-performance.md` and the current backend behavior
+for the pinned graph binary.
 
-## Gotchas / invariants
+For new or changed canonical node writes:
 
 - All writes must be idempotent (`doc.go`). `MERGE`-based Cypher and
   `ON CONFLICT DO NOTHING` patterns enforce this; do not replace MERGE with
   CREATE.
+- Add or update the builder and focused statement tests.
+- Confirm the identity key is stable and MERGE-shaped.
+- Preserve phase order and metadata tags.
 - `OperationCanonicalUpsert` is for canonical domain nodes (workloads, files,
   entities). `OperationUpsertNode` / `OperationDeleteNode` are for
   source-local `SourceLocalRecord` writes. Do not mix them.
@@ -443,8 +388,8 @@ retry, failed, and dead-letter state without adding a new metric label.
   retract old facts.
 - Stale File-to-entity `CONTAINS` edges are removed when stale entity nodes are
   retracted. Do not add a separate per-file relationship refresh unless a future
-  A current design record changes the canonical entity lifecycle; that shape is easier to make slow
-  or backend-specific than the current label-anchored retraction path.
+  design record changes the canonical entity lifecycle; that shape is easier to
+  make slow or backend-specific than the current label-anchored retraction path.
 - Repository cleanup first deletes an existing `Repository` found by unique
   `path` when its `id` differs from the current repository id, then the
   `repository` phase runs the normal id-based MERGE. Keeping this in a separate
@@ -477,11 +422,54 @@ retry, failed, and dead-letter state without adding a new metric label.
 - Performance work should first improve this package's shared writer/query
   shape. Only add backend-specific behavior after proving the shared Cypher
   contract cannot express the needed correctness or performance property.
+- Add no-regression or benchmark evidence when the shape changes.
 
-## Related docs
+For new or changed shared projection domains:
 
-- `docs/public/architecture.md` — pipeline and ownership table
-- `docs/public/reference/telemetry/index.md` — metric and span reference
-- `docs/public/reference/nornicdb-tuning.md`
-- `docs/public/reference/cypher-performance.md`
-- `go/internal/projector/README.md` — how `CanonicalNodeWriter` is wired
+- Add the reducer domain contract first.
+- Add the `EdgeWriter` Cypher template and row-map support.
+- Test positive, empty, skipped-row, duplicate, and retraction behavior.
+- Prove the query has a selective label plus identity anchor.
+
+For executor wrapper changes:
+
+- Preserve `Executor` first.
+- Implement `GroupExecutor` or `PhaseGroupExecutor` only when the wrapper can
+  preserve idempotency and bounded transaction behavior.
+- Keep timeout, retry, and telemetry behavior visible in tests.
+
+## Operational Notes
+
+- Run `eshu-bootstrap-data-plane` before production-profile Neo4j or NornicDB
+  performance proofs. Without graph schema, shared Cypher can look falsely slow.
+- `eshu_dp_neo4j_deadlock_retries_total` rising usually points to MERGE
+  contention on shared identities such as repositories, directories, modules,
+  or graph relationship endpoints.
+- `eshu_dp_canonical_atomic_fallbacks_total > 0` means the wired executor does
+  not expose the full group path.
+- Slow `retract` or `entity_retract` phases usually mean stale volume, missing
+  schema, or a cleanup shape that lost its concrete label anchor.
+- `GraphWriteTimeoutError.TimeoutHint` names the env var that owns the graph
+  write budget.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -count=1` covers
+writer phase order, repository cleanup, file update/create shapes, typed
+code-call and SQL endpoints, OCI/package/Terraform canonical rows, retry
+classification, timeout wrapping, and instrumentation contracts.
+
+No-Observability-Change: this README rewrite does not change runtime behavior.
+The package remains covered by the metrics, spans, and structured logs listed
+above.
+
+## Related Docs
+
+- `go/internal/storage/cypher/AGENTS.md` - mandatory scoped agent guidance for
+  this package.
+- `docs/public/reference/cypher-performance.md` - required Cypher performance
+  workflow.
+- `docs/public/reference/nornicdb-pitfalls.md` - known NornicDB compatibility
+  traps.
+- `docs/public/reference/nornicdb-tuning.md` - operator-facing NornicDB knobs.
+- `docs/public/reference/telemetry/index.md` - metric and span reference.
+- `go/internal/projector/README.md` - canonical projection caller.
+- `go/internal/reducer/README.md` - shared projection caller.

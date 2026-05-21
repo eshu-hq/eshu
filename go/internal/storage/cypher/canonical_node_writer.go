@@ -133,8 +133,11 @@ func (w *CanonicalNodeWriter) WithBatchedEntityContainmentInEntityUpsert() *Cano
 //	F: entities (per-label)
 //	G: entity_retract
 //	H: entity_containment
-//	I: modules
-//	J: structural edges
+//	I: terraform_state
+//	J: oci_registry
+//	K: package_registry
+//	L: modules
+//	M: structural edges
 //
 // When the executor implements GroupExecutor, all statements are dispatched as
 // a single atomic transaction. Otherwise, statements execute sequentially.

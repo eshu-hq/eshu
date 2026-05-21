@@ -74,9 +74,19 @@ cleanup pass.
 | Environment Variables Split | Reduced the environment-variable reference to a route map plus focused runtime/storage, ingestion/queue, collector, and compose/test pages; updated the docs verifier so split environment reference pages seed `ESHU_*` truth. |
 | Main Rebase Refresh For Draft PR | Rebasing onto `origin/main` at `a0d676f` kept collected documentation facts and hosted E2E graph-write hardening by porting durable updates into the new public docs surface. |
 | Helm Values Split | Reduced the oversized Helm values page to a route map, split runtime/bootstrap, collector/webhook, and routing/storage values into focused pages, and trimmed the chart README so it points to the public operator docs instead of duplicating them. |
+| Cypher Package README Rewrite | Reduced the Cypher storage README from a historical evidence dump into the current package guide; corrected the canonical phase list to include `package_registry` and aligned package comments with current package-registry writes. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 565 documents, 1,751 claims, 0 contradicted, and 0 missing
+  evidence claims after the Cypher package README rewrite.
+- `go run ./cmd/eshu docs verify ../go/internal/storage/cypher --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 2 documents, 1 claim, 0 contradicted, and 0 missing evidence
+  claims after the Cypher package README rewrite.
+- `go test ./internal/storage/cypher -count=1`, `go test ./cmd/eshu -count=1`,
+  `git diff --check`, and `cmp -s AGENTS.md CLAUDE.md` passed after the Cypher
+  package README rewrite.
 - `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
   passed with 565 documents, 1,748 claims, 0 contradicted, and 0 missing
   evidence claims after the Helm values split.
@@ -127,9 +137,9 @@ cleanup pass.
 ## What Is Left
 
 - Continue reviewing oversized public and package docs. The current largest
-  files are `go/internal/storage/cypher/README.md`,
-  `docs/public/services/collector-aws-cloud.md`, and
-  `docs/public/services/collector-terraform-state.md`.
+  files are `docs/public/services/collector-aws-cloud.md`,
+  `docs/public/services/collector-terraform-state.md`, and
+  `go/internal/telemetry/README.md`.
 - Keep deleting historical planning notes when current public or package-local
   docs already carry the useful invariant.
 - Keep folding durable lessons into current architecture, workflow,
