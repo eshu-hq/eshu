@@ -1,0 +1,50 @@
+go/internal/storage/postgres/tfstate_backend_facts_test.go
+  s_072c5984f68e14::t_ed9a5b4727bd5e 72
+  s_072c5984f68e14::t_92bce2a62af53c 85-94,436-442
+docs/docs/services/collector-aws-cloud.md
+  s_072c5984f68e14::t_4e3b0f9eb744dd 161,196,211-215
+docs/docs/reference/local-testing.md
+  s_072c5984f68e14::t_ca3510568cbf08 156-162,166-174
+  s_072c5984f68e14::t_8f033d06623b02 163-165
+go/internal/storage/postgres/tfstate_backend_queries.go
+  s_072c5984f68e14::t_d7790cd9921ad8 1-197
+go/internal/coordinator/aws_freshness_scheduler.go
+  s_072c5984f68e14::t_8f033d06623b02 33-34
+go/internal/coordinator/aws_scheduled_service.go
+  s_072c5984f68e14::t_f5d1adc4ced9e7 1-75
+docker-compose.remote-e2e.yaml
+  s_072c5984f68e14::t_a2190973954aac 62,255
+go/internal/coordinator/aws_scheduled_scheduler_test.go
+  s_072c5984f68e14::t_8f033d06623b02 24,72,90,113-129
+  s_072c5984f68e14::t_d68e1dfa9b4545 102
+  s_072c5984f68e14::t_92bce2a62af53c 1-23,25-71,73-89,91-101,103-112,130
+go/cmd/workflow-coordinator/main.go
+  s_072c5984f68e14::t_a310ca1f8ae934 92
+go/cmd/workflow-coordinator/README.md
+  s_072c5984f68e14::t_8f033d06623b02 131-132
+  s_072c5984f68e14::t_ca3510568cbf08 56-57,130
+go/internal/coordinator/aws_scheduled_scheduler.go
+  s_072c5984f68e14::t_a310ca1f8ae934 1-4,6-82,91-165
+  s_072c5984f68e14::t_8f033d06623b02 5,83-90
+go/internal/coordinator/README.md
+  s_072c5984f68e14::t_8f033d06623b02 92-93
+  s_072c5984f68e14::t_ca3510568cbf08 91,94,184-186
+go/internal/coordinator/service.go
+  s_072c5984f68e14::t_a310ca1f8ae934 43-47,57,193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "9249958d2af5d62d387d456e26ef2ff19d12dc58",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
