@@ -196,22 +196,24 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 		}
 
 		for _, baseName := range bases {
-			parentEntityID, ok := entityIndex[inheritanceIndexKey{repoID: repoID, name: baseName}]
+			parent, ok := entityIndex[inheritanceIndexKey{repoID: repoID, name: baseName}]
 			if !ok {
 				continue
 			}
 
-			edgeKey := childEntityID + "->" + parentEntityID
+			edgeKey := childEntityID + "->" + parent.id
 			if _, dup := seenEdges[edgeKey]; dup {
 				continue
 			}
 			seenEdges[edgeKey] = struct{}{}
 
 			rows = append(rows, map[string]any{
-				"child_entity_id":   childEntityID,
-				"parent_entity_id":  parentEntityID,
-				"repo_id":           repoID,
-				"relationship_type": "INHERITS",
+				"child_entity_id":    childEntityID,
+				"child_entity_type":  entityType,
+				"parent_entity_id":   parent.id,
+				"parent_entity_type": parent.entityType,
+				"repo_id":            repoID,
+				"relationship_type":  "INHERITS",
 			})
 		}
 
@@ -221,42 +223,46 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 
 		for _, adaptation := range traitAdaptations {
 			for _, overriddenTrait := range inheritanceTraitOverrideTargets(adaptation) {
-				parentEntityID, ok := entityIndex[inheritanceIndexKey{repoID: repoID, name: overriddenTrait}]
+				parent, ok := entityIndex[inheritanceIndexKey{repoID: repoID, name: overriddenTrait}]
 				if !ok {
 					continue
 				}
 
-				edgeKey := childEntityID + "->" + parentEntityID + ":OVERRIDES"
+				edgeKey := childEntityID + "->" + parent.id + ":OVERRIDES"
 				if _, dup := seenEdges[edgeKey]; dup {
 					continue
 				}
 				seenEdges[edgeKey] = struct{}{}
 
 				rows = append(rows, map[string]any{
-					"child_entity_id":   childEntityID,
-					"parent_entity_id":  parentEntityID,
-					"repo_id":           repoID,
-					"relationship_type": "OVERRIDES",
+					"child_entity_id":    childEntityID,
+					"child_entity_type":  entityType,
+					"parent_entity_id":   parent.id,
+					"parent_entity_type": parent.entityType,
+					"repo_id":            repoID,
+					"relationship_type":  "OVERRIDES",
 				})
 			}
 
 			for _, aliasedTrait := range inheritanceTraitAliasTargets(adaptation) {
-				parentEntityID, ok := entityIndex[inheritanceIndexKey{repoID: repoID, name: aliasedTrait}]
+				parent, ok := entityIndex[inheritanceIndexKey{repoID: repoID, name: aliasedTrait}]
 				if !ok {
 					continue
 				}
 
-				edgeKey := childEntityID + "->" + parentEntityID + ":ALIASES"
+				edgeKey := childEntityID + "->" + parent.id + ":ALIASES"
 				if _, dup := seenEdges[edgeKey]; dup {
 					continue
 				}
 				seenEdges[edgeKey] = struct{}{}
 
 				rows = append(rows, map[string]any{
-					"child_entity_id":   childEntityID,
-					"parent_entity_id":  parentEntityID,
-					"repo_id":           repoID,
-					"relationship_type": "ALIASES",
+					"child_entity_id":    childEntityID,
+					"child_entity_type":  entityType,
+					"parent_entity_id":   parent.id,
+					"parent_entity_type": parent.entityType,
+					"repo_id":            repoID,
+					"relationship_type":  "ALIASES",
 				})
 			}
 
@@ -265,12 +271,12 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				continue
 			}
 
-			childMethodID, childOK := methodIndex[inheritanceMethodIndexKey{
+			childMethod, childOK := methodIndex[inheritanceMethodIndexKey{
 				repoID:       repoID,
 				classContext: semanticPayloadString(env.Payload, "entity_name"),
 				name:         aliasMapping.AliasMethodName,
 			}]
-			parentMethodID, parentOK := methodIndex[inheritanceMethodIndexKey{
+			parentMethod, parentOK := methodIndex[inheritanceMethodIndexKey{
 				repoID:       repoID,
 				classContext: aliasMapping.TraitName,
 				name:         aliasMapping.SourceMethodName,
@@ -279,17 +285,19 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				continue
 			}
 
-			edgeKey := childMethodID + "->" + parentMethodID + ":ALIASES"
+			edgeKey := childMethod.id + "->" + parentMethod.id + ":ALIASES"
 			if _, dup := seenEdges[edgeKey]; dup {
 				continue
 			}
 			seenEdges[edgeKey] = struct{}{}
 
 			rows = append(rows, map[string]any{
-				"child_entity_id":   childMethodID,
-				"parent_entity_id":  parentMethodID,
-				"repo_id":           repoID,
-				"relationship_type": "ALIASES",
+				"child_entity_id":    childMethod.id,
+				"child_entity_type":  childMethod.entityType,
+				"parent_entity_id":   parentMethod.id,
+				"parent_entity_type": parentMethod.entityType,
+				"repo_id":            repoID,
+				"relationship_type":  "ALIASES",
 			})
 		}
 	}
@@ -318,10 +326,15 @@ type inheritanceMethodIndexKey struct {
 	name         string
 }
 
+type inheritanceEntityRef struct {
+	id         string
+	entityType string
+}
+
 // buildInheritanceEntityIndex builds a map from (repo_id, entity_name) to
-// entity_id for all inheritable entity types.
-func buildInheritanceEntityIndex(envelopes []facts.Envelope) map[inheritanceIndexKey]string {
-	index := make(map[inheritanceIndexKey]string)
+// entity identity and label for all inheritable entity types.
+func buildInheritanceEntityIndex(envelopes []facts.Envelope) map[inheritanceIndexKey]inheritanceEntityRef {
+	index := make(map[inheritanceIndexKey]inheritanceEntityRef)
 	for _, env := range envelopes {
 		if env.FactKind != "content_entity" {
 			continue
@@ -339,14 +352,14 @@ func buildInheritanceEntityIndex(envelopes []facts.Envelope) map[inheritanceInde
 		key := inheritanceIndexKey{repoID: repoID, name: entityName}
 		// First-seen wins; duplicates are ignored for matching purposes.
 		if _, exists := index[key]; !exists {
-			index[key] = entityID
+			index[key] = inheritanceEntityRef{id: entityID, entityType: entityType}
 		}
 	}
 	return index
 }
 
-func buildInheritanceMethodIndex(envelopes []facts.Envelope) map[inheritanceMethodIndexKey]string {
-	index := make(map[inheritanceMethodIndexKey]string)
+func buildInheritanceMethodIndex(envelopes []facts.Envelope) map[inheritanceMethodIndexKey]inheritanceEntityRef {
+	index := make(map[inheritanceMethodIndexKey]inheritanceEntityRef)
 	for _, env := range envelopes {
 		if env.FactKind != "content_entity" {
 			continue
@@ -367,7 +380,7 @@ func buildInheritanceMethodIndex(envelopes []facts.Envelope) map[inheritanceMeth
 			name:         entityName,
 		}
 		if _, exists := index[key]; !exists {
-			index[key] = entityID
+			index[key] = inheritanceEntityRef{id: entityID, entityType: "Function"}
 		}
 	}
 	return index

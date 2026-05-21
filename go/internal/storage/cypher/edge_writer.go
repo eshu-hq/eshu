@@ -335,27 +335,7 @@ func buildRowMap(
 		return buildCodeCallRowMap(row.Payload, evidenceSource)
 
 	case reducer.DomainInheritanceEdges:
-		childEntityID := payloadString(row.Payload, "child_entity_id")
-		parentEntityID := payloadString(row.Payload, "parent_entity_id")
-		if childEntityID == "" || parentEntityID == "" {
-			return "", nil, false
-		}
-		rowMap := map[string]any{
-			"child_entity_id":   childEntityID,
-			"parent_entity_id":  parentEntityID,
-			"relationship_type": payloadString(row.Payload, "relationship_type"),
-			"evidence_source":   evidenceSource,
-		}
-		switch rowMap["relationship_type"] {
-		case "OVERRIDES":
-			return batchCanonicalInheritanceOverrideUpsertCypher, rowMap, true
-		case "ALIASES":
-			return batchCanonicalInheritanceAliasUpsertCypher, rowMap, true
-		case "", "INHERITS":
-			return batchCanonicalInheritanceEdgeUpsertCypher, rowMap, true
-		default:
-			return "", nil, false
-		}
+		return buildInheritanceRowMap(row.Payload, evidenceSource)
 
 	case reducer.DomainSQLRelationships:
 		return buildSQLRelationshipRowMap(row.Payload, evidenceSource)

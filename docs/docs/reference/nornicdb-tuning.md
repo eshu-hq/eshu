@@ -53,6 +53,31 @@ reducers completed in `6.33473887s` and `15.762956452s`; and the run ended
 with `pending=0 in_flight=0 retrying=0 dead_letter=0 failed=0`. Use this as
 the current problem-repo proof before moving to a larger representative subset.
 
+Inheritance edge routing checkpoint: a 2026-05-21 hosted E2E subset first
+proved the OCI registry timeout fix but exposed a separate inheritance edge
+tail. Before typed inheritance routing, one 700-edge `inheritance_edges` write
+used broad endpoint labels and completed as two grouped writes in `392.562s`
+and `159.949s`; pprof showed NornicDB spending the active write under
+`executeUnwindMergeChainBatch -> findMergeNodeAnyLabel -> GetNodesByLabel`
+while the reducer waited on Bolt. After routing inheritance rows by concrete
+child/parent labels, the same one-repo subset drained queue-zero and wrote
+the same 700 inheritance edges as four concrete routes in `0.005917s`,
+`0.005129s`, `0.003794s`, and `0.000529s`; the full
+`inheritance_materialization` item completed in `1.707s`.
+
+Performance Evidence: focused hosted E2E subset, NornicDB
+`nornicdb-cpu-bge:match-merge-on-create-route`, clean volumes,
+`ESHU_CANONICAL_WRITE_TIMEOUT=120s`; before typed routing, one 700-edge
+inheritance item took `554.283s`, and after typed routing the same repo's
+inheritance item took `1.707s` with queue `pending=0 in_flight=0 retrying=0
+dead_letter=0 failed=0`.
+
+Observability Evidence: shared-edge logs now include `statement_summaries` for
+`inheritance_edges`, including relationship type, child label, parent label,
+and row count; pprof remains available for NornicDB and reducer during hosted
+subset runs to verify whether the backend is scanning labels or using
+schema-backed concrete-label lookups.
+
 Representative subset checkpoint: Eshu `5c9b169a` with the same NornicDB
 `86e78f1` binary drained a 50-repo subset from `/home/ubuntu/eshu-e2e-full` in
 `884s` with final `Health: healthy` and queue
