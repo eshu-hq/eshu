@@ -145,6 +145,9 @@ const openAPIPathsEvidence = `
           {"name": "status", "in": "query", "schema": {"type": "string"}},
           {"name": "truth_level", "in": "query", "schema": {"type": "string"}},
           {"name": "freshness_state", "in": "query", "schema": {"type": "string"}},
+          {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation verification scope identifier"},
+          {"name": "generation_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation verification generation identifier"},
+          {"name": "repo", "in": "query", "schema": {"type": "string"}, "description": "Repository metadata recorded on the documentation ingestion scope"},
           {"name": "updated_since", "in": "query", "schema": {"type": "string", "format": "date-time"}},
           {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}},
           {"name": "cursor", "in": "query", "schema": {"type": "string"}, "description": "Non-negative integer offset returned as next_cursor"}

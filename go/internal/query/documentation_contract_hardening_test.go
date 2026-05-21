@@ -105,7 +105,7 @@ func TestBuildDocumentationFindingsSQLUsesCaseInsensitiveDeniedPredicate(t *test
 	t.Parallel()
 
 	query, _ := buildDocumentationFindingsSQL(documentationFindingFilter{Limit: 50})
-	if !strings.Contains(query, "LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'") {
+	if !strings.Contains(query, "LOWER(COALESCE(fact_records.payload->'states'->>'permission_decision', '')) <> 'denied'") {
 		t.Fatalf("documentation findings SQL missing case-insensitive denied predicate: %s", query)
 	}
 }
@@ -114,7 +114,7 @@ func TestBuildDocumentationFindingsSQLRequiresExplicitReadVisibility(t *testing.
 	t.Parallel()
 
 	query, _ := buildDocumentationFindingsSQL(documentationFindingFilter{Limit: 50})
-	if !strings.Contains(query, "(payload->'permissions'->>'viewer_can_read_source') = 'true'") {
+	if !strings.Contains(query, "(fact_records.payload->'permissions'->>'viewer_can_read_source') = 'true'") {
 		t.Fatalf("documentation findings SQL should require explicit read visibility: %s", query)
 	}
 }
@@ -123,7 +123,7 @@ func TestBuildDocumentationFindingsSQLSkipsUnevaluatedSourceACL(t *testing.T) {
 	t.Parallel()
 
 	query, _ := buildDocumentationFindingsSQL(documentationFindingFilter{Limit: 50})
-	if !strings.Contains(query, "LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'") {
+	if !strings.Contains(query, "LOWER(COALESCE(fact_records.payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'") {
 		t.Fatalf("documentation findings SQL should skip unevaluated source ACLs before pagination: %s", query)
 	}
 }

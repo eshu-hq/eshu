@@ -114,7 +114,7 @@ func runDocsVerifyWithDeps(cmd *cobra.Command, args []string, deps docsVerifyDep
 		return writeDocsVerifyOutput(cmd, opts, result, envelope, exitErr)
 	}
 	verifier := doctruth.NewVerifier(doctruth.VerifierOptions{
-		Commands:             commandTruthFromCobra(rootCmd),
+		Commands:             docsVerifyCommandTruth(deps),
 		HTTPEndpoints:        endpointTruthFromOpenAPI(query.OpenAPISpec()),
 		EnvironmentVariables: docsVerifyEnvironmentTruth(opts.Path),
 		MaxDocuments:         opts.Limit,
@@ -137,6 +137,13 @@ func runDocsVerifyWithDeps(cmd *cobra.Command, args []string, deps docsVerifyDep
 	envelope := docsVerifyEnvelopeForResult(result, exitErr)
 	envelope.Data.Persistence = persistSummary
 	return writeDocsVerifyOutput(cmd, opts, result, envelope, exitErr)
+}
+
+func docsVerifyCommandTruth(deps docsVerifyDeps) []doctruth.CommandTruth {
+	if deps.commandTruth == nil {
+		return nil
+	}
+	return deps.commandTruth()
 }
 
 func writeDocsVerifyOutput(

@@ -384,6 +384,15 @@ claim comparison. If the fingerprint is unchanged, it loads the stored finding
 and evidence-packet facts and applies `--fail-on` to those persisted findings
 instead of silently passing the command.
 
+Implementation evidence for issue #479 read-surface slice: the existing
+documentation findings API and MCP tool now accept `scope_id`, `generation_id`,
+and `repo` filters so callers can target one persisted `eshu docs verify
+--persist` run instead of scanning every documentation finding. The Postgres
+read model enriches each listed finding with its persisted `scope_id`,
+`generation_id`, and repository metadata from `ingestion_scopes.metadata.repo`
+when present. This keeps the CLI writer, API route, and MCP tool on the same
+durable fact identity without adding graph reads or a second truth path.
+
 No-Regression Evidence: focused gates for the first slice are
 `go test ./internal/doctruth -run 'TestVerifier' -count=1`,
 `go test ./cmd/eshu -run 'TestDocsVerify' -count=1`, and
@@ -391,11 +400,16 @@ No-Regression Evidence: focused gates for the first slice are
 The persistence slice adds
 `go test ./cmd/eshu -run 'TestRunDocsVerifyPersist' -count=1` and
 `go test ./internal/storage/postgres -run 'TestIngestionStoreCurrentScopeGeneration' -count=1`.
+The read-surface slice adds
+`go test ./internal/query -run 'TestDocumentationHandlerPassesPersistedScopeFilters|TestBuildDocumentationFindingsSQLFiltersPersistedScopeIdentity|TestDocumentationHandlerListsScopeMetadataInFindings' -count=1`
+and
+`go test ./internal/mcp -run 'TestListDocumentationFindings' -count=1`.
 The covered input shape is local Markdown documents with explicit command,
 endpoint, env-var, and unsupported shell-command snippets. Bounds are
 file-count and per-file byte limits plus one scope-generation freshness lookup
-and one kind-filtered fact read on unchanged persisted input; graph writes,
-backend Cypher, and runtime worker counts are unchanged.
+and one kind-filtered fact read on unchanged persisted input; read-surface
+lookups remain bounded by explicit filters, `limit`, and cursor offset. Graph
+writes, backend Cypher, and runtime worker counts are unchanged.
 
 Observability Evidence: this slice is a local CLI/documentation-fact generator,
 so no new long-running runtime metric is required. Operator diagnosis uses the
@@ -407,6 +421,10 @@ CLI summary counters (`documents_scanned`, `bytes_scanned`, `claims_checked`,
 and the existing documentation read route spans
 `query.documentation_findings`, `query.documentation_evidence_packet`, and
 `query.documentation_packet_freshness` when API or MCP reads the stored facts.
+The read-surface filter slice reuses those same route spans plus the existing
+Postgres `db.operation=list_documentation_findings` span; no new metric label
+or runtime worker signal is required because the change only narrows a bounded
+fact-record read.
 
 ---
 

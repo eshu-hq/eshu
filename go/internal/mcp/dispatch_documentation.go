@@ -32,6 +32,9 @@ func documentationRoute(toolName string, args map[string]any) (*route, bool) {
 func documentationFindingsQuery(args map[string]any) map[string]string {
 	query := map[string]string{}
 	for _, key := range []string{
+		"scope_id",
+		"generation_id",
+		"repo",
 		"finding_type",
 		"source_id",
 		"document_id",

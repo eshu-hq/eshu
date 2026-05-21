@@ -25,6 +25,7 @@ type docsPersistenceFactory func(context.Context) (docsVerifyPersistence, func()
 
 type docsVerifyDeps struct {
 	openPersistence docsPersistenceFactory
+	commandTruth    func() []doctruth.CommandTruth
 	now             func() time.Time
 }
 
@@ -59,6 +60,7 @@ const docsVerifyFreshnessVersion = "docs-verify-v1"
 func defaultDocsVerifyDeps() docsVerifyDeps {
 	return docsVerifyDeps{
 		openPersistence: openDocsVerifyPostgresPersistence,
+		commandTruth:    func() []doctruth.CommandTruth { return commandTruthFromCobra(rootCmd) },
 		now:             func() time.Time { return time.Now().UTC() },
 	}
 }

@@ -72,6 +72,9 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	if router.Evidence == nil {
 		t.Fatal("newMCPQueryRouter().Evidence = nil, want relationship evidence drilldown route mounted")
 	}
+	if router.Documentation == nil {
+		t.Fatal("newMCPQueryRouter().Documentation = nil, want documentation findings routes mounted")
+	}
 	if router.SupplyChain == nil {
 		t.Fatal("newMCPQueryRouter().SupplyChain = nil, want SBOM attestation attachment route mounted")
 	}

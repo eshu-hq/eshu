@@ -12,6 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -37,7 +40,7 @@ func TestRunDocsVerifyJSONReportsContradictedClaims(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v, want nil", err)
 	}
 
-	cmd := newDocsVerifyCommand()
+	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -73,7 +76,7 @@ func TestRunDocsVerifyTextReportsValidCommandAndEndpoint(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v, want nil", err)
 	}
 
-	cmd := newDocsVerifyCommand()
+	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -163,7 +166,7 @@ func TestRunDocsVerifyPersistCommitsDocumentationFacts(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v, want nil", err)
 	}
 	persistence := &recordingDocsVerifyPersistence{}
-	cmd := newDocsVerifyCommandWithDeps(docsVerifyDeps{
+	cmd := newTestDocsVerifyCommand(docsVerifyDeps{
 		openPersistence: fixedDocsPersistence(persistence),
 		now:             fixedDocsNow,
 	})
@@ -232,7 +235,7 @@ func TestRunDocsVerifyPersistSkipsUnchangedAndReturnsStoredFindings(t *testing.T
 			storedDocumentationPacket(scopeID, generationID),
 		},
 	}
-	cmd := newDocsVerifyCommandWithDeps(docsVerifyDeps{
+	cmd := newTestDocsVerifyCommand(docsVerifyDeps{
 		openPersistence: fixedDocsPersistence(persistence),
 		now:             fixedDocsNow,
 	})
@@ -283,7 +286,7 @@ func TestRunDocsVerifyPersistDoesNotSkipWhenMaxBytesChanges(t *testing.T) {
 		},
 		currentFound: true,
 	}
-	cmd := newDocsVerifyCommandWithDeps(docsVerifyDeps{
+	cmd := newTestDocsVerifyCommand(docsVerifyDeps{
 		openPersistence: fixedDocsPersistence(persistence),
 		now:             fixedDocsNow,
 	})
@@ -337,7 +340,7 @@ func TestRunDocsVerifyPersistSkipReportsCurrentInventoryCountersAndTruncation(t 
 			storedDocumentationPacket(scopeID, generationID),
 		},
 	}
-	cmd := newDocsVerifyCommandWithDeps(docsVerifyDeps{
+	cmd := newTestDocsVerifyCommand(docsVerifyDeps{
 		openPersistence: fixedDocsPersistence(persistence),
 		now:             fixedDocsNow,
 	})
@@ -364,6 +367,22 @@ func TestRunDocsVerifyPersistSkipReportsCurrentInventoryCountersAndTruncation(t 
 	}
 	if !envelope.Data.Persistence.Skipped {
 		t.Fatalf("Persistence = %#v, want skipped true", envelope.Data.Persistence)
+	}
+}
+
+func newTestDocsVerifyCommand(deps docsVerifyDeps) *cobra.Command {
+	if deps.commandTruth == nil {
+		deps.commandTruth = fixedDocsCommandTruth
+	}
+	return newDocsVerifyCommandWithDeps(deps)
+}
+
+func fixedDocsCommandTruth() []doctruth.CommandTruth {
+	return []doctruth.CommandTruth{
+		{Path: []string{"docs", "verify"}},
+		{Path: []string{"scan"}},
+		{Path: []string{"trace", "service"}},
+		{Path: []string{"map"}},
 	}
 }
 

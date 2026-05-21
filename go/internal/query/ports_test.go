@@ -26,6 +26,7 @@ type fakePortContentStore struct {
 	relationshipEvidence        relationshipEvidenceReadModel
 	documentationFindingsModel  documentationFindingListReadModel
 	documentationFindingsErr    error
+	documentationFindingsFilter *documentationFindingFilter
 	documentationPacketModel    documentationEvidencePacketReadModel
 	documentationPacketErr      error
 	documentationFreshnessModel documentationEvidencePacketFreshnessReadModel
@@ -151,7 +152,10 @@ func (f fakePortContentStore) relationshipEvidenceByResolvedID(context.Context, 
 	return f.relationshipEvidence, nil
 }
 
-func (f fakePortContentStore) documentationFindings(context.Context, documentationFindingFilter) (documentationFindingListReadModel, error) {
+func (f fakePortContentStore) documentationFindings(_ context.Context, filter documentationFindingFilter) (documentationFindingListReadModel, error) {
+	if f.documentationFindingsFilter != nil {
+		*f.documentationFindingsFilter = filter
+	}
 	if f.documentationFindingsErr != nil {
 		return documentationFindingListReadModel{}, f.documentationFindingsErr
 	}

@@ -196,11 +196,19 @@ LIMIT 1
 func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, []any) {
 	args := []any{}
 	clauses := []string{
-		"fact_kind = '" + facts.DocumentationFindingFactKind + "'",
-		"is_tombstone = FALSE",
-		"(payload->'permissions'->>'viewer_can_read_source') = 'true'",
-		"LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'",
-		"LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'",
+		"fact_records.fact_kind = '" + facts.DocumentationFindingFactKind + "'",
+		"fact_records.is_tombstone = FALSE",
+		"(fact_records.payload->'permissions'->>'viewer_can_read_source') = 'true'",
+		"LOWER(COALESCE(fact_records.payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'",
+		"LOWER(COALESCE(fact_records.payload->'states'->>'permission_decision', '')) <> 'denied'",
+	}
+	addColumnFilter := func(field string, value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		args = append(args, value)
+		clauses = append(clauses, fmt.Sprintf("%s = $%d", field, len(args)))
 	}
 	addPayloadFilter := func(field string, value string) {
 		value = strings.TrimSpace(value)
@@ -208,8 +216,11 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 			return
 		}
 		args = append(args, value)
-		clauses = append(clauses, fmt.Sprintf("payload->>'%s' = $%d", field, len(args)))
+		clauses = append(clauses, fmt.Sprintf("fact_records.payload->>'%s' = $%d", field, len(args)))
 	}
+	addColumnFilter("fact_records.scope_id", filter.ScopeID)
+	addColumnFilter("fact_records.generation_id", filter.GenerationID)
+	addColumnFilter("ingestion_scopes.payload->>'repo'", filter.Repository)
 	addPayloadFilter("finding_type", filter.FindingType)
 	addPayloadFilter("source_id", filter.SourceID)
 	addPayloadFilter("document_id", filter.DocumentID)
@@ -218,7 +229,7 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 	addPayloadFilter("freshness_state", filter.FreshnessState)
 	if filter.UpdatedSince != nil {
 		args = append(args, *filter.UpdatedSince)
-		clauses = append(clauses, fmt.Sprintf("observed_at >= $%d", len(args)))
+		clauses = append(clauses, fmt.Sprintf("fact_records.observed_at >= $%d", len(args)))
 	}
 	limit := filter.Limit
 	if limit <= 0 {
@@ -226,10 +237,17 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 	}
 	args = append(args, limit+1, filter.Offset)
 	return fmt.Sprintf(`
-SELECT payload
+SELECT fact_records.payload
+    || jsonb_build_object('scope_id', fact_records.scope_id, 'generation_id', fact_records.generation_id)
+    || CASE
+        WHEN ingestion_scopes.payload ? 'repo'
+            THEN jsonb_build_object('repo', ingestion_scopes.payload->>'repo')
+        ELSE '{}'::jsonb
+    END AS payload
 FROM fact_records
+LEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id
 WHERE %s
-ORDER BY observed_at DESC, fact_id DESC
+ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC
 LIMIT $%d OFFSET $%d
 `, strings.Join(clauses, " AND "), len(args)-1, len(args)), args
 }
