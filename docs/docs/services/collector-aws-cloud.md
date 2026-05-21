@@ -158,6 +158,7 @@ scope. Minimal central AssumeRole shape:
   "enabled": true,
   "claims_enabled": true,
   "configuration": {
+    "scheduled_scan_enabled": true,
     "target_scopes": [
       {
         "account_id": "123456789012",
@@ -192,6 +193,7 @@ awsCloudCollector:
       enabled: true
       claims_enabled: true
       configuration:
+        scheduled_scan_enabled: true
         target_scopes:
           - account_id: "123456789012"
             allowed_regions: [us-east-1]
@@ -206,8 +208,11 @@ owner ID, Postgres env, OTEL env, probes, metrics service, optional
 Use `awsCloudCollector.serviceAccount.create=true` for IRSA so AWS collector
 permissions do not attach to the API, reducer, ingester, or other pods in the
 same release.
-The workflow coordinator chart remains dark-only in this branch, so production
-deployments need an approved control-plane path that creates AWS workflow work.
+
+`scheduled_scan_enabled=true` lets the active workflow coordinator plan one
+bounded AWS work item per configured `(account_id, region, service_kind)` tuple
+on its reconcile cadence. Leave it unset when the deployment should only react
+to AWS freshness triggers.
 
 ## Freshness Layer
 
