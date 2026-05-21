@@ -1,0 +1,142 @@
+package query
+
+import (
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+type documentationFactFilter struct {
+	FactKind     string
+	ScopeID      string
+	GenerationID string
+	SourceID     string
+	DocumentID   string
+	SectionID    string
+	Query        string
+	UpdatedSince *time.Time
+	Limit        int
+	Cursor       string
+	Offset       int
+}
+
+type documentationFactListReadModel struct {
+	Facts      []map[string]any
+	NextCursor string
+}
+
+func (h *DocumentationHandler) listFacts(w http.ResponseWriter, r *http.Request) {
+	r, span := startQueryHandlerSpan(
+		r,
+		telemetry.SpanQueryDocumentationFacts,
+		"GET /api/v0/documentation/facts",
+		documentationFactsCapability,
+	)
+	defer span.End()
+
+	if h.unsupported(w, r, documentationFactsCapability) {
+		return
+	}
+	updatedSince, ok := documentationUpdatedSince(w, r)
+	if !ok {
+		return
+	}
+	page, ok := documentationPagination(w, r)
+	if !ok {
+		return
+	}
+	filter, ok := documentationFactRequestFilter(w, r, page, updatedSince)
+	if !ok {
+		return
+	}
+	store, ok := h.documentationStore(w, r)
+	if !ok {
+		return
+	}
+	readModel, err := store.documentationFacts(r.Context(), filter)
+	if err != nil {
+		writeDocumentationInternalError(w, r)
+		return
+	}
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"facts":       readModel.Facts,
+		"next_cursor": readModel.NextCursor,
+	}, BuildTruthEnvelope(
+		h.profile(),
+		documentationFactsCapability,
+		TruthBasisSemanticFacts,
+		"resolved from durable collected documentation facts",
+	))
+}
+
+func documentationFactRequestFilter(
+	w http.ResponseWriter,
+	r *http.Request,
+	page documentationPage,
+	updatedSince *time.Time,
+) (documentationFactFilter, bool) {
+	factKind, ok := normalizeDocumentationFactKind(QueryParam(r, "fact_kind"))
+	if !ok {
+		writeDocumentationError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, "unsupported documentation fact_kind", "")
+		return documentationFactFilter{}, false
+	}
+	filter := documentationFactFilter{
+		FactKind:     factKind,
+		ScopeID:      QueryParam(r, "scope_id"),
+		GenerationID: QueryParam(r, "generation_id"),
+		SourceID:     QueryParam(r, "source_id"),
+		DocumentID:   QueryParam(r, "document_id"),
+		SectionID:    QueryParam(r, "section_id"),
+		Query:        QueryParam(r, "q"),
+		UpdatedSince: updatedSince,
+		Limit:        page.limit,
+		Cursor:       page.cursor,
+		Offset:       page.offset,
+	}
+	if !filter.hasScopeOrAnchor() {
+		writeDocumentationError(
+			w,
+			r,
+			http.StatusBadRequest,
+			ErrorCodeInvalidArgument,
+			"documentation facts require scope_id, source_id, document_id, or section_id",
+			"",
+		)
+		return documentationFactFilter{}, false
+	}
+	return filter, true
+}
+
+func (f documentationFactFilter) hasScopeOrAnchor() bool {
+	if f.FactKind == facts.DocumentationSourceFactKind {
+		return true
+	}
+	return strings.TrimSpace(f.ScopeID) != "" ||
+		strings.TrimSpace(f.SourceID) != "" ||
+		strings.TrimSpace(f.DocumentID) != "" ||
+		strings.TrimSpace(f.SectionID) != ""
+}
+
+func normalizeDocumentationFactKind(raw string) (string, bool) {
+	switch strings.TrimSpace(raw) {
+	case "":
+		return "", true
+	case "source", facts.DocumentationSourceFactKind:
+		return facts.DocumentationSourceFactKind, true
+	case "document", facts.DocumentationDocumentFactKind:
+		return facts.DocumentationDocumentFactKind, true
+	case "section", facts.DocumentationSectionFactKind:
+		return facts.DocumentationSectionFactKind, true
+	case "link", facts.DocumentationLinkFactKind:
+		return facts.DocumentationLinkFactKind, true
+	case "entity_mention", facts.DocumentationEntityMentionFactKind:
+		return facts.DocumentationEntityMentionFactKind, true
+	case "claim_candidate", facts.DocumentationClaimCandidateFactKind:
+		return facts.DocumentationClaimCandidateFactKind, true
+	default:
+		return "", false
+	}
+}

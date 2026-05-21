@@ -89,6 +89,7 @@ func TestSpanNames(t *testing.T) {
 		"query.relationship_evidence",
 		"query.evidence_citation_packet",
 		"query.documentation_findings",
+		"query.documentation_facts",
 		"query.documentation_evidence_packet",
 		"query.documentation_packet_freshness",
 		"query.dead_iac",

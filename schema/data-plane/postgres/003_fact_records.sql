@@ -49,6 +49,11 @@ CREATE INDEX IF NOT EXISTS fact_records_framework_routes_repo_path_idx
           COALESCE(payload->'parsed_file_data'->'framework_semantics'->'frameworks', '[]'::jsonb)
       ) > 0;
 
+CREATE INDEX IF NOT EXISTS fact_records_documentation_sources_observed_idx
+    ON fact_records (observed_at DESC, fact_id DESC)
+    WHERE fact_kind = 'documentation_source'
+      AND is_tombstone = FALSE;
+
 CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_visible_idx
     ON fact_records (
         (payload->>'finding_type'),

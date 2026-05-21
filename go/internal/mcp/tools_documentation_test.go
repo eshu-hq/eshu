@@ -6,7 +6,7 @@ func TestDocumentationToolsAreRegisteredAndRouted(t *testing.T) {
 	t.Parallel()
 
 	tools := documentationTools()
-	if got, want := len(tools), 3; got != want {
+	if got, want := len(tools), 4; got != want {
 		t.Fatalf("len(documentationTools()) = %d, want %d", got, want)
 	}
 
@@ -21,6 +21,12 @@ func TestDocumentationToolsAreRegisteredAndRouted(t *testing.T) {
 			args:       map[string]any{"status": "contradicted", "limit": 25},
 			wantMethod: "GET",
 			wantPath:   "/api/v0/documentation/findings",
+		},
+		{
+			name:       "list_documentation_facts",
+			args:       map[string]any{"scope_id": "docs-scope", "fact_kind": "documentation_document", "limit": 25},
+			wantMethod: "GET",
+			wantPath:   "/api/v0/documentation/facts",
 		},
 		{
 			name:       "get_documentation_evidence_packet",
@@ -48,6 +54,40 @@ func TestDocumentationToolsAreRegisteredAndRouted(t *testing.T) {
 				t.Fatalf("path = %q, want %q", got, tc.wantPath)
 			}
 		})
+	}
+}
+
+func TestListDocumentationFactsSchemaIncludesBoundedFilters(t *testing.T) {
+	t.Parallel()
+
+	tools := documentationTools()
+	schema := tools[1].InputSchema.(map[string]any)
+	properties := schema["properties"].(map[string]any)
+	for _, name := range []string{"fact_kind", "scope_id", "generation_id", "source_id", "document_id", "section_id", "q", "limit", "cursor"} {
+		if _, ok := properties[name]; !ok {
+			t.Fatalf("list_documentation_facts InputSchema missing routed filter %q", name)
+		}
+	}
+}
+
+func TestListDocumentationFactsRouteIncludesScopeAndSearchFilters(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("list_documentation_facts", map[string]any{
+		"fact_kind":   "documentation_section",
+		"scope_id":    "docs-scope",
+		"document_id": "doc:confluence:123",
+		"section_id":  "body",
+		"q":           "deployment",
+		"limit":       25,
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	for _, key := range []string{"fact_kind", "scope_id", "document_id", "section_id", "q", "limit"} {
+		if got := route.query[key]; got == "" {
+			t.Fatalf("route.query[%q] = empty, want routed filter", key)
+		}
 	}
 }
 

@@ -36,6 +36,40 @@ func documentationTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "list_documentation_facts",
+			Description: "List collected documentation source, document, section, link, mention, or claim-candidate facts by bounded scope filters.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"fact_kind": map[string]any{
+						"type":        "string",
+						"description": "Collected documentation fact kind or shorthand such as source, document, section, link, entity_mention, or claim_candidate",
+					},
+					"scope_id":      map[string]any{"type": "string"},
+					"generation_id": map[string]any{"type": "string"},
+					"source_id":     map[string]any{"type": "string"},
+					"document_id":   map[string]any{"type": "string"},
+					"section_id":    map[string]any{"type": "string"},
+					"q": map[string]any{
+						"type":        "string",
+						"description": "Case-insensitive search over source display name, document title, section heading, and section content",
+					},
+					"updated_since": map[string]any{
+						"type":        "string",
+						"description": "Only return facts observed at or after this RFC3339 timestamp",
+					},
+					"limit": map[string]any{
+						"type":    "integer",
+						"default": 50,
+						"minimum": 1,
+						"maximum": 200,
+					},
+					"cursor": map[string]any{"type": "string"},
+				},
+				"required": []string{},
+			},
+		},
+		{
 			Name:        "get_documentation_evidence_packet",
 			Description: "Return the bounded evidence packet for one documentation finding.",
 			InputSchema: map[string]any{

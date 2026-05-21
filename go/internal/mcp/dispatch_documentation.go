@@ -9,6 +9,8 @@ func documentationRoute(toolName string, args map[string]any) (*route, bool) {
 	switch toolName {
 	case "list_documentation_findings":
 		return &route{method: "GET", path: "/api/v0/documentation/findings", query: documentationFindingsQuery(args)}, true
+	case "list_documentation_facts":
+		return &route{method: "GET", path: "/api/v0/documentation/facts", query: documentationFactsQuery(args)}, true
 	case "get_documentation_evidence_packet":
 		return &route{
 			method: "GET",
@@ -27,6 +29,29 @@ func documentationRoute(toolName string, args map[string]any) (*route, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func documentationFactsQuery(args map[string]any) map[string]string {
+	query := map[string]string{}
+	for _, key := range []string{
+		"fact_kind",
+		"scope_id",
+		"generation_id",
+		"source_id",
+		"document_id",
+		"section_id",
+		"q",
+		"updated_since",
+		"cursor",
+	} {
+		if value := str(args, key); value != "" {
+			query[key] = value
+		}
+	}
+	if limit := intOr(args, "limit", 50); limit > 0 {
+		query["limit"] = strconv.Itoa(limit)
+	}
+	return query
 }
 
 func documentationFindingsQuery(args map[string]any) map[string]string {

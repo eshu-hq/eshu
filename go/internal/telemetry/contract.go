@@ -162,6 +162,7 @@ const (
 	SpanQueryRelationshipEvidence         = "query.relationship_evidence"
 	SpanQueryEvidenceCitationPacket       = "query.evidence_citation_packet"
 	SpanQueryDocumentationFindings        = "query.documentation_findings"
+	SpanQueryDocumentationFacts           = "query.documentation_facts"
 	SpanQueryDocumentationEvidencePacket  = "query.documentation_evidence_packet"
 	SpanQueryDocumentationPacketFreshness = "query.documentation_packet_freshness"
 	SpanQueryDeadIaC                      = "query.dead_iac"

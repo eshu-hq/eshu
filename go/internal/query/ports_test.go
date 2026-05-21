@@ -27,6 +27,9 @@ type fakePortContentStore struct {
 	documentationFindingsModel  documentationFindingListReadModel
 	documentationFindingsErr    error
 	documentationFindingsFilter *documentationFindingFilter
+	documentationFactsModel     documentationFactListReadModel
+	documentationFactsErr       error
+	documentationFactsFilter    *documentationFactFilter
 	documentationPacketModel    documentationEvidencePacketReadModel
 	documentationPacketErr      error
 	documentationFreshnessModel documentationEvidencePacketFreshnessReadModel
@@ -160,6 +163,16 @@ func (f fakePortContentStore) documentationFindings(_ context.Context, filter do
 		return documentationFindingListReadModel{}, f.documentationFindingsErr
 	}
 	return f.documentationFindingsModel, nil
+}
+
+func (f fakePortContentStore) documentationFacts(_ context.Context, filter documentationFactFilter) (documentationFactListReadModel, error) {
+	if f.documentationFactsFilter != nil {
+		*f.documentationFactsFilter = filter
+	}
+	if f.documentationFactsErr != nil {
+		return documentationFactListReadModel{}, f.documentationFactsErr
+	}
+	return f.documentationFactsModel, nil
 }
 
 func (f fakePortContentStore) documentationEvidencePacket(context.Context, string) (documentationEvidencePacketReadModel, error) {

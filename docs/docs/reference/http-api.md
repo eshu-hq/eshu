@@ -286,6 +286,17 @@ matches repository metadata recorded on the documentation ingestion scope. Each
 item includes the stable finding identity, document and section identity,
 status, truth labels, summary, scope metadata, and an `evidence_packet_url`.
 
+`GET /api/v0/documentation/facts` lists collected documentation facts before
+they become findings. Use it to inspect Confluence source, document, section,
+link, entity-mention, and claim-candidate facts collected for a scope. The
+endpoint accepts `fact_kind`, `scope_id`, `generation_id`, `source_id`,
+`document_id`, `section_id`, `q`, `updated_since`, `limit`, and `cursor`.
+Requests must include `scope_id`, `source_id`, `document_id`, or `section_id`.
+The only exception is `fact_kind=source`, which can be used as the bounded
+source-discovery call for Confluence space scopes.
+Each row returns durable fact metadata plus the original source-neutral
+documentation payload.
+
 `GET /api/v0/documentation/findings/{finding_id}/evidence-packet` returns the
 bounded packet an external updater can snapshot before it plans a diff. The
 packet includes finding identity, document and section metadata, bounded

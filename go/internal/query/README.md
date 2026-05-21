@@ -358,8 +358,8 @@ normalized to `c_sharp` before candidate scanning.
 - `EvidenceHandler` — relationship evidence drilldown and bounded citation
   packet hydration; citation packets reject more than 500 input handles and
   hydrate at most 50 citations per call (`evidence.go`, `evidence_citation.go`)
-- `DocumentationHandler` — documentation truth findings and evidence packets
-  (`documentation.go`)
+- `DocumentationHandler` — collected documentation facts, documentation truth
+  findings, and evidence packets (`documentation.go`, `documentation_facts.go`)
 - `StatusHandler` — pipeline and ingester status routes (`status.go:14`)
 - `CompareHandler` — environment comparison (`compare.go:12`) with the
   story-packet helpers in `compare_story.go`
@@ -437,6 +437,8 @@ wired in `cmd/api/wiring.go`, not here.
   (`query.evidence_citation_packet`) on citation packet hydration;
   `telemetry.SpanQueryDocumentationFindings`
   (`query.documentation_findings`),
+  `telemetry.SpanQueryDocumentationFacts`
+  (`query.documentation_facts`),
   `telemetry.SpanQueryDocumentationEvidencePacket`
   (`query.documentation_evidence_packet`), and
   `telemetry.SpanQueryDocumentationPacketFreshness`

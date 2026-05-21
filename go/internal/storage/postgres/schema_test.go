@@ -207,8 +207,11 @@ func TestBootstrapDefinitionsIncludeDocumentationFactIndexes(t *testing.T) {
 	}
 	for _, want := range []string{
 		"fact_records_documentation_findings_visible_idx",
+		"fact_records_documentation_sources_observed_idx",
 		"fact_records_documentation_packets_finding_idx",
 		"fact_records_documentation_packets_packet_idx",
+		"ON fact_records (observed_at DESC, fact_id DESC)",
+		"WHERE fact_kind = 'documentation_source'",
 		"WHERE fact_kind = 'documentation_finding'",
 		"WHERE fact_kind = 'documentation_evidence_packet'",
 		"(payload->'permissions'->>'viewer_can_read_source') = 'true'",
