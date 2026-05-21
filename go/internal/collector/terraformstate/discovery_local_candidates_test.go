@@ -91,6 +91,61 @@ func TestDiscoveryAllowsApprovedGitLocalCandidate(t *testing.T) {
 	}
 }
 
+func TestDiscoveryPreservesApprovedGitLocalCandidateWithBackendFilter(t *testing.T) {
+	t.Parallel()
+
+	facts := &stubBackendFactReader{
+		candidates: []DiscoveryCandidate{{
+			State: StateKey{
+				BackendKind: BackendLocal,
+				Locator:     "/repos/platform-infra/env/prod/terraform.tfstate",
+			},
+			Source:       DiscoveryCandidateSourceGitLocalFile,
+			RepoID:       "platform-infra",
+			RelativePath: "env/prod/terraform.tfstate",
+		}},
+	}
+	resolver := DiscoveryResolver{
+		Config: DiscoveryConfig{
+			Graph:      true,
+			LocalRepos: []string{"platform-infra"},
+			BackendFilters: []DiscoveryBackendFilter{{
+				TargetScopeID: "aws-prod",
+				BackendKind:   BackendS3,
+				Bucket:        "bg-ops-prod-terraform-state",
+				Region:        "us-east-1",
+			}},
+			LocalStateCandidates: LocalStateCandidatePolicy{
+				Mode: LocalStateCandidateModeApproved,
+				Approved: []LocalStateCandidateRef{{
+					RepoID:        "platform-infra",
+					RelativePath:  "env/prod/terraform.tfstate",
+					TargetScopeID: "aws-prod",
+				}},
+			},
+		},
+		GitReadiness: &stubGitReadiness{ready: map[string]bool{"platform-infra": true}},
+		BackendFacts: facts,
+	}
+
+	candidates, err := resolver.Resolve(context.Background())
+	if err != nil {
+		t.Fatalf("Resolve() error = %v, want nil", err)
+	}
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(candidates) = %d, want approved local candidate preserved", got)
+	}
+	if got, want := candidates[0].Source, DiscoveryCandidateSourceGitLocalFile; got != want {
+		t.Fatalf("Source = %q, want %q", got, want)
+	}
+	if got, want := candidates[0].TargetScopeID, "aws-prod"; got != want {
+		t.Fatalf("TargetScopeID = %q, want %q", got, want)
+	}
+	if got, want := len(facts.lastQuery.BackendFilters), 1; got != want {
+		t.Fatalf("BackendFilters forwarded = %d, want %d", got, want)
+	}
+}
+
 func TestDiscoverySkipsIgnoredGitLocalCandidate(t *testing.T) {
 	t.Parallel()
 

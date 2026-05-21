@@ -12,6 +12,12 @@ func TestParseDiscoveryConfigMapsCollectorJSON(t *testing.T) {
 		"discovery": {
 			"graph": true,
 			"local_repos": ["platform-infra"],
+			"backend_filters": [{
+				"target_scope_id": "aws-prod",
+				"backend_kind": "s3",
+				"bucket": "app-tfstate-prod",
+				"region": "us-east-1"
+			}],
 			"seeds": [{
 				"kind": "s3",
 				"bucket": "app-tfstate-prod",
@@ -30,6 +36,21 @@ func TestParseDiscoveryConfigMapsCollectorJSON(t *testing.T) {
 	}
 	if got, want := config.LocalRepos, []string{"platform-infra"}; len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("LocalRepos = %#v, want %#v", got, want)
+	}
+	if got, want := len(config.BackendFilters), 1; got != want {
+		t.Fatalf("len(BackendFilters) = %d, want %d", got, want)
+	}
+	if got, want := config.BackendFilters[0].TargetScopeID, "aws-prod"; got != want {
+		t.Fatalf("BackendFilters[0].TargetScopeID = %q, want %q", got, want)
+	}
+	if got, want := config.BackendFilters[0].BackendKind, BackendS3; got != want {
+		t.Fatalf("BackendFilters[0].BackendKind = %q, want %q", got, want)
+	}
+	if got, want := config.BackendFilters[0].Bucket, "app-tfstate-prod"; got != want {
+		t.Fatalf("BackendFilters[0].Bucket = %q, want %q", got, want)
+	}
+	if got, want := config.BackendFilters[0].Region, "us-east-1"; got != want {
+		t.Fatalf("BackendFilters[0].Region = %q, want %q", got, want)
 	}
 	if got, want := config.Seeds[0].Kind, BackendS3; got != want {
 		t.Fatalf("Seeds[0].Kind = %q, want %q", got, want)

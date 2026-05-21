@@ -20,6 +20,14 @@ AWS SDK wiring belong to integration slices outside the reader stack.
 - `DiscoveryResolver` turns explicit seeds, Git-observed backend facts, and
   explicitly approved Git-local state candidates into exact `StateKey`
   candidates without opening raw state.
+- Graph discovery can be bounded by configured repositories (`local_repos`) or
+  by `backend_filters` that search all indexed active Git facts for exact
+  backend declarations matching fields such as backend kind, bucket, and
+  region.
+- When `local_repos` and `backend_filters` are both configured, discovery
+  treats them as a union: repo-scoped exact candidates remain eligible, filtered
+  global candidates are added with de-duplication, and approved repo-local state
+  candidates are not filtered by S3 backend fields.
 - Git HCL parsing emits `terraform_backends` metadata for Terraform `backend`
   blocks. The Postgres adapter reads those facts from active Git generations
   and only returns exact S3 candidates with literal bucket, key, and region
@@ -94,8 +102,9 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   approval may include `target_scope_id`, but a local read does not require one.
 - Exact local seeds still require operator-approved absolute paths.
 - S3 reads are exact object reads. Prefix-only keys are rejected.
-- Graph-backed discovery waits for Git generation readiness before reading
-  Terraform backend facts.
+- Repo-scoped graph discovery waits for Git generation readiness before reading
+  Terraform backend facts. Backend-filter discovery reads only active
+  generations and must include at least one explicit filter.
 - Dynamic backend expressions, workspace-prefixed S3 backends, non-S3 backends,
   and unapproved local paths from Git facts are not discovery candidates.
 - S3 write capability is rejected at source construction.
@@ -122,3 +131,29 @@ AWS SDK wiring belong to integration slices outside the reader stack.
 - DynamoDB lock metadata is read-only and observational. The reader records the
   digest and a lock ID hash, but consistency decisions still come from the
   opened state body and durable generation metadata.
+
+## Filtered Discovery Evidence
+
+No-Regression Evidence: baseline before this slice was direct Terraform-state
+seeds plus repo-scoped Git backend discovery; backend-filter discovery and the
+remote all-collector Compose entrypoint were not accepted release paths. After
+measurement on 2026-05-21, an isolated remote Compose smoke run built from the
+PR branch against the default NornicDB image resolved one configured S3 state
+object by seed and by backend filter across a 45-repository smoke corpus. The
+Terraform-state collector reached terminal workflow completion with
+`terraform_state_snapshot=1`, `terraform_state_resource=148`,
+`terraform_state_module=148`, `terraform_state_provider_binding=148`,
+`terraform_state_output=33`, `terraform_state_tag_observation=713`, and
+`terraform_state_warning=14`; API and MCP health checks returned healthy. This
+change keeps graph discovery exact-object only, leaves worker counts and graph
+write paths unchanged, and only reduces filtered discovery database round trips
+from two queries per filter to one Terraform query plus one Terragrunt query
+per resolve.
+
+Observability Evidence: the remote proof used workflow work-item terminal
+state, Terraform-state fact row counts, API and MCP health endpoints, collector
+structured logs, and NornicDB error-log checks. Existing collector metrics,
+workflow status fields, fact work-item counters, and parser warning facts still
+identify whether discovery, source opening, parsing, fact commit, reducer
+projection, or graph persistence is stuck or failing; this patch does not add a
+new runtime stage or hide failures behind fallback behavior.

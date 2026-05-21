@@ -142,6 +142,52 @@ func TestDiscoveryDoesNotReadGraphFactsWithoutRepoScope(t *testing.T) {
 	}
 }
 
+func TestDiscoveryReadsGraphFactsWithBackendFilterWithoutRepoScope(t *testing.T) {
+	t.Parallel()
+
+	facts := &stubBackendFactReader{
+		candidates: []DiscoveryCandidate{{
+			State: StateKey{
+				BackendKind: BackendS3,
+				Locator:     "s3://app-tfstate-prod/services/api/terraform.tfstate",
+			},
+			Source:        DiscoveryCandidateSourceGraph,
+			TargetScopeID: "aws-prod",
+			RepoID:        "platform-infra",
+			Region:        "us-east-1",
+		}},
+	}
+	resolver := DiscoveryResolver{
+		Config: DiscoveryConfig{
+			Graph: true,
+			BackendFilters: []DiscoveryBackendFilter{{
+				TargetScopeID: "aws-prod",
+				BackendKind:   BackendS3,
+				Bucket:        "app-tfstate-prod",
+				Region:        "us-east-1",
+			}},
+		},
+		BackendFacts: facts,
+	}
+
+	candidates, err := resolver.Resolve(context.Background())
+	if err != nil {
+		t.Fatalf("Resolve() error = %v, want nil", err)
+	}
+	if got, want := facts.calls, 1; got != want {
+		t.Fatalf("backend fact reader calls = %d, want %d", got, want)
+	}
+	if got, want := facts.lastQuery.BackendFilters[0].Bucket, "app-tfstate-prod"; got != want {
+		t.Fatalf("query backend filter bucket = %q, want %q", got, want)
+	}
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(candidates) = %d, want %d", got, want)
+	}
+	if got, want := candidates[0].TargetScopeID, "aws-prod"; got != want {
+		t.Fatalf("candidate TargetScopeID = %q, want %q", got, want)
+	}
+}
+
 func TestDiscoveryReadsGraphFactsAfterGitGenerationCommitted(t *testing.T) {
 	t.Parallel()
 

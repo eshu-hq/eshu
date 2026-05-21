@@ -48,6 +48,39 @@ WHERE fact.fact_kind = 'file'
 ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
 `
 
+const listTerraformBackendFactsByFilterQuery = `
+WITH backend_filters AS (
+    SELECT
+        COALESCE(filter_item->>'backend_kind', '') AS backend_kind,
+        COALESCE(filter_item->>'bucket', '') AS bucket,
+        COALESCE(filter_item->>'region', '') AS region
+    FROM jsonb_array_elements($1::jsonb) AS filter_item
+)
+SELECT
+    fact.payload->>'repo_id' AS repo_id,
+    fact.payload->'parsed_file_data'->'terraform_backends' AS terraform_backends
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE fact.fact_kind = 'file'
+  AND fact.source_system = 'git'
+  AND generation.status = 'active'
+  AND jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
+  AND EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(fact.payload->'parsed_file_data'->'terraform_backends') AS backend
+      JOIN backend_filters AS filter ON true
+      WHERE (filter.backend_kind = '' OR backend->>'backend_kind' = filter.backend_kind OR backend->>'name' = filter.backend_kind)
+        AND (filter.bucket = '' OR backend->>'bucket' = filter.bucket)
+        AND (filter.region = '' OR backend->>'region' = filter.region)
+  )
+ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
+`
+
 const listTerragruntRemoteStateFactsQuery = `
 WITH requested_repos AS (
     SELECT DISTINCT btrim(value) AS requested_repo_id
@@ -99,6 +132,45 @@ WHERE fact.fact_kind = 'file'
   AND fact.source_system = 'git'
   AND generation.status = 'active'
   AND jsonb_typeof(fact.payload->'parsed_file_data'->'terragrunt_remote_states') = 'array'
+ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
+`
+
+const listTerragruntRemoteStateFactsByFilterQuery = `
+WITH backend_filters AS (
+    SELECT
+        COALESCE(filter_item->>'backend_kind', '') AS backend_kind,
+        COALESCE(filter_item->>'bucket', '') AS bucket,
+        COALESCE(filter_item->>'region', '') AS region
+    FROM jsonb_array_elements($1::jsonb) AS filter_item
+)
+SELECT
+    fact.payload->>'repo_id' AS repo_id,
+    COALESCE(repository.payload->>'local_path', '') AS repo_local_path,
+    fact.payload->'parsed_file_data'->'terragrunt_remote_states' AS terragrunt_remote_states
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+LEFT JOIN fact_records AS repository
+  ON repository.scope_id = fact.scope_id
+ AND repository.generation_id = fact.generation_id
+ AND repository.fact_kind = 'repository'
+ AND repository.source_system = 'git'
+WHERE fact.fact_kind = 'file'
+  AND fact.source_system = 'git'
+  AND generation.status = 'active'
+  AND jsonb_typeof(fact.payload->'parsed_file_data'->'terragrunt_remote_states') = 'array'
+  AND EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(fact.payload->'parsed_file_data'->'terragrunt_remote_states') AS remote_state
+      JOIN backend_filters AS filter ON true
+      WHERE (filter.backend_kind = '' OR remote_state->>'backend_kind' = filter.backend_kind OR remote_state->>'name' = filter.backend_kind)
+        AND (filter.bucket = '' OR remote_state->>'bucket' = filter.bucket)
+        AND (filter.region = '' OR remote_state->>'region' = filter.region)
+  )
 ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
 `
 

@@ -41,6 +41,37 @@ func TestRemoteE2EExampleEnvRequestsFullCorpusPreflight(t *testing.T) {
 	}
 }
 
+func TestRemoteE2EComposeExercisesTerraformStateBackendFilterDiscovery(t *testing.T) {
+	t.Parallel()
+
+	content := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	for _, want := range []string{
+		`"backend_filters"`,
+		`"target_scope_id": "aws-e2e"`,
+		`"backend_kind": "s3"`,
+		`"bucket": "${ESHU_TFSTATE_S3_BUCKET:?set ESHU_TFSTATE_S3_BUCKET}"`,
+		`"region": "${ESHU_TFSTATE_S3_REGION:?set ESHU_TFSTATE_S3_REGION}"`,
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("docker-compose.remote-e2e.yaml missing Terraform-state backend filter term %q", want)
+		}
+	}
+}
+
+func TestRemoteE2EComposeUsesStableWorkflowReconcileWindow(t *testing.T) {
+	t.Parallel()
+
+	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	if !strings.Contains(compose, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL:-1h") {
+		t.Fatal("remote E2E Compose should default workflow reconcile to 1h so verification can finish before the next continuous wave")
+	}
+
+	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
+	if !strings.Contains(exampleEnv, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL=1h") {
+		t.Fatal(".env.remote-e2e.example should document the stable reconcile window")
+	}
+}
+
 func TestRemoteE2EPreflightScriptValidatesFullCorpusInputs(t *testing.T) {
 	t.Parallel()
 

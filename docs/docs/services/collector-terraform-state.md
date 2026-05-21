@@ -134,6 +134,14 @@ parser. Minimal shape:
           }
         ]
       },
+      "backend_filters": [
+        {
+          "target_scope_id": "aws-prod",
+          "backend_kind": "s3",
+          "bucket": "company-terraform-state",
+          "region": "us-east-1"
+        }
+      ],
       "seeds": [
         {
           "kind": "s3",
@@ -148,6 +156,70 @@ parser. Minimal shape:
   }
 }
 ```
+
+### Discovery Modes
+
+Terraform-state discovery supports three bounded source-selection modes:
+
+1. **Direct exact state objects** with `discovery.seeds`. Use this when an
+   operator already knows the exact local path or S3 `bucket`, `key`, and
+   `region`.
+2. **Repo-scoped graph discovery** with `discovery.local_repos`. Use this when
+   the source of truth is a known set of repositories that declare Terraform
+   backend blocks or Terragrunt `remote_state` blocks.
+3. **Filtered global graph discovery** with `discovery.backend_filters`. Use
+   this when the source of truth is "all indexed backend declarations matching
+   this account or environment bucket" rather than a hand-maintained repo list.
+
+`backend_filters` searches indexed Postgres/Git facts only. It does not list S3
+bucket contents. The common ops shape is:
+
+```json
+{
+  "discovery": {
+    "graph": true,
+    "backend_filters": [
+      {
+        "target_scope_id": "ops-qa-aws",
+        "backend_kind": "s3",
+        "bucket": "bg-ops-qa-terraform-state",
+        "region": "us-east-1"
+      }
+    ]
+  }
+}
+```
+
+For a central role that can read every configured backend, the broadest
+supported graph search is:
+
+```json
+{
+  "aws": {"role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-read"},
+  "discovery": {
+    "graph": true,
+    "backend_filters": [{"backend_kind": "s3"}]
+  }
+}
+```
+
+When multiple target scopes are configured, each broad filter must name a
+`target_scope_id` so the runtime does not guess credentials. `graph: true`
+without `local_repos` or `backend_filters` remains invalid and must not become
+an accidental whole-database scan.
+
+No-Regression Evidence: filtered graph discovery only widens the coordinator's
+candidate lookup from repo-scoped active Git facts to explicitly filtered
+active Git facts. It still returns exact S3 locators with literal bucket, key,
+and region values, skips workspace-prefixed or dynamic backend expressions, and
+keeps raw S3 locators out of work item IDs and requested scope sets.
+
+Observability Evidence: existing workflow-coordinator reconcile metrics,
+workflow work-item rows, `eshu_dp_tfstate_discovery_candidates_total{source}`,
+Terraform-state claim wait metrics, collector structured logs, and
+Terraform-state fact counts show whether filtered discovery found candidates,
+created work, claimed exact state objects, emitted facts, or failed before
+opening a source.
 
 ### Target-Scope Credential Routing
 
