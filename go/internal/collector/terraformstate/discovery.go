@@ -156,12 +156,6 @@ func (r DiscoveryResolver) Resolve(ctx context.Context) ([]DiscoveryCandidate, e
 		if r.skipLocalStateCandidate(&candidate) {
 			continue
 		}
-		if filtered, ok := candidateWithBackendFilters(candidate, backendFilters); len(backendFilters) > 0 {
-			if !ok {
-				continue
-			}
-			candidate = filtered
-		}
 		if err := candidate.Validate(); err != nil {
 			return nil, fmt.Errorf("terraform state graph candidate %d: %w", index, err)
 		}

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -10,50 +11,63 @@ import (
 
 func (r TerraformStateBackendFactReader) filteredTerraformStateCandidates(
 	ctx context.Context,
-	query terraformstate.DiscoveryQuery,
 	filters []terraformstate.DiscoveryBackendFilter,
+	seen map[string]struct{},
 ) ([]terraformstate.DiscoveryCandidate, error) {
-	seen := map[string]struct{}{}
-	var candidates []terraformstate.DiscoveryCandidate
-	for _, filter := range filters {
-		rows, err := r.DB.QueryContext(
-			ctx,
-			listTerraformBackendFactsByFilterQuery,
-			string(filter.BackendKind),
-			filter.Bucket,
-			filter.Region,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("list filtered terraform state backend facts: %w", err)
-		}
-		rowCandidates, err := scanTerraformBackendCandidateRows(rows)
-		if err != nil {
-			return nil, fmt.Errorf("list filtered terraform state backend facts: %w", err)
-		}
-		candidates = appendMatchingTerraformStateCandidates(candidates, seen, rowCandidates, []terraformstate.DiscoveryBackendFilter{filter})
-
-		rows, err = r.DB.QueryContext(
-			ctx,
-			listTerragruntRemoteStateFactsByFilterQuery,
-			string(filter.BackendKind),
-			filter.Bucket,
-			filter.Region,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("list filtered terragrunt remote_state facts: %w", err)
-		}
-		rowCandidates, err = scanTerragruntRemoteStateCandidateRows(rows)
-		if err != nil {
-			return nil, fmt.Errorf("list filtered terragrunt remote_state facts: %w", err)
-		}
-		candidates = appendMatchingTerraformStateCandidates(candidates, seen, rowCandidates, []terraformstate.DiscoveryBackendFilter{filter})
+	if len(filters) == 0 {
+		return nil, nil
 	}
-	localCandidates, err := r.localStateCandidates(ctx, query, seen, filters)
+	if seen == nil {
+		seen = map[string]struct{}{}
+	}
+	filterJSON, err := terraformStateBackendFiltersJSON(filters)
 	if err != nil {
 		return nil, err
 	}
-	candidates = append(candidates, localCandidates...)
+
+	var candidates []terraformstate.DiscoveryCandidate
+	rows, err := r.DB.QueryContext(ctx, listTerraformBackendFactsByFilterQuery, filterJSON)
+	if err != nil {
+		return nil, fmt.Errorf("list filtered terraform state backend facts: %w", err)
+	}
+	rowCandidates, err := scanTerraformBackendCandidateRows(rows)
+	if err != nil {
+		return nil, fmt.Errorf("list filtered terraform state backend facts: %w", err)
+	}
+	candidates = appendMatchingTerraformStateCandidates(candidates, seen, rowCandidates, filters)
+
+	rows, err = r.DB.QueryContext(ctx, listTerragruntRemoteStateFactsByFilterQuery, filterJSON)
+	if err != nil {
+		return nil, fmt.Errorf("list filtered terragrunt remote_state facts: %w", err)
+	}
+	rowCandidates, err = scanTerragruntRemoteStateCandidateRows(rows)
+	if err != nil {
+		return nil, fmt.Errorf("list filtered terragrunt remote_state facts: %w", err)
+	}
+	candidates = appendMatchingTerraformStateCandidates(candidates, seen, rowCandidates, filters)
 	return candidates, nil
+}
+
+type terraformStateBackendFilterQueryItem struct {
+	BackendKind string `json:"backend_kind"`
+	Bucket      string `json:"bucket"`
+	Region      string `json:"region"`
+}
+
+func terraformStateBackendFiltersJSON(filters []terraformstate.DiscoveryBackendFilter) (string, error) {
+	items := make([]terraformStateBackendFilterQueryItem, 0, len(filters))
+	for _, filter := range filters {
+		items = append(items, terraformStateBackendFilterQueryItem{
+			BackendKind: string(filter.BackendKind),
+			Bucket:      filter.Bucket,
+			Region:      filter.Region,
+		})
+	}
+	raw, err := json.Marshal(items)
+	if err != nil {
+		return "", fmt.Errorf("encode terraform state backend filters: %w", err)
+	}
+	return string(raw), nil
 }
 
 func scanTerraformBackendCandidateRows(rows Rows) ([]terraformstate.DiscoveryCandidate, error) {
@@ -129,6 +143,26 @@ func appendMatchingTerraformStateCandidates(
 		}
 		seen[key] = struct{}{}
 		out = append(out, matched)
+	}
+	return out
+}
+
+func appendTerraformStateCandidatesWithFilterEnrichment(
+	out []terraformstate.DiscoveryCandidate,
+	seen map[string]struct{},
+	candidates []terraformstate.DiscoveryCandidate,
+	filters []terraformstate.DiscoveryBackendFilter,
+) []terraformstate.DiscoveryCandidate {
+	for _, candidate := range candidates {
+		if matched, ok := terraformStateCandidateWithFilter(candidate, filters); ok {
+			candidate = matched
+		}
+		key := candidate.State.Locator + "\x00" + candidate.State.VersionID
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, candidate)
 	}
 	return out
 }

@@ -76,7 +76,7 @@ func ValidateTerraformStateCollectorConfiguration(raw string) error {
 	}
 
 	if !cfg.Discovery.Graph && len(cfg.Discovery.Seeds) == 0 && len(cfg.Discovery.LocalRepos) == 0 && len(cfg.Discovery.BackendFilters) == 0 {
-		return fmt.Errorf("terraform_state configuration discovery must enable graph, seeds, or local_repos")
+		return fmt.Errorf("terraform_state configuration discovery must enable graph, seeds, local_repos, or backend_filters")
 	}
 	if cfg.Discovery.Graph && len(cfg.Discovery.LocalRepos) == 0 && len(cfg.Discovery.BackendFilters) == 0 {
 		return fmt.Errorf("terraform_state configuration discovery.graph requires local_repos or backend_filters")
