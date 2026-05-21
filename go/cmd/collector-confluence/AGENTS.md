@@ -16,7 +16,7 @@
 - **Read-only Confluence access** - the HTTP client must only issue `GET`
   requests. Eshu gathers evidence; it does not mutate Confluence.
 - **Bounded collection** - startup must require exactly one bounded source:
-  a Confluence space ID or a root page ID.
+  a Confluence space ID, an explicit list of space IDs, or a root page ID.
 - **Shared durable write boundary** - facts must flow through
   `collector.Service` and `postgres.NewIngestionStore`.
 - **Operator visibility** - keep the hosted status server and Prometheus

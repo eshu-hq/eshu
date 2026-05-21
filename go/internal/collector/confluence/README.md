@@ -26,6 +26,9 @@ idle poll. The collection path loads either
 a space page list or a root page tree, filters non-current pages, keeps the
 latest visible revision per page ID, computes a stable generation ID from page
 versions, and returns fact envelopes through `collector.FactsFromSlice`.
+When configured with explicit multiple space IDs, each call emits one
+generation for one space; the drained idle poll resets the list so the next
+poll cycle starts from the first configured space again.
 
 For page trees, `ErrPermissionDenied` from a child page is counted as a
 partial-sync failure and collection continues. Other client errors fail the
@@ -47,6 +50,7 @@ generation because the collector cannot prove the source state.
 
 - `ESHU_CONFLUENCE_BASE_URL`
 - `ESHU_CONFLUENCE_SPACE_ID`
+- `ESHU_CONFLUENCE_SPACE_IDS`
 - `ESHU_CONFLUENCE_SPACE_KEY`
 - `ESHU_CONFLUENCE_ROOT_PAGE_ID`
 - `ESHU_CONFLUENCE_EMAIL`
@@ -55,11 +59,13 @@ generation because the collector cannot prove the source state.
 - `ESHU_CONFLUENCE_PAGE_LIMIT`
 - `ESHU_CONFLUENCE_POLL_INTERVAL`
 
-Exactly one bounded scope is required: `ESHU_CONFLUENCE_SPACE_ID` or
-`ESHU_CONFLUENCE_ROOT_PAGE_ID`. Credentials must be read-only and are supplied
-as either bearer token or email plus API token. `ESHU_CONFLUENCE_POLL_INTERVAL`
-uses Go duration syntax and defaults to `5m`, which avoids tight re-reads
-against large spaces.
+Exactly one bounded scope mode is required: `ESHU_CONFLUENCE_SPACE_ID`,
+`ESHU_CONFLUENCE_SPACE_IDS`, or `ESHU_CONFLUENCE_ROOT_PAGE_ID`.
+`ESHU_CONFLUENCE_SPACE_IDS` is a comma-separated allowlist of numeric space IDs;
+blank does not mean all spaces, and duplicate or empty list entries fail
+startup. Credentials must be read-only and are supplied as either bearer token
+or email plus API token. `ESHU_CONFLUENCE_POLL_INTERVAL` uses Go duration syntax
+and defaults to `5m`, which avoids tight re-reads against large spaces.
 
 ## Fact Output
 

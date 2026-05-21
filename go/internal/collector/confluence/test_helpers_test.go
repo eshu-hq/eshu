@@ -11,17 +11,33 @@ import (
 
 type fakeClient struct {
 	space            Space
+	spacesByID       map[string]Space
 	spacePages       []Page
+	spacePagesByID   map[string][]Page
 	treePageIDs      []string
 	pagesByID        map[string]Page
 	forbiddenPageIDs map[string]struct{}
 }
 
-func (f *fakeClient) GetSpace(_ context.Context, _ string) (Space, error) {
+func (f *fakeClient) GetSpace(_ context.Context, id string) (Space, error) {
+	if f.spacesByID != nil {
+		spaceValue, ok := f.spacesByID[id]
+		if !ok {
+			return Space{}, fmt.Errorf("missing test space %q", id)
+		}
+		return spaceValue, nil
+	}
 	return f.space, nil
 }
 
-func (f *fakeClient) ListSpacePages(_ context.Context, _ string, _ int) ([]Page, error) {
+func (f *fakeClient) ListSpacePages(_ context.Context, id string, _ int) ([]Page, error) {
+	if f.spacePagesByID != nil {
+		pages, ok := f.spacePagesByID[id]
+		if !ok {
+			return nil, fmt.Errorf("missing test space pages %q", id)
+		}
+		return pages, nil
+	}
 	return f.spacePages, nil
 }
 
@@ -39,6 +55,13 @@ func (f *fakeClient) GetPage(_ context.Context, id string) (Page, error) {
 		for _, candidate := range f.spacePages {
 			if candidate.ID == id && candidate.Version.Number >= latest.Version.Number {
 				latest = candidate
+			}
+		}
+		for _, spacePages := range f.spacePagesByID {
+			for _, candidate := range spacePages {
+				if candidate.ID == id && candidate.Version.Number >= latest.Version.Number {
+					latest = candidate
+				}
 			}
 		}
 		if latest.ID != "" {

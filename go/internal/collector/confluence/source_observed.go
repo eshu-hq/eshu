@@ -22,6 +22,7 @@ func (s *Source) NextObserved(
 ) (collector.CollectedGeneration, bool, collector.CollectorObservation, error) {
 	if s.drained {
 		s.drained = false
+		s.activeSpaceIndex = 0
 		return collector.CollectedGeneration{}, false, collector.CollectorObservation{}, nil
 	}
 	observation := startObserve(ctx)

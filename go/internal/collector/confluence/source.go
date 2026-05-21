@@ -29,7 +29,8 @@ type Source struct {
 	TruthExtractor  *doctruth.Extractor
 	TruthClaimHints func(Page, facts.DocumentationSectionPayload) []doctruth.ClaimHint
 
-	drained bool
+	drained          bool
+	activeSpaceIndex int
 }
 
 func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool, error) {
@@ -39,6 +40,7 @@ func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool,
 	}
 	observedAt := s.Config.now()
 
+	activeSpaceID := s.activeSpaceID()
 	pages, spaceValue, failureCount, err := s.collectPages(ctx)
 	if err != nil {
 		s.recordSyncFailure(ctx, "source_read")
@@ -46,7 +48,7 @@ func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool,
 	}
 	pages = latestCurrentPages(pages)
 
-	scopeValue := s.ingestionScope(spaceValue)
+	scopeValue := s.ingestionScope(activeSpaceID, spaceValue)
 	generationValue := scope.ScopeGeneration{
 		GenerationID:  generationID(scopeValue.ScopeID, pages),
 		ScopeID:       scopeValue.ScopeID,
@@ -73,18 +75,18 @@ func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool,
 		)
 	}
 
-	s.drained = true
+	s.advanceAfterSuccessfulSync()
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), true, nil
 }
 
-func (s *Source) ingestionScope(spaceValue Space) scope.IngestionScope {
+func (s *Source) ingestionScope(activeSpaceID string, spaceValue Space) scope.IngestionScope {
 	sourceID := documentationSourceID(s.Config, spaceValue)
 	return scope.IngestionScope{
 		ScopeID:       sourceID,
 		SourceSystem:  "confluence",
 		ScopeKind:     scope.KindDocumentationSource,
 		CollectorKind: scope.CollectorDocumentation,
-		PartitionKey:  s.Config.boundedID(),
+		PartitionKey:  s.Config.boundedID(activeSpaceID),
 		Metadata: map[string]string{
 			"base_url":     s.Config.BaseURL,
 			"space_id":     spaceValue.ID,
@@ -92,6 +94,24 @@ func (s *Source) ingestionScope(spaceValue Space) scope.IngestionScope {
 			"root_page_id": s.Config.RootPageID,
 		},
 	}
+}
+
+func (s *Source) activeSpaceID() string {
+	if len(s.Config.SpaceIDs) == 0 {
+		return s.Config.SpaceID
+	}
+	if s.activeSpaceIndex < 0 || s.activeSpaceIndex >= len(s.Config.SpaceIDs) {
+		s.activeSpaceIndex = 0
+	}
+	return s.Config.SpaceIDs[s.activeSpaceIndex]
+}
+
+func (s *Source) advanceAfterSuccessfulSync() {
+	if len(s.Config.SpaceIDs) == 0 || s.activeSpaceIndex >= len(s.Config.SpaceIDs)-1 {
+		s.drained = true
+		return
+	}
+	s.activeSpaceIndex++
 }
 
 func (s *Source) factEnvelopes(
@@ -372,7 +392,7 @@ func syncStatus(failureCount int) string {
 }
 
 func sourceType(config SourceConfig) string {
-	if config.SpaceID != "" {
+	if config.SpaceID != "" || len(config.SpaceIDs) > 0 {
 		return "confluence_space"
 	}
 	return "confluence_page_tree"

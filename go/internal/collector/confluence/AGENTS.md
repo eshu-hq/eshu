@@ -18,8 +18,9 @@
 
 - **Read-only source evidence** - Confluence access must remain `GET` only.
   Eshu collectors gather truth; write behavior belongs in separate services.
-- **Bounded syncs only** - collection must be scoped to a space ID or root page
-  ID. Do not introduce unbounded site-wide crawling.
+- **Bounded syncs only** - collection must be scoped to one explicit space ID,
+  an explicit list of space IDs, or one root page ID. Do not introduce
+  unbounded site-wide crawling.
 - **Source-neutral output** - facts must use the documentation schema, not
   Confluence-specific fact kinds.
 - **Partial-sync visibility** - permission gaps must increment

@@ -315,6 +315,10 @@
         "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
         "baseUrl": { "type": "string" },
         "spaceId": { "type": "string" },
+        "spaceIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
         "spaceKey": { "type": "string" },
         "rootPageId": { "type": "string" },
         "pageLimit": {

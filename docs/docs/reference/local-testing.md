@@ -285,6 +285,11 @@ test -n "$ESHU_CONFLUENCE_SPACE_ID"
 test "$ESHU_CONFLUENCE_SPACE_ID" != "null"
 ```
 
+To collect more than one known space in one collector process, set
+`ESHU_CONFLUENCE_SPACE_IDS` to a comma-separated list of numeric IDs and unset
+`ESHU_CONFLUENCE_SPACE_ID`. The list is an explicit allowlist; leaving it blank
+does not discover every space the token can read.
+
 Start Postgres, apply the data-plane schema, then run the collector:
 
 ```bash
