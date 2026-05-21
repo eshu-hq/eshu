@@ -84,7 +84,11 @@ func validateAWSScheduledPlanRequest(request AWSScheduledPlanRequest) error {
 
 func awsScheduledScanEnabled(raw string) (bool, error) {
 	var decoded awsFreshnessRuntimeConfiguration
-	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &decoded); err != nil {
+	normalized := strings.TrimSpace(raw)
+	if normalized == "" {
+		normalized = "{}"
+	}
+	if err := json.Unmarshal([]byte(normalized), &decoded); err != nil {
 		return false, fmt.Errorf("decode AWS collector configuration: %w", err)
 	}
 	return decoded.ScheduledScanEnabled, nil

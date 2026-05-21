@@ -112,6 +112,18 @@ func TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers(t *testing
 	}
 }
 
+func TestAWSScheduledScanEnabledNormalizesBlankConfiguration(t *testing.T) {
+	t.Parallel()
+
+	enabled, err := awsScheduledScanEnabled(" \n\t ")
+	if err != nil {
+		t.Fatalf("awsScheduledScanEnabled() error = %v, want nil", err)
+	}
+	if enabled {
+		t.Fatalf("awsScheduledScanEnabled() = true, want false")
+	}
+}
+
 func testServiceAWSScheduledInstance(observedAt time.Time) workflow.CollectorInstance {
 	instance := testServiceAWSInstance(observedAt)
 	instance.Configuration = testServiceAWSScheduledConfiguration()
