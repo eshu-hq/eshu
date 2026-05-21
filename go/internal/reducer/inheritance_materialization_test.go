@@ -166,6 +166,12 @@ func TestExtractInheritanceRowsFromClassWithBases(t *testing.T) {
 	if got, want := rows[0]["relationship_type"], "INHERITS"; got != want {
 		t.Fatalf("relationship_type = %#v, want %#v", got, want)
 	}
+	if got, want := rows[0]["child_entity_type"], "Class"; got != want {
+		t.Fatalf("child_entity_type = %#v, want %#v", got, want)
+	}
+	if got, want := rows[0]["parent_entity_type"], "Class"; got != want {
+		t.Fatalf("parent_entity_type = %#v, want %#v", got, want)
+	}
 }
 
 func TestExtractInheritanceRowsFromInterfaceWithBases(t *testing.T) {

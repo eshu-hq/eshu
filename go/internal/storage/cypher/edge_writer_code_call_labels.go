@@ -122,19 +122,32 @@ func annotateEdgeStatementSummaries(domain string, cypher string, stmts []Statem
 }
 
 func edgeStatementSummary(domain string, cypher string, rowCount int) string {
-	if domain != "code_calls" {
+	switch domain {
+	case "code_calls":
+		relationship := codeCallRelationshipSummary(cypher)
+		source := edgeEndpointSummary(cypher, "source")
+		target := edgeEndpointSummary(cypher, "target")
+		return fmt.Sprintf(
+			"domain=code_calls relationship=%s source=%s target=%s rows=%d",
+			relationship,
+			source,
+			target,
+			rowCount,
+		)
+	case "inheritance_edges":
+		relationship := inheritanceRelationshipSummary(cypher)
+		child := edgeEndpointSummary(cypher, "child")
+		parent := edgeEndpointSummary(cypher, "parent")
+		return fmt.Sprintf(
+			"domain=inheritance_edges relationship=%s child=%s parent=%s rows=%d",
+			relationship,
+			child,
+			parent,
+			rowCount,
+		)
+	default:
 		return ""
 	}
-	relationship := codeCallRelationshipSummary(cypher)
-	source := codeCallEndpointSummary(cypher, "source")
-	target := codeCallEndpointSummary(cypher, "target")
-	return fmt.Sprintf(
-		"domain=code_calls relationship=%s source=%s target=%s rows=%d",
-		relationship,
-		source,
-		target,
-		rowCount,
-	)
 }
 
 func codeCallRelationshipSummary(cypher string) string {
@@ -148,7 +161,18 @@ func codeCallRelationshipSummary(cypher string) string {
 	}
 }
 
-func codeCallEndpointSummary(cypher string, endpoint string) string {
+func inheritanceRelationshipSummary(cypher string) string {
+	switch {
+	case strings.Contains(cypher, "rel:OVERRIDES"):
+		return "OVERRIDES"
+	case strings.Contains(cypher, "rel:ALIASES"):
+		return "ALIASES"
+	default:
+		return "INHERITS"
+	}
+}
+
+func edgeEndpointSummary(cypher string, endpoint string) string {
 	marker := "MATCH (" + endpoint + ":"
 	start := strings.Index(cypher, marker)
 	if start < 0 {
