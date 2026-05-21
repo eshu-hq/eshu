@@ -36,8 +36,11 @@ func readProducerActivitySnapshot(
 		return statuspkg.ProducerActivitySnapshot{}, fmt.Errorf("read producer activity: %w", err)
 	}
 
-	return statuspkg.ProducerActivitySnapshot{
+	snapshot := statuspkg.ProducerActivitySnapshot{
 		HasActiveOrPendingGeneration: hasActiveOrPendingGeneration,
-		LatestGenerationAge:          durationFromSeconds(latestGenerationAgeSeconds.Float64),
-	}, nil
+	}
+	if latestGenerationAgeSeconds.Valid {
+		snapshot.LatestGenerationAge = durationFromSeconds(latestGenerationAgeSeconds.Float64)
+	}
+	return snapshot, nil
 }

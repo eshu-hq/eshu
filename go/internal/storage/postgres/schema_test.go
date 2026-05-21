@@ -82,6 +82,30 @@ func TestBootstrapDefinitionsIncludeGraphSchemaApplications(t *testing.T) {
 	}
 }
 
+func TestBootstrapDefinitionsIncludeScopeGenerationActivityIndex(t *testing.T) {
+	t.Parallel()
+
+	var generations Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "scope_generations" {
+			generations = def
+			break
+		}
+	}
+	if generations.Name == "" {
+		t.Fatal("scope_generations definition missing")
+	}
+	for _, want := range []string{
+		"scope_generations_active_pending_activity_idx",
+		"GREATEST(observed_at, ingested_at, COALESCE(activated_at, observed_at)) DESC",
+		"WHERE status IN ('pending', 'active')",
+	} {
+		if !strings.Contains(generations.SQL, want) {
+			t.Fatalf("scope_generations SQL missing %q", want)
+		}
+	}
+}
+
 func TestBootstrapDefinitionsIncludeContentStoreTables(t *testing.T) {
 	t.Parallel()
 

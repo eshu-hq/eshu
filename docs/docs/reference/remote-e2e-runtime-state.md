@@ -104,7 +104,7 @@ and overdue claim counts, queue/domain ages, and health reasons that distinguish
 fact-queue backlog, shared projection backlog, workflow convergence, blocked
 completeness, failed workflow runs, and stale pending workflow work.
 
-Observability Evidence: the existing `/index-status` health reason now names
+Additional Observability Evidence: the existing `/index-status` health reason now names
 recent producer activity when it is the reason an old idle fact queue remains
 `progressing` instead of `stalled`. Operators can correlate that reason with
 the existing scope/generation counts, queue counts, workflow coordinator
