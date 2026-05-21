@@ -483,8 +483,9 @@ before drift findings exist.
 No-Regression Evidence: the documentation facts read path uses
 `fact_records_scope_generation_idx` when `scope_id` or `generation_id` anchors
 the request, requires a scope/source/document/section anchor for non-source
-facts, caps `limit` at 200, and uses limit-plus-one pagination for the
-continuation cursor.
+facts, uses `fact_records_documentation_sources_observed_idx` for bounded
+`documentation_source` discovery ordered by `observed_at`, caps `limit` at 200,
+and uses limit-plus-one pagination for the continuation cursor.
 
 Observability Evidence: API and MCP calls enter the query-handler span
 `query.documentation_facts`, and the Postgres child span uses
