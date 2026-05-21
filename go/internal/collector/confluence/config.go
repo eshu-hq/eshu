@@ -12,7 +12,7 @@ import (
 const defaultPageLimit = 100
 const defaultPollInterval = 5 * time.Minute
 
-// SourceConfig configures one bounded Confluence documentation source sync.
+// SourceConfig configures bounded Confluence documentation source syncs.
 type SourceConfig struct {
 	BaseURL      string
 	SpaceID      string
@@ -115,6 +115,9 @@ func parseSpaceIDs(raw string) ([]string, error) {
 		if spaceID == "" {
 			return nil, errors.New("ESHU_CONFLUENCE_SPACE_IDS must be a comma-separated list of non-empty space IDs")
 		}
+		if !isPositiveDecimalID(spaceID) {
+			return nil, fmt.Errorf("ESHU_CONFLUENCE_SPACE_IDS contains non-numeric space ID %q", spaceID)
+		}
 		if _, ok := seen[spaceID]; ok {
 			return nil, fmt.Errorf("ESHU_CONFLUENCE_SPACE_IDS contains duplicate space ID %q", spaceID)
 		}
@@ -122,6 +125,19 @@ func parseSpaceIDs(raw string) ([]string, error) {
 		spaceIDs = append(spaceIDs, spaceID)
 	}
 	return spaceIDs, nil
+}
+
+func isPositiveDecimalID(value string) bool {
+	nonZero := false
+	for _, char := range value {
+		if char < '0' || char > '9' {
+			return false
+		}
+		if char != '0' {
+			nonZero = true
+		}
+	}
+	return nonZero
 }
 
 func (c SourceConfig) now() time.Time {

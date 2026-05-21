@@ -137,7 +137,7 @@ func TestSourceSyncsConfiguredSpaceIDAllowlistAsSeparateGenerations(t *testing.T
 		t.Fatalf("third Next() error = %v, want nil", err)
 	}
 	if ok {
-		t.Fatal("third Next() ok = true, want drained false")
+		t.Fatal("third Next() ok = true, want idle poll after drained source")
 	}
 	nextCycle, ok, err := source.Next(context.Background())
 	if err != nil {

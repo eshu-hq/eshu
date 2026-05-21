@@ -101,6 +101,18 @@ func TestLoadConfigRejectsInvalidSpaceIDAllowlist(t *testing.T) {
 			},
 		},
 		{
+			name: "non numeric id",
+			values: map[string]string{
+				"ESHU_CONFLUENCE_SPACE_IDS": "100,DEV",
+			},
+		},
+		{
+			name: "zero id",
+			values: map[string]string{
+				"ESHU_CONFLUENCE_SPACE_IDS": "100,0",
+			},
+		},
+		{
 			name: "mixed single and list",
 			values: map[string]string{
 				"ESHU_CONFLUENCE_SPACE_ID":  "100",
