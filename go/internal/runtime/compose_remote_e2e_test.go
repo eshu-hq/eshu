@@ -34,6 +34,7 @@ func TestRemoteE2EExampleEnvRequestsFullCorpusPreflight(t *testing.T) {
 		"ESHU_REMOTE_E2E_CORPUS_MODE=full",
 		"ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT=100",
 		"ESHU_FILESYSTEM_HOST_ROOT=/absolute/path/to/full-corpus",
+		"ESHU_CANONICAL_WRITE_TIMEOUT=120s",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf(".env.remote-e2e.example missing %q", want)
@@ -69,6 +70,27 @@ func TestRemoteE2EComposeUsesStableWorkflowReconcileWindow(t *testing.T) {
 	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
 	if !strings.Contains(exampleEnv, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL=1h") {
 		t.Fatal(".env.remote-e2e.example should document the stable reconcile window")
+	}
+}
+
+func TestRemoteE2EComposeUsesProductionCanonicalWriteTimeout(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
+	for _, serviceName := range []string{
+		"bootstrap-index",
+		"eshu",
+		"mcp-server",
+		"ingester",
+		"resolution-engine",
+		"workflow-coordinator",
+		"collector-terraform-state",
+		"collector-oci-registry",
+		"collector-package-registry",
+		"collector-aws-cloud",
+	} {
+		service := requireComposeService(t, doc, serviceName)
+		assertComposeEnv(t, service, "ESHU_CANONICAL_WRITE_TIMEOUT", "${ESHU_CANONICAL_WRITE_TIMEOUT:-120s}")
 	}
 }
 

@@ -162,6 +162,7 @@ x-runtime-env: &remote_e2e_runtime_env
   ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
   ESHU_PROMETHEUS_METRICS_ENABLED: "true"
   ESHU_PROMETHEUS_METRICS_PORT: "9464"
+  ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-120s}
 
 x-aws-env: &remote_e2e_aws_env
   AWS_REGION: ${ESHU_AWS_E2E_REGION:?set ESHU_AWS_E2E_REGION}
@@ -209,8 +210,7 @@ services:
       file: docker-compose.yaml
       service: bootstrap-index
     environment:
-      ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
-      <<: *remote_e2e_collector_env
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
     depends_on:
       db-migrate:
         condition: service_completed_successfully
@@ -223,31 +223,28 @@ services:
       file: docker-compose.yaml
       service: eshu
     environment:
-      ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
-      <<: *remote_e2e_collector_env
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
 
   mcp-server:
     extends:
       file: docker-compose.yaml
       service: mcp-server
     environment:
-      ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
-      <<: *remote_e2e_collector_env
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
 
   ingester:
     extends:
       file: docker-compose.yaml
       service: ingester
     environment:
-      ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
-      <<: *remote_e2e_collector_env
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
 
   resolution-engine:
     extends:
       file: docker-compose.yaml
       service: resolution-engine
     environment:
-      ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
+      <<: *remote_e2e_runtime_env
 
   workflow-coordinator:
     build:

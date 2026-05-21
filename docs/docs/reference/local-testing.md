@@ -249,6 +249,26 @@ because reducer and bootstrap tail analysis needs profiles from
 `resolution-engine`, `bootstrap-index`, and collector processes rather than
 only the read surfaces.
 
+No-Regression Evidence: after the merged-main remote proof for #528 reached all
+`896` repositories but dead-lettered one OCI registry `source_local` item with
+`failure_class=graph_write_timeout`, the focused config gate
+`go test ./internal/runtime -run
+'TestRemoteE2E(ComposeUsesProductionCanonicalWriteTimeout|ExampleEnvRequestsFullCorpusPreflight)' -count=1`
+first failed because `docker-compose.remote-e2e.yaml` left
+`ESHU_CANONICAL_WRITE_TIMEOUT` unset. It then passed after the remote E2E stack
+started bootstrap, ingester, reducer, API/MCP, workflow coordinator, and hosted
+collectors with the same `120s` canonical write budget used by the Helm
+production-profile values. This preserves worker counts and graph write shape;
+it only aligns the correctness-validation timeout with production defaults.
+
+Observability Evidence: the failed proof was diagnosable from the runtime-state
+gate, which reported `queue.dead_letter=1`, `queue.succeeded=8385`,
+`queue.total=8386`, and `status=degraded`, plus the Postgres work-item
+`failure_class=graph_write_timeout` and timeout hint
+`ESHU_CANONICAL_WRITE_TIMEOUT`. No new metric label was needed because existing
+queue state, failure class, timeout hint, and canonical write summaries already
+identify the failing graph-write budget.
+
 ## Confluence Collector Smoke
 
 Use this when testing the Confluence collector against a real Atlassian site.
