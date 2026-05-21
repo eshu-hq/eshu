@@ -190,6 +190,29 @@ pending, in-flight, retrying, failed, dead-letter counts, generation history,
 stage summaries, and domain backlogs. The command adds no new runtime worker,
 collector, graph query, metric, span, or log path.
 
+Continuation note for issue #502: `eshu scan [path]` now owns the child
+bootstrap source-mode contract for the requested local path. The command
+resolves the source root, sets `ESHU_REPO_SOURCE_MODE=filesystem`,
+`ESHU_FILESYSTEM_ROOT=<resolved root>`, `ESHU_FILESYSTEM_DIRECT=true`, and
+`ESHU_REPOS_DIR=<workspace cache>/repos` for `eshu-bootstrap-index`, then leaves
+readiness proof on the existing `/api/v0/status/pipeline` and query-probe
+checks. This prevents a local scan from falling back to GitHub App auth when the
+caller did not manually export collector internals.
+
+No-Regression Evidence: focused TDD first reproduced the missing child
+bootstrap filesystem env in
+`go test ./cmd/eshu -run TestRunScanRunsBootstrapAndWaitsForHealthyPipeline -count=1`,
+then passed after the CLI supplied filesystem mode, root, direct mode, and a
+cache-backed repos dir while preserving the existing discovery-report handoff.
+The change does not alter worker counts, queue claim behavior, graph writes,
+projector execution, or readiness semantics.
+
+No-Observability-Change: the change only corrects bootstrap child environment
+selection. Operators still diagnose scan readiness through
+`/api/v0/status/pipeline`, the pre/post `/api/v0/repositories?limit=1` query
+probe, bootstrap logs, queue counts, generation history, and the existing
+collector/projector structured logs.
+
 ### `eshu trace service <name>`
 
 `eshu trace service <name>` means: explain how a service gets from code to

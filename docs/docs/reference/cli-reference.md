@@ -220,7 +220,7 @@ use planned commands in public examples until their implementation issues land.
 | `eshu help` | Show the full root help screen. | No |
 | `eshu version` | Print the installed version. | No |
 | `eshu doctor` | Run local diagnostics. | No |
-| `eshu scan [path]` | Index a local source, then poll `/api/v0/status/pipeline` until the source is queryable or failure is proven. | Yes |
+| `eshu scan [path]` | Index a local source through filesystem bootstrap mode, then poll `/api/v0/status/pipeline` until the source is queryable or failure is proven. | Yes |
 | `eshu trace service <name> [--repo <selector>] [--env <environment>] [--service-id <id>]` | Render the `/api/v0/services/{service_name}/story` dossier as an operator trace with canonical `--json` envelope support. Duplicate service names return disambiguation candidates instead of a guessed trace. | Yes |
 | `eshu map --from <thing> [--type <kind>] [--repo <selector>] [--env <environment>] [--relationship <TYPE>] [--depth <n>] [--limit <n>]` | Resolve one typed entity and render a bounded code/cloud neighborhood from `/api/v0/impact/entity-map`; ambiguous selectors return candidates instead of a guessed graph walk. | Yes |
 | `eshu docs verify [path] [--fail-on <statuses>] [--limit <n>] [--max-bytes <n>] [--persist]` | Verify local Markdown-family documentation claims against the current Eshu CLI command tree, OpenAPI endpoint inventory, and known Eshu environment variables. Emits documentation finding and evidence-packet facts in memory; with `--persist`, writes them through the Postgres fact store and reuses unchanged persisted findings for `--fail-on` checks. | No |
