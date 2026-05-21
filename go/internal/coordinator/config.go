@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	defaultReconcileInterval = 30 * time.Second
-	defaultClaimsEnabled     = false
-	deploymentModeDark       = "dark"
-	deploymentModeActive     = "active"
+	defaultReconcileInterval    = 30 * time.Second
+	defaultRunReconcileInterval = 30 * time.Second
+	defaultClaimsEnabled        = false
+	deploymentModeDark          = "dark"
+	deploymentModeActive        = "active"
 )
 
 // Config captures workflow-coordinator runtime settings.
@@ -22,6 +23,7 @@ type Config struct {
 	DeploymentMode           string
 	ClaimsEnabled            bool
 	ReconcileInterval        time.Duration
+	RunReconcileInterval     time.Duration
 	ReapInterval             time.Duration
 	ClaimLeaseTTL            time.Duration
 	HeartbeatInterval        time.Duration
@@ -55,6 +57,14 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	runReconcileInterval, err := envDuration(
+		getenv,
+		"ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL",
+		defaultRunReconcileInterval,
+	)
+	if err != nil {
+		return Config{}, err
+	}
 	reapInterval, err := envDuration(getenv, "ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL", workflow.DefaultReapInterval())
 	if err != nil {
 		return Config{}, err
@@ -84,6 +94,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		DeploymentMode:           deploymentMode,
 		ClaimsEnabled:            claimsEnabled,
 		ReconcileInterval:        reconcileInterval,
+		RunReconcileInterval:     runReconcileInterval,
 		ReapInterval:             reapInterval,
 		ClaimLeaseTTL:            claimLeaseTTL,
 		HeartbeatInterval:        heartbeatInterval,
@@ -108,6 +119,9 @@ func (c Config) Validate() error {
 	}
 	if c.ReconcileInterval <= 0 {
 		return fmt.Errorf("workflow coordinator reconcile interval must be positive")
+	}
+	if c.RunReconcileInterval <= 0 {
+		return fmt.Errorf("workflow coordinator run reconcile interval must be positive")
 	}
 	if c.ReapInterval <= 0 {
 		return fmt.Errorf("workflow coordinator reap interval must be positive")
@@ -156,6 +170,9 @@ func (c Config) withDefaults() Config {
 	}
 	if c.ReconcileInterval <= 0 {
 		c.ReconcileInterval = defaultReconcileInterval
+	}
+	if c.RunReconcileInterval <= 0 {
+		c.RunReconcileInterval = defaultRunReconcileInterval
 	}
 	if c.ReapInterval <= 0 {
 		c.ReapInterval = workflow.DefaultReapInterval()

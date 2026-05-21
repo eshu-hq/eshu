@@ -94,6 +94,7 @@ func (s Service) Run(ctx context.Context) error {
 			"claims_enabled", s.Config.ClaimsEnabled,
 			"collector_instances", len(s.Config.CollectorInstances),
 			"reconcile_interval", s.Config.ReconcileInterval.String(),
+			"run_reconcile_interval", s.Config.RunReconcileInterval.String(),
 			"reap_interval", s.Config.ReapInterval.String(),
 		)
 	}
@@ -101,9 +102,12 @@ func (s Service) Run(ctx context.Context) error {
 	reconcileTicker := time.NewTicker(s.Config.ReconcileInterval)
 	defer reconcileTicker.Stop()
 	var reapTicker *time.Ticker
+	var runReconcileTicker *time.Ticker
 	if s.Config.DeploymentMode == deploymentModeActive {
 		reapTicker = time.NewTicker(s.Config.ReapInterval)
 		defer reapTicker.Stop()
+		runReconcileTicker = time.NewTicker(s.Config.RunReconcileInterval)
+		defer runReconcileTicker.Stop()
 	}
 
 	for {
@@ -114,14 +118,13 @@ func (s Service) Run(ctx context.Context) error {
 			if err := s.runReconcile(ctx); err != nil {
 				return fmt.Errorf("reconcile collector instances: %w", err)
 			}
-			if s.Config.DeploymentMode == deploymentModeActive {
-				if err := s.runWorkflowReconciliation(ctx); err != nil {
-					return fmt.Errorf("reconcile workflow runs: %w", err)
-				}
-			}
 		case <-tickerChan(reapTicker):
 			if err := s.runReapExpiredClaims(ctx); err != nil {
 				return fmt.Errorf("reap expired claims: %w", err)
+			}
+		case <-tickerChan(runReconcileTicker):
+			if err := s.runWorkflowReconciliation(ctx); err != nil {
+				return fmt.Errorf("reconcile workflow runs: %w", err)
 			}
 		}
 	}

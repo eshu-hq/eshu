@@ -189,7 +189,8 @@ advisory report.
 | `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE` | `dark` | workflow coordinator | Coordinator mode: `dark` or `active`. | Set to `active` only when deploying coordinator-owned claims. |
 | `ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED` | `false` | workflow coordinator | Enables workflow claims. | Enable only with coordinated collector instances. |
 | `ESHU_WORKFLOW_COORDINATOR_ENABLE_CLAIMS` | `false` | workflow coordinator | Backward-compatible claims flag. | Prefer `ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED`. |
-| `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL` | `30s` | workflow coordinator | Desired-state reconcile interval. | Lower for faster claim orchestration; raise to reduce DB work. |
+| `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL` | `30s` | workflow coordinator | Desired collector-instance and scheduled-work planning interval. | Raise to reduce duplicate scheduled planning pressure; do not use this to control run-status freshness. |
+| `ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL` | `30s` | workflow coordinator | Workflow-run status and completeness reconciliation interval. | Lower when `/api/v0/index-status` needs fresher workflow completion after collectors finish. |
 | `ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL` | workflow default | workflow coordinator | Expired-claim reap interval. | Tune when failed collectors take too long or too little time to be reaped. |
 | `ESHU_WORKFLOW_COORDINATOR_CLAIM_LEASE_TTL` | workflow default | workflow coordinator | Collector claim TTL. | Must be greater than heartbeat interval; raise for long collector work. |
 | `ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL` | workflow default | workflow coordinator | Collector claim heartbeat interval. | Keep below claim TTL; lower for faster liveness signal. |

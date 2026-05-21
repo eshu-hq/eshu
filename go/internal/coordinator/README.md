@@ -2,13 +2,14 @@
 
 ## Purpose
 
-`internal/coordinator` owns the workflow coordinator's reconcile, expired-claim
-reap, and workflow-run reconciliation loops. `Service.Run` ticks through three
-discrete operations — collector-instance reconciliation (always), expired-claim
-reaping (active mode only), and workflow-run progress reconciliation (active
-mode only) — against a narrow `Store` interface backed by Postgres. The package
-also owns `ESHU_WORKFLOW_COORDINATOR_*` env parsing and OTEL instrument
-registration for the coordinator.
+`internal/coordinator` owns the workflow coordinator's collector reconcile,
+workflow-run reconciliation, and expired-claim reap loops. `Service.Run` ticks
+through three discrete operations — collector-instance and scheduled-work
+planning reconciliation (always), workflow-run progress reconciliation (active
+mode only), and expired-claim reaping (active mode only) — against a narrow
+`Store` interface backed by Postgres. The package also owns
+`ESHU_WORKFLOW_COORDINATOR_*` env parsing and OTEL instrument registration for
+the coordinator.
 
 ## Where this fits in the pipeline
 
@@ -32,8 +33,8 @@ flowchart TB
   C -- no / dark --> F["log: running in dark mode"]
   A --> G["reconcileTicker\n(ReconcileInterval, default 30s)"]
   G --> B
-  G --> H{"active mode?"}
-  H -- yes --> E
+  A --> H["runReconcileTicker\n(RunReconcileInterval, default 30s)\nnil in dark mode"]
+  H --> E
   A --> I["reapTicker\n(ReapInterval, default 20s)\nnil in dark mode"]
   I --> D
   B --> J["Store.ReconcileCollectorInstances\nthen Store.ListCollectorInstances"]
@@ -47,10 +48,13 @@ flowchart TB
 ## Lifecycle
 
 `Service.Run` performs an initial synchronous pass for all enabled operations,
-then enters a `select` loop. The `reconcileTicker` fires `runReconcile` (and
-`runWorkflowReconciliation` in active mode) on every tick. The `reapTicker` is
-nil in dark mode — `tickerChan(nil)` returns a nil channel the `select` never
-picks. Context cancellation (`ctx.Done`) exits the loop cleanly.
+then enters a `select` loop. The `reconcileTicker` fires `runReconcile` on every
+tick. In active mode, `runReconcileTicker` fires `runWorkflowReconciliation`
+independently so slow scheduled-work planning cadences do not leave completed
+runs stuck in stale `collection_pending` state. The `reapTicker` and
+`runReconcileTicker` are nil in dark mode — `tickerChan(nil)` returns a nil
+channel the `select` never picks. Context cancellation (`ctx.Done`) exits the
+loop cleanly.
 
 `Config.Validate` runs at `LoadConfig` time and again at `Service.Run` entry.
 Defaults are applied by `withDefaults` before validation, so missing env vars
@@ -68,8 +72,9 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `Service` — the long-running loop; wire `Config`, `Store`, `Metrics`, and
   `Logger` then call `Service.Run`.
 - `Config` — runtime settings: `DeploymentMode`, `ClaimsEnabled`,
-  `ReconcileInterval`, `ReapInterval`, `ClaimLeaseTTL`, `HeartbeatInterval`,
-  `ExpiredClaimLimit`, `ExpiredClaimRequeueDelay`, `CollectorInstances`.
+  `ReconcileInterval`, `RunReconcileInterval`, `ReapInterval`,
+  `ClaimLeaseTTL`, `HeartbeatInterval`, `ExpiredClaimLimit`,
+  `ExpiredClaimRequeueDelay`, `CollectorInstances`.
 - `LoadConfig(getenv)` — parses all `ESHU_WORKFLOW_COORDINATOR_*` and
   `ESHU_COLLECTOR_INSTANCES_JSON` env vars into a validated `Config`.
 - `Metrics` — recording interface: `RecordReconcile`, `RecordReap`,
@@ -91,7 +96,11 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `AWSScheduledWorkPlanner` — plans scheduled AWS collection runs from the
   configured target scopes without requiring a separate provider webhook when
   the AWS collector configuration sets `scheduled_scan_enabled=true`. Each
-  `(account_id, region, service_kind)` tuple becomes one claimable work item.
+  valid `(account_id, region, service_kind)` tuple becomes one claimable work
+  item. Regional service families run only in real AWS regions. Global-only
+  service families (`cloudfront`, `iam`, `route53`) run only in `aws-global`.
+  Invalid configured pairings are recorded in the workflow run
+  `requested_scope_set.skipped_targets` payload with a stable reason.
 - `AWSFreshnessWorkPlanner` — plans targeted AWS collection runs from claimed
   freshness triggers. Each unique `(account_id, region, service_kind)` target
   becomes one normal AWS collector claim.
@@ -149,6 +158,11 @@ warning (`collector_instance_drift_detected`, fields
   `eshu_dp_workflow_coordinator_run_reconcile_total` are zero in dark mode.
   Confirm `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE=active` before
   investigating metric absence.
+- `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL` controls desired state and
+  scheduled-work planning. `ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL`
+  controls workflow-run status freshness. Keep them separate when scheduled
+  collectors should run infrequently but `/api/v0/index-status` should reflect
+  completed workflow work promptly.
 - `last_reaped_claims` spiking above `ExpiredClaimLimit` is not possible; that
   limit caps each reap pass. Repeated spikes at the limit indicate collectors
   are not completing claims within the lease TTL.
@@ -168,6 +182,15 @@ warning (`collector_instance_drift_detected`, fields
   is violated.
 - AWS freshness planning rejects targets that are not present in the collector
   instance `target_scopes`; provider events cannot widen configured AWS access.
+- AWS scheduled planning filters invalid global-region pairings before work-item
+  creation. This prevents guaranteed-bad claims such as
+  `aws-global`/`lambda` and regional `iam` while preserving valid global
+  families in `aws-global`. Inspect
+  `workflow_runs.requested_scope_set.skipped_targets` for skipped tuples and
+  reason values (`regional_service_aws_global`,
+  `global_service_regional_region`). When every configured tuple is invalid,
+  the coordinator records a completed audit-only run with those skipped targets
+  and no work items.
 - AWS freshness handoff claims at most 100 coalesced triggers per reconcile
   tick and uses the existing workflow work-item queue; it does not bypass
   collector claim fairness or create graph writes directly.
@@ -184,6 +207,25 @@ warning (`collector_instance_drift_detected`, fields
   OCI registry, package registry, and AWS scheduled scans have planners today;
   other collector families remain instance-reconciled only until they define a
   bounded work unit.
+
+## Evidence
+
+No-Regression Evidence: `go test ./internal/coordinator -run 'TestAWSScheduledWorkPlanner|TestServiceRunActiveModePersistsAuditOnlyAWSScheduledRun' -count=1`
+covers scheduled AWS target planning, invalid `aws-global` pair filtering, and
+the audit-only run recorded when all configured tuples are invalid.
+
+No-Regression Evidence: `go test ./internal/coordinator -run 'TestLoadConfigParsesActiveRuntimeControls|TestServiceRunActiveModeReconcilesRunsOnDedicatedInterval' -count=1`
+proves workflow-run status reconciliation can tick faster than scheduled-work
+planning, which keeps remote all-collector Compose from waiting up to the
+scheduled scan interval after all claims complete.
+
+Observability Evidence: AWS scheduled runs persist valid planned targets and
+skipped invalid configured tuples in `workflow_runs.requested_scope_set`; the
+existing workflow coordinator reconcile metrics and run rows show whether the
+planner generated work or intentionally skipped invalid pairings. Workflow-run
+freshness remains visible through `eshu_dp_workflow_coordinator_run_reconcile_*`
+metrics, `workflow_runs`, `workflow_run_completeness`, and
+`/api/v0/index-status`.
 
 ## Related docs
 

@@ -3,6 +3,7 @@ package coordinator
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 
@@ -64,6 +65,145 @@ func TestAWSScheduledWorkPlannerPlansConfiguredTargets(t *testing.T) {
 	}
 }
 
+func TestAWSScheduledWorkPlannerSkipsInvalidGlobalRegionPairs(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 21, 15, 0, 0, 0, time.UTC)
+	instance := workflow.CollectorInstance{
+		InstanceID:    "collector-aws",
+		CollectorKind: scope.CollectorAWS,
+		Mode:          workflow.CollectorModeContinuous,
+		Enabled:       true,
+		ClaimsEnabled: true,
+		Configuration: `{
+			"scheduled_scan_enabled": true,
+			"target_scopes": [{
+				"account_id": "123456789012",
+				"allowed_regions": ["us-east-1", "aws-global"],
+				"allowed_services": ["lambda", "s3", "iam", "route53", "cloudfront"]
+			}]
+		}`,
+		LastObservedAt: observedAt,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
+	}
+
+	run, items, err := AWSScheduledWorkPlanner{}.PlanAWSScheduledWork(context.Background(), AWSScheduledPlanRequest{
+		Instance:   instance,
+		ObservedAt: observedAt,
+		PlanKey:    "continuous-20260521T150000Z",
+	})
+	if err != nil {
+		t.Fatalf("PlanAWSScheduledWork() error = %v, want nil", err)
+	}
+
+	gotScopeIDs := make([]string, 0, len(items))
+	for _, item := range items {
+		gotScopeIDs = append(gotScopeIDs, item.ScopeID)
+	}
+	wantScopeIDs := []string{
+		"aws:123456789012:aws-global:" + awscloud.ServiceCloudFront,
+		"aws:123456789012:aws-global:" + awscloud.ServiceIAM,
+		"aws:123456789012:aws-global:" + awscloud.ServiceRoute53,
+		"aws:123456789012:us-east-1:" + awscloud.ServiceLambda,
+		"aws:123456789012:us-east-1:" + awscloud.ServiceS3,
+	}
+	slices.Sort(gotScopeIDs)
+	if !slices.Equal(gotScopeIDs, wantScopeIDs) {
+		t.Fatalf("planned scope IDs = %#v, want %#v", gotScopeIDs, wantScopeIDs)
+	}
+	if slices.Contains(gotScopeIDs, "aws:123456789012:aws-global:"+awscloud.ServiceLambda) {
+		t.Fatalf("planned aws-global lambda target; regional services must not run against aws-global")
+	}
+	if slices.Contains(gotScopeIDs, "aws:123456789012:us-east-1:"+awscloud.ServiceIAM) {
+		t.Fatalf("planned regional IAM target; global services must stay on aws-global")
+	}
+
+	var requested struct {
+		SkippedTargets []struct {
+			Region      string `json:"region"`
+			ServiceKind string `json:"service_kind"`
+			Reason      string `json:"reason"`
+		} `json:"skipped_targets"`
+	}
+	if err := json.Unmarshal([]byte(run.RequestedScopeSet), &requested); err != nil {
+		t.Fatalf("RequestedScopeSet JSON = %q: %v", run.RequestedScopeSet, err)
+	}
+	if got, want := len(requested.SkippedTargets), 5; got != want {
+		t.Fatalf("skipped targets = %d, want %d in RequestedScopeSet %s", got, want, run.RequestedScopeSet)
+	}
+	wantSkipped := map[string]string{
+		"aws-global/" + awscloud.ServiceLambda:    "regional_service_aws_global",
+		"aws-global/" + awscloud.ServiceS3:        "regional_service_aws_global",
+		"us-east-1/" + awscloud.ServiceCloudFront: "global_service_regional_region",
+		"us-east-1/" + awscloud.ServiceIAM:        "global_service_regional_region",
+		"us-east-1/" + awscloud.ServiceRoute53:    "global_service_regional_region",
+	}
+	for _, skipped := range requested.SkippedTargets {
+		key := skipped.Region + "/" + skipped.ServiceKind
+		if got, want := skipped.Reason, wantSkipped[key]; got != want {
+			t.Fatalf("skipped reason for %s = %q, want %q", key, got, want)
+		}
+		delete(wantSkipped, key)
+	}
+	if len(wantSkipped) > 0 {
+		t.Fatalf("missing skipped targets: %#v", wantSkipped)
+	}
+}
+
+func TestAWSScheduledWorkPlannerRecordsAuditOnlySkippedRun(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 21, 16, 0, 0, 0, time.UTC)
+	instance := workflow.CollectorInstance{
+		InstanceID:     "collector-aws",
+		CollectorKind:  scope.CollectorAWS,
+		Mode:           workflow.CollectorModeContinuous,
+		Enabled:        true,
+		ClaimsEnabled:  true,
+		Configuration:  testServiceAWSInvalidScheduledConfiguration(),
+		LastObservedAt: observedAt,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
+	}
+
+	run, items, err := AWSScheduledWorkPlanner{}.PlanAWSScheduledWork(context.Background(), AWSScheduledPlanRequest{
+		Instance:   instance,
+		ObservedAt: observedAt,
+		PlanKey:    "continuous-20260521T160000Z",
+	})
+	if err != nil {
+		t.Fatalf("PlanAWSScheduledWork() error = %v, want nil", err)
+	}
+	if got := len(items); got != 0 {
+		t.Fatalf("len(items) = %d, want 0", got)
+	}
+	if got, want := run.Status, workflow.RunStatusComplete; got != want {
+		t.Fatalf("run Status = %q, want %q", got, want)
+	}
+	if !run.FinishedAt.Equal(observedAt) {
+		t.Fatalf("run FinishedAt = %s, want %s", run.FinishedAt, observedAt)
+	}
+
+	var requested struct {
+		Targets        []json.RawMessage `json:"targets"`
+		SkippedTargets []struct {
+			Region      string `json:"region"`
+			ServiceKind string `json:"service_kind"`
+			Reason      string `json:"reason"`
+		} `json:"skipped_targets"`
+	}
+	if err := json.Unmarshal([]byte(run.RequestedScopeSet), &requested); err != nil {
+		t.Fatalf("RequestedScopeSet JSON = %q: %v", run.RequestedScopeSet, err)
+	}
+	if got := len(requested.Targets); got != 0 {
+		t.Fatalf("requested targets = %d, want 0", got)
+	}
+	if got, want := len(requested.SkippedTargets), 2; got != want {
+		t.Fatalf("skipped targets = %d, want %d in RequestedScopeSet %s", got, want, run.RequestedScopeSet)
+	}
+}
+
 func TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers(t *testing.T) {
 	t.Parallel()
 
@@ -112,6 +252,55 @@ func TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers(t *testing
 	}
 }
 
+func TestServiceRunActiveModePersistsAuditOnlyAWSScheduledRun(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 21, 16, 5, 0, 0, time.UTC)
+	instance := testServiceAWSScheduledInstance(now)
+	instance.Configuration = testServiceAWSInvalidScheduledConfiguration()
+	store := &fakeStore{
+		instances: []workflow.CollectorInstance{instance},
+	}
+	service := Service{
+		Config: Config{
+			DeploymentMode:    deploymentModeActive,
+			ClaimsEnabled:     true,
+			ReconcileInterval: time.Hour,
+			ReapInterval:      time.Hour,
+			ClaimLeaseTTL:     time.Minute,
+			HeartbeatInterval: 20 * time.Second,
+			ExpiredClaimLimit: 10,
+			CollectorInstances: []workflow.DesiredCollectorInstance{{
+				InstanceID:    "collector-aws",
+				CollectorKind: scope.CollectorAWS,
+				Mode:          workflow.CollectorModeContinuous,
+				Enabled:       true,
+				ClaimsEnabled: true,
+				Configuration: testServiceAWSInvalidScheduledConfiguration(),
+			}},
+		},
+		Store:               store,
+		AWSScheduledPlanner: AWSScheduledWorkPlanner{},
+		Clock:               func() time.Time { return now },
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got, want := len(store.createdRuns), 1; got != want {
+		t.Fatalf("created runs = %d, want %d", got, want)
+	}
+	if got := len(store.enqueuedItems); got != 0 {
+		t.Fatalf("enqueued items = %d, want 0", got)
+	}
+	if got, want := store.createdRuns[0].Status, workflow.RunStatusComplete; got != want {
+		t.Fatalf("created run Status = %q, want %q", got, want)
+	}
+}
+
 func TestAWSScheduledScanEnabledNormalizesBlankConfiguration(t *testing.T) {
 	t.Parallel()
 
@@ -137,6 +326,17 @@ func testServiceAWSScheduledConfiguration() string {
 			"account_id": "123456789012",
 			"allowed_regions": ["us-east-1"],
 			"allowed_services": ["lambda"]
+		}]
+	}`
+}
+
+func testServiceAWSInvalidScheduledConfiguration() string {
+	return `{
+		"scheduled_scan_enabled": true,
+		"target_scopes": [{
+			"account_id": "123456789012",
+			"allowed_regions": ["aws-global"],
+			"allowed_services": ["lambda", "s3"]
 		}]
 	}`
 }
