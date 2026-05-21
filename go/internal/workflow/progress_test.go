@@ -209,6 +209,36 @@ func TestReconcileRunProgressCompletesOCIRegistryWithoutReducerPhases(t *testing
 	}
 }
 
+func TestReconcileRunProgressCompletesAWSWithoutImplementedGraphPhases(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 21, 13, 30, 0, 0, time.UTC)
+	run, completeness, err := ReconcileRunProgress(RunProgressSnapshot{
+		Run: Run{
+			RunID:       "run-aws",
+			TriggerKind: TriggerKindSchedule,
+			Status:      RunStatusCollectionActive,
+			CreatedAt:   now.Add(-time.Minute),
+			UpdatedAt:   now.Add(-time.Minute),
+		},
+		Collectors: []CollectorRunProgress{{
+			CollectorKind:        scope.CollectorAWS,
+			TotalWorkItems:       19,
+			CompletedWorkItems:   19,
+			PublishedPhaseCounts: map[PhasePublicationKey]int{},
+		}},
+	}, now)
+	if err != nil {
+		t.Fatalf("ReconcileRunProgress() error = %v, want nil", err)
+	}
+	if got, want := run.Status, RunStatusComplete; got != want {
+		t.Fatalf("run.Status = %q, want %q for completed AWS work without live graph phase publisher", got, want)
+	}
+	if got := len(completeness); got != 0 {
+		t.Fatalf("len(completeness) = %d, want 0 because AWS has no live cloud-resource graph projection yet", got)
+	}
+}
+
 func TestReconcileRunProgressFailed(t *testing.T) {
 	t.Parallel()
 
