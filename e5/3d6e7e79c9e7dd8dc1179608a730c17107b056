@@ -1,0 +1,36 @@
+go/internal/storage/postgres/tfstate_backend_filter_test.go
+  s_072c5984f68e14::t_04fff1b5c8ad7d 1-160
+go/internal/storage/postgres/tfstate_backend_facts.go
+  s_072c5984f68e14::t_35ff78b3439363 233,238-241,246,261
+  s_072c5984f68e14::t_bf5bab5dccf880 125-126,129-131,146,151,156,174,191
+go/internal/workflow/tfstate_config_test.go
+  s_072c5984f68e14::t_9fca26aaadf639 41-107
+.env.remote-e2e.example
+  s_072c5984f68e14::t_857d56e722eac5 9
+go/internal/runtime/compose_remote_e2e_test.go
+  s_072c5984f68e14::t_dc728f5d07154f 44-60
+  s_072c5984f68e14::t_14109c93ae230b 61-74
+go/internal/workflow/tfstate_config.go
+  s_072c5984f68e14::t_8d9bc50cdf47ad 20,24-30,78,81-82,100-103,105,146
+docker-compose.remote-e2e.yaml
+  s_072c5984f68e14::t_5bf55421f4821b 264
+  s_072c5984f68e14::t_204c42f8d914aa 43,52-57
+go/internal/storage/postgres/tfstate_backend_filter.go
+  s_072c5984f68e14::t_0030ad5b6e1534 1-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "e53d6e7e79c9e7dd8dc1179608a730c17107b056",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
