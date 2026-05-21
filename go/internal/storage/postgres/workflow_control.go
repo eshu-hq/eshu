@@ -185,7 +185,7 @@ func (s *WorkflowControlStore) HeartbeatClaim(ctx context.Context, mutation work
 
 // CompleteClaim marks the active ownership epoch and work item complete.
 func (s *WorkflowControlStore) CompleteClaim(ctx context.Context, mutation workflow.ClaimMutation) error {
-	return s.execClaimMutation(ctx, mutation, completeWorkflowClaimQuery, time.Time{})
+	return s.execCompleteClaimMutation(ctx, mutation)
 }
 
 // ReleaseClaim gives up an active claim without recording a collector failure.

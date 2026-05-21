@@ -161,11 +161,18 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		return nil
 	}
 	if collected.Unchanged {
+		completeMutation, err := s.resolvedCompletionMutation(mutation, collected)
+		if err != nil {
+			if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", err)); failErr != nil {
+				return fmt.Errorf("terminal-fail mismatched %s claim: %w", s.claimedKindLabel(), failErr)
+			}
+			return err
+		}
 		stopHeartbeat()
 		if err := drainHeartbeatError(heartbeatErr); err != nil {
 			return err
 		}
-		if err := s.ControlStore.CompleteClaim(ctx, mutation); err != nil {
+		if err := s.ControlStore.CompleteClaim(ctx, completeMutation); err != nil {
 			return fmt.Errorf("complete unchanged claimed %s work item: %w", s.claimedKindLabel(), err)
 		}
 		return nil
@@ -185,11 +192,18 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	if err := s.commitCollected(ctx, commitMutation, collected); err != nil {
 		return s.failRetryable(ctx, mutation, "commit_failure", err)
 	}
+	completeMutation, err := s.resolvedCompletionMutation(mutation, collected)
+	if err != nil {
+		if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", err)); failErr != nil {
+			return fmt.Errorf("terminal-fail mismatched %s claim: %w", s.claimedKindLabel(), failErr)
+		}
+		return err
+	}
 	stopHeartbeat()
 	if err := drainHeartbeatError(heartbeatErr); err != nil {
 		return err
 	}
-	if err := s.ControlStore.CompleteClaim(ctx, mutation); err != nil {
+	if err := s.ControlStore.CompleteClaim(ctx, completeMutation); err != nil {
 		return fmt.Errorf("complete claimed %s work item: %w", s.claimedKindLabel(), err)
 	}
 	return nil
@@ -254,6 +268,23 @@ func (s ClaimedService) claimMutation(item workflow.WorkItem, claim workflow.Cla
 		ObservedAt:    s.now(),
 		LeaseDuration: s.ClaimLeaseTTL,
 	}
+}
+
+func (s ClaimedService) resolvedCompletionMutation(
+	mutation workflow.ClaimMutation,
+	collected CollectedGeneration,
+) (workflow.ClaimMutation, error) {
+	if s.CollectorKind != scope.CollectorTerraformState {
+		return mutation, nil
+	}
+	if err := collected.Generation.ValidateForScope(collected.Scope); err != nil {
+		return workflow.ClaimMutation{}, fmt.Errorf("resolve terraform state claim identity: %w", err)
+	}
+	mutation.ResolvedScopeID = collected.Scope.ScopeID
+	mutation.ResolvedAcceptanceUnitID = collected.Scope.ScopeID
+	mutation.ResolvedSourceRunID = collected.Generation.GenerationID
+	mutation.ResolvedGenerationID = collected.Generation.GenerationID
+	return mutation, nil
 }
 
 func (s ClaimedService) startHeartbeatLoop(ctx context.Context, mutation workflow.ClaimMutation) <-chan error {

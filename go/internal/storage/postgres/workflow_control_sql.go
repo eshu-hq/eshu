@@ -234,6 +234,10 @@ updated_claim AS (
 )
 UPDATE workflow_work_items AS item
 SET status = 'completed',
+    scope_id = COALESCE(NULLIF($7, ''), item.scope_id),
+    acceptance_unit_id = COALESCE(NULLIF($8, ''), item.acceptance_unit_id),
+    source_run_id = COALESCE(NULLIF($9, ''), item.source_run_id),
+    generation_id = COALESCE(NULLIF($10, ''), item.generation_id),
     current_claim_id = NULL,
     current_owner_id = NULL,
     lease_expires_at = $2,

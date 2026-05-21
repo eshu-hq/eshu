@@ -138,6 +138,23 @@ func firstTime(values ...time.Time) time.Time {
 	return time.Now().UTC()
 }
 
+func priorGenerationForUnchanged(
+	scopeValue scope.IngestionScope,
+	priorGenerationID string,
+	observedAt time.Time,
+) scope.ScopeGeneration {
+	observedAt = firstTime(observedAt)
+	return scope.ScopeGeneration{
+		GenerationID:  strings.TrimSpace(priorGenerationID),
+		ScopeID:       scopeValue.ScopeID,
+		ObservedAt:    observedAt,
+		IngestedAt:    observedAt,
+		Status:        scope.GenerationStatusActive,
+		TriggerKind:   scope.TriggerKindSnapshot,
+		FreshnessHint: "prior_generation=" + strings.TrimSpace(priorGenerationID),
+	}
+}
+
 // closeReader closes reader when non-nil and swallows errors. Used in defer
 // blocks where a close error would shadow the real read/parse error.
 func closeReader(reader io.Closer) {

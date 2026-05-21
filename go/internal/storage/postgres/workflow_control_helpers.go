@@ -95,6 +95,32 @@ func (s *WorkflowControlStore) execClaimMutation(
 	return validateMutationResult(result)
 }
 
+func (s *WorkflowControlStore) execCompleteClaimMutation(ctx context.Context, mutation workflow.ClaimMutation) error {
+	if s.db == nil {
+		return fmt.Errorf("workflow control store database is required")
+	}
+	if err := validateCompleteClaimMutation(mutation); err != nil {
+		return err
+	}
+	args := []any{
+		mutation.ObservedAt.UTC(),
+		nullableTime(time.Time{}),
+		mutation.FencingToken,
+		mutation.OwnerID,
+		mutation.ClaimID,
+		mutation.WorkItemID,
+		mutation.ResolvedScopeID,
+		mutation.ResolvedAcceptanceUnitID,
+		mutation.ResolvedSourceRunID,
+		mutation.ResolvedGenerationID,
+	}
+	result, err := s.db.ExecContext(ctx, completeWorkflowClaimQuery, args...)
+	if err != nil {
+		return fmt.Errorf("mutate complete workflow claim: %w", err)
+	}
+	return validateMutationResult(result)
+}
+
 func (s *WorkflowControlStore) execTerminalClaimMutation(
 	ctx context.Context,
 	mutation workflow.ClaimMutation,
@@ -247,6 +273,42 @@ func validateClaimMutation(mutation workflow.ClaimMutation) error {
 	}
 	if mutation.ObservedAt.IsZero() {
 		return fmt.Errorf("observed at is required")
+	}
+	return nil
+}
+
+func validateCompleteClaimMutation(mutation workflow.ClaimMutation) error {
+	if err := validateClaimMutation(mutation); err != nil {
+		return err
+	}
+	resolved := []string{
+		mutation.ResolvedScopeID,
+		mutation.ResolvedAcceptanceUnitID,
+		mutation.ResolvedSourceRunID,
+		mutation.ResolvedGenerationID,
+	}
+	anyResolved := false
+	for _, value := range resolved {
+		if strings.TrimSpace(value) != "" {
+			anyResolved = true
+			break
+		}
+	}
+	if !anyResolved {
+		return nil
+	}
+	for _, value := range []struct {
+		field string
+		raw   string
+	}{
+		{field: "resolved_scope_id", raw: mutation.ResolvedScopeID},
+		{field: "resolved_acceptance_unit_id", raw: mutation.ResolvedAcceptanceUnitID},
+		{field: "resolved_source_run_id", raw: mutation.ResolvedSourceRunID},
+		{field: "resolved_generation_id", raw: mutation.ResolvedGenerationID},
+	} {
+		if strings.TrimSpace(value.raw) == "" {
+			return fmt.Errorf("%s is required when resolving claim identity", value.field)
+		}
 	}
 	return nil
 }

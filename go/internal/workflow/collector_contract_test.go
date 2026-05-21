@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -66,26 +67,18 @@ func TestRequiredPhasesForCollectorIncludesGitDeployableUnitGate(t *testing.T) {
 	}
 }
 
-func TestRequiredPhasesForCollectorIncludesTerraformStateAnchorGate(t *testing.T) {
+func TestRequiredPhasesForCollectorMatchesTerraformStateReducerContract(t *testing.T) {
 	t.Parallel()
 
 	requirements := RequiredPhasesForCollector(scope.CollectorTerraformState)
-	want := []PhaseRequirement{
-		{
-			Keyspace:  reducer.GraphProjectionKeyspaceTerraformResourceUID,
-			PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+	contract := tfstate.DefaultRuntimeContract()
+	want := make([]PhaseRequirement, 0, len(contract.Checkpoints))
+	for _, checkpoint := range contract.Checkpoints {
+		want = append(want, PhaseRequirement{
+			Keyspace:  checkpoint.Keyspace,
+			PhaseName: checkpoint.Phase,
 			Required:  true,
-		},
-		{
-			Keyspace:  reducer.GraphProjectionKeyspaceTerraformModuleUID,
-			PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
-			Required:  true,
-		},
-		{
-			Keyspace:  reducer.GraphProjectionKeyspaceTerraformResourceUID,
-			PhaseName: reducer.GraphProjectionPhaseCrossSourceAnchorReady,
-			Required:  true,
-		},
+		})
 	}
 	if !reflect.DeepEqual(requirements, want) {
 		t.Fatalf("RequiredPhasesForCollector(terraform_state) = %#v, want %#v", requirements, want)

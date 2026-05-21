@@ -227,7 +227,12 @@ func (s ClaimedSource) collectCandidate(
 			if strings.TrimSpace(candidate.PriorGenerationID) == "" && usesCandidatePlanningID(item) {
 				return collector.CollectedGeneration{}, false, nil
 			}
-			return collector.CollectedGeneration{Unchanged: true}, true, nil
+			generationValue := priorGenerationForUnchanged(candidateScope, candidate.PriorGenerationID, s.now())
+			return collector.CollectedGeneration{
+				Scope:      candidateScope,
+				Generation: generationValue,
+				Unchanged:  true,
+			}, true, nil
 		}
 		if errors.Is(err, terraformstate.ErrStateTooLarge) {
 			s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "state_too_large")

@@ -27,6 +27,14 @@ type ClaimMutation struct {
 	FailureClass   string
 	FailureMessage string
 	VisibleAt      time.Time
+	// Resolved* fields optionally replace a planned work-item phase identity
+	// when a collector can only know the final reducer checkpoint tuple after
+	// opening the source. Terraform-state work uses this to move from candidate
+	// planning IDs to the real snapshot generation before run reconciliation.
+	ResolvedScopeID          string
+	ResolvedAcceptanceUnitID string
+	ResolvedSourceRunID      string
+	ResolvedGenerationID     string
 }
 
 // ClaimedWorkItem returns the currently owned work item and claim epoch.
