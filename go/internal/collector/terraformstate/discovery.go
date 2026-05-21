@@ -26,51 +26,6 @@ const (
 	DiscoveryCandidateSourceGitLocalFile DiscoveryCandidateSource = "git_local_file"
 )
 
-// DiscoveryConfig controls Terraform state candidate discovery.
-type DiscoveryConfig struct {
-	Graph                bool
-	Seeds                []DiscoverySeed
-	LocalRepos           []string
-	LocalStateCandidates LocalStateCandidatePolicy
-}
-
-// DiscoverySeed is one exact operator-approved state locator.
-type DiscoverySeed struct {
-	Kind          BackendKind
-	TargetScopeID string
-	Path          string
-	RepoID        string
-	Bucket        string
-	Key           string
-	Region        string
-	VersionID     string
-	DynamoDBTable string
-	// PreviousETag is durable freshness metadata from a previous S3 read. It is
-	// intentionally not populated from collector configuration JSON.
-	PreviousETag string
-}
-
-// DiscoveryCandidate is one exact Terraform state object to inspect later.
-type DiscoveryCandidate struct {
-	State             StateKey
-	Source            DiscoveryCandidateSource
-	TargetScopeID     string
-	RepoID            string
-	RelativePath      string
-	Region            string
-	DynamoDBTable     string
-	PreviousETag      string
-	PriorGenerationID string
-	StateInVCS        bool
-}
-
-// DiscoveryQuery scopes graph-backed Terraform backend fact reads.
-type DiscoveryQuery struct {
-	RepoIDs                     []string
-	IncludeLocalStateCandidates bool
-	ApprovedLocalCandidates     []LocalStateCandidateRef
-}
-
 // GitReadinessChecker reports whether Git evidence for a repo is committed.
 type GitReadinessChecker interface {
 	GitGenerationCommitted(context.Context, string) (bool, error)
@@ -170,20 +125,24 @@ func (r DiscoveryResolver) Resolve(ctx context.Context) ([]DiscoveryCandidate, e
 		return r.finishResolve(ctx, counts, candidates)
 	}
 	repoIDs := normalizedRepoIDs(r.Config.LocalRepos)
-	if len(repoIDs) == 0 {
+	backendFilters := normalizedBackendFilters(r.Config.BackendFilters)
+	if len(repoIDs) == 0 && len(backendFilters) == 0 {
 		return r.finishResolve(ctx, counts, candidates)
 	}
-	if err := r.requireGitReady(ctx, repoIDs); err != nil {
-		if IsWaitingOnGitGeneration(err) && len(candidates) > 0 {
-			return r.finishResolve(ctx, counts, candidates)
+	if len(repoIDs) > 0 {
+		if err := r.requireGitReady(ctx, repoIDs); err != nil {
+			if IsWaitingOnGitGeneration(err) && len(candidates) > 0 {
+				return r.finishResolve(ctx, counts, candidates)
+			}
+			return nil, err
 		}
-		return nil, err
 	}
 	if r.BackendFacts == nil {
 		return nil, fmt.Errorf("terraform state graph discovery requires backend fact reader")
 	}
 	graphCandidates, err := r.BackendFacts.TerraformStateCandidates(ctx, DiscoveryQuery{
 		RepoIDs:                     repoIDs,
+		BackendFilters:              backendFilters,
 		IncludeLocalStateCandidates: r.Config.LocalStateCandidates.approvedMode(),
 		ApprovedLocalCandidates:     normalizedLocalCandidateRefs(r.Config.LocalStateCandidates.Approved),
 	})
@@ -196,6 +155,12 @@ func (r DiscoveryResolver) Resolve(ctx context.Context) ([]DiscoveryCandidate, e
 		}
 		if r.skipLocalStateCandidate(&candidate) {
 			continue
+		}
+		if filtered, ok := candidateWithBackendFilters(candidate, backendFilters); len(backendFilters) > 0 {
+			if !ok {
+				continue
+			}
+			candidate = filtered
 		}
 		if err := candidate.Validate(); err != nil {
 			return nil, fmt.Errorf("terraform state graph candidate %d: %w", index, err)
@@ -350,6 +315,9 @@ func validateGraphCandidateScope(candidate DiscoveryCandidate, repoIDs []string)
 	}
 	if repoID != candidate.RepoID {
 		return fmt.Errorf("graph candidate repo_id must not have surrounding whitespace")
+	}
+	if len(repoIDs) == 0 {
+		return nil
 	}
 	for _, allowed := range repoIDs {
 		if repoID == allowed {

@@ -40,12 +40,21 @@ x-collector-env: &remote_e2e_collector_env
             }
           ],
           "discovery": {
+            "graph": true,
             "seeds": [
               {
                 "kind": "s3",
                 "target_scope_id": "aws-e2e",
                 "bucket": "${ESHU_TFSTATE_S3_BUCKET:?set ESHU_TFSTATE_S3_BUCKET}",
                 "key": "${ESHU_TFSTATE_S3_KEY:?set ESHU_TFSTATE_S3_KEY}",
+                "region": "${ESHU_TFSTATE_S3_REGION:?set ESHU_TFSTATE_S3_REGION}"
+              }
+            ],
+            "backend_filters": [
+              {
+                "target_scope_id": "aws-e2e",
+                "backend_kind": "s3",
+                "bucket": "${ESHU_TFSTATE_S3_BUCKET:?set ESHU_TFSTATE_S3_BUCKET}",
                 "region": "${ESHU_TFSTATE_S3_REGION:?set ESHU_TFSTATE_S3_REGION}"
               }
             ]
@@ -252,7 +261,7 @@ services:
       <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
       ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: active
       ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED: "true"
-      ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL: ${ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL:-5m}
+      ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL: ${ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL:-1h}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
       interval: 15s

@@ -20,6 +20,10 @@ AWS SDK wiring belong to integration slices outside the reader stack.
 - `DiscoveryResolver` turns explicit seeds, Git-observed backend facts, and
   explicitly approved Git-local state candidates into exact `StateKey`
   candidates without opening raw state.
+- Graph discovery can be bounded by configured repositories (`local_repos`) or
+  by `backend_filters` that search all indexed active Git facts for exact
+  backend declarations matching fields such as backend kind, bucket, and
+  region.
 - Git HCL parsing emits `terraform_backends` metadata for Terraform `backend`
   blocks. The Postgres adapter reads those facts from active Git generations
   and only returns exact S3 candidates with literal bucket, key, and region
@@ -94,8 +98,9 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   approval may include `target_scope_id`, but a local read does not require one.
 - Exact local seeds still require operator-approved absolute paths.
 - S3 reads are exact object reads. Prefix-only keys are rejected.
-- Graph-backed discovery waits for Git generation readiness before reading
-  Terraform backend facts.
+- Repo-scoped graph discovery waits for Git generation readiness before reading
+  Terraform backend facts. Backend-filter discovery reads only active
+  generations and must include at least one explicit filter.
 - Dynamic backend expressions, workspace-prefixed S3 backends, non-S3 backends,
   and unapproved local paths from Git facts are not discovery candidates.
 - S3 write capability is rejected at source construction.

@@ -122,8 +122,12 @@ func (r TerraformStateBackendFactReader) TerraformStateCandidates(
 		return nil, fmt.Errorf("terraform state backend facts database is required")
 	}
 	repoIDs := cleanFactKinds(query.RepoIDs)
-	if len(repoIDs) == 0 {
+	filters := cleanTerraformStateBackendFilters(query.BackendFilters)
+	if len(repoIDs) == 0 && len(filters) == 0 {
 		return nil, nil
+	}
+	if len(repoIDs) == 0 {
+		return r.filteredTerraformStateCandidates(ctx, query, filters)
 	}
 
 	rows, err := r.DB.QueryContext(ctx, listTerraformBackendFactsQuery, repoIDs)
@@ -139,24 +143,17 @@ func (r TerraformStateBackendFactReader) TerraformStateCandidates(
 		if scanErr != nil {
 			return nil, fmt.Errorf("list terraform state backend facts: %w", scanErr)
 		}
-		for _, candidate := range rowCandidates {
-			key := candidate.State.Locator + "\x00" + candidate.State.VersionID
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			candidates = append(candidates, candidate)
-		}
+		candidates = appendMatchingTerraformStateCandidates(candidates, seen, rowCandidates, filters)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list terraform state backend facts: %w", err)
 	}
-	terragruntCandidates, err := r.terragruntRemoteStateCandidates(ctx, repoIDs, seen)
+	terragruntCandidates, err := r.terragruntRemoteStateCandidates(ctx, repoIDs, seen, filters)
 	if err != nil {
 		return nil, err
 	}
 	candidates = append(candidates, terragruntCandidates...)
-	localCandidates, err := r.localStateCandidates(ctx, query, seen)
+	localCandidates, err := r.localStateCandidates(ctx, query, seen, filters)
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +171,7 @@ func (r TerraformStateBackendFactReader) terragruntRemoteStateCandidates(
 	ctx context.Context,
 	repoIDs []string,
 	seen map[string]struct{},
+	filters []terraformstate.DiscoveryBackendFilter,
 ) ([]terraformstate.DiscoveryCandidate, error) {
 	if len(repoIDs) == 0 {
 		return nil, nil
@@ -190,14 +188,7 @@ func (r TerraformStateBackendFactReader) terragruntRemoteStateCandidates(
 		if scanErr != nil {
 			return nil, fmt.Errorf("list terragrunt remote_state facts: %w", scanErr)
 		}
-		for _, candidate := range rowCandidates {
-			key := candidate.State.Locator + "\x00" + candidate.State.VersionID
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			candidates = append(candidates, candidate)
-		}
+		candidates = appendMatchingTerraformStateCandidates(candidates, seen, rowCandidates, filters)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list terragrunt remote_state facts: %w", err)
@@ -239,15 +230,20 @@ func (r TerraformStateBackendFactReader) localStateCandidates(
 	ctx context.Context,
 	query terraformstate.DiscoveryQuery,
 	seen map[string]struct{},
+	filters []terraformstate.DiscoveryBackendFilter,
 ) ([]terraformstate.DiscoveryCandidate, error) {
 	if !query.IncludeLocalStateCandidates || len(query.ApprovedLocalCandidates) == 0 {
+		return nil, nil
+	}
+	repoIDs := cleanFactKinds(query.RepoIDs)
+	if len(repoIDs) == 0 {
 		return nil, nil
 	}
 	approved := approvedLocalStateCandidateSet(query.ApprovedLocalCandidates)
 	if len(approved) == 0 {
 		return nil, nil
 	}
-	rows, err := r.DB.QueryContext(ctx, listTerraformStateLocalCandidateFactsQuery, cleanFactKinds(query.RepoIDs))
+	rows, err := r.DB.QueryContext(ctx, listTerraformStateLocalCandidateFactsQuery, repoIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list terraform state local candidate facts: %w", err)
 	}
@@ -259,6 +255,10 @@ func (r TerraformStateBackendFactReader) localStateCandidates(
 		if scanErr != nil {
 			return nil, fmt.Errorf("list terraform state local candidate facts: %w", scanErr)
 		}
+		if !ok {
+			continue
+		}
+		candidate, ok = terraformStateCandidateWithFilter(candidate, filters)
 		if !ok {
 			continue
 		}

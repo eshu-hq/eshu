@@ -48,6 +48,36 @@ WHERE fact.fact_kind = 'file'
 ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
 `
 
+const listTerraformBackendFactsByFilterQuery = `
+SELECT
+    repository.payload->>'repo_id' AS repo_id,
+    fact.payload->'parsed_file_data'->'terraform_backends' AS terraform_backends
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+JOIN fact_records AS repository
+  ON repository.scope_id = fact.scope_id
+ AND repository.generation_id = fact.generation_id
+ AND repository.fact_kind = 'repository'
+ AND repository.source_system = 'git'
+WHERE fact.fact_kind = 'file'
+  AND fact.source_system = 'git'
+  AND generation.status = 'active'
+  AND jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
+  AND EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(fact.payload->'parsed_file_data'->'terraform_backends') AS backend
+      WHERE ($1 = '' OR backend->>'backend_kind' = $1 OR backend->>'name' = $1)
+        AND ($2 = '' OR backend->>'bucket' = $2)
+        AND ($3 = '' OR backend->>'region' = $3)
+  )
+ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
+`
+
 const listTerragruntRemoteStateFactsQuery = `
 WITH requested_repos AS (
     SELECT DISTINCT btrim(value) AS requested_repo_id
@@ -99,6 +129,37 @@ WHERE fact.fact_kind = 'file'
   AND fact.source_system = 'git'
   AND generation.status = 'active'
   AND jsonb_typeof(fact.payload->'parsed_file_data'->'terragrunt_remote_states') = 'array'
+ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
+`
+
+const listTerragruntRemoteStateFactsByFilterQuery = `
+SELECT
+    repository.payload->>'repo_id' AS repo_id,
+    COALESCE(repository.payload->>'local_path', '') AS repo_local_path,
+    fact.payload->'parsed_file_data'->'terragrunt_remote_states' AS terragrunt_remote_states
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+JOIN fact_records AS repository
+  ON repository.scope_id = fact.scope_id
+ AND repository.generation_id = fact.generation_id
+ AND repository.fact_kind = 'repository'
+ AND repository.source_system = 'git'
+WHERE fact.fact_kind = 'file'
+  AND fact.source_system = 'git'
+  AND generation.status = 'active'
+  AND jsonb_typeof(fact.payload->'parsed_file_data'->'terragrunt_remote_states') = 'array'
+  AND EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(fact.payload->'parsed_file_data'->'terragrunt_remote_states') AS remote_state
+      WHERE ($1 = '' OR remote_state->>'backend_kind' = $1 OR remote_state->>'name' = $1)
+        AND ($2 = '' OR remote_state->>'bucket' = $2)
+        AND ($3 = '' OR remote_state->>'region' = $3)
+  )
 ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
 `
 

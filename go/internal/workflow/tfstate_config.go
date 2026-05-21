@@ -17,7 +17,15 @@ type terraformStateDiscoveryConfiguration struct {
 	Graph                bool                                     `json:"graph"`
 	Seeds                []terraformStateSeedConfig               `json:"seeds"`
 	LocalRepos           []string                                 `json:"local_repos"`
+	BackendFilters       []terraformStateBackendFilterConfig      `json:"backend_filters"`
 	LocalStateCandidates terraformStateLocalCandidatePolicyConfig `json:"local_state_candidates"`
+}
+
+type terraformStateBackendFilterConfig struct {
+	TargetScopeID string `json:"target_scope_id"`
+	BackendKind   string `json:"backend_kind"`
+	Bucket        string `json:"bucket"`
+	Region        string `json:"region"`
 }
 
 type terraformStateLocalCandidatePolicyConfig struct {
@@ -67,11 +75,11 @@ func ValidateTerraformStateCollectorConfiguration(raw string) error {
 		return fmt.Errorf("terraform_state configuration: %w", err)
 	}
 
-	if !cfg.Discovery.Graph && len(cfg.Discovery.Seeds) == 0 && len(cfg.Discovery.LocalRepos) == 0 {
+	if !cfg.Discovery.Graph && len(cfg.Discovery.Seeds) == 0 && len(cfg.Discovery.LocalRepos) == 0 && len(cfg.Discovery.BackendFilters) == 0 {
 		return fmt.Errorf("terraform_state configuration discovery must enable graph, seeds, or local_repos")
 	}
-	if cfg.Discovery.Graph && len(cfg.Discovery.LocalRepos) == 0 {
-		return fmt.Errorf("terraform_state configuration discovery.graph requires at least one local_repos entry")
+	if cfg.Discovery.Graph && len(cfg.Discovery.LocalRepos) == 0 && len(cfg.Discovery.BackendFilters) == 0 {
+		return fmt.Errorf("terraform_state configuration discovery.graph requires local_repos or backend_filters")
 	}
 	targetScopes, err := validateTerraformStateTargetScopes(cfg.TargetScopes)
 	if err != nil {
@@ -89,8 +97,12 @@ func ValidateTerraformStateCollectorConfiguration(raw string) error {
 	if err := validateTerraformStateLocalCandidates(cfg.Discovery.LocalStateCandidates, targetScopes); err != nil {
 		return err
 	}
+	filtersUseS3, err := validateTerraformStateBackendFilters(cfg.Discovery.BackendFilters, targetScopes)
+	if err != nil {
+		return err
+	}
 
-	usesS3 := false
+	usesS3 := filtersUseS3
 	for index, seed := range cfg.Discovery.Seeds {
 		kind := strings.ToLower(strings.TrimSpace(seed.Kind))
 		if strings.TrimSpace(seed.VersionID) != seed.VersionID {
@@ -131,7 +143,7 @@ func ValidateTerraformStateCollectorConfiguration(raw string) error {
 	}
 
 	if usesS3 && len(targetScopes) == 0 && strings.TrimSpace(cfg.AWS.RoleARN) == "" {
-		return fmt.Errorf("terraform_state configuration aws.role_arn is required for s3 seeds")
+		return fmt.Errorf("terraform_state configuration target_scopes or aws.role_arn is required for s3 discovery")
 	}
 
 	return nil

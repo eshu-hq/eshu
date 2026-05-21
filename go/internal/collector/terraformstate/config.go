@@ -14,7 +14,15 @@ type discoveryConfiguration struct {
 	Graph                bool                             `json:"graph"`
 	Seeds                []seedConfig                     `json:"seeds"`
 	LocalRepos           []string                         `json:"local_repos"`
+	BackendFilters       []backendFilterConfig            `json:"backend_filters"`
 	LocalStateCandidates localStateCandidatesPolicyConfig `json:"local_state_candidates"`
+}
+
+type backendFilterConfig struct {
+	TargetScopeID string `json:"target_scope_id"`
+	BackendKind   string `json:"backend_kind"`
+	Bucket        string `json:"bucket"`
+	Region        string `json:"region"`
 }
 
 type localStateCandidatesPolicyConfig struct {
@@ -50,9 +58,10 @@ func ParseDiscoveryConfig(raw string) (DiscoveryConfig, error) {
 		return DiscoveryConfig{}, fmt.Errorf("terraform state discovery configuration: %w", err)
 	}
 	config := DiscoveryConfig{
-		Graph:      parsed.Discovery.Graph,
-		LocalRepos: normalizedRepoIDs(parsed.Discovery.LocalRepos),
-		Seeds:      make([]DiscoverySeed, 0, len(parsed.Discovery.Seeds)),
+		Graph:          parsed.Discovery.Graph,
+		LocalRepos:     normalizedRepoIDs(parsed.Discovery.LocalRepos),
+		BackendFilters: backendFilters(parsed.Discovery.BackendFilters),
+		Seeds:          make([]DiscoverySeed, 0, len(parsed.Discovery.Seeds)),
 		LocalStateCandidates: LocalStateCandidatePolicy{
 			Mode:     localStateCandidateMode(parsed.Discovery.LocalStateCandidates.Mode),
 			Approved: localStateCandidateRefs(parsed.Discovery.LocalStateCandidates.Approved),
@@ -73,6 +82,19 @@ func ParseDiscoveryConfig(raw string) (DiscoveryConfig, error) {
 		})
 	}
 	return config, nil
+}
+
+func backendFilters(configs []backendFilterConfig) []DiscoveryBackendFilter {
+	filters := make([]DiscoveryBackendFilter, 0, len(configs))
+	for _, config := range configs {
+		filters = append(filters, DiscoveryBackendFilter{
+			TargetScopeID: strings.TrimSpace(config.TargetScopeID),
+			BackendKind:   BackendKind(strings.ToLower(strings.TrimSpace(config.BackendKind))),
+			Bucket:        strings.TrimSpace(config.Bucket),
+			Region:        strings.ToLower(strings.TrimSpace(config.Region)),
+		})
+	}
+	return normalizedBackendFilters(filters)
 }
 
 func localStateCandidateMode(value string) LocalStateCandidateMode {

@@ -75,9 +75,12 @@ For S3 backends that use Terraform's DynamoDB lock table, set
 `aws.dynamodb_table` is accepted as a fallback for older seed config, but
 backend-specific values win.
 
-Graph-backed discovery is repo-scoped in this slice. When `discovery.graph` is
-`true`, include at least one `discovery.local_repos` entry so the resolver knows
-which committed Git backend facts it is allowed to read.
+Graph-backed discovery can be repo-scoped with `discovery.local_repos` or
+filtered globally with `discovery.backend_filters`. Backend filters read indexed
+Postgres/Git facts for exact Terraform backend or Terragrunt remote-state rows
+matching fields such as `backend_kind`, `bucket`, and `region`; they never list
+S3 bucket contents. When `discovery.graph` is `true`, include at least one
+`local_repos` entry or one `backend_filters` entry.
 
 The Git collector records repo-local `.tfstate` files as safe
 `terraform_state_candidate` metadata. That does not make them readable by the
@@ -138,6 +141,14 @@ The main trace spans are `tfstate.source.open`, `tfstate.parser.stream`, and
       "discovery": {
         "graph": true,
         "local_repos": ["platform-infra"],
+        "backend_filters": [
+          {
+            "target_scope_id": "aws-prod",
+            "backend_kind": "s3",
+            "bucket": "company-terraform-state",
+            "region": "us-east-1"
+          }
+        ],
         "local_state_candidates": {
           "mode": "approved_candidates",
           "approved": [
