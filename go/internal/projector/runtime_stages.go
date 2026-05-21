@@ -52,6 +52,9 @@ func (r Runtime) writeCanonicalProjection(
 	mat CanonicalMaterialization,
 ) error {
 	if mat.IsEmpty() {
+		if err := r.publishCanonicalGraphPhases(ctx, generationID, inputFacts); err != nil {
+			return fmt.Errorf("publish canonical graph phases: %w", err)
+		}
 		return nil
 	}
 	if r.CanonicalWriter == nil {

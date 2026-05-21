@@ -3,11 +3,12 @@
 ## Purpose
 
 `internal/coordinator` owns the workflow coordinator's collector reconcile,
-workflow-run reconciliation, and expired-claim reap loops. `Service.Run` ticks
-through three discrete operations — collector-instance and scheduled-work
-planning reconciliation (always), workflow-run progress reconciliation (active
-mode only), and expired-claim reaping (active mode only) — against a narrow
-`Store` interface backed by Postgres. The package also owns
+workflow-run reconciliation, AWS freshness handoff, and expired-claim reap
+loops. `Service.Run` ticks through discrete operations — collector-instance and
+scheduled-work planning reconciliation (always), workflow-run progress
+reconciliation (active mode only), AWS freshness handoff (active mode only),
+and expired-claim reaping (active mode only) — against a narrow `Store`
+interface backed by Postgres. The package also owns
 `ESHU_WORKFLOW_COORDINATOR_*` env parsing and OTEL instrument registration for
 the coordinator.
 
@@ -36,11 +37,15 @@ flowchart TB
   A --> H["runReconcileTicker\n(RunReconcileInterval, default 30s)\nnil in dark mode"]
   H --> E
   A --> I["reapTicker\n(ReapInterval, default 20s)\nnil in dark mode"]
-  I --> D
+  I --> P["runActiveMaintenance"]
+  P --> D
+  P --> Q["runAWSFreshnessHandoff"]
+  P --> E
   B --> J["Store.ReconcileCollectorInstances\nthen Store.ListCollectorInstances"]
   J --> K["Metrics.RecordReconcile\nlog drift if any"]
   D --> L["Store.ReapExpiredClaims"]
   L --> M["Metrics.RecordReap"]
+  Q --> R["Store.ListCollectorInstances\nthen scheduleAWSFreshnessWork"]
   E --> N["Store.ReconcileWorkflowRuns"]
   N --> O["Metrics.RecordRunReconciliation"]
 ```
@@ -51,10 +56,13 @@ flowchart TB
 then enters a `select` loop. The `reconcileTicker` fires `runReconcile` on every
 tick. In active mode, `runReconcileTicker` fires `runWorkflowReconciliation`
 independently so slow scheduled-work planning cadences do not leave completed
-runs stuck in stale `collection_pending` state. The `reapTicker` and
-`runReconcileTicker` are nil in dark mode — `tickerChan(nil)` returns a nil
-channel the `select` never picks. Context cancellation (`ctx.Done`) exits the
-loop cleanly.
+runs stuck in stale `collection_pending` state. The `reapTicker` also runs
+active maintenance: expired-claim reaping, AWS freshness handoff from durable
+collector instances, and workflow-run reconciliation. That keeps webhook-driven
+AWS freshness and terminal run status moving even when scheduled scan planning
+uses a long reconcile interval. The `reapTicker` and `runReconcileTicker` are
+nil in dark mode — `tickerChan(nil)` returns a nil channel the `select` never
+picks. Context cancellation (`ctx.Done`) exits the loop cleanly.
 
 `Config.Validate` runs at `LoadConfig` time and again at `Service.Run` entry.
 Defaults are applied by `withDefaults` before validation, so missing env vars
@@ -66,8 +74,9 @@ fall back to defaults rather than failing; malformed values fail fast.
 ## Exported surface
 
 - `Store` — the narrow durable interface `Service` depends on:
-  `ReconcileCollectorInstances`, `ListCollectorInstances`,
-  `ReapExpiredClaims`, `ReconcileWorkflowRuns`. Implemented by
+  `ReconcileCollectorInstances`, `ListCollectorInstances`, `CreateRun`,
+  `CreateRunWithWorkItemsIfNoOpenTargets`, `EnqueueWorkItems`,
+  `ReapExpiredClaims`, and `ReconcileWorkflowRuns`. Implemented by
   `storage/postgres.WorkflowControlStore`.
 - `Service` — the long-running loop; wire `Config`, `Store`, `Metrics`, and
   `Logger` then call `Service.Run`.
@@ -182,6 +191,11 @@ warning (`collector_instance_drift_detected`, fields
   is violated.
 - AWS freshness planning rejects targets that are not present in the collector
   instance `target_scopes`; provider events cannot widen configured AWS access.
+- Scheduled workflow creation for Terraform-state, OCI registry,
+  package-registry, AWS scheduled scans, and AWS freshness uses
+  `(collector_kind, collector_instance_id, scope_id, acceptance_unit_id)` as the
+  durable open-target key. If a non-terminal run already owns the same target,
+  the coordinator skips duplicate work instead of creating another run.
 - AWS scheduled planning filters invalid global-region pairings before work-item
   creation. This prevents guaranteed-bad claims such as
   `aws-global`/`lambda` and regional `iam` while preserving valid global
@@ -219,13 +233,23 @@ proves workflow-run status reconciliation can tick faster than scheduled-work
 planning, which keeps remote all-collector Compose from waiting up to the
 scheduled scan interval after all claims complete.
 
+No-Regression Evidence: `go test ./internal/coordinator ./internal/storage/postgres -run 'TestServiceRunActiveModeSkipsAWSWorkWhenPriorScheduledTargetIsOpen|TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers|TestServiceRunActiveModeSchedulesOCIRegistryWork|TestServiceRunActiveModeSchedulesPackageRegistryWork|TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen|TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles|TestRunActiveMaintenanceReconcilesWorkflowRunsBetweenReconciles|TestWorkflowControlStoreGuardedRunSkipsOpenScheduledTarget|TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget' -count=1`
+covers the open-target admission guard, AWS freshness handoff on the reap
+cadence, and workflow-run reconciliation during active maintenance.
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestWorkflowControlStoreGuardedRun(SkipsSameRunTargetReplay|SkipsTerminalSameRunReplay)' -count=1`
+first reproduced same-run target replay and terminal-run append on
+preserved-volume restart, then proved deterministic scheduled run ids do not
+append duplicate or newly discovered target work after the run is terminal.
+
 Observability Evidence: AWS scheduled runs persist valid planned targets and
 skipped invalid configured tuples in `workflow_runs.requested_scope_set`; the
 existing workflow coordinator reconcile metrics and run rows show whether the
 planner generated work or intentionally skipped invalid pairings. Workflow-run
 freshness remains visible through `eshu_dp_workflow_coordinator_run_reconcile_*`
 metrics, `workflow_runs`, `workflow_run_completeness`, and
-`/api/v0/index-status`.
+`/api/v0/index-status`. Duplicate target suppression emits
+`reason=target_already_planned`, `planned_work_items`, `enqueued_work_items`,
+`skipped_work_items`, and `trigger_kind` in structured coordinator logs.
 
 ## Related docs
 

@@ -105,3 +105,147 @@ func TestCanonicalNodeWriterBuildsOCIRegistryStatements(t *testing.T) {
 		t.Fatalf("resolved_descriptor_uid = %q, want %q", got, want)
 	}
 }
+
+func TestCanonicalNodeWriterOCIRegistryRelationshipsDoNotUpdateGeneration(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 2, nil)
+	mat := projector.CanonicalMaterialization{
+		ScopeID:      "oci-scope-1",
+		GenerationID: "oci-generation-2",
+		OCIRegistryRepository: &projector.OCIRegistryRepositoryRow{
+			UID:              "oci-registry://registry.example.com/team/api",
+			Provider:         "ghcr",
+			Registry:         "registry.example.com",
+			Repository:       "team/api",
+			SourceFactID:     "oci-repository-1",
+			StableFactKey:    "oci-registry://registry.example.com/team/api",
+			SourceSystem:     "oci_registry",
+			SourceRecordID:   "oci-registry://registry.example.com/team/api",
+			SourceConfidence: facts.SourceConfidenceReported,
+			CollectorKind:    "oci_registry",
+		},
+		OCIImageManifests: []projector.OCIImageManifestRow{{
+			UID:                  "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			RepositoryID:         "oci-registry://registry.example.com/team/api",
+			Digest:               "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			MediaType:            "application/vnd.oci.image.manifest.v1+json",
+			SourceFactID:         "oci-manifest-1",
+			StableFactKey:        "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			SourceSystem:         "oci_registry",
+			SourceRecordID:       "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			SourceConfidence:     facts.SourceConfidenceReported,
+			CollectorKind:        "oci_registry",
+			CorrelationAnchors:   []string{"oci-registry://registry.example.com/team/api"},
+			CollectorInstanceID:  "oci-collector-1",
+			ResolvedDescriptorID: "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		}},
+	}
+
+	statements := writer.buildOCIRegistryStatements(mat)
+	for _, statement := range statements {
+		if !strings.Contains(statement.Cypher, "MERGE (r)-[rel:") {
+			continue
+		}
+		if strings.Contains(statement.Cypher, "rel.generation_id") {
+			t.Fatalf("OCI relationship Cypher mutates rel.generation_id on replay:\n%s", statement.Cypher)
+		}
+	}
+}
+
+func TestCanonicalNodeWriterOCIRegistryRelationshipsOnlySetPropertiesOnCreate(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 2, nil)
+	mat := projector.CanonicalMaterialization{
+		ScopeID:      "oci-scope-1",
+		GenerationID: "oci-generation-2",
+		OCIRegistryRepository: &projector.OCIRegistryRepositoryRow{
+			UID:              "oci-registry://registry.example.com/team/api",
+			Provider:         "ghcr",
+			Registry:         "registry.example.com",
+			Repository:       "team/api",
+			SourceFactID:     "oci-repository-1",
+			StableFactKey:    "oci-registry://registry.example.com/team/api",
+			SourceSystem:     "oci_registry",
+			SourceRecordID:   "oci-registry://registry.example.com/team/api",
+			SourceConfidence: facts.SourceConfidenceReported,
+			CollectorKind:    "oci_registry",
+		},
+		OCIImageManifests: []projector.OCIImageManifestRow{{
+			UID:                  "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			RepositoryID:         "oci-registry://registry.example.com/team/api",
+			Digest:               "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			MediaType:            "application/vnd.oci.image.manifest.v1+json",
+			SourceFactID:         "oci-manifest-1",
+			StableFactKey:        "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			SourceSystem:         "oci_registry",
+			SourceRecordID:       "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			SourceConfidence:     facts.SourceConfidenceReported,
+			CollectorKind:        "oci_registry",
+			CorrelationAnchors:   []string{"oci-registry://registry.example.com/team/api"},
+			CollectorInstanceID:  "oci-collector-1",
+			ResolvedDescriptorID: "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		}},
+		OCIImageIndexes: []projector.OCIImageIndexRow{{
+			UID:           "oci-index://registry.example.com/team/api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			RepositoryID:  "oci-registry://registry.example.com/team/api",
+			Digest:        "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			MediaType:     "application/vnd.oci.image.index.v1+json",
+			SourceFactID:  "oci-index-1",
+			StableFactKey: "oci-index:1",
+			SourceSystem:  "oci_registry",
+			CollectorKind: "oci_registry",
+		}},
+		OCIImageDescriptors: []projector.OCIImageDescriptorRow{{
+			UID:           "oci-descriptor://registry.example.com/team/api@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+			RepositoryID:  "oci-registry://registry.example.com/team/api",
+			Digest:        "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+			MediaType:     "application/vnd.oci.image.manifest.v1+json",
+			SourceFactID:  "oci-descriptor-1",
+			StableFactKey: "oci-descriptor:1",
+			SourceSystem:  "oci_registry",
+			CollectorKind: "oci_registry",
+		}},
+		OCIImageTagObservations: []projector.OCIImageTagObservationRow{{
+			UID:                   "oci-tag-observation-1",
+			RepositoryID:          "oci-registry://registry.example.com/team/api",
+			ImageRef:              "registry.example.com/team/api:prod",
+			Tag:                   "prod",
+			ResolvedDigest:        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			ResolvedDescriptorUID: "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			MediaType:             "application/vnd.oci.image.manifest.v1+json",
+			IdentityStrength:      "weak_tag",
+			SourceFactID:          "oci-tag-1",
+			StableFactKey:         "oci-tag:prod",
+			SourceSystem:          "oci_registry",
+			SourceConfidence:      facts.SourceConfidenceReported,
+			CollectorKind:         "oci_registry",
+		}},
+		OCIImageReferrers: []projector.OCIImageReferrerRow{{
+			UID:               "oci-referrer-1",
+			RepositoryID:      "oci-registry://registry.example.com/team/api",
+			SubjectDigest:     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			SubjectMediaType:  "application/vnd.oci.image.manifest.v1+json",
+			ReferrerDigest:    "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			ReferrerMediaType: "application/vnd.dev.cosign.simplesigning.v1+json",
+			SourceFactID:      "oci-referrer-1",
+			StableFactKey:     "oci-referrer:1",
+			SourceSystem:      "oci_registry",
+			CollectorKind:     "oci_registry",
+		}},
+	}
+
+	statements := writer.buildOCIRegistryStatements(mat)
+	for _, statement := range statements {
+		if !strings.Contains(statement.Cypher, "MERGE (r)-[rel:") {
+			continue
+		}
+		if strings.Contains(statement.Cypher, "\nSET rel.") {
+			t.Fatalf("OCI relationship Cypher updates rel properties after MERGE on replay:\n%s", statement.Cypher)
+		}
+		if !strings.Contains(statement.Cypher, "ON CREATE SET rel.") {
+			t.Fatalf("OCI relationship Cypher must initialize rel properties only on create:\n%s", statement.Cypher)
+		}
+	}
+}

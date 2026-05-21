@@ -244,6 +244,23 @@ active. Terraform-state collectors use this to move from candidate planning
 IDs to the real state-snapshot generation before workflow-run reconciliation
 joins `workflow_work_items` to `graph_projection_phase_state`.
 
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestWorkflowControlStoreGuardedRun(SkipsOpenScheduledTarget|CreatesEligibleScheduledTarget|ComputesEligibleTargetsInOneQuery|LocksCollectorInstanceOnceForTargetBatch|SkipsSameRunTargetReplay|SkipsTerminalSameRunReplay)' -count=1`
+proves scheduled target admission skips non-terminal duplicate targets, allows
+eligible targets, and treats the same deterministic run id plus
+`(collector_kind, collector_instance_id, scope_id, acceptance_unit_id)` as an
+idempotency key during preserved-volume restarts. The same gate proves guarded
+admission computes target eligibility with one `VALUES`-backed query per run
+and acquires one sorted transaction-scoped Postgres advisory planning lock per
+`(collector_kind, collector_instance_id)` batch instead of one lock per target.
+It also proves newly discovered targets are not appended to an already-terminal
+deterministic run id.
+
+Observability Evidence: no new storage metric was needed because workflow
+target suppression remains visible through workflow work-item rows,
+workflow-run state, workflow completeness rows, and coordinator structured logs
+with `reason=target_already_planned`, `planned_work_items`,
+`enqueued_work_items`, `skipped_work_items`, and `trigger_kind`.
+
 ### AWS scan status
 
 `AWSScanStatusStore` persists one row per AWS

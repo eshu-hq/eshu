@@ -98,10 +98,11 @@ AWS credential routing. Approved Git-local state emits a
 Use `eshu_dp_tfstate_claim_wait_seconds` to see whether work is backing up
 before the collector starts a claim. Once a claim starts, the runtime emits
 Terraform-state source, parse, resource, redaction, and S3 not-modified metrics
-with bounded labels only. Do not log or trace raw state locators, bucket names,
-keys, local paths, or work item IDs. Use backend kind, result, claim/run
-correlation, and the locator hash emitted in Terraform-state facts when you
-need to investigate a specific source.
+with bounded labels only. A missing S3 object is reported as
+`warning_kind=state_missing` rather than a retryable collect failure. Do not log
+or trace raw state locators, bucket names, keys, local paths, or work item IDs.
+Use backend kind, result, claim/run correlation, and the locator hash emitted
+in Terraform-state facts when you need to investigate a specific source.
 
 `eshu_dp_tfstate_schema_resolver_entries` reports the number of Terraform
 resource types the loaded provider-schema bundle covers. The bundle is loaded

@@ -102,6 +102,10 @@ AWS SDK wiring belong to integration slices outside the reader stack.
   approval may include `target_scope_id`, but a local read does not require one.
 - Exact local seeds still require operator-approved absolute paths.
 - S3 reads are exact object reads. Prefix-only keys are rejected.
+- S3 `NoSuchKey` responses are treated as a missing exact object, not a
+  transient source-read failure. Runtime adapters may turn that into a
+  `terraform_state_warning` so stale graph-discovered backend declarations do
+  not retry forever while still leaving operator-visible evidence.
 - Repo-scoped graph discovery waits for Git generation readiness before reading
   Terraform backend facts. Backend-filter discovery reads only active
   generations and must include at least one explicit filter.
@@ -157,3 +161,18 @@ workflow status fields, fact work-item counters, and parser warning facts still
 identify whether discovery, source opening, parsing, fact commit, reducer
 projection, or graph persistence is stuck or failing; this patch does not add a
 new runtime stage or hide failures behind fallback behavior.
+
+No-Regression Evidence: after classifying S3 `NoSuchKey` as a missing exact
+state object, the focused reader and AWS adapter gate passed with
+`go test ./internal/collector/terraformstate -run 'TestS3StateSourceReports(MissingState|NotModified)' -count=1`
+and
+`go test ./cmd/collector-terraform-state -run 'TestSafeS3GetObjectErrorMaps(NoSuchKey|NotModified)|TestSafeS3GetObjectErrorDoesNotLeakLocator' -count=1`.
+The change does not alter discovery cardinality, parser memory behavior,
+worker counts, graph writes, or retry timing for transient AWS failures.
+
+Observability Evidence: missing S3 objects preserve the typed
+`ErrStateMissing` cause without logging bucket names, object keys, or full
+locators. The claim runtime records the source-open result and emits a bounded
+`terraform_state_warning` with `warning_kind=state_missing`, so operators can
+separate stale backend declarations from permission errors, parser failures,
+and retryable transport failures.

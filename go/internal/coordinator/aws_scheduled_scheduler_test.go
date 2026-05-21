@@ -252,6 +252,54 @@ func TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers(t *testing
 	}
 }
 
+func TestServiceRunActiveModeSkipsAWSWorkWhenPriorScheduledTargetIsOpen(t *testing.T) {
+	t.Parallel()
+
+	first := time.Date(2026, time.May, 20, 22, 5, 0, 0, time.UTC)
+	second := first.Add(5 * time.Minute)
+	current := first
+	store := &fakeStore{
+		instances: []workflow.CollectorInstance{testServiceAWSScheduledInstance(first)},
+	}
+	service := Service{
+		Config: Config{
+			DeploymentMode:           deploymentModeActive,
+			ClaimsEnabled:            true,
+			ReconcileInterval:        5 * time.Minute,
+			ReapInterval:             time.Hour,
+			ClaimLeaseTTL:            time.Minute,
+			HeartbeatInterval:        20 * time.Second,
+			ExpiredClaimLimit:        10,
+			ExpiredClaimRequeueDelay: 5 * time.Second,
+			CollectorInstances: []workflow.DesiredCollectorInstance{{
+				InstanceID:    "collector-aws",
+				CollectorKind: scope.CollectorAWS,
+				Mode:          workflow.CollectorModeContinuous,
+				Enabled:       true,
+				ClaimsEnabled: true,
+				Configuration: testServiceAWSScheduledConfiguration(),
+			}},
+		},
+		Store:               store,
+		AWSScheduledPlanner: AWSScheduledWorkPlanner{},
+		Clock:               func() time.Time { return current },
+	}
+
+	if err := service.runReconcile(context.Background()); err != nil {
+		t.Fatalf("first runReconcile() error = %v, want nil", err)
+	}
+	current = second
+	if err := service.runReconcile(context.Background()); err != nil {
+		t.Fatalf("second runReconcile() error = %v, want nil", err)
+	}
+	if got, want := len(store.createdRuns), 1; got != want {
+		t.Fatalf("created runs = %d, want %d", got, want)
+	}
+	if got, want := len(store.enqueuedItems), 1; got != want {
+		t.Fatalf("enqueued items = %d, want %d", got, want)
+	}
+}
+
 func TestServiceRunActiveModePersistsAuditOnlyAWSScheduledRun(t *testing.T) {
 	t.Parallel()
 

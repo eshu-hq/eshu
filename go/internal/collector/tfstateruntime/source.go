@@ -251,6 +251,23 @@ func (s ClaimedSource) collectCandidate(
 			})
 			return collected, true, nil
 		}
+		if errors.Is(err, terraformstate.ErrStateMissing) {
+			s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "state_missing")
+			collected, warningErr := s.stateMissingWarningGeneration(
+				candidate,
+				candidateScope,
+				candidateID,
+				sourceKey,
+				item.CurrentFencingToken,
+			)
+			if warningErr != nil {
+				return collector.CollectedGeneration{}, false, warningErr
+			}
+			s.recordWarningFacts(ctx, sourceKey.BackendKind, candidateScope.Metadata["locator_hash"], map[string]int64{
+				"state_missing": 1,
+			})
+			return collected, true, nil
+		}
 		s.recordSnapshotObserved(ctx, candidate.State.BackendKind, "error")
 		return collector.CollectedGeneration{}, false, err
 	}

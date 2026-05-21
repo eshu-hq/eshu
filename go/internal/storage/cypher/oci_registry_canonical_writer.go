@@ -52,8 +52,7 @@ SET m.id = row.uid,
     m.generation_id = row.generation_id,
     m.evidence_source = 'projector/oci_registry'
 MERGE (r)-[rel:PUBLISHES_MANIFEST]->(m)
-SET rel.generation_id = row.generation_id,
-    rel.evidence_source = 'projector/oci_registry'`
+ON CREATE SET rel.evidence_source = 'projector/oci_registry'`
 
 const canonicalOCIImageIndexUpsertCypher = `UNWIND $rows AS row
 MATCH (r:OciRegistryRepository {uid: row.repository_id})
@@ -77,8 +76,7 @@ SET i.id = row.uid,
     i.generation_id = row.generation_id,
     i.evidence_source = 'projector/oci_registry'
 MERGE (r)-[rel:PUBLISHES_INDEX]->(i)
-SET rel.generation_id = row.generation_id,
-    rel.evidence_source = 'projector/oci_registry'`
+ON CREATE SET rel.evidence_source = 'projector/oci_registry'`
 
 const canonicalOCIImageDescriptorUpsertCypher = `UNWIND $rows AS row
 MATCH (r:OciRegistryRepository {uid: row.repository_id})
@@ -100,8 +98,7 @@ SET d.id = row.uid,
     d.generation_id = row.generation_id,
     d.evidence_source = 'projector/oci_registry'
 MERGE (r)-[rel:PUBLISHES_DESCRIPTOR]->(d)
-SET rel.generation_id = row.generation_id,
-    rel.evidence_source = 'projector/oci_registry'`
+ON CREATE SET rel.evidence_source = 'projector/oci_registry'`
 
 const canonicalOCIImageTagObservationUpsertCypher = `UNWIND $rows AS row
 MATCH (r:OciRegistryRepository {uid: row.repository_id})
@@ -128,9 +125,8 @@ SET t.id = row.uid,
     t.generation_id = row.generation_id,
     t.evidence_source = 'projector/oci_registry'
 MERGE (r)-[rel:OBSERVED_TAG]->(t)
-SET rel.confidence = 0.5,
+ON CREATE SET rel.confidence = 0.5,
     rel.reason = 'Registry tag is mutable evidence for a digest observation',
-    rel.generation_id = row.generation_id,
     rel.evidence_source = 'projector/oci_registry'`
 
 const canonicalOCIImageReferrerUpsertCypher = `UNWIND $rows AS row
@@ -156,8 +152,7 @@ SET ref.id = row.uid,
     ref.generation_id = row.generation_id,
     ref.evidence_source = 'projector/oci_registry'
 MERGE (r)-[rel:OBSERVED_REFERRER]->(ref)
-SET rel.generation_id = row.generation_id,
-    rel.evidence_source = 'projector/oci_registry'`
+ON CREATE SET rel.evidence_source = 'projector/oci_registry'`
 
 func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.CanonicalMaterialization) []Statement {
 	var statements []Statement

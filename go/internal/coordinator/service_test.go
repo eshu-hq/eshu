@@ -52,6 +52,45 @@ func (f *fakeStore) CreateRun(_ context.Context, run workflow.Run) error {
 	return nil
 }
 
+func (f *fakeStore) CreateRunWithWorkItemsIfNoOpenTargets(
+	ctx context.Context,
+	run workflow.Run,
+	items []workflow.WorkItem,
+) (int, error) {
+	if f.createRunErr != nil {
+		return 0, f.createRunErr
+	}
+	eligible := make([]workflow.WorkItem, 0, len(items))
+	for _, item := range items {
+		if fakeStoreHasOpenWorkItem(f.enqueuedItems, item) {
+			continue
+		}
+		eligible = append(eligible, item)
+	}
+	if len(eligible) == 0 {
+		return 0, nil
+	}
+	if err := f.CreateRun(ctx, run); err != nil {
+		return 0, err
+	}
+	if err := f.EnqueueWorkItems(ctx, eligible); err != nil {
+		return 0, err
+	}
+	return len(eligible), nil
+}
+
+func fakeStoreHasOpenWorkItem(existing []workflow.WorkItem, candidate workflow.WorkItem) bool {
+	for _, item := range existing {
+		if item.CollectorKind == candidate.CollectorKind &&
+			item.CollectorInstanceID == candidate.CollectorInstanceID &&
+			item.ScopeID == candidate.ScopeID &&
+			item.AcceptanceUnitID == candidate.AcceptanceUnitID {
+			return true
+		}
+	}
+	return false
+}
+
 func (f *fakeStore) EnqueueWorkItems(_ context.Context, items []workflow.WorkItem) error {
 	if f.enqueueErr != nil {
 		return f.enqueueErr
@@ -339,6 +378,44 @@ func TestServiceRunActiveModeReconcilesRunsOnDedicatedInterval(t *testing.T) {
 	}
 	if got := store.runReconcileCalls; got < 2 {
 		t.Fatalf("run reconcile calls = %d, want at least 2", got)
+	}
+}
+
+func TestRunActiveMaintenanceReconcilesWorkflowRunsBetweenReconciles(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 20, 20, 30, 0, 0, time.UTC)
+	store := &fakeStore{
+		instances: []workflow.CollectorInstance{{
+			InstanceID:    "collector-git-primary",
+			CollectorKind: scope.CollectorGit,
+			Mode:          workflow.CollectorModeContinuous,
+			Enabled:       true,
+		}},
+	}
+	service := Service{
+		Config: Config{
+			DeploymentMode:           deploymentModeActive,
+			ClaimsEnabled:            true,
+			ReconcileInterval:        time.Hour,
+			ReapInterval:             20 * time.Second,
+			ClaimLeaseTTL:            time.Minute,
+			HeartbeatInterval:        20 * time.Second,
+			ExpiredClaimLimit:        10,
+			ExpiredClaimRequeueDelay: 5 * time.Second,
+		},
+		Store: store,
+		Clock: func() time.Time { return now },
+	}
+
+	if err := service.runActiveMaintenance(context.Background()); err != nil {
+		t.Fatalf("runActiveMaintenance() error = %v, want nil", err)
+	}
+	if got, want := store.reapCalls, 1; got != want {
+		t.Fatalf("reap calls = %d, want %d", got, want)
+	}
+	if got, want := store.runReconcileCalls, 1; got != want {
+		t.Fatalf("run reconcile calls = %d, want %d", got, want)
 	}
 }
 

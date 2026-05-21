@@ -73,11 +73,15 @@ func (s *WorkflowControlStore) CreateRun(ctx context.Context, run workflow.Run) 
 	if s.db == nil {
 		return fmt.Errorf("workflow control store database is required")
 	}
+	return s.createRunWithExecutor(ctx, s.db, run)
+}
+
+func (s *WorkflowControlStore) createRunWithExecutor(ctx context.Context, executor Executor, run workflow.Run) error {
 	if err := run.Validate(); err != nil {
 		return fmt.Errorf("create workflow run: %w", err)
 	}
 	finishedAt := nullableRFC3339(run.FinishedAt)
-	_, err := s.db.ExecContext(
+	_, err := executor.ExecContext(
 		ctx,
 		createWorkflowRunQuery,
 		run.RunID,

@@ -178,6 +178,77 @@ blocked. No new metric label was needed because the new scheduled path reuses
 the same `(account_id, region, service_kind)` workflow and collector signals as
 AWS freshness work.
 
+No-Regression Evidence: after adding the open-target admission guard for
+targeted collector work, the focused gates first reproduced repeated AWS
+scheduled planning and AWS freshness handoff when the same target remained
+non-terminal, and covered AWS freshness handoff on the shorter reap cadence
+while scheduled scans keep the longer reconcile cadence. It also covered
+workflow-run reconciliation on that reap cadence so completed work items can
+publish terminal run state without waiting for the next scheduled scan window.
+Remote evidence then showed a second readiness bug: completed AWS workflow
+items stayed `reducer_converging` because the workflow contract required
+scaffold-only AWS reducer phases that no shipped runtime publishes. The focused
+AWS workflow regression first failed with the run stuck in
+`reducer_converging`, then passed after aligning AWS completion with the live
+runtime contract. The gate then passed with the guard and contract fixes in
+place:
+`go test ./internal/coordinator ./internal/storage/postgres -run 'TestServiceRunActiveModeSkipsAWSWorkWhenPriorScheduledTargetIsOpen|TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers|TestServiceRunActiveModeSchedulesOCIRegistryWork|TestServiceRunActiveModeSchedulesPackageRegistryWork|TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen|TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles|TestRunActiveMaintenanceReconcilesWorkflowRunsBetweenReconciles|TestWorkflowControlStoreGuardedRunSkipsOpenScheduledTarget|TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget' -count=1`.
+`go test ./internal/storage/postgres -run 'TestWorkflowControlStoreGuardedRun(SkipsSameRunTargetReplay|SkipsTerminalSameRunReplay)' -count=1`.
+The PR review follow-up expanded that Postgres gate with
+`TestWorkflowControlStoreGuardedRunComputesEligibleTargetsInOneQuery` and
+`TestWorkflowControlStoreGuardedRunLocksCollectorInstanceOnceForTargetBatch` so
+the admission guard remains set-based and locks one collector-instance planning
+domain per batch instead of adding per-target database round trips.
+`go test ./internal/workflow -run 'TestReconcileRunProgressCompletesAWSWithoutImplementedGraphPhases|TestCollectorContractForAWSHasNoOperationalGraphReadinessUntilProjectionLands' -count=1`.
+The guard uses `(collector_kind, collector_instance_id, scope_id,
+acceptance_unit_id)` as the conflict domain, computes eligibility with one
+`VALUES`-backed query per run, applies transaction-scoped Postgres advisory
+planning locks in sorted `(collector_kind, collector_instance_id)` order, and
+creates no run when every planned item is already owned by a non-terminal run,
+was already recorded for the same deterministic schedule run, or belongs to an
+already-terminal deterministic run id. Covered AWS freshness triggers are
+marked handed off, and normal scheduling resumes after a later schedule run id
+is generated.
+
+Observability Evidence: existing workflow-run state, workflow work-item rows,
+workflow completeness rows, collector health, AWS scan status, and hosted
+runtime-state proof still expose pending, claimed, reducer-converging, failed,
+and complete states. The coordinator also emits a structured skip log with
+`reason=target_already_planned`, `planned_work_items`, `enqueued_work_items`,
+`skipped_work_items`, and `trigger_kind` so operators can distinguish bounded
+duplicate suppression from a collector that stopped claiming work.
+
+No-Regression Evidence: after classifying missing exact S3 Terraform state
+objects as warning-only generations and publishing zero-row Terraform-state
+canonical checkpoints for those generations, the remote full-corpus Compose
+proof against NornicDB `v1.1.0` completed a clean run and a preserved-volume
+restart. The clean run used `895` Git repositories, started after volume prune
+at `2026-05-21T17:38:17Z`, returned from bootstrap at
+`2026-05-21T17:53:19Z`, and reached queue-zero at `2026-05-21T17:57:30Z`.
+Terminal state was fact work `succeeded=8386`, workflow runs `complete=4`,
+collector items `aws=19`, `oci_registry=1`, `package_registry=1`,
+`terraform_state=1`, API `/healthz` `status=ok`, MCP `/healthz` `status=ok`,
+and Terraform warning kinds only `attribute_dropped=7` and
+`tag_map_dropped=7`. The preserved-volume restart began at
+`2026-05-21T17:58:16Z`, returned from bootstrap at
+`2026-05-21T18:01:01Z`, and reached terminal evidence at
+`2026-05-21T18:04:59Z` with fact work `succeeded=8425`, workflow runs
+`complete=5`, collector items `aws=38`, `oci_registry=1`,
+`package_registry=1`, `terraform_state=1`, API `/healthz` `status=ok`, MCP
+`/healthz` `status=ok`, and the same two Terraform warning kinds. The change
+does not lower worker counts, serialize reducers, alter graph Cypher shape,
+change NornicDB settings, or expand collector target cardinality.
+
+Observability Evidence: the proof used workflow-run state, workflow work-item
+state, fact work-item terminal counts, Terraform warning facts, API/MCP
+`/healthz`, collector health, and queue-domain breakdowns to distinguish
+collection, source-local projection, reducer materialization, and workflow
+completion. API and MCP pprof endpoints were reachable for this proof; worker
+service pprof exposure remains a separate performance-debugging follow-up
+because reducer and bootstrap tail analysis needs profiles from
+`resolution-engine`, `bootstrap-index`, and collector processes rather than
+only the read surfaces.
+
 ## Confluence Collector Smoke
 
 Use this when testing the Confluence collector against a real Atlassian site.

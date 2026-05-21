@@ -490,6 +490,83 @@ func TestRuntimeProjectPublishesCanonicalNodesCommittedAfterCanonicalWrite(t *te
 	}
 }
 
+func TestRuntimeProjectPublishesTerraformStateWarningOnlyCanonicalPhases(t *testing.T) {
+	t.Parallel()
+
+	publisher := &recordingGraphProjectionPhasePublisher{}
+	runtime := Runtime{
+		PhasePublisher: publisher,
+	}
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:       "state_snapshot:s3:abc123",
+		SourceSystem:  string(scope.CollectorTerraformState),
+		ScopeKind:     scope.KindStateSnapshot,
+		CollectorKind: scope.CollectorTerraformState,
+		PartitionKey:  "terraform_state:s3:abc123",
+	}
+	generationValue := scope.ScopeGeneration{
+		GenerationID: "terraform_state:s3:abc123:20260521T170000Z:warning:state_missing:bucket-key",
+		ScopeID:      "state_snapshot:s3:abc123",
+		ObservedAt:   time.Date(2026, time.May, 21, 17, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, time.May, 21, 17, 0, 1, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+		TriggerKind:  scope.TriggerKindSnapshot,
+	}
+
+	_, err := runtime.Project(context.Background(), scopeValue, generationValue, []facts.Envelope{
+		{
+			FactID:           "warning-fact-1",
+			ScopeID:          "state_snapshot:s3:abc123",
+			GenerationID:     generationValue.GenerationID,
+			FactKind:         facts.TerraformStateWarningFactKind,
+			SchemaVersion:    facts.TerraformStateWarningSchemaVersion,
+			CollectorKind:    string(scope.CollectorTerraformState),
+			FencingToken:     1,
+			ObservedAt:       time.Date(2026, time.May, 21, 17, 0, 0, 0, time.UTC),
+			StableFactKey:    "terraform_state_warning:warning:state_missing:s3:missing key",
+			SourceConfidence: facts.SourceConfidenceObserved,
+			Payload: map[string]any{
+				"warning_kind": "state_missing",
+				"reason":       "missing key",
+				"source":       "s3",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Project() error = %v, want nil", err)
+	}
+	if got, want := len(publisher.calls), 1; got != want {
+		t.Fatalf("publisher calls = %d, want %d", got, want)
+	}
+	if got, want := len(publisher.calls[0]), 2; got != want {
+		t.Fatalf("published rows = %d, want %d", got, want)
+	}
+
+	keyspaces := make(map[reducer.GraphProjectionKeyspace]reducer.GraphProjectionPhaseState, len(publisher.calls[0]))
+	for _, row := range publisher.calls[0] {
+		keyspaces[row.Key.Keyspace] = row
+	}
+	for _, keyspace := range []reducer.GraphProjectionKeyspace{
+		reducer.GraphProjectionKeyspaceTerraformResourceUID,
+		reducer.GraphProjectionKeyspaceTerraformModuleUID,
+	} {
+		row, ok := keyspaces[keyspace]
+		if !ok {
+			t.Fatalf("published keyspaces = %#v, missing %q", keyspaces, keyspace)
+		}
+		if got, want := row.Phase, reducer.GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+			t.Fatalf("phase for %q = %q, want %q", keyspace, got, want)
+		}
+		if got, want := row.Key.AcceptanceUnitID, scopeValue.ScopeID; got != want {
+			t.Fatalf("acceptance unit for %q = %q, want %q", keyspace, got, want)
+		}
+		if got, want := row.Key.SourceRunID, generationValue.GenerationID; got != want {
+			t.Fatalf("source run for %q = %q, want %q", keyspace, got, want)
+		}
+	}
+}
+
 func TestRuntimeProjectEnqueuesCanonicalRepairWhenPublishFails(t *testing.T) {
 	t.Parallel()
 

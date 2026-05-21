@@ -17,6 +17,9 @@ type Store interface {
 	ReconcileCollectorInstances(context.Context, time.Time, []workflow.DesiredCollectorInstance) error
 	ListCollectorInstances(context.Context) ([]workflow.CollectorInstance, error)
 	CreateRun(context.Context, workflow.Run) error
+	// CreateRunWithWorkItemsIfNoOpenTargets admits scheduled work only when no
+	// non-terminal run already owns the same collector target tuple.
+	CreateRunWithWorkItemsIfNoOpenTargets(context.Context, workflow.Run, []workflow.WorkItem) (int, error)
 	EnqueueWorkItems(context.Context, []workflow.WorkItem) error
 	ReapExpiredClaims(context.Context, time.Time, int, time.Duration) ([]workflow.Claim, error)
 	ReconcileWorkflowRuns(context.Context, time.Time) (int, error)
@@ -119,8 +122,8 @@ func (s Service) Run(ctx context.Context) error {
 				return fmt.Errorf("reconcile collector instances: %w", err)
 			}
 		case <-tickerChan(reapTicker):
-			if err := s.runReapExpiredClaims(ctx); err != nil {
-				return fmt.Errorf("reap expired claims: %w", err)
+			if err := s.runActiveMaintenance(ctx); err != nil {
+				return err
 			}
 		case <-tickerChan(runReconcileTicker):
 			if err := s.runWorkflowReconciliation(ctx); err != nil {
@@ -228,6 +231,31 @@ func (s Service) runReconcile(ctx context.Context) error {
 	return nil
 }
 
+func (s Service) runAWSFreshnessHandoff(ctx context.Context) error {
+	if s.Config.DeploymentMode != deploymentModeActive || !s.Config.ClaimsEnabled || s.AWSFreshnessTriggers == nil {
+		return nil
+	}
+	observedAt := s.now().UTC()
+	instances, err := s.Store.ListCollectorInstances(ctx)
+	if err != nil {
+		return fmt.Errorf("list durable collector instances for AWS freshness handoff: %w", err)
+	}
+	return s.scheduleAWSFreshnessWork(ctx, observedAt, instances)
+}
+
+func (s Service) runActiveMaintenance(ctx context.Context) error {
+	if err := s.runReapExpiredClaims(ctx); err != nil {
+		return fmt.Errorf("reap expired claims: %w", err)
+	}
+	if err := s.runAWSFreshnessHandoff(ctx); err != nil {
+		return fmt.Errorf("handoff AWS freshness triggers: %w", err)
+	}
+	if err := s.runWorkflowReconciliation(ctx); err != nil {
+		return fmt.Errorf("reconcile workflow runs: %w", err)
+	}
+	return nil
+}
+
 func (s Service) schedulePackageRegistryWork(
 	ctx context.Context,
 	observedAt time.Time,
@@ -254,11 +282,8 @@ func (s Service) schedulePackageRegistryWork(
 		if len(items) == 0 {
 			continue
 		}
-		if err := s.Store.CreateRun(ctx, run); err != nil {
-			return fmt.Errorf("create package registry workflow run for %q: %w", instance.InstanceID, err)
-		}
-		if err := s.Store.EnqueueWorkItems(ctx, items); err != nil {
-			return fmt.Errorf("enqueue package registry work items for %q: %w", instance.InstanceID, err)
+		if _, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items); err != nil {
+			return fmt.Errorf("create package registry scheduled work for %q: %w", instance.InstanceID, err)
 		}
 	}
 	return nil
@@ -311,11 +336,8 @@ func (s Service) scheduleOCIRegistryWork(
 		if len(items) == 0 {
 			continue
 		}
-		if err := s.Store.CreateRun(ctx, run); err != nil {
-			return fmt.Errorf("create OCI registry workflow run for %q: %w", instance.InstanceID, err)
-		}
-		if err := s.Store.EnqueueWorkItems(ctx, items); err != nil {
-			return fmt.Errorf("enqueue OCI registry work items for %q: %w", instance.InstanceID, err)
+		if _, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items); err != nil {
+			return fmt.Errorf("create OCI registry scheduled work for %q: %w", instance.InstanceID, err)
 		}
 	}
 	return nil
@@ -372,11 +394,8 @@ func (s Service) scheduleTerraformStateWork(
 		if len(items) == 0 {
 			continue
 		}
-		if err := s.Store.CreateRun(ctx, run); err != nil {
-			return fmt.Errorf("create terraform state workflow run for %q: %w", instance.InstanceID, err)
-		}
-		if err := s.Store.EnqueueWorkItems(ctx, items); err != nil {
-			return fmt.Errorf("enqueue terraform state work items for %q: %w", instance.InstanceID, err)
+		if _, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items); err != nil {
+			return fmt.Errorf("create terraform state scheduled work for %q: %w", instance.InstanceID, err)
 		}
 	}
 	return nil

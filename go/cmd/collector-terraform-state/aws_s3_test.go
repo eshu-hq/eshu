@@ -63,3 +63,17 @@ func TestSafeS3GetObjectErrorMapsNotModified(t *testing.T) {
 		t.Fatalf("safeS3GetObjectError(NotModified) = %v, want ErrStateNotModified", err)
 	}
 }
+
+func TestSafeS3GetObjectErrorMapsNoSuchKey(t *testing.T) {
+	t.Parallel()
+
+	err := safeS3GetObjectError(&smithy.GenericAPIError{
+		Code:    "NoSuchKey",
+		Message: "The specified key does not exist.",
+		Fault:   smithy.FaultClient,
+	})
+
+	if !errors.Is(err, terraformstate.ErrStateMissing) {
+		t.Fatalf("safeS3GetObjectError(NoSuchKey) = %v, want ErrStateMissing", err)
+	}
+}

@@ -223,6 +223,21 @@ func canonicalGraphPhaseStates(generationID string, inputFacts []facts.Envelope)
 				fact,
 				reducer.GraphProjectionKeyspaceTerraformModuleUID,
 			)
+		case facts.TerraformStateWarningFactKind:
+			rows = appendTerraformStateGraphPhase(
+				rows,
+				seen,
+				generationID,
+				fact,
+				reducer.GraphProjectionKeyspaceTerraformResourceUID,
+			)
+			rows = appendTerraformStateGraphPhase(
+				rows,
+				seen,
+				generationID,
+				fact,
+				reducer.GraphProjectionKeyspaceTerraformModuleUID,
+			)
 		}
 	}
 
