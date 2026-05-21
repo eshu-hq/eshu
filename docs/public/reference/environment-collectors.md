@@ -38,6 +38,7 @@ collector instance has `claims_enabled: true`.
 | `ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-terraform-state | Heartbeat interval for active workflow claims. |
 | `ESHU_TFSTATE_COLLECTOR_HEARTBEAT` | workflow default | collector-terraform-state | Backward-compatible alias for `ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL`. |
 | `ESHU_TFSTATE_SOURCE_MAX_BYTES` | reader default | collector-terraform-state | Max bytes read from one local or S3 state source. |
+| `ESHU_TERRAFORM_SCHEMA_DIR` | packaged schema default | collector-terraform-state | Optional override for the Terraform provider-schema bundle directory. |
 
 ## AWS Cloud Collector
 

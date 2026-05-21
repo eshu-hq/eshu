@@ -186,6 +186,8 @@ nav:
       - Ingester: services/ingester.md
       - Resolution Engine: services/resolution-engine.md
       - Terraform State Collector: services/collector-terraform-state.md
+      - Terraform State Collector Config: services/collector-terraform-state-config.md
+      - Terraform State Collector Operations: services/collector-terraform-state-operations.md
       - AWS Cloud Collector: services/collector-aws-cloud.md
       - AWS Collector Security And Config: services/collector-aws-cloud-security.md
       - AWS Collector Scanner Coverage: services/collector-aws-cloud-scanners.md

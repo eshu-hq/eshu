@@ -6,10 +6,10 @@ repo's 500-line limit.
 
 ## Current Snapshot
 
-- Total Markdown files left in the checkout after the current pass: 553
+- Total Markdown files left in the checkout after the current pass: 555
 - Current branch doc status from
   `git diff --cached --name-status origin/main -- '*.md'` after the current
-  pass: 186 created, 272 modified, 116 deleted
+  pass: 188 created, 271 modified, 117 deleted
 - Stable public docs surface: `docs/public/`
 - Maintainer-only docs surface: `docs/internal/`
 - Deleted stable-doc history surfaces: `docs/plans/`, `docs/superpowers/`,
@@ -76,9 +76,29 @@ cleanup pass.
 | Helm Values Split | Reduced the oversized Helm values page to a route map, split runtime/bootstrap, collector/webhook, and routing/storage values into focused pages, and trimmed the chart README so it points to the public operator docs instead of duplicating them. |
 | Cypher Package README Rewrite | Reduced the Cypher storage README from a historical evidence dump into the current package guide; corrected the canonical phase list to include `package_registry` and aligned package comments with current package-registry writes. |
 | AWS Cloud Collector Service Split | Reduced the AWS cloud collector public service doc into an overview/runbook plus focused security/config and scanner coverage pages grounded in command/runtime code. |
+| Terraform-State Collector Service Split | Reduced the Terraform-state collector public service doc into an overview plus focused config/discovery and operations/troubleshooting pages grounded in command, parser, runtime, status, and telemetry code. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 569 documents, 1,750 claims, 0 contradicted, and 0 missing
+  evidence claims after the Terraform-state collector service split.
+- `go run ./cmd/eshu docs verify ../docs/public --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 181 documents, 1,302 claims, 0 contradicted, and 0 missing
+  evidence claims after the Terraform-state collector service split.
+- `go run ./cmd/eshu docs verify ../docs/public/services --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 9 documents, 69 claims, 0 contradicted, and 0 missing evidence
+  claims after the Terraform-state collector service split.
+- `go run ./cmd/eshu docs verify ../docs/public/reference/environment-collectors.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 69 claims, 0 contradicted, and 0 missing evidence
+  claims after adding `ESHU_TERRAFORM_SCHEMA_DIR`.
+- `go test ./cmd/collector-terraform-state ./internal/collector/terraformstate ./internal/collector/tfstateruntime -count=1`,
+  `go test ./cmd/eshu -count=1`, `git diff --check`, and
+  `cmp -s AGENTS.md CLAUDE.md` passed after the Terraform-state collector
+  service split. `scripts/verify-package-docs.sh` reported no changed Go
+  package source files.
+- `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  passed after adding the Terraform-state collector split pages to navigation.
 - `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
   passed with 567 documents, 1,746 claims, 0 contradicted, and 0 missing
   evidence claims after the AWS cloud collector service split.
@@ -153,9 +173,9 @@ cleanup pass.
 ## What Is Left
 
 - Continue reviewing oversized public and package docs. The current largest
-  real documentation files are `docs/public/services/collector-terraform-state.md`,
-  `go/internal/telemetry/README.md`, and
-  `docs/public/reference/capability-conformance-spec.md`. The larger
+  real documentation files are `go/internal/telemetry/README.md`,
+  `docs/public/reference/capability-conformance-spec.md`, and
+  `docs/public/reference/telemetry/logs.md`. The larger
   `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture
   remains test data, not a public documentation target.
 - Keep deleting historical planning notes when current public or package-local

@@ -72,6 +72,7 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/run-locally/docker-compose.md`
 - `docs/docs/run-locally/index.md`
 - `docs/docs/services/collector-aws-cloud.md`
+- `docs/docs/services/collector-terraform-state.md`
 - `docs/docs/services/ingester.md`
 - `docs/docs/start-here.md`
 - `docs/docs/use-cases.md`

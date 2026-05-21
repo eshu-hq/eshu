@@ -176,6 +176,8 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/public/services/collector-aws-cloud-scanners.md`
 - `docs/public/services/collector-aws-cloud-security.md`
 - `docs/public/services/collector-aws-cloud.md`
+- `docs/public/services/collector-terraform-state-config.md`
+- `docs/public/services/collector-terraform-state-operations.md`
 - `docs/public/services/collector-terraform-state.md`
 - `docs/public/services/ingester.md`
 - `docs/public/services/resolution-engine.md`

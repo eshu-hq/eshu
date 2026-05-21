@@ -1,409 +1,138 @@
 # Terraform State Collector
 
-## Role and Purpose
+`collector-terraform-state` is a claim-driven worker that reads exact
+Terraform state snapshots, redacts sensitive values during parsing, and commits
+typed facts through the shared ingestion boundary. It does not decide what work
+exists and it does not write graph truth.
 
-`collector-terraform-state` is a **claim-driven worker** that reads Terraform
-state snapshots, redacts secrets in the parse loop, and commits typed facts
-through the shared ingestion boundary. It does not decide what work exists —
-the workflow coordinator reconciles collector instances and creates claimable
-work items. This runtime only claims `terraform_state` items for one
-configured instance, opens the exact local file or exact S3 object the claim
-points at, streams the JSON, and emits redacted facts.
+The workflow coordinator creates claimable `terraform_state` work items. The
+collector claims one item, resolves the exact local file or S3 object named by
+that claim, streams the JSON, emits redacted facts, and completes or retries the
+claim through the shared workflow control store.
 
-**Binary:** `go run ./cmd/collector-terraform-state` (long-running service)
-**Kubernetes shape:** `Deployment`
-**Source:** `go/cmd/collector-terraform-state/`
+| Runtime | Value |
+| --- | --- |
+| Binary | `go run ./cmd/collector-terraform-state` |
+| Kubernetes shape | `Deployment` |
+| Command package | `go/cmd/collector-terraform-state/` |
+| Parser package | `go/internal/collector/terraformstate/` |
+| Claim adapter | `go/internal/collector/tfstateruntime/` |
+
+## Read Next
+
+| Need | Read |
+| --- | --- |
+| Instance JSON, discovery modes, target scopes, local approval, and redaction config | [Terraform State Collector Config](collector-terraform-state-config.md) |
+| Metrics, admin status, and failure triage | [Terraform State Collector Operations](collector-terraform-state-operations.md) |
+| Collector environment variables | [Collector Environment](../reference/environment-collectors.md) |
+| Collector metrics catalog | [Ingestion And Collector Metrics](../reference/telemetry/metrics-ingestion-collectors.md) |
 
 ## Workflow
 
 ```text
-1. Load ESHU_COLLECTOR_INSTANCES_JSON; select one enabled
-   terraform_state instance whose claims_enabled = true.
-2. Open Postgres (shared ESHU_POSTGRES_DSN or split DSNs).
-3. Build ClaimedService:
-     - WorkflowControlStore claim binding
-     - tfstateruntime.ClaimedSource (Resolver, SourceFactory, redaction key)
-4. ClaimedService loop:
-     - claim next terraform_state work item
-     - DiscoveryResolver.Resolve -> exact local or S3 candidate
-     - SourceFactory.OpenSource -> StateSource (local or S3 GetObject)
-     - terraformstate.ParseStream(ctx, reader, options, sink)
-         → (ParseStreamResult, error):
-         streaming JSON walk → resource-by-resource decode
-         redaction before emission (sensitive outputs, sensitive keys,
-         unknown-schema scalars, tags, locator hashes)
-     - IngestionStore.Commit(facts) through the shared facts boundary
-     - heartbeat claim; release on success or terminal failure
+1. Load ESHU_COLLECTOR_INSTANCES_JSON.
+2. Select exactly one enabled terraform_state instance with claims_enabled=true.
+3. Open Postgres and workflow control stores.
+4. Claim the next terraform_state work item.
+5. Resolve discovery config into exact local or S3 candidates.
+6. Match the claimed work item to one candidate.
+7. Open the source through the local reader or read-only S3 object client.
+8. Read snapshot lineage and serial.
+9. Stream Terraform state through the parser.
+10. Redact sensitive outputs, sensitive keys, unknown-schema scalars, unknown
+    composites, tags, and locator values before persistence.
+11. Commit terraform_state_* facts through the shared ingestion boundary.
+12. Heartbeat and release the claim on success or terminal failure.
 ```
 
 Source entry points:
 
-- Claim loop and source factory: `go/internal/collector/tfstateruntime/source.go`
-- Streaming parser: `go/internal/collector/terraformstate/parser.go` (`ParseStream`)
-- Fact sink and batching: `go/internal/collector/tfstateruntime/fact_spool.go`
-- S3 source seam: `go/internal/collector/terraformstate/source_s3.go`
-- Local source seam: `go/internal/collector/terraformstate/source_local.go`
-- DynamoDB lock metadata: `go/cmd/collector-terraform-state/aws_dynamodb.go`
-- Target-scope credential routing: `go/cmd/collector-terraform-state/target_scope_source_factory.go`
+- `go/cmd/collector-terraform-state/main.go`
+- `go/cmd/collector-terraform-state/config.go`
+- `go/cmd/collector-terraform-state/service.go`
+- `go/cmd/collector-terraform-state/target_scope_source_factory.go`
+- `go/internal/collector/tfstateruntime/source.go`
+- `go/internal/collector/terraformstate/parser.go`
+- `go/internal/collector/terraformstate/discovery.go`
 
-## Concurrency Model
+## Ownership Boundaries
 
-- **Single instance per process**: the runtime selects exactly one enabled
-  `terraform_state` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. Scale by
-  running more replicas, each with its own `instance_id`.
-- **Claim-driven**: claims compete via Postgres `FOR UPDATE SKIP LOCKED` in the
-  workflow control store, so multiple replicas are safe.
-- **No fan-out inside a claim**: each claim reads one state source
-  sequentially through the streaming parser. The parser does not parallelize
-  resource decoding because correctness (one consistent snapshot per claim)
-  takes priority over throughput.
-- **Heartbeat**: claims heartbeat on a fixed interval; a missed heartbeat
-  surfaces as a stalled claim in `/admin/status`.
+| Layer | Owns | Does not own |
+| --- | --- | --- |
+| Workflow coordinator | Reconciling collector instances and creating claimable work items. | Reading Terraform state bytes. |
+| `collector-terraform-state` command | Runtime config, AWS credential routing, S3 and DynamoDB adapters, service loop wiring. | Terraform JSON parsing rules. |
+| `tfstateruntime` | Claim-to-candidate matching, source open, snapshot identity, parser handoff, collected generation return. | Cloud SDK calls and fact commits. |
+| `terraformstate` package | Discovery primitives, exact source contracts, streaming parse, redaction, fact envelopes. | Workflow claims, credential selection, graph writes. |
 
 ## Backing Stores
 
 | Store | Usage |
-|-------|-------|
-| Postgres | Workflow control store (claims), facts table, content store, status |
-| S3 | Read-only `GetObject` with optional `If-None-Match` conditional reads |
-| DynamoDB | Optional read-only `GetItem` for Terraform lock-table metadata |
-| Graph backend | Read-only discovery of committed Terraform backend facts (Git evidence) |
+| --- | --- |
+| Postgres | Workflow claims, facts, content/status surfaces, and prior snapshot freshness metadata. |
+| S3 | Read-only exact `GetObject` state reads with optional conditional reads. |
+| DynamoDB | Optional read-only `GetItem` for Terraform lock metadata. |
+| Graph/Postgres facts | Read-only discovery of indexed Terraform backend and Terragrunt remote-state declarations. |
 
-Raw Terraform state bytes never enter the content store. Only redacted facts
-and small warning records cross the persistence boundary.
+Raw Terraform state bytes stay inside the source reader and parser window.
+Only redacted facts and warning records cross the persistence boundary.
 
-## Configuration
+## Concurrency Model
 
-### Required
+- The process selects one enabled, claim-capable `terraform_state` instance.
+- Multiple replicas are safe because claims are coordinated through Postgres
+  workflow rows.
+- Each claim reads one exact state source sequentially. The parser does not
+  parallelize resource decoding because one claim represents one consistent
+  snapshot.
+- Claim heartbeat and lease settings use the shared workflow claim contract.
 
-| Env var | Purpose |
-|---------|---------|
-| `ESHU_POSTGRES_DSN` (or `ESHU_FACT_STORE_DSN` + `ESHU_CONTENT_STORE_DSN`) | Shared Postgres runtime loader. |
-| `ESHU_COLLECTOR_INSTANCES_JSON` | One enabled `terraform_state` instance with `claims_enabled: true`. |
-| `ESHU_TFSTATE_REDACTION_KEY` | Deployment-scoped secret; produces deterministic redaction markers. |
-| `ESHU_TFSTATE_REDACTION_RULESET_VERSION` | Non-empty version label for the redaction rule set; the binary fails to start when this is blank because the rule set fails closed. |
+## Evidence Emitted
 
-### Optional
+The collector emits reported facts. Reducers and query surfaces decide what
+becomes graph truth.
 
-| Env var | Default | Purpose |
-|---------|---------|---------|
-| `ESHU_TFSTATE_COLLECTOR_INSTANCE_ID` | first enabled | Pick a specific instance when more than one is enabled. |
-| `ESHU_TFSTATE_COLLECTOR_OWNER_ID` | host + pid | Operator-readable owner name in claim rows. |
-| `ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL` | `1s` | Claim poll cadence. |
-| `ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | Per-claim lease duration. |
-| `ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL` | derived | Claim heartbeat cadence (alias: `ESHU_TFSTATE_COLLECTOR_HEARTBEAT`). |
-| `ESHU_TFSTATE_SOURCE_MAX_BYTES` | reader default (512 MB) | Per-object size ceiling. Oversize emits `terraform_state_warning` with `warning_kind=state_too_large`. |
-| `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` | `password,secret,token,access_key,private_key,certificate,key_pair` | Comma-separated leaf attribute keys the redactor treats as secrets. |
+| Fact kind | Meaning |
+| --- | --- |
+| `terraform_state_snapshot` | State lineage, serial, backend kind, safe locator hash, and read metadata. |
+| `terraform_state_resource` | Redacted resource instance evidence. |
+| `terraform_state_output` | Redacted output evidence. |
+| `terraform_state_module` | Module/resource membership evidence. |
+| `terraform_state_provider_binding` | Provider binding evidence for state resources. |
+| `terraform_state_tag_observation` | Redacted `tags` and `tags_all` observations for correlation. |
+| `terraform_state_warning` | Non-fatal safety or source condition, such as `state_in_vcs`, `state_too_large`, `state_missing`, or redaction drops. |
 
-### Instance Configuration (JSON)
+## Safety Rules
 
-The instance entry in `ESHU_COLLECTOR_INSTANCES_JSON` carries everything
-source-specific. See `go/cmd/collector-terraform-state/config.go` for the
-parser. Minimal shape:
+- Do not read unapproved repo-local `.tfstate` files. Git discovery records
+  them only as advisory metadata until instance config approves an exact
+  repo-relative path.
+- Do not scan S3 buckets. S3 reads require exact bucket, key, and region values.
+- Do not emit raw bucket names, object keys, local paths, secret values, or full
+  Terraform state locators in facts, metric labels, or routine logs.
+- Do not treat DynamoDB lock metadata as a consistency decision. It is
+  observational context around the opened state body.
+- Do not route ambiguous target scopes. Ambiguous matches fail before a source
+  is opened.
 
-```json
-{
-  "instance_id": "terraform-state-prod",
-  "collector_kind": "terraform_state",
-  "mode": "continuous",
-  "enabled": true,
-  "claims_enabled": true,
-  "configuration": {
-    "target_scopes": [
-      {
-        "target_scope_id": "aws-prod",
-        "provider": "aws",
-        "deployment_mode": "central",
-        "credential_mode": "central_assume_role",
-        "role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-read",
-        "external_id": "external-123",
-        "allowed_regions": ["us-east-1"],
-        "allowed_backends": ["s3", "local"]
-      }
-    ],
-    "discovery": {
-      "graph": true,
-      "local_repos": ["platform-infra"],
-      "local_state_candidates": {
-        "mode": "approved_candidates",
-        "approved": [
-          {
-            "repo_id": "platform-infra",
-            "path": "env/prod/terraform.tfstate",
-            "target_scope_id": "aws-prod"
-          }
-        ]
-      },
-      "backend_filters": [
-        {
-          "target_scope_id": "aws-prod",
-          "backend_kind": "s3",
-          "bucket": "company-terraform-state",
-          "region": "us-east-1"
-        }
-      ],
-      "seeds": [
-        {
-          "kind": "s3",
-          "target_scope_id": "aws-prod",
-          "bucket": "company-terraform-state",
-          "key": "prod/app/terraform.tfstate",
-          "region": "us-east-1",
-          "dynamodb_table": "company-terraform-locks"
-        }
-      ]
-    }
-  }
-}
-```
+## Validation
 
-### Discovery Modes
-
-Terraform-state discovery supports three bounded source-selection modes:
-
-1. **Direct exact state objects** with `discovery.seeds`. Use this when an
-   operator already knows the exact local path or S3 `bucket`, `key`, and
-   `region`.
-2. **Repo-scoped graph discovery** with `discovery.local_repos`. Use this when
-   the source of truth is a known set of repositories that declare Terraform
-   backend blocks or Terragrunt `remote_state` blocks.
-3. **Filtered global graph discovery** with `discovery.backend_filters`. Use
-   this when the source of truth is "all indexed backend declarations matching
-   this account or environment bucket" rather than a hand-maintained repo list.
-
-`backend_filters` searches indexed Postgres/Git facts only. It does not list S3
-bucket contents. The common ops shape is:
-
-```json
-{
-  "discovery": {
-    "graph": true,
-    "backend_filters": [
-      {
-        "target_scope_id": "ops-qa-aws",
-        "backend_kind": "s3",
-        "bucket": "bg-ops-qa-terraform-state",
-        "region": "us-east-1"
-      }
-    ]
-  }
-}
-```
-
-For a central role that can read every configured backend, the broadest
-supported graph search is:
-
-```json
-{
-  "aws": {"role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-read"},
-  "discovery": {
-    "graph": true,
-    "backend_filters": [{"backend_kind": "s3"}]
-  }
-}
-```
-
-When multiple target scopes are configured, each broad filter must name a
-`target_scope_id` so the runtime does not guess credentials. `graph: true`
-without `local_repos` or `backend_filters` remains invalid and must not become
-an accidental whole-database scan.
-
-No-Regression Evidence: filtered graph discovery only widens the coordinator's
-candidate lookup from repo-scoped active Git facts to explicitly filtered
-active Git facts. It still returns exact S3 locators with literal bucket, key,
-and region values, skips workspace-prefixed or dynamic backend expressions, and
-keeps raw S3 locators out of work item IDs and requested scope sets.
-
-Observability Evidence: existing workflow-coordinator reconcile metrics,
-workflow work-item rows, `eshu_dp_tfstate_discovery_candidates_total{source}`,
-Terraform-state claim wait metrics, collector structured logs, and
-Terraform-state fact counts show whether filtered discovery found candidates,
-created work, claimed exact state objects, emitted facts, or failed before
-opening a source.
-
-### Target-Scope Credential Routing
-
-A central scope assumes an account-scoped read role
-(`credential_mode: central_assume_role`). An account-local scope uses the
-default workload identity in that account
-(`credential_mode: local_workload_identity`). The runtime routes candidates to the
-right scope by explicit `target_scope_id` on the seed or by matching the
-backend and region against `allowed_backends` / `allowed_regions`. Ambiguous
-matches fail **before** the object is opened.
-
-The legacy top-level `aws.role_arn` field still works for a single AWS
-identity, but it cannot be mixed with `target_scopes`.
-
-### Local State Approval Policy
-
-The Git collector records repo-local `*.tfstate` files as advisory
-`terraform_state_candidate` metadata. **That does not make them readable.**
-The runtime opens a local candidate only when the instance config sets
-`discovery.local_state_candidates.mode` to `approved_candidates` and lists the
-exact `repo_id` plus repo-relative `path`. Symlinks and non-regular files are
-rejected at open time. Approved Git-local reads emit a
-`terraform_state_warning` with `warning_kind=state_in_vcs` so operators can
-see which repos still ship state inside the working tree.
-
-## Telemetry
-
-All instruments are registered in `go/internal/telemetry/instruments.go` and
-recorded by `go/internal/collector/tfstateruntime/metrics.go`. The metrics
-catalog at `docs/public/reference/telemetry/metrics-ingestion-collectors.md`
-lists the Terraform-state metric labels and operator use cases.
-
-| Metric | Type | Labels | Question it answers |
-|--------|------|--------|---------------------|
-| `eshu_dp_tfstate_snapshots_observed_total` | counter | `backend_kind`, `result` | Are we observing snapshots, and which fail? |
-| `eshu_dp_tfstate_snapshot_bytes` | histogram | `backend_kind` | How big is each state we read? |
-| `eshu_dp_tfstate_resources_emitted_total` | counter | `backend_kind` | Are resources reaching the fact boundary? |
-| `eshu_dp_tfstate_outputs_emitted_total` | counter | `backend_kind`, `safe_locator_hash` | Are outputs reaching the fact boundary, and from which state? |
-| `eshu_dp_tfstate_modules_emitted_total` | counter | `backend_kind`, `safe_locator_hash` | Are module observations reaching the fact boundary? |
-| `eshu_dp_tfstate_warnings_emitted_total` | counter | `backend_kind`, `safe_locator_hash`, `warning_kind` | Which warnings are firing per state, and how often? |
-| `eshu_dp_tfstate_redactions_applied_total` | counter | `reason` | What kind of secrets are we redacting, and how often? |
-| `eshu_dp_tfstate_s3_conditional_get_not_modified_total` | counter | — | Is conditional-GET short-circuiting unchanged reads? |
-| `eshu_dp_tfstate_parse_duration_seconds` | histogram | `backend_kind` | Is the parser slowing down? |
-| `eshu_dp_tfstate_claim_wait_seconds` | histogram | (workflow-injected) | Is work backing up before a claim starts? |
-| `eshu_dp_tfstate_discovery_candidates_total` | counter | `source` | How many candidates are we resolving, and from where? |
-
-Trace spans (named in `go/internal/telemetry/contract.go`):
-
-- `tfstate.collector.claim.process` — full claim lifecycle.
-- `tfstate.discovery.resolve` — candidate resolution.
-- `tfstate.source.open` — opening the state reader.
-- `tfstate.parser.stream` — streaming parse.
-- `tfstate.fact.emit_batch` — handoff to committer.
-- `tfstate.coordinator.complete` — claim completion.
-
-High-cardinality values (bucket names, S3 keys, absolute paths, work-item
-IDs) are deliberately **excluded** from metric labels. Use the locator hash
-emitted in `terraform_state_*` facts and the span attributes when you need to
-investigate a specific source.
-
-## Admin Status
-
-The runtime mounts the shared admin surface from `go/internal/runtime/admin.go`:
-
-- `/healthz` reports process health.
-- `/readyz` reports readiness.
-- `/metrics` exposes the Prometheus scrape.
-- `/admin/status?format=json` returns the operator status report.
-
-Terraform-state instances surface in the generic `CollectorInstanceSummary`
-inside `CoordinatorSnapshot.CollectorInstances` — see
-`go/internal/status/coordinator.go:12-23`. The generic queue, claim, and
-completeness fields already reflect the runtime. To filter the JSON response:
+Use focused non-live gates for normal PR validation:
 
 ```bash
-curl -s http://localhost:8080/admin/status?format=json \
-  | jq '.collector_instances[] | select(.collector_kind=="terraform_state")'
+cd go
+go test ./cmd/collector-terraform-state ./internal/collector/terraformstate ./internal/collector/tfstateruntime -count=1
+go run ./cmd/eshu docs verify ../docs/public/services --limit 1200 --fail-on contradicted,missing_evidence
 ```
 
-The status response also carries a tfstate-specific section keyed by safe
-locator hash so operators can confirm which state snapshots are advancing
-and which are emitting recent warnings without scanning the full fact
-stream:
+Use live S3 or DynamoDB smokes only with operator-approved read-only target
+roles. Keep account IDs, bucket names, object keys, role ARNs, external IDs,
+and local absolute paths out of committed docs unless they are clearly
+non-secret examples.
 
-```json
-{
-  "terraform_state": {
-    "last_serials": [
-      {
-        "safe_locator_hash": "abc123",
-        "backend_kind": "s3",
-        "lineage": "lineage-1",
-        "serial": 5,
-        "generation_id": "terraform_state:state_snapshot:s3:abc123:lineage-1:serial:5",
-        "observed_at": "2026-05-03T10:00:00Z"
-      }
-    ],
-    "recent_warnings": [
-      {
-        "safe_locator_hash": "abc123",
-        "warning_kind": "state_in_vcs",
-        "reason": "approved_local",
-        "source": "git_local_file"
-      }
-    ],
-    "warnings_by_kind": {
-      "abc123": {"state_in_vcs": [{"warning_kind": "state_in_vcs"}]}
-    }
-  }
-}
-```
+## Related Docs
 
-The warnings list is bounded by `MaxTerraformStateRecentWarnings` (50 rows
-per locator) — see `go/internal/status/tfstate.go`. Postgres is the source
-of truth; admin status does not maintain an in-process ring buffer.
-
-## Troubleshooting
-
-### No candidates resolved
-
-Check that exactly one `terraform_state` instance has `enabled: true` **and**
-`claims_enabled: true`. If discovery is graph-backed, confirm
-`discovery.local_repos` includes the repo whose backend facts you expect, and
-that the Git collector has caught up — the resolver returns
-`WaitingOnGitGeneration` until the repo generation is graph-ready.
-
-Metric to watch: `eshu_dp_tfstate_discovery_candidates_total{source=...}`.
-
-### S3 access denied
-
-The runtime assumes the role declared by the target scope before issuing
-`GetObject`. Common causes:
-
-1. The target-scope role does not trust the central scope's principal.
-2. `external_id` mismatch.
-3. The bucket policy denies the assumed role.
-4. The seed targets a region not in `allowed_regions`.
-
-Check the structured logs for the `failure_class` attribute on the failed
-claim and inspect the `tfstate.source.open` span — bucket and key live in
-span attributes (not metric labels).
-
-### DynamoDB lock metadata read failures
-
-The runtime calls `GetItem` read-only. A failure here does **not** abort the
-claim; it surfaces as a warning fact and continues with the state read.
-Confirm the assumed role has `dynamodb:GetItem` on the lock table and that
-`dynamodb_table` is set either on the seed or on the backend fact.
-
-### Oversize state warnings
-
-`eshu_dp_tfstate_snapshots_observed_total{result="state_too_large"}` ticks
-when an object exceeds `ESHU_TFSTATE_SOURCE_MAX_BYTES`. The runtime emits a
-`terraform_state_warning` with `warning_kind=state_too_large` and skips the
-claim cleanly — it does not retry-storm. If the size is legitimate, raise
-the ceiling; if not, investigate why the backend grew.
-
-### Stale conditional-GET ETag
-
-If `eshu_dp_tfstate_s3_conditional_get_not_modified_total` plateaus at zero
-while snapshots are still being observed, the runtime is reading the full
-object every claim. The cause is usually a missing or wrong prior-ETag
-record. Run a fresh discovery pass; the next read will store a current
-ETag and re-arm conditional gets.
-
-### Redaction-reason surge
-
-A sudden spike in
-`eshu_dp_tfstate_redactions_applied_total{reason="unknown_provider_schema"}`
-usually means a new provider or new attribute shape landed and the parser is
-falling through to conservative redaction. Confirm by inspecting recent
-`terraform_state_warning` facts. Add the provider/attribute to the schema
-package once the shape is understood; until then, the conservative path is
-the correct default.
-
-## Related Documentation
-
-- Service runtimes overview: `docs/public/deployment/service-runtimes.md`
-- Collector and reducer readiness: `docs/public/reference/collector-reducer-readiness.md`
-- Telemetry reference:
-  `docs/public/reference/telemetry/metrics-ingestion-collectors.md`
-  (Terraform-state section)
-- Package surfaces: `go/internal/collector/terraformstate/README.md`,
-  `go/internal/collector/tfstateruntime/README.md`,
-  `go/cmd/collector-terraform-state/README.md`
-- Dashboard: `docs/dashboards/tfstate.json`
-- Alert rules: `deploy/observability/alerts.yaml` (`eshu.tfstate` group)
+- [Terraform State Collector Config](collector-terraform-state-config.md)
+- [Terraform State Collector Operations](collector-terraform-state-operations.md)
+- [Collector Service Runtimes](../deployment/service-runtimes-collectors.md)
+- [Collector And Reducer Readiness](../reference/collector-reducer-readiness.md)
+- [Runtime Admin API](../reference/runtime-admin-api.md)
