@@ -158,8 +158,9 @@ correlation and graph projection contracts land.
 
 `aws` collector instances are claim-capable. The coordinator plans one bounded
 work item per authorized `(account_id, region, service_kind)` tuple, and the
-`collector-aws-cloud` runtime commits `aws_resource`, `aws_relationship`,
-`aws_tag_observation`, warning, and scan-status facts for each claim. AWS
+`collector-aws-cloud` runtime commits durable facts such as `aws_resource`,
+`aws_relationship`, `aws_tag_observation`, and `aws_warning` for each claim,
+and updates `aws_scan_status` rows for the scanner status/read model. AWS
 workflow completion is fact-backed in the current runtime: the cloud-resource
 graph projection and DSL anchor contracts are scaffolded, but no live runtime
 publishes `cloud_resource_uid` phase rows yet. Do not require those phases for
