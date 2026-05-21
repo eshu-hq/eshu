@@ -297,6 +297,21 @@ Observability Evidence: existing `eshu_dp_canonical_phase_duration_seconds`,
 logs expose the phase, source system, generation id, failure class, and timeout
 hint when repository cleanup is slow or mis-scoped.
 
+No-Regression Evidence: after a preserved-volume restart surfaced NornicDB
+`UNWIND MERGE chain relationship update failed: not found` on OCI registry
+relationship updates, the focused regression
+`go test ./internal/storage/cypher -run
+TestCanonicalNodeWriterOCIRegistryRelationshipsDoNotUpdateGeneration -count=1`
+first failed on `rel.generation_id` mutation and then passed after OCI
+relationship templates stopped updating mutable generation metadata while
+keeping node `generation_id` fields intact.
+
+Observability Evidence: existing canonical phase duration metrics, projector
+stage duration metrics, and structured `projection failed` logs expose the
+`oci_registry` phase, source system, generation id, and NornicDB error text.
+Workflow and fact work-item rows surface the same failed projection through
+retry, failed, and dead-letter state without adding a new metric label.
+
 ## Extension points
 
 - `Executor` — implement this interface for any new graph backend; no changes
@@ -329,7 +344,11 @@ hint when repository cleanup is slow or mis-scoped.
   Tags are mutable observations; do not use `tag` or `source_tag` as the
   manifest/index identity key. OCI labels participate in the stale-entity
   retract family, and `canonicalNodeRetractEntityLabels` includes that family in
-  the generated cleanup list.
+  the generated cleanup list. OCI relationship templates intentionally do not
+  update `rel.generation_id`; source-local generation metadata lives on the
+  digest, tag-observation, descriptor, index, and repository nodes so
+  preserved-volume re-projection does not force mutable relationship updates
+  through NornicDB's `UNWIND MERGE` chain relationship path.
 - Package-registry writes must keep `MERGE` anchored on `uid` for `Package`,
   `PackageVersion`, and `PackageDependency` labels. Do not add `Repository`
   matches or ownership edges to `package_registry_canonical_writer.go`; source

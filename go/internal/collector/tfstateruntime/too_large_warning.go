@@ -16,8 +16,45 @@ func (s ClaimedSource) stateTooLargeWarningGeneration(
 	sourceKey terraformstate.StateKey,
 	fencingToken int64,
 ) (collector.CollectedGeneration, error) {
+	return s.sourceWarningGeneration(
+		candidate,
+		scopeValue,
+		candidateID,
+		sourceKey,
+		fencingToken,
+		"state_too_large",
+		"terraform state exceeded configured size ceiling before snapshot identity could be read",
+	)
+}
+
+func (s ClaimedSource) stateMissingWarningGeneration(
+	candidate terraformstate.DiscoveryCandidate,
+	scopeValue scope.IngestionScope,
+	candidateID string,
+	sourceKey terraformstate.StateKey,
+	fencingToken int64,
+) (collector.CollectedGeneration, error) {
+	return s.sourceWarningGeneration(
+		candidate,
+		scopeValue,
+		candidateID,
+		sourceKey,
+		fencingToken,
+		"state_missing",
+		"terraform state source was missing before snapshot identity could be read",
+	)
+}
+
+func (s ClaimedSource) sourceWarningGeneration(
+	candidate terraformstate.DiscoveryCandidate,
+	scopeValue scope.IngestionScope,
+	candidateID string,
+	sourceKey terraformstate.StateKey,
+	fencingToken int64,
+	warningKind string,
+	reason string,
+) (collector.CollectedGeneration, error) {
 	observedAt := s.now()
-	warningKind := "state_too_large"
 	generationValue := scope.ScopeGeneration{
 		GenerationID: fmt.Sprintf(
 			"terraform_state:%s:warning:%s:%s",
@@ -35,7 +72,6 @@ func (s ClaimedSource) stateTooLargeWarningGeneration(
 	if err := generationValue.ValidateForScope(scopeValue); err != nil {
 		return collector.CollectedGeneration{}, err
 	}
-
 	warning, err := terraformstate.NewWarningFact(terraformstate.WarningFactOptions{
 		Scope:        scopeValue,
 		Generation:   generationValue,
@@ -44,7 +80,7 @@ func (s ClaimedSource) stateTooLargeWarningGeneration(
 		FencingToken: fencingToken,
 		Warning: terraformstate.SourceWarning{
 			WarningKind: warningKind,
-			Reason:      "terraform state exceeded configured size ceiling before snapshot identity could be read",
+			Reason:      reason,
 			Source:      string(candidate.Source),
 		},
 	})

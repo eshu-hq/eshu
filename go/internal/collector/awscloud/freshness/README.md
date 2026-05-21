@@ -43,6 +43,10 @@ flowchart LR
   and do not change the scan boundary.
 - IAM, Route 53, and CloudFront events normalize to `aws-global` so the trigger
   target matches the collector claim shape for global scanner families.
+- Workflow handoff must preserve that same target boundary. If a non-terminal
+  scheduled or webhook workflow item already owns the freshness key, the
+  coordinator marks the trigger handed off without enqueueing duplicate AWS
+  work.
 
 ## Telemetry
 

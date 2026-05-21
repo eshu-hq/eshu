@@ -14,6 +14,10 @@ import (
 // ErrStateNotModified is returned when conditional source reads find no change.
 var ErrStateNotModified = errors.New("terraform state not modified")
 
+// ErrStateMissing is returned when an exact configured or discovered state
+// object no longer exists at read time.
+var ErrStateMissing = errors.New("terraform state source is missing")
+
 // S3ObjectClient is the consumer-side read-only S3 object interface.
 type S3ObjectClient interface {
 	GetObject(ctx context.Context, input S3GetObjectInput) (S3GetObjectOutput, error)
@@ -213,7 +217,7 @@ func safeS3SourceCause(err error) error {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
-	if errors.Is(err, ErrStateNotModified) || errors.Is(err, ErrStateTooLarge) {
+	if errors.Is(err, ErrStateNotModified) || errors.Is(err, ErrStateTooLarge) || errors.Is(err, ErrStateMissing) {
 		return err
 	}
 	return nil

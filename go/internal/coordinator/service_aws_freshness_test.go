@@ -130,6 +130,128 @@ func TestServiceRunActiveModeHandsOffAWSFreshnessTriggers(t *testing.T) {
 	}
 }
 
+func TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 15, 18, 30, 0, 0, time.UTC)
+	trigger, err := freshness.NewStoredTrigger(freshness.Trigger{
+		EventID:     "event-1",
+		Kind:        freshness.EventKindConfigChange,
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceLambda,
+		ObservedAt:  now,
+	}, now)
+	if err != nil {
+		t.Fatalf("NewStoredTrigger() error = %v", err)
+	}
+	freshnessStore := &fakeAWSFreshnessTriggerStore{claimed: []freshness.StoredTrigger{trigger}}
+	counter := &fakeAWSFreshnessCounter{}
+	store := &fakeStore{
+		instances: []workflow.CollectorInstance{testServiceAWSInstance(now)},
+		enqueuedItems: []workflow.WorkItem{{
+			CollectorKind:       scope.CollectorAWS,
+			CollectorInstanceID: "collector-aws",
+			ScopeID:             "aws:123456789012:us-east-1:lambda",
+			AcceptanceUnitID:    `{"account_id":"123456789012","region":"us-east-1","service_kind":"lambda"}`,
+		}},
+	}
+	service := Service{
+		Config: Config{
+			DeploymentMode:           deploymentModeActive,
+			ClaimsEnabled:            true,
+			ReconcileInterval:        time.Hour,
+			ReapInterval:             time.Hour,
+			ClaimLeaseTTL:            time.Minute,
+			HeartbeatInterval:        20 * time.Second,
+			ExpiredClaimLimit:        10,
+			ExpiredClaimRequeueDelay: 5 * time.Second,
+			CollectorInstances: []workflow.DesiredCollectorInstance{{
+				InstanceID:    "collector-aws",
+				CollectorKind: scope.CollectorAWS,
+				Mode:          workflow.CollectorModeContinuous,
+				Enabled:       true,
+				ClaimsEnabled: true,
+				Configuration: testServiceAWSConfiguration(),
+			}},
+		},
+		Store:                store,
+		AWSFreshnessTriggers: freshnessStore,
+		AWSFreshnessPlanner:  AWSFreshnessWorkPlanner{},
+		AWSFreshnessEvents:   counter,
+		Clock:                func() time.Time { return now },
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got, want := len(store.createdRuns), 0; got != want {
+		t.Fatalf("created runs = %d, want %d", got, want)
+	}
+	if got, want := len(store.enqueuedItems), 1; got != want {
+		t.Fatalf("enqueued items = %d, want original open item only", got)
+	}
+	if got, want := len(freshnessStore.handedOffIDs), 1; got != want {
+		t.Fatalf("handed off ids = %d, want %d", got, want)
+	}
+	if got, want := len(freshnessStore.failedIDs), 0; got != want {
+		t.Fatalf("failed ids = %d, want %d", got, want)
+	}
+	if got, want := counter.events, 2; got != want {
+		t.Fatalf("AWS freshness metric events = %d, want %d", got, want)
+	}
+}
+
+func TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 15, 18, 30, 0, 0, time.UTC)
+	trigger, err := freshness.NewStoredTrigger(freshness.Trigger{
+		EventID:     "event-1",
+		Kind:        freshness.EventKindConfigChange,
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceLambda,
+		ObservedAt:  now,
+	}, now)
+	if err != nil {
+		t.Fatalf("NewStoredTrigger() error = %v", err)
+	}
+	freshnessStore := &fakeAWSFreshnessTriggerStore{claimed: []freshness.StoredTrigger{trigger}}
+	store := &fakeStore{
+		instances: []workflow.CollectorInstance{testServiceAWSInstance(now)},
+	}
+	service := Service{
+		Config: Config{
+			DeploymentMode: deploymentModeActive,
+			ClaimsEnabled:  true,
+		},
+		Store:                store,
+		AWSFreshnessTriggers: freshnessStore,
+		AWSFreshnessPlanner:  AWSFreshnessWorkPlanner{},
+		Clock:                func() time.Time { return now },
+	}
+
+	if err := service.runAWSFreshnessHandoff(context.Background()); err != nil {
+		t.Fatalf("runAWSFreshnessHandoff() error = %v, want nil", err)
+	}
+	if freshnessStore.claimCalls != 1 {
+		t.Fatalf("claim calls = %d, want 1", freshnessStore.claimCalls)
+	}
+	if got, want := len(store.createdRuns), 1; got != want {
+		t.Fatalf("created runs = %d, want %d", got, want)
+	}
+	if got, want := len(store.enqueuedItems), 1; got != want {
+		t.Fatalf("enqueued items = %d, want %d", got, want)
+	}
+	if got, want := len(freshnessStore.handedOffIDs), 1; got != want {
+		t.Fatalf("handed off ids = %d, want %d", got, want)
+	}
+}
+
 func TestScheduleAWSFreshnessWorkRequiresPlannerBeforeClaim(t *testing.T) {
 	t.Parallel()
 

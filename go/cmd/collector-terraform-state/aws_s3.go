@@ -131,6 +131,9 @@ func safeS3GetObjectError(err error) error {
 		if strings.EqualFold(apiErr.ErrorCode(), "NotModified") {
 			return terraformstate.ErrStateNotModified
 		}
+		if strings.EqualFold(apiErr.ErrorCode(), "NoSuchKey") {
+			return terraformstate.ErrStateMissing
+		}
 		return fmt.Errorf("aws s3 api error code=%s fault=%s", apiErr.ErrorCode(), apiErr.ErrorFault())
 	}
 	return fmt.Errorf("aws s3 request failed")

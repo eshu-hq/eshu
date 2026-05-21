@@ -14,6 +14,14 @@ import (
 const enqueueWorkflowWorkItemValueFormat = "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, NULLIF($%d, ''), $%d, $%d, NULLIF($%d, ''), $%d, NULLIF($%d, ''), NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, ''), NULLIF($%d, ''), $%d, $%d)"
 
 func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items []workflow.WorkItem) error {
+	return s.enqueueWorkItemBatchWithExecutor(ctx, s.db, items)
+}
+
+func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
+	ctx context.Context,
+	executor Executor,
+	items []workflow.WorkItem,
+) error {
 	args := make([]any, 0, len(items)*workflowColumnsPerWorkItem)
 	var values strings.Builder
 
@@ -57,7 +65,7 @@ func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items [
 	}
 
 	query := enqueueWorkflowWorkItemsPrefix + values.String() + enqueueWorkflowWorkItemsSuffix
-	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := executor.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("enqueue workflow work item batch (%d items): %w", len(items), err)
 	}
 	return nil

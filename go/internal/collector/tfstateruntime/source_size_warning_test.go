@@ -111,3 +111,105 @@ func TestClaimedSourceEmitsWarningGenerationForOversizedState(t *testing.T) {
 		t.Fatalf("FencingToken = %d, want %d", got, want)
 	}
 }
+
+func TestClaimedSourceEmitsWarningGenerationForMissingS3State(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 21, 16, 35, 0, 0, time.UTC)
+	stateKey := terraformstate.StateKey{
+		BackendKind: terraformstate.BackendS3,
+		Locator:     "s3://tfstate-prod/services/deleted/terraform.tfstate",
+	}
+	scopeValue, err := scope.NewTerraformStateSnapshotScope(
+		"repo-scope-123",
+		string(stateKey.BackendKind),
+		stateKey.Locator,
+		map[string]string{"repo_id": "platform-infra"},
+	)
+	if err != nil {
+		t.Fatalf("NewTerraformStateSnapshotScope() error = %v, want nil", err)
+	}
+	candidate := terraformstate.DiscoveryCandidate{
+		State:  stateKey,
+		Source: terraformstate.DiscoveryCandidateSourceGraph,
+		RepoID: "platform-infra",
+		Region: "us-east-1",
+	}
+	candidateID, err := terraformstate.CandidatePlanningID(candidate)
+	if err != nil {
+		t.Fatalf("CandidatePlanningID() error = %v, want nil", err)
+	}
+	key, err := redact.NewKey([]byte("runtime-redaction-key"))
+	if err != nil {
+		t.Fatalf("NewKey() error = %v, want nil", err)
+	}
+	stateSource := &fakeStateSource{
+		key:        stateKey,
+		openErr:    terraformstate.ErrStateMissing,
+		observedAt: observedAt,
+	}
+	source := tfstateruntime.ClaimedSource{
+		Resolver: terraformstate.DiscoveryResolver{
+			Config: terraformstate.DiscoveryConfig{
+				Graph: true,
+				BackendFilters: []terraformstate.DiscoveryBackendFilter{{
+					BackendKind: terraformstate.BackendS3,
+					Bucket:      "tfstate-prod",
+					Region:      "us-east-1",
+				}},
+			},
+			BackendFacts: &singleCandidateReader{candidate: candidate},
+		},
+		SourceFactory: &fakeFactory{source: stateSource},
+		RedactionKey:  key,
+		Clock:         func() time.Time { return observedAt },
+	}
+	item := workflow.WorkItem{
+		WorkItemID:          "tfstate-work-missing",
+		RunID:               "run-1",
+		CollectorKind:       scope.CollectorTerraformState,
+		CollectorInstanceID: "collector-tfstate-primary",
+		SourceSystem:        string(scope.CollectorTerraformState),
+		ScopeID:             scopeValue.ScopeID,
+		AcceptanceUnitID:    "platform-infra",
+		SourceRunID:         candidateID,
+		GenerationID:        candidateID,
+		Status:              workflow.WorkItemStatusClaimed,
+		AttemptCount:        1,
+		CurrentFencingToken: 42,
+		CreatedAt:           observedAt,
+		UpdatedAt:           observedAt,
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatalf("NextClaimed() ok = false, want warning generation; source opens = %d", stateSource.opens)
+	}
+	if got, want := collected.Scope.ScopeID, scopeValue.ScopeID; got != want {
+		t.Fatalf("ScopeID = %q, want %q", got, want)
+	}
+	if err := collected.Generation.ValidateForScope(scopeValue); err != nil {
+		t.Fatalf("warning generation ValidateForScope() error = %v, want nil", err)
+	}
+	if !strings.Contains(collected.Generation.FreshnessHint, "warning=state_missing") {
+		t.Fatalf("FreshnessHint = %q, want state_missing warning", collected.Generation.FreshnessHint)
+	}
+
+	warning := factByKind(t, drainRuntimeFacts(t, collected.Facts), facts.TerraformStateWarningFactKind)
+	if got, want := warning.Payload["warning_kind"], "state_missing"; got != want {
+		t.Fatalf("warning_kind = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["source"], string(terraformstate.DiscoveryCandidateSourceGraph); got != want {
+		t.Fatalf("source = %#v, want %#v", got, want)
+	}
+	if strings.Contains(warning.SourceRef.SourceURI, stateKey.Locator) ||
+		strings.Contains(warning.SourceRef.SourceRecordID, stateKey.Locator) {
+		t.Fatalf("warning source ref leaked state locator: %#v", warning.SourceRef)
+	}
+	if got, want := warning.FencingToken, int64(42); got != want {
+		t.Fatalf("FencingToken = %d, want %d", got, want)
+	}
+}

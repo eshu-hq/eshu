@@ -43,22 +43,23 @@ func (s Service) scheduleAWSScheduledWork(
 		if len(items) == 0 && run.Status != workflow.RunStatusComplete {
 			continue
 		}
-		if err := s.Store.CreateRun(ctx, run); err != nil {
-			return fmt.Errorf("create AWS scheduled workflow run for %q: %w", instance.InstanceID, err)
-		}
-		if len(items) == 0 && s.Logger != nil {
-			s.Logger.Info(
-				"aws scheduled workflow run recorded skipped targets only",
-				"collector_instance_id", instance.InstanceID,
-				"collector_kind", instance.CollectorKind,
-				"run_id", run.RunID,
-				"status", run.Status,
-			)
-		}
-		if len(items) > 0 {
-			if err := s.Store.EnqueueWorkItems(ctx, items); err != nil {
-				return fmt.Errorf("enqueue AWS scheduled work items for %q: %w", instance.InstanceID, err)
+		if len(items) == 0 {
+			if err := s.Store.CreateRun(ctx, run); err != nil {
+				return fmt.Errorf("create AWS scheduled workflow run for %q: %w", instance.InstanceID, err)
 			}
+			if s.Logger != nil {
+				s.Logger.Info(
+					"aws scheduled workflow run recorded skipped targets only",
+					"collector_instance_id", instance.InstanceID,
+					"collector_kind", instance.CollectorKind,
+					"run_id", run.RunID,
+					"status", run.Status,
+				)
+			}
+			continue
+		}
+		if _, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items); err != nil {
+			return fmt.Errorf("create AWS scheduled work for %q: %w", instance.InstanceID, err)
 		}
 	}
 	return nil

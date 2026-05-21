@@ -220,8 +220,8 @@ For shared-write debugging specifically:
 - `eshu_dp_aws_freshness_events_total` is labeled by bounded `kind` and
   `action` values for AWS Config and EventBridge freshness intake and handoff.
   Current actions are `intake_stored`, `intake_coalesced`, `intake_rejected`,
-  `intake_failed`, `handoff_claimed`, `handoff_created`, and
-  `handoff_failed`.
+  `intake_failed`, `handoff_claimed`, `handoff_created`, `handoff_skipped`,
+  and `handoff_failed`.
 - `aws.service.pagination.page` spans wrap AWS paginator pages and point reads
   such as ECR lifecycle policy lookups.
 

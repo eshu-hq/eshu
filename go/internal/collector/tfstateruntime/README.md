@@ -51,7 +51,7 @@ provided:
 - resource fact count by backend
 - output and module fact counts per `safe_locator_hash` and backend
 - warning fact counts per `safe_locator_hash`, backend, and `warning_kind`
-  (including the bypass `state_too_large` path)
+  (including the bypass `state_too_large` and `state_missing` paths)
 - redactions and safe drops by policy reason
 - S3 conditional-read not-modified outcomes
 - `eshu_dp_drift_schema_unknown_composite_total{resource_type,reason}` whenever
@@ -77,6 +77,29 @@ metric labels.
 - S3 access stays behind the existing consumer-side `S3ObjectClient` interface;
   SDK-specific adapters and target-scope credential selection belong outside
   this package.
+
+## Missing Source Handling
+
+When an exact S3 source returns `terraformstate.ErrStateMissing`, the runtime
+emits a warning-only generation instead of returning a retryable collect error.
+This preserves the workflow claim fence, completes the stale candidate with a
+`terraform_state_warning` fact, lets the projector publish zero-row
+Terraform-state canonical phase checkpoints, and keeps transient source-open
+errors on the normal retry path.
+
+No-Regression Evidence: the missing-source path is covered by
+`go test ./internal/collector/tfstateruntime -run 'TestClaimedSourceEmitsWarningGenerationFor(MissingS3State|OversizedState)' -count=1`.
+It adds no discovery fan-out, parser buffering, worker-count change, graph
+write, or new queue type.
+
+Observability Evidence: the existing Terraform-state source observation metric
+records `result=state_missing`, warning counters record
+`warning_kind=state_missing` with the bounded safe locator hash, and the emitted
+warning fact carries the source type without exposing bucket names or object
+keys.
+The projector-owned `graph_projection_phase_state` rows and workflow
+completeness rows then show whether the warning-only generation reached the
+durable zero-row projection checkpoint.
 
 ## Related Docs
 

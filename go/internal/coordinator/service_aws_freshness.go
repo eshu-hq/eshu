@@ -19,6 +19,7 @@ const (
 	awsFreshnessActionClaimed     = "handoff_claimed"
 	awsFreshnessActionCreated     = "handoff_created"
 	awsFreshnessActionFailed      = "handoff_failed"
+	awsFreshnessActionSkipped     = "handoff_skipped"
 )
 
 // AWSFreshnessTriggerStore is the durable trigger queue surface used by the
@@ -143,20 +144,21 @@ func (s Service) handoffAWSFreshnessAssignment(
 		s.markAWSFreshnessFailed(ctx, assignment.triggers, observedAt, "plan_failed", err.Error())
 		return fmt.Errorf("plan AWS freshness work for %q: %w", assignment.instance.InstanceID, err)
 	}
-	if err := s.Store.CreateRun(ctx, run); err != nil {
+	enqueued, err := s.createWorkflowWorkIfNoOpenTargets(ctx, assignment.instance, run, items)
+	if err != nil {
 		s.markAWSFreshnessFailed(ctx, assignment.triggers, observedAt, "workflow_handoff_failed", err.Error())
 		return fmt.Errorf("create AWS freshness workflow run for %q: %w", assignment.instance.InstanceID, err)
-	}
-	if err := s.Store.EnqueueWorkItems(ctx, items); err != nil {
-		s.markAWSFreshnessFailed(ctx, assignment.triggers, observedAt, "workflow_handoff_failed", err.Error())
-		return fmt.Errorf("enqueue AWS freshness work items for %q: %w", assignment.instance.InstanceID, err)
 	}
 	triggerIDs := awsFreshnessTriggerIDs(assignment.triggers)
 	if err := s.AWSFreshnessTriggers.MarkTriggersHandedOff(ctx, triggerIDs, observedAt); err != nil {
 		return fmt.Errorf("mark AWS freshness triggers handed off: %w", err)
 	}
+	action := awsFreshnessActionSkipped
+	if enqueued > 0 {
+		action = awsFreshnessActionCreated
+	}
 	for _, trigger := range assignment.triggers {
-		s.recordAWSFreshnessEvent(ctx, trigger.Kind, awsFreshnessActionCreated)
+		s.recordAWSFreshnessEvent(ctx, trigger.Kind, action)
 	}
 	return nil
 }

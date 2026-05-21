@@ -237,8 +237,9 @@ only the normalized trigger, and never writes graph truth directly.
 
 The workflow coordinator owns handoff. In active claim mode it claims queued
 freshness rows, verifies the target is allowed by the AWS collector instance
-`target_scopes`, enqueues normal AWS workflow work, then marks the trigger
-`handed_off` or `failed`. `/admin/status?format=json` includes
+`target_scopes`, enqueues normal AWS workflow work when no non-terminal run
+already owns that target, then marks the trigger `handed_off` or `failed`.
+`/admin/status?format=json` includes
 `aws_freshness.status_counts` and `aws_freshness.oldest_queued_age_seconds` so
 operators can see whether freshness triggers are piling up before assuming a
 full scan is needed.

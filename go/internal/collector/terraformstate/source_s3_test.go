@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -161,6 +162,36 @@ func TestS3StateSourceReportsNotModified(t *testing.T) {
 	}
 	if got := lockClient.calls; got != 0 {
 		t.Fatalf("lock metadata calls = %d, want 0 for not-modified state", got)
+	}
+}
+
+func TestS3StateSourceReportsMissingStateWithoutLeakingLocator(t *testing.T) {
+	t.Parallel()
+
+	source, err := terraformstate.NewS3StateSource(terraformstate.S3SourceConfig{
+		Bucket: "tfstate-prod",
+		Key:    "services/deleted/terraform.tfstate",
+		Region: "us-east-1",
+		Client: &recordingS3Client{
+			err: fmt.Errorf("GET s3://tfstate-prod/services/deleted/terraform.tfstate: %w", terraformstate.ErrStateMissing),
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewS3StateSource() error = %v, want nil", err)
+	}
+
+	_, _, err = source.Open(context.Background())
+	if !errors.Is(err, terraformstate.ErrStateMissing) {
+		t.Fatalf("Open() error = %v, want ErrStateMissing", err)
+	}
+	for _, leaked := range []string{
+		"s3://tfstate-prod/services/deleted/terraform.tfstate",
+		"services/deleted/terraform.tfstate",
+		"tfstate-prod",
+	} {
+		if strings.Contains(err.Error(), leaked) {
+			t.Fatalf("Open() error = %q, leaked %q", err.Error(), leaked)
+		}
 	}
 }
 

@@ -198,6 +198,10 @@ None. The coordinator (`internal/coordinator`) and storage
   `canonical_nodes_committed` checkpoints. `cross_source_anchor_ready` belongs
   to the DSL layer and must not be required for Terraform-state run completion
   unless that runtime starts publishing it.
+- AWS readiness currently has no operational workflow completeness phases. The
+  `internal/reducer/aws` package is scaffold-only; until a live AWS reducer or
+  projector publishes `cloud_resource_uid` phase rows, completed AWS workflow
+  work items must not wait on those future checkpoints.
 - `CompletenessState` rows from `ReconcileRunProgress` are sorted by
   `CollectorKind`, `Keyspace`, `PhaseName` — callers can compare slices
   element-by-element for drift detection.
