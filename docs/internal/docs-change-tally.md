@@ -80,9 +80,28 @@ cleanup pass.
 | Telemetry Package README Rewrite | Reduced the telemetry package README from a duplicated metric/span/log catalog into the maintainer contract for package ownership, startup wiring, frozen registries, and change rules; updated scoped agent guidance to point at current public telemetry docs. |
 | Capability Conformance Spec Rewrite | Reduced the capability conformance page from a stale copied capability list into the current contract guide for YAML source of truth, runtime profiles, truth ceilings, backend conformance, validators, and change policy. |
 | Telemetry Logs And Correlation Rewrite | Replaced stale universal log-event guidance with the current Go structured log contract, corrected service names and cross-service correlation guidance, and removed old event families from operator recipes. |
+| MCP Cookbook Rewrite | Reduced the MCP cookbook into copy-ready current recipes, removed invalid arguments from deployment and call-chain examples, and corrected the MCP package README to the current 71-tool contract. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 569 documents, 1,751 claims, 0 contradicted, and 0 missing
+  evidence claims after the MCP cookbook rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 181 documents, 1,302 claims, 0 contradicted, and 0 missing
+  evidence claims after the MCP cookbook rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public/reference/mcp-cookbook.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 0 claims, 0 contradicted, and 0 missing evidence
+  claims after the MCP cookbook rewrite.
+- `go run ./cmd/eshu docs verify ../go/internal/mcp --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 2 documents, 4 claims, 0 contradicted, and 0 missing evidence
+  claims after the MCP cookbook rewrite.
+- `go test ./internal/mcp -run 'TestMCPCookbook|TestReadOnlyTools' -count=1`,
+  `go test ./internal/mcp -count=1`, `go test ./cmd/eshu -count=1`,
+  `scripts/verify-package-docs.sh`, `git diff --check`, and
+  `cmp -s AGENTS.md CLAUDE.md` passed after the MCP cookbook rewrite.
+- `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  passed after the MCP cookbook rewrite.
 - `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
   passed with 569 documents, 1,751 claims, 0 contradicted, and 0 missing
   evidence claims after the telemetry logs and correlation rewrite.
@@ -231,8 +250,9 @@ cleanup pass.
 
 - Continue reviewing oversized public and package docs. The current largest
   real documentation files are
-  `docs/public/reference/mcp-cookbook.md`, and
-  `docs/public/reference/documentation-updater-actuator-contract.md`. The
+  `docs/public/reference/documentation-updater-actuator-contract.md`,
+  `go/cmd/bootstrap-index/README.md`, and
+  `docs/public/deploy/kubernetes/helm-collector-and-webhook-values.md`. The
   scoped `go/internal/storage/postgres/AGENTS.md` is also large, but any
   reduction there must preserve mandatory agent guidance. The larger
   `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture

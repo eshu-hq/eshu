@@ -102,6 +102,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_package_registry_correlations` | GET | `/api/v0/package-registry/correlations` |
 | `list_ci_cd_run_correlations` | GET | `/api/v0/ci-cd/run-correlations` |
 | `list_service_catalog_correlations` | GET | `/api/v0/service-catalog/correlations` |
+| `list_container_image_identities` | GET | `/api/v0/supply-chain/container-images/identities` |
 | `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` |
 | `list_sbom_attestation_attachments` | GET | `/api/v0/supply-chain/sbom-attestations/attachments` |
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
@@ -141,7 +142,9 @@ builders while MCP only maps arguments and preserves the envelope.
 Supply-chain tools keep the same transport-only contract. The SBOM/attestation
 tool schema accepts only the reducer-owned attachment statuses, including
 `ambiguous_subject`, so multi-subject attestations stay visible without becoming
-canonical image attachments.
+canonical image attachments. Container-image identity reads stay anchored by
+digest, image reference, repository, or outcome and return source layers plus
+evidence fact IDs instead of promoting weak tag observations to truth.
 
 IaC management tools also keep MCP as transport only. The HTTP query layer adds
 `safety_gate`, `safety_summary`, import-plan candidate shaping, and
