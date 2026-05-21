@@ -1,6 +1,6 @@
 # Modified Documentation Files
 
-Generated from `git status --porcelain` for this documentation cleanup branch.
+Generated from `git diff --cached --name-status origin/main -- "*.md"` for this documentation cleanup branch.
 
 - `AGENTS.md`
 - `CLAUDE.md`
@@ -10,10 +10,128 @@ Generated from `git status --porcelain` for this documentation cleanup branch.
 - `apps/console/README.md`
 - `deploy/helm/eshu/README.md`
 - `deploy/observability/README.md`
+- `docs/docs/concepts/graph-model.md -> docs/public/concepts/graph-model.md`
+- `docs/docs/concepts/how-it-works.md -> docs/public/concepts/how-it-works.md`
+- `docs/docs/concepts/modes.md -> docs/public/concepts/modes.md`
+- `docs/docs/contributing-language-support.md -> docs/public/contributing-language-support.md`
+- `docs/docs/contributing.md -> docs/public/contributing.md`
+- `docs/docs/deploy/kubernetes/argocd.md -> docs/public/deploy/kubernetes/argocd.md`
+- `docs/docs/deploy/kubernetes/helm-quickstart.md -> docs/public/deploy/kubernetes/helm-quickstart.md`
+- `docs/docs/deploy/kubernetes/index.md -> docs/public/deploy/kubernetes/index.md`
+- `docs/docs/deploy/kubernetes/manifests.md -> docs/public/deploy/kubernetes/manifests.md`
+- `docs/docs/deploy/kubernetes/prerequisites.md -> docs/public/deploy/kubernetes/prerequisites.md`
+- `docs/docs/deploy/kubernetes/production-checklist.md -> docs/public/deploy/kubernetes/production-checklist.md`
+- `docs/docs/deploy/kubernetes/storage.md -> docs/public/deploy/kubernetes/storage.md`
+- `docs/docs/deploy/kubernetes/upgrades-rollbacks.md -> docs/public/deploy/kubernetes/upgrades-rollbacks.md`
+- `docs/docs/deployment/argocd.md -> docs/public/deployment/argocd.md`
+- `docs/docs/deployment/helm.md -> docs/public/deployment/helm.md`
+- `docs/docs/deployment/manifests.md -> docs/public/deployment/manifests.md`
+- `docs/docs/deployment/overview.md -> docs/public/deployment/overview.md`
+- `docs/docs/extend/index.md -> docs/public/extend/index.md`
+- `docs/docs/getting-started/installation.md -> docs/public/getting-started/installation.md`
+- `docs/docs/getting-started/prerequisites.md -> docs/public/getting-started/prerequisites.md`
+- `docs/docs/getting-started/quickstart.md -> docs/public/getting-started/quickstart.md`
+- `docs/docs/getting-started/windows-setup.md -> docs/public/getting-started/windows-setup.md`
+- `docs/docs/guides/ci-cd.md -> docs/public/guides/ci-cd.md`
+- `docs/docs/guides/collector-authoring.md -> docs/public/guides/collector-authoring.md`
+- `docs/docs/guides/fixture-ecosystems.md -> docs/public/guides/fixture-ecosystems.md`
+- `docs/docs/guides/neo4j-setup.md -> docs/public/guides/neo4j-setup.md`
+- `docs/docs/guides/relationship-graphs.md -> docs/public/guides/relationship-graphs.md`
+- `docs/docs/guides/shared-infra-trace.md -> docs/public/guides/shared-infra-trace.md`
+- `docs/docs/guides/terraform-providers/adding-providers.md -> docs/public/guides/terraform-providers/adding-providers.md`
+- `docs/docs/guides/terraform-providers/index.md -> docs/public/guides/terraform-providers/index.md`
+- `docs/docs/guides/terraform-providers/service-categories.md -> docs/public/guides/terraform-providers/service-categories.md`
+- `docs/docs/guides/terraform-providers/updating-providers.md -> docs/public/guides/terraform-providers/updating-providers.md`
+- `docs/docs/guides/visualization.md -> docs/public/guides/visualization.md`
+- `docs/docs/languages/argocd.md -> docs/public/languages/argocd.md`
+- `docs/docs/languages/c.md -> docs/public/languages/c.md`
+- `docs/docs/languages/cloudformation.md -> docs/public/languages/cloudformation.md`
+- `docs/docs/languages/cpp.md -> docs/public/languages/cpp.md`
+- `docs/docs/languages/crossplane.md -> docs/public/languages/crossplane.md`
+- `docs/docs/languages/csharp.md -> docs/public/languages/csharp.md`
+- `docs/docs/languages/dart.md -> docs/public/languages/dart.md`
+- `docs/docs/languages/elixir.md -> docs/public/languages/elixir.md`
+- `docs/docs/languages/feature-matrix.md -> docs/public/languages/feature-matrix.md`
+- `docs/docs/languages/go.md -> docs/public/languages/go.md`
+- `docs/docs/languages/groovy.md -> docs/public/languages/groovy.md`
+- `docs/docs/languages/haskell.md -> docs/public/languages/haskell.md`
+- `docs/docs/languages/helm.md -> docs/public/languages/helm.md`
+- `docs/docs/languages/java.md -> docs/public/languages/java.md`
+- `docs/docs/languages/javascript.md -> docs/public/languages/javascript.md`
+- `docs/docs/languages/json.md -> docs/public/languages/json.md`
+- `docs/docs/languages/kotlin.md -> docs/public/languages/kotlin.md`
+- `docs/docs/languages/kubernetes.md -> docs/public/languages/kubernetes.md`
+- `docs/docs/languages/kustomize.md -> docs/public/languages/kustomize.md`
+- `docs/docs/languages/perl.md -> docs/public/languages/perl.md`
+- `docs/docs/languages/php.md -> docs/public/languages/php.md`
+- `docs/docs/languages/python.md -> docs/public/languages/python.md`
+- `docs/docs/languages/ruby.md -> docs/public/languages/ruby.md`
+- `docs/docs/languages/rust.md -> docs/public/languages/rust.md`
+- `docs/docs/languages/scala.md -> docs/public/languages/scala.md`
+- `docs/docs/languages/sql.md -> docs/public/languages/sql.md`
+- `docs/docs/languages/support-maturity.md -> docs/public/languages/support-maturity.md`
+- `docs/docs/languages/swift.md -> docs/public/languages/swift.md`
+- `docs/docs/languages/terraform.md -> docs/public/languages/terraform.md`
+- `docs/docs/languages/terragrunt.md -> docs/public/languages/terragrunt.md`
+- `docs/docs/languages/typescript.md -> docs/public/languages/typescript.md`
+- `docs/docs/languages/typescriptjsx.md -> docs/public/languages/typescriptjsx.md`
+- `docs/docs/license.md -> docs/public/license.md`
+- `docs/docs/mcp/index.md -> docs/public/mcp/index.md`
+- `docs/docs/operate/health-checks.md -> docs/public/operate/health-checks.md`
+- `docs/docs/operate/index.md -> docs/public/operate/index.md`
+- `docs/docs/operate/telemetry.md -> docs/public/operate/telemetry.md`
+- `docs/docs/operate/troubleshooting.md -> docs/public/operate/troubleshooting.md`
+- `docs/docs/reference/backend-conformance.md -> docs/public/reference/backend-conformance.md`
+- `docs/docs/reference/capability-conformance-spec.md -> docs/public/reference/capability-conformance-spec.md`
+- `docs/docs/reference/cli-analysis.md -> docs/public/reference/cli-analysis.md`
+- `docs/docs/reference/cli-indexing.md -> docs/public/reference/cli-indexing.md`
+- `docs/docs/reference/cli-kiss.md -> docs/public/reference/cli-kiss.md`
+- `docs/docs/reference/cloud-validation.md -> docs/public/reference/cloud-validation.md`
+- `docs/docs/reference/collector-reducer-readiness.md -> docs/public/reference/collector-reducer-readiness.md`
+- `docs/docs/reference/component-package-manager.md -> docs/public/reference/component-package-manager.md`
+- `docs/docs/reference/configuration.md -> docs/public/reference/configuration.md`
+- `docs/docs/reference/cypher-performance.md -> docs/public/reference/cypher-performance.md`
+- `docs/docs/reference/dead-code-typescript-corpus-evidence.md -> docs/public/reference/dead-code-typescript-corpus-evidence.md`
+- `docs/docs/reference/documentation-updater-actuator-contract.md -> docs/public/reference/documentation-updater-actuator-contract.md`
+- `docs/docs/reference/eshuignore.md -> docs/public/reference/eshuignore.md`
+- `docs/docs/reference/fact-envelope-reference.md -> docs/public/reference/fact-envelope-reference.md`
+- `docs/docs/reference/fact-schema-versioning.md -> docs/public/reference/fact-schema-versioning.md`
+- `docs/docs/reference/language-query-dsl.md -> docs/public/reference/language-query-dsl.md`
+- `docs/docs/reference/local-data-root-spec.md -> docs/public/reference/local-data-root-spec.md`
+- `docs/docs/reference/local-host-lifecycle.md -> docs/public/reference/local-host-lifecycle.md`
+- `docs/docs/reference/local-performance-envelope.md -> docs/public/reference/local-performance-envelope.md`
+- `docs/docs/reference/logging.md -> docs/public/reference/logging.md`
+- `docs/docs/reference/mcp-prompt-surface-audit.md -> docs/public/reference/mcp-prompt-surface-audit.md`
+- `docs/docs/reference/mcp-reference.md -> docs/public/reference/mcp-reference.md`
+- `docs/docs/reference/mcp-tool-contract-matrix.md -> docs/public/reference/mcp-tool-contract-matrix.md`
+- `docs/docs/reference/nornicdb-pitfalls.md -> docs/public/reference/nornicdb-pitfalls.md`
+- `docs/docs/reference/parity-closure-matrix.md -> docs/public/reference/parity-closure-matrix.md`
+- `docs/docs/reference/plugin-trust-model.md -> docs/public/reference/plugin-trust-model.md`
+- `docs/docs/reference/relationship-mapping-observability.md -> docs/public/reference/relationship-mapping-observability.md`
+- `docs/docs/reference/remote-e2e-runtime-state.md -> docs/public/reference/remote-e2e-runtime-state.md`
+- `docs/docs/reference/runtime-admin-api.md -> docs/public/reference/runtime-admin-api.md`
+- `docs/docs/reference/service-workflows.md -> docs/public/reference/service-workflows.md`
+- `docs/docs/reference/source-layout.md -> docs/public/reference/source-layout.md`
+- `docs/docs/reference/tag-taxonomy.md -> docs/public/reference/tag-taxonomy.md`
+- `docs/docs/reference/telemetry/cross-service-correlation.md -> docs/public/reference/telemetry/cross-service-correlation.md`
+- `docs/docs/reference/telemetry/logs.md -> docs/public/reference/telemetry/logs.md`
+- `docs/docs/reference/telemetry/traces.md -> docs/public/reference/telemetry/traces.md`
+- `docs/docs/reference/troubleshooting.md -> docs/public/reference/troubleshooting.md`
+- `docs/docs/reference/truth-label-protocol.md -> docs/public/reference/truth-label-protocol.md`
+- `docs/docs/releases/index.md -> docs/public/releases/index.md`
+- `docs/docs/releases/v0.0.2.md -> docs/public/releases/v0.0.2.md`
+- `docs/docs/run-locally/local-binaries.md -> docs/public/run-locally/local-binaries.md`
+- `docs/docs/run-locally/mcp-local.md -> docs/public/run-locally/mcp-local.md`
+- `docs/docs/services/bootstrap-index.md -> docs/public/services/bootstrap-index.md`
+- `docs/docs/services/collector-aws-cloud.md -> docs/public/services/collector-aws-cloud.md`
+- `docs/docs/services/collector-terraform-state.md -> docs/public/services/collector-terraform-state.md`
+- `docs/docs/services/resolution-engine.md -> docs/public/services/resolution-engine.md`
+- `docs/docs/understand/index.md -> docs/public/understand/index.md`
+- `docs/docs/use/trace-infrastructure.md -> docs/public/use/trace-infrastructure.md`
+- `docs/docs/why-eshu.md -> docs/public/why-eshu.md`
 - `docs/internal/README.md`
 - `docs/internal/docs-inventory.md`
 - `docs/internal/updating-docs.md`
-- `docs/docs/reference/mcp-tool-contract-matrix.md -> docs/public/reference/mcp-tool-contract-matrix.md`
 - `go/README.md`
 - `go/cmd/README.md`
 - `go/cmd/admin-status/README.md`

@@ -76,7 +76,7 @@ local installer.
 | `ESHU_NEO4J_VERIFY_TIMEOUT` | `10s` | Graph runtimes | Startup verification timeout. |
 | `ESHU_NEO4J_PROFILE_GROUP_STATEMENTS` | `false` | ingester, bootstrap-index | Logs grouped-write statement attempt timing for Neo4j investigations. |
 | `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` | `2m` | `eshu-bootstrap-data-plane` | Per-statement client deadline for graph DDL during schema bootstrap. |
-| `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` | unset / `false` | `eshu-bootstrap-data-plane` | Allows schema bootstrap to adopt existing compatible graph constraints. |
+| `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` | unset: opportunistic for NornicDB, disabled for Neo4j | `eshu-bootstrap-data-plane` | Controls marker-missing graph schema adoption. Truthy values require adoption; false values disable adoption. |
 
 ## Telemetry And Memory
 

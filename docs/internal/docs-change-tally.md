@@ -6,9 +6,10 @@ repo's 500-line limit.
 
 ## Current Snapshot
 
-- Total Markdown files left in the checkout after the current pass: 548
-- Current branch doc status from `git status --short` after the current pass:
-  177 created, 158 modified, 233 deleted
+- Total Markdown files left in the checkout after the current pass: 551
+- Current branch doc status from
+  `git diff --cached --name-status origin/main -- '*.md'` after the current
+  pass: 184 created, 273 modified, 115 deleted
 - Stable public docs surface: `docs/public/`
 - Maintainer-only docs surface: `docs/internal/`
 - Deleted stable-doc history surfaces: `docs/plans/`, `docs/superpowers/`,
@@ -23,7 +24,9 @@ repo's 500-line limit.
 - Deleted documentation files: `docs/internal/docs-file-index-deleted.md`
 
 The generated file indexes preserve the per-file tally requested for this
-branch. Regenerate them from `git status --porcelain` after each cleanup pass.
+branch. Regenerate them from
+`git diff --cached --name-status origin/main -- '*.md'` after staging each
+cleanup pass.
 
 ## Pass Ledger
 
@@ -70,9 +73,26 @@ branch. Regenerate them from `git status --porcelain` after each cleanup pass.
 | Dead Code Reachability Split | Reduced the dead-code reachability spec from historical planning plus language inventory into the current runtime contract; moved per-language maturity into a focused reference page. |
 | Environment Variables Split | Reduced the environment-variable reference to a route map plus focused runtime/storage, ingestion/queue, collector, and compose/test pages; updated the docs verifier so split environment reference pages seed `ESHU_*` truth. |
 | Main Rebase Refresh For Draft PR | Rebasing onto `origin/main` at `a0d676f` kept collected documentation facts and hosted E2E graph-write hardening by porting durable updates into the new public docs surface. |
+| Helm Values Split | Reduced the oversized Helm values page to a route map, split runtime/bootstrap, collector/webhook, and routing/storage values into focused pages, and trimmed the chart README so it points to the public operator docs instead of duplicating them. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 565 documents, 1,748 claims, 0 contradicted, and 0 missing
+  evidence claims after the Helm values split.
+- `go run ./cmd/eshu docs verify ../docs/public --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 177 documents, 1,303 claims, 0 contradicted, and 0 missing
+  evidence claims after the Helm values split.
+- `go run ./cmd/eshu docs verify ../docs/public/deploy/kubernetes --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 12 documents, 27 claims, 0 contradicted, and 0 missing evidence
+  claims after the Helm values split.
+- `helm template eshu ./deploy/helm/eshu` and
+  `helm lint ./deploy/helm/eshu` passed after the Helm values split. Helm lint
+  reported only the chart-icon recommendation.
+- `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  passed after adding the split Helm values pages to navigation.
+- `go test ./cmd/eshu -count=1`, `git diff --check`, and
+  `cmp -s AGENTS.md CLAUDE.md` passed after the Helm values split.
 - `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
   passed with 562 documents, 1,748 claims, 0 contradicted, and 0 missing
   evidence claims after rebasing onto `a0d676f`.
@@ -107,9 +127,9 @@ branch. Regenerate them from `git status --porcelain` after each cleanup pass.
 ## What Is Left
 
 - Continue reviewing oversized public and package docs. The current largest
-  files are `docs/public/deploy/kubernetes/helm-values.md`,
-  `go/internal/storage/cypher/README.md`, and
-  `docs/public/services/collector-aws-cloud.md`.
+  files are `go/internal/storage/cypher/README.md`,
+  `docs/public/services/collector-aws-cloud.md`, and
+  `docs/public/services/collector-terraform-state.md`.
 - Keep deleting historical planning notes when current public or package-local
   docs already carry the useful invariant.
 - Keep folding durable lessons into current architecture, workflow,

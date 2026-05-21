@@ -1,10 +1,7 @@
 # Created Documentation Files
 
-Generated from `git status --porcelain` for this documentation cleanup branch.
+Generated from `git diff --cached --name-status origin/main -- "*.md"` for this documentation cleanup branch.
 
-- `docs/public/reference/http-api/status-admin.md`
-- `docs/public/reference/local-testing/remote-collector-e2e.md`
-- `docs/public/reference/nornicdb-tuning-evidence.md`
 - `docs/README.md`
 - `docs/internal/agent-guide.md`
 - `docs/internal/docs-change-tally.md`
@@ -18,7 +15,10 @@ Generated from `git status --porcelain` for this documentation cleanup branch.
 - `docs/public/contributing-language-support.md`
 - `docs/public/contributing.md`
 - `docs/public/deploy/kubernetes/argocd.md`
+- `docs/public/deploy/kubernetes/helm-collector-and-webhook-values.md`
 - `docs/public/deploy/kubernetes/helm-quickstart.md`
+- `docs/public/deploy/kubernetes/helm-routing-and-storage-values.md`
+- `docs/public/deploy/kubernetes/helm-runtime-values.md`
 - `docs/public/deploy/kubernetes/helm-values.md`
 - `docs/public/deploy/kubernetes/index.md`
 - `docs/public/deploy/kubernetes/manifests.md`
@@ -124,6 +124,7 @@ Generated from `git status --porcelain` for this documentation cleanup branch.
 - `docs/public/reference/http-api/evidence-and-supply-chain.md`
 - `docs/public/reference/http-api/iac-content-infra.md`
 - `docs/public/reference/http-api/repositories-ingesters-bundles.md`
+- `docs/public/reference/http-api/status-admin.md`
 - `docs/public/reference/language-query-dsl.md`
 - `docs/public/reference/local-data-root-spec.md`
 - `docs/public/reference/local-host-lifecycle.md`
@@ -132,12 +133,15 @@ Generated from `git status --porcelain` for this documentation cleanup branch.
 - `docs/public/reference/local-testing/collector-live-smokes.md`
 - `docs/public/reference/local-testing/discovery-advisory.md`
 - `docs/public/reference/local-testing/profiling-and-concurrency.md`
+- `docs/public/reference/local-testing/remote-collector-e2e.md`
 - `docs/public/reference/local-testing/verification-gates.md`
 - `docs/public/reference/logging.md`
 - `docs/public/reference/mcp-cookbook.md`
 - `docs/public/reference/mcp-prompt-surface-audit.md`
 - `docs/public/reference/mcp-reference.md`
+- `docs/public/reference/mcp-tool-contract-matrix.md`
 - `docs/public/reference/nornicdb-pitfalls.md`
+- `docs/public/reference/nornicdb-tuning-evidence.md`
 - `docs/public/reference/nornicdb-tuning.md`
 - `docs/public/reference/parity-closure-matrix.md`
 - `docs/public/reference/plugin-trust-model.md`

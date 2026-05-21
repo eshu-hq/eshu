@@ -1,470 +1,129 @@
 # Helm values
 
-The chart lives at `deploy/helm/eshu`.
+The chart lives at `deploy/helm/eshu`. Treat `deploy/helm/eshu/values.yaml`,
+`deploy/helm/eshu/values.schema.json`, and `deploy/helm/eshu/templates/` as the
+source of truth.
+
+This page is the operator route map. Use it to decide which values file section
+to edit, then open the focused page for the details.
+
+## Pick the right page
+
+| Need | Read |
+| --- | --- |
+| Install the split-service chart | [Helm Quickstart](helm-quickstart.md) |
+| Configure graph and Postgres storage | [Storage](storage.md) and [Routing and storage values](helm-routing-and-storage-values.md) |
+| Configure schema bootstrap, runtime env, reducer lanes, or repo sync | [Runtime values](helm-runtime-values.md) |
+| Enable Confluence, OCI registry, Terraform-state, AWS cloud, Package Registry, or webhooks | [Collector and webhook values](helm-collector-and-webhook-values.md) |
+| Expose API or MCP over Ingress, Gateway API, or LoadBalancer | [Routing and storage values](helm-routing-and-storage-values.md) |
+| Prepare production settings | [Production Checklist](production-checklist.md) |
+
+## Render before applying
+
+Render the chart locally whenever values change:
+
+```bash
+helm template eshu ./deploy/helm/eshu -f values.yaml
+```
+
+Use `helm lint` when Helm is available in the local environment:
+
+```bash
+helm lint ./deploy/helm/eshu -f values.yaml
+```
 
 ## Values to review first
 
-| Value | Default | Purpose |
+| Value | Default | Why it matters |
 | --- | --- | --- |
-| `image.repository` | `ghcr.io/eshu-hq/eshu` | Runtime image. |
-| `image.tag` | `v0.0.2` | Runtime image tag. |
-| `service.type` | `ClusterIP` | API service type. |
-| `api.replicas` | `1` | API replica count. |
-| `api.env` | `{}` | API-only environment overrides merged after global `env`. |
-| `mcpServer.enabled` | `true` | Deploy the MCP runtime. |
-| `mcpServer.env` | `{}` | MCP-only environment overrides merged after global `env`. |
-| `ingester.persistence.size` | `100Gi` | Workspace PVC size. |
-| `ingester.env` | `{}` | Ingester-only environment overrides merged after global `env`. |
-| `resolutionEngine.enabled` | `true` | Deploy the reducer runtime. |
-| `resolutionEngine.lanes` | `[]` | Optional domain-specific reducer deployments with independent replicas, resources, and claim allowlists. |
-| `resolutionEngine.env` | `{}` | Reducer-only environment overrides merged after global `env`. |
-| `schemaBootstrap.enabled` | `true` | Render the one-shot schema bootstrap Job. |
-| `schemaBootstrap.useHelmHooks` | `true` | Annotate the Job as a Helm `pre-install,pre-upgrade` hook. Argo CD maps these Helm hooks to `PreSync`. |
-| `schemaBootstrap.activeDeadlineSeconds` | `600` | Upper bound for one schema bootstrap Job attempt. |
-| `schemaBootstrap.ttlSecondsAfterFinished` | `86400` | Cleanup window when the Job is not deleted by hook policy. Successful hook Jobs are deleted by `hook-succeeded`; failed Jobs stay available long enough for log/event inspection. |
-| `podSecurityContext.fsGroupChangePolicy` | `OnRootMismatch` | Avoid recursive ownership changes on existing large PVCs when the volume root already matches the configured `fsGroup`. |
-| `workflowCoordinator.enabled` | `false` | Deploy the workflow coordinator. Required when claim-driven collector Deployments are enabled. |
-| `workflowCoordinator.deploymentMode` | `dark` | Use `active` when the coordinator should create and schedule collector claims. |
-| `workflowCoordinator.claimsEnabled` | `false` | Enable claim creation and scheduling for active coordinator deployments. |
-| `workflowCoordinator.collectorInstances` | `[]` | Declarative collector instances used by coordinator reconciliation and claim scheduling. |
-| `workflowCoordinator.env` | `{}` | Workflow-coordinator-only environment overrides merged after global `env`. |
-| `confluenceCollector.enabled` | `false` | Deploy the Confluence documentation collector. |
-| `confluenceCollector.baseUrl` | empty | Atlassian wiki base URL, for example `https://example.atlassian.net/wiki`. |
-| `confluenceCollector.spaceId` | empty | Confluence space ID to crawl. Set this or `rootPageId`, not both. |
-| `confluenceCollector.rootPageId` | empty | Root page ID for a bounded crawl. Set this or `spaceId`, not both. |
-| `confluenceCollector.credentials.secretName` | empty | Secret containing Confluence auth material. |
-| `ociRegistryCollector.enabled` | `false` | Deploy the OCI registry collector. |
-| `ociRegistryCollector.instanceId` | `oci-registry-primary` | Collector instance ID used in emitted scope metadata. |
-| `ociRegistryCollector.targets` | `[]` | OCI registry repositories to scan. Supports `jfrog`, `ecr`, `dockerhub`, and `ghcr`. |
-| `ociRegistryCollector.aws.region` | empty | Optional AWS region env for ECR targets; EKS should use IRSA through `serviceAccount.annotations`. |
-| `ociRegistryCollector.extraEnv` | `[]` | Extra env entries, usually Secret refs for JFrog, Docker Hub, or GHCR credentials named by target env indirection. |
-| `terraformStateCollector.enabled` | `false` | Deploy the claim-driven Terraform-state collector. |
-| `terraformStateCollector.collectorInstances` | `[]` | Desired `terraform_state` collector instances rendered to `ESHU_COLLECTOR_INSTANCES_JSON`. |
-| `terraformStateCollector.redaction.secretName` | empty | Secret containing `ESHU_TFSTATE_REDACTION_KEY`. Required when enabled. |
-| `awsCloudCollector.enabled` | `false` | Deploy the claim-driven AWS cloud collector. |
-| `awsCloudCollector.collectorInstances` | `[]` | Desired `aws` collector instances rendered to `ESHU_COLLECTOR_INSTANCES_JSON`. |
-| `awsCloudCollector.serviceAccount.create` | `false` | Create a dedicated AWS collector service account. Use this for IRSA so AWS permissions do not attach to every Eshu pod. |
-| `awsCloudCollector.serviceAccount.name` | empty | Existing or generated AWS collector service-account name. Defaults to the AWS collector fullname when `create=true`; otherwise falls back to the shared release service account. |
-| `awsCloudCollector.serviceAccount.annotations` | `{}` | Annotations for the AWS collector service account, including `eks.amazonaws.com/role-arn` for IRSA. |
-| `awsCloudCollector.redaction.secretName` | empty | Optional secret containing `ESHU_AWS_REDACTION_KEY`; required by the binary when ECS or Lambda scans are enabled. |
-| `packageRegistryCollector.enabled` | `false` | Deploy the claim-driven package registry collector. |
-| `packageRegistryCollector.collectorInstances` | `[]` | Desired `package_registry` collector instances rendered to `ESHU_COLLECTOR_INSTANCES_JSON`. |
-| `packageRegistryCollector.extraEnv` | `[]` | Secret-backed env vars named by package-registry target credential indirection. |
-| `webhookListener.enabled` | `false` | Deploy the public GitHub/GitLab/Bitbucket webhook intake runtime. |
-| `webhookListener.github.enabled` | `false` | Enable the GitHub route. Requires `github.secretName`. |
-| `webhookListener.gitlab.enabled` | `false` | Enable the GitLab route. Requires `gitlab.secretName`. |
-| `webhookListener.bitbucket.enabled` | `false` | Enable the Bitbucket route. Requires `bitbucket.secretName`. |
-| `webhookListener.exposure.ingress.enabled` | `false` | Render provider-only ingress paths for webhook delivery. |
-| `contentStore.dsn` | empty | Postgres DSN. |
+| `image.repository` | `ghcr.io/eshu-hq/eshu` | Runtime image for every Eshu workload. |
+| `image.tag` | `v0.0.2` | Runtime image tag. Pin this per rollout. |
+| `contentStore.dsn` | empty | Postgres DSN for facts, queue, content, status, and recovery data. |
+| `env.ESHU_GRAPH_BACKEND` | `nornicdb` | Graph adapter used by the runtime. |
 | `neo4j.uri` | `bolt://neo4j:7687` | Bolt URI for NornicDB or Neo4j. |
-| `neo4j.auth.secretName` | `eshu-neo4j` | Secret for Bolt auth. Set to empty only for bundled NornicDB no-auth installs. |
-| `neo4j.auth.username/password` | `neo4j` / `change-me` | Literal Bolt client credentials used when `neo4j.auth.secretName` is empty. |
-| `nornicdb.enabled` | `false` | Render a single chart-managed NornicDB Deployment, Service, and optional PVC. Do not combine with schema-bootstrap Helm hooks. |
-| `nornicdb.persistence.size` | `500Gi` | Bundled NornicDB graph PVC size. |
-| `nornicdb.env.NORNICDB_PERSIST_SEARCH_INDEXES` | `true` | Persist search indexes so large graphs do not rebuild them on every restart. |
-| `nornicdb.env.NORNICDB_EMBEDDING_ENABLED` | `false` | Keep NornicDB embedding workers off during Eshu indexing. |
-| `env.ESHU_GRAPH_BACKEND` | `nornicdb` | Active graph adapter. |
-| `env.ESHU_CANONICAL_WRITE_TIMEOUT` | `120s` | Helm graph-write timeout budget for NornicDB-backed corpus runs. |
-| `env.ESHU_SHARED_PROJECTION_WORKERS` | `8` | Helm shared-projection worker default for the validated EKS profile. |
-| `observability.prometheus.serviceMonitor.enabled` | `false` | Render `ServiceMonitor` resources. |
+| `schemaBootstrap.enabled` | `true` | Renders the one-shot schema bootstrap `Job`. |
+| `schemaBootstrap.useHelmHooks` | `true` | Runs bootstrap as a Helm `pre-install,pre-upgrade` hook. |
+| `repoSync.enabled` | `true` | Enables the ingester repo-sync loop. |
+| `repoSync.source.mode` | `githubOrg` | Default repository source mode. |
+| `api.replicas` | `1` | API replica count. |
+| `mcpServer.enabled` | `true` | Deploys the MCP runtime. External access still needs routing to `backend: mcp`. |
+| `ingester.persistence.size` | `100Gi` | Workspace PVC size for repository snapshots. |
+| `resolutionEngine.enabled` | `true` | Deploys the reducer runtime. |
+| `resolutionEngine.lanes` | `[]` | Optional domain-specific reducer deployments. |
+| `workflowCoordinator.enabled` | `false` | Required for active claim-driven collectors. |
+| `confluenceCollector.enabled` | `false` | Optional Confluence documentation collector. |
+| `ociRegistryCollector.enabled` | `false` | Optional direct-target OCI registry collector. |
+| `terraformStateCollector.enabled` | `false` | Optional claim-driven Terraform-state collector. |
+| `awsCloudCollector.enabled` | `false` | Optional claim-driven AWS cloud collector. |
+| `packageRegistryCollector.enabled` | `false` | Optional claim-driven package registry collector. |
+| `webhookListener.enabled` | `false` | Optional public webhook listener. |
+| `service.type` | `ClusterIP` | Kubernetes Service type for the main service. |
+| `exposure.ingress.enabled` | `false` | Renders API or MCP Ingress. |
+| `exposure.gateway.enabled` | `false` | Renders API or MCP Gateway API `HTTPRoute`. |
+| `networkPolicy.enabled` | `true` | Renders chart NetworkPolicies. |
+| `observability.prometheus.serviceMonitor.enabled` | `false` | Renders `ServiceMonitor` resources. |
 
-Each runtime has `resources`, `env`, and `connectionTuning` blocks. Connection
-tuning supports Postgres pool settings and Bolt driver settings per workload.
-Workload-specific `env` maps are rendered after global `env`, so a runtime can
-override a global value or enable a diagnostic knob such as `ESHU_PPROF_ADDR`
-without turning it on for every pod.
+Each long-running workload has `resources`, `env`, and `connectionTuning`
+blocks. Workload-specific `env` maps are rendered after global `env`, so a pod
+can override a global value or enable a diagnostic setting such as
+`ESHU_PPROF_ADDR` without turning it on everywhere.
 
-Claim-driven collectors require the workflow coordinator in active mode. The
-chart fails fast when Terraform-state, AWS cloud, or package-registry collector
-Deployments are enabled without `workflowCoordinator.enabled=true`,
-`workflowCoordinator.deploymentMode=active`, and
-`workflowCoordinator.claimsEnabled=true`. This prevents collector pods from
-starting cleanly but sitting idle because no runtime is creating durable claims.
+## Render-time guardrails
 
-## Schema bootstrap
+The chart fails during render for invalid combinations that would otherwise
+produce idle or unreachable workloads.
 
-The chart renders one `schema-bootstrap` Job instead of repeating
-`eshu-bootstrap-data-plane` from every workload pod. The Job owns Postgres and
-graph schema DDL for the release; runtime pods then start without revalidating
-graph schema in parallel.
+| Guardrail | Source |
+| --- | --- |
+| `exposure.ingress.enabled` and `exposure.gateway.enabled` cannot both be true. | `deploy/helm/eshu/templates/validate.yaml` |
+| `backend: mcp` requires `mcpServer.enabled=true`. | `deploy/helm/eshu/templates/validate.yaml` |
+| `repoSync.auth.method=ssh` cannot be used with `repoSync.source.mode=githubOrg`. | `deploy/helm/eshu/templates/validate.yaml` |
+| `schemaBootstrap.useHelmHooks=true` cannot be combined with `nornicdb.enabled=true`. | `deploy/helm/eshu/templates/job-schema-bootstrap.yaml` |
+| Claim-driven collectors require `workflowCoordinator.enabled=true`, `deploymentMode=active`, and `claimsEnabled=true`. | `deploy/helm/eshu/templates/validate.yaml` |
+| The OCI registry collector requires at least one target when enabled. | `deploy/helm/eshu/templates/validate.yaml` and `values.schema.json` |
+| The webhook listener requires at least one enabled provider route. | `deploy/helm/eshu/templates/validate.yaml` |
+| The Confluence collector requires a base URL, credentials, and exactly one crawl scope. | `deploy/helm/eshu/templates/validate.yaml` |
 
-For upgrades from older deployments where graph schema objects already exist
-but the Postgres `graph_schema_applications` marker is empty, the NornicDB
-bootstrap path automatically inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`;
-when all expected schema object names are present it records the current
-backend/schema fingerprint and skips the live DDL pass. Brand-new installs still
-create the schema normally because the inspection finds missing objects and
-falls through to DDL. Set `env.ESHU_GRAPH_SCHEMA_ADOPT_EXISTING: "false"` only
-when an operator intentionally wants to bypass adoption and force live DDL.
+## Workload override pattern
 
-By default the Job is a Helm `pre-install,pre-upgrade` hook. Helm waits for the
-hook before continuing the release, and Argo CD treats those Helm hooks as
-`PreSync` hooks. Existing Postgres, graph, and credential dependencies must be
-available before the hook runs.
-
-Do not combine `schemaBootstrap.useHelmHooks=true` with chart-managed NornicDB
-(`nornicdb.enabled=true`). Helm pre-install hooks run before normal chart
-resources are created, so the in-chart NornicDB Service and Deployment would not
-exist yet. Deploy NornicDB separately first, point `neo4j.uri` at an existing
-graph backend, or disable hook mode and provide an external ordering mechanism.
-
-When `schemaBootstrap.useHelmHooks=false`, the Job is a normal chart resource.
-Helm and Argo CD will not wait for it before creating the API, MCP, ingester,
-collector, or reducer workloads unless the caller supplies ordering outside the
-chart, such as a split release or explicit GitOps hook/wave policy. Use non-hook
-mode only when that ordering is already handled.
-
-If `schemaBootstrap.serviceAccountName` is set while
-`schemaBootstrap.useHelmHooks=true`, the named ServiceAccount must already exist
-before Helm runs the hook. Leave it empty to use the namespace default
-ServiceAccount for the pre-install/pre-upgrade bootstrap job.
-
-No-Regression Evidence: Helm template rendering emits exactly one
-`eshu-schema-bootstrap` Job and no `db-migrate` init containers in the default
-chart output; the runtime DDL binary remains the only graph schema writer during
-install and upgrade.
-
-Performance Evidence: a hosted EKS validation deployment preserved a populated
-NornicDB graph but had no matching Postgres graph-schema marker. The 2026-05-23
-schema-bootstrap Job finished successfully but spent 3h52m re-running
-idempotent graph DDL, with many existing `CREATE CONSTRAINT ... IF NOT EXISTS`
-statements taking about 77s-102s each. Default NornicDB schema adoption changes
-that retained-graph path to metadata reads plus a marker write when the expected
-schema is already present.
-
-Observability Evidence: the existing bootstrap logs emit
-`bootstrap.schema.started`, `bootstrap.postgres.applied`,
-`bootstrap.graph.applied`, `bootstrap.graph.adopted`,
-`bootstrap.graph.adoption_incomplete`, and `runtime.startup.failed`; the
-Kubernetes Job adds bounded rollout status through `activeDeadlineSeconds`,
-`backoffLimit`, and Job success/failure state.
+Global settings belong under `env`, `connectionTuning`, `podLabels`,
+`podAnnotations`, `nodeSelector`, `affinity`, and `tolerations`.
+Workload-specific settings belong under the workload block.
 
 ```yaml
-schemaBootstrap:
-  enabled: true
-  activeDeadlineSeconds: 600
-  ttlSecondsAfterFinished: 86400
+env:
+  ESHU_GRAPH_BACKEND: nornicdb
+  DEFAULT_DATABASE: nornic
+  NEO4J_DATABASE: nornic
+
+api:
+  replicas: 2
+  env:
+    GOMEMLIMIT: "1536MiB"
   resources:
     requests:
-      cpu: 100m
-      memory: 128Mi
-```
+      cpu: 250m
+      memory: 512Mi
 
-## Resolution engine lanes
-
-By default Helm renders one `resolution-engine` `Deployment` that can claim all
-reducer domains. Set `resolutionEngine.lanes` when an EKS installation wants
-separate reducer scaling lanes for different collector or graph-write domains.
-When lanes are configured, the chart does not render the undifferentiated
-deployment; it renders one deployment and metrics service per lane and sets the
-reducer claim-domain allowlist inside each pod.
-
-```yaml
 resolutionEngine:
   env:
     ESHU_PPROF_ADDR: "127.0.0.1:6061"
-  lanes:
-    - name: code-graph
-      domains:
-        - sql_relationship_materialization
-        - inheritance_materialization
-      env:
-        ESHU_PPROF_ADDR: "127.0.0.1:6062"
-      replicas: 3
-      resources:
-        requests:
-          cpu: 750m
-          memory: 1Gi
-    - name: cloud-drift
-      domains:
-        - aws_cloud_runtime_drift
-      replicas: 2
+  connectionTuning:
+    neo4j:
+      maxConnectionPoolSize: "150"
 ```
 
-Use lanes to keep optional collector domains optional. For example, a cluster
-that runs only Git and Terraform can omit AWS, OCI, Package Registry, and
-Confluence lanes without leaving an all-domain reducer that competes for their
-work. The queue still enforces conflict keys and lease ownership; lanes only
-bound which domains a reducer replica can claim.
+## Security defaults
 
-Performance Impact Declaration: this changes reducer queue claims from one
-optional domain equality to an optional `ANY(text[])` allowlist. The affected
-stage is Postgres `fact_work_items` reducer claim selection over pending,
-retrying, claimed, and running reducer rows. Expected cardinality is unchanged
-per lane except that operators can split claim pressure by domain family.
-Stop threshold: if claim duration for the same queue shape regresses by more
-than 10% or queue age rises while workers are idle, profile the claim query and
-Postgres indexes before increasing replicas.
+The chart defaults to non-root pods, read-only root filesystems, dropped Linux
+capabilities, runtime-default seccomp, and
+`fsGroupChangePolicy: OnRootMismatch`. Use workload-specific ServiceAccounts
+only when a collector needs different cloud permissions, such as AWS IRSA for
+the AWS cloud collector.
 
-No-Regression Evidence: `go test ./cmd/reducer ./internal/storage/postgres ./internal/runtime -run 'TestLoadReducerClaimDomains|TestBuildReducerServiceWiresReducerClaimDomains|TestReducerQueueClaimCanFilterByMultipleDomains|TestClaimBatchCanFilterByMultipleDomains|TestHelmResolutionEngineCanRenderDomainSpecificLanes' -count=1`
-and `go test ./...` passed on 2026-05-15 for the config parser, reducer service
-wiring, Postgres claim SQL contract, Helm lane render contract, and broader Go
-suite.
+## Related references
 
-No-Observability-Change: reducer lanes reuse existing reducer queue and runtime
-signals: `reducer.batch_claim` span, `eshu_dp_queue_claim_duration_seconds`,
-`eshu_dp_reducer_queue_wait_seconds`, `eshu_dp_queue_depth`,
-`eshu_dp_queue_oldest_age_seconds`, and `eshu_dp_reducer_executions_total`.
-No new metric label was added because lane name would be deployment topology,
-not a durable data-domain attribute.
-
-## Confluence collector
-
-The Confluence collector is off by default. When enabled, it stores
-documentation sections in the configured Postgres content store and keeps the
-runtime read-only against Confluence.
-
-Use email/API-token credentials:
-
-```yaml
-confluenceCollector:
-  enabled: true
-  baseUrl: https://example.atlassian.net/wiki
-  spaceId: "123456789"
-  credentials:
-    secretName: confluence-collector-credentials
-    emailKey: email
-    apiTokenKey: api-token
-```
-
-Or use a bearer token:
-
-```yaml
-confluenceCollector:
-  enabled: true
-  baseUrl: https://example.atlassian.net/wiki
-  rootPageId: "987654321"
-  credentials:
-    secretName: confluence-collector-credentials
-    bearerTokenKey: token
-```
-
-The chart rejects installs where the collector is enabled without a base URL,
-credential Secret, or exactly one crawl scope.
-
-## OCI registry collector
-
-The OCI registry collector is off by default. When enabled, it scans configured
-registry repositories and writes digest-addressed image facts to Postgres. ECR
-on EKS should use IAM Roles for Service Accounts through
-`serviceAccount.annotations`; do not set `aws_profile` in Kubernetes values.
-This chart keeps OCI registry in explicit direct-target mode through
-`ociRegistryCollector.targets`. Claim-aware OCI mode remains a runtime feature
-for local or custom deployments that set `ESHU_COLLECTOR_INSTANCES_JSON`
-directly.
-
-```yaml
-serviceAccount:
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-oci-registry-collector
-
-ociRegistryCollector:
-  enabled: true
-  instanceId: oci-registry-primary
-  aws:
-    region: us-east-1
-  targets:
-    - provider: ecr
-      registry_id: "123456789012"
-      region: us-east-1
-      repository: team/api
-      references: ["latest"]
-    - provider: dockerhub
-      repository: library/busybox
-      references: ["latest"]
-```
-
-Private JFrog, Docker Hub, and GHCR targets should use target-level env
-indirection plus `extraEnv` Secret refs:
-
-```yaml
-ociRegistryCollector:
-  enabled: true
-  targets:
-    - provider: jfrog
-      base_url: https://artifacts.example.test
-      repository_key: docker-local
-      repository: team/app
-      username_env: JFROG_USERNAME
-      password_env: JFROG_PASSWORD
-  extraEnv:
-    - name: JFROG_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: jfrog-oci-credentials
-          key: username
-    - name: JFROG_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: jfrog-oci-credentials
-          key: password
-```
-
-This collector currently proves registry-to-Postgres fact ingestion. Graph
-projection and API/MCP image-correlation answers are a separate promotion step.
-
-## Claim-driven collectors
-
-Terraform-state, AWS cloud, and Package Registry collectors are off by default.
-When enabled, each workload selects one claim-capable collector instance from
-its own `collectorInstances` value and polls for durable workflow work. The
-chart renders `ESHU_COLLECTOR_INSTANCES_JSON`, the instance selector, claim
-lease TTL, heartbeat interval, pod-name owner ID, Postgres env, OTEL env,
-Prometheus env, probes, metrics Service, ServiceMonitor, NetworkPolicy, and
-PodDisruptionBudget for each enabled collector.
-
-Enable the workflow coordinator in active claim mode whenever one of these
-collector Deployments is enabled. The coordinator owns durable claim creation;
-the collector pods only claim and execute work. The chart rejects mismatched
-values so an install cannot silently deploy idle collectors.
-
-```yaml
-workflowCoordinator:
-  enabled: true
-  deploymentMode: active
-  claimsEnabled: true
-  collectorInstances:
-    - instance_id: terraform-state-primary
-      collector_kind: terraform_state
-      mode: continuous
-      enabled: true
-      claims_enabled: true
-      configuration:
-        target_scopes:
-          - target_scope_id: aws-prod
-            provider: aws
-            deployment_mode: central
-            credential_mode: local_workload_identity
-            allowed_regions: [us-east-1]
-            allowed_backends: [s3]
-```
-
-Terraform-state uses secret-backed redaction. Do not put redaction keys or
-state credentials in values:
-
-```yaml
-terraformStateCollector:
-  enabled: true
-  instanceId: terraform-state-primary
-  redaction:
-    secretName: tfstate-redaction
-    keyKey: redaction-key
-    rulesetVersion: schema-v1
-  collectorInstances:
-    - instance_id: terraform-state-primary
-      collector_kind: terraform_state
-      mode: continuous
-      enabled: true
-      claims_enabled: true
-      configuration:
-        target_scopes:
-          - target_scope_id: aws-prod
-            provider: aws
-            deployment_mode: central
-            credential_mode: local_workload_identity
-            allowed_regions: [us-east-1]
-            allowed_backends: [s3]
-```
-
-AWS on EKS should use workload identity, not static access keys:
-
-```yaml
-awsCloudCollector:
-  enabled: true
-  instanceId: aws-primary
-  serviceAccount:
-    create: true
-    annotations:
-      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-collector
-  collectorInstances:
-    - instance_id: aws-primary
-      collector_kind: aws
-      mode: continuous
-      enabled: true
-      claims_enabled: true
-      configuration:
-        target_scopes:
-          - account_id: "123456789012"
-            allowed_regions: [us-east-1]
-            allowed_services: [iam, ecr]
-            credentials:
-              mode: local_workload_identity
-```
-
-Package registry credentials use target-level env indirection plus Secret refs:
-
-```yaml
-packageRegistryCollector:
-  enabled: true
-  collectorInstances:
-    - instance_id: package-registry-primary
-      collector_kind: package_registry
-      mode: continuous
-      enabled: true
-      claims_enabled: true
-      configuration:
-        targets:
-          - provider: jfrog
-            ecosystem: npm
-            registry: https://artifacts.example.test
-            scope_id: npm://artifacts.example.test/team/app
-            metadata_url: https://artifacts.example.test/api/npm/team/app
-            username_env: PACKAGE_REGISTRY_USERNAME
-            password_env: PACKAGE_REGISTRY_PASSWORD
-  extraEnv:
-    - name: PACKAGE_REGISTRY_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: package-registry-credentials
-          key: username
-    - name: PACKAGE_REGISTRY_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: package-registry-credentials
-          key: password
-```
-
-## Webhook listener
-
-The webhook listener is off by default. When enabled, it accepts provider
-webhook deliveries, verifies provider secrets, and writes refresh triggers to
-Postgres. It does not mount the repository workspace PVC or graph credentials.
-
-```yaml
-webhookListener:
-  enabled: true
-  github:
-    enabled: true
-    secretName: github-webhook-secret
-  bitbucket:
-    enabled: true
-    secretName: bitbucket-webhook-secret
-  exposure:
-    ingress:
-      enabled: true
-      hosts:
-        - host: hooks.example.com
-```
-
-Only provider webhook paths are routed by the chart ingress. Set those paths
-with `webhookListener.github.path`, `webhookListener.gitlab.path`, and
-`webhookListener.bitbucket.path`; ingress hosts only select hostnames. Runtime
-health, status, and metrics endpoints stay on the internal service unless an
-operator adds separate protected routing.
-
-## Repository sync
-
-`repoSync.source.rules` is rendered to `ESHU_REPOSITORY_RULES_JSON`. Use
-`type: exact` or `type: regex` with a `value` field so the chart schema can
-validate the file before install.
-
-## Exposure
-
-The default service type is `ClusterIP`. For external traffic, use one of:
-
-- `service.type=LoadBalancer`
-- `exposure.ingress.enabled=true`
-- `exposure.gateway.enabled=true`
-
-Do not enable ingress and gateway at the same time. Each ingress or gateway
-block routes to one backend: `api` or `mcp`.
+- [Service runtimes](../../deployment/service-runtimes.md)
+- [Core service runtimes](../../deployment/service-runtimes-core.md)
+- [Collector service runtimes](../../deployment/service-runtimes-collectors.md)
+- [Bootstrap service runtimes](../../deployment/service-runtimes-bootstrap.md)

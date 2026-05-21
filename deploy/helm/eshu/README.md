@@ -1,44 +1,23 @@
 # Eshu Helm Chart
 
-This chart deploys Eshu as separate API, MCP, ingester,
-workflow-coordinator, resolution-engine, optional documentation collector,
-optional OCI registry collector, and optional claim-driven collector workloads
-with:
+This chart deploys Eshu as split Kubernetes workloads: API, MCP, ingester,
+workflow coordinator, reducer, schema bootstrap, optional collectors, optional
+webhook listener, and optional bundled NornicDB.
 
-- External Bolt-compatible graph backend and Postgres connectivity
-- NornicDB as the default graph adapter through the Bolt-compatible graph
-  connection values; set `env.ESHU_GRAPH_BACKEND=neo4j` for the explicit Neo4j
-  compatibility path
-- A short-lived `eshu-bootstrap-data-plane` schema bootstrap `Job` that runs
-  once before install or upgrade
-- A stateless API `Deployment` for HTTP API
-- A stateless MCP `Deployment` for MCP transport and mounted query routes
-- A stateful repository ingester `StatefulSet` for repo sync and indexing
-- An optional workflow-coordinator `Deployment` for dark-mode validation or active claim scheduling
-- A stateless Resolution Engine `Deployment` for facts queue projection
-- An optional Confluence collector `Deployment` that stores documentation sections in Postgres
-- An optional OCI registry collector `Deployment` that stores digest-addressed image facts in Postgres
-- Optional Terraform-state, AWS cloud, and Package Registry collector `Deployment`s that claim durable workflow work and emit facts to Postgres
-- An optional public webhook listener `Deployment` that stores GitHub/GitLab/Bitbucket refresh triggers in Postgres
-- Optional Prometheus scrape endpoints and `ServiceMonitor` resources for API, MCP, ingester, workflow-coordinator, resolution-engine, Confluence collector, OCI registry collector, Terraform-state collector, AWS cloud collector, Package Registry collector, and webhook listener
-- Flexible service exposure (ClusterIP, LoadBalancer, Ingress, Gateway API)
-- Hardened defaults such as public API docs disabled unless explicitly re-enabled
+The chart source of truth is:
 
-Important routing notes:
+- `values.yaml` for defaults
+- `values.schema.json` for type validation
+- `templates/validate.yaml` for render-time guardrails
+- `templates/` for rendered Kubernetes resources
 
-- `mcpServer.enabled=true` only makes the MCP runtime externally reachable when
-  you also route ingress or gateway traffic to `backend: mcp`.
-- Each `exposure.ingress` or `exposure.gateway` block targets exactly one
-  backend at a time: `api` or `mcp`.
-- If you want separate public API and MCP hostnames, add an additional
-  Ingress or HTTPRoute from your overlay or GitOps layer.
-- The webhook listener has its own ingress block. The chart routes only
-  provider webhook paths there; admin and metrics paths remain internal by
-  default.
-- For bundled NornicDB, set `neo4j.auth.secretName=""`. The chart then renders
-  literal Bolt client credentials from `neo4j.auth.username/password` because
-  Eshu requires non-empty Bolt auth fields even when NornicDB itself runs
-  without auth.
+For the operator guide, use the public docs:
+
+- [Helm Quickstart](../../../docs/public/deploy/kubernetes/helm-quickstart.md)
+- [Helm Values](../../../docs/public/deploy/kubernetes/helm-values.md)
+- [Runtime values](../../../docs/public/deploy/kubernetes/helm-runtime-values.md)
+- [Collector and webhook values](../../../docs/public/deploy/kubernetes/helm-collector-and-webhook-values.md)
+- [Routing and storage values](../../../docs/public/deploy/kubernetes/helm-routing-and-storage-values.md)
 
 ## Render locally
 
@@ -46,180 +25,71 @@ Important routing notes:
 helm template eshu ./deploy/helm/eshu
 ```
 
-## Typical value overrides
+With overrides:
+
+```bash
+helm template eshu ./deploy/helm/eshu -f values.yaml
+```
+
+When Helm is available, lint the chart before applying or packaging:
+
+```bash
+helm lint ./deploy/helm/eshu -f values.yaml
+```
+
+## Workload map
+
+| Workload | Default | Purpose |
+| --- | --- | --- |
+| `schemaBootstrap` | enabled | Runs `eshu-bootstrap-data-plane` as one schema bootstrap Job. |
+| `api` | enabled | Serves HTTP API, admin, and query surfaces. |
+| `mcpServer` | enabled | Serves MCP over HTTP. |
+| `ingester` | enabled | Syncs repositories, parses snapshots, and emits facts. |
+| `resolutionEngine` | enabled | Drains reducer work and projects graph/content data. |
+| `workflowCoordinator` | disabled | Creates and schedules durable collector claims. |
+| `confluenceCollector` | disabled | Ingests Confluence documentation sections. |
+| `ociRegistryCollector` | disabled | Ingests direct OCI registry image facts. |
+| `terraformStateCollector` | disabled | Executes claim-driven Terraform-state collection. |
+| `awsCloudCollector` | disabled | Executes claim-driven AWS cloud collection. |
+| `packageRegistryCollector` | disabled | Executes claim-driven package registry collection. |
+| `webhookListener` | disabled | Accepts provider webhooks and writes refresh triggers. |
+| `nornicdb` | disabled | Optionally renders a bundled NornicDB graph backend. |
+
+## Guardrails
+
+The chart fails fast for combinations that would render broken or idle
+workloads:
+
+- Ingress and Gateway API exposure cannot both be enabled.
+- MCP routing requires `mcpServer.enabled=true`.
+- Claim-driven collectors require an active workflow coordinator.
+- The OCI registry collector requires at least one target when enabled.
+- The webhook listener requires at least one enabled provider route.
+- The Confluence collector requires a base URL, credentials, and exactly one
+  crawl scope.
+- Helm-hook schema bootstrap cannot be combined with chart-managed NornicDB.
+
+## Minimal override shape
 
 ```yaml
 contentStore:
   dsn: postgresql://eshu:secret@postgres:5432/eshu
 
+env:
+  ESHU_GRAPH_BACKEND: nornicdb
+  DEFAULT_DATABASE: nornic
+  NEO4J_DATABASE: nornic
+
+neo4j:
+  uri: bolt://nornicdb:7687
+
 schemaBootstrap:
   enabled: true
-  activeDeadlineSeconds: 600
-  ttlSecondsAfterFinished: 86400
-
-podSecurityContext:
-  fsGroupChangePolicy: OnRootMismatch
-
-apiAuth:
-  secretName: eshu-api-auth
-  key: api-key
-
-api:
-  replicas: 2
-  env:
-    GOMEMLIMIT: "1536MiB"
-  resources:
-    requests:
-      cpu: 250m
-      memory: 512Mi
-
-ingester:
-  env:
-    ESHU_PPROF_ADDR: "127.0.0.1:6060"
-  resources:
-    requests:
-      cpu: 500m
-      memory: 1Gi
-  persistence:
-    size: 20Gi
-  connectionTuning:
-    postgres:
-      maxOpenConns: "40"
-      pingTimeout: 15s
-    neo4j:
-      connectionAcquisitionTimeout: 20s
-
-resolutionEngine:
-  env:
-    ESHU_PPROF_ADDR: "127.0.0.1:6061"
-  connectionTuning:
-    neo4j:
-      maxConnectionPoolSize: "150"
-  lanes:
-    - name: code-graph
-      domains:
-        - sql_relationship_materialization
-        - inheritance_materialization
-      replicas: 2
-    - name: cloud-drift
-      domains:
-        - aws_cloud_runtime_drift
-      replicas: 1
-
-confluenceCollector:
-  enabled: true
-  baseUrl: https://example.atlassian.net/wiki
-  spaceId: "123456789"
-  # Or replace spaceId with an explicit allowlist of spaces:
-  # spaceIds:
-  #   - "123456789"
-  #   - "987654321"
-  credentials:
-    secretName: confluence-collector-credentials
-
-ociRegistryCollector:
-  enabled: true
-  instanceId: oci-registry-primary
-  aws:
-    region: us-east-1
-  targets:
-    - provider: ecr
-      registry_id: "123456789012"
-      region: us-east-1
-      repository: team/api
-      references: ["latest"]
-    - provider: dockerhub
-      repository: library/busybox
-      references: ["latest"]
-
-workflowCoordinator:
-  enabled: true
-  deploymentMode: active
-  claimsEnabled: true
-  collectorInstances:
-    - instance_id: package-registry-primary
-      collector_kind: package_registry
-      mode: continuous
-      enabled: true
-      claims_enabled: true
-      configuration:
-        targets:
-          - provider: npm
-            ecosystem: npm
-            registry: https://registry.npmjs.org
-            scope_id: npm://registry.npmjs.org/lodash
-            packages: [lodash]
-            package_limit: 1
-            version_limit: 2
-            metadata_url: https://registry.npmjs.org/lodash
-
-packageRegistryCollector:
-  enabled: true
-  instanceId: package-registry-primary
-  collectorInstances:
-    - instance_id: package-registry-primary
-      collector_kind: package_registry
-      mode: continuous
-      enabled: true
-      claims_enabled: true
-      configuration:
-        targets:
-          - provider: npm
-            ecosystem: npm
-            registry: https://registry.npmjs.org
-            scope_id: npm://registry.npmjs.org/lodash
-            packages: [lodash]
-            package_limit: 1
-            version_limit: 2
-            metadata_url: https://registry.npmjs.org/lodash
-
-webhookListener:
-  enabled: true
-  github:
-    enabled: true
-    secretName: github-webhook-secret
-  bitbucket:
-    enabled: true
-    secretName: bitbucket-webhook-secret
-  awsFreshness:
-    enabled: true
-    secretName: aws-freshness-webhook-token
-  exposure:
-    ingress:
-      enabled: true
-      hosts:
-        - host: hooks.example.com
+  useHelmHooks: true
 
 repoSync:
   source:
     rules:
       - type: exact
-        value: myorg/my-repo
-      - type: regex
-        value: myorg/platform-.*
-
-env:
-  ESHU_GRAPH_BACKEND: nornicdb
-  ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT: 2m
-  DEFAULT_DATABASE: nornic
-  NEO4J_DATABASE: nornic
-
-observability:
-  environment: dev
-  otel:
-    enabled: true
-    endpoint: http://otel-collector.monitoring.svc.cluster.local:4317
-    protocol: grpc
-    insecure: true
-    tracesExporter: otlp
-    metricsExporter: otlp
-    logsExporter: none
-  prometheus:
-    enabled: true
-    serviceMonitor:
-      enabled: true
+        value: eshu-hq/eshu
 ```
-
-See [Helm Quickstart](../../../docs/public/deploy/kubernetes/helm-quickstart.md)
-and [Helm Values](../../../docs/public/deploy/kubernetes/helm-values.md) for the
-deployment guide.
