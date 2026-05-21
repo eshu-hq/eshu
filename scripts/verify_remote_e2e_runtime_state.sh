@@ -137,6 +137,32 @@ verify_queue_completion() {
 	return 1
 }
 
+verify_workflow_completion() {
+	echo "Checking workflow coordinator completion..."
+	if jq -e '
+		def count_value($section; $name):
+			if ((.coordinator[$section] // null) | type) == "array" then
+				([.coordinator[$section][]? | select(.name == $name) | (.count // 0)] | add // 0)
+			elif ((.coordinator[$section] // null) | type) == "object" then
+				(.coordinator[$section][$name] // 0)
+			else
+				0
+			end;
+		(.coordinator | type == "object") and
+		(count_value("run_status_counts"; "failed") == 0) and
+		(count_value("run_status_counts"; "reducer_converging") == 0) and
+		(count_value("completeness_counts"; "blocked") == 0) and
+		(count_value("completeness_counts"; "pending") == 0)
+	' "${INDEX_STATUS_FILE}" >/dev/null; then
+		echo "remote E2E workflow completion verified"
+		return 0
+	fi
+
+	echo "remote E2E workflow completion not reached" >&2
+	cat "${INDEX_STATUS_FILE}" >&2
+	return 1
+}
+
 main() {
 	eshu_require_tool curl
 	eshu_require_tool docker
@@ -151,6 +177,7 @@ main() {
 	resolve_api_base_url
 	resolve_api_key
 	verify_queue_completion
+	verify_workflow_completion
 }
 
 main "$@"

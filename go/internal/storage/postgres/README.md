@@ -238,6 +238,11 @@ failure class.
 `WorkflowControlStore` persists workflow coordinator control-plane state with
 fenced claim leases. `ErrWorkflowClaimRejected` is returned when a claim
 mutation is rejected because the current owner no longer holds the lease.
+`CompleteClaim` can atomically replace a planned work item's phase identity
+with a resolved reducer checkpoint tuple while the same claim fence is still
+active. Terraform-state collectors use this to move from candidate planning
+IDs to the real state-snapshot generation before workflow-run reconciliation
+joins `workflow_work_items` to `graph_projection_phase_state`.
 
 ### AWS scan status
 

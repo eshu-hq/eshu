@@ -289,6 +289,12 @@ func TestClaimedSourceCompletesS3NotModifiedCandidateWhenPriorGenerationKnown(t 
 	if !collected.Unchanged {
 		t.Fatal("CollectedGeneration.Unchanged = false, want true")
 	}
+	if got, want := collected.Scope.ScopeID, scopeValue.ScopeID; got != want {
+		t.Fatalf("unchanged ScopeID = %q, want %q", got, want)
+	}
+	if got, want := collected.Generation.GenerationID, priorGenerationID; got != want {
+		t.Fatalf("unchanged GenerationID = %q, want prior generation %q", got, want)
+	}
 	if got, want := stateSource.opens, 1; got != want {
 		t.Fatalf("source opens = %d, want %d", got, want)
 	}

@@ -68,8 +68,26 @@ func TestClaimedServiceCompletesUnchangedTerraformStateClaimWithoutCommit(t *tes
 		return nil
 	}
 	source := &stubClaimedSource{
-		collected: CollectedGeneration{Unchanged: true},
-		ok:        true,
+		collected: CollectedGeneration{
+			Scope: scope.IngestionScope{
+				ScopeID:       item.ScopeID,
+				SourceSystem:  string(scope.CollectorTerraformState),
+				ScopeKind:     scope.KindStateSnapshot,
+				CollectorKind: scope.CollectorTerraformState,
+				PartitionKey:  "terraform_state:s3:locator-hash",
+			},
+			Generation: scope.ScopeGeneration{
+				GenerationID:  "terraform_state:state_snapshot:s3:locator-hash:lineage-123:serial:17",
+				ScopeID:       item.ScopeID,
+				ObservedAt:    now,
+				IngestedAt:    now,
+				Status:        scope.GenerationStatusActive,
+				TriggerKind:   scope.TriggerKindSnapshot,
+				FreshnessHint: "lineage=lineage-123 serial=17",
+			},
+			Unchanged: true,
+		},
+		ok: true,
 	}
 	committer := &stubClaimedCommitter{}
 	service := testClaimedService(now, claim, scope.CollectorTerraformState, store, source, committer)
@@ -85,6 +103,18 @@ func TestClaimedServiceCompletesUnchangedTerraformStateClaimWithoutCommit(t *tes
 	}
 	if got, want := committer.claimedCalls, 0; got != want {
 		t.Fatalf("claimed commit calls = %d, want %d", got, want)
+	}
+	if got, want := store.lastComplete.ResolvedScopeID, item.ScopeID; got != want {
+		t.Fatalf("ResolvedScopeID = %q, want %q", got, want)
+	}
+	if got, want := store.lastComplete.ResolvedAcceptanceUnitID, item.ScopeID; got != want {
+		t.Fatalf("ResolvedAcceptanceUnitID = %q, want %q", got, want)
+	}
+	if got, want := store.lastComplete.ResolvedSourceRunID, source.collected.Generation.GenerationID; got != want {
+		t.Fatalf("ResolvedSourceRunID = %q, want %q", got, want)
+	}
+	if got, want := store.lastComplete.ResolvedGenerationID, source.collected.Generation.GenerationID; got != want {
+		t.Fatalf("ResolvedGenerationID = %q, want %q", got, want)
 	}
 }
 
@@ -253,6 +283,77 @@ func TestClaimedGenerationAllowsTerraformStateCandidateGenerationIDs(t *testing.
 
 	if err := validateClaimedGeneration(item, collected); err != nil {
 		t.Fatalf("validateClaimedGeneration() error = %v, want nil", err)
+	}
+}
+
+func TestClaimedServiceCompletesTerraformStateClaimWithResolvedProjectionIdentity(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.May, 10, 11, 8, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	item.CollectorKind = scope.CollectorTerraformState
+	item.SourceSystem = string(scope.CollectorTerraformState)
+	item.ScopeID = "state_snapshot:s3:locator-hash"
+	item.AcceptanceUnitID = "terraform_state:s3:locator-hash"
+	item.SourceRunID = "terraform_state_candidate:s3:candidate-hash"
+	item.GenerationID = "terraform_state_candidate:s3:candidate-hash"
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+	}
+	store.heartbeat = func(context.Context, workflow.ClaimMutation) error {
+		cancel()
+		return nil
+	}
+	collected := FactsFromSlice(
+		scope.IngestionScope{
+			ScopeID:       item.ScopeID,
+			SourceSystem:  string(scope.CollectorTerraformState),
+			ScopeKind:     scope.KindStateSnapshot,
+			CollectorKind: scope.CollectorTerraformState,
+			PartitionKey:  "terraform_state:s3:locator-hash",
+		},
+		scope.ScopeGeneration{
+			GenerationID:  "terraform_state:state_snapshot:s3:locator-hash:lineage-123:serial:17",
+			ScopeID:       item.ScopeID,
+			ObservedAt:    now,
+			IngestedAt:    now,
+			Status:        scope.GenerationStatusPending,
+			TriggerKind:   scope.TriggerKindSnapshot,
+			FreshnessHint: "lineage=lineage-123 serial=17",
+		},
+		nil,
+	)
+	committer := &stubClaimedCommitter{}
+	service := testClaimedService(now, claim, scope.CollectorTerraformState, store, &stubClaimedSource{
+		collected: collected,
+		ok:        true,
+	}, committer)
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got, want := committer.claimedCalls, 1; got != want {
+		t.Fatalf("claimed commit calls = %d, want %d", got, want)
+	}
+	if got, want := store.completeCalls, 1; got != want {
+		t.Fatalf("complete calls = %d, want %d", got, want)
+	}
+	if got, want := store.lastComplete.ResolvedScopeID, item.ScopeID; got != want {
+		t.Fatalf("ResolvedScopeID = %q, want %q", got, want)
+	}
+	if got, want := store.lastComplete.ResolvedAcceptanceUnitID, item.ScopeID; got != want {
+		t.Fatalf("ResolvedAcceptanceUnitID = %q, want %q", got, want)
+	}
+	if got, want := store.lastComplete.ResolvedSourceRunID, collected.Generation.GenerationID; got != want {
+		t.Fatalf("ResolvedSourceRunID = %q, want %q", got, want)
+	}
+	if got, want := store.lastComplete.ResolvedGenerationID, collected.Generation.GenerationID; got != want {
+		t.Fatalf("ResolvedGenerationID = %q, want %q", got, want)
 	}
 }
 

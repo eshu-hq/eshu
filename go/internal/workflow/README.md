@@ -105,6 +105,10 @@ Types in this package flow through four phases of the workflow control plane:
   `storage/postgres`
 - `ClaimSelector`, `ClaimMutation`, `ClaimedWorkItem` — claim operation
   arguments and return shapes
+- `ClaimMutation.Resolved*` — optional completion-time phase identity fields
+  used when planned work cannot know the final reducer checkpoint tuple until
+  source open. Terraform-state claims use these fields to replace candidate
+  planning IDs with the real snapshot scope/generation before reconciliation.
 
 **Phase contract**:
 - `CollectorContract`, `CollectorContractFor`, `CanonicalKeyspacesForCollector`,
@@ -178,9 +182,33 @@ None. The coordinator (`internal/coordinator`) and storage
 - `CollectorRunProgress.PublishedPhaseCounts` must be keyed by
   `PhasePublicationKey` values from `RequiredPhasesForCollector`. A missing key
   counts as zero published items and keeps the phase in `pending`.
+- Terraform-state readiness follows `internal/reducer/tfstate` and currently
+  requires only the `terraform_resource_uid` and `terraform_module_uid`
+  `canonical_nodes_committed` checkpoints. `cross_source_anchor_ready` belongs
+  to the DSL layer and must not be required for Terraform-state run completion
+  unless that runtime starts publishing it.
 - `CompletenessState` rows from `ReconcileRunProgress` are sorted by
   `CollectorKind`, `Keyspace`, `PhaseName` — callers can compare slices
   element-by-element for drift detection.
+
+No-Regression Evidence: the Terraform-state workflow completion fix is covered
+by
+`go test ./internal/workflow ./internal/collector ./internal/collector/tfstateruntime ./internal/storage/postgres -run 'TestRequiredPhasesForCollectorMatchesTerraformStateReducerContract|TestClaimedServiceCompletesUnchangedTerraformStateClaimWithoutCommit|TestClaimedServiceCompletesTerraformStateClaimWithResolvedProjectionIdentity|TestClaimedSourceCompletesS3NotModifiedCandidateWhenPriorGenerationKnown|TestWorkflowControlStoreIntegrationCompleteClaimCanResolveProjectionIdentity' -count=1`.
+The Postgres identity mutation was also exercised with
+`ESHU_POSTGRES_DSN=postgres://... go test ./internal/storage/postgres -run TestWorkflowControlStoreIntegrationCompleteClaimCanResolveProjectionIdentity -count=1 -v`
+against a throwaway Postgres container.
+The test set proves the phase contract matches the reducer-owned Terraform
+state checkpoints, candidate-scoped claims complete with the real snapshot
+identity, S3 not-modified claims carry prior-generation identity, and Postgres
+stores the resolved phase tuple under the same claim fence. It changes no
+worker counts, claim ordering, scan cardinality, graph writes, or NornicDB
+settings.
+
+Observability Evidence: no new metrics were required. Existing workflow-run
+status, workflow completeness rows, workflow work-item identity columns,
+claim-fence mutation errors, `/api/v0/index-status`, and the remote runtime
+state gate expose whether Terraform-state claims are still collecting,
+completed, blocked, or stuck in reducer convergence.
 
 ## Extension points
 

@@ -155,6 +155,12 @@ SERVICES
     "retrying": 0,
     "failed": 0,
     "dead_letter": 0
+  },
+  "coordinator": {
+    "run_status_counts": [
+      {"name": "complete", "count": 4}
+    ],
+    "completeness_counts": []
   }
 }
 JSON
@@ -237,6 +243,32 @@ reset_state
 set_all_services_healthy
 touch "${state_dir}/curl-fails"
 expect_fail_with '/api/v0/index-status'
+
+reset_state
+set_all_services_healthy
+cat >"${state_dir}/index-status.json" <<'JSON'
+{
+  "status": "healthy",
+  "queue": {
+    "outstanding": 0,
+    "in_flight": 0,
+    "pending": 0,
+    "retrying": 0,
+    "failed": 0,
+    "dead_letter": 0
+  },
+  "coordinator": {
+    "run_status_counts": [
+      {"name": "complete", "count": 12},
+      {"name": "reducer_converging", "count": 12}
+    ],
+    "completeness_counts": [
+      {"name": "pending", "count": 36}
+    ]
+  }
+}
+JSON
+expect_fail_with 'workflow completion'
 
 reset_state
 set_all_services_healthy

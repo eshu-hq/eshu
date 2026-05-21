@@ -73,11 +73,6 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 				PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
 				Required:  true,
 			},
-			{
-				Keyspace:  reducer.GraphProjectionKeyspaceTerraformResourceUID,
-				PhaseName: reducer.GraphProjectionPhaseCrossSourceAnchorReady,
-				Required:  true,
-			},
 		},
 	},
 	scope.CollectorAWS: {
