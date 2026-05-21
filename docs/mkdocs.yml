@@ -187,6 +187,8 @@ nav:
       - Resolution Engine: services/resolution-engine.md
       - Terraform State Collector: services/collector-terraform-state.md
       - AWS Cloud Collector: services/collector-aws-cloud.md
+      - AWS Collector Security And Config: services/collector-aws-cloud-security.md
+      - AWS Collector Scanner Coverage: services/collector-aws-cloud-scanners.md
     - Source Layout: reference/source-layout.md
     - Languages:
       - Feature Matrix: languages/feature-matrix.md

@@ -173,6 +173,8 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/public/run-locally/local-binaries.md`
 - `docs/public/run-locally/mcp-local.md`
 - `docs/public/services/bootstrap-index.md`
+- `docs/public/services/collector-aws-cloud-scanners.md`
+- `docs/public/services/collector-aws-cloud-security.md`
 - `docs/public/services/collector-aws-cloud.md`
 - `docs/public/services/collector-terraform-state.md`
 - `docs/public/services/ingester.md`

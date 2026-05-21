@@ -123,7 +123,6 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/run-locally/local-binaries.md -> docs/public/run-locally/local-binaries.md`
 - `docs/docs/run-locally/mcp-local.md -> docs/public/run-locally/mcp-local.md`
 - `docs/docs/services/bootstrap-index.md -> docs/public/services/bootstrap-index.md`
-- `docs/docs/services/collector-aws-cloud.md -> docs/public/services/collector-aws-cloud.md`
 - `docs/docs/services/collector-terraform-state.md -> docs/public/services/collector-terraform-state.md`
 - `docs/docs/services/resolution-engine.md -> docs/public/services/resolution-engine.md`
 - `docs/docs/understand/index.md -> docs/public/understand/index.md`

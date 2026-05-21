@@ -6,10 +6,10 @@ repo's 500-line limit.
 
 ## Current Snapshot
 
-- Total Markdown files left in the checkout after the current pass: 551
+- Total Markdown files left in the checkout after the current pass: 553
 - Current branch doc status from
   `git diff --cached --name-status origin/main -- '*.md'` after the current
-  pass: 184 created, 273 modified, 115 deleted
+  pass: 186 created, 272 modified, 116 deleted
 - Stable public docs surface: `docs/public/`
 - Maintainer-only docs surface: `docs/internal/`
 - Deleted stable-doc history surfaces: `docs/plans/`, `docs/superpowers/`,
@@ -75,9 +75,25 @@ cleanup pass.
 | Main Rebase Refresh For Draft PR | Rebasing onto `origin/main` at `a0d676f` kept collected documentation facts and hosted E2E graph-write hardening by porting durable updates into the new public docs surface. |
 | Helm Values Split | Reduced the oversized Helm values page to a route map, split runtime/bootstrap, collector/webhook, and routing/storage values into focused pages, and trimmed the chart README so it points to the public operator docs instead of duplicating them. |
 | Cypher Package README Rewrite | Reduced the Cypher storage README from a historical evidence dump into the current package guide; corrected the canonical phase list to include `package_registry` and aligned package comments with current package-registry writes. |
+| AWS Cloud Collector Service Split | Reduced the AWS cloud collector public service doc into an overview/runbook plus focused security/config and scanner coverage pages grounded in command/runtime code. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 567 documents, 1,746 claims, 0 contradicted, and 0 missing
+  evidence claims after the AWS cloud collector service split.
+- `go run ./cmd/eshu docs verify ../docs/public --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 179 documents, 1,298 claims, 0 contradicted, and 0 missing
+  evidence claims after the AWS cloud collector service split.
+- `go run ./cmd/eshu docs verify ../docs/public/services --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 7 documents, 66 claims, 0 contradicted, and 0 missing evidence
+  claims after the AWS cloud collector service split.
+- `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1`,
+  `go test ./cmd/eshu -count=1`, `scripts/verify-package-docs.sh`,
+  `git diff --check`, and `cmp -s AGENTS.md CLAUDE.md` passed after the AWS
+  cloud collector service split.
+- `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  passed after adding the AWS cloud collector split pages to navigation.
 - `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
   passed with 565 documents, 1,751 claims, 0 contradicted, and 0 missing
   evidence claims after the Cypher package README rewrite.
@@ -137,9 +153,11 @@ cleanup pass.
 ## What Is Left
 
 - Continue reviewing oversized public and package docs. The current largest
-  files are `docs/public/services/collector-aws-cloud.md`,
-  `docs/public/services/collector-terraform-state.md`, and
-  `go/internal/telemetry/README.md`.
+  real documentation files are `docs/public/services/collector-terraform-state.md`,
+  `go/internal/telemetry/README.md`, and
+  `docs/public/reference/capability-conformance-spec.md`. The larger
+  `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture
+  remains test data, not a public documentation target.
 - Keep deleting historical planning notes when current public or package-local
   docs already carry the useful invariant.
 - Keep folding durable lessons into current architecture, workflow,
