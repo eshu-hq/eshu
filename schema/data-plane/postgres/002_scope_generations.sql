@@ -14,6 +14,10 @@ CREATE TABLE IF NOT EXISTS scope_generations (
 CREATE INDEX IF NOT EXISTS scope_generations_scope_idx
     ON scope_generations (scope_id, status, ingested_at DESC);
 
+CREATE INDEX IF NOT EXISTS scope_generations_active_pending_activity_idx
+    ON scope_generations (GREATEST(observed_at, ingested_at, COALESCE(activated_at, observed_at)) DESC)
+    WHERE status IN ('pending', 'active');
+
 CREATE UNIQUE INDEX IF NOT EXISTS scope_generations_active_scope_idx
     ON scope_generations (scope_id)
     WHERE status = 'active';

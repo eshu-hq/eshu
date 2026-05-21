@@ -91,6 +91,7 @@ type RawSnapshot struct {
 	GenerationTransitions []GenerationTransitionSnapshot
 	StageCounts           []StageStatusCount
 	DomainBacklogs        []DomainBacklog
+	ProducerActivity      ProducerActivitySnapshot
 	QueueBlockages        []QueueBlockage
 	RetryPolicies         []RetryPolicySummary
 	Queue                 QueueSnapshot
@@ -221,12 +222,13 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 	stageSummaries := summarizeStages(raw.StageCounts)
 	queue := normalizeQueueSnapshot(raw.Queue)
 	domainBacklogs := topDomainBacklogs(normalizeDomainBacklogs(raw.DomainBacklogs), opts.DomainLimit)
+	producerActivity := normalizeProducerActivitySnapshot(raw.ProducerActivity)
 	coordinator := cloneCoordinatorSnapshot(raw.Coordinator)
 	flowSummaries := buildFlowSummaries(scopeTotals, generationTotals, stageSummaries, queue, domainBacklogs)
 
 	return Report{
 		AsOf:                   raw.AsOf,
-		Health:                 evaluateHealth(queue, generationTotals, domainBacklogs, coordinator, opts),
+		Health:                 evaluateHealth(queue, generationTotals, domainBacklogs, producerActivity, coordinator, opts),
 		FlowSummaries:          flowSummaries,
 		Queue:                  queue,
 		RetryPolicies:          cloneRetryPolicies(raw.RetryPolicies),

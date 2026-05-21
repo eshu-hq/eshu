@@ -13,6 +13,25 @@ FROM scope_generations
 GROUP BY status
 ORDER BY status
 `
+	producerActivityQuery = `
+SELECT TRUE AS has_active_or_pending_generation,
+       GREATEST(
+         EXTRACT(
+           EPOCH FROM (
+             $1 - GREATEST(
+               observed_at,
+               ingested_at,
+               COALESCE(activated_at, observed_at)
+             )
+           )
+         ),
+         0
+       ) AS latest_generation_age_seconds
+FROM scope_generations
+WHERE status IN ('pending', 'active')
+ORDER BY GREATEST(observed_at, ingested_at, COALESCE(activated_at, observed_at)) DESC
+LIMIT 1
+`
 	generationTransitionsQuery = `
 SELECT generation.scope_id,
        generation.generation_id,
