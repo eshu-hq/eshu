@@ -69,14 +69,24 @@ covers the runtime gate against mocked Docker and API responses. The test
 proves that an ingester stuck in `Created`, an unhealthy collector, a non-zero
 fact queue, and queue-zero plus stale workflow `reducer_converging` /
 pending-completeness state all fail before a run can be accepted, while a
-healthy runtime set with queue-zero and workflow completion passes. This
-changes only the verification gate; it does not alter Compose service
-definitions, worker counts, graph writes, collector scan shape, retry
-behavior, or NornicDB settings.
+healthy runtime set with queue-zero and workflow completion passes. Focused
+status and Postgres status-reader coverage also proves `/api/v0/index-status`
+health does not report `healthy` while workflow coordinator runs are still
+`reducer_converging`, workflow completeness rows are pending or blocked,
+workflow runs have failed, or status-age fields briefly go negative because the
+database timestamp is newer than the status read clock. This changes only the
+verification gate, operator status projection, and read-side age math; it does
+not alter Compose service definitions, worker counts, graph writes, collector
+scan shape, retry behavior, or NornicDB settings.
 
 Observability Evidence: the verifier prints each checked service with Docker
 runtime state and health state, then records the checkpointed `/index-status`
 payload on queue or workflow-completion failure. Operators can distinguish a
 missing source-local owner from collector failure, API unavailability,
 projection backlog, and stale workflow phase convergence without reading
-private machine-specific logs or paths.
+private machine-specific logs or paths. The existing `/api/v0/index-status`,
+`/api/v0/status/index`, and admin status report now carry workflow coordinator
+`run_status_counts`, `work_item_status_counts`, `completeness_counts`, active
+and overdue claim counts, queue/domain ages, and health reasons that distinguish
+fact-queue backlog, shared projection backlog, workflow convergence, blocked
+completeness, failed workflow runs, and stale pending workflow work.

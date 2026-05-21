@@ -26,6 +26,7 @@ func cloneQueueBlockages(rows []QueueBlockage) []QueueBlockage {
 		if strings.TrimSpace(row.Stage) == "" {
 			continue
 		}
+		row.OldestAge = nonNegativeDuration(row.OldestAge)
 		cloned = append(cloned, row)
 	}
 	sort.Slice(cloned, func(i, j int) bool {

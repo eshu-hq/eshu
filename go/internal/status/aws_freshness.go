@@ -22,7 +22,7 @@ type awsFreshnessJSON struct {
 func cloneAWSFreshnessSnapshot(snapshot AWSFreshnessSnapshot) AWSFreshnessSnapshot {
 	return AWSFreshnessSnapshot{
 		StatusCounts:    slices.Clone(snapshot.StatusCounts),
-		OldestQueuedAge: snapshot.OldestQueuedAge,
+		OldestQueuedAge: nonNegativeDuration(snapshot.OldestQueuedAge),
 	}
 }
 

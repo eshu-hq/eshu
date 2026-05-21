@@ -48,14 +48,17 @@ WITH fact_domain_backlogs AS (
          COUNT(*) FILTER (WHERE status = 'retrying') AS retrying_count,
          COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter_count,
          COUNT(*) FILTER (WHERE status = 'failed') AS failed_count,
-         COALESCE(
-           EXTRACT(
-             EPOCH FROM (
-               $1 - (
-                 MIN(created_at)
-                   FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying'))
+         GREATEST(
+           COALESCE(
+             EXTRACT(
+               EPOCH FROM (
+                 $1 - (
+                   MIN(created_at)
+                     FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying'))
+                 )
                )
-             )
+             ),
+             0
            ),
            0
          ) AS oldest_outstanding_age_seconds
@@ -86,17 +89,20 @@ shared_projection_domain_backlogs AS (
          0::BIGINT AS retrying_count,
          0::BIGINT AS dead_letter_count,
          0::BIGINT AS failed_count,
-         COALESCE(
-           EXTRACT(
-             EPOCH FROM (
-               $1 - (
-                 MIN(intents.created_at)
-                   FILTER (WHERE intents.completed_at IS NULL)
+         GREATEST(
+           COALESCE(
+             EXTRACT(
+               EPOCH FROM (
+                 $1 - (
+                   MIN(intents.created_at)
+                     FILTER (WHERE intents.completed_at IS NULL)
+                 )
                )
-             )
-         ),
-         0
-       ) AS oldest_outstanding_age_seconds
+             ),
+             0
+           ),
+           0
+         ) AS oldest_outstanding_age_seconds
   FROM shared_projection_domains AS domains
   LEFT JOIN shared_projection_intents AS intents
     ON intents.projection_domain = domains.domain
@@ -209,14 +215,17 @@ SELECT COUNT(*) AS total_count,
        COUNT(*) FILTER (WHERE status = 'succeeded') AS succeeded_count,
        COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter_count,
        COUNT(*) FILTER (WHERE status = 'failed') AS failed_count,
-       COALESCE(
-         EXTRACT(
-           EPOCH FROM (
-             $1 - (
-               MIN(created_at)
-                 FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying'))
+       GREATEST(
+         COALESCE(
+           EXTRACT(
+             EPOCH FROM (
+               $1 - (
+                 MIN(created_at)
+                   FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying'))
+               )
              )
-           )
+           ),
+           0
          ),
          0
        ) AS oldest_outstanding_age_seconds,

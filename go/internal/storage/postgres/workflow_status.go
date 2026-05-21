@@ -52,15 +52,18 @@ SELECT
      FROM workflow_claims
      WHERE status = 'active'
        AND lease_expires_at < $1) AS overdue_claim_count,
-    COALESCE(
-      EXTRACT(
-        EPOCH FROM (
-          $1 - (
-            SELECT MIN(COALESCE(visible_at, created_at))
-            FROM workflow_work_items
-            WHERE status = 'pending'
+    GREATEST(
+      COALESCE(
+        EXTRACT(
+          EPOCH FROM (
+            $1 - (
+              SELECT MIN(COALESCE(visible_at, created_at))
+              FROM workflow_work_items
+              WHERE status = 'pending'
+            )
           )
-        )
+        ),
+        0
       ),
       0
     ) AS oldest_pending_age_seconds
@@ -166,5 +169,5 @@ func readWorkflowCoordinatorClaimSnapshot(
 	if err := rows.Err(); err != nil {
 		return 0, 0, 0, fmt.Errorf("read workflow coordinator claim snapshot: %w", err)
 	}
-	return activeClaims, overdueClaims, time.Duration(oldestPendingAgeSeconds * float64(time.Second)), nil
+	return activeClaims, overdueClaims, durationFromSeconds(oldestPendingAgeSeconds), nil
 }

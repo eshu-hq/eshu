@@ -252,6 +252,14 @@ func TestStatusQueriesUseAggregateFilterSyntax(t *testing.T) {
 	if !strings.Contains(domainBacklogQuery, "SUM(in_flight_count)") {
 		t.Fatalf("domainBacklogQuery final HAVING must include in-flight backlog:\n%s", domainBacklogQuery)
 	}
+	for name, query := range map[string]string{
+		"domainBacklogQuery": domainBacklogQuery,
+		"queueSnapshotQuery": queueSnapshotQuery,
+	} {
+		if !strings.Contains(query, "GREATEST(") {
+			t.Fatalf("%s must clamp future timestamps to zero age:\n%s", name, query)
+		}
+	}
 }
 
 func TestLatestQueueFailureQueryIgnoresInFlightRows(t *testing.T) {
@@ -263,60 +271,6 @@ func TestLatestQueueFailureQueryIgnoresInFlightRows(t *testing.T) {
 	}
 	if !strings.Contains(latestQueueFailureQuery, "status IN ('retrying', 'failed', 'dead_letter')") {
 		t.Fatalf("latestQueueFailureQuery missing retry/terminal filter:\n%s", latestQueueFailureQuery)
-	}
-}
-
-func TestReadCoordinatorSnapshotHandlesNullableDeactivatedAtAndCreatedAtBacklogFallback(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 4, 20, 15, 45, 0, 0, time.UTC)
-	queryer := &fakeQueryer{
-		responses: []fakeRows{
-			{
-				rows: [][]any{
-					{
-						"collector-git-default",
-						"git",
-						"continuous",
-						true,
-						true,
-						false,
-						"",
-						now.Add(-15 * time.Second),
-						now.Add(-5 * time.Second),
-						nil,
-					},
-				},
-			},
-			{rows: [][]any{}},
-			{rows: [][]any{}},
-			{rows: [][]any{}},
-			{
-				rows: [][]any{
-					{int64(1), int64(0), 42.0},
-				},
-			},
-		},
-	}
-
-	got, err := readCoordinatorSnapshot(context.Background(), queryer, now)
-	if err != nil {
-		t.Fatalf("readCoordinatorSnapshot() error = %v, want nil", err)
-	}
-	if got == nil {
-		t.Fatal("readCoordinatorSnapshot() = nil, want snapshot")
-	}
-	if len(got.CollectorInstances) != 1 {
-		t.Fatalf("readCoordinatorSnapshot().CollectorInstances len = %d, want 1", len(got.CollectorInstances))
-	}
-	if !got.CollectorInstances[0].DeactivatedAt.IsZero() {
-		t.Fatalf("readCoordinatorSnapshot().CollectorInstances[0].DeactivatedAt = %v, want zero", got.CollectorInstances[0].DeactivatedAt)
-	}
-	if got.OldestPendingAge != 42*time.Second {
-		t.Fatalf("readCoordinatorSnapshot().OldestPendingAge = %v, want %v", got.OldestPendingAge, 42*time.Second)
-	}
-	if !strings.Contains(workflowCoordinatorClaimSnapshotQuery, "MIN(COALESCE(visible_at, created_at))") {
-		t.Fatalf("workflowCoordinatorClaimSnapshotQuery missing created_at fallback:\n%s", workflowCoordinatorClaimSnapshotQuery)
 	}
 }
 

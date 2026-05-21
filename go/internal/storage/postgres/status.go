@@ -416,5 +416,8 @@ func readQueueSnapshot(
 }
 
 func durationFromSeconds(value float64) time.Duration {
+	if value <= 0 {
+		return 0
+	}
 	return time.Duration(value * float64(time.Second))
 }

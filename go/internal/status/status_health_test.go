@@ -259,6 +259,82 @@ func TestBuildReportTreatsInFlightOnlySharedProjectionAsHealthy(t *testing.T) {
 	}
 }
 
+func TestBuildReportTreatsCoordinatorReducerConvergenceAsProgressing(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: time.Date(2026, 5, 21, 14, 15, 0, 0, time.UTC),
+			Queue: status.QueueSnapshot{
+				Outstanding: 0,
+				InFlight:    0,
+				Pending:     0,
+				Retrying:    0,
+				Failed:      0,
+				DeadLetter:  0,
+			},
+			Coordinator: &status.CoordinatorSnapshot{
+				RunStatusCounts: []status.NamedCount{
+					{Name: "complete", Count: 3},
+					{Name: "reducer_converging", Count: 1},
+				},
+				CompletenessCounts: []status.NamedCount{
+					{Name: "pending", Count: 2},
+					{Name: "ready", Count: 4},
+				},
+			},
+		},
+		status.DefaultOptions(),
+	)
+
+	if got, want := report.Health.State, "progressing"; got != want {
+		t.Fatalf("BuildReport().Health.State = %q, want %q", got, want)
+	}
+	reasons := strings.Join(report.Health.Reasons, " ")
+	if !strings.Contains(reasons, "workflow coordinator") ||
+		!strings.Contains(reasons, "reducer_converging=1") ||
+		!strings.Contains(reasons, "pending completeness=2") {
+		t.Fatalf("BuildReport().Health.Reasons = %v, want workflow convergence detail", report.Health.Reasons)
+	}
+}
+
+func TestBuildReportTreatsCoordinatorFailureAsDegraded(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: time.Date(2026, 5, 21, 14, 15, 0, 0, time.UTC),
+			Queue: status.QueueSnapshot{
+				Outstanding: 0,
+				InFlight:    0,
+				Pending:     0,
+				Retrying:    0,
+				Failed:      0,
+				DeadLetter:  0,
+			},
+			Coordinator: &status.CoordinatorSnapshot{
+				RunStatusCounts: []status.NamedCount{
+					{Name: "failed", Count: 1},
+				},
+				CompletenessCounts: []status.NamedCount{
+					{Name: "blocked", Count: 3},
+				},
+			},
+		},
+		status.DefaultOptions(),
+	)
+
+	if got, want := report.Health.State, "degraded"; got != want {
+		t.Fatalf("BuildReport().Health.State = %q, want %q", got, want)
+	}
+	reasons := strings.Join(report.Health.Reasons, " ")
+	if !strings.Contains(reasons, "workflow coordinator") ||
+		!strings.Contains(reasons, "failed runs=1") ||
+		!strings.Contains(reasons, "blocked completeness=3") {
+		t.Fatalf("BuildReport().Health.Reasons = %v, want workflow failure detail", report.Health.Reasons)
+	}
+}
+
 func TestBuildReportClassifiesStalledBacklog(t *testing.T) {
 	t.Parallel()
 
