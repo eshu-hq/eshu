@@ -1,0 +1,23 @@
+go/internal/collector/confluence/config_test.go
+  s_072c5984f68e14::t_338f2ca92b8d10 104-114
+go/internal/collector/confluence/source_test.go
+  s_072c5984f68e14::t_e5475c9d85c278 140
+go/internal/collector/confluence/config.go
+  s_072c5984f68e14::t_84f88714c95c04 15,118-120,130-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "fd698c3bb598596e4ce24b97ecaa03412e8da698",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
