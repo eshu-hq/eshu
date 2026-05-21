@@ -62,13 +62,35 @@ case "${subcommand}" in
     cat "${state_dir}/services"
     ;;
   ps)
-    if [[ "${1:-}" != "-q" ]]; then
-      echo "unexpected compose ps args: $*" >&2
+    include_all=false
+    quiet=false
+    service=""
+    while (($# > 0)); do
+      case "${1}" in
+        -a|--all)
+          include_all=true
+          shift
+          ;;
+        -q|--quiet)
+          quiet=true
+          shift
+          ;;
+        *)
+          service="${1}"
+          shift
+          ;;
+      esac
+    done
+    if [[ "${quiet}" != "true" || -z "${service}" ]]; then
+      echo "unexpected compose ps args" >&2
       exit 2
     fi
-    service="${2:?service required}"
     if [[ -f "${state_dir}/service_ids/${service}" ]]; then
-      cat "${state_dir}/service_ids/${service}"
+      container_id="$(cat "${state_dir}/service_ids/${service}")"
+      runtime_state="$(cut -d " " -f 1 "${state_dir}/containers/${container_id}")"
+      if [[ "${include_all}" == "true" || "${runtime_state}" == "running" ]]; then
+        printf '%s\n' "${container_id}"
+      fi
     fi
     ;;
   port)
@@ -101,12 +123,16 @@ if [[ "$*" != *"/api/v0/index-status"* ]]; then
   echo "unexpected curl target: $*" >&2
   exit 2
 fi
+if [[ -f "${state_dir}/curl-fails" ]]; then
+  exit 7
+fi
 cat "${state_dir}/index-status.json"
 SH
 chmod +x "${fake_bin}/curl"
 
 reset_state() {
   rm -rf "${state_dir}/containers" "${state_dir}/service_ids"
+  rm -f "${state_dir}/curl-fails"
   mkdir -p "${state_dir}/containers" "${state_dir}/service_ids"
   cat >"${state_dir}/services" <<'SERVICES'
 eshu
@@ -206,6 +232,11 @@ cat >"${state_dir}/index-status.json" <<'JSON'
 }
 JSON
 expect_fail_with 'queue completion'
+
+reset_state
+set_all_services_healthy
+touch "${state_dir}/curl-fails"
+expect_fail_with '/api/v0/index-status'
 
 reset_state
 set_all_services_healthy

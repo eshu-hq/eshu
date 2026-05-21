@@ -42,7 +42,7 @@ inspect_service_state() {
 	local service="$1"
 	local container_id snapshot runtime_state health_state
 
-	container_id="$("${COMPOSE_CMD[@]}" ps -q "${service}")"
+	container_id="$("${COMPOSE_CMD[@]}" ps -a -q "${service}" 2>/dev/null || true)"
 	if [[ -z "${container_id}" ]]; then
 		echo "remote E2E service ${service} has no container; start it before accepting the run" >&2
 		return 1
@@ -114,7 +114,11 @@ api_get() {
 
 verify_queue_completion() {
 	echo "Checking checkpointed index completion..."
-	api_get "/index-status" "${INDEX_STATUS_FILE}"
+	if ! api_get "/index-status" "${INDEX_STATUS_FILE}"; then
+		echo "remote E2E queue completion check could not read ${API_BASE_URL}/index-status" >&2
+		echo "verify the API is reachable and ESHU_REMOTE_E2E_API_KEY is valid when set" >&2
+		return 1
+	fi
 	if jq -e '
 		(.status // "") == "healthy" and
 		((.queue.outstanding // 0) == 0) and
