@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 555
 - Current branch doc status from
   `git diff --cached --name-status origin/main -- '*.md'` after the current
-  pass: 188 created, 272 modified, 117 deleted
+  pass: 188 created, 271 modified, 118 deleted
 - Stable public docs surface: `docs/public/`
 - Maintainer-only docs surface: `docs/internal/`
 - Deleted stable-doc history surfaces: `docs/plans/`, `docs/superpowers/`,
@@ -78,9 +78,32 @@ cleanup pass.
 | AWS Cloud Collector Service Split | Reduced the AWS cloud collector public service doc into an overview/runbook plus focused security/config and scanner coverage pages grounded in command/runtime code. |
 | Terraform-State Collector Service Split | Reduced the Terraform-state collector public service doc into an overview plus focused config/discovery and operations/troubleshooting pages grounded in command, parser, runtime, status, and telemetry code. |
 | Telemetry Package README Rewrite | Reduced the telemetry package README from a duplicated metric/span/log catalog into the maintainer contract for package ownership, startup wiring, frozen registries, and change rules; updated scoped agent guidance to point at current public telemetry docs. |
+| Capability Conformance Spec Rewrite | Reduced the capability conformance page from a stale copied capability list into the current contract guide for YAML source of truth, runtime profiles, truth ceilings, backend conformance, validators, and change policy. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 569 documents, 1,753 claims, 0 contradicted, and 0 missing
+  evidence claims after the capability conformance spec rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 181 documents, 1,304 claims, 0 contradicted, and 0 missing
+  evidence claims after the capability conformance spec rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public/reference/capability-conformance-spec.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 2 claims, 0 contradicted, and 0 missing evidence
+  claims after the capability conformance spec rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public/reference/backend-conformance.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 8 claims, 0 contradicted, and 0 missing evidence
+  claims after the capability conformance spec rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public/reference/truth-label-protocol.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 0 claims, 0 contradicted, and 0 missing evidence
+  claims after the capability conformance spec rewrite.
+- `go test ./internal/query -run TestCapabilityMatrixMatchesYAMLContract -count=1`,
+  `go test ./internal/backendconformance -count=1`,
+  `go test ./cmd/eshu -count=1`, `scripts/verify-package-docs.sh`,
+  `git diff --check`, and `cmp -s AGENTS.md CLAUDE.md` passed after the
+  capability conformance spec rewrite.
+- `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  passed after the capability conformance spec rewrite.
 - `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
   passed with 569 documents, 1,751 claims, 0 contradicted, and 0 missing
   evidence claims after the telemetry package README rewrite.
@@ -189,9 +212,11 @@ cleanup pass.
 
 - Continue reviewing oversized public and package docs. The current largest
   real documentation files are
-  `docs/public/reference/capability-conformance-spec.md`,
-  `docs/public/reference/telemetry/logs.md`, and
-  `docs/public/reference/mcp-cookbook.md`. The larger
+  `docs/public/reference/telemetry/logs.md`,
+  `docs/public/reference/mcp-cookbook.md`, and
+  `docs/public/reference/documentation-updater-actuator-contract.md`. The
+  scoped `go/internal/storage/postgres/AGENTS.md` is also large, but any
+  reduction there must preserve mandatory agent guidance. The larger
   `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture
   remains test data, not a public documentation target.
 - Keep deleting historical planning notes when current public or package-local

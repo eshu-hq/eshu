@@ -56,6 +56,7 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/guides/mcp-guide.md`
 - `docs/docs/guides/starter-prompts.md`
 - `docs/docs/index.md`
+- `docs/docs/reference/capability-conformance-spec.md`
 - `docs/docs/reference/cli-reference.md`
 - `docs/docs/reference/cli-system.md`
 - `docs/docs/reference/dead-code-reachability-spec.md`

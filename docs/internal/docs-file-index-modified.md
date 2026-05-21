@@ -82,7 +82,6 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/operate/telemetry.md -> docs/public/operate/telemetry.md`
 - `docs/docs/operate/troubleshooting.md -> docs/public/operate/troubleshooting.md`
 - `docs/docs/reference/backend-conformance.md -> docs/public/reference/backend-conformance.md`
-- `docs/docs/reference/capability-conformance-spec.md -> docs/public/reference/capability-conformance-spec.md`
 - `docs/docs/reference/cli-analysis.md -> docs/public/reference/cli-analysis.md`
 - `docs/docs/reference/cli-indexing.md -> docs/public/reference/cli-indexing.md`
 - `docs/docs/reference/cli-kiss.md -> docs/public/reference/cli-kiss.md`

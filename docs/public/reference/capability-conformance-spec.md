@@ -1,131 +1,54 @@
 # Capability Conformance Spec
 
-This document defines the capability matrix that governs lightweight local,
-full local stack, and production query behavior.
+Capability conformance is the product contract for what Eshu may claim in each
+runtime profile. It keeps local, full-stack, and production query behavior from
+drifting into undocumented differences.
 
-It exists for two reasons:
-
-- to keep the product contract explicit
-- to give Chunks 2 and 5 a machine-readable source for tests and backend
-  conformance runs
-- to keep truth labels aligned with the wire contract defined in
-  `truth-label-protocol.md`
-
-The canonical machine-readable source for this matrix lives at:
+The canonical machine-readable contract is:
 
 - `specs/capability-matrix.v1.yaml`
 
-## Why This Exists
+The Go runtime mirrors that contract in `go/internal/query/contract.go`.
+`go/internal/query/contract_matrix_test.go` proves the Go truth ceilings stay
+aligned with the YAML.
 
-Eshu cannot rely on prose like "local mode should be good at search" or
-"production is authoritative."
+## What The Matrix Controls
 
-The runtime needs one explicit matrix that says:
+Each matrix row answers these questions:
 
-- which capability is being discussed
-- which profile is being evaluated
-- whether the capability is supported
-- what truth level is allowed
-- what latency envelope is expected
-- what scope size the claim applies to
-- which verification gate proves it
-
-Without that matrix, backend experiments and local-mode work will drift into
-undocumented differences.
-
-## Capability IDs
-
-Capability families are grouped by user intent, not storage backend. That keeps
-the contract stable even if backend implementations change.
-
-The initial capability families are:
-
-- `code_search.exact_symbol`
-- `code_search.fuzzy_symbol`
-- `code_search.variable_lookup`
-- `code_search.content_search`
-- `symbol_graph.decorators`
-- `symbol_graph.argument_names`
-- `symbol_graph.class_methods`
-- `symbol_graph.imports`
-- `symbol_graph.import_dependencies`
-- `symbol_graph.inheritance`
-- `code_quality.complexity`
-- `call_graph.direct_callers`
-- `call_graph.direct_callees`
-- `call_graph.metrics`
-- `call_graph.transitive_callers`
-- `call_graph.transitive_callees`
-- `call_graph.call_chain_path`
-- `code_quality.dead_code`
-- `platform_impact.deployment_chain`
-- `platform_impact.context_overview`
-- `relationship_evidence.drilldown`
-- `platform_impact.resource_to_code`
-- `platform_impact.resource_investigation`
-- `platform_impact.dependency_path`
-- `platform_impact.environment_compare`
-- `platform_impact.change_surface`
-- `platform_impact.blast_radius`
-
-## MCP Tool To Capability Mapping
-
-The same capability ID may back more than one surface or tool. Initial mapping:
-
-| MCP tool | Primary capability IDs |
+| Question | Matrix field |
 | --- | --- |
-| `find_code` | `code_search.exact_symbol`, `code_search.fuzzy_symbol` |
-| `search_file_content` | `code_search.content_search` |
-| `analyze_code_relationships` | `call_graph.direct_callers`, `call_graph.direct_callees`, `call_graph.transitive_callers`, `call_graph.transitive_callees`, `symbol_graph.class_methods`, `symbol_graph.inheritance` |
-| `inspect_call_graph_metrics` | `call_graph.metrics` |
-| `find_function_call_chain` | `call_graph.call_chain_path` |
-| `find_dead_code` | `code_quality.dead_code` |
-| `calculate_cyclomatic_complexity` | `code_quality.complexity` |
-| `find_most_complex_functions` | `code_quality.complexity` |
-| `find_blast_radius` | `platform_impact.blast_radius` |
-| `find_change_surface` | `platform_impact.change_surface` |
-| `investigate_change_surface` | `platform_impact.change_surface` |
-| `trace_deployment_chain` | `platform_impact.deployment_chain` |
-| `investigate_deployment_config` | `platform_impact.deployment_config_influence` |
-| `find_infra_resources` | `platform_impact.deployment_chain` |
-| `analyze_infra_relationships` | `platform_impact.deployment_chain` |
-| `get_repo_context` | `platform_impact.context_overview`, `relationship_evidence.drilldown` |
-| `get_relationship_evidence` | `relationship_evidence.drilldown` |
-| `build_evidence_citation_packet` | `evidence_citation.packet` |
-| `get_service_context` | `platform_impact.context_overview` |
-| `get_ecosystem_overview` | `platform_impact.context_overview` |
-| `execute_language_query` | `symbol_graph.decorators`, `symbol_graph.argument_names`, `symbol_graph.class_methods`, `symbol_graph.imports`, `symbol_graph.inheritance` |
-| `investigate_import_dependencies` | `symbol_graph.import_dependencies` |
-| `trace_resource_to_code` | `platform_impact.resource_to_code` |
-| `investigate_resource` | `platform_impact.resource_investigation` |
-| `explain_dependency_path` | `platform_impact.dependency_path` |
-| `compare_environments` | `platform_impact.environment_compare` |
+| What user-facing capability is this? | `capability` |
+| Which MCP or API tool exposes it? | `tools` |
+| Which runtime profile is being evaluated? | `profiles.<profile_id>` |
+| Is it supported in that profile? | `status` |
+| What is the strongest allowed truth label? | `max_truth_level` |
+| What runtime shape is required? | `required_runtime` |
+| What latency budget applies? | `p95_latency_ms` |
+| What scope size is allowed? | `max_scope_size` |
+| What proves the row? | `verification` |
+| What caveat should reviewers know? | `notes` |
 
-If a tool maps to multiple capability IDs, the response should identify the
-capability actually exercised.
+Do not copy the full capability list into prose. Read
+`specs/capability-matrix.v1.yaml` for the current set.
 
-Some existing content, context, and runtime/admin tools remain outside the
-initial local-codeintelligence capability matrix. They continue to be governed
-by their existing runtime and API contracts until they are promoted into this
-matrix explicitly.
+## Runtime Profiles
 
-## Profiles
+The current profile IDs are:
 
-Supported profile IDs:
+| Profile | Meaning |
+| --- | --- |
+| `local_lightweight` | Local host mode without authoritative graph-backed capabilities. |
+| `local_authoritative` | Local host plus managed graph backend, normally embedded NornicDB. |
+| `local_full_stack` | Docker Compose or equivalent full local service stack. |
+| `production` | Deployed services. |
 
-- `local_lightweight`
-- `local_authoritative`
-- `local_full_stack`
-- `production`
-
-`local_authoritative` runs the local Eshu service plus embedded NornicDB
-by default (see `graph-backend-installation.md`). It unlocks the
-high-authority capabilities that `local_lightweight` refuses, without
-requiring Docker Compose.
+The profile is separate from the graph backend. A profile says how the runtime
+is operated; the backend says which graph adapter served a graph-backed answer.
 
 ## Runtime Execution Modes
 
-`required_runtime` is a separate axis from `profile`.
+`required_runtime` is the runtime-shape requirement for one profile row.
 
 Allowed values:
 
@@ -134,93 +57,87 @@ Allowed values:
 - `full_stack`
 - `deployed_services`
 
-## Graph Backends
+If a capability requires `local_host_plus_graph`, `local_lightweight` must not
+fake it with fallback prose. It must return the structured unsupported
+capability error when the matrix marks the row unsupported.
 
-`graph_backend` is a separate axis from both `profile` and `required_runtime`.
-It records which graph-adapter implementation served a response. This axis is
-surfaced in telemetry and, optionally, in `truth.backend` on responses.
+## Truth Levels
 
-Allowed values:
+Successful responses use the truth labels from
+[Truth Label Protocol](truth-label-protocol.md):
 
-- `neo4j`
-- `nornicdb`
+| Matrix value | Runtime behavior |
+| --- | --- |
+| `exact` | Response may claim authoritative graph truth or durable semantic truth. |
+| `derived` | Response may claim deterministic derived truth from indexed content or structured relational state. |
+| `fallback` | Response may claim exploratory fallback truth only when the matrix allows it. |
+| `unsupported` | Runtime returns a structured error instead of a success truth label. |
 
-Default today is `nornicdb`. Neo4j remains the explicit official alternative.
-Current backend operation, tuning, and release-backed evidence live in
-`docs/public/reference/graph-backend-operations.md`,
-`docs/public/reference/nornicdb-tuning.md`, and
-`docs/public/reference/backend-conformance.md`.
-`local_lightweight` does not bind a graph backend because it refuses
-graph-backed capabilities.
+Rules:
 
-## Allowed Status Values
+- A successful response must not exceed `max_truth_level`.
+- Unsupported rows map to `error.code=unsupported_capability`.
+- Graph-backed high-authority questions must not silently downgrade to
+  fallback in a profile that cannot answer them correctly.
+- `BuildTruthEnvelope` panics on unknown capability IDs, so new runtime
+  capability strings must be registered in `capabilityMatrix`.
+
+## Status Values
+
+Allowed `status` values:
 
 - `supported`
 - `unsupported`
 - `experimental`
 
-## Allowed Verification Types
+`experimental` rows must not be described as production-ready in docs or user
+interfaces.
+
+## Scope Sizes
+
+The matrix uses scope-size labels to keep broad tools bounded.
+
+Common values include:
+
+- `active_repo`
+- `active_monofolder`
+- `indexed_workspace`
+- `multi_repo_platform`
+- capability-specific bounded scopes such as `bounded_query_window`,
+  `bounded_repo_scope`, or `aws_account_or_scope`
+
+When adding a new scope label, update the YAML, the relevant runtime tests, and
+the user-facing tool documentation that explains the bound.
+
+## Verification Types
+
+Allowed verification keys:
 
 - `go_test`
 - `integration_test`
 - `compose_e2e`
 - `remote_validation`
 
-## Allowed Truth Levels
+The value must identify an actionable test, proof name, or validation target.
+Do not leave a supported or experimental row without verification.
 
-- `exact`
-- `derived`
-- `fallback`
-- `unsupported`
+## Graph Backends
 
-`unsupported` is used in the matrix even though runtime responses use a
-structured error instead of a truth label. This allows the same machine-readable
-matrix to drive both capability gating and test expectations.
+The capability matrix lists official graph backend IDs under `graph_backends`.
+Current values are:
 
-## Allowed Scope Sizes
+- `nornicdb`
+- `neo4j`
 
-- `active_repo`
-- `active_monofolder`
-- `indexed_workspace`
-- `multi_repo_platform`
+Backend conformance is a related but separate contract:
 
-## Matrix Contract
+- `specs/backend-conformance.v1.yaml`
+- [Backend Conformance](backend-conformance.md)
+- `go/internal/backendconformance/`
 
-The canonical YAML uses one entry per capability, with per-profile behavior
-nested under `profiles`.
-
-Each capability entry must provide:
-
-- `capability`
-- `tools`
-- `profiles`
-
-`tools` are declared per capability, not per profile. That means one MCP tool
-may expose the same capability across multiple profiles while still returning a
-different truth level, latency envelope, or support status in each profile.
-
-Each `profiles.<profile_id>` object must provide:
-
-- `status`
-- `max_truth_level`
-- `required_runtime`
-- `p95_latency_ms`
-- `max_scope_size`
-- `verification`
-- `notes`
-
-`p95_latency_ms: null` means "not applicable because the capability is
-unsupported for that profile."
-
-## Backend Conformance Matrix
-
-Profile capabilities and backend capabilities are related, but they answer
-different questions.
-
-- `specs/capability-matrix.v1.yaml` says what a user-facing capability may
-  claim in each runtime profile.
-- `specs/backend-conformance.v1.yaml` says which graph-backend behavior classes
-  each official adapter currently supports.
+The capability matrix says what user-facing behavior may be claimed in each
+runtime profile. The backend matrix says which graph-adapter behavior classes
+each official backend currently supports.
 
 The backend matrix tracks:
 
@@ -231,145 +148,69 @@ The backend matrix tracks:
 - dead-code readiness
 - performance envelope evidence
 
-NornicDB is the default backend, and Neo4j is the official alternative. Both
-must stay listed in the backend matrix for as long as they are official Eshu
-graph backends. The default test harness lives in
-`go/internal/backendconformance`; it validates the backend matrix and runs
-DB-free read/write corpora that live integration tests can reuse against
-actual Neo4j or NornicDB instances.
+Both official backends must stay listed in both matrices while they remain
+official Eshu graph backends. `ParseCapabilityMatrixBackendIDs` and the backend
+conformance tests prevent the backend list from drifting.
 
-## Rules
+## Runtime Enforcement
 
-1. If a row is `supported`, the runtime must not exceed `max_truth_level`.
-2. If a row is `unsupported`, the runtime must return a structured
-   unsupported-capability error rather than silently degrading.
-3. `experimental` rows must never be described as production-ready in docs.
-4. Backend conformance can only elevate a graph adapter after the matrix passes
-   for the intended profile.
-5. Matrix rows must stay aligned with the envelope semantics in
-   `truth-label-protocol.md`.
-6. `status: unsupported` maps to `error.code=unsupported_capability` in the
-   wire contract.
+Runtime query code enforces the matrix through:
 
-## Example Matrix Slice
+- `QueryProfile` in `go/internal/query/contract.go`
+- `GraphBackend` in `go/internal/query/contract.go`
+- `capabilityMatrix` in `go/internal/query/contract.go` and companion
+  `contract_*.go` files
+- `BuildTruthEnvelope`
+- `capabilityUnsupported`
+- `requiredProfile`
+- structured `unsupported_capability` errors
 
-```yaml
-- capability: code_search.exact_symbol
-  tools:
-    - find_code
-  profiles:
-    local_lightweight:
-      status: supported
-      max_truth_level: exact
-      required_runtime: local_host
-      p95_latency_ms: 500
-      max_scope_size: active_repo
-      verification:
-        - go_test: ./internal/query
-      notes: Indexed entities and relational lookup tables are sufficient.
-    local_full_stack:
-      status: supported
-      max_truth_level: exact
-      required_runtime: full_stack
-      p95_latency_ms: 500
-      max_scope_size: indexed_workspace
-      verification:
-        - go_test: ./internal/query
-      notes: Indexed entities and relational lookup tables are sufficient.
-
-- capability: call_graph.transitive_callers
-  tools:
-    - analyze_code_relationships
-  profiles:
-    local_lightweight:
-      status: unsupported
-      max_truth_level: unsupported
-      required_runtime: local_host
-      p95_latency_ms: null
-      max_scope_size: active_repo
-      verification:
-        - integration_test: lightweight-local-unsupported-transitive-callers
-      notes: Lightweight local mode must not fake authoritative transitive truth.
-    local_authoritative:
-      status: supported
-      max_truth_level: exact
-      required_runtime: local_host_plus_graph
-      p95_latency_ms: 2000
-      max_scope_size: active_repo
-      verification:
-        - integration_test: local-authoritative-transitive-callers
-      notes: Authoritative local graph mode.
-    local_full_stack:
-      status: supported
-      max_truth_level: exact
-      required_runtime: full_stack
-      p95_latency_ms: 3000
-      max_scope_size: indexed_workspace
-      verification:
-        - compose_e2e: transitive-callers
-      notes: Authoritative graph mode.
-
-- capability: platform_impact.context_overview
-  tools:
-    - get_repo_context
-    - get_service_context
-    - get_ecosystem_overview
-  profiles:
-    local_lightweight:
-      status: unsupported
-      max_truth_level: unsupported
-      required_runtime: local_host
-      p95_latency_ms: null
-      max_scope_size: active_monofolder
-      verification:
-        - integration_test: local-lightweight-unsupported-context-overview
-      notes: Requires full platform topology and deployed context truth.
-    local_authoritative:
-      status: supported
-      max_truth_level: exact
-      required_runtime: local_host_plus_graph
-      p95_latency_ms: 4000
-      max_scope_size: indexed_workspace
-      verification:
-        - go_test: ./internal/query
-      notes: Authoritative local graph context for the indexed workspace.
-    local_full_stack:
-      status: supported
-      max_truth_level: exact
-      required_runtime: full_stack
-      p95_latency_ms: 4000
-      max_scope_size: indexed_workspace
-      verification:
-        - compose_e2e: context-overview
-      notes: Exact only when repository, service, and ecosystem context agree.
-```
-
-## Test Responsibilities
-
-### Chunk 2
-
-Use the matrix to verify that extracted capability ports preserve the currently
-allowed response behavior for each profile.
-
-### Chunk 5
-
-Use the capability matrix and backend matrix as baseline conformance harness
-inputs for any backend under evaluation.
+The test `TestCapabilityMatrixMatchesYAMLContract` compares
+`specs/capability-matrix.v1.yaml` with the Go `capabilityMatrix` truth ceilings.
 
 ## Change Policy
 
-Changing the matrix is a product contract change. Every matrix edit must
-include:
+Changing the capability matrix is a product contract change. Every matrix edit
+must include:
 
 - the updated machine-readable YAML
-- matching docs if user-visible behavior changed
-- a verification update for the affected profile/capability pair
+- matching Go `capabilityMatrix` updates when runtime truth ceilings changed
+- user-facing docs when behavior, profile requirements, or tool support changed
+- verification updates for affected profile/capability rows
+- focused tests for new or changed unsupported-capability behavior
 
-Capability lifecycle rules:
+Lifecycle rules:
 
-- add
-  - introduce a new ID and add matrix rows for every supported profile
-- deprecate
-  - keep the ID in the matrix with a deprecation note for at least one release
-- remove
-  - only after the deprecation window and client-facing docs have been updated
+| Change | Requirement |
+| --- | --- |
+| Add | Introduce the capability ID, map its tools, define every profile row, update Go truth ceilings, and add verification. |
+| Deprecate | Keep the ID in the matrix with a deprecation note for at least one release. |
+| Remove | Remove only after the deprecation window and after client-facing docs have been updated. |
+
+## Validation
+
+Run these focused checks after changing capability or backend conformance:
+
+```bash
+cd go
+go test ./internal/query -run TestCapabilityMatrixMatchesYAMLContract -count=1
+go test ./internal/backendconformance -count=1
+go run ./cmd/eshu docs verify ../docs/public/reference/capability-conformance-spec.md --limit 1200 --fail-on contradicted,missing_evidence
+```
+
+Use the live backend conformance script only when changing backend behavior or
+backend matrix evidence:
+
+```bash
+ESHU_GRAPH_BACKEND=nornicdb ./scripts/verify_backend_conformance_live.sh
+ESHU_GRAPH_BACKEND=neo4j ./scripts/verify_backend_conformance_live.sh
+```
+
+## Related Docs
+
+- [Truth Label Protocol](truth-label-protocol.md)
+- [Backend Conformance](backend-conformance.md)
+- [Graph Backend Operations](graph-backend-operations.md)
+- [NornicDB Tuning](nornicdb-tuning.md)
+- [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md)
+- `specs/README.md`
