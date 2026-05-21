@@ -76,22 +76,12 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 		},
 	},
 	scope.CollectorAWS: {
-		CollectorKind: scope.CollectorAWS,
-		CanonicalKeyspaces: []reducer.GraphProjectionKeyspace{
-			reducer.GraphProjectionKeyspaceCloudResourceUID,
-		},
-		RequiredPhases: []PhaseRequirement{
-			{
-				Keyspace:  reducer.GraphProjectionKeyspaceCloudResourceUID,
-				PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
-				Required:  true,
-			},
-			{
-				Keyspace:  reducer.GraphProjectionKeyspaceCloudResourceUID,
-				PhaseName: reducer.GraphProjectionPhaseCrossSourceAnchorReady,
-				Required:  true,
-			},
-		},
+		// AWS currently publishes fact-backed scan and drift read models. The
+		// cloud-resource graph projection contract is scaffolded in
+		// internal/reducer/aws, but no live runtime publishes its phase rows yet.
+		CollectorKind:      scope.CollectorAWS,
+		CanonicalKeyspaces: nil,
+		RequiredPhases:     nil,
 	},
 	scope.CollectorWebhook: {
 		CollectorKind: scope.CollectorWebhook,

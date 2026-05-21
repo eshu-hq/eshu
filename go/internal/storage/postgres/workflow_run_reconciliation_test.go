@@ -123,6 +123,59 @@ func TestWorkflowControlStoreReconcileWorkflowRunsJoinsExactPhaseStateTuple(t *t
 	}
 }
 
+func TestWorkflowControlStoreReconcileWorkflowRunsCompletesAWSWithoutPhaseRows(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 21, 13, 35, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{
+				rows: [][]any{{
+					"aws-run",
+					string(workflow.TriggerKindSchedule),
+					string(workflow.RunStatusReducerConverging),
+					"[]",
+					sql.NullString{String: string(scope.CollectorAWS), Valid: true},
+					now.Add(-time.Minute),
+					now.Add(-time.Minute),
+					sql.NullTime{},
+				}},
+			},
+			{
+				rows: [][]any{{
+					string(scope.CollectorAWS),
+					19,
+					0,
+					0,
+					19,
+					0,
+				}},
+			},
+			{
+				rows: nil,
+			},
+		},
+	}
+	store := NewWorkflowControlStore(db)
+
+	reconciled, err := store.ReconcileWorkflowRuns(context.Background(), now)
+	if err != nil {
+		t.Fatalf("ReconcileWorkflowRuns() error = %v, want nil", err)
+	}
+	if got, want := reconciled, 1; got != want {
+		t.Fatalf("reconciled = %d, want %d", got, want)
+	}
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("exec count = %d, want only workflow_runs update", got)
+	}
+	if got, want := db.execs[0].args[1], string(workflow.RunStatusComplete); got != want {
+		t.Fatalf("updated status arg = %v, want %q", got, want)
+	}
+	if got, want := db.execs[0].args[3], true; got != want {
+		t.Fatalf("finished flag arg = %v, want %v", got, want)
+	}
+}
+
 func TestWorkflowControlStoreReconcileWorkflowRunsReturnsZeroWhenNoRunsNeedWork(t *testing.T) {
 	t.Parallel()
 

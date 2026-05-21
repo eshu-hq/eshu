@@ -85,24 +85,18 @@ func TestRequiredPhasesForCollectorMatchesTerraformStateReducerContract(t *testi
 	}
 }
 
-func TestRequiredPhasesForCollectorIncludesAWSAnchorGate(t *testing.T) {
+func TestCollectorContractForAWSHasNoOperationalGraphReadinessUntilProjectionLands(t *testing.T) {
 	t.Parallel()
 
-	requirements := RequiredPhasesForCollector(scope.CollectorAWS)
-	want := []PhaseRequirement{
-		{
-			Keyspace:  reducer.GraphProjectionKeyspaceCloudResourceUID,
-			PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
-			Required:  true,
-		},
-		{
-			Keyspace:  reducer.GraphProjectionKeyspaceCloudResourceUID,
-			PhaseName: reducer.GraphProjectionPhaseCrossSourceAnchorReady,
-			Required:  true,
-		},
+	contract, ok := CollectorContractFor(scope.CollectorAWS)
+	if !ok {
+		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorAWS)
 	}
-	if !reflect.DeepEqual(requirements, want) {
-		t.Fatalf("RequiredPhasesForCollector(aws) = %#v, want %#v", requirements, want)
+	if got := len(contract.CanonicalKeyspaces); got != 0 {
+		t.Fatalf("AWS CanonicalKeyspaces = %#v, want empty until cloud-resource graph projection is implemented", contract.CanonicalKeyspaces)
+	}
+	if got := len(contract.RequiredPhases); got != 0 {
+		t.Fatalf("AWS RequiredPhases = %#v, want empty until cloud-resource graph projection is implemented", contract.RequiredPhases)
 	}
 }
 
@@ -199,22 +193,22 @@ func TestCollectorContractForPackageRegistryHasNoOperationalKeyspaces(t *testing
 func TestCollectorContractForReturnsClonedSlices(t *testing.T) {
 	t.Parallel()
 
-	contract, ok := CollectorContractFor(scope.CollectorAWS)
+	contract, ok := CollectorContractFor(scope.CollectorGit)
 	if !ok {
-		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorAWS)
+		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorGit)
 	}
-	contract.CanonicalKeyspaces[0] = reducer.GraphProjectionKeyspaceCodeEntitiesUID
+	contract.CanonicalKeyspaces[0] = reducer.GraphProjectionKeyspaceCloudResourceUID
 	contract.RequiredPhases[0] = PhaseRequirement{
 		Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
 		PhaseName: reducer.GraphProjectionPhaseSemanticNodesCommitted,
 		Required:  true,
 	}
 
-	fresh, ok := CollectorContractFor(scope.CollectorAWS)
+	fresh, ok := CollectorContractFor(scope.CollectorGit)
 	if !ok {
-		t.Fatalf("CollectorContractFor(%q) fresh found = false, want true", scope.CollectorAWS)
+		t.Fatalf("CollectorContractFor(%q) fresh found = false, want true", scope.CollectorGit)
 	}
-	if got, want := fresh.CanonicalKeyspaces[0], reducer.GraphProjectionKeyspaceCloudResourceUID; got != want {
+	if got, want := fresh.CanonicalKeyspaces[0], reducer.GraphProjectionKeyspaceCodeEntitiesUID; got != want {
 		t.Fatalf("fresh CanonicalKeyspaces[0] = %q, want %q", got, want)
 	}
 	if got, want := fresh.RequiredPhases[0].PhaseName, reducer.GraphProjectionPhaseCanonicalNodesCommitted; got != want {

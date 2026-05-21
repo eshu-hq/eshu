@@ -156,6 +156,17 @@ JFrog wrapper around native metadata; unknown document formats are rejected
 before planning. Package registry instances are fact-only until reducer
 correlation and graph projection contracts land.
 
+`aws` collector instances are claim-capable. The coordinator plans one bounded
+work item per authorized `(account_id, region, service_kind)` tuple, and the
+`collector-aws-cloud` runtime commits durable facts such as `aws_resource`,
+`aws_relationship`, `aws_tag_observation`, and `aws_warning` for each claim,
+and updates `aws_scan_status` rows for the scanner status/read model. AWS
+workflow completion is fact-backed in the current runtime: the cloud-resource
+graph projection and DSL anchor contracts are scaffolded, but no live runtime
+publishes `cloud_resource_uid` phase rows yet. Do not require those phases for
+AWS workflow-run completion until the cloud-resource graph writer and anchor
+publisher are implemented and wired.
+
 **Defaults**:
 - `DefaultClaimLeaseTTL()` — 60s
 - `DefaultHeartbeatInterval()` — 20s
@@ -209,6 +220,19 @@ status, workflow completeness rows, workflow work-item identity columns,
 claim-fence mutation errors, `/api/v0/index-status`, and the remote runtime
 state gate expose whether Terraform-state claims are still collecting,
 completed, blocked, or stuck in reducer convergence.
+
+No-Regression Evidence: `go test ./internal/workflow -run 'TestReconcileRunProgressCompletesAWSWithoutImplementedGraphPhases|TestCollectorContractForAWSHasNoOperationalGraphReadinessUntilProjectionLands' -count=1`
+proves completed AWS collector work reaches terminal workflow status without
+waiting on unimplemented `cloud_resource_uid` graph phase rows. The change does
+not alter claim ordering, AWS scan fan-out, fact commit shape, reducer queue
+claiming, worker counts, graph writes, or NornicDB settings.
+
+Observability Evidence: no new metrics were required. Existing
+`workflow_runs`, `workflow_work_items`, `aws_scan_status`,
+`eshu_dp_aws_resources_emitted_total`, `eshu_dp_aws_relationships_emitted_total`,
+`eshu_dp_aws_tag_observations_emitted_total`, AWS runtime-drift reducer logs,
+and `/api/v0/index-status` separate collector completion, fact emission, scan
+health, drift read-model publication, and future graph-readiness gaps.
 
 ## Extension points
 
