@@ -74,7 +74,7 @@ func TestReadCoordinatorSnapshotClampsNegativeOldestPendingAge(t *testing.T) {
 			{rows: [][]any{}},
 			{
 				rows: [][]any{
-					{"collection_active", int64(1)},
+					{"pending", int64(1)},
 				},
 			},
 			{rows: [][]any{}},
