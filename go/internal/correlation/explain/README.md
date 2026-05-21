@@ -91,4 +91,4 @@ None.
 - `go/internal/correlation/model/README.md` — evidence atom field names used
   in rendered output
 - `go/internal/correlation/README.md` — pipeline overview
-- ADR: `docs/docs/adrs/2026-04-19-deployable-unit-correlation-and-materialization-framework.md`
+- Reference: `docs/public/reference/relationship-mapping.md`

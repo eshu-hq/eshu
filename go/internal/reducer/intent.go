@@ -46,8 +46,8 @@ const (
 	// DomainConfigStateDrift correlates Terraform config (parsed HCL) against
 	// Terraform state to detect five drift kinds. Cross-source, cross-scope,
 	// non-canonical-write — counters and structured logs are the v1 surface.
-	// Design contract:
-	// docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-design.md
+	// Current proof gates are documented in docs/public/reference/local-testing.md
+	// under "Terraform Config-vs-State Drift Compose Proofs".
 	DomainConfigStateDrift Domain = "config_state_drift"
 	// DomainPackageSourceCorrelation classifies package-registry source hints
 	// against active repository remotes without promoting package ownership.

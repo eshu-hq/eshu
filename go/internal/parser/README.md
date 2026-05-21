@@ -1,456 +1,159 @@
-# Parser
+# internal/parser
 
-## Purpose
+`internal/parser` owns Eshu's parser dispatch layer: language registry lookup,
+tree-sitter runtime caching, native parser wrappers, repository pre-scan, and
+optional SCIP index parsing. Language packages own the syntax details.
 
-`internal/parser` owns the native Go parser registry, language adapters,
-import, re-export, and constructor receiver metadata, dead-code root metadata,
-and SCIP reduction support used to extract source-level entities and metadata.
-Parser changes must preserve fact truth: when a parser emits a new
-entity, relationship, or metadata field, the relevant fixtures, fact contracts
-in `internal/facts`, and downstream docs must move in lockstep. Parsers must
-be deterministic given the same source bytes so retries and repair runs
-converge.
+Parser output is fact input. When a parser adds or changes an entity,
+relationship, metadata key, or dead-code root kind, the matching fixtures,
+content shaping, fact contracts, and downstream docs must move with it.
 
-## Where this fits in the pipeline
+## Runtime Flow
 
 ```mermaid
 flowchart LR
-  A["internal/collector\nNativeRepositorySnapshotter"] --> B["internal/parser\nEngine.PreScanRepositoryPathsWithWorkers\nEngine.ParsePath"]
-  B --> C["map[string]any\nparsed file payload"]
-  C --> D["internal/content/shape\nshape.Materialize"]
-  D --> E["ContentFileMeta + ContentEntitySnapshot\n(collector fact streaming)"]
-  B2["SCIPIndexer\nexternal scip-* CLI"] --> F["SCIPIndexParser\nSCIPParseResult"]
-  F --> G["parser-supplemented facts\n(collector SCIP path)"]
+  Collector["collector snapshotter"] --> Engine["Engine"]
+  Engine --> Registry["Registry.LookupByPath"]
+  Registry --> Adapter["language package"]
+  Adapter --> Payload["map[string]any payload"]
+  Payload --> Shape["content/shape"]
+  Shape --> Facts["content facts"]
+  Collector --> SCIP["SCIPIndexer / SCIPIndexParser"]
+  SCIP --> Facts
 ```
 
-## Internal flow
+## Core Responsibilities
 
-```mermaid
-flowchart TB
-  A["Engine.ParsePath\nresolve paths"] --> B["Registry.LookupByPath\nextension / exact name / prefix name"]
-  B --> C{"language?"}
-  C -- known --> D["parseDefinition\ndispatch to language adapter"]
-  C -- unknown --> E["error: no parser registered"]
-  D --> F["language-specific parse\ne.g. parseGo, parsePython, parseKotlin"]
-  F --> F2["language semantic metadata\ndead_code_root_kinds, framework roots"]
-  F2 --> G["inferContentMetadata\nartifact_type, template_dialect, iac_relevant"]
-  G --> H["map[string]any payload"]
+- Dispatch files to parser definitions by extension, exact name, or prefix
+  name.
+- Cache tree-sitter grammar handles through `Runtime`.
+- Run full-file parses through language adapter wrappers.
+- Run repository pre-scans for import maps and cross-file context.
+- Run Go package semantic pre-scan for same-package and imported-package root
+  evidence.
+- Preserve deterministic output order for retries and repair runs.
+- Convert parser options into shared adapter options without making child
+  packages import the parent dispatcher.
+- Parse optional SCIP protobuf indexes into supplemental facts.
 
-  A2["Engine.PreScanRepositoryPathsWithWorkers\nworker pool"] --> I["preScanPathsConcurrent\njob channel → workers"]
-  I --> J["preScanOnePath\nDispatch to language-specific pre-scanner"]
-  J --> K["merged import map\nsorted by input order"]
+## Package Boundaries
 
-  L["SCIPIndexer.Run\ndetect language + run scip-* binary"] --> M["SCIPIndexParser.Parse\nprotobuf index → SCIPParseResult"]
-```
+| Area | Owns |
+| --- | --- |
+| `internal/parser` | Dispatch, registry, runtime cache, pre-scan orchestration, SCIP wrapper, compatibility helpers. |
+| `internal/parser/shared` | Shared tree-sitter helpers, payload helpers, and adapter option bridging. |
+| Language subpackages | Parse and pre-scan behavior for their language. |
+| `internal/content/shape` | Conversion from parser payload keys into content file/entity snapshots. |
+| `internal/facts` | Durable fact kinds and payload contracts. |
+| Collector | Parse timing, parse-stage logs, and fact streaming. |
 
-## Lifecycle / workflow
+The parser package must not import collector, projector, reducer, storage,
+query, or telemetry packages.
 
-`Engine` is the single dispatch point for both parse and pre-scan operations.
-`DefaultEngine()` constructs an engine from `DefaultRegistry()` and
-`NewRuntime()`. `NewRuntime` allocates a thread-safe cache of tree-sitter
-language handles; grammars are loaded on first use and reused across calls.
+## Registered Languages
 
-`Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form, calls
-`Registry.LookupByPath` to identify the language, then dispatches to the
-language-specific adapter wrapper. The wrapper keeps the parent parser
-signature stable while language-owned packages hold adapter logic that no
-longer needs parent internals. Language adapters may attach semantic metadata
-such as
-`dead_code_root_kinds` when syntax or bounded config proves an entrypoint,
-framework callback, function-value callback, Python route/task/CLI decorator,
-Python AWS Lambda handler, JavaScript package export, CommonJS default export,
-CommonJS mixin method export, configured Hapi handler or exported route-array
-handler reference, Next.js app or route export,
-Express/Koa/Fastify/NestJS callback root, Fastify route-object handler,
-constructor-passed function-value reference, Node migration export, TypeScript
-module-contract export, TypeScript public method on a class that declares
-`implements`, or TypeScript package public API surface proven through a
-nearest-package `exports` or `types` target and bounded static re-export
-barrels. C adapters mark `main`, functions declared by directly included local
-headers, signal-handler arguments, callback argument targets, and direct
-function-pointer initializer targets without scanning every repository header.
-C++ adapters mark `main`, functions and class methods declared by directly
-included local headers, virtual and override methods, callback argument targets,
-direct function-pointer initializer targets, and Node native-addon entrypoints
-without recursing through include graphs or resolving build targets.
-Java adapters mark `main` methods, constructors, `@Override` methods, public
-Ant `Task` setters, Gradle plugin `apply` methods, Gradle task actions and
-properties, Gradle task setters and task-interface methods, public Gradle DSL
-methods, and same-class method-reference targets as dead-code roots so query
-policy does not report JVM entrypoints, dispatch callbacks, or framework-injected
-task properties as cleanup candidates. Java method and constructor metadata
-captures parameter counts and parameter types. Serialization and
-Externalizable hook signatures are also roots because the JVM can invoke
-methods such as `readObject` and `writeExternal` outside ordinary source calls.
-Java call metadata captures method references such as `this::configureTask`,
-bounded literal reflection calls such as Class.forName class names and
-getDeclaredMethod method names, argument counts,
-and bounded argument types from parameters, fields, inline constructors, and
-class-literal typed lambdas, so the reducer can distinguish overloaded methods
-when local receiver evidence points at a type. Receiver inference builds a local
-index of parameters, variables, enhanced-for loop variables, fields, and typed
-lambda parameters and same-class method return types for each parsed file
-before call extraction, so large classes do not repeat a full tree walk for
-every method invocation. Method-call arguments such as helper calls can then
-carry bounded return-type metadata when resolving overloads. Unqualified Java
-calls inside nested classes carry a nearest-to-outermost
-`enclosing_class_contexts` chain, which lets the reducer match inner-class
-helpers first and then enclosing class methods without broad same-name fallback.
-Explicit outer-this field receivers in Java's named-outer-instance field form
-reuse the field type index for the named enclosing class, so nested callback
-bodies can still produce typed receiver evidence.
-Record declarations use the same class-style context for nested method parsing,
-which keeps Java record helper methods addressable by the reducer.
-Java metadata files under META-INF/services, Spring Boot
-AutoConfiguration.imports, and `spring.factories` parse as `java_metadata`
-payloads. The parent parser keeps the wrapper and payload shape, while the Java
-helper subpackage extracts bounded class-reference evidence for provider and
-auto-configuration classes without scanning the repository from each Java
-source file.
-Python adapters also preserve method `class_context`, constructor call
-metadata, class receiver references, dataclass/property roots, dunder protocol
-roots, inheritance base names, same-module `__all__` public API roots, package
-`__init__.py` reexport roots, public base classes inherited by those
-parser-proven public classes, public methods on those classes, and simple
-local constructor or `self` receiver metadata. The public API helper walks
-bounded package evidence instead of treating every non-underscore symbol as
-live, so reducer call materialization can connect class, constructor, and
-instance method calls without broad guessing.
-Exported TypeScript object registries also mark same-file function values as
-`typescript.static_registry_member`; private registries do not create roots.
-JavaScript-family adapters also preserve import alias metadata, CommonJS
-`module.exports` self-aliases, JSONC tsconfig `baseUrl` and `paths`
-`resolved_source` metadata through the JavaScript helper subpackage even when
-the config uses comments or trailing commas, returned and constructor-argument
-function-value references, static relative re-export metadata, constructor
-calls, and local receiver type metadata from
-`const value = new Type()` so reducer call materialization can resolve bounded
-cross-file calls.
-JSON parsing now lives in the JSON helper subpackage. The parent parser keeps
-the wrapper and dbt SQL lineage callback, while the child package owns
-ordered-object metadata, dependency manifests, `.jsonc` config files,
-TypeScript config rows, CloudFormation/SAM JSON attachment, dbt manifest payload
-construction, and data-intelligence replay documents.
+| Parser key | Inputs |
+| --- | --- |
+| `c`, `cpp`, `c_sharp` | C/C++/C# source and headers. |
+| `go` | Go source, embedded SQL metadata, package semantic roots. |
+| `java`, `java_metadata` | Java source plus ServiceLoader and Spring metadata files. |
+| `javascript`, `typescript`, `tsx` | JavaScript-family source, package roots, re-export metadata, tsconfig metadata. |
+| `python` | Python source and notebooks. |
+| `rust`, `scala`, `kotlin`, `swift`, `dart`, `ruby`, `perl`, `haskell`, `elixir`, `php`, `groovy` | Language-specific source adapters. |
+| `hcl` | Terraform, Terragrunt, tfvars, and HCL metadata. |
+| `yaml`, `json`, `cloudformation`, `dbtsql`, `sql`, `dockerfile` | Structured config, IaC, data, and runtime metadata. |
+| `raw_text` | Template and config text files that need content facts without language entities. |
 
-Package-level roots are resolved from the nearest owning `package.json`, so
-nested workspaces can expose
-their own entrypoints, `bin` targets, and package exports without depending on
-the repository root manifest. That nearest-package evidence now lives in the
-JavaScript helper subpackage, while the parent parser decides which parsed
-functions or types receive root metadata. Hapi handler roots search from the owning
-service/package root before falling back to repository-root conventions, and
-route arrays recognize both `config.handler` and `options.handler` as mounted
-handler references. After
-the language adapter returns,
-`inferContentMetadata` sets `artifact_type`, `template_dialect`, and
-`iac_relevant` on the payload. The final payload also carries `repo_path`.
+Use `DefaultRegistry().Definitions()` when you need the exact current mapping.
+Do not duplicate extension lists in new docs.
 
-Go embedded SQL extraction now lives in the Go helper subpackage, while the
-parent parser keeps the `embedded_sql_queries` payload contract. The Go helper
-also emits direct-method-call roots, imported-package direct-method-call roots,
-package-level generic constraint roots, package-level chained receiver roots
-from local interface methods that return imported types, and qualified
-same-repo package interface roots when parser pre-scan proves that a concrete
-value escapes through an imported package function parameter. Generic receiver
-type names are normalized to their base type before payload emission so methods
-declared on receivers such as `Map[K, V]` can meet call evidence for `Map`
-instances.
-Go composite literals also emit
-`function_calls` rows with
-`call_kind=go.composite_literal_type_reference`. Those rows are parser metadata
-for dead-code root evidence. The reducer materializes them as deduplicated
-REFERENCES edges, not canonical CALLS edges, so sibling files in one Go
-package can keep local structs such as wiring configs out of dead-code
-candidate lists without claiming that type references are invocations.
-Java method-reference, literal-reflection, ServiceLoader provider, and Spring
-auto-configuration rows follow the same rule: they prove reachability roots but
-do not claim an invocation happened.
+## Parse And Pre-Scan Contracts
 
-Full Go, Java, Python, and JavaScript/TypeScript/TSX adapters now live in their
-language helper subpackages behind thin parent wrappers. Parent-owned runtime
-grammar caching, registry dispatch, raw-text payload construction, SCIP payload
-assembly, and dbt SQL lineage callbacks remain in this package. The
-`shared_bridge.go` wrapper converts parent `Options` into shared adapter
-options so child adapters do not import the dispatcher.
+`Engine.ParsePath` resolves the repository root and file path, looks up the
+parser definition, calls the language adapter, attaches inferred content
+metadata, and returns a `map[string]any` payload.
 
-dbt SQL lineage extraction now lives in the dbt SQL helper subpackage. The
-parent parser keeps `ColumnLineage`, `CompiledModelLineage`, and the
-`extractCompiledModelLineage` compatibility wrapper because JSON dbt manifest
-parsing receives lineage through a parent-supplied callback.
+`Engine.PreScanRepositoryPathsWithWorkers` runs a lighter concurrent pass over
+repository files, then merges results in input order. The final sort is part of
+the determinism contract.
 
-`Engine.PreScanRepositoryPathsWithWorkers` runs a pre-scan pass that extracts
-import names, package-level interface references, type references, and
-referenced symbol names from each file. Results are merged across workers and
-sorted by input order to produce a deterministic import map. The Go semantic
-pre-scan also reads `go.mod` when present, qualifies exported local-package
-interface-parameter contracts by import path, routes imported receiver method
-calls back to the package that defines those methods, combines package-local
-generic constraint interfaces with package method declarations, and combines
-local interface return signatures with chained calls in sibling files. The
-pre-scan is a lighter parse used to build cross-file import context before the
-full parse pass. Java
-pre-scan includes records alongside classes, interfaces, annotations, enums,
-methods, and constructors so record helper methods participate in the same
-downstream name map as class methods.
+`Engine.PreScanGoPackageSemanticRoots` adds Go-specific package context that
+the collector passes back into full-file parser options. That path must remain
+bounded; do not reintroduce full-tree walks per call site.
 
-Python `.ipynb` files use the Python helper subpackage to extract executable
-code cells, then the parent parser writes that source view to a temporary
-Python file before tree-sitter parsing. The temporary file is removed after
-parse. The notebook path shares the same payload contract as `.py` files.
+## Dead-Code Root Metadata
 
-Groovy/Jenkins pipeline metadata extraction, lexical class/function/call
-entities, payload assembly, and pre-scan name extraction live in the Groovy
-helper subpackage. The parent parser keeps the
-`ExtractGroovyPipelineMetadata` compatibility wrapper used by query and
-relationship code.
+`dead_code_root_kinds` is conservative reachability evidence, not a cleanup
+verdict. Parser adapters should add it only when source text or bounded config
+proves an entrypoint, callback, public package surface, framework hook, or
+language runtime hook.
 
-Dockerfile runtime metadata extraction lives in the Dockerfile helper
-subpackage. The parent parser keeps file I/O, registry dispatch, and the
-`ExtractDockerfileRuntimeMetadata` compatibility wrapper used by query and
-relationship code.
+Examples include Go entrypoints and interface escapes, Java `main` and
+framework callbacks, Python route/task/CLI/Lambda roots, JavaScript package
+exports and route handlers, Rust test and public API roots, and C/C++ callback
+or header-declared roots. Query policy decides how to present candidates.
 
-CloudFormation and SAM template evidence now lives in the CloudFormation helper
-subpackage so JSON and YAML adapters share the same template classification,
-condition evaluation, and bucket construction contract.
+## SCIP Support
 
-YAML parsing now lives in the YAML helper subpackage. The parent parser keeps
-the wrapper, while the child package owns YAML decoding, Kubernetes and
-Crossplane resource rows, Argo CD rows, Kustomize rows, Helm chart/value rows,
-and YAML-side CloudFormation/SAM attachment.
+SCIP supplements native parser output for supported languages. It does not
+replace tree-sitter output.
 
-First-wave language package moves also cover C, C++, Rust, C#, Scala, Elixir,
-Swift, Dart, Ruby, Perl, Haskell, SQL, and HCL/Terraform adapters. Those
-packages own parse and pre-scan behavior behind thin parent wrappers. Shared
-payload, tree-sitter, and value helpers live in the shared parser helper
-subpackage so child packages do not import the parent dispatcher.
+1. `DetectSCIPProjectLanguage` picks the dominant SCIP-capable language.
+2. `SCIPIndexer.Run` executes the configured `scip-*` binary.
+3. `SCIPIndexParser.Parse` parses the protobuf index.
+4. The collector combines SCIP-derived facts with native parser facts.
 
-**SCIP path**: when SCIP_INDEXER=true, the collector snapshotter detects the
-dominant SCIP-capable language via `DetectSCIPProjectLanguage`, runs the
-external `scip-*` binary via `SCIPIndexer.Run`, and parses the resulting
-protobuf index via `SCIPIndexParser.Parse`. The SCIP result supplements the
-native tree-sitter parse for supported languages (Go, Python, TypeScript,
-JavaScript, Rust, Java, C, C++).
-
-## Exported surface
-
-- `Engine` — dispatch hub; constructed via `DefaultEngine()` or `NewEngine(registry, runtime)`
-- `DefaultEngine()` — builds an engine from the built-in registry and a fresh
-  tree-sitter runtime
-- `NewEngine(registry, runtime)` — constructs an engine from provided `Registry`
-  and `Runtime`
-- `Engine.ParsePath(repoRoot, path, isDependency, options)` — parse one file;
-  returns `map[string]any`
-- `Engine.PreScanPaths(paths)` — import-map contract for collector prescan
-- `Engine.PreScanRepositoryPaths(repoRoot, paths)` — repo-bounded prescan
-- `Engine.PreScanRepositoryPathsWithWorkers(repoRoot, paths, workers)` — concurrent prescan
-- `Engine.PreScanGoPackageSemanticRoots(repoRoot, paths)` — Go package semantic
-  root contract for collector parser options
-- `Registry` — immutable parser catalog
-- `NewRegistry(definitions)` — builds an immutable registry; panics in
-  `DefaultRegistry()` if the built-in definitions are invalid
-- `DefaultRegistry()` — built-in catalog for this wave of supported languages
-- `Registry.LookupByPath(path)` — extension / exact name / prefix name lookup;
-  `.tfvars.json` routes to the `hcl` definition, and Java metadata files under
-  META-INF/services, META-INF/spring, and META-INF/spring.factories
-  route to `java_metadata`
-- `Registry.LookupByExtension(extension)` — direct extension lookup
-- `Registry.LookupByParserKey(parserKey)` — direct key lookup
-- `Registry.Definitions()` — cloned definitions in deterministic parser-key order
-- `Registry.ParserKeys()` — registered keys in deterministic order
-- `Registry.Extensions()` — registered extensions in sorted order
-- `Definition` — `ParserKey`, `Language`, `Extensions`, `ExactNames`, `PrefixNames`
-- `Runtime` — tree-sitter language handle cache; `Language(name)` returns a
-  cached `*tree_sitter.Language`
-- `NewRuntime()` — constructs a fresh tree-sitter runtime
-- `Options` — `IndexSource bool`, `VariableScope string`
-- `SCIPIndexer` — runs an external `scip-*` CLI; fields: `LookPath`,
-  `RunCommand`, `Timeout`
-- `SCIPIndexParser` — parses a SCIP protobuf index into `SCIPParseResult`
-- `SCIPParseResult` — parsed SCIP output for downstream fact emission
-- `DetectSCIPProjectLanguage(paths, allowed)` — dominant SCIP-capable language
-  by file extension count, filtered to the allowed set
-- `ExtractDockerfileRuntimeMetadata(sourceText)` — exported utility for
-  Dockerfile runtime metadata extraction
-- `ExtractGroovyPipelineMetadata(sourceText)` — exported utility for Groovy
-  pipeline metadata extraction
-- `ColumnLineage`, `CompiledModelLineage` — dbt/SQL lineage records
-
-## Registered languages and tree-sitter support
-
-| Language | Parser key | Extensions | Tree-sitter native |
-| --- | --- | --- | --- |
-| C | `c` | `.c` | yes |
-| C# | `c_sharp` | `.cs`, `.csx` | yes |
-| C++ | `cpp` | `.cc`, `.cpp`, `.cxx`, `.h`, `.hh`, `.hpp` | yes |
-| Dart | `dart` | `.dart` | — |
-| Dockerfile | `__dockerfile__` | `Dockerfile`, `Dockerfile.*` | — |
-| Elixir | `elixir` | `.ex`, `.exs` | — |
-| Go | `go` | `.go` | yes |
-| Groovy/Jenkinsfile | `groovy`, `__jenkinsfile__` | `.groovy`, `Jenkinsfile` | — |
-| Haskell | `haskell` | `.hs` | — |
-| HCL/Terraform | `hcl` | `.hcl`, `.tf`, `.tfvars`, `.tfvars.json` | — |
-| Java | `java` | `.java` | yes |
-| Java metadata | `java_metadata` | META-INF/services/*, AutoConfiguration.imports, spring.factories | — |
-| JavaScript | `javascript` | `.cjs`, `.js`, `.jsx`, `.mjs` | yes |
-| JSON | `json` | `.json`, `.jsonc` | — |
-| Kotlin | `kotlin` | `.kt` | — |
-| Perl | `perl` | `.pl`, `.pm` | — |
-| PHP | `php` | `.php` | — |
-| Python | `python` | `.ipynb`, `.py`, `.pyw` | yes |
-| Raw text | `raw_text` | `.cnf`, `.cfg`, `.conf`, `.j2`, `.jinja`, `.jinja2`, `.tpl`, `.tftpl` | — |
-| Ruby | `ruby` | `.rb` | — |
-| Rust | `rust` | `.rs` | yes |
-| Scala | `scala` | `.sc`, `.scala` | yes |
-| SQL | `sql` | `.sql` | — |
-| Swift | `swift` | `.swift` | — |
-| TSX | `tsx` | `.tsx` | yes (TypeScript grammar) |
-| TypeScript | `typescript` | `.cts`, `.mts`, `.ts` | yes |
-| YAML | `yaml` | `.yaml`, `.yml` | — |
-
-## SCIP support
-
-SCIP provides higher-fidelity cross-file symbol resolution for languages where
-tree-sitter alone cannot reliably produce type-qualified call graphs. The SCIP
-path in Eshu:
-
-1. `DetectSCIPProjectLanguage` scans file extensions to find the dominant
-   SCIP-capable language (priority: Python, TypeScript, JavaScript, Go, Rust,
-   Java, C++, C).
-2. `SCIPIndexer.Run` invokes the external binary (`scip-go`, `scip-python`,
-   `scip-typescript`, `scip-rust`, `scip-java`, `scip-clang`) and returns the
-   generated index path.
-3. `SCIPIndexParser.Parse` reads the protobuf index and returns `SCIPParseResult`
-   for downstream fact emission.
-4. SCIP results supplement — not replace — native tree-sitter output for the
-   same repository.
-
-SCIP is opt-in via SCIP_INDEXER=true. The allowed language list defaults to
-`python,typescript,go,rust,java` and is overridden via SCIP_LANGUAGES.
-
-## Dependencies
-
-- `github.com/tree-sitter/go-tree-sitter` — `Runtime` and grammar dispatch
-- Tree-sitter grammar bindings: C, C#, C++, Go, Java, JavaScript, Python, Rust,
-  Scala, TypeScript
-- `internal/parser/java` — typed Java metadata evidence extracted before parent
-  payload assembly
-- `internal/parser/javascript` — tsconfig import resolution and package.json
-  root evidence used before parent payload annotation
-- `internal/parser/python` — notebook source extraction before parent
-  temporary-file parsing
-- `internal/parser/golang` — embedded SQL evidence before parent payload
-  assembly
-- `internal/parser/groovy` — Jenkins/Groovy delivery metadata and lexical
-  entity extraction before parent payload assembly
-- `internal/parser/dockerfile` — Dockerfile stage and runtime metadata before
-  parent payload assembly
-- `internal/terraformschema` — provider schema assets consumed by the HCL adapter
-- Standard library only for non-tree-sitter adapters
-
-The parser package does not import `internal/projector`, `internal/reducer`,
-`internal/storage`, `internal/query`, or `internal/collector`.
+SCIP is opt-in through `SCIP_INDEXER=true`; `SCIP_LANGUAGES` narrows allowed
+languages.
 
 ## Telemetry
 
-The parser package does not emit metrics or spans directly. Parse timing is
-recorded by the collector snapshotter via the `telemetry.FileParseDuration`
-instrument (metric: `eshu_dp_file_parse_duration_seconds`). Parse
-errors are surfaced in `collector snapshot stage completed` logs with
-`stage=parse`.
+The parser package emits no metrics or spans directly. Collector snapshotting
+records parse duration with `eshu_dp_file_parse_duration_seconds` and logs
+parse-stage failures under `collector snapshot stage completed`.
 
-## Operational notes
+## Safety Rules
 
-- `DefaultRegistry()` panics if the built-in `defaultDefinitions()` list
-  contains a duplicate parser key, extension, or filename. This is a
-  programming error, not an operational condition, and surfaces immediately on
-  process start.
-- `Runtime.Language(name)` caches tree-sitter grammar handles under a mutex.
-  The first call per grammar loads the native grammar; subsequent calls return
-  the cached handle. Do not call `NewRuntime()` per file — share one runtime
-  across all parse calls.
-- The SCIP binaries (`scip-go`, `scip-python`, etc.) must be on PATH. Use
-  `SCIPIndexer.LookPath` to verify availability before enabling SCIP_INDEXER.
+- Keep parser output deterministic for the same source bytes.
+- Keep payload keys stable unless `content/shape`, facts, reducers, and docs
+  are updated in the same change.
+- Do not treat ambiguous or dynamic language constructs as proven roots.
+- Do not let child language packages import the parent dispatcher.
+- Do not create package-global tree-sitter runtimes per file; share `Runtime`.
+- Keep high-cardinality source details out of metrics; collector logs own
+  operator diagnosis.
+- SCIP and native parser facts may overlap; callers must not assume SCIP
+  supersedes native output.
 
-## Extension points
+## Change Checklist
 
-- `NewRegistry(definitions)` — build a custom registry for test suites or
-  plugin-supplied language definitions; pass it to `NewEngine`
-- `SCIPIndexer.LookPath` and `SCIPIndexer.RunCommand` — injectable seams for
-  testing the SCIP path without external binaries
-- `Registry.LookupByPath` — the discovery package's file matcher predicate
-  is built from this lookup, so a custom registry produces a custom file
-  matcher automatically
+- Add a language by registering a unique `Definition`, adding the adapter
+  dispatch case, adding pre-scan support when imports need it, adding fixtures,
+  updating `internal/content/shape` for new entity buckets, and documenting the
+  language table.
+- Add an entity key by updating the adapter output, collector snapshot bucket
+  handling, `shape.Materialize`, fixture assertions, and projector label
+  mapping when the entity needs a graph node.
+- Add SCIP support by updating the language config, priority list, expected
+  binary name, and SCIP fixture tests.
+- Change pre-scan behavior with deterministic ordering tests. Sort before
+  returning from any pre-scan path that collects map or set data.
 
-## Gotchas / invariants
+## Verification
 
-- Parser output is a `map[string]any` keyed by convention (e.g. `functions`,
-  `classes`, `imports`). There is no compile-time schema; callers in
-  the collector's `buildParsedRepositoryFiles` and
-  `shape.Materialize` consume keys by string. Adding a new key to a language
-  adapter's output requires corresponding updates in `content/shape` and
-  downstream fact contracts.
-- `dead_code_root_kinds` is conservative evidence, not a cleanup verdict.
-  Go roots currently cover entrypoints, selected framework registrations,
-  function-valued parameters, local interface references, imported receiver
-  method calls, concrete methods that flow into local or imported
-  interface-typed seams, and struct types referenced by composite literals.
-  JavaScript-family roots cover Node package
-  entrypoints, package `bin` targets, package public exports from the nearest
-  owning package manifest, exported functions under Hapi-style handler
-  directories, Hapi plugin `register` methods, Hapi exported route arrays with
-  direct, `config`, or `options` handlers, Next.js app and route exports,
-  Node migration `up`/`down` exports, methods on CommonJS default-exported
-  classes, TypeScript module-contract exports, and TypeScript public methods on
-  classes that declare `implements` when bounded local evidence proves the root.
-  TypeScript public surface roots also cover
-  package `exports` or `types` targets that statically re-export same-repo
-  declarations through bounded multi-hop barrels, including declaration-only
-  `*.d.ts` barrels and `tsconfig.json` `paths` aliases that resolve to local
-  files. Java dead-code roots cover `main`, constructors, `@Override`,
-  JavaBean-style
-  public Ant `Task` setters, Gradle plugin `apply` methods, Gradle task
-  actions and properties, public Gradle DSL methods, Spring component and
-  configuration-property classes, Spring request/bean/event/scheduled methods,
-  Java lifecycle callbacks, JUnit test and lifecycle methods, Jenkins extension
-  and symbol classes, Jenkins initializer/data-bound setter methods, and Stapler
-  web methods. Rust dead-code roots cover Cargo-shaped `main` functions,
-  `build.rs` build scripts, `#[test]`, `#[tokio::test]`, and `#[tokio::main]`
-  functions, exact `pub` items, benchmark functions, and methods inside direct
-  trait impl blocks. Rust module rows also carry bounded
-  `module_resolution_status` metadata when `Engine.ParsePath` can probe direct
-  current-file candidates inside the repo root; existing files outside that
-  root are not reported as resolved modules. Java call
-  metadata also preserves local receiver types from
-  parameters, variables, fields, inline constructor receivers, typed method
-  references such as `processor::process`, unqualified same-class calls, and
-  call/function arity so the reducer can connect bounded method calls without
-  treating every same-named overload as live.
-  C dead-code roots cover `main`, directly included public headers, signal
-  handlers, callback arguments, and direct function-pointer initializers. C++
-  roots cover `main`, directly included public headers, virtual and override
-  methods, callback arguments, direct function-pointer initializers, and Node
-  native-addon entrypoints.
-  JavaScript-family import metadata preserves namespace aliases, JSONC
-  tsconfig `baseUrl` and `paths` resolved sources with comments and trailing
-  commas accepted, and static relative re-exports used by reducer call
-  materialization. Dynamic reflection, build-tag-specific reachability,
-  package-manager resolution, and computed dispatch still need query-side
-  ambiguity handling.
-- `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form.
-  Passing a relative path produces an absolute resolved path in the payload's
-  `repo_path` field; this is correct behavior but callers should pass absolute
-  paths to avoid ambiguity.
-- `preScanPathsConcurrent` sorts results by input index before merging to
-  preserve deterministic output. Do not remove this sort; out-of-order merging
-  makes import maps non-deterministic across runs.
-- SCIP and tree-sitter parse results for the same file may overlap. The
-  collector's SCIP path builds supplemented facts by combining both; do not
-  assume SCIP output supersedes tree-sitter output entirely.
+```bash
+go test ./internal/parser/... -count=1
+go run ./cmd/eshu docs verify ../go/internal/parser --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```
 
-## Related docs
+Run the relevant language package tests when touching a language adapter. Run
+collector tests when parser output shape or parser options change.
 
-- `docs/docs/architecture.md` — parser ownership
-- `docs/docs/reference/local-testing.md` — parser test gates
-- `docs/docs/reference/telemetry/index.md` — `eshu_dp_file_parse_duration_seconds`
-- `go/internal/collector/README.md` — how the collector calls the parser
-- `go/internal/facts/` — fact contract shape for emitted entities
+## Related Docs
+
+- [Architecture](../../../docs/public/architecture.md)
+- [Language Support](../../../docs/public/languages/feature-matrix.md)
+- [Contributing Language Support](../../../docs/public/contributing-language-support.md)
+- [Collector Package](../collector/README.md)
+- [Content Shape](../content/shape/README.md)

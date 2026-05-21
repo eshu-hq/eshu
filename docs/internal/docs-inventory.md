@@ -1,48 +1,73 @@
 # Docs Inventory
 
-This inventory describes the documentation surfaces that are tracked in the
-current repository state. It is intentionally current-state only.
+This inventory groups the repository's Markdown files by function. Use it to
+decide whether a document should be public product guidance, maintainer-only
+guidance, package-local orientation, historical evidence, or deleted.
 
-## Public docs
+Current inventory snapshot after removing historical working-plan,
+decision-log, misplaced console, and stale internal working-note docs: 532
+Markdown files.
 
-The public site is built from:
+## Functional Groups
 
-- `docs/mkdocs.yml`
-- `docs/docs/`
+| Group | Count | Paths | Function | Default action |
+| --- | ---: | --- | --- | --- |
+| Public product, concepts, and contribution docs | 14 | `docs/public/*.md`, `docs/public/concepts/`, `docs/public/understand/`, `docs/public/extend/`, `docs/public/releases/` | Explain what Eshu is and how the product fits together. | Keep, but remove overlap with the root `README.md`. |
+| Public onboarding and local run docs | 9 | `docs/public/start-here.md`, `docs/public/getting-started/`, `docs/public/run-locally/` | Help a new user install, run, and connect Eshu locally. | Keep and make this the main beginner path. |
+| Public deployment, operations, and service docs | 23 | `docs/public/deployment/`, `docs/public/deploy/`, `docs/public/operate/`, `docs/public/services/` | Explain Compose, Helm, Kubernetes, service runtimes, and operations. | Keep, but merge duplicated Docker Compose, Helm, and service-runtime guidance. |
+| Public workflow guides | 19 | `docs/public/guides/`, `docs/public/use/`, `docs/public/mcp/` | Explain user tasks such as indexing, MCP use, relationships, fixture ecosystems, and Terraform providers. | Keep only task-oriented pages. Merge or delete pages that repeat reference material. |
+| Public reference docs | 61 | `docs/public/reference/` | Authoritative CLI, API, config, telemetry, backend, and protocol reference. | Keep as canonical reference. Remove tutorial prose that belongs in guides. |
+| Public language support docs | 32 | `docs/public/languages/` | Explain parser and language-family support. | Keep, but drive from code and matrices. |
+| Maintainer docs | 8 | `docs/internal/` | Maintainer-only workflow guidance, cleanup tracking, and generated file indexes for this docs PR. | Keep only active workflow guidance. Delete stale investigation notes or move durable facts into reference docs. |
+| Removed historical plans | 0 | `docs/plans/`, `docs/superpowers/` | Former working plans, specs, and proof notes. | Deleted from the stable docs tree. Durable learnings must live in current reference, workflow, architecture, or package-local docs. |
+| Removed historical decision records | 0 | `docs/public/adrs/` | Former decision logs and proof trails. | Deleted from the stable docs tree. Durable decisions, workflows, performance lessons, and backend rules must live in current reference, workflow, architecture, or package-local docs. |
+| Root governance and entrypoints | 8 | root `*.md` files | Repo entrypoints, contributor guidance, security, testing, agent rules, and Cloudflare Pages setup. | Keep root `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `TESTING.md`, `DEVELOPING.md`, `AGENTS.md`, `CLAUDE.md`, and `CLOUDFLARE_PAGES.md`. |
+| Deployment artifact docs | 4 | `deploy/**/README.md` | Explain deploy artifacts near their manifests. | Keep when artifact-specific. Link to public deployment docs instead of duplicating procedures. |
+| Go command package docs | 35 | `go/cmd/**/README.md`, `go/cmd/**/AGENTS.md`, `go/cmd/README.md` | Orient maintainers and coding agents around command binaries and command-specific rules. | Keep command READMEs for humans and command-local `AGENTS.md` for scoped agent rules. |
+| Go internal package docs | 273 | `go/internal/**/*.md` | Package-local ownership, invariants, implementation orientation, and scoped agent instructions. | Keep package READMEs, package `AGENTS.md`, and focused change guides. Delete only generated prose that adds no package-specific information. |
+| Fixture and test docs | 40 | `tests/fixtures/**/README.md` | Explain fixture intent and expected behavior. | Keep if tests rely on intent. Merge tiny repeated fixture docs where the parent README can cover them. |
+| Script, app, spec, and Go module docs | 4 | `scripts/README.md`, `apps/console/README.md`, `specs/README.md`, `go/README.md` | Local entrypoints for smaller repo areas. | Keep only if they name commands or contracts not covered elsewhere. |
+| Support artifacts | 2 | `docs/dashboards/`, `docs/diagrams/`, `docs/openapi/`, `docs/mkdocs.yml`, `docs/README.md` | Site config, diagrams, dashboards, and OpenAPI support files. | Keep. These are artifacts, not narrative docs. |
 
-The public docs are grouped into these active families:
+## Delete-Or-Archive Candidates
 
-| Area | Paths | Purpose |
+Start with documents that are both outside the public navigation and either
+stale, duplicated, or contradicted by the current code.
+
+| Candidate set | Why it is a candidate | Action before delete |
 | --- | --- | --- |
-| Landing and product narrative | `docs/docs/index.md`, `architecture.md`, `why-eshu.md`, `use-cases.md` | Explain what Eshu is, why it exists, and how the platform fits together. |
-| Concepts | `docs/docs/concepts/*.md` | Core mental models such as graph semantics, processing flow, and runtime modes. |
-| Getting started | `docs/docs/getting-started/*.md` | Installation, prerequisites, quickstart, and workstation setup. |
-| Deployment | `docs/docs/deployment/*.md` | Docker Compose, Helm, Argo CD, manifests, service runtimes, and deployment boundaries. |
-| Guides | `docs/docs/guides/*.md` | Workflow guides, visualization, relationship examples, fixture ecosystems, CI/CD, and Terraform provider operations. |
-| Services | `docs/docs/services/*.md` | Service-level operational pages for `bootstrap-index`, `ingester`, and `resolution-engine`. |
-| Reference | `docs/docs/reference/*.md` and `docs/docs/reference/telemetry/*.md` | CLI, HTTP API, runtime admin API, local testing, logging, telemetry, workflows, parity, relationship mapping, and troubleshooting. |
-| Language support | `docs/docs/languages/*.md` | Parser behavior pages plus feature and support matrices for supported languages and IaC families. |
-| Supporting assets | `docs/docs/images/*`, `docs/openapi/runtime-admin-v1.yaml`, `docs/diagrams/*.mmd`, `docs/dashboards/*.json` | Images, diagrams, OpenAPI, and dashboard assets used by the public docs and operator workflows. |
+| Deleted `docs/superpowers/**` | Historical working plans carried stale planned routes and commands, such as the planned graph neighborhood route and `analyze impact` / `analyze neighborhood` commands. | Repair remaining references to point at current docs or package contracts. |
+| Deleted `docs/plans/**` | These were implementation notes, not user or maintainer guidance. At least one documented an invalid command shape. | Repair remaining references to point at current language, component, or workflow docs. |
+| Deleted `docs/public/adrs/**` | Public ADRs were long historical implementation logs and were not part of normal docs navigation. They buried the current answer under old proof trails. | Durable lessons were moved into current architecture, workflow, performance, backend, MCP, and collector-readiness docs. Repair any future reference to point at those current docs. |
+| Deleted `docs/internal/2026-04-*` investigation notes | Maintainer-only notes from older workstreams. The current code and public docs now supersede them. | Durable AWS collector, MCP, reducer, and architecture facts live in current reference and package-local docs. |
+| Deleted root `PRODUCT.md` and `DESIGN.md` | These were console-only docs at the repo root. They competed with public product docs and the console app README. | Durable console product and design contracts now live in `apps/console/README.md`. |
+| Package-local generated boilerplate | Some package-local docs still repeat parent guidance without adding local invariants. | Keep docs that explain package invariants or cross-cutting workflow rules. Delete only boilerplate that adds no package-specific information and is not harness-loaded scoped guidance. |
 
-## Internal docs
+## Review Order
 
-Maintainer-only docs live under `docs/internal/`.
+1. Confirm the docs estate and deletion policy in this inventory.
+2. Repair references to deleted `docs/plans/**` and `docs/superpowers/**`.
+3. Keep durable decision-record lessons in current architecture, workflow, performance,
+   backend, MCP, and collector-readiness docs.
+4. Sweep package-local `README.md`, `AGENTS.md`, and focused change-guide files
+   by subsystem; keep scoped agent files where they carry package rules.
+5. Update `docs/internal/docs-change-tally.md` after each pass so the PR keeps
+   a running created/modified/deleted record.
 
-| Path | Purpose | Status |
-| --- | --- | --- |
-| `docs/internal/README.md` | Boundary rules for internal versus public docs | active |
-| `docs/internal/docs-inventory.md` | This inventory | active |
-| `docs/internal/updating-docs.md` | Maintainer workflow for updating docs | active |
+## Verification
 
-Untracked investigation notes may exist in `docs/internal/` during active work,
-but they are not part of the stable docs set until they are intentionally
-committed.
+Use the broad verifier to find stale claims outside the public docs tree:
 
-## Retired historical material
+```bash
+cd go
+go run ./cmd/eshu docs verify .. --limit 2000 \
+  --fail-on contradicted,missing_evidence
+```
 
-- There is no tracked `docs/superpowers/` documentation tree in the current
-  worktree.
-- There is no tracked `docs/archive/` tree in the current worktree.
-- Historical plans and migration records should stay out of the public docs
-  unless they are rewritten into current architecture, workflow, or operator
-  guidance.
+Use the public-doc verifier for the published site:
+
+```bash
+cd go
+go run ./cmd/eshu docs verify ../docs/public --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```

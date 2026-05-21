@@ -37,8 +37,8 @@ wiring.
 
 ## Telemetry
 
-This package emits no metrics, spans, or logs. Runtime telemetry wraps AWS calls
-in the future OCI registry collector.
+This package emits no metrics, spans, or logs. `ociruntime` wraps provider calls
+with OCI registry scan and API-call telemetry.
 
 ## Gotchas / invariants
 
@@ -52,4 +52,4 @@ in the future OCI registry collector.
 
 ## Related docs
 
-- `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md`
+- `docs/public/reference/collector-reducer-readiness.md`

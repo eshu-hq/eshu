@@ -56,5 +56,5 @@ only in evidence atoms for later explanation or structured logs.
 ## Related docs
 
 - `go/internal/correlation/rules/README.md`
-- `docs/docs/adrs/2026-04-19-multi-source-correlation-dsl-and-collector-readiness.md`
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/public/reference/relationship-mapping.md`
+- `docs/public/services/collector-aws-cloud.md`

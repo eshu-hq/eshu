@@ -14,7 +14,7 @@ var diagnosticQueryLimitPattern = regexp.MustCompile(`(?i)\bLIMIT\s+\d+\b`)
 func TestMCPCookbookKeepsRawCypherDiagnosticsOnly(t *testing.T) {
 	t.Parallel()
 
-	raw, err := os.ReadFile("../../../docs/docs/reference/mcp-cookbook.md")
+	raw, err := os.ReadFile("../../../docs/public/reference/mcp-cookbook.md")
 	if err != nil {
 		t.Fatalf("ReadFile(mcp-cookbook.md) error = %v, want nil", err)
 	}
@@ -47,7 +47,7 @@ func TestValidateDiagnosticCypherBlocksAcceptsMultilineJSONWithLimit(t *testing.
 func TestMCPCookbookToolReferencesAreRegistered(t *testing.T) {
 	t.Parallel()
 
-	raw, err := os.ReadFile("../../../docs/docs/reference/mcp-cookbook.md")
+	raw, err := os.ReadFile("../../../docs/public/reference/mcp-cookbook.md")
 	if err != nil {
 		t.Fatalf("ReadFile(mcp-cookbook.md) error = %v, want nil", err)
 	}

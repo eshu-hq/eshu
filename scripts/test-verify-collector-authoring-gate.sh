@@ -14,12 +14,12 @@ init_repo() {
   git -C "${dir}" init -q
   git -C "${dir}" config user.email "test@example.invalid"
   git -C "${dir}" config user.name "Eshu Test"
-  mkdir -p "${dir}/docs/docs/reference/telemetry" "${dir}/go/internal/collector/base"
-  printf '# Collector Authoring\n' >"${dir}/docs/docs/guides-placeholder.md"
-  printf '# Telemetry\n' >"${dir}/docs/docs/reference/telemetry/index.md"
+  mkdir -p "${dir}/docs/public/reference/telemetry" "${dir}/go/internal/collector/base"
+  printf '# Collector Authoring\n' >"${dir}/docs/public/guides-placeholder.md"
+  printf '# Telemetry\n' >"${dir}/docs/public/reference/telemetry/index.md"
   printf 'package base\n' >"${dir}/go/internal/collector/base/doc.go"
   printf '# Base\n' >"${dir}/go/internal/collector/base/README.md"
-  printf '# AGENTS\n' >"${dir}/go/internal/collector/base/AGENTS.md"
+  printf '# Base Agent Rules\n' >"${dir}/go/internal/collector/base/AGENTS.md"
   printf 'package base\nfunc TestBase(t interface{}) {}\n' >"${dir}/go/internal/collector/base/source_test.go"
   git -C "${dir}" add .
   git -C "${dir}" commit -q -m initial
@@ -69,7 +69,7 @@ mkdir -p "${missing_markers_repo}/go/internal/collector/confluence2"
 printf 'package confluence2\n' >"${missing_markers_repo}/go/internal/collector/confluence2/source.go"
 printf 'package confluence2\n' >"${missing_markers_repo}/go/internal/collector/confluence2/doc.go"
 printf '# Confluence2\n' >"${missing_markers_repo}/go/internal/collector/confluence2/README.md"
-printf '# AGENTS\n' >"${missing_markers_repo}/go/internal/collector/confluence2/AGENTS.md"
+printf '# Confluence2 Agent Rules\n' >"${missing_markers_repo}/go/internal/collector/confluence2/AGENTS.md"
 printf 'package confluence2\nfunc TestSource(t interface{}) {}\n' >"${missing_markers_repo}/go/internal/collector/confluence2/source_test.go"
 git -C "${missing_markers_repo}" add .
 git -C "${missing_markers_repo}" commit -q -m 'collector without evidence markers'
@@ -79,6 +79,7 @@ complete_repo="$(init_repo complete)"
 mkdir -p "${complete_repo}/go/internal/collector/confluence2" "${complete_repo}/go/internal/telemetry"
 printf 'package confluence2\n' >"${complete_repo}/go/internal/collector/confluence2/source.go"
 printf 'package confluence2\n' >"${complete_repo}/go/internal/collector/confluence2/doc.go"
+printf '# Confluence2 Agent Rules\n' >"${complete_repo}/go/internal/collector/confluence2/AGENTS.md"
 cat >"${complete_repo}/go/internal/collector/confluence2/README.md" <<'MD'
 # Confluence2
 
@@ -91,7 +92,6 @@ failure metrics expose the bounded source stage without page IDs or titles.
 Collector Deployment Evidence: no hosted runtime in this slice; ServiceMonitor
 coverage is deferred until a charted command package lands.
 MD
-printf '# AGENTS\n' >"${complete_repo}/go/internal/collector/confluence2/AGENTS.md"
 printf 'package confluence2\nfunc TestSource(t interface{}) {}\n' >"${complete_repo}/go/internal/collector/confluence2/source_test.go"
 printf 'package telemetry\nconst MetricDimensionFailureClass = "failure_class"\n' >"${complete_repo}/go/internal/telemetry/contract.go"
 git -C "${complete_repo}" add .

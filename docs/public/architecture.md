@@ -1,0 +1,224 @@
+# System Architecture
+
+Eshu turns repository content, infrastructure definitions, deployment metadata,
+registry metadata, cloud observations, and runtime evidence into one queryable
+graph.
+
+Use this page for the current system shape:
+
+- what the major runtime and storage boundaries are
+- how source evidence becomes graph truth
+- which packages own each part of the data plane
+- where to go for deeper runtime, backend, telemetry, and extension contracts
+
+If you want the shorter concept path first, start with
+[Understand Eshu](understand/index.md). If you are operating a running system,
+start with [Operate Eshu](operate/index.md). If you are adding collectors,
+facts, or language support, start with [Extend Eshu](extend/index.md).
+
+## Core Model
+
+Eshu is facts-first:
+
+1. Intake runtimes observe source systems and commit versioned facts.
+2. Durable queues make projection work claimable, retryable, and recoverable.
+3. The resolution engine materializes graph and read-model truth.
+4. API, MCP, and CLI surfaces read canonical graph/content state.
+
+The main correctness boundary is simple: collectors and webhooks observe source
+truth; the resolution engine decides graph truth. Intake services do not write
+canonical graph state directly.
+
+## Runtime Topology
+
+```mermaid
+flowchart LR
+  subgraph Sources["Source systems"]
+    Git["Git repositories"]
+    Hooks["Git and cloud webhooks"]
+    Docs["Confluence"]
+    Registries["OCI and package registries"]
+    Cloud["AWS and Terraform state"]
+  end
+
+  subgraph Intake["Intake and control"]
+    Ingester["Ingester"]
+    Webhook["Webhook Listener"]
+    Coordinator["Workflow Coordinator"]
+    Collectors["Hosted Collectors"]
+  end
+
+  subgraph State["Durable state"]
+    Postgres[("Postgres\nfacts, queues, status, content")]
+    Graph[("Graph backend\nNornicDB default / Neo4j optional")]
+  end
+
+  subgraph Projection["Truth materialization"]
+    Reducer["Resolution Engine"]
+  end
+
+  subgraph Reads["Read surfaces"]
+    API["HTTP API"]
+    MCP["MCP Server"]
+    CLI["CLI"]
+  end
+
+  Git -->|"sync, snapshot, parse"| Ingester
+  Hooks -->|"verified trigger"| Webhook
+  Docs -->|"bounded read"| Collectors
+  Registries -->|"metadata read"| Collectors
+  Cloud -->|"scoped observation"| Collectors
+  Coordinator -->|"create and reap claims"| Postgres
+  Coordinator -->|"claimable work"| Collectors
+  Webhook -->|"refresh trigger"| Postgres
+  Ingester -->|"repository facts and work"| Postgres
+  Collectors -->|"external-source facts"| Postgres
+  Postgres -->|"claim work"| Reducer
+  Reducer -->|"canonical nodes and edges"| Graph
+  Reducer -->|"content and read models"| Postgres
+  API -->|"bounded graph reads"| Graph
+  API -->|"content, status, read models"| Postgres
+  MCP -->|"tool-backed reads"| API
+  CLI -->|"local and admin commands"| Postgres
+```
+
+## Runtime Boundaries
+
+| Runtime | Owns | Does not own |
+| --- | --- | --- |
+| API | HTTP query routes, OpenAPI, public admin/query endpoints, runtime health and metrics | repository sync, parsing, fact emission, queue draining |
+| MCP Server | MCP HTTP/SSE or stdio transport, tool dispatch over the query surface | repository sync, parsing, fact emission, graph writes |
+| Ingester | repository selection, sync, snapshot lifecycle, parser execution, content shaping, repository fact emission | external cloud/registry collection, canonical graph truth |
+| Webhook Listener | Git and AWS freshness webhook verification plus durable trigger writes | cloning, parsing, fact emission, graph connections |
+| Workflow Coordinator | collector-instance reconciliation, claim creation, expired-claim reaping, completeness summaries | parsing, cloud reads, registry reads, graph truth |
+| Hosted Collectors | source-specific observation and fact emission for Confluence, OCI registry, Terraform state, AWS cloud, and package registries | canonical graph truth, cross-domain materialization |
+| Resolution Engine | durable work claiming, graph/content projection, shared projection, retry/replay/dead-letter handling | source collection, public query serving |
+| Bootstrap Index | one-shot empty-environment or recovery indexing | steady-state freshness |
+
+Runtime commands, Compose services, Helm templates, ports, and scrape targets
+live in [Service Runtimes](deployment/service-runtimes.md).
+
+## Package Ownership
+
+The repository layout follows the service boundaries:
+
+| Package area | Ownership |
+| --- | --- |
+| `go/internal/collector/` | source observation, discovery, snapshotting, fact shaping |
+| `go/internal/parser/` | parser registry, language engines, SCIP support |
+| `go/internal/relationships/` | relationship evidence extraction and typed evidence families |
+| `go/internal/facts/` | durable fact models and queue contracts |
+| `go/internal/storage/postgres/` | facts, queues, status, content, recovery, workflow control |
+| `go/internal/storage/cypher/` | backend-neutral Cypher write contracts, canonical writers, edge helpers, write instrumentation |
+| `go/internal/storage/neo4j/` | Neo4j-specific graph adapter |
+| `go/internal/projector/` | source-local projection stages |
+| `go/internal/reducer/` | shared projection, canonical materialization, repair flows |
+| `go/internal/query/` | HTTP handlers, OpenAPI, query/read surfaces |
+| `go/internal/runtime/` | health, readiness, metrics, admin/status wiring, datastore opening |
+| `go/internal/status/` | lifecycle, backlog, coverage, and admin-status reporting |
+| `go/internal/coordinator/` and `go/internal/workflow/` | collector instance reconciliation, claims, workflow state |
+| `go/internal/telemetry/` | structured JSON logging, tracing, metrics, Prometheus bridge |
+| `go/internal/truth/` | truth label contracts |
+
+For the full package map, use [Source Layout](reference/source-layout.md).
+
+## Write Path
+
+```mermaid
+sequenceDiagram
+  participant Source as Source system
+  participant Intake as Ingester or Collector
+  participant Pg as Postgres
+  participant Reducer as Resolution Engine
+  participant Graph as Graph Backend
+
+  Source->>Intake: observe bounded source scope
+  Intake->>Pg: commit versioned facts
+  Intake->>Pg: enqueue projection or reducer work
+  Reducer->>Pg: claim durable work
+  Reducer->>Pg: load facts and prior decisions
+  Reducer->>Graph: write canonical graph state
+  Reducer->>Pg: write content/read models
+  Reducer->>Pg: ack, retry, or dead-letter work
+```
+
+This path is replayable because every service boundary crosses through durable
+facts, queues, claims, status rows, and graph-write telemetry. A failed graph
+write should be diagnosed from queue state and telemetry, not hidden by moving
+graph writes into intake services.
+
+## Read Path
+
+```mermaid
+flowchart LR
+  User["User or automation"] --> API["HTTP API"]
+  MCPClient["MCP client"] --> MCP["MCP Server"]
+  API --> Query["Query handlers"]
+  MCP -->|"tool dispatch"| Query
+  Query -->|"GraphQuery port"| Graph[("Canonical graph backend")]
+  Query -->|"Content/status/read ports"| Postgres[("Postgres")]
+  Query -->|"truth label, limit, truncation"| Response["Bounded response"]
+```
+
+Read handlers are bounded before execution. List-style reads need scope, limit,
+timeout, and deterministic ordering. If a surface cannot answer accurately from
+the active profile, it should return a structured `unsupported_capability` or
+truth-labeled response instead of silently downgrading.
+
+## Shared Contracts
+
+Eshu keeps the main contracts in focused references so architecture prose does
+not become the source of stale truth.
+
+| Contract | Current source |
+| --- | --- |
+| Runtime commands, deployment shapes, health/status, ServiceMonitor coverage | [Service Runtimes](deployment/service-runtimes.md) |
+| End-to-end service workflows and operator checkpoints | [Service Workflows](reference/service-workflows.md) |
+| Admin/status HTTP shape | [Runtime Admin API](reference/runtime-admin-api.md) |
+| Metrics, traces, logs, and cross-service correlation | [Telemetry Overview](reference/telemetry/index.md) |
+| Graph backend selection, operations, and evidence | [Graph Backend Operations](reference/graph-backend-operations.md) |
+| Backend conformance gate | [Backend Conformance](reference/backend-conformance.md) |
+| Capability profiles and truth levels | [Capability Conformance Spec](reference/capability-conformance-spec.md) |
+| Truth labels | [Truth Label Protocol](reference/truth-label-protocol.md) |
+| Collector and reducer readiness | [Collector And Reducer Readiness](reference/collector-reducer-readiness.md) |
+| Component packages and activation | [Component Package Manager](reference/component-package-manager.md) |
+| Fact schema and plugin trust | [Fact Schema Versioning](reference/fact-schema-versioning.md), [Plugin Trust Model](reference/plugin-trust-model.md) |
+
+## Backend Seam
+
+Query handlers depend on capability ports, not concrete database drivers.
+`GraphQuery` serves read-only graph traversal. `ContentStore` serves relational
+content and coverage reads. Graph writes go through the
+`go/internal/storage/cypher` executor family: `Executor`, `GroupExecutor`, and
+`PhaseGroupExecutor`.
+
+The active graph backend is selected with `ESHU_GRAPH_BACKEND`. Empty values
+default to `nornicdb`; invalid values fail startup. NornicDB is the default
+backend. Neo4j is the official alternative when it passes the shared
+Cypher/Bolt contract and conformance evidence.
+
+Backend-specific behavior belongs in narrow seams: schema DDL translation,
+connection/runtime settings, retry classification, query builders, and measured
+adapter differences. Handler and reducer logic should not branch on graph
+brand.
+
+## Local And Deployed Shapes
+
+The same contracts run in local and deployed shapes:
+
+- Local CLI and MCP flows use the `eshu` binary, embedded local services, or
+  Compose when a full stack is required.
+- Production uses split Kubernetes/Helm runtimes with shared Postgres and a
+  configured graph backend.
+
+The capability matrix defines each profile's supported capabilities and truth
+levels. Lightweight local mode refuses graph-authoritative questions that need
+the graph backend instead of silently returning low-authority answers.
+
+## What Belongs Elsewhere
+
+This page is intentionally not a change diary, ADR index, backlog, or incident
+archive. Durable lessons should live in current architecture, workflow,
+deployment, testing, telemetry, backend, MCP, collector, or package-local docs.
+Historical plans should not be the primary way engineers or operators learn how
+Eshu works.

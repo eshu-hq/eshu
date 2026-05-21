@@ -1,6 +1,8 @@
 site_name: Eshu
 repo_url: https://github.com/eshu-hq/eshu
 repo_name: eshu-hq/eshu
+docs_dir: public
+site_dir: site
 theme:
   name: material
   features:
@@ -69,8 +71,18 @@ nav:
     - Health Checks: operate/health-checks.md
     - Telemetry: operate/telemetry.md
     - Troubleshooting: operate/troubleshooting.md
-    - Service Runtimes: deployment/service-runtimes.md
-    - Local Testing: reference/local-testing.md
+    - Service Runtimes:
+      - Overview: deployment/service-runtimes.md
+      - Core Services: deployment/service-runtimes-core.md
+      - Collector Services: deployment/service-runtimes-collectors.md
+      - Bootstrap Services: deployment/service-runtimes-bootstrap.md
+    - Local Testing:
+      - Overview: reference/local-testing.md
+      - Remote Collector E2E: reference/local-testing/remote-collector-e2e.md
+      - Collector Live Smokes: reference/local-testing/collector-live-smokes.md
+      - Verification Gates: reference/local-testing/verification-gates.md
+      - Discovery Advisory: reference/local-testing/discovery-advisory.md
+      - Profiling And Concurrency: reference/local-testing/profiling-and-concurrency.md
     - Remote E2E Runtime State: reference/remote-e2e-runtime-state.md
     - Cloud Validation: reference/cloud-validation.md
   - Understand Eshu:
@@ -97,7 +109,14 @@ nav:
       - Service Categories: guides/terraform-providers/service-categories.md
   - Reference:
     - API & MCP:
-      - HTTP API: reference/http-api.md
+      - HTTP API:
+        - Overview: reference/http-api.md
+        - Status And Admin: reference/http-api/status-admin.md
+        - Evidence And Supply Chain: reference/http-api/evidence-and-supply-chain.md
+        - Context And Stories: reference/http-api/context-and-stories.md
+        - Code: reference/http-api/code.md
+        - IaC, Content, And Infra: reference/http-api/iac-content-infra.md
+        - Repositories, Ingester, And Bundles: reference/http-api/repositories-ingesters-bundles.md
       - MCP Reference: reference/mcp-reference.md
       - MCP Cookbook: reference/mcp-cookbook.md
     - CLI Reference: reference/cli-reference.md
@@ -107,6 +126,10 @@ nav:
     - CLI K.I.S.S.: reference/cli-kiss.md
     - Configuration: reference/configuration.md
     - Environment Variables: reference/environment-variables.md
+    - Runtime And Storage Environment: reference/environment-runtime-storage.md
+    - Ingestion And Queue Environment: reference/environment-ingestion-queues.md
+    - Collector Environment: reference/environment-collectors.md
+    - Compose And Test Environment: reference/environment-compose-tests.md
     - Documentation Updater Actuator Contract: reference/documentation-updater-actuator-contract.md
     - Component Package Manager: reference/component-package-manager.md
     - Runtime Admin API: reference/runtime-admin-api.md
@@ -116,7 +139,6 @@ nav:
       - Installation: getting-started/installation.md
       - Quickstart: getting-started/quickstart.md
       - Deployment Overview: deployment/overview.md
-      - Docker Compose: deployment/docker-compose.md
       - Helm: deployment/helm.md
       - Minimal Manifests: deployment/manifests.md
       - Argo CD: deployment/argocd.md
@@ -129,23 +151,33 @@ nav:
       - Local Host Lifecycle: reference/local-host-lifecycle.md
       - Local Performance Envelope: reference/local-performance-envelope.md
       - Dead Code Reachability Spec: reference/dead-code-reachability-spec.md
+      - Dead Code Language Maturity: reference/dead-code-language-maturity.md
+      - Dead Code TypeScript Corpus Evidence: reference/dead-code-typescript-corpus-evidence.md
       - Graph Backend Installation: reference/graph-backend-installation.md
       - Graph Backend Operations: reference/graph-backend-operations.md
       - NornicDB Tuning: reference/nornicdb-tuning.md
+      - NornicDB Tuning Evidence: reference/nornicdb-tuning-evidence.md
       - NornicDB Pitfalls: reference/nornicdb-pitfalls.md
       - Cypher Performance: reference/cypher-performance.md
     - Parity Closure Matrix: reference/parity-closure-matrix.md
     - Relationship Mapping: reference/relationship-mapping.md
+    - Relationship Evidence And Resolution: reference/relationship-mapping-evidence.md
+    - Relationship Runtime And Stories: reference/relationship-mapping-runtime-stories.md
     - Relationship Mapping Observability: reference/relationship-mapping-observability.md
     - ".eshuignore": reference/eshuignore.md
     - Troubleshooting: reference/troubleshooting.md
     - Logging Standard: reference/logging.md
     - Telemetry:
       - Overview: reference/telemetry/index.md
+      - Runtime Signals: reference/telemetry/runtime-signals.md
       - Metrics: reference/telemetry/metrics.md
+      - Ingestion And Collector Metrics: reference/telemetry/metrics-ingestion-collectors.md
+      - Reducer And Storage Metrics: reference/telemetry/metrics-reducer-storage.md
       - Traces: reference/telemetry/traces.md
       - Logs: reference/telemetry/logs.md
       - Cross-Service Correlation: reference/telemetry/cross-service-correlation.md
+      - Shared-Write Operations: reference/telemetry/shared-write-operations.md
+      - Streaming And Memory: reference/telemetry/streaming-memory.md
     - Services:
       - Bootstrap-Index: services/bootstrap-index.md
       - Ingester: services/ingester.md

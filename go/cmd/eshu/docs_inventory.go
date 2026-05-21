@@ -156,12 +156,45 @@ func environmentReferenceCandidates(path string) []string {
 	if info, err := os.Stat(path); err == nil && !info.IsDir() {
 		base = filepath.Dir(path)
 	}
-	return []string{
-		filepath.Join(base, "docs", "docs", "reference", "environment-variables.md"),
-		filepath.Join(base, "reference", "environment-variables.md"),
-		filepath.Join("docs", "docs", "reference", "environment-variables.md"),
-		filepath.Join("..", "docs", "docs", "reference", "environment-variables.md"),
+	candidates := []string{}
+	seen := map[string]struct{}{}
+	add := func(parts ...string) {
+		candidate := filepath.Clean(filepath.Join(parts...))
+		if _, ok := seen[candidate]; ok {
+			return
+		}
+		seen[candidate] = struct{}{}
+		candidates = append(candidates, candidate)
 	}
+	addPattern := func(parts ...string) {
+		pattern := filepath.Clean(filepath.Join(parts...))
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			return
+		}
+		for _, match := range matches {
+			add(match)
+		}
+	}
+	addReferenceSet := func(parts ...string) {
+		dirParts := append([]string{}, parts...)
+		add(append(dirParts, "environment-variables.md")...)
+		addPattern(append(dirParts, "environment-*.md")...)
+	}
+	for current := filepath.Clean(base); ; current = filepath.Dir(current) {
+		addReferenceSet(current, "reference")
+		addReferenceSet(current, "docs", "public", "reference")
+		addReferenceSet(current, "docs", "docs", "reference")
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+	}
+	addReferenceSet("docs", "public", "reference")
+	addReferenceSet("..", "docs", "public", "reference")
+	addReferenceSet("docs", "docs", "reference")
+	addReferenceSet("..", "docs", "docs", "reference")
+	return candidates
 }
 
 func docsVerifyDefaultEnvironmentTruth() []string {

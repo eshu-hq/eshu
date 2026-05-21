@@ -1,52 +1,46 @@
 # Collector Confluence
 
-## Purpose
+`internal/collector/confluence` reads Confluence Cloud documentation evidence and
+emits Eshu documentation facts. The package is read-only. It never writes back to
+Confluence and it does not infer source truth without caller-provided extraction
+hints.
 
-`internal/collector/confluence` reads Confluence Cloud documentation evidence
-and emits source-neutral documentation facts. It is intentionally read-only:
-the package gathers truth for Eshu's data plane and does not update Confluence.
-
-## Where This Fits In The Pipeline
+## Runtime Flow
 
 ```mermaid
 flowchart LR
   A["cmd/collector-confluence"] --> B["confluence.Source"]
-  B --> C["Confluence Client\nGET only"]
-  B --> D["documentation facts\nsource/document/section/link"]
+  B --> C["Confluence REST API v2\nGET only"]
+  B --> D["documentation facts"]
   D --> E["collector.Service"]
-  E --> F["Postgres ingestion store"]
+  E --> F["Postgres facts store"]
 ```
-
-## Internal Flow
 
 `Source.Next` performs one bounded collection generation. `Source.NextObserved`
 uses the same path and returns `collector.CollectorObservation`, but starts the
 shared `collector.observe` span only after the source has ruled out a drained
-idle poll. The collection path loads either
-a space page list or a root page tree, filters non-current pages, keeps the
-latest visible revision per page ID, computes a stable generation ID from page
-versions, and returns fact envelopes through `collector.FactsFromSlice`.
-When configured with explicit multiple space IDs, each call emits one
-generation for one space; the drained idle poll resets the list so the next
-poll cycle starts from the first configured space again.
+idle poll. The collection path loads either a space page list or a root page
+tree, filters non-current pages, keeps the latest visible revision per page ID,
+computes a stable generation ID from page versions, and returns fact envelopes
+through `collector.FactsFromSlice`. When configured with explicit multiple
+space IDs, each call emits one generation for one space; the drained idle poll
+resets the list so the next poll cycle starts from the first configured space.
 
-For page trees, `ErrPermissionDenied` from a child page is counted as a
-partial-sync failure and collection continues. Other client errors fail the
-generation because the collector cannot prove the source state.
+The collection path runs in one of two modes:
 
-## Exported Surface
+- **Space scope**: fetch the configured space, list its pages, and enrich each
+  page with body and metadata.
+- **Root-page scope**: walk the configured root page tree, then fetch each
+  visible page.
 
-- `Source` - implements `collector.Source` and `collector.ObservedSource`
-- `SourceConfig` and `LoadConfig` - env-backed Confluence config loading
-- `Client` - source evidence interface used by `Source`
-- `HTTPClient` and `NewHTTPClient` - Confluence Cloud REST API v2 reader
-- `ErrPermissionDenied` - permission-gap sentinel for page tree collection
-- `Space`, `Page`, `PageVersion`, `PageBody`, `Label`, and `Links` - the
-  source response shape normalized into documentation facts
+Pages that are not current are skipped. Duplicate page IDs collapse to the
+latest visible revision. Permission gaps from child pages are counted as partial
+sync failures and collection continues; other client failures fail the
+generation because the collector cannot prove source state.
 
 ## Configuration
 
-`LoadConfig` reads:
+`LoadConfig` reads these environment variables:
 
 - `ESHU_CONFLUENCE_BASE_URL`
 - `ESHU_CONFLUENCE_SPACE_ID`
@@ -73,58 +67,44 @@ Each generation emits:
 
 - one `documentation_source` fact
 - one `documentation_document` fact per visible current page
-- one `documentation_section` body fact per document
+- one `documentation_section` fact for each page body
 - one `documentation_link` fact per extracted storage-body link
-- optional `documentation_entity_mention` and `documentation_claim_candidate`
-  facts when a caller supplies a `doctruth.Extractor` and structured claim
-  hints
+- optional `documentation_entity_mention` and
+  `documentation_claim_candidate` facts when the caller supplies a
+  `doctruth.Extractor` and claim hints
 
-Document facts preserve canonical URI, revision ID, labels, owner references,
-ACL summary, content hash, source metadata, and document freshness. Section
-facts persist the source-native Confluence storage body in Postgres as
-`content` with `content_format=storage`, so downstream documentation updater
-services can build diffs without asking the collector to write back to
-Confluence. Confluence source and document ACL summaries are marked
-`credential_viewable` and partial when page restrictions are not collected;
-downstream evidence packet producers must still prove
-`viewer_can_read_source=true` before exposing excerpts or body content.
+Document identity uses the Confluence page ID, not title text. Section facts
+preserve the source-native Confluence storage body in Postgres as
+`content_format=storage` so downstream documentation services can diff source
+content without asking the collector to mutate Confluence.
 
-The optional truth extraction seam is deterministic and read-only. The
-Confluence collector does not infer claims from broad prose and does not load an
-entity catalog by itself; callers provide those inputs when the runtime has
-already gathered them from Eshu.
+Source and document access-control summaries are marked
+`credential_viewable` and partial when page restrictions are not collected.
+Evidence packet producers must still prove `viewer_can_read_source=true` before
+exposing excerpts or body content.
 
-## Operational Notes
+## Safety Rules
 
-- HTTP access is `GET` only and maps 403/404 responses to
-  `ErrPermissionDenied`.
-- Sync logs and metrics report counts, status, failure class, and bounded
-  source operations only. Page IDs, titles, URLs, paths, body content, and
-  excerpts are not emitted as metric labels. The Confluence-specific
-  `eshu_dp_confluence_http_requests_total`,
-  `eshu_dp_confluence_fetch_duration_seconds`,
-  `eshu_dp_confluence_permission_denied_pages_total`,
-  `eshu_dp_confluence_documents_observed_total`,
-  `eshu_dp_confluence_sections_emitted_total`,
-  `eshu_dp_confluence_links_emitted_total`, and
-  `eshu_dp_confluence_sync_failures_total` metrics expose source-stage cost
-  and partial-sync causes. The shared `collector.observe` span and
-  `eshu_dp_collector_observe_duration_seconds` histogram include page
-  collection, fact construction, and durable commit time; the
-  `eshu_dp_facts_emitted_total`, `eshu_dp_generation_fact_count`, and
-  `eshu_dp_facts_committed_total` metrics report documentation fact volume with
-  `source_system=confluence` and `collector_kind=documentation`.
-- Pagination follows Confluence `_links.next` values without duplicating the
-  configured context path, so Atlassian Cloud base URLs that include `/wiki`
-  work with both `/api/v2/...` and `/wiki/api/v2/...` next links.
+- HTTP access is `GET` only.
+- 403 and 404 responses map to `ErrPermissionDenied`.
 - Empty spaces are valid and emit a source fact with `page_count=0`.
-- Duplicate titles are safe because stable document identity uses Confluence
-  page ID, not title.
-- Stale or deleted pages are skipped unless their status is current.
-- Source metadata reports `page_count`, `failure_count`, and `sync_status`.
+- Atlassian Cloud base URLs with `/wiki` are supported for direct API calls and
+  `_links.next` pagination links.
+- Logs and metrics report counts, status, failure class, and bounded source
+  operations only. Page IDs, titles, URLs, paths, body content, and excerpts do
+  not belong in metric labels.
+
+## Verification
+
+Run focused checks after changing this package:
+
+```bash
+go test ./internal/collector/confluence ./cmd/collector-confluence -count=1
+go run ./cmd/eshu docs verify ../go/internal/collector/confluence --limit 1000 --fail-on contradicted,missing_evidence
+```
 
 ## Related Docs
 
 - `go/cmd/collector-confluence/README.md`
 - `go/internal/collector/README.md`
-- `docs/docs/guides/collector-authoring.md`
+- `docs/public/guides/collector-authoring.md`

@@ -122,6 +122,6 @@ names, and credential values out of the operator payload.
 
 ## Related Docs
 
-- [OCI registry ADR](../../../docs/docs/adrs/2026-05-10-oci-container-registry-collector.md)
-- [Telemetry reference](../../../docs/docs/reference/telemetry/index.md)
-- [Service runtimes](../../../docs/docs/deployment/service-runtimes.md)
+- [Collector readiness](../../../docs/public/reference/collector-reducer-readiness.md)
+- [Telemetry reference](../../../docs/public/reference/telemetry/index.md)
+- [Service runtimes](../../../docs/public/deployment/service-runtimes.md)

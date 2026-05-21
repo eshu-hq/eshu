@@ -83,8 +83,8 @@ workers in `internal/storage/postgres`, `internal/projector`, and
 
 ## Related docs
 
-- `docs/docs/architecture.md` — pipeline and ownership table
-- `docs/docs/deployment/service-runtimes.md` — projector and reducer runtime
+- `docs/public/architecture.md` — pipeline and ownership table
+- `docs/public/deployment/service-runtimes.md` — projector and reducer runtime
   lanes
 - `go/internal/storage/postgres/` — Postgres-backed claim, lease, and
   visibility adapter

@@ -17,7 +17,7 @@ init_repo() {
   mkdir -p "${dir}/go/internal/collector/base"
   printf 'package base\n' >"${dir}/go/internal/collector/base/doc.go"
   printf '# Base\n' >"${dir}/go/internal/collector/base/README.md"
-  printf '# AGENTS\n' >"${dir}/go/internal/collector/base/AGENTS.md"
+  printf '# Base Agent Rules\n' >"${dir}/go/internal/collector/base/AGENTS.md"
   git -C "${dir}" add .
   git -C "${dir}" commit -q -m initial
   printf '%s\n' "${dir}"
@@ -60,7 +60,7 @@ mkdir -p "${complete_repo}/go/internal/collector/terraformcloud"
 printf 'package terraformcloud\n' >"${complete_repo}/go/internal/collector/terraformcloud/source.go"
 printf 'package terraformcloud\n' >"${complete_repo}/go/internal/collector/terraformcloud/doc.go"
 printf '# Terraform Cloud Collector\n' >"${complete_repo}/go/internal/collector/terraformcloud/README.md"
-printf '# AGENTS\n' >"${complete_repo}/go/internal/collector/terraformcloud/AGENTS.md"
+printf '# Terraform Cloud Agent Rules\n' >"${complete_repo}/go/internal/collector/terraformcloud/AGENTS.md"
 git -C "${complete_repo}" add .
 git -C "${complete_repo}" commit -q -m 'new package with docs'
 expect_pass "${complete_repo}"
@@ -76,7 +76,7 @@ mkdir -p "${deleted_repo}/go/internal/collector/removed"
 printf 'package removed\n' >"${deleted_repo}/go/internal/collector/removed/source.go"
 printf 'package removed\n' >"${deleted_repo}/go/internal/collector/removed/doc.go"
 printf '# Removed Collector\n' >"${deleted_repo}/go/internal/collector/removed/README.md"
-printf '# AGENTS\n' >"${deleted_repo}/go/internal/collector/removed/AGENTS.md"
+printf '# Removed Agent Rules\n' >"${deleted_repo}/go/internal/collector/removed/AGENTS.md"
 git -C "${deleted_repo}" add .
 git -C "${deleted_repo}" commit -q -m 'add package to delete'
 git -C "${deleted_repo}" rm -q -r go/internal/collector/removed

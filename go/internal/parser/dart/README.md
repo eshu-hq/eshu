@@ -41,4 +41,4 @@ method bodies must remain call evidence, not constructor declarations.
 
 ## Related docs
 
-- docs/plans/2026-05-09-parser-language-layout.md
+- `docs/public/contributing-language-support.md`

@@ -20,7 +20,7 @@
 // forward-slash contract in.
 //
 // Refs:
-//   - ADR docs/docs/adrs/2026-05-11-module-aware-drift-joining.md
+//   - ADR docs/public/services/collector-terraform-state.md
 //   - Issue #169
 //   - State-side address shape:
 //     go/internal/collector/terraformstate/identity.go:26-42

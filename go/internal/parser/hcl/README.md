@@ -81,5 +81,5 @@ returns so ingestion retries and repair runs converge on the same facts.
 ## Related docs
 
 - `go/internal/parser/README.md`
-- `docs/docs/architecture.md`
-- `docs/docs/reference/local-testing.md`
+- `docs/public/architecture.md`
+- `docs/public/reference/local-testing.md`

@@ -1,207 +1,129 @@
-# AWS Cloud Collector Contracts
+# internal/collector/awscloud
 
-## Purpose
+`internal/collector/awscloud` owns the runtime-neutral AWS cloud fact contract.
+It turns scanner observations into reported-confidence facts for the `aws`
+collector family.
 
-`internal/collector/awscloud` owns AWS cloud source identity and fact-envelope
-construction for the `aws` collector family. It turns account, region, service,
-resource, relationship, and warning observations into reported-confidence
-facts that the shared fact store can persist.
+This package does not call AWS APIs, schedule workflow claims, choose
+credentials, write graph rows, or decide workload/deployment truth.
 
-This package implements the runtime-neutral contract slice from
-`docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`.
-
-## Ownership boundary
-
-This package owns AWS observation boundaries, resource identity constants, and
-fact-envelope construction only. AWS SDK clients, credential loading, workflow
-claim scheduling, graph writes, reducer correlation, and query surfaces live in
-runtime, provider, storage, reducer, and query packages.
+## Runtime Flow
 
 ```mermaid
 flowchart LR
-  A["AWS service response"] --> B["Service scanner"]
-  B --> C["ResourceObservation / RelationshipObservation"]
-  C --> D["NewResourceEnvelope / NewRelationshipEnvelope"]
-  D --> E["facts.Envelope"]
-  E --> F["Postgres fact store"]
-  F --> G["Reducer correlation"]
+  SDK["AWS SDK adapter"] --> Scanner["service scanner"]
+  Scanner --> Observation["resource, relationship, image, DNS, or warning observation"]
+  Observation --> Envelope["New*Envelope builder"]
+  Envelope --> Facts["reported-confidence facts"]
+  Facts --> Store["Postgres fact store"]
+  Store --> Reducer["reducer correlation"]
 ```
 
-## Exported surface
+## Core Responsibilities
 
-See `doc.go` for the godoc contract.
+- Define AWS service-kind constants and collector fact boundaries.
+- Define shared claim boundary metadata: account, region, service, scope,
+  generation, collector instance, and fencing token.
+- Build fact envelopes for resources, relationships, ECR image references,
+  Route 53 DNS records, and non-fatal warnings.
+- Validate required boundary fields before fact emission.
+- Keep `FactID` generation-specific while keeping `StableFactKey`
+  source-stable inside a generation.
+- Provide redaction helpers for sensitive AWS scalar values.
+- Provide API-call status accounting types so runtime adapters can persist
+  bounded per-claim API and throttle summaries.
 
-- `CollectorKind` - durable collector kind for AWS cloud facts.
-- `ServiceIAM` - IAM service-kind value for global IAM scans.
-- `ServiceECR` - ECR service-kind value for regional image scans.
-- `ServiceECS` - ECS service-kind value for regional workload placement scans.
-- `ServiceEC2` - EC2 service-kind value for regional network topology scans.
-- `ServiceELBv2` - ELBv2 service-kind value for regional routing topology
-  scans.
-- `ServiceRoute53` - Route 53 service-kind value for global DNS scans.
-- `ServiceLambda` - Lambda service-kind value for regional function scans.
-- `ServiceEKS` - EKS service-kind value for regional Kubernetes control-plane
-  scans.
-- `ServiceSQS` - SQS service-kind value for regional queue metadata scans.
-- `ServiceSNS` - SNS service-kind value for regional topic metadata scans.
-- `ServiceEventBridge` - EventBridge service-kind value for regional event bus
-  and rule metadata scans.
-- `ServiceS3` - S3 service-kind value for regional bucket metadata scans.
-- `ServiceRDS` - RDS service-kind value for regional database metadata scans.
-- `ServiceDynamoDB` - DynamoDB service-kind value for regional table metadata
-  scans.
-- `ServiceCloudWatchLogs` - CloudWatch Logs service-kind value for regional log
-  group metadata scans.
-- `ServiceCloudFront` - CloudFront service-kind value for global distribution
-  metadata scans.
-- `ServiceAPIGateway` - API Gateway service-kind value for regional REST,
-  HTTP, WebSocket, stage, custom-domain, mapping, and integration metadata
-  scans.
-- `ServiceSecretsManager` - Secrets Manager service-kind value for regional
-  secret metadata scans.
-- `ServiceSSM` - SSM service-kind value for regional Parameter Store metadata
-  scans.
-- `Boundary` - account, region, service, generation, collector instance, and
-  fencing token shared by one claimed AWS scan.
-- `ResourceObservation` - one AWS resource ready for envelope emission.
-- `RelationshipObservation` - one AWS relationship ready for envelope
-  emission.
-- `ImageReferenceObservation` - one ECR image digest and tag reference.
-- `DNSRecordObservation` - one Route 53 DNS record observation.
-- `WarningObservation` - one non-fatal AWS scan condition.
-- `APICallEvent` - one bounded AWS SDK call observation used for per-claim
-  status accounting.
-- `APICallStatsRecorder` - in-memory per-claim API/throttle accumulator used
-  before a single durable scan-status update.
-- `ScanStatusStart`, `ScanStatusObservation`, and `ScanStatusCommit` -
-  scanner-side and commit-side status records for admin visibility.
-- `RedactionPolicyVersion` - AWS launch sensitive-key/provider policy version
-  attached to redacted fact values.
-- `RedactString` - shared AWS scalar redaction helper backed by
-  `internal/redact`.
-- `NewResourceEnvelope` - builds an `aws_resource` fact.
-- `NewRelationshipEnvelope` - builds an `aws_relationship` fact.
-- `NewImageReferenceEnvelope` - builds an `aws_image_reference` fact.
-- `NewDNSRecordEnvelope` - builds an `aws_dns_record` fact.
-- `NewWarningEnvelope` - builds an `aws_warning` fact.
+## Evidence Types
 
-Envelope builders validate account, region, service kind, scope, generation,
-collector instance, and fencing token boundaries before emitting facts.
-`FactID` includes scope and generation so repeated scans preserve history, and
-`StableFactKey` remains the source-stable identity inside a generation.
+| Evidence | Meaning |
+| --- | --- |
+| `aws_resource` | Source-reported AWS resource metadata. |
+| `aws_relationship` | Source-reported relationship between AWS resources or external references. |
+| `aws_image_reference` | ECR image digest and tag reference evidence. |
+| `aws_dns_record` | Route 53 DNS record evidence. |
+| `aws_warning` | Non-fatal scan condition, such as partial throttling or credential failure. |
 
-## Dependencies
+All AWS collector facts are evidence. Reducers must corroborate them before
+promoting canonical graph, workload, deployment, ownership, or drift truth.
 
-- `internal/facts` for durable AWS fact constants, `Envelope`, `Ref`,
-  reported source confidence, and stable ID generation.
-- `internal/redact` for HMAC-backed scalar markers and versioned
-  sensitive-key classification.
+## Service Boundaries
 
-## Telemetry
+Service packages under `services/*` own source-specific mapping rules. The
+shared invariant is:
 
-This package emits no metrics, spans, or logs directly. Runtime adapters that
-claim AWS work and call AWS APIs must emit collector spans, API call counters,
-scan duration histograms, and warning/failure counters at that boundary.
-Service SDK adapters call `RecordAPICall` so the runtime can persist bounded
-per-claim API and throttle counts without writing one Postgres row per AWS
-request.
+- Metadata-only services must not read payloads, secrets, policies, object
+  bodies, queue messages, log events, database rows, or mutation APIs.
+- Relationship facts are reported join evidence only.
+- ECS and Lambda environment values must be redacted before persistence.
+- IAM and Route 53 are global services, but claim shape still includes a region
+  label so all AWS claims use `(collector_instance_id, account_id, region,
+  service_kind)`.
+- EC2 currently emits network topology evidence, not EC2 instance inventory.
 
-## Gotchas / invariants
+When adding or widening a service scanner, update that service package README
+with exact source API boundaries, forbidden data classes, evidence emitted, and
+verification.
 
-- AWS observations are reported source evidence. Do not claim canonical
-  workload, deployment, or graph truth here.
-- IAM and Route 53 are global AWS services, but the boundary still carries a
-  region label so claims stay shaped like `(collector_instance_id, account_id,
-  region, service_kind)`.
-- `FencingToken` is copied onto each fact envelope so stale workers cannot
-  silently overwrite a newer generation.
-- Credential material, bearer tokens, session tokens, and presigned query
-  parameters must not enter payloads, source references, logs, spans, or
-  metric labels.
-- Account IDs, regions, and service kinds are acceptable claim dimensions.
-  Resource ARNs, names, tags, URLs, and policy JSON are not metric labels.
-- API-call status events carry only account, region, service, operation,
-  result, and a throttle flag. Do not add resource names, page tokens, ARNs, or
-  raw AWS error text to `APICallEvent`.
-- EC2 instance inventory stays out of EC2 network-topology facts. ENI
-  attachment target ARNs are reported metadata, not instance resource facts.
-- Lambda function environment values must be redacted before persistence with
-  `RedactString`; the payload keeps the redaction marker, reason, source, and
-  `RedactionPolicyVersion`.
-  Container image URIs, alias routing, event-source ARNs, execution roles, and
-  VPC subnet/security-group IDs are reported join evidence only.
-- EKS OIDC provider, node group, add-on, IAM role, subnet, and security group
-  facts are reported join evidence only. They do not prove Kubernetes workload
-  or deployment ownership truth.
-- SQS queue facts are metadata only. Queue messages and queue policy JSON stay
-  outside the AWS collector fact contract. Redrive policy values may emit
-  reported dead-letter queue relationship evidence when AWS provides both
-  queue ARNs.
-- SNS topic facts are metadata only. Message payloads, topic policy JSON,
-  delivery-policy JSON, data-protection-policy JSON, and raw non-ARN
-  subscription endpoints stay outside the AWS collector fact contract. ARN
-  subscription endpoints may emit reported delivery relationship evidence.
-- EventBridge facts are metadata only. PutEvents, resource mutations, event bus
-  policy JSON, target payload fields, target input transformers, HTTP target
-  parameters, and raw non-ARN targets stay outside the AWS collector fact
-  contract. ARN target endpoints may emit reported relationship evidence.
-- S3 bucket facts are metadata only. Object inventory, bucket policy JSON, ACL
-  grants, replication rules, lifecycle rules, notification configuration,
-  inventory configuration, analytics configuration, and metrics configuration
-  stay outside the AWS collector fact contract. Server-access-log target
-  buckets may emit reported relationship evidence.
-- RDS facts are metadata only. Database connections, database names, master
-  usernames, passwords, snapshots, log contents, Performance Insights samples,
-  schemas, tables, and row data stay outside the AWS collector fact contract.
-  DB instances, DB clusters, DB subnet groups, and directly reported dependency
-  relationships are reported evidence only.
-- DynamoDB facts are metadata only. Item values, table scans, table queries,
-  stream records, backup/export payloads, resource policies, PartiQL output, and
-  mutations stay outside the AWS collector fact contract. Table metadata, tags,
-  indexes, TTL status, backup status, stream settings, replicas, and directly
-  reported KMS key relationships are reported evidence only. Sustained
-  throttling on optional `DescribeTimeToLive` calls emits an `aws_warning` with
-  `warning_kind=throttle_sustained`, leaves table resources present, and omits
-  TTL metadata for that partial scan rather than failing the whole DynamoDB
-  claim.
-- CloudWatch Logs facts are metadata only. Log events, log stream payloads,
-  Insights query results, export payloads, resource policies, subscription
-  payloads, and mutations stay outside the AWS collector fact contract. Log
-  group metadata, tags, data protection status, inherited properties, deletion
-  protection, bearer-token authentication state, and directly reported KMS key
-  relationships are reported evidence only.
-- CloudFront facts are metadata only. Object contents, origin payloads,
-  distribution config payloads, policy documents, certificate bodies, private
-  keys, origin custom header values, and mutations stay outside the AWS
-  collector fact contract. Distribution metadata, aliases, origins, cache
-  behavior selectors, viewer certificate selectors, tags, and directly reported
-  ACM certificate and WAF web ACL relationships are reported evidence only.
-- API Gateway facts are metadata only. API execution, exports, API keys,
-  authorizer secrets, policy JSON, integration credentials, stage variable
-  values, request templates, response templates, payloads, and mutations stay
-  outside the AWS collector fact contract. API identities, stages, custom
-  domains, mappings, access-log destinations, ACM certificate dependencies, and
-  ARN-addressable integration targets are reported evidence only.
-  Sustained throttling on optional API Gateway REST resource pages emits an
-  `aws_warning` with `warning_kind=throttle_sustained` and leaves integration
-  relationships absent for that partial scan rather than fabricating stale
-  dependency truth.
-- Secrets Manager facts are metadata only. Secret values, version payloads,
-  resource policy JSON, external rotation partner metadata, external rotation
-  role ARNs, and mutations stay outside the AWS collector fact contract. Secret
-  metadata, tags, KMS key dependencies, and rotation Lambda dependencies are
-  reported evidence only.
-- ECS task-definition environment values must be redacted before persistence
-  with `RedactString`. Secret `value_from` references are preserved as
-  references, not resolved secret values.
-- SSM facts are metadata only. Parameter values, history values, raw
-  descriptions, raw allowed patterns, raw policy JSON, decrypted content, and
-  mutations stay outside the AWS collector fact contract. Parameter metadata,
-  tags, safe policy type/status metadata, and KMS key dependencies are reported
-  evidence only.
+## Telemetry Boundary
 
-## Related docs
+This package emits no spans or metrics directly. Runtime and SDK adapter
+packages own telemetry:
 
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
-- `docs/docs/guides/collector-authoring.md`
-- `docs/docs/reference/telemetry/index.md`
+- claim, credential, and service-scan spans
+- AWS API call counters
+- throttle counters
+- scan duration histograms
+- resources, relationships, tags, warnings, and partial-run status
+
+`APICallEvent` must stay bounded to account, region, service, operation, result,
+and throttle flag. Do not add ARNs, resource names, page tokens, raw AWS error
+text, policy JSON, or secret material to metric labels or API-call status rows.
+
+## Safety Rules
+
+- Do not emit canonical graph truth from collectors.
+- Do not persist credential material, bearer tokens, session tokens, presigned
+  query parameters, secret values, policy JSON, payload bodies, or mutation
+  results.
+- Do not put ARNs, URLs, names, tags, or policy text in metric labels.
+- Copy `FencingToken` into every fact envelope so stale workers cannot silently
+  overwrite a newer generation.
+- Keep service-specific redaction and metadata-only exclusions close to the
+  owning service scanner.
+- Keep new service kinds aligned with `awsruntime.SupportedServiceKinds` and
+  command-side target validation.
+
+## Change Checklist
+
+- Add an AWS service by adding the shared service constants, a scanner package
+  under `services/`, scanner tests, an `awssdk` adapter, service package docs,
+  and a branch in `awsruntime.DefaultScannerFactory`.
+- Give each new service package a `doc.go` and README before merge. The README
+  must name source APIs, forbidden data classes, emitted evidence, and tests.
+- Run the performance evidence gate when a service adds pagination fanout,
+  claim concurrency, batch sizing, queue pressure, or downstream graph or
+  materialization pressure.
+- Add a fact envelope only after `internal/facts` exposes the fact kind and
+  schema version.
+- Keep credential and redaction rules at the runtime boundary unless the value
+  is part of the durable fact-envelope contract.
+
+## Verification
+
+```bash
+go test ./internal/collector/awscloud -count=1
+go test ./internal/collector/awscloud/awsruntime -count=1
+go test ./cmd/collector-aws-cloud -count=1
+go run ./cmd/eshu docs verify ../go/internal/collector/awscloud --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```
+
+Run the service package tests when a service scanner or SDK adapter changes.
+
+## Related Docs
+
+- [AWS Cloud Collector Service](../../../../docs/public/services/collector-aws-cloud.md)
+- [Collector Authoring](../../../../docs/public/guides/collector-authoring.md)
+- [Environment Variables](../../../../docs/public/reference/environment-variables.md)
+- [Telemetry Reference](../../../../docs/public/reference/telemetry/index.md)
+- [AWS Runtime](awsruntime/README.md)

@@ -128,5 +128,5 @@ None. Schema and constructors only.
 - `go/internal/correlation/admission/README.md` — consumes
   `EvidenceRequirement` selectors
 - `go/internal/correlation/README.md` — pipeline overview
-- ADR: `docs/docs/adrs/2026-04-19-multi-source-correlation-dsl-and-collector-readiness.md`
-- ADR: `docs/docs/adrs/2026-04-19-deployable-unit-correlation-and-materialization-framework.md`
+- Reference: `docs/public/reference/relationship-mapping.md`
+- Reference: `docs/public/reference/relationship-mapping.md`

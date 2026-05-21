@@ -14,8 +14,8 @@ init_repo() {
   git -C "${dir}" init -q
   git -C "${dir}" config user.email "test@example.invalid"
   git -C "${dir}" config user.name "Eshu Test"
-  mkdir -p "${dir}/docs/docs/reference" "${dir}/go/internal/storage/cypher"
-  printf '# Local Performance\n' >"${dir}/docs/docs/reference/local-performance-envelope.md"
+  mkdir -p "${dir}/docs/public/reference" "${dir}/go/internal/storage/cypher"
+  printf '# Local Performance\n' >"${dir}/docs/public/reference/local-performance-envelope.md"
   printf 'package cypher\n' >"${dir}/go/internal/storage/cypher/doc.go"
   git -C "${dir}" add .
   git -C "${dir}" commit -q -m initial
@@ -89,7 +89,7 @@ evidence_repo="$(init_repo evidence)"
 printf 'package cypher\nconst query = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
   >"${evidence_repo}/go/internal/storage/cypher/writer.go"
 printf '\n## Current Evidence\n\nPerformance Evidence: focused writer benchmark stayed flat.\n\nObservability Evidence: existing writer metrics covered the changed path.\n' \
-  >>"${evidence_repo}/docs/docs/reference/local-performance-envelope.md"
+  >>"${evidence_repo}/docs/public/reference/local-performance-envelope.md"
 git -C "${evidence_repo}" add .
 git -C "${evidence_repo}" commit -q -m 'hot change with evidence'
 expect_pass "${evidence_repo}"
@@ -98,7 +98,7 @@ missing_observability_repo="$(init_repo missing-observability)"
 printf 'package cypher\nconst query = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
   >"${missing_observability_repo}/go/internal/storage/cypher/writer.go"
 printf '\n## Current Evidence\n\nPerformance Evidence: focused writer benchmark stayed flat.\n' \
-  >>"${missing_observability_repo}/docs/docs/reference/local-performance-envelope.md"
+  >>"${missing_observability_repo}/docs/public/reference/local-performance-envelope.md"
 git -C "${missing_observability_repo}" add .
 git -C "${missing_observability_repo}" commit -q -m 'hot change without observability evidence'
 expect_fail "${missing_observability_repo}"

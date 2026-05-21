@@ -1,8 +1,9 @@
 # Commands
 
 Each subdirectory builds one Eshu executable. This directory is a navigation
-root, not a Go package — each child has its own rich `README.md` and
-`AGENTS.md`.
+root, not a Go package. Each child owns its operational contract in `README.md`;
+assistant workflow rules stay in the repository root `AGENTS.md` unless a
+binary needs local rules that do not belong in the public command README.
 
 The public CLI command is `eshu`. The service binaries use ESHU-prefixed names
 when installed for local runtime work, such as `eshu-api`, `eshu-mcp-server`,
@@ -50,17 +51,18 @@ flowchart LR
   mcp[mcp-server] --> api
 ```
 
-For the full lifecycle of any one binary, open its `README.md` and
-`AGENTS.md`.
+For the full lifecycle of any one binary, open its `README.md`.
 
 ## Per-package documentation convention
 
-Every Go package directory under `go/cmd/` carries three files:
+Every Go package directory under `go/cmd/` carries two required files:
 
 - `doc.go` — godoc contract.
 - `README.md` — architectural and operational lens with mermaid flow
   diagrams and runbook-shape operational notes.
-- `AGENTS.md` — guidance for LLM assistants editing the binary.
+
+Use a package-local `AGENTS.md` only when command-specific assistant workflow
+rules cannot fit cleanly in the root agent guide or user-facing command README.
 
 ## Dependencies
 
@@ -77,6 +79,6 @@ providers.
 
 ## Related docs
 
-- `docs/docs/deployment/service-runtimes.md`
-- `docs/docs/reference/cli-reference.md`
-- `docs/docs/reference/local-testing.md`
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/reference/cli-reference.md`
+- `docs/public/reference/local-testing.md`

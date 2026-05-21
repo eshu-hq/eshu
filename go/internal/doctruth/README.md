@@ -41,6 +41,13 @@ matching resolvers; the package never walks the filesystem itself. It emits
 explicit statuses: `valid`, `contradicted`, `missing_evidence`, and
 `unsupported_claim_type`.
 
+Command claims may include documented argument placeholders such as `<path>` or
+`[path]`; the verifier strips those placeholders before comparing the command
+path to the Cobra tree. HTTP endpoint claims may use the exact OpenAPI template
+or a concrete example path. Template parameter names are normalized, so
+`{id}` and `{repo_id}` compare as the same route shape, and concrete examples
+match one path segment for each template placeholder.
+
 ## Invariants
 
 - Claim candidates are document evidence only; they never become operational

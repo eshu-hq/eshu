@@ -234,6 +234,21 @@ Do not add backend-conditional logic to `CanonicalWriter.Write` callers.
 Backend dialect differences belong only in `internal/storage/cypher` and its
 backend-specific adapters.
 
+## Change Checklist
+
+- Add a new entity type by updating `entityTypeLabelMap`, the graph schema, and
+  focused projector/schema tests. Missing either side can silently drop nodes or
+  produce graph writes without index support.
+- Add a new projection stage in `Runtime.Project`, record
+  `ProjectorStageDuration` with a stable stage label, and add a span when the
+  stage crosses a service boundary.
+- Change concurrency only after reading `service.go`, `service_superseded.go`,
+  and the large-generation semaphore path. Worker cancellation, superseded
+  generations, and memory pressure are linked.
+- Add a reducer intent by adding the reducer domain constant first, then
+  building a deterministic intent in the projector and proving
+  `reducer.ParseDomain` accepts it.
+
 ## Gotchas / invariants
 
 - Projection must be idempotent (`doc.go`). Retries and re-queued items must
@@ -289,9 +304,9 @@ reducer convergence.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — pipeline and ownership table
-- `docs/docs/deployment/service-runtimes.md` — local verification runtime lanes
-- `docs/docs/reference/telemetry/index.md` — metric and span reference
-- ADR: `docs/docs/adrs/2026-04-17-neo4j-deadlock-elimination-batch-isolation.md`
-- ADR: `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`
-- ADR: `docs/docs/adrs/2026-04-17-semantic-entity-materialization-bottleneck.md`
+- `docs/public/architecture.md` — pipeline and ownership table
+- `docs/public/deployment/service-runtimes.md` — local verification runtime lanes
+- `docs/public/reference/telemetry/index.md` — metric and span reference
+- Reference: `docs/public/reference/cypher-performance.md`
+- Reference: `docs/public/reference/nornicdb-tuning.md`
+- Reference: `docs/public/reference/local-performance-envelope.md`

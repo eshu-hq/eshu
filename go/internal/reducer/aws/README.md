@@ -19,7 +19,7 @@ flowchart LR
 ## Purpose
 
 Pin the `RuntimeContract` (component list and readiness checkpoints) for AWS
-canonical projection so ADRs, test fixtures, and future reducer wiring share
+canonical projection so contract docs, test fixtures, and future reducer wiring share
 one source of truth. `DefaultRuntimeContract` and `RuntimeContractTemplate`
 return defensive copies, and `RuntimeContract.Validate` rejects blank component
 or checkpoint metadata before fixtures accept the scaffold.
@@ -39,7 +39,7 @@ or checkpoint metadata before fixtures accept the scaffold.
 - `DefaultRuntimeContract()` — `contract.go:41` — defensive copy of the
   accepted scaffold.
 - `RuntimeContractTemplate()` — `contract.go:48` — alias for
-  `DefaultRuntimeContract`; used by ADR fixtures.
+  `DefaultRuntimeContract`; used by contract fixtures.
 
 The accepted scaffold:
 
@@ -65,7 +65,8 @@ projector family is implemented.
 - The single accepted checkpoint is a Phase 1 canonical-nodes publication
   (`canonical_nodes_committed`). Downstream domains that consume
   `resolved_relationships` populated from AWS canonical nodes still require
-  the standard post-Phase-3 reopen mechanism described in CLAUDE.md
+  the standard post-Phase-3 reopen mechanism described in
+  `docs/internal/agent-guide.md`
   "Facts-First Bootstrap Ordering"; that reopen lives outside this package.
 - `Validate` enforces non-blank components and checkpoint fields, but does
   not verify that the listed component names correspond to any concrete
@@ -73,7 +74,7 @@ projector family is implemented.
 
 ## Related docs
 
-- `docs/docs/architecture.md`
+- `docs/public/architecture.md`
 - `go/internal/reducer/README.md`
 - `go/internal/reducer/dsl/README.md`
 - `go/internal/reducer/tfstate/README.md`

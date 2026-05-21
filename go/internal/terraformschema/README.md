@@ -163,7 +163,7 @@ None. Schema loading is a startup-time operation; callers in
 
 ## Related docs
 
-- `docs/docs/architecture.md` — ownership table
+- `docs/public/architecture.md` — ownership table
 - `go/internal/terraformschema/schemas/README.md` — schema generation and
   packaging instructions
 - `scripts/generate_terraform_provider_schema.sh` — schema generation script

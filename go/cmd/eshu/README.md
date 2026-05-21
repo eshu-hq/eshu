@@ -89,16 +89,20 @@ launched runtime via the shared `telemetry` package. Errors print to
   claims, explicit local repo path claims, tagged or digested container image
   refs, Terraform block addresses, and known unsupported shell-command claims,
   then generates documentation finding and evidence-packet fact envelopes in
-  memory. Local path and Terraform address claims are checked against the nearest
+  memory. Endpoint truth comes from the generated public OpenAPI schema plus
+  mounted documentation UI and service-local runtime admin, recovery, and MCP
+  transport routes. Command claims can include documented placeholders such as
+  `[path]`, and endpoint claims can use route templates or concrete example
+  paths. Local path and Terraform address claims are checked against the nearest
   Git worktree root or current working directory. Missing files are contradicted
   findings, and missing Terraform blocks are contradicted only when the local
   Terraform truth scan completes cleanly; invalid, oversized, or incomplete
   Terraform truth is reported as missing evidence. Without `--persist`, it does
-  not open Postgres or graph connections. With
-  `--persist`, it opens the shared Postgres fact-store DSN, writes a
-  documentation-source scope generation, and skips re-verification when the
-  current pending or active generation has the same document fingerprint while
-  still returning persisted findings for `--fail-on` evaluation.
+  not open Postgres or graph connections. With `--persist`, it opens the shared
+  Postgres fact-store DSN, writes a documentation-source scope generation, and
+  skips re-verification when the current pending or active generation has the
+  same document fingerprint while still returning persisted findings for
+  `--fail-on` evaluation.
 - `eshu mcp start --workspace-root <repo>` attaches to the active local owner.
   The stdio path execs the internal `local-host mcp-stdio` attach command, while
   `--transport http` and legacy `--transport sse` exec `eshu-mcp-server` with
@@ -180,6 +184,6 @@ launched runtime via the shared `telemetry` package. Errors print to
 
 ## Related docs
 
-- [Service runtimes](../../../docs/docs/deployment/service-runtimes.md)
-- [CLI reference](../../../docs/docs/reference/cli-reference.md)
-- [CLI indexing](../../../docs/docs/reference/cli-indexing.md)
+- [Service runtimes](../../../docs/public/deployment/service-runtimes.md)
+- [CLI reference](../../../docs/public/reference/cli-reference.md)
+- [CLI indexing](../../../docs/public/reference/cli-indexing.md)

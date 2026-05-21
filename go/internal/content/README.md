@@ -98,5 +98,5 @@ contract.
 ## Related docs
 
 - `go/internal/content/shape/README.md` — shaping layer that builds `Materialization`
-- `docs/docs/architecture.md` — pipeline and Postgres content store role
-- `docs/docs/reference/local-testing.md`
+- `docs/public/architecture.md` — pipeline and Postgres content store role
+- `docs/public/reference/local-testing.md`

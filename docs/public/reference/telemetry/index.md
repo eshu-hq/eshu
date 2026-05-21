@@ -1,0 +1,102 @@
+# Telemetry Overview
+
+Eshu telemetry exists to answer operator questions quickly:
+
+- Is a runtime healthy or only alive?
+- Is work stuck, retrying, dead-lettered, or simply not needed?
+- Which stage owns the cost: collection, parsing, fact commit, projection,
+  reducer materialization, graph write, or read query?
+- Can the next engineer prove a runtime change with metrics, traces, and logs?
+
+The code source of truth is `go/internal/telemetry`. Public docs explain how to
+use that contract without turning this page into a second copy of the code.
+
+## Start Here
+
+Use this route map instead of reading every telemetry page front to back.
+
+| Question | Start with |
+| --- | --- |
+| Which runtime is unhealthy or behind? | [Runtime Signals](runtime-signals.md) |
+| Which metric names should I graph? | [Metrics](metrics.md) |
+| Which collector or ingestion counter changed? | [Ingestion And Collector Metrics](metrics-ingestion-collectors.md) |
+| Which reducer, graph, storage, or correlation metric changed? | [Reducer And Storage Metrics](metrics-reducer-storage.md) |
+| Where did time go for one request, scope, or graph write? | [Traces](traces.md) |
+| What exact error, repo, work item, or retry happened? | [Logs](logs.md) |
+| How do I stitch async service work together? | [Cross-Service Correlation](cross-service-correlation.md) |
+| How do I validate shared-write changes safely? | [Shared-Write Operations](shared-write-operations.md) |
+| How do I debug large ingestion and memory pressure? | [Streaming And Memory](streaming-memory.md) |
+
+## Signal Order
+
+1. Start with runtime health and queue age.
+2. Use metrics to find the service, phase, and backlog that changed.
+3. Use logs to identify the affected scope, generation, work item, domain, or
+   failure class.
+4. Use traces to explain the latency shape inside that exact operation.
+5. Use `/admin/status` to confirm live queue, generation, and failure state
+   before restarting services or forcing a broader re-index.
+
+Metrics should stay bounded and dashboard-safe. Repository paths, file paths,
+state locators, page IDs, package names, delivery IDs, commit SHAs, work-item
+IDs, and raw cloud resource identifiers belong in logs or trace attributes, not
+metric labels.
+
+## Health Versus Completeness
+
+Do not treat a green pod as proof that the graph is complete.
+
+| Signal | What it proves | What it does not prove |
+| --- | --- | --- |
+| `/healthz` | The process is alive. | Work is current. |
+| `/readyz` | The runtime has enough dependencies to serve. | Queues are empty. |
+| `/metrics` | Prometheus can scrape runtime and data-plane signals. | The graph is correct. |
+| `/admin/status` | Runtime backlog, generation, failure, and domain status. | The underlying source did not change after the last collection. |
+| Query/API result | Current read-path answer. | The whole pipeline is healthy. |
+
+Use `/admin/status` and queue metrics when the user-facing question is
+freshness, convergence, or "why is this repo still not reflected?"
+
+## Change Gate
+
+Runtime-affecting changes must keep telemetry useful. A PR that touches
+collectors, parsers, reducers, projectors, graph writes, queues, workers,
+runtime settings, NornicDB defaults, or API/MCP graph queries needs one of
+these tracked notes in versioned docs:
+
+- `Performance Evidence:` for before/after runtime proof.
+- `Benchmark Evidence:` for focused benchmark proof.
+- `No-Regression Evidence:` for correctness-only changes with same-shape
+  no-regression proof.
+- `Observability Evidence:` when new or existing signals prove the path is
+  diagnosable.
+- `No-Observability-Change:` only when existing metrics, spans, logs, status
+  fields, or pprof output already diagnose the changed path. Name them.
+
+PR text alone is not enough. Keep the evidence in repo docs so the next
+reviewer and the next agent can verify it without scraping GitHub.
+
+## Local And Kubernetes Collection
+
+- Docker Compose exposes runtime `/metrics` endpoints directly. Add the
+  telemetry Compose overlay when you want the local OTEL Collector and Jaeger.
+- Kubernetes deployments use Helm-rendered service ports and optional
+  `ServiceMonitor` resources.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` enables OTLP gRPC trace and metric export.
+  When it is empty, the Go data plane uses noop OTLP exporters while keeping
+  the Prometheus endpoint active.
+- Bootstrap indexing is a local or operator-run one-shot activity. It is not a
+  steady-state `ServiceMonitor` target in the public chart.
+
+## Code Contract
+
+Telemetry names are frozen in the Go package:
+
+- metric instruments: `go/internal/telemetry/instruments.go`
+- metric dimensions, span names, and log keys:
+  `go/internal/telemetry/contract.go` plus companion `contract_*.go` files
+- pipeline phases and logger helpers: `go/internal/telemetry/logging.go`
+- package-level maintainer contract: `go/internal/telemetry/README.md`
+
+When adding a signal, update the code contract first, then update the focused
+public telemetry page that operators use for that signal.

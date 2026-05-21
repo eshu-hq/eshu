@@ -11,7 +11,8 @@ names under `docker.io`, serves Distribution requests from
 
 This package owns Docker Hub repository-name normalization, token acquisition,
 and Distribution client construction. Workflow claims, telemetry, graph writes,
-rate-limit policy, and query surfaces belong to later runtime slices.
+rate-limit policy, and query surfaces belong to `ociruntime`, reducers, and
+query packages.
 
 ## Exported surface
 
@@ -29,8 +30,8 @@ rate-limit policy, and query surfaces belong to later runtime slices.
 
 ## Telemetry
 
-This package emits no metrics, spans, or logs. Runtime telemetry wraps provider
-calls in the future OCI registry collector.
+This package emits no metrics, spans, or logs. `ociruntime` wraps provider calls
+with OCI registry scan and API-call telemetry.
 
 ## Gotchas / invariants
 
@@ -42,4 +43,4 @@ calls in the future OCI registry collector.
 
 ## Related docs
 
-- `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md`
+- `docs/public/reference/collector-reducer-readiness.md`

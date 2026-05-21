@@ -5,10 +5,9 @@ Classifies one resource address against config-side, state-side, and
 prior-state-side views; builds the cross-scope correlation candidate that
 `engine.Evaluate(rules.TerraformConfigStateDriftRulePack(), ...)` admits.
 
-Design contract:
-`docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-design.md`
-
-Tracking issue: #43 (epic #50).
+Current proof gates are documented in `docs/public/reference/local-testing.md`
+under "Terraform Config-vs-State Drift Compose Proofs". Tracking issue: #43
+(epic #50).
 
 ## Pipeline position
 

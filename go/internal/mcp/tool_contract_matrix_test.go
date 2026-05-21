@@ -9,7 +9,7 @@ import (
 func TestMCPToolContractMatrixCoversReadOnlyTools(t *testing.T) {
 	t.Parallel()
 
-	markdown, err := os.ReadFile("../../../docs/docs/reference/mcp-tool-contract-matrix.md")
+	markdown, err := os.ReadFile("../../../docs/public/reference/mcp-tool-contract-matrix.md")
 	if err != nil {
 		t.Fatalf("read MCP tool contract matrix: %v", err)
 	}
@@ -26,16 +26,12 @@ func TestMCPPromptEpicDocsDoNotAdvertiseClosedGaps(t *testing.T) {
 	t.Parallel()
 
 	staleClaims := map[string][]string{
-		"../../../docs/docs/reference/mcp-tool-contract-matrix.md": {
+		"../../../docs/public/reference/mcp-tool-contract-matrix.md": {
 			"class hierarchy/overrides remain tracked by #291",
 		},
-		"../../../docs/docs/reference/mcp-prompt-surface-audit.md": {
+		"../../../docs/public/reference/mcp-prompt-surface-audit.md": {
 			"| Recursive and hub-function prompts | None yet | Tracked by #360 |",
 			"Keep recursive and hub-function prompts quarantined to #360",
-		},
-		"../../../docs/docs/adrs/2026-05-14-mcp-tool-contract-performance-audit.md": {
-			"passes and the cookbook links the remaining first-class gap to #362.",
-			"Security prompts remain deliberately unsolved by raw Cypher and are tracked in #292.",
 		},
 	}
 
@@ -57,11 +53,11 @@ func TestMCPPromptEpicDocsDoNotAdvertiseClosedGaps(t *testing.T) {
 		})
 	}
 
-	raw, err := os.ReadFile("../../../docs/docs/adrs/2026-05-14-mcp-tool-contract-performance-audit.md")
+	raw, err := os.ReadFile("../../../docs/public/reference/mcp-tool-contract-matrix.md")
 	if err != nil {
-		t.Fatalf("read MCP performance ADR: %v", err)
+		t.Fatalf("read MCP tool contract matrix: %v", err)
 	}
-	assertADRRemainingTrackedWorkExcludesClosedIssues(t, string(raw))
+	assertPromptAuditRemainingTrackedWorkExcludesClosedIssues(t, string(raw))
 }
 
 func TestContainsNormalizedTextMatchesLineWrappedClaims(t *testing.T) {
@@ -86,7 +82,7 @@ func TestMarkdownTableRowsSplitsCells(t *testing.T) {
 	}
 }
 
-func assertADRRemainingTrackedWorkExcludesClosedIssues(t *testing.T, markdown string) {
+func assertPromptAuditRemainingTrackedWorkExcludesClosedIssues(t *testing.T, markdown string) {
 	t.Helper()
 
 	closedIssuesByPromptFamily := map[string][]string{
@@ -112,12 +108,12 @@ func assertADRRemainingTrackedWorkExcludesClosedIssues(t *testing.T, markdown st
 	for family, closedIssues := range closedIssuesByPromptFamily {
 		row, ok := rowsByFamily[family]
 		if !ok {
-			t.Fatalf("ADR prompt-family table missing row for %q", family)
+			t.Fatalf("prompt-family table missing row for %q", family)
 		}
 		remainingTrackedWork := row[3]
 		for _, issue := range closedIssues {
 			if strings.Contains(remainingTrackedWork, issue) {
-				t.Fatalf("ADR row %q still advertises closed issue %s as remaining work: %s", family, issue, remainingTrackedWork)
+				t.Fatalf("prompt-family row %q still advertises closed issue %s as remaining work: %s", family, issue, remainingTrackedWork)
 			}
 		}
 	}

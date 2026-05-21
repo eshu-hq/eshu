@@ -74,6 +74,6 @@ full local checkout paths.
 
 ## Related docs
 
-- [Service runtimes — Local Verification Runtimes](../../../docs/docs/deployment/service-runtimes.md#local-verification-runtimes)
-- [CLI reference](../../../docs/docs/reference/cli-reference.md)
-- [Docker Compose deployment](../../../docs/docs/deployment/docker-compose.md)
+- [Service runtimes — Local Verification Runtimes](../../../docs/public/deployment/service-runtimes.md#local-verification-runtimes)
+- [CLI reference](../../../docs/public/reference/cli-reference.md)
+- [Docker Compose deployment](../../../docs/public/run-locally/docker-compose.md)

@@ -64,38 +64,18 @@ pagination spans.
 - The KMS relationship is reported join evidence only. Correlation belongs in
   reducers.
 
-## Evidence
+## Verification
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/services/cloudwatchlogs/...`
-covers the bounded CloudWatch Logs metadata path: paginated DescribeLogGroups
-with Limit=50 and one ListTagsForResource call per ARN-addressable log group;
-no DescribeLogStreams, GetLogEvents, FilterLogEvents, Insights query calls,
-resource-policy reads, export reads, subscription payload reads, mutations, or
-graph writes in the collector.
+```bash
+go test ./internal/collector/awscloud/services/cloudwatchlogs/... -count=1
+go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1
+go run ./cmd/eshu docs verify ../go/internal/collector/awscloud/services/cloudwatchlogs --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers CloudWatch Logs log group metadata fact emission, direct KMS relationship
-emission, omission of data-plane fields, SDK pagination, tag reads, runtime
-registration, command configuration, and the SDK adapter's safe metadata
-mapping.
-
-Collector Observability Evidence: CloudWatch Logs uses the existing AWS
-collector `aws.service.pagination.page` span plus
-`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
-`eshu_dp_aws_resources_emitted_total`,
-`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
-labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses CloudWatch Logs scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
-
-Collector Deployment Evidence: CloudWatch Logs runs inside the existing hosted
-`collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
-`/admin/status` stay covered by the command wiring and Helm collector runtime.
+Run the AWS runtime tests when scan warnings or partial-status behavior changes.
 
 ## Related docs
 
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
-- `docs/docs/guides/collector-authoring.md`
+- `docs/public/services/collector-aws-cloud.md`
+- `docs/public/guides/collector-authoring.md`

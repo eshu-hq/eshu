@@ -293,7 +293,7 @@ func TestRemoteE2EPreflightScriptValidatesFullCorpusInputs(t *testing.T) {
 func TestNornicDBGraphOnlySearchStartupDocsTrackSupportedKnobs(t *testing.T) {
 	t.Parallel()
 
-	docs := readRepositoryFile(t, "../../..", "docs/docs/run-locally/docker-compose.md")
+	docs := readRepositoryFile(t, "../../..", "docs/public/run-locally/docker-compose.md")
 	for _, want := range []string{
 		"NORNICDB_EMBEDDING_ENABLED=false",
 		"NORNICDB_PERSIST_SEARCH_INDEXES=true",

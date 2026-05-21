@@ -53,7 +53,7 @@ is_collector_source() {
 is_evidence_file() {
   local path="$1"
   case "$path" in
-    docs/docs/*.md|docs/docs/*/*.md|docs/docs/*/*/*.md) return 0 ;;
+    docs/public/*.md|docs/public/*/*.md|docs/public/*/*/*.md) return 0 ;;
     go/*/README.md|go/*/*/README.md|go/*/*/*/README.md|go/*/*/*/*/README.md|go/*/*/*/*/*/README.md) return 0 ;;
     go/*/AGENTS.md|go/*/*/AGENTS.md|go/*/*/*/AGENTS.md|go/*/*/*/*/AGENTS.md|go/*/*/*/*/*/AGENTS.md) return 0 ;;
     go/*/doc.go|go/*/*/doc.go|go/*/*/*/doc.go|go/*/*/*/*/doc.go|go/*/*/*/*/*/doc.go) return 0 ;;
@@ -69,13 +69,26 @@ is_telemetry_contract_file() {
   esac
 }
 
-declare -A collector_package_dirs=()
+collector_package_dirs=()
 evidence_files=()
 telemetry_contract_changed=1
 
+add_collector_package_dir() {
+  local candidate="$1"
+  local existing
+  if [ "${#collector_package_dirs[@]}" -gt 0 ]; then
+    for existing in "${collector_package_dirs[@]}"; do
+      if [ "$existing" = "$candidate" ]; then
+        return 0
+      fi
+    done
+  fi
+  collector_package_dirs+=("$candidate")
+}
+
 for file in "${changed_files[@]}"; do
   if is_collector_source "$file"; then
-    collector_package_dirs["${file%/*}"]=1
+    add_collector_package_dir "${file%/*}"
   fi
   if is_evidence_file "$file" && [ -f "$repo_root/$file" ]; then
     evidence_files+=("$repo_root/$file")
@@ -91,7 +104,7 @@ if [ "${#collector_package_dirs[@]}" -eq 0 ]; then
 fi
 
 missing=0
-for dir in "${!collector_package_dirs[@]}"; do
+for dir in "${collector_package_dirs[@]}"; do
   for required in doc.go README.md AGENTS.md; do
     if [ ! -f "$repo_root/$dir/$required" ]; then
       printf 'verify-collector-authoring-gate: %s is missing %s\n' "$dir" "$required" >&2
@@ -141,7 +154,7 @@ if [ "$missing" -ne 0 ]; then
     printf 'already covers the changed collector path, add No-Observability-Change:\n'
     printf 'and name the exact existing signals.\n'
     printf '\nChanged collector package dirs:\n'
-    for dir in "${!collector_package_dirs[@]}"; do
+    for dir in "${collector_package_dirs[@]}"; do
       printf '  - %s\n' "$dir"
     done
   } >&2

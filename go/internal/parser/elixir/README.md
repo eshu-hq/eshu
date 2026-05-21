@@ -46,4 +46,4 @@ stay package-local unless another language-owned package has a real caller.
 
 ## Related docs
 
-- `docs/plans/2026-05-09-parser-language-layout.md`
+- `docs/public/contributing-language-support.md`

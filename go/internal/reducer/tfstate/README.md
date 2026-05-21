@@ -20,7 +20,7 @@ flowchart LR
 ## Purpose
 
 Pin the `RuntimeContract` component list and readiness checkpoints for
-Terraform state canonical projection so ADRs, test fixtures, and future
+Terraform state canonical projection so contract docs, test fixtures, and future
 reducer work share one source of truth. The exported helpers return defensive
 copies, and `RuntimeContract.Validate` rejects blank contract metadata before
 fixtures accept it.
@@ -69,7 +69,8 @@ canonical-write stage.
 - Both accepted checkpoints are Phase 1 (`canonical_nodes_committed`)
   publications. Downstream domains that consume `resolved_relationships`
   derived from Terraform state canonical rows still require the post-Phase-3
-  reopen mechanism described in CLAUDE.md "Facts-First Bootstrap Ordering".
+  reopen mechanism described in `docs/internal/agent-guide.md`
+  "Facts-First Bootstrap Ordering".
   That reopen lives outside this package.
 - `Validate` enforces non-blank components and checkpoint fields; it does
   not check that the listed component names map to any concrete
@@ -79,7 +80,7 @@ canonical-write stage.
 
 ## Related docs
 
-- `docs/docs/architecture.md`
+- `docs/public/architecture.md`
 - `go/internal/reducer/README.md`
 - `go/internal/reducer/aws/README.md`
 - `go/internal/reducer/dsl/README.md`

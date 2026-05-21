@@ -235,12 +235,28 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
 - `AdminMuxConfig.Health` and `AdminMuxConfig.Ready` — supply custom
   `AdminCheck` functions to gate the probes on domain-specific invariants
 
+## Change Checklist
+
+- Add an environment variable by extending `Config`, reading it in
+  `LoadConfig`, validating it in `Config.Validate`, testing valid and invalid
+  values, and updating public CLI or Compose docs when operators must set it.
+- Add an admin route through a `StatusAdminOption` constructor and
+  `NewStatusAdminMux`; keep shared probe routes in `NewAdminMux` only when
+  every binary needs the route.
+- Change Postgres pool defaults in `data_stores.go`, then update Compose
+  assertions and tuning docs when the runtime contract changes.
+- Add a graph backend only by extending `LoadGraphBackend` and the narrow
+  driver seam. Do not add backend branches in admin handlers, retry policy, or
+  metrics rendering.
+- Expose pprof from a new binary by reusing `ESHU_PPROF_ADDR` and
+  `NewPprofServer`; do not create a binary-specific profiler knob.
+
 ## Gotchas / invariants
 
 - `LoadGraphBackend` with an unrecognized value fails at startup, not at
   first use. `data_stores.go:90` is the only valid switch for the backend
   env var; do not add new backend strings without updating this switch and
-  the NornicDB ADR.
+  the NornicDB tuning reference.
 - `OpenNeo4jDriver` returns an error when `ESHU_GRAPH_BACKEND` is not
   `neo4j` or `nornicdb` (`data_stores.go:290`). Both backends use the same
   Bolt driver path.
@@ -259,9 +275,9 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
 
 ## Related docs
 
-- `docs/docs/deployment/service-runtimes.md`
-- `docs/docs/deployment/docker-compose.md`
-- `docs/docs/reference/telemetry/index.md`
-- `docs/docs/reference/local-testing.md`
-- ADR: `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`
-- ADR: `docs/docs/adrs/2026-04-20-embedded-local-backends-implementation-plan.md`
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/run-locally/docker-compose.md`
+- `docs/public/reference/telemetry/index.md`
+- `docs/public/reference/local-testing.md`
+- Reference: `docs/public/reference/nornicdb-tuning.md`
+- Reference: `docs/public/reference/graph-backend-installation.md`

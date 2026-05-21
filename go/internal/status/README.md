@@ -21,8 +21,8 @@ It does not own: queue persistence (that belongs to `internal/storage/postgres`)
 metric or span emission (that belongs to `internal/telemetry`), or HTTP routing
 (that belongs to `internal/query` and `internal/runtime`).
 
-See `CLAUDE.md` §Preserve Service Boundaries for the project-wide ownership
-table.
+See `docs/internal/agent-guide.md` §Service Boundaries for the project-wide
+ownership table.
 
 ## Internal flow
 
@@ -162,8 +162,11 @@ strings.
 
 - **JSON shapes are operator contract.** Every exported JSON field name is
   consumed by operators and automation. Changes require coordination with the
-  CLI reference doc (`docs/docs/reference/cli-reference.md`) and the HTTP API
-  doc (`docs/docs/reference/http-api.md`).
+  CLI reference doc (`docs/public/reference/cli-reference.md`) and the HTTP API
+  doc (`docs/public/reference/http-api.md`).
+- **Health state names are operator contract.** `healthy`, `progressing`,
+  `degraded`, and `stalled` are rendered in text and JSON and may be used by
+  automation. Additive reasons are safer than renaming states.
 - **`QueueFailureSnapshot` must not appear in metrics.** Its fields (`FailureMessage`,
   `FailureDetails`) can be multi-hundred-character strings from graph backend
   errors. They are bounded to 240 characters in text rendering but are never
@@ -202,7 +205,8 @@ strings.
 
 ## Related docs
 
-- `docs/docs/reference/cli-reference.md` — `eshu status` command output
-- `docs/docs/reference/http-api.md` — `/admin/status` endpoint shape
-- `docs/docs/reference/telemetry/index.md` — health vs completeness signal guidance
-- `docs/docs/architecture.md` — pipeline and ownership table
+- `docs/public/reference/cli-reference.md` — `eshu index-status`,
+  `eshu workspace status`, and status-adjacent command output
+- `docs/public/reference/http-api.md` — `/admin/status` endpoint shape
+- `docs/public/reference/telemetry/index.md` — health vs completeness signal guidance
+- `docs/public/architecture.md` — pipeline and ownership table

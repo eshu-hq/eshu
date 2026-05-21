@@ -1,84 +1,74 @@
-# Package Registry Runtime
-
-## Purpose
+# internal/collector/packageregistry/packageruntime
 
 `internal/collector/packageregistry/packageruntime` owns the claim-driven
-runtime for `package_registry` collector work. It maps one workflow claim to
-one configured package-registry target, fetches that target's metadata document,
-parses it with `packageregistry.MetadataParserRegistry` or the Artifactory
-package wrapper when configured, and returns fact envelopes to
-`collector.ClaimedService`.
+runtime for `package_registry` collector work. It maps one workflow claim to one
+configured target, fetches one bounded metadata document, parses it, and returns
+a `collector.CollectedGeneration`.
 
-## Flow
+## Runtime Flow
 
 ```mermaid
 flowchart LR
-  A["workflow.WorkItem"] --> B["ClaimedSource.NextClaimed"]
-  B --> C["MetadataProvider.FetchMetadata"]
-  C --> D["native parser or artifactory_package wrapper"]
-  D --> E["New*Envelope\nincluding hosting, advisories + events"]
-  E --> F["collector.CollectedGeneration"]
-  F --> G["Postgres commit with claim fencing"]
+  Claim["workflow.WorkItem"] --> Source["ClaimedSource.NextClaimed"]
+  Source --> Target["configured target"]
+  Target --> Fetch["MetadataProvider.FetchMetadata"]
+  Fetch --> Parse["native parser or Artifactory wrapper"]
+  Parse --> Bounds["package/version bounds"]
+  Bounds --> Facts["reported-confidence facts"]
+  Facts --> Generation["collector.CollectedGeneration"]
 ```
 
 ## Exported Surface
 
-- `SourceConfig` validates collector instance ID, bounded targets, provider,
-  and optional telemetry handles.
-- `TargetConfig` stores parsed target identity plus runtime-only endpoint,
-  document format, and credential material.
-- `MetadataProvider` fetches one bounded metadata document for a target.
-- `HTTPMetadataProvider` performs the first production metadata fetch path
-  using an explicit `metadata_url`.
-- `ClaimedSource` implements `collector.ClaimedSource`.
+| API | Contract |
+| --- | --- |
+| `SourceConfig` | Validates collector instance, targets, provider, and telemetry handles. |
+| `TargetConfig` | Stores runtime target identity, endpoint, document format, and credentials. |
+| `MetadataProvider` | Fetches one bounded metadata document. |
+| `HTTPMetadataProvider` | Fetches an explicit metadata URL with bounded HTTP behavior. |
+| `ClaimedSource` | Implements `collector.ClaimedSource` for package-registry work. |
+
+## Runtime Rules
+
+- Unknown claim `scope_id` values fail the claim instead of falling back to a
+  different target.
+- `document_format` defaults to `native`.
+- `artifactory_package` wraps package-native metadata and keeps Artifactory
+  repository topology as hosting evidence.
+- `collector_instance_id`, `generation_id`, and `fencing_token` come from the
+  workflow claim path and are copied into emitted facts.
+- `package_limit` is strict: exceeding it fails the claim.
+- `version_limit` is truncating: the runtime keeps the first deterministic
+  version set, drops dependent observations for truncated versions, and emits a
+  package-scoped `version_limit_truncated` warning fact.
+- Credentials stay in runtime config. Do not copy them to facts, logs, metric
+  labels, or docs.
+- `HTTPMetadataProvider` accepts one explicit metadata URL per target. It does
+  not crawl feeds or enumerate registries.
 
 ## Telemetry
 
-The runtime records:
+The runtime records package-registry observe duration, request count, facts
+emitted, rate-limit count, generation lag, and parse-failure count.
 
-- `eshu_dp_package_registry_observe_duration_seconds`
-- `eshu_dp_package_registry_requests_total`
-- `eshu_dp_package_registry_facts_emitted_total`
-- `eshu_dp_package_registry_rate_limited_total`
-- `eshu_dp_package_registry_generation_lag_seconds`
-- `eshu_dp_package_registry_parse_failures_total`
+Metric labels must stay bounded to provider, ecosystem, result or status class,
+fact kind, and document type. Package names, private feed URLs, versions, and
+artifact paths must stay out of metric labels.
 
-Labels stay bounded to provider, ecosystem, result/status class, fact kind, and
-document type. Package names, private feed URLs, versions, and artifact paths
-must stay out of metrics.
+## Verification
 
-## Invariants
+```bash
+go test ./internal/collector/packageregistry/packageruntime -count=1
+go test ./cmd/collector-package-registry -count=1
+go run ./cmd/eshu docs verify ../go/internal/collector/packageregistry \
+  --limit 1000 --fail-on contradicted,missing_evidence
+```
 
-- A claimed source only collects the configured `scope_id` from the workflow
-  item. Unknown scope IDs fail the claim instead of falling back to another
-  target.
-- `document_format` defaults to `native`. `artifactory_package` is allowed only
-  as a wrapper around package-native metadata and uses the same parser registry
-  as native metadata; Artifactory repository topology remains hosting evidence.
-- `collector_instance_id`, `generation_id`, and `fencing_token` come from the
-  workflow claim path and are copied into every emitted fact.
-- Advisory and registry-event observations are bounded by the same configured
-  package and version limits as dependencies, artifacts, and source hints.
-- Package scope remains strict: metadata that exceeds `package_limit` fails the
-  claim. Version scope is truncating: metadata over `version_limit` keeps the
-  first deterministic version set, drops dependent observations for truncated
-  versions, and emits a package-scoped `version_limit_truncated` warning fact.
-- Credentials stay in `TargetConfig` runtime fields. They must not be copied to
-  facts, logs, metric labels, or docs.
-- `HTTPMetadataProvider` accepts one explicit metadata URL per target; it does
-  not crawl feeds or enumerate registries.
-
-## Evidence
-
-Collector Performance Evidence: `go test ./internal/collector/packageregistry/packageruntime -run 'TestBoundedParsedMetadataTruncatesVersionsAndEmitsWarning|TestClaimedSourceTruncatesMetadataOverVersionLimit|TestClaimedSourceParsesMetadataIntoPackageRegistryFacts|TestClaimedSourceSanitizesSourceURIBeforeFactEmission' -count=1 -v` proves over-limit package metadata stays bounded without retrying the whole collector claim. The bounding pass remains linear over parsed observations, emits no more than `version_limit` version facts per package, and drops dependent observations for truncated versions before envelope construction.
-
-Collector Observability Evidence: truncated package metadata emits a durable `package_registry.warning` fact with `warning_code=version_limit_truncated`, and the existing `eshu_dp_package_registry_facts_emitted_total` counter reports it through the bounded `fact_kind=package_registry.warning` label. `/admin/status` continues to expose package-registry collector completion, retryable failure, and terminal failure counts without adding package names, feed URLs, versions, or artifact paths to metric labels.
-
-No-Observability-Change: no new metrics or labels were added. Existing package-registry duration, request, facts-emitted, rate-limit, generation-lag, parse-failure, health, readiness, metrics, and admin-status signals already cover this bounded truncation path.
-
-Collector Deployment Evidence: `helm lint deploy/helm/eshu` and `go test ./internal/runtime -run 'TestHelmClaimDrivenCollectorsRequireWorkflowCoordinator|TestHelmWorkflowCoordinatorActiveModeForClaimDrivenCollectors|TestHelmPodSecurityContextUsesOnRootMismatch' -count=1 -v` prove the chart renders active workflow-coordinator claim scheduling for hosted collectors and keeps the package-registry collector Deployment on the existing metrics Service and ServiceMonitor path.
+Run `helm lint deploy/helm/eshu` when collector deployment values or
+ServiceMonitor wiring changes.
 
 ## Related Docs
 
-- [Package registry ADR](../../../../../docs/docs/adrs/2026-05-12-package-registry-collector.md)
-- [Service runtimes](../../../../../docs/docs/deployment/service-runtimes.md)
+- [Package Registry Contracts](../README.md)
+- [Collector Readiness](../../../../../docs/public/reference/collector-reducer-readiness.md)
+- [Service Runtimes](../../../../../docs/public/deployment/service-runtimes.md)

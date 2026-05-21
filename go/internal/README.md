@@ -5,8 +5,7 @@ package boundaries narrow and document the contract at the package or exported
 identifier where another package depends on it.
 
 This directory is a navigation root, not a Go package. Each child has its own
-`README.md` (architectural lens), `AGENTS.md` (LLM-assistant guidance), and
-`doc.go` (godoc contract). Start there.
+`README.md` (architectural lens) and `doc.go` (godoc contract). Start there.
 
 ## High-level layout
 
@@ -69,22 +68,21 @@ flowchart LR
 | Add a new MCP tool | `mcp/`, then `cmd/mcp-server/` |
 | Add a new IaC extractor | `relationships/`, then `correlation/rules/` |
 | Add a new metric or span | `telemetry/` (then thread through callers) |
-| Tune NornicDB compatibility | `storage/cypher/`, `storage/neo4j/`, plus the relevant ADR |
+| Tune NornicDB compatibility | `storage/cypher/`, `storage/neo4j/`, plus the relevant reference docs |
 | Reason about correlation truth | `correlation/`, `correlation/engine/`, `correlation/admission/` |
 
 ## Per-package documentation convention
 
-Every Go package directory under `go/internal/` carries three files:
+Every Go package directory under `go/internal/` carries three required files:
 
 - `doc.go` — the godoc contract (`go doc ./internal/<pkg>` prints it).
 - `README.md` — architectural and operational lens for human readers,
   including pipeline-position and internal-flow mermaid diagrams.
-- `AGENTS.md` — guidance for LLM assistants editing the package: what to
-  read first, invariants with file:line cites, common changes, failure
-  modes, anti-patterns, and what NOT to change without an ADR.
+- `AGENTS.md` — scoped package instructions for Codex and other coding agents.
 
 Container directories without Go source (this directory, `storage/`,
-`terraformschema/schemas/`) keep `README.md` only.
+`terraformschema/schemas/`) keep `README.md` only unless they need scoped agent
+rules for the subtree.
 
 ## Dependencies
 
@@ -100,6 +98,6 @@ span, and log-key catalog.
 
 ## Related docs
 
-- `docs/docs/architecture.md`
-- `docs/docs/reference/telemetry/index.md`
-- `docs/docs/deployment/service-runtimes.md`
+- `docs/public/architecture.md`
+- `docs/public/reference/telemetry/index.md`
+- `docs/public/deployment/service-runtimes.md`

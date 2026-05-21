@@ -50,21 +50,29 @@ Each AWS API call records the shared AWS collector call event and, when
 available, the shared API-call metric, throttle counter, and pagination span
 using the service, account, region, operation, and result labels.
 
-No-Observability-Change: the existing AWS collector API-call metrics,
-throttle counters, `SpanAWSServicePaginationPage` span, and API call event log
-cover CloudFront pagination and tag reads.
-
 ## Gotchas / invariants
 
-- Do not add `GetDistributionConfig` without a separate issue and evidence
-  note. The current contract uses the distribution summary and tags only.
+- Do not add `GetDistributionConfig` unless the scanner contract, forbidden
+  data classes, and verification plan are updated in the same change. The
+  current contract uses the distribution summary and tags only.
 - Do not persist origin custom header values; mapper tests cover names-only
   behavior.
 - Pagination must stay bounded with `listDistributionsLimit`.
 - Keep `recordAPICall` wrapped around every AWS operation so scan status and
   throttle counters stay useful.
 
+## Verification
+
+```bash
+go test ./internal/collector/awscloud/services/cloudfront/awssdk -count=1
+go test ./internal/collector/awscloud/services/cloudfront/... -count=1
+go run ./cmd/eshu docs verify ../go/internal/collector/awscloud/services/cloudfront/awssdk --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```
+
+Run the AWS runtime tests when API-call status behavior changes.
+
 ## Related docs
 
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
-- `docs/docs/reference/telemetry/index.md`
+- `docs/public/services/collector-aws-cloud.md`
+- `docs/public/reference/telemetry/index.md`

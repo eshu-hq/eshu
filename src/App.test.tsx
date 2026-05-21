@@ -18,7 +18,7 @@ describe("App", () => {
     );
     expect(screen.getAllByRole("link", { name: "Read the docs" })[0]).toHaveAttribute(
       "href",
-      "https://github.com/eshu-hq/eshu/tree/main/docs/docs"
+      "https://github.com/eshu-hq/eshu/tree/main/docs/public"
     );
     const displayLogo = screen.getByAltText("Eshu display logo");
     expect(displayLogo).toHaveAttribute(

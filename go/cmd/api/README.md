@@ -175,8 +175,8 @@ See `doc.go` for the full godoc contract.
 
 ## Related docs
 
-- `docs/docs/deployment/service-runtimes.md` — API runtime lane and scaling notes
-- `docs/docs/reference/http-api.md` — canonical HTTP API contract
-- `docs/docs/reference/cli-reference.md` — `eshu api start` flags
-- `docs/docs/deployment/docker-compose.md` — Compose service `eshu`
-- `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md` — backend selection
+- `docs/public/deployment/service-runtimes.md` — API runtime lane and scaling notes
+- `docs/public/reference/http-api.md` — canonical HTTP API contract
+- `docs/public/reference/cli-reference.md` — `eshu api start` flags
+- `docs/public/run-locally/docker-compose.md` — Compose service `eshu`
+- `docs/public/reference/nornicdb-tuning.md` — backend selection

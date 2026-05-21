@@ -52,5 +52,5 @@ brace-scoped context needed by this regex parser.
 
 ## Related docs
 
-- docs/docs/architecture.md
-- docs/docs/reference/local-testing.md
+- docs/public/architecture.md
+- docs/public/reference/local-testing.md

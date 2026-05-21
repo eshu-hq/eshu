@@ -72,6 +72,12 @@ reducer status surfaces, structured logs) around the summary they receive.
   results; if one reaches `BuildSummary`, it is silently skipped.
 - `BuildSummary` is a pure reduction over an already-completed evaluation.
   It does not validate the evaluation or re-order results.
+- `Summary` field names are status-surface contracts once reducer status
+  rendering depends on them. Renames require coordinated JSON and operator-doc
+  updates.
+- `ConflictCount` and `LowConfidenceCount` map to distinct rejection reasons.
+  Do not merge them; operators need to know whether tie-breaks or confidence
+  gates are rejecting candidates.
 
 ## Related docs
 
@@ -80,5 +86,4 @@ reducer status surfaces, structured logs) around the summary they receive.
 - `go/internal/correlation/engine/README.md` — evaluation entry point
 - `go/internal/correlation/admission/README.md` — confidence and structural gate
 - `go/internal/correlation/explain/README.md` — stable text rendering
-- ADR: `docs/docs/adrs/2026-04-19-deployable-unit-correlation-and-materialization-framework.md`
-- ADR: `docs/docs/adrs/2026-04-19-multi-source-correlation-dsl-and-collector-readiness.md`
+- Reference: `docs/public/reference/relationship-mapping.md`

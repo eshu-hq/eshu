@@ -7,6 +7,42 @@ The console is role-neutral at the front door: search for a repository, service,
 or workload, then open an entity workspace with story, evidence, deployment,
 code, findings, and freshness context.
 
+## Product Contract
+
+Eshu Console turns Eshu's code-to-cloud graph into a readable operating
+surface. It serves engineers, platform teams, SREs, support, directors,
+executives, and finance-adjacent stakeholders who need the same graph truth at
+different depths.
+
+The console should help users answer:
+
+- what a repository, service, or workload does
+- what deploys it, where it runs, and what depends on it
+- what evidence supports each relationship
+- whether indexing is healthy, stale, partial, or blocked
+- which findings need action
+- what is known, missing, inferred, or stale
+
+Important claims need a plain-language summary first and a clear path to the
+underlying evidence.
+
+## Design Contract
+
+The console is a working product surface, not a homepage or generic dashboard.
+Keep it bright, readable, and dense enough for repeated operational use. Use
+color for relationship type, status, freshness, risk, and selection; never use
+color as decoration or the only state indicator.
+
+Design rules:
+
+- show the story and the proof together
+- keep graph labels and table rows readable before adding visual polish
+- preserve truth, freshness, missing-evidence, and limitation states in text
+- avoid dark-card sameness, decorative gradients, glass effects, nested cards,
+  modal-first drilldowns, and mock-data language on real-data surfaces
+- keep non-graph summaries available when graph views are not the fastest way
+  to understand the evidence
+
 ## Modes
 
 ### Demo mode

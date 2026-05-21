@@ -18,7 +18,7 @@ bootstrapping seams those packages call at startup. Pipeline stage,
 graph-backend, and failure-class labels stay here so runtime packages do not
 invent local observability vocabularies.
 
-See `CLAUDE.md` §Observability Contract for the project-wide rules that flow
+See `docs/internal/agent-guide.md` §Observability for the project-wide rules that flow
 from this package.
 
 ## Where this fits in the runtime
@@ -324,6 +324,22 @@ circular dependency and must not happen.
 This package defines the telemetry contract. It emits nothing itself at
 runtime; all emission happens in the packages that consume `Instruments`.
 
+## Change Checklist
+
+- Add a metric by adding an `Instruments` field, registering it in
+  `NewInstruments` with an `eshu_dp_` name, adding any bounded dimension key and
+  helper in this package, then updating the public telemetry reference.
+- Add a span by creating a `Span*` constant, adding it to `spanNames`, using the
+  constant from the calling package, and updating the public telemetry
+  reference.
+- Add a structured log key by adding the frozen key in `contract.go`, including
+  it in `logKeys`, and reusing it across packages rather than creating local
+  string literals.
+- Add a pipeline phase by adding the `Phase*` constant in `logging.go`, using
+  `PhaseAttr`, and documenting the new phase in the telemetry reference.
+- Register observable gauges once per process after queue and worker observers
+  are wired. Duplicate registration for the same meter fails in the OTEL SDK.
+
 ## Gotchas / invariants
 
 - `NewInstruments` registers every counter and histogram but does not wire
@@ -361,7 +377,12 @@ runtime; all emission happens in the packages that consume `Instruments`.
 
 ## Related docs
 
-- `docs/docs/reference/telemetry/index.md` — operator-facing metric, span, and
-  log reference with tuning guidance
-- `docs/docs/architecture.md` — pipeline ownership table
-- `docs/docs/deployment/service-runtimes.md` — how each binary bootstraps OTEL
+- `docs/public/reference/telemetry/index.md` — operator-facing telemetry route
+  map
+- `docs/public/reference/telemetry/metrics.md` — dashboard-first metric map
+- `docs/public/reference/telemetry/metrics-ingestion-collectors.md` — source
+  and collector metric catalog
+- `docs/public/reference/telemetry/metrics-reducer-storage.md` — reducer,
+  graph, storage, correlation, and memory metric catalog
+- `docs/public/architecture.md` — pipeline ownership table
+- `docs/public/deployment/service-runtimes.md` — how each binary bootstraps OTEL

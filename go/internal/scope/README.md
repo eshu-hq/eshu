@@ -100,6 +100,6 @@ This package emits no metrics, spans, or logs.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — scope and generation identity in the pipeline
-- `docs/docs/deployment/service-runtimes.md` — ingester and projector runtime
+- `docs/public/architecture.md` — scope and generation identity in the pipeline
+- `docs/public/deployment/service-runtimes.md` — ingester and projector runtime
   lanes

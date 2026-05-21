@@ -208,6 +208,13 @@ element and sets `repo_id` rather than `repo_ids`.
 - **Add an argument helper**: add to `dispatch.go` near `str`, `intOr`,
   and `boolOr`, or to `dispatch_args.go` near `stringSlice` for shared slice or
   identifier helpers. Keep the helpers side-effect-free.
+- **Change a tool argument mapping**: update `resolveRoute`, the advertised
+  `InputSchema`, and the dispatch tests together. The schema is the client
+  contract; dispatch-only changes silently create wrong queries.
+- **Change SSE behavior**: update `handleSSE`, keep the endpoint event format
+  stable, and document keepalive cadence changes in the MCP guide.
+- **Change protocol version**: update the initialize response only after
+  checking client compatibility.
 
 ## Gotchas / invariants
 
@@ -227,13 +234,22 @@ element and sets `repo_id` rather than `repo_ids`.
   `parseCanonicalEnvelope` (`server.go:377`). When it is non-nil, the response
   is returned as a two-block `mcpToolResult`. Do not substitute the
   `query.EnvelopeMIMEType` string literal; use the constant.
+- `dispatchTool` forwards the original `Authorization` header and always sends
+  `Accept: application/eshu.envelope+json` to the internal HTTP handler. Losing
+  either header breaks authenticated tools or canonical envelope detection.
+- MCP dispatch must stay transport-only. Do not query Postgres or the graph from
+  `dispatchTool` or `resolveRoute`; add query behavior in `internal/query` and
+  route to it.
+- SSE session channel overflow is non-fatal. The server logs a warning and
+  drops the message when the buffer is full; callers cannot assume every
+  response arrives over SSE under saturation.
 
 ## Related docs
 
-- `docs/docs/guides/mcp-guide.md` — client setup, tool usage, and story-first
+- `docs/public/guides/mcp-guide.md` — client setup, tool usage, and story-first
   orchestration patterns
-- `docs/docs/reference/http-api.md` — underlying HTTP routes that every tool
+- `docs/public/reference/http-api.md` — underlying HTTP routes that every tool
   dispatches into
-- `docs/docs/architecture.md` — service boundary for the MCP runtime
+- `docs/public/architecture.md` — service boundary for the MCP runtime
 - `go/cmd/mcp-server/README.md` — binary wiring, transport selection, and
   admin surface

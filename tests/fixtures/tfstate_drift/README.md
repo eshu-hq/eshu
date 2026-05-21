@@ -119,7 +119,7 @@ If `ScopeLocatorHash` is ever renamed or its construction changes, the seed's ha
 
 ## Running the proof matrix
 
-The seed is consumed by `scripts/verify_tfstate_drift_compose.sh`. That script brings the compose stack up, applies the seed, reruns bootstrap-index so Phase 3.5 picks up the seeded `state_snapshot:*` scopes, waits for the reducer to drain the queued drift intents, scrapes counters from `localhost:${ESHU_RESOLUTION_ENGINE_METRICS_PORT}/metrics`, asserts the per-kind counter deltas and structured-log shape inline, and writes a proof artifact to `docs/superpowers/proofs/<date>-tfstate-drift-compose.md` when invoked with `ESHU_TFSTATE_DRIFT_PROOF_OUT` set. The `expected/*.json` files in this directory are reviewer-facing documentation of what the inline assertions check; they are not parsed by the verifier today.
+The seed is consumed by `scripts/verify_tfstate_drift_compose.sh`. That script brings the compose stack up, applies the seed, reruns bootstrap-index so Phase 3.5 picks up the seeded `state_snapshot:*` scopes, waits for the reducer to drain the queued drift intents, scrapes counters from `localhost:${ESHU_RESOLUTION_ENGINE_METRICS_PORT}/metrics`, asserts the per-kind counter deltas and structured-log shape inline, and writes a proof artifact to the path supplied by `ESHU_TFSTATE_DRIFT_PROOF_OUT` when that variable is set. The `expected/*.json` files in this directory are reviewer-facing documentation of what the inline assertions check; they are not parsed by the verifier today.
 
 ## Why this corpus does NOT exercise `collector-terraform-state`
 

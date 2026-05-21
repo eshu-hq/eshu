@@ -12,8 +12,8 @@ materialization.
 ## Ownership boundary
 
 Owns the durable fact value types and the stable-ID function. Per the ownership
-table in `CLAUDE.md`: `go/internal/facts/` — durable fact models and queue
-contracts.
+table in `docs/internal/agent-guide.md`, `go/internal/facts/` owns durable fact
+models and queue contracts.
 
 This package does not own queue row logic (`internal/queue`), scope identity
 (`internal/scope`), graph writes, or Postgres persistence. Those packages
@@ -219,6 +219,6 @@ and processing lives in `internal/projector` and `internal/storage/postgres`.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — pipeline and ownership table
-- `docs/docs/deployment/service-runtimes.md` — ingester and projector runtime
+- `docs/public/architecture.md` — pipeline and ownership table
+- `docs/public/deployment/service-runtimes.md` — ingester and projector runtime
   lanes

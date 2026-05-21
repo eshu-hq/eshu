@@ -197,10 +197,16 @@ Extraction outcomes are surfaced by the reducer when admitted and by
   `path_relative_to_include()` are stripped by
   `normalizeTerraformEvidencePathExpression` before alias matching. Paths that
   contain unsupported helper expressions produce no evidence.
+- `EvidenceKind` values, `RelationshipType` values, and `Assertion.Decision`
+  values appear in persisted fact and assertion rows. Renames require a data
+  migration and a storage compatibility plan.
+- Do not lower `DefaultConfidenceThreshold` or inflate extractor confidence to
+  force admission. If a signal is genuinely uncertain, keep its confidence low
+  and let the reducer or an explicit assertion decide.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — ownership table and pipeline overview
-- `docs/docs/reference/local-testing.md` — verification gates
+- `docs/public/architecture.md` — ownership table and pipeline overview
+- `docs/public/reference/local-testing.md` — verification gates
 - `go/internal/terraformschema/README.md` — provider schema loader details
 - `go/internal/iacreachability/README.md` — complement: reachability analysis

@@ -97,5 +97,5 @@ modeled. Add package-local tests before widening either claim.
 
 ## Related Docs
 
-See `docs/docs/reference/mcp-reference.md` for the dead-code query surface that
+See `docs/public/reference/mcp-reference.md` for the dead-code query surface that
 consumes parser root evidence.

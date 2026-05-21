@@ -37,10 +37,10 @@ changes. It inspects the actual PR diff, including brand-new collector
 packages, and fails when changed Go code introduces Cypher, graph writes,
 worker claims, leases, batching, or concurrency behavior, or when Compose/Helm
 runtime config changes touch graph backend, worker, batching, timeout, pprof,
-or NornicDB knobs without a tracked docs/ADR/package note containing both
+or NornicDB knobs without a tracked docs/reference/package note containing both
 benchmark evidence and observability evidence markers.
 
-`verify-package-docs.sh` is the CI tripwire for package-local AI guidance. Any
-changed Go package under `go/internal` or `go/cmd` must already have `doc.go`,
-`README.md`, and `AGENTS.md`; new collectors and runtime packages cannot land
-without the code-level context future agents and reviewers need.
+`verify-package-docs.sh` is the CI tripwire for package-local documentation.
+Any changed Go package under `go/internal` or `go/cmd` must already have
+`doc.go`, `README.md`, and `AGENTS.md`; new collectors and runtime packages
+cannot land without the code-level context future agents and reviewers need.

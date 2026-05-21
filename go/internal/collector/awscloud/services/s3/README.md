@@ -65,38 +65,18 @@ spans.
 - Tags are raw AWS tag evidence. Do not infer environment, owner, workload, or
   deployable-unit truth from tags in this package.
 
-## Evidence
+## Verification
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/services/s3/...`
-covers the bounded S3 metadata path: regional paginated ListBuckets with
-MaxBuckets set, HeadBucket,
-GetBucketTagging, GetBucketVersioning, GetBucketEncryption,
-GetPublicAccessBlock, GetBucketPolicyStatus, GetBucketOwnershipControls,
-GetBucketWebsite, and GetBucketLogging; no object inventory calls, no policy
-JSON reads, no ACL grant reads, no mutations, and no graph writes in the
-collector.
+```bash
+go test ./internal/collector/awscloud/services/s3/... -count=1
+go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1
+go run ./cmd/eshu docs verify ../go/internal/collector/awscloud/services/s3 --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers S3 bucket metadata fact emission, logging-target relationship emission,
-omission of object/policy/ACL/replication/lifecycle/notification fields, runtime
-registration, command configuration, and the SDK adapter's safe metadata
-mapping.
-
-Collector Observability Evidence: S3 uses the existing AWS collector
-`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
-`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
-`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
-labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses S3 scans through `aws.service.scan`, `aws.service.pagination.page`,
-API/throttle counters, resource/relationship counters, and `aws_scan_status`.
-
-Collector Deployment Evidence: S3 runs inside the existing hosted
-`collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
-`/admin/status` stay covered by the command wiring and Helm collector runtime.
+Run the AWS runtime tests when scan warnings or partial-status behavior changes.
 
 ## Related docs
 
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
-- `docs/docs/guides/collector-authoring.md`
+- `docs/public/services/collector-aws-cloud.md`
+- `docs/public/guides/collector-authoring.md`

@@ -119,7 +119,7 @@ func runDocsVerifyWithDeps(cmd *cobra.Command, args []string, deps docsVerifyDep
 	}
 	verifier := doctruth.NewVerifier(doctruth.VerifierOptions{
 		Commands:               docsVerifyCommandTruth(deps),
-		HTTPEndpoints:          endpointTruthFromOpenAPI(query.OpenAPISpec()),
+		HTTPEndpoints:          docsVerifyHTTPEndpointTruth(),
 		EnvironmentVariables:   docsVerifyEnvironmentTruth(opts.Path),
 		LocalPathResolver:      docsVerifyLocalPathResolver(opts.Path),
 		ContainerImageResolver: docsVerifyContainerImageResolver(cmd, opts),
@@ -256,12 +256,16 @@ func commandTruthFromCobra(root *cobra.Command) []doctruth.CommandTruth {
 				continue
 			}
 			path := append(append([]string{}, prefix...), name[0])
-			out = append(out, doctruth.CommandTruth{Path: path})
+			out = append(out, doctruth.CommandTruth{Path: path, AllowsArgs: commandUseAllowsArgs(child.Use)})
 			walk(child, path)
 		}
 	}
 	walk(root, nil)
 	return out
+}
+
+func commandUseAllowsArgs(use string) bool {
+	return len(strings.Fields(use)) > 1
 }
 
 func endpointTruthFromOpenAPI(spec string) []doctruth.HTTPEndpointTruth {
@@ -281,6 +285,24 @@ func endpointTruthFromOpenAPI(spec string) []doctruth.HTTPEndpointTruth {
 			}
 		}
 	}
+	return out
+}
+
+func docsVerifyHTTPEndpointTruth() []doctruth.HTTPEndpointTruth {
+	out := endpointTruthFromOpenAPI(query.OpenAPISpec())
+	out = append(out,
+		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/api/v0/docs"},
+		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/api/v0/redoc"},
+		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/health"},
+		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/sse"},
+		doctruth.HTTPEndpointTruth{Method: http.MethodPost, Path: "/mcp/message"},
+		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/healthz"},
+		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/readyz"},
+		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/admin/status"},
+		doctruth.HTTPEndpointTruth{Method: http.MethodPost, Path: "/admin/replay"},
+		doctruth.HTTPEndpointTruth{Method: http.MethodPost, Path: "/admin/refinalize"},
+		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/metrics"},
+	)
 	return out
 }
 

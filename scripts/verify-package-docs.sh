@@ -54,12 +54,21 @@ is_package_source() {
   esac
 }
 
-declare -A package_dirs=()
-for file in "${changed_files[@]}"; do
-  is_package_source "$file" || continue
-  dir="${file%/*}"
-  package_dirs["$dir"]=1
-done
+package_dirs=()
+package_dir_keys=" "
+if [ "${#changed_files[@]}" -ne 0 ]; then
+  for file in "${changed_files[@]}"; do
+    is_package_source "$file" || continue
+    dir="${file%/*}"
+    case "$package_dir_keys" in
+      *" ${dir} "*) ;;
+      *)
+        package_dirs+=("$dir")
+        package_dir_keys="${package_dir_keys}${dir} "
+        ;;
+    esac
+  done
+fi
 
 if [ "${#package_dirs[@]}" -eq 0 ]; then
   printf 'verify-package-docs: no changed Go package source files\n'
@@ -67,7 +76,7 @@ if [ "${#package_dirs[@]}" -eq 0 ]; then
 fi
 
 missing=0
-for dir in "${!package_dirs[@]}"; do
+for dir in "${package_dirs[@]}"; do
   for required in doc.go README.md AGENTS.md; do
     if [ ! -f "$repo_root/$dir/$required" ]; then
       printf 'verify-package-docs: %s is missing %s\n' "$dir" "$required" >&2
@@ -81,7 +90,7 @@ if [ "$missing" -ne 0 ]; then
     printf '\nEvery changed Go package under go/internal or go/cmd must carry:\n'
     printf '  - doc.go for go doc users\n'
     printf '  - README.md for human architecture and operations context\n'
-    printf '  - AGENTS.md for package-local AI editing rules\n'
+    printf '  - AGENTS.md for scoped agent instructions\n'
     printf '\nThis keeps new collectors and runtime packages from bypassing the concrete\n'
     printf 'package guidance that reviewers and AI agents rely on.\n'
   } >&2

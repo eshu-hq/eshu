@@ -8,7 +8,7 @@ groups, security group rules, and network interfaces into `aws_resource` and
 `aws_relationship` facts.
 
 The package implements the EC2 network-topology slice from
-`docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`.
+`docs/public/services/collector-aws-cloud.md`.
 
 ## Ownership boundary
 
@@ -63,5 +63,5 @@ AWS API call counters, throttle counters, and pagination spans.
 
 ## Related docs
 
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
-- `docs/docs/reference/telemetry/index.md`
+- `docs/public/services/collector-aws-cloud.md`
+- `docs/public/reference/telemetry/index.md`

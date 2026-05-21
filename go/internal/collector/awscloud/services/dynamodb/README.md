@@ -72,53 +72,19 @@ spans.
 - The KMS relationship is reported join evidence only. Correlation belongs in
   reducers.
 
-## Evidence
+## Verification
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/services/dynamodb/...`
-covers the bounded DynamoDB metadata path: paginated ListTables with
-Limit=100, one DescribeTable, one paginated ListTagsOfResource, one
-DescribeTimeToLive, and one DescribeContinuousBackups per discovered table;
-no item reads, table scans, table queries, stream record reads, backup payload
-reads, export reads, resource-policy reads, PartiQL calls, mutations, or graph
-writes in the collector.
+```bash
+go test ./internal/collector/awscloud/services/dynamodb/... -count=1
+go test ./internal/collector/awscloud/awsruntime -run TestClaimedSourceMarksThrottleWarningAsPartial -count=1
+go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1
+go run ./cmd/eshu docs verify ../go/internal/collector/awscloud/services/dynamodb --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers DynamoDB table metadata fact emission, direct KMS relationship emission,
-omission of data-plane fields, SDK pagination, tag reads, runtime registration,
-command configuration, and the SDK adapter's safe metadata mapping.
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/services/dynamodb/... -count=1`
-covers the DynamoDB snapshot contract where `DescribeTimeToLive` throttling
-preserves table resources, omits optional TTL metadata, records API throttle
-counts, emits one `throttle_sustained` warning, and skips follow-up TTL calls
-for the rest of that scan after the first sustained TTL throttle.
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/awsruntime -run TestClaimedSourceMarksThrottleWarningAsPartial -count=1`
-proves the AWS runtime maps `throttle_sustained` warning facts to partial scan
-status.
-
-Collector Observability Evidence: DynamoDB uses the existing AWS collector
-`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
-`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
-`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
-labels stay bounded to service, account, region, operation, result, and status.
-
-Observability Evidence: TTL throttling stays visible through the existing
-`eshu_dp_aws_api_calls_total{operation="DescribeTimeToLive",result="error"}`,
-`eshu_dp_aws_throttle_total`, `aws_warning` fact
-`warning_kind="throttle_sustained"`, and `aws_scan_status` partial status
-signals without adding resource-name or table-name metric labels.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses DynamoDB scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
-
-Collector Deployment Evidence: DynamoDB runs inside the existing hosted
-`collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
-`/admin/status` stay covered by the command wiring and Helm collector runtime.
+Run the AWS runtime tests when scan warnings or partial-status behavior changes.
 
 ## Related docs
 
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
-- `docs/docs/guides/collector-authoring.md`
+- `docs/public/services/collector-aws-cloud.md`
+- `docs/public/guides/collector-authoring.md`

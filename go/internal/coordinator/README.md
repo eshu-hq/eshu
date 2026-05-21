@@ -8,9 +8,8 @@ loops. `Service.Run` ticks through discrete operations — collector-instance an
 scheduled-work planning reconciliation (always), workflow-run progress
 reconciliation (active mode only), AWS freshness handoff (active mode only),
 and expired-claim reaping (active mode only) — against a narrow `Store`
-interface backed by Postgres. The package also owns
-`ESHU_WORKFLOW_COORDINATOR_*` env parsing and OTEL instrument registration for
-the coordinator.
+interface backed by Postgres. The package also owns workflow-coordinator
+environment parsing and OTEL instrument registration.
 
 ## Where this fits in the pipeline
 
@@ -43,6 +42,9 @@ flowchart TB
   P --> E
   B --> J["Store.ReconcileCollectorInstances\nthen Store.ListCollectorInstances"]
   J --> K["Metrics.RecordReconcile\nlog drift if any"]
+  J --> P{"DeploymentMode == active\nand ClaimsEnabled?"}
+  P -- yes --> Q["supported planners\nTerraform-state / OCI / package / AWS"]
+  Q --> R["Store.CreateRun\nStore.EnqueueWorkItems"]
   D --> L["Store.ReapExpiredClaims"]
   L --> M["Metrics.RecordReap"]
   Q --> R["Store.ListCollectorInstances\nthen scheduleAWSFreshnessWork"]
@@ -84,7 +86,7 @@ fall back to defaults rather than failing; malformed values fail fast.
   `ReconcileInterval`, `RunReconcileInterval`, `ReapInterval`,
   `ClaimLeaseTTL`, `HeartbeatInterval`, `ExpiredClaimLimit`,
   `ExpiredClaimRequeueDelay`, `CollectorInstances`.
-- `LoadConfig(getenv)` — parses all `ESHU_WORKFLOW_COORDINATOR_*` and
+- `LoadConfig(getenv)` — parses all workflow-coordinator env vars and
   `ESHU_COLLECTOR_INSTANCES_JSON` env vars into a validated `Config`.
 - `Metrics` — recording interface: `RecordReconcile`, `RecordReap`,
   `RecordRunReconciliation`.
@@ -218,9 +220,9 @@ warning (`collector_instance_drift_detected`, fields
   does not implement the broader interface the recording calls are silently
   skipped. `otelMetrics` (returned by `NewMetrics`) implements all three.
 - This package only schedules families with explicit planners. Terraform-state,
-  OCI registry, package registry, and AWS scheduled scans have planners today;
-  other collector families remain instance-reconciled only until they define a
-  bounded work unit.
+  OCI registry, package registry, AWS scheduled scans, and AWS freshness handoff
+  have planners today; other collector families remain instance-reconciled only
+  until they define a bounded work unit.
 
 ## Evidence
 
@@ -253,7 +255,7 @@ metrics, `workflow_runs`, `workflow_run_completeness`, and
 
 ## Related docs
 
-- `docs/docs/deployment/service-runtimes.md`
-- `docs/docs/reference/telemetry/index.md`
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/reference/telemetry/index.md`
 - `go/internal/workflow/README.md`
 - `go/cmd/workflow-coordinator/README.md`

@@ -25,7 +25,7 @@ Pin two contracts:
    (`Publication`, `EvaluationResult`), and the result-to-phase helpers
    (`PhaseStates`, `PublishEvaluationResult`).
    `DefaultRuntimeContract` and `RuntimeContractTemplate` return defensive
-   copies so tests and ADR fixtures cannot mutate the package default.
+   copies so tests and contract fixtures cannot mutate the package default.
 
 ## Ownership boundary
 
@@ -88,7 +88,8 @@ in `go/internal/telemetry/instruments.go`.
 ## Gotchas / invariants
 
 - **`OutputKindResolvedRelationship` feeds `resolved_relationships`** —
-  the row that other reducer domains consume. Per CLAUDE.md "Facts-First
+  the row that other reducer domains consume. Per
+  `docs/internal/agent-guide.md` "Facts-First
   Bootstrap Ordering", the bootstrap pipeline reopens `deployment_mapping`
   work items in Phase 3 after backfill
   (`bootstrap-index/main.go:273`). Any new domain that consumes
@@ -111,7 +112,7 @@ in `go/internal/telemetry/instruments.go`.
 
 ## Related docs
 
-- `docs/docs/architecture.md`
+- `docs/public/architecture.md`
 - `go/internal/reducer/README.md`
 - `go/internal/reducer/aws/README.md`
 - `go/internal/reducer/tfstate/README.md`

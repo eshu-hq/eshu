@@ -140,7 +140,7 @@ All metrics referenced in alerts are emitted by:
   `/metrics` handlers (eshu_runtime_* families retained for operator continuity)
 - **Instrumented storage**: `go/internal/storage/{neo4j,postgres}/instrumented.go`
 
-See `docs/docs/reference/telemetry/index.md` for complete metric catalog.
+See `docs/public/reference/telemetry/index.md` for complete metric catalog.
 
 ## Integration with Grafana Dashboards
 

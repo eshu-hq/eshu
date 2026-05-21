@@ -267,7 +267,7 @@ func TestHTTPDocsMatchServedOpenAPISurface(t *testing.T) {
 	t.Parallel()
 
 	root := filepath.Join("..", "..", "..")
-	httpDocs := readRepositoryFile(t, root, "docs/docs/reference/http-api.md")
+	httpDocs := readRepositoryFile(t, root, "docs/public/reference/http-api.md")
 	if !strings.Contains(httpDocs, "/api/v0/openapi.json") {
 		t.Fatal("HTTP API docs must document the served OpenAPI JSON endpoint")
 	}

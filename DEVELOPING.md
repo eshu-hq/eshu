@@ -10,10 +10,10 @@ For general contribution rules, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Use these as the primary source of truth while you work:
 
-- [Local Testing Runbook](docs/docs/reference/local-testing.md)
-- [Docker Compose](docs/docs/deployment/docker-compose.md)
-- [Service Runtimes](docs/docs/deployment/service-runtimes.md)
-- [Telemetry Overview](docs/docs/reference/telemetry/index.md)
+- [Local Testing Runbook](docs/public/reference/local-testing.md)
+- [Docker Compose](docs/public/run-locally/docker-compose.md)
+- [Service Runtimes](docs/public/deployment/service-runtimes.md)
+- [Telemetry Overview](docs/public/reference/telemetry/index.md)
 
 ## Development Environment
 
@@ -43,7 +43,7 @@ This repository follows Google-aligned Go engineering defaults:
 - run `gofmt`, focused `go test`, and `golangci-lint` before calling work ready
 
 If you change local verification or deployment behavior, update the matching
-runbook in `docs/docs/` in the same slice.
+runbook in `docs/public/` in the same slice.
 
 ## Parser Architecture
 
@@ -103,7 +103,7 @@ the operator docs together.
 4. If the change affects relationship extraction or content shaping, add the
    corresponding test under `go/internal/relationships/` or
    `go/internal/content/shape/`.
-5. Update the affected docs under `docs/docs/`.
+5. Update the affected docs under `docs/public/`.
 
 ### Rules
 
@@ -147,6 +147,6 @@ Use the compose proof scripts for cross-service validation:
 ./scripts/verify_admin_refinalize_compose.sh
 ```
 
-Use `docs/docs/reference/local-testing.md` as the source of truth for when each
+Use `docs/public/reference/local-testing.md` as the source of truth for when each
 proof is required. When mounting host repositories into Compose, use an
 absolute non-symlink path for `ESHU_FILESYSTEM_HOST_ROOT`.

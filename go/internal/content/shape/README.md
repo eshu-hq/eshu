@@ -99,5 +99,5 @@ around the `Materialize` call.
 ## Related docs
 
 - `go/internal/content/README.md` — the `Writer` port and `Materialization` shape
-- `docs/docs/architecture.md` — pipeline and Postgres content store role
-- `docs/docs/reference/local-testing.md`
+- `docs/public/architecture.md` — pipeline and Postgres content store role
+- `docs/public/reference/local-testing.md`

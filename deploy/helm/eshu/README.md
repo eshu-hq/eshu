@@ -193,18 +193,16 @@ webhookListener:
 repoSync:
   source:
     rules:
-      - exact: myorg/my-repo
-      - regex: myorg/platform-.*
+      - type: exact
+        value: myorg/my-repo
+      - type: regex
+        value: myorg/platform-.*
 
 env:
   ESHU_GRAPH_BACKEND: nornicdb
-  # Optional upgrade bridge for deployments that already have graph schema
-  # objects but lack the Postgres graph_schema_applications marker.
-  ESHU_GRAPH_SCHEMA_ADOPT_EXISTING: "true"
   ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT: 2m
   DEFAULT_DATABASE: nornic
   NEO4J_DATABASE: nornic
-  ESHU_ENABLE_PUBLIC_DOCS: "true"
 
 observability:
   environment: dev
@@ -222,6 +220,6 @@ observability:
       enabled: true
 ```
 
-See [Helm Quickstart](../../../docs/docs/deploy/kubernetes/helm-quickstart.md)
-and [Helm Values](../../../docs/docs/deploy/kubernetes/helm-values.md) for the
+See [Helm Quickstart](../../../docs/public/deploy/kubernetes/helm-quickstart.md)
+and [Helm Values](../../../docs/public/deploy/kubernetes/helm-values.md) for the
 deployment guide.

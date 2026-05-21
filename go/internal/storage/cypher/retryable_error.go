@@ -10,8 +10,8 @@ import (
 // reducer materialization paths. Scoped narrowly to codes evidenced as
 // transient under concurrent projector/reducer graph access.
 //
-// See docs/docs/reference/service-workflows.md and
-// docs/docs/deployment/service-runtimes.md for the current shared-write and
+// See docs/public/reference/service-workflows.md and
+// docs/public/deployment/service-runtimes.md for the current shared-write and
 // reduction-flow contract behind these retry classifications.
 var retryableNeo4jCodes = map[string]bool{
 	"Neo.ClientError.Statement.EntityNotFound":        true,

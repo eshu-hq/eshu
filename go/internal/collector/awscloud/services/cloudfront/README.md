@@ -48,10 +48,6 @@ The scanner itself emits no new metrics. The AWS SDK adapter records API calls
 with the shared AWS collector API-call events, spans, throttle counters, and
 operation labels.
 
-No-Observability-Change: existing AWS collector API-call metrics, pagination
-spans, throttle counters, and per-service operation labels cover CloudFront
-distribution and tag listing.
-
 ## Gotchas / invariants
 
 - CloudFront is treated as a global service. The boundary region should be the
@@ -63,7 +59,18 @@ distribution and tag listing.
 - Origin custom header names are safe metadata; origin custom header values are
   not.
 
+## Verification
+
+```bash
+go test ./internal/collector/awscloud/services/cloudfront/... -count=1
+go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1
+go run ./cmd/eshu docs verify ../go/internal/collector/awscloud/services/cloudfront --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```
+
+Run the AWS runtime tests when scan warnings or partial-status behavior changes.
+
 ## Related docs
 
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
-- `docs/docs/guides/collector-authoring.md`
+- `docs/public/services/collector-aws-cloud.md`
+- `docs/public/guides/collector-authoring.md`

@@ -3,12 +3,11 @@
 //
 // The package owns claim parsing, target authorization, claim-scoped
 // credential acquisition, scanner-side status updates, and collected-generation
-// construction for AWS cloud work items. Service scanners own AWS source
-// observation, including EKS control-plane evidence and redaction-sensitive ECS
-// and Lambda fields, while reducers own canonical graph truth. The production
-// registry includes metadata-only adapters for SQS, SNS, EventBridge, S3, RDS,
-// DynamoDB, CloudWatch Logs, CloudFront, API Gateway, Secrets Manager, and SSM
-// without broadening those services into payload, policy, data-plane,
-// credential, or mutation APIs. SupportedServiceKinds and SupportsServiceKind
-// expose that production registry to command-side startup validation.
+// construction for AWS cloud work items. It also owns per-account concurrency,
+// credential lease release, pagination checkpoint expiry, and production
+// scanner registry introspection.
+//
+// Service scanners own AWS source observation and reducers own canonical graph
+// truth. SupportedServiceKinds and SupportsServiceKind expose the production
+// scanner registry to command-side startup validation.
 package awsruntime

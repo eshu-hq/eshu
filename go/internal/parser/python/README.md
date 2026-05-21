@@ -74,6 +74,6 @@ VariableScope option to all when a caller needs local assignment payloads too.
 
 ## Related docs
 
-- docs/docs/architecture.md
-- docs/docs/reference/local-testing.md
-- docs/plans/2026-05-09-parser-language-layout.md
+- docs/public/architecture.md
+- docs/public/reference/local-testing.md
+- `docs/public/contributing-language-support.md`

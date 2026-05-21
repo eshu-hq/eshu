@@ -12,7 +12,8 @@
 4. `go/internal/collector/README.md` and `go/internal/projector/README.md` —
    understand both services before modifying their wiring
 5. `go/cmd/ingester/wiring_nornicdb_env.go` and `wiring_nornicdb_config.go` —
-   NornicDB knobs; read before adding or changing any ESHU_NORNICDB_* variable
+   NornicDB knobs; read before adding or changing any NornicDB-specific
+   environment variable
 
 ## Invariants this package enforces
 
@@ -36,7 +37,7 @@
 - **Add a new graph backend** → add `wiring_<backend>_executor.go` and
   `wiring_<backend>_env.go` following the NornicDB pattern; handle the new
   `ESHU_GRAPH_BACKEND` value in `openIngesterCanonicalWriter`; update
-  `docs/docs/reference/nornicdb-tuning.md` if new tuning knobs are added.
+  `docs/public/reference/nornicdb-tuning.md` if new tuning knobs are added.
   Do not branch on backend inside `buildIngesterService` or `buildIngesterProjectorService`.
 
 - **Add a new NornicDB tuning knob** → add the env var constant in `wiring.go`

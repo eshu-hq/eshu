@@ -354,6 +354,23 @@ retry, failed, and dead-letter state without adding a new metric label.
   or a `BuildRetractRepoDependencyEdges`-style function for each new canonical
   domain node or edge type; no writer changes needed
 
+## Change Checklist
+
+- Add a canonical domain node by adding a builder, a matching retract builder
+  when stale data can exist, and focused statement tests. Callers pass the
+  resulting `Statement` to the existing executor path.
+- Add a shared projection domain by adding the reducer domain constant, an
+  `EdgeWriter` Cypher template, row-map support, and backend compatibility
+  tests for both active graph backends.
+- Change SQL relationship writes together with their retraction tests.
+  `EXECUTES` from `SqlTrigger` to `SqlFunction` is part of stored-routine
+  reachability and must stay aligned with dead-code queries.
+- Add an executor wrapper by implementing `Executor`; implement
+  `GroupExecutor` or `PhaseGroupExecutor` only when the wrapper can preserve
+  idempotency and bounded transaction behavior.
+- Tune batch sizes through `CanonicalNodeWriter` builder options in command
+  wiring, not with backend-specific constants inside the writer.
+
 ## Gotchas / invariants
 
 - All writes must be idempotent (`doc.go`). `MERGE`-based Cypher and
@@ -426,7 +443,7 @@ retry, failed, and dead-letter state without adding a new metric label.
   retract old facts.
 - Stale File-to-entity `CONTAINS` edges are removed when stale entity nodes are
   retracted. Do not add a separate per-file relationship refresh unless a future
-  ADR changes the canonical entity lifecycle; that shape is easier to make slow
+  A current design record changes the canonical entity lifecycle; that shape is easier to make slow
   or backend-specific than the current label-anchored retraction path.
 - Repository cleanup first deletes an existing `Repository` found by unique
   `path` when its `id` differs from the current repository id, then the
@@ -456,15 +473,15 @@ retry, failed, and dead-letter state without adding a new metric label.
 - Backend dialect differences (Cypher syntax, transaction shape, constraint
   behavior) belong in documented seams here or in `cmd/` wiring. Do not add
   product-specific branches in callers, and do not create a separate writer
-  stream for Neo4j unless a future ADR explicitly rejects the shared contract.
+  stream for Neo4j unless a future design record explicitly rejects the shared contract.
 - Performance work should first improve this package's shared writer/query
   shape. Only add backend-specific behavior after proving the shared Cypher
   contract cannot express the needed correctness or performance property.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — pipeline and ownership table
-- `docs/docs/reference/telemetry/index.md` — metric and span reference
-- `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`
-- `docs/docs/adrs/2026-04-17-neo4j-deadlock-elimination-batch-isolation.md`
+- `docs/public/architecture.md` — pipeline and ownership table
+- `docs/public/reference/telemetry/index.md` — metric and span reference
+- `docs/public/reference/nornicdb-tuning.md`
+- `docs/public/reference/cypher-performance.md`
 - `go/internal/projector/README.md` — how `CanonicalNodeWriter` is wired

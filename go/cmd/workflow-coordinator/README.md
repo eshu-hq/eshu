@@ -5,8 +5,9 @@
 `eshu-workflow-coordinator` reconciles the declarative set of collector
 instances against the durable store and, in active mode, reaps expired
 work-item claims, plans supported collector work, and recomputes workflow-run
-state. It exposes the shared admin/status contract during its dark rollout so
-operators can validate the control plane before active mode is enabled.
+state. It exposes the shared admin/status contract in both dark and active mode
+so operators can validate the control plane before and after claim scheduling is
+enabled.
 Trigger normalization is not part of this binary today; provider-trigger truth
 is still owned by source-specific components.
 
@@ -27,16 +28,16 @@ reducer or projector queues directly. Its only durable surface is Postgres via
 
 ```mermaid
 flowchart TB
-  A["run(ctx)\nboot OTEL + Postgres"] --> B["LoadConfig\nparse ESHU_WORKFLOW_COORDINATOR_* vars"]
+  A["run(ctx)\nboot OTEL + Postgres"] --> B["LoadConfig\nparse workflow-coordinator env vars"]
   B --> C["NewMetrics\nregister OTEL instruments"]
   C --> D["NewWorkflowControlStore\nwrap Postgres connection"]
   D --> E["coordinator.Service{Config, Store, Metrics, Logger}"]
   E --> F["NewHostedWithStatusServer\nmount /healthz /readyz /metrics /admin/status"]
   F --> G["service.Run(ctx)"]
-  G --> H["runReconcile\n(always, every ReconcileInterval)\nplans tfstate + OCI registry in active mode"]
+  G --> H["runReconcile\n(always, every ReconcileInterval)\nreconciles instances\nactive: plans supported collector work"]
   G --> I{"DeploymentMode == active?"}
   I -- yes --> J["runReapExpiredClaims\n(every ReapInterval)"]
-  I -- yes --> K["runWorkflowReconciliation\n(on reconcile tick)"]
+  I -- yes --> K["runWorkflowReconciliation\n(on RunReconcileInterval tick)"]
   I -- no / dark --> L["reapTicker is nil\nno reap or run-reconcile loops"]
 ```
 
@@ -46,7 +47,7 @@ flowchart TB
    bring up OTEL tracing, metrics, and the Prometheus handler.
 2. `OpenPostgres(parent, os.Getenv)` opens the Postgres connection using
    the standard Postgres environment variables.
-3. `LoadConfig(os.Getenv)` parses all ESHU_WORKFLOW_COORDINATOR_* and
+3. `LoadConfig(os.Getenv)` parses all workflow-coordinator env vars and
    ESHU_COLLECTOR_INSTANCES_JSON env vars and validates the resulting `Config`.
 4. `NewMetrics` registers OTEL instruments against the
    `eshu_dp_workflow_coordinator_` prefix.
@@ -153,14 +154,15 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   collector instance fails `Config.Validate` at startup.
 - Heartbeat interval must be strictly less than claim lease TTL; violated
   configurations exit with a validation error.
-- The coordinator plans Terraform-state and OCI registry work in active mode,
-  but it still does not permanently own claims. Claim ownership stays with the
-  collectors that heartbeat and complete the claimed work items.
+- Active mode plans Terraform-state, OCI registry, package registry, scheduled
+  AWS, and AWS freshness handoff work when matching claim-capable collector
+  instances are configured. Collector lease ownership stays with the collectors
+  that claim, heartbeat, and complete the work items.
 
 ## Related docs
 
-- [Service runtimes — Workflow Coordinator](../../../docs/docs/deployment/service-runtimes.md#workflow-coordinator)
-- [Helm deployment](../../../docs/docs/deployment/helm.md)
-- [Docker Compose deployment](../../../docs/docs/deployment/docker-compose.md)
+- [Service runtimes — Workflow Coordinator](../../../docs/public/deployment/service-runtimes.md#workflow-coordinator)
+- [Helm deployment](../../../docs/public/deployment/helm.md)
+- [Docker Compose deployment](../../../docs/public/run-locally/docker-compose.md)
 - `internal/coordinator/README.md`
 - `internal/workflow/README.md`

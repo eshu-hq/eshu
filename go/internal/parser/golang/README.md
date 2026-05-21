@@ -128,13 +128,10 @@ selector calls can produce imported receiver roots or fmt Stringer roots. Do
 not re-introduce per-call full-tree walks in `dead_code_semantic_roots.go` or
 `package_interface_prescan.go`.
 
-Before the amortization landed (#161), `engine.PreScanGoPackageSemanticRoots`
-saturated CPU for 80+ minutes on Terraform's 1927-file checkout without
-emitting any fact_records. After: the same checkout's snapshot pipeline
-(discovery + per-language pre_scan + parse + materialize) completes in ~20s
-and produces 100,016 fact_records. The proof tests in
-`go/internal/parser/go_terraform_dogfood_test.go` gate per-file parse cost
-and the package-prescan path against TF_DOGFOOD_REPO.
+The proof tests in `go/internal/parser/go_terraform_dogfood_test.go` gate
+per-file parse cost and the package-prescan path against `TF_DOGFOOD_REPO`.
+Use that gate when changing variable-type lookup, dead-code semantic roots, or
+package-interface pre-scan behavior.
 
 Dead-code evidence is conservative. Handler signatures, Cobra run signatures,
 controller-runtime reconciler signatures, registration calls, direct method
@@ -168,6 +165,6 @@ to the original Go source.
 
 ## Related docs
 
-- `docs/plans/2026-05-09-parser-language-layout.md`
+- `docs/public/contributing-language-support.md`
 - `go/internal/parser/README.md`
 - `go/internal/parser/shared/README.md`

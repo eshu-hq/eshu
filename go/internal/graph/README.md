@@ -200,15 +200,15 @@ Kubernetes bootstrap job no longer appears hung after Postgres schema completes.
   re-ingestion will leave a stale or missing root node.
 - The schema contract is the checked-in Go-owned truth for node labels,
   constraints, performance indexes, and full-text indexes. Changes here must
-  update the active ADR chunk status row.
+  update the current design record chunk status row.
 - Terraform schema labels include resource/config entities plus backend,
   import, moved, removed, check, and lockfile-provider evidence. Keep that list
   aligned with `internal/content/shape` and `internal/storage/cypher`.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — ownership table
-- `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md` — NornicDB
+- `docs/public/architecture.md` — ownership table
+- `docs/public/reference/nornicdb-tuning.md` — NornicDB
   compatibility dialect evidence
 - `go/internal/storage/cypher/README.md` — canonical write adapters that
   implement `Writer` and use the batch/mutation helpers

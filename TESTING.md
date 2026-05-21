@@ -5,7 +5,7 @@ Python service and pytest runtime suites are no longer part of the normal
 verification path on this branch.
 
 For the exact verification matrix, use
-[docs/docs/reference/local-testing.md](docs/docs/reference/local-testing.md).
+[docs/public/reference/local-testing.md](docs/public/reference/local-testing.md).
 This file is the shorter overview.
 
 ## Quick Start

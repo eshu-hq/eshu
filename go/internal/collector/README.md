@@ -1,327 +1,185 @@
-# Collector
+# internal/collector
 
-## Purpose
+`internal/collector` owns source observation, repository selection, snapshot
+capture, parser input shaping, and fact streaming for Git-backed and
+filesystem-backed indexing runs. It decides what source bytes and metadata enter
+the fact pipeline; it does not decide graph truth or API/MCP query truth.
 
-`internal/collector` owns git collection, filesystem-direct collection,
-repository discovery, snapshot capture, and parser input shaping for Eshu
-indexing runs. It turns source repositories into the inputs required by fact
-emission: cloned snapshots, native snapshots, discovery reports, file
-selections, and entity metadata. It does not make graph projection or
-query-time truth decisions — those belong to the projector, reducer, storage,
-and query packages.
-
-## Where this fits in the pipeline
+## Runtime Flow
 
 ```mermaid
 flowchart LR
-  A["git source\n(remote or filesystem)"] --> B["internal/collector\nGitSource + NativeRepositorySnapshotter"]
-  B --> C["internal/collector/discovery\nResolveRepositoryFileSetsWithStats"]
-  C --> D["internal/parser\nEngine.ParsePath + PreScanRepositoryPathsWithWorkers"]
-  D --> E["internal/facts\nfacts.Envelope channel"]
-  E --> F["Postgres fact store\nCommitter.CommitScopeGeneration"]
-  F --> G["Projector queue\n(downstream)"]
+  Source["Git, filesystem, or webhook trigger"] --> Selector["RepositorySelector"]
+  Selector --> GitSource["GitSource.Next"]
+  GitSource --> Snapshot["NativeRepositorySnapshotter"]
+  Snapshot --> Discovery["collector/discovery"]
+  Snapshot --> Parser["internal/parser"]
+  Snapshot --> Shape["content/shape"]
+  Shape --> Facts["facts.Envelope stream"]
+  Facts --> Commit["Committer.CommitScopeGeneration"]
+  Commit --> Projector["projector queue"]
 ```
 
-## Internal flow
+`Service.Run` polls a `Source`, commits each returned generation, and calls
+`AfterBatchDrained` only after at least one generation was committed and the
+source batch is drained. Idle polls do not fire the drain hook.
 
-```mermaid
-flowchart TB
-  A["Service.Run\npoll Source.Next"] --> B{"generation\navailable?"}
-  B -- no --> C["AfterBatchDrained?\nwait PollInterval"]
-  B -- yes --> D["SpanCollectorObserve\ncollect + commit cycle"]
-  D --> E["commitWithTelemetry\nCommitter.CommitScopeGeneration"]
-  A2["GitSource.Next\nstartStream on first call"] --> F["discoverRepositories\nSelector.SelectRepositories\nSpanScopeAssign"]
-  F --> G["resolveRepositories\nabsolute paths + stable sourceRunID"]
-  G --> H["two-lane workers\nsmallCh + largeCh + largeSem"]
-  H --> I["NativeRepositorySnapshotter.SnapshotRepository\ndiscovery → pre-scan → Go semantic pre-scan → parse → materialize"]
-  I --> J["buildStreamingGeneration\nfactCh + streamFacts goroutine"]
-  J --> K["stream send\ncollected.Facts channel"]
-```
+## Core Responsibilities
 
-## Lifecycle / workflow
+- Select repositories for one collection cycle.
+- Clone, fetch, or reuse repository snapshots.
+- Apply discovery rules from repo-local `.eshu/*`, `.gitignore`,
+  `.eshuignore`, and operator discovery overlays.
+- Pre-scan repository imports before per-file parsing.
+- Run Go semantic pre-scan so parser options include package-level root
+  evidence.
+- Parse files through `internal/parser` and materialize content entities through
+  `internal/content/shape`.
+- Emit fact envelopes through a bounded stream instead of retaining all file
+  bodies in memory.
+- Publish metadata-only Terraform-state candidates while keeping raw
+  `.tfstate` bytes out of normal repository snapshots.
 
-`Service.Run` is the poll-and-dispatch loop. Sources that implement
-`ObservedSource` can start `SpanCollectorObserve` once they know the poll is a
-real collection attempt, which keeps drained or idle polls out of trace export.
-When a generation is available, the span covers source collection and durable
-commit. When no generation is ready, the service calls `AfterBatchDrained` if
-at least one generation was committed since the last drain, then waits
-`PollInterval` (1 second in `cmd/ingester`). On receipt of a generation it
-calls `Committer.CommitScopeGeneration` with the `facts.Envelope` channel and
-records `CollectorObserveDuration`, `FactsEmitted`, `GenerationFactCount`, and
-`FactsCommitted`.
+## Selection And Streaming
 
-`GitSource.Next` manages a per-batch streaming lifecycle. On the first call per
-batch it launches `startStream`, which:
+`GitSource` lazily starts one stream on the first `Next` call for a batch:
 
-1. Calls `Selector.SelectRepositories` to discover the current repository list
-   (span: `SpanScopeAssign`).
-2. Resolves all paths to absolute form and computes a stable `sourceRunID` via
-   `facts.StableID`.
-3. Classifies repositories into `smallCh` and `largeCh` by file count via
-   `isLargeRepository` (skips `.git`, `node_modules`, `vendor`, `.venv`,
-   `__pycache__`).
-4. Launches `s.SnapshotWorkers` goroutines (default 8). Workers prefer small
-   repos; large repos acquire a `largeSem` semaphore (capacity
-   `LargeRepoMaxConcurrent`) before snapshotting so at most N large parses run
-   concurrently.
-5. A coordinator goroutine closes `s.stream` when all workers finish.
+1. `RepositorySelector.SelectRepositories` returns a `SelectionBatch`.
+2. Repository paths are normalized to absolute paths before source-run IDs are
+   derived.
+3. Repositories are split into small and large lanes by file-count threshold.
+4. Snapshot workers prefer small repositories while large repositories acquire
+   the large-repo semaphore.
+5. Completed snapshots become `CollectedGeneration` values on a bounded stream.
 
-Subsequent `Next` calls read one generation from `s.stream`. When the stream
-channel closes, `Next` returns `ok=false` and resets for the next discovery
-cycle.
+This two-lane design keeps large repositories from starving small repository
+work. The large-repo semaphore is a memory and fairness control, not a
+correctness mechanism.
 
-For filesystem sources, `NativeRepositorySelector.SelectRepositories` uses a
-manifest under the managed repository cache to avoid reselecting unchanged
-workspaces. The manifest hashes the files the collector can actually use:
-`.gitignore` and `.eshuignore` rule files are included, while files excluded by
-those rules are skipped. This keeps local watch mode from creating new
-generations for ignored logs, build outputs, or editor scratch files.
+## Snapshot Stages
 
-`NativeRepositorySnapshotter.SnapshotRepository` runs five sequential stages
-per repository:
+`NativeRepositorySnapshotter.SnapshotRepository` runs these stages in order:
 
-1. **Discovery** — `resolveNativeSnapshotFileSet` calls
-   `discovery.ResolveRepositoryFileSetsWithStats` with repo-local overrides from
-   `.eshu/discovery.json`, `.eshu/vendor-roots.json`, `.gitignore`, and
-   `.eshuignore` applied before parsing.
-2. **Pre-scan** — `engine.PreScanRepositoryPathsWithWorkers` builds the import
-   map concurrently.
-3. **Go semantic pre-scan** — `engine.PreScanGoPackageSemanticRoots` builds
-   package interface escapes, imported receiver method roots, chained receiver
-   roots, generic constraint roots, and package import paths for parser options.
-4. **Parse** — `buildParsedRepositoryFiles` parses each file through the
-   `parser.Engine` worker pool; each parsed file becomes a `map[string]any`
-   entry in `snapshot.FileData` and may carry semantic metadata such as
-   dead-code root evidence. `snapshotParserOptions` keeps language-specific
-   variable scope close to query needs: Java uses module-level variables so
-   method locals do not flood canonical graph projection, while dynamic
-   languages that rely on local-variable evidence still parse with
-   `VariableScope=all`. Terraform parser buckets are mapped explicitly into
-   content entities, including backends, imports, moved blocks, removed blocks,
-   checks, and lockfile providers.
-5. **Materialize** — `shape.Materialize` turns parsed files into
-   `ContentFileMeta` records and `ContentEntitySnapshot` rows. Body strings are
-   released after materialization; `streamFacts` re-reads them from disk at emit
-   time so snapshot memory is `O(single_file)`.
+| Stage | Purpose |
+| --- | --- |
+| Discovery | Builds the candidate file set with repo-local and operator ignore rules. |
+| Pre-scan | Builds import and symbol maps needed by parser adapters. |
+| Go semantic pre-scan | Captures Go package roots, receiver chains, interface escapes, generic constraints, and import paths. |
+| Parse | Runs parser workers and stores per-file parser metadata. |
+| Materialize | Converts parser buckets into body-free file metadata and content entity snapshots. |
 
-`buildStreamingGeneration` launches a background goroutine that streams
-`facts.Envelope` values through a buffered channel (`factStreamBuffer = 500`).
-`AfterBatchDrained` runs only after the service has committed at least one
-generation and then observes the source batch drain. Idle polls do not trigger
-it.
+File bodies are intentionally not retained after materialization.
+`streamFacts` re-reads file bodies from disk while emitting facts, so memory is
+bounded by worker concurrency and one file body at a time instead of total
+repository size.
 
-## Exported surface
+## Terraform-State Boundary
 
-- `Service` — poll-and-dispatch loop; wire `Source`, `Committer`,
-  `PollInterval`, and optionally `AfterBatchDrained`, `Tracer`,
-  `Instruments`, `Logger`
-- `Source` — interface: `Next(context.Context) (CollectedGeneration, bool, error)`
-- `ObservedSource` — optional source interface that receives a
-  `StartObserveFunc` and returns a `CollectorObservation` so real collection
-  attempts, not idle polls, can share one `collector.observe` span with commit
-- `Committer` — interface: `CommitScopeGeneration(ctx, scope, generation, <-chan facts.Envelope) error`
-- `ClaimedCommitter` — optional fence-aware commit interface used by
-  `ClaimedService` so claim ownership can be verified in the same transaction
-  that persists facts
-- `CollectedGeneration` — `Scope`, `Generation`, `Facts` channel, `FactCount`,
-  optional `DiscoveryAdvisory`
-- `GitSource` — implements `Source`; fields include `Selector`,
-  `Snapshotter`, `SnapshotWorkers`, `LargeRepoThreshold`,
-  `LargeRepoMaxConcurrent`, `StreamBuffer`
-- `NativeRepositorySnapshotter` — implements `RepositorySnapshotter`; fields
-  include `Engine`, `Registry`, `DiscoveryOptions`, `SCIP`, `ParseWorkers`
-- `RepositorySelector` — interface: `SelectRepositories(context.Context) (SelectionBatch, error)`
-- `PriorityRepositorySelector` — tries selectors in order and returns the
-  first non-empty batch
-- `WebhookTriggerRepositorySelector` — claims queued GitHub, GitLab, and
-  Bitbucket webhook triggers, syncs only referenced repositories, fails
-  unsupported providers, and returns successful syncs as a targeted batch
-- `RepositorySnapshotter` — interface: `SnapshotRepository(context.Context, SelectedRepository) (RepositorySnapshot, error)`
-- `SelectionBatch` — `ObservedAt` + `[]SelectedRepository`
-- `SelectedRepository` — `RepoPath`, `RemoteURL`, `IsDependency`, `DisplayName`,
-  `Language`, `FileTargets`
-- `RepositorySnapshot` — `RepoPath`, `RemoteURL`, `FileCount`, `ImportsMap`,
-  `FileData`, `ContentFileMetas`, `ContentEntities`, `DiscoveryAdvisory`
-- `ContentFileSnapshot`, `ContentFileMeta`, `ContentEntitySnapshot` — portable
-  file and entity records; `ContentFileMeta` carries no body string
-- `RepoSyncConfig` — all env-driven sync configuration; populated by
-  `LoadRepoSyncConfig`
-- `LoadRepoSyncConfig(component, getenv)` — parses the repo-sync env contract
-- `LoadWebhookTriggerHandoffConfig(defaultOwner, getenv)` — parses the shared
-  webhook-trigger handoff env contract used by collector runtimes
-- `LoadDiscoveryOptionsFromEnv(getenv)` — parses `ESHU_DISCOVERY_IGNORED_PATH_GLOBS`
-  and `ESHU_DISCOVERY_PRESERVED_PATH_GLOBS`
-- `LoadSnapshotSCIPConfig(getenv)` — parses the SCIP env contract
-- `SnapshotSCIPConfig` — `Enabled`, `Languages`, `Indexer`, `Parser`
-- `DiscoveryAdvisoryReport` — operator-facing JSON summary of discovery and
-  materialization shape per snapshot run
-- `RegistryFailure` — bounded registry collector error type that carries
-  `FailureClass` and `FailureDetails` for workflow status without exposing
-  private registry hosts, repositories, packages, tags, digests, accounts,
-  paths, or credential references
-- `RegistryHTTPFailure` and `RegistryTransportFailure` — helpers used by
-  registry runtimes to classify auth denied, not found, rate limited,
-  retryable, canceled, and terminal registry failures
-- `ClaimedService` — wraps `Service` with a `ClaimControlStore` for
-  workflow-coordinator-gated collection
-- `FactsFromSlice` — test helper: builds a `CollectedGeneration` from a
-  pre-built `[]facts.Envelope` slice
-- `terraformstate` subpackage — exact Terraform-state source readers and
-  streaming parser primitives that emit redacted Terraform-state facts
-- `tfstateruntime` subpackage — claim-aware Terraform-state runtime adapter that
-  resolves exact candidates, opens the matching state source, and emits a
-  fenced collected generation for `ClaimedService`
-- `packageregistry` subpackage — package-registry identity normalization,
-  runtime target contracts, metadata parsing, claim runtime, and
-  reported-confidence package fact-envelope construction for the
-  `package_registry` collector family
-- `ociregistry` subpackage — OCI registry identity, provider adapters,
-  runtime scan orchestration, and reported-confidence container image facts
-- `cicdrun` subpackage — fixture-backed CI/CD provider normalization and
-  reported-confidence run, job, step, artifact, trigger, environment, and
-  warning fact-envelope construction for the `ci_cd_run` collector family
+Repository discovery may identify local Terraform-state candidates, but raw
+state bytes do not enter Git repository snapshots. Candidates are emitted as
+metadata-only evidence and are consumed by the Terraform-state collector path
+only when the configured resolver approves the source.
 
-## Dependencies
+Use `go/internal/collector/terraformstate` and
+`go/internal/collector/tfstateruntime` for state readers, redaction, parser
+output, claim-aware source handling, and state-specific telemetry.
 
-- `internal/collector/discovery` — `ResolveRepositoryFileSetsWithStats`,
-  `Options`, `RepoFileSet`, `DiscoveryStats`
-- `internal/parser` — `Engine`, `Registry`, `Options`, `DefaultEngine`,
-  `DefaultRegistry`, `SCIPIndexer`, `SCIPIndexParser`, `SCIPParseResult`
-- `internal/facts` — `facts.Envelope`, `facts.StableID`
-- `internal/scope` — `scope.IngestionScope`, `scope.ScopeGeneration`
-- `internal/content/shape` — `shape.Materialize`, `shape.Input`
-- `internal/repositoryidentity` — `MetadataFor`
-- `internal/telemetry` — spans, metrics, structured logging
+## Exported Surface
+
+| API | Contract |
+| --- | --- |
+| `Service` | Poll-and-commit loop over `Source` and `Committer`. |
+| `Source` | Produces collected generations. |
+| `ObservedSource` | Defers `collector.observe` span creation until real work exists. |
+| `Committer` | Persists one scope generation from a fact stream. |
+| `ClaimedService` | Wraps collection in workflow-coordinator claim fencing. |
+| `GitSource` | Streams repository snapshots from a `RepositorySelector` and `RepositorySnapshotter`. |
+| `NativeRepositorySnapshotter` | Builds discovery, parser, and content snapshots for one selected repository. |
+| `RepositorySelector` | Chooses repositories for a collection cycle. |
+| `WebhookTriggerRepositorySelector` | Converts queued webhook triggers into targeted repository sync work. |
+| `RepositorySnapshotter` | Captures one narrowed repository payload. |
+| `LoadRepoSyncConfig` | Parses repository sync configuration from environment. |
+| `LoadWebhookTriggerHandoffConfig` | Parses webhook-trigger handoff settings. |
+| `LoadDiscoveryOptionsFromEnv` | Parses operator discovery overlays. |
+| `LoadSnapshotSCIPConfig` | Parses optional SCIP snapshot settings. |
+
+Collector subpackages own specific source families: Terraform state, AWS cloud,
+OCI registries, package registries, CI/CD runs, Confluence, and repository
+discovery helpers. Their README files should explain source-specific API,
+credential, redaction, and claim behavior.
 
 ## Telemetry
 
-- Spans: `SpanCollectorObserve` (`collector.observe`) wraps each collect and
-  commit cycle for sources that implement `ObservedSource`,
-  `SpanCollectorStream` (`collector.stream`) wraps the full stream lifecycle;
-  `SpanScopeAssign` (`scope.assign`) wraps repository discovery;
-  `SpanFactEmit` (`fact.emit`) wraps per-repo snapshotting
-- Metrics: `eshu_dp_collector_observe_duration_seconds`,
-  `eshu_dp_scope_assign_duration_seconds`, `eshu_dp_fact_emit_duration_seconds`,
-  `eshu_dp_repo_snapshot_duration_seconds`, `eshu_dp_file_parse_duration_seconds`,
-  `eshu_dp_repos_snapshotted_total` (labeled `status=succeeded/failed`),
-  `eshu_dp_facts_emitted_total`, `eshu_dp_facts_committed_total`,
-  `eshu_dp_fact_batches_committed_total`, `eshu_dp_generation_fact_count`,
-  `eshu_dp_discovery_files_skipped_total` (labeled `skip_reason`),
-  `eshu_dp_large_repo_classifications_total` (labeled `repo_size_tier`),
-  `eshu_dp_large_repo_semaphore_wait_seconds`
-- Log events: `git repository sync started`,
-  `git repository sync progress`, `git repository sync completed`,
-  `git repository sync failed`, `collector stream started`,
-  `collector snapshot stage completed`
-  (stages: `discovery`, `pre_scan`, `go_package_semantic_prescan`, `parse`,
-  `materialize`; the Go semantic pre-scan stage includes
-  `go_package_target_count`, and the `parse` stage includes bounded
-  `language_parse_summary` rows with file count and parse duration totals per
-  language), `collector snapshot completed`,
-  `collector commit succeeded / failed`, `collector stream completed / failed`,
-  `large repository queued`, `large repo semaphore acquired / released`
+Use collector telemetry to separate source wait time from parser cost and fact
+commit cost:
 
-## Operational notes
+- `collector.observe` wraps one real collect-and-commit cycle.
+- `collector.stream` wraps one `GitSource` stream lifecycle.
+- `scope.assign` wraps repository selection.
+- `fact.emit` wraps per-repository snapshotting.
+- `collector snapshot stage completed` logs discovery, pre-scan,
+  `go_package_semantic_prescan`, parse, and materialize timings.
+- Large-repo logs and metrics show queueing, semaphore wait, and release.
+- Fact emitted, fact committed, generation fact count, and batch committed
+  metrics show whether the collector or committer is the current bottleneck.
 
-- `ESHU_SNAPSHOT_WORKERS` (default `min(NumCPU,8)`) controls concurrent
-  per-repo snapshotting. Raising this value beyond CPU capacity increases
-  context-switching without reducing wall time.
-- `ESHU_LARGE_REPO_FILE_THRESHOLD` (default `1000`) classifies repositories for
-  the large-repo semaphore. The classification is a fast pre-scan that exits
-  early once the threshold is exceeded.
-- Repo-local `.eshu/discovery.json` and `.eshu/vendor-roots.json` override default
-  discovery options before the operator-level `ESHU_DISCOVERY_IGNORED_PATH_GLOBS`
-  overlay is applied.
-- Filesystem manifest fingerprints include `.gitignore` and `.eshuignore` rule
-  files but exclude paths filtered by those rules. Changing an ignore rule
-  reselects the repository; changing only ignored output does not.
-- Two-phase streaming: `ContentFileMeta` carries no body; `streamFacts`
-  re-reads file bodies from disk at emit time. The OS page cache keeps re-reads
-  fast. Do not change this design to in-memory bodies without accounting for
-  `O(repo_size)` memory growth on large repositories.
-- Performance Evidence: On 2026-05-15, pprof from the remote full-corpus
-  Compose run showed bootstrap startup CPU in filesystem repository copy and
-  ignore matching before graph projection began. A focused local benchmark for
-  literal ignore patterns improved from 2.35-2.44 us/op, 656 B/op, and 10
-  allocs/op at `4d31617` to 1.11-1.13 us/op, 96 B/op, and 1 alloc/op after
-  routing non-glob `.gitignore` and `.eshuignore` rules through literal
-  matching.
-- Observability Evidence: The existing `collector snapshot stage completed`
-  logs, `SpanScopeAssign`, `SpanCollectorStream`, and pprof profiles expose the
-  selector/copy window separately from per-repository discovery, pre-scan,
-  parse, materialize, commit, and projection stages.
-- No-Regression Evidence: Git clone/fetch progress logging does not change
-  selection semantics, worker counts, repository ordering, clone depth, fact
-  emission, or durable queue writes. The focused gate is
-  `go test ./internal/collector ./cmd/collector-git ./cmd/ingester -count=1`,
-  which covers sanitized git progress logging plus ingester and collector-git
-  logger wiring into `NativeRepositorySelector`.
-- Observability Evidence: Hosted git sync now emits structured start,
-  throttled progress, completion, and failure logs for clone/fetch before
-  snapshot workers start. The logs include bounded fields for operation,
-  provider kind, repository id, repository ordinal/count, branch when known,
-  elapsed seconds, and `failure_class=git_sync_failure` on failures while
-  redacting credential-bearing URLs and avoiding full local paths.
-- Parser variable scope is part of performance and truth. Java defaults to
-  module-level variables during native snapshots because dead-code candidates
-  and Java call inference do not need every method-local declaration as a
-  canonical `Variable` node. Keep JS/TS/Python local-variable coverage intact
-  unless their query contracts change.
-- Terraform-state ingestion currently uses explicit sources and Git-observed
-  backend facts. The #140 target design adds repo-local `.tfstate` candidates
-  as advisory metadata, but those candidates must not route raw state through
-  Git content persistence or parse state as normal repository content.
-- Terraform-state claim processing records `eshu_dp_tfstate_claim_wait_seconds`
-  and uses `tfstate.collector.claim.process` around the claimed work boundary.
-- `AfterBatchDrained` is a batch boundary hook, not a timer callback. Use it for
-  work that should follow committed collection, and keep idle-poll behavior in
-  `Source.Next` or the coordinator layer.
+Keep repository identifiers and paths sanitized in hosted logs. Do not put raw
+credentials, private registry objects, full local paths, or raw Terraform-state
+locators in metrics.
 
-## Extension points
+## Gotchas
 
-- `RepositorySelector` — replace `NativeRepositorySelector` with any
-  implementation to change how repositories are discovered
-- `PriorityRepositorySelector` — compose a high-priority selector, such as
-  webhook-triggered refresh, ahead of scheduled polling
-- `RepositorySnapshotter` — replace `NativeRepositorySnapshotter` with any
-  implementation to change how repositories are snapshotted
-- `Source` / `Committer` — both are interfaces; test implementations substitute
-  recording or controlled-error variants
-- `SnapshotSCIPConfig.Indexer` and `.Parser` — injectable seams for testing SCIP
-  paths without external binaries
+- `AfterBatchDrained` is a committed-batch boundary hook, not a timer callback.
+- Relative repository paths can change fact identity; normalize before
+  snapshotting.
+- `.gitignore`, `.eshuignore`, `.eshu/discovery.json`, and
+  `.eshu/vendor-roots.json` are part of the effective input shape.
+- Changing ignore-rule fingerprinting can cause local watch mode to publish
+  unnecessary generations.
+- Do not move raw `.tfstate` bytes through Git content persistence.
+- Do not store all file bodies in memory to avoid re-reading from disk.
+- Parser variable scope is a truth and performance contract; Java uses narrower
+  variable scope than dynamic languages because local variables are not needed
+  for Java query truth.
+- Webhook-trigger selection is a wake-up path. The fetched repository state
+  still decides the snapshot truth.
 
-## Gotchas / invariants
+## Change Checklist
 
-- `GitSource.startStream` performs synchronous discovery before launching
-  snapshot workers. A slow `Selector.SelectRepositories` (e.g. slow GitHub API
-  response) blocks the entire stream start.
-- Large-repo semaphore is acquired inside the worker select loop, not inside
-  `processRepo`. This means a worker never blocks waiting for the semaphore while
-  small repos are available (`git_source.go:419-431`).
-- `streamErr` is written by the coordinator goroutine and read by `Next` only
-  after the stream channel closes. The happens-before guarantee is that
-  `close(s.stream)` happens-before the receive in `Next` that returns
-  `ok=false`.
-- Absolute paths: `resolveRepositories` calls `filepath.Abs` on every selected
-  repo path before building the `sourceRunID` hash. Do not pass relative paths
-  to `NativeRepositorySnapshotter.SnapshotRepository` — it calls
-  `filepath.Abs` again but the fact IDs would differ.
-- Filesystem manifests must stay aligned with copy/direct snapshot filtering.
-  If `fingerprintTree` starts hashing ignored generated files, local watch mode
-  can keep publishing newer generations and supersede projector work before the
-  graph settles.
-- Webhook trigger selection is a wake-up path only. It may prioritize a GitHub,
-  GitLab, or Bitbucket repo sync, but the fetched default branch still decides
-  freshness. Provider-scoped repository IDs select the right clone host; GitHub
-  token and GitHub App auth remain GitHub-specific, while SSH is the
-  provider-neutral private-repo path.
+- Add a repository source mode with a new `RepositorySelector`, config/env
+  parsing, tests, and wiring outside `GitSource` branch logic.
+- Add a snapshot stage by inserting it into
+  `NativeRepositorySnapshotter.SnapshotRepository`, logging stage timing,
+  recording metrics when measurable, and testing the stage output.
+- Change large-repo concurrency defaults only with production data, telemetry
+  guidance, and tests. The semaphore is a fairness and memory control, not a
+  correctness workaround.
+- Add discovery advisory fields in the advisory model and builder together with
+  tests.
+- Add a collector family with package-local `doc.go` and `README.md`; update
+  parent docs only for cross-cutting workflow rules that do not belong in that
+  package README.
 
-## Related docs
+## Verification
 
-- `docs/docs/architecture.md` — collector ownership
-- `docs/docs/deployment/service-runtimes.md` — concurrency tuning env vars
-- `docs/docs/reference/local-testing.md` — local verification gates
-- `docs/docs/reference/telemetry/index.md` — metric and span reference
-- `go/internal/collector/discovery/README.md` — file enumeration detail
-- `go/internal/parser/README.md` — language adapter and registry detail
+```bash
+go test ./internal/collector -count=1
+go test ./cmd/collector-git ./cmd/ingester -count=1
+go run ./cmd/eshu docs verify ../go/internal/collector --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```
+
+Run the relevant collector-family package tests when changing a subpackage,
+for example Terraform-state, AWS cloud, OCI registry, package registry, or
+Confluence.
+
+## Related Docs
+
+- [Architecture](../../../docs/public/architecture.md)
+- [Ingester Service](../../../docs/public/services/ingester.md)
+- [Collector Authoring](../../../docs/public/guides/collector-authoring.md)
+- [Environment Variables](../../../docs/public/reference/environment-variables.md)
+- [Telemetry Reference](../../../docs/public/reference/telemetry/index.md)
+- [Local Testing](../../../docs/public/reference/local-testing.md)
+- [Discovery Package](discovery/README.md)
+- [Parser Package](../parser/README.md)

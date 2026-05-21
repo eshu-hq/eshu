@@ -7,25 +7,27 @@ This is a maintainer-only guide for updating the Eshu docs site.
 Eshu currently has **one** public documentation surface:
 
 - `docs/mkdocs.yml` for site configuration and navigation
-- `docs/docs/` for public docs content
+- `docs/public/` for public docs content
 - `docs/internal/` for maintainer-only notes
-- `docs/archive/` for historical material that should not appear in the public site
 
 ## Public docs rules
 
-- public markdown files live under `docs/docs/`
+- public markdown files live under `docs/public/`
 - public filenames use lower-case kebab-case
 - public pages must be wired into `docs/mkdocs.yml`
 - public docs should not reference removed frontend-hosting flows
+- each cleanup pass should update `docs/internal/docs-change-tally.md`
 
 ## Editing flow
 
-1. update or add Markdown under `docs/docs/`
+1. update or add Markdown under `docs/public/`
 2. update navigation in `docs/mkdocs.yml`
 3. if you changed parser behavior, update the affected language pages and
    parser matrices so they match the Go implementation
-4. run the docs tests
-5. build the site locally
+4. update `docs/internal/docs-change-tally.md` with created, modified, deleted,
+   and remaining docs work
+5. run the docs tests
+6. build the site locally
 
 ## Parser documentation ownership
 
@@ -35,7 +37,7 @@ The canonical parser implementation now lives in:
 - `go/internal/parser/*.go`
 - `go/internal/parser/*_test.go`
 
-The public parser pages under `docs/docs/languages/`, plus
+The public parser pages under `docs/public/languages/`, plus
 `feature-matrix.md` and `support-maturity.md`, are checked-in documentation for
 that implementation. Update them when the Go parser contract changes.
 
@@ -69,6 +71,6 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs bui
 ## GitHub Pages deployment
 
 The `Deploy Docs` workflow always builds the MkDocs site on `main`. It only
-publishes to GitHub Pages when the repository variable
-`ESHU_GITHUB_PAGES_ENABLED` is set to `true`. Keep that variable unset until the
-repository's Pages settings are configured to publish from GitHub Actions.
+publishes to GitHub Pages when the repository Pages opt-in variable is enabled.
+Keep that variable disabled until the repository's Pages settings are
+configured to publish from GitHub Actions.

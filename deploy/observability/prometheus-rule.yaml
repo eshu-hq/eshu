@@ -96,7 +96,7 @@ spec:
               1. Check current partition count and batch size in reducer configuration
               2. Review `eshu_dp_shared_projection_cycles_total` rate to verify cycles are completing
               3. Check `eshu_dp_reducer_run_duration_seconds` P99 latency for execution bottlenecks
-              4. Tune shared projection parameters (see docs/docs/reference/telemetry/index.md):
+              4. Tune shared projection parameters (see docs/public/reference/telemetry/index.md):
                  - Increase partition count first (less risk, better parallelism)
                  - Then increase batch limit if partitions are underutilized
               5. Monitor `eshu_dp_canonical_write_duration_seconds` for Neo4j write bottlenecks

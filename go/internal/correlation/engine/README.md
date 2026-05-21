@@ -111,4 +111,4 @@ counters, structured logs) around it.
 - `go/internal/correlation/rules/README.md` — rule-pack schema and first-party packs
 - `go/internal/correlation/explain/README.md` — stable text rendering
 - `go/internal/correlation/model/README.md` — shared types
-- ADR: `docs/docs/adrs/2026-04-19-deployable-unit-correlation-and-materialization-framework.md`
+- Reference: `docs/public/reference/relationship-mapping.md`

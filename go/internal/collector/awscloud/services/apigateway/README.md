@@ -52,12 +52,6 @@ The scanner itself emits no new metrics. The AWS SDK adapter records API calls
 with the shared AWS collector API-call events, spans, throttle counters, and
 operation labels.
 
-No-Observability-Change: existing AWS collector API-call metrics, pagination
-spans, throttle counters, `aws_warning` facts, resource and relationship
-emission counters, and `aws_scan_status` rows cover API Gateway metadata
-scanning. Sustained `GetResources` throttling marks the scan partial with
-`failure_class=throttled` while preserving API, stage, and domain observations.
-
 ## Gotchas / invariants
 
 - The scanner boundary must remain `awscloud.ServiceAPIGateway`.
@@ -73,7 +67,18 @@ scanning. Sustained `GetResources` throttling marks the scan partial with
 - Stage variables, policy JSON, API keys, authorizer secrets, integration
   credentials, request templates, and response templates stay out of facts.
 
+## Verification
+
+```bash
+go test ./internal/collector/awscloud/services/apigateway/... -count=1
+go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1
+go run ./cmd/eshu docs verify ../go/internal/collector/awscloud/services/apigateway --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```
+
+Run the AWS runtime tests when scan warnings or partial-status behavior changes.
+
 ## Related docs
 
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
-- `docs/docs/guides/collector-authoring.md`
+- `docs/public/services/collector-aws-cloud.md`
+- `docs/public/guides/collector-authoring.md`
