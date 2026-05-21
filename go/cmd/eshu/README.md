@@ -60,15 +60,17 @@ launched runtime via the shared `telemetry` package. Errors print to
 - `eshu graph start` requires `eshu-reducer` and `eshu-ingester` on `PATH`;
   fresh local Eshu service runs need `go/bin` on `PATH` after rebuilding
 - `eshu scan` is the readiness contract for one local source. It preflights the
-  configured API status surface, launches `eshu-bootstrap-index`, then polls
-  `/api/v0/status/pipeline` until health is `healthy`, queue work is drained,
-  no failures or dead letters exist, and at least one generation completed. It
-  also probes `/api/v0/repositories?limit=1` before and after the run so the
-  API query surface has to respond, not just the status store. It reports
-  bootstrap and queue-zero timings. Collector-complete and
-  source-local projection-complete timings remain explicit `null` values in
-  JSON because the bootstrap child logs those events today but does not expose
-  parent-process structured timestamps.
+  configured API status surface, launches `eshu-bootstrap-index` with
+  `ESHU_REPO_SOURCE_MODE=filesystem`, `ESHU_FILESYSTEM_ROOT` set to the
+  resolved source root, `ESHU_FILESYSTEM_DIRECT=true`, and `ESHU_REPOS_DIR`
+  under the workspace cache, then polls `/api/v0/status/pipeline` until health
+  is `healthy`, queue work is drained, no failures or dead letters exist, and at
+  least one generation completed. It also probes `/api/v0/repositories?limit=1`
+  before and after the run so the API query surface has to respond, not just the
+  status store. It reports bootstrap and queue-zero timings.
+  Collector-complete and source-local projection-complete timings remain
+  explicit `null` values in JSON because the bootstrap child logs those events
+  today but does not expose parent-process structured timestamps.
 - `eshu trace service <name>` is a read-only CLI consumer of
   `/api/v0/services/{service_name}/story`. It asks the API for
   `application/eshu.envelope+json`, passes supported selectors through as

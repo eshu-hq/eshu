@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -185,6 +186,7 @@ type scanOptions struct {
 	Timeout         time.Duration
 	PollInterval    time.Duration
 	DiscoveryReport string
+	ReposDir        string
 	Profile         string
 	Target          scanTarget
 }
@@ -205,6 +207,10 @@ func scanOptionsFromCommand(cmd *cobra.Command, args []string) (scanOptions, err
 		return scanOptions{}, err
 	}
 	target, err := resolveScanTarget(path, explicitRoot)
+	if err != nil {
+		return scanOptions{}, err
+	}
+	reposDir, err := scanReposDir(target.Root)
 	if err != nil {
 		return scanOptions{}, err
 	}
@@ -236,9 +242,18 @@ func scanOptionsFromCommand(cmd *cobra.Command, args []string) (scanOptions, err
 		Timeout:         timeout,
 		PollInterval:    pollInterval,
 		DiscoveryReport: discoveryReport,
+		ReposDir:        reposDir,
 		Profile:         profile,
 		Target:          target,
 	}, nil
+}
+
+func scanReposDir(root string) (string, error) {
+	layout, err := eshulocal.BuildLayout(os.Getenv, os.UserHomeDir, runtime.GOOS, root)
+	if err != nil {
+		return "", fmt.Errorf("resolve scan cache: %w", err)
+	}
+	return filepath.Join(layout.CacheDir, "repos"), nil
 }
 
 func resolveScanTarget(path, explicitRoot string) (scanTarget, error) {
@@ -284,11 +299,16 @@ func (o scanOptions) BootstrapArgs() []string {
 }
 
 func (o scanOptions) BootstrapEnv() []string {
-	env := os.Environ()
-	if strings.TrimSpace(o.DiscoveryReport) == "" {
-		return env
+	overrides := map[string]string{
+		"ESHU_REPO_SOURCE_MODE":  "filesystem",
+		"ESHU_FILESYSTEM_ROOT":   o.Target.Root,
+		"ESHU_FILESYSTEM_DIRECT": "true",
+		"ESHU_REPOS_DIR":         o.ReposDir,
 	}
-	return append(env, "ESHU_DISCOVERY_REPORT="+o.DiscoveryReport)
+	if strings.TrimSpace(o.DiscoveryReport) != "" {
+		overrides["ESHU_DISCOVERY_REPORT"] = o.DiscoveryReport
+	}
+	return mergeEnvironment(eshuEnviron(), overrides)
 }
 
 func finishScan(cmd *cobra.Command, opts scanOptions, result scanResult, err error) error {

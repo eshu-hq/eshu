@@ -18,6 +18,12 @@ import (
 
 func TestRunScanRunsBootstrapAndWaitsForHealthyPipeline(t *testing.T) {
 	repoPath := t.TempDir()
+	eshuHome := t.TempDir()
+	t.Setenv("ESHU_HOME", eshuHome)
+	t.Setenv("ESHU_REPO_SOURCE_MODE", "githubOrg")
+	t.Setenv("ESHU_FILESYSTEM_ROOT", "/should/not/leak")
+	t.Setenv("ESHU_FILESYSTEM_DIRECT", "false")
+	t.Setenv("ESHU_REPOS_DIR", "/should/not/leak")
 	if err := os.Mkdir(filepath.Join(repoPath, ".git"), 0o755); err != nil {
 		t.Fatalf("Mkdir(.git) error = %v, want nil", err)
 	}
@@ -83,6 +89,22 @@ func TestRunScanRunsBootstrapAndWaitsForHealthyPipeline(t *testing.T) {
 	}
 	if !envContains(gotEnv, "ESHU_DISCOVERY_REPORT="+absReport) {
 		t.Fatalf("env missing ESHU_DISCOVERY_REPORT=%q; env=%v", absReport, gotEnv)
+	}
+	for key, want := range map[string]string{
+		"ESHU_REPO_SOURCE_MODE":  "filesystem",
+		"ESHU_FILESYSTEM_ROOT":   absPath,
+		"ESHU_FILESYSTEM_DIRECT": "true",
+	} {
+		if got := envValue(gotEnv, key); got != want {
+			t.Fatalf("%s = %q, want %q; env=%v", key, got, want, gotEnv)
+		}
+	}
+	reposDir := envValue(gotEnv, "ESHU_REPOS_DIR")
+	if !strings.HasPrefix(reposDir, filepath.Join(eshuHome, "local", "workspaces")) {
+		t.Fatalf("ESHU_REPOS_DIR = %q, want under ESHU_HOME workspaces %q", reposDir, eshuHome)
+	}
+	if !strings.HasSuffix(reposDir, filepath.Join("cache", "repos")) {
+		t.Fatalf("ESHU_REPOS_DIR = %q, want cache/repos suffix", reposDir)
 	}
 }
 
