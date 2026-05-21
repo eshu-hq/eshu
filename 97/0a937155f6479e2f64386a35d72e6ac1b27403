@@ -1,0 +1,34 @@
+go/internal/storage/postgres/workflow_control_test.go
+  s_f2f7fbb6f30866::t_f22fa5a5aa5912 105,159,317
+  s_f2f7fbb6f30866::t_e1a97c5a01062a 213,220-273,275-309,364-377
+go/internal/storage/cypher/oci_registry_canonical_writer.go
+  s_f2f7fbb6f30866::t_98ad44b5cfca83 55,79,101,128,155
+go/internal/storage/postgres/README.md
+  s_f2f7fbb6f30866::t_09450dba5f428c 247,251-256
+go/internal/storage/cypher/README.md
+  s_f2f7fbb6f30866::t_1c1d721bea0410 304-310
+go/internal/storage/cypher/oci_registry_canonical_writer_test.go
+  s_f2f7fbb6f30866::t_4142ed2d7de7b8 155-251
+go/internal/storage/postgres/workflow_control_open_targets.go
+  s_f2f7fbb6f30866::t_9e80250710b6f1 102,111,114,124,126,130,143-144,146-147,149,153-157,159-162,165,167,170-172,174-177,179,182-187,189-196,198-200,202-228
+  s_f2f7fbb6f30866::t_0838ae405f1938 180-181,188
+  s_f2f7fbb6f30866::t_4b740bb8ad5f03 201
+docs/docs/reference/local-testing.md
+  s_f2f7fbb6f30866::t_bcaf2b6c5fb41b 197-201,204-211
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "970a937155f6479e2f64386a35d72e6ac1b27403",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
