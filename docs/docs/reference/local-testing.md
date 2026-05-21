@@ -60,6 +60,12 @@ webhook intake, workflow planning, claim leasing, collector scan work, reducer
 projection, graph writes, and store failures with existing status endpoints,
 structured logs, and Prometheus metrics.
 
+Before accepting a remote collector E2E run, also run the hosted runtime-state
+gate in [Remote E2E Runtime State](remote-e2e-runtime-state.md). It verifies
+the API, MCP server, ingester, resolution engine, workflow coordinator, hosted
+collectors, and checkpointed queue-zero signal before a run can be treated as
+deployable proof.
+
 No-Regression Evidence: after fixing the AWS scan-status placeholder contract,
 standard SQS queue attribute selection, CloudWatch Logs tag throttling, and the
 remote package-registry target bound, the remote all-collector Compose proof

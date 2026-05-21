@@ -24,6 +24,14 @@ The `verify_*_compose.sh` scripts are developer and DevOps proof lanes. They
 start their own Compose project, choose ports, and tear the stack down unless
 `ESHU_KEEP_COMPOSE_STACK=true` is set.
 
+`verify_remote_e2e_runtime_state.sh` is the post-start gate for the hosted
+remote collector E2E stack. It does not start containers. Run it after the
+remote Compose stack is up to prove the API, MCP server, ingester,
+resolution engine, workflow coordinator, hosted collectors, and checkpointed
+queue completion are all healthy before treating the run as deployable proof.
+Use `ESHU_REMOTE_E2E_COMPOSE_FILES` as a colon-separated Compose file list and
+`ESHU_REMOTE_E2E_ENV_FILE` when the stack uses a private env file.
+
 `verify-performance-evidence.sh` is the CI tripwire for hot-path runtime
 changes. It inspects the actual PR diff, including brand-new collector
 packages, and fails when changed Go code introduces Cypher, graph writes,

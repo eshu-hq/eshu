@@ -71,6 +71,7 @@ nav:
     - Troubleshooting: operate/troubleshooting.md
     - Service Runtimes: deployment/service-runtimes.md
     - Local Testing: reference/local-testing.md
+    - Remote E2E Runtime State: reference/remote-e2e-runtime-state.md
     - Cloud Validation: reference/cloud-validation.md
   - Understand Eshu:
     - Overview: understand/index.md
