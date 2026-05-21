@@ -69,6 +69,7 @@ var spanNames = []string{
 	SpanQueryRelationshipEvidence,
 	SpanQueryEvidenceCitationPacket,
 	SpanQueryDocumentationFindings,
+	SpanQueryDocumentationFacts,
 	SpanQueryDocumentationEvidencePacket,
 	SpanQueryDocumentationPacketFreshness,
 	SpanQueryDeadIaC,

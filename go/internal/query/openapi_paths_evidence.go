@@ -132,6 +132,70 @@ const openAPIPathsEvidence = `
         }
       }
     },
+    "/api/v0/documentation/facts": {
+      "get": {
+        "tags": ["documentation"],
+        "summary": "List collected documentation facts",
+        "description": "Lists source-neutral documentation facts collected from systems such as Confluence. The route is bounded by limit/cursor and requires a scope or source/document/section anchor.",
+        "operationId": "listDocumentationFacts",
+        "parameters": [
+          {"name": "fact_kind", "in": "query", "schema": {"type": "string", "enum": ["source", "document", "section", "link", "entity_mention", "claim_candidate", "documentation_source", "documentation_document", "documentation_section", "documentation_link", "documentation_entity_mention", "documentation_claim_candidate"]}},
+          {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation collector scope identifier"},
+          {"name": "generation_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation collector generation identifier"},
+          {"name": "source_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "document_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "section_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "q", "in": "query", "schema": {"type": "string"}, "description": "Case-insensitive search over source display name, document title, section heading, and section content"},
+          {"name": "updated_since", "in": "query", "schema": {"type": "string", "format": "date-time"}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}},
+          {"name": "cursor", "in": "query", "schema": {"type": "string"}, "description": "Non-negative integer offset returned as next_cursor"}
+        ],
+        "responses": {
+          "200": {
+            "description": "Collected documentation facts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "fact_id": {"type": "string"},
+                          "fact_kind": {"type": "string"},
+                          "scope_id": {"type": "string"},
+                          "generation_id": {"type": "string"},
+                          "source_system": {"type": "string"},
+                          "source_uri": {"type": "string"},
+                          "source_record_id": {"type": "string"},
+                          "observed_at": {"type": "string", "format": "date-time"},
+                          "payload": {"type": "object"}
+                        },
+                        "required": ["fact_id", "fact_kind", "scope_id", "generation_id", "source_system", "observed_at", "payload"]
+                      }
+                    },
+                    "next_cursor": {"type": "string"}
+                  },
+                  "required": ["facts", "next_cursor"]
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {
+            "description": "Documentation facts capability or Postgres documentation read model is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v0/documentation/findings": {
       "get": {
         "tags": ["documentation"],

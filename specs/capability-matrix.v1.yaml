@@ -271,6 +271,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: documentation_finding facts by filter}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: documentation_finding facts by filter}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-documentation-findings}], notes: documentation_finding facts by filter}
+  - capability: documentation_facts.list
+    tools: [list_documentation_facts]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-documentation-facts}], notes: requires durable collected documentation facts}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_documentation_scope, verification: [{go_test: ./internal/query}], notes: bounded collected documentation facts by scope or document anchor}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: indexed_documentation_scope, verification: [{go_test: ./internal/query}], notes: bounded collected documentation facts by scope or document anchor}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: bounded_documentation_scope, verification: [{remote_validation: prod-documentation-facts}], notes: bounded collected documentation facts by scope or document anchor}
   - capability: documentation_evidence_packet.read
     tools: [get_documentation_evidence_packet]
     profiles:

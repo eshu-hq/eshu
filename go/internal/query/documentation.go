@@ -14,6 +14,7 @@ import (
 
 const (
 	documentationFindingsCapability        = "documentation_findings.list"
+	documentationFactsCapability           = "documentation_facts.list"
 	documentationEvidencePacketCapability  = "documentation_evidence_packet.read"
 	documentationPacketFreshnessCapability = "documentation_evidence_packet.freshness"
 )
@@ -64,6 +65,7 @@ type documentationEvidencePacketFreshnessReadModel struct {
 
 type documentationReadModelStore interface {
 	documentationFindings(context.Context, documentationFindingFilter) (documentationFindingListReadModel, error)
+	documentationFacts(context.Context, documentationFactFilter) (documentationFactListReadModel, error)
 	documentationEvidencePacket(context.Context, string) (documentationEvidencePacketReadModel, error)
 	documentationEvidencePacketFreshness(context.Context, string, string) (documentationEvidencePacketFreshnessReadModel, error)
 }
@@ -71,6 +73,7 @@ type documentationReadModelStore interface {
 // Mount registers documentation truth routes.
 func (h *DocumentationHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/documentation/findings", h.listFindings)
+	mux.HandleFunc("GET /api/v0/documentation/facts", h.listFacts)
 	mux.HandleFunc("GET /api/v0/documentation/findings/{finding_id}/evidence-packet", h.getEvidencePacket)
 	mux.HandleFunc("GET /api/v0/documentation/evidence-packets/{packet_id}/freshness", h.getPacketFreshness)
 }
@@ -242,7 +245,7 @@ func (h *DocumentationHandler) unsupported(w http.ResponseWriter, r *http.Reques
 			r,
 			http.StatusNotImplemented,
 			ErrorCodeUnsupportedCapability,
-			"documentation evidence packets require durable documentation facts",
+			"documentation routes require durable documentation facts",
 			capability,
 			h.profile(),
 		)
@@ -261,7 +264,7 @@ func (h *DocumentationHandler) documentationStore(
 			r,
 			http.StatusNotImplemented,
 			ErrorCodeReadModelUnavailable,
-			"documentation evidence packets require the Postgres documentation read model",
+			"documentation routes require the Postgres documentation read model",
 			"",
 		)
 		return nil, false
@@ -273,7 +276,7 @@ func (h *DocumentationHandler) documentationStore(
 			r,
 			http.StatusNotImplemented,
 			ErrorCodeReadModelUnavailable,
-			"documentation evidence packets require the Postgres documentation read model",
+			"documentation routes require the Postgres documentation read model",
 			"",
 		)
 		return nil, false

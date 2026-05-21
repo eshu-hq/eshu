@@ -475,6 +475,21 @@ Eshu-side implementation must include:
 - API contract tests for evidence packets
 - telemetry for collector sync, extraction, finding generation, and API latency
 
+Current implementation note: `GET /api/v0/documentation/facts` and
+`list_documentation_facts` expose collected source, document, section, link,
+entity-mention, and claim-candidate facts through a scoped Postgres read model
+before drift findings exist.
+
+No-Regression Evidence: the documentation facts read path uses
+`fact_records_scope_generation_idx` when `scope_id` or `generation_id` anchors
+the request, requires a scope/source/document/section anchor for non-source
+facts, caps `limit` at 200, and uses limit-plus-one pagination for the
+continuation cursor.
+
+Observability Evidence: API and MCP calls enter the query-handler span
+`query.documentation_facts`, and the Postgres child span uses
+`db.operation=list_documentation_facts` against `fact_records`.
+
 Updater-side implementation must include:
 
 - structured-output schema tests

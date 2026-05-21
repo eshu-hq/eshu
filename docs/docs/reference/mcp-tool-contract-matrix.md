@@ -73,6 +73,7 @@ a clear drilldown path when more data is available.
 | `search_file_content` | pattern plus optional repository selectors | `limit` and `offset` | yes | prompt-ready; unsupported filters are not advertised |
 | `search_entity_content` | pattern plus optional repository selectors | `limit` and `offset` | yes | prompt-ready; unsupported filters are not advertised |
 | `list_documentation_findings` | optional finding, source, document, status, truth, freshness, and updated-since filters | `limit` and `cursor` | yes | prompt-ready for durable documentation truth finding review; reads the same fact-backed route as HTTP |
+| `list_documentation_facts` | scope, source, document, or section anchor required except `fact_kind=source`; optional fact kind and text query | `limit` and `cursor` | yes | prompt-ready for collected Confluence/source-neutral documentation facts before findings exist |
 | `get_documentation_evidence_packet` | finding id required | singleton evidence packet | yes | prompt-ready for documentation updater evidence snapshots |
 | `check_documentation_evidence_packet_freshness` | packet id required, saved packet version optional | singleton freshness result | yes | prompt-ready for stale-packet checks before updater publication |
 | `list_ingesters` | explicit runtime inventory | `limit` and `offset` | yes | prompt-ready for runtime diagnostics |
