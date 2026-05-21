@@ -1,0 +1,102 @@
+package postgres
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestReadCoordinatorSnapshotHandlesNullableDeactivatedAtAndCreatedAtBacklogFallback(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 20, 15, 45, 0, 0, time.UTC)
+	queryer := &fakeQueryer{
+		responses: []fakeRows{
+			{
+				rows: [][]any{
+					{
+						"collector-git-default",
+						"git",
+						"continuous",
+						true,
+						true,
+						false,
+						"",
+						now.Add(-15 * time.Second),
+						now.Add(-5 * time.Second),
+						nil,
+					},
+				},
+			},
+			{rows: [][]any{}},
+			{rows: [][]any{}},
+			{rows: [][]any{}},
+			{
+				rows: [][]any{
+					{int64(1), int64(0), 42.0},
+				},
+			},
+		},
+	}
+
+	got, err := readCoordinatorSnapshot(context.Background(), queryer, now)
+	if err != nil {
+		t.Fatalf("readCoordinatorSnapshot() error = %v, want nil", err)
+	}
+	if got == nil {
+		t.Fatal("readCoordinatorSnapshot() = nil, want snapshot")
+	}
+	if len(got.CollectorInstances) != 1 {
+		t.Fatalf("readCoordinatorSnapshot().CollectorInstances len = %d, want 1", len(got.CollectorInstances))
+	}
+	if !got.CollectorInstances[0].DeactivatedAt.IsZero() {
+		t.Fatalf("readCoordinatorSnapshot().CollectorInstances[0].DeactivatedAt = %v, want zero", got.CollectorInstances[0].DeactivatedAt)
+	}
+	if got.OldestPendingAge != 42*time.Second {
+		t.Fatalf("readCoordinatorSnapshot().OldestPendingAge = %v, want %v", got.OldestPendingAge, 42*time.Second)
+	}
+	if !strings.Contains(workflowCoordinatorClaimSnapshotQuery, "MIN(COALESCE(visible_at, created_at))") {
+		t.Fatalf("workflowCoordinatorClaimSnapshotQuery missing created_at fallback:\n%s", workflowCoordinatorClaimSnapshotQuery)
+	}
+	if !strings.Contains(workflowCoordinatorClaimSnapshotQuery, "GREATEST(") {
+		t.Fatalf("workflowCoordinatorClaimSnapshotQuery must clamp future timestamps to zero age:\n%s", workflowCoordinatorClaimSnapshotQuery)
+	}
+}
+
+func TestReadCoordinatorSnapshotClampsNegativeOldestPendingAge(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 21, 14, 15, 0, 0, time.UTC)
+	queryer := &fakeQueryer{
+		responses: []fakeRows{
+			{rows: [][]any{}},
+			{rows: [][]any{}},
+			{
+				rows: [][]any{
+					{"collection_active", int64(1)},
+				},
+			},
+			{rows: [][]any{}},
+			{
+				rows: [][]any{
+					{int64(0), int64(0), -0.256},
+				},
+			},
+		},
+	}
+
+	got, err := readCoordinatorSnapshot(context.Background(), queryer, now)
+	if err != nil {
+		t.Fatalf("readCoordinatorSnapshot() error = %v, want nil", err)
+	}
+	if got == nil {
+		t.Fatal("readCoordinatorSnapshot() = nil, want snapshot")
+	}
+	if got.OldestPendingAge < 0 {
+		t.Fatalf("readCoordinatorSnapshot().OldestPendingAge = %v, want non-negative", got.OldestPendingAge)
+	}
+	if got.OldestPendingAge != 0 {
+		t.Fatalf("readCoordinatorSnapshot().OldestPendingAge = %v, want 0", got.OldestPendingAge)
+	}
+}

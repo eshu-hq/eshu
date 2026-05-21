@@ -219,14 +219,16 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		generationHistory = deriveGenerationHistory(generationTotals)
 	}
 	stageSummaries := summarizeStages(raw.StageCounts)
-	domainBacklogs := topDomainBacklogs(raw.DomainBacklogs, opts.DomainLimit)
-	flowSummaries := buildFlowSummaries(scopeTotals, generationTotals, stageSummaries, raw.Queue, domainBacklogs)
+	queue := normalizeQueueSnapshot(raw.Queue)
+	domainBacklogs := topDomainBacklogs(normalizeDomainBacklogs(raw.DomainBacklogs), opts.DomainLimit)
+	coordinator := cloneCoordinatorSnapshot(raw.Coordinator)
+	flowSummaries := buildFlowSummaries(scopeTotals, generationTotals, stageSummaries, queue, domainBacklogs)
 
 	return Report{
 		AsOf:                   raw.AsOf,
-		Health:                 evaluateHealth(raw.Queue, generationTotals, domainBacklogs, opts),
+		Health:                 evaluateHealth(queue, generationTotals, domainBacklogs, coordinator, opts),
 		FlowSummaries:          flowSummaries,
-		Queue:                  raw.Queue,
+		Queue:                  queue,
 		RetryPolicies:          cloneRetryPolicies(raw.RetryPolicies),
 		ScopeActivity:          scopeActivity,
 		GenerationHistory:      generationHistory,
@@ -237,7 +239,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		DomainBacklogs:         domainBacklogs,
 		QueueBlockages:         cloneQueueBlockages(raw.QueueBlockages),
 		LatestQueueFailure:     cloneQueueFailure(raw.LatestQueueFailure),
-		Coordinator:            cloneCoordinatorSnapshot(raw.Coordinator),
+		Coordinator:            coordinator,
 		RegistryCollectors:     cloneRegistryCollectorSnapshots(raw.RegistryCollectors),
 		AWSCloudScans:          cloneAWSCloudScanStatuses(raw.AWSCloudScans),
 		AWSFreshness:           cloneAWSFreshnessSnapshot(raw.AWSFreshness),

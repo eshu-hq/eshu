@@ -80,3 +80,20 @@ payload on queue or workflow-completion failure. Operators can distinguish a
 missing source-local owner from collector failure, API unavailability,
 projection backlog, and stale workflow phase convergence without reading
 private machine-specific logs or paths.
+
+No-Regression Evidence: focused status and Postgres status-reader coverage now
+proves `/api/v0/index-status` health does not report `healthy` while workflow
+coordinator runs are still `reducer_converging`, workflow completeness rows are
+pending or blocked, workflow runs have failed, or status-age fields briefly go
+negative because the database timestamp is newer than the status read clock.
+This changes only operator status projection and read-side age math; it does
+not alter Compose service definitions, worker counts, graph writes, collector
+scan shape, retry behavior, or NornicDB settings.
+
+Observability Evidence: the existing `/api/v0/index-status`,
+`/api/v0/status/index`, and admin status report now carry the workflow
+coordinator `run_status_counts`, `work_item_status_counts`,
+`completeness_counts`, active and overdue claim counts, queue/domain ages, and
+health reasons that distinguish fact-queue backlog, shared projection backlog,
+workflow convergence, blocked completeness, failed workflow runs, and stale
+pending workflow work.

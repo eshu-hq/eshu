@@ -45,7 +45,7 @@ func cloneCoordinatorSnapshot(snapshot *CoordinatorSnapshot) *CoordinatorSnapsho
 		CompletenessCounts:   slices.Clone(snapshot.CompletenessCounts),
 		ActiveClaims:         snapshot.ActiveClaims,
 		OverdueClaims:        snapshot.OverdueClaims,
-		OldestPendingAge:     snapshot.OldestPendingAge,
+		OldestPendingAge:     nonNegativeDuration(snapshot.OldestPendingAge),
 	}
 	return cloned
 }
