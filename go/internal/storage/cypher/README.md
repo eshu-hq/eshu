@@ -301,10 +301,13 @@ No-Regression Evidence: after a preserved-volume restart surfaced NornicDB
 `UNWIND MERGE chain relationship update failed: not found` on OCI registry
 relationship updates, the focused regression
 `go test ./internal/storage/cypher -run
-TestCanonicalNodeWriterOCIRegistryRelationshipsDoNotUpdateGeneration -count=1`
-first failed on `rel.generation_id` mutation and then passed after OCI
-relationship templates stopped updating mutable generation metadata while
-keeping node `generation_id` fields intact.
+'TestCanonicalNodeWriter(BuildsOCIRegistryStatements|OCIRegistryRelationshipsDoNotUpdateGeneration|OCIRegistryRelationshipsOnlySetPropertiesOnCreate)' -count=1`
+first failed on relationship replay mutation and then passed after OCI
+relationship templates stopped updating mutable generation metadata and changed
+constant relationship metadata to `ON CREATE SET`. Node `generation_id` fields
+remain refreshed on replay, while `PUBLISHES_MANIFEST`, `PUBLISHES_INDEX`,
+`PUBLISHES_DESCRIPTOR`, `OBSERVED_TAG`, and `OBSERVED_REFERRER` relationship
+properties are only initialized when the relationship is created.
 
 Observability Evidence: existing canonical phase duration metrics, projector
 stage duration metrics, and structured `projection failed` logs expose the

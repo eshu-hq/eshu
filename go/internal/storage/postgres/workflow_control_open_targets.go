@@ -10,32 +10,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-const workflowOpenTargetQuery = `
-SELECT EXISTS (
-    SELECT 1
-    FROM workflow_work_items AS item
-    JOIN workflow_runs AS run
-      ON run.run_id = item.run_id
-    WHERE item.collector_kind = $1
-      AND item.collector_instance_id = $2
-      AND item.scope_id = $3
-      AND item.acceptance_unit_id = $4
-      AND run.status NOT IN ('complete', 'failed')
-)
-`
-
-const workflowSameRunTargetQuery = `
-SELECT EXISTS (
-    SELECT 1
-    FROM workflow_work_items AS item
-    WHERE item.run_id = $1
-      AND item.collector_kind = $2
-      AND item.collector_instance_id = $3
-      AND item.scope_id = $4
-      AND item.acceptance_unit_id = $5
-)
-`
-
 const workflowTerminalRunQuery = `
 SELECT EXISTS (
     SELECT 1
@@ -125,7 +99,7 @@ func (s *WorkflowControlStore) CreateRunWithWorkItemsIfNoOpenTargets(
 }
 
 func lockWorkflowOpenTargets(ctx context.Context, executor Executor, items []workflow.WorkItem) error {
-	keys := workflowOpenTargetLockKeys(items)
+	keys := workflowPlanningLockKeys(items)
 	for _, key := range keys {
 		if _, err := executor.ExecContext(ctx, workflowAdvisoryTargetLockQuery, key); err != nil {
 			return fmt.Errorf("create guarded workflow run: lock target: %w", err)
@@ -134,10 +108,10 @@ func lockWorkflowOpenTargets(ctx context.Context, executor Executor, items []wor
 	return nil
 }
 
-func workflowOpenTargetLockKeys(items []workflow.WorkItem) []int64 {
+func workflowPlanningLockKeys(items []workflow.WorkItem) []int64 {
 	unique := make(map[int64]struct{}, len(items))
 	for _, item := range items {
-		unique[workflowOpenTargetLockKey(item)] = struct{}{}
+		unique[workflowPlanningLockKey(item)] = struct{}{}
 	}
 	keys := make([]int64, 0, len(unique))
 	for key := range unique {
@@ -147,18 +121,16 @@ func workflowOpenTargetLockKeys(items []workflow.WorkItem) []int64 {
 	return keys
 }
 
-func workflowOpenTargetLockKey(item workflow.WorkItem) int64 {
+func workflowPlanningLockKey(item workflow.WorkItem) int64 {
 	hasher := fnv.New64a()
-	_, _ = hasher.Write([]byte(workflowOpenTargetKey(item)))
+	_, _ = hasher.Write([]byte(workflowPlanningLockKeyValue(item)))
 	return int64(hasher.Sum64())
 }
 
-func workflowOpenTargetKey(item workflow.WorkItem) string {
+func workflowPlanningLockKeyValue(item workflow.WorkItem) string {
 	return strings.Join([]string{
 		string(item.CollectorKind),
 		strings.TrimSpace(item.CollectorInstanceID),
-		strings.TrimSpace(item.ScopeID),
-		strings.TrimSpace(item.AcceptanceUnitID),
 	}, "\x00")
 }
 
@@ -168,95 +140,92 @@ func (s *WorkflowControlStore) workItemsWithoutOpenTargets(
 	runID string,
 	items []workflow.WorkItem,
 ) ([]workflow.WorkItem, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+	query, args := workflowEligibleTargetsQuery(runID, items)
+	rows, err := queryer.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("create guarded workflow run: read eligible targets: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
 	eligible := make([]workflow.WorkItem, 0, len(items))
-	for _, item := range items {
-		open, err := s.workflowTargetHasOpenRun(ctx, queryer, item)
-		if err != nil {
-			return nil, err
+	for rows.Next() {
+		var ordinal int
+		if err := rows.Scan(&ordinal); err != nil {
+			return nil, fmt.Errorf("create guarded workflow run: read eligible targets: %w", err)
 		}
-		if open {
-			continue
+		if ordinal < 0 || ordinal >= len(items) {
+			return nil, fmt.Errorf("create guarded workflow run: eligible target ordinal %d out of range", ordinal)
 		}
-		sameRun, err := s.workflowTargetExistsForRun(ctx, queryer, runID, item)
-		if err != nil {
-			return nil, err
-		}
-		if sameRun {
-			continue
-		}
-		eligible = append(eligible, item)
+		eligible = append(eligible, items[ordinal])
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("create guarded workflow run: read eligible targets: %w", err)
 	}
 	return eligible, nil
 }
 
-func (s *WorkflowControlStore) workflowTargetHasOpenRun(
-	ctx context.Context,
-	queryer Queryer,
-	item workflow.WorkItem,
-) (bool, error) {
-	rows, err := queryer.QueryContext(
-		ctx,
-		workflowOpenTargetQuery,
-		string(item.CollectorKind),
-		item.CollectorInstanceID,
-		item.ScopeID,
-		item.AcceptanceUnitID,
-	)
-	if err != nil {
-		return false, fmt.Errorf("create guarded workflow run: read open target: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
+func workflowEligibleTargetsQuery(runID string, items []workflow.WorkItem) (string, []any) {
+	args := make([]any, 0, 1+len(items)*5)
+	args = append(args, runID)
 
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return false, fmt.Errorf("create guarded workflow run: read open target: %w", err)
+	var values strings.Builder
+	for i, item := range items {
+		if i > 0 {
+			values.WriteString(",\n")
 		}
-		return false, fmt.Errorf("create guarded workflow run: open target query returned no rows")
+		base := 2 + i*5
+		fmt.Fprintf(
+			&values,
+			"    ($%d::int, $%d::text, $%d::text, $%d::text, $%d::text)",
+			base,
+			base+1,
+			base+2,
+			base+3,
+			base+4,
+		)
+		args = append(
+			args,
+			i,
+			string(item.CollectorKind),
+			item.CollectorInstanceID,
+			item.ScopeID,
+			item.AcceptanceUnitID,
+		)
 	}
-	var open bool
-	if err := rows.Scan(&open); err != nil {
-		return false, fmt.Errorf("create guarded workflow run: read open target: %w", err)
-	}
-	if err := rows.Err(); err != nil {
-		return false, fmt.Errorf("create guarded workflow run: read open target: %w", err)
-	}
-	return open, nil
-}
 
-func (s *WorkflowControlStore) workflowTargetExistsForRun(
-	ctx context.Context,
-	queryer Queryer,
-	runID string,
-	item workflow.WorkItem,
-) (bool, error) {
-	rows, err := queryer.QueryContext(
-		ctx,
-		workflowSameRunTargetQuery,
-		runID,
-		string(item.CollectorKind),
-		item.CollectorInstanceID,
-		item.ScopeID,
-		item.AcceptanceUnitID,
-	)
-	if err != nil {
-		return false, fmt.Errorf("create guarded workflow run: read same-run target: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return false, fmt.Errorf("create guarded workflow run: read same-run target: %w", err)
-		}
-		return false, fmt.Errorf("create guarded workflow run: same-run target query returned no rows")
-	}
-	var exists bool
-	if err := rows.Scan(&exists); err != nil {
-		return false, fmt.Errorf("create guarded workflow run: read same-run target: %w", err)
-	}
-	if err := rows.Err(); err != nil {
-		return false, fmt.Errorf("create guarded workflow run: read same-run target: %w", err)
-	}
-	return exists, nil
+	query := fmt.Sprintf(`
+WITH planned_targets(ordinal, collector_kind, collector_instance_id, scope_id, acceptance_unit_id) AS (
+VALUES
+%s
+)
+SELECT planned.ordinal
+FROM planned_targets AS planned
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM workflow_work_items AS item
+    JOIN workflow_runs AS run
+      ON run.run_id = item.run_id
+    WHERE item.collector_kind = planned.collector_kind
+      AND item.collector_instance_id = planned.collector_instance_id
+      AND item.scope_id = planned.scope_id
+      AND item.acceptance_unit_id = planned.acceptance_unit_id
+      AND run.status NOT IN ('complete', 'failed')
+)
+AND NOT EXISTS (
+    SELECT 1
+    FROM workflow_work_items AS item
+    WHERE item.run_id = $1
+      AND item.collector_kind = planned.collector_kind
+      AND item.collector_instance_id = planned.collector_instance_id
+      AND item.scope_id = planned.scope_id
+      AND item.acceptance_unit_id = planned.acceptance_unit_id
+)
+ORDER BY planned.ordinal
+`, values.String())
+	return query, args
 }
 
 func (s *WorkflowControlStore) workflowRunIsTerminal(

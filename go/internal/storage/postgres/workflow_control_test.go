@@ -102,7 +102,7 @@ func TestWorkflowControlStoreGuardedRunSkipsOpenScheduledTarget(t *testing.T) {
 		fakeExecQueryer: fakeExecQueryer{
 			queryResponses: []queueFakeRows{
 				{rows: [][]any{{false}}},
-				{rows: [][]any{{true}}},
+				{rows: nil},
 			},
 		},
 	}
@@ -156,8 +156,7 @@ func TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget(t *testing
 		fakeExecQueryer: fakeExecQueryer{
 			queryResponses: []queueFakeRows{
 				{rows: [][]any{{false}}},
-				{rows: [][]any{{false}}},
-				{rows: [][]any{{false}}},
+				{rows: [][]any{{0}}},
 			},
 		},
 	}
@@ -211,6 +210,103 @@ func TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget(t *testing
 	}
 }
 
+func TestWorkflowControlStoreGuardedRunComputesEligibleTargetsInOneQuery(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeBeginnerExecQueryer{
+		fakeExecQueryer: fakeExecQueryer{
+			queryResponses: []queueFakeRows{
+				{rows: [][]any{{false}}},
+				{rows: [][]any{{0}, {1}}},
+			},
+		},
+	}
+	store := NewWorkflowControlStore(db)
+	now := time.Date(2026, time.May, 21, 12, 0, 0, 0, time.UTC)
+	run := workflow.Run{
+		RunID:              "aws:collector-aws:schedule:continuous-20260521T120000Z",
+		TriggerKind:        workflow.TriggerKindSchedule,
+		Status:             workflow.RunStatusCollectionPending,
+		RequestedScopeSet:  "[]",
+		RequestedCollector: string(scope.CollectorAWS),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+	items := []workflow.WorkItem{
+		awsScheduledWorkItem(run.RunID, "lambda", now),
+		awsScheduledWorkItem(run.RunID, "s3", now),
+	}
+
+	inserted, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, items)
+	if err != nil {
+		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = %v, want nil", err)
+	}
+	if got, want := inserted, 2; got != want {
+		t.Fatalf("inserted = %d, want %d", got, want)
+	}
+
+	var eligibilityQueries int
+	for _, query := range db.queries {
+		if strings.Contains(query.query, "planned_targets") {
+			eligibilityQueries++
+			if strings.Count(query.query, "NOT EXISTS") != 2 {
+				t.Fatalf("eligibility query must check open target and same-run target in one set:\n%s", query.query)
+			}
+			if strings.Count(query.query, "VALUES") != 1 {
+				t.Fatalf("eligibility query must use one VALUES relation, got:\n%s", query.query)
+			}
+		}
+	}
+	if got, want := eligibilityQueries, 1; got != want {
+		t.Fatalf("eligibility query count = %d, want %d; queries = %#v", got, want, db.queries)
+	}
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("query count = %d, want terminal-run + set eligibility only", got)
+	}
+}
+
+func TestWorkflowControlStoreGuardedRunLocksCollectorInstanceOnceForTargetBatch(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeBeginnerExecQueryer{
+		fakeExecQueryer: fakeExecQueryer{
+			queryResponses: []queueFakeRows{
+				{rows: [][]any{{false}}},
+				{rows: [][]any{{0}, {1}}},
+			},
+		},
+	}
+	store := NewWorkflowControlStore(db)
+	now := time.Date(2026, time.May, 21, 12, 0, 0, 0, time.UTC)
+	run := workflow.Run{
+		RunID:              "aws:collector-aws:schedule:continuous-20260521T120000Z",
+		TriggerKind:        workflow.TriggerKindSchedule,
+		Status:             workflow.RunStatusCollectionPending,
+		RequestedScopeSet:  "[]",
+		RequestedCollector: string(scope.CollectorAWS),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+	items := []workflow.WorkItem{
+		awsScheduledWorkItem(run.RunID, "lambda", now),
+		awsScheduledWorkItem(run.RunID, "s3", now),
+	}
+
+	if _, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, items); err != nil {
+		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = %v, want nil", err)
+	}
+
+	var lockExecs int
+	for _, exec := range db.execs {
+		if strings.Contains(exec.query, "pg_advisory_xact_lock") {
+			lockExecs++
+		}
+	}
+	if got, want := lockExecs, 1; got != want {
+		t.Fatalf("advisory lock exec count = %d, want one collector-instance planning lock", got)
+	}
+}
+
 func TestWorkflowControlStoreGuardedRunSkipsSameRunTargetReplay(t *testing.T) {
 	t.Parallel()
 
@@ -218,8 +314,7 @@ func TestWorkflowControlStoreGuardedRunSkipsSameRunTargetReplay(t *testing.T) {
 		fakeExecQueryer: fakeExecQueryer{
 			queryResponses: []queueFakeRows{
 				{rows: [][]any{{false}}},
-				{rows: [][]any{{false}}},
-				{rows: [][]any{{true}}},
+				{rows: nil},
 			},
 		},
 	}
@@ -263,6 +358,23 @@ func TestWorkflowControlStoreGuardedRunSkipsSameRunTargetReplay(t *testing.T) {
 	}
 	if !db.committed {
 		t.Fatal("guarded schedule did not commit skipped transaction")
+	}
+}
+
+func awsScheduledWorkItem(runID, serviceKind string, now time.Time) workflow.WorkItem {
+	return workflow.WorkItem{
+		WorkItemID:          "aws:collector-aws:" + serviceKind,
+		RunID:               runID,
+		CollectorKind:       scope.CollectorAWS,
+		CollectorInstanceID: "collector-aws",
+		SourceSystem:        string(scope.CollectorAWS),
+		ScopeID:             "aws:123456789012:us-east-1:" + serviceKind,
+		AcceptanceUnitID:    `{"account_id":"123456789012","region":"us-east-1","service_kind":"` + serviceKind + `"}`,
+		SourceRunID:         "gen-" + serviceKind,
+		GenerationID:        "gen-" + serviceKind,
+		Status:              workflow.WorkItemStatusPending,
+		CreatedAt:           now,
+		UpdatedAt:           now,
 	}
 }
 

@@ -194,14 +194,21 @@ runtime contract. The gate then passed with the guard and contract fixes in
 place:
 `go test ./internal/coordinator ./internal/storage/postgres -run 'TestServiceRunActiveModeSkipsAWSWorkWhenPriorScheduledTargetIsOpen|TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers|TestServiceRunActiveModeSchedulesOCIRegistryWork|TestServiceRunActiveModeSchedulesPackageRegistryWork|TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen|TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles|TestRunActiveMaintenanceReconcilesWorkflowRunsBetweenReconciles|TestWorkflowControlStoreGuardedRunSkipsOpenScheduledTarget|TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget' -count=1`.
 `go test ./internal/storage/postgres -run 'TestWorkflowControlStoreGuardedRun(SkipsSameRunTargetReplay|SkipsTerminalSameRunReplay)' -count=1`.
+The PR review follow-up expanded that Postgres gate with
+`TestWorkflowControlStoreGuardedRunComputesEligibleTargetsInOneQuery` and
+`TestWorkflowControlStoreGuardedRunLocksCollectorInstanceOnceForTargetBatch` so
+the admission guard remains set-based and locks one collector-instance planning
+domain per batch instead of adding per-target database round trips.
 `go test ./internal/workflow -run 'TestReconcileRunProgressCompletesAWSWithoutImplementedGraphPhases|TestCollectorContractForAWSHasNoOperationalGraphReadinessUntilProjectionLands' -count=1`.
 The guard uses `(collector_kind, collector_instance_id, scope_id,
-acceptance_unit_id)` as the conflict domain, applies transaction-scoped
-Postgres advisory locks in sorted order, creates no run when every planned item
-is already owned by a non-terminal run, was already recorded for the same
-deterministic schedule run, or belongs to an already-terminal deterministic
-run id. Covered AWS freshness triggers are marked handed off, and normal
-scheduling resumes after a later schedule run id is generated.
+acceptance_unit_id)` as the conflict domain, computes eligibility with one
+`VALUES`-backed query per run, applies transaction-scoped Postgres advisory
+planning locks in sorted `(collector_kind, collector_instance_id)` order, and
+creates no run when every planned item is already owned by a non-terminal run,
+was already recorded for the same deterministic schedule run, or belongs to an
+already-terminal deterministic run id. Covered AWS freshness triggers are
+marked handed off, and normal scheduling resumes after a later schedule run id
+is generated.
 
 Observability Evidence: existing workflow-run state, workflow work-item rows,
 workflow completeness rows, collector health, AWS scan status, and hosted
