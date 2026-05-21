@@ -2,7 +2,8 @@
 
 ## Read first
 
-1. `go/internal/telemetry/README.md` — full metric, span, and log inventory
+1. `go/internal/telemetry/README.md` — package ownership, startup flow, and
+   change rules
 2. `go/internal/telemetry/contract.go` — frozen span names, log keys, metric
    dimension keys, and the `Bootstrap` type
 3. `go/internal/telemetry/instruments.go` — all `Instruments` fields and their
@@ -11,8 +12,10 @@
    `ScopeAttrs`, `DomainAttrs`, and `PhaseAttr`
 5. `go/internal/telemetry/provider.go` — `NewProviders`, `Providers`, OTLP and
    Prometheus wiring
-6. `docs/docs/reference/telemetry/index.md` — operator-facing tuning and
-   signal-selection guidance
+6. `docs/public/reference/telemetry/index.md` — operator-facing route map
+7. The focused public telemetry page for the signal being changed:
+   `metrics.md`, `metrics-ingestion-collectors.md`,
+   `metrics-reducer-storage.md`, `traces.md`, or `logs.md`
 
 ## Invariants this package enforces
 
@@ -49,8 +52,8 @@
    `metricDimensionKeys` so `MetricDimensionKeys()` stays current. Add a
    matching `AttrScopeID`-style helper function in `instruments.go`.
 4. Run `go test ./internal/telemetry -count=1` to verify registration succeeds.
-5. Update `docs/docs/reference/telemetry/index.md` (metrics table) and this
-   package's `README.md` in the same PR.
+5. Update the focused public telemetry metric page and this package's
+   `README.md` in the same PR when ownership or maintainer workflow changes.
 
 ## How to add a new span
 
@@ -58,7 +61,7 @@
 2. Add the constant to the `spanNames` slice so `SpanNames()` returns it.
 3. In the calling package, use `tracer.Start(ctx, telemetry.SpanXxx)` — never
    inline the string literal.
-4. Update `docs/docs/reference/telemetry/index.md` (span table).
+4. Update `docs/public/reference/telemetry/traces.md`.
 
 ## How to add a new log key
 
@@ -85,7 +88,9 @@
 
 2. Use `PhaseAttr` with the new constant value at every log site for the new
    phase.
-3. Update `docs/docs/reference/telemetry/index.md` (structured log keys table).
+3. Update `docs/public/reference/telemetry/logs.md` and
+   `docs/public/reference/telemetry/cross-service-correlation.md` when the key
+   affects async traceability.
 
 ## Observable gauge wiring
 

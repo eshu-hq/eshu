@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 555
 - Current branch doc status from
   `git diff --cached --name-status origin/main -- '*.md'` after the current
-  pass: 188 created, 271 modified, 117 deleted
+  pass: 188 created, 272 modified, 117 deleted
 - Stable public docs surface: `docs/public/`
 - Maintainer-only docs surface: `docs/internal/`
 - Deleted stable-doc history surfaces: `docs/plans/`, `docs/superpowers/`,
@@ -77,9 +77,24 @@ cleanup pass.
 | Cypher Package README Rewrite | Reduced the Cypher storage README from a historical evidence dump into the current package guide; corrected the canonical phase list to include `package_registry` and aligned package comments with current package-registry writes. |
 | AWS Cloud Collector Service Split | Reduced the AWS cloud collector public service doc into an overview/runbook plus focused security/config and scanner coverage pages grounded in command/runtime code. |
 | Terraform-State Collector Service Split | Reduced the Terraform-state collector public service doc into an overview plus focused config/discovery and operations/troubleshooting pages grounded in command, parser, runtime, status, and telemetry code. |
+| Telemetry Package README Rewrite | Reduced the telemetry package README from a duplicated metric/span/log catalog into the maintainer contract for package ownership, startup wiring, frozen registries, and change rules; updated scoped agent guidance to point at current public telemetry docs. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 569 documents, 1,751 claims, 0 contradicted, and 0 missing
+  evidence claims after the telemetry package README rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 181 documents, 1,302 claims, 0 contradicted, and 0 missing
+  evidence claims after the telemetry package README rewrite.
+- `go run ./cmd/eshu docs verify ../go/internal/telemetry --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 2 documents, 0 claims, 0 contradicted, and 0 missing evidence
+  claims after the telemetry package README rewrite.
+- `go test ./internal/telemetry -count=1`, `go test ./cmd/eshu -count=1`,
+  `git diff --check`, and `cmp -s AGENTS.md CLAUDE.md` passed after the
+  telemetry package README rewrite.
+- `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  passed after the telemetry package README rewrite.
 - `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
   passed with 569 documents, 1,750 claims, 0 contradicted, and 0 missing
   evidence claims after the Terraform-state collector service split.
@@ -173,9 +188,10 @@ cleanup pass.
 ## What Is Left
 
 - Continue reviewing oversized public and package docs. The current largest
-  real documentation files are `go/internal/telemetry/README.md`,
-  `docs/public/reference/capability-conformance-spec.md`, and
-  `docs/public/reference/telemetry/logs.md`. The larger
+  real documentation files are
+  `docs/public/reference/capability-conformance-spec.md`,
+  `docs/public/reference/telemetry/logs.md`, and
+  `docs/public/reference/mcp-cookbook.md`. The larger
   `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture
   remains test data, not a public documentation target.
 - Keep deleting historical planning notes when current public or package-local
