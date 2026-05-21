@@ -1,0 +1,31 @@
+go/internal/workflow/progress_test.go
+  s_072c5984f68e14::t_5bd51488d69427 212-241
+go/internal/storage/postgres/workflow_run_reconciliation_test.go
+  s_072c5984f68e14::t_33066d468c5b03 126-178
+docs/docs/reference/collector-reducer-readiness.md
+  s_072c5984f68e14::t_96a9ad83b3ee3b 53
+go/internal/workflow/collector_contract.go
+  s_072c5984f68e14::t_c95b5fe0a610f8 82-84
+  s_072c5984f68e14::t_d96fb2bb12581b 79-81
+go/internal/workflow/README.md
+  s_072c5984f68e14::t_4c210a14c0922c 159-168,223-234
+go/internal/workflow/collector_contract_test.go
+  s_072c5984f68e14::t_95de2421f566f1 88,91-93,95-99,196,198,207,209
+  s_072c5984f68e14::t_a283c368084101 200,211
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "754841b26c6edce82fff8270e6f5c3f03ea29ab6",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
