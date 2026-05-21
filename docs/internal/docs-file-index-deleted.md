@@ -69,6 +69,7 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/reference/nornicdb-tuning.md`
 - `docs/docs/reference/relationship-mapping.md`
 - `docs/docs/reference/telemetry/index.md`
+- `docs/docs/reference/telemetry/logs.md`
 - `docs/docs/reference/telemetry/metrics.md`
 - `docs/docs/run-locally/docker-compose.md`
 - `docs/docs/run-locally/index.md`

@@ -10,6 +10,9 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `apps/console/README.md`
 - `deploy/helm/eshu/README.md`
 - `deploy/observability/README.md`
+- `docs/internal/README.md`
+- `docs/internal/docs-inventory.md`
+- `docs/internal/updating-docs.md`
 - `docs/docs/concepts/graph-model.md -> docs/public/concepts/graph-model.md`
 - `docs/docs/concepts/how-it-works.md -> docs/public/concepts/how-it-works.md`
 - `docs/docs/concepts/modes.md -> docs/public/concepts/modes.md`
@@ -113,7 +116,6 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/reference/source-layout.md -> docs/public/reference/source-layout.md`
 - `docs/docs/reference/tag-taxonomy.md -> docs/public/reference/tag-taxonomy.md`
 - `docs/docs/reference/telemetry/cross-service-correlation.md -> docs/public/reference/telemetry/cross-service-correlation.md`
-- `docs/docs/reference/telemetry/logs.md -> docs/public/reference/telemetry/logs.md`
 - `docs/docs/reference/telemetry/traces.md -> docs/public/reference/telemetry/traces.md`
 - `docs/docs/reference/troubleshooting.md -> docs/public/reference/troubleshooting.md`
 - `docs/docs/reference/truth-label-protocol.md -> docs/public/reference/truth-label-protocol.md`
@@ -126,9 +128,6 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/understand/index.md -> docs/public/understand/index.md`
 - `docs/docs/use/trace-infrastructure.md -> docs/public/use/trace-infrastructure.md`
 - `docs/docs/why-eshu.md -> docs/public/why-eshu.md`
-- `docs/internal/README.md`
-- `docs/internal/docs-inventory.md`
-- `docs/internal/updating-docs.md`
 - `go/README.md`
 - `go/cmd/README.md`
 - `go/cmd/admin-status/README.md`

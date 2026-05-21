@@ -1,353 +1,219 @@
 # Telemetry Logs
 
-Logs are the highest-context signal in Eshu.
+Logs are Eshu's highest-context runtime signal. Use them when metrics identify
+that something changed and traces show where time went, but you still need the
+exact scope, work item, failure class, retry, or operator action.
 
-Use them when you need:
+The code contract lives in:
+
+- `go/internal/telemetry/logging.go`
+- `go/internal/telemetry/contract.go`
+- `go/internal/telemetry/registry.go`
+
+For the platform-wide logging envelope, see
+[Logging Standard](../logging.md).
+
+## When To Use Logs
+
+Use logs for:
 
 - exact error text
-- a breadcrumb trail for one repository, run, or work item
-- structured event details that do not belong in metric labels
-- a direct bridge from human-readable context into traces
+- repository, scope, generation, domain, and partition context
+- terminal failure and retry classification
+- high-cardinality identifiers that do not belong in metric labels
+- the `trace_id` and `span_id` needed to pivot into a trace backend
 
-## Canonical Log Shape
+Do not use logs as the first alerting signal. Alert from metrics, explain
+latency with traces, then use logs for the details that metrics deliberately
+omit.
 
-Eshu writes one JSON document per log line.
+## Current Go Log Shape
 
-Important top-level fields:
+Go runtimes create JSON `slog` loggers through
+`telemetry.NewLogger` or `telemetry.NewLoggerWithWriter`.
 
-- `timestamp`
-- `severity_text`
-- `message`
-- `event_name`
-- `service_name`
-- `component`
-- `transport`
-- `runtime_role`
-- `trace_id`
-- `span_id`
-- `request_id`
-- `correlation_id`
-- `exception_type`
-- `exception_message`
-- `exception_stacktrace`
-- `extra_keys`
+Every log line from those loggers carries:
 
-## Why Logs Matter
+| Field | Meaning |
+| --- | --- |
+| `timestamp` | UTC RFC3339 timestamp normalized from the built-in `slog` time key. |
+| `severity_text` | Normalized `slog` level. |
+| `message` | Human-readable log message. |
+| `service_name` | Runtime service name from telemetry bootstrap. |
+| `service_namespace` | Stable namespace, normally `eshu`. |
+| `component` | Component name passed by the runtime. |
+| `runtime_role` | Runtime role passed by the runtime. |
 
-Metrics tell you that something is wrong.
-Traces tell you where the time went.
-Logs tell you what actually happened in human terms.
+When the log call receives a context with an active OpenTelemetry span,
+`TraceHandler` also adds:
 
-That makes logs the best signal for:
+| Field | Meaning |
+| --- | --- |
+| `trace_id` | Trace identifier for the active span. |
+| `span_id` | Active span identifier. |
+| `severity_number` | OpenTelemetry severity number derived from the `slog` level. |
 
-- debugging retries and fallback behavior
-- understanding why work items were dead-lettered
-- understanding why a repository failed
-- explaining queue churn and fallback behavior
-- reconstructing operator actions during incidents
+Startup logs, fallback logs, and any log emitted outside an active span can omit
+`trace_id`, `span_id`, and `severity_number`. That is expected.
 
-## Important Event Families
+## `event_name` Is Optional
 
-### API and MCP
+`event_name` appears only when a call site attaches
+`telemetry.EventAttr(...)` or writes the key directly during early fallback
+startup. Do not assume every log line has an event name.
 
-- `http.request.completed`
-- `mcp.request.received`
-- `mcp.tool.completed`
+Current explicit event names in the Go runtimes include:
 
-Why it matters:
+| Event name | Typical source |
+| --- | --- |
+| `runtime.startup.failed` | Runtime bootstrap failures. |
+| `runtime.shutdown.failed` | Telemetry shutdown failures. |
+| `runtime.server.listening` | API, MCP, or pprof listener startup. |
+| `runtime.server.failed` | API listener failure. |
+| `runtime.server.stopped` | API shutdown completion. |
+| `runtime.postgres.connected` | Runtime Postgres connection success. |
+| `runtime.neo4j.connected` | Runtime Neo4j connection success. |
+| `bootstrap.schema.started` | Data-plane schema bootstrap started. |
+| `bootstrap.postgres.applied` | Postgres schema applied. |
+| `bootstrap.graph.applied` | Graph schema applied. |
+| `bootstrap.graph.skipped` | Graph schema bootstrap skipped. |
+| `bootstrap.graph.adopted` | Existing graph schema adopted. |
+| `bootstrap.graph.adoption_incomplete` | Existing graph schema adoption was incomplete. |
+| `documentation.extraction.completed` | Documentation extraction completed. |
+| `documentation.drift.completed` | Documentation drift analysis completed. |
 
-- gives request context and completion details that metrics intentionally omit
+Older examples such as `http.request.completed`, `mcp.request.received`,
+`resolution.work_item.completed`, and `graph.batch.commit.started` are not
+current universal Go event families. If a doc needs one of those names, verify
+the current call site first.
 
-### Git Collector
+## Structured Keys
 
-- `index.discovery.completed`
-- `index.parse.started`
-- `index.parse.progress`
-- `index.parse.slow_file`
-- `index.repository.started`
-- `index.repository.commit_wait.completed`
-- `index.repository.commit.started`
-- `index.repository.completed`
-- `facts.snapshot.emitted`
-- `facts.inline_projection.leased`
-- `facts.inline_projection.lease_missed`
-- `facts.inline_projection.failed`
-- `facts.inline_projection.completed`
+The frozen structured log-key registry is exposed by
+`telemetry.LogKeys()`. Current registered keys are:
 
-Why it matters:
+| Key | Use |
+| --- | --- |
+| `scope_id` | Scope identifier for ingestion, projection, or query work. |
+| `scope_kind` | Scope type, such as repository. |
+| `source_system` | Origin system, such as Git or Terraform state. |
+| `generation_id` | Generation identifier for a collect or projection cycle. |
+| `collector_kind` | Collector family, such as Git, Confluence, AWS, OCI, package registry, or Terraform state. |
+| `domain` | Reducer, projection, or materialization domain. |
+| `partition_key` | Domain-specific partition key for shared work. |
+| `request_id` | Request correlation identifier. |
+| `failure_class` | Closed failure classification used for triage and retry decisions. |
+| `refresh_skipped` | Whether a freshness check skipped collection. |
+| `pipeline_phase` | End-to-end pipeline phase filter. |
+| `acceptance.scope_id` | Shared-acceptance scope identifier. |
+| `acceptance.unit_id` | Shared-acceptance deployable-unit identifier. |
+| `acceptance.source_run_id` | Source run tied to an acceptance decision. |
+| `acceptance.generation_id` | Generation tied to an acceptance decision. |
+| `acceptance.stale_count` | Number of stale acceptance rows observed. |
+| `depth` | Terraform drift prior-config walk depth. |
+| `prior_config_addresses` | Prior Terraform config addresses found inside the depth window. |
+| `state_only_addresses` | Terraform state addresses absent from current config. |
+| `addresses_promoted_to_removed_from_config` | State-only addresses promoted to removed-from-config evidence. |
+| `multi_element.prefix` | Repeated Terraform nested-block prefix that was truncated. |
+| `multi_element.count` | Number of repeated block elements observed by the state flattener. |
+| `multi_element.source` | Truncation source, such as parser walk or state flattening. |
+| `resource_type` | Terraform resource type for composite-capture diagnostics. |
+| `attribute_key` | High-cardinality Terraform attribute key kept out of metric labels. |
+| `path` | Source-prefixed Terraform parser path for a composite-capture skip. |
+| `error` | Diagnostic error class or message for the logged failure. |
 
-- provides the breadcrumb trail for repo-level indexing behavior
-- shows where the Git collector handed work to the facts-first pipeline
+High-cardinality values such as file paths, repository paths, package names,
+state locators, image digests, delivery IDs, and raw cloud resource identifiers
+belong in logs or traces, not metric labels.
 
-### Graph persistence
+## Pipeline Phases
 
-- `graph.batch.commit.started`
-- `graph.batch.commit.chunk_retry`
-- `graph.batch.commit.file_failed`
-- `graph.batch.entity.flush`
-- `graph.batch.chunk.started`
-- `graph.batch.chunk.completed`
+`pipeline_phase` is the stable filter for end-to-end debugging across the Go
+data plane.
 
-Why it matters:
+| Phase value | Covers |
+| --- | --- |
+| `discovery` | Repository selection and scope assignment. |
+| `parsing` | File parse, snapshot, and content extraction. |
+| `emission` | Fact envelope creation and durable commit. |
+| `projection` | Fact-to-graph, content, or intent projection. |
+| `reduction` | Reducer intent execution. |
+| `shared` | Shared projection partition processing. |
+| `query` | Read-path query operations. |
+| `serve` | API or MCP request handling. |
 
-- best source for fallback and chunk-level persistence behavior
+Use `pipeline_phase` before searching by message text. Messages are human
+readable and useful, but phase values are the durable operational contract.
 
-### Content persistence
+## Common Triage Paths
 
-- `content.dual_write.failed`
-- `content.dual_write_batch.failed`
+### One repository or scope looks stale
 
-Why it matters:
+1. Start from `/admin/status` or queue metrics to identify the affected runtime.
+2. Filter logs by `scope_id` or `generation_id`.
+3. Check `pipeline_phase` to see whether the run stopped in discovery,
+   parsing, emission, projection, reduction, or shared work.
+4. Pivot to `trace_id` when the log line carries one.
 
-- explains silent content-store misses that metrics alone cannot describe
+### A reducer or projection domain is failing
 
-### Resolution Engine
+1. Filter by `pipeline_phase=reduction`, `pipeline_phase=projection`, or
+   `pipeline_phase=shared`.
+2. Narrow by `domain` and `partition_key`.
+3. Read `failure_class` before retrying work.
+4. Use the matching trace to identify whether the failure is storage, graph,
+   query shape, contention, or input data.
 
-- `resolution.work_item.projected`
-- `resolution.work_item.completed`
-- `resolution.work_item.failed`
-- `resolution.work_item.dead_lettered`
-- `resolution.decision.recorded`
-- `resolution.stage.failed`
+### Terraform drift evidence is incomplete
 
-Why it matters:
+1. Start from the drift metric or failed drift query.
+2. Filter logs by `resource_type`, `attribute_key`, `path`, or `error`.
+3. Check `depth`, `prior_config_addresses`, `state_only_addresses`, and
+   `addresses_promoted_to_removed_from_config`.
+4. If composite capture skipped a nested field, inspect `multi_element.*`
+   fields before changing parser or schema-bundle behavior.
 
-- explains whether the failure happened during fact load, relationship projection, workload/platform materialization, or final work-item completion
-- gives on-call responders the exact `work_item_id`, `source_run_id`, and error class needed to replay or investigate
-- records explainable confidence decisions so operators can inspect why a relationship, workload, or platform edge was produced
+### Runtime startup failed
 
-### Index status and refinalize
+1. Search for `event_name=runtime.startup.failed`.
+2. Check `service_name`, `component`, and `runtime_role`.
+3. Read the attached `error` value.
+4. Confirm dependency readiness in metrics, `/readyz`, and `/admin/status`
+   before restarting repeatedly.
 
-- `http.request.completed`
-- `index.finalization.started`
-- `index.finalization.partial_start`
-- `index.finalization.stage.completed`
-- `index.finalization.completed`
-- `index.finalization.deferred`
-- `admin.refinalize.started`
-- `admin.refinalize.stage`
-- `admin.refinalize.completed`
-- `admin.refinalize.failed`
-- `admin.refinalize.coverage_repair.started`
-- `admin.refinalize.coverage_repair.completed`
-- `admin.refinalize.coverage_repair.failed`
-
-Why it matters:
-
-- `GET /api/v0/status/index` and `GET /api/v0/index-status` are read paths, so
-  their breadcrumbs usually come from the HTTP request log plus the underlying
-  finalization events
-- graph-safe admin refinalize should emit the admin.refinalize family only
-- unexpected `index.finalization.*` activity without a matching admin repair
-  request should be treated as a runtime investigation signal, not a fallback
-  bridge path
-
-### Admin and operator workflow
-
-- `admin.facts.replayed`
-- `admin.facts.work_items.listed`
-- `admin.facts.decisions.listed`
-- `admin.facts.dead_lettered`
-- `admin.facts.backfill.requested`
-- `admin.facts.replay_events.listed`
-
-Why it matters:
-
-- records deliberate replay actions against dead-lettered fact work items so incident timelines stay auditable
-- provides a direct breadcrumb when retry pressure drops because an operator manually replayed failed work
-- makes queue inspection, dead-letter overrides, and backfill requests visible in the same incident timeline as runtime failures
-
-## What Belongs In `extra_keys`
-
-Good fields for `extra_keys`:
-
-- `run_id`
-- `repo_id`
-- `repo_name`
-- `repo_path`
-- `phase`
-- `status`
-- `duration_seconds`
-- `rows`
-- `batch_type`
-- `backend`
-- `file_path`
-- `worker_id`
-- `work_item_id`
-- `source_run_id`
-- `attempt_count`
-- `error_class`
-- `replayed_count`
-
-These are high-value because they are useful for incident filtering but too high-cardinality for metric labels.
-
-## How To Leverage Logs
-
-### During an incident
-
-1. Start from the alerting metric.
-2. Filter logs by `service_name`, `component`, and the likely time window.
-3. Narrow with `run_id`, `repo_path`, or `work_item_id`.
-4. Jump into the matching trace with `trace_id`.
-
-### During performance tuning
-
-Use logs to validate what the metrics imply:
-
-- slow parse files
-- commit chunk retries
-- per-worker behavior
-- fallback paths
-
-### During autoscaling work
-
-Use logs to confirm whether worker saturation is real or whether the queue/database path is the true bottleneck.
-
-## Go Data Plane Logs
-
-The Go data plane emits structured JSON logs via `log/slog` with a custom
-`TraceHandler` that injects OTEL trace context into every log line. All Go
-services (`ingester`, `reducer`, `bootstrap-index`) share this logging
-infrastructure from the `go/internal/telemetry` package.
-
-### Log Format
-
-Every Go data plane log line is a single JSON document written to stderr:
+## Example
 
 ```json
 {
-  "timestamp": "2026-04-13T18:30:00.000Z",
+  "timestamp": "2026-04-16T15:08:17.112345Z",
   "severity_text": "INFO",
-  "message": "collector snapshot completed",
-  "service_name": "eshu-ingester",
+  "message": "bootstrap projection succeeded",
+  "service_name": "bootstrap-index",
   "service_namespace": "eshu",
-  "component": "collector-git",
-  "runtime_role": "ingester",
-  "trace_id": "abc123def456...",
-  "span_id": "789abc...",
-  "scope_id": "git-repository-scope:...",
-  "generation_id": "...",
-  "source_system": "git",
-  "pipeline_phase": "emission",
-  "collector_kind": "git",
-  "fact_count": 42
+  "component": "bootstrap-index",
+  "runtime_role": "bootstrap-index",
+  "trace_id": "5b2c4f1f0f0b54f8b7c1fb85ac20fd68",
+  "span_id": "f1a4e1f0c3139f0a",
+  "severity_number": 9,
+  "pipeline_phase": "projection",
+  "scope_id": "repository:payments",
+  "worker_id": 3,
+  "fact_count": 1234,
+  "duration_seconds": 2.5
 }
 ```
 
-Base attributes (`service_name`, `service_namespace`) are set once at logger
-creation and appear on every line. Trace correlation (`trace_id`, `span_id`)
-is injected automatically by `TraceHandler` from the active OTEL span context.
+## Change Rules
 
-### Structured Log Keys
+When changing log behavior:
 
-These keys come from the frozen telemetry contract (`contract.go`) and appear
-consistently across all Go data plane services:
+1. Add new frozen keys in `go/internal/telemetry/contract.go`.
+2. Register keys in `go/internal/telemetry/registry.go`.
+3. Add helper functions in `go/internal/telemetry/logging.go` only when repeated
+   call sites need them.
+4. Update this page and [Cross-Service Correlation](cross-service-correlation.md)
+   when the key affects async traceability.
+5. Run `go test ./internal/telemetry -count=1`.
 
-| Key | Type | Description |
-| --- | --- | --- |
-| `scope_id` | string | Ingestion scope identifier (e.g. `git-repository-scope:<repo_id>`) |
-| `scope_kind` | string | Scope type (e.g. `repository`) |
-| `source_system` | string | Origin system (e.g. `git`) |
-| `generation_id` | string | Scope generation identifier for this collect cycle |
-| `collector_kind` | string | Collector type (e.g. `git`) |
-| `domain` | string | Reducer or projection domain (e.g. `workload`, `platform`) |
-| `partition_key` | string | Shared projection partition key |
-| `request_id` | string | Request correlation identifier |
-| `failure_class` | string | Error classification for retryable vs terminal failures |
-| `refresh_skipped` | bool | Whether a freshness check skipped re-collection |
-| `pipeline_phase` | string | Pipeline phase identifier (see below) |
-
-### Pipeline Phase Values
-
-The `pipeline_phase` key lets operators filter logs by pipeline stage. Every
-structured log line in the Go data plane carries exactly one of these values:
-
-| Phase | Value | Where | What it covers |
-| --- | --- | --- | --- |
-| Discovery | `discovery` | Collector | Repository selection and scope assignment |
-| Parsing | `parsing` | Collector | File parse, snapshot, content extraction |
-| Emission | `emission` | Collector | Fact envelope creation and durable commit |
-| Projection | `projection` | Projector | Fact-to-graph/content projection |
-| Reduction | `reduction` | Reducer | Reducer intent execution |
-| Shared | `shared` | Reducer | Shared projection partition processing |
-
-### Trace Correlation
-
-The custom `TraceHandler` wraps the standard `slog.JSONHandler` and
-automatically injects `trace_id` and `span_id` from the active OTEL span
-context. This means every structured log line inside a traced code path
-carries the trace identifiers needed to jump from logs into Jaeger or your
-trace backend.
-
-When no span is active (e.g. during startup), `trace_id` and `span_id` are
-omitted rather than emitted as zero values.
-
-### Helper Functions
-
-The telemetry package provides attribute helpers for consistent log shaping:
-
-- `ScopeAttrs(scopeID, generationID, sourceSystem)` — returns scope-level
-  attributes for collector and projector logs
-- `DomainAttrs(domain, partitionKey)` — returns domain-level attributes for
-  reducer and shared projection logs
-- `PhaseAttr(phase)` — returns a `pipeline_phase` attribute
-- `FailureClassAttr(class)` — returns a `failure_class` attribute for error
-  classification
-
-### Go Data Plane Log Events
-
-#### Collector
-
-- Scope assignment completed — `pipeline_phase=discovery`, includes
-  `collector_kind` and repository count
-- Snapshot completed — `pipeline_phase=emission`, includes `repo_path`,
-  `file_count`, `fact_count`
-- Commit succeeded/failed — `pipeline_phase=emission`, includes `scope_id`,
-  `generation_id`, `fact_count`
-
-#### Projector
-
-- Projection succeeded/failed — `pipeline_phase=projection`, includes
-  `scope_id`, `generation_id`, graph/content/intent counts
-
-#### Reducer
-
-- Execution succeeded/failed — `pipeline_phase=reduction`, includes `domain`,
-  `partition_key`, `failure_class` on errors
-- Shared projection cycle — `pipeline_phase=shared`, includes `domain`,
-  `partition_key`
-
-### Go Data Plane Log Recipes
-
-#### Trace a single repository through the pipeline
-
-```
-# Filter by scope_id across all services
-jq 'select(.scope_id == "git-repository-scope:<repo_id>")' < logs.jsonl
-```
-
-#### Find all errors in one pipeline phase
-
-```
-jq 'select(.pipeline_phase == "projection" and .severity_text == "ERROR")' < logs.jsonl
-```
-
-#### Jump from a log line to its trace
-
-1. Find the log line with the error or event of interest.
-2. Copy the `trace_id` value.
-3. Search for that trace ID in Jaeger or your trace backend.
-4. The matching trace shows the full span tree for that operation.
-
-#### Correlate database latency with pipeline failures
-
-1. Filter logs by `pipeline_phase` and `failure_class`.
-2. Use the `trace_id` to find the matching trace.
-3. Inspect child `postgres.exec`/`postgres.query` or `neo4j.execute` spans
-   for database-level latency or errors.
-
-## Relationship To Existing Logging Standard
-
-This page is the operator-facing guide.
-
-For the full logging envelope and platform rules, see the existing [Logging Standard](../logging.md).
+Do not add new high-cardinality metric labels to avoid writing a log. Logs and
+trace attributes are the right place for unbounded operational detail.

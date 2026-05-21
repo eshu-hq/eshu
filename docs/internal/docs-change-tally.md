@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 555
 - Current branch doc status from
   `git diff --cached --name-status origin/main -- '*.md'` after the current
-  pass: 188 created, 271 modified, 118 deleted
+  pass: 188 created, 270 modified, 119 deleted
 - Stable public docs surface: `docs/public/`
 - Maintainer-only docs surface: `docs/internal/`
 - Deleted stable-doc history surfaces: `docs/plans/`, `docs/superpowers/`,
@@ -79,9 +79,28 @@ cleanup pass.
 | Terraform-State Collector Service Split | Reduced the Terraform-state collector public service doc into an overview plus focused config/discovery and operations/troubleshooting pages grounded in command, parser, runtime, status, and telemetry code. |
 | Telemetry Package README Rewrite | Reduced the telemetry package README from a duplicated metric/span/log catalog into the maintainer contract for package ownership, startup wiring, frozen registries, and change rules; updated scoped agent guidance to point at current public telemetry docs. |
 | Capability Conformance Spec Rewrite | Reduced the capability conformance page from a stale copied capability list into the current contract guide for YAML source of truth, runtime profiles, truth ceilings, backend conformance, validators, and change policy. |
+| Telemetry Logs And Correlation Rewrite | Replaced stale universal log-event guidance with the current Go structured log contract, corrected service names and cross-service correlation guidance, and removed old event families from operator recipes. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 569 documents, 1,751 claims, 0 contradicted, and 0 missing
+  evidence claims after the telemetry logs and correlation rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 181 documents, 1,302 claims, 0 contradicted, and 0 missing
+  evidence claims after the telemetry logs and correlation rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public/reference/telemetry/logs.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 0 claims, 0 contradicted, and 0 missing evidence
+  claims after the telemetry logs and correlation rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public/reference/telemetry/cross-service-correlation.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 0 claims, 0 contradicted, and 0 missing evidence
+  claims after the telemetry logs and correlation rewrite.
+- `go test ./internal/telemetry -count=1`, `go test ./cmd/eshu -count=1`,
+  `scripts/verify-package-docs.sh`, `git diff --check`, and
+  `cmp -s AGENTS.md CLAUDE.md` passed after the telemetry logs and
+  correlation rewrite.
+- `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  passed after the telemetry logs and correlation rewrite.
 - `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
   passed with 569 documents, 1,753 claims, 0 contradicted, and 0 missing
   evidence claims after the capability conformance spec rewrite.
@@ -212,7 +231,6 @@ cleanup pass.
 
 - Continue reviewing oversized public and package docs. The current largest
   real documentation files are
-  `docs/public/reference/telemetry/logs.md`,
   `docs/public/reference/mcp-cookbook.md`, and
   `docs/public/reference/documentation-updater-actuator-contract.md`. The
   scoped `go/internal/storage/postgres/AGENTS.md` is also large, but any

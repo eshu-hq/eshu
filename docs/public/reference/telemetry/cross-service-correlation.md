@@ -15,31 +15,44 @@ Each service starts its own trace root when it picks up work from the queue or b
 
 ## Service Names
 
-Each service emits traces with a distinct `service.name` resource attribute:
+Each Go entrypoint passes a distinct service name to
+`telemetry.NewBootstrap(...)`:
 
 | Service | service.name | Runtime |
 |---|---|---|
 | API | `eshu-api` | Go |
 | MCP Server | `mcp-server` | Go |
 | Ingester | `ingester` | Go |
+| Projector | `projector` | Go |
 | Reducer | `reducer` | Go |
+| Bootstrap Index | `bootstrap-index` | Go |
+| Bootstrap Data Plane | `eshu-bootstrap-data-plane` | Go |
+| Webhook Listener | `webhook-listener` | Go |
+| Git Collector | `collector-git` | Go |
+| AWS Cloud Collector | `collector-aws-cloud` | Go |
+| Confluence Collector | `collector-confluence` | Go |
+| OCI Registry Collector | `collector-oci-registry` | Go |
+| Package Registry Collector | `collector-package-registry` | Go |
+| Terraform-State Collector | `collector-terraform-state` | Go |
+| Workflow Coordinator | `workflow-coordinator` | Go |
 
 All services use `service.namespace = eshu`.
 
 ## Correlation Keys
 
-These keys appear in span attributes, logs, and metrics. Use them to stitch traces across services:
+These keys appear in span attributes, logs, metrics, or admin/status payloads.
+Use the key that the current runtime emits for the failing path:
 
 | Key | Where | How to use |
 |---|---|---|
 | `scope_id` | All services | Links all operations for one repository scope (e.g. `git-repository-scope:<repo_id>`) |
 | `generation_id` | Ingester + Reducer | Links one collect cycle through projection and reduction |
-| `source_run_id` | Ingester | Links all repositories in one collector run |
-| `work_item_id` | Ingester + Reducer | Links one fact work item from enqueue to completion |
-| `request_id` | API | Links one API request end-to-end |
-| `correlation_id` | API | Links related requests (e.g., MCP session) |
-| `pipeline_phase` | All Go services | Filters logs by pipeline stage: `discovery`, `parsing`, `emission`, `projection`, `reduction`, `shared` |
+| `source_run_id` | Collector/admin surfaces where emitted | Links repositories or scopes in one collector run |
+| `work_item_id` | Queue/admin surfaces and logs where emitted | Links one fact work item from enqueue to completion |
+| `request_id` | API/MCP logs where emitted | Links one request across logs and query work |
+| `pipeline_phase` | Logs | Filters by `discovery`, `parsing`, `emission`, `projection`, `reduction`, `shared`, `query`, or `serve` |
 | `domain` | Reducer | Filters by reducer domain: `workload`, `platform`, etc. |
+| `partition_key` | Reducer/shared projection | Narrows a domain to one conflict or partition key |
 
 ## Cross-Service Trace Stitching Recipes
 
@@ -63,23 +76,28 @@ Each trace tree is independent, but the shared `scope_id` lets you correlate the
 
 **Goal:** Trace a single fact work item from enqueue to projection completion or failure.
 
-1. Find the `work_item_id` from projector or reducer logs. Look for log events like `resolution.work_item.projected`, `resolution.work_item.completed`, or `resolution.work_item.failed`.
-2. Search logs (not traces) for all events with that `work_item_id`.
-3. Each log event includes a `trace_id` field. Copy the `trace_id` values.
-4. Open each `trace_id` in Jaeger to see the corresponding span tree (enqueue, claim, load facts, project, ack).
+1. Find the `work_item_id` from `/admin/status`, queue inspection, or the log
+   line that reported the failure.
+2. Search logs for that `work_item_id`; if the current path does not log the
+   work item directly, fall back to `scope_id`, `generation_id`, `domain`, and
+   `partition_key`.
+3. Copy each `trace_id` from the matching log lines.
+4. Open each `trace_id` in Jaeger to see the corresponding span tree for
+   enqueue, claim, fact load, projection, reducer execution, or ack.
 
 ### Recipe 3: API request to underlying graph query
 
-**Goal:** Trace an API request from the HTTP handler through Neo4j query execution.
+**Goal:** Trace an API request from the HTTP handler through graph or Postgres
+query execution.
 
 1. Start from the API request trace in Jaeger or from the request log entry
    carrying the `trace_id`.
-2. Note the `request_id` span attribute.
-3. If the request triggered a Neo4j query, the same `request_id` appears in query logs and traces.
-4. Search logs for the `request_id` to find the corresponding query execution events.
-5. Use the `trace_id` from the query log to open the query trace in Jaeger.
-6. The query trace will include child `neo4j.query` or
-   `neo4j.query.single` spans showing Cypher execution timing.
+2. Note the `request_id` when the runtime emitted one.
+3. Search logs for the `request_id` or the query's scope/entity identifier.
+4. Use the `trace_id` from the query log to open the query trace in Jaeger.
+5. The query trace may include child `postgres.query`, `neo4j.query`,
+   `neo4j.query.single`, or `neo4j.execute` spans, depending on the read path
+   and backend.
 
 ### Recipe 4: Diagnose pipeline phase latency
 
@@ -106,7 +124,7 @@ API Request (Go API runtime)
   service.name: eshu-api
   trace_id: A, request_id: R1
   └── request-scoped API trace
-      └── neo4j.query / neo4j.query.single / postgres.query
+      └── neo4j.query / neo4j.query.single / postgres.query / neo4j.execute
           scope_id: S1 (identifies which repo data)
 
                     ↕ (correlation via scope_id S1)
@@ -249,11 +267,14 @@ Traces show timing. Logs show context (e.g., failure classification, retry count
 
 If you cannot find a trace or log for an operation:
 
-1. **Check service health**: Is the service running? Use `/health` or `/admin/status`.
+1. **Check service health**: Is the service running? Use `/healthz`,
+   `/readyz`, or `/admin/status`.
 2. **Check OTEL export**: Is `OTEL_EXPORTER_OTLP_ENDPOINT` configured? Are traces reaching Jaeger?
 3. **Check log filtering**: Are you filtering by the correct `service.name` or `pipeline_phase`?
 4. **Check queue state**: Is work stuck in the queue? Use
    `eshu_dp_queue_depth`, `eshu_dp_queue_oldest_age_seconds`,
    `eshu_runtime_queue_outstanding`, and
    `eshu_runtime_queue_oldest_outstanding_age_seconds`.
-5. **Check dead-letter state**: Did the work fail terminally? Search logs for `resolution.work_item.dead_lettered`.
+5. **Check dead-letter state**: Did the work fail terminally? Use
+   `/admin/status`, queue metrics, and logs carrying `failure_class`,
+   `work_item_id`, `scope_id`, `domain`, or `partition_key`.
