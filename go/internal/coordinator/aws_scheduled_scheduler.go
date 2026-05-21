@@ -8,10 +8,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
+)
+
+const (
+	awsScheduledGlobalRegion                   = "aws-global"
+	awsScheduledSkipReasonRegionalAWSGlobal    = "regional_service_aws_global"
+	awsScheduledSkipReasonGlobalRegionalRegion = "global_service_regional_region"
 )
 
 // AWSScheduledPlanRequest carries one scheduled AWS collector planning request.
@@ -24,8 +31,10 @@ type AWSScheduledPlanRequest struct {
 // AWSScheduledWorkPlanner plans bounded AWS work from configured target scopes.
 type AWSScheduledWorkPlanner struct{}
 
-// PlanAWSScheduledWork returns one scheduled run and one work item per
-// configured AWS account, region, and service tuple.
+// PlanAWSScheduledWork returns one scheduled run and one work item per valid
+// configured AWS account, region, and service tuple. When every configured
+// tuple is skipped as invalid, it returns a completed audit-only run with the
+// skipped targets recorded in requested_scope_set and no work items.
 func (p AWSScheduledWorkPlanner) PlanAWSScheduledWork(
 	_ context.Context,
 	request AWSScheduledPlanRequest,
@@ -37,17 +46,23 @@ func (p AWSScheduledWorkPlanner) PlanAWSScheduledWork(
 	if err != nil {
 		return workflow.Run{}, nil, err
 	}
-	targets := awsScheduledTargets(scopes)
+	targetPlan := planAWSScheduledTargets(scopes)
 
 	observedAt := request.ObservedAt.UTC()
 	run := workflow.Run{
 		RunID:              awsScheduledRunID(request.Instance, request.PlanKey),
 		TriggerKind:        workflow.TriggerKindSchedule,
 		Status:             workflow.RunStatusCollectionPending,
-		RequestedScopeSet:  awsFreshnessRequestedScopeSet(request.Instance, targets),
+		RequestedScopeSet:  awsScheduledRequestedScopeSet(request.Instance, targetPlan),
 		RequestedCollector: string(scope.CollectorAWS),
 		CreatedAt:          observedAt,
 		UpdatedAt:          observedAt,
+	}
+	targets := targetPlan.Targets
+	if len(targets) == 0 && len(targetPlan.SkippedTargets) > 0 {
+		run.Status = workflow.RunStatusComplete
+		run.FinishedAt = observedAt
+		return run, nil, nil
 	}
 	items := make([]workflow.WorkItem, 0, len(targets))
 	for _, target := range targets {
@@ -82,6 +97,18 @@ func validateAWSScheduledPlanRequest(request AWSScheduledPlanRequest) error {
 	return nil
 }
 
+type awsScheduledTargetPlan struct {
+	Targets        []freshness.Target
+	SkippedTargets []awsScheduledSkippedTarget
+}
+
+type awsScheduledSkippedTarget struct {
+	AccountID   string
+	Region      string
+	ServiceKind string
+	Reason      string
+}
+
 func awsScheduledScanEnabled(raw string) (bool, error) {
 	var decoded awsFreshnessRuntimeConfiguration
 	normalized := strings.TrimSpace(raw)
@@ -94,8 +121,9 @@ func awsScheduledScanEnabled(raw string) (bool, error) {
 	return decoded.ScheduledScanEnabled, nil
 }
 
-func awsScheduledTargets(scopes []awsFreshnessTargetScopeConfiguration) []freshness.Target {
+func planAWSScheduledTargets(scopes []awsFreshnessTargetScopeConfiguration) awsScheduledTargetPlan {
 	byKey := map[string]freshness.Target{}
+	skippedByKey := map[string]awsScheduledSkippedTarget{}
 	for _, targetScope := range scopes {
 		for _, region := range targetScope.AllowedRegions {
 			for _, serviceKind := range targetScope.AllowedServices {
@@ -104,10 +132,48 @@ func awsScheduledTargets(scopes []awsFreshnessTargetScopeConfiguration) []freshn
 					Region:      strings.TrimSpace(region),
 					ServiceKind: strings.TrimSpace(serviceKind),
 				}
+				if reason, ok := awsScheduledTargetAllowed(target); !ok {
+					skippedByKey[target.FreshnessKey()+"|"+reason] = awsScheduledSkippedTarget{
+						AccountID:   target.AccountID,
+						Region:      target.Region,
+						ServiceKind: target.ServiceKind,
+						Reason:      reason,
+					}
+					continue
+				}
 				byKey[target.FreshnessKey()] = target
 			}
 		}
 	}
+	return awsScheduledTargetPlan{
+		Targets:        sortedAWSScheduledTargets(byKey),
+		SkippedTargets: sortedAWSScheduledSkippedTargets(skippedByKey),
+	}
+}
+
+func awsScheduledTargetAllowed(target freshness.Target) (string, bool) {
+	if target.Region == awsScheduledGlobalRegion {
+		if awsScheduledServiceGlobalOnly(target.ServiceKind) {
+			return "", true
+		}
+		return awsScheduledSkipReasonRegionalAWSGlobal, false
+	}
+	if awsScheduledServiceGlobalOnly(target.ServiceKind) {
+		return awsScheduledSkipReasonGlobalRegionalRegion, false
+	}
+	return "", true
+}
+
+func awsScheduledServiceGlobalOnly(serviceKind string) bool {
+	switch serviceKind {
+	case awscloud.ServiceCloudFront, awscloud.ServiceIAM, awscloud.ServiceRoute53:
+		return true
+	default:
+		return false
+	}
+}
+
+func sortedAWSScheduledTargets(byKey map[string]freshness.Target) []freshness.Target {
 	keys := make([]string, 0, len(byKey))
 	for key := range byKey {
 		keys = append(keys, key)
@@ -118,6 +184,62 @@ func awsScheduledTargets(scopes []awsFreshnessTargetScopeConfiguration) []freshn
 		targets = append(targets, byKey[key])
 	}
 	return targets
+}
+
+func sortedAWSScheduledSkippedTargets(byKey map[string]awsScheduledSkippedTarget) []awsScheduledSkippedTarget {
+	keys := make([]string, 0, len(byKey))
+	for key := range byKey {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	skippedTargets := make([]awsScheduledSkippedTarget, 0, len(keys))
+	for _, key := range keys {
+		skippedTargets = append(skippedTargets, byKey[key])
+	}
+	return skippedTargets
+}
+
+func awsScheduledRequestedScopeSet(
+	instance workflow.CollectorInstance,
+	targetPlan awsScheduledTargetPlan,
+) string {
+	type requestedTarget struct {
+		AccountID   string `json:"account_id"`
+		Region      string `json:"region"`
+		ServiceKind string `json:"service_kind"`
+		ScopeID     string `json:"scope_id"`
+	}
+	type skippedTarget struct {
+		AccountID   string `json:"account_id"`
+		Region      string `json:"region"`
+		ServiceKind string `json:"service_kind"`
+		Reason      string `json:"reason"`
+	}
+	payload := struct {
+		CollectorInstanceID string            `json:"collector_instance_id"`
+		Targets             []requestedTarget `json:"targets"`
+		SkippedTargets      []skippedTarget   `json:"skipped_targets"`
+	}{
+		CollectorInstanceID: strings.TrimSpace(instance.InstanceID),
+		Targets:             make([]requestedTarget, 0, len(targetPlan.Targets)),
+		SkippedTargets:      make([]skippedTarget, 0, len(targetPlan.SkippedTargets)),
+	}
+	for _, target := range targetPlan.Targets {
+		payload.Targets = append(payload.Targets, requestedTarget{
+			AccountID:   target.AccountID,
+			Region:      target.Region,
+			ServiceKind: target.ServiceKind,
+			ScopeID:     target.ScopeID(),
+		})
+	}
+	for _, target := range targetPlan.SkippedTargets {
+		payload.SkippedTargets = append(payload.SkippedTargets, skippedTarget(target))
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return "{}"
+	}
+	return string(encoded)
 }
 
 func awsScheduledRunID(instance workflow.CollectorInstance, planKey string) string {

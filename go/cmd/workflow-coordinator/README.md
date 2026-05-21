@@ -68,7 +68,9 @@ for the full list. Key env vars:
 - ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED — must be `true` for active mode;
   default `false`; also accepted as ESHU_WORKFLOW_COORDINATOR_ENABLE_CLAIMS
 - ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL — collector-instance reconcile
-  cadence; default `30s`
+  and scheduled-work planning cadence; default `30s`
+- ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL — workflow-run status and
+  completeness reconcile cadence; default `30s`
 - ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL — expired-claim reap cadence
   (active mode only); default `20s`
 - ESHU_WORKFLOW_COORDINATOR_CLAIM_LEASE_TTL — claim lease TTL; default `60s`

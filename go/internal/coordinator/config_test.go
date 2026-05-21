@@ -47,6 +47,8 @@ func TestLoadConfigParsesActiveRuntimeControls(t *testing.T) {
 			return "true"
 		case "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL":
 			return "45s"
+		case "ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL":
+			return "10s"
 		case "ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL":
 			return "15s"
 		case "ESHU_WORKFLOW_COORDINATOR_CLAIM_LEASE_TTL":
@@ -71,6 +73,9 @@ func TestLoadConfigParsesActiveRuntimeControls(t *testing.T) {
 	}
 	if got, want := cfg.ReapInterval, 15*time.Second; got != want {
 		t.Fatalf("ReapInterval = %v, want %v", got, want)
+	}
+	if got, want := cfg.RunReconcileInterval, 10*time.Second; got != want {
+		t.Fatalf("RunReconcileInterval = %v, want %v", got, want)
 	}
 	if got, want := cfg.ClaimLeaseTTL, 60*time.Second; got != want {
 		t.Fatalf("ClaimLeaseTTL = %v, want %v", got, want)

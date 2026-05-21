@@ -28,6 +28,7 @@ type fakeStore struct {
 	reapCalls            int
 	runReconcileCalls    int
 	runReconcileObserved []time.Time
+	runReconcileHook     func(int)
 }
 
 func (f *fakeStore) ReconcileCollectorInstances(_ context.Context, observedAt time.Time, desired []workflow.DesiredCollectorInstance) error {
@@ -71,6 +72,9 @@ func (f *fakeStore) ReapExpiredClaims(_ context.Context, observedAt time.Time, l
 func (f *fakeStore) ReconcileWorkflowRuns(_ context.Context, observedAt time.Time) (int, error) {
 	f.runReconcileCalls++
 	f.runReconcileObserved = append(f.runReconcileObserved, observedAt)
+	if f.runReconcileHook != nil {
+		f.runReconcileHook(f.runReconcileCalls)
+	}
 	if f.runReconcileErr != nil {
 		return 0, f.runReconcileErr
 	}
@@ -283,6 +287,58 @@ func TestServiceRunActiveModeExecutesReaperAndWorkflowReconciliation(t *testing.
 	}
 	if got, want := store.runReconcileCalls, 1; got != want {
 		t.Fatalf("run reconcile calls = %d, want %d", got, want)
+	}
+}
+
+func TestServiceRunActiveModeReconcilesRunsOnDedicatedInterval(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 21, 12, 45, 0, 0, time.UTC)
+	ctx, cancel := context.WithCancel(context.Background())
+	store := &fakeStore{
+		instances: []workflow.CollectorInstance{{
+			InstanceID:    "collector-git-primary",
+			CollectorKind: scope.CollectorGit,
+			Mode:          workflow.CollectorModeContinuous,
+			Enabled:       true,
+		}},
+		runReconcileHook: func(count int) {
+			if count >= 2 {
+				cancel()
+			}
+		},
+	}
+	service := Service{
+		Config: Config{
+			DeploymentMode:           deploymentModeActive,
+			ClaimsEnabled:            true,
+			ReconcileInterval:        time.Hour,
+			RunReconcileInterval:     time.Millisecond,
+			ReapInterval:             time.Hour,
+			ClaimLeaseTTL:            time.Minute,
+			HeartbeatInterval:        20 * time.Second,
+			ExpiredClaimLimit:        10,
+			ExpiredClaimRequeueDelay: 5 * time.Second,
+			CollectorInstances: []workflow.DesiredCollectorInstance{{
+				InstanceID:    "collector-git-primary",
+				CollectorKind: scope.CollectorGit,
+				Mode:          workflow.CollectorModeContinuous,
+				Enabled:       true,
+				ClaimsEnabled: true,
+			}},
+		},
+		Store: store,
+		Clock: func() time.Time { return now },
+	}
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got, want := len(store.desired), 1; got != want {
+		t.Fatalf("collector reconciles = %d, want %d; run reconciliation should not wait for collector reconcile", got, want)
+	}
+	if got := store.runReconcileCalls; got < 2 {
+		t.Fatalf("run reconcile calls = %d, want at least 2", got)
 	}
 }
 
