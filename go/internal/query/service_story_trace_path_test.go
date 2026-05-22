@@ -1,6 +1,10 @@
 package query
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace(t *testing.T) {
 	t.Parallel()
@@ -79,6 +83,16 @@ func TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace(t *testing.T) {
 	missing := StringSliceVal(trace, "missing_segments")
 	if !stringSliceContains(missing, "cloud_dependencies") {
 		t.Fatalf("missing_segments = %#v, want cloud_dependencies", missing)
+	}
+	encoded, err := json.Marshal(cloud)
+	if err != nil {
+		t.Fatalf("json.Marshal(cloud) error = %v, want nil", err)
+	}
+	if strings.Contains(string(encoded), `"evidence":null`) {
+		t.Fatalf("cloud_dependencies evidence encoded as null, want empty array: %s", encoded)
+	}
+	if !strings.Contains(string(encoded), `"evidence":[]`) {
+		t.Fatalf("cloud_dependencies evidence = %s, want evidence empty array", encoded)
 	}
 }
 

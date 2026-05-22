@@ -151,6 +151,9 @@ func serviceTraceRowsFromDeploymentEvidence(workloadContext map[string]any, key 
 }
 
 func serviceTraceSegment(name string, basis string, presentStatus string, evidence []map[string]any) map[string]any {
+	if evidence == nil {
+		evidence = []map[string]any{}
+	}
 	capped, truncated := capMapRows(evidence, serviceStoryItemLimit)
 	status := presentStatus
 	if len(evidence) == 0 {
