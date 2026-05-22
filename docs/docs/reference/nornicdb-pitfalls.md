@@ -172,6 +172,73 @@ suspect a regression in the retry classifier — verify against
   the new shape and add a regression test mirroring
   `TestRetryingExecutorRetriesNornicDBMergeUniqueConflictV1045Format`.
 
+## Pitfall: persisted graph store fails to reopen after dictionary corruption
+
+### Observed shape
+
+A large NornicDB-backed Eshu run can leave the persisted graph store unable to
+reopen with:
+
+```text
+failed to load persisted schema: schema: rebuild unique values:
+decode node: property key id <id> not in dictionary for namespace "nornic"
+```
+
+This error happens before the Bolt or HTTP serving surface is ready. In Eshu
+that means API/MCP graph-backed reads cannot recover until the graph backend
+opens or the graph volume is rebuilt.
+
+### Current evidence
+
+The 2026-05-22 hosted E2E investigation tested the same captured corrupt store
+against NornicDB `v1.1.1`, the `search-index-flags` branch image, and a local
+transaction-router patch image. All failed with the same dictionary error.
+
+Setting `NORNICDB_AUTO_RECOVER_ON_CORRUPTION=true` forced NornicDB into its
+documented snapshot/WAL recovery path, but recovery failed while restoring a
+large graph:
+
+```text
+auto-recover: wal replay failed:
+wal: failed to restore nodes: Txn is too big to fit into one request
+```
+
+The same NornicDB branch successfully reopened a fresh full-corpus Eshu graph
+after a preserved-volume restart. That separates "new graph can restart" from
+"old corrupt graph can be repaired".
+
+### Eshu recovery contract
+
+For Eshu, NornicDB graph data is rebuildable projection state. Source systems,
+repository snapshots, collector facts, workflow state, content, and Postgres
+queues are the durable inputs. Losing only the NornicDB graph volume is
+operationally disruptive, but it should not be treated as customer-truth loss.
+
+The supported Eshu response is:
+
+1. Preserve the broken graph volume or logs when forensic evidence matters.
+2. Recreate only the NornicDB data directory or PVC.
+3. Run data-plane schema bootstrap before graph writes resume.
+4. Replay projection work from stored facts or recollect from source systems.
+5. Verify API/MCP health and queue-zero with `GET /api/v0/index-status`.
+
+Do not delete Postgres unless the accepted recovery plan is full source
+recollection. Postgres is the durable coordination and rebuild layer.
+
+### Upstream follow-up
+
+This remains worth tracking upstream as a NornicDB recovery issue because both
+behaviors are database-owned:
+
+- the missing property-key dictionary error is not currently classified as a
+  corruption signal unless recovery is forced
+- forced recovery needs to restore large node sets in bounded chunks instead of
+  one oversized transaction
+
+Do not work around this inside Eshu by silently deleting graph data at startup.
+Operators must make the rebuild decision explicitly so they can preserve
+forensic evidence and avoid accidentally deleting the durable Postgres inputs.
+
 ## When to patch NornicDB itself
 
 Per the **NornicDB Maintainer Patch Bar** in `CLAUDE.md` (and the mirror in

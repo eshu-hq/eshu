@@ -9,7 +9,10 @@ schema, graph schema, and worker behavior move together.
 2. Render the chart with the same values used by the cluster.
 3. Review changes to workloads, environment variables, probes, security
    contexts, PVCs, and ServiceMonitors.
-4. Confirm Postgres and graph backups are recent enough for the rollout risk.
+4. Confirm Postgres backups are recent enough for the rollout risk. Graph
+   backups are useful for fast rollback, but the default NornicDB graph is
+   rebuildable projection state when Postgres facts and source systems remain
+   available.
 5. Check current queue depth, queue age, dead-letter state, and indexing
    completeness.
 
@@ -38,5 +41,8 @@ helm rollback eshu <revision> --namespace eshu
 ```
 
 Rollback does not replace a database restore plan. If an upgrade changes durable
-state in a way that the older image cannot read, restore Postgres and graph
-state according to your platform backup runbook.
+Postgres state in a way that the older image cannot read, restore Postgres
+according to your platform backup runbook. If only the NornicDB graph volume is
+lost or unreadable, preserve it when forensic evidence matters, recreate the
+graph PVC, run schema bootstrap, and rebuild projection from facts or source
+systems.
