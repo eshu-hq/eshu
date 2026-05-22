@@ -15,41 +15,12 @@ truth. Postgres persistence lives in `internal/storage/postgres`, runtime
 planning lives in `internal/coordinator`, and fact emission belongs to
 collector runtimes.
 
-The main flow is:
-
-```text
-DesiredCollectorInstance.Materialize
-  -> ControlStore.ReconcileCollectorInstances
-  -> ControlStore.EnqueueWorkItems
-  -> ControlStore.ClaimNextEligible
-  -> claim mutation with FencingToken
-  -> ReconcileRunProgress
-  -> CompletenessState rows
-```
-
 ## Exported surface
 
 See `doc.go` and `go doc ./internal/workflow` for the full godoc contract. The
-main package contracts are:
-
-- Status enums: `CollectorMode`, `TriggerKind`, `RunStatus`,
-  `WorkItemStatus`, and `ClaimStatus`.
-- Durable value types: `Run`, `WorkItem`, `Claim`,
-  `DesiredCollectorInstance`, `CollectorInstance`, and `CompletenessState`.
-- Store types: `ControlStore`, `ClaimSelector`, `ClaimMutation`, and
-  `ClaimedWorkItem`.
-- Reducer phase contracts: `CollectorContract`, `CollectorContractFor`,
-  `CanonicalKeyspacesForCollector`, `RequiredPhasesForCollector`,
-  `PhaseRequirement`, and `PhasePublicationKey`.
-- Progress types: `CollectorRunProgress`, `RunProgressSnapshot`, and
-  `ReconcileRunProgress`.
-- Fairness types: `FairnessCandidate`, `ClaimTarget`,
-  `FamilyFairnessScheduler`, `NewFamilyFairnessScheduler`, and
-  `FairnessCandidatesFromCollectorInstances`.
-- Config validators:
-  `ValidateTerraformStateCollectorConfiguration`,
-  `ValidateOCIRegistryCollectorConfiguration`, and
-  `ValidatePackageRegistryCollectorConfiguration`.
+package exposes status enums, durable run/work/claim values, `ControlStore`,
+claim mutation types, reducer phase contracts, run-progress reconciliation,
+family fairness scheduling, and collector-family configuration validators.
 
 ## Dependencies
 
@@ -83,7 +54,7 @@ contracts.
 - Unknown collector kinds return no phase requirements unless registered in
   `collectorContracts`; callers must handle that explicitly.
 
-## Verification
+## Focused tests
 
 Use the smallest command that proves the changed contract:
 

@@ -114,43 +114,6 @@ ACL summaries and source-native documentation bodies are sensitive source
 evidence. Do not emit them through logs or metrics. Evidence packet APIs must
 fail closed unless a permission decision says the viewer can read the source.
 
-## Component Output
-
-Optional component packages declare emitted fact families in their manifest:
-
-```yaml
-apiVersion: eshu.dev/v1alpha1
-kind: ComponentPackage
-metadata:
-  id: dev.example.collector.cloud-snapshot
-  name: Cloud snapshot collector
-  publisher: example
-  version: 1.4.0
-spec:
-  compatibleCore: ">=2.1.0 <3.0.0"
-  componentType: collector
-  collectorKinds:
-    - cloud_snapshot
-  artifacts:
-    - platform: linux/amd64
-      image: "registry.example/cloud-snapshot@sha256:<64-hex-digest>"
-  emittedFacts:
-    - kind: dev.example.cloud_snapshot.resource
-      schemaVersions: ["1.0.0"]
-      sourceConfidence: ["reported"]
-  consumerContracts:
-    reducer:
-      phases: ["resource_correlation"]
-```
-
-The local component manifest validator requires digest-pinned artifacts,
-declared schema versions, declared source-confidence values, valid collector
-kinds, and a compatible core range. `sourceConfidence: ["unknown"]` is rejected
-for new component output.
-
-Strict provenance verification is not wired in the current local component
-policy; strict mode fails closed until a real verifier exists.
-
 ## Change Checklist
 
 When adding or changing a fact family:
@@ -165,6 +128,8 @@ When adding or changing a fact family:
    fact as active platform truth.
 6. Update this page and [Fact Schema Versioning](fact-schema-versioning.md) if
    the compatibility contract changes.
+7. If an optional component emits the fact family, update its manifest contract
+   in [Component Package Manager](component-package-manager.md).
 
 ## Related
 

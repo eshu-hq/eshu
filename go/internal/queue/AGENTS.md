@@ -70,7 +70,7 @@
   writes `StatusDeadLetter`. `StatusFailed` is a read path for legacy rows
   only.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
 - `WorkItemStatus` string values — these are stored on disk. Changing a value
   string without a migration corrupts legacy rows.

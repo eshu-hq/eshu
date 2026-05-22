@@ -14,7 +14,7 @@ Component state has separate steps:
 
 | State | Meaning |
 | --- | --- |
-| Available | A manifest can be inspected from disk or, in a future release, from an OCI registry. |
+| Available | A local manifest can be inspected from disk. |
 | Verified | The manifest passed local compatibility and trust policy checks. |
 | Installed | The manifest is recorded in the local component registry. |
 | Enabled | The component has an activation record for a named instance. |

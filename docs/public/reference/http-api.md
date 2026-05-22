@@ -31,112 +31,24 @@ The mounted Go runtime admin OpenAPI contract lives in
 | IaC cleanup, AWS drift, content reads/search, infra impact, environment comparison | [IaC, content, and infra routes](http-api/iac-content-infra.md) |
 | Repository catalog, repository context/stats/coverage, ingester status, bundle search | [Repository, ingester, and bundle routes](http-api/repositories-ingesters-bundles.md) |
 
-## Response Envelope
+## Shared Wire Contracts
 
-Programmatic clients should opt in to the canonical envelope:
+Programmatic HTTP clients should opt in to the canonical envelope with:
 
 ```http
 Accept: application/eshu.envelope+json
 ```
 
-Without that header, handlers may emit the older payload shape for backward
-compatibility.
+Without that header, handlers may emit older payload shapes for backward
+compatibility. The canonical envelope, truth levels, freshness states, cache
+rules, and error-code list are owned by
+[Truth Label Protocol](truth-label-protocol.md).
 
-```json
-{
-  "data": {},
-  "truth": {
-    "level": "derived",
-    "capability": "code_search.exact_symbol",
-    "profile": "local_lightweight",
-    "basis": "content_index",
-    "freshness": { "state": "fresh" },
-    "reason": "resolved from indexed entity and content tables"
-  },
-  "error": null
-}
-```
-
-- `data` carries the response payload. It is `null` on error.
-- `truth` carries authority, profile, basis, and freshness. It is `null` on
-  error.
-- `error` is `null` on success and structured on failure.
-
-## Truth Levels
-
-| Level | Meaning |
-| --- | --- |
-| `exact` | Authoritative graph or durable semantic truth. |
-| `derived` | Deterministic result from indexed entities, content, or relational state. |
-| `fallback` | Exploratory result that is useful but not authoritative for the capability. |
-
-High-authority capabilities such as transitive call graphs, call-chain paths,
-dead-code cleanup, and cross-repo impact must not silently downgrade to
-`fallback`. When the active runtime profile cannot answer correctly, the API
-returns `unsupported_capability`.
-
-## Freshness States
-
-| State | Meaning |
-| --- | --- |
-| `fresh` | The answer reflects current indexed truth for the requested scope. |
-| `stale` | Indexed truth exists, but lag or backlog may make it behind source. |
-| `building` | Initial or replacement indexing is still in progress. |
-| `unavailable` | A required backend or authoritative source is unavailable. |
-
-Clients that cache responses must invalidate on changes to `truth.level` or
-`truth.freshness.state`.
-
-## Runtime Profiles
-
-`truth.profile` is one of:
-
-- `local_lightweight` - single-binary `eshu` host with embedded Postgres and no
-  authoritative graph backend.
-- `local_authoritative` - local `eshu` service with embedded Postgres and
-  NornicDB.
-- `local_full_stack` - Docker Compose stack with an authoritative graph.
-- `production` - deployed multi-runtime platform.
-
-Set the runtime profile with `ESHU_QUERY_PROFILE` at process start. Invalid
-values fail startup instead of silently changing API behavior.
-
-## Error Codes
-
-Errors use the same envelope shape:
-
-```json
-{
-  "error": {
-    "code": "unsupported_capability",
-    "message": "transitive callers require authoritative graph mode",
-    "capability": "call_graph.transitive_callers",
-    "details": {},
-    "profiles": {
-      "current": "local_lightweight",
-      "required": "local_authoritative"
-    }
-  }
-}
-```
-
-Common codes:
-
-| Code | Meaning |
-| --- | --- |
-| `unsupported_capability` | Capability is unavailable in the current runtime profile. |
-| `ambiguous` | The selector matched multiple valid entities. |
-| `unauthenticated` | Authentication is missing or invalid. |
-| `invalid_argument` | Request parameters are invalid or malformed. |
-| `not_found` | Requested finding, packet, entity, repository, or scope does not exist. |
-| `permission_denied` | Caller cannot view the requested source, document, or evidence. |
-| `backend_unavailable` | An authoritative backend is unreachable. |
-| `index_building` | Initial indexing is in progress. |
-| `scope_not_found` | Requested entity, repository, or workspace scope does not exist. |
-| `capability_degraded` | Capability is supported but running with reduced fidelity. |
-| `overloaded` | Runtime is saturated and rejected the request. |
-| `internal_error` | Eshu failed unexpectedly while serving the request. |
-| `documentation_read_model_unavailable` | Documentation routes are mounted without the Postgres documentation read model. |
+Runtime profile ceilings are owned by
+[Capability Conformance Spec](capability-conformance-spec.md). High-authority
+capabilities such as transitive call graphs, call-chain paths, dead-code
+cleanup, and cross-repo impact must return `unsupported_capability` when the
+active profile cannot answer correctly.
 
 ## Shared Model Rules
 

@@ -14,29 +14,14 @@ Postgres wiring, and claim runner construction. It does not own AWS service
 scanner behavior, AWS SDK pagination, workflow claim storage, graph writes,
 reducer admission, or workload ownership inference.
 
-```mermaid
-flowchart LR
-  A["ESHU_COLLECTOR_INSTANCES_JSON"] --> B["loadRuntimeConfig"]
-  B --> C["collector.ClaimedService"]
-  C --> D["awsruntime.ClaimedSource"]
-  D --> E["SDKCredentialProvider"]
-  D --> F["DefaultScannerFactory"]
-  F --> G["Postgres ingestion store"]
-```
-
 ## Exported surface
 
 This is a `package main` binary. Its public contract is the process entrypoint,
-`--version` / `-v`, and accepted environment:
-
-- `ESHU_COLLECTOR_INSTANCES_JSON`
-- `ESHU_AWS_COLLECTOR_INSTANCE_ID`
-- `ESHU_AWS_COLLECTOR_OWNER_ID`
-- `ESHU_AWS_COLLECTOR_POLL_INTERVAL`
-- `ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL`
-- `ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL`
-- `ESHU_AWS_REDACTION_KEY`
-- shared Postgres, OTEL, metrics, and `ESHU_PPROF_ADDR` runtime env
+`--version` / `-v`, `ESHU_COLLECTOR_INSTANCES_JSON`,
+`ESHU_AWS_COLLECTOR_INSTANCE_ID`, `ESHU_AWS_COLLECTOR_OWNER_ID`,
+`ESHU_AWS_COLLECTOR_POLL_INTERVAL`, `ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL`,
+`ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL`, `ESHU_AWS_REDACTION_KEY`, and shared
+Postgres, OTEL, metrics, and `ESHU_PPROF_ADDR` runtime env.
 
 The selected instance must be enabled, use `collector_kind="aws"`, and set
 `claims_enabled=true`. Target scopes must name a 12-digit account, concrete
@@ -56,25 +41,12 @@ and either `central_assume_role` or `local_workload_identity` credentials.
 
 ## Telemetry
 
-The command registers the shared data-plane instruments and AWS collector
-signals, including:
-
-- `eshu_dp_aws_claim_concurrency`
-- `eshu_dp_aws_scan_duration_seconds`
-- `eshu_dp_aws_api_calls_total`
-- `eshu_dp_aws_throttle_total`
-- `eshu_dp_aws_assumerole_failed_total`
-- `eshu_dp_aws_pagination_checkpoint_events_total`
-- `eshu_dp_aws_resources_emitted_total`
-- `eshu_dp_aws_relationships_emitted_total`
-- `eshu_dp_aws_tag_observations_emitted_total`
-- `aws.collector.claim.process`
-- `aws.credentials.assume_role`
-- `aws.service.scan`
-- `aws.service.pagination.page`
-
-The hosted runtime also mounts `/healthz`, `/readyz`, `/metrics`, and
-`/admin/status`.
+The command registers shared data-plane instruments plus AWS claim, scan,
+API-call, throttle, AssumeRole, pagination-checkpoint, resource, relationship,
+and tag-observation signals. The claim runner uses the AWS collector span family
+(`aws.collector.claim.process`, `aws.credentials.assume_role`,
+`aws.service.scan`, and `aws.service.pagination.page`). The hosted runtime
+mounts `/healthz`, `/readyz`, `/metrics`, and `/admin/status`.
 
 ## Gotchas / invariants
 

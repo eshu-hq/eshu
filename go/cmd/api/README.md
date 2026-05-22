@@ -14,36 +14,14 @@ HTTP server lifecycle, auth wrapping, and admin-surface mounting. It does not
 own query semantics, graph writes, fact emission, queue draining, or status-row
 production.
 
-```mermaid
-flowchart LR
-  Client["HTTP client"] --> API["cmd/api"]
-  API --> Router["internal/query APIRouter"]
-  Router --> Graph["GraphQuery port"]
-  Router --> Content["ContentStore port"]
-  API --> Admin["runtime admin mux"]
-  Graph --> Backend["NornicDB or Neo4j"]
-  Content --> PG["Postgres"]
-```
-
 ## Exported surface
 
 This is a `package main` binary. Its public contract is the process entrypoint,
-`--version` / `-v`, and accepted environment:
-
-- `ESHU_API_ADDR` defaults to `:8080`.
-- `ESHU_POSTGRES_DSN` is required. `ESHU_CONTENT_STORE_DSN` remains a legacy
-  fallback.
-- `ESHU_QUERY_PROFILE` defaults to `production`.
-- `ESHU_GRAPH_BACKEND` is parsed by `query.ParseGraphBackend`.
-- `ESHU_DISABLE_NEO4J=true` skips graph driver initialization for local
-  lightweight operation.
-- `DEFAULT_DATABASE` defaults to `nornic`.
-- `ESHU_API_KEY`, `ESHU_HOME`, and `ESHU_AUTO_GENERATE_API_KEY` feed
-  `runtime.ResolveAPIKey`.
-- `ESHU_PPROF_ADDR` enables the opt-in profiler listener.
-
-Compile-time checks assert that `*query.Neo4jReader` satisfies
-`query.GraphQuery` and `*query.ContentReader` satisfies `query.ContentStore`.
+`--version` / `-v`, and the API runtime environment. The required runtime inputs
+are an API key, Postgres DSN, query profile, graph backend, optional local
+lightweight graph disablement, and optional `ESHU_PPROF_ADDR` profiler
+listener. Compile-time checks keep the graph and content readers aligned with
+the `internal/query` ports.
 
 ## Dependencies
 
@@ -61,17 +39,9 @@ Compile-time checks assert that `*query.Neo4jReader` satisfies
 
 The runtime uses `telemetry.NewBootstrap("eshu-api")` and exposes Prometheus
 metrics through `/metrics`. `otelhttp.NewHandler` wraps every request with OTEL
-spans and read/write message events.
-
-Important startup and lifecycle log events:
-
-- `runtime.startup.failed`
-- `runtime.postgres.connected`
-- `runtime.neo4j.connected`
-- `runtime.server.listening`
-- `runtime.server.stopped`
-- `runtime.server.failed`
-- `runtime.shutdown.failed`
+spans and read/write message events. Startup and shutdown logs use the shared
+runtime event keys for startup failures, Postgres and graph connection, server
+listen/stop/failure, and shutdown failure.
 
 ## Gotchas / invariants
 

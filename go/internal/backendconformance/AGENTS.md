@@ -87,7 +87,7 @@
   a single failure does not hide the rest. Bailing on the first error
   loses coverage data the report consumers depend on.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
 - The matrix spec format
   (`specs/backend-conformance.v1.yaml` + the v1 contract): version it

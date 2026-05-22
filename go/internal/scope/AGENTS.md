@@ -85,7 +85,7 @@
 - **Adding I/O or package-level state** — this is a pure value package.
   No database connections or global variables belong here.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
 - `GenerationStatus` string values — these are stored on disk and appear in
   the Postgres `generation_status` column; changing a value string without a

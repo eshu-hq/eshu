@@ -111,6 +111,10 @@ branch. Regenerate them from
 | Public Reference Follow-Up Compression | Reduced CLI indexing, NornicDB tuning evidence, and core service runtime pages while preserving distinct MCP cookbook, CLI reference, and tuning reader jobs. |
 | Scoped AGENTS Current-Docs Repair | Replaced stale ADR phrasing in scoped agent guidance with current-doc and architecture-owner language while preserving mandatory accuracy, performance, concurrency, telemetry, and proof rules. |
 | Package README Follow-Up Compression | Reduced 15 more command/internal package READMEs from 2,014 to 1,115 lines while preserving package ownership, invariants, telemetry, focused tests, and current public-doc links. |
+| Internal Docs Update Guide Repair | Tightened the maintainer docs update guide around current public/internal/package surfaces, focused docs verification, package-doc gates, and strict MkDocs proof. |
+| Scoped AGENTS ADR Cleanup Batch A | Replaced stale ADR gates in 15 scoped agent files with architecture-owner approval language while preserving mandatory local invariants and proof requirements. |
+| Public Reference Duplicate Cleanup | Collapsed duplicated HTTP envelope/truth tables, removed repeated component-package YAML from the fact envelope reference, and corrected component package manager state wording. |
+| Package README Mid-Size Compression | Reduced 15 more command/internal package READMEs while preserving package ownership, invariants, telemetry, focused tests, and links to canonical public docs. |
 
 ## Verification Snapshot
 

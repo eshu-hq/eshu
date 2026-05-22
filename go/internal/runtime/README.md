@@ -13,40 +13,16 @@ Runtime code provides process-level helpers. It does not own collector,
 projector, reducer, query, or storage business logic, and callers should not
 fork its datastore, admin-route, retry, or memory-limit contracts.
 
-The common startup shape is:
-
-```text
-telemetry bootstrap
-  -> runtime.LoadConfig
-  -> runtime.ConfigureMemoryLimit
-  -> runtime.OpenPostgres / runtime.OpenNeo4jDriver
-  -> runtime.LoadRetryPolicyConfig
-  -> app.NewHostedWithStatusServer
-  -> Lifecycle.Start / Stop
-```
-
 `NewStatusAdminServer` delegates to `NewStatusAdminMux`, which combines
 `/healthz`, `/readyz`, `/admin/status`, `/metrics`, optional recovery routes,
 and optional application routes.
 
 ## Exported surface
 
-See `doc.go` and `go doc ./internal/runtime` for the full godoc contract. The
-main package contracts are:
-
-- `Config`, `LoadConfig`, `Lifecycle`, `HTTPServer`, and `NewHTTPServer`.
-- `GraphBackend`, `LoadGraphBackend`, `OpenPostgres`, `OpenNeo4jDriver`,
-  `LoadPostgresConfig`, `LoadNeo4jConfig`, `ConfigurePostgresPool`, and
-  `ApplyNeo4jConfig`.
-- `AdminMuxConfig`, `NewAdminMux`, `NewStatusAdminMux`,
-  `NewStatusAdminServer`, `NewStatusMetricsServer`,
-  `NewStatusMetricsHandler`, and `NewCompositeMetricsHandler`.
-- `RecoveryHandler`, `NewRecoveryHandler`, and `StatusAdminOption` helpers.
-- `RetryPolicyConfig` and `LoadRetryPolicyConfig`.
-- `ConfigureMemoryLimit`, `ResolveAPIKey`, `NewPprofServer`, and
-  `NewObservability`.
-- `StatusRequestHandler`, `StatusRequestStore`, `ScanRequest`,
-  `ReindexRequest`, and `RequestState`.
+See `doc.go` and `go doc ./internal/runtime` for the godoc contract. Callers
+depend on the config/lifecycle helpers, HTTP/admin mux builders, datastore
+opening helpers, backend parsing, retry policy loading, API key resolution,
+memory-limit tuning, pprof wiring, and status request handlers.
 
 ## Dependencies
 
@@ -84,7 +60,7 @@ endpoint.
 - Recovery admin routes mount `/admin/replay` and `/admin/refinalize`; they are
   distinct from command-specific route aliases.
 
-## Verification
+## Focused tests
 
 Use the smallest command that proves the changed contract:
 

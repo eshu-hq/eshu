@@ -66,7 +66,7 @@ it before touching any file in this directory.
   If the substrate needs different readiness metadata, extend the contract
   through a new output kind or a separate `PhaseStates`-equivalent.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
 - The hardcoded `cloud_resource_uid` / `canonical_nodes_committed`
   mapping in `PhaseStates`. Changing it alters the Phase 1 readiness

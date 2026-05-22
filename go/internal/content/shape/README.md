@@ -8,19 +8,6 @@ centralizes the entity-bucket label mapping, `source_cache` snippet derivation,
 and the byte limits that keep low-signal entity rows from bloating the content
 store.
 
-## Where this fits in the pipeline
-
-```mermaid
-flowchart LR
-  A["Parser output\n(file + entity buckets)"] --> B["shape.Input\n(shape.File, shape.Entity)"]
-  B --> C["shape.Materialize"]
-  C --> D["content.Materialization\n(Records + EntityRecords)"]
-  D --> E["content.Writer\n(storage/postgres)"]
-```
-
-The ingester or projector builds a `shape.Input` from parser output, calls
-`Materialize`, and hands the result to a `content.Writer`.
-
 ## Ownership boundary
 
 This package owns content shaping only:
@@ -38,26 +25,9 @@ loading. All of those belong to `internal/projector`, `internal/collector`, or
 
 ## Exported surface
 
-See `doc.go` for the godoc contract.
-
-Input types:
-
-- `Input` — top-level shaping request: `RepoID`, `SourceSystem`, `Files []File`.
-- `File` — one parser-shaped file: `Path`, `Body`, `Digest`, `Language`,
-  `ArtifactType`, `TemplateDialect`, `IACRelevant`, `CommitSHA`, `Metadata`,
-  `Deleted`, `EntityBuckets map[string][]Entity`.
-- `Entity` — one parser-shaped entity: `Name`, `LineNumber`, `EndLine`,
-  byte-range pointers, `Language`, `ArtifactType`, `TemplateDialect`,
-  `IACRelevant`, `Source`, `Metadata`, `Deleted`.
-
-Entry point:
-
-- `Materialize(input Input) (content.Materialization, error)` — walks every
-  file in `Input.Files`, builds one `content.Record` per file, extracts all
-  entity buckets in fixed order, derives `content.EntityRecord` values sorted
-  by line number then label then name, and returns the assembled
-  `content.Materialization`. Returns an error when `RepoID` is empty or any
-  file `Path` is empty.
+See `doc.go` and `go doc ./internal/content/shape` for the godoc contract.
+Callers use `Input`, `File`, `Entity`, and `Materialize`. `Materialize` returns
+an error when the repository ID or any file path is blank.
 
 ## Dependencies
 
@@ -95,6 +65,15 @@ around the `Materialize` call.
   parser output get a bounded snippet rather than the rest of the file.
 - Output ordering is deterministic: entities are sorted by line number, then
   label, then name before writing. Storage diffs stay stable across re-runs.
+
+## Focused tests
+
+```bash
+cd go
+go test ./internal/content/shape -count=1
+go vet ./internal/content/shape
+go doc ./internal/content/shape
+```
 
 ## Related docs
 

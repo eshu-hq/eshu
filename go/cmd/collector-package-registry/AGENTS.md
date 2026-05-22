@@ -27,7 +27,7 @@
 - Add command wiring tests in `config_test.go` whenever selection, credential
   env resolution, or claim-mode validation changes.
 
-## What Not To Change Without An ADR
+## What MUST NOT change without architecture-owner approval
 
 - Do not add non-claim polling mode here.
 - Do not write facts directly from this command.

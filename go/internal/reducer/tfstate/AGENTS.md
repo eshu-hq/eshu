@@ -46,9 +46,9 @@ Read it before touching any file in this directory.
 
 ## Failure modes
 
-- **Contract diverging from ADR**: if `Validate` passes on an outdated
-  contract, downstream wiring misses required checkpoints silently. Treat
-  failing `Validate` in tests as a hard stop.
+- **Contract drift**: if `Validate` passes on an outdated contract, downstream
+  wiring misses required checkpoints silently. Treat failing `Validate` in
+  tests as a hard stop.
 
 ## Anti-patterns
 
@@ -57,9 +57,9 @@ Read it before touching any file in this directory.
   belongs in a reducer handler registered with `internal/reducer.NewDefaultRegistry`.
 - Do not export types that reference concrete graph backend types.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
 - The two accepted checkpoints (`terraform_resource_uid` and
   `terraform_module_uid` at `canonical_nodes_committed`). These define the
   Phase 1 readiness signal consumed by DSL evaluation.
-- The component list, which is referenced in ADR fixture assertions.
+- The component list, which is referenced in contract fixture assertions.

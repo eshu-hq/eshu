@@ -104,7 +104,7 @@
   `serviceCategories` map is package-level but read-only after init. Do not
   add writable global state; use function parameters instead.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
 - `identityKeyPatterns` order and values — these affect which resource
   attribute becomes the candidate name in schema-driven evidence; changes

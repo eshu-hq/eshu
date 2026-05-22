@@ -96,7 +96,7 @@
 - Add SDK pagination in the service adapter so spans and AWS API counters stay
   complete.
 
-## What Not To Change Without An ADR
+## What MUST NOT change without architecture-owner approval
 
 - Do not bypass workflow claims or claim-aware commits.
 - Do not cache cross-account credentials beyond the claim lease.

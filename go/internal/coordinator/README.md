@@ -2,48 +2,24 @@
 
 ## Purpose
 
-`internal/coordinator` owns the workflow coordinator loop. It reconciles desired
-collector instances, plans bounded scheduled work for supported collector
-families, hands off AWS freshness triggers, reaps expired claims, and
-reconciles workflow-run progress.
+`internal/coordinator` runs the workflow coordinator loops. It reconciles
+desired collector instances, plans bounded collector work for supported
+families, hands off AWS freshness triggers, reaps expired claims, and advances
+workflow-run progress.
 
 ## Ownership boundary
 
-Coordinator code plans work rows and reconciles workflow state through a narrow
-`Store` interface. It does not claim provider work on behalf of collectors,
-emit facts, open graph connections, or write graph truth. Collector runtimes own
-claim execution and fact emission; `internal/workflow` owns the value
-contracts.
-
-Active-mode loop:
-
-```text
-Service.Run
-  -> runReconcile
-  -> scheduled planners for Terraform-state / OCI / package / AWS
-  -> runActiveMaintenance
-  -> runReapExpiredClaims
-  -> runAWSFreshnessHandoff
-  -> runWorkflowReconciliation
-```
-
-Dark mode reconciles collector instances only. Its reap ticker is nil.
+The coordinator writes workflow rows through `Store` and leaves provider work
+to collector runtimes. It does not emit facts, claim collector work on behalf
+of a runtime, open graph connections, or write graph truth. `internal/workflow`
+owns the durable value contracts; `internal/storage/postgres` owns persistence.
 
 ## Exported surface
 
-See `doc.go` and `go doc ./internal/coordinator` for the full godoc contract.
-The main package contracts are:
-
-- `Service`, `Config`, and `LoadConfig`.
-- `Store`, the durable interface implemented by
-  `storage/postgres.WorkflowControlStore`.
-- `Metrics`, `NewMetrics`, `ReconcileObservation`, `ReapObservation`, and
-  `RunReconciliationObservation`.
-- `TerraformStateWorkPlanner`, `OCIRegistryWorkPlanner`,
-  `PackageRegistryWorkPlanner`, `AWSScheduledWorkPlanner`, and
-  `AWSFreshnessWorkPlanner`.
-- `AWSFreshnessTriggerStore` and planner request/response types for supported
-  families.
+See `doc.go` and `go doc ./internal/coordinator` for the godoc contract.
+Callers depend on `Service`, `LoadConfig`, the `Store` port, coordinator
+metrics, and the supported work planners for Terraform state, OCI registries,
+package registries, scheduled AWS scans, and AWS freshness triggers.
 
 ## Dependencies
 
@@ -58,16 +34,10 @@ The main package contracts are:
 ## Telemetry
 
 `NewMetrics` registers OTEL instruments under
-`eshu_dp_workflow_coordinator_`: `reconcile_total`,
-`reconcile_duration_seconds`, `reap_total`, `reap_duration_seconds`,
-`run_reconcile_total`, `run_reconcile_duration_seconds`,
-`desired_collector_instances`, `durable_collector_instances`,
-`collector_instance_drift`, `last_reaped_claims`, and
-`last_reconciled_runs`.
-
-Structured logs include startup mode, collector-instance drift, planner
-admission/skips, duplicate target suppression, and AWS freshness handoff
-outcomes.
+`eshu_dp_workflow_coordinator_` for reconcile, reap, run-reconcile, durable
+instance drift, and last-reaped/reconciled-run state. AWS freshness handoff also
+records bounded event counters by trigger kind and action. Structured logs cover
+startup mode, planner skips, duplicate target suppression, and handoff results.
 
 ## Gotchas / invariants
 
@@ -87,7 +57,7 @@ outcomes.
   tests can supply narrow metric stubs. Production should use `NewMetrics`.
 - This package only schedules families with explicit planners.
 
-## Verification
+## Focused tests
 
 Use the smallest command that proves the changed contract:
 

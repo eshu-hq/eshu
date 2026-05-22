@@ -80,9 +80,9 @@ it before touching any file in this directory.
 - Do not skip `PhaseStates.Validate` return check; a blank `AcceptanceUnitID`
   will silently produce a broken row.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
-- The `OutputKind` constants. They are referenced in ADR fixtures and
+- The `OutputKind` constants. They are referenced in contract tests and
   downstream domain expectations.
 - The five accepted checkpoints in `defaultRuntimeContract`. Changing them
   alters the cross-source readiness contract used by deployment mapping and

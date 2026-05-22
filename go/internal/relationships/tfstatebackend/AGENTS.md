@@ -35,8 +35,9 @@ Guidance for LLM assistants editing this package.
   `ErrNoConfigRepoOwnsBackend` and `ErrAmbiguousBackendOwner`,
   document the operator-visible failure mode in `doc.go`, and add a
   classifier test in the drift package fixture corpus.
-- Change the selection rule: requires an ADR amendment; tie-break
-  semantics are part of the design contract.
+- Change the selection rule: requires architecture-owner approval and current
+  package documentation updates; tie-break semantics are part of the design
+  contract.
 - Attach prior-generation evidence: extend the return shape
   (`CommitAnchor` or a sibling helper), keep the resolver call
   bounded — never join across more than one prior generation per
@@ -52,7 +53,7 @@ Guidance for LLM assistants editing this package.
 - Do NOT pick winners by repo name, modification time of files in the
   repo, or any heuristic outside `(CommitObservedAt, CommitID)`.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
 - The single-owner policy. Multi-owner resolution requires explicit
   design and operator documentation.

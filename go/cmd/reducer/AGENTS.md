@@ -113,7 +113,7 @@ before touching any file in this directory.
 - Do not add new environment variables without updating the README
   configuration table and service-runtimes docs.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
 - Claim domain semantics (`ESHU_REDUCER_CLAIM_DOMAIN` behavior).
 - The projector drain gate logic in `loadReducerProjectorDrainGate`.

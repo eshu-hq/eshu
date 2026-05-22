@@ -104,7 +104,7 @@
   is genuinely uncertain, keep its confidence low and let the reducer or an
   assertion decide rather than inflating confidence to pass the filter.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
 - `DefaultConfidenceThreshold` — the 0.75 default is relied on by reducer
   admission tests; changing it affects which relationships materialize in

@@ -26,23 +26,10 @@ deployed Kubernetes runtime wiring.
 This is a `package main` binary. Its public contract is the command tree,
 `--version` / `-v`, `eshu version`, and command-specific flags.
 
-Top-level groups include:
-
-- service launch: `api`, `mcp`, `serve`
-- local graph lifecycle: `graph`, `install`
-- local indexing and repo operations: `scan`, `index`, `list`, `stats`,
-  `delete`, `clean`, `watch`, `unwatch`, `watching`, `finalize`
-- query and analysis helpers: `query`, `find`, `analyze`, `trace service`
-- admin operations: `admin facts`, `reindex`, `tuning-report`, `decisions`,
-  `replay`, `dead-letter`, `skip`, `backfill`, `replay-events`
-- local diagnostics and config: `doctor`, `config`, `neo4j`, `workspace`,
-  `local-host`
-- documentation truth: `docs verify`
-
-Persistent flags in `root.go`:
-
-- `--database` sets `ESHU_RUNTIME_DB_TYPE` for the process.
-- `-V`, `--visual` toggles interactive graph visualization.
+The command tree covers service launch, local graph lifecycle, local indexing,
+query helpers, admin operations, diagnostics, config, and documentation truth
+verification. `root.go` owns persistent flags such as `--database` and
+`--visual`.
 
 ## Dependencies
 

@@ -108,7 +108,7 @@
   `MountStatusServer` in any new convenience constructor. Forking the
   attachment logic produces inconsistent metrics port handling.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
 - `Lifecycle` interface method signatures — runtime.NewLifecycle,
   runtime.HTTPServer, and every cmd-level lifecycle adapter satisfy this

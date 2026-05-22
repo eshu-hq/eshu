@@ -109,7 +109,7 @@
   `mountRuntimeSurface` is called before `AuthMiddleware` is applied; reversing
   that order blocks health probes.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
 - `ESHU_QUERY_PROFILE` accepted values — part of the public truth-label contract;
   see `docs/public/reference/http-api.md` and `go/internal/query/contract.go`.

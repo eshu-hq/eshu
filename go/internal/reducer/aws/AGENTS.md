@@ -47,8 +47,8 @@ it before touching any file in this directory.
 
 ## Failure modes
 
-- **Scaffold diverging from ADR**: if the scaffold is used as an ADR fixture
-  and `Validate` passes on an outdated contract, downstream wiring will
+- **Scaffold contract drift**: if contract fixtures use this scaffold and
+  `Validate` passes on an outdated contract, downstream wiring will
   silently miss required checkpoints. Treat failing `Validate` in tests as a
   hard stop.
 
@@ -60,10 +60,10 @@ it before touching any file in this directory.
 - Do not export new types that reference concrete graph backend types
   (Neo4j, NornicDB). The scaffold should remain backend-agnostic.
 
-## What NOT to change without an ADR
+## What MUST NOT change without architecture-owner approval
 
 - The accepted checkpoint (`cloud_resource_uid` at
   `canonical_nodes_committed`). Changing the keyspace or phase alters the
   Phase 1 readiness contract used by DSL and downstream edge domains.
-- The component list. Component names are referenced in ADR fixture
-  assertions; changing them requires a coordinated ADR update.
+- The component list. Component names are referenced in contract fixture
+  assertions; changing them requires coordinated tests and package docs.
