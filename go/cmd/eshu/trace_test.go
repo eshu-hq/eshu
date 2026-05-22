@@ -70,7 +70,7 @@ func TestFetchTraceServiceStoryRequestsCanonicalEnvelope(t *testing.T) {
 	}
 }
 
-func TestRunTraceServiceRendersOperationalSummary(t *testing.T) {
+func TestRunTraceServiceReturnsPartialExitAndRendersOperationalSummary(t *testing.T) {
 	reset := stubTraceServiceFetch(t, traceServiceEnvelope{
 		Data: sampleTraceServiceStoryData(),
 		Truth: map[string]any{
@@ -85,8 +85,16 @@ func TestRunTraceServiceRendersOperationalSummary(t *testing.T) {
 	cmd := newTestTraceServiceCommand()
 	cmd.SetOut(out)
 
-	if err := runTraceService(cmd, []string{"checkout"}); err != nil {
-		t.Fatalf("runTraceService() error = %v, want nil", err)
+	err := runTraceService(cmd, []string{"checkout"})
+	if err == nil {
+		t.Fatal("runTraceService() error = nil, want partial trace exit")
+	}
+	var exitErr commandExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("error = %T, want commandExitError", err)
+	}
+	if got, want := exitErr.ExitCode(), 5; got != want {
+		t.Fatalf("ExitCode() = %d, want %d", got, want)
 	}
 
 	output := out.String()
@@ -94,6 +102,7 @@ func TestRunTraceServiceRendersOperationalSummary(t *testing.T) {
 		"Service: checkout",
 		"Repository: repo:checkout-service (checkout-service)",
 		"Code to runtime:",
+		"Trace status: partial",
 		"code_entrypoints: derived (1 evidence) via api_surface_or_entrypoints",
 		"deployment_config: derived",
 		"runtime: exact",
@@ -110,9 +119,49 @@ func TestRunTraceServiceRendersOperationalSummary(t *testing.T) {
 	}
 }
 
+func TestRunTraceServiceReturnsStaleExitAndRendersTruthFreshness(t *testing.T) {
+	reset := stubTraceServiceFetch(t, traceServiceEnvelope{
+		Data: sampleCompleteTraceServiceStoryData(),
+		Truth: map[string]any{
+			"level":     "exact",
+			"profile":   "production",
+			"reason":    "service-story generation is behind the latest index",
+			"freshness": map[string]any{"state": "stale"},
+		},
+	})
+	defer reset()
+
+	out := &bytes.Buffer{}
+	cmd := newTestTraceServiceCommand()
+	cmd.SetOut(out)
+
+	err := runTraceService(cmd, []string{"checkout"})
+	if err == nil {
+		t.Fatal("runTraceService() error = nil, want stale trace exit")
+	}
+	var exitErr commandExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("error = %T, want commandExitError", err)
+	}
+	if got, want := exitErr.ExitCode(), 4; got != want {
+		t.Fatalf("ExitCode() = %d, want %d", got, want)
+	}
+
+	output := out.String()
+	for _, want := range []string{
+		"Truth freshness: stale",
+		"Freshness detail: service-story generation is behind the latest index",
+		"Trace status: complete",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("trace output missing %q:\n%s", want, output)
+		}
+	}
+}
+
 func TestRunTraceServiceJSONPassesCanonicalEnvelope(t *testing.T) {
 	reset := stubTraceServiceFetch(t, traceServiceEnvelope{
-		Data: sampleTraceServiceStoryData(),
+		Data: sampleCompleteTraceServiceStoryData(),
 		Truth: map[string]any{
 			"level":     "derived",
 			"freshness": map[string]any{"state": "fresh"},
@@ -140,6 +189,44 @@ func TestRunTraceServiceJSONPassesCanonicalEnvelope(t *testing.T) {
 	}
 	if got := payload.Data["service_identity"].(map[string]any)["service_name"]; got != "checkout" {
 		t.Fatalf("service_name = %#v, want checkout", got)
+	}
+}
+
+func TestRunTraceServiceJSONReturnsPartialExitAfterWritingEnvelope(t *testing.T) {
+	reset := stubTraceServiceFetch(t, traceServiceEnvelope{
+		Data: sampleTraceServiceStoryData(),
+		Truth: map[string]any{
+			"level":     "derived",
+			"freshness": map[string]any{"state": "fresh"},
+		},
+	})
+	defer reset()
+
+	out := &bytes.Buffer{}
+	cmd := newTestTraceServiceCommand()
+	cmd.SetOut(out)
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatalf("Set(json) error = %v, want nil", err)
+	}
+
+	err := runTraceService(cmd, []string{"checkout"})
+	if err == nil {
+		t.Fatal("runTraceService() error = nil, want partial trace exit")
+	}
+	var exitErr commandExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("error = %T, want commandExitError", err)
+	}
+	if got, want := exitErr.ExitCode(), 5; got != want {
+		t.Fatalf("ExitCode() = %d, want %d", got, want)
+	}
+	var payload traceServiceEnvelope
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
+	}
+	trace := payload.Data["code_to_runtime_trace"].(map[string]any)
+	if got, want := trace["status"], "partial"; got != want {
+		t.Fatalf("code_to_runtime_trace.status = %#v, want %#v", got, want)
 	}
 }
 
@@ -305,4 +392,26 @@ func sampleTraceServiceStoryData() map[string]any {
 			},
 		},
 	}
+}
+
+func sampleCompleteTraceServiceStoryData() map[string]any {
+	data := sampleTraceServiceStoryData()
+	trace := data["code_to_runtime_trace"].(map[string]any)
+	trace["status"] = "complete"
+	trace["missing_segments"] = []any{}
+	for _, item := range trace["segments"].([]any) {
+		segment := item.(map[string]any)
+		if segment["name"] == "cloud_dependencies" {
+			segment["status"] = "derived"
+			segment["evidence_count"] = float64(1)
+		}
+	}
+	identity := data["service_identity"].(map[string]any)
+	identity["limitations"] = []any{}
+	investigation := data["investigation"].(map[string]any)
+	investigation["coverage_summary"] = map[string]any{
+		"state":  "complete",
+		"reason": "all code-to-runtime segments have evidence",
+	}
+	return data
 }

@@ -79,8 +79,10 @@ launched runtime via the shared `telemetry` package. Errors print to
   segments, deployment-lane count, runtime-instance count, upstream/downstream
   counts, coverage, and limitations, and preserves the full canonical envelope
   with `--json`.
-  Ambiguous names print the candidate service ids and exit `3`. The CLI must
-  not open graph or Postgres connections directly for this path.
+  Ambiguous names print the candidate service ids and exit `3`; stale or
+  building truth freshness exits `4`; partial code-to-runtime traces exit `5`
+  while still printing the usable evidence. The CLI must not open graph or
+  Postgres connections directly for this path.
 - `eshu docs verify [path]` is a local documentation-truth verifier. It scans
   Markdown-family files with `--limit` and `--max-bytes`, extracts explicit
   Eshu CLI command claims, HTTP endpoint claims, `ESHU_*` environment-variable
