@@ -138,6 +138,7 @@ reset_state() {
 eshu
 mcp-server
 ingester
+projector
 resolution-engine
 workflow-coordinator
 collector-terraform-state
@@ -216,6 +217,11 @@ reset_state
 set_all_services_healthy
 set_service_state ingester created none
 expect_fail_with 'ingester.*created'
+
+reset_state
+set_all_services_healthy
+set_service_state projector created none
+expect_fail_with 'projector.*created'
 
 reset_state
 set_all_services_healthy

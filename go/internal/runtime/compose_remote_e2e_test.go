@@ -91,6 +91,7 @@ func TestRemoteE2EComposeUsesProductionCanonicalWriteTimeout(t *testing.T) {
 		"eshu",
 		"mcp-server",
 		"ingester",
+		"projector",
 		"resolution-engine",
 		"workflow-coordinator",
 		"collector-terraform-state",
@@ -100,6 +101,32 @@ func TestRemoteE2EComposeUsesProductionCanonicalWriteTimeout(t *testing.T) {
 	} {
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeEnv(t, service, "ESHU_CANONICAL_WRITE_TIMEOUT", "${ESHU_CANONICAL_WRITE_TIMEOUT:-120s}")
+	}
+}
+
+func TestRemoteE2EComposeRunsProjectorForHostedCollectorSourceLocalWork(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
+	projector := requireComposeService(t, doc, "projector")
+
+	if fmt.Sprint(projector.Command) != "[/usr/local/bin/eshu-projector]" {
+		t.Fatalf("projector command = %#v, want eshu-projector", projector.Command)
+	}
+	assertComposeEnv(t, projector, "ESHU_PROJECTOR_WORKERS", "${ESHU_PROJECTOR_WORKERS:-}")
+	assertComposeDependency(t, projector, "db-migrate")
+	assertComposeDependency(t, projector, "bootstrap-index")
+	assertComposePortContains(t, projector, "${ESHU_PROJECTOR_HTTP_PORT:-18084}:8080")
+	assertComposePortContains(t, projector, "${ESHU_PROJECTOR_METRICS_PORT:-19475}:9464")
+
+	for _, serviceName := range []string{
+		"collector-terraform-state",
+		"collector-oci-registry",
+		"collector-package-registry",
+		"collector-aws-cloud",
+	} {
+		service := requireComposeService(t, doc, serviceName)
+		assertComposeDependency(t, service, "projector")
 	}
 }
 
@@ -125,6 +152,7 @@ func TestRemoteE2EComposeRestartsRuntimeServicesAfterTransientStoreStartup(t *te
 		"eshu",
 		"mcp-server",
 		"ingester",
+		"projector",
 		"resolution-engine",
 		"workflow-coordinator",
 		"webhook-listener",
@@ -165,6 +193,7 @@ func TestRemoteE2EWorkerPprofOverlayBindsWorkersToHostLoopback(t *testing.T) {
 		"collector-package-registry": "19666",
 		"collector-aws-cloud":        "19667",
 		"collector-confluence":       "19668",
+		"projector":                  "19669",
 	} {
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeEnv(t, service, "ESHU_PPROF_ADDR", "0.0.0.0:6060")
@@ -182,6 +211,7 @@ func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 		"go/cmd/collector-oci-registry/main.go",
 		"go/cmd/collector-package-registry/main.go",
 		"go/cmd/collector-terraform-state/main.go",
+		"go/cmd/projector/main.go",
 		"go/cmd/workflow-coordinator/main.go",
 	} {
 		content := readRepositoryFile(t, "../../..", sourcePath)
@@ -264,6 +294,7 @@ func remoteE2EWorkerPprofServices() []string {
 		"collector-oci-registry",
 		"collector-package-registry",
 		"collector-aws-cloud",
+		"projector",
 		"collector-confluence",
 	}
 }

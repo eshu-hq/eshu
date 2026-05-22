@@ -12,7 +12,7 @@ import (
 func TestBuildProjectorRuntimeWiresPersistentStorageAdapters(t *testing.T) {
 	t.Parallel()
 
-	runtime, err := buildProjectorRuntime(postgres.SQLDB{}, &noopCanonicalWriter{}, nil, nil, func(string) string { return "" })
+	runtime, err := buildProjectorRuntime(postgres.SQLDB{}, &noopCanonicalWriter{}, nil, nil, func(string) string { return "" }, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildProjectorRuntime() error = %v, want nil", err)
 	}
@@ -37,6 +37,9 @@ func TestBuildProjectorServiceWiresRetryInjectorFromEnv(t *testing.T) {
 			}
 			return ""
 		},
+		nil,
+		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildProjectorService() error = %v, want nil", err)
@@ -67,6 +70,9 @@ func TestBuildProjectorServiceWiresRetryPolicyFromEnv(t *testing.T) {
 				return ""
 			}
 		},
+		nil,
+		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildProjectorService() error = %v, want nil", err)
@@ -81,6 +87,65 @@ func TestBuildProjectorServiceWiresRetryPolicyFromEnv(t *testing.T) {
 	}
 	if got, want := workSource.RetryDelay, 45*time.Second; got != want {
 		t.Fatalf("RetryDelay = %v, want %v", got, want)
+	}
+}
+
+func TestBuildProjectorServiceHeartbeatsLongRunningClaims(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildProjectorService(
+		postgres.SQLDB{},
+		&noopCanonicalWriter{},
+		func(string) string { return "" },
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildProjectorService() error = %v, want nil", err)
+	}
+
+	if service.Heartbeater == nil {
+		t.Fatal("Heartbeater = nil, want projector queue")
+	}
+	if service.HeartbeatInterval <= 0 {
+		t.Fatalf("HeartbeatInterval = %v, want positive duration", service.HeartbeatInterval)
+	}
+	workSource, ok := service.WorkSource.(postgres.ProjectorQueue)
+	if !ok {
+		t.Fatalf("WorkSource type = %T, want postgres.ProjectorQueue", service.WorkSource)
+	}
+	if service.HeartbeatInterval >= workSource.LeaseDuration {
+		t.Fatalf(
+			"HeartbeatInterval = %v, want less than lease duration %v",
+			service.HeartbeatInterval,
+			workSource.LeaseDuration,
+		)
+	}
+}
+
+func TestBuildProjectorServiceUsesWorkerCountFromEnv(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildProjectorService(
+		postgres.SQLDB{},
+		&noopCanonicalWriter{},
+		func(name string) string {
+			if name == "ESHU_PROJECTOR_WORKERS" {
+				return "3"
+			}
+			return ""
+		},
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildProjectorService() error = %v, want nil", err)
+	}
+
+	if got, want := service.Workers, 3; got != want {
+		t.Fatalf("Workers = %d, want %d", got, want)
 	}
 }
 
