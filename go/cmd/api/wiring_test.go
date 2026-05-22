@@ -126,6 +126,12 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 	if router.SupplyChain.ContainerImageIdentities == nil {
 		t.Fatal("newRouter().SupplyChain.ContainerImageIdentities = nil, want Postgres read model store")
 	}
+	if router.ServiceCatalog == nil {
+		t.Fatal("newRouter().ServiceCatalog = nil, want service catalog route mounted")
+	}
+	if router.ServiceCatalog.Correlations == nil {
+		t.Fatal("newRouter().ServiceCatalog.Correlations = nil, want Postgres read model store")
+	}
 }
 
 func TestNewRouter_MountsAdminRoutes(t *testing.T) {

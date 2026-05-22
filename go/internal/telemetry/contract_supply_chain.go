@@ -16,10 +16,33 @@ const (
 
 func init() {
 	for idx, name := range spanNames {
-		if name == SpanQueryCICDRunCorrelations {
-			spanNames = slices.Insert(spanNames, idx+1, SpanQueryContainerImageIdentities, SpanQuerySBOMAttestationAttachments, SpanQuerySupplyChainImpactFindings)
+		if name == SpanQueryServiceCatalogCorrelations {
+			spanNames = slices.Insert(
+				spanNames,
+				idx+1,
+				SpanQueryContainerImageIdentities,
+				SpanQuerySBOMAttestationAttachments,
+				SpanQuerySupplyChainImpactFindings,
+			)
 			return
 		}
 	}
-	spanNames = append(spanNames, SpanQueryContainerImageIdentities, SpanQuerySBOMAttestationAttachments, SpanQuerySupplyChainImpactFindings)
+	for idx, name := range spanNames {
+		if name == SpanQueryCICDRunCorrelations {
+			spanNames = slices.Insert(
+				spanNames,
+				idx+1,
+				SpanQueryContainerImageIdentities,
+				SpanQuerySBOMAttestationAttachments,
+				SpanQuerySupplyChainImpactFindings,
+			)
+			return
+		}
+	}
+	spanNames = append(
+		spanNames,
+		SpanQueryContainerImageIdentities,
+		SpanQuerySBOMAttestationAttachments,
+		SpanQuerySupplyChainImpactFindings,
+	)
 }

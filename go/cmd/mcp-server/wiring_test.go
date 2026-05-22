@@ -90,6 +90,12 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	if router.CICD.Correlations == nil {
 		t.Fatal("newMCPQueryRouter().CICD.Correlations = nil, want Postgres read model store")
 	}
+	if router.ServiceCatalog == nil {
+		t.Fatal("newMCPQueryRouter().ServiceCatalog = nil, want service catalog route mounted")
+	}
+	if router.ServiceCatalog.Correlations == nil {
+		t.Fatal("newMCPQueryRouter().ServiceCatalog.Correlations = nil, want Postgres read model store")
+	}
 }
 
 func TestOpenQueryGraphAcceptsNornicDBOnSharedBoltPath(t *testing.T) {

@@ -140,6 +140,11 @@ payload.
 from Postgres. It requires an explicit scope, repository, commit, provider-run,
 artifact-digest, or environment anchor plus `limit`, and it keeps CI success,
 environment observations, and shell-only hints separate from deployment truth.
+`ServiceCatalogHandler` (`service_catalog.go:16`) reads reducer-owned service
+catalog ownership and drift correlation facts from Postgres. It requires an
+explicit scope, entity, repository, service, workload, or owner anchor plus
+`limit`, and it keeps catalog declarations provenance-only until reducer
+evidence corroborates repository, service, workload, ownership, or drift truth.
 `SupplyChainHandler` (`supply_chain.go:16`) reads reducer-owned SBOM and
 attestation attachment facts from Postgres. It requires a subject digest,
 document ID, or document digest plus `limit`, and it keeps attachment status,

@@ -66,6 +66,7 @@ func OpenAPISpec() string {
 			openAPIPathsEvidence+
 			openAPIPathsPackageRegistry+
 			openAPIPathsCICD+
+			openAPIPathsServiceCatalog+
 			openAPIPathsSupplyChain+
 			openAPIPathsStatusAndCompare+
 			openAPIComponents,

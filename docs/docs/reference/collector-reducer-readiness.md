@@ -66,7 +66,7 @@ fixtures, reducer contracts, telemetry, and binary wiring exist.
 | Kubernetes live | ADR exists; no runtime package or charted workload. | Collector kind/workflow contract, API discovery, fixtures, reducer joins, and a service runbook. |
 | SBOM and attestation | Fact contracts and the first reducer attachment read model exist; hosted collector runtime is not implemented. | Fixture parsers, OCI/referrer integration in a collector runtime, live verification policy, and vulnerability-impact join remain. |
 | CI/CD runs | ADR exists; hosted runtime is not implemented. The first reducer slice writes `reducer_ci_cd_run_correlation` facts from fixture-backed run/artifact/environment evidence and exposes bounded API/MCP reads. The first collector implementation slice adds a GitHub Actions fixture normalizer that emits provider run, job, step, artifact, trigger, environment, and warning facts without hosted polling. | GitLab/Jenkins/Buildkite fixture normalizers, hosted GitHub Actions runtime, credentials/redaction proof, request-budget/status evidence, and live provider proof. |
-| Service catalog | ADR exists; no runtime package or reducer. | Catalog fact contracts, ownership/admission reducer, and service-story read integration. |
+| Service catalog | ADR exists and fact-kind contracts plus bounded API/MCP read surface exist for future reducer facts; no hosted runtime or reducer writer exists yet. | Ownership/admission reducer, fixture-backed fact emitter, service-story integration, and hosted runtime proof. |
 | Observability | ADR exists; no runtime package or reducer. | OTel/Prometheus/Grafana/Datadog fact fixtures, reducer coverage outcomes, then hosted runtime. |
 | Vulnerability intelligence | ADR exists and is intentionally gated. | Package, OCI, SBOM, AWS, Terraform state, and deployment evidence must be proven before impact reducers. |
 | Incident/change | Research/design issue remains open. | ADR before implementation. |
@@ -228,7 +228,32 @@ surfaces.
    `query.ci_cd_run_correlations` span plus existing Postgres query duration
    metrics expose the read path.
 
-6. SBOM and attestation attachment.
+6. Service catalog correlations.
+   The first service-catalog slice defines the fact-kind contract for catalog
+   entity, ownership, repository link, dependency, API, operational link,
+   scorecard, and warning facts. It also exposes a bounded API/MCP read surface
+   for future `reducer_service_catalog_correlation` rows. This is not a hosted
+   collector or reducer writer yet; catalog declarations stay provenance until
+   a reducer corroborates them with repository, service, workload, runtime, or
+   deployment evidence.
+
+   No-Regression Evidence: focused fact, query, MCP, telemetry, API, and MCP
+   server coverage with
+   `go test ./internal/facts ./internal/query ./internal/mcp ./internal/telemetry ./cmd/api ./cmd/mcp-server -count=1`
+   covers service-catalog fact-kind registry immutability, bounded
+   `GET /api/v0/service-catalog/correlations` filtering, active-generation and
+   tombstone predicates, limit-plus-one pagination, OpenAPI, capability-matrix
+   parity, MCP route mapping, MCP tool registry count, span-name registration,
+   and API/MCP runtime wiring.
+
+   Observability Evidence: `query.service_catalog_correlations` wraps API/MCP
+   reads with stable `http.route` and `eshu.capability` span attributes. The
+   read path uses existing Postgres query-duration instrumentation, and
+   responses expose `count`, `limit`, `truncated`, and `next_cursor` so
+   operators can distinguish empty evidence, page truncation, and slow
+   Postgres reads.
+
+7. SBOM and attestation attachment.
    `DomainSBOMAttestationAttachment` writes durable reducer facts for SBOM
    documents and attestation statements by explicit subject digest. The
    read model exposes `attached_verified`, `attached_unverified`,
@@ -257,7 +282,7 @@ surfaces.
    facts carry parse status, verification status, warning summaries, component
    count, source confidence, and evidence fact IDs for operator diagnosis.
 
-7. Supply-chain impact.
+8. Supply-chain impact.
    SBOM, attestation, vulnerability, package, OCI, cloud, and deployment facts
    now have the first reducer-owned confidence/read-model slice for fixture or
    preloaded facts. `DomainSupplyChainImpact` writes

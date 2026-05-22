@@ -143,6 +143,25 @@ vulnerability-intelligence envelopes. These facts are source truth only:
 reducers must decide package, image, workload, deployment, and fixed-version
 impact.
 
+Service catalog fact kinds use schema version `1.0.0` for the first collector
+contract:
+
+- `service_catalog.entity`
+- `service_catalog.ownership`
+- `service_catalog.repository_link`
+- `service_catalog.dependency`
+- `service_catalog.api_link`
+- `service_catalog.operational_link`
+- `service_catalog.scorecard_definition`
+- `service_catalog.scorecard_result`
+- `service_catalog.warning`
+
+Use `ServiceCatalogFactKinds` when callers need the full accepted set, and
+`ServiceCatalogSchemaVersion` when building service-catalog envelopes. These
+facts are organizational declarations and source context. Reducers must
+corroborate ownership, dependency, workload, API, and drift truth before
+promotion.
+
 AWS cloud fact kinds use schema version `1.0.0` for the first collector
 contract:
 
