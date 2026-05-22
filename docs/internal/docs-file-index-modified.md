@@ -334,6 +334,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `tests/fixtures/sample_projects/sample_project_rust/README.md`
 - `tests/fixtures/sample_projects/sample_project_swift/README.md`
 - `tests/fixtures/sample_projects/sample_project_typescript/README.md`
+- `tests/fixtures/templated_iac_corpus/README.md`
 - `tests/fixtures/tfstate_drift/README.md`
 - `tests/fixtures/tfstate_drift_tier2/README.md`
 - `tests/fixtures/tfstate_drift_tier2/v25/README.md`
