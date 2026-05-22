@@ -125,6 +125,7 @@ branch. Regenerate them from
 | Package README Mid-Size Compression Batch C | Reduced 15 more package READMEs, preserving ownership, invariants, telemetry, focused tests, and package-specific correctness notes. |
 | Main Rebase Refresh At 48aae51 | Rebasing onto current `origin/main` preserved new package-registry query/schema truth while keeping the compressed public and package-doc structure. |
 | MCP Diagnostic Cypher Contract Restore | Restored the diagnostics-only raw Cypher cookbook section with scoped input and tool-level `limit` so MCP contract tests keep raw queries out of normal prompt flows. |
+| AWS SDK Adapter README Compression | Reduced eight AWS SDK adapter READMEs by removing repeated diagrams and shared dependency/telemetry prose while preserving each service's API allowlist, denylist, pagination, and redaction invariants. |
 
 ## Verification Snapshot
 

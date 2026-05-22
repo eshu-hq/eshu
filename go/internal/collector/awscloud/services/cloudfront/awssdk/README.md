@@ -12,15 +12,6 @@ mapping from AWS SDK response shapes into safe scanner projections. It does not
 emit fact envelopes, schedule claims, load credentials, or infer workload,
 environment, repository, or deployable-unit truth.
 
-```mermaid
-flowchart LR
-    Client[awssdk.Client] --> List[ListDistributions]
-    Client --> Tags[ListTagsForResource]
-    List --> Mapper[metadata mapper]
-    Tags --> Mapper
-    Mapper --> Port[cloudfront.Client]
-```
-
 The adapter pages `ListDistributions` with a bounded `MaxItems` value and calls
 `ListTagsForResource` for each distribution ARN. It maps only control-plane
 metadata already present in the distribution summary plus tags.
@@ -39,16 +30,15 @@ See `doc.go` for the godoc-rendered package contract.
 
 ## Dependencies
 
-- AWS SDK for Go v2 CloudFront client and CloudFront response types.
-- `internal/collector/awscloud` for boundaries and API-call status events.
-- `internal/collector/awscloud/services/cloudfront` for scanner-owned models.
-- `internal/telemetry` for shared AWS collector API-call metrics and spans.
+The adapter imports the AWS SDK for Go v2 CloudFront client and response types,
+`internal/collector/awscloud` boundary/status helpers, scanner-owned CloudFront
+models, and shared AWS telemetry.
 
 ## Telemetry
 
-Each AWS API call records the shared AWS collector call event and, when
-available, the shared API-call metric, throttle counter, and pagination span
-using the service, account, region, operation, and result labels.
+Each AWS API call records the shared AWS collector call event plus the API-call
+metric, throttle counter, and pagination span with bounded service, account,
+region, operation, and result labels.
 
 ## Gotchas / invariants
 
@@ -60,17 +50,6 @@ using the service, account, region, operation, and result labels.
 - Pagination must stay bounded with `listDistributionsLimit`.
 - Keep `recordAPICall` wrapped around every AWS operation so scan status and
   throttle counters stay useful.
-
-## Verification
-
-```bash
-go test ./internal/collector/awscloud/services/cloudfront/awssdk -count=1
-go test ./internal/collector/awscloud/services/cloudfront/... -count=1
-go run ./cmd/eshu docs verify ../go/internal/collector/awscloud/services/cloudfront/awssdk --limit 1000 \
-  --fail-on contradicted,missing_evidence
-```
-
-Run the AWS runtime tests when API-call status behavior changes.
 
 ## Related docs
 

@@ -14,17 +14,6 @@ This package owns SDK calls for ECR. It does not own workflow claims,
 credential acquisition, ECR fact selection, graph writes, reducer admission, or
 query behavior.
 
-```mermaid
-flowchart LR
-  A["aws.Config"] --> B["NewClient"]
-  B --> C["Client.ListRepositories"]
-  B --> D["Client.ListImages"]
-  B --> E["Client.GetLifecyclePolicy"]
-  C --> F["ecr.Repository"]
-  D --> G["ecr.Image"]
-  E --> H["ecr.LifecyclePolicy"]
-```
-
 ## Exported surface
 
 See `doc.go` for the godoc contract.
@@ -36,24 +25,17 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
-  labels.
-- `internal/collector/awscloud/checkpoint` for claim-fenced page resume state.
-- `internal/collector/awscloud/services/ecr` for scanner-owned result types.
-- `internal/telemetry` for AWS API call and throttle instruments.
-- AWS SDK for Go v2 `ecr` and Smithy error contracts.
+The adapter imports the AWS SDK for Go v2 ECR client, Smithy API errors,
+claim-fenced checkpoint storage, AWS boundary/status helpers, scanner-owned ECR
+result types, and shared AWS telemetry.
 
 ## Telemetry
 
-ECR paginator pages and point reads are wrapped with:
-
-- `aws.service.pagination.page`
-- `eshu_dp_aws_api_calls_total`
-- `eshu_dp_aws_throttle_total`
-
-Metric labels stay bounded to service, account, region, operation, and result.
-Repository ARNs, tags, lifecycle policy JSON, image digests, and raw AWS error
-payloads stay out of metric labels.
+ECR paginator pages and point reads record `aws.service.pagination.page`,
+`eshu_dp_aws_api_calls_total`, and `eshu_dp_aws_throttle_total`. Metric labels
+stay bounded to service, account, region, operation, and result. Repository
+ARNs, tags, lifecycle policy JSON, image digests, and raw AWS error payloads
+stay out of metric labels.
 
 ## Gotchas / invariants
 
