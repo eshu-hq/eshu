@@ -26,18 +26,26 @@ func TestRemoteE2EComposeDefinesCorpusPreflight(t *testing.T) {
 	}
 }
 
-func TestRemoteE2EExampleEnvRequestsFullCorpusPreflight(t *testing.T) {
+func TestRemoteE2EExampleEnvDefaultsToSmokeCorpusPreflight(t *testing.T) {
 	t.Parallel()
 
 	content := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
 	for _, want := range []string{
-		"ESHU_REMOTE_E2E_CORPUS_MODE=full",
-		"ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT=100",
-		"ESHU_FILESYSTEM_HOST_ROOT=/absolute/path/to/full-corpus",
+		"ESHU_REMOTE_E2E_CORPUS_MODE=smoke",
+		"ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT=0",
+		"ESHU_FILESYSTEM_HOST_ROOT=./tests/fixtures/ecosystems",
 		"ESHU_CANONICAL_WRITE_TIMEOUT=120s",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf(".env.remote-e2e.example missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{
+		"ESHU_REMOTE_E2E_CORPUS_MODE=full",
+		"ESHU_FILESYSTEM_HOST_ROOT=/absolute/path/to/full-corpus",
+	} {
+		if strings.Contains(content, forbidden) {
+			t.Fatalf(".env.remote-e2e.example should not default to full corpus value %q", forbidden)
 		}
 	}
 }

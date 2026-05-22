@@ -136,11 +136,18 @@ from the default stack even when both files are run from the same checkout.
 
 ```bash
 cp .env.remote-e2e.example .env.remote-e2e
-# Edit .env.remote-e2e with the real corpus root, account, region, state object, and ECR repo.
+# Edit .env.remote-e2e with the account, region, state object, and ECR repo.
 docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml --profile seed up --build
 ```
 
-For a full-corpus gate, keep `ESHU_REMOTE_E2E_CORPUS_MODE=full`, set
+The example env defaults to smoke mode:
+`ESHU_REMOTE_E2E_CORPUS_MODE=smoke`,
+`ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT=0`, and
+`ESHU_FILESYSTEM_HOST_ROOT=./tests/fixtures/ecosystems`. Use that path for
+collector-specific or configuration proofs where the corpus itself is not the
+thing under test.
+
+For a full-corpus gate, set `ESHU_REMOTE_E2E_CORPUS_MODE=full`, set
 `ESHU_FILESYSTEM_HOST_ROOT` to the absolute host path for that corpus, and set
 either `ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` or
 `ESHU_REMOTE_E2E_EXPECTED_REPOSITORY_COUNT`. The
