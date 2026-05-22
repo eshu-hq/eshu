@@ -123,6 +123,7 @@ func runDocsVerifyWithDeps(cmd *cobra.Command, args []string, deps docsVerifyDep
 		EnvironmentVariables:   docsVerifyEnvironmentTruth(opts.Path),
 		LocalPathResolver:      docsVerifyLocalPathResolver(opts.Path),
 		ContainerImageResolver: docsVerifyContainerImageResolver(cmd, opts),
+		TerraformResolver:      docsVerifyTerraformAddressResolver(opts.Path),
 		MaxDocuments:           opts.Limit,
 		MaxDocumentBytes:       opts.MaxDocumentBytes,
 		ScopeID:                persistSummary.ScopeID,
