@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -16,6 +17,7 @@ const (
 	packageRegistryDependenciesCapability = "package_registry.dependencies.list"
 	packageRegistryCorrelationsCapability = "package_registry.correlations.list"
 	packageRegistryMaxLimit               = 200
+	packageRegistryDependencyReadTimeout  = 10 * time.Second
 )
 
 // PackageRegistryHandler exposes graph-backed package registry identity reads.
@@ -290,7 +292,9 @@ func (h *PackageRegistryHandler) listDependencies(w http.ResponseWriter, r *http
 		afterDependencyID,
 		limit+1,
 	)
-	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
+	queryCtx, cancel := context.WithTimeout(r.Context(), packageRegistryDependencyReadTimeout)
+	defer cancel()
+	rows, err := h.Neo4j.Run(queryCtx, cypher, params)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -451,27 +455,28 @@ func packageRegistryDependenciesCypher(
 		"after_dependency_id": afterDependencyID,
 		"after_version_id":    afterVersionID,
 		"limit":               limit,
+		"package_id":          packageID,
+		"version_id":          versionID,
 	}
 	var match string
 	switch {
-	case packageID != "" && versionID != "":
-		match = "MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion {uid: $version_id})"
-		params["package_id"] = packageID
-		params["version_id"] = versionID
 	case versionID != "":
-		match = "MATCH (v:PackageVersion {uid: $version_id})"
-		params["version_id"] = versionID
+		match = `MATCH (d:PackageDependency)
+WHERE d.version_id = $version_id`
 	default:
-		match = "MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion)"
-		params["package_id"] = packageID
+		match = `MATCH (d:PackageDependency)
+WHERE d.package_id = $package_id`
 	}
 	return match + `
-MATCH (v)-[:DECLARES_DEPENDENCY]->(d:PackageDependency)-[:DEPENDS_ON_PACKAGE]->(target:Package)
+WITH d
+MATCH (d)-[:DEPENDS_ON_PACKAGE]->(target:Package)
 WHERE d.uid IS NOT NULL AND d.uid <> ''
   AND d.package_id IS NOT NULL AND d.package_id <> ''
   AND d.version_id IS NOT NULL AND d.version_id <> ''
   AND target.uid IS NOT NULL AND target.uid <> ''
-  AND ($after_version_id = '' OR v.uid > $after_version_id OR (v.uid = $after_version_id AND d.uid > $after_dependency_id))
+  AND ($package_id = '' OR d.package_id = $package_id)
+  AND ($version_id = '' OR d.version_id = $version_id)
+  AND ($after_version_id = '' OR d.version_id > $after_version_id OR (d.version_id = $after_version_id AND d.uid > $after_dependency_id))
 RETURN d.uid AS dependency_id,
        d.package_id AS source_package_id,
        d.version_id AS source_version_id,
@@ -491,6 +496,6 @@ RETURN d.uid AS dependency_id,
        d.collector_kind AS collector_kind,
        d.collector_instance_id AS collector_instance_id,
        d.correlation_anchors AS correlation_anchors
-ORDER BY v.uid, d.uid
+ORDER BY d.version_id, d.uid
 LIMIT $limit`, params
 }

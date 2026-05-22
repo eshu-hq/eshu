@@ -136,8 +136,9 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
   `PackageDependency`, `PackageRegistryPackage`,
   `PackageRegistryPackageVersion`, and `PackageRegistryPackageDependency`)
   receive `uid` constraints. Secondary indexes on package ecosystem, package
-  normalized name, and package-version parent ID keep bounded package query
-  surfaces from falling back to label scans.
+  normalized name, package-version parent ID, dependency package ID, and
+  dependency version ID keep bounded package query surfaces from falling back to
+  label scans.
 
 See `doc.go` for the godoc contract.
 

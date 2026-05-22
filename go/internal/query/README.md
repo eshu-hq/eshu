@@ -69,6 +69,11 @@ ecosystem, or version anchor, dependency lookup requires `package_id` or
 dependency truth only; correlation routes expose reducer-owned ownership
 candidates, provenance-only publication evidence, and admitted manifest-backed
 consumption without letting package source hints become ownership truth.
+Package dependency reads start from `PackageDependency.package_id` or
+`PackageDependency.version_id` before traversing to target packages, so sparse
+packages with many versions but no dependency rows return an empty bounded page
+instead of expanding every version first. A route-local read timeout caps the
+graph call for API and MCP callers.
 No-Regression Evidence: remote all-collector Compose proof on NornicDB
 `nornicdb-pr177-search-index-flags:80719f25520e` showed the package-list
 route returning `package_id:""` when the Cypher used `WITH p, count(v)`.
@@ -76,9 +81,26 @@ The diagnostics route proved the same package anchor returned scalar aliases
 correctly when the package-list query used direct `RETURN ... count(v)` without
 the intermediate `WITH`; focused coverage is
 `go test ./internal/query -run TestPackageRegistryListPackagesUsesIndexedPackageScopeAndTruncates -count=1`.
+No-Regression Evidence: PR #549 remote Compose proof returned
+`count=0,truncated=false` for lodash package dependencies through both API and
+MCP after package/version graph projection was fixed. The deterministic sparse
+read regression is
+`go test ./internal/query -run TestPackageRegistryListDependenciesReturnsEmptySparsePackageQuickly -count=1`,
+covering a package anchor with no dependency rows, a server-side graph-read
+deadline, and no package-version expansion before dependency discovery.
+No-Regression Evidence: the follow-up branch proof against the existing
+full-corpus remote Compose stack applied the two `PackageDependency` indexes to
+NornicDB, started branch-built API and MCP processes on isolated host ports, and
+queried lodash dependencies through both surfaces. API returned
+`count=0`, `truncated=false`, `limit=5` in `7ms`; MCP returned
+`Returned 0 result(s).` in `7ms`.
 No-Observability-Change: the package registry handler already wraps the route
-with `query.package_registry.packages`, GraphQuery spans, HTTP status/errors,
-truth envelope metadata, and response `count/limit/truncated` fields.
+with `query.package_registry.packages`,
+`query.package_registry_dependencies`, GraphQuery spans, HTTP status/errors,
+truth envelope metadata, and response `count/limit/truncated` fields. Empty
+dependency data is distinguishable from a slow or failed graph path by the
+successful HTTP status, exact truth envelope, and `count=0,truncated=false`
+payload.
 `CICDHandler` (`ci_cd.go:16`) reads reducer-owned CI/CD run correlation facts
 from Postgres. It requires an explicit scope, repository, commit, provider-run,
 artifact-digest, or environment anchor plus `limit`, and it keeps CI success,
