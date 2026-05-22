@@ -16,11 +16,22 @@ const (
 
 func init() {
 	for idx, name := range spanNames {
+		if name == SpanQueryServiceCatalogCorrelations {
+			spanNames = slices.Insert(
+				spanNames,
+				idx+1,
+				SpanQueryContainerImageIdentities,
+				SpanQuerySBOMAttestationAttachments,
+				SpanQuerySupplyChainImpactFindings,
+			)
+			return
+		}
+	}
+	for idx, name := range spanNames {
 		if name == SpanQueryCICDRunCorrelations {
 			spanNames = slices.Insert(
 				spanNames,
 				idx+1,
-				SpanQueryServiceCatalogCorrelations,
 				SpanQueryContainerImageIdentities,
 				SpanQuerySBOMAttestationAttachments,
 				SpanQuerySupplyChainImpactFindings,
@@ -30,7 +41,6 @@ func init() {
 	}
 	spanNames = append(
 		spanNames,
-		SpanQueryServiceCatalogCorrelations,
 		SpanQueryContainerImageIdentities,
 		SpanQuerySBOMAttestationAttachments,
 		SpanQuerySupplyChainImpactFindings,
