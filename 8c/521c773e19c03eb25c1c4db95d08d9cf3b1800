@@ -1,0 +1,48 @@
+go/cmd/collector-git/main.go
+  s_f2f7fbb6f30866::t_ca7c6987920009 63-75
+go/cmd/collector-terraform-state/main.go
+  s_f2f7fbb6f30866::t_ca7c6987920009 68-80
+go/internal/runtime/AGENTS.md
+  s_f2f7fbb6f30866::t_172a67def10fbc 94-96
+docs/docs/reference/local-testing.md
+  s_f2f7fbb6f30866::t_e77e90dba0c9e3 249-253,924-926,948-988
+go/cmd/collector-oci-registry/main.go
+  s_f2f7fbb6f30866::t_ca7c6987920009 64-76
+go/cmd/collector-aws-cloud/main.go
+  s_f2f7fbb6f30866::t_ca7c6987920009 63-75
+go/internal/runtime/compose_defaults_test.go
+  s_f2f7fbb6f30866::t_d3148ac4b2d45e 22
+go/cmd/workflow-coordinator/main.go
+  s_f2f7fbb6f30866::t_ca7c6987920009 50-62
+docs/docs/deployment/service-runtimes.md
+  s_f2f7fbb6f30866::t_8627429e914152 34-39,138
+docs/docs/run-locally/docker-compose.md
+  s_f2f7fbb6f30866::t_6c59dbe84d23d5 189-205,231-241
+docker-compose.remote-e2e.pprof.yaml
+  s_f2f7fbb6f30866::t_56f499511d113a 1-61
+docs/docs/reference/environment-variables.md
+  s_f2f7fbb6f30866::t_8dfe3d93c72943 35
+go/cmd/collector-package-registry/main.go
+  s_f2f7fbb6f30866::t_ca7c6987920009 63-75
+go/internal/runtime/compose_remote_e2e_test.go
+  s_f2f7fbb6f30866::t_444773f99307e9 162-185
+  s_f2f7fbb6f30866::t_55784d7c16c221 130-161,243-275
+go/cmd/collector-confluence/main.go
+  s_f2f7fbb6f30866::t_ca7c6987920009 63-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "8c521c773e19c03eb25c1c4db95d08d9cf3b1800",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
