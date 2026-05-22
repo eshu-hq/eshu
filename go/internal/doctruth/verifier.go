@@ -2,8 +2,6 @@ package doctruth
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"regexp"
 	"sort"
 	"strings"
@@ -21,6 +19,8 @@ const (
 	ClaimTypeEnvironmentVariable = "environment_variable"
 	// ClaimTypeLocalPath identifies documentation claims about local repo paths.
 	ClaimTypeLocalPath = "local_path"
+	// ClaimTypeContainerImageRef identifies documentation claims about explicit container image refs.
+	ClaimTypeContainerImageRef = "container_image_ref"
 	// ClaimTypeShellCommand identifies a shell command outside this verifier slice.
 	ClaimTypeShellCommand = "shell_command"
 
@@ -67,16 +67,17 @@ type DocumentInput struct {
 
 // VerifierOptions configures documentation verification truth sources and bounds.
 type VerifierOptions struct {
-	Commands             []CommandTruth
-	HTTPEndpoints        []HTTPEndpointTruth
-	EnvironmentVariables []string
-	LocalPathResolver    LocalPathResolver
-	MaxDocuments         int
-	MaxDocumentBytes     int
-	ScopeID              string
-	GenerationID         string
-	SourceSystem         string
-	Now                  func() time.Time
+	Commands               []CommandTruth
+	HTTPEndpoints          []HTTPEndpointTruth
+	EnvironmentVariables   []string
+	LocalPathResolver      LocalPathResolver
+	ContainerImageResolver ContainerImageResolver
+	MaxDocuments           int
+	MaxDocumentBytes       int
+	ScopeID                string
+	GenerationID           string
+	SourceSystem           string
+	Now                    func() time.Time
 }
 
 // VerificationSummary reports bounded verification counters.
@@ -130,16 +131,17 @@ type VerificationResult struct {
 
 // Verifier actively checks documentation claims against supplied truth sources.
 type Verifier struct {
-	commands     map[string]struct{}
-	endpoints    map[string]struct{}
-	envVars      map[string]struct{}
-	localPaths   LocalPathResolver
-	maxDocuments int
-	maxBytes     int
-	scopeID      string
-	generationID string
-	sourceSystem string
-	now          func() time.Time
+	commands        map[string]struct{}
+	endpoints       map[string]struct{}
+	envVars         map[string]struct{}
+	localPaths      LocalPathResolver
+	containerImages ContainerImageResolver
+	maxDocuments    int
+	maxBytes        int
+	scopeID         string
+	generationID    string
+	sourceSystem    string
+	now             func() time.Time
 }
 
 type extractedClaim struct {
@@ -156,16 +158,17 @@ func NewVerifier(options VerifierOptions) *Verifier {
 		now = func() time.Time { return time.Now().UTC() }
 	}
 	v := &Verifier{
-		commands:     map[string]struct{}{},
-		endpoints:    map[string]struct{}{},
-		envVars:      map[string]struct{}{},
-		localPaths:   options.LocalPathResolver,
-		maxDocuments: options.MaxDocuments,
-		maxBytes:     options.MaxDocumentBytes,
-		scopeID:      firstNonEmpty(options.ScopeID, "documentation-verify-local"),
-		generationID: firstNonEmpty(options.GenerationID, defaultGenerationID(now())),
-		sourceSystem: firstNonEmpty(options.SourceSystem, "local_docs"),
-		now:          now,
+		commands:        map[string]struct{}{},
+		endpoints:       map[string]struct{}{},
+		envVars:         map[string]struct{}{},
+		localPaths:      options.LocalPathResolver,
+		containerImages: options.ContainerImageResolver,
+		maxDocuments:    options.MaxDocuments,
+		maxBytes:        options.MaxDocumentBytes,
+		scopeID:         firstNonEmpty(options.ScopeID, "documentation-verify-local"),
+		generationID:    firstNonEmpty(options.GenerationID, defaultGenerationID(now())),
+		sourceSystem:    firstNonEmpty(options.SourceSystem, "local_docs"),
+		now:             now,
 	}
 	if v.maxDocuments <= 0 {
 		v.maxDocuments = defaultMaxDocuments
@@ -244,6 +247,9 @@ func extractClaims(content string) []extractedClaim {
 		for _, claim := range localPathClaimsFromMarkdownLinks(line, lineNumber+1) {
 			addExtractedClaim(lineClaims, claim)
 		}
+		for _, claim := range containerImageClaimsFromLine(line, lineNumber+1) {
+			addExtractedClaim(lineClaims, claim)
+		}
 		for _, match := range httpEndpointPattern.FindAllStringSubmatch(line, -1) {
 			addExtractedClaim(lineClaims, extractedClaim{
 				claimType:  ClaimTypeHTTPEndpoint,
@@ -290,6 +296,9 @@ func classifyClaim(raw string, line int) extractedClaim {
 	}
 	if localPath := normalizeLocalPathClaim(text); localPath != "" {
 		return extractedClaim{claimType: ClaimTypeLocalPath, text: text, normalized: localPath, line: line}
+	}
+	if imageRef := NormalizeContainerImageRefClaim(text); imageRef != "" {
+		return extractedClaim{claimType: ClaimTypeContainerImageRef, text: text, normalized: imageRef, line: line}
 	}
 	lower := strings.ToLower(text)
 	for _, prefix := range []string{"terraform ", "kubectl ", "helm ", "aws "} {
@@ -338,6 +347,20 @@ func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (Verific
 			break
 		}
 		resolution := v.localPaths(doc, claim.normalized)
+		if !resolution.Supported {
+			status = VerificationStatusMissingEvidence
+		} else if resolution.Exists {
+			status = VerificationStatusValid
+			truthLevel = string(TruthLevelExact)
+		} else {
+			status = VerificationStatusContradicted
+		}
+	case ClaimTypeContainerImageRef:
+		if v.containerImages == nil {
+			status = VerificationStatusUnsupportedClaimType
+			break
+		}
+		resolution := v.containerImages(doc, claim.normalized)
 		if !resolution.Supported {
 			status = VerificationStatusMissingEvidence
 		} else if resolution.Exists {
@@ -462,23 +485,4 @@ func (v *Verifier) evidencePacketPayload(
 			"permission_decision": "allowed",
 		},
 	}
-}
-
-func defaultGenerationID(now time.Time) string {
-	var randomBytes [12]byte
-	if _, err := rand.Read(randomBytes[:]); err == nil {
-		return "documentation-verify:" + now.UTC().Format(time.RFC3339Nano) + ":" + hex.EncodeToString(randomBytes[:])
-	}
-	return "documentation-verify:" + time.Now().UTC().Format(time.RFC3339Nano)
-}
-
-func (v *Verifier) version() string {
-	return v.now().UTC().Format(time.RFC3339Nano) + "#" + v.generationID
-}
-
-func canonicalDocumentURI(sourceSystem string, doc DocumentInput) string {
-	if uri := strings.TrimSpace(doc.SourceURI); uri != "" {
-		return uri
-	}
-	return strings.TrimSpace(sourceSystem) + ":" + strings.TrimSpace(doc.Path)
 }
