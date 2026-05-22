@@ -61,6 +61,41 @@ are extracted via `StringVal`, `BoolVal`, `IntVal`, `StringSliceVal`
 (`neo4j.go:120`). `ContentReader` methods (`content_reader.go:44`,
 `content_reader_entity.go:13`) issue parametrized Postgres queries against
 `content_files` and `content_entities`.
+`ImpactHandler` entity-map reads resolve a single typed anchor before graph
+traversal and then use relationship-family Cypher shapes. The default
+`depth=1` path emits a fixed set of direct one-hop
+`MATCH (start)-[rel:TYPE]->(entity)` and
+`MATCH (start)<-[rel:TYPE]-(entity)` reads rather than
+`MATCH path = ... *1..1` variable traversals. Repository anchors focus the
+default map on incoming deploys-from and config-reading consumers without
+expanding structural `CONTAINS` / `REPO_CONTAINS`, outgoing repository, or
+code-edge `CALLS` / `IMPORTS` families first. Explicit `relationship` filters
+still use the requested relationship type, including structural, outgoing, or
+code-edge families when an operator asks for them.
+No-Regression Evidence: issue #503 characterized the previous hosted positive
+repository-anchor path as `context deadline exceeded` while no-match controls
+returned quickly. The regression coverage
+`go test ./internal/query -run 'TestEntityMap' -count=1` now asserts repository
+anchors use direct typed relationship-family traversal, keep explicit
+`relationship=CONTAINS` support, backfill the requested type when a backend
+omits scalar relationship-type projections, avoid untyped one-hop fanout,
+preserve typed anchors, and keep deterministic `limit`/`truncated` response
+coverage.
+Performance Evidence: NornicDB source review classified the replacement shape
+against `docs/performance/hot-path-query-cookbook.md` section 6.5
+relationship-match start-node pruning. The affected stage is the graph-backed
+entity-map API/MCP read path, expected start cardinality is one resolved entity
+anchor, and the relationship-family fanout is a fixed list of known map
+relationships rather than data-dependent structural expansion. The bounded proof
+ladder is focused query tests, then hosted Compose API/CLI positive
+repository-anchor timing before EKS rollout. The stop threshold is any positive
+repository-anchor call still exceeding the normal CLI timeout or returning a
+different truth envelope from the same graph.
+No-Observability-Change: the route already emits `query.entity_map`, graph
+query spans, truth metadata, `coverage.query_shape`, `coverage.depth`,
+`coverage.limit`, relationship counts, relationship filters, and truncation;
+the new shape keeps those operator-visible fields and updates
+`coverage.query_shape` to identify the direct relationship-family path.
 `PackageRegistryHandler` (`package_registry.go:21`) keeps package-registry
 reads bounded: package and version identity lookups require a package,
 ecosystem, or version anchor, dependency lookup requires `package_id` or
@@ -297,7 +332,7 @@ The response is written with `WriteSuccess` when the caller sends
 `Accept: application/eshu.envelope+json`; this wraps the payload in a
 `ResponseEnvelope` containing `data`, `truth` (`TruthEnvelope`), and `error`
 fields. Without that header, `WriteJSON` emits the legacy payload directly.
-`BuildTruthEnvelope` (`contract.go:524`) constructs the `TruthEnvelope`; it
+`BuildTruthEnvelope` (`contract.go:547`) constructs the `TruthEnvelope`; it
 panics if the capability string is not in `capabilityMatrix`.
 Repository runtime artifacts parse Dockerfile stage metadata through
 `buildDockerfileRuntimeArtifacts`, including base image, base tag, build
@@ -429,7 +464,7 @@ normalized to `c_sharp` before candidate scanning.
   helpers (`handler.go`)
 - `AuthMiddleware` — bearer-token middleware used by `cmd/api` (`auth.go:30`)
 - `BuildTruthEnvelope` — builds a `TruthEnvelope` from profile, capability, and
-  basis; panics on unknown capability (`contract.go:524`)
+  basis; panics on unknown capability (`contract.go:547`)
 - `ParseQueryProfile`, `NormalizeQueryProfile`, `ParseGraphBackend` — input
   validation helpers (`contract.go`)
 
@@ -536,7 +571,7 @@ wired in `cmd/api/wiring.go`, not here.
   `truth.profiles.required` in the response envelope for the minimum profile,
   then verify the ESHU_QUERY_PROFILE env var in the running API.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
-  a capability string not in `capabilityMatrix` (`contract.go:524`). Add missing
+  a capability string not in `capabilityMatrix` (`contract.go:547`). Add missing
   capability IDs to `capabilityMatrix` before shipping new handlers.
 - `code_quality.dead_code` is a derived query unless the language maturity row
   says otherwise. Handler changes must preserve `classification`,
@@ -608,7 +643,7 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 ## Gotchas / invariants
 
 - `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
-  (`contract.go:524`). All capability strings used in handlers must be registered
+  (`contract.go:547`). All capability strings used in handlers must be registered
   in that map before the handler can be called safely.
 - The unexported `capabilityUnsupported` returns true when `maxTruthLevel` returns
   `nil` for the current profile; a nil max-truth means the capability is

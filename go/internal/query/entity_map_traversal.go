@@ -7,6 +7,42 @@ import (
 	"strings"
 )
 
+var entityMapDefaultOutgoingRelationships = []string{
+	"DEPENDS_ON",
+	"USES",
+	"USES_MODULE",
+	"PROVISIONS_DEPENDENCY_FOR",
+	"READS_CONFIG_FROM",
+	"CALLS",
+	"IMPORTS",
+	"RUNS_ON",
+}
+
+var entityMapRepositoryOutgoingRelationships []string
+
+var entityMapDefaultIncomingRelationships = []string{
+	"DEFINES",
+	"CONTAINS",
+	"REPO_CONTAINS",
+	"DEPLOYS_FROM",
+	"HAS_DEPLOYMENT_EVIDENCE",
+	"DEPENDS_ON",
+	"USES",
+	"USES_MODULE",
+	"PROVISIONS_DEPENDENCY_FOR",
+	"READS_CONFIG_FROM",
+	"CALLS",
+	"IMPORTS",
+	"RUNS_ON",
+}
+
+var entityMapRepositoryIncomingRelationships = []string{
+	"DEPLOYS_FROM",
+	"HAS_DEPLOYMENT_EVIDENCE",
+	"PROVISIONS_DEPENDENCY_FOR",
+	"READS_CONFIG_FROM",
+}
+
 func (h *ImpactHandler) entityMapNeighborhoodRows(
 	ctx context.Context,
 	req entityMapRequest,
@@ -17,8 +53,8 @@ func (h *ImpactHandler) entityMapNeighborhoodRows(
 	}
 	rows := make([]map[string]any, 0, req.Limit)
 	truncated := false
-	for _, direction := range []string{"outgoing", "incoming"} {
-		cypher := entityMapTraversalCypher(selected, direction, req.Relationship, req.Depth)
+	for _, traversal := range entityMapTraversalSpecs(selected, req) {
+		cypher := entityMapTraversalCypher(selected, traversal.direction, traversal.relationship, req.Depth)
 		nextRows, err := h.Neo4j.Run(ctx, cypher, map[string]any{
 			"from_id":     selected.AnchorValue,
 			"environment": req.Environment,
@@ -26,7 +62,7 @@ func (h *ImpactHandler) entityMapNeighborhoodRows(
 			"limit":       req.Limit + 1,
 		})
 		if err != nil {
-			return nil, false, fmt.Errorf("load %s entity map neighborhood: %w", direction, err)
+			return nil, false, fmt.Errorf("load %s entity map neighborhood: %w", traversal.direction, err)
 		}
 		if len(nextRows) > req.Limit {
 			truncated = true
@@ -39,14 +75,44 @@ func (h *ImpactHandler) entityMapNeighborhoodRows(
 		truncated = true
 		rows = rows[:req.Limit]
 	}
-	return entityMapRelationshipMaps(rows), truncated, nil
+	return entityMapRelationshipMaps(rows, req.Relationship), truncated, nil
+}
+
+type entityMapTraversalSpec struct {
+	direction    string
+	relationship string
+}
+
+func entityMapTraversalSpecs(selected entityMapCandidate, req entityMapRequest) []entityMapTraversalSpec {
+	if req.Depth > 1 || req.Relationship != "" {
+		return []entityMapTraversalSpec{
+			{direction: "outgoing", relationship: req.Relationship},
+			{direction: "incoming", relationship: req.Relationship},
+		}
+	}
+	specs := make([]entityMapTraversalSpec, 0,
+		len(entityMapDefaultOutgoingRelationshipTypes(selected))+len(entityMapDefaultIncomingRelationshipTypes(selected)))
+	for _, relationship := range entityMapDefaultOutgoingRelationshipTypes(selected) {
+		specs = append(specs, entityMapTraversalSpec{direction: "outgoing", relationship: relationship})
+	}
+	for _, relationship := range entityMapDefaultIncomingRelationshipTypes(selected) {
+		specs = append(specs, entityMapTraversalSpec{direction: "incoming", relationship: relationship})
+	}
+	return specs
+}
+
+func entityMapDefaultOutgoingRelationshipTypes(selected entityMapCandidate) []string {
+	if selected.AnchorLabel == "Repository" {
+		return entityMapRepositoryOutgoingRelationships
+	}
+	return entityMapDefaultOutgoingRelationships
 }
 
 func entityMapTraversalCypher(selected entityMapCandidate, direction string, relationship string, depth int) string {
-	relationshipPattern := "rels"
-	if relationship != "" {
-		relationshipPattern = "rels:" + relationship
+	if depth <= 1 {
+		return entityMapDirectTraversalCypher(selected, direction, relationship)
 	}
+	relationshipPattern := entityMapVariableRelationshipPattern(selected, direction, relationship)
 	edge := fmt.Sprintf("(start)-[%s*1..%d]->(entity)", relationshipPattern, depth)
 	if direction == "incoming" {
 		edge = fmt.Sprintf("(start)<-[%s*1..%d]-(entity)", relationshipPattern, depth)
@@ -63,14 +129,68 @@ RETURN DISTINCT coalesce(entity.id, entity.uid, entity.resource_id, entity.path,
        [rel IN relationships(path) | type(rel)] AS relationship_types,
        coalesce(entity.repo_id, entity.id, '') AS repo_id,
        coalesce(entity.environment, '') AS environment
-ORDER BY depth, entity.name, entity_id
+ORDER BY depth, entity_name, entity_id
 LIMIT $limit`, selected.AnchorLabel, selected.AnchorProperty, edge, direction)
 }
 
-func entityMapRelationshipMaps(rows []map[string]any) []map[string]any {
+func entityMapDirectTraversalCypher(selected entityMapCandidate, direction string, relationship string) string {
+	edge := fmt.Sprintf("(start)-[%s]->(entity)", entityMapDirectRelationshipPattern(selected, direction, relationship))
+	if direction == "incoming" {
+		edge = fmt.Sprintf("(start)<-[%s]-(entity)", entityMapDirectRelationshipPattern(selected, direction, relationship))
+	}
+	return fmt.Sprintf(`MATCH (start:%s {%s: $from_id})
+MATCH %s
+WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
+  AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR entity.repo_id = $repo_id OR (entity:Repository AND entity.id = $repo_id))
+RETURN DISTINCT coalesce(entity.id, entity.uid, entity.resource_id, entity.path, entity.name) AS entity_id,
+       coalesce(entity.name, entity.address, entity.qualified_name, entity.path, entity.id, entity.uid) AS entity_name,
+       labels(entity) AS entity_labels,
+       %q AS direction,
+       1 AS depth,
+       %q AS relationship_type,
+       coalesce(entity.repo_id, entity.id, '') AS repo_id,
+       coalesce(entity.environment, '') AS environment
+ORDER BY depth, entity_name, entity_id
+LIMIT $limit`, selected.AnchorLabel, selected.AnchorProperty, edge, direction, relationship)
+}
+
+func entityMapDirectRelationshipPattern(selected entityMapCandidate, direction string, relationship string) string {
+	return "rel:" + entityMapRelationshipTypes(selected, direction, relationship)
+}
+
+func entityMapVariableRelationshipPattern(selected entityMapCandidate, direction string, relationship string) string {
+	return "rels:" + entityMapRelationshipTypes(selected, direction, relationship)
+}
+
+func entityMapRelationshipTypes(selected entityMapCandidate, direction string, relationship string) string {
+	if relationship != "" {
+		return relationship
+	}
+	if direction == "incoming" {
+		return strings.Join(entityMapDefaultIncomingRelationshipTypes(selected), "|")
+	}
+	return strings.Join(entityMapDefaultOutgoingRelationships, "|")
+}
+
+func entityMapDefaultIncomingRelationshipTypes(selected entityMapCandidate) []string {
+	if selected.AnchorLabel == "Repository" {
+		return entityMapRepositoryIncomingRelationships
+	}
+	return entityMapDefaultIncomingRelationships
+}
+
+func entityMapRelationshipMaps(rows []map[string]any, fallbackRelationship string) []map[string]any {
 	relationships := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		types := StringSliceVal(row, "relationship_types")
+		if len(types) == 0 {
+			if relationshipType := StringVal(row, "relationship_type"); relationshipType != "" {
+				types = []string{relationshipType}
+			}
+		}
+		if len(types) == 0 && fallbackRelationship != "" {
+			types = []string{fallbackRelationship}
+		}
 		relationshipType := ""
 		if len(types) > 0 {
 			relationshipType = types[len(types)-1]

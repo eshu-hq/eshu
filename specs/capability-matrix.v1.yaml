@@ -387,9 +387,9 @@ capabilities:
     tools: [entity_map]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-entity-map}], notes: requires authoritative graph truth}
-      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: typed entity resolver plus bounded graph neighborhood traversal}
-      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{compose_e2e: entity-map}], notes: typed entity resolver plus bounded graph neighborhood traversal}
-      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-entity-map}], notes: typed entity resolver plus bounded graph neighborhood traversal}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: typed entity resolver plus bounded relationship-family graph traversal}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{compose_e2e: entity-map}], notes: typed entity resolver plus bounded relationship-family graph traversal}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-entity-map}], notes: typed entity resolver plus bounded relationship-family graph traversal}
   - capability: platform_impact.blast_radius
     tools: [find_blast_radius]
     profiles:
