@@ -67,8 +67,8 @@ or create a new method on `bootstrapCommitter` and wire it after
 All NornicDB knobs are in `nornicdb_wiring.go`. Add or change a constant in the
 `const` block, read the env var via `nornicDBPositiveIntEnv`, and pass the value
 through `bootstrapNornicDBPhaseGroupExecutor`. Update
-  `docs/public/reference/nornicdb-tuning.md` and the active NornicDB ADR in the
-  same PR.
+`docs/public/reference/nornicdb-tuning.md` and
+`docs/public/reference/nornicdb-tuning-evidence.md` in the same PR.
 
 ### Change projection worker count behavior
 
@@ -114,7 +114,7 @@ concurrency reference table in
   queue has already moved the stale generation out of the live backlog. The
   worker must return to the claim loop so the newer generation can run.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - The four-phase ordering in `runPipelined`.
 - The `bootstrapCommitter` interface — adding a method changes the contract with

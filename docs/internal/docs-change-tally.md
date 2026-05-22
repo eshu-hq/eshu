@@ -107,6 +107,10 @@ branch. Regenerate them from
 | Fixture README Compression | Reduced Terraform-state drift, Tier-2 drift, JavaScript sample, and dead-code fixture READMEs to assertion-focused fixture contracts while preserving verifier-backed scenario coverage. |
 | Package README Long-Tail Compression | Reduced 15 command/internal package READMEs from 2,657 to 1,014 lines, keeping ownership, invariants, telemetry, focused tests, and links to public contracts while removing duplicated package maps and historical dumps. |
 | Public Docs Long-Tail Compression | Reduced Compose, architecture, telemetry trace/log, and Helm values pages by removing repeated examples and symbol dumps while keeping operator contracts and links to focused references. |
+| Sample Fixture README Compression | Rewrote C, C#, Java, PHP, and Swift sample-project READMEs as fixture contracts instead of runnable app guides, correcting stale paths and filenames. |
+| Public Reference Follow-Up Compression | Reduced CLI indexing, NornicDB tuning evidence, and core service runtime pages while preserving distinct MCP cookbook, CLI reference, and tuning reader jobs. |
+| Scoped AGENTS Current-Docs Repair | Replaced stale ADR phrasing in scoped agent guidance with current-doc and architecture-owner language while preserving mandatory accuracy, performance, concurrency, telemetry, and proof rules. |
+| Package README Follow-Up Compression | Reduced 15 more command/internal package READMEs from 2,014 to 1,115 lines while preserving package ownership, invariants, telemetry, focused tests, and current public-doc links. |
 
 ## Verification Snapshot
 

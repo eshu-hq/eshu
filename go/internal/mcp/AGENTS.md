@@ -142,7 +142,7 @@
 - **Skipping the dispatch route test** — this is the main
   guard against orphaned tool definitions. Do not remove or disable it.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - `ReadOnlyTools` output (tool names, required fields) — removing or renaming a
   tool is a breaking change for all MCP clients; coordinate with the MCP guide

@@ -64,8 +64,9 @@
 - **Add a new env var to `Config`** → add the field to `Config` in `config.go`,
   read it in `LoadConfig`, add validation in `Config.Validate`; update
   `go/internal/runtime/config_test.go` with both a valid and invalid case;
-  update `docs/public/reference/cli-reference.md` or the docker-compose docs
-  if the var affects the Compose contract; run
+  update `docs/public/reference/cli-reference.md` or
+  `docs/public/run-locally/docker-compose.md` if the var affects the Compose
+  contract; run
   `go test ./internal/runtime -count=1`.
 
 - **Add a new admin route to `NewStatusAdminServer`** → add a new
@@ -85,7 +86,9 @@
 - **Add a new graph backend** → add a `GraphBackend` constant in
   `data_stores.go`; add a case in `LoadGraphBackend`'s switch; add a case in
   `OpenNeo4jDriver` if it uses Bolt; add a test in `data_stores_test.go`;
-  update the NornicDB ADR and the embedded-local-backends ADR. Do not add
+  update `docs/public/reference/backend-conformance.md`,
+  `docs/public/reference/graph-backend-operations.md`, and
+  `docs/public/reference/graph-backend-installation.md`. Do not add
   `if backend == ...` branches outside documented narrow seams.
 
 - **Expose pprof from another binary** → call `NewPprofServer(os.Getenv)`
@@ -149,7 +152,7 @@
   values after `OpenPostgres` override the shared contract and produce
   inconsistent behavior across binaries.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - `LoadGraphBackend` accepted values — adding or removing a valid backend
   string changes the deployment contract for all binaries. Update

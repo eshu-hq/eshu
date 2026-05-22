@@ -147,7 +147,7 @@ before touching any file in this directory.
   `stableIntentID` without auditing all in-flight intents in the Postgres
   shared-intent table.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - The `deployment_mapping` Phase 3 reopen requirement.
 - The domain `OwnershipShape` invariants (cross-source, cross-scope,

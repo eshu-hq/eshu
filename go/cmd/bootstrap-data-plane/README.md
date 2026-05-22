@@ -2,136 +2,75 @@
 
 ## Purpose
 
-`eshu-bootstrap-data-plane` applies all Postgres and graph-backend schema
-DDL then exits. It decouples schema migration from data population so the
-API, MCP, ingester, and reducer come up against an empty-but-valid schema
-while `bootstrap-index` or `ingester` populates data.
+`cmd/bootstrap-data-plane` wires the `eshu-bootstrap-data-plane` binary. It
+applies Eshu's Postgres schema and configured graph-backend schema, records the
+graph schema fingerprint, and exits before long-running runtimes start.
 
 ## Ownership boundary
 
-This binary owns DDL orchestration only. Postgres table definitions live in
-`internal/storage/postgres/`. Graph schema bootstrap lives in
-`internal/graph/` and is applied through `graph.EnsureSchemaWithBackendStrict`
-so any rejected DDL keeps the graph marker unset for the next retry.
-The only row this binary writes is the Postgres graph schema application marker,
-which records that the exact backend/fingerprint pair completed successfully.
-The binary writes no application data and does not stay resident.
+The command owns startup config, telemetry/bootstrap logging, Postgres
+bootstrap invocation, graph backend opening, strict schema application,
+per-statement graph DDL deadlines, schema fingerprint adoption/marking, and
+idempotent one-shot exit behavior.
 
-## Entry points
+It does not ingest repositories, drain queues, project facts, or run API/MCP
+services.
 
-- `main` and `run` in `go/cmd/bootstrap-data-plane/main.go`
-- single-process binary; no subcommands
-- `eshu-bootstrap-data-plane --version` and `eshu-bootstrap-data-plane -v` print
-  the build-time version through `buildinfo.PrintVersionFlag` before opening
-  Postgres or the graph backend
+## Exported surface
 
-## Configuration
+This is a `main` package. Use `go doc -cmd ./cmd/bootstrap-data-plane` for the
+package contract. Maintainer-facing surfaces are `run`, schema adoption helpers,
+graph schema marker helpers, config parsing, and command tests.
 
-Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
-`runtime.LoadGraphBackend`:
+## Dependencies
 
-- ESHU_POSTGRES_DSN
-- ESHU_GRAPH_BACKEND — `neo4j` or `nornicdb`
-- ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT — per graph DDL statement timeout,
-  default `2m`
-- ESHU_GRAPH_SCHEMA_ADOPT_EXISTING — controls existing-schema adoption when the
-  Postgres graph schema marker is missing. Unset defaults to opportunistic
-  adoption for NornicDB and disabled adoption for Neo4j. Truthy values require
-  inspection support for either backend. False values disable adoption. Adoption
-  inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`; if every current schema object
-  already exists, it marks the backend/fingerprint as applied and skips the DDL
-  pass. The inspection uses the ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT budget.
-- NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
-- DEFAULT_DATABASE
-
-Invalid ESHU_GRAPH_BACKEND values fail with `unsupported graph backend for
-schema`. Invalid or non-positive ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT values fail
-before any DDL runs. When existing-schema adoption runs, schema inspection
-errors fail closed instead of falling back to live DDL.
+- `internal/storage/postgres` applies fact-store, queue, content, and audit DDL.
+- Graph runtime/storage packages open Neo4j or NornicDB.
+- `internal/graph` applies strict backend schema.
+- `internal/runtime` supplies config helpers.
+- `internal/telemetry` supplies startup logs and service identity.
 
 ## Telemetry
 
-Uses the shared telemetry bootstrap and the structured logger scoped to
-`bootstrap`/component `bootstrap-data-plane`. No OTEL metric or trace providers
-are registered. Lifecycle events use `telemetry.EventAttr`:
-`runtime.startup.failed`, `bootstrap.schema.started`,
-`bootstrap.postgres.applied`, `bootstrap.graph.applied`, and
-`bootstrap.graph.skipped` (with `graph_backend`, `schema_fingerprint`, and
-`statement_count` when graph DDL is skipped). Existing-schema adoption emits
-`bootstrap.graph.adoption_incomplete` when objects are missing and
-`bootstrap.graph.adopted` when the backend schema is complete enough to mark.
-Graph DDL also emits one
-structured `graph schema statement applying` and one terminal
-`graph schema statement applied` or `graph schema statement failed` log per
-statement, including backend, phase, statement index, statement total, duration,
-failure class, and a bounded schema statement summary.
+Structured logs report startup, Postgres schema applied, graph schema skipped,
+graph schema applied, and startup failure events. Graph DDL statements run under
+a per-statement deadline so failures name the stuck phase instead of waiting for
+outer Compose or Kubernetes timeouts.
 
 ## Gotchas / invariants
 
-- idempotent: every DDL statement is `CREATE ... IF NOT EXISTS`
-- after a successful graph schema apply, the binary marks the backend and schema
-  fingerprint in Postgres. A later run with the same fingerprint skips graph DDL
-  instead of asking NornicDB to re-check every constraint/index against a
-  populated graph.
-- existing-schema adoption is automatic for NornicDB when the Postgres marker is
-  missing. It is for deployments that already have the complete graph schema but
-  lack the Postgres fingerprint marker, such as upgrades from older chart/image
-  combinations. It compares the expected schema object names to
-  `SHOW CONSTRAINTS` and `SHOW INDEXES` before writing the marker. Set
-  `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING=false` only when an operator intentionally
-  wants to force the live DDL pass.
-- version probes are pre-startup checks; keep `buildinfo.PrintVersionFlag` at
-  the top of `main` so deployment diagnostics do not run DDL
-- each graph DDL statement runs under `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT`
-  (default `2m`); context deadline or cancellation fails fast instead of
-  continuing through the rest of the schema list
-- graph driver close uses a 10-second timeout; close errors are joined into
-  the run result via `errors.Join`
-- exits non-zero if either Postgres or graph DDL fails; no partial apply. The
-  graph marker is written only after every graph DDL statement succeeds.
-- `neo4jSchemaExecutor` runs DDL in a write session against the configured
-  database name; do not point it at a read replica
+- `--version` and `-v` must exit before opening stores.
+- Postgres DDL runs before graph DDL; long-running services depend on both.
+- Graph schema markers let preserved-volume restarts skip already-applied graph
+  DDL only after the fingerprint has been verified or applied.
+- Existing-schema adoption is automatic for NornicDB when the Postgres marker is
+  missing. `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING=false` forces live DDL.
+- Adoption compares expected schema object names to `SHOW CONSTRAINTS` and
+  `SHOW INDEXES`; failed adoption must not mark the schema as applied.
+- DDL must remain idempotent. This command is safe as a Kubernetes Job or
+  Compose `db-migrate` service.
 
-No-Regression Evidence: `go test ./cmd/bootstrap-data-plane -run
-'TestRun(SkipsGraphSchemaWhenFingerprintAlreadyApplied|AppliesAndMarksGraphSchemaWhenFingerprintMissing|DoesNotMarkGraphSchemaAfterApplyFailure|AdoptsExistingNornicDBGraphSchemaByDefaultWhenMarkerMissing|CanDisableDefaultNornicDBGraphSchemaAdoption|DoesNotDefaultAdoptNeo4jGraphSchema|AdoptsExistingGraphSchemaWhenMarkerMissing|AppliesGraphSchemaWhenAdoptionFindsMissingObjects|FailsWhenAdoptionInspectionFails)'`
-proves same-fingerprint restarts skip graph DDL, missing markers still apply and
-record graph schema completion, and failed graph DDL never records a successful
-marker. The adoption cases prove complete existing NornicDB graph schema marks
-and skips by default, operators can disable that default, Neo4j keeps its
-existing default DDL path, missing graph schema falls back to DDL, and failed
-schema inspection does not blindly run DDL against a live graph. `go test
-./internal/graph -run
-TestEnsureSchemaWithBackendStrictReturnsStatementFailures` proves the strict
-data-plane path returns a non-context schema failure instead of warning and
-continuing to the marker write. Existing focused unit coverage proves generic
-DDL errors still log as warnings for non-strict callers, while context
-deadline/cancellation stops schema bootstrap after the failing statement instead
-of burning the whole schema list.
-Remote Compose preserved-volume restart evidence on 2026-05-19 logged
-`bootstrap.graph.skipped` with `statement_count=209`, restarted the stack in
-about 2m38s, and left projector/reducer queues terminal with no failed,
-retrying, or dead-letter rows.
+## Evidence kept here
 
-Performance Evidence: on 2026-05-23, a hosted EKS schema bootstrap against a
-retained NornicDB graph without a matching Postgres marker completed
-successfully but took 3h52m because repeated `CREATE CONSTRAINT ... IF NOT
-EXISTS` statements spent roughly 77s-102s each refreshing existing constraint
-state. Default NornicDB adoption changes that marker-missing retained-graph path
-to two bounded schema metadata reads plus one marker write when all expected
-objects already exist.
+No-Regression Evidence: `go test ./cmd/bootstrap-data-plane -count=1` covers
+Postgres and graph schema application, backend selection, marker skip/adoption
+behavior, timeout validation, and error joining.
 
-Observability Evidence: `bootstrap.graph.skipped` tells operators that a
-preserved-volume restart reused the recorded graph schema fingerprint.
-`bootstrap.graph.adopted` and `bootstrap.graph.adoption_incomplete` expose the
-backend, schema fingerprint, expected object count, actual object count, and a
-bounded missing-object sample before any adoption decision is made. Focused
-schema-progress and statement-timeout tests cover the structured per-statement
-logs and the bootstrap-level timeout wrapper that operators use to see which
-graph schema statement is slow or blocked.
+Observability Evidence: `bootstrap.graph.skipped`,
+`bootstrap.graph.applied`, `bootstrap.graph.adopted`,
+`bootstrap.graph.adoption_incomplete`, and startup-failure logs expose whether
+startup skipped, adopted, applied, or failed graph schema work.
+
+## Focused tests
+
+```bash
+go test ./cmd/bootstrap-data-plane -count=1
+go doc -cmd ./cmd/bootstrap-data-plane
+```
 
 ## Related docs
 
-- [Service runtimes — Schema Bootstrap](../../../docs/public/deployment/service-runtimes.md#schema-bootstrap)
-- [Docker Compose deployment](../../../docs/public/run-locally/docker-compose.md)
-- [Helm quickstart](../../../docs/public/deploy/kubernetes/helm-quickstart.md)
-- [CLI reference](../../../docs/public/reference/cli-reference.md)
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/run-locally/docker-compose.md`
+- `docs/public/deploy/kubernetes/helm-quickstart.md`
+- `docs/public/reference/cli-reference.md`

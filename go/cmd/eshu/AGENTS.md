@@ -122,7 +122,7 @@
   have integration-level tests in `local_host_supervision_test.go` and
   `service_local_test.go`. New hidden commands need coverage before merging.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - The `local-host watch` and `local-host mcp-stdio` subcommand contract — the
   `eshu mcp start` and `eshu graph start` paths hard-code these subcommand names

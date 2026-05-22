@@ -146,7 +146,7 @@
   the graph schema. Entries without schema support produce nodes that violate
   the conformance matrix.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - `CanonicalWriter` interface shape — changing the signature breaks every caller
   and the backend-neutral contract. Update backend conformance evidence in

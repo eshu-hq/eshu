@@ -1,70 +1,26 @@
-# Sample C# Project for Eshu
+# C# Parser Fixture
 
-This is a sample C# project used for testing the Eshu C# parser.
+This fixture exercises the C# parser against a small project with one
+`Example.App` assembly. It is test data, not an example application.
 
-## Project Structure
+## Fixture Map
 
-```
-sample_project_csharp/
-├── src/
-│   └── Example.App/
-│       ├── Program.cs                    # Main entry point
-│       ├── OuterClass.cs                 # Nested class example
-│       ├── Models/
-│       │   ├── User.cs                   # User class
-│       │   ├── Role.cs                   # Role enum
-│       │   ├── Person.cs                 # Record types
-│       │   └── Point.cs                  # Struct types
-│       ├── Services/
-│       │   ├── IGreetingService.cs       # Interface
-│       │   ├── GreetingService.cs        # Service implementation
-│       │   └── LegacyService.cs          # Service with attributes
-│       ├── Utils/
-│       │   ├── CollectionHelper.cs       # Collection utilities
-│       │   └── FileHelper.cs             # File I/O utilities
-│       └── Attributes/
-│           └── CustomAttributes.cs       # Custom attribute definitions
-└── README.md                             # This file
-```
+| Path | Parser surface |
+| --- | --- |
+| `src/Example.App/Program.cs` | entry point, object creation, service calls |
+| `src/Example.App/OuterClass.cs` | nested classes |
+| `src/Example.App/Models/*.cs` | classes, enums, records, structs, operators |
+| `src/Example.App/Services/*.cs` | interfaces, implementations, attributes |
+| `src/Example.App/Utils/*.cs` | static helpers, generics, LINQ, file I/O calls |
+| `src/Example.App/Attributes/*.cs` | custom attribute definitions |
 
-## Features Demonstrated
+## What Tests Should Prove
 
-### Language Constructs
-- **Classes**: Regular classes with constructors, methods, and properties
-- **Interfaces**: Interface definitions and implementations
-- **Enums**: Enumeration types
-- **Records**: C# 9.0+ record types with inheritance
-- **Structs**: Value types including readonly structs
-- **Nested Classes**: Inner classes with access to outer class members
-- **Static Classes**: Utility classes with static methods
-
-### Advanced Features
-- **Custom Attributes**: Attribute definitions and usage
-- **Generics**: Generic collections (IEnumerable<T>)
-- **LINQ**: Language Integrated Query operations
-- **Properties**: Auto-properties and computed properties
-- **Operator Overloading**: Custom operators for structs
-- **Pattern Matching**: Switch expressions
-- **Namespaces**: Organized code structure
-
-### Method Types
-- Constructors (default and parameterized)
-- Instance methods
-- Static methods
-- Private helper methods
-- Methods with attributes
-
-### Dependencies
-- System namespaces (System, System.Collections.Generic, System.IO, System.Linq)
-- Internal project references
-
-## Purpose
-
-This project is designed to test the C# parser's ability to:
-1. Parse class, interface, struct, enum, and record declarations
-2. Extract method signatures and parameters
-3. Identify using directives and imports
-4. Track method calls and object creation
-5. Handle nested classes and namespaces
-6. Recognize custom attributes
-7. Build accurate code graphs for C# projects
+- Namespace and type discovery stay stable across classes, interfaces,
+  records, structs, enums, nested classes, and static classes.
+- Method signatures, constructors, properties, and private helpers are
+  discoverable without inventing calls.
+- `using` directives, internal project references, object creation, LINQ calls,
+  and attribute usage produce the expected graph facts.
+- Parser changes preserve fixture intent without depending on a real build or
+  runtime execution.

@@ -85,7 +85,7 @@
   deployed long-running collector is `ingester`, which mounts the workspace
   PVC. `collector-git` is the local verification lane only.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - The `/healthz`, `/readyz`, `/metrics`, and `/admin/status` endpoints mounted
   by `app.NewHostedWithStatusServer` — these are part of the shared operator

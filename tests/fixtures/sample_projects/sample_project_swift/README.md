@@ -1,51 +1,22 @@
-# Swift Sample Project
+# Swift Parser Fixture
 
-This is a sample Swift project for testing the Eshu Swift parser.
+This fixture exercises Swift parser coverage with a small source-only project.
+It is test data, not an application walkthrough.
 
-## Files
+## Fixture Map
 
-### Main.swift
-- **Main** class with a `run()` method
-- **Calculator** class with basic arithmetic operations
-- Demonstrates class instantiation and method calls
+| File | Parser surface |
+| --- | --- |
+| `Main.swift` | entry point, class instantiation, method calls |
+| `User.swift` | protocol, struct conformance, extension |
+| `Shapes.swift` | protocol conformance across classes and structs |
+| `Vehicles.swift` | enums, associated values, inheritance, overrides |
+| `Generics.swift` | generic types, generic functions, associated types |
 
-### User.swift
-- **Greeter** protocol defining a greeting interface
-- **User** struct conforming to the Greeter protocol
-- Extension on User struct adding additional functionality
-- Demonstrates protocols, structs, and extensions
+## What Tests Should Prove
 
-### Shapes.swift
-- **Shape** protocol defining area and perimeter methods
-- **Circle** class implementing Shape
-- **Rectangle** struct implementing Shape
-- **Triangle** class implementing Shape
-- Demonstrates protocol conformance with multiple types
-
-### Vehicles.swift
-- **VehicleType** enum with different vehicle types
-- **Result** enum with associated values (generic)
-- **Vehicle** base class
-- **Car** class inheriting from Vehicle
-- Demonstrates enums, inheritance, and method overriding
-
-### Generics.swift
-- **Stack** generic class implementing a stack data structure
-- Generic `swap` function
-- **Container** protocol with associated type
-- **IntCollection** struct conforming to Container
-- Demonstrates Swift generics and protocols with associated types
-
-## Features Tested
-
-- ✅ Classes and structs
-- ✅ Protocols and protocol conformance
-- ✅ Enums (simple and with associated values)
-- ✅ Inheritance
-- ✅ Extensions
-- ✅ Generics
-- ✅ Functions and methods
-- ✅ Initializers
-- ✅ Properties
-- ✅ Method calls
-- ✅ Imports
+- Classes, structs, protocols, protocol conformance, enums, inheritance,
+  extensions, generics, initializers, properties, method calls, and imports are
+  discovered consistently.
+- Parser changes should preserve source-shape coverage without adding build or
+  runtime requirements.

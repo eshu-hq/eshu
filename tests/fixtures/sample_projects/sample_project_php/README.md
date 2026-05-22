@@ -1,43 +1,27 @@
-# PHP Sample Project
+# PHP Parser Fixture
 
-# PHP Sample Project
+This fixture exercises PHP parser behavior across common language surfaces. It
+is test input for Eshu, not a runnable application guide.
 
-This folder contains a set of PHP files demonstrating major aspects/nuances of PHP programming, inspired by the Python sample_project
+## Fixture Map
 
+| File | Parser surface |
+| --- | --- |
+| `functions.php` | functions, anonymous callbacks, closures, variadics |
+| `classes_objects.php` | classes, properties, methods, object creation |
+| `Inheritance.php` | inheritance and abstract classes |
+| `interface_traits.php` | interfaces and traits |
+| `error_handling.php` | custom exceptions and try/catch/finally |
+| `file_handling.php` | file I/O calls |
+| `database.php` | PDO-style database calls |
+| `generators_iterators.php` | `yield` and iterator implementation |
+| `edgecases.php` | type juggling and array/null edge cases |
+| `globals_superglobals.php` | superglobals and `$GLOBALS` usage |
 
-## Project Structure
+## What Tests Should Prove
 
-sample_project_php/\
-├── classes_objects.php\
-├── database.php\
-├── edgecases.php\
-├── error_handling.php\
-├── file_handling.php \
-├── functions.php\
-├── generators_iterators.php\
-├── globals_superglobals.php\
-├── inheritance.php\
-└── interfaces_traits.php
-
-### Features Covered
-
-- **Functions & Callbacks**: Anonymous functions, closures, variadics  
-- **Object-Oriented PHP**: Classes, inheritance, abstract classes, interfaces, traits  
-- **Error Handling**: Custom exceptions, try/catch/finally  
-- **File I/O**: Reading and writing files, appending content  
-- **Database**: Connecting with PDO, creating tables, inserts, selects  
-- **Generators & Iterators**: Yield keyword, implementing Iterator interface  
-- **Edge Cases**: Type juggling, array key overwrites, null/empty comparisons  
-- **Superglobals**: Accessing $_GET, $_POST, and using $GLOBALS  
-
-### How to Run
-
-Make sure you have PHP installed (>= 7.4 recommended) and a database if testing `database.php`.
-
-Run individual files from the terminal:
-
-```bash
-php functions.php
-php classes_objects.php
-php inheritance.php
-...etc
+- PHP parser changes keep functions, callbacks, object-oriented constructs,
+  errors, file/database calls, generators, iterators, globals, and type-edge
+  cases visible to the graph.
+- Fixture intent is source-shape coverage. Do not add external database or
+  runtime requirements to parser tests that consume this tree.

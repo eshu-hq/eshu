@@ -1,52 +1,27 @@
-# Java sample project (for `tests/`)
+# Java Parser Fixture
 
-A tiny, dependency-free Java project (~10 files) used to exercise Eshu’s indexer.  
-It mirrors the Python sample by showcasing relationships: packages, interface→impl, abstract class,
-enum, generics, exceptions, custom annotation, inner class, lambdas/streams, basic I/O, and a tiny thread.
+This fixture is a small dependency-free Java project used to exercise Eshu's
+Java parser. It mirrors common application relationships without depending on a
+build tool.
 
-## Layout
-tests/sample_project_java/
+## Fixture Map
 
-├─ README.md
+| Path | Parser surface |
+| --- | --- |
+| `src/com/example/app/Main.java` | entry point, object creation, calls |
+| `src/com/example/app/model/*.java` | enum and model types |
+| `src/com/example/app/service/*.java` | interface and abstract class |
+| `src/com/example/app/service/impl/*.java` | implementation relationship |
+| `src/com/example/app/util/*.java` | generics, streams, I/O calls |
+| `src/com/example/app/annotations/Logged.java` | custom annotation |
+| `src/com/example/app/misc/Outer.java` | inner class |
 
-└─ src/com/example/app/
+## What Tests Should Prove
 
-├─ Main.java
-
-├─ model/Role.java
-
-├─ model/User.java
-
-├─ service/GreetingService.java
-
-├─ service/AbstractGreeter.java
-
-├─ service/impl/GreetingServiceImpl.java
-
-├─ util/CollectionUtils.java
-
-├─ util/IOHelper.java
-
-├─ annotations/Logged.java
-
-└─ misc/Outer.java
-
-
-## Quick run (no build tool)
-From this folder:
-```bash
-# compile
-find src -name "*.java" > sources.txt
-javac -d out @sources.txt
-
-# run
-java -cp out com.example.app.Main
-
-```
-
-
-## Expected Output
-Hello, Priya (ADMIN)
-sumSquares=55
-firstLine=# java sample project
-outer+inner
+- Package, import, interface-to-implementation, abstract-class, enum, generic,
+  exception, annotation, inner-class, lambda, stream, I/O, and thread surfaces
+  are discovered consistently.
+- Relationship extraction should use the source tree, not the checked-in
+  `out/` classes or `sources.txt` helper.
+- Parser changes should preserve fixture intent without adding runtime or build
+  assumptions.

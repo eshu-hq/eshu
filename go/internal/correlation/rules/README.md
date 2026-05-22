@@ -2,131 +2,66 @@
 
 ## Purpose
 
-`correlation/rules` defines the declarative rule-pack schema and the thirteen
-first-party rule packs Eshu ships for container, IaC, and CI/CD correlation
-families, plus Terraform config-vs-state and AWS cloud-runtime drift. The
-engine consumes these packs verbatim; the rules package owns no evaluation
-logic, only schema definition and pack constructors.
-
-## Where this fits in the pipeline
-
-```mermaid
-flowchart LR
-  A["rules.RulePack\n(constructor)"] --> B["RulePack.Validate"]
-  B --> C["engine.Evaluate\napply rules to candidates"]
-  C --> D["admission.Evaluate\nconfidence + EvidenceRequirement gate"]
-```
-
-`rules` feeds the engine. It has no runtime state and no dependencies outside
-the standard library.
+`correlation/rules` defines the declarative rule-pack schema and the
+first-party rule packs Eshu ships for container, IaC, CI/CD, Terraform
+config/state drift, and AWS cloud-runtime drift correlation.
 
 ## Ownership boundary
 
-- Owns: `RuleKind`, `EvidenceField`, `EvidenceSelector`,
-  `EvidenceRequirement`, `Rule`, `RulePack`, and the per-family pack
-  constructors.
-- Does not own: candidate evaluation (`engine`), admission gating
-  (`admission`), explain rendering (`explain`), or candidate types (`model`).
+This package owns schema validation and pack constructors only. It does not
+evaluate candidates, perform admission checks, render explain output, or carry
+candidate data. Those responsibilities stay in `engine`, `admission`,
+`explain`, and `model`.
 
 ## Exported surface
 
-Schema types (all in `schema.go`):
+Use `go doc ./internal/correlation/rules` for the full exported list. The core
+contracts are:
 
-- `RuleKind` — `RuleKindExtractKey`, `RuleKindMatch`, `RuleKindAdmit`,
-  `RuleKindDerive`, `RuleKindExplain`. `Validate()` rejects unknown values.
-- `EvidenceField` — `EvidenceFieldSourceSystem`, `EvidenceFieldEvidenceType`,
-  `EvidenceFieldScopeID`, `EvidenceFieldKey`, `EvidenceFieldValue`.
-  `Validate()` rejects unknown values.
-- `EvidenceSelector` — `Field EvidenceField`, `Value string`. `Validate()`
-  requires a non-blank `Value`.
-- `EvidenceRequirement` — `Name`, `MinCount`, `MatchAll []EvidenceSelector`.
-  `Validate()` requires non-blank `Name`, positive `MinCount`, and at least
-  one selector.
-- `Rule` — `Name`, `Kind RuleKind`, `Priority`, `MaxMatches`. Engine sorts by
-  `(Priority ascending, Name ascending)`.
-- `RulePack` — `Name`, `MinAdmissionConfidence`, `RequiredEvidence`, `Rules`.
-  `Validate()` requires `MinAdmissionConfidence` in `[0, 1]`, at least one
-  rule, non-blank names, valid kinds, non-negative `Priority` and `MaxMatches`.
+- Schema types in `schema.go`: `RuleKind`, `EvidenceField`,
+  `EvidenceSelector`, `EvidenceRequirement`, `Rule`, and `RulePack`.
+- One constructor per shipped pack, such as `DockerfileRulePack`,
+  `TerraformConfigStateDriftRulePack`, and `AWSCloudRuntimeDriftRulePack`.
+- Aggregators `ContainerRulePacks` and `FirstPartyRulePacks`.
+- Pack name and rule name constants that reducer/query code uses as stable
+  tokens.
 
-First-party pack constructors (one per file):
-
-- `AnsibleRulePack` — pack name `ansible`, `MinAdmissionConfidence` 0.76
-- `ArgoCDRulePack` — pack name `argocd`, `MinAdmissionConfidence` 0.90
-- `CloudFormationRulePack` — pack name `cloudformation`,
-  `MinAdmissionConfidence` 0.79
-- `DockerComposeRulePack` — pack name `docker_compose`,
-  `MinAdmissionConfidence` 0.80
-- `DockerfileRulePack` — pack name `dockerfile`, `MinAdmissionConfidence` 0.90
-- `GitHubActionsRulePack` — pack name `github_actions`,
-  `MinAdmissionConfidence` 0.82
-- `HelmRulePack` — pack name `helm`, `MinAdmissionConfidence` 0.86
-- `JenkinsRulePack` — pack name `jenkins`, `MinAdmissionConfidence` 0.84
-- `KustomizeRulePack` — pack name `kustomize`, `MinAdmissionConfidence` 0.83
-- `TerraformConfigRulePack` — pack name `terraform_config`,
-  `MinAdmissionConfidence` 0.91
-- `TerragruntRulePack` — pack name `terragrunt`, `MinAdmissionConfidence` 0.76
-- `TerraformConfigStateDriftRulePack` — pack name
-  `terraform_config_state_drift`, `MinAdmissionConfidence` 0.80
-- `AWSCloudRuntimeDriftRulePack` — pack name `aws_cloud_runtime_drift`,
-  `MinAdmissionConfidence` 0.85
-
-Aggregated entry points (in `container_rulepacks.go`):
-
-- `ContainerRulePacks()` — returns the initial container correlation slice:
-  `DockerfileRulePack`, `DockerComposeRulePack`, `GitHubActionsRulePack`,
-  `JenkinsRulePack`, `HelmRulePack`, `ArgoCDRulePack`, `KustomizeRulePack`,
-  `TerraformConfigRulePack`, `CloudFormationRulePack` (9 packs; excludes
-  `TerragruntRulePack` and `AnsibleRulePack`).
-- `FirstPartyRulePacks()` — returns all 13 shipped packs; adds
-  `TerragruntRulePack`, `AnsibleRulePack`,
-  `TerraformConfigStateDriftRulePack`, and
-  `AWSCloudRuntimeDriftRulePack` to the container slice.
-
-See `doc.go` for the godoc contract.
+`RulePack.Validate` is part of the runtime contract. Keep non-negative
+priorities, bounded match counts, required selectors, and admission thresholds
+inside the schema rather than relying on callers.
 
 ## Dependencies
 
-Standard library only (`fmt`, `strings`).
+The package depends only on the standard library. Keep it metadata-only so rule
+packs can be imported by reducers, tests, and docs without pulling runtime
+storage or graph packages into the correlation schema.
 
 ## Telemetry
 
-None. Schema and constructors only.
+This package emits no telemetry. Reducer handlers and correlation result
+publishers emit counters using pack/rule names defined here.
 
 ## Gotchas / invariants
 
-- `RulePack.Validate` requires `MinAdmissionConfidence` in `[0, 1]`, at least
-  one `Rule`, non-blank rule names, valid `RuleKind`, non-negative `Priority`,
-  and non-negative `MaxMatches` (`schema.go:109`).
-- `EvidenceRequirement.MinCount` must be positive (strictly `> 0`) and
-  `MatchAll` must contain at least one selector (`schema.go:90`). `Validate`
-  rejects whitespace-only selector `Value` strings.
-- `MatchAll` semantics in `EvidenceRequirement`: ALL selectors must match a
-  single evidence atom for it to count toward `MinCount`. One failing selector
-  disqualifies the whole atom.
-- `MaxMatches = 0` is treated by the engine as unbounded: when `MaxMatches <= 0`
-  the engine uses the full evidence count. A value of 0 does not mean "disallow matches."
-- `ContainerRulePacks` and `FirstPartyRulePacks` return different sets. Do
-  not assume callers use the same slice. `ContainerRulePacks` excludes
-  `TerragruntRulePack` and `AnsibleRulePack`.
-- Pack constructors return value types, not pointers. Each call produces a
-  fresh independent pack.
+- Engine ordering depends on `(Priority, Name)`, so renaming a rule or changing
+  priority can alter deterministic explain output.
+- `ContainerRulePacks` intentionally excludes Terragrunt, Ansible, Terraform
+  config/state drift, and AWS runtime drift; `FirstPartyRulePacks` includes all
+  shipped packs.
+- Pack constructors must return fresh values. Do not share mutable slices
+  between callers.
+- Adding a pack requires schema tests plus downstream reducer/query/docs updates
+  for any new candidate source or visible result family.
 
-## Extension points
+## Focused tests
 
-- Add a new pack by implementing a new constructor function (one per file,
-  matching the pattern of existing files) and adding it to
-  `FirstPartyRulePacks` and, if appropriate, `ContainerRulePacks`.
-- Add a new `RuleKind` constant to `schema.go`, add its case to
-  `RuleKind.Validate`, and audit all engine/admission code that switches on
-  `RuleKind` for the new kind.
-- Add a new `EvidenceField` constant to `schema.go`, add its case to
-  `EvidenceField.Validate` and to `admission.evidenceFieldValue`.
+```bash
+go test ./internal/correlation/rules -count=1
+go doc ./internal/correlation/rules
+```
 
 ## Related docs
 
-- `go/internal/correlation/engine/README.md` — consumes `RulePack`
-- `go/internal/correlation/admission/README.md` — consumes
-  `EvidenceRequirement` selectors
-- `go/internal/correlation/README.md` — pipeline overview
-- Reference: `docs/public/reference/relationship-mapping.md`
-- Reference: `docs/public/reference/relationship-mapping.md`
+- `docs/public/reference/relationship-mapping.md`
+- `go/internal/correlation/engine/README.md`
+- `go/internal/correlation/admission/README.md`

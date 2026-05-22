@@ -1,161 +1,92 @@
-# CLI: Indexing & Management
+# CLI: Indexing And Management
 
-These commands are the foundation of Eshu. They allow you to add, remove, and monitor the code repositories in your graph.
+This page is the reference for repository indexing commands. For a task-first
+walkthrough, use [Index Repositories](../use/index-repositories.md).
+
+## Command Contracts
+
+| Command | Use when | Runtime contract |
+| --- | --- | --- |
+| `eshu scan [path]` | You need local indexing plus readiness proof. | Resolves the source root, preflights API status and `/api/v0/repositories?limit=1`, runs `eshu-bootstrap-index`, then polls `/api/v0/status/pipeline` until the graph is queryable. |
+| `eshu index [path]` | You only need to launch local bootstrap indexing. | Runs `eshu-bootstrap-index --path <resolved-root>` and returns after bootstrap exits; it does not wait for queue-zero or query readiness. |
+| `eshu list` | You need the API's current repository list. | Calls the configured HTTP API through CLI config, environment, or the localhost default. |
+| `eshu watch [path]` | You need a foreground local refresh loop. | Starts the local-host watch supervisor; missing local index state is bootstrapped before file events trigger repo-level reindexing. |
 
 ## `eshu scan`
 
-Indexes a local source and waits until Eshu can prove the source is queryable.
-This is the public readiness command: it is stricter than `eshu index` because
-collection completion alone is not enough.
+`eshu scan` is stricter than `eshu index` because collection completion alone is
+not enough to prove a source is queryable.
 
-`eshu scan` resolves the requested path to a repository, workspace, or plain
-directory root using the same local workspace rules as `eshu watch`, preflights
-the configured API status and query surfaces, launches the existing
-`bootstrap-index` runtime, then polls `/api/v0/status/pipeline` until the
-runtime is healthy, queue work is drained, failed and dead-letter counts are
-zero, and at least one generation has completed. The query-surface probe uses
-`/api/v0/repositories?limit=1` before and after the run.
+Important flags:
 
-**Usage:**
-```bash
-eshu scan [path] [options]
-```
+| Flag | Contract |
+| --- | --- |
+| `--force` | Re-index from scratch. |
+| `--wait=false` | Run bootstrap without readiness polling. |
+| `--timeout <duration>` | Cap readiness polling; default is `30m`. |
+| `--poll-interval <duration>` | Control status polling; default is `3s`. |
+| `--allow-partial` | Return success for partial or degraded readiness with warnings. |
+| `--json` | Emit the canonical `{data, truth, error}` envelope. |
+| `--discovery-report <file>` | Forward a discovery advisory path to `bootstrap-index`. |
+| `--workspace-root <path>` | Override source-root detection. |
 
-**Common Options:**
-
-*   `path`: The source path to scan (default: current directory).
-*   `--force`: Re-index from scratch.
-*   `--wait=false`: Run bootstrap without waiting for readiness.
-*   `--timeout <duration>`: Cap the readiness proof (default: `30m`).
-*   `--poll-interval <duration>`: Control status polling (default: `3s`).
-*   `--allow-partial`: Return success for partial or degraded readiness with
-    warnings.
-*   `--json`: Emit the canonical `{data, truth, error}` envelope.
-*   `--discovery-report <file>`: Forward a discovery advisory path to
-    `bootstrap-index`.
-
-**Readiness Evidence:**
-
-`eshu scan --json` reports bootstrap-complete and queue-zero timings. It keeps
+`eshu scan --json` reports bootstrap-complete and queue-zero timings. It leaves
 collector-complete and source-local projection-complete timings as explicit
 `null` values with warnings because the bootstrap child logs those milestones
-today but does not expose parent-process structured timestamps. Accuracy wins:
-the CLI does not invent those numbers.
-
----
+but does not expose parent-process structured timestamps today.
 
 ## `eshu index`
 
-Adds a code repository to the graph database. This is the first step for any project.
+`eshu index` launches the same `bootstrap-index` runtime for a local directory
+or workspace target, but it does not poll the API for readiness.
 
-For directory and workspace targets, this command launches the
-`bootstrap-index` runtime in direct filesystem mode.
+Important flags:
 
-!!! info "Excluding Files (.eshuignore)"
-    Eshu already skips hidden and well-known cache directories such as `.git`, `.terraform`, `.terragrunt-cache`, `.pulumi`, `.crossplane`, `.serverless`, `.aws-sam`, and `cdk.out`.
-    It also excludes built-in dependency roots such as `vendor/`, `node_modules/`, `site-packages/`, and `deps/` before parse by default.
-    Use `.eshuignore` for project-specific exclusions beyond those built-in defaults.
-    **[📄 Read the .eshuignore Guide](eshuignore.md)**
+| Flag | Contract |
+| --- | --- |
+| `--force` | Re-index from scratch even if the source looks unchanged. |
+| `--discovery-report <file>` | Write a JSON discovery advisory report. |
 
-**Usage:**
-```bash
-eshu index [path] [options]
-```
+The discovery report lists discovered, parsed, skipped, and materialized
+file/entity counts plus noisy directories/files and skip breakdowns. It carries
+`schema_version=discovery_advisory.v1`; treat it as an operator artifact, not a
+metric label or stable API payload. For the evidence -> config -> rerun loop,
+use [Discovery Advisory Playbook](local-testing/discovery-advisory.md).
 
-**Common Options:**
+Eshu skips hidden and cache directories such as `.git`, `.terraform`,
+`.terragrunt-cache`, `.pulumi`, `.crossplane`, `.serverless`, `.aws-sam`,
+`cdk.out`, `vendor/`, `node_modules/`, `site-packages/`, and `deps/` by
+default. Use [.eshuignore](eshuignore.md) for project-specific exclusions.
 
-*   `path`: The folder to index (default: current directory).
-*   `--force`: Re-index from scratch, even if it looks unchanged.
-*   `--discovery-report <file>`: Write a JSON discovery advisory report for
-    noisy-repo tuning. The report lists discovered, parsed, skipped, and
-    materialized file/entity counts plus top noisy directories/files and skip
-    breakdowns. The JSON includes `schema_version=discovery_advisory.v1` so
-    local scripts can fail closed if the advisory shape changes. It is an
-    operator artifact, not a high-cardinality metric.
-    For the full evidence → config → rerun workflow, see
-    [Local Testing — Discovery Advisory Playbook](local-testing.md#discovery-advisory-playbook).
-
-**Runtime Notes:**
-
-*   Local index state for the Go launcher is stored under `ESHU_HOME/state/go-bootstrap-index/`.
-*   `--discovery-report` forwards `ESHU_DISCOVERY_REPORT=<absolute path>` to
-    `bootstrap-index`, which writes one JSON array containing an advisory per
-    collected repository.
-*   When using the local Eshu service (`eshu watch`, `eshu mcp start` with
-    stdio transport),
-    per-workspace state lives under
-    `${ESHU_HOME}/local/workspaces/<workspace_id>/`. Workspace-root resolution
-    order and data-root layout are documented in
-    [Local Data Root Spec](local-data-root-spec.md).
-*   The command still honors `.gitignore`, `.eshuignore`, and the configured parse-worker settings.
-
-**Example:**
-```bash
-# Index the current folder
-$ eshu index .
-
-# Index a specific project
-$ eshu index /home/user/projects/backend-api
-```
-
----
+Local launcher state lives under `ESHU_HOME/state/go-bootstrap-index/`.
+Workspace-local service state for `eshu watch` and stdio `eshu mcp start`
+lives under `${ESHU_HOME}/local/workspaces/<workspace_id>/`; the layout is
+defined in [Local Data Root Spec](local-data-root-spec.md).
 
 ## `eshu list`
 
-Shows all repositories currently stored in your graph database.
+`eshu list` is an API read. It does not inspect local files directly and uses
+the same service URL resolution order as other API-backed CLI reads:
 
-**Usage:**
-```bash
-eshu list
-```
-
-**Example Output:**
-```text
-Indexed Repositories:
-1. /home/user/projects/backend-api (Nodes: 1205)
-2. /home/user/projects/frontend-ui (Nodes: 850)
-```
-
----
+1. command flags where registered
+2. persisted `eshu config` values
+3. process environment
+4. `http://localhost:8080`
 
 ## `eshu watch`
 
-Starts a real-time monitor. If you edit a file, the graph updates instantly.
+`eshu watch [path]` runs in the foreground. It starts or attaches to the local
+service for the resolved workspace, bootstraps missing index state, then
+debounces filesystem events into the same repo-level indexing path.
 
-The watch path runs end to end through the current local refresh flow:
-
-- when the watched repo or workspace is missing index state, the initial scan
-  launches the Go `bootstrap-index` runtime
-- after startup, filesystem events are debounced into repo-level reindex runs
-  through the same indexing path
-
-!!! warning "Foreground Process"
-    This command runs in the foreground. Open a new terminal tab to keep it running.
-
-**Usage:**
-```bash
-eshu watch [path]
-```
-
-**Example:**
-```bash
-$ eshu watch .
-[INFO] Watching /home/user/projects/backend-api for changes...
-[INFO] Detected change in users/models.py. Re-indexing...
-```
-
-This is the CLI-friendly local equivalent of the long-running sync and re-index loop used in the deployable-service runtime.
-
-For multi-repository local indexing, use `eshu workspace index`. The public Go
-CLI keeps ecosystem-wide indexing on the `workspace` and admin flows rather
-than on separate ecosystem indexing commands.
-
----
+For multi-repository local indexing, use `eshu workspace index`. The Go CLI
+keeps ecosystem-wide indexing on workspace and admin flows rather than separate
+ecosystem indexing commands.
 
 ## Compatibility Stubs
 
-The current Go CLI still carries a few compatibility stubs so older operator
-muscle memory gets a directed error instead of a silent behavior change:
+The current Go CLI keeps these compatibility stubs so older commands return
+directed replacement guidance instead of silent behavior changes:
 
 - `eshu delete`
 - `eshu clean`
@@ -163,15 +94,11 @@ muscle memory gets a directed error instead of a silent behavior change:
 - `eshu ecosystem index`
 - `eshu ecosystem status`
 
-Deletion, cleanup, and recovery are owned by the Go admin/runtime surfaces
-rather than ad hoc local CLI mutations.
+Deletion, cleanup, and recovery are owned by Go admin/runtime surfaces.
+Optional runtime components use `eshu component`; `eshu add-package` does not
+install source-language dependencies.
 
-Optional runtime components use `eshu component`, not `eshu add-package`.
-Component packages install collectors and related runtime extensions; they do
-not index source-language dependency packages.
+## Related Docs
 
----
-
-## Related docs
-
+- [CLI Reference](cli-reference.md)
 - [Troubleshooting](troubleshooting.md)

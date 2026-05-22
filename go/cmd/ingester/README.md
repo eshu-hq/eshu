@@ -2,114 +2,63 @@
 
 ## Purpose
 
-`cmd/ingester` builds the `eshu-ingester` binary. The process owns repository
-sync, discovery, parsing, fact emission, and source-local projection for Git
-repository scopes. In Kubernetes it is the long-running runtime that owns the
-workspace PVC.
+`cmd/ingester` wires the `eshu-ingester` binary. It owns repository sync,
+parsing, fact emission, and source-local projection into the configured graph
+backend for the long-running ingester runtime.
 
 ## Ownership boundary
 
-The ingester runs collector and projector services in one process. It commits
-facts to Postgres, fills the projector queue, drains source-local projection,
-and runs deferred relationship maintenance after collector batch drains.
-Cross-domain materialization belongs to the reducer, HTTP reads belong to API
-and MCP runtimes, and schema DDL belongs to `eshu-bootstrap-data-plane`.
+The command owns runtime config, telemetry bootstrap, Postgres and graph writer
+wiring, collector/projector composition, admin/status hosting, recovery route
+mounting, pprof startup, webhook trigger handoff, and Kubernetes StatefulSet
+runtime shape.
 
-Startup flow:
-
-```text
-main.run
-  -> telemetry.NewBootstrap / NewProviders
-  -> runtime.OpenPostgres
-  -> openIngesterCanonicalWriter
-  -> buildIngesterService
-  -> collector.Service + projector.Service via compositeRunner
-  -> app.NewHostedWithStatusServer
-```
-
-`compositeRunner` cancels both collector and projector on the first returned
-error. `SIGINT` and `SIGTERM` cancel the process context.
+It does not parse languages, decide reducer-owned correlation truth, implement
+storage adapters, or define graph write contracts.
 
 ## Exported surface
 
-`cmd/ingester` is a `main` package and exports no Go API. Its contract is the
-process interface:
-
-- `eshu-ingester --version` and `eshu-ingester -v` exit before telemetry,
-  Postgres, graph, queue, or HTTP setup.
-- `/healthz`, `/readyz`, `/metrics`, and `/admin/status` are mounted through
-  the shared runtime admin surface.
-- `/admin/recovery` is mounted only when the recovery handler can resolve the
-  API key.
-- `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED=true` makes repository selection check
-  queued GitHub, GitLab, and Bitbucket refresh triggers before scheduled
-  polling.
-- `ESHU_REPO_SCHEDULED_SYNC_ENABLED=false` requires webhook trigger handoff and
-  prevents fallback to broad scheduled repository selection.
+This is a `main` package. Use `go doc -cmd ./cmd/ingester` for the package
+contract. Maintainer-facing surfaces are runtime wiring helpers, NornicDB writer
+options, canonical writer setup, and `compositeRunner`.
 
 ## Dependencies
 
-- `internal/collector` for Git source selection, sync, snapshotting, parsing,
-  and fact writes.
-- `internal/projector` for source-local projection and reducer intent enqueue.
-- `internal/storage/postgres` for fact, content, projector queue, reducer queue,
-  recovery, status, and observer stores.
-- `internal/storage/cypher` for canonical graph writer construction.
-- `internal/runtime` for datastore opening, runtime config, retry policy,
-  memory limit, pprof, and admin server wiring.
-- `internal/app`, `internal/recovery`, and `internal/telemetry` for process
-  hosting and observability.
+- Collector packages own Git sync, discovery, parsing inputs, and fact
+  emission.
+- `internal/projector` owns source-local projection and retry behavior.
+- `internal/storage/cypher` owns canonical graph writer contracts.
+- Runtime, status, telemetry, Postgres, Neo4j, and NornicDB packages are wired
+  here through narrow seams.
 
 ## Telemetry
 
-The ingester inherits collector and projector signals. Key metrics include
-`eshu_dp_repo_snapshot_duration_seconds`,
-`eshu_dp_repos_snapshotted_total`,
-`eshu_dp_facts_emitted_total`,
-`eshu_dp_facts_committed_total`,
-`eshu_dp_large_repo_semaphore_wait_seconds`,
-`eshu_dp_projections_completed_total`, and
-`eshu_dp_projector_stage_duration_seconds`. Hosted Git sync emits bounded
-structured logs for start, progress, completion, and failure with credential
-values redacted.
-
-Compose exposes the ingester metrics endpoint on `http://localhost:19465/metrics`.
+The binary exposes `/healthz`, `/readyz`, `/metrics`, `/admin/status`, and
+`/admin/recovery`. It registers queue gauges and passes OTEL providers into
+collector, projector, storage, and hosted runtime paths. Optional pprof starts
+only when `ESHU_PPROF_ADDR` is set and binds port-only inputs to `127.0.0.1`.
 
 ## Gotchas / invariants
 
-- The ingester is the only long-running runtime that should mount the workspace
-  PVC in Kubernetes.
-- `IngestionStore.SkipRelationshipBackfill = true` keeps per-commit writes
-  cheap. `AfterBatchDrained` runs `BackfillAllRelationshipEvidence` and then
-  `ReopenDeploymentMappingWorkItems`; both must succeed.
-- Version probes must stay at the top of startup so image checks do not require
-  datastore credentials.
-- `ESHU_PROJECTOR_WORKERS` defaults to `min(NumCPU, 8)`, except
-  `local_authoritative` + NornicDB defaults to NumCPU unless explicitly set.
-- `ESHU_QUERY_PROFILE=local_lightweight` or `ESHU_DISABLE_NEO4J=true` skips
-  canonical graph writes for local code-search workflows.
-- NornicDB grouped writes are disabled by default. Enabling
-  `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true` requires conformance evidence.
-- NornicDB entity containment is batched into row-scoped entity upserts by
-  default; disable it only for measured fallback comparisons.
-- Entity-phase concurrency uses `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`; set it
-  to `1` for serial comparison, not as a shipped workaround for write races.
+- `--version` and `-v` must exit before runtime setup.
+- Local-authoritative NornicDB projector workers default to `NumCPU` unless
+  explicitly configured.
+- NornicDB phase grouping keeps retractions outside matching upsert groups and
+  keeps directory/file/entity phases bounded.
+- Entity phase concurrency is controlled by
+  `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`; chunks inside one label group must
+  remain disjoint by entity identity.
+- Webhook trigger handoff still sends selected repositories through the normal
+  Git sync and snapshot path.
+- This is the only long-running runtime that mounts the workspace PVC in
+  Kubernetes.
 
-## Verification
-
-Use the smallest command that proves the changed contract:
+## Focused tests
 
 ```bash
-cd go
 go test ./cmd/ingester -count=1
 go doc -cmd ./cmd/ingester
-go run ./cmd/eshu docs verify ../go/cmd/ingester --limit 1000 \
-  --fail-on contradicted,missing_evidence
 ```
-
-If a change touches collector/projector wiring, queue behavior, graph writes,
-or NornicDB knobs, also run the focused package tests for the touched internal
-package and the performance-evidence gate from the repo root.
 
 ## Related docs
 
@@ -118,5 +67,3 @@ package and the performance-evidence gate from the repo root.
 - `docs/public/reference/local-testing.md`
 - `docs/public/reference/telemetry/index.md`
 - `docs/public/reference/nornicdb-tuning.md`
-- `go/internal/collector/README.md`
-- `go/internal/projector/README.md`

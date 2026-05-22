@@ -24,11 +24,12 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
   mkdocs build --strict --clean --config-file docs/mkdocs.yml
 ```
 
-Current checkpoint after the long-tail compression pass:
+Current checkpoint after the follow-up public, package, fixture, and scoped
+AGENTS pass:
 
-- Public docs verification: `173` documents, `1225` claims,
+- Public docs verification: `173` documents, `1230` claims,
   `0` contradicted, `0` missing evidence.
-- Full repository docs verification: `562` documents, `1513` claims,
+- Full repository docs verification: `562` documents, `1471` claims,
   `0` contradicted, `0` missing evidence.
 - Package docs verification passed for `go/internal` and `go/cmd`; fixture docs
   verification passed for `tests/fixtures`.

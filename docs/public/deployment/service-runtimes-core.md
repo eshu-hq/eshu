@@ -175,16 +175,9 @@ Deployment truth:
 Only provider webhook paths should be publicly routed. Admin and metrics paths
 should stay internal unless the operator explicitly protects them.
 
-## Local Verification Runtimes
+## Local Verification
 
-The repo also has local verification runtimes that exercise the Go data plane
-directly:
-
-- `go run ./cmd/collector-git`
-- `go run ./cmd/projector`
-- `go run ./cmd/reducer`
-- `go run ./cmd/ingester`
-- `go run ./cmd/workflow-coordinator`
-
-Use these for focused service validation. Use Compose when the proof needs the
-same service topology operators run.
+Use focused `go test` or direct command runs for one service boundary. Use
+Compose when the proof needs the same topology operators run. The current gate
+map lives in [Local Testing](../reference/local-testing.md) and
+[Verification Gates](../reference/local-testing/verification-gates.md).

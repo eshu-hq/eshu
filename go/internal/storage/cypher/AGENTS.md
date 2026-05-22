@@ -153,7 +153,7 @@
   hides the group path so callers during concurrent ingestion do not hold large
   atomic transactions.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - `Executor` interface shape — changes break every `cmd/` wiring site and the
   projector CanonicalWriter contract. Ask before changing this seam.
