@@ -118,12 +118,17 @@ func TestPackageRegistryListPackagesUsesIndexedPackageScopeAndTruncates(t *testi
 	for _, fragment := range []string{
 		"MATCH (p:Package {ecosystem: $ecosystem})",
 		"OPTIONAL MATCH (p)-[:HAS_VERSION]->(v:PackageVersion)",
+		"RETURN p.uid AS package_id",
+		"count(v) AS version_count",
 		"ORDER BY p.ecosystem, p.normalized_name, p.uid",
 		"LIMIT $limit",
 	} {
 		if !strings.Contains(reader.lastCypher, fragment) {
 			t.Fatalf("cypher = %q, want fragment %q", reader.lastCypher, fragment)
 		}
+	}
+	if strings.Contains(reader.lastCypher, "WITH p, count(v)") {
+		t.Fatalf("cypher = %q, must not use WITH p aggregation because NornicDB Bolt drops scalar aliases for that shape", reader.lastCypher)
 	}
 	if _, ok := reader.lastParams["name"]; ok {
 		t.Fatalf("params[name] = %#v, want absent for ecosystem-only scan", reader.lastParams["name"])
