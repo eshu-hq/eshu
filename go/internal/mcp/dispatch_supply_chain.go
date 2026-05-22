@@ -2,6 +2,17 @@ package mcp
 
 import "strconv"
 
+func containerImageIdentitiesRoute(args map[string]any) *route {
+	return &route{method: "GET", path: "/api/v0/supply-chain/container-images/identities", query: map[string]string{
+		"after_identity_id": str(args, "after_identity_id"),
+		"digest":            str(args, "digest"),
+		"image_ref":         str(args, "image_ref"),
+		"limit":             strconv.Itoa(intOr(args, "limit", 50)),
+		"outcome":           str(args, "outcome"),
+		"repository_id":     str(args, "repository_id"),
+	}}
+}
+
 func supplyChainImpactFindingsRoute(args map[string]any) *route {
 	return &route{method: "GET", path: "/api/v0/supply-chain/impact/findings", query: map[string]string{
 		"after_finding_id": str(args, "after_finding_id"),

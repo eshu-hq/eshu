@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 func TestWireAPIReturnsResolveAPIKeyErrorBeforeConnectingDatastores(t *testing.T) {
@@ -101,6 +103,28 @@ func TestLoadGraphBackendDefaultsToNornicDB(t *testing.T) {
 	}
 	if got != "nornicdb" {
 		t.Fatalf("loadGraphBackend() = %q, want nornicdb", got)
+	}
+}
+
+func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
+	t.Parallel()
+
+	router, err := newRouter(
+		nil,
+		nil,
+		nil,
+		query.ProfileLocalFullStack,
+		query.GraphBackendNornicDB,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("newRouter() error = %v, want nil", err)
+	}
+	if router.SupplyChain == nil {
+		t.Fatal("newRouter().SupplyChain = nil, want supply-chain route mounted")
+	}
+	if router.SupplyChain.ContainerImageIdentities == nil {
+		t.Fatal("newRouter().SupplyChain.ContainerImageIdentities = nil, want Postgres read model store")
 	}
 }
 

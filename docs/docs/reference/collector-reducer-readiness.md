@@ -141,11 +141,30 @@ surfaces.
    Postgres instrumentation and the reducer result summary reports evaluated
    rows, outcome counts, and canonical writes.
 
-   Follow-up read surface: standalone API/MCP reads for
-   `reducer_container_image_identity` facts are tracked in #546. Until that
-   lands, the facts are durable Postgres reducer truth and downstream input for
-   CI/CD run correlation, SBOM/attestation attachment, and supply-chain impact
-   reducers rather than a direct public query surface.
+   Read surface: standalone API/MCP reads for
+   `reducer_container_image_identity` facts are exposed through
+   `GET /api/v0/supply-chain/container-images/identities` and
+   `list_container_image_identities`. The read model is bounded by digest,
+   image reference, repository ID, or outcome plus `limit` and
+   `after_identity_id` cursor pagination. It returns `identity_strength`,
+   source layers, and evidence fact IDs directly while keeping weak,
+   ambiguous, unresolved, and stale tag outcomes diagnostic rather than
+   deployment or vulnerability impact truth.
+
+   No-Regression Evidence: container image identity API/MCP coverage is
+   focused on the bounded read contract and schema support:
+   `go test ./internal/query -run 'TestSupplyChainListContainerImageIdentities|TestPostgresContainerImageIdentityStoreReportsPaginationLimit|TestContainerImageIdentityQueryUsesActiveFactReadModel|TestOpenAPISpecIncludesContainerImageIdentities' -count=1`,
+   `go test ./internal/mcp -run 'TestResolveRouteMapsContainerImageIdentitiesToBoundedQuery|TestReadOnlyTools|TestMCPToolContractMatrixCoversReadOnlyTools' -count=1`,
+   `go test ./cmd/api ./cmd/mcp-server -run 'TestNewRouterMountsPostgresBackedHandlers|TestNewMCPQueryRouterMountsMCPBackedHandlers' -count=1`,
+   `go test ./internal/telemetry -run TestSpanNames -count=1`, and
+   `go test ./internal/storage/postgres -run 'TestBootstrapDefinitionsIncludeCICDRunCorrelationFactIndexes|TestBootstrapSQLFilesMirrorDefinitions' -count=1`.
+
+   Observability Evidence: the API and MCP route is wrapped by
+   `query.container_image_identities` with stable `http.route` and
+   `eshu.capability` span attributes. The storage path uses existing Postgres
+   query-duration instrumentation, and responses expose `count`, `limit`,
+   `truncated`, and `next_cursor` so operators can distinguish empty evidence,
+   page truncation, and slow Postgres reads.
 
 2. IaC management status.
    Use Terraform config, Terraform state, AWS cloud facts, and reducer drift

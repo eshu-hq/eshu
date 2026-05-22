@@ -334,6 +334,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: digest_or_document_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer SBOM and attestation attachment lookup anchored by subject digest, document id, or document digest}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: digest_or_document_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer SBOM and attestation attachment lookup anchored by subject digest, document id, or document digest}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: digest_or_document_scope, verification: [{remote_validation: prod-sbom-attestation-attachments}], notes: bounded reducer SBOM and attestation attachment lookup anchored by subject digest, document id, or document digest}
+  - capability: supply_chain.container_image_identities.list
+    tools: [list_container_image_identities]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-container-image-identities}], notes: requires reducer container image identity facts}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: digest_ref_repository_or_outcome_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer container image identity lookup anchored by digest, image ref, repository id, or outcome}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: digest_ref_repository_or_outcome_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer container image identity lookup anchored by digest, image ref, repository id, or outcome}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: digest_ref_repository_or_outcome_scope, verification: [{remote_validation: prod-container-image-identities}], notes: bounded reducer container image identity lookup anchored by digest, image ref, repository id, or outcome}
   - capability: supply_chain.impact_findings.list
     tools: [list_supply_chain_impact_findings]
     profiles:

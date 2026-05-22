@@ -1,0 +1,165 @@
+package query
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+)
+
+const containerImageIdentityFactKind = "reducer_container_image_identity"
+
+// ContainerImageIdentityStore reads reducer-owned container image identity
+// facts.
+type ContainerImageIdentityStore interface {
+	ListContainerImageIdentities(context.Context, ContainerImageIdentityFilter) ([]ContainerImageIdentityRow, error)
+}
+
+// ContainerImageIdentityFilter bounds identity reads to an image digest,
+// image reference, repository, or reducer outcome.
+type ContainerImageIdentityFilter struct {
+	Digest          string
+	ImageRef        string
+	RepositoryID    string
+	Outcome         string
+	AfterIdentityID string
+	Limit           int
+}
+
+// ContainerImageIdentityRow is one durable image identity fact decoded from
+// the reducer-owned read model.
+type ContainerImageIdentityRow struct {
+	IdentityID       string
+	Digest           string
+	ImageRef         string
+	RepositoryID     string
+	Outcome          string
+	Reason           string
+	IdentityStrength string
+	CanonicalID      string
+	CanonicalWrites  int
+	SourceLayers     []string
+	EvidenceFactIDs  []string
+	SourceFreshness  string
+	SourceConfidence string
+}
+
+type containerImageIdentityQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+// PostgresContainerImageIdentityStore reads active container image identity
+// facts from Postgres using bounded payload predicates.
+type PostgresContainerImageIdentityStore struct {
+	DB containerImageIdentityQueryer
+}
+
+// NewPostgresContainerImageIdentityStore creates the Postgres-backed
+// container image identity read model.
+func NewPostgresContainerImageIdentityStore(db containerImageIdentityQueryer) PostgresContainerImageIdentityStore {
+	return PostgresContainerImageIdentityStore{DB: db}
+}
+
+// ListContainerImageIdentities returns one bounded page of active reducer
+// container image identity facts.
+func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
+	ctx context.Context,
+	filter ContainerImageIdentityFilter,
+) ([]ContainerImageIdentityRow, error) {
+	if s.DB == nil {
+		return nil, fmt.Errorf("container image identity database is required")
+	}
+	if !filter.hasScope() {
+		return nil, fmt.Errorf("digest, image_ref, repository_id, or outcome is required")
+	}
+	if filter.Limit <= 0 || filter.Limit > containerImageIdentityMaxLimit+1 {
+		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", containerImageIdentityMaxLimit+1)
+	}
+
+	rows, err := s.DB.QueryContext(
+		ctx,
+		listContainerImageIdentitiesQuery,
+		containerImageIdentityFactKind,
+		filter.Digest,
+		filter.ImageRef,
+		filter.RepositoryID,
+		filter.Outcome,
+		filter.AfterIdentityID,
+		filter.Limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list container image identities: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]ContainerImageIdentityRow, 0, filter.Limit)
+	for rows.Next() {
+		var factID string
+		var sourceConfidence string
+		var payloadBytes []byte
+		if err := rows.Scan(&factID, &sourceConfidence, &payloadBytes); err != nil {
+			return nil, fmt.Errorf("list container image identities: %w", err)
+		}
+		row, err := decodeContainerImageIdentityRow(factID, sourceConfidence, payloadBytes)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list container image identities: %w", err)
+	}
+	return out, nil
+}
+
+const listContainerImageIdentitiesQuery = `
+SELECT fact.fact_id, fact.source_confidence, fact.payload
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE fact.fact_kind = $1
+  AND fact.is_tombstone = FALSE
+  AND generation.status = 'active'
+  AND ($2 = '' OR fact.payload->>'digest' = $2)
+  AND ($3 = '' OR fact.payload->>'image_ref' = $3)
+  AND ($4 = '' OR fact.payload->>'repository_id' = $4)
+  AND ($5 = '' OR fact.payload->>'outcome' = $5)
+  AND ($6 = '' OR fact.fact_id > $6)
+ORDER BY fact.fact_id ASC
+LIMIT $7
+`
+
+func (f ContainerImageIdentityFilter) hasScope() bool {
+	return f.Digest != "" || f.ImageRef != "" || f.RepositoryID != "" ||
+		f.Outcome != ""
+}
+
+func decodeContainerImageIdentityRow(
+	factID string,
+	sourceConfidence string,
+	payloadBytes []byte,
+) (ContainerImageIdentityRow, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		return ContainerImageIdentityRow{}, fmt.Errorf("decode container image identity: %w", err)
+	}
+	return ContainerImageIdentityRow{
+		IdentityID:       factID,
+		Digest:           StringVal(payload, "digest"),
+		ImageRef:         StringVal(payload, "image_ref"),
+		RepositoryID:     StringVal(payload, "repository_id"),
+		Outcome:          StringVal(payload, "outcome"),
+		Reason:           StringVal(payload, "reason"),
+		IdentityStrength: StringVal(payload, "identity_strength"),
+		CanonicalID:      StringVal(payload, "canonical_id"),
+		CanonicalWrites:  IntVal(payload, "canonical_writes"),
+		SourceLayers:     StringSliceVal(payload, "source_layers"),
+		EvidenceFactIDs:  StringSliceVal(payload, "evidence_fact_ids"),
+		SourceFreshness:  "active",
+		SourceConfidence: sourceConfidence,
+	}, nil
+}

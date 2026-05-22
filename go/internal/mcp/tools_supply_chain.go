@@ -3,6 +3,43 @@ package mcp
 func supplyChainTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
+			Name:        "list_container_image_identities",
+			Description: "List reducer-owned container image identity facts by digest, image reference, repository, or outcome.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"digest": map[string]any{
+						"type":        "string",
+						"description": "Image digest such as sha256:...",
+					},
+					"image_ref": map[string]any{
+						"type":        "string",
+						"description": "Original image reference observed in source or runtime evidence.",
+					},
+					"repository_id": map[string]any{
+						"type":        "string",
+						"description": "OCI repository identity such as oci-registry://registry.example/team/api.",
+					},
+					"outcome": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer identity outcome filter.",
+						"enum":        []string{"exact_digest", "tag_resolved"},
+					},
+					"after_identity_id": map[string]any{
+						"type":        "string",
+						"description": "Identity ID from next_cursor when continuing a truncated page.",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum identity rows to return.",
+						"default":     50,
+						"minimum":     1,
+						"maximum":     200,
+					},
+				},
+			},
+		},
+		{
 			Name:        "list_supply_chain_impact_findings",
 			Description: "List reducer-owned vulnerability impact findings by CVE, package, repository, image digest, or impact status.",
 			InputSchema: map[string]any{

@@ -225,9 +225,10 @@ func newRouter(
 			Profile:      queryProfile,
 		},
 		SupplyChain: &query.SupplyChainHandler{
-			SBOMAttachments: query.NewPostgresSBOMAttestationAttachmentStore(db),
-			ImpactFindings:  query.NewPostgresSupplyChainImpactFindingStore(db),
-			Profile:         queryProfile,
+			SBOMAttachments:          query.NewPostgresSBOMAttestationAttachmentStore(db),
+			ImpactFindings:           query.NewPostgresSupplyChainImpactFindingStore(db),
+			ContainerImageIdentities: query.NewPostgresContainerImageIdentityStore(db),
+			Profile:                  queryProfile,
 		},
 		Status: &query.StatusHandler{
 			Neo4j:        neo4jReader,

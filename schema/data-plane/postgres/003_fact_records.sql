@@ -191,6 +191,33 @@ CREATE INDEX IF NOT EXISTS fact_records_container_image_identity_digest_idx
     WHERE fact_kind = 'reducer_container_image_identity'
       AND is_tombstone = FALSE;
 
+CREATE INDEX IF NOT EXISTS fact_records_container_image_identity_ref_idx
+    ON fact_records (
+        (payload->>'image_ref'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_container_image_identity'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_container_image_identity_repository_idx
+    ON fact_records (
+        (payload->>'repository_id'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_container_image_identity'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_container_image_identity_outcome_idx
+    ON fact_records (
+        (payload->>'outcome'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_container_image_identity'
+      AND is_tombstone = FALSE;
+
 CREATE INDEX IF NOT EXISTS fact_records_active_container_image_refs_idx
     ON fact_records (
         observed_at ASC,
